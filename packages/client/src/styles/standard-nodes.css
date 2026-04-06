@@ -1,0 +1,540 @@
+/* ===== 标准文档节点样式 ===== */
+
+/* ===== 自动编号系统 (GB/T 1.1) ===== */
+.tiptap {
+  counter-reset: std-chapter std-appendix;
+}
+
+.std-chapter {
+  counter-increment: std-chapter;
+  counter-reset: std-clause-1 std-example std-term;
+  margin: 24px 0 16px;
+}
+
+.std-chapter-title::before {
+  content: counter(std-chapter) '\2003';
+}
+
+/* 一级条 */
+.std-clause-level-1 {
+  counter-increment: std-clause-1;
+  counter-reset: std-clause-2;
+}
+
+.std-clause-level-1 > .std-clause-title::before {
+  content: counter(std-chapter) '.' counter(std-clause-1) '\2003';
+}
+
+/* 二级条 */
+.std-clause-level-2 {
+  counter-increment: std-clause-2;
+  counter-reset: std-clause-3;
+}
+
+.std-clause-level-2 > .std-clause-title::before {
+  content: counter(std-chapter) '.' counter(std-clause-1) '.' counter(std-clause-2) '\2003';
+}
+
+/* 三级条 */
+.std-clause-level-3 {
+  counter-increment: std-clause-3;
+  counter-reset: std-clause-4;
+}
+
+.std-clause-level-3 > .std-clause-title::before {
+  content: counter(std-chapter) '.' counter(std-clause-1) '.' counter(std-clause-2) '.' counter(std-clause-3) '\2003';
+}
+
+/* 四级条 */
+.std-clause-level-4 {
+  counter-increment: std-clause-4;
+  counter-reset: std-clause-5;
+}
+
+.std-clause-level-4 > .std-clause-title::before {
+  content: counter(std-chapter) '.' counter(std-clause-1) '.' counter(std-clause-2) '.' counter(std-clause-3) '.' counter(std-clause-4) '\2003';
+}
+
+/* 五级条 */
+.std-clause-level-5 {
+  counter-increment: std-clause-5;
+}
+
+.std-clause-level-5 > .std-clause-title::before {
+  content: counter(std-chapter) '.' counter(std-clause-1) '.' counter(std-clause-2) '.' counter(std-clause-3) '.' counter(std-clause-4) '.' counter(std-clause-5) '\2003';
+}
+
+.std-chapter-title {
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+  font-size: 16px;
+  font-weight: bold;
+  margin: 0 0 12px;
+  text-align: left;
+}
+
+/* 条（多级） */
+.std-clause {
+  margin: 4px 0 0;
+  counter-reset: std-example;
+}
+
+.std-clause-title {
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+  font-weight: bold;
+  margin: 0;
+}
+
+.std-clause-title-1 {
+  font-size: 15px;
+}
+
+.std-clause-title-2 {
+  font-size: 14px;
+}
+
+.std-clause-title-3,
+.std-clause-title-4,
+.std-clause-title-5 {
+  font-size: 14px;
+}
+
+/* 无题条：编号黑体，正文宋体 */
+.std-clause[data-has-title="false"] > .std-clause-title {
+  font-family: 'SimSun', 'Songti SC', serif;
+  font-weight: normal;
+  font-size: 14px;
+  text-indent: 2em;
+  line-height: 1.8;
+}
+
+/* 无题条编号（::before）保持黑体 */
+.std-clause[data-has-title="false"] > .std-clause-title::before {
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+  font-weight: bold;
+}
+
+/* 标准正文段落 */
+.std-paragraph {
+  text-indent: 2em;
+  margin: 6px 0;
+  line-height: 1.8;
+}
+
+/* 术语定义（参照"条"的格式） */
+.std-term-def {
+  margin: 4px 0 0;
+}
+
+/* 术语名（标题）：黑体 */
+.std-term-name {
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+  font-weight: bold;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* 术语英文名 */
+.std-term-name-en {
+  font-style: italic;
+  font-size: 13px;
+  color: #555;
+  margin-bottom: 2px;
+}
+
+/* 术语定义正文：宋体 */
+.std-term-definition {
+  text-indent: 2em;
+  line-height: 1.8;
+  font-family: 'SimSun', 'Songti SC', serif;
+  font-size: 14px;
+}
+
+/* 术语条编号（CSS 计数器，与"条"共享编号序列） */
+.std-term-def.std-term-def-level-1 {
+  counter-increment: std-clause-1;
+  counter-reset: std-clause-2 std-example;
+}
+
+.std-term-def-level-1 > .std-term-name::before {
+  content: counter(std-chapter) '.' counter(std-clause-1) '\2003';
+}
+
+.std-term-def.std-term-def-level-2 {
+  counter-increment: std-clause-2;
+  counter-reset: std-clause-3 std-example;
+}
+
+.std-term-def-level-2 > .std-term-name::before {
+  content: counter(std-chapter) '.' counter(std-clause-1) '.' counter(std-clause-2) '\2003';
+}
+
+.std-term-def.std-term-def-level-3 {
+  counter-increment: std-clause-3;
+  counter-reset: std-clause-4 std-example;
+}
+
+.std-term-def-level-3 > .std-term-name::before {
+  content: counter(std-chapter) '.' counter(std-clause-1) '.' counter(std-clause-2) '.' counter(std-clause-3) '\2003';
+}
+
+.std-term-def.std-term-def-level-4 {
+  counter-increment: std-clause-4;
+  counter-reset: std-clause-5 std-example;
+}
+
+.std-term-def-level-4 > .std-term-name::before {
+  content: counter(std-chapter) '.' counter(std-clause-1) '.' counter(std-clause-2) '.' counter(std-clause-3) '.' counter(std-clause-4) '\2003';
+}
+
+.std-term-def.std-term-def-level-5 {
+  counter-increment: std-clause-5;
+  counter-reset: std-example;
+}
+
+.std-term-def-level-5 > .std-term-name::before {
+  content: counter(std-chapter) '.' counter(std-clause-1) '.' counter(std-clause-2) '.' counter(std-clause-3) '.' counter(std-clause-4) '.' counter(std-clause-5) '\2003';
+}
+
+/* 标准表格 */
+.std-table-wrapper {
+  margin: 16px 0;
+}
+
+.std-table-caption {
+  text-align: center;
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.std-table-caption::before {
+  content: '表 ';
+}
+
+.std-table-caption-en {
+  text-align: center;
+  font-size: 13px;
+  color: #555;
+  margin-bottom: 8px;
+}
+
+.std-table-footnote {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+  padding-left: 1em;
+}
+
+/* 图 */
+.std-figure {
+  margin: 16px 0;
+  text-align: center;
+}
+
+.std-figure-image {
+  max-width: 100%;
+  display: block;
+  margin: 0 auto 8px;
+  min-height: 60px;
+  background: #f5f5f5;
+  border: 1px dashed #ccc;
+}
+
+.std-figure-image[src=''],
+.std-figure-image:not([src]) {
+  min-height: 100px;
+  position: relative;
+}
+
+.std-figure-caption {
+  text-align: center;
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.std-figure-caption::before {
+  content: '图 ';
+}
+
+.std-figure-caption-en {
+  text-align: center;
+  font-size: 13px;
+  color: #555;
+}
+
+/* 公式 */
+.std-formula {
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.std-formula-content {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  text-align: center;
+  padding: 6px 12px;
+  min-height: 24px;
+  width: 100%;
+  text-indent: 0;
+  background: #f8f8f8;
+  border: 1px dashed #ddd;
+  border-radius: 4px;
+}
+
+.std-formula-preview {
+  text-align: center;
+  padding: 8px 0;
+  font-size: 16px;
+}
+
+.std-formula-description {
+  width: 100%;
+  font-size: 13px;
+  text-indent: 2em;
+  line-height: 1.8;
+}
+
+.std-formula-description::before {
+  content: '式中：';
+  font-family: 'SimSun', 'Songti SC', serif;
+}
+
+/* 注 */
+.std-note {
+  margin: 8px 0;
+  padding-left: 2em;
+  font-size: 13px;
+  color: #333;
+  line-height: 1.6;
+  text-indent: 0;
+}
+
+.std-note::before {
+  content: '注：';
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+}
+
+/* 示例（自动编号：同一父节点下多个示例时显示 示例1, 示例2） */
+.std-example {
+  margin: 8px 0;
+  padding-left: 2em;
+  font-size: 13px;
+  color: #333;
+  line-height: 1.6;
+  text-indent: 0;
+  counter-increment: std-example;
+}
+
+.std-example::before {
+  content: '示例' counter(std-example) '：';
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+}
+
+/* 仅有一个示例时不显示编号 */
+.std-example:first-of-type:last-of-type::before {
+  content: '示例：';
+}
+
+/* 术语定义编号（条内自动编号 3.1, 3.2） */
+.std-term-def {
+  counter-increment: std-term;
+}
+
+/* 附录 */
+.std-appendix {
+  counter-increment: std-appendix;
+  counter-reset: std-clause-1;
+  margin-top: 32px;
+  page-break-before: always;
+}
+
+/* 附录中的条编号：A.1, A.1.1 等 */
+.std-appendix .std-clause-level-1 > .std-clause-title::before {
+  content: counter(std-appendix, upper-alpha) '.' counter(std-clause-1) '\2003';
+}
+
+.std-appendix .std-clause-level-2 > .std-clause-title::before {
+  content: counter(std-appendix, upper-alpha) '.' counter(std-clause-1) '.' counter(std-clause-2) '\2003';
+}
+
+.std-appendix .std-clause-level-3 > .std-clause-title::before {
+  content: counter(std-appendix, upper-alpha) '.' counter(std-clause-1) '.' counter(std-clause-2) '.' counter(std-clause-3) '\2003';
+}
+
+.std-appendix .std-clause-level-4 > .std-clause-title::before {
+  content: counter(std-appendix, upper-alpha) '.' counter(std-clause-1) '.' counter(std-clause-2) '.' counter(std-clause-3) '.' counter(std-clause-4) '\2003';
+}
+
+.std-appendix .std-clause-level-5 > .std-clause-title::before {
+  content: counter(std-appendix, upper-alpha) '.' counter(std-clause-1) '.' counter(std-clause-2) '.' counter(std-clause-3) '.' counter(std-clause-4) '.' counter(std-clause-5) '\2003';
+}
+
+.std-appendix-label {
+  text-align: center;
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.std-appendix-label::before {
+  content: '附录' counter(std-appendix, upper-alpha);
+}
+
+.std-appendix-title {
+  text-align: center;
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 16px;
+}
+
+/* 参考文献 */
+.std-bibliography {
+  margin-top: 32px;
+}
+
+.std-bibliography-title {
+  text-align: center;
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 16px;
+}
+
+.std-bib-entry {
+  text-indent: 0;
+  padding-left: 2em;
+  text-indent: -2em;
+  margin: 4px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* 标准列表 */
+.std-list {
+  margin: 8px 0;
+  padding-left: 2em;
+}
+
+.std-list-item {
+  margin: 4px 0;
+  line-height: 1.8;
+  text-indent: 0;
+}
+
+.std-list-dash .std-list-item::before {
+  content: '——';
+  margin-right: 0.5em;
+}
+
+.std-list-alpha .std-list-item {
+  counter-increment: alpha-counter;
+}
+
+.std-list-alpha {
+  counter-reset: alpha-counter;
+}
+
+.std-list-alpha .std-list-item::before {
+  content: counter(alpha-counter, lower-alpha) ') ';
+}
+
+.std-list-numeric .std-list-item {
+  counter-increment: numeric-counter;
+}
+
+.std-list-numeric {
+  counter-reset: numeric-counter;
+}
+
+.std-list-numeric .std-list-item::before {
+  content: counter(numeric-counter) ') ';
+}
+
+.std-list-roman .std-list-item {
+  counter-increment: roman-counter;
+}
+
+.std-list-roman {
+  counter-reset: roman-counter;
+}
+
+.std-list-roman .std-list-item::before {
+  content: counter(roman-counter, lower-roman) ') ';
+}
+
+.std-list-romanUpper .std-list-item {
+  counter-increment: roman-upper-counter;
+}
+
+.std-list-romanUpper {
+  counter-reset: roman-upper-counter;
+}
+
+.std-list-romanUpper .std-list-item::before {
+  content: counter(roman-upper-counter, upper-roman) ') ';
+}
+
+/* 交叉引用 */
+.std-cross-ref {
+  color: #0066cc;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.std-cross-ref:hover {
+  color: #004499;
+}
+
+/* 封面 */
+.cover-page {
+  text-align: center;
+  padding: 40px 0;
+  margin-bottom: 24px;
+  border-bottom: 2px solid #333;
+}
+
+/* ===== 段落分隔线 ===== */
+.std-foreword,
+.std-introduction {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #ccc;
+}
+
+/* 最后一个章与附录/参考文献之间的分隔 */
+.std-appendix,
+.std-bibliography {
+  border-top: 1px solid #ccc;
+  padding-top: 24px;
+}
+
+/* 附录之间也需要分隔 */
+.std-appendix + .std-appendix {
+  border-top: 1px solid #ccc;
+  padding-top: 24px;
+}
+
+.std-foreword::before {
+  content: '前言';
+  display: block;
+  text-align: center;
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 16px;
+}
+
+.std-introduction::before {
+  content: '引言';
+  display: block;
+  text-align: center;
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 16px;
+}

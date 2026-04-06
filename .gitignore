@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.env
+.env.local
+*.db
+*.sqlite
+.DS_Store
+*.log
+
+# Binary artifacts in example/
+example/$PLUGINSDIR/
+example/$TEMP/
+example/*.dll
+example/*.exe
+example/*.jpg
+example/*.docx
+example/*.vsto
+example/*.ini
+example/template/
+example/config/
+example/templatelist*.config

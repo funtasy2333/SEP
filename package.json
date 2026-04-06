@@ -1,0 +1,20 @@
+{
+  "name": "ses",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standards Editor System - 标准化文件编辑系统",
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "dev:client": "pnpm --filter @ses/client dev",
+    "dev:server": "pnpm --filter @ses/server dev",
+    "build": "pnpm -r run build",
+    "build:client": "pnpm --filter @ses/client build",
+    "build:server": "pnpm --filter @ses/server build"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3", "@nestjs/core", "unrs-resolver"]
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
