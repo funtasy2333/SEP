@@ -244,14 +244,35 @@
     </el-dialog>
 
     <!-- 导出对话框 -->
-    <el-dialog v-model="showExport" title="导出文档" width="480px">
-      <p>选择导出格式：</p>
-      <div style="display: flex; gap: 12px; justify-content: center; margin: 24px 0; flex-wrap: wrap">
+    <el-dialog v-model="showExport" title="导出文档" width="520px">
+      <!-- 模板类型选择 -->
+      <div style="margin-bottom: 20px">
+        <div style="font-weight: 600; margin-bottom: 8px; color: #303133">标准类型模板</div>
+        <el-radio-group v-model="selectedStandardType" size="small">
+          <el-radio-button
+            v-for="(label, type) in STANDARD_TYPE_LABELS"
+            :key="type"
+            :value="type"
+            style="margin-bottom: 6px"
+          >{{ label }}</el-radio-button>
+        </el-radio-group>
+      </div>
+      <el-divider style="margin: 12px 0" />
+      <p style="margin: 0 0 16px; color: #606266">选择导出格式：</p>
+      <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap">
+        <el-button type="primary" size="large" :loading="exportingDocx" @click="handleExportFormat('docx')">
+          导出 DOCX
+        </el-button>
+        <el-button type="success" size="large" @click="handleExportFormat('pdf')">
+          打印/PDF
+        </el-button>
         <el-button size="large" @click="handleExportFormat('xml')">导出 XML</el-button>
         <el-button size="large" @click="handleExportFormat('html')">导出 HTML</el-button>
         <el-button size="large" @click="handleExportFormat('json')">导出 JSON</el-button>
-        <el-button size="large" @click="handleExportFormat('pdf')" disabled>导出 PDF（开发中）</el-button>
-        <el-button size="large" @click="handleExportFormat('docx')" disabled>导出 DOCX（开发中）</el-button>
+      </div>
+      <div style="margin-top: 12px; color: #909399; font-size: 12px">
+        DOCX：生成 Word 文件，符合 GB/T 1.1-2020 格式规范 ·
+        打印/PDF：在新窗口打印或另存为 PDF
       </div>
     </el-dialog>
   </div>
@@ -294,7 +315,12 @@ import {
   SlashCommand,
 } from '@/extensions'
 import { CrossRef } from '@/extensions'
-import { serializeToXml, parseXmlToJson, exportSemanticJson, exportSemanticHtml } from '@/serializer'
+import {
+  serializeToXml, parseXmlToJson,
+  exportSemanticJson, exportSemanticHtml,
+  exportDocx, printAsPdf, STANDARD_TYPE_LABELS,
+} from '@/serializer'
+import type { StandardType, DocMeta } from '@/serializer'
 
 const route = useRoute()
 const router = useRouter()
@@ -312,6 +338,8 @@ const codeViewFormat = ref<'xml' | 'json' | 'html' | 'raw'>('xml')
 const xmlFileInput = ref<HTMLInputElement | null>(null)
 const showVersionPanel = ref(false)
 const documentId = computed(() => Number(route.params.id))
+const selectedStandardType = ref<StandardType>('gb')
+const exportingDocx = ref(false)
 
 /** 默认文档结构：前言 + 1范围 + 2规范性引用文件 + 3术语和定义 */
 const defaultDocContent = {
@@ -920,13 +948,61 @@ function handleExport() {
   showExport.value = true
 }
 
+/** 从文档元数据构建 DocMeta */
+function buildDocMeta(): DocMeta {
+  const docMeta = store.currentDocument?.meta || {}
+  return {
+    title: docMeta.title,
+    titleEn: docMeta.titleEn,
+    stdCode: docMeta.stdCode,
+    icsCode: docMeta.icsCode,
+    ccsCode: (docMeta as Record<string, unknown>).ccsCode as string | undefined,
+    issuer: docMeta.issuer,
+    applicant: docMeta.applicant,
+    publishDate: docMeta.publishDate,
+    implementDate: docMeta.implementDate,
+    standardType: selectedStandardType.value,
+  }
+}
+
 function handleExportFormat(format: string) {
   if (!editor.value) return
-  showExport.value = false
-
   const doc = editor.value.state.doc
-  const titleCn = doc.attrs.titleCn || '标准文件'
+  const meta = buildDocMeta()
+  const docTitle = meta.title || store.currentDocument?.meta?.title || '标准文件'
 
+  if (format === 'docx') {
+    showExport.value = false
+    exportingDocx.value = true
+    exportDocx(doc, meta)
+      .then(blob => {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${docTitle}.docx`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        ElMessage.success('DOCX 文件已导出')
+      })
+      .catch(e => { ElMessage.error(`DOCX 导出失败: ${e}`) })
+      .finally(() => { exportingDocx.value = false })
+    return
+  }
+
+  if (format === 'pdf') {
+    showExport.value = false
+    try {
+      printAsPdf(doc, { meta })
+      ElMessage.success('打印窗口已打开，请选择"另存为 PDF"')
+    } catch (e) {
+      ElMessage.error(`PDF 导出失败: ${e}`)
+    }
+    return
+  }
+
+  showExport.value = false
   try {
     let content = ''
     let filename = ''
@@ -935,17 +1011,17 @@ function handleExportFormat(format: string) {
     switch (format) {
       case 'xml':
         content = serializeToXml(doc)
-        filename = `${titleCn}.xml`
+        filename = `${docTitle}.xml`
         mimeType = 'application/xml'
         break
       case 'html':
         content = exportSemanticHtml(doc)
-        filename = `${titleCn}.html`
+        filename = `${docTitle}.html`
         mimeType = 'text/html'
         break
       case 'json':
         content = JSON.stringify(exportSemanticJson(doc), null, 2)
-        filename = `${titleCn}.json`
+        filename = `${docTitle}.json`
         mimeType = 'application/json'
         break
       default:
@@ -953,7 +1029,6 @@ function handleExportFormat(format: string) {
         return
     }
 
-    // 下载文件
     downloadFile(content, filename, mimeType)
     ElMessage.success(`${format.toUpperCase()} 文件已导出`)
   } catch (e) {
