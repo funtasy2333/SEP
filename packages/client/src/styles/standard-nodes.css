@@ -2,7 +2,7 @@
 
 /* ===== 自动编号系统 (GB/T 1.1) ===== */
 .tiptap {
-  counter-reset: std-chapter std-appendix;
+  counter-reset: std-chapter std-appendix std-figure std-table;
 }
 
 .std-chapter {
@@ -200,6 +200,10 @@
   margin: 16px 0;
 }
 
+.std-table-wrapper {
+  counter-increment: std-table;
+}
+
 .std-table-caption {
   text-align: center;
   font-family: 'SimHei', 'Heiti SC', sans-serif;
@@ -208,7 +212,7 @@
 }
 
 .std-table-caption::before {
-  content: '表 ';
+  content: '表' counter(std-table) '\2003';
 }
 
 .std-table-caption-en {
@@ -227,6 +231,7 @@
 
 /* 图 */
 .std-figure {
+  counter-increment: std-figure;
   margin: 16px 0;
   text-align: center;
 }
@@ -254,7 +259,7 @@
 }
 
 .std-figure-caption::before {
-  content: '图 ';
+  content: '图' counter(std-figure) '\2003';
 }
 
 .std-figure-caption-en {
@@ -346,9 +351,20 @@
 /* 附录 */
 .std-appendix {
   counter-increment: std-appendix;
-  counter-reset: std-clause-1;
+  /* 进入附录时重置：条编号、附录内图 / 表编号 */
+  counter-reset: std-clause-1 std-figure std-table;
   margin-top: 32px;
   page-break-before: always;
+}
+
+/* 附录中的图编号：图A.1, 图A.2 等 */
+.std-appendix .std-figure-caption::before {
+  content: '图' counter(std-appendix, upper-alpha) '.' counter(std-figure) '\2003';
+}
+
+/* 附录中的表编号：表A.1, 表A.2 等 */
+.std-appendix .std-table-caption::before {
+  content: '表' counter(std-appendix, upper-alpha) '.' counter(std-table) '\2003';
 }
 
 /* 附录中的条编号：A.1, A.1.1 等 */
