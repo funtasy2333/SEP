@@ -151,81 +151,97 @@ onBeforeUnmount(() => {
 .slash-menu {
   position: fixed;
   z-index: 9999;
-  background: white;
-  border: 1px solid var(--el-border-color);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  background: var(--ses-surface);
+  border: 1px solid var(--ses-line-2);
+  border-radius: 10px;
+  box-shadow: 0 20px 60px oklch(0.21 0.014 270 / 0.18);
   width: 280px;
   max-height: 360px;
   display: flex;
   flex-direction: column;
+  padding: 6px;
+  overflow: hidden;
 }
 
 .slash-menu-search {
-  padding: 8px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  padding: 4px 4px 8px;
+  border-bottom: 1px solid var(--ses-line);
+  margin-bottom: 4px;
 }
 
 .slash-menu-input {
   width: 100%;
   padding: 6px 10px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
+  border: 1px solid var(--ses-line);
+  border-radius: 6px;
   font-size: 13px;
   outline: none;
   box-sizing: border-box;
+  background: var(--ses-surface-2);
+  font-family: inherit;
+  color: var(--ses-ink);
+  transition: all 0.12s ease;
 }
 
 .slash-menu-input:focus {
-  border-color: var(--el-color-primary);
+  border-color: var(--ses-accent);
+  background: var(--ses-surface);
+  box-shadow: 0 0 0 3px var(--ses-accent-ring);
 }
 
 .slash-menu-items {
   flex: 1;
   overflow-y: auto;
-  padding: 4px 0;
+  padding: 0;
+  scrollbar-width: thin;
 }
 
 .slash-menu-group {
-  padding: 6px 12px 2px;
-  font-size: 11px;
+  padding: 8px 10px 4px;
+  font-size: 10.5px;
   font-weight: 600;
-  color: var(--el-text-color-secondary);
+  color: var(--ses-ink-4);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.08em;
 }
 
 .slash-menu-item {
-  padding: 6px 12px;
+  padding: 7px 10px;
+  border-radius: 6px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 1px;
+  transition: background 0.1s ease;
 }
 
 .slash-menu-item.selected {
-  background: var(--el-color-primary-light-9);
+  background: var(--ses-accent-soft);
 }
 
 .slash-menu-item:hover {
-  background: var(--el-fill-color-light);
+  background: var(--ses-surface-2);
+}
+
+.slash-menu-item.selected .slash-menu-item-label {
+  color: var(--ses-accent);
 }
 
 .slash-menu-item-label {
   font-size: 13px;
   font-weight: 500;
-  color: var(--el-text-color-primary);
+  color: var(--ses-ink);
 }
 
 .slash-menu-item-desc {
   font-size: 11px;
-  color: var(--el-text-color-secondary);
+  color: var(--ses-ink-3);
 }
 
 .slash-menu-empty {
-  padding: 16px;
+  padding: 24px 16px;
   text-align: center;
-  font-size: 13px;
-  color: var(--el-text-color-placeholder);
+  font-size: 12.5px;
+  color: var(--ses-ink-4);
 }
 </style>

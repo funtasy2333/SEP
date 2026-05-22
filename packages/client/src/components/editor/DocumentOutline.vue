@@ -299,65 +299,73 @@ watch(
 <style scoped>
 .document-outline {
   width: 240px;
-  border-right: 1px solid var(--el-border-color);
+  border-right: 1px solid var(--ses-line);
   display: flex;
   flex-direction: column;
-  background: var(--el-bg-color);
+  background: var(--ses-surface);
+  overflow: hidden;
 }
 
 .outline-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 12px 16px;
-  font-weight: bold;
-  font-size: 14px;
-  border-bottom: 1px solid var(--el-border-color);
+  gap: 8px;
+  padding: 14px 16px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ses-ink-3);
 }
 
 .outline-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 0;
+  padding: 4px 8px 24px;
+  scrollbar-width: thin;
+}
+.outline-body::-webkit-scrollbar { width: 8px; }
+.outline-body::-webkit-scrollbar-thumb {
+  background: var(--ses-line-2);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.outline-body::-webkit-scrollbar-thumb:hover {
+  background: var(--ses-ink-4);
+  background-clip: padding-box;
+  border: 2px solid transparent;
 }
 
 .outline-item {
-  padding: 6px 8px;
-  cursor: default;
+  padding: 6px 10px;
+  margin: 1px 0;
+  border-radius: 6px;
+  cursor: pointer;
   font-size: 13px;
-  color: var(--el-text-color-regular);
+  color: var(--ses-ink-2);
   display: flex;
   align-items: center;
-  gap: 4px;
-  transition: background 0.15s;
+  gap: 6px;
+  transition: background 0.1s ease, color 0.1s ease;
+  line-height: 1.4;
 }
 
-.outline-item.dragging {
-  opacity: 0.4;
-}
-
-.outline-item.drag-over-above {
-  border-top: 2px solid var(--el-color-primary);
-}
-
-.outline-item.drag-over-below {
-  border-bottom: 2px solid var(--el-color-primary);
-}
+.outline-item.dragging { opacity: 0.4; }
+.outline-item.drag-over-above { box-shadow: inset 0 2px 0 var(--ses-accent); }
+.outline-item.drag-over-below { box-shadow: inset 0 -2px 0 var(--ses-accent); }
 
 .outline-item-drag {
   flex-shrink: 0;
   font-size: 12px;
-  color: var(--el-text-color-placeholder);
+  color: var(--ses-ink-4);
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity 0.12s ease;
   cursor: grab;
   -webkit-user-select: none;
   user-select: none;
 }
-
-.outline-item:hover .outline-item-drag {
-  opacity: 1;
-}
+.outline-item:hover .outline-item-drag { opacity: 1; }
 
 .outline-item-text {
   flex: 1;
@@ -369,35 +377,30 @@ watch(
 .outline-item-delete {
   flex-shrink: 0;
   font-size: 12px;
-  color: var(--el-text-color-placeholder);
+  color: var(--ses-ink-4);
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity 0.12s ease;
+  border-radius: 4px;
+  padding: 2px;
 }
-
-.outline-item:hover .outline-item-delete {
-  opacity: 1;
-}
-
-.outline-item-delete:hover {
-  color: var(--el-color-danger) !important;
-}
+.outline-item:hover .outline-item-delete { opacity: 1; }
+.outline-item-delete:hover { color: var(--ses-err) !important; background: var(--ses-err-soft); }
 
 .outline-item:hover {
-  background: var(--el-fill-color-light);
-  color: var(--el-color-primary);
+  background: var(--ses-surface-2);
+  color: var(--ses-ink);
 }
 
 .outline-item.active {
-  color: var(--el-color-primary);
+  color: var(--ses-accent);
   font-weight: 600;
-  background: var(--el-color-primary-light-9);
-  border-right: 2px solid var(--el-color-primary);
+  background: var(--ses-accent-soft);
 }
 
 .outline-empty {
-  padding: 16px;
-  color: var(--el-text-color-placeholder);
-  font-size: 13px;
+  padding: 24px 16px;
+  color: var(--ses-ink-4);
+  font-size: 12.5px;
   text-align: center;
 }
 </style>

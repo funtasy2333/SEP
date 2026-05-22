@@ -1,252 +1,388 @@
 <template>
-  <div class="home-view">
-    <el-container>
-      <el-header class="home-header">
-        <h1>SES 标准化文件编辑系统</h1>
-        <el-button type="primary" :icon="Plus" @click="showCreateDialog = true">
-          新建标准文件
-        </el-button>
-      </el-header>
+  <div class="home-page">
+    <HomeNav :active-tab="navTab" :tabs="navTabs" @select-tab="navTab = $event" />
 
-      <el-main>
-        <el-table
-          v-loading="store.loading"
-          :data="store.documents"
-          stripe
-          style="width: 100%"
-          @row-click="openDocument"
-        >
-          <el-table-column prop="title" label="文档标题" min-width="200" />
-          <el-table-column label="标准类型" width="140">
-            <template #default="{ row }">
-              {{ standardTypeLabel(row.meta?.standardType) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="阶段" width="120">
-            <template #default="{ row }">
-              <el-tag :type="stageTagType(row.stage)" size="small">
-                {{ stageLabel(row.stage) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="更新时间" width="180">
-            <template #default="{ row }">
+    <main class="home-body">
+      <!-- Page head -->
+      <div class="home-head">
+        <div>
+          <h1>我的标准库</h1>
+          <p class="sub">{{ store.documents.length }} 份起草中文件 · 上次保存于 {{ lastSaved }}</p>
+        </div>
+        <div class="actions">
+          <el-button :icon="Download">批量导出</el-button>
+          <el-button type="primary" :icon="Plus" @click="openNewDoc()">新建标准文件</el-button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <StatCards :stats="stats" />
+
+      <!-- Template rail -->
+      <TemplateRail @pick="openNewDoc" />
+
+      <!-- Filters & view toggle -->
+      <div class="list-toolbar">
+        <div class="list-toolbar-l">
+          <button
+            v-for="t in typeFilters"
+            :key="t.id"
+            class="chip"
+            :class="{ 'is-active': typeFilter === t.id }"
+            @click="typeFilter = t.id"
+          >
+            {{ t.label }}
+            <span class="count">{{ counts[t.id] || 0 }}</span>
+          </button>
+        </div>
+        <div class="list-toolbar-r">
+          <el-select v-model="stageFilter" size="small" style="width: 130px">
+            <el-option value="all" label="所有阶段" />
+            <el-option v-for="(label, k) in STAGE_LABELS" :key="k" :value="k" :label="label" />
+          </el-select>
+          <el-select v-model="sort" size="small" style="width: 120px">
+            <el-option value="updated" label="最近更新" />
+            <el-option value="title" label="标题 A-Z" />
+            <el-option value="stage" label="阶段" />
+          </el-select>
+          <div class="view-toggle">
+            <button :class="{ 'is-active': view === 'grid' }" @click="view = 'grid'">
+              <el-icon><Grid /></el-icon> 卡片
+            </button>
+            <button :class="{ 'is-active': view === 'list' }" @click="view = 'list'">
+              <el-icon><List /></el-icon> 列表
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div v-if="filtered.length === 0" class="empty-state">
+        <el-icon :size="40"><Document /></el-icon>
+        <h3>没有匹配的文档</h3>
+        <p>试试调整筛选条件，或新建一份标准。</p>
+        <el-button type="primary" :icon="Plus" @click="openNewDoc()">新建标准文件</el-button>
+      </div>
+
+      <div v-else-if="view === 'grid'" class="doc-grid">
+        <DocCard
+          v-for="d in filtered"
+          :key="d.id"
+          :doc="d"
+          @open="openDocument"
+          @delete="handleDelete"
+        />
+      </div>
+
+      <el-table
+        v-else
+        v-loading="store.loading"
+        :data="filtered"
+        :show-header="true"
+        @row-click="openDocument"
+        class="doc-list-table"
+      >
+        <el-table-column prop="meta.standardNo" label="标准编号" width="170">
+          <template #default="{ row }">
+            <span style="font-family: var(--ses-font-mono); font-size: 12px; color: var(--ses-ink-3)">
+              {{ row.meta?.standardNo || '—' }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="title" label="文件题名" min-width="240">
+          <template #default="{ row }">
+            <span style="font-weight: 500; color: var(--ses-ink)">{{ row.meta?.titleCn || row.title }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="类型" width="120">
+          <template #default="{ row }">
+            <span class="ses-type-chip" :data-type="row.meta?.standardType">
+              {{ TYPE_LABELS[row.meta?.standardType] || '—' }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="阶段" width="130">
+          <template #default="{ row }">
+            <span class="ses-stage" :class="row.stage">
+              <span class="dot" />
+              {{ STAGE_LABELS[row.stage] || row.stage }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="更新时间" width="170">
+          <template #default="{ row }">
+            <span style="color: var(--ses-ink-3); font-size: 12.5px">
               {{ formatDate(row.updatedAt) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="100" fixed="right">
-            <template #default="{ row }">
-              <el-button type="danger" text size="small" @click.stop="handleDelete(row)">
-                删除
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-main>
-    </el-container>
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="90" fixed="right">
+          <template #default="{ row }">
+            <el-button type="danger" text size="small" @click.stop="handleDelete(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </main>
 
-    <!-- 新建文档对话框 -->
-    <el-dialog v-model="showCreateDialog" title="新建标准文件" width="720px">
-      <el-form :model="createForm" label-position="top">
-        <!-- 第一行：文件编号 + 文件名称 -->
-        <el-row :gutter="24">
-          <el-col :span="12">
-            <el-form-item label="文件编号">
-              <el-input v-model="createForm.standardNo" placeholder="如 GB/T XXXXX-XXXX" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="文件名称" required>
-              <el-input v-model="createForm.title" placeholder="请输入标准名称" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <!-- 第二行：ICS号 + CCS号 + 文档类别 -->
-        <el-row :gutter="24">
-          <el-col :span="8">
-            <el-form-item label="ICS号">
-              <el-input v-model="createForm.icsCode" placeholder="如 35.240" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="CCS号">
-              <el-input v-model="createForm.ccsCode" placeholder="如 L70" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="文档类别">
-              <el-select v-model="createForm.standardType" style="width: 100%">
-                <el-option label="国家标准" value="national" />
-                <el-option label="行业标准" value="industry" />
-                <el-option label="地方标准" value="local" />
-                <el-option label="团体标准" value="group" />
-                <el-option label="企业标准" value="enterprise" />
-                <el-option label="标准化指导性技术文件" value="guidance" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <!-- 第三行：标准发布单位 + 文件阶段 + 标准申请单位 -->
-        <el-row :gutter="24">
-          <el-col :span="8">
-            <el-form-item label="标准发布单位">
-              <el-input v-model="createForm.issuer" placeholder="如 国家标准化管理委员会" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="文件阶段">
-              <el-select v-model="createForm.stage" style="width: 100%">
-                <el-option label="工作草案" value="working_draft" />
-                <el-option label="征求意见稿" value="comment_draft" />
-                <el-option label="送审讨论稿" value="review_discussion_draft" />
-                <el-option label="送审稿" value="review_draft" />
-                <el-option label="报批稿" value="approval_draft" />
-                <el-option label="公示稿" value="public_draft" />
-                <el-option label="发布稿" value="published" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="标准申请单位">
-              <el-input v-model="createForm.applicant" placeholder="请输入申请单位" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
-      <template #footer>
-        <el-button @click="showCreateDialog = false">取消</el-button>
-        <el-button type="primary" @click="handleCreate">创建</el-button>
-      </template>
-    </el-dialog>
+    <NewDocDialog v-model="newDocOpen" :initial-type="newDocType" @create="handleCreate" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus } from '@element-plus/icons-vue'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Download, Plus, Grid, List, Document } from '@element-plus/icons-vue'
+
 import { useDocumentStore } from '@/stores/document'
+import type { DocumentData } from '@/api/document'
+import { STAGE_LABELS, TYPE_LABELS } from '@/constants/standards'
+
+import HomeNav from '@/components/home/HomeNav.vue'
+import StatCards, { type Stat } from '@/components/home/StatCards.vue'
+import TemplateRail from '@/components/home/TemplateRail.vue'
+import DocCard from '@/components/home/DocCard.vue'
+import NewDocDialog from '@/components/home/NewDocDialog.vue'
 
 const router = useRouter()
 const store = useDocumentStore()
 
-const showCreateDialog = ref(false)
+const navTab = ref('all')
+const typeFilter = ref('all')
+const stageFilter = ref<'all' | string>('all')
+const sort = ref<'updated' | 'title' | 'stage'>('updated')
+const view = ref<'grid' | 'list'>('grid')
+const newDocOpen = ref(false)
+const newDocType = ref<string | undefined>(undefined)
 
-const defaultForm = () => ({
-  title: '',
-  standardNo: '',
-  icsCode: '',
-  ccsCode: '',
-  standardType: 'national',
-  stage: 'working_draft',
-  issuer: '',
-  applicant: '',
+const typeFilters = [
+  { id: 'all', label: '全部' },
+  { id: 'national', label: '国家' },
+  { id: 'industry', label: '行业' },
+  { id: 'local', label: '地方' },
+  { id: 'group', label: '团体' },
+  { id: 'enterprise', label: '企业' },
+  { id: 'guidance', label: '指导性' },
+]
+
+const counts = computed(() => {
+  const r: Record<string, number> = { all: store.documents.length }
+  for (const d of store.documents) {
+    const t = d.meta?.standardType || 'other'
+    r[t] = (r[t] || 0) + 1
+  }
+  return r
 })
 
-const createForm = ref(defaultForm())
+const filtered = computed(() => {
+  let arr = [...store.documents]
+  if (typeFilter.value !== 'all') {
+    arr = arr.filter((d) => d.meta?.standardType === typeFilter.value)
+  }
+  if (stageFilter.value !== 'all') {
+    arr = arr.filter((d) => d.stage === stageFilter.value)
+  }
+  if (sort.value === 'title') {
+    arr.sort((a, b) => (a.meta?.titleCn || a.title).localeCompare(b.meta?.titleCn || b.title))
+  } else if (sort.value === 'stage') {
+    arr.sort((a, b) => a.stage.localeCompare(b.stage))
+  } else {
+    arr.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
+  }
+  return arr
+})
+
+const navTabs = computed(() => [
+  { id: 'all',        label: '全部文档',  count: store.documents.length },
+  { id: 'mine',       label: '我的草案',  count: counts.value.working_draft || 0 },
+  { id: 'collab',     label: '协作中' },
+  { id: 'templates',  label: '模板库' },
+  { id: 'trash',      label: '回收站' },
+])
+
+const stats = computed<Stat[]>(() => [
+  { label: '我的起草', value: store.documents.filter((d) => d.stage === 'working_draft').length, unit: '份', trend: '本周 +1', trendUp: true },
+  { label: '待审阅',   value: store.documents.filter((d) => ['review_draft','review_discussion_draft'].includes(d.stage)).length, unit: '份', trend: '今天 +1', live: true },
+  { label: '本月发布', value: store.documents.filter((d) => d.stage === 'published').length, unit: '份', trend: 'vs 上月 +25%', trendUp: true },
+  { label: '未读评论', value: 0, unit: '条', trend: '—' },
+])
+
+const lastSaved = computed(() => {
+  const arr = store.documents
+    .map((d) => d.updatedAt)
+    .filter((s): s is string => Boolean(s))
+    .sort((a, b) => b.localeCompare(a))
+  if (!arr[0]) return '——'
+  const date = new Date(arr[0])
+  return date.toLocaleString('zh-CN')
+})
 
 onMounted(() => {
   store.fetchDocuments()
 })
 
-async function handleCreate() {
-  if (!createForm.value.title.trim()) {
-    ElMessage.warning('请输入文件名称')
-    return
-  }
-  const f = createForm.value
+function openNewDoc(type?: string) {
+  newDocType.value = type
+  newDocOpen.value = true
+}
+
+async function handleCreate(form: {
+  type: string
+  stage: string
+  stdNo: string
+  titleCn: string
+  titleEn: string
+  icsCode: string
+  ccsCode: string
+  issuer: string
+  applicant: string
+}) {
   const doc = await store.createDocument({
-    title: f.title,
+    title: form.titleCn,
     meta: {
-      titleCn: f.title,
-      standardNo: f.standardNo || undefined,
-      icsCode: f.icsCode || undefined,
-      ccsCode: f.ccsCode || undefined,
-      standardType: f.standardType,
-      issuer: f.issuer || undefined,
-      applicant: f.applicant || undefined,
+      titleCn: form.titleCn,
+      titleEn: form.titleEn || undefined,
+      standardNo: form.stdNo || undefined,
+      icsCode: form.icsCode || undefined,
+      ccsCode: form.ccsCode || undefined,
+      standardType: form.type,
+      issuer: form.issuer || undefined,
+      applicant: form.applicant || undefined,
     },
-    stage: f.stage,
+    stage: form.stage,
     content: {},
   })
-  showCreateDialog.value = false
-  createForm.value = defaultForm()
-  router.push({ name: 'editor', params: { id: doc.id } })
+  newDocOpen.value = false
+  ElMessage.success('创建成功')
+  router.push({ name: 'editor', params: { id: doc.id! } })
 }
 
-function openDocument(row: { id: number }) {
-  router.push({ name: 'editor', params: { id: row.id } })
+function openDocument(row: DocumentData) {
+  router.push({ name: 'editor', params: { id: row.id! } })
 }
 
-async function handleDelete(row: { id: number; title: string }) {
-  await ElMessageBox.confirm(`确定删除文档"${row.title}"吗？`, '确认删除', {
+async function handleDelete(row: DocumentData) {
+  await ElMessageBox.confirm(`确定删除文档"${row.meta?.titleCn || row.title}"吗？`, '确认删除', {
     type: 'warning',
   })
-  await store.deleteDocument(row.id)
+  await store.deleteDocument(row.id!)
   ElMessage.success('已删除')
 }
 
-function standardTypeLabel(type: string) {
-  const map: Record<string, string> = {
-    national: '国家标准',
-    industry: '行业标准',
-    local: '地方标准',
-    group: '团体标准',
-    enterprise: '企业标准',
-    guidance: '标准化指导性技术文件',
-  }
-  return map[type] || type
-}
-
-function stageLabel(stage: string) {
-  const map: Record<string, string> = {
-    working_draft: '工作草案',
-    comment_draft: '征求意见稿',
-    review_discussion_draft: '送审讨论稿',
-    review_draft: '送审稿',
-    approval_draft: '报批稿',
-    public_draft: '公示稿',
-    published: '发布稿',
-  }
-  return map[stage] || stage
-}
-
-function stageTagType(stage: string) {
-  const map: Record<string, string> = {
-    working_draft: 'info',
-    comment_draft: 'warning',
-    review_discussion_draft: 'warning',
-    review_draft: '',
-    approval_draft: 'success',
-    public_draft: 'success',
-    published: 'danger',
-  }
-  return (map[stage] || '') as '' | 'success' | 'warning' | 'info' | 'danger'
-}
-
-function formatDate(dateStr: string) {
-  if (!dateStr) return ''
-  return new Date(dateStr).toLocaleString('zh-CN')
+function formatDate(s?: string) {
+  if (!s) return ''
+  return new Date(s).toLocaleString('zh-CN')
 }
 </script>
 
 <style scoped>
-.home-view {
-  height: 100vh;
+.home-page {
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  background: var(--ses-bg);
+}
+.home-body {
+  max-width: 1240px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 32px 32px 80px;
+  flex: 1;
 }
 
-.home-header {
+.home-head {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  margin-bottom: 24px;
+}
+.home-head h1 {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  margin: 0 0 6px;
+  color: var(--ses-ink);
+}
+.home-head .sub { color: var(--ses-ink-3); font-size: 13.5px; margin: 0; }
+.home-head .actions { display: flex; gap: 10px; }
+
+.list-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.list-toolbar-l { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.list-toolbar-r { display: flex; align-items: center; gap: 8px; }
+
+.chip {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ses-ink-2);
+  background: var(--ses-surface);
+  border: 1px solid var(--ses-line);
+  display: inline-flex; align-items: center; gap: 6px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  font-family: inherit;
+}
+.chip:hover { background: var(--ses-surface-2); border-color: var(--ses-line-2); }
+.chip.is-active {
+  background: var(--ses-ink);
+  color: oklch(0.98 0.003 270);
+  border-color: var(--ses-ink);
+}
+.chip .count {
+  font-size: 11px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--ses-surface-2);
+  color: var(--ses-ink-3);
+  font-family: var(--ses-font-mono);
+  font-weight: 500;
+}
+.chip.is-active .count { background: oklch(0.3 0.014 270); color: oklch(0.85 0.005 270); }
+
+.view-toggle {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--el-border-color);
+  background: var(--ses-surface-2);
+  border-radius: 6px;
+  padding: 2px;
+}
+.view-toggle button {
+  height: 24px; padding: 0 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--ses-ink-3);
+  display: inline-flex; align-items: center; gap: 5px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+.view-toggle button.is-active {
+  background: var(--ses-surface);
+  color: var(--ses-ink);
+  box-shadow: var(--ses-shadow-1);
+  font-weight: 500;
 }
 
-.home-header h1 {
-  font-size: 20px;
-  margin: 0;
+.doc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(296px, 1fr));
+  gap: 16px;
 }
+
+.empty-state {
+  padding: 64px 24px;
+  text-align: center;
+  background: var(--ses-surface);
+  border: 2px dashed var(--ses-line-2);
+  border-radius: 16px;
+  color: var(--ses-ink-3);
+}
+.empty-state h3 { margin: 16px 0 4px; font-size: 16px; color: var(--ses-ink); }
+.empty-state p { color: var(--ses-ink-3); font-size: 13px; margin: 0 0 16px; }
+
+.doc-list-table { border: 1px solid var(--ses-line); border-radius: 12px; overflow: hidden; }
 </style>

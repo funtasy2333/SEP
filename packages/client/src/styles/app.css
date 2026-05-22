@@ -1,0 +1,181 @@
+/* ============================================================
+   SES — App-level shared component styles
+   ============================================================ */
+
+/* Base */
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #app {
+  margin: 0; padding: 0; height: 100%;
+  font-family: var(--ses-font-ui);
+  color: var(--ses-ink);
+  background: var(--ses-bg);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+kbd {
+  font-family: var(--ses-font-mono);
+  font-size: 11px;
+  background: var(--ses-surface-2);
+  border: 1px solid var(--ses-line);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--ses-ink-2);
+}
+
+/* ============== Brand mark (used everywhere) ============== */
+.ses-brand {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 600; font-size: 14px;
+  text-decoration: none;
+  color: var(--ses-ink);
+}
+.ses-brand-mark {
+  width: 26px; height: 26px;
+  background: linear-gradient(135deg, var(--ses-accent), oklch(0.45 0.2 290));
+  border-radius: 6px;
+  position: relative;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.3), 0 4px 10px var(--ses-accent-ring);
+  flex-shrink: 0;
+}
+.ses-brand-mark::before, .ses-brand-mark::after {
+  content: ""; position: absolute; inset: 0;
+  border-radius: 6px;
+  border: 1.5px solid oklch(1 0 0 / 0.4);
+}
+.ses-brand-mark::after {
+  transform: translate(3px, 3px) scale(0.85);
+  border-color: oklch(1 0 0 / 0.25);
+}
+
+/* ============== Avatars ============== */
+.ses-avatar {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--ses-surface-3);
+  border: 2px solid var(--ses-surface);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 600;
+  color: var(--ses-ink-2);
+  margin-left: -6px;
+}
+.ses-avatar:first-child { margin-left: 0; }
+.ses-avatar.a1 { background: oklch(0.85 0.08 285); color: oklch(0.3 0.15 285); }
+.ses-avatar.a2 { background: oklch(0.85 0.08 155); color: oklch(0.3 0.15 155); }
+.ses-avatar.a3 { background: oklch(0.85 0.08 55);  color: oklch(0.35 0.15 55); }
+.ses-avatar-stack { display: inline-flex; align-items: center; }
+
+/* ============== Stage badges ============== */
+.ses-stage {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.ses-stage .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.ses-stage.working_draft { background: oklch(0.96 0.01 270); color: oklch(0.4 0.014 270); }
+.ses-stage.working_draft .dot { background: oklch(0.5 0.014 270); }
+.ses-stage.comment_draft { background: var(--ses-warn-soft); color: oklch(0.4 0.14 75); }
+.ses-stage.comment_draft .dot { background: var(--ses-warn); }
+.ses-stage.review_discussion_draft { background: var(--ses-warn-soft); color: oklch(0.4 0.14 75); }
+.ses-stage.review_discussion_draft .dot { background: var(--ses-warn); }
+.ses-stage.review_draft { background: var(--ses-info-soft); color: oklch(0.4 0.13 235); }
+.ses-stage.review_draft .dot { background: var(--ses-info); }
+.ses-stage.approval_draft { background: var(--ses-ok-soft); color: oklch(0.35 0.14 155); }
+.ses-stage.approval_draft .dot { background: var(--ses-ok); }
+.ses-stage.public_draft { background: var(--ses-ok-soft); color: oklch(0.35 0.14 155); }
+.ses-stage.public_draft .dot { background: var(--ses-ok); }
+.ses-stage.published { background: var(--ses-err-soft); color: oklch(0.35 0.18 25); }
+.ses-stage.published .dot { background: var(--ses-err); }
+
+/* ============== Type chips ============== */
+.ses-type-chip {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+  display: inline-block;
+  white-space: nowrap;
+}
+.ses-type-chip[data-type="national"]   { background: var(--ses-err-soft); color: oklch(0.4 0.18 25); }
+.ses-type-chip[data-type="industry"]   { background: var(--ses-info-soft); color: oklch(0.4 0.13 235); }
+.ses-type-chip[data-type="local"]      { background: var(--ses-ok-soft); color: oklch(0.35 0.14 155); }
+.ses-type-chip[data-type="group"]      { background: var(--ses-warn-soft); color: oklch(0.4 0.14 75); }
+.ses-type-chip[data-type="enterprise"] { background: var(--ses-accent-soft); color: var(--ses-accent); }
+.ses-type-chip[data-type="guidance"]   { background: var(--ses-surface-3); color: var(--ses-ink-2); }
+
+/* ============== Save pill ============== */
+.ses-save-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--ses-surface-2);
+  font-size: 12px;
+  color: var(--ses-ink-3);
+  white-space: nowrap;
+}
+.ses-save-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ses-ok); }
+.ses-save-pill.is-saving .dot { background: var(--ses-warn); animation: sesPulse 1.2s infinite; }
+@keyframes sesPulse { 50% { opacity: 0.3; } }
+
+/* ============== Panel headers ============== */
+.ses-panel-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ses-ink-3);
+}
+
+/* ============== Generic scrollbars ============== */
+.ses-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.ses-scroll::-webkit-scrollbar-thumb {
+  background: var(--ses-line-2);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.ses-scroll::-webkit-scrollbar-thumb:hover { background: var(--ses-ink-4); background-clip: padding-box; border: 2px solid transparent; }
+
+/* ============== Stage segmented control (used in new-doc dialog & settings) ============== */
+.ses-stage-seg {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  padding: 4px;
+  background: var(--ses-surface-2);
+  border-radius: var(--ses-r-md);
+}
+.ses-stage-seg button {
+  padding: 6px 4px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--ses-ink-3);
+  transition: all 0.12s ease;
+  text-align: center;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.ses-stage-seg button:hover { color: var(--ses-ink); }
+.ses-stage-seg button.is-active {
+  background: var(--ses-surface);
+  color: var(--ses-ink);
+  font-weight: 600;
+  box-shadow: var(--ses-shadow-1);
+}
+.ses-stage-seg .short {
+  display: block;
+  font-family: var(--ses-font-mono);
+  font-size: 10px;
+  color: var(--ses-ink-4);
+  font-weight: 500;
+  margin-top: 1px;
+}

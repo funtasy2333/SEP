@@ -1,0 +1,211 @@
+/* ============================================================
+   SES — Element Plus theme overrides
+   Maps Element Plus CSS variables to our design tokens.
+   Import AFTER element-plus/dist/index.css and tokens.css.
+   ============================================================ */
+
+:root {
+  /* === Brand & semantic === */
+  --el-color-primary:               var(--ses-accent);
+  --el-color-primary-light-3:       var(--ses-accent-2);
+  --el-color-primary-light-5:       oklch(0.72 0.13 285);
+  --el-color-primary-light-7:       oklch(0.85 0.08 285);
+  --el-color-primary-light-8:       oklch(0.92 0.04 285);
+  --el-color-primary-light-9:       var(--ses-accent-soft);
+  --el-color-primary-dark-2:        oklch(0.48 0.18 285);
+
+  --el-color-success:               var(--ses-ok);
+  --el-color-success-light-3:       oklch(0.7 0.12 155);
+  --el-color-success-light-5:       oklch(0.82 0.08 155);
+  --el-color-success-light-7:       oklch(0.9 0.05 155);
+  --el-color-success-light-8:       oklch(0.94 0.04 155);
+  --el-color-success-light-9:       var(--ses-ok-soft);
+
+  --el-color-warning:               var(--ses-warn);
+  --el-color-warning-light-3:       oklch(0.76 0.13 75);
+  --el-color-warning-light-5:       oklch(0.85 0.1 75);
+  --el-color-warning-light-7:       oklch(0.92 0.06 75);
+  --el-color-warning-light-8:       oklch(0.95 0.05 75);
+  --el-color-warning-light-9:       var(--ses-warn-soft);
+
+  --el-color-danger:                var(--ses-err);
+  --el-color-danger-light-3:        oklch(0.7 0.16 25);
+  --el-color-danger-light-5:        oklch(0.82 0.12 25);
+  --el-color-danger-light-7:        oklch(0.9 0.07 25);
+  --el-color-danger-light-8:        oklch(0.94 0.05 25);
+  --el-color-danger-light-9:        var(--ses-err-soft);
+
+  --el-color-info:                  var(--ses-info);
+  --el-color-info-light-9:          var(--ses-info-soft);
+
+  /* === Text === */
+  --el-text-color-primary:          var(--ses-ink);
+  --el-text-color-regular:          var(--ses-ink-2);
+  --el-text-color-secondary:        var(--ses-ink-3);
+  --el-text-color-placeholder:      var(--ses-ink-4);
+  --el-text-color-disabled:         var(--ses-ink-5);
+
+  /* === Borders === */
+  --el-border-color:                var(--ses-line-2);
+  --el-border-color-light:          var(--ses-line);
+  --el-border-color-lighter:        var(--ses-line);
+  --el-border-color-extra-light:    var(--ses-line);
+  --el-border-color-dark:           var(--ses-line-2);
+  --el-border-radius-base:          var(--ses-r-sm);
+  --el-border-radius-small:         var(--ses-r-xs);
+  --el-border-radius-round:         999px;
+
+  /* === Fills (used by inputs, buttons, tags) === */
+  --el-fill-color:                  var(--ses-surface-2);
+  --el-fill-color-light:            var(--ses-surface-2);
+  --el-fill-color-lighter:          var(--ses-surface-2);
+  --el-fill-color-extra-light:      var(--ses-surface-2);
+  --el-fill-color-blank:            var(--ses-surface);
+
+  /* === Surfaces === */
+  --el-bg-color:                    var(--ses-surface);
+  --el-bg-color-page:               var(--ses-bg);
+  --el-bg-color-overlay:            var(--ses-surface);
+
+  /* === Type === */
+  --el-font-family:                 var(--ses-font-ui);
+  --el-font-size-base:              14px;
+  --el-font-size-small:             12.5px;
+  --el-font-size-extra-small:       12px;
+
+  /* === Box shadows === */
+  --el-box-shadow:                  var(--ses-shadow-2);
+  --el-box-shadow-light:            var(--ses-shadow-1);
+  --el-box-shadow-lighter:          var(--ses-shadow-1);
+  --el-box-shadow-dark:             var(--ses-shadow-2);
+}
+
+/* === Button polish === */
+.el-button {
+  font-weight: 500;
+  border-radius: var(--ses-r-sm);
+  transition: all 0.12s ease;
+}
+.el-button--primary {
+  --el-button-bg-color: var(--ses-accent);
+  --el-button-border-color: var(--ses-accent);
+  --el-button-hover-bg-color: var(--ses-accent-2);
+  --el-button-hover-border-color: var(--ses-accent-2);
+  box-shadow: 0 1px 0 oklch(1 0 0 / 0.2) inset, 0 6px 14px var(--ses-accent-ring);
+}
+.el-button--small {
+  border-radius: var(--ses-r-xs);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.el-button--text {
+  --el-button-text-color: var(--ses-ink-3);
+}
+
+/* === Input polish === */
+.el-input__wrapper {
+  border-radius: var(--ses-r-sm);
+  box-shadow: 0 0 0 1px var(--ses-line) inset;
+  transition: all 0.12s ease;
+}
+.el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--ses-line-2) inset;
+}
+.el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--ses-accent) inset, 0 0 0 3px var(--ses-accent-ring);
+}
+
+/* === Table polish === */
+.el-table {
+  --el-table-border-color: var(--ses-line);
+  --el-table-header-bg-color: var(--ses-surface-2);
+  --el-table-row-hover-bg-color: var(--ses-surface-2);
+  --el-table-tr-bg-color: var(--ses-surface);
+  --el-table-current-row-bg-color: var(--ses-accent-soft);
+  font-size: 13px;
+}
+.el-table th.el-table__cell {
+  font-weight: 600;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ses-ink-3);
+  background: var(--ses-surface-2) !important;
+}
+.el-table td.el-table__cell {
+  padding: 12px 0;
+}
+
+/* === Tag === */
+.el-tag {
+  font-weight: 500;
+  border-radius: var(--ses-r-xs);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+}
+
+/* === Dialog === */
+.el-dialog {
+  border-radius: var(--ses-r-xl);
+  box-shadow: 0 32px 80px oklch(0.21 0.014 270 / 0.35);
+  overflow: hidden;
+}
+.el-dialog__header {
+  padding: 18px 24px 14px;
+  margin-right: 0;
+  border-bottom: 1px solid var(--ses-line);
+}
+.el-dialog__title {
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--ses-ink);
+}
+.el-dialog__body { padding: 20px 24px; }
+.el-dialog__footer {
+  padding: 14px 24px;
+  background: var(--ses-surface-2);
+  border-top: 1px solid var(--ses-line);
+}
+
+/* === Dropdown / Popover === */
+.el-popper {
+  border-radius: var(--ses-r-md) !important;
+  box-shadow: 0 20px 60px oklch(0.21 0.014 270 / 0.18) !important;
+}
+.el-dropdown-menu {
+  border-radius: var(--ses-r-md);
+  padding: 6px;
+}
+.el-dropdown-menu__item {
+  border-radius: var(--ses-r-xs);
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.el-dropdown-menu__item:hover {
+  background: var(--ses-surface-2) !important;
+  color: var(--ses-ink) !important;
+}
+
+/* === Select === */
+.el-select__wrapper { border-radius: var(--ses-r-sm); }
+
+/* === Radio Button group (segmented control) === */
+.el-radio-group .el-radio-button__inner {
+  border-color: var(--ses-line);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.el-radio-button:first-child .el-radio-button__inner {
+  border-top-left-radius: var(--ses-r-sm);
+  border-bottom-left-radius: var(--ses-r-sm);
+}
+.el-radio-button:last-child .el-radio-button__inner {
+  border-top-right-radius: var(--ses-r-sm);
+  border-bottom-right-radius: var(--ses-r-sm);
+}
+
+/* === Loading overlay (cleaner) === */
+.el-loading-mask { background-color: oklch(1 0 0 / 0.7); }

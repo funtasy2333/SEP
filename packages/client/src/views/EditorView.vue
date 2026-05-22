@@ -1,78 +1,94 @@
 <template>
   <div class="editor-view" v-loading="loading">
-    <!-- 顶部导航栏 -->
-    <div class="top-nav">
-      <div class="top-nav-left">
-        <span class="app-title" @click="goHome">SES标准化文件编辑系统</span>
+    <!-- =====================  TOP NAV  ===================== -->
+    <header class="ed-nav">
+      <div class="nav-l">
+        <a class="ses-brand" @click.prevent="goHome" href="#">
+          <div class="ses-brand-mark" />
+          <span>标准编辑器</span>
+        </a>
+        <div class="brand-sep" />
+        <div class="doc-crumb" :title="store.currentDocument?.meta?.titleCn || store.currentDocument?.title">
+          <span class="std-no">{{ store.currentDocument?.meta?.standardNo || '— · 待编号' }}</span>
+          <span class="dot-sep">·</span>
+          <span class="crumb-title">{{ store.currentDocument?.meta?.titleCn || store.currentDocument?.title || '加载中…' }}</span>
+          <el-icon class="caret"><ArrowDownIcon /></el-icon>
+        </div>
       </div>
-      <div class="top-nav-center">
-        <span class="nav-tab" :class="{ active: activeTab === 'edit' }" @click="activeTab = 'edit'">文件编辑</span>
-        <span class="nav-tab" :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'">文件设置</span>
-        <span class="nav-tab" :class="{ active: activeTab === 'preview' }" @click="activeTab = 'preview'">预览</span>
-      </div>
-      <div class="top-nav-right">
-        <span class="nav-link" :class="{ active: showVersionPanel }" @click="handleViewHistory">
-          {{ showVersionPanel ? '关闭历史' : '版本历史' }}
+
+      <nav class="ed-tabs">
+        <button class="ed-tab" :class="{ 'is-active': activeTab === 'edit' }"     @click="activeTab = 'edit'">文件编辑</button>
+        <button class="ed-tab" :class="{ 'is-active': activeTab === 'settings' }" @click="activeTab = 'settings'">文件设置</button>
+        <button class="ed-tab" :class="{ 'is-active': activeTab === 'preview' }"  @click="activeTab = 'preview'">预览</button>
+      </nav>
+
+      <div class="nav-r">
+        <span class="ses-save-pill" :class="{ 'is-saving': saving }">
+          <span class="dot" />
+          <template v-if="saving">保存中…</template>
+          <template v-else-if="lastSaved">已保存 {{ lastSaved }}</template>
+          <template v-else>未保存</template>
         </span>
-        <span class="nav-link" @click="handleExport">导出</span>
-        <span v-if="saving" class="save-hint">保存中...</span>
-        <span v-else-if="lastSaved" class="save-hint">已保存 {{ lastSaved }}</span>
+        <div class="ses-avatar-stack">
+          <span class="ses-avatar a1" title="李工 · 起草人">李</span>
+          <span class="ses-avatar a2" title="王老师 · 审核人">王</span>
+          <span class="ses-avatar a3" title="陈主任 · 批准人">陈</span>
+        </div>
+        <el-button text @click="handleViewHistory">
+          <el-icon><Clock /></el-icon>
+          <span>{{ showVersionPanel ? '关闭历史' : '版本历史' }}</span>
+        </el-button>
+        <el-button type="primary" @click="handleExport">
+          <el-icon><Download /></el-icon>
+          <span>导出</span>
+        </el-button>
       </div>
-    </div>
+    </header>
 
-    <!-- 文件编辑 Tab -->
+    <!-- =====================  EDIT TAB  ===================== -->
     <template v-if="activeTab === 'edit'">
-      <!-- 工具栏 -->
-      <div class="toolbar-area">
-        <div class="toolbar-row-main">
-          <!-- 左侧：文档结构标题 + "+" 按钮 -->
-          <div class="toolbar-outline-header">
-            <span>文档结构</span>
-            <el-dropdown trigger="click" @command="handleAddStructure">
-              <el-button :icon="Plus" size="small" circle />
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="foreword">前言</el-dropdown-item>
-                  <el-dropdown-item command="introduction">引言</el-dropdown-item>
-                  <el-dropdown-item command="chapter">章</el-dropdown-item>
-                  <el-dropdown-item divided command="appendixNorm">规范性附录</el-dropdown-item>
-                  <el-dropdown-item command="appendixInfo">资料性附录</el-dropdown-item>
-                  <el-dropdown-item divided command="bibliography">参考文献</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </div>
+      <!-- Toolbar -->
+      <div class="ed-toolbar">
+        <div class="tbar-outline-head">
+          <span>文档结构</span>
+          <el-dropdown trigger="click" @command="handleAddStructure">
+            <button class="add-btn" title="添加章节结构"><el-icon><Plus /></el-icon></button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="foreword">前言</el-dropdown-item>
+                <el-dropdown-item command="introduction">引言</el-dropdown-item>
+                <el-dropdown-item command="chapter">章</el-dropdown-item>
+                <el-dropdown-item divided command="appendixNorm">规范性附录</el-dropdown-item>
+                <el-dropdown-item command="appendixInfo">资料性附录</el-dropdown-item>
+                <el-dropdown-item divided command="bibliography">参考文献</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
 
-          <!-- 右侧工具按钮区 -->
-          <div class="toolbar-buttons">
-            <!-- 结构要素（带下拉的按钮） -->
-            <el-dropdown trigger="click" @command="handleInsertClause" size="small">
-              <el-button size="small">条 <el-icon class="el-icon--right"><ArrowDownIcon /></el-icon></el-button>
+        <div class="tbar-groups">
+          <!-- 结构要素 -->
+          <div class="tbar-group">
+            <el-dropdown trigger="click" @command="handleInsertClause">
+              <button class="tbar-btn">条 <el-icon><ArrowDownIcon /></el-icon></button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="1">一级条</el-dropdown-item>
-                  <el-dropdown-item command="2">二级条</el-dropdown-item>
-                  <el-dropdown-item command="3">三级条</el-dropdown-item>
-                  <el-dropdown-item command="4">四级条</el-dropdown-item>
-                  <el-dropdown-item command="5">五级条</el-dropdown-item>
+                  <el-dropdown-item v-for="lv in 5" :key="lv" :command="String(lv)">{{ ['一','二','三','四','五'][lv-1] }}级条</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
 
-            <el-dropdown trigger="click" @command="handleInsertClauseNoTitle" size="small">
-              <el-button size="small">无题条 <el-icon class="el-icon--right"><ArrowDownIcon /></el-icon></el-button>
+            <el-dropdown trigger="click" @command="handleInsertClauseNoTitle">
+              <button class="tbar-btn">无题条 <el-icon><ArrowDownIcon /></el-icon></button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="1">一级无题条</el-dropdown-item>
-                  <el-dropdown-item command="2">二级无题条</el-dropdown-item>
-                  <el-dropdown-item command="3">三级无题条</el-dropdown-item>
-                  <el-dropdown-item command="4">四级无题条</el-dropdown-item>
+                  <el-dropdown-item v-for="lv in 4" :key="lv" :command="String(lv)">{{ ['一','二','三','四'][lv-1] }}级无题条</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
 
-            <el-dropdown trigger="click" @command="handleInsertList" size="small">
-              <el-button size="small">列项 <el-icon class="el-icon--right"><ArrowDownIcon /></el-icon></el-button>
+            <el-dropdown trigger="click" @command="handleInsertList">
+              <button class="tbar-btn">列项 <el-icon><ArrowDownIcon /></el-icon></button>
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item command="dash">破折号列项</el-dropdown-item>
@@ -82,9 +98,12 @@
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
+          </div>
 
-            <el-dropdown trigger="click" @command="handleInsertNote" size="small">
-              <el-button size="small">注 <el-icon class="el-icon--right"><ArrowDownIcon /></el-icon></el-button>
+          <!-- 内容要素 -->
+          <div class="tbar-group">
+            <el-dropdown trigger="click" @command="handleInsertNote">
+              <button class="tbar-btn">注 <el-icon><ArrowDownIcon /></el-icon></button>
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item command="note">注</el-dropdown-item>
@@ -92,25 +111,22 @@
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
-
-            <el-button size="small" @click="handleInsertExample('example')">示例</el-button>
-
-            <el-dropdown trigger="click" @command="handleInsertTermDef" size="small">
-              <el-button size="small">术语定义 <el-icon class="el-icon--right"><ArrowDownIcon /></el-icon></el-button>
+            <button class="tbar-btn" @click="handleInsertExample('example')">示例</button>
+            <el-dropdown trigger="click" @command="handleInsertTermDef">
+              <button class="tbar-btn">术语定义 <el-icon><ArrowDownIcon /></el-icon></button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="1">一级术语条</el-dropdown-item>
-                  <el-dropdown-item command="2">二级术语条</el-dropdown-item>
-                  <el-dropdown-item command="3">三级术语条</el-dropdown-item>
-                  <el-dropdown-item command="4">四级术语条</el-dropdown-item>
-                  <el-dropdown-item command="5">五级术语条</el-dropdown-item>
+                  <el-dropdown-item v-for="lv in 5" :key="lv" :command="String(lv)">{{ ['一','二','三','四','五'][lv-1] }}级术语条</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
+            <button class="tbar-btn" @click="handleInsertFormula()">公式</button>
+          </div>
 
-            <el-button size="small" @click="handleInsertFormula()">插入公式</el-button>
-            <el-dropdown trigger="click" @command="handleTableCommand" size="small">
-              <el-button size="small">表格 <el-icon class="el-icon--right"><ArrowDownIcon /></el-icon></el-button>
+          <!-- 媒体 -->
+          <div class="tbar-group">
+            <el-dropdown trigger="click" @command="handleTableCommand">
+              <button class="tbar-btn">表格 <el-icon><ArrowDownIcon /></el-icon></button>
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item command="insert">插入表格 (3×3)</el-dropdown-item>
@@ -126,61 +142,58 @@
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
-            <el-button size="small" @click="handleInsertFigure()">插入图片</el-button>
-            <el-button size="small" @click="insertStdParagraph()">段落</el-button>
+            <button class="tbar-btn" @click="handleInsertFigure()">图片</button>
+            <button class="tbar-btn" @click="insertStdParagraph()">段落</button>
+          </div>
 
-            <div class="toolbar-separator" />
+          <!-- 格式 -->
+          <div class="tbar-group format-group">
+            <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('bold') }"      @click="editor?.chain().focus().toggleBold().run()"><strong>B</strong></button>
+            <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('italic') }"    @click="editor?.chain().focus().toggleItalic().run()"><em>I</em></button>
+            <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('underline') }" @click="toggleUnderline()"><u>U</u></button>
+            <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('strike') }"    @click="editor?.chain().focus().toggleStrike().run()"><s>S</s></button>
+          </div>
 
-            <!-- 撤销重做 -->
-            <el-button-group>
-              <el-tooltip content="撤销" placement="bottom">
-                <el-button size="small" :icon="RefreshLeft" :disabled="!editor?.can().undo()" @click="editor?.chain().focus().undo().run()" />
-              </el-tooltip>
-              <el-tooltip content="重做" placement="bottom">
-                <el-button size="small" :icon="RefreshRight" :disabled="!editor?.can().redo()" @click="editor?.chain().focus().redo().run()" />
-              </el-tooltip>
-            </el-button-group>
+          <!-- 撤销 / 重做 -->
+          <div class="tbar-group">
+            <button class="tbar-btn icon-btn" :disabled="!editor?.can().undo()" @click="editor?.chain().focus().undo().run()" title="撤销 Ctrl+Z">
+              <el-icon><RefreshLeft /></el-icon>
+            </button>
+            <button class="tbar-btn icon-btn" :disabled="!editor?.can().redo()" @click="editor?.chain().focus().redo().run()" title="重做 Ctrl+Shift+Z">
+              <el-icon><RefreshRight /></el-icon>
+            </button>
+          </div>
+
+          <!-- 代码 / 导入 / 帮助 -->
+          <div class="tbar-group">
+            <button class="tbar-btn" @click="showXmlCode = true">
+              <span style="font-family: var(--ses-font-mono); font-weight: 700">&lt;/&gt;</span>
+              源码
+            </button>
+            <button class="tbar-btn" @click="triggerXmlImport">导入 XML</button>
+            <button class="tbar-btn icon-btn" @click="showHelp = true" title="帮助">?</button>
           </div>
         </div>
 
-        <div class="toolbar-row-sub">
-          <!-- 左侧搜索框 -->
-          <div class="toolbar-search">
-            <el-input
-              v-model="searchText"
-              size="small"
-              placeholder="搜索..."
-              :prefix-icon="Search"
-              clearable
-              @keyup.enter="handleSearch"
-              style="width: 160px"
-            />
-          </div>
-
-          <!-- 文本格式 -->
-          <div class="toolbar-format">
-            <el-button size="small" :type="editor?.isActive('bold') ? 'primary' : ''" @click="editor?.chain().focus().toggleBold().run()"><strong>B</strong></el-button>
-            <el-button size="small" :type="editor?.isActive('italic') ? 'primary' : ''" @click="editor?.chain().focus().toggleItalic().run()"><em>I</em></el-button>
-            <el-button size="small" :type="editor?.isActive('underline') ? 'primary' : ''" @click="toggleUnderline()"><u>U</u></el-button>
-            <el-button size="small" :type="editor?.isActive('strike') ? 'primary' : ''" @click="editor?.chain().focus().toggleStrike().run()"><s>S</s></el-button>
-          </div>
-
-          <div class="toolbar-separator" />
-
-          <!-- 查看代码 / 导入 / 帮助 -->
-          <el-button size="small" @click="showXmlCode = true">查看代码</el-button>
-          <el-button size="small" @click="triggerXmlImport">导入XML</el-button>
-          <el-button size="small" @click="showHelp = true">帮助</el-button>
+        <!-- search -->
+        <div class="tbar-search">
+          <el-input
+            v-model="searchText"
+            size="small"
+            placeholder="搜索…"
+            :prefix-icon="Search"
+            clearable
+            @keyup.enter="handleSearch"
+          />
         </div>
       </div>
 
-      <!-- 编辑器主体 -->
-      <div class="editor-body">
+      <!-- Editor body: outline + canvas + (optional) version sidebar -->
+      <div class="ed-body ses-scroll">
         <DocumentOutline :editor="editor" />
-        <div class="editor-main">
+        <div class="ed-main">
           <SesEditorContent :editor="editor" />
         </div>
-        <!-- 版本历史面板（右侧抽屉） -->
         <transition name="slide-right">
           <div class="version-sidebar" v-if="showVersionPanel">
             <VersionPanel
@@ -194,60 +207,60 @@
         </transition>
       </div>
 
-      <!-- Slash Command 菜单 -->
+      <!-- Slash command (mounted globally) -->
       <SlashMenu @execute="handleSlashCommand" />
     </template>
 
-    <!-- 文件设置 Tab (占位) -->
+    <!-- =====================  SETTINGS TAB  ===================== -->
     <div v-else-if="activeTab === 'settings'" class="tab-placeholder">
       <el-empty description="文件设置（开发中）" />
     </div>
 
-    <!-- 预览 Tab (占位) -->
+    <!-- =====================  PREVIEW TAB  ===================== -->
     <div v-else-if="activeTab === 'preview'" class="tab-placeholder">
       <el-empty description="GB/T 1.1 文档预览（开发中）" />
     </div>
 
-    <!-- 查看代码对话框（支持多种格式） -->
-    <el-dialog v-model="showXmlCode" title="查看文档代码" width="75%">
-      <div class="code-dialog-header">
+    <!-- =====================  CODE VIEW DIALOG  ===================== -->
+    <el-dialog v-model="showXmlCode" title="查看文档代码" width="900px" class="ses-code-dlg">
+      <div class="code-dlg-head">
         <el-radio-group v-model="codeViewFormat" size="small">
-          <el-radio-button value="xml">XML (GB/T 37967)</el-radio-button>
+          <el-radio-button value="xml">XML · GB/T 37967</el-radio-button>
           <el-radio-button value="json">语义 JSON</el-radio-button>
           <el-radio-button value="html">语义 HTML</el-radio-button>
           <el-radio-button value="raw">原始 JSON</el-radio-button>
         </el-radio-group>
-        <el-button size="small" @click="copyCodeContent">复制</el-button>
-        <el-button size="small" @click="downloadCodeContent">下载</el-button>
+        <div style="display: flex; gap: 8px">
+          <el-button size="small" @click="copyCodeContent">复制</el-button>
+          <el-button size="small" @click="downloadCodeContent">下载</el-button>
+        </div>
       </div>
       <pre class="xml-code">{{ codeViewContent }}</pre>
     </el-dialog>
 
-    <!-- 导入 XML 文件 -->
     <input ref="xmlFileInput" type="file" accept=".xml" style="display: none" @change="handleXmlFileImport" />
 
-    <!-- 帮助对话框 -->
-    <el-dialog v-model="showHelp" title="帮助" width="520px">
+    <!-- =====================  HELP DIALOG  ===================== -->
+    <el-dialog v-model="showHelp" title="键盘快捷键 / 帮助" width="520px">
       <div class="help-content">
         <h4>快捷键</h4>
         <ul>
-          <li><kbd>Ctrl+B</kbd> 加粗</li>
-          <li><kbd>Ctrl+I</kbd> 斜体</li>
-          <li><kbd>Ctrl+Z</kbd> 撤销</li>
-          <li><kbd>Ctrl+Shift+Z</kbd> 重做</li>
-          <li><kbd>Ctrl+S</kbd> 保存</li>
+          <li><kbd>Ctrl</kbd> + <kbd>B</kbd> 加粗</li>
+          <li><kbd>Ctrl</kbd> + <kbd>I</kbd> 斜体</li>
+          <li><kbd>Ctrl</kbd> + <kbd>Z</kbd> 撤销</li>
+          <li><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> 重做</li>
+          <li><kbd>Ctrl</kbd> + <kbd>S</kbd> 保存</li>
+          <li><kbd>/</kbd> 智能插入菜单</li>
         </ul>
         <h4>文档结构</h4>
-        <p>使用左上角"+"按钮添加章节结构（前言、引言、章、附录、参考文献）。</p>
-        <p>使用工具栏按钮插入条、列项、注、示例、公式、表格、图片等内容要素。</p>
+        <p>使用左上角"+"按钮添加章节结构（前言、引言、章、附录、参考文献）。使用工具栏按钮插入条、列项、注、示例、公式、表格、图片等内容要素。</p>
       </div>
     </el-dialog>
 
-    <!-- 导出对话框 -->
-    <el-dialog v-model="showExport" title="导出文档" width="520px">
-      <!-- 模板类型选择 -->
+    <!-- =====================  EXPORT DIALOG  ===================== -->
+    <el-dialog v-model="showExport" title="导出文档" width="560px">
       <div style="margin-bottom: 20px">
-        <div style="font-weight: 600; margin-bottom: 8px; color: #303133">标准类型模板</div>
+        <div class="dlg-field-label">标准类型模板</div>
         <el-radio-group v-model="selectedStandardType" size="small">
           <el-radio-button
             v-for="(label, type) in STANDARD_TYPE_LABELS"
@@ -258,25 +271,38 @@
         </el-radio-group>
       </div>
       <el-divider style="margin: 12px 0" />
-      <p style="margin: 0 0 16px; color: #606266">选择导出格式：</p>
-      <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap">
-        <el-button type="primary" size="large" :loading="exportingDocx" @click="handleExportFormat('docx')">
-          导出 DOCX
-        </el-button>
-        <el-button type="success" size="large" @click="handleExportFormat('pdf')">
-          打印/PDF
-        </el-button>
-        <el-button size="large" @click="handleExportFormat('xml')">导出 XML</el-button>
-        <el-button size="large" @click="handleExportFormat('html')">导出 HTML</el-button>
-        <el-button size="large" @click="handleExportFormat('json')">导出 JSON</el-button>
-      </div>
-      <div style="margin-top: 12px; color: #909399; font-size: 12px">
-        DOCX：生成 Word 文件，符合 GB/T 1.1-2020 格式规范 ·
-        打印/PDF：在新窗口打印或另存为 PDF
+      <p style="margin: 0 0 16px; color: var(--ses-ink-3); font-size: 13px">选择导出格式：</p>
+      <div class="export-grid">
+        <button class="export-card primary" :disabled="exportingDocx" @click="handleExportFormat('docx')">
+          <span class="ec-glyph">W</span>
+          <span class="ec-label">DOCX</span>
+          <span class="ec-sub">符合 GB/T 1.1-2020 排版</span>
+        </button>
+        <button class="export-card" @click="handleExportFormat('pdf')">
+          <span class="ec-glyph">PDF</span>
+          <span class="ec-label">打印 / PDF</span>
+          <span class="ec-sub">新窗口打印或另存</span>
+        </button>
+        <button class="export-card" @click="handleExportFormat('xml')">
+          <span class="ec-glyph">&lt;/&gt;</span>
+          <span class="ec-label">XML</span>
+          <span class="ec-sub">GB/T 37967 元数据</span>
+        </button>
+        <button class="export-card" @click="handleExportFormat('html')">
+          <span class="ec-glyph">&#9636;</span>
+          <span class="ec-label">HTML</span>
+          <span class="ec-sub">语义化标注</span>
+        </button>
+        <button class="export-card" @click="handleExportFormat('json')">
+          <span class="ec-glyph">{ }</span>
+          <span class="ec-label">JSON</span>
+          <span class="ec-sub">完整树形结构</span>
+        </button>
       </div>
     </el-dialog>
   </div>
 </template>
+
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
@@ -291,7 +317,7 @@ import { TableHeader } from '@tiptap/extension-table-header'
 import { Image } from '@tiptap/extension-image'
 import { Placeholder } from '@tiptap/extension-placeholder'
 // Underline is included in StarterKit (tiptap v3)
-import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon } from '@element-plus/icons-vue'
+import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon, Clock, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useDocumentStore } from '@/stores/document'
 import SesEditorContent from '@/components/editor/EditorContent.vue'
@@ -1101,175 +1127,181 @@ function handleXmlFileImport(event: Event) {
 </script>
 
 <style scoped>
+/* === editor view shell === */
 .editor-view {
   height: 100vh;
   display: flex;
   flex-direction: column;
+  background: var(--ses-bg);
 }
 
-/* === 顶部导航 === */
-.top-nav {
-  display: flex;
+/* === top nav === */
+.ed-nav {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
+  padding: 0 16px;
   height: 48px;
-  border-bottom: 1px solid var(--el-border-color);
-  background: var(--el-bg-color);
+  background: var(--ses-surface);
+  border-bottom: 1px solid var(--ses-line);
+  flex-shrink: 0;
 }
+.nav-l, .nav-r { display: flex; align-items: center; gap: 12px; }
+.nav-r { justify-content: flex-end; }
+.brand-sep { width: 1px; height: 14px; background: var(--ses-line-2); margin: 0 4px; }
 
-.app-title {
-  font-size: 16px;
-  font-weight: 600;
+.doc-crumb {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 6px;
+  font-size: 12.5px; color: var(--ses-ink-2);
   cursor: pointer;
+  max-width: 360px;
 }
+.doc-crumb:hover { background: var(--ses-surface-2); }
+.doc-crumb .std-no { color: var(--ses-ink-3); font-family: var(--ses-font-mono); font-size: 11.5px; }
+.doc-crumb .dot-sep { color: var(--ses-ink-4); }
+.doc-crumb .crumb-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.doc-crumb .caret { color: var(--ses-ink-4); font-size: 10px; }
 
-.app-title:hover {
-  color: var(--el-color-primary);
-}
-
-.top-nav-center {
+.ed-tabs {
   display: flex;
-  gap: 4px;
+  gap: 2px;
+  padding: 4px;
+  background: var(--ses-surface-2);
+  border-radius: 8px;
 }
-
-.nav-tab {
-  padding: 8px 20px;
+.ed-tab {
+  padding: 5px 14px;
+  border-radius: 5px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ses-ink-3);
+  background: transparent;
+  border: 0;
   cursor: pointer;
-  font-size: 14px;
-  border-bottom: 2px solid transparent;
-  user-select: none;
+  font-family: inherit;
 }
-
-.nav-tab:hover {
-  color: var(--el-color-primary);
-}
-
-.nav-tab.active {
-  color: var(--el-color-primary);
-  border-bottom-color: var(--el-color-primary);
+.ed-tab:hover { color: var(--ses-ink); }
+.ed-tab.is-active {
+  background: var(--ses-surface);
+  color: var(--ses-ink);
   font-weight: 600;
+  box-shadow: var(--ses-shadow-1);
 }
 
-.top-nav-right {
-  display: flex;
+/* === toolbar === */
+.ed-toolbar {
+  display: grid;
+  grid-template-columns: 280px 1fr auto;
   align-items: center;
   gap: 16px;
-}
-
-.nav-link {
-  cursor: pointer;
-  font-size: 14px;
-  color: var(--el-text-color-regular);
-}
-
-.nav-link:hover,
-.nav-link.active {
-  color: var(--el-color-primary);
-}
-
-.save-hint {
-  font-size: 12px;
-  color: var(--el-text-color-placeholder);
-}
-
-/* === 工具栏 === */
-.toolbar-area {
-  border-bottom: 1px solid var(--el-border-color);
-  background: var(--el-bg-color);
-}
-
-.toolbar-row-main {
-  display: flex;
-  align-items: center;
-  padding: 6px 12px;
-  gap: 8px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.toolbar-outline-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 180px;
+  padding: 0 16px;
+  background: var(--ses-surface);
+  border-bottom: 1px solid var(--ses-line);
+  height: 56px;
   flex-shrink: 0;
-  font-size: 14px;
+}
+
+.tbar-outline-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-right: 12px;
+  border-right: 1px solid var(--ses-line);
+  height: 36px;
+  font-size: 11px;
   font-weight: 600;
-  padding-right: 12px;
-  border-right: 1px solid var(--el-border-color-lighter);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ses-ink-3);
 }
-
-.toolbar-buttons {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  flex: 1;
+.tbar-outline-head .add-btn {
+  width: 22px; height: 22px;
+  border-radius: 5px;
+  background: var(--ses-surface-3);
+  color: var(--ses-ink-2);
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0;
+  cursor: pointer;
 }
+.tbar-outline-head .add-btn:hover { background: var(--ses-accent); color: white; }
 
-.toolbar-row-sub {
-  display: flex;
-  align-items: center;
-  padding: 6px 12px;
-  gap: 8px;
+.tbar-groups {
+  display: flex; align-items: center; gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.tbar-groups::-webkit-scrollbar { display: none; }
 
-.toolbar-search {
-  width: 180px;
+.tbar-group {
+  display: flex; align-items: center; gap: 4px;
+  height: 36px;
+  padding: 0 6px;
+  background: var(--ses-surface-2);
+  border-radius: 8px;
   flex-shrink: 0;
-  padding-right: 12px;
-  border-right: 1px solid var(--el-border-color-lighter);
+}
+.tbar-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 5px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ses-ink-2);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: all 0.1s ease;
+}
+.tbar-btn:hover {
+  background: var(--ses-surface);
+  color: var(--ses-ink);
+  box-shadow: var(--ses-shadow-1);
+}
+.tbar-btn.is-active { background: var(--ses-accent-soft); color: var(--ses-accent); }
+.tbar-btn[disabled] { opacity: 0.4; pointer-events: none; }
+.tbar-btn.icon-btn { width: 26px; padding: 0; justify-content: center; }
+
+.format-group strong, .format-group em, .format-group u, .format-group s {
+  font-family: var(--ses-font-zh-hei);
 }
 
-.toolbar-format {
-  display: flex;
-  gap: 4px;
+.tbar-search { width: 180px; }
+:deep(.tbar-search .el-input__wrapper) {
+  border-radius: 6px;
 }
 
-.toolbar-separator {
-  width: 1px;
-  height: 24px;
-  background: var(--el-border-color-lighter);
-  margin: 0 4px;
-}
-
-/* === 编辑器主体 === */
-.editor-body {
+/* === body === */
+.ed-body {
   flex: 1;
   display: flex;
   overflow: hidden;
 }
-
-.editor-main {
+.ed-main {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 0%, oklch(0.92 0.02 285 / 0.25), transparent 600px),
+    var(--ses-bg);
 }
 
-/* === 版本历史侧边栏 === */
+/* === version sidebar slide === */
 .version-sidebar {
   width: 380px;
   min-width: 380px;
-  border-left: 1px solid var(--el-border-color);
-  background: #fff;
+  border-left: 1px solid var(--ses-line);
+  background: var(--ses-surface);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
+.slide-right-enter-active, .slide-right-leave-active { transition: all 0.3s ease; }
+.slide-right-enter-from,  .slide-right-leave-to     { transform: translateX(100%); opacity: 0; }
 
-.slide-right-enter-active,
-.slide-right-leave-active {
-  transition: all 0.3s ease;
-}
-
-.slide-right-enter-from,
-.slide-right-leave-to {
-  transform: translateX(100%);
-  opacity: 0;
-}
-
-/* === 占位 Tab === */
+/* === placeholder tabs === */
 .tab-placeholder {
   flex: 1;
   display: flex;
@@ -1277,51 +1309,81 @@ function handleXmlFileImport(event: Event) {
   justify-content: center;
 }
 
-/* === 代码查看对话框 === */
-.code-dialog-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+/* === code dialog === */
+.code-dlg-head {
+  display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 12px;
 }
-
 .xml-code {
-  background: #1e1e1e;
-  color: #d4d4d4;
+  background: oklch(0.18 0.014 270);
+  color: oklch(0.92 0.005 270);
   padding: 16px;
-  border-radius: 6px;
+  border-radius: var(--ses-r-md);
   max-height: 500px;
   overflow: auto;
   font-size: 12px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-family: var(--ses-font-mono);
   white-space: pre-wrap;
   word-break: break-all;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
-/* === 帮助 === */
-.help-content h4 {
-  margin: 12px 0 8px;
-}
+/* === help dialog === */
+.help-content h4 { margin: 12px 0 8px; font-size: 13px; font-weight: 600; color: var(--ses-ink); }
+.help-content ul { padding-left: 20px; }
+.help-content li { margin: 6px 0; font-size: 13px; color: var(--ses-ink-2); }
+.help-content p { margin: 6px 0; font-size: 13px; color: var(--ses-ink-2); line-height: 1.6; }
 
-.help-content ul {
-  padding-left: 20px;
+/* === export dialog === */
+.dlg-field-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ses-ink-2);
+  margin-bottom: 10px;
 }
-
-.help-content li {
-  margin: 4px 0;
+.export-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
 }
-
-.help-content kbd {
-  background: #eee;
-  border: 1px solid #ccc;
-  border-radius: 3px;
-  padding: 1px 6px;
-  font-size: 12px;
+.export-card {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 16px 12px;
+  background: var(--ses-surface);
+  border: 1.5px solid var(--ses-line);
+  border-radius: var(--ses-r-md);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  font-family: inherit;
 }
-
-.help-content p {
-  margin: 6px 0;
-  font-size: 14px;
+.export-card:hover {
+  border-color: var(--ses-accent);
+  background: var(--ses-accent-soft);
+  transform: translateY(-2px);
 }
+.export-card.primary {
+  background: var(--ses-accent);
+  border-color: var(--ses-accent);
+  color: white;
+}
+.export-card.primary:hover { background: var(--ses-accent-2); }
+.export-card[disabled] { opacity: 0.5; cursor: wait; }
+.ec-glyph {
+  font-family: var(--ses-font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.ec-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.ec-sub {
+  font-size: 10.5px;
+  color: var(--ses-ink-3);
+  text-align: center;
+}
+.export-card.primary .ec-sub { color: oklch(0.95 0.005 270 / 0.85); }
 </style>
+
