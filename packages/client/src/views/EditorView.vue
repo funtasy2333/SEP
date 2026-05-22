@@ -339,6 +339,7 @@ import {
   Bibliography, BibliographyTitle, BibEntry,
   StdList, StdListItem,
   SlashCommand,
+  AutoUnitSpacing,
 } from '@/extensions'
 import { CrossRef } from '@/extensions'
 import {
@@ -426,6 +427,7 @@ const editor = useEditor({
     StdList, StdListItem,
     CrossRef,
     SlashCommand,
+    AutoUnitSpacing,
   ],
   content: '',
   editorProps: {
