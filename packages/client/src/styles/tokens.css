@@ -1,0 +1,111 @@
+/* ============================================================
+   SES — Design Tokens
+   Source of truth for colors, type, spacing, radii, shadows.
+   Import this BEFORE element-overrides.css so the overrides
+   can reference our tokens.
+   ============================================================ */
+
+:root {
+  /* surfaces — warm-cool neutral */
+  --ses-bg:        oklch(0.985 0.002 270);
+  --ses-surface:   #ffffff;
+  --ses-surface-2: oklch(0.975 0.003 270);
+  --ses-surface-3: oklch(0.96 0.004 270);
+  --ses-paper:     #ffffff;
+  --ses-paper-edge: oklch(0.95 0.004 270);
+
+  /* ink */
+  --ses-ink:       oklch(0.21 0.014 270);
+  --ses-ink-2:     oklch(0.36 0.012 270);
+  --ses-ink-3:     oklch(0.54 0.01 270);
+  --ses-ink-4:     oklch(0.72 0.008 270);
+  --ses-ink-5:     oklch(0.86 0.005 270);
+
+  /* lines */
+  --ses-line:      oklch(0.92 0.004 270);
+  --ses-line-2:    oklch(0.88 0.005 270);
+
+  /* accent — purple (matches hero.png) */
+  --ses-accent:    oklch(0.55 0.18 285);
+  --ses-accent-2:  oklch(0.62 0.16 285);
+  --ses-accent-soft: oklch(0.96 0.025 285);
+  --ses-accent-ring: oklch(0.55 0.18 285 / 0.18);
+  --ses-accent-hex: #7B5BFA;
+
+  /* semantic */
+  --ses-ok:        oklch(0.58 0.14 155);
+  --ses-ok-soft:   oklch(0.96 0.03 155);
+  --ses-warn:      oklch(0.66 0.14 75);
+  --ses-warn-soft: oklch(0.96 0.04 75);
+  --ses-err:       oklch(0.6 0.18 25);
+  --ses-err-soft:  oklch(0.96 0.04 25);
+  --ses-info:      oklch(0.6 0.13 235);
+  --ses-info-soft: oklch(0.96 0.03 235);
+
+  /* radii */
+  --ses-r-xs: 4px;
+  --ses-r-sm: 6px;
+  --ses-r-md: 8px;
+  --ses-r-lg: 12px;
+  --ses-r-xl: 16px;
+
+  /* shadows */
+  --ses-shadow-1: 0 1px 0 oklch(0.21 0.014 270 / 0.04), 0 1px 2px oklch(0.21 0.014 270 / 0.04);
+  --ses-shadow-2: 0 1px 0 oklch(0.21 0.014 270 / 0.05), 0 4px 12px oklch(0.21 0.014 270 / 0.06);
+  --ses-shadow-paper: 0 1px 0 oklch(0.21 0.014 270 / 0.06), 0 24px 64px -32px oklch(0.21 0.014 270 / 0.18);
+
+  /* fonts */
+  --ses-font-ui: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  --ses-font-zh-hei: "PingFang SC", "Microsoft YaHei", "SimHei", "Heiti SC", "Helvetica Neue", sans-serif;
+  --ses-font-zh-song: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "SimSun", "STSong", Georgia, serif;
+  --ses-font-mono: "JetBrains Mono", "SF Mono", "Menlo", "Consolas", monospace;
+}
+
+/* Theme: paper (warm cream) */
+:root[data-ses-theme="paper"] {
+  --ses-bg: oklch(0.97 0.012 85);
+  --ses-surface: oklch(0.985 0.008 85);
+  --ses-surface-2: oklch(0.965 0.012 85);
+  --ses-surface-3: oklch(0.95 0.014 85);
+  --ses-paper: oklch(0.99 0.008 85);
+  --ses-paper-edge: oklch(0.93 0.015 85);
+  --ses-line: oklch(0.9 0.012 85);
+  --ses-line-2: oklch(0.85 0.014 85);
+}
+
+/* Theme: dark */
+:root[data-ses-theme="dark"] {
+  --ses-bg: oklch(0.18 0.014 270);
+  --ses-surface: oklch(0.22 0.014 270);
+  --ses-surface-2: oklch(0.26 0.013 270);
+  --ses-surface-3: oklch(0.3 0.012 270);
+  --ses-paper: oklch(0.965 0.003 270);
+  --ses-paper-edge: oklch(0.4 0.012 270);
+  --ses-ink: oklch(0.95 0.005 270);
+  --ses-ink-2: oklch(0.82 0.008 270);
+  --ses-ink-3: oklch(0.66 0.01 270);
+  --ses-ink-4: oklch(0.5 0.012 270);
+  --ses-ink-5: oklch(0.38 0.012 270);
+  --ses-line: oklch(0.32 0.012 270);
+  --ses-line-2: oklch(0.4 0.012 270);
+  --ses-accent-soft: oklch(0.32 0.06 285);
+  --ses-shadow-paper: 0 1px 0 oklch(0 0 0 / 0.4), 0 32px 80px -40px oklch(0 0 0 / 0.7);
+}
+
+/* Density modifiers */
+:root[data-ses-density="compact"] {
+  --ses-doc-pad: 56px;
+  --ses-doc-base: 14px;
+}
+:root[data-ses-density="regular"] {
+  --ses-doc-pad: 88px;
+  --ses-doc-base: 15px;
+}
+:root[data-ses-density="spacious"] {
+  --ses-doc-pad: 112px;
+  --ses-doc-base: 16px;
+}
+:root { /* default */
+  --ses-doc-pad: 88px;
+  --ses-doc-base: 15px;
+}
