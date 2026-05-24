@@ -278,10 +278,10 @@
           <span class="ec-label">DOCX</span>
           <span class="ec-sub">符合 GB/T 1.1-2020 排版</span>
         </button>
-        <button class="export-card" @click="handleExportFormat('pdf')">
+        <button class="export-card" :disabled="exportingPdf" @click="handleExportFormat('pdf')">
           <span class="ec-glyph">PDF</span>
-          <span class="ec-label">打印 / PDF</span>
-          <span class="ec-sub">新窗口打印或另存</span>
+          <span class="ec-label">PDF</span>
+          <span class="ec-sub">{{ exportingPdf ? '正在转换…' : '由 DOCX 高保真转换' }}</span>
         </button>
         <button class="export-card" @click="handleExportFormat('xml')">
           <span class="ec-glyph">&lt;/&gt;</span>
@@ -345,7 +345,7 @@ import { CrossRef } from '@/extensions'
 import {
   serializeToXml, parseXmlToJson,
   exportSemanticJson, exportSemanticHtml,
-  exportDocx, exportDocxFromTemplate, printAsPdf, STANDARD_TYPE_LABELS,
+  exportDocx, exportDocxFromTemplate, STANDARD_TYPE_LABELS,
 } from '@/serializer'
 import type { StandardType, DocMeta } from '@/serializer'
 
@@ -367,6 +367,7 @@ const showVersionPanel = ref(false)
 const documentId = computed(() => Number(route.params.id))
 const selectedStandardType = ref<StandardType>('gb')
 const exportingDocx = ref(false)
+const exportingPdf = ref(false)
 
 /** 默认文档结构：前言 + 1范围 + 2规范性引用文件 + 3术语和定义 */
 const defaultDocContent = {
@@ -1033,12 +1034,41 @@ function handleExportFormat(format: string) {
 
   if (format === 'pdf') {
     showExport.value = false
-    try {
-      printAsPdf(doc, { meta })
-      ElMessage.success('打印窗口已打开，请选择"另存为 PDF"')
-    } catch (e) {
-      ElMessage.error(`PDF 导出失败: ${e}`)
-    }
+    exportingPdf.value = true
+    // 先生成 DOCX，再发送到服务器转换为 PDF（高保真 Word 排版）
+    exportDocxFromTemplate(doc, meta)
+      .catch(err => {
+        console.warn('模板导出失败，回退到内置导出器', err)
+        return exportDocx(doc, meta)
+      })
+      .then(async (docxBlob) => {
+        const formData = new FormData()
+        formData.append('file', docxBlob, `${docTitle}.docx`)
+
+        // 使用 Vite 代理 (/api → localhost:3000)，避免 CORS 问题
+        const resp = await fetch('/api/convert/docx-to-pdf', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (!resp.ok) {
+          const errText = await resp.text().catch(() => resp.statusText)
+          throw new Error(`服务器转换失败 (${resp.status}): ${errText}`)
+        }
+
+        const pdfBlob = await resp.blob()
+        const url = URL.createObjectURL(pdfBlob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${docTitle}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        ElMessage.success('PDF 文件已导出')
+      })
+      .catch(e => { ElMessage.error(`PDF 导出失败: ${e}`) })
+      .finally(() => { exportingPdf.value = false })
     return
   }
 
