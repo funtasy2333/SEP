@@ -71,6 +71,8 @@
           :doc="d"
           @open="openDocument"
           @delete="handleDelete"
+          @duplicate="handleDuplicate"
+          @export="handleExport"
         />
       </div>
 
@@ -194,7 +196,7 @@ const filtered = computed(() => {
 
 const navTabs = computed(() => [
   { id: 'all',        label: '全部文档',  count: store.documents.length },
-  { id: 'mine',       label: '我的草案',  count: counts.value.working_draft || 0 },
+  { id: 'mine',       label: '我的草案',  count: store.documents.filter((d) => d.stage === 'working_draft').length },
   { id: 'collab',     label: '协作中' },
   { id: 'templates',  label: '模板库' },
   { id: 'trash',      label: '回收站' },
@@ -267,6 +269,22 @@ async function handleDelete(row: DocumentData) {
   })
   await store.deleteDocument(row.id!)
   ElMessage.success('已删除')
+}
+
+async function handleDuplicate(row: DocumentData) {
+  const baseTitle = row.meta?.titleCn || row.title
+  const copy = await store.createDocument({
+    title: `${baseTitle}（副本）`,
+    meta: { ...row.meta, titleCn: `${baseTitle}（副本）` },
+    stage: 'working_draft',
+    content: row.content,
+  })
+  ElMessage.success('已复制')
+  router.push({ name: 'editor', params: { id: copy.id! } })
+}
+
+function handleExport(row: DocumentData) {
+  router.push({ name: 'editor', params: { id: row.id! }, query: { autoExport: 'docx' } })
 }
 
 function formatDate(s?: string) {
