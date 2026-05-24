@@ -482,6 +482,12 @@ onMounted(async () => {
       // 新文档加载默认结构
       editor.value?.commands.setContent(defaultDocContent)
     }
+    // 从首页"导出 DOCX"快捷入口跳转过来时自动触发导出
+    const auto = route.query.autoExport
+    if (typeof auto === 'string' && auto) {
+      handleExportFormat(auto)
+      router.replace({ name: 'editor', params: { id }, query: {} })
+    }
   } catch {
     ElMessage.error('文档加载失败')
     router.push('/')
