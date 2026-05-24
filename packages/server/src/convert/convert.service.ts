@@ -13,7 +13,7 @@ export class ConvertService {
    *
    * 流程：
    * 1. 将 DOCX 写入临时文件
-   * 2. 调用 Python docx2pdf（内部使用 Word COM 自动化）
+   * 2. 调用 LibreOffice CLI 转换为 PDF
    * 3. 读取生成的 PDF 并返回 Buffer
    * 4. 清理临时文件
    */
@@ -35,8 +35,8 @@ export class ConvertService {
       // 1. 写入 DOCX 临时文件
       await writeFile(docxPath, docxBuffer);
 
-      // 2. 调用 Python docx2pdf 进行转换
-      await this.runDocx2Pdf(docxPath, pdfPath);
+      // 2. 调用 LibreOffice CLI 进行转换
+      await this.runLibreOfficeConvert(docxPath, pdfPath);
 
       // 3. 读取生成的 PDF
       const pdfBuffer = await readFile(pdfPath);
@@ -52,43 +52,29 @@ export class ConvertService {
   }
 
   /**
-   * 调用 Python 执行 docx2pdf 转换
+   * 使用 LibreOffice CLI 执行转换（无 Python/docx2pdf 运行时依赖）
    */
-  private runDocx2Pdf(docxPath: string, pdfPath: string): Promise<void> {
+  private runLibreOfficeConvert(docxPath: string, pdfPath: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      const pythonScript = `
-import sys
-from docx2pdf import convert
-try:
-    convert(sys.argv[1], sys.argv[2])
-    print("OK")
-except Exception as e:
-    print(f"ERROR: {e}", file=sys.stderr)
-    sys.exit(1)
-`.trim();
-
-      const proc = execFile(
-        'python',
-        ['-c', pythonScript, docxPath, pdfPath],
-        { timeout: 120_000 }, // 2 分钟超时
-        (error, stdout, stderr) => {
+      const outDir = pdfPath.replace(/[/\\][^/\\]+$/, '');
+      execFile(
+        'soffice',
+        ['--headless', '--convert-to', 'pdf', '--outdir', outDir, docxPath],
+        { timeout: 120_000 },
+        async (error, stdout, stderr) => {
           if (error) {
-            this.logger.error(`docx2pdf 执行失败: ${stderr || error.message}`);
-            reject(
-              new Error(`docx2pdf 转换失败: ${stderr || error.message}`),
-            );
+            this.logger.error(`LibreOffice 执行失败: ${stderr || error.message}`);
+            reject(new Error(`LibreOffice 转换失败: ${stderr || error.message}`));
             return;
           }
           if (stderr) {
-            this.logger.warn(`docx2pdf 警告: ${stderr}`);
+            this.logger.warn(`LibreOffice 警告: ${stderr}`);
           }
-          this.logger.log(`docx2pdf 输出: ${stdout.trim()}`);
+          this.logger.log(`LibreOffice 输出: ${stdout.trim()}`);
           resolve();
         },
-      );
-
-      proc.on('error', (err) => {
-        reject(new Error(`无法启动 Python 进程: ${err.message}`));
+      ).on('error', (err) => {
+        reject(new Error(`无法启动 LibreOffice 进程: ${err.message}`));
       });
     });
   }

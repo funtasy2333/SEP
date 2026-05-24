@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Post,
   UseInterceptors,
@@ -6,11 +7,21 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  PayloadTooLargeException,
   StreamableFile,
   Header,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ConvertService } from './convert.service';
+
+const MAX_DOCX_FILE_SIZE = 10 * 1024 * 1024;
+
+type UploadedDocxFile = {
+  buffer: Buffer;
+  mimetype: string;
+  originalname: string;
+  size: number;
+};
 
 @Controller('convert')
 export class ConvertController {
@@ -21,12 +32,18 @@ export class ConvertController {
   /**
    * POST /api/convert/docx-to-pdf
    * 接收 DOCX 文件，通过 Word COM 自动化转换为 PDF 后返回。
-   */
+  */
   @Post('docx-to-pdf')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: MAX_DOCX_FILE_SIZE,
+      },
+    }),
+  )
   @Header('Content-Type', 'application/pdf')
   async docxToPdf(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: UploadedDocxFile,
   ): Promise<StreamableFile> {
     if (!file) {
       throw new HttpException('未上传文件', HttpStatus.BAD_REQUEST);
@@ -37,9 +54,12 @@ export class ConvertController {
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document' &&
       !file.originalname.endsWith('.docx')
     ) {
-      throw new HttpException(
-        '仅支持 .docx 格式文件',
-        HttpStatus.BAD_REQUEST,
+      throw new BadRequestException('仅支持 .docx 格式文件');
+    }
+
+    if (file.size > MAX_DOCX_FILE_SIZE) {
+      throw new PayloadTooLargeException(
+        `文件大小不能超过 ${MAX_DOCX_FILE_SIZE / (1024 * 1024)}MB`,
       );
     }
 
