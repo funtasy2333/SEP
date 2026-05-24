@@ -4,7 +4,7 @@ const { spawn } = require('child_process')
 const path = require('path')
 
 const env = Object.assign({}, process.env, {
-  PATH: path.dirname(process.execPath) + ':' + (process.env.PATH || '')
+  PATH: path.dirname(process.execPath) + path.delimiter + (process.env.PATH || '')
 })
 
 const child = spawn(

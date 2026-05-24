@@ -3,13 +3,13 @@
   "configurations": [
     {
       "name": "SES Server (NestJS)",
-      "runtimeExecutable": "/opt/homebrew/bin/node",
+      "runtimeExecutable": "node",
       "runtimeArgs": ["packages/server/start-dev.js", "start", "--watch"],
       "port": 3000
     },
     {
       "name": "SES Client (Vite)",
-      "runtimeExecutable": "/opt/homebrew/bin/node",
+      "runtimeExecutable": "node",
       "runtimeArgs": ["packages/client/start-dev.cjs"],
       "port": 5173
     }
