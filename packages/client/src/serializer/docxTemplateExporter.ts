@@ -196,32 +196,54 @@ function replaceBodyRegion(xml: string, pmDoc: PMNode): string {
 interface RenderCtx {
   inAppendix: boolean
   inIntroduction: boolean
+  chapterNo: number
+  clauseNos: [number, number, number, number, number]
+  figureNo: number
+  tableNo: number
+  noteNo: number
+  exampleNo: number
+}
+
+function createRenderCtx(overrides: Partial<RenderCtx> = {}): RenderCtx {
+  return {
+    inAppendix: false,
+    inIntroduction: false,
+    chapterNo: 0,
+    clauseNos: [0, 0, 0, 0, 0],
+    figureNo: 0,
+    tableNo: 0,
+    noteNo: 0,
+    exampleNo: 0,
+    ...overrides,
+  }
 }
 
 function renderBody(pmDoc: PMNode): string {
   const lines: string[] = []
+  const rootCtx = createRenderCtx()
   // 在封面分节符与第一个章之间留一行空白
   lines.push('<w:p/>')
 
-  pmDoc.forEach(node => renderTopLevel(lines, node))
+  pmDoc.forEach(node => renderTopLevel(lines, node, rootCtx))
   return lines.join('')
 }
 
-function renderTopLevel(out: string[], node: PMNode): void {
+function renderTopLevel(out: string[], node: PMNode, rootCtx: RenderCtx): void {
   switch (node.type.name) {
     case 'coverPage':
       // 封面信息已由模板提供，编辑器中的 coverPage 节点忽略
       return
     case 'foreword':
       out.push(paragraph(STYLE_ID.forewordTitle, run('前言')))
-      node.forEach(c => renderBlock(out, c, { inAppendix: false, inIntroduction: false }))
+      node.forEach(c => renderBlock(out, c, createRenderCtx()))
       return
     case 'introduction':
       out.push(paragraph(STYLE_ID.introductionTitle, run('引言')))
-      node.forEach(c => renderBlock(out, c, { inAppendix: false, inIntroduction: true }))
+      node.forEach(c => renderBlock(out, c, createRenderCtx({ inIntroduction: true })))
       return
     case 'chapter':
-      renderChapter(out, node)
+      rootCtx.chapterNo += 1
+      renderChapter(out, node, rootCtx.chapterNo)
       return
     case 'appendix':
       renderAppendix(out, node)
@@ -231,18 +253,19 @@ function renderTopLevel(out: string[], node: PMNode): void {
       return
     default:
       // 其余顶层节点降级为正文段
-      renderBlock(out, node, { inAppendix: false, inIntroduction: false })
+      renderBlock(out, node, createRenderCtx())
   }
 }
 
-function renderChapter(out: string[], node: PMNode): void {
+function renderChapter(out: string[], node: PMNode, chapterNo: number): void {
+  const ctx = createRenderCtx({ chapterNo })
   let first = true
   node.forEach(child => {
     if (first && child.type.name === 'chapterTitle') {
-      out.push(paragraph(STYLE_ID.chapterTitle, inline(child)))
+      out.push(paragraph(STYLE_ID.chapterTitle, run(`${chapterNo} `) + inline(child)))
       first = false
     } else {
-      renderBlock(out, child, { inAppendix: false, inIntroduction: false })
+      renderBlock(out, child, ctx)
     }
   })
 }
@@ -259,7 +282,7 @@ function renderAppendix(out: string[], node: PMNode): void {
     if (child.type.name === 'appendixTitle') {
       out.push(paragraph(STYLE_ID.appendixChapter, inline(child)))
     } else {
-      renderBlock(out, child, { inAppendix: true, inIntroduction: false })
+      renderBlock(out, child, createRenderCtx({ inAppendix: true }))
     }
   })
 }
@@ -275,7 +298,7 @@ function renderBibliography(out: string[], node: PMNode): void {
     if (child.type.name === 'bibEntry') {
       out.push(paragraph(STYLE_ID.bibEntry, inline(child)))
     } else {
-      renderBlock(out, child, { inAppendix: false, inIntroduction: false })
+      renderBlock(out, child, createRenderCtx())
     }
   })
 }
@@ -290,10 +313,12 @@ function renderBlock(out: string[], node: PMNode, ctx: RenderCtx): void {
       renderClause(out, node, ctx)
       return
     case 'note':
-      out.push(paragraph(STYLE_ID.note, inline(node)))
+      ctx.noteNo += 1
+      out.push(paragraph(STYLE_ID.note, run(ctx.noteNo > 1 ? `注${ctx.noteNo}：` : '注：') + inline(node)))
       return
     case 'example':
-      out.push(paragraph(STYLE_ID.example, inline(node)))
+      ctx.exampleNo += 1
+      out.push(paragraph(STYLE_ID.example, run(ctx.exampleNo > 1 ? `示例${ctx.exampleNo}：` : '示例：') + inline(node)))
       return
     case 'figure':
       renderFigure(out, node, ctx)
@@ -326,10 +351,11 @@ function renderClause(out: string[], node: PMNode, ctx: RenderCtx): void {
   const noTitleStyle = STYLE_ID.noTitleClause[level - 1]
 
   let first = true
+  const clauseNo = nextClauseNo(ctx, level)
   node.forEach(child => {
     if (first && child.type.name === 'clauseTitle') {
       const styleId = hasTitle ? titleStyles[level - 1] : noTitleStyle
-      out.push(paragraph(styleId, inline(child)))
+      out.push(paragraph(styleId, run(`${clauseNo} `) + inline(child)))
       first = false
     } else {
       renderBlock(out, child, ctx)
@@ -350,7 +376,8 @@ function renderFigure(out: string[], node: PMNode, ctx: RenderCtx): void {
   // 图片占位段（图片真正嵌入需要额外处理 media + rels，本版略）
   if (imageAlt) out.push(paragraph(STYLE_ID.paragraph, run(imageAlt)))
   if (captionRuns) {
-    out.push(paragraph(ctx.inAppendix ? STYLE_ID.appendixFigure : STYLE_ID.figureCaption, captionRuns))
+    ctx.figureNo += 1
+    out.push(paragraph(ctx.inAppendix ? STYLE_ID.appendixFigure : STYLE_ID.figureCaption, run(`图${ctx.chapterNo}.${ctx.figureNo} `) + captionRuns))
   }
 }
 
@@ -372,7 +399,8 @@ function renderTable(out: string[], node: PMNode, ctx: RenderCtx): void {
     }
   })
   if (caption) {
-    out.push(paragraph(ctx.inAppendix ? STYLE_ID.appendixTable : STYLE_ID.tableCaption, caption))
+    ctx.tableNo += 1
+    out.push(paragraph(ctx.inAppendix ? STYLE_ID.appendixTable : STYLE_ID.tableCaption, run(`表${ctx.chapterNo}.${ctx.tableNo} `) + caption))
   }
   if (tableNode) {
     out.push(renderTableXml(tableNode))
@@ -466,6 +494,13 @@ function renderTermDef(out: string[], node: PMNode): void {
     }
   })
   out.push(paragraph(style, parts.join(run('\t'))))
+}
+
+function nextClauseNo(ctx: RenderCtx, level: number): string {
+  const idx = level - 1
+  ctx.clauseNos[idx] += 1
+  for (let i = idx + 1; i < ctx.clauseNos.length; i += 1) ctx.clauseNos[i] = 0
+  return ctx.clauseNos.slice(0, level).join('.')
 }
 
 // ============================================================
