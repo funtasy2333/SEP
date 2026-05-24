@@ -122,9 +122,15 @@ async function convertTemplateToDocument(zip: JSZip): Promise<void> {
   )
   zip.file('[Content_Types].xml', ct)
 
-  // 移除空目录条目（Word 对此比 WPS 更严格）
-  zip.remove('word/')
-  zip.remove('docProps/')
+  // 仅移除显式目录条目本身（非递归），避免误删目录下真实文档部件。
+  removeDirectoryEntryOnly(zip, 'word/')
+  removeDirectoryEntryOnly(zip, 'docProps/')
+}
+
+function removeDirectoryEntryOnly(zip: JSZip, dirPath: string): void {
+  const entry = zip.files[dirPath]
+  if (!entry || !entry.dir) return
+  delete zip.files[dirPath]
 }
 
 // ============================================================
