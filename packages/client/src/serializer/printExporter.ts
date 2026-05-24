@@ -52,19 +52,19 @@ body {
   line-height: 1.8;
 }
 
-/* 标准类型标记 + 编号区域 */
+/* 标准编号区域（右对齐） */
 .cover-header-area {
   text-align: right;
-  margin-top: -2em;
+  margin-top: 0;
 }
 
 .cover-type {
   font-family: 'SimHei', 'Heiti SC', sans-serif;
   font-size: 26pt;
   font-weight: bold;
-  letter-spacing: 2pt;
+  letter-spacing: 4pt;
   text-align: center;
-  margin-top: 20mm;
+  margin-top: 6mm;
 }
 
 .cover-std-code {
@@ -72,7 +72,7 @@ body {
   font-size: 16pt;
   font-weight: bold;
   text-align: right;
-  margin-top: 2mm;
+  margin-top: 4mm;
 }
 
 .cover-replace-info {
@@ -80,6 +80,13 @@ body {
   font-size: 10.5pt;
   text-align: right;
   margin-top: 1mm;
+}
+
+/* 封面头部区域下方的分隔线 */
+.cover-divider {
+  border: none;
+  border-top: 1pt solid #000;
+  margin: 4mm 0 0 0;
 }
 
 /* 标准名称 —— 居中、大号黑体 */
@@ -106,17 +113,16 @@ body {
 /* 封面底部：发布/实施日期 + 发布机构 */
 .cover-bottom {
   width: 100%;
-  border-top: 1.5pt solid #000;
-  padding-top: 4mm;
+  border-top: 1pt solid #000;
+  padding-top: 3mm;
   margin-top: auto;
 }
 
 .cover-dates {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   font-family: 'SimSun', serif;
   font-size: 10.5pt;
-  gap: 10mm;
 }
 
 .cover-dates .date-publish,
@@ -126,7 +132,7 @@ body {
 
 .cover-issuer {
   font-family: 'SimHei', 'Heiti SC', sans-serif;
-  font-size: 13pt;
+  font-size: 11pt;
   font-weight: bold;
   text-align: center;
   margin-top: 4mm;
@@ -148,19 +154,35 @@ body {
 }
 
 /* ——— 章节分页 ——— */
-.std-chapter,
-.std-appendix,
+/* 注意：正文各章（1 范围、2 规范性引用文件…）连续排版，不分页 */
 .std-foreword,
 .std-introduction,
+.std-appendix,
 .std-bibliography {
   page-break-before: always;
   break-before: page;
+}
+
+/* 正文章节不分页，连续排版 */
+.std-chapter {
+  page-break-before: auto;
+  break-before: auto;
 }
 
 /* 封面后的第一个元素不需要额外分页 */
 .main-content > :first-child {
   page-break-before: auto;
   break-before: auto;
+}
+
+/* ——— 正文起始页标准名称标题 ——— */
+.std-body-title {
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+  font-size: 16pt;
+  font-weight: bold;
+  text-align: center;
+  margin: 0 0 16pt;
+  line-height: 1.4;
 }
 
 /* ——— 章标题（GB/T 1.1: 黑体）——— */
@@ -375,7 +397,7 @@ export function printAsPdf(doc: PMNode, options: PrintOptions = {}): void {
   const html = exportSemanticHtml(doc)
 
   const stdTypeMap: Record<string, string> = {
-    gb: '国家标准', industry: '行业标准', local: '地方标准',
+    gb: '中华人民共和国国家标准', industry: '中华人民共和国行业标准', local: '地方标准',
     group: '团体标准', enterprise: '企业标准', guide: '标准化指导性技术文件',
   }
   const stdType = meta.standardType ? stdTypeMap[meta.standardType] || '国家标准' : '国家标准'
@@ -398,10 +420,12 @@ export function printAsPdf(doc: PMNode, options: PrintOptions = {}): void {
     ${meta.icsCode ? `<div>ICS&ensp;${meta.icsCode}</div>` : '<div>ICS&ensp;&ensp;</div>'}
     ${meta.ccsCode ? `<div>CCS&ensp;${meta.ccsCode}</div>` : '<div>CCS&ensp;&ensp;</div>'}
   </div>
+  <div class="cover-type">${stdType}</div>
   <div class="cover-header-area">
     ${meta.stdCode ? `<div class="cover-std-code">${meta.stdCode}</div>` : '<div class="cover-std-code">GB/T XXXXX—XXXX</div>'}
+    ${meta.replaceInfo ? `<div class="cover-replace-info">${meta.replaceInfo}</div>` : ''}
   </div>
-  <div class="cover-type">${stdType}</div>
+  <hr class="cover-divider" />
   <div class="cover-title">${meta.title || '（标准名称）'}</div>
   ${meta.titleEn ? `<div class="cover-title-en">${meta.titleEn}</div>` : ''}
   <div class="cover-bottom">
@@ -431,9 +455,11 @@ export function printAsPdf(doc: PMNode, options: PrintOptions = {}): void {
     ${html}
   </div>
   <script>
-    // 在每个分页章节顶部插入页眉
     window.addEventListener('load', function() {
       var stdCode = ${JSON.stringify(stdCodeHeader)};
+      var stdTitle = ${JSON.stringify(meta.title || '')};
+
+      // 在每个分页章节顶部插入页眉
       var sections = document.querySelectorAll(
         '.std-foreword, .std-introduction, .std-chapter, .std-appendix, .std-bibliography'
       );
@@ -443,6 +469,18 @@ export function printAsPdf(doc: PMNode, options: PrintOptions = {}): void {
         header.textContent = stdCode;
         sec.insertBefore(header, sec.firstChild);
       });
+
+      // 在正文第一个章节前插入标准名称标题
+      if (stdTitle) {
+        var firstChapter = document.querySelector('.std-chapter');
+        if (firstChapter) {
+          var titleDiv = document.createElement('div');
+          titleDiv.className = 'std-body-title';
+          titleDiv.textContent = stdTitle;
+          firstChapter.parentNode.insertBefore(titleDiv, firstChapter);
+        }
+      }
+
       setTimeout(function() { window.print(); }, 300);
     });
   </script>

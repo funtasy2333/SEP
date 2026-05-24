@@ -79,6 +79,9 @@ const TEXT_PLACEHOLDERS: { needle: string; value: (m: DocMeta) => string }[] = [
   { needle: '点击此处，以便选择适当的引导语', value: () => '' },
   { needle: '点击并选择适当的引导语', value: () => '' },
   { needle: '代替 XX/T', value: () => '' },
+  // 注意：不要在此添加模板表单域下拉列表中的文本（如"草案版次选择"、专利声明等），
+  // 它们出现在 <w:ffData>/<w:ddList>/<w:listEntry> 的 w:val 属性中，
+  // 简单文本替换会破坏 XML 表单域结构，导致 Word 无法打开文件。
 ]
 
 export async function exportDocxFromTemplate(pmDoc: PMNode, meta: DocMeta): Promise<Blob> {
@@ -269,10 +272,14 @@ function renderTopLevel(out: string[], node: PMNode, rootCtx: RenderCtx): void {
     case 'foreword':
       out.push(paragraph(STYLE_ID.forewordTitle, run('前言')))
       node.forEach(c => renderBlock(out, c, createRenderCtx()))
+      // 前言后分页
+      out.push(pageBreakParagraph())
       return
     case 'introduction':
       out.push(paragraph(STYLE_ID.introductionTitle, run('引言')))
       node.forEach(c => renderBlock(out, c, createRenderCtx({ inIntroduction: true })))
+      // 引言后分页
+      out.push(pageBreakParagraph())
       return
     case 'chapter':
       rootCtx.chapterNo += 1
@@ -295,7 +302,8 @@ function renderChapter(out: string[], node: PMNode, chapterNo: number): void {
   let first = true
   node.forEach(child => {
     if (first && child.type.name === 'chapterTitle') {
-      out.push(paragraph(STYLE_ID.chapterTitle, run(`${chapterNo} `) + inline(child)))
+      // 不手动插入编号——模板样式 affc 自带大纲编号
+      out.push(paragraph(STYLE_ID.chapterTitle, inline(child)))
       first = false
     } else {
       renderBlock(out, child, ctx)
@@ -384,11 +392,12 @@ function renderClause(out: string[], node: PMNode, ctx: RenderCtx): void {
   const noTitleStyle = STYLE_ID.noTitleClause[level - 1]
 
   let first = true
-  const clauseNo = nextClauseNo(ctx, level)
+  // 推进计数器但不在输出中使用编号——模板样式自带大纲编号
+  nextClauseNo(ctx, level)
   node.forEach(child => {
     if (first && child.type.name === 'clauseTitle') {
       const styleId = hasTitle ? titleStyles[level - 1] : noTitleStyle
-      out.push(paragraph(styleId, run(`${clauseNo} `) + inline(child)))
+      out.push(paragraph(styleId, inline(child)))
       first = false
     } else {
       renderBlock(out, child, ctx)
@@ -594,6 +603,11 @@ function run(text: string): string {
 
 function paragraph(styleId: string, runsXml: string): string {
   return `<w:p><w:pPr><w:pStyle w:val="${styleId}"/></w:pPr>${runsXml}</w:p>`
+}
+
+/** 生成一个只含分页符的空段落 */
+function pageBreakParagraph(): string {
+  return '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
 }
 
 // ============================================================
