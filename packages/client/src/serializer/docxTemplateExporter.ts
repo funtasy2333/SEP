@@ -93,11 +93,38 @@ export async function exportDocxFromTemplate(pmDoc: PMNode, meta: DocMeta): Prom
   await rewriteDocumentXml(zip, pmDoc, meta)
   await rewriteHeaders(zip, meta)
   await rewriteCoreProps(zip, meta)
+  await convertTemplateToDocument(zip)
 
   return zip.generateAsync({
     type: 'blob',
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   })
+}
+
+// ============================================================
+// .dotx → .docx 转换：修复 Content-Type 使 Word 能正常打开
+// ============================================================
+
+/**
+ * 官方模板是 .dotx 格式，其 [Content_Types].xml 把 /word/document.xml
+ * 声明为 `template.main+xml`。导出为 .docx 时 Word 会因 Content-Type
+ * 不匹配而拒绝打开（WPS 较宽松不受影响）。
+ * 本函数将模板类型替换为文档类型，并移除可能导致兼容问题的空目录条目。
+ */
+async function convertTemplateToDocument(zip: JSZip): Promise<void> {
+  const ctFile = zip.file('[Content_Types].xml')
+  if (!ctFile) return
+  let ct = await ctFile.async('string')
+  // template.main+xml → document.main+xml
+  ct = ct.replace(
+    /application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.template\.main\+xml/g,
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+  )
+  zip.file('[Content_Types].xml', ct)
+
+  // 移除空目录条目（Word 对此比 WPS 更严格）
+  zip.remove('word/')
+  zip.remove('docProps/')
 }
 
 // ============================================================
