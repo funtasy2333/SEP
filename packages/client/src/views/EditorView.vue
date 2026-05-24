@@ -345,7 +345,7 @@ import { CrossRef } from '@/extensions'
 import {
   serializeToXml, parseXmlToJson,
   exportSemanticJson, exportSemanticHtml,
-  exportDocx, printAsPdf, STANDARD_TYPE_LABELS,
+  exportDocx, exportDocxFromTemplate, printAsPdf, STANDARD_TYPE_LABELS,
 } from '@/serializer'
 import type { StandardType, DocMeta } from '@/serializer'
 
@@ -1008,7 +1008,13 @@ function handleExportFormat(format: string) {
   if (format === 'docx') {
     showExport.value = false
     exportingDocx.value = true
-    exportDocx(doc, meta)
+    // 优先使用基于官方 .dotx 模板的导出 (保留封面 + 全部段落样式)
+    // 失败时回退到从零构建的 exportDocx
+    exportDocxFromTemplate(doc, meta)
+      .catch(err => {
+        console.warn('模板导出失败，回退到内置导出器', err)
+        return exportDocx(doc, meta)
+      })
       .then(blob => {
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
