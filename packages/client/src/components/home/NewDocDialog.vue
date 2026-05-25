@@ -24,7 +24,7 @@
       <div class="mini-cover">
         <div class="left">
           <div class="stdno">
-            {{ form.stdNo ? `${typeDef.prefix} ${form.stdNo}` : `${typeDef.prefix}  XXXXX—2026` }}
+            {{ form.stdNo ? `${form.stdPrefix || typeDef.prefix} ${form.stdNo}` : `${form.stdPrefix || typeDef.prefix}  XXXXX—2026` }}
           </div>
           <div class="title-cn">{{ form.titleCn || '请输入文件名称…' }}</div>
           <div class="title-en">{{ form.titleEn || 'English title (optional)' }}</div>
@@ -129,7 +129,11 @@
                 标准编号 <span class="help">不填会自动生成占位编号</span>
               </template>
               <div class="input-group">
-                <span class="prefix">{{ typeDef.prefix }}</span>
+                <input
+                  v-model="form.stdPrefix"
+                  class="prefix-input"
+                  :placeholder="typeDef.prefix"
+                />
                 <input v-model="form.stdNo" placeholder="XXXXX—2026" />
               </div>
             </el-form-item>
@@ -179,11 +183,19 @@
           </header>
           <el-form label-position="top" :model="form">
             <div class="two-col">
+              <el-form-item label="提出单位">
+                <el-input v-model="form.proposer" placeholder="如 工业和信息化部" />
+              </el-form-item>
+              <el-form-item label="归口单位">
+                <el-input v-model="form.technicalCommittee" placeholder="如 全国信息技术标准化技术委员会（SAC/TC 28）" />
+              </el-form-item>
+            </div>
+            <div class="two-col">
               <el-form-item label="发布单位">
                 <el-input v-model="form.issuer" placeholder="如 国家标准化管理委员会" />
               </el-form-item>
               <el-form-item label="起草单位">
-                <el-input v-model="form.applicant" placeholder="如 全国信息技术标准化技术委员会" />
+                <el-input v-model="form.applicant" placeholder="如 中国电子技术标准化研究院" />
               </el-form-item>
             </div>
           </el-form>
@@ -225,6 +237,7 @@ const props = defineProps<{
 interface NewDocForm {
   type: string
   stage: typeof STAGES[number]
+  stdPrefix: string
   stdNo: string
   titleCn: string
   titleEn: string
@@ -232,6 +245,8 @@ interface NewDocForm {
   ccsCode: string
   issuer: string
   applicant: string
+  proposer: string
+  technicalCommittee: string
 }
 
 const emit = defineEmits<{
@@ -247,6 +262,7 @@ const visible = computed({
 const form = ref<NewDocForm>({
   type: 'national',
   stage: 'working_draft',
+  stdPrefix: '',
   stdNo: '',
   titleCn: '',
   titleEn: '',
@@ -254,6 +270,8 @@ const form = ref<NewDocForm>({
   ccsCode: '',
   issuer: '',
   applicant: '',
+  proposer: '',
+  technicalCommittee: '',
 })
 
 const activeStep = ref<'type' | 'basic' | 'classify' | 'contrib'>('type')
@@ -267,14 +285,14 @@ const steps = computed(() => [
   { id: 'type' as const,     label: '标准类型',     meta: typeDef.value.name },
   { id: 'basic' as const,    label: '基本信息',     meta: form.value.titleCn ? '✓ 已填写' : '题名 / 编号' },
   { id: 'classify' as const, label: '分类与阶段',   meta: `${form.value.icsCode || 'ICS'} · ${STAGE_SHORT[form.value.stage]}` },
-  { id: 'contrib' as const,  label: '起草信息',     meta: form.value.issuer ? '✓ 已填写' : '起草 / 发布单位' },
+  { id: 'contrib' as const,  label: '起草信息',     meta: form.value.proposer || form.value.issuer ? '✓ 已填写' : '提出 / 归口 / 起草单位' },
 ])
 
 const stepDone = computed(() => ({
   type: true,
   basic: !!form.value.titleCn,
   classify: !!form.value.icsCode || !!form.value.ccsCode || !!form.value.stage,
-  contrib: !!form.value.issuer || !!form.value.applicant,
+  contrib: !!form.value.proposer || !!form.value.technicalCommittee || !!form.value.issuer || !!form.value.applicant,
 }))
 
 watch(() => props.modelValue, (open) => {
@@ -282,6 +300,7 @@ watch(() => props.modelValue, (open) => {
     form.value = {
       type: props.initialType || 'national',
       stage: 'working_draft',
+      stdPrefix: '',
       stdNo: '',
       titleCn: '',
       titleEn: '',
@@ -289,6 +308,8 @@ watch(() => props.modelValue, (open) => {
       ccsCode: '',
       issuer: '',
       applicant: '',
+      proposer: '',
+      technicalCommittee: '',
     }
     activeStep.value = 'type'
   }
@@ -506,16 +527,21 @@ window.addEventListener('keydown', onKey)
   border-color: var(--ses-accent);
   box-shadow: 0 0 0 3px var(--ses-accent-ring);
 }
-.input-group .prefix {
+.input-group .prefix-input {
+  width: 90px;
+  flex-shrink: 0;
+  border: 0; background: var(--ses-surface-2); outline: none;
   padding: 0 12px;
-  font-family: var(--ses-font-mono);
+  height: 36px;
   font-size: 12.5px;
-  background: var(--ses-surface-2);
-  color: var(--ses-ink-3);
-  display: inline-flex; align-items: center;
-  border-right: 1px solid var(--ses-line);
+  font-family: var(--ses-font-mono);
   font-weight: 600;
   letter-spacing: 0.04em;
+  color: var(--ses-ink);
+  border-right: 1px solid var(--ses-line);
+}
+.input-group .prefix-input::placeholder {
+  color: var(--ses-ink-4);
 }
 .input-group input {
   flex: 1;

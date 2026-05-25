@@ -60,6 +60,10 @@ export interface DocumentMeta {
   issuer?: string;
   /** 标准申请单位 */
   applicant?: string;
+  /** 提出单位 */
+  proposer?: string;
+  /** 归口单位 */
+  technicalCommittee?: string;
 }
 
 /**
