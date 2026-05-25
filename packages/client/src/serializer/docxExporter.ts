@@ -298,6 +298,17 @@ function buildStyles() {
         },
         run: { font: FONT_HEADING, size: SIZE_CH, bold: true },
       },
+      // 正文标准名称（正文首页顶部，与封面一致）
+      {
+        id: 'BodyTitle',
+        name: '正文标准名称',
+        basedOn: 'Normal',
+        paragraph: {
+          alignment: AlignmentType.CENTER,
+          spacing: { before: mm2t(5), after: mm2t(5) },
+        },
+        run: { font: FONT_HEADING, size: 32, bold: true },
+      },
       // 术语名称
       {
         id: 'TermNameStyle',
@@ -1027,12 +1038,22 @@ export async function exportDocx(doc: PMNode, meta: DocMeta = {}): Promise<Blob>
   // 封面元素
   const coverEls = buildCoverPage(meta)
 
-  // 正文元素（跳过 coverPage 节点）
+  // 正文元素（跳过 coverPage 节点，在正文首章前插入标准名称）
   const mainEls: DocxEl[] = []
+  let stdTitleAdded = false
   doc.forEach(child => {
-    if (child.type.name !== 'coverPage') {
-      mainEls.push(...convertNode(child, ctx))
+    if (child.type.name === 'coverPage') return
+    if (!stdTitleAdded && child.type.name === 'chapter') {
+      if (meta.title) {
+        mainEls.push(new Paragraph({
+          style: 'BodyTitle',
+          text: meta.title,
+          pageBreakBefore: true,
+        }))
+      }
+      stdTitleAdded = true
     }
+    mainEls.push(...convertNode(child, ctx))
   })
 
   // 如果没有内容，加一个空段落防止报错
