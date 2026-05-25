@@ -357,3 +357,128 @@ Phase 7：优化与完善（~1周）
 *  暗色模式
 *  用户引导/帮助文档
 
+Phase 8：Markdown 语法支持（~1.5周）[P2]
+目标：支持 Markdown 语法直接映射到标准条款，提供高效的纯键盘写作模式
+*  Markdown 输入模式
+    * 基于 TipTap Markdown 扩展，建立 Markdown 语法到自定义 Schema 节点的映射规则
+    * `#` → Chapter，`##`~`######` → Clause（1~5级）
+    * 普通段落 → StdParagraph
+    * `-` / `*` → StdList，`1.` → 数字编号列表
+    * `>` → Note / Example（通过上下文或前缀区分）
+    * `![图题](url)` → Figure，表格语法 → StdTable
+    * 公式语法（如 `$$...$$`）→ Formula
+*  无题条的处理策略
+    * 标准文件中存在大量无标题条款（如 `5.1`、`5.2` 只有编号没有标题）
+    * Markdown 的 `##` 语法天然需要标题文字，无法直接表达无题条
+    * 策略：忽略无题条的 Markdown 快速输入，用户通过 slash command 或工具栏插入无题条
+*  Markdown 导入
+    * 支持粘贴 Markdown 文本自动转换为 SES 文档结构
+———————————
+
+Phase 9：MCP / CLI 支持（~2周）[P2]
+目标：提供编程接口，支持 AI Agent 和自动化工具操作 SES 编辑标准
+*  SES CLI 工具（ses-cli）
+    * 基于 Node.js 实现命令行工具，封装对后端 REST API 的调用
+    * 核心命令：
+        * `ses create` — 创建新标准文档
+        * `ses open <id>` — 打开文档
+        * `ses add chapter/clause/term/table/figure/appendix` — 添加文档要素
+        * `ses edit <path>` — 编辑指定节点内容
+        * `ses validate` — 执行校验
+        * `ses export docx/pdf/xml` — 导出文档
+        * `ses version create/list/diff` — 版本管理
+    * 支持 JSON 输出模式（`--json`），便于脚本和 Agent 解析
+*  MCP Server（Model Context Protocol）
+    * 基于 NestJS 后端暴露 MCP 协议的 tool 接口
+    * Tool 列表：
+        * `create_document` — 创建标准文档（含元数据：标准号、ICS、CCS 等）
+        * `get_document_structure` — 获取文档结构树
+        * `add_chapter` / `add_clause` / `add_term` — 添加结构要素
+        * `update_content` — 更新指定节点内容
+        * `insert_table` / `insert_figure` — 插入表格/图
+        * `validate_document` — 执行智能校验
+        * `export_document` — 导出为 DOCX/PDF/XML
+        * `get_validation_results` — 获取校验结果
+    * MCP Server 和 CLI 共享同一层 service 逻辑，避免重复实现
+    * 支持 Claude Code 等 Agent 通过 MCP 直接操作 SES
+*  API 文档与示例
+    * 提供 OpenAPI/Swagger 文档
+    * 提供 Agent 使用示例（Claude Code / 其他 LLM Agent）
+———————————
+
+Phase 10：AI 集成（~3周）[P3]
+目标：将 AI 能力深度集成到编辑系统中，提升标准编写效率和质量
+*  DOCX 智能导入
+    * 解析 DOCX 文件的段落样式，智能匹配到 SES Schema 节点
+    * 样式识别策略：
+        * 精确匹配：标准模板样式名（如"标题 1"→ Chapter，"正文"→ StdParagraph）
+        * 模糊匹配：利用 LLM 识别非标准样式名的语义（如"章标题"、"一级标题"等变体）
+        * 结构推断：根据编号格式、缩进层级、字体大小等特征推断节点类型
+    * 导入预览与确认界面
+        * 展示每个段落的识别结果和匹配置信度
+        * 用户可手动调整不正确的映射
+        * 支持保存自定义映射规则模板，复用于后续导入
+    * 基于现有 convert 模块扩展
+*  AI 侧边栏（对话式辅助编辑）
+    * 在编辑器右侧嵌入 AI 对话面板
+    * 上下文感知：
+        * 将当前文档的 ProseMirror JSON 或 XML 序列化后作为 LLM 上下文
+        * 支持选中文本片段作为聚焦上下文
+        * 感知光标位置和当前编辑的章节/条款
+    * 辅助能力：
+        * 内容生成：根据用户描述生成条款草稿
+        * 内容润色：改进术语用词、语句表达的规范性
+        * 结构建议：根据标准类型建议文档结构
+        * 校验解释：解释校验错误并给出修复建议
+        * 术语查询：查找相关标准中的术语定义
+    * 编辑指令执行：LLM 返回结构化编辑指令（插入/修改/删除节点），前端 apply 到编辑器
+    * LLM 后端：支持配置不同的 LLM 提供商（OpenAI、Anthropic、本地模型等）
+*  AI 辅助校验增强
+    * 在 Phase 6 智能校验基础上，增加 LLM 驱动的深层校验
+    * 语义一致性检查（如范围章与后续章节的一致性）
+    * 术语使用一致性（全文范围内同一概念是否使用了不同表述）
+———————————
+
+Phase 11：跨平台安装包与多人协作（~4周）[P3]
+目标：打包为独立安装包，支持开箱即用；支持服务器部署和多人协作
+*  桌面安装包（Electron）
+    * 使用 Electron 打包前端（Vue 3）+ 后端（NestJS）为桌面应用
+    * 通过 electron-builder 生成安装包：
+        * macOS：`.dmg`
+        * Windows：`.exe` / `.msi`（使用 NSIS 或 WiX 安装器）
+        * Linux：`.AppImage` / `.deb` / `.rpm`
+    * 内置运行环境：
+        * Node.js 运行时（Electron 自带）
+        * better-sqlite3 作为默认本地数据库
+        * LibreOffice（DOCX→PDF 转换）：
+            * 方案A：内置 LibreOffice 精简版（体积较大但开箱即用）
+            * 方案B：首次使用时引导安装，提供一键安装脚本
+    * 中国用户适配：
+        * 安装包分发：支持国内 CDN / 镜像站下载
+        * 依赖安装（如 LibreOffice）：优先使用清华/中科大/阿里等国内镜像源
+        * 安装向导支持中文界面
+    * 自动更新机制（electron-updater）
+*  服务器部署模式
+    * 支持将后端部署为独立服务器（Docker 镜像 + docker-compose）
+    * 数据库切换：
+        * 单机模式：better-sqlite3（默认，零配置）
+        * 服务器模式：PostgreSQL / MySQL（通过配置文件切换）
+    * 部署文档：
+        * Docker 一键部署脚本
+        * 手动部署指南（适用于无 Docker 环境）
+        * 提供 docker-compose.yml 模板（含数据库、后端、Nginx）
+*  多人协作功能
+    * 基于 TipTap Collaboration 扩展 + Yjs 实现实时协同编辑
+    * WebSocket 服务器（基于 Hocuspocus 或自建）
+    * 用户管理：
+        * 注册/登录（账号密码 + 可选 SSO）
+        * 角色权限：管理员、编辑者、审阅者、只读
+    * 协作功能：
+        * 实时光标/选区同步（显示协作者位置）
+        * 评论与批注（行内批注 + 回复线程）
+        * 修订模式（Track Changes，类似 Word 审阅功能）
+        * 文档锁定（防止特定阶段被意外修改）
+    * 通知与消息：
+        * 文档变更通知
+        * 评论/批注提醒
+        * 版本阶段变更通知
