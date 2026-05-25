@@ -231,6 +231,7 @@ function openNewDoc(type?: string) {
 async function handleCreate(form: {
   type: string
   stage: string
+  stdPrefix: string
   stdNo: string
   titleCn: string
   titleEn: string
@@ -238,18 +239,25 @@ async function handleCreate(form: {
   ccsCode: string
   issuer: string
   applicant: string
+  proposer: string
+  technicalCommittee: string
 }) {
+  const fullStdNo = form.stdNo
+    ? `${form.stdPrefix || ''} ${form.stdNo}`.trim()
+    : undefined
   const doc = await store.createDocument({
     title: form.titleCn,
     meta: {
       titleCn: form.titleCn,
       titleEn: form.titleEn || undefined,
-      standardNo: form.stdNo || undefined,
+      standardNo: fullStdNo,
       icsCode: form.icsCode || undefined,
       ccsCode: form.ccsCode || undefined,
       standardType: form.type,
       issuer: form.issuer || undefined,
       applicant: form.applicant || undefined,
+      proposer: form.proposer || undefined,
+      technicalCommittee: form.technicalCommittee || undefined,
     },
     stage: form.stage,
     content: {},
