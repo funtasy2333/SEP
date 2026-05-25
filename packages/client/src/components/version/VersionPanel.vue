@@ -291,6 +291,8 @@ async function handleCreateVersion() {
       note: createForm.note || undefined,
     })
 
+    await documentStore.updateDocument(props.documentId, { content })
+
     showCreateDialog.value = false
     createForm.versionNo = versionStore.getNextVersionNo()
     createForm.note = ''
