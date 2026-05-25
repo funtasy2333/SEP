@@ -319,6 +319,7 @@ import { Placeholder } from '@tiptap/extension-placeholder'
 // Underline is included in StarterKit (tiptap v3)
 import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon, Clock, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { documentApi } from '@/api/document'
 import { useDocumentStore } from '@/stores/document'
 import SesEditorContent from '@/components/editor/EditorContent.vue'
 import DocumentOutline from '@/components/editor/DocumentOutline.vue'
@@ -518,7 +519,10 @@ onBeforeUnmount(() => {
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
   if (dirty.value && editor.value && store.currentDocument) {
     const content = editor.value.getJSON()
-    store.updateDocument(store.currentDocument.id!, { content })
+    const currentId = store.currentDocument.id
+    if (currentId != null) {
+      void documentApi.update(currentId, { content })
+    }
   }
   editor.value?.destroy()
 })
@@ -1454,4 +1458,3 @@ function handleXmlFileImport(event: Event) {
 }
 .export-card.primary .ec-sub { color: oklch(0.95 0.005 270 / 0.85); }
 </style>
-
