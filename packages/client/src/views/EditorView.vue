@@ -305,7 +305,7 @@
 
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { TextSelection } from '@tiptap/pm/state'
 import { useRoute, useRouter } from 'vue-router'
 import { useEditor } from '@tiptap/vue-3'
@@ -406,6 +406,19 @@ const defaultDocContent = {
   ],
 }
 
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+const dirty = ref(false)
+const contentReady = ref(false)
+
+function scheduleAutoSave() {
+  if (!contentReady.value) return
+  dirty.value = true
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
+  autoSaveTimer = setTimeout(() => {
+    handleSave()
+  }, 3000)
+}
+
 const editor = useEditor({
   extensions: [
     StarterKit.configure({ heading: false }),
@@ -431,6 +444,9 @@ const editor = useEditor({
     AutoUnitSpacing,
   ],
   content: '',
+  onUpdate() {
+    scheduleAutoSave()
+  },
   editorProps: {
     handleKeyDown(_view, event) {
       if ((event.ctrlKey || event.metaKey) && event.key === 's') {
@@ -483,6 +499,7 @@ onMounted(async () => {
       // 新文档加载默认结构
       editor.value?.commands.setContent(defaultDocContent)
     }
+    contentReady.value = true
     // 从首页"导出 DOCX"快捷入口跳转过来时自动触发导出
     const auto = route.query.autoExport
     if (typeof auto === 'string' && auto) {
@@ -498,15 +515,22 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
+  if (dirty.value && editor.value && store.currentDocument) {
+    const content = editor.value.getJSON()
+    store.updateDocument(store.currentDocument.id!, { content })
+  }
   editor.value?.destroy()
 })
 
 async function handleSave() {
   if (!editor.value || !store.currentDocument) return
+  if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null }
   saving.value = true
   try {
     const content = editor.value.getJSON()
     await store.updateDocument(store.currentDocument.id!, { content })
+    dirty.value = false
     lastSaved.value = new Date().toLocaleTimeString('zh-CN')
   } catch {
     ElMessage.error('保存失败')
