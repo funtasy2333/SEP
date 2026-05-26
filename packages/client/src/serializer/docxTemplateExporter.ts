@@ -46,7 +46,8 @@ const STYLE_ID = {
   forewordTitle: 'affb',                                       // 前言标题
   introductionTitle: 'affffffffb',                             // 引言标题
   bibTitle: 'afffff2',                                         // 参考文献标题
-  bibEntry: 'a',                                               // 参考文献条目
+  bibEntry: 'a',                                               // 参考文献条目（自带 [n] 编号）
+  bodyTitle: 'afffffffff8',                                    // 正文标准名称
   tableCaption: 'aff2',                                        // 正文表标题
   figureCaption: 'afd',                                        // 正文图标题
   formula: 'affffffd',                                         // 正文公式
@@ -153,10 +154,68 @@ async function rewriteDocumentXml(zip: JSZip, pmDoc: PMNode, meta: DocMeta): Pro
   xml = rewriteParagraphByStyle(xml, 'affffffffff1', formatPublishDate(meta))
   xml = rewriteParagraphByStyle(xml, 'affffffffff2', formatImplementDate(meta))
 
-  // 3) 正文区整体替换
+  // 3) 修复封面"中华人民共和国国家标准"等大字号 framePr 段，
+  //    避免 LibreOffice→PDF 时按 w:hRule="exact" 裁切字形。
+  xml = relaxExactFrames(xml)
+
+  // 4) 把封面"国家市场监督管理总局/国家标准化管理委员会 发布"图片改为
+  //    页面相对定位，避免 LibreOffice 把它与日期段叠在一起。
+  xml = anchorPublisherImageToPage(xml)
+
+  // 5) 正文区整体替换
   xml = replaceBodyRegion(xml, pmDoc, meta)
 
   zip.file('word/document.xml', xml)
+}
+
+/**
+ * 把封面发布机构图片（image2.tiff，"国家市场监督管理总局/国家标准化管理委员会 发布"）
+ * 从段落相对定位改为页面相对定位，避免 LibreOffice 把它叠到日期段上。
+ *
+ * 模板原始锚点：<wp:positionV relativeFrom="paragraph"><wp:posOffset>8281035</wp:posOffset>
+ * 即在锚点段落下 8.28M EMU（≈22.7cm）。Word 渲染时锚点段落落在封面顶部附近，
+ * 所以图片落在底部；LibreOffice 排版差异会让锚点段落上移，图片随之上浮压到日期上。
+ *
+ * 改为 page 相对、Y 偏移 ≈ 24cm（约 8755200 EMU）后，无论上方段落如何流动，
+ * 图片永远固定在 A4 (29.7cm) 页底部。
+ */
+function anchorPublisherImageToPage(xml: string): string {
+  return xml.replace(
+    /<wp:anchor\b[\s\S]*?<\/wp:anchor>/g,
+    block => {
+      // 只匹配引用 image2.tiff 的 anchor（rId 因模板而异，但 image2.tiff 是稳定的）
+      // 模板里 rId 对应关系在 word/_rels/document.xml.rels：image2 → 通常 rId15
+      // 这里直接看 docPr 名 "图片 4"（模板里发布机构图的名称）或匹配 cx≈2868840 cy≈545400
+      const isPublisher =
+        /name="图片\s*4"/.test(block) ||
+        /<wp:extent\s+cx="2868840"\s+cy="545400"\s*\/>/.test(block)
+      if (!isPublisher) return block
+      // 替换 positionV：paragraph + 任意偏移 → page + 固定 24cm
+      return block.replace(
+        /<wp:positionV\s+relativeFrom="paragraph">\s*<wp:posOffset>-?\d+<\/wp:posOffset>\s*<\/wp:positionV>/,
+        '<wp:positionV relativeFrom="page"><wp:posOffset>8755200</wp:posOffset></wp:positionV>',
+      )
+    },
+  )
+}
+
+/**
+ * 把封面大号文字段落（标准称谓 "中华人民共和国国家标准" / 其他标准称谓）的
+ * framePr 从 w:hRule="exact" 改为 w:hRule="atLeast"，否则 LibreOffice 会按
+ * 精确高度裁掉字形上半部，PDF 里就只剩半个字。Word/WPS 不受影响。
+ */
+function relaxExactFrames(xml: string): string {
+  // 仅命中：标准称谓 affff6 / 其他标准称谓 affffffffff4
+  const targetStyles = new Set(['affff6', 'affffffffff4'])
+  return xml.replace(/<w:p\b[^>]*>\s*<w:pPr>([\s\S]*?)<\/w:pPr>/g, (full, pPr: string) => {
+    const styleMatch = pPr.match(/<w:pStyle\s+w:val="([^"]+)"/)
+    if (!styleMatch || !targetStyles.has(styleMatch[1])) return full
+    if (!pPr.includes('w:hRule="exact"')) return full
+    const fixed = pPr.replace(/<w:framePr\b[^/]*\/>/g, frame =>
+      frame.replace('w:hRule="exact"', 'w:hRule="atLeast"'),
+    )
+    return full.replace(pPr, fixed)
+  })
 }
 
 function applyTextPlaceholders(xml: string, meta: DocMeta): string {
@@ -257,19 +316,20 @@ function createRenderCtx(overrides: Partial<RenderCtx> = {}): RenderCtx {
 function renderBody(pmDoc: PMNode, meta: DocMeta): string {
   const lines: string[] = []
   const rootCtx = createRenderCtx()
-  let stdTitleAdded = false
+  let bodyStarted = false
 
   pmDoc.forEach(node => {
     if (node.type.name === 'coverPage') return
 
-    if (!stdTitleAdded && node.type.name === 'chapter') {
-      if (meta.title) {
-        lines.push(paragraph(
-          STYLE_ID.forewordTitle,
-          `<w:r><w:rPr><w:rFonts w:ascii="SimHei" w:eastAsia="SimHei" w:hAnsi="SimHei"/><w:b/><w:bCs/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr><w:t xml:space="preserve">${escapeXmlText(meta.title)}</w:t></w:r>`,
-        ))
-      }
-      stdTitleAdded = true
+    // 正文起点（首个 chapter）：插入分页 + 正文标准名称。
+    // 即使 meta.title 为空，也要确保前言/引言与正文分页。
+    if (!bodyStarted && node.type.name === 'chapter') {
+      const titleText = meta.title || ''
+      lines.push(paragraphWithPageBreak(
+        STYLE_ID.bodyTitle,
+        titleText ? run(titleText) : '',
+      ))
+      bodyStarted = true
     }
 
     renderTopLevel(lines, node, rootCtx)
@@ -323,6 +383,8 @@ function renderChapter(out: string[], node: PMNode, chapterNo: number): void {
 
 function renderAppendix(out: string[], node: PMNode): void {
   // 附录标识 + 附录标题（附录前分页）
+  // 模板样式 aff3 自带 numPr 会自动生成"附录A/B/..."，编辑器只补"（规范性）"，
+  // 因此这里保留自动编号。
   const labelNode = node.firstChild
   const labelText = labelNode?.type.name === 'appendixLabel' ? inline(labelNode) : run('')
   out.push(paragraphWithPageBreak(STYLE_ID.appendixLabel, labelText))
@@ -347,11 +409,40 @@ function renderBibliography(out: string[], node: PMNode): void {
       return
     }
     if (child.type.name === 'bibEntry') {
-      out.push(paragraph(STYLE_ID.bibEntry, inline(child)))
+      // 模板样式 'a' 自带 [n] 编号；若编辑器条目以 "[1] "/"[2] " 之类前缀开头，
+      // 此处剥离，避免出现 "[1] [1] ..." 双重编号。
+      out.push(paragraph(STYLE_ID.bibEntry, inlineStripBibPrefix(child)))
     } else {
       renderBlock(out, child, createRenderCtx())
     }
   })
+}
+
+const BIB_PREFIX_RE = /^\s*[\[【(（]\s*\d+\s*[\]】)）][\s 　]*/
+
+function inlineStripBibPrefix(node: PMNode): string {
+  // 复刻 inline()，但把首个文本节点前的 [n] 编号前缀剥掉
+  const runs: string[] = []
+  let stripped = false
+  node.forEach(child => {
+    if (child.isText) {
+      let text = child.text || ''
+      if (!stripped) {
+        const next = text.replace(BIB_PREFIX_RE, '')
+        if (next !== text) stripped = true
+        text = next
+      }
+      if (text) runs.push(textRun(text, child.marks))
+    } else if (child.type.name === 'hardBreak') {
+      runs.push('<w:r><w:br/></w:r>')
+    } else if (child.isInline) {
+      const inner = (child as unknown as { textContent?: string }).textContent
+      if (typeof inner === 'string' && inner.length) {
+        runs.push(textRun(inner, []))
+      }
+    }
+  })
+  return runs.join('')
 }
 
 function renderBlock(out: string[], node: PMNode, ctx: RenderCtx): void {
@@ -429,7 +520,12 @@ function renderFigure(out: string[], node: PMNode, ctx: RenderCtx): void {
   if (imageAlt) out.push(paragraph(STYLE_ID.paragraph, run(imageAlt)))
   if (captionRuns) {
     ctx.figureNo += 1
-    out.push(paragraph(ctx.inAppendix ? STYLE_ID.appendixFigure : STYLE_ID.figureCaption, run(`图${ctx.chapterNo}.${ctx.figureNo} `) + captionRuns))
+    if (ctx.inAppendix) {
+      // 附录图标题样式 af9 需保留模板自动编号（图A.1/图A.2...）
+      out.push(paragraph(STYLE_ID.appendixFigure, captionRuns))
+    } else {
+      out.push(paragraphNoListNumbering(STYLE_ID.figureCaption, run(`图${ctx.chapterNo}.${ctx.figureNo} `) + captionRuns))
+    }
   }
 }
 
@@ -452,7 +548,12 @@ function renderTable(out: string[], node: PMNode, ctx: RenderCtx): void {
   })
   if (caption) {
     ctx.tableNo += 1
-    out.push(paragraph(ctx.inAppendix ? STYLE_ID.appendixTable : STYLE_ID.tableCaption, run(`表${ctx.chapterNo}.${ctx.tableNo} `) + caption))
+    if (ctx.inAppendix) {
+      // 附录表标题样式 aff 需保留模板自动编号（表A.1/表A.2...）
+      out.push(paragraph(STYLE_ID.appendixTable, caption))
+    } else {
+      out.push(paragraphNoListNumbering(STYLE_ID.tableCaption, run(`表${ctx.chapterNo}.${ctx.tableNo} `) + caption))
+    }
   }
   if (tableNode) {
     out.push(renderTableXml(tableNode))
@@ -490,7 +591,9 @@ function renderTableXml(table: PMNode): string {
   })
   return (
     '<w:tbl>' +
-    '<w:tblPr><w:tblW w:w="0" w:type="auto"/>' +
+    // 占满版心宽度（pct=5000 即 100%），避免 type=auto 时按文本宽度收缩成窄表
+    '<w:tblPr><w:tblW w:w="5000" w:type="pct"/>' +
+    '<w:jc w:val="center"/>' +
     '<w:tblBorders>' +
     '<w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
     '<w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
@@ -617,6 +720,15 @@ function paragraph(styleId: string, runsXml: string): string {
 
 function paragraphWithPageBreak(styleId: string, runsXml: string): string {
   return `<w:p><w:pPr><w:pStyle w:val="${styleId}"/><w:pageBreakBefore/></w:pPr>${runsXml}</w:p>`
+}
+
+/**
+ * 抑制段落继承自样式的列表/自动编号。
+ * 用于"表X.Y"/"图X.Y"：模板样式 aff2/afd 自带 numId 只会生成"表1"/"图1"
+ * （未带章号），与我们手动写入的"表5.1"重复。pPr 显式覆盖 numId=0 关掉。
+ */
+function paragraphNoListNumbering(styleId: string, runsXml: string): string {
+  return `<w:p><w:pPr><w:pStyle w:val="${styleId}"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="0"/></w:numPr></w:pPr>${runsXml}</w:p>`
 }
 
 // ============================================================
