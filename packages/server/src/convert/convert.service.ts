@@ -335,8 +335,18 @@ export class ConvertService implements OnModuleInit {
   private comClassExists(progId: string): Promise<boolean> {
     if (platform() !== 'win32') return Promise.resolve(false);
     return new Promise((resolve) => {
+      const ps = `
+        try {
+          $app = New-Object -ComObject ${progId}
+          try { $app.Quit() } catch {}
+          [System.Runtime.Interopservices.Marshal]::ReleaseComObject($app) | Out-Null
+          Write-Output 'OK'
+        } catch {
+          Write-Output 'FAIL'
+        }
+      `;
       exec(
-        `powershell -NoProfile -NonInteractive -Command "try { $null = New-Object -ComObject ${progId}; Write-Output 'OK' } catch { Write-Output 'FAIL' }"`,
+        `powershell -NoProfile -NonInteractive -Command "${ps.replace(/"/g, '\\"')}"`,
         { timeout: 15_000 },
         (error, stdout) => resolve(stdout?.trim() === 'OK'),
       );
