@@ -58,12 +58,6 @@ function detectEngine() {
 }
 
 function detectMacOS() {
-  if (pathExists('/Applications/Microsoft Word.app')) {
-    return { engine: 'word', bin: '', label: 'Microsoft Word (/Applications)' };
-  }
-  if (pathExists('/Applications/wpsoffice.app')) {
-    return { engine: 'wps', bin: '', label: 'WPS Office (/Applications)' };
-  }
   const localLO = join(HOME, '.local/lib/LibreOffice.app/Contents/MacOS/soffice');
   if (pathExists(localLO)) {
     return { engine: 'libreoffice', bin: localLO, label: `LibreOffice (${localLO})` };
@@ -78,16 +72,16 @@ function detectMacOS() {
   if (commandExists('soffice')) {
     return { engine: 'libreoffice', bin: 'soffice', label: 'LibreOffice (PATH)' };
   }
+  if (pathExists('/Applications/Microsoft Word.app')) {
+    return { engine: 'word', bin: '', label: 'Microsoft Word (/Applications)' };
+  }
+  if (pathExists('/Applications/wpsoffice.app')) {
+    return { engine: 'wps', bin: '', label: 'WPS Office (/Applications)' };
+  }
   return null;
 }
 
 function detectWindows() {
-  if (comClassExists('Word.Application')) {
-    return { engine: 'word', bin: '', label: 'Microsoft Word (COM)' };
-  }
-  if (comClassExists('KWPS.Application')) {
-    return { engine: 'wps', bin: '', label: 'WPS Office (COM)' };
-  }
   const localAppData = process.env.LOCALAPPDATA || join(HOME, 'AppData/Local');
   const portableSoffice = join(localAppData, 'ses-libreoffice/App/libreoffice/program/soffice.exe');
   if (pathExists(portableSoffice)) {
@@ -99,6 +93,12 @@ function detectWindows() {
   }
   if (commandExists('soffice')) {
     return { engine: 'libreoffice', bin: 'soffice', label: 'LibreOffice (PATH)' };
+  }
+  if (comClassExists('Word.Application')) {
+    return { engine: 'word', bin: '', label: 'Microsoft Word (COM)' };
+  }
+  if (comClassExists('KWPS.Application')) {
+    return { engine: 'wps', bin: '', label: 'WPS Office (COM)' };
   }
   return null;
 }

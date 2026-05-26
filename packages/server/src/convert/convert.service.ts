@@ -44,16 +44,6 @@ export class ConvertService implements OnModuleInit {
   }
 
   private async detectMacOS(): Promise<void> {
-    if (await this.pathExists('/Applications/Microsoft Word.app')) {
-      this.engine = 'word';
-      this.logger.log('检测到 Microsoft Word (macOS)');
-      return;
-    }
-    if (await this.pathExists('/Applications/wpsoffice.app')) {
-      this.engine = 'wps';
-      this.logger.log('检测到 WPS Office (macOS)');
-      return;
-    }
     const localLibreOffice = join(homedir(), '.local/lib/LibreOffice.app/Contents/MacOS/soffice');
     if (await this.pathExists(localLibreOffice)) {
       this.engine = 'libreoffice';
@@ -72,19 +62,19 @@ export class ConvertService implements OnModuleInit {
       this.logger.log('检测到 LibreOffice (PATH)');
       return;
     }
+    if (await this.pathExists('/Applications/Microsoft Word.app')) {
+      this.engine = 'word';
+      this.logger.log('检测到 Microsoft Word (macOS)');
+      return;
+    }
+    if (await this.pathExists('/Applications/wpsoffice.app')) {
+      this.engine = 'wps';
+      this.logger.log('检测到 WPS Office (macOS)');
+      return;
+    }
   }
 
   private async detectWindows(): Promise<void> {
-    if (await this.comClassExists('Word.Application')) {
-      this.engine = 'word';
-      this.logger.log('检测到 Microsoft Word (Windows)');
-      return;
-    }
-    if (await this.comClassExists('KWPS.Application')) {
-      this.engine = 'wps';
-      this.logger.log('检测到 WPS Office (Windows)');
-      return;
-    }
     const portableSoffice = join(
       process.env.LOCALAPPDATA || join(homedir(), 'AppData/Local'),
       'ses-libreoffice/App/libreoffice/program/soffice.exe',
@@ -98,6 +88,16 @@ export class ConvertService implements OnModuleInit {
     if (await this.commandExists('soffice')) {
       this.engine = 'libreoffice';
       this.logger.log('检测到 LibreOffice (PATH)');
+      return;
+    }
+    if (await this.comClassExists('Word.Application')) {
+      this.engine = 'word';
+      this.logger.log('检测到 Microsoft Word (Windows)');
+      return;
+    }
+    if (await this.comClassExists('KWPS.Application')) {
+      this.engine = 'wps';
+      this.logger.log('检测到 WPS Office (Windows)');
       return;
     }
   }
