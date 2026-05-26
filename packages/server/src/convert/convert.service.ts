@@ -57,7 +57,7 @@ export class ConvertService implements OnModuleInit {
       this.logger.log('检测到 LibreOffice (/Applications)');
       return;
     }
-    if (await this.commandExists('soffice')) {
+    if (await this.commandExists('soffice') && await this.commandWorks('soffice')) {
       this.engine = 'libreoffice';
       this.logger.log('检测到 LibreOffice (PATH)');
       return;
@@ -85,7 +85,7 @@ export class ConvertService implements OnModuleInit {
       this.logger.log(`检测到 LibreOffice Portable: ${portableSoffice}`);
       return;
     }
-    if (await this.commandExists('soffice')) {
+    if (await this.commandExists('soffice') && await this.commandWorks('soffice')) {
       this.engine = 'libreoffice';
       this.logger.log('检测到 LibreOffice (PATH)');
       return;
@@ -103,13 +103,13 @@ export class ConvertService implements OnModuleInit {
   }
 
   private async detectLinux(): Promise<void> {
-    if (await this.commandExists('libreoffice')) {
+    if (await this.commandExists('libreoffice') && await this.commandWorks('libreoffice')) {
       this.engine = 'libreoffice';
       this.sofficeBin = 'libreoffice';
       this.logger.log('检测到 LibreOffice (Linux)');
       return;
     }
-    if (await this.commandExists('soffice')) {
+    if (await this.commandExists('soffice') && await this.commandWorks('soffice')) {
       this.engine = 'libreoffice';
       this.logger.log('检测到 LibreOffice soffice (Linux)');
       return;
@@ -329,6 +329,17 @@ export class ConvertService implements OnModuleInit {
     return new Promise((resolve) => {
       const check = platform() === 'win32' ? `where ${cmd}` : `which ${cmd}`;
       exec(check, (error) => resolve(!error));
+    });
+  }
+
+  private commandWorks(cmd: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      execFile(cmd, ['--version'], { timeout: 10_000 }, (error) => {
+        if (error) {
+          this.logger.warn(`${cmd} 存在于 PATH 但无法执行: ${error.message}`);
+        }
+        resolve(!error);
+      });
     });
   }
 
