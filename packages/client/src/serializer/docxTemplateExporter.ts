@@ -264,7 +264,7 @@ function renderBody(pmDoc: PMNode, meta: DocMeta): string {
 
     if (!stdTitleAdded && node.type.name === 'chapter') {
       if (meta.title) {
-        lines.push(paragraphWithPageBreak(
+        lines.push(paragraph(
           STYLE_ID.forewordTitle,
           `<w:r><w:rPr><w:rFonts w:ascii="SimHei" w:eastAsia="SimHei" w:hAnsi="SimHei"/><w:b/><w:bCs/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr><w:t xml:space="preserve">${escapeXmlText(meta.title)}</w:t></w:r>`,
         ))

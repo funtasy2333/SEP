@@ -1048,7 +1048,6 @@ export async function exportDocx(doc: PMNode, meta: DocMeta = {}): Promise<Blob>
         mainEls.push(new Paragraph({
           style: 'BodyTitle',
           text: meta.title,
-          pageBreakBefore: true,
         }))
       }
       stdTitleAdded = true
