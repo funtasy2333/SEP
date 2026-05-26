@@ -182,12 +182,15 @@ async function installLibreOfficeWindows() {
         'winget install --id TheDocumentFoundation.LibreOffice --accept-package-agreements --accept-source-agreements',
         { stdio: 'inherit', timeout: 600_000 },
       );
-      const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
-      const sofficePath = join(programFiles, 'LibreOffice/program/soffice.exe');
-      if (pathExists(sofficePath)) {
-        return sofficePath;
+      const candidates = [
+        join(process.env.ProgramFiles || 'C:\\Program Files', 'LibreOffice/program/soffice.exe'),
+        join(process.env.ProgramW6432 || 'C:\\Program Files', 'LibreOffice/program/soffice.exe'),
+        join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'LibreOffice/program/soffice.exe'),
+      ];
+      for (const p of candidates) {
+        if (pathExists(p)) return p;
       }
-      if (commandExists('soffice')) {
+      if (commandExists('soffice') && commandWorks('soffice')) {
         return 'soffice';
       }
       console.log('winget 安装完成，但未找到 soffice。请重新运行 pnpm setup。');
