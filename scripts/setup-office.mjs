@@ -35,6 +35,16 @@ function commandExists(cmd) {
   }
 }
 
+function commandWorks(cmd) {
+  try {
+    execSync(`${cmd} --version`, { stdio: 'ignore', timeout: 10_000 });
+    return true;
+  } catch {
+    console.log(`  ⚠ ${cmd} 存在于 PATH 但无法执行（可能是残留的 wrapper）`);
+    return false;
+  }
+}
+
 // =================== 检测逻辑 ===================
 
 function detectLibreOffice() {
@@ -54,7 +64,7 @@ function detectMacOS() {
       label: 'LibreOffice (/Applications)',
     };
   }
-  if (commandExists('soffice')) {
+  if (commandExists('soffice') && commandWorks('soffice')) {
     return { bin: 'soffice', label: 'LibreOffice (PATH)' };
   }
   return null;
@@ -69,17 +79,17 @@ function detectWindows() {
       label: `LibreOffice Portable (${portableSoffice})`,
     };
   }
-  if (commandExists('soffice')) {
+  if (commandExists('soffice') && commandWorks('soffice')) {
     return { bin: 'soffice', label: 'LibreOffice (PATH)' };
   }
   return null;
 }
 
 function detectLinux() {
-  if (commandExists('libreoffice')) {
+  if (commandExists('libreoffice') && commandWorks('libreoffice')) {
     return { bin: 'libreoffice', label: 'LibreOffice (libreoffice)' };
   }
-  if (commandExists('soffice')) {
+  if (commandExists('soffice') && commandWorks('soffice')) {
     return { bin: 'soffice', label: 'LibreOffice (soffice)' };
   }
   return null;
