@@ -174,17 +174,85 @@ async function installLibreOfficeMacManual(appDir) {
 }
 
 async function installLibreOfficeWindows() {
-  console.log('\n将下载 LibreOffice Portable 到 %LOCALAPPDATA%\\ses-libreoffice\\');
-  console.log('不会写入注册表，不会注册文件关联。\n');
+  // 策略 1: 尝试 winget（大多数 Windows 10/11 自带）
+  if (commandExists('winget')) {
+    console.log('检测到 winget，尝试安装 LibreOffice...\n');
+    try {
+      execSync(
+        'winget install --id TheDocumentFoundation.LibreOffice --accept-package-agreements --accept-source-agreements',
+        { stdio: 'inherit', timeout: 600_000 },
+      );
+      const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
+      const sofficePath = join(programFiles, 'LibreOffice/program/soffice.exe');
+      if (pathExists(sofficePath)) {
+        return sofficePath;
+      }
+      if (commandExists('soffice')) {
+        return 'soffice';
+      }
+      console.log('winget 安装完成，但未找到 soffice。请重新运行 pnpm setup。');
+      process.exit(1);
+    } catch {
+      console.log('winget 安装失败，尝试其他方式...\n');
+    }
+  }
 
+  // 策略 2: PowerShell 下载 LibreOffice Portable
   const localAppData = process.env.LOCALAPPDATA || join(HOME, 'AppData/Local');
   const installDir = join(localAppData, 'ses-libreoffice');
+  const tmpInstaller = join(process.env.TEMP || join(HOME, 'AppData/Local/Temp'), 'LibreOfficePortable.paf.exe');
 
-  console.log('请手动安装 LibreOffice Portable：');
-  console.log('1. 从 https://portableapps.com/apps/office/libreoffice_portable 下载');
-  console.log(`2. 安装到: ${installDir}`);
-  console.log('3. 重新运行 pnpm setup\n');
-  process.exit(1);
+  console.log(`将 LibreOffice Portable 安装到 ${installDir}`);
+  console.log('不会写入注册表，不会注册文件关联。\n');
+
+  const downloadUrl = 'https://download.documentfoundation.org/libreoffice/portable/25.2/LibreOfficePortable_25.2.4_MultilingualAll.paf.exe';
+
+  console.log('正在下载 LibreOffice Portable（约 400 MB，请耐心等待）...');
+  try {
+    execSync(
+      `powershell -NoProfile -Command "` +
+      `[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ` +
+      `Invoke-WebRequest -Uri '${downloadUrl}' -OutFile '${tmpInstaller}' -UseBasicParsing"`,
+      { stdio: 'inherit', timeout: 600_000 },
+    );
+  } catch {
+    console.log('\n下载失败。请手动安装：');
+    console.log('1. 从 https://www.libreoffice.org/download/portable-versions/ 下载');
+    console.log(`2. 运行安装程序，安装目录选择: ${installDir}`);
+    console.log('3. 重新运行 pnpm setup\n');
+    process.exit(1);
+  }
+
+  mkdirSync(installDir, { recursive: true });
+  console.log('正在解压安装...');
+  try {
+    execSync(`"${tmpInstaller}" /S /D=${installDir}`, {
+      stdio: 'inherit',
+      timeout: 300_000,
+    });
+  } catch {
+    console.log('\n静默安装失败，尝试手动运行安装程序...');
+    try {
+      execSync(`start "" "${tmpInstaller}"`, { stdio: 'inherit' });
+      console.log(`请在安装程序中将安装目录设为: ${installDir}`);
+      console.log('安装完成后重新运行 pnpm setup\n');
+    } catch {
+      console.log(`请手动运行安装程序: ${tmpInstaller}`);
+      console.log(`安装目录设为: ${installDir}`);
+      console.log('安装完成后重新运行 pnpm setup\n');
+    }
+    process.exit(1);
+  }
+
+  const sofficePath = join(installDir, 'App/libreoffice/program/soffice.exe');
+  if (!pathExists(sofficePath)) {
+    console.error('安装后未找到 soffice.exe，请手动安装 LibreOffice。');
+    process.exit(1);
+  }
+
+  try { execSync(`del "${tmpInstaller}"`, { stdio: 'ignore' }); } catch { /* ignore */ }
+
+  return sofficePath;
 }
 
 async function installLibreOfficeLinux() {
@@ -227,7 +295,7 @@ async function main() {
   if (PLAT === 'darwin') {
     bin = await installLibreOfficeMac();
   } else if (PLAT === 'win32') {
-    await installLibreOfficeWindows();
+    bin = await installLibreOfficeWindows();
   } else {
     await installLibreOfficeLinux();
   }
