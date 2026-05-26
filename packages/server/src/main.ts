@@ -1,9 +1,31 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { mkdirSync } from 'fs';
-import { join } from 'path';
+import { mkdirSync, readFileSync } from 'fs';
+import { join, resolve } from 'path';
+
+function loadEnv() {
+  const envPath = resolve(process.cwd(), '../../.env');
+  try {
+    const content = readFileSync(envPath, 'utf-8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx < 0) continue;
+      const key = trimmed.slice(0, eqIdx).trim();
+      const val = trimmed.slice(eqIdx + 1).trim();
+      if (!process.env[key]) {
+        process.env[key] = val;
+      }
+    }
+  } catch {
+    // .env 不存在时忽略
+  }
+}
 
 async function bootstrap() {
+  loadEnv();
+
   // 确保数据目录存在
   mkdirSync(join(process.cwd(), 'data'), { recursive: true });
 
