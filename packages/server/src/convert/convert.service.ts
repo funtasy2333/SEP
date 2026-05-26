@@ -4,26 +4,21 @@ import { writeFile, readFile, unlink, mkdtemp, access } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir, platform, homedir } from 'os';
 
-type OfficeEngine = 'word' | 'wps' | 'libreoffice';
-
 @Injectable()
 export class ConvertService implements OnModuleInit {
   private readonly logger = new Logger(ConvertService.name);
-  private engine: OfficeEngine | null = null;
+  private detected = false;
   private sofficeBin = 'soffice';
 
   async onModuleInit() {
-    await this.detectEngine();
+    await this.detectLibreOffice();
   }
 
-  private async detectEngine(): Promise<void> {
-    const envEngine = process.env.OFFICE_ENGINE as OfficeEngine | undefined;
-    if (envEngine && ['word', 'wps', 'libreoffice'].includes(envEngine)) {
-      this.engine = envEngine;
-      if (envEngine === 'libreoffice' && process.env.SOFFICE_BIN) {
-        this.sofficeBin = process.env.SOFFICE_BIN;
-      }
-      this.logger.log(`使用环境变量指定的引擎: ${this.engine}`);
+  private async detectLibreOffice(): Promise<void> {
+    if (process.env.SOFFICE_BIN) {
+      this.sofficeBin = process.env.SOFFICE_BIN;
+      this.detected = true;
+      this.logger.log(`使用环境变量指定的 LibreOffice: ${this.sofficeBin}`);
       return;
     }
 
@@ -35,10 +30,9 @@ export class ConvertService implements OnModuleInit {
       await this.detectLinux();
     }
 
-    if (!this.engine) {
+    if (!this.detected) {
       this.logger.warn(
-        '未检测到 Office 套件 (Word / WPS / LibreOffice)。' +
-        'PDF 导出将不可用。请运行 pnpm setup 进行配置。',
+        '未检测到 LibreOffice。PDF 导出将不可用。请运行 pnpm setup 进行配置。',
       );
     }
   }
@@ -46,30 +40,20 @@ export class ConvertService implements OnModuleInit {
   private async detectMacOS(): Promise<void> {
     const localLibreOffice = join(homedir(), '.local/lib/LibreOffice.app/Contents/MacOS/soffice');
     if (await this.pathExists(localLibreOffice)) {
-      this.engine = 'libreoffice';
+      this.detected = true;
       this.sofficeBin = localLibreOffice;
       this.logger.log(`检测到 LibreOffice (本地安装: ${localLibreOffice})`);
       return;
     }
     if (await this.pathExists('/Applications/LibreOffice.app')) {
-      this.engine = 'libreoffice';
+      this.detected = true;
       this.sofficeBin = '/Applications/LibreOffice.app/Contents/MacOS/soffice';
       this.logger.log('检测到 LibreOffice (/Applications)');
       return;
     }
     if (await this.commandExists('soffice')) {
-      this.engine = 'libreoffice';
+      this.detected = true;
       this.logger.log('检测到 LibreOffice (PATH)');
-      return;
-    }
-    if (await this.pathExists('/Applications/Microsoft Word.app')) {
-      this.engine = 'word';
-      this.logger.log('检测到 Microsoft Word (macOS)');
-      return;
-    }
-    if (await this.pathExists('/Applications/wpsoffice.app')) {
-      this.engine = 'wps';
-      this.logger.log('检测到 WPS Office (macOS)');
       return;
     }
   }
@@ -80,37 +64,27 @@ export class ConvertService implements OnModuleInit {
       'ses-libreoffice/App/libreoffice/program/soffice.exe',
     );
     if (await this.pathExists(portableSoffice)) {
-      this.engine = 'libreoffice';
+      this.detected = true;
       this.sofficeBin = portableSoffice;
       this.logger.log(`检测到 LibreOffice Portable: ${portableSoffice}`);
       return;
     }
     if (await this.commandExists('soffice')) {
-      this.engine = 'libreoffice';
+      this.detected = true;
       this.logger.log('检测到 LibreOffice (PATH)');
-      return;
-    }
-    if (await this.comClassExists('Word.Application')) {
-      this.engine = 'word';
-      this.logger.log('检测到 Microsoft Word (Windows)');
-      return;
-    }
-    if (await this.comClassExists('KWPS.Application')) {
-      this.engine = 'wps';
-      this.logger.log('检测到 WPS Office (Windows)');
       return;
     }
   }
 
   private async detectLinux(): Promise<void> {
     if (await this.commandExists('libreoffice')) {
-      this.engine = 'libreoffice';
+      this.detected = true;
       this.sofficeBin = 'libreoffice';
       this.logger.log('检测到 LibreOffice (Linux)');
       return;
     }
     if (await this.commandExists('soffice')) {
-      this.engine = 'libreoffice';
+      this.detected = true;
       this.logger.log('检测到 LibreOffice soffice (Linux)');
       return;
     }
@@ -122,10 +96,9 @@ export class ConvertService implements OnModuleInit {
     docxBuffer: Buffer,
     originalName: string,
   ): Promise<Buffer> {
-    if (!this.engine) {
+    if (!this.detected) {
       throw new Error(
-        '未检测到可用的 Office 引擎 (Word / WPS / LibreOffice)。' +
-        '请运行 pnpm setup 配置环境，或手动安装其中一个。',
+        '未检测到 LibreOffice。请运行 pnpm setup 配置环境，或手动安装 LibreOffice。',
       );
     }
 
@@ -134,23 +107,12 @@ export class ConvertService implements OnModuleInit {
     const pdfPath = join(tempDir, 'input.pdf');
 
     this.logger.log(
-      `转换 "${originalName}" [引擎: ${this.engine}] 临时目录: ${tempDir}`,
+      `转换 "${originalName}" [LibreOffice] 临时目录: ${tempDir}`,
     );
 
     try {
       await writeFile(docxPath, docxBuffer);
-
-      switch (this.engine) {
-        case 'word':
-          await this.convertWithWord(docxPath, pdfPath);
-          break;
-        case 'wps':
-          await this.convertWithWps(docxPath, pdfPath);
-          break;
-        case 'libreoffice':
-          await this.convertWithLibreOffice(docxPath, tempDir);
-          break;
-      }
+      await this.convertWithLibreOffice(docxPath, tempDir);
 
       const pdfBuffer = await readFile(pdfPath);
       this.logger.log(`转换成功: PDF ${pdfBuffer.length} bytes`);
@@ -160,135 +122,7 @@ export class ConvertService implements OnModuleInit {
     }
   }
 
-  // =================== Word 引擎 ===================
-
-  private convertWithWord(docxPath: string, pdfPath: string): Promise<void> {
-    if (platform() === 'darwin') {
-      return this.convertWithWordMac(docxPath, pdfPath);
-    }
-    return this.convertWithWordWindows(docxPath, pdfPath);
-  }
-
-  private convertWithWordMac(docxPath: string, pdfPath: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const script = `
-        set inputFile to POSIX file "${docxPath}"
-        set outputFile to "${pdfPath}"
-        tell application "Microsoft Word"
-          open inputFile
-          set theDoc to active document
-          save as theDoc file name outputFile file format format PDF
-          close theDoc saving no
-        end tell
-      `;
-      execFile('osascript', ['-e', script], { timeout: 120_000 }, (error, stdout, stderr) => {
-        if (error) {
-          this.logger.error(`Word (macOS) 转换失败: ${stderr || error.message}`);
-          reject(new Error(`Word 转换失败: ${stderr || error.message}`));
-          return;
-        }
-        resolve();
-      });
-    });
-  }
-
-  private convertWithWordWindows(docxPath: string, pdfPath: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const absDocx = docxPath.replace(/\//g, '\\');
-      const absPdf = pdfPath.replace(/\//g, '\\');
-      const ps = `
-        $word = New-Object -ComObject Word.Application
-        $word.Visible = $false
-        $word.DisplayAlerts = 0
-        try {
-          $doc = $word.Documents.Open("${absDocx}")
-          $doc.SaveAs([ref]"${absPdf}", [ref]17)
-          $doc.Close([ref]0)
-        } finally {
-          $word.Quit()
-          [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null
-        }
-      `;
-      exec(
-        `powershell -NoProfile -NonInteractive -Command "${ps.replace(/"/g, '\\"')}"`,
-        { timeout: 120_000 },
-        (error, stdout, stderr) => {
-          if (error) {
-            this.logger.error(`Word (Windows) 转换失败: ${stderr || error.message}`);
-            reject(new Error(`Word 转换失败: ${stderr || error.message}`));
-            return;
-          }
-          resolve();
-        },
-      );
-    });
-  }
-
-  // =================== WPS 引擎 ===================
-
-  private convertWithWps(docxPath: string, pdfPath: string): Promise<void> {
-    if (platform() === 'darwin') {
-      return this.convertWithWpsMac(docxPath, pdfPath);
-    }
-    return this.convertWithWpsWindows(docxPath, pdfPath);
-  }
-
-  private convertWithWpsMac(docxPath: string, pdfPath: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const script = `
-        set inputFile to POSIX file "${docxPath}"
-        set outputFile to "${pdfPath}"
-        tell application "wpsoffice"
-          open inputFile
-          set theDoc to active document
-          save as theDoc file name outputFile file format format PDF
-          close theDoc saving no
-        end tell
-      `;
-      execFile('osascript', ['-e', script], { timeout: 120_000 }, (error, stdout, stderr) => {
-        if (error) {
-          this.logger.error(`WPS (macOS) 转换失败: ${stderr || error.message}`);
-          reject(new Error(`WPS 转换失败: ${stderr || error.message}`));
-          return;
-        }
-        resolve();
-      });
-    });
-  }
-
-  private convertWithWpsWindows(docxPath: string, pdfPath: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const absDocx = docxPath.replace(/\//g, '\\');
-      const absPdf = pdfPath.replace(/\//g, '\\');
-      const ps = `
-        $wps = New-Object -ComObject KWPS.Application
-        $wps.Visible = $false
-        $wps.DisplayAlerts = 0
-        try {
-          $doc = $wps.Documents.Open("${absDocx}")
-          $doc.SaveAs("${absPdf}", 17)
-          $doc.Close(0)
-        } finally {
-          $wps.Quit()
-          [System.Runtime.Interopservices.Marshal]::ReleaseComObject($wps) | Out-Null
-        }
-      `;
-      exec(
-        `powershell -NoProfile -NonInteractive -Command "${ps.replace(/"/g, '\\"')}"`,
-        { timeout: 120_000 },
-        (error, stdout, stderr) => {
-          if (error) {
-            this.logger.error(`WPS (Windows) 转换失败: ${stderr || error.message}`);
-            reject(new Error(`WPS 转换失败: ${stderr || error.message}`));
-            return;
-          }
-          resolve();
-        },
-      );
-    });
-  }
-
-  // =================== LibreOffice 引擎 ===================
+  // =================== LibreOffice 转换 ===================
 
   private convertWithLibreOffice(docxPath: string, outDir: string): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -329,27 +163,6 @@ export class ConvertService implements OnModuleInit {
     return new Promise((resolve) => {
       const check = platform() === 'win32' ? `where ${cmd}` : `which ${cmd}`;
       exec(check, (error) => resolve(!error));
-    });
-  }
-
-  private comClassExists(progId: string): Promise<boolean> {
-    if (platform() !== 'win32') return Promise.resolve(false);
-    return new Promise((resolve) => {
-      const ps = `
-        try {
-          $app = New-Object -ComObject ${progId}
-          try { $app.Quit() } catch {}
-          [System.Runtime.Interopservices.Marshal]::ReleaseComObject($app) | Out-Null
-          Write-Output 'OK'
-        } catch {
-          Write-Output 'FAIL'
-        }
-      `;
-      exec(
-        `powershell -NoProfile -NonInteractive -Command "${ps.replace(/"/g, '\\"')}"`,
-        { timeout: 15_000 },
-        (error, stdout) => resolve(stdout?.trim() === 'OK'),
-      );
     });
   }
 

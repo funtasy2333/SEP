@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 /**
- * Office 环境检测与配置脚本
+ * LibreOffice 环境检测与配置脚本
  *
- * 按优先级检测 Word > WPS > LibreOffice，
- * 若都未安装则自动下载 LibreOffice 到隐蔽目录。
+ * 检测 LibreOffice，若未安装则引导安装。
  *
  * 用法: node scripts/setup-office.mjs
  */
@@ -36,22 +35,9 @@ function commandExists(cmd) {
   }
 }
 
-function comClassExists(progId) {
-  if (PLAT !== 'win32') return false;
-  try {
-    const out = execSync(
-      `powershell -NoProfile -NonInteractive -Command "try { $null = New-Object -ComObject ${progId}; Write-Output 'OK' } catch { Write-Output 'FAIL' }"`,
-      { timeout: 15_000, encoding: 'utf-8' },
-    );
-    return out.trim() === 'OK';
-  } catch {
-    return false;
-  }
-}
-
 // =================== 检测逻辑 ===================
 
-function detectEngine() {
+function detectLibreOffice() {
   if (PLAT === 'darwin') return detectMacOS();
   if (PLAT === 'win32') return detectWindows();
   return detectLinux();
@@ -60,23 +46,16 @@ function detectEngine() {
 function detectMacOS() {
   const localLO = join(HOME, '.local/lib/LibreOffice.app/Contents/MacOS/soffice');
   if (pathExists(localLO)) {
-    return { engine: 'libreoffice', bin: localLO, label: `LibreOffice (${localLO})` };
+    return { bin: localLO, label: `LibreOffice (${localLO})` };
   }
   if (pathExists('/Applications/LibreOffice.app')) {
     return {
-      engine: 'libreoffice',
       bin: '/Applications/LibreOffice.app/Contents/MacOS/soffice',
       label: 'LibreOffice (/Applications)',
     };
   }
   if (commandExists('soffice')) {
-    return { engine: 'libreoffice', bin: 'soffice', label: 'LibreOffice (PATH)' };
-  }
-  if (pathExists('/Applications/Microsoft Word.app')) {
-    return { engine: 'word', bin: '', label: 'Microsoft Word (/Applications)' };
-  }
-  if (pathExists('/Applications/wpsoffice.app')) {
-    return { engine: 'wps', bin: '', label: 'WPS Office (/Applications)' };
+    return { bin: 'soffice', label: 'LibreOffice (PATH)' };
   }
   return null;
 }
@@ -86,36 +65,29 @@ function detectWindows() {
   const portableSoffice = join(localAppData, 'ses-libreoffice/App/libreoffice/program/soffice.exe');
   if (pathExists(portableSoffice)) {
     return {
-      engine: 'libreoffice',
       bin: portableSoffice,
       label: `LibreOffice Portable (${portableSoffice})`,
     };
   }
   if (commandExists('soffice')) {
-    return { engine: 'libreoffice', bin: 'soffice', label: 'LibreOffice (PATH)' };
-  }
-  if (comClassExists('Word.Application')) {
-    return { engine: 'word', bin: '', label: 'Microsoft Word (COM)' };
-  }
-  if (comClassExists('KWPS.Application')) {
-    return { engine: 'wps', bin: '', label: 'WPS Office (COM)' };
+    return { bin: 'soffice', label: 'LibreOffice (PATH)' };
   }
   return null;
 }
 
 function detectLinux() {
   if (commandExists('libreoffice')) {
-    return { engine: 'libreoffice', bin: 'libreoffice', label: 'LibreOffice (libreoffice)' };
+    return { bin: 'libreoffice', label: 'LibreOffice (libreoffice)' };
   }
   if (commandExists('soffice')) {
-    return { engine: 'libreoffice', bin: 'soffice', label: 'LibreOffice (soffice)' };
+    return { bin: 'soffice', label: 'LibreOffice (soffice)' };
   }
   return null;
 }
 
 // =================== .env 写入 ===================
 
-function writeEnv(engine, bin) {
+function writeEnv(bin) {
   let content = '';
   if (existsSync(ENV_PATH)) {
     content = readFileSync(ENV_PATH, 'utf-8');
@@ -131,7 +103,9 @@ function writeEnv(engine, bin) {
     }
   };
 
-  setVar('OFFICE_ENGINE', engine);
+  // 清理旧的 OFFICE_ENGINE 变量（如果存在）
+  content = content.replace(/^OFFICE_ENGINE=.*\n?/m, '');
+
   if (bin) setVar('SOFFICE_BIN', bin);
 
   writeFileSync(ENV_PATH, content, 'utf-8');
@@ -215,31 +189,27 @@ async function installLibreOfficeLinux() {
 // =================== 主流程 ===================
 
 async function main() {
-  console.log('=== SES Office 环境配置 ===\n');
+  console.log('=== SES LibreOffice 环境配置 ===\n');
   console.log(`平台: ${PLAT}`);
-  console.log('检测已安装的 Office 套件...\n');
+  console.log('检测 LibreOffice...\n');
 
-  let result = detectEngine();
+  let result = detectLibreOffice();
 
   if (result) {
     console.log(`✓ 检测到: ${result.label}`);
-    console.log(`  引擎: ${result.engine}`);
     if (result.bin) console.log(`  路径: ${result.bin}`);
-    writeEnv(result.engine, result.bin);
+    writeEnv(result.bin);
     console.log(`\n已写入 ${ENV_PATH}`);
     console.log('PDF 导出已就绪。');
     return;
   }
 
-  console.log('✗ 未检测到 Word、WPS 或 LibreOffice。\n');
-  console.log('PDF 导出需要以下任一软件：');
-  console.log('  1. Microsoft Word（推荐，已安装则自动使用）');
-  console.log('  2. WPS Office');
-  console.log('  3. LibreOffice（可自动安装到隐蔽目录）\n');
+  console.log('✗ 未检测到 LibreOffice。\n');
+  console.log('PDF 导出需要 LibreOffice（可自动安装到隐蔽目录）。\n');
 
   const answer = await ask('是否自动下载 LibreOffice？[Y/n] ');
   if (answer && answer !== 'y' && answer !== 'yes') {
-    console.log('已跳过。PDF 导出功能将不可用，直到安装 Office 套件。');
+    console.log('已跳过。PDF 导出功能将不可用，直到安装 LibreOffice。');
     return;
   }
 
@@ -253,7 +223,7 @@ async function main() {
   }
 
   if (bin) {
-    writeEnv('libreoffice', bin);
+    writeEnv(bin);
     console.log(`\n✓ 安装完成！已写入 ${ENV_PATH}`);
     console.log('PDF 导出已就绪。');
   }
