@@ -154,7 +154,7 @@ async function rewriteDocumentXml(zip: JSZip, pmDoc: PMNode, meta: DocMeta): Pro
   xml = rewriteParagraphByStyle(xml, 'affffffffff2', formatImplementDate(meta))
 
   // 3) 正文区整体替换
-  xml = replaceBodyRegion(xml, pmDoc)
+  xml = replaceBodyRegion(xml, pmDoc, meta)
 
   zip.file('word/document.xml', xml)
 }
@@ -211,7 +211,7 @@ function rewriteParagraphByStyle(xml: string, styleId: string, text: string): st
  *           （封面分节段：<w:p><w:pPr><w:sectPr>…</w:sectPr></w:pPr></w:p>）
  *   - 终点 = 最后一个 <w:sectPr> 的起点（body 级 sectPr，紧贴 </w:body>）
  */
-function replaceBodyRegion(xml: string, pmDoc: PMNode): string {
+function replaceBodyRegion(xml: string, pmDoc: PMNode, meta: DocMeta): string {
   const firstSectPr = xml.indexOf('<w:sectPr')
   if (firstSectPr < 0) return xml
   const coverEnd = xml.indexOf('</w:p>', firstSectPr)
@@ -221,7 +221,7 @@ function replaceBodyRegion(xml: string, pmDoc: PMNode): string {
   const lastSectPr = xml.lastIndexOf('<w:sectPr')
   if (lastSectPr <= coverEndPos) return xml
 
-  const newBody = renderBody(pmDoc)
+  const newBody = renderBody(pmDoc, meta)
   return xml.slice(0, coverEndPos) + newBody + xml.slice(lastSectPr)
 }
 
@@ -254,13 +254,27 @@ function createRenderCtx(overrides: Partial<RenderCtx> = {}): RenderCtx {
   }
 }
 
-function renderBody(pmDoc: PMNode): string {
+function renderBody(pmDoc: PMNode, meta: DocMeta): string {
   const lines: string[] = []
   const rootCtx = createRenderCtx()
-  // 在封面分节符与第一个章之间留一行空白
-  lines.push('<w:p/>')
+  let stdTitleAdded = false
 
-  pmDoc.forEach(node => renderTopLevel(lines, node, rootCtx))
+  pmDoc.forEach(node => {
+    if (node.type.name === 'coverPage') return
+
+    if (!stdTitleAdded && node.type.name === 'chapter') {
+      if (meta.title) {
+        lines.push(paragraph(
+          STYLE_ID.forewordTitle,
+          `<w:r><w:rPr><w:rFonts w:ascii="SimHei" w:eastAsia="SimHei" w:hAnsi="SimHei"/><w:b/><w:bCs/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr><w:t xml:space="preserve">${escapeXmlText(meta.title)}</w:t></w:r>`,
+        ))
+      }
+      stdTitleAdded = true
+    }
+
+    renderTopLevel(lines, node, rootCtx)
+  })
+
   return lines.join('')
 }
 
@@ -272,14 +286,10 @@ function renderTopLevel(out: string[], node: PMNode, rootCtx: RenderCtx): void {
     case 'foreword':
       out.push(paragraph(STYLE_ID.forewordTitle, run('前言')))
       node.forEach(c => renderBlock(out, c, createRenderCtx()))
-      // 前言后分页
-      out.push(pageBreakParagraph())
       return
     case 'introduction':
-      out.push(paragraph(STYLE_ID.introductionTitle, run('引言')))
+      out.push(paragraphWithPageBreak(STYLE_ID.introductionTitle, run('引言')))
       node.forEach(c => renderBlock(out, c, createRenderCtx({ inIntroduction: true })))
-      // 引言后分页
-      out.push(pageBreakParagraph())
       return
     case 'chapter':
       rootCtx.chapterNo += 1
@@ -312,10 +322,10 @@ function renderChapter(out: string[], node: PMNode, chapterNo: number): void {
 }
 
 function renderAppendix(out: string[], node: PMNode): void {
-  // 附录标识 + 附录标题
+  // 附录标识 + 附录标题（附录前分页）
   const labelNode = node.firstChild
   const labelText = labelNode?.type.name === 'appendixLabel' ? inline(labelNode) : run('')
-  out.push(paragraph(STYLE_ID.appendixLabel, labelText))
+  out.push(paragraphWithPageBreak(STYLE_ID.appendixLabel, labelText))
 
   let idx = 0
   node.forEach(child => {
@@ -332,7 +342,7 @@ function renderBibliography(out: string[], node: PMNode): void {
   let first = true
   node.forEach(child => {
     if (first && child.type.name === 'bibliographyTitle') {
-      out.push(paragraph(STYLE_ID.bibTitle, inline(child)))
+      out.push(paragraphWithPageBreak(STYLE_ID.bibTitle, inline(child)))
       first = false
       return
     }
@@ -605,9 +615,8 @@ function paragraph(styleId: string, runsXml: string): string {
   return `<w:p><w:pPr><w:pStyle w:val="${styleId}"/></w:pPr>${runsXml}</w:p>`
 }
 
-/** 生成一个只含分页符的空段落 */
-function pageBreakParagraph(): string {
-  return '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
+function paragraphWithPageBreak(styleId: string, runsXml: string): string {
+  return `<w:p><w:pPr><w:pStyle w:val="${styleId}"/><w:pageBreakBefore/></w:pPr>${runsXml}</w:p>`
 }
 
 // ============================================================
