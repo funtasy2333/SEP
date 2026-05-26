@@ -520,8 +520,12 @@ function renderFigure(out: string[], node: PMNode, ctx: RenderCtx): void {
   if (imageAlt) out.push(paragraph(STYLE_ID.paragraph, run(imageAlt)))
   if (captionRuns) {
     ctx.figureNo += 1
-    const style = ctx.inAppendix ? STYLE_ID.appendixFigure : STYLE_ID.figureCaption
-    out.push(paragraphNoListNumbering(style, run(`图${ctx.chapterNo}.${ctx.figureNo} `) + captionRuns))
+    if (ctx.inAppendix) {
+      // 附录图标题样式 af9 需保留模板自动编号（图A.1/图A.2...）
+      out.push(paragraph(STYLE_ID.appendixFigure, captionRuns))
+    } else {
+      out.push(paragraphNoListNumbering(STYLE_ID.figureCaption, run(`图${ctx.chapterNo}.${ctx.figureNo} `) + captionRuns))
+    }
   }
 }
 
@@ -544,8 +548,12 @@ function renderTable(out: string[], node: PMNode, ctx: RenderCtx): void {
   })
   if (caption) {
     ctx.tableNo += 1
-    const style = ctx.inAppendix ? STYLE_ID.appendixTable : STYLE_ID.tableCaption
-    out.push(paragraphNoListNumbering(style, run(`表${ctx.chapterNo}.${ctx.tableNo} `) + caption))
+    if (ctx.inAppendix) {
+      // 附录表标题样式 aff 需保留模板自动编号（表A.1/表A.2...）
+      out.push(paragraph(STYLE_ID.appendixTable, caption))
+    } else {
+      out.push(paragraphNoListNumbering(STYLE_ID.tableCaption, run(`表${ctx.chapterNo}.${ctx.tableNo} `) + caption))
+    }
   }
   if (tableNode) {
     out.push(renderTableXml(tableNode))
