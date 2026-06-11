@@ -1,0 +1,477 @@
+/* ===================================================================
+ * GB/T 1.1-2020 打印 CSS — Vivliostyle Spike
+ *
+ * 场景列表：
+ *   §1  三级目次：leader('.') + target-counter 页码
+ *   §2  前言/目次罗马页码（I II III），正文阿拉伯数字从 1 起
+ *   §3  奇偶页眉镜像，页边距 上37/下35/左右28mm
+ *   §4  跨页长表：thead 重复 + 续表提示调研
+ *   §5A 横排宽表方案A：命名页 size: A4 landscape
+ *   §5B 横排宽表方案B：竖页内 rotate(90deg) 对比
+ *   §6  带编号公式 + 式中键值列表（KaTeX 渲染）
+ *   §7  章标题黑体 15pt / 正文宋体 12pt 字体字号
+ * =================================================================== */
+
+
+/* ===================================================================
+ * 全局页面设置（所有 @page 的基线）
+ * =================================================================== */
+@page {
+  size: A4;                          /* 210mm × 297mm */
+  margin: 37mm 28mm 35mm 28mm;      /* 上 右 下 左 */
+}
+
+
+/* ===================================================================
+ * §2  前言/目次：罗马数字页码，无页眉
+ * =================================================================== */
+@page front {
+  size: A4;
+  margin: 37mm 28mm 35mm 28mm;
+
+  @top-left   { content: ""; }
+  @top-center { content: ""; }
+  @top-right  { content: ""; }
+
+  @bottom-left   { content: ""; }
+  @bottom-center {
+    content: counter(page, upper-roman);   /* I II III IV V … */
+    font-family: "Times New Roman", serif;
+    font-size: 10pt;
+  }
+  @bottom-right  { content: ""; }
+}
+
+
+/* ===================================================================
+ * §3  正文偶数页（左侧页眉显示标准号）
+ * =================================================================== */
+@page body:left {
+  size: A4;
+  margin: 37mm 28mm 35mm 28mm;
+
+  @top-left {
+    content: "GB/T XXXX—XXXX";
+    font-family: "SimSun", "STSong", serif;
+    font-size: 9pt;
+    vertical-align: bottom;
+    padding-bottom: 3pt;
+    border-bottom: 0.25pt solid #000;
+  }
+  @top-right { content: ""; }
+
+  @bottom-left   { content: ""; }
+  @bottom-center {
+    content: counter(page);
+    font-family: "Times New Roman", serif;
+    font-size: 10pt;
+  }
+  @bottom-right  { content: ""; }
+}
+
+
+/* ===================================================================
+ * §3  正文奇数页（右侧页眉显示标准号）
+ * =================================================================== */
+@page body:right {
+  size: A4;
+  margin: 37mm 28mm 35mm 28mm;
+
+  @top-left  { content: ""; }
+  @top-right {
+    content: "GB/T XXXX—XXXX";
+    font-family: "SimSun", "STSong", serif;
+    font-size: 9pt;
+    vertical-align: bottom;
+    padding-bottom: 3pt;
+    border-bottom: 0.25pt solid #000;
+  }
+
+  @bottom-left   { content: ""; }
+  @bottom-center {
+    content: counter(page);
+    font-family: "Times New Roman", serif;
+    font-size: 10pt;
+  }
+  @bottom-right  { content: ""; }
+}
+
+
+/* ===================================================================
+ * §5A 横排宽表：命名横排页
+ *   margin 顺序按旋转后实际效果调整
+ * =================================================================== */
+@page landscape {
+  size: A4 landscape;                /* 297mm × 210mm */
+  margin: 28mm 35mm 28mm 37mm;      /* 上 右 下 左 */
+
+  @top-left   { content: ""; }
+  @top-right  { content: ""; }
+
+  @bottom-left   { content: ""; }
+  @bottom-center {
+    content: counter(page);
+    font-family: "Times New Roman", serif;
+    font-size: 10pt;
+  }
+  @bottom-right  { content: ""; }
+}
+
+
+/* ===================================================================
+ * 区块→命名页分配
+ * =================================================================== */
+
+/* 前言/目次区块：front 命名页 */
+.front-matter {
+  page: front;
+}
+
+/* 正文区块：body 命名页
+ * 不使用 counter-reset: page — 依赖 CSS Paged Media 规范的命名页序列自动重置
+ * (CSS Paged Media §5.5: 进入新命名页序列时 page counter 自动置 1)
+ * 若此处显式 counter-reset: page 1，会创建元素作用域的 page 计数器，
+ * 导致 target-counter 跨命名页解析时全部读到元素初始值 1（已验证 bug）。 */
+.body-content {
+  page: body;
+}
+
+/* 横排宽表区块：landscape 命名页（方案A）*/
+.landscape-section {
+  page: landscape;
+}
+
+
+/* ===================================================================
+ * §7  全局字体与排版（宋体 12pt，场景7 验收基准）
+ * =================================================================== */
+body {
+  font-family: "SimSun", "宋体", "STSong", serif;
+  font-size: 12pt;
+  line-height: 1.5;
+  color: #000;
+  text-align: justify;
+}
+
+p {
+  margin: 0 0 4pt;
+  orphans: 2;
+  widows: 2;
+}
+
+
+/* ===================================================================
+ * §7  标题字体
+ * =================================================================== */
+
+/* 章标题：黑体 15pt，另起一页（正文第一章不换页） */
+h1.chapter-title {
+  font-family: "SimHei", "黑体", "STHeiti", sans-serif;
+  font-size: 15pt;
+  font-weight: bold;
+  margin: 0 0 12pt;
+  break-before: page;
+  page-break-before: always;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+/* 附录标题：同章标题，居中，不另起页（依赖父 .appendix 的 break-before）*/
+h1.appendix-title {
+  font-family: "SimHei", "黑体", "STHeiti", sans-serif;
+  font-size: 15pt;
+  font-weight: bold;
+  text-align: center;
+  margin: 0 0 12pt;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+/* 前言/目次标题：黑体 15pt，居中，字间距 */
+h1.front-heading {
+  font-family: "SimHei", "黑体", "STHeiti", sans-serif;
+  font-size: 15pt;
+  font-weight: bold;
+  text-align: center;
+  letter-spacing: 2em;
+  margin: 0 0 18pt;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+/* 条标题：黑体 12pt（四号）*/
+h2.clause-title {
+  font-family: "SimHei", "黑体", "STHeiti", sans-serif;
+  font-size: 12pt;
+  font-weight: bold;
+  margin: 12pt 0 6pt;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+/* 三级/四级标题：宋体 12pt 粗 */
+h3.subclause-title,
+h4.subclause-title {
+  font-family: "SimSun", "宋体", "STSong", serif;
+  font-size: 12pt;
+  font-weight: bold;
+  margin: 8pt 0 4pt;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+
+/* ===================================================================
+ * §1  目次（三级，leader + target-counter）
+ * =================================================================== */
+.toc ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.toc li {
+  margin: 3pt 0;
+}
+
+.toc a {
+  display: block;
+  text-decoration: none;
+  color: #000;
+  font-size: 12pt;
+}
+
+/* 一级条目：黑体 */
+.toc > ol > li > a {
+  font-family: "SimHei", "黑体", "STHeiti", sans-serif;
+  font-weight: bold;
+}
+
+/* 二级三级缩进 */
+.toc .toc-l2 { padding-left: 2em; }
+.toc .toc-l3 { padding-left: 4em; }
+
+/* 关键：点线 + 目标页码 */
+.toc a::after {
+  content: leader(dotted) target-counter(attr(href), page);
+  font-family: "Times New Roman", serif;
+  font-size: 12pt;
+}
+
+
+/* ===================================================================
+ * §4  表格 + 跨页 thead 重复
+ * =================================================================== */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 4pt 0 8pt;
+  font-size: 11pt;
+}
+
+/* 关键：声明 thead 为表头组，跨页自动重复 */
+thead {
+  display: table-header-group;
+}
+
+th {
+  font-family: "SimHei", "黑体", "STHeiti", sans-serif;
+  font-size: 11pt;
+  font-weight: bold;
+  background-color: #f2f2f2;
+  border: 0.5pt solid #000;
+  padding: 1.5mm 3mm;
+  text-align: center;
+  vertical-align: middle;
+}
+
+td {
+  border: 0.5pt solid #000;
+  padding: 1.5mm 3mm;
+  text-align: left;
+  vertical-align: top;
+}
+
+/* 表题 */
+.table-caption {
+  font-family: "SimHei", "黑体", "STHeiti", sans-serif;
+  font-size: 12pt;
+  font-weight: bold;
+  text-align: center;
+  margin: 8pt 0 3pt;
+  break-after: avoid;
+  page-break-after: avoid;
+  /* §4 续表调研：记录当前 caption 文字，测试 string() 是否可读取 */
+  string-set: table-name content(text);
+}
+
+tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+
+/* ===================================================================
+ * §5B 横排宽表方案B：竖页内旋转对比
+ *
+ * 原理：绝对定位容器旋转 -90°，transform-origin = 左上角。
+ * 旋转后宽度 = 正文高度（297-37-35=225mm），
+ * 旋转后高度 = 正文宽度（210-28-28=154mm）。
+ * 已知风险：CSS transform 在 paged media 中不影响布局流；
+ * 绝对定位元素不参与分页；实际效果需验证后填写 README。
+ * =================================================================== */
+.rotated-section {
+  break-before: page;
+  page-break-before: always;
+  /* 为绝对子容器提供定位上下文 */
+  position: relative;
+  height: 154mm;   /* 留出与正文宽度等高的空间（旋转后变宽度）*/
+}
+
+.rotated-wrapper {
+  position: absolute;
+  top: 154mm;
+  left: 0;
+  width: 225mm;    /* 旋转后等于正文高度 */
+  transform: rotate(-90deg);
+  transform-origin: top left;
+  font-size: 9pt;
+}
+
+.rotated-wrapper table {
+  font-size: 9pt;
+  margin: 0;
+}
+
+.rotated-wrapper th,
+.rotated-wrapper td {
+  font-size: 9pt;
+  padding: 1mm 2mm;
+}
+
+
+/* ===================================================================
+ * §6  公式块（KaTeX + 编号右对齐 + 式中列表）
+ * =================================================================== */
+
+/* 公式行：数学内容居中，编号右端对齐 */
+.formula-block {
+  display: flex;
+  align-items: center;
+  margin: 10pt 0 4pt;
+}
+
+.formula-math {
+  flex: 1;
+  text-align: center;
+}
+
+.formula-num {
+  width: 5em;
+  text-align: right;
+  font-family: "Times New Roman", serif;
+  font-size: 12pt;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 式中：键值列表 */
+.where-block {
+  margin: 0 0 10pt 3em;
+  font-size: 12pt;
+}
+
+.where-block p {
+  margin: 0 0 2pt;
+}
+
+.where-block dl {
+  display: grid;
+  grid-template-columns: min-content 1fr;
+  column-gap: 0.8em;
+  row-gap: 1pt;
+  margin: 0;
+}
+
+.where-block dt {
+  font-family: "Times New Roman", serif;
+  font-style: italic;
+  white-space: nowrap;
+}
+
+.where-block dd {
+  margin: 0;
+}
+
+/* KaTeX 在打印环境下的字号对齐 */
+.katex { font-size: 1em; }
+.katex-display { margin: 0; }
+
+/* 隐藏 KaTeX 生成的 MathML 可访问性文本
+ * 当 KaTeX CSS CDN 加载失败时，.katex-mathml 的 aria-hidden 内联 CSS 失效，
+ * 导致 MathML 文本以乱序方式渲染在公式下方（已验证 bug）。
+ * 此规则作为保险措施，确保 Vivliostyle 环境下不显示 MathML 源文本。 */
+.katex-mathml {
+  display: none !important;
+}
+
+
+/* ===================================================================
+ * 注和示例
+ * =================================================================== */
+.note {
+  font-size: 10pt;
+  margin: 4pt 0 4pt 2em;
+}
+
+.note-marker {
+  font-family: "SimHei", "黑体", "STHeiti", sans-serif;
+  font-size: 10pt;
+}
+
+
+/* ===================================================================
+ * 术语条目
+ * =================================================================== */
+.term-entry {
+  margin: 6pt 0 12pt;
+}
+
+.term-num {
+  font-family: "SimHei", "黑体", sans-serif;
+  font-weight: bold;
+}
+
+.term-label {
+  font-family: "SimHei", "黑体", sans-serif;
+  font-weight: bold;
+}
+
+.term-def { margin: 2pt 0; }
+
+
+/* ===================================================================
+ * 附录与参考文献：另起一页
+ * =================================================================== */
+.appendix {
+  break-before: page;
+  page-break-before: always;
+}
+
+.bibliography {
+  break-before: page;
+  page-break-before: always;
+}
+
+
+/* ===================================================================
+ * 前言区块内分页控制
+ * =================================================================== */
+.front-matter .foreword-section {
+  /* 前言从第一页开始，无需显式 break */
+}
+
+.front-matter .toc-section {
+  break-before: page;
+  page-break-before: always;
+}
