@@ -20,17 +20,17 @@ pnpm --package=@vivliostyle/cli dlx vivliostyle build spike/vivliostyle-gbt11/in
 | `target-counter(attr(href), page)` 基本功能 | ✅ 通过 | 能正确解析目标元素的页码 |
 | 罗马/阿拉伯混合编号下的 target-counter | ❌ **不通过** | 见下方详细说明 |
 
-**已知问题（需主导人决策）**：`target-counter` 与命名页 `counter-reset: page` 存在冲突：
+**已知问题（已决策，见综合结论）**：`target-counter` 与命名页 `counter-reset: page` 存在冲突：
 
 - **方案 A**（在 `.body-content` 上加 `counter-reset: page 1`）：正文页脚显示 1, 2, 3 ✓，但 `target-counter` 对所有正文目标均返回 `1` ✗。根本原因：元素级 `counter-reset` 创建元素作用域的 shadow counter，`target-counter` 读到的是 `.body-content` 的初始值 `1` 而非各页实际计数器值。
 - **方案 B**（不使用 `counter-reset`）：`target-counter` 正确返回绝对页码（3, 4, 5…）✓，但正文页脚同样显示绝对页码（3, 4, 5…）✗，不符合 GB/T 要求的"从 1 重新起页"。
 
 **根本原因**：Vivliostyle 未按 CSS Paged Media §5.5 实现"进入新命名页序列时 page counter 自动重置为 1"。
 
-**推荐 workaround（供主导人确认）**：PDF 管线采用两遍构建（two-pass build）：
+**已定稿 workaround（WP5 实施）**：PDF 管线采用两遍构建（two-pass build）：
 1. 第一遍 Vivliostyle 构建，从 PDF bookmark/outline 提取各锚点页码；
-2. 将页码注入 HTML 的 TOC `<a>` 后 `data-page` 属性，用 CSS `content: attr(data-page)` 代替 `target-counter`；
-3. 第二遍构建输出最终 PDF。
+2. 将页码以纯文本形式注入 HTML 目次（无 `<a>` 链接），第二遍构建输出最终 PDF；
+3. 最终遍文档无内部链接，同时满足命名横排页正常渲染的约束（见"内部链接与命名页尺寸互斥"章节）。
 
 ---
 
@@ -39,8 +39,8 @@ pnpm --package=@vivliostyle/cli dlx vivliostyle build spike/vivliostyle-gbt11/in
 | 子项 | 结果 | 说明 |
 |------|------|------|
 | 前言/目次页显示罗马数字 I, II | ✅ 通过 | `@page front { @bottom-center { content: counter(page, upper-roman) } }` |
-| 正文页显示阿拉伯数字 | ✅ 通过（绝对值）/ ❌ 不通过（从1起） | 见场景1说明，两者不可兼得 |
-| `counter-reset: page 1` 使正文从 1 起 | ⚠️ 部分通过 | 页脚正确，但破坏 target-counter（见场景1） |
+| 正文页显示阿拉伯数字从 1 起 | ✅ 通过 | `counter-reset: page 1` 已恢复；无内部链接条件下从 1 起编正确（见场景1决策） |
+| `counter-reset: page 1` 使正文从 1 起 | ✅ 通过 | 无内部链接条件下与命名横排页可共存（WP0 审查结论 2，已实测） |
 
 ---
 
@@ -53,6 +53,8 @@ pnpm --package=@vivliostyle/cli dlx vivliostyle build spike/vivliostyle-gbt11/in
 | 页边距 上37/下35/左右28mm | ✅ 通过 | `margin: 37mm 28mm 35mm 28mm` 生效 |
 | `@page` margin-box 分隔线 | ✅ 通过 | `border-bottom: 0.25pt solid` 正确渲染 |
 
+⚠️ **版式参数免责声明**：此 spike 使用的页边距（上37/下35/左右28mm）与 GB/T 1.1-2020 附录 E/F 定稿规范不符（定稿：奇页左25/右20mm、偶页左20/右25mm，页码位于外侧下角）。场景3验收的是奇偶页眉镜像机制本身，版式参数将在 WP4 按定稿规范实施，**不得直接参考此 spike 的 CSS 参数值**。
+
 ---
 
 ### 场景4 — 跨页长表：`<thead>` 重复 + 「表X（续）」注入
@@ -62,10 +64,10 @@ pnpm --package=@vivliostyle/cli dlx vivliostyle build spike/vivliostyle-gbt11/in
 | `<thead>` 跨页重复 | ✅ 通过 | `thead { display: table-header-group }` 在第 5 页正确重复表头行 |
 | 「表X（续）」自动注入 | ❌ **不通过** | 见下方详细说明 |
 
-**已知限制（需主导人决策）**：CSS Paged Media 没有原生机制在续表页自动注入「表X（续）」标题。
+**已知限制（已决策，见综合结论）**：CSS Paged Media 没有原生机制在续表页自动注入「表X（续）」标题。
 - `string-set: table-name content(text)` 可捕获当前表题文字，但 `string()` 函数无法区分"是否为续页"；
 - CSS 没有"当前页是否位于某表格续页"的条件查询；
-- **推荐 workaround**：在 HTML 渲染器（WP4）生成 HTML 时，对宽表插入一个 `<caption class="table-continued">表X（续）</caption>` 元素，配合 CSS `break-before: always; display: none` 仅在续页显示。实际需要布局感知（服务端两遍渲染或 JavaScript 计算）。
+- **已决策（GB/T 1.1-2020 第9.8.3条）**：V1 实施 `<thead>` 重复（含表头行和单位行）；V2 由 WP4 HTML 渲染器在续表起始处插入 `<caption class="table-continued">表X（续）</caption>` 元素（需布局感知，服务端实现）。
 
 ---
 
@@ -75,11 +77,13 @@ pnpm --package=@vivliostyle/cli dlx vivliostyle build spike/vivliostyle-gbt11/in
 
 | 子项 | 结果 | 说明 |
 |------|------|------|
-| PDF 页面确实为横向 A4 | ✅ 通过 | `.landscape-section { page: landscape }` + `@page landscape { size: A4 landscape }` |
+| PDF 页面确实为横向 A4 | ✅ **通过**（修正后）| 移除 TOC 内部链接后重新构建：pdfinfo 实测 page 11 = 841.89 × 595.276 pts ✓；原 spike 误报（根因见下方） |
 | 表格内容正确横向排布 | ✅ 通过 | 12 列宽表在 landscape 页完整显示 |
 | 页码延续正确 | ✅ 通过 | landscape 页的 `@bottom-center` 页码与正文序列连续 |
 
 **结论：方案A可用于生产，推荐使用。**
+
+**⚠️ 原 spike 误报说明**：原构建中 TOC 含 `<a href="#…">` 内部链接，触发 Vivliostyle CLI 11.0.1 已知 bug，导致所有页面均为竖向 A4（pdfinfo 实测）。已于 2026-06-11 移除内部链接并重新构建，横向页正常生成。详见"内部链接与命名页尺寸互斥"章节。
 
 #### 方案B：竖向页内 `rotate(-90deg)` 旋转
 
@@ -130,6 +134,8 @@ pnpm --package=@vivliostyle/cli dlx vivliostyle build spike/vivliostyle-gbt11/in
 | macOS 字体回退 | ✅ 通过 | macOS 无 SimHei/SimSun，自动回退到 STHeiti/STSong，效果一致 |
 | Times New Roman 页码 | ✅ 通过 | 页脚页码使用 Times New Roman 衬线数字 |
 
+⚠️ **版式参数免责声明**：此 spike 使用的字号（正文12pt，章标题15pt）与 GB/T 1.1-2020 附录 E/F 定稿规范不符（定稿：正文五号/10.5pt，章条标题同为五号黑体/10.5pt）。场景7验收的是 CJK 字体回退机制本身，实际字号将在 WP4 按定稿规范实施，**不得直接参考此 spike 的 CSS 参数值**。
+
 **注意**：Linux CI 环境（如 GitHub Actions Ubuntu）默认无中文字体，需在 Docker/workflow 中安装 `fonts-noto-cjk` 或类似包，否则中文将显示为方块（tofu）。
 
 ---
@@ -139,14 +145,26 @@ pnpm --package=@vivliostyle/cli dlx vivliostyle build spike/vivliostyle-gbt11/in
 | 场景 | 结论 |
 |------|------|
 | §1 目次点线 | ✅ 可直接用于生产 |
-| §1/§2 目次页码 + 正文从1起 | ⚠️ **需主导人决策**：两遍构建 workaround，或接受绝对页码 |
-| §3 奇偶页眉 | ✅ 可直接用于生产 |
+| §1/§2 目次页码 + 正文从1起 | ✅ **已决策**：两遍构建（WP5 实施）；`counter-reset: page 1` 与命名横排页可共存 |
+| §3 奇偶页眉 | ✅ 可直接用于生产（版式参数须按定稿规范重写） |
 | §4 表头重复 | ✅ 可直接用于生产 |
-| §4 续表标题 | ⚠️ **需主导人决策**：需服务端布局感知预处理 |
+| §4 续表标题 | ✅ **已决策**：V1=表头行重复，V2=插入「续」标题（WP4 服务端布局感知实施） |
 | §5 横排宽表 | ✅ 方案A（命名横排页）可直接用于生产；方案B废弃 |
 | §6 公式 | ✅ MathML 方案可直接用于生产；KaTeX 需服务端预渲染 |
-| §7 字体 | ✅ 可直接用于生产（CI 需安装 CJK 字体） |
+| §7 字体 | ✅ 可直接用于生产（版式参数须按定稿规范重写；CI 需安装 CJK 字体） |
 
-**需在启动 WP4/WP5 前由主导人确认的两个决策点**：
-1. **目次页码**：接受两遍构建（复杂度增加），还是接受绝对页码（不符 GB/T 惯例）？
-2. **续表标题**：接受预处理方案（需布局感知），还是暂不实现（仅 `<thead>` 重复）？
+**所有决策点已由主导人于 2026-06-11 审查确认，WP1+ 可直接启动。**
+
+---
+
+## 内部链接与命名页尺寸互斥（根因记录）
+
+**现象**：原 spike 场景5A（`size: A4 landscape`）误报为 ✅，主导人实测 pdfinfo 显示全部15页均为竖向 A4。
+
+**根因**：Vivliostyle CLI 11.0.1 已知 bug——文档 HTML 内存在任何 `<a href="#…">` 内部链接（fragment link）时，`@page` 规则中的 `size: A4 landscape` 声明被完全忽略，命名页退化为默认尺寸（竖向 A4）。
+
+**复现条件**：`<a href="#…">` 触发；`id="..."` 属性本身不触发。
+
+**修复方法**：移除目次全部内部链接（改为 `<span class="toc-entry">`），重建后 pdfinfo 实测 page 11 = 841.89 × 595.276 pts。
+
+**对生产管线的影响**：两遍构建方案的最终遍 HTML 不含内部链接（页码以纯文本注入），天然满足此约束，无需额外处理。

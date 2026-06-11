@@ -127,13 +127,12 @@
   page: front;
 }
 
-/* 正文区块：body 命名页
- * 不使用 counter-reset: page — 依赖 CSS Paged Media 规范的命名页序列自动重置
- * (CSS Paged Media §5.5: 进入新命名页序列时 page counter 自动置 1)
- * 若此处显式 counter-reset: page 1，会创建元素作用域的 page 计数器，
- * 导致 target-counter 跨命名页解析时全部读到元素初始值 1（已验证 bug）。 */
+/* 正文区块：body 命名页，页码从 1 重新开始。
+ * WP0 审查结论 2：counter-reset: page 与命名横排页可共存（无内部链接条件下已实测）。
+ * 两遍构建的最终遍保证文档无内部链接，此处 counter-reset 安全。 */
 .body-content {
   page: body;
+  counter-reset: page 1;
 }
 
 /* 横排宽表区块：landscape 命名页（方案A）*/
@@ -222,7 +221,12 @@ h4.subclause-title {
 
 
 /* ===================================================================
- * §1  目次（三级，leader + target-counter）
+ * §1  目次（三级，leader 点线；target-counter 已移除）
+ *
+ * WP0 审查结论：HTML 含 <a href="#…"> 内部链接时，Vivliostyle CLI 11.0.1
+ * 忽略命名页的 size: A4 landscape 声明（上游 bug，已实测）。
+ * 修复：TOC 改为纯文本 span，移除 target-counter；
+ * 生产管线采用两遍构建注入真实页码（WP5 实施）。
  * =================================================================== */
 .toc ol {
   list-style: none;
@@ -234,15 +238,14 @@ h4.subclause-title {
   margin: 3pt 0;
 }
 
-.toc a {
+.toc .toc-entry {
   display: block;
-  text-decoration: none;
   color: #000;
   font-size: 12pt;
 }
 
 /* 一级条目：黑体 */
-.toc > ol > li > a {
+.toc > ol > li > .toc-entry {
   font-family: "SimHei", "黑体", "STHeiti", sans-serif;
   font-weight: bold;
 }
@@ -251,9 +254,9 @@ h4.subclause-title {
 .toc .toc-l2 { padding-left: 2em; }
 .toc .toc-l3 { padding-left: 4em; }
 
-/* 关键：点线 + 目标页码 */
-.toc a::after {
-  content: leader(dotted) target-counter(attr(href), page);
+/* leader 点线 + 固定占位（生产两遍构建时替换为真实页码）*/
+.toc .toc-entry::after {
+  content: leader(dotted) "—";
   font-family: "Times New Roman", serif;
   font-size: 12pt;
 }
