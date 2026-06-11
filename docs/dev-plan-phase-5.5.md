@@ -267,6 +267,20 @@ export const gbT11Strategy: NumberingStrategy  // 默认实现，规则以 GB/T 
   **任何一项不通过先停下报告**，由主导人决定对策，不要自行换方案。
 - 工具：`pnpm dlx @vivliostyle/cli build spike/vivliostyle-gbt11/index.html -o spike/out.pdf`
 
+#### WP0 审查补充结论（2026-06-11，主导人实测定稿，约束 WP4/WP5）
+
+1. **文档内部链接与命名横排页互斥（上游 bug，已实证）**：HTML 中存在任何
+   `<a href="#…">` 内部链接时，Vivliostyle（CLI 11.0.1 / Core 2.43.1）输出的
+   命名页 `size: A4 landscape` 失效、整本回落竖排。与 target-counter、leader、
+   表格、嵌套命名页均无关（逐项二分排除）。
+2. **`counter-reset: page` 与横排页可共存**（已实测）：正文页脚从 1 起编 + 横排页
+   同时成立，前提是文档中无内部链接。
+3. **目次页码与分区页码采用两遍构建**（决策一，定稿）：最终一遍的 HTML 不含任何
+   内部链接与 target-counter，目次页码为注入的纯文本。
+4. **「表X（续）」是 GB/T 1.1-2020 9.8.3 的规范性要求**（"随后接排该表的各页上应
+   重复表编号，后接表题（可选）和'（续）'或'（第#页/共*页）'……续表均应重复表头和
+   '关于单位的陈述'"）。V1 先落实表头 + 单位陈述重复，（续）标题进 V2（决策二，定稿）。
+
 ### WP1：shared 包 IR 类型 + nodeId 工具 + 测试基建（1 天）
 
 - **产出**：
@@ -312,18 +326,36 @@ export const gbT11Strategy: NumberingStrategy  // 默认实现，规则以 GB/T 
     （@page 版心/奇偶页眉/页码、目次 target-counter、字体栈宋体/黑体/Times New Roman）；
   - 公式：KaTeX 渲染**不在 shared 做**（KaTeX 依赖 DOM 字体度量不可靠），HTML 中输出
     `<span class="ses-formula" data-latex="...">`，由消费端（client 预览页/出件管线）渲染。
-  - 横排内容容器按 WP0 spike 的结论实现。
+  - 横排内容容器：采用命名页方案（WP0 方案A），旋转方案已废弃。
+  - **打印变体 HTML 不得含内部链接**（WP0 审查结论 1）：`renderHtml` 增加
+    `variant: 'screen' | 'print'`。print 变体中交叉引用输出纯文本（labels.refText），
+    目次条目不带 `<a>`，页码列输出固定宽度占位元素
+    `<span class="toc-page" data-target="...">　</span>`（由 WP5 注入数字，占位与
+    成品宽度一致以保证两遍构建分页不漂移）；screen 变体保留链接供预览/语义导出。
+  - 表的「关于单位的陈述」与表头一并纳入可重复的表头结构（thead），满足
+    GB/T 1.1 9.8.3 续表重复表头和单位陈述的要求；「表X（续）」本期不实现
+    （已知差距，出处 9.8.3，进 V2）。
 - **替换**：`packages/client/src/serializer/htmlExporter.ts` 改为薄壳调用 shared 渲染器
   （保留原导出菜单行为）。
 - **验收**：全要素 fixture 渲染输出快照测试；旧 htmlExporter 输出与新输出的语义等价性
   人工 diff 记录在 PR 描述中（编号必须逐个一致）。
 
-### WP5：PDF 出件管线（2 天，依赖 WP4 + WP0 结论）
+### WP5：PDF 出件管线（2.5 天，依赖 WP4 + WP0 结论）
 
-- **服务端**：`packages/server/src/convert/` 新增 `POST /api/convert/html-to-pdf`：
-  接收 HTML 字符串 → 临时目录落盘（附 KaTeX 预渲染步骤，方案按 WP0 记录执行）→
-  调 `@vivliostyle/cli`（优先编程 API，不可用则 execFile）→ 返回 PDF。
-  依赖加入 server package（`@vivliostyle/cli`、playwright-chromium 锁版本）。
+- **服务端**：`packages/server/src/convert/` 新增 `POST /api/convert/html-to-pdf`，
+  内部为**两遍构建管线**（WP0 审查结论 3，决策一定稿）：
+  1. KaTeX 预渲染：`katex.renderToString(latex, { output: 'html' })` 替换
+     `.ses-formula` 占位，内联 KaTeX 核心 CSS（字体内嵌或系统回退，禁用 CDN）；
+  2. 第一遍 `vivliostyle build`（print 变体 HTML，目次页码为占位符）；
+  3. 页码提取：用 poppler `pdftotext` 按页扫描，定位各目次目标的标题文本所在页
+     （标题文本 + data-target 唯一对应；分区页码 = 物理页 − 分区起始页 + 1）；
+  4. 注入：将页码以纯文本写入 `.toc-page` 占位元素；
+  5. 第二遍 `vivliostyle build` 产出最终 PDF（占位定宽保证与第一遍分页一致，
+     实现时须断言两遍页数相同，不一致即报错返回）。
+  页脚分区编号用 `counter-reset: page`（front 罗马 / body 阿拉伯，
+  已实测与横排命名页共存）。调用方式优先编程 API，不可用则 execFile。
+  依赖加入 server package（`@vivliostyle/cli`、`katex`、playwright-chromium 锁版本，
+  poppler 作为系统依赖检测并给出安装指引）。
 - **客户端**：导出面板 PDF 卡片改走 IR→HTML→新端点；原 LibreOffice 路径改为
   第二张卡片「高保真（Word 排版）」，`ConvertService` 未检测到 LibreOffice 时隐藏。
 - **验收**：全要素 fixture 一键导出 PDF 成功；WP0 七个场景在真实管线复验通过；
