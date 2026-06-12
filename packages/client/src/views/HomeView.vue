@@ -138,6 +138,7 @@ import { Download, Plus, Grid, List, Document } from '@element-plus/icons-vue'
 
 import { useDocumentStore } from '@/stores/document'
 import type { DocumentData } from '@/api/document'
+import type { StandardType } from '@ses/shared'
 import { STAGE_LABELS, TYPE_LABELS } from '@/constants/standards'
 
 import HomeNav from '@/components/home/HomeNav.vue'
@@ -229,7 +230,7 @@ function openNewDoc(type?: string) {
 }
 
 async function handleCreate(form: {
-  type: string
+  type: StandardType
   stage: string
   stdPrefix: string
   stdNo: string
