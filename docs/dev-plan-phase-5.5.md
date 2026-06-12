@@ -267,7 +267,8 @@ export const gbT11Strategy: NumberingStrategy  // 默认实现，规则以 GB/T 
   7. 章标题黑体 15pt / 正文宋体 12pt 等字体字号验证。
 - **验收**：README 中逐项记录 通过/不通过/workaround，附输出 PDF 截图。
   **任何一项不通过先停下报告**，由主导人决定对策，不要自行换方案。
-- 工具：`pnpm dlx @vivliostyle/cli build spike/vivliostyle-gbt11/index.html -o spike/out.pdf`
+- 工具：`pnpm --package=@vivliostyle/cli@11.0.1 dlx vivliostyle build spike/vivliostyle-gbt11/index.html -o spike/out.pdf`
+  （版本锁定 11.0.1：spike 结论绑定该版本行为，升级须复验）
 
 #### WP0 审查补充结论（2026-06-11，主导人实测定稿，约束 WP4/WP5）
 

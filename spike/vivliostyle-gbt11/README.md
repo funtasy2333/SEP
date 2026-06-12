@@ -2,9 +2,11 @@
 
 **构建命令**：
 ```
-pnpm --package=@vivliostyle/cli dlx vivliostyle build spike/vivliostyle-gbt11/index.html -o spike/out.pdf
+pnpm --package=@vivliostyle/cli@11.0.1 dlx vivliostyle build spike/vivliostyle-gbt11/index.html -o spike/out.pdf
 ```
 > 注意：`pnpm dlx @vivliostyle/cli` 会报 "multiple binaries" 错误，必须用上述形式指定可执行文件名 `vivliostyle`。
+>
+> **版本必须锁定为 11.0.1**：本 README 的全部结论（尤其是"内部链接与命名页尺寸互斥"bug 及其 workaround）绑定 CLI 11.0.1 / Core 2.43.1 的行为。升级引擎版本时，须重跑本 spike 复验各场景（上游修复该 bug 后，两遍构建管线的"无内部链接"约束可重新评估）。
 
 **环境**：Vivliostyle CLI v11.0.1 · Core v2.43.1 · Playwright 无头 Chromium
 
