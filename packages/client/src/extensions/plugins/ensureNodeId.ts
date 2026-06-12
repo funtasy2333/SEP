@@ -25,6 +25,10 @@ export const NODE_ID_TYPES = [
   'example',
   'appendix',
   'bibliography',
+  // 块级容器内的可引用子节点（IR 类型中带 id，需稳定锚点供 WP3 pmToIr 使用）；
+  // 表格行/单元格与公式 whereList 项的 ID 来源策略在 WP3 设计时确定
+  'stdListItem',
+  'bibEntry',
   // StarterKit 中可出现在 block 内容里的节点
   // （table 不在列表中：其 NodeView 不渲染 data-node-id，且语义节点是外层 stdTable）
   'paragraph',
@@ -33,6 +37,7 @@ export const NODE_ID_TYPES = [
   'orderedList',
   'codeBlock',
   'horizontalRule',
+  'listItem',
 ]
 
 export interface NodeIdFix {
@@ -43,6 +48,9 @@ export interface NodeIdFix {
 /**
  * 扫描文档，找出缺失或重复的 nodeId，返回待修复列表（pos → 新 ID）。
  * 重复时按文档顺序保留首个出现的 ID，后续重复者重新生成（同文档内唯一是硬约束）。
+ * 已知限制：保留的是"文档顺序首个"而非"原节点"——粘贴位置在原节点之前时，
+ * 副本继承原 ID、原节点被换新 ID。对唯一性无影响；若未来按 nodeId 锚定批注，
+ * 需 diff 事务前后状态才能区分原件，本期不做。
  * 纯函数，便于单测。
  */
 export function findNodeIdFixes(doc: PMNode): NodeIdFix[] {
