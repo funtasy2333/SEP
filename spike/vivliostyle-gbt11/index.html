@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>GB/T XXXX—XXXX 标准示例文件（Vivliostyle Spike）</title>
+  <link rel="stylesheet" href="print.css">
+
+  <!--
+    §6 公式渲染说明：
+    经 spike 验证，KaTeX CDN 在 Vivliostyle 无头 Chromium 构建中不可靠：
+      · KaTeX JS 可加载，但 KaTeX CSS（字体/定位样式）无法加载 → HTML 输出乱码；
+      · 若同时使用默认 output:'htmlAndMathml'，则 MathML 文本会泄漏为可见文字。
+    结论：PDF 管线中 KaTeX 必须在服务端预渲染（生成静态 HTML），不得依赖 CDN 动态加载。
+
+    此 spike 改用原生 MathML（Chromium 109+ 内置支持，无 CSS/JS 依赖）
+    验证公式块布局（编号右对齐 + 式中列表）。
+    WP5 服务端管线应在调用 vivliostyle build 前，
+    用 katex.renderToString() 将 data-latex 属性替换为预渲染 HTML。
+  -->
+</head>
+<body>
+
+<!-- ================================================================
+  前言/目次区块 → front 命名页（罗马数字页码，场景 §2）
+================================================================ -->
+<div class="front-matter">
+
+  <!-- 前言 -->
+  <section class="foreword-section">
+    <h1 class="front-heading" id="foreword">前　言</h1>
+
+    <p>本文件按照GB/T 1.1—2020《标准化工作导则 第1部分：标准化文件的结构和起草规则》的规定起草。</p>
+    <p>请注意本文件的某些内容可能涉及专利。本文件的发布机构不承担识别这些专利的责任。</p>
+    <p>本文件由全国标准化技术委员会（SAC/TC XXXX）提出并归口。</p>
+    <p>本文件起草单位：示例单位甲、示例单位乙。</p>
+    <p>本文件主要起草人：张三、李四、王五。</p>
+    <p>本文件为首次发布。</p>
+  </section>
+
+  <!-- §1 目次：三级，leader 点线 + 固定占位页码
+       内部链接已移除（原因见 print.css §1 说明及 README §5A 根因记录）-->
+  <section class="toc-section">
+    <h1 class="front-heading" id="toc">目　次</h1>
+    <nav class="toc">
+      <ol>
+        <li><span class="toc-entry">前言</span></li>
+        <li><span class="toc-entry">1　范围</span></li>
+        <li><span class="toc-entry">2　规范性引用文件</span></li>
+        <li><span class="toc-entry">3　术语和定义</span></li>
+        <li><span class="toc-entry">4　要求</span>
+          <ol>
+            <li class="toc-l2"><span class="toc-entry">4.1　通用要求</span></li>
+            <li class="toc-l2"><span class="toc-entry">4.2　技术要求</span>
+              <ol>
+                <li class="toc-l3"><span class="toc-entry">4.2.1　物理性能</span></li>
+                <li class="toc-l3"><span class="toc-entry">4.2.2　尺寸偏差</span></li>
+              </ol>
+            </li>
+          </ol>
+        </li>
+        <li><span class="toc-entry">5　试验方法</span>
+          <ol>
+            <li class="toc-l2"><span class="toc-entry">5.1　仪器设备</span></li>
+            <li class="toc-l2"><span class="toc-entry">5.2　应力应变计算</span></li>
+          </ol>
+        </li>
+        <li><span class="toc-entry">6　检验规则</span></li>
+        <li><span class="toc-entry">附录A（规范性）技术参数汇总</span></li>
+        <li><span class="toc-entry">附录B（资料性）参考数据</span></li>
+        <li><span class="toc-entry">参考文献</span></li>
+      </ol>
+    </nav>
+  </section>
+
+</div><!-- /front-matter -->
+
+
+<!-- ================================================================
+  正文区块 → body 命名页（阿拉伯数字页码从 1 起，场景 §2/§3）
+================================================================ -->
+<div class="body-content">
+
+  <!-- 1 范围 -->
+  <section id="sec-1">
+    <h1 class="chapter-title">1　范围</h1>
+    <p>本文件规定了示例材料的术语和定义、要求、试验方法及检验规则。</p>
+    <p>本文件适用于示例材料的设计、制造和检验。</p>
+  </section>
+
+  <!-- 2 规范性引用文件 -->
+  <section id="sec-2">
+    <h1 class="chapter-title">2　规范性引用文件</h1>
+    <p>下列文件中的内容通过文中的规范性引用而构成本文件必不可少的条款。其中，注日期的引用文件，仅该日期对应的版本适用于本文件；不注日期的引用文件，其最新版本（包括所有的修改单）适用于本文件。</p>
+    <p>GB/T 228.1—2021　金属材料　拉伸试验　第1部分：室温试验方法</p>
+    <p>GB/T 1172—1999　黑色金属硬度及强度换算值</p>
+  </section>
+
+  <!-- 3 术语和定义 -->
+  <section id="sec-3">
+    <h1 class="chapter-title">3　术语和定义</h1>
+    <p>下列术语和定义适用于本文件。</p>
+
+    <div class="term-entry">
+      <p><span class="term-num">3.1</span></p>
+      <p><span class="term-label">示例材料</span>　<span class="term-label-en">example material</span></p>
+      <p class="term-def">具有特定力学性能和尺寸精度的金属制品。</p>
+      <p class="note"><span class="note-marker">注：</span>单条注不编号。</p>
+    </div>
+
+    <div class="term-entry">
+      <p><span class="term-num">3.2</span></p>
+      <p><span class="term-label">标称尺寸</span>　<span class="term-label-en">nominal dimension</span></p>
+      <p class="term-def">设计图样上标注的理想尺寸值。</p>
+      <p class="note"><span class="note-marker">注1：</span>多条注时按序编号。</p>
+      <p class="note"><span class="note-marker">注2：</span>实际尺寸与标称尺寸的差值为偏差。</p>
+    </div>
+  </section>
+
+  <!-- 4 要求 -->
+  <section id="sec-4">
+    <h1 class="chapter-title">4　要求</h1>
+
+    <section id="sec-4-1">
+      <h2 class="clause-title">4.1　通用要求</h2>
+      <p>产品应符合本文件的规定，并按照经规定程序批准的图样及技术文件制造。</p>
+      <p>产品表面不应有裂纹、折叠、夹杂等缺陷。</p>
+    </section>
+
+    <section id="sec-4-2">
+      <h2 class="clause-title">4.2　技术要求</h2>
+
+      <!-- §4 长表跨页：thead 重复验证 -->
+      <section id="sec-4-2-1">
+        <h3 class="subclause-title">4.2.1　物理性能</h3>
+        <p>物理性能应符合表1的规定。</p>
+
+        <p class="table-caption" id="table-1">表1　物理性能要求</p>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:8%">序号</th>
+              <th style="width:28%">性能指标</th>
+              <th style="width:14%">单位</th>
+              <th style="width:30%">技术要求</th>
+              <th style="width:20%">试验方法</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>1</td><td>密度</td><td>g/cm³</td><td>≥ 2.70</td><td>GB/T XXXX</td></tr>
+            <tr><td>2</td><td>抗拉强度</td><td>MPa</td><td>≥ 300</td><td>GB/T 228.1</td></tr>
+            <tr><td>3</td><td>屈服强度（R<sub>p0.2</sub>）</td><td>MPa</td><td>≥ 200</td><td>GB/T 228.1</td></tr>
+            <tr><td>4</td><td>断后伸长率</td><td>%</td><td>≥ 16</td><td>GB/T 228.1</td></tr>
+            <tr><td>5</td><td>断面收缩率</td><td>%</td><td>≥ 40</td><td>GB/T 228.1</td></tr>
+            <tr><td>6</td><td>硬度（HBW）</td><td>—</td><td>95 ～ 105</td><td>GB/T 231.1</td></tr>
+            <tr><td>7</td><td>冲击吸收能量（室温）</td><td>J</td><td>≥ 50</td><td>GB/T 229</td></tr>
+            <tr><td>8</td><td>弹性模量</td><td>GPa</td><td>69 ～ 71</td><td>GB/T XXXX</td></tr>
+            <tr><td>9</td><td>热膨胀系数（20 ℃～100 ℃）</td><td>×10⁻⁶/K</td><td>23.0 ～ 23.8</td><td>GB/T XXXX</td></tr>
+            <tr><td>10</td><td>导热系数（25 ℃）</td><td>W/(m·K)</td><td>138 ～ 142</td><td>GB/T XXXX</td></tr>
+            <tr><td>11</td><td>比热容（25 ℃）</td><td>J/(kg·K)</td><td>895 ～ 905</td><td>GB/T XXXX</td></tr>
+            <tr><td>12</td><td>电导率</td><td>MS/m</td><td>≥ 34.0</td><td>GB/T XXXX</td></tr>
+            <tr><td>13</td><td>疲劳强度（R = −1）</td><td>MPa</td><td>≥ 95</td><td>GB/T XXXX</td></tr>
+            <tr><td>14</td><td>蠕变极限（150 ℃，1 000 h）</td><td>MPa</td><td>≥ 60</td><td>GB/T XXXX</td></tr>
+            <tr><td>15</td><td>持久强度（200 ℃，100 h）</td><td>MPa</td><td>≥ 150</td><td>GB/T XXXX</td></tr>
+            <tr><td>16</td><td>摩擦系数（干摩擦）</td><td>—</td><td>0.10 ～ 0.20</td><td>GB/T XXXX</td></tr>
+            <tr><td>17</td><td>磨损率</td><td>mg/km</td><td>≤ 0.5</td><td>GB/T XXXX</td></tr>
+            <tr><td>18</td><td>腐蚀速率（5% NaCl，168 h）</td><td>g/(m²·h)</td><td>≤ 0.01</td><td>GB/T XXXX</td></tr>
+            <tr><td>19</td><td>晶间腐蚀倾向</td><td>—</td><td>无</td><td>GB/T XXXX</td></tr>
+            <tr><td>20</td><td>应力腐蚀开裂阈值 K<sub>ISCC</sub></td><td>MPa·m<sup>1/2</sup></td><td>≥ 20</td><td>GB/T XXXX</td></tr>
+            <tr><td>21</td><td>缺口敏感性系数</td><td>—</td><td>≤ 1.10</td><td>GB/T XXXX</td></tr>
+            <tr><td>22</td><td>高周疲劳寿命（300 MPa）</td><td>周次</td><td>≥ 10<sup>7</sup></td><td>GB/T XXXX</td></tr>
+            <tr><td>23</td><td>低周疲劳应变幅（N = 10³）</td><td>%</td><td>≥ 1.5</td><td>GB/T XXXX</td></tr>
+            <tr><td>24</td><td>断裂韧性 K<sub>IC</sub></td><td>MPa·m<sup>1/2</sup></td><td>≥ 25</td><td>GB/T XXXX</td></tr>
+            <tr><td>25</td><td>热导率各向异性比</td><td>—</td><td>≤ 1.05</td><td>GB/T XXXX</td></tr>
+            <tr><td>26</td><td>声阻抗</td><td>MPa·s/m</td><td>规定值±5%</td><td>GB/T XXXX</td></tr>
+            <tr><td>27</td><td>磁导率（初始）</td><td>—</td><td>≤ 1.01</td><td>GB/T XXXX</td></tr>
+          </tbody>
+        </table>
+        <p class="note"><span class="note-marker">注：</span>表中力学性能数据均为室温（23 ℃ ± 2 ℃）条件下的测量结果。</p>
+      </section>
+
+      <section id="sec-4-2-2">
+        <h3 class="subclause-title">4.2.2　尺寸偏差</h3>
+        <p>产品的尺寸偏差应符合表2的规定，测量方法按5.1规定进行。</p>
+        <p class="table-caption" id="table-2">表2　尺寸偏差要求</p>
+        <table>
+          <thead>
+            <tr>
+              <th>检测项目</th>
+              <th>标称尺寸范围 mm</th>
+              <th>允许偏差 mm</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>长度</td><td>＜ 1 000</td><td>± 0.5</td></tr>
+            <tr><td>长度</td><td>1 000 ～ 3 000</td><td>± 1.0</td></tr>
+            <tr><td>宽度</td><td>全范围</td><td>± 0.3</td></tr>
+            <tr><td>厚度</td><td>全范围</td><td>± 0.1</td></tr>
+            <tr><td>平面度</td><td>每 1 000 mm</td><td>≤ 0.5</td></tr>
+            <tr><td>垂直度</td><td>全高</td><td>≤ 0.3</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </section>
+  </section><!-- /sec-4 -->
+
+
+  <!-- 5 试验方法 -->
+  <section id="sec-5">
+    <h1 class="chapter-title">5　试验方法</h1>
+
+    <section id="sec-5-1">
+      <h2 class="clause-title">5.1　仪器设备</h2>
+      <p>万能材料试验机：量程不低于 100 kN，分辨力不低于 0.5%；</p>
+      <p>引伸计：标距 50 mm，精度等级 1 级；</p>
+      <p>卡尺：分辨力 0.02 mm，量程 0 ～ 200 mm。</p>
+    </section>
+
+    <!-- §6 公式：KaTeX 渲染 + 编号右对齐 + 式中键值列表 -->
+    <section id="sec-5-2">
+      <h2 class="clause-title">5.2　应力应变计算</h2>
+      <p>工程应力按公式 (1) 计算：</p>
+
+      <div class="formula-block">
+        <div class="formula-math">
+          <math display="block" xmlns="http://www.w3.org/1998/Math/MathML">
+            <mrow>
+              <mi>σ</mi><mo>=</mo>
+              <mfrac><mi>F</mi><msub><mi>A</mi><mn>0</mn></msub></mfrac>
+            </mrow>
+          </math>
+        </div>
+        <div class="formula-num">(1)</div>
+      </div>
+      <div class="where-block">
+        <p>式中：</p>
+        <dl>
+          <dt>σ</dt>
+          <dd>——工程应力，单位为兆帕（MPa）；</dd>
+          <dt>F</dt>
+          <dd>——试验力，单位为牛顿（N）；</dd>
+          <dt>A₀</dt>
+          <dd>——试样原始横截面积，单位为平方毫米（mm²）。</dd>
+        </dl>
+      </div>
+
+      <p>工程应变按公式 (2) 计算：</p>
+
+      <div class="formula-block">
+        <div class="formula-math">
+          <math display="block" xmlns="http://www.w3.org/1998/Math/MathML">
+            <mrow>
+              <mi>ε</mi><mo>=</mo>
+              <mfrac><mrow><mi>Δ</mi><mi>L</mi></mrow><msub><mi>L</mi><mn>0</mn></msub></mfrac>
+              <mo>=</mo>
+              <mfrac>
+                <mrow><mi>L</mi><mo>−</mo><msub><mi>L</mi><mn>0</mn></msub></mrow>
+                <msub><mi>L</mi><mn>0</mn></msub>
+              </mfrac>
+            </mrow>
+          </math>
+        </div>
+        <div class="formula-num">(2)</div>
+      </div>
+      <div class="where-block">
+        <p>式中：</p>
+        <dl>
+          <dt>ε</dt>
+          <dd>——工程应变（无量纲）；</dd>
+          <dt>ΔL</dt>
+          <dd>——变形量，单位为毫米（mm）；</dd>
+          <dt>L₀</dt>
+          <dd>——引伸计标距，单位为毫米（mm）；</dd>
+          <dt>L</dt>
+          <dd>——变形后标距，单位为毫米（mm）。</dd>
+        </dl>
+      </div>
+
+      <p>弹性模量按公式 (3) 计算：</p>
+
+      <div class="formula-block">
+        <div class="formula-math">
+          <math display="block" xmlns="http://www.w3.org/1998/Math/MathML">
+            <mrow>
+              <mi>E</mi><mo>=</mo>
+              <mfrac>
+                <mrow><msub><mi>σ</mi><mn>2</mn></msub><mo>−</mo><msub><mi>σ</mi><mn>1</mn></msub></mrow>
+                <mrow><msub><mi>ε</mi><mn>2</mn></msub><mo>−</mo><msub><mi>ε</mi><mn>1</mn></msub></mrow>
+              </mfrac>
+            </mrow>
+          </math>
+        </div>
+        <div class="formula-num">(3)</div>
+      </div>
+      <div class="where-block">
+        <p>式中：</p>
+        <dl>
+          <dt>E</dt>
+          <dd>——弹性模量，单位为吉帕（GPa）；</dd>
+          <dt>σ₁, σ₂</dt>
+          <dd>——弹性范围内两点的应力值；</dd>
+          <dt>ε₁, ε₂</dt>
+          <dd>——对应的应变值。</dd>
+        </dl>
+      </div>
+
+      <p class="note"><span class="note-marker">注：</span>公式 (1)～(3) 中的参数均应在同一温度和湿度条件下测量，偏差不应超过规定范围。</p>
+    </section>
+  </section><!-- /sec-5 -->
+
+
+  <!-- 6 检验规则 -->
+  <section id="sec-6">
+    <h1 class="chapter-title">6　检验规则</h1>
+    <p>产品检验分为出厂检验和型式检验，具体项目见各自子条款。</p>
+
+    <!-- §5A 横排宽表方案A：命名横排页 landscape -->
+    <!--
+      方案A 说明：
+      此区块设置 page: landscape，Vivliostyle 将在 PDF 中生成实际横向页面。
+      优点：页面方向正确，表格自然排布；
+      缺点：横向页会中断正文页码序列（实际不中断，只是视觉方向变化）。
+    -->
+    <div class="landscape-section">
+      <p class="table-caption" id="table-3">表3　综合力学性能测试数据记录表（方案A：命名横排页）</p>
+      <table>
+        <thead>
+          <tr>
+            <th>试件编号</th>
+            <th>材料牌号</th>
+            <th>截面形状</th>
+            <th>原始截面积A₀<br/>(mm²)</th>
+            <th>最大试验力<br/>F (kN)</th>
+            <th>抗拉强度<br/>(MPa)</th>
+            <th>屈服强度<br/>R<sub>p0.2</sub> (MPa)</th>
+            <th>断后伸长率<br/>A (%)</th>
+            <th>断面收缩率<br/>Z (%)</th>
+            <th>弹性模量<br/>E (GPa)</th>
+            <th>硬度<br/>(HBW)</th>
+            <th>判定</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>S-001</td><td>1050A</td><td>矩形</td><td>200.0</td><td>62.0</td><td>310</td><td>215</td><td>18</td><td>42</td><td>70.1</td><td>98</td><td>合格</td></tr>
+          <tr><td>S-002</td><td>1050A</td><td>矩形</td><td>200.0</td><td>61.6</td><td>308</td><td>212</td><td>17</td><td>41</td><td>69.8</td><td>97</td><td>合格</td></tr>
+          <tr><td>S-003</td><td>1050A</td><td>矩形</td><td>200.0</td><td>62.4</td><td>312</td><td>218</td><td>19</td><td>44</td><td>70.3</td><td>99</td><td>合格</td></tr>
+          <tr><td>S-004</td><td>1050B</td><td>圆形</td><td>176.7</td><td>55.2</td><td>312</td><td>210</td><td>17</td><td>40</td><td>70.0</td><td>96</td><td>合格</td></tr>
+          <tr><td>S-005</td><td>1050B</td><td>圆形</td><td>176.7</td><td>54.8</td><td>310</td><td>208</td><td>16</td><td>40</td><td>69.9</td><td>96</td><td>合格</td></tr>
+        </tbody>
+      </table>
+      <p class="note"><span class="note-marker">注：</span>本表为方案A验证（命名横排页）。</p>
+    </div><!-- /landscape-section -->
+
+<!-- §5B 方案B（竖页内旋转）已验证不可用并废弃，区块已移除；结论存档于 README -->
+
+  </section><!-- /sec-6 -->
+
+
+  <!-- 附录A（规范性）-->
+  <section id="app-a" class="appendix">
+    <h1 class="appendix-title">
+      附录A<br/>（规范性）<br/>技术参数汇总
+    </h1>
+    <p>本附录给出了示例材料的全套技术参数，为规范性要求。</p>
+    <p class="table-caption" id="table-a-1">表A.1　附录规范性参数表</p>
+    <table>
+      <thead>
+        <tr>
+          <th>参数名称</th>
+          <th>符号</th>
+          <th>单位</th>
+          <th>典型值</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>密度</td><td>ρ</td><td>g/cm³</td><td>2.71</td></tr>
+        <tr><td>弹性模量</td><td>E</td><td>GPa</td><td>70</td></tr>
+        <tr><td>泊松比</td><td>ν</td><td>—</td><td>0.33</td></tr>
+        <tr><td>熔点</td><td>T<sub>m</sub></td><td>℃</td><td>660</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 附录B（资料性）-->
+  <section id="app-b" class="appendix">
+    <h1 class="appendix-title">
+      附录B<br/>（资料性）<br/>参考数据
+    </h1>
+    <p>本附录提供参考数据，不作为规范性要求。</p>
+    <p>图B.1给出了示例材料在不同温度下的强度变化趋势（示意图，非真实数据）。</p>
+    <p class="note"><span class="note-marker">注：</span>本附录数据仅供参考，不作为产品验收依据。</p>
+  </section>
+
+  <!-- 参考文献 -->
+  <section id="bibliography" class="bibliography">
+    <h1 class="chapter-title">参考文献</h1>
+    <p>[1] GB/T 228.1—2021　金属材料　拉伸试验　第1部分：室温试验方法</p>
+    <p>[2] GB/T 1172—1999　黑色金属硬度及强度换算值</p>
+    <p>[3] ISO 6892-1:2019　Metallic materials — Tensile testing — Part 1: Method of test at room temperature</p>
+    <p>[4] ASTM E8/E8M-21　Standard Test Methods for Tension Testing of Metallic Materials</p>
+  </section>
+
+</div><!-- /body-content -->
+
+</body>
+</html>

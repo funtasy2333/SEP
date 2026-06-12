@@ -257,7 +257,9 @@ export const gbT11Strategy: NumberingStrategy  // 默认实现，规则以 GB/T 
 - **场景清单**（一项都不能少）：
   1. 三级目次：`leader('.')` 点线 + `target-counter` 页码；
   2. 前言/目次罗马页码（Ⅰ Ⅱ Ⅲ），正文从阿拉伯数字 1 重新起页；
-  3. 奇偶页眉镜像（奇数页右侧标准号、偶数页左侧），页边距 上37/下35/左右28mm；
+  3. 奇偶页眉镜像（奇数页右侧标准号、偶数页左侧），版式尺寸按本文档「GB/T 1.1
+     版式规范（定稿）」执行（注意：不是 37/35/28/28 对称版心，那是旧 docxExporter
+     的错误常量）；
   4. 跨页长表：`<thead>` 重复 + 验证能否用 Vivliostyle 钩子注入「表X（续）」；
   5. 横排宽表两种方案对比：命名页 `size: A4 landscape` vs 竖排页内容 `rotate(90deg)`，
      记录哪种在 `vivliostyle build` 输出的 PDF 中正确；
@@ -265,7 +267,66 @@ export const gbT11Strategy: NumberingStrategy  // 默认实现，规则以 GB/T 
   7. 章标题黑体 15pt / 正文宋体 12pt 等字体字号验证。
 - **验收**：README 中逐项记录 通过/不通过/workaround，附输出 PDF 截图。
   **任何一项不通过先停下报告**，由主导人决定对策，不要自行换方案。
-- 工具：`pnpm dlx @vivliostyle/cli build spike/vivliostyle-gbt11/index.html -o spike/out.pdf`
+- 工具：`pnpm --package=@vivliostyle/cli@11.0.1 dlx vivliostyle build spike/vivliostyle-gbt11/index.html -o spike/out.pdf`
+  （版本锁定 11.0.1：spike 结论绑定该版本行为，升级须复验）
+
+#### WP0 审查补充结论（2026-06-11，主导人实测定稿，约束 WP4/WP5）
+
+1. **文档内部链接与命名横排页互斥（上游 bug，已实证）**：HTML 中存在任何
+   `<a href="#…">` 内部链接时，Vivliostyle（CLI 11.0.1 / Core 2.43.1）输出的
+   命名页 `size: A4 landscape` 失效、整本回落竖排。与 target-counter、leader、
+   表格、嵌套命名页均无关（逐项二分排除）。
+2. **`counter-reset: page` 与横排页可共存**（已实测）：正文页脚从 1 起编 + 横排页
+   同时成立，前提是文档中无内部链接。
+3. **目次页码与分区页码采用两遍构建**（决策一，定稿）：最终一遍的 HTML 不含任何
+   内部链接与 target-counter，目次页码为注入的纯文本。
+4. **「表X（续）」是 GB/T 1.1-2020 9.8.3 的规范性要求**（"随后接排该表的各页上应
+   重复表编号，后接表题（可选）和'（续）'或'（第#页/共*页）'……续表均应重复表头和
+   '关于单位的陈述'"）。V1 先落实表头 + 单位陈述重复，（续）标题进 V2（决策二，定稿）。
+5. **spike 的版式参数（字号、页边距、页码位置等）不符合 GB/T 1.1 附录 E/F，
+   不得作为 WP4 的样式基准**。spike 的价值在机制验证（分页引擎能力），版式参数
+   一律以下方「GB/T 1.1-2020 版式规范（定稿）」为准。
+
+#### GB/T 1.1-2020 版式规范（定稿，依据附录 E/F、第 10 章及 GB/T 37967 出版实物核定）
+
+页面布局（A4 210mm × 297mm）：
+
+| 项 | 规定 | 出处 |
+|---|---|---|
+| 书眉文件编号 | 距纸顶 25mm；单数页右对齐、双数页左对齐；五号黑体；编号下方画短下划线（线长同编号文字，**非通栏线**）；从目次页起每页编排 | 图 E.1/E.2、10.1.3、表 F.1 #47 |
+| 版心 | 书眉编号下方空 5mm 起；**单数页左 25mm / 右 20mm，双数页左 20mm / 右 25mm（镜像）** | 图 E.1/E.2 |
+| 页码 | 版心外侧下角（单数页右下、双数页左下）；距纸底 20mm、距外侧纸边 24mm；小五号宋体 | 图 E.1/E.2、10.1.3、表 F.1 #48 |
+| 页码分区 | 目次页起用正体大写罗马数字（Ⅰ Ⅱ Ⅲ…）；正文首页起用阿拉伯数字从 1 另编 | 10.1.3 |
+| 前置页顺序 | 封面 → **目次 → 前言 → 引言** → 正文（spike 中前言在目次前，错误） | 10.1.3、实物 |
+| 正文首页 | 必须从**单数页**开始（必要时插入空白页，空白页计数但不印内容）；书眉编号下空 15mm 排文件名称（三号黑体居中，名称多元素间空一个汉字），名称下空 12mm 排「1 范围」 | 10.1.4、图 E.3 |
+
+字号字体（表 F.1 摘录；pt 为换算值）：
+
+| 用途 | 字体 | 字号 |
+|---|---|---|
+| 目次/前言/引言的标题行 | 黑体 | 三号（16pt） |
+| 正文首页文件名称 | 黑体 | 三号（16pt） |
+| 章、条编号及标题 | 黑体 | **五号（10.5pt，与正文同字号）** |
+| 条文、列项及其编号 | 宋体 | **五号（10.5pt，不是 12pt）** |
+| 术语条目编号、术语及英文对应词 | 黑体 | 五号 |
+| 附录编号 /（规范性）（资料性）/ 附录标题（三行） | 黑体 | 五号 |
+| 参考文献标题行 | 黑体 | 五号（注意：不用三号） |
+| 图/表编号及图题/表题 | 黑体 | 五号 |
+| 续表「（续）」「（第#页/共*页）」 | 宋体 | 五号 |
+| 图、表右上方「关于单位的陈述」 | 宋体 | 小五（9pt） |
+| 图中的数字和文字 | 宋体 | 六号（7.5pt） |
+| 「注：」「注X：」「示例：」标识 | 黑体 | 小五（9pt） |
+| 注、示例、脚注的内容 | 宋体 | 小五（9pt） |
+| 书眉文件编号 | 黑体 | 五号 |
+| 页码 | 宋体 | 小五 |
+
+其他排版规则：
+
+- 条文段落首行缩进两个汉字（出版实物与官方模板惯例）；
+- 公式编号右端对齐，公式与编号之间用点线引导（9.9.2 示例样式）；
+- 层次编排、要素编排的逐条细节见 `rules/` 下 GB/T 1.1-2020 OCR markdown
+  第 10 章（10.2 层次的编排、10.3 要素的编排、10.4 要素表述形式的编排），
+  WP4 实施时逐条对照，OCR 有疑义处以原 PDF 为准（图像方式阅读）。
 
 ### WP1：shared 包 IR 类型 + nodeId 工具 + 测试基建（1 天）
 
@@ -305,25 +366,52 @@ export const gbT11Strategy: NumberingStrategy  // 默认实现，规则以 GB/T 
 
 ### WP4：HTML 渲染器 + GB/T 1.1 打印样式（3 天，依赖 WP3，可与 WP6/7/8 并行）
 
+- **开工首日先行验证**（10 分钟微测试，不通过立即报告）：
+  `break-before: right`（正文首页单数页起排）+ `@page :blank`（空白页计数不印）+
+  `counter-reset: page`（正文从 1 起编）三者组合在 vivliostyle build 下的行为——
+  该组合落在 spike 已发现的命名页计数 bug 邻域，是版式规范中唯一未经 spike
+  验证的机制（镜像版心、外侧页码 margin box、短线书眉均为标准用法，无需预验证）。
 - **产出**：
   - `packages/shared/src/renderers/html.ts`：`renderHtml(doc, labels, opts): string`，
     语义 HTML（沿用现 htmlExporter 的 data-* 风格，nodeId 写入 `data-node-id`）；
-  - `packages/shared/src/renderers/printCss.ts`：导出 GB/T 1.1 打印样式字符串
-    （@page 版心/奇偶页眉/页码、目次 target-counter、字体栈宋体/黑体/Times New Roman）；
+  - `packages/shared/src/renderers/printCss.ts`：导出 GB/T 1.1 打印样式字符串，
+    全部尺寸与字号**严格按 WP0 节末「GB/T 1.1-2020 版式规范（定稿）」表执行**
+    （镜像版心、外侧下角页码、短线书眉、五号正文等；目次页码不用 target-counter，
+    由 WP5 两遍构建注入）；字体栈宋体/黑体 + Times New Roman 西文；
+    渲染器须按「目次 → 前言 → 引言 → 正文」输出前置页顺序，正文首页置入
+    文件名称（三号黑体）并保证从单数页开始；
   - 公式：KaTeX 渲染**不在 shared 做**（KaTeX 依赖 DOM 字体度量不可靠），HTML 中输出
     `<span class="ses-formula" data-latex="...">`，由消费端（client 预览页/出件管线）渲染。
-  - 横排内容容器按 WP0 spike 的结论实现。
+  - 横排内容容器：采用命名页方案（WP0 方案A），旋转方案已废弃。
+  - **打印变体 HTML 不得含内部链接**（WP0 审查结论 1）：`renderHtml` 增加
+    `variant: 'screen' | 'print'`。print 变体中交叉引用输出纯文本（labels.refText），
+    目次条目不带 `<a>`，页码列输出固定宽度占位元素
+    `<span class="toc-page" data-target="...">　</span>`（由 WP5 注入数字，占位与
+    成品宽度一致以保证两遍构建分页不漂移）；screen 变体保留链接供预览/语义导出。
+  - 表的「关于单位的陈述」与表头一并纳入可重复的表头结构（thead），满足
+    GB/T 1.1 9.8.3 续表重复表头和单位陈述的要求；「表X（续）」本期不实现
+    （已知差距，出处 9.8.3，进 V2）。
 - **替换**：`packages/client/src/serializer/htmlExporter.ts` 改为薄壳调用 shared 渲染器
   （保留原导出菜单行为）。
 - **验收**：全要素 fixture 渲染输出快照测试；旧 htmlExporter 输出与新输出的语义等价性
   人工 diff 记录在 PR 描述中（编号必须逐个一致）。
 
-### WP5：PDF 出件管线（2 天，依赖 WP4 + WP0 结论）
+### WP5：PDF 出件管线（2.5 天，依赖 WP4 + WP0 结论）
 
-- **服务端**：`packages/server/src/convert/` 新增 `POST /api/convert/html-to-pdf`：
-  接收 HTML 字符串 → 临时目录落盘（附 KaTeX 预渲染步骤，方案按 WP0 记录执行）→
-  调 `@vivliostyle/cli`（优先编程 API，不可用则 execFile）→ 返回 PDF。
-  依赖加入 server package（`@vivliostyle/cli`、playwright-chromium 锁版本）。
+- **服务端**：`packages/server/src/convert/` 新增 `POST /api/convert/html-to-pdf`，
+  内部为**两遍构建管线**（WP0 审查结论 3，决策一定稿）：
+  1. KaTeX 预渲染：`katex.renderToString(latex, { output: 'html' })` 替换
+     `.ses-formula` 占位，内联 KaTeX 核心 CSS（字体内嵌或系统回退，禁用 CDN）；
+  2. 第一遍 `vivliostyle build`（print 变体 HTML，目次页码为占位符）；
+  3. 页码提取：用 poppler `pdftotext` 按页扫描，定位各目次目标的标题文本所在页
+     （标题文本 + data-target 唯一对应；分区页码 = 物理页 − 分区起始页 + 1）；
+  4. 注入：将页码以纯文本写入 `.toc-page` 占位元素；
+  5. 第二遍 `vivliostyle build` 产出最终 PDF（占位定宽保证与第一遍分页一致，
+     实现时须断言两遍页数相同，不一致即报错返回）。
+  页脚分区编号用 `counter-reset: page`（front 罗马 / body 阿拉伯，
+  已实测与横排命名页共存）。调用方式优先编程 API，不可用则 execFile。
+  依赖加入 server package（`@vivliostyle/cli`、`katex`、playwright-chromium 锁版本，
+  poppler 作为系统依赖检测并给出安装指引）。
 - **客户端**：导出面板 PDF 卡片改走 IR→HTML→新端点；原 LibreOffice 路径改为
   第二张卡片「高保真（Word 排版）」，`ConvertService` 未检测到 LibreOffice 时隐藏。
 - **验收**：全要素 fixture 一键导出 PDF 成功；WP0 七个场景在真实管线复验通过；
