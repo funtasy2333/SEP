@@ -95,6 +95,8 @@ pnpm --package=@vivliostyle/cli dlx vivliostyle build spike/vivliostyle-gbt11/in
 
 **结论：方案B在 Vivliostyle 下不可用于生产。应全部采用方案A。**
 
+> 2026-06-11 复审后处置：方案B 区块及其 CSS 已从样张中移除（原构建中产生一页错乱输出），本节结论作为实验记录存档。
+
 ---
 
 ### 场景6 — 带编号公式 + 编号右对齐 + 式中键值列表

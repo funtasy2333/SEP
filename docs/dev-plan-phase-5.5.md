@@ -365,6 +365,11 @@ export const gbT11Strategy: NumberingStrategy  // 默认实现，规则以 GB/T 
 
 ### WP4：HTML 渲染器 + GB/T 1.1 打印样式（3 天，依赖 WP3，可与 WP6/7/8 并行）
 
+- **开工首日先行验证**（10 分钟微测试，不通过立即报告）：
+  `break-before: right`（正文首页单数页起排）+ `@page :blank`（空白页计数不印）+
+  `counter-reset: page`（正文从 1 起编）三者组合在 vivliostyle build 下的行为——
+  该组合落在 spike 已发现的命名页计数 bug 邻域，是版式规范中唯一未经 spike
+  验证的机制（镜像版心、外侧页码 margin box、短线书眉均为标准用法，无需预验证）。
 - **产出**：
   - `packages/shared/src/renderers/html.ts`：`renderHtml(doc, labels, opts): string`，
     语义 HTML（沿用现 htmlExporter 的 data-* 风格，nodeId 写入 `data-node-id`）；

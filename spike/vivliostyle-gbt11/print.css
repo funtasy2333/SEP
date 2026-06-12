@@ -314,43 +314,7 @@ tr {
 }
 
 
-/* ===================================================================
- * §5B 横排宽表方案B：竖页内旋转对比
- *
- * 原理：绝对定位容器旋转 -90°，transform-origin = 左上角。
- * 旋转后宽度 = 正文高度（297-37-35=225mm），
- * 旋转后高度 = 正文宽度（210-28-28=154mm）。
- * 已知风险：CSS transform 在 paged media 中不影响布局流；
- * 绝对定位元素不参与分页；实际效果需验证后填写 README。
- * =================================================================== */
-.rotated-section {
-  break-before: page;
-  page-break-before: always;
-  /* 为绝对子容器提供定位上下文 */
-  position: relative;
-  height: 154mm;   /* 留出与正文宽度等高的空间（旋转后变宽度）*/
-}
 
-.rotated-wrapper {
-  position: absolute;
-  top: 154mm;
-  left: 0;
-  width: 225mm;    /* 旋转后等于正文高度 */
-  transform: rotate(-90deg);
-  transform-origin: top left;
-  font-size: 9pt;
-}
-
-.rotated-wrapper table {
-  font-size: 9pt;
-  margin: 0;
-}
-
-.rotated-wrapper th,
-.rotated-wrapper td {
-  font-size: 9pt;
-  padding: 1mm 2mm;
-}
 
 
 /* ===================================================================
