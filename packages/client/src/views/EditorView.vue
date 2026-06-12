@@ -341,6 +341,7 @@ import {
   StdList, StdListItem,
   SlashCommand,
   AutoUnitSpacing,
+  NodeId,
 } from '@/extensions'
 import { CrossRef } from '@/extensions'
 import {
@@ -443,6 +444,7 @@ const editor = useEditor({
     CrossRef,
     SlashCommand,
     AutoUnitSpacing,
+    NodeId,
   ],
   content: '',
   onUpdate() {

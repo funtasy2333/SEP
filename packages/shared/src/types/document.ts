@@ -1,40 +1,46 @@
 /**
  * 标准文件类型
+ *
+ * 使用 const 对象 + 联合类型而非 enum，以兼容 client 的 erasableSyntaxOnly
  */
-export enum StandardType {
+export const StandardType = {
   /** 国家标准 */
-  NATIONAL = 'national',
+  NATIONAL: 'national',
   /** 行业标准 */
-  INDUSTRY = 'industry',
+  INDUSTRY: 'industry',
   /** 地方标准 */
-  LOCAL = 'local',
+  LOCAL: 'local',
   /** 团体标准 */
-  GROUP = 'group',
+  GROUP: 'group',
   /** 企业标准 */
-  ENTERPRISE = 'enterprise',
+  ENTERPRISE: 'enterprise',
   /** 标准化指导性技术文件 */
-  GUIDANCE = 'guidance',
-}
+  GUIDANCE: 'guidance',
+} as const;
+
+export type StandardType = (typeof StandardType)[keyof typeof StandardType];
 
 /**
  * 标准文件阶段
  */
-export enum DocumentStage {
+export const DocumentStage = {
   /** 工作草案 */
-  WORKING_DRAFT = 'working_draft',
+  WORKING_DRAFT: 'working_draft',
   /** 征求意见稿 */
-  COMMENT_DRAFT = 'comment_draft',
+  COMMENT_DRAFT: 'comment_draft',
   /** 送审讨论稿 */
-  REVIEW_DISCUSSION_DRAFT = 'review_discussion_draft',
+  REVIEW_DISCUSSION_DRAFT: 'review_discussion_draft',
   /** 送审稿 */
-  REVIEW_DRAFT = 'review_draft',
+  REVIEW_DRAFT: 'review_draft',
   /** 报批稿 */
-  APPROVAL_DRAFT = 'approval_draft',
+  APPROVAL_DRAFT: 'approval_draft',
   /** 公示稿 */
-  PUBLIC_DRAFT = 'public_draft',
+  PUBLIC_DRAFT: 'public_draft',
   /** 发布稿 */
-  PUBLISHED = 'published',
-}
+  PUBLISHED: 'published',
+} as const;
+
+export type DocumentStage = (typeof DocumentStage)[keyof typeof DocumentStage];
 
 /**
  * 文档元数据
