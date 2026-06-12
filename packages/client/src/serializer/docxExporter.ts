@@ -22,6 +22,7 @@ import {
   WidthType,
   convertMillimetersToTwip as mm2t,
 } from 'docx'
+import type { IRunOptions } from 'docx'
 import type { Node as PMNode } from '@tiptap/pm/model'
 
 // =================== 类型定义 ===================
@@ -71,7 +72,6 @@ type DocxEl = Paragraph | Table
 // 字体定义
 const FONT_BODY = { ascii: 'Times New Roman', eastAsia: 'SimSun', hAnsi: 'Times New Roman', cs: 'SimSun' }
 const FONT_HEADING = { ascii: 'SimHei', eastAsia: 'SimHei', hAnsi: 'SimHei', cs: 'SimHei' }
-const FONT_TABLE = { ascii: 'Times New Roman', eastAsia: 'SimSun', hAnsi: 'Times New Roman', cs: 'SimSun' }
 
 // 字号（半点数，1pt=2半点）
 const SIZE_BODY = 24       // 12pt (小4号)
@@ -424,7 +424,7 @@ function currentChapterPrefix(ctx: ExportCtx): string {
 function convertInlineNode(node: PMNode): TextRun[] {
   if (node.type.name === 'text') {
     const text = node.text || ''
-    const opts: Parameters<typeof TextRun>[0] = {
+    const opts: { -readonly [K in keyof IRunOptions]: IRunOptions[K] } = {
       text,
       font: FONT_BODY,
       size: SIZE_BODY,
@@ -968,7 +968,7 @@ function buildCoverPage(meta: DocMeta): Paragraph[] {
     style: 'CoverIssuer',
     text: stdType,
     spacing: { before: meta.icsCode || meta.ccsCode ? mm2t(40) : mm2t(60), after: mm2t(5) },
-  } as Parameters<typeof Paragraph>[0]))
+  } as ConstructorParameters<typeof Paragraph>[0]))
 
   // 标准编号
   if (meta.stdCode) {
@@ -1064,7 +1064,7 @@ export async function exportDocx(doc: PMNode, meta: DocMeta = {}): Promise<Blob>
     title: meta.title || '',
     subject: meta.stdCode || '',
     creator: meta.issuer || '',
-    styles: buildStyles() as Parameters<typeof Document>[0]['styles'],
+    styles: buildStyles() as ConstructorParameters<typeof Document>[0]['styles'],
     sections: [
       // 封面页（无页眉页脚）
       {

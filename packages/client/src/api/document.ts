@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { DocumentMeta } from '@ses/shared'
 
 const api = axios.create({
   baseURL: '/api',
@@ -7,18 +8,7 @@ const api = axios.create({
 export interface DocumentData {
   id?: number
   title: string
-  meta: {
-    standardNo?: string
-    icsCode?: string
-    ccsCode?: string
-    titleCn: string
-    titleEn?: string
-    publishDate?: string
-    implementDate?: string
-    standardType: string
-    issuer?: string
-    applicant?: string
-  }
+  meta: DocumentMeta
   stage: string
   content: Record<string, unknown>
   createdAt?: string

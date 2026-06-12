@@ -305,7 +305,7 @@
 
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { TextSelection } from '@tiptap/pm/state'
 import { useRoute, useRouter } from 'vue-router'
 import { useEditor } from '@tiptap/vue-3'
@@ -662,25 +662,7 @@ function handleAddStructure(command: string) {
   }
 }
 
-// isInsideChapterOrClause removed (unused)
-
-/**
- * 找到当前光标所在的章或条的末尾位置，用于在其内部追加子条
- */
-function findInsertPosInChapterOrClause(): number | null {
-  if (!editor.value) return null
-  const { $from } = editor.value.state.selection
-  // 从当前深度向上查找最近的 chapter、clause 或 appendix
-  for (let d = $from.depth; d > 0; d--) {
-    const node = $from.node(d)
-    if (node.type.name === 'chapter' || node.type.name === 'clause' || node.type.name === 'appendix' || node.type.name === 'termDef') {
-      // 返回该节点内容的末尾位置（在节点关闭标签之前）
-      const endPos = $from.end(d)
-      return endPos
-    }
-  }
-  return null
-}
+// isInsideChapterOrClause / findInsertPosInChapterOrClause removed (unused)
 
 // === 获取插入位置（如果光标在空段落中，返回替换范围；否则返回插入点） ===
 function getInsertRange(): { from: number; to: number } | null {
@@ -1015,17 +997,17 @@ function handleExport() {
 
 /** 从文档元数据构建 DocMeta */
 function buildDocMeta(): DocMeta {
-  const docMeta = store.currentDocument?.meta || {}
+  const docMeta = store.currentDocument?.meta
   return {
-    title: docMeta.title,
-    titleEn: docMeta.titleEn,
-    stdCode: docMeta.stdCode,
-    icsCode: docMeta.icsCode,
-    ccsCode: (docMeta as Record<string, unknown>).ccsCode as string | undefined,
-    issuer: docMeta.issuer,
-    applicant: docMeta.applicant,
-    publishDate: docMeta.publishDate,
-    implementDate: docMeta.implementDate,
+    title: docMeta?.titleCn,
+    titleEn: docMeta?.titleEn,
+    stdCode: docMeta?.standardNo,
+    icsCode: docMeta?.icsCode,
+    ccsCode: docMeta?.ccsCode,
+    issuer: docMeta?.issuer,
+    applicant: docMeta?.applicant,
+    publishDate: docMeta?.publishDate,
+    implementDate: docMeta?.implementDate,
     standardType: selectedStandardType.value,
   }
 }
@@ -1034,7 +1016,7 @@ function handleExportFormat(format: string) {
   if (!editor.value) return
   const doc = editor.value.state.doc
   const meta = buildDocMeta()
-  const docTitle = meta.title || store.currentDocument?.meta?.title || '标准文件'
+  const docTitle = meta.title || store.currentDocument?.meta?.titleCn || '标准文件'
 
   if (format === 'docx') {
     showExport.value = false
