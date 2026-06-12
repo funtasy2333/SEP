@@ -229,13 +229,14 @@ import { Close, Check, Plus, MagicStick } from '@element-plus/icons-vue'
 import {
   STAGE_LABELS, STAGE_SHORT, STAGES, TYPE_DEFS,
 } from '@/constants/standards'
+import type { StandardType } from '@ses/shared'
 
 const props = defineProps<{
   modelValue: boolean
   initialType?: string
 }>()
 interface NewDocForm {
-  type: string
+  type: StandardType
   stage: typeof STAGES[number]
   stdPrefix: string
   stdNo: string
@@ -298,7 +299,7 @@ const stepDone = computed(() => ({
 watch(() => props.modelValue, (open) => {
   if (open) {
     form.value = {
-      type: props.initialType || 'national',
+      type: TYPE_DEFS.find((t) => t.id === props.initialType)?.id ?? 'national',
       stage: 'working_draft',
       stdPrefix: '',
       stdNo: '',
