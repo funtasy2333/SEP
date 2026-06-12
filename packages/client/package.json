@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
+    "@ses/shared": "workspace:*",
     "@tiptap/core": "^3.21.0",
     "@tiptap/extension-image": "^3.21.0",
     "@tiptap/extension-placeholder": "^3.21.0",
@@ -38,6 +40,7 @@
     "@vue/tsconfig": "^0.9.0",
     "typescript": "~5.9.3",
     "vite": "^8.0.1",
+    "vitest": "^3.2.4",
     "vue-tsc": "^3.2.5"
   }
 }
