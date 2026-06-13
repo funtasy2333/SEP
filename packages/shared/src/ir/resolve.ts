@@ -106,6 +106,18 @@ function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx): voi
 
 // ---------- 块级 ----------
 
+/** 图/表编号公共头：登记 ID、计数自增、按附录前缀取号、写入 label（编号格式一致，仅策略方法与 xmlId 前缀不同） */
+function labelFigureOrTable(id: NodeId, kind: 'fig' | 'tab', ctx: ResolveCtx): void {
+  ctx.registerId(id)
+  const seq = kind === 'fig' ? ++ctx.figSeq : ++ctx.tableSeq
+  const label =
+    kind === 'fig'
+      ? ctx.strategy.figure(seq, ctx.appendixLetter)
+      : ctx.strategy.table(seq, ctx.appendixLetter)
+  const num = ctx.appendixLetter ? `${ctx.appendixLetter}.${seq}` : String(seq)
+  ctx.setLabel(id, label, `${kind}_${num}`, label)
+}
+
 function visitNoteContent(note: IRNote, ctx: ResolveCtx): void {
   ctx.registerId(note.id)
   for (const block of note.content) visitBlock(block, note.id, ctx)
@@ -129,11 +141,7 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx): void {
       }
       break
     case 'table': {
-      ctx.registerId(block.id)
-      ctx.tableSeq += 1
-      const label = ctx.strategy.table(ctx.tableSeq, ctx.appendixLetter)
-      const num = ctx.appendixLetter ? `${ctx.appendixLetter}.${ctx.tableSeq}` : String(ctx.tableSeq)
-      ctx.setLabel(block.id, label, `tab_${num}`, label)
+      labelFigureOrTable(block.id, 'tab', ctx)
       visitInlines(block.caption, block.id, ctx)
       if (block.captionEn) visitInlines(block.captionEn, block.id, ctx)
       for (const row of block.rows) {
@@ -151,11 +159,7 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx): void {
       break
     }
     case 'figure': {
-      ctx.registerId(block.id)
-      ctx.figSeq += 1
-      const label = ctx.strategy.figure(ctx.figSeq, ctx.appendixLetter)
-      const num = ctx.appendixLetter ? `${ctx.appendixLetter}.${ctx.figSeq}` : String(ctx.figSeq)
-      ctx.setLabel(block.id, label, `fig_${num}`, label)
+      labelFigureOrTable(block.id, 'fig', ctx)
       visitInlines(block.caption, block.id, ctx)
       if (block.captionEn) visitInlines(block.captionEn, block.id, ctx)
       for (const note of block.notes) {
@@ -219,12 +223,12 @@ function visitTermEntry(
 
 // ---------- 条 / 章 / 附录 ----------
 
-/** 编号上下文：numberPrefix 形如 "5" / "5.1" / "A" / "A.2" */
+/** 编号路径：[5] / [5,1] / ['A'] / ['A',2]，章号或附录字母为首元素，编号格式由 strategy.clause 决定 */
 function visitSectionChildren(
   children: IRClauseChild[],
   containerId: NodeId,
   containerLabel: string,
-  numberPrefix: string,
+  path: Array<number | string>,
   expectedChildLevel: number,
   ctx: ResolveCtx,
 ): void {
@@ -237,7 +241,8 @@ function visitSectionChildren(
     if (child.kind === 'clause' || child.kind === 'termEntry') {
       if (child.kind === 'clause') hasClauseChild = true
       numberedSeq += 1
-      const numberPath = `${numberPrefix}.${numberedSeq}`
+      const childPath = [...path, numberedSeq]
+      const numberPath = ctx.strategy.clause(childPath)
       if (child.kind === 'clause') {
         if (child.level !== expectedChildLevel) {
           ctx.problems.push({
@@ -247,7 +252,7 @@ function visitSectionChildren(
             message: `条「${numberPath}」层级为 ${child.level}，应为 ${expectedChildLevel}（层级跳级）`,
           })
         }
-        visitClause(child, numberPath, expectedChildLevel + 1, ctx)
+        visitClause(child, childPath, expectedChildLevel + 1, ctx)
       } else {
         visitTermEntry(child, numberPath, ctx)
       }
@@ -277,14 +282,15 @@ function visitSectionChildren(
 
 function visitClause(
   clause: IRClause,
-  numberPath: string,
+  path: Array<number | string>,
   expectedChildLevel: number,
   ctx: ResolveCtx,
 ): void {
   ctx.registerId(clause.id)
+  const numberPath = ctx.strategy.clause(path)
   ctx.setLabel(clause.id, numberPath, `sec_${numberPath}`, numberPath)
   visitInlines(clause.title, clause.id, ctx)
-  visitSectionChildren(clause.children, clause.id, numberPath, numberPath, expectedChildLevel, ctx)
+  visitSectionChildren(clause.children, clause.id, numberPath, path, expectedChildLevel, ctx)
 }
 
 function visitChapter(chapter: IRChapter, seq: number, ctx: ResolveCtx): void {
@@ -292,7 +298,7 @@ function visitChapter(chapter: IRChapter, seq: number, ctx: ResolveCtx): void {
   const num = ctx.strategy.chapter(seq)
   ctx.setLabel(chapter.id, num, `sec_${num}`, `第${num}章`)
   visitInlines(chapter.title, chapter.id, ctx)
-  visitSectionChildren(chapter.children, chapter.id, `第${num}章`, num, 1, ctx)
+  visitSectionChildren(chapter.children, chapter.id, `第${num}章`, [seq], 1, ctx)
 }
 
 function visitAppendix(appendix: IRAppendix, seq: number, ctx: ResolveCtx): void {
@@ -306,23 +312,28 @@ function visitAppendix(appendix: IRAppendix, seq: number, ctx: ResolveCtx): void
   ctx.figSeq = 0
   ctx.tableSeq = 0
   ctx.formulaSeq = 0
-  visitSectionChildren(appendix.children, appendix.id, label, letter, 1, ctx)
+  visitSectionChildren(appendix.children, appendix.id, label, [letter], 1, ctx)
 }
 
 // ---------- 注/示例编号（作用域收集完成后统一赋号） ----------
 
+function labelScopeGroup(
+  items: { id: NodeId }[],
+  labelOf: (index: number, totalInScope: number) => string,
+  xmlPrefix: string,
+  nextSeq: () => number,
+  ctx: ResolveCtx,
+): void {
+  items.forEach(({ id }, i) => {
+    const label = labelOf(i + 1, items.length)
+    ctx.setLabel(id, label, `${xmlPrefix}_${nextSeq()}`, label.replace(/：$/, ''))
+  })
+}
+
 function labelNotesAndExamples(ctx: ResolveCtx): void {
   for (const scope of ctx.scopes.values()) {
-    scope.notes.forEach(({ id }, i) => {
-      ctx.noteSeq += 1
-      const label = ctx.strategy.note(i + 1, scope.notes.length)
-      ctx.setLabel(id, label, `note_${ctx.noteSeq}`, label.replace(/：$/, ''))
-    })
-    scope.examples.forEach(({ id }, i) => {
-      ctx.exampleSeq += 1
-      const label = ctx.strategy.example(i + 1, scope.examples.length)
-      ctx.setLabel(id, label, `example_${ctx.exampleSeq}`, label.replace(/：$/, ''))
-    })
+    labelScopeGroup(scope.notes, (i, t) => ctx.strategy.note(i, t), 'note', () => ++ctx.noteSeq, ctx)
+    labelScopeGroup(scope.examples, (i, t) => ctx.strategy.example(i, t), 'example', () => ++ctx.exampleSeq, ctx)
   }
 }
 

@@ -423,7 +423,8 @@ function scheduleAutoSave() {
 
 const editor = useEditor({
   extensions: [
-    StarterKit.configure({ heading: false }),
+    // GB/T 标准文档不需要 blockquote/codeBlock/horizontalRule，禁用以免产生 IR 无法表达的内容
+    StarterKit.configure({ heading: false, blockquote: false, codeBlock: false, horizontalRule: false }),
     Table.configure({ resizable: true }),
     TableRow, TableCell, TableHeader,
     Image,

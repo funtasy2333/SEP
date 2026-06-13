@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { pmToIr } from '../pmToIr'
 import { resolve } from '../resolve'
+import { gbT11Strategy } from '../strategies'
 import type { ResolveResult } from '../types'
 import * as fx from './fixtures'
 
@@ -229,6 +230,19 @@ describe('resolve / problems', () => {
       ['empty-section', 'c1'],
       ['empty-section', 'cl1'],
     ])
+  })
+})
+
+describe('resolve / 编号策略可配置', () => {
+  it('覆盖 strategy.clause() 可改变条编号格式（含附录内条）', () => {
+    const custom = { ...gbT11Strategy, clause: (path: Array<number | string>) => path.join('-') }
+    const { labels } = resolve(pmToIr(fx.fullFixture()).doc, custom)
+    expect(labels['cl-421']).toEqual({ label: '4-2-1', xmlId: 'sec_4-2-1', refText: '4-2-1' })
+    expect(labels['cl-a1'].label).toBe('A-1')
+    expect(labels['term-1'].label).toBe('3-1')
+    // 章与图表编号不受 clause() 影响
+    expect(labels['ch-4'].label).toBe('4')
+    expect(labels['tbl-1'].label).toBe('表1')
   })
 })
 

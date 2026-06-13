@@ -176,8 +176,8 @@ export interface IRProblem {
 export interface NumberingStrategy {
   /** "5" */
   chapter(seq: number): string
-  /** [5,1,2] -> "5.1.2" */
-  clause(path: number[]): string
+  /** [5,1,2] -> "5.1.2"；附录内条的首元素为附录字母，如 ['A',1,2] -> "A.1.2" */
+  clause(path: Array<number | string>): string
   /** 1 -> "附录A"（返回含"附录"前缀） */
   appendix(seq: number): string
   /** 1 -> "A" */

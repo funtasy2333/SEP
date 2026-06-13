@@ -203,6 +203,66 @@ describe('pmToIr / 块级要素', () => {
   })
 })
 
+describe('pmToIr / StarterKit 节点降级（历史文档兼容）', () => {
+  it('blockquote 降级为普通段落，多段以换行连接，文本不丢', () => {
+    const pm = fx.standardDoc({}, fx.chapter('c', 'X', {
+      type: 'blockquote',
+      attrs: { nodeId: 'bq' },
+      content: [
+        { type: 'paragraph', attrs: { nodeId: 'bqp1' }, content: [fx.text('第一段', [{ type: 'bold' }])] },
+        { type: 'paragraph', attrs: { nodeId: 'bqp2' }, content: [fx.text('第二段')] },
+      ],
+    }))
+    const { doc, warnings } = pmToIr(pm)
+    const p = doc.body[0].children[0] as IRParagraph
+    expect(p).toEqual({
+      kind: 'paragraph',
+      id: 'bq',
+      content: [{ text: '第一段', marks: [{ type: 'bold' }] }, { text: '\n' }, { text: '第二段' }],
+    })
+    expect(warnings.filter((w) => w.includes('blockquote')).length).toBe(1)
+  })
+
+  it('codeBlock 降级为普通段落，文本不丢', () => {
+    const pm = fx.standardDoc({}, fx.chapter('c', 'X', {
+      type: 'codeBlock',
+      attrs: { nodeId: 'cb' },
+      content: [fx.text('const x = 1')],
+    }))
+    const { doc, warnings } = pmToIr(pm)
+    const p = doc.body[0].children[0] as IRParagraph
+    expect(p).toEqual({ kind: 'paragraph', id: 'cb', content: [{ text: 'const x = 1' }] })
+    expect(warnings.filter((w) => w.includes('codeBlock')).length).toBe(1)
+  })
+
+  it('horizontalRule 跳过并警告', () => {
+    const pm = fx.standardDoc({}, fx.chapter('c', 'X',
+      { type: 'horizontalRule', attrs: { nodeId: 'hr' } },
+      fx.para('p1', fx.text('正文')),
+    ))
+    const { doc, warnings } = pmToIr(pm)
+    expect(doc.body[0].children.map((c) => c.id)).toEqual(['p1'])
+    expect(warnings.filter((w) => w.includes('horizontalRule')).length).toBe(1)
+  })
+})
+
+describe('pmToIr / orientation 透传', () => {
+  it('figure/stdTable attrs 带 orientation: landscape 时透传到 IR', () => {
+    const fig = fx.figure('g1', 's', '横图')
+    fig.attrs = { ...fig.attrs, orientation: 'landscape' }
+    const tbl = fx.stdTable('t1', '横表', [fx.tableRow(fx.tableCell('tableCell', 'x'))])
+    tbl.attrs = { ...tbl.attrs, orientation: 'landscape' }
+    const { doc } = pmToIr(fx.standardDoc({}, fx.chapter('c', 'X', fig, tbl)))
+    expect((doc.body[0].children[0] as IRFigure).orientation).toBe('landscape')
+    expect((doc.body[0].children[1] as IRTable).orientation).toBe('landscape')
+  })
+
+  it('未设置 orientation 时默认 portrait', () => {
+    const { doc } = pmToIr(fx.standardDoc({}, fx.chapter('c', 'X', fx.figure('g1', 's', '图'))))
+    expect((doc.body[0].children[0] as IRFigure).orientation).toBe('portrait')
+  })
+})
+
 describe('pmToIr / 行内与健壮性', () => {
   it('标记映射：bold/subscript/superscript/crossRef', () => {
     const pm = fx.standardDoc({}, fx.chapter('c', 'X', fx.para('p1',

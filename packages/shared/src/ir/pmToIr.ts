@@ -211,15 +211,17 @@ function convertStarterList(node: PMJsonNode, ctx: Ctx): IRList {
   }
 }
 
-function convertNote(node: PMJsonNode, ctx: Ctx): IRNote {
+function convertNoteLike<K extends 'note' | 'example'>(
+  kind: K,
+  node: PMJsonNode,
+  ctx: Ctx,
+): { kind: K; id: NodeId; content: IRBlock[] } {
   const id = ctx.id(node)
-  return { kind: 'note', id, content: [wrapParagraph(id, 'p0', convertInlines(node.content, ctx))] }
+  return { kind, id, content: [wrapParagraph(id, 'p0', convertInlines(node.content, ctx))] }
 }
 
-function convertExample(node: PMJsonNode, ctx: Ctx): IRExample {
-  const id = ctx.id(node)
-  return { kind: 'example', id, content: [wrapParagraph(id, 'p0', convertInlines(node.content, ctx))] }
-}
+const convertNote = (node: PMJsonNode, ctx: Ctx): IRNote => convertNoteLike('note', node, ctx)
+const convertExample = (node: PMJsonNode, ctx: Ctx): IRExample => convertNoteLike('example', node, ctx)
 
 function convertFigure(node: PMJsonNode, ctx: Ctx): IRFigure {
   const id = ctx.id(node)
@@ -228,7 +230,7 @@ function convertFigure(node: PMJsonNode, ctx: Ctx): IRFigure {
     kind: 'figure',
     id,
     caption: childInlines(node, 'figureCaption', ctx),
-    orientation: 'portrait',
+    orientation: node.attrs?.orientation === 'landscape' ? 'landscape' : 'portrait',
     src: typeof image?.attrs?.src === 'string' ? image.attrs.src : '',
     notes: [],
   }
@@ -312,7 +314,7 @@ function convertStdTable(node: PMJsonNode, ctx: Ctx): IRTable {
     kind: 'table',
     id,
     caption: childInlines(node, 'tableCaption', ctx),
-    orientation: 'portrait',
+    orientation: node.attrs?.orientation === 'landscape' ? 'landscape' : 'portrait',
     headerRowCount,
     rows,
     notes: [],
@@ -357,16 +359,30 @@ function splitInlines(inlines: IRInline[], separator: RegExp): IRInline[][] {
   return segments
 }
 
+/** 去除首尾空白与空运行：只在首尾边界克隆，单遍 + 边界收缩 */
 function trimInlines(inlines: IRInline[]): IRInline[] {
-  const out = inlines
-    .map((r) => ({ ...r }))
-    .filter((r) => r.text.length > 0)
-  if (out.length > 0) {
-    out[0].text = out[0].text.replace(/^\s+/, '')
-    const last = out[out.length - 1]
-    last.text = last.text.replace(/\s+$/, '')
+  const out: IRInline[] = []
+  for (const run of inlines) {
+    if (run.text.length > 0) out.push(run)
   }
-  return out.filter((r) => r.text.length > 0)
+  while (out.length > 0) {
+    const text = out[0].text.replace(/^\s+/, '')
+    if (text) {
+      if (text !== out[0].text) out[0] = { ...out[0], text }
+      break
+    }
+    out.shift()
+  }
+  while (out.length > 0) {
+    const last = out[out.length - 1]
+    const text = last.text.replace(/\s+$/, '')
+    if (text) {
+      if (text !== last.text) out[out.length - 1] = { ...last, text }
+      break
+    }
+    out.pop()
+  }
+  return out
 }
 
 /**
@@ -377,18 +393,22 @@ export function parseWhereList(
   inlines: IRInline[],
   formulaId: NodeId,
 ): IRFormula['whereList'] {
-  // 去掉前导「式中：」标识
-  let body = inlines
-  const text = plainText(inlines)
-  const headMatch = text.match(/^\s*式中[：:]/)
-  if (headMatch) {
-    body = trimInlines(splitInlines(inlines, /式中[：:]/).slice(1).flat())
-  }
-  const entries = splitInlines(body, /[；;]/)
+  const entries = splitInlines(inlines, /[；;]/)
   const whereList: IRFormula['whereList'] = []
   let seq = 0
+  let first = true
   for (const entry of entries) {
-    const trimmed = trimInlines(entry)
+    let trimmed = trimInlines(entry)
+    // 前导「式中：」标识只会出现在首条，就地剥除（避免对全部 inlines 额外做一遍 split/trim）
+    if (first) {
+      first = false
+      if (trimmed.length > 0) {
+        const text = trimmed[0].text.replace(/^式中[：:]\s*/, '')
+        if (text !== trimmed[0].text) {
+          trimmed = text ? [{ ...trimmed[0], text }, ...trimmed.slice(1)] : trimmed.slice(1)
+        }
+      }
+    }
     if (trimmed.length === 0) continue
     const parts = splitInlines(trimmed, /——/)
     const id = `${formulaId}.w${seq}`
@@ -442,6 +462,23 @@ function convertBlock(node: PMJsonNode, ctx: Ctx, where: string): IRBlock | null
       return convertNote(node, ctx)
     case 'example':
       return convertExample(node, ctx)
+    // 历史文档兼容：StarterKit 节点已在编辑器中禁用，存量内容降级为普通段落，不得静默丢失
+    case 'blockquote': {
+      const id = ctx.id(node)
+      ctx.warnings.push('引用块（blockquote）已降级为普通段落')
+      const content: IRInline[] = []
+      for (const child of node.content ?? []) {
+        if (content.length > 0) content.push({ text: '\n' })
+        content.push(...convertInlines(child.content, ctx))
+      }
+      return { kind: 'paragraph', id, content }
+    }
+    case 'codeBlock':
+      ctx.warnings.push('代码块（codeBlock）已降级为普通段落')
+      return { kind: 'paragraph', id: ctx.id(node), content: convertInlines(node.content, ctx) }
+    case 'horizontalRule':
+      ctx.warnings.push('分隔线（horizontalRule）无对应 IR 表示，已跳过')
+      return null
     default:
       ctx.unknown(node.type, where)
       return null
@@ -546,11 +583,12 @@ function convertClauseChildren(
 
 function convertClause(node: PMJsonNode, ctx: Ctx): IRClause {
   const rawLevel = node.attrs?.level
-  let level = typeof rawLevel === 'number' ? Math.floor(rawLevel) : 1
-  if (level < 1 || level > 5) {
+  // intAttr 对 <1 的值回退为默认 1，与原边界收敛行为一致；警告仍按原始值判断
+  let level = intAttr(node, 'level', 1)
+  if (typeof rawLevel === 'number' && (rawLevel < 1 || rawLevel > 5)) {
     ctx.warnings.push(`条层级 ${String(rawLevel)} 超出 1~5，已按边界值处理`)
-    level = Math.min(5, Math.max(1, level))
   }
+  if (level > 5) level = 5
   const titled = node.attrs?.hasTitle !== false
   return {
     kind: 'clause',
