@@ -31,7 +31,9 @@ function cssString(value: string): string {
       .replace(/\\/g, '\\\\')
       .replace(/"/g, '\\"')
       .replace(/</g, '\\3c ')
-      .replace(/>/g, '\\3e ') +
+      .replace(/>/g, '\\3e ')
+      // 控制字符（含换行）：CSS 字符串字面量不能含裸换行，否则截断样式表；统一转 CSS 码位转义
+      .replace(/[\x00-\x1f]/g, (c) => '\\' + c.charCodeAt(0).toString(16) + ' ') +
     '"'
   )
 }
@@ -270,8 +272,8 @@ const CONTENT = `
 .ses-table-block th { font-family: var(--ses-hei); font-weight: bold; text-align: center; }
 .ses-table-block td { text-align: left; }
 .ses-table-block tr { break-inside: avoid; }
-/* 关于单位的陈述：宋体小五，置于表右上方 */
-.ses-unit-statement { font-size: var(--ses-fs-xiaowu); text-align: right; margin: 0 0 1pt; }
+/* 「关于单位的陈述」：IR 暂无独立字段（已知差距，出处 GB/T 1.1 9.8.3，与「表X（续）」一并进 V2），
+ * 当前若作为表头行存在则随 thead 跨页重复（结构满足），其宋体小五/表右上方的字体定位待补字段后实现。 */
 
 /* —— 图：图编号题 黑体五号居中 —— */
 .ses-figure-block { margin: 8pt 0; text-align: center; break-inside: avoid; }

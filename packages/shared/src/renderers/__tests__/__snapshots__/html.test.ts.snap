@@ -268,8 +268,8 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 .ses-table-block th { font-family: var(--ses-hei); font-weight: bold; text-align: center; }
 .ses-table-block td { text-align: left; }
 .ses-table-block tr { break-inside: avoid; }
-/* 关于单位的陈述：宋体小五，置于表右上方 */
-.ses-unit-statement { font-size: var(--ses-fs-xiaowu); text-align: right; margin: 0 0 1pt; }
+/* 「关于单位的陈述」：IR 暂无独立字段（已知差距，出处 GB/T 1.1 9.8.3，与「表X（续）」一并进 V2），
+ * 当前若作为表头行存在则随 thead 跨页重复（结构满足），其宋体小五/表右上方的字体定位待补字段后实现。 */
 
 /* —— 图：图编号题 黑体五号居中 —— */
 .ses-figure-block { margin: 8pt 0; text-align: center; break-inside: avoid; }
