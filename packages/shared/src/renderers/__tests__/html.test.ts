@@ -144,4 +144,9 @@ describe('printCss', () => {
   it('五号正文字号（10.5pt）', () => {
     expect(printCss()).toContain('--ses-fs-wu: 10.5pt')
   })
+  it('对 standardNo 中的尖括号做 CSS 转义，防止突破 <style> 注入脚本', () => {
+    const css = printCss({ standardNo: '</style><script>x</script>' })
+    expect(css).not.toContain('</style')
+    expect(css).not.toContain('<script')
+  })
 })

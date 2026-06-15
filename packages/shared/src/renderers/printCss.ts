@@ -18,9 +18,22 @@ export interface PrintCssOptions {
   standardNo?: string
 }
 
-/** 把任意字符串转为 CSS `content` 可用的带引号字面量（转义 " 与 \）。 */
+/**
+ * 把任意字符串转为 CSS `content` 可用的带引号字面量。
+ * 转义 `\` 与 `"`，并把 `<`/`>` 转为 CSS 字符转义（`\3c `/`\3e `），
+ * 防止 stdCode 等用户输入拼出 `</style>` 突破 <style> 元素注入 HTML/脚本
+ * （print 变体由 vivliostyle 在真实浏览器引擎中渲染）。
+ */
 function cssString(value: string): string {
-  return '"' + value.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"'
+  return (
+    '"' +
+    value
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/</g, '\\3c ')
+      .replace(/>/g, '\\3e ') +
+    '"'
+  )
 }
 
 /** 字体栈与字号（表 F.1）。Latin/数字优先 Times New Roman，CJK 回退宋体/黑体。 */
