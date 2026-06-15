@@ -113,8 +113,13 @@ describe('前置页顺序与正文首页', () => {
 describe('表格 thead 跨页重复（含表头行）', () => {
   it('表头行进 <thead>，数据行进 <tbody>', () => {
     const html = renderFixture('print')
-    expect(html).toMatch(/<thead>\s*<tr>\s*<th>项目<\/th>\s*<th>指标<\/th>/)
+    expect(html).toMatch(/<thead>\s*<tr>\s*<th scope="col">项目<\/th>\s*<th scope="col">指标<\/th>/)
     expect(html).toContain('<tbody>')
+  })
+
+  it('tbody 内首列行表头保留 <th scope="row">，数据单元格为 <td>', () => {
+    const html = renderFixture('print')
+    expect(html).toMatch(/<tbody>\s*<tr>\s*<th scope="row">精度<\/th>\s*<td>0\.1<\/td>/)
   })
 })
 

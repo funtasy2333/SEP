@@ -243,7 +243,8 @@ export function fullFixture(): PMJsonNode {
             '性能指标',
             [
               tableRow(tableCell('tableHeader', '项目'), tableCell('tableHeader', '指标')),
-              tableRow(tableCell('tableCell', '精度'), tableCell('tableCell', '0.1')),
+              // 首列行表头：tableHeader 出现在非前导数据行，验证 body 行内 <th> 语义保留
+              tableRow(tableCell('tableHeader', '精度'), tableCell('tableCell', '0.1')),
             ],
             { captionEn: 'Performance', footnote: '表内的注。' },
           ),

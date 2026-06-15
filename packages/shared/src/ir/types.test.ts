@@ -91,6 +91,7 @@ function buildSampleDoc(): IRDoc {
                         id: generateNodeId(),
                         colspan: 2,
                         rowspan: 1,
+                        header: true,
                         content: [
                           { kind: 'paragraph', id: generateNodeId(), content: [{ text: '项目' }] },
                         ],

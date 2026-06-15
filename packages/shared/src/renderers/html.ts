@@ -199,13 +199,16 @@ function renderList(list: IRList, ctx: RenderCtx): void {
   ctx.push('</div>')
 }
 
-function renderTableRows(rows: IRTableRow[], tag: 'th' | 'td', ctx: RenderCtx): void {
+function renderTableRows(rows: IRTableRow[], section: 'thead' | 'tbody', ctx: RenderCtx): void {
   for (const row of rows) {
     ctx.push('<tr>')
     for (const cell of row.cells) {
+      const tag = cell.header ? 'th' : 'td'
       const attrs: string[] = []
       if (cell.colspan > 1) attrs.push(`colspan="${cell.colspan}"`)
       if (cell.rowspan > 1) attrs.push(`rowspan="${cell.rowspan}"`)
+      // 表头单元格补 scope 提升可访问性：thead 内为列表头，tbody 内的表头单元格为行表头
+      if (cell.header) attrs.push(`scope="${section === 'thead' ? 'col' : 'row'}"`)
       const attrStr = attrs.length > 0 ? ' ' + attrs.join(' ') : ''
       const content = renderBlocksInline(cell.content, ctx)
       ctx.push(`<${tag}${attrStr}>${content}</${tag}>`)
@@ -233,12 +236,12 @@ function renderTable(table: IRTable, ctx: RenderCtx): void {
   const headerCount = Math.min(Math.max(table.headerRowCount, 0), table.rows.length)
   if (headerCount > 0) {
     ctx.push('<thead>')
-    renderTableRows(table.rows.slice(0, headerCount), 'th', ctx)
+    renderTableRows(table.rows.slice(0, headerCount), 'thead', ctx)
     ctx.push('</thead>')
   }
   if (headerCount < table.rows.length) {
     ctx.push('<tbody>')
-    renderTableRows(table.rows.slice(headerCount), 'td', ctx)
+    renderTableRows(table.rows.slice(headerCount), 'tbody', ctx)
     ctx.push('</tbody>')
   }
   ctx.push('</table>')

@@ -436,13 +436,13 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 <table id="tab_1">
 <thead>
 <tr>
-<th>项目</th>
-<th>指标</th>
+<th scope="col">项目</th>
+<th scope="col">指标</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>精度</td>
+<th scope="row">精度</th>
 <td>0.1</td>
 </tr>
 </tbody>
@@ -489,7 +489,7 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 <table id="tab_A.1">
 <thead>
 <tr>
-<th>列</th>
+<th scope="col">列</th>
 </tr>
 </thead>
 <tbody>
@@ -696,13 +696,13 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 <table id="tab_1">
 <thead>
 <tr>
-<th>项目</th>
-<th>指标</th>
+<th scope="col">项目</th>
+<th scope="col">指标</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>精度</td>
+<th scope="row">精度</th>
 <td>0.1</td>
 </tr>
 </tbody>
@@ -749,7 +749,7 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 <table id="tab_A.1">
 <thead>
 <tr>
-<th>列</th>
+<th scope="col">列</th>
 </tr>
 </thead>
 <tbody>
