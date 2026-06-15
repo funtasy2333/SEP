@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { mkdirSync, readFileSync } from 'fs';
 import { join, resolve } from 'path';
@@ -32,7 +33,10 @@ async function bootstrap() {
   // 确保数据目录存在
   mkdirSync(join(process.cwd(), 'data'), { recursive: true });
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // 提高 JSON body 上限：IR→HTML→PDF 端点接收完整 print HTML，可能远超默认 100kb
+  app.useBodyParser('json', { limit: '25mb' });
 
   // 启用 CORS 允许前端访问
   app.enableCors({
