@@ -1,4 +1,5 @@
 import {
+  BODY_START_SENTINEL,
   computeTocPageNumbers,
   findBodyStartPage,
   injectTocPageNumbers,
@@ -29,8 +30,25 @@ describe('findBodyStartPage', () => {
     // normalize 后匹配 "某标准名称"
     expect(findBodyStartPage(pages.map((p) => p.replace(/\s+/g, '')), '某标准 名称')).toBe(3);
   });
-  it('docTitle 为空返回 -1', () => {
+  it('docTitle 为空且无哨兵返回 -1', () => {
     expect(findBodyStartPage(['a', 'b'], '')).toBe(-1);
+  });
+
+  it('哨兵存在时优先用哨兵定位——标题在前言复现也不误锚', () => {
+    // 前言（page1）正文里复现了文件名称"某标准名称"，旧逻辑会误锚到 page1；
+    // 渲染器在正文首页（page3）注入哨兵，应据哨兵锚到 page3。
+    const pages = [
+      '目次前言引言',
+      '前言本文件代替某标准名称旧版', // 标题在前言复现（旧逻辑的陷阱）
+      '引言内容',
+      `${BODY_START_SENTINEL}某标准名称1范围`, // 正文首页：哨兵 + 文件名称
+    ];
+    expect(findBodyStartPage(pages, '某标准名称')).toBe(3);
+  });
+
+  it('哨兵缺失时回退按文件名称定位首个命中', () => {
+    const pages = ['目次', '某标准名称1范围'];
+    expect(findBodyStartPage(pages, '某标准名称')).toBe(1);
   });
 });
 
@@ -98,6 +116,25 @@ describe('computeTocPageNumbers', () => {
     const m = computeTocPageNumbers(pages, toc, '不存在标题');
     // bodyStart=-1 → 范围首次出现在 page0(目次)，降级 0+1=1
     expect(m.get('sec_1')).toBe('1');
+  });
+
+  it('哨兵锚点使正文页码不受文件名称在前言复现的影响', () => {
+    // page1（前言）复现了文件名称"示例标准名称"，旧逻辑会误把 bodyStart 锚到 page1；
+    // 渲染器在正文首页（page3）注入哨兵，应据哨兵锚到 page3，使范围=1、术语=2。
+    const adv = [
+      '目次 1 范围 2 术语和定义',
+      '前言 本文件代替示例标准名称 2019', // 标题在前言复现（旧逻辑陷阱）
+      '引言 引言内容',
+      `${BODY_START_SENTINEL} 示例标准名称 1 范围 本文件规定了`,
+      '2 术语和定义 2.1 标准',
+    ];
+    const toc: TocTarget[] = [
+      { target: 'sec_1', text: '1　范围', division: 'body' },
+      { target: 'sec_2', text: '2　术语和定义', division: 'body' },
+    ];
+    const m = computeTocPageNumbers(adv, toc, '示例标准名称');
+    expect(m.get('sec_1')).toBe('1');
+    expect(m.get('sec_2')).toBe('2');
   });
 });
 

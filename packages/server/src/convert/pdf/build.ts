@@ -99,12 +99,23 @@ export async function pdfPageCount(pdfPath: string): Promise<number> {
   return m ? Number(m[1]) : NaN
 }
 
-/** poppler 是否可用（pdftotext + pdfinfo 均可定位且可执行）。 */
+/**
+ * poppler 是否可用。管线同时依赖 pdftotext（逐页扫描）与 pdfinfo（两遍页数断言），
+ * 故二者均须可执行；仅探测 pdftotext 会让 capabilities 误报就绪、第二遍构建后才失败。
+ */
 export async function isPopplerAvailable(): Promise<boolean> {
+  const [pdftotextOk, pdfinfoOk] = await Promise.all([
+    isPopplerBinAvailable('pdftotext'),
+    isPopplerBinAvailable('pdfinfo'),
+  ])
+  return pdftotextOk && pdfinfoOk
+}
+
+/** 单个 poppler 二进制是否可定位且可执行（-v 退出码非 0 但能执行也算可用，仅 ENOENT 视为不可用）。 */
+async function isPopplerBinAvailable(bin: string): Promise<boolean> {
   try {
-    const bin = await resolvePoppler('pdftotext')
-    await execFileAsync(bin, ['-v'], { timeout: 10_000 }).catch((e) => {
-      // pdftotext -v 退出码非 0 但能执行也算可用；仅 ENOENT 视为不可用
+    const resolved = await resolvePoppler(bin)
+    await execFileAsync(resolved, ['-v'], { timeout: 10_000 }).catch((e) => {
       if ((e as { code?: string }).code === 'ENOENT') throw e
     })
     return true

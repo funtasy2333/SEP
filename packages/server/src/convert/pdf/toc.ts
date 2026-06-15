@@ -69,11 +69,22 @@ export function toUpperRoman(n: number): string {
 }
 
 /**
+ * 正文首页隐藏哨兵锚点文本（与 @ses/shared renderers/html.ts print 变体注入的
+ * `.ses-body-anchor` 文本严格一致——跨包字符串契约，二者必须同步修改）。
+ * 渲染器把它透明、零高度地排在正文首页起始，pdftotext 可提取、肉眼不可见、不影响版式。
+ */
+export const BODY_START_SENTINEL = 'SESBODYSTARTANCHOR'
+
+/**
  * 定位正文起始物理页（0 基）。
- * 正文首页排有文件名称（三号黑体），该文本不出现在目次中，是最可靠的分区锚点。
- * 找不到（docTitle 为空或未匹配）时回退为 -1，由调用方决定降级策略。
+ * 优先用渲染器注入的隐藏哨兵锚点（稳健：不受文件名称文本在前言/引言中复现的影响）。
+ * 哨兵缺失时（非本渲染器产物/旧数据）回退到按文件名称文本定位首个命中；仍无则 -1，
+ * 由调用方决定降级策略。
  */
 export function findBodyStartPage(normPages: string[], docTitle: string): number {
+  // normalize 仅去空白，哨兵为纯大写字母，规整后不变
+  const bySentinel = normPages.findIndex((p) => p.includes(BODY_START_SENTINEL))
+  if (bySentinel >= 0) return bySentinel
   const needle = normalize(docTitle)
   if (!needle) return -1
   return normPages.findIndex((p) => p.includes(needle))

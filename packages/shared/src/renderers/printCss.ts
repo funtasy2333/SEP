@@ -183,6 +183,9 @@ const CONTENT = `
   line-height: 1.6;
 }
 
+/* 正文首页隐藏哨兵锚点：透明 + 零高度，仅供 pdftotext 提取以定位正文起始页，不占版式空间 */
+.ses-body-anchor { display: block; height: 0; line-height: 0; color: transparent; font-size: 5pt; }
+
 /* —— 章标题：五号黑体（与正文同字号）—— */
 .ses-chapter-title {
   font-family: var(--ses-hei);

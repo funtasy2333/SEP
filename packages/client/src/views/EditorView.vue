@@ -278,7 +278,12 @@
           <span class="ec-label">DOCX</span>
           <span class="ec-sub">符合 GB/T 1.1-2020 排版</span>
         </button>
-        <button class="export-card" :disabled="exportingPdf" @click="handleExportFormat('pdf')">
+        <button
+          v-if="capabilities.htmlToPdf"
+          class="export-card"
+          :disabled="exportingPdf"
+          @click="handleExportFormat('pdf')"
+        >
           <span class="ec-glyph">PDF</span>
           <span class="ec-label">PDF</span>
           <span class="ec-sub">{{ exportingPdf ? '正在转换…' : 'GB/T 1.1 版式排版' }}</span>

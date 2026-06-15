@@ -533,6 +533,13 @@ function renderFront(doc: IRDoc, ctx: RenderCtx): void {
 
 function renderBody(doc: IRDoc, ctx: RenderCtx): void {
   ctx.push('<div class="ses-body-content">')
+  // 正文首页隐藏哨兵锚点（仅 print）：供 PDF 出件管线两遍构建稳健定位正文起始物理页，
+  // 不受文件名称文本在前言/引言中复现的影响。CSS 使其透明、零高度，不影响版式但可被
+  // pdftotext 提取。锚点文本须与服务端 packages/server/src/convert/pdf/toc.ts 的
+  // BODY_START_SENTINEL 严格一致（跨包字符串契约，二者必须同步修改）。
+  if (ctx.variant === 'print') {
+    ctx.push('<span class="ses-body-anchor" aria-hidden="true">SESBODYSTARTANCHOR</span>')
+  }
   // 正文首页文件名称（三号黑体居中）
   if (doc.meta.title) {
     ctx.push('<div class="ses-doc-title-block">')

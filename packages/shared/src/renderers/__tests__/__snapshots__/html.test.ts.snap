@@ -179,6 +179,9 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
   line-height: 1.6;
 }
 
+/* 正文首页隐藏哨兵锚点：透明 + 零高度，仅供 pdftotext 提取以定位正文起始页，不占版式空间 */
+.ses-body-anchor { display: block; height: 0; line-height: 0; color: transparent; font-size: 5pt; }
+
 /* —— 章标题：五号黑体（与正文同字号）—— */
 .ses-chapter-title {
   font-family: var(--ses-hei);
@@ -376,6 +379,7 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 </section>
 </div>
 <div class="ses-body-content">
+<span class="ses-body-anchor" aria-hidden="true">SESBODYSTARTANCHOR</span>
 <div class="ses-doc-title-block">
 <h1 class="ses-doc-title">标准化文件编辑系统</h1>
 <h1 class="ses-doc-title ses-doc-title-en" lang="en">Standardization document editing system</h1>
