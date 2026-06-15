@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<link rel="stylesheet" href="micro.css"></head>
+<body>
+<section class="front-matter">
+  <h1>前置页（单页，罗马页码 I）</h1>
+  <p>前置页只有一页 = 物理第1页（奇数）。正文 break-before:right 需跳过物理第2页（偶数），插入空白页。</p>
+</section>
+<section class="body-content">
+  <h1 class="chapter-title">1 正文首章</h1>
+  <p>正文第一页内容，应落在物理第3页（奇数页），页脚显示阿拉伯数字 1。</p>
+  <div style="break-before: page;"></div>
+  <p>正文第二页内容，页脚应显示 2。</p>
+</section>
+</body></html>

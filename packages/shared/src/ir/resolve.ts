@@ -52,8 +52,12 @@ class ResolveCtx {
   formulaSeq = 0
   /** 当前附录字母；undefined 表示正文/前置部分 */
   appendixLetter: string | undefined
+  /** 编号策略。用显式字段而非参数属性：参数属性不可擦除，会触发消费端 erasableSyntaxOnly（TS1294）。 */
+  readonly strategy: NumberingStrategy
 
-  constructor(readonly strategy: NumberingStrategy) {}
+  constructor(strategy: NumberingStrategy) {
+    this.strategy = strategy
+  }
 
   registerId(id: NodeId): void {
     if (id.startsWith(MISSING_ID_PREFIX)) {

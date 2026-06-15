@@ -300,6 +300,7 @@ function convertStdTable(node: PMJsonNode, ctx: Ctx): IRTable {
         id: cellId,
         colspan: intAttr(cellNode, 'colspan', 1),
         rowspan: intAttr(cellNode, 'rowspan', 1),
+        header: cellNode.type === 'tableHeader',
         content: convertTableCellBlocks(cellNode, cellId, ctx),
       })
       cellSeq += 1

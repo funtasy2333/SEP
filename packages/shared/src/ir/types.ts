@@ -96,7 +96,7 @@ export interface IRTable {
 }
 export interface IRTableRow {
   id: NodeId
-  cells: { id: NodeId; colspan: number; rowspan: number; content: IRBlock[] }[]
+  cells: { id: NodeId; colspan: number; rowspan: number; header: boolean; content: IRBlock[] }[]
 }
 
 export interface IRFigure {

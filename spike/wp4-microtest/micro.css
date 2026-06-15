@@ -1,0 +1,12 @@
+@page { size: A4; margin: 25mm 20mm; }
+@page front { @bottom-center { content: counter(page, upper-roman); font-family: serif; } }
+@page body  { @bottom-center { content: counter(page); font-family: serif; } }
+/* 自动插入的空白页归属「前一个命名页上下文」，必须按命名上下文的 :blank 抑制页眉页脚 */
+@page front:blank { @top-center{content:""} @top-left{content:""} @top-right{content:""}
+                    @bottom-center{content:""} @bottom-left{content:""} @bottom-right{content:""} }
+@page body:blank  { @top-center{content:""} @top-left{content:""} @top-right{content:""}
+                    @bottom-center{content:""} @bottom-left{content:""} @bottom-right{content:""} }
+.front-matter { page: front; }
+.body-content { page: body; counter-reset: page 1; }
+h1.chapter-title { break-before: right; }
+body { font-family: serif; font-size: 12pt; }
