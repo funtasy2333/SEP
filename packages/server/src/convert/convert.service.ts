@@ -3,15 +3,78 @@ import { execFile, exec } from 'child_process';
 import { writeFile, readFile, unlink, mkdtemp, access } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir, platform, homedir } from 'os';
+import {
+  runHtmlToPdfPipeline,
+  type HtmlToPdfInput,
+} from './pdf/pipeline';
+import { isPopplerAvailable, isVivliostyleAvailable } from './pdf/build';
+
+/** 出件能力探测结果，供客户端导出面板按可用性显隐卡片。 */
+export interface ConvertCapabilities {
+  /** IR→HTML→PDF（vivliostyle）管线是否可用：需 vivliostyle CLI + poppler */
+  htmlToPdf: boolean;
+  /** 高保真（Word 排版）路径是否可用：需 LibreOffice */
+  libreOffice: boolean;
+}
 
 @Injectable()
 export class ConvertService implements OnModuleInit {
   private readonly logger = new Logger(ConvertService.name);
   private detected = false;
   private sofficeBin = 'soffice';
+  private htmlPdfReady = false;
 
   async onModuleInit() {
     await this.detectLibreOffice();
+    await this.detectHtmlPdfToolchain();
+  }
+
+  /** 探测 IR→HTML→PDF 管线工具链（vivliostyle CLI + poppler）。 */
+  private async detectHtmlPdfToolchain(): Promise<void> {
+    const viv = isVivliostyleAvailable();
+    const poppler = await isPopplerAvailable();
+    this.htmlPdfReady = viv && poppler;
+    if (!this.htmlPdfReady) {
+      const missing = [
+        !viv ? '@vivliostyle/cli' : null,
+        !poppler ? 'poppler(pdftotext/pdfinfo)' : null,
+      ]
+        .filter(Boolean)
+        .join('、');
+      this.logger.warn(
+        `IR→HTML→PDF 管线不可用，缺少：${missing}。` +
+          (!poppler
+            ? '请安装 poppler（macOS: brew install poppler）。'
+            : ''),
+      );
+    } else {
+      this.logger.log('IR→HTML→PDF 管线就绪（vivliostyle + poppler）');
+    }
+  }
+
+  /** 当前出件能力（客户端据此显隐导出卡片）。 */
+  getCapabilities(): ConvertCapabilities {
+    return { htmlToPdf: this.htmlPdfReady, libreOffice: this.detected };
+  }
+
+  /**
+   * IR→HTML→PDF：两遍 vivliostyle 构建（KaTeX 预渲染 + 目次页码注入）。
+   * @returns 最终 PDF 的 Buffer
+   */
+  async convertHtmlToPdf(input: HtmlToPdfInput): Promise<Buffer> {
+    if (!this.htmlPdfReady) {
+      throw new Error(
+        'IR→HTML→PDF 管线不可用：请确认已安装 @vivliostyle/cli 与 poppler。',
+      );
+    }
+    const result = await runHtmlToPdfPipeline(input, this.logger);
+    this.logger.log(
+      `IR→HTML→PDF 成功：${result.pageCount} 页，PDF ${result.pdf.length} bytes` +
+        (result.formulaFailures > 0
+          ? `（${result.formulaFailures} 个公式降级）`
+          : ''),
+    );
+    return result.pdf;
   }
 
   private async detectLibreOffice(): Promise<void> {

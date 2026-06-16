@@ -19,6 +19,7 @@
     "onlyBuiltDependencies": [
       "@nestjs/core",
       "better-sqlite3",
+      "playwright-chromium",
       "unrs-resolver"
     ]
   }

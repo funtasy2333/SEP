@@ -157,6 +157,20 @@ describe('前置页顺序与正文首页', () => {
     expect(html).toContain('<h1 class="ses-doc-title">标准化文件编辑系统</h1>')
   })
 
+  it('print 正文首页注入隐藏哨兵锚点（供出件管线稳健定位正文起始页）', () => {
+    expect(html).toContain(
+      '<span class="ses-body-anchor" aria-hidden="true">SESBODYSTARTANCHOR</span>',
+    )
+    // 哨兵排在正文内容容器起始、文件名称之前（用完整标签比较，避开内嵌 CSS 选择器同名串）
+    expect(html.indexOf('<span class="ses-body-anchor"')).toBeLessThan(
+      html.indexOf('<h1 class="ses-doc-title">'),
+    )
+  })
+
+  it('screen 变体不含哨兵锚点', () => {
+    expect(renderFixture('screen')).not.toContain('SESBODYSTARTANCHOR')
+  })
+
   it('无题条编号与首段同排，且首段顶格（ses-clause-numbered-para，非 ses-paragraph，F7）', () => {
     // cl-421 无题条，编号 4.2.1；首段用顶格类、编号顶格起排
     expect(html).toMatch(
