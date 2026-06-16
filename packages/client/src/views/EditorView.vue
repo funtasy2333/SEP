@@ -278,10 +278,25 @@
           <span class="ec-label">DOCX</span>
           <span class="ec-sub">符合 GB/T 1.1-2020 排版</span>
         </button>
-        <button class="export-card" :disabled="exportingPdf" @click="handleExportFormat('pdf')">
+        <button
+          v-if="capabilities.htmlToPdf"
+          class="export-card"
+          :disabled="exportingPdf"
+          @click="handleExportFormat('pdf')"
+        >
           <span class="ec-glyph">PDF</span>
           <span class="ec-label">PDF</span>
-          <span class="ec-sub">{{ exportingPdf ? '正在转换…' : '由 DOCX 高保真转换' }}</span>
+          <span class="ec-sub">{{ exportingPdf ? '正在转换…' : 'GB/T 1.1 版式排版' }}</span>
+        </button>
+        <button
+          v-if="capabilities.libreOffice"
+          class="export-card"
+          :disabled="exportingPdfHiFi"
+          @click="handleExportFormat('pdf-hifi')"
+        >
+          <span class="ec-glyph">PDF</span>
+          <span class="ec-label">高保真 PDF</span>
+          <span class="ec-sub">{{ exportingPdfHiFi ? '正在转换…' : 'Word 排版（LibreOffice）' }}</span>
         </button>
         <button class="export-card" @click="handleExportFormat('xml')">
           <span class="ec-glyph">&lt;/&gt;</span>
@@ -348,6 +363,7 @@ import {
   serializeToXml, parseXmlToJson,
   exportSemanticJson, exportSemanticHtml,
   exportDocx, exportDocxFromTemplate, STANDARD_TYPE_LABELS,
+  buildPdfExportRequest,
 } from '@/serializer'
 import type { StandardType, DocMeta } from '@/serializer'
 
@@ -370,6 +386,12 @@ const documentId = computed(() => Number(route.params.id))
 const selectedStandardType = ref<StandardType>('gb')
 const exportingDocx = ref(false)
 const exportingPdf = ref(false)
+const exportingPdfHiFi = ref(false)
+/** 出件能力（服务端探测）：htmlToPdf=vivliostyle 管线，libreOffice=高保真路径 */
+const capabilities = ref<{ htmlToPdf: boolean; libreOffice: boolean }>({
+  htmlToPdf: true,
+  libreOffice: false,
+})
 
 /** 默认文档结构：前言 + 1范围 + 2规范性引用文件 + 3术语和定义 */
 const defaultDocContent = {
@@ -515,6 +537,13 @@ onMounted(async () => {
     router.push('/')
   } finally {
     loading.value = false
+  }
+  // 探测服务端出件能力（失败时保持默认：仅 vivliostyle 管线可用、隐藏高保真卡片）
+  try {
+    const resp = await fetch('/api/convert/capabilities')
+    if (resp.ok) capabilities.value = await resp.json()
+  } catch {
+    // 忽略：保持默认能力
   }
 })
 
@@ -1048,7 +1077,35 @@ function handleExportFormat(format: string) {
   if (format === 'pdf') {
     showExport.value = false
     exportingPdf.value = true
-    // 先生成 DOCX，再发送到服务器转换为 PDF（高保真 Word 排版）
+    // IR→HTML→服务端两遍构建（GB/T 1.1 版式，KaTeX 预渲染 + 目次页码注入）
+    void (async () => {
+      try {
+        const req = buildPdfExportRequest(doc, meta)
+        const resp = await fetch('/api/convert/html-to-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(req),
+        })
+        if (!resp.ok) {
+          const errText = await resp.text().catch(() => resp.statusText)
+          throw new Error(`服务器转换失败 (${resp.status}): ${errText}`)
+        }
+        const pdfBlob = await resp.blob()
+        downloadBlob(pdfBlob, `${docTitle}.pdf`)
+        ElMessage.success('PDF 文件已导出')
+      } catch (e) {
+        ElMessage.error(`PDF 导出失败: ${e}`)
+      } finally {
+        exportingPdf.value = false
+      }
+    })()
+    return
+  }
+
+  if (format === 'pdf-hifi') {
+    showExport.value = false
+    exportingPdfHiFi.value = true
+    // 高保真路径：先生成 DOCX，再由服务端 LibreOffice 转 PDF（Word 排版）
     exportDocxFromTemplate(doc, meta)
       .catch(err => {
         console.warn('模板导出失败，回退到内置导出器', err)
@@ -1057,31 +1114,21 @@ function handleExportFormat(format: string) {
       .then(async (docxBlob) => {
         const formData = new FormData()
         formData.append('file', docxBlob, `${docTitle}.docx`)
-
         // 使用 Vite 代理 (/api → localhost:3000)，避免 CORS 问题
         const resp = await fetch('/api/convert/docx-to-pdf', {
           method: 'POST',
           body: formData,
         })
-
         if (!resp.ok) {
           const errText = await resp.text().catch(() => resp.statusText)
           throw new Error(`服务器转换失败 (${resp.status}): ${errText}`)
         }
-
         const pdfBlob = await resp.blob()
-        const url = URL.createObjectURL(pdfBlob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `${docTitle}.pdf`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
-        ElMessage.success('PDF 文件已导出')
+        downloadBlob(pdfBlob, `${docTitle}.pdf`)
+        ElMessage.success('高保真 PDF 文件已导出')
       })
-      .catch(e => { ElMessage.error(`PDF 导出失败: ${e}`) })
-      .finally(() => { exportingPdf.value = false })
+      .catch(e => { ElMessage.error(`高保真 PDF 导出失败: ${e}`) })
+      .finally(() => { exportingPdfHiFi.value = false })
     return
   }
 
@@ -1121,7 +1168,11 @@ function handleExportFormat(format: string) {
 
 /** 下载文件辅助函数 */
 function downloadFile(content: string, filename: string, mimeType: string) {
-  const blob = new Blob([content], { type: `${mimeType};charset=utf-8` })
+  downloadBlob(new Blob([content], { type: `${mimeType};charset=utf-8` }), filename)
+}
+
+/** 下载 Blob（PDF/DOCX 等二进制）辅助函数 */
+function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
