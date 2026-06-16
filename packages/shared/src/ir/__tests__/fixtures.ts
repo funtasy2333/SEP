@@ -94,7 +94,7 @@ export function stdTable(
   nodeId: string,
   caption: string,
   rows: PMJsonNode[],
-  opts: { captionEn?: string; footnote?: string } = {},
+  opts: { captionEn?: string; footnote?: string; orientation?: 'portrait' | 'landscape' } = {},
 ): PMJsonNode {
   const content: PMJsonNode[] = [
     { type: 'tableCaption', content: caption ? [text(caption)] : [] },
@@ -102,7 +102,9 @@ export function stdTable(
   if (opts.captionEn) content.push({ type: 'tableCaptionEn', content: [text(opts.captionEn)] })
   content.push({ type: 'table', content: rows })
   if (opts.footnote) content.push({ type: 'tableFootnote', content: [text(opts.footnote)] })
-  return { type: 'stdTable', attrs: { nodeId }, content }
+  const attrs: Record<string, unknown> = { nodeId }
+  if (opts.orientation) attrs.orientation = opts.orientation
+  return { type: 'stdTable', attrs, content }
 }
 
 export function tableRow(...cells: PMJsonNode[]): PMJsonNode {
@@ -273,5 +275,46 @@ export function fullFixture(): PMJsonNode {
     ),
     appendix('app-b', false, '资料性附录', para('p-b1', text('资料性内容。'))),
     bibliography(['bib-1', 'GB/T 20000.1—2014 标准化工作指南'], ['bib-2', 'ISO/IEC Directives, Part 2']),
+  )
+}
+
+// ---------- 横排宽表 fixture（F12：核对横排页书眉/页码居中、A4 横向）----------
+
+/**
+ * 含一个超宽横排表的最小文档（WP4-fix F12）。列数足够触发横排（orientation: 'landscape'），
+ * 用于经真实管线（pmToIr → resolve → renderHtml(print) → 两遍 vivliostyle）重渲染后，
+ * 逐图核对横排页：A4 横向、书眉/页码居中。含前言与目次以便一并复核前置页。
+ */
+export function landscapeFixture(): PMJsonNode {
+  const cols = ['项目', '参数A', '参数B', '参数C', '参数D', '参数E', '参数F', '参数G', '参数H']
+  const headerRow = tableRow(...cols.map((c) => tableCell('tableHeader', c)))
+  const dataRow = (i: number) =>
+    tableRow(
+      tableCell('tableHeader', `行${i}`),
+      ...cols.slice(1).map((_, j) => tableCell('tableCell', `${i}-${j + 1}`)),
+    )
+  return standardDoc(
+    {
+      standardNo: 'GB/T 12345—2026',
+      icsCode: '35.240',
+      ccsCode: 'L 70',
+      titleCn: '标准化文件编辑系统',
+      titleEn: 'Standardization document editing system',
+      standardType: 'national',
+    },
+    { type: 'foreword', attrs: { nodeId: 'lfw' }, content: [
+      para('lfw-p1', text('本文件按照GB/T 1.1—2020的规定起草。')),
+    ] },
+    chapter('lch-1', '范围', para('lscope', text('本文件规定了横排宽表的版式核对内容。'))),
+    chapter(
+      'lch-2',
+      '宽表',
+      stdTable(
+        'ltbl-1',
+        '超宽性能指标',
+        [headerRow, dataRow(1), dataRow(2), dataRow(3)],
+        { orientation: 'landscape' },
+      ),
+    ),
   )
 }

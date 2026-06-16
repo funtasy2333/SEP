@@ -57,25 +57,23 @@ const TOKENS = `
  */
 function pageRules(standardNo: string): string {
   const header = cssString(standardNo)
-  // 书眉 margin box（外侧顶部）：五号黑体，短下划线（线长同文字、非通栏）
+  // 书眉 margin box（外侧顶部）：五号黑体，无下划线（图 E.1/E.2 实页书眉无横线，2026-06-15 订正）。
+  // 上边距 30mm（版心上沿），书眉靠下对齐并以 padding-bottom 上抬，使书眉落在距纸顶 ≈25mm（版心上空 5mm）。
   const headerBox = (corner: 'top-left' | 'top-right') => `
     @${corner} {
       content: ${header};
       font-family: var(--ses-hei);
       font-size: var(--ses-fs-wu);
       vertical-align: bottom;
-      padding-bottom: 1mm;
-      text-decoration: underline;
-      text-underline-offset: 2pt;
+      padding-bottom: 5mm;
     }`
-  // 页码 margin box（外侧底部）：小五宋体
+  // 页码 margin box（外侧底部）：小五宋体；下边距 20mm + 顶对齐 → 页码距纸底 ≈20mm（表 F.1 #48）
   const pageNumBox = (corner: 'bottom-left' | 'bottom-right', counter: string) => `
     @${corner} {
       content: ${counter};
       font-family: var(--ses-song);
       font-size: var(--ses-fs-xiaowu);
       vertical-align: top;
-      padding-top: 1mm;
     }`
   // 空白页：清空全部 margin box（自动插入的空白页归属前一命名上下文，须用 <name>:blank）
   const blankClear = `
@@ -86,17 +84,17 @@ function pageRules(standardNo: string): string {
   const arabic = 'counter(page)'
 
   return `
-/* 镜像版心：top right bottom left（单数=右页 左25右20，双数=左页 左20右25） */
-@page :right { size: A4; margin: 28mm 20mm 24mm 25mm; }
-@page :left  { size: A4; margin: 28mm 25mm 24mm 20mm; }
+/* 镜像版心：top right bottom left（上 30mm=书眉下 5mm 起版心；下 20mm=页码距纸底；单数=右页 左25右20，双数=左页 左20右25） */
+@page :right { size: A4; margin: 30mm 20mm 20mm 25mm; }
+@page :left  { size: A4; margin: 30mm 25mm 20mm 20mm; }
 
 /* 前置部分（目次/前言/引言）：罗马大写页码，书眉自目次页起 */
-@page front:right { margin: 28mm 20mm 24mm 25mm;${headerBox('top-right')}${pageNumBox('bottom-right', roman)} }
-@page front:left  { margin: 28mm 25mm 24mm 20mm;${headerBox('top-left')}${pageNumBox('bottom-left', roman)} }
+@page front:right { margin: 30mm 20mm 20mm 25mm;${headerBox('top-right')}${pageNumBox('bottom-right', roman)} }
+@page front:left  { margin: 30mm 25mm 20mm 20mm;${headerBox('top-left')}${pageNumBox('bottom-left', roman)} }
 
 /* 正文/附录/参考文献：阿拉伯页码（counter-reset 在 .ses-body-content 上从 1 起编） */
-@page body:right { margin: 28mm 20mm 24mm 25mm;${headerBox('top-right')}${pageNumBox('bottom-right', arabic)} }
-@page body:left  { margin: 28mm 25mm 24mm 20mm;${headerBox('top-left')}${pageNumBox('bottom-left', arabic)} }
+@page body:right { margin: 30mm 20mm 20mm 25mm;${headerBox('top-right')}${pageNumBox('bottom-right', arabic)} }
+@page body:left  { margin: 30mm 25mm 20mm 20mm;${headerBox('top-left')}${pageNumBox('bottom-left', arabic)} }
 
 /* 横排宽表（WP0 方案A 命名页）：页码居中、书眉居中 */
 @page landscape {
@@ -106,8 +104,6 @@ function pageRules(standardNo: string): string {
     content: ${header};
     font-family: var(--ses-hei);
     font-size: var(--ses-fs-wu);
-    text-decoration: underline;
-    text-underline-offset: 2pt;
   }
   @bottom-center {
     content: ${arabic};
@@ -145,13 +141,13 @@ const CONTENT = `
 /* 条文段落首行缩进两个汉字 */
 .ses-paragraph { text-indent: 2em; }
 
-/* —— 前置标题（目次/前言/引言）：三号黑体居中 —— */
+/* —— 前置标题（目次/前言/引言）：三号黑体居中；书眉下空 15mm、标题下空 12mm（图 E.8/E.9）—— */
 .ses-front-heading {
   font-family: var(--ses-hei);
   font-size: var(--ses-fs-san);
   font-weight: bold;
   text-align: center;
-  margin: 0 0 12pt;
+  margin: 15mm 0 12mm;
   break-after: avoid;
 }
 .ses-foreword, .ses-introduction { break-before: page; }
@@ -168,10 +164,12 @@ const CONTENT = `
   flex: 1;
 }
 .ses-toc-l1 > .ses-toc-text { font-family: var(--ses-hei); font-weight: bold; }
-.ses-toc-l2 { padding-left: 2em; }
-.ses-toc-l3 { padding-left: 4em; }
-/* 页码占位：定宽，保证两遍构建分页不漂移（WP5 注入纯文本数字） */
-.ses-toc-page { min-width: 3em; text-align: right; white-space: nowrap; }
+/* 一级条空 1 字、二级条空 2 字起排（10.3.2、图 E.8） */
+.ses-toc-l2 { padding-left: 1em; }
+.ses-toc-l3 { padding-left: 2em; }
+/* 页码占位：定宽（≈刚够两位数页码 2em）右对齐，缩小点线与页码间隙；
+ * 占位 U+3000 与 WP5 注入的纯文本数字同处此定宽框、整框宽恒定 → 两遍分页不漂移（codex #28 评审采纳：保留预留宽度）。 */
+.ses-toc-page { min-width: 2em; text-align: right; white-space: nowrap; }
 
 /* —— 正文首页文件名称：三号黑体居中，书眉下空 15mm、名称下空 12mm —— */
 .ses-doc-title-block { margin: 15mm 0 12mm; text-align: center; }
@@ -183,33 +181,38 @@ const CONTENT = `
   line-height: 1.6;
 }
 
-/* —— 章标题：五号黑体（与正文同字号）—— */
+/* —— 章标题：五号黑体（与正文同字号）；上下各空一行（10.2.1）—— */
 .ses-chapter-title {
   font-family: var(--ses-hei);
   font-size: var(--ses-fs-wu);
   font-weight: bold;
-  margin: 12pt 0 6pt;
+  margin: 1em 0;
   break-after: avoid;
 }
 .ses-chapter-title .ses-num { margin-right: 1em; }
 
-/* —— 条标题：五号黑体 —— */
+/* —— 条标题：五号黑体；上下各空半行（10.2.1）—— */
 .ses-clause-title {
   font-family: var(--ses-hei);
   font-size: var(--ses-fs-wu);
   font-weight: bold;
-  margin: 8pt 0 4pt;
+  margin: 0.5em 0;
   break-after: avoid;
 }
 .ses-clause-title .ses-num { margin-right: 1em; }
-/* 无标题条：仅有编号标签 */
+/* 无标题条（10.2.1）：编号顶格、后空一字接条文 —— */
 .ses-clause-num-only { font-family: var(--ses-hei); font-weight: bold; margin-right: 1em; }
+/* 无标题条首段：顶格起排（编号顶格），不缩进（区别于一般 .ses-paragraph 的首行缩进 2 字） */
+.ses-clause-numbered-para { text-indent: 0; }
 
-/* —— 术语条目：编号/术语/英文对应词 黑体五号 —— */
+/* —— 术语条目（10.3.5、表 F.1 #22-24）三段式：
+ *   ①编号独占一行、顶格、上下无空行（黑体五号）；
+ *   ②术语 + 空一字 + 英文对应词 同一行、顶格（均黑体五号，英文行内、不斜体不灰）；
+ *   ③定义/来源等各项另行、空两字起排（五号宋体，回行顶格＝首行缩进 2em）。—— */
 .ses-term-entry { margin: 6pt 0; }
-.ses-term-head { font-family: var(--ses-hei); font-weight: bold; margin: 4pt 0 0; }
-.ses-term-num { margin-right: 1em; }
-.ses-term-name-en { font-family: var(--ses-hei); font-weight: bold; margin: 0; }
+.ses-term-num-line { font-family: var(--ses-hei); font-weight: bold; margin: 0; }
+.ses-term-head { font-family: var(--ses-hei); font-weight: bold; margin: 0; }
+.ses-term-name-en { font-family: var(--ses-hei); font-weight: bold; }
 .ses-term-def { text-indent: 2em; margin: 2pt 0; }
 .ses-term-source { text-indent: 2em; margin: 2pt 0; }
 
@@ -236,9 +239,11 @@ const CONTENT = `
 }
 .ses-bib-entry { padding-left: 2em; text-indent: -2em; margin: 2pt 0; }
 
-/* —— 列项：标记由 CSS 计数器生成（保持渲染器无编号逻辑）—— */
+/* —— 列项（10.2.2）：标记由 CSS 计数器生成（保持渲染器无编号逻辑）；
+ *   一级标记空 2 字起排（margin-left 2em）、文字/回行第 5 字位（padding-left 2em → 4em）；
+ *   二级由嵌套再缩进 2 字（marker 4em / 文字 6em，容差从宽）。 —— */
 .ses-list { margin: 4pt 0 4pt 2em; counter-reset: ses-li; }
-.ses-list-item { position: relative; padding-left: 1.8em; }
+.ses-list-item { position: relative; padding-left: 2em; }
 .ses-list-item::before {
   position: absolute;
   left: 0;
@@ -261,8 +266,9 @@ const CONTENT = `
   margin: 8pt 0 3pt;
   break-after: avoid;
 }
-.ses-table-caption-en { text-align: center; font-style: italic; margin: 0 0 3pt; }
-.ses-table-block table { border-collapse: collapse; width: 100%; font-size: var(--ses-fs-wu); }
+/* 表题英文（.ses-table-caption-en）print 不输出（仅 screen），故 print CSS 不含其样式（F8） */
+/* 表中数字和文字：小五号宋体（表 F.1 #40 注 a；「以表形式编写的术语标准」用五号的例外本期未实现，列为范围差距） */
+.ses-table-block table { border-collapse: collapse; width: 100%; font-size: var(--ses-fs-xiaowu); }
 .ses-table-block thead { display: table-header-group; }
 .ses-table-block th, .ses-table-block td {
   border: 0.5pt solid #000;
@@ -285,7 +291,7 @@ const CONTENT = `
   margin: 3pt 0 0;
   break-before: avoid;
 }
-.ses-figure-caption-en { font-style: italic; margin: 0; }
+/* 图题英文（.ses-figure-caption-en）print 不输出（仅 screen），故 print CSS 不含其样式（F8） */
 /* 图中数字和文字：宋体六号（占位说明，实际作用于 SVG/位图内文本时由资源自带）*/
 .ses-figure-image text { font-size: var(--ses-fs-liu); }
 
@@ -311,7 +317,16 @@ const CONTENT = `
 .ses-note-marker, .ses-example-marker { font-family: var(--ses-hei); }
 
 /* —— 交叉引用：print 变体为纯文本（无内部链接），此处仅保证字体一致 —— */
-.ses-xref { color: inherit; text-decoration: none; }`
+.ses-xref { color: inherit; text-decoration: none; }
+
+/* —— 终结线（10.1.5）：文件最后一个要素之下，居中粗实线，长度为版心宽 1/4（版心 165mm → ≈41mm）；
+ *   break-before: avoid 保证与末要素同页、不另起一面。 —— */
+.ses-end-mark {
+  width: 41mm;
+  margin: 12pt auto 0;
+  border-top: 1.5pt solid #000;
+  break-before: avoid;
+}`
 
 /**
  * 返回 GB/T 1.1-2020 打印 CSS 字符串。
