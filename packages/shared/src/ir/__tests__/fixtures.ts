@@ -5,6 +5,12 @@
 
 import type { PMJsonNode } from '../pmToIr'
 
+// 有效的小型 PNG data URI（120×60 纯色），供图版式核对，避免 PDF 破图占位。
+export const FIG_PNG_BLUE =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAa0lEQVR42u3QQQ0AAAgEoOsfzwRmMIEtnA82EpDq4UAUiBaNaNGiLYgWjWjRoi2IFo1o0aIRLRrRokUjWjSiRYtGtGhEixaNaNGIFi0a0aIRLRrRokUjWjSiRYtGtGhEixaNaNGiES0a0b8s0ipI1zvfEP8AAAAASUVORK5CYII='
+export const FIG_PNG_GREEN =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAa0lEQVR42u3QMQ0AAAgDsPkXyYECJOCCcDSpgqanOBAFokUjWrRoC6JFI1q0aAuiRSNatGhEi0a0aNGIFo1o0aIRLRrRokUjWjSiRYtGtGhEixaNaNGIFi0a0aIRLVo0okUjWrRoRItG9C8L4K2aZtr7WR4AAAAASUVORK5CYII='
+
 // ---------- 构造器 ----------
 
 export function text(t: string, marks?: PMJsonNode['marks']): PMJsonNode {
@@ -250,7 +256,7 @@ export function fullFixture(): PMJsonNode {
             ],
             { captionEn: 'Performance', footnote: '表内的注。' },
           ),
-          figure('fig-1', 'data:image/png;base64,xx', '系统架构图', 'System architecture'),
+          figure('fig-1', FIG_PNG_BLUE, '系统架构图', 'System architecture'),
           formula('f-1', 'E = mc^2', '式中：E——能量，单位为焦耳（J）；m——质量；c——光速。'),
           para('p-4221', text('引用文献'), xref('[1]', 'bib-2'), text('。')),
         ),
@@ -265,7 +271,7 @@ export function fullFixture(): PMJsonNode {
         'cl-a2',
         1,
         '附录图表',
-        figure('fig-a1', 'data:image/png;base64,yy', '附录图'),
+        figure('fig-a1', FIG_PNG_GREEN, '附录图'),
         stdTable('tbl-a1', '附录表', [
           tableRow(tableCell('tableHeader', '列')),
           tableRow(tableCell('tableCell', '值')),

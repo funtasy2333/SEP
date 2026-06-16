@@ -122,8 +122,10 @@ function pageRules(standardNo: string): string {
 const PAGE_CONTEXT = `
 /* 前置部分（目次→前言→引言）：罗马页码命名页 */
 .ses-front-matter { page: front; }
-/* 正文（含附录、参考文献）：阿拉伯页码，从 1 起编；正文首页须从单数页起排 */
-.ses-body-content { page: body; counter-reset: page 1; break-before: right; }
+/* 正文（含附录、参考文献）：阿拉伯页码，从 1 起编。
+ * 电子出版 PDF 只要求正文页码从阿拉伯 1 起编，不要求正文落在物理单数页/右页，
+ * 故用 break-before: page（普通另起页）而非 right，避免在前置部分后插入空白物理页。 */
+.ses-body-content { page: body; counter-reset: page 1; break-before: page; }
 /* 横排宽表容器：命名横排页 */
 .ses-landscape { page: landscape; }`
 
@@ -163,7 +165,7 @@ const CONTENT = `
   content: leader(dotted);
   flex: 1;
 }
-.ses-toc-l1 > .ses-toc-text { font-family: var(--ses-hei); font-weight: bold; }
+/* 目次内容一律五号宋体、不加粗（表 F.1 #15）；仅「目　次」标题为三号黑体（.ses-front-heading） */
 /* 一级条空 1 字、二级条空 2 字起排（10.3.2、图 E.8） */
 .ses-toc-l2 { padding-left: 1em; }
 .ses-toc-l3 { padding-left: 2em; }

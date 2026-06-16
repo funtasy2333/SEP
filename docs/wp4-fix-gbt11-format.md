@@ -153,7 +153,38 @@
 - `printCss` 断言：不含 `text-decoration: underline`；`.ses-toc-page` 无 `min-width: 3em`；表格字号为小五。
 
 ## 不改动项（避免误伤）
-- WP5 管线（`packages/server/src/convert/pdf/*`）、两遍构建、目次页码注入逻辑——**不动**。
-- 镜像版心左右值（25/20 镜像）、页码分区（前置罗马/正文阿拉伯 + `counter-reset: page 1`）、
-  `break-before: right` 正文单数页起排——**均正确，不动**。
+- 镜像版心左右值（25/20 镜像）、页码分区（前置罗马/正文阿拉伯 + `counter-reset: page 1`）——**正确，不动**。
 - 表题在上、图题在下、居中——**正确，不动**。
+
+---
+
+## 电子出版交付订正（PDF 级，对照 full-pass2/landscape 产物）
+
+对照真实管线产出的 PDF，又发现一批与 GB/T 1.1 / 电子出版目标不一致处，于本批一并订正：
+
+- **D1 不插正文前空白页**：电子出版只要求正文页码从阿拉伯 1 起编，不要求正文落在物理单数页。
+  `printCss.ts` `.ses-body-content` 由 `break-before: right` 改为 `break-before: page`（普通另起页）。
+  原「正文须从单数页起排/必要时插空白页」表述随之作废。验收：full-pass2 无正文前空白页，
+  页码 I/II/III/1/2… 连续正确。
+- **D2 目次内容去黑体加粗**：删除 `.ses-toc-l1 > .ses-toc-text` 的黑体加粗——表 F.1 #15 目次内容为
+  五号宋体；仅「目　次」标题为三号黑体。
+- **D3 前置标题全角字间隔**：`html.ts` 输出 `目　次`/`前　言`/`引　言`（两字间全角空格，图 E.8/E.9），
+  非连排；16pt 为字号而非字距，不用 `letter-spacing` 硬拉。
+- **D4 终结线跟随末要素页上下文**：末要素为横排表/图时，`ses-end-mark` 包入 `.ses-landscape`，
+  避免回到竖排 body 页另起空白终结线页（landscape.pdf 回归）。
+- **D5 有效图片**：`fullFixture` 图片改用有效小 PNG data URI（`FIG_PNG_BLUE/GREEN`），PDF 不再破图。
+- **D6 最终 PDF 去哨兵**：服务端两遍管线在注入目次页码后、第二遍构建前调用 `stripBodyAnchor`
+  剥离 `SESBODYSTARTANCHOR`，最终 PDF 文本层不含内部定位文本（搜索/复制/无障碍洁净）。
+- **D7 公式渲染**：公式主体由服务端管线 `katex-prerender` 预渲染为静态 HTML（渲染器仍只出占位，
+  WP0 结论 6）；核对产物须经服务端管线（含 KaTeX 预渲染）生成，直连 vivliostyle 的简易脚本不渲染公式。
+- **D8 landscape 目次注入**：两遍构建对任意 print HTML（含横排文档）通用；核对脚本须同样对 landscape
+  文档走注入流程，目次页码方非空且与页脚一致。
+
+## 范围差距（本期 out of scope，不得称「完整 GB/T 出版 PDF」）
+
+- **封面（必备要素）本期不渲染**：`coverPage` 在 `pmToIr.ts` 仅提取元数据、不进入 IR，
+  `renderHtml(print)` 无封面渲染路径。故 print 产物自「目次」起，**不是完整出版 PDF**；
+  交付/测试一律表述为「正文及前置要素版式核对」，不得称「全要素出版/与原件完全一致」。
+  封面（ICS/CCS、标准号、中文名、英文名、发布/实施日期、发布机构、专用字与机构素材）待后续工作包。
+- 「以表形式编写的术语标准」表内五号例外（IR 无文档类型标识）。
+- 表/图「关于单位的陈述」与续表/续图「（续）」字段（9.7.3/9.8.3，进 V2）。

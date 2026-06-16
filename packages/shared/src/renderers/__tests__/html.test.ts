@@ -247,6 +247,42 @@ describe('printCss', () => {
     expect(css).toContain('GB/T\\a 1—2026')
     expect(css).not.toMatch(/content: "GB\/T\n/)
   })
+  it('item1：正文不强制单数页起排（break-before: page，非 right），避免正文前空白页', () => {
+    const css = printCss()
+    expect(css).toMatch(/\.ses-body-content \{[^}]*break-before: page/)
+    expect(css).not.toMatch(/\.ses-body-content \{[^}]*break-before: right/)
+  })
+  it('item2：目次内容不加粗黑体（仅标题 .ses-front-heading 为黑体）', () => {
+    const css = printCss()
+    expect(css).not.toContain('.ses-toc-l1 > .ses-toc-text { font-family: var(--ses-hei)')
+  })
+})
+
+describe('电子出版交付订正（PDF 级，item1-4）', () => {
+  const print = renderFixture('print')
+
+  it('item3：前置三标题两字间为全角间隔（目　次/前　言/引　言）', () => {
+    expect(print).toContain('<h1 class="ses-front-heading">目　次</h1>')
+    expect(print).toContain('<h1 class="ses-front-heading">前　言</h1>')
+    expect(print).toContain('<h1 class="ses-front-heading">引　言</h1>')
+    // 不得为连排无间隔
+    expect(print).not.toContain('>目次</h1>')
+    expect(print).not.toContain('>前言</h1>')
+  })
+
+  it('item4：print 不渲染封面（本期范围差距，coverPage 仅入元数据）', () => {
+    // 首个可见区块为目次，非封面；不含封面正文文本
+    expect(print).not.toContain('data-type="cover"')
+    expect(print.indexOf('id="front_toc"')).toBeLessThan(print.indexOf('<div class="ses-body-content">'))
+    const firstSection = print.indexOf('data-type="toc"')
+    expect(firstSection).toBeGreaterThan(-1)
+  })
+
+  it('item7：图片为有效 data URI（非破图占位 base64,xx/yy）', () => {
+    expect(print).not.toContain('data:image/png;base64,xx')
+    expect(print).not.toContain('data:image/png;base64,yy')
+    expect(print).toContain('data:image/png;base64,iVBOR')
+  })
 })
 
 // ② 显式契约测试：参考文献展示顺序 = xmlId 的 bib_<n> 数字后缀（renderHtml 固定签名拿不到
@@ -337,14 +373,20 @@ describe('横排（landscape）表/图的命名页包裹', () => {
   }
   const html = renderHtml(doc, labels, { variant: 'print' })
 
-  it('表与图各被 <div class="ses-landscape"> 包裹（共两处）', () => {
+  it('表、图各被 <div class="ses-landscape"> 包裹，末要素为横排图时终结线亦包入横排（共三处，item6）', () => {
     const wraps = html.match(/<div class="ses-landscape">/g) ?? []
-    expect(wraps.length).toBe(2)
+    expect(wraps.length).toBe(3)
   })
 
   it('包裹内仍为正常的表/图结构', () => {
     expect(html).toMatch(/<div class="ses-landscape">\s*<div class="ses-table-block"/)
     expect(html).toMatch(/<div class="ses-landscape">\s*<figure class="ses-figure-block"/)
+  })
+
+  it('末要素为横排图：终结线包入横排命名页上下文（item6，避免另起空白终结线页）', () => {
+    expect(html).toMatch(
+      /<div class="ses-landscape">\s*<div class="ses-end-mark" role="presentation"><\/div>\s*<\/div>\s*<\/div>\s*<\/article>/,
+    )
   })
 })
 

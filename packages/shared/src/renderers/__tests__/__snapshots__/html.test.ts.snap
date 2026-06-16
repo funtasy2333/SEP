@@ -110,8 +110,10 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 
 /* 前置部分（目次→前言→引言）：罗马页码命名页 */
 .ses-front-matter { page: front; }
-/* 正文（含附录、参考文献）：阿拉伯页码，从 1 起编；正文首页须从单数页起排 */
-.ses-body-content { page: body; counter-reset: page 1; break-before: right; }
+/* 正文（含附录、参考文献）：阿拉伯页码，从 1 起编。
+ * 电子出版 PDF 只要求正文页码从阿拉伯 1 起编，不要求正文落在物理单数页/右页，
+ * 故用 break-before: page（普通另起页）而非 right，避免在前置部分后插入空白物理页。 */
+.ses-body-content { page: body; counter-reset: page 1; break-before: page; }
 /* 横排宽表容器：命名横排页 */
 .ses-landscape { page: landscape; }
 
@@ -149,7 +151,7 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
   content: leader(dotted);
   flex: 1;
 }
-.ses-toc-l1 > .ses-toc-text { font-family: var(--ses-hei); font-weight: bold; }
+/* 目次内容一律五号宋体、不加粗（表 F.1 #15）；仅「目　次」标题为三号黑体（.ses-front-heading） */
 /* 一级条空 1 字、二级条空 2 字起排（10.3.2、图 E.8） */
 .ses-toc-l2 { padding-left: 1em; }
 .ses-toc-l3 { padding-left: 2em; }
@@ -321,7 +323,7 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 <article class="ses-standard" data-type="standard-doc" data-standard-no="GB/T 12345—2026" data-ics="35.240" data-ccs="L 70" data-title-cn="标准化文件编辑系统" data-title-en="Standardization document editing system" data-standard-type="gb">
 <div class="ses-front-matter">
 <nav class="ses-toc" data-type="toc" id="front_toc">
-<h1 class="ses-front-heading">目次</h1>
+<h1 class="ses-front-heading">目　次</h1>
 <ol class="ses-toc-list">
 <li class="ses-toc-item ses-toc-l1">
 <span class="ses-toc-text">前言</span>
@@ -374,12 +376,12 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 </ol>
 </nav>
 <section class="ses-foreword" data-type="foreword" id="front_foreword" role="doc-foreword">
-<h1 class="ses-front-heading">前言</h1>
+<h1 class="ses-front-heading">前　言</h1>
 <p class="ses-paragraph" data-type="paragraph" data-node-id="fw-p1">本文件按照GB/T 1.1—2020的规定起草。</p>
 <div class="ses-note" data-type="note" data-node-id="fw-note"><span class="ses-note-marker">注：</span>前言中的注。</div>
 </section>
 <section class="ses-introduction" data-type="introduction" id="front_intro" role="doc-introduction">
-<h1 class="ses-front-heading">引言</h1>
+<h1 class="ses-front-heading">引　言</h1>
 <p class="ses-paragraph" data-type="paragraph" data-node-id="intro-p1">引言内容。</p>
 </section>
 </div>
@@ -457,7 +459,7 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 <div class="ses-note" data-type="note" data-node-id="tbl-1.note0"><span class="ses-note-marker">注：</span>表内的注。</div>
 </div>
 <figure class="ses-figure-block" data-type="figure" data-orientation="portrait" data-node-id="fig-1" id="fig_1">
-<img class="ses-figure-image" src="data:image/png;base64,xx" alt="系统架构图" />
+<img class="ses-figure-image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAa0lEQVR42u3QQQ0AAAgEoOsfzwRmMIEtnA82EpDq4UAUiBaNaNGiLYgWjWjRoi2IFo1o0aIRLRrRokUjWjSiRYtGtGhEixaNaNGIFi0a0aIRLRrRokUjWjSiRYtGtGhEixaNaNGiES0a0b8s0ipI1zvfEP8AAAAASUVORK5CYII=" alt="系统架构图" />
 <figcaption class="ses-figure-caption">图1　系统架构图</figcaption>
 </figure>
 <div class="ses-formula-block" data-type="formula" data-node-id="f-1" id="formula_1">
@@ -487,7 +489,7 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 <section class="ses-clause ses-clause-l1" data-type="clause" data-level="1" data-titled="true" data-node-id="cl-a2" id="sec_A.2">
 <h3 class="ses-clause-title"><span class="ses-num">A.2</span>附录图表</h3>
 <figure class="ses-figure-block" data-type="figure" data-orientation="portrait" data-node-id="fig-a1" id="fig_A.1">
-<img class="ses-figure-image" src="data:image/png;base64,yy" alt="附录图" />
+<img class="ses-figure-image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAa0lEQVR42u3QMQ0AAAgDsPkXyYECJOCCcDSpgqanOBAFokUjWrRoC6JFI1q0aAuiRSNatGhEi0a0aNGIFo1o0aIRLRrRokUjWjSiRYtGtGhEixaNaNGIFi0a0aIRLVo0okUjWrRoRItG9C8L4K2aZtr7WR4AAAAASUVORK5CYII=" alt="附录图" />
 <figcaption class="ses-figure-caption">图A.1　附录图</figcaption>
 </figure>
 <div class="ses-table-block" data-type="table" data-orientation="portrait" data-node-id="tbl-a1">
@@ -592,7 +594,7 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 <article class="ses-standard" data-type="standard-doc" data-standard-no="GB/T 12345—2026" data-ics="35.240" data-ccs="L 70" data-title-cn="标准化文件编辑系统" data-title-en="Standardization document editing system" data-standard-type="gb">
 <div class="ses-front-matter">
 <nav class="ses-toc" data-type="toc" id="front_toc">
-<h1 class="ses-front-heading">目次</h1>
+<h1 class="ses-front-heading">目　次</h1>
 <ol class="ses-toc-list">
 <li class="ses-toc-item ses-toc-l1">
 <a class="ses-toc-text" href="#front_foreword">前言</a>
@@ -633,12 +635,12 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 </ol>
 </nav>
 <section class="ses-foreword" data-type="foreword" id="front_foreword" role="doc-foreword">
-<h1 class="ses-front-heading">前言</h1>
+<h1 class="ses-front-heading">前　言</h1>
 <p class="ses-paragraph" data-type="paragraph" data-node-id="fw-p1">本文件按照GB/T 1.1—2020的规定起草。</p>
 <div class="ses-note" data-type="note" data-node-id="fw-note"><span class="ses-note-marker">注：</span>前言中的注。</div>
 </section>
 <section class="ses-introduction" data-type="introduction" id="front_intro" role="doc-introduction">
-<h1 class="ses-front-heading">引言</h1>
+<h1 class="ses-front-heading">引　言</h1>
 <p class="ses-paragraph" data-type="paragraph" data-node-id="intro-p1">引言内容。</p>
 </section>
 </div>
@@ -717,7 +719,7 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 <div class="ses-note" data-type="note" data-node-id="tbl-1.note0"><span class="ses-note-marker">注：</span>表内的注。</div>
 </div>
 <figure class="ses-figure-block" data-type="figure" data-orientation="portrait" data-node-id="fig-1" id="fig_1">
-<img class="ses-figure-image" src="data:image/png;base64,xx" alt="系统架构图" />
+<img class="ses-figure-image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAa0lEQVR42u3QQQ0AAAgEoOsfzwRmMIEtnA82EpDq4UAUiBaNaNGiLYgWjWjRoi2IFo1o0aIRLRrRokUjWjSiRYtGtGhEixaNaNGIFi0a0aIRLRrRokUjWjSiRYtGtGhEixaNaNGiES0a0b8s0ipI1zvfEP8AAAAASUVORK5CYII=" alt="系统架构图" />
 <figcaption class="ses-figure-caption">图1　系统架构图</figcaption>
 <figcaption class="ses-figure-caption-en" lang="en">System architecture</figcaption>
 </figure>
@@ -748,7 +750,7 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 <section class="ses-clause ses-clause-l1" data-type="clause" data-level="1" data-titled="true" data-node-id="cl-a2" id="sec_A.2">
 <h3 class="ses-clause-title"><span class="ses-num">A.2</span>附录图表</h3>
 <figure class="ses-figure-block" data-type="figure" data-orientation="portrait" data-node-id="fig-a1" id="fig_A.1">
-<img class="ses-figure-image" src="data:image/png;base64,yy" alt="附录图" />
+<img class="ses-figure-image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAa0lEQVR42u3QMQ0AAAgDsPkXyYECJOCCcDSpgqanOBAFokUjWrRoC6JFI1q0aAuiRSNatGhEi0a0aNGIFo1o0aIRLRrRokUjWjSiRYtGtGhEixaNaNGIFi0a0aIRLVo0okUjWrRoRItG9C8L4K2aZtr7WR4AAAAASUVORK5CYII=" alt="附录图" />
 <figcaption class="ses-figure-caption">图A.1　附录图</figcaption>
 </figure>
 <div class="ses-table-block" data-type="table" data-orientation="portrait" data-node-id="tbl-a1">

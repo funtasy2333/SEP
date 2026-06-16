@@ -34,6 +34,22 @@ function normalize(s: string): string {
 }
 
 /**
+ * needle 的字符按序作为 haystack 的子序列出现（不要求相邻）。
+ * 用于前置标题：「目　次/前　言/引　言」含全角字间隔，居中排版后 pdftotext 的阅读序会把
+ * 两字拆到不相邻位置（甚至跨页码），连续子串匹配会漏命中其真实所在页。字符按序匹配可稳健命中。
+ */
+function includesInOrder(haystack: string, needle: string): boolean {
+  let i = 0
+  for (const ch of haystack) {
+    if (ch === needle[i]) {
+      i += 1
+      if (i === needle.length) return true
+    }
+  }
+  return needle.length === 0
+}
+
+/**
  * 由目次显示文本派生匹配候选：优先完整文本，回退仅标题部分。
  * 目次文本形如「4　技术要求」（标签 U+3000 标题）；split 须在 normalize 前做（U+3000 是空白）。
  * 无 U+3000（前言/引言/参考文献）时两候选相同。空候选剔除。
@@ -141,21 +157,38 @@ function indexOfFrom(normPages: string[], candidates: string[], from: number): n
   return -1
 }
 
-/** 在 [0, end) 中按候选优先级取最后一次命中页。 */
+/**
+ * 在 [0, end) 中按候选优先级取最后一次命中页（前置标题用）。
+ * 前置标题（前言/引言）因全角字间隔被 pdftotext 拆分，故用字符按序子序列匹配而非连续子串，
+ * 避免漏命中其真实所在页而误回退到目次页（致页码偏小）。
+ */
 function lastIndexOfWithin(normPages: string[], candidates: string[], end: number): number {
   for (const needle of candidates) {
     for (let i = Math.min(end, normPages.length) - 1; i >= 0; i--) {
-      if (normPages[i].includes(needle)) return i
+      if (includesInOrder(normPages[i], needle)) return i
     }
   }
   return -1
 }
 
 /**
+ * 移除正文首页隐藏哨兵锚点元素。
+ * 哨兵仅供第一遍 pdftotext 定位正文起始物理页；最终（第二遍）HTML/PDF 不应保留此内部
+ * 定位文本，否则会污染最终 PDF 的文本层（搜索/复制/无障碍）。两遍构建在注入目次页码后、
+ * 第二遍构建前调用本函数剥离哨兵；剥离不改变版式（哨兵透明零高度），不影响分页。
+ */
+export function stripBodyAnchor(html: string): string {
+  return html.replace(
+    new RegExp(`<span class="ses-body-anchor"[^>]*>${BODY_START_SENTINEL}</span>`, 'g'),
+    '',
+  )
+}
+
+/**
  * 把页码写回 print 变体 HTML 的目次占位元素。
  * 渲染器（@ses/shared html.ts）输出形如
  *   `<span class="ses-toc-page" data-target="X">　</span>`（内容为 U+3000 占位）。
- * 占位元素 CSS 定宽（min-width:3em），注入纯文本数字后宽度不变，保证两遍分页一致。
+ * 占位元素 CSS 定宽（min-width:2em），注入纯文本数字后宽度不变，保证两遍分页一致。
  */
 export function injectTocPageNumbers(
   html: string,
