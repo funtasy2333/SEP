@@ -465,8 +465,9 @@ export const gbT11Strategy: NumberingStrategy  // 默认实现，规则以 GB/T 
 
 ### WP6：XML(37967) 与 JSON 渲染器迁移（1.5 天，依赖 WP3）
 
-- 先做 **golden 基线**：用 `example/sample-standard.xml` + 全要素 fixture 经现有
-  `xmlSerializer`/`jsonExporter` 生成输出，存入 `packages/client/src/serializer/__fixtures__/golden/`。
+- 先做 **golden 基线**：用 `packages/client/src/serializer/__fixtures__/sample-standard.xml`
+  + 全要素 fixture 经现有 `xmlSerializer`/`jsonExporter` 生成输出，存入
+  `packages/client/src/serializer/__fixtures__/golden/`。
 - 迁移：`packages/shared/src/renderers/xml37967.ts`、`json.ts`，删除其中编号逻辑；
   client 侧改薄壳。
 - **验收**：新输出 vs golden 逐字节一致（允许清单内的已知差异需在 PR 中逐条说明并获批准）；
