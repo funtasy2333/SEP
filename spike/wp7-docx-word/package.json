@@ -1,0 +1,9 @@
+{
+  "name": "wp7-docx-word-spike",
+  "private": true,
+  "description": "WP7.0 spike：从零生成 DOCX 的 Word 机制验证（不进入生产代码）",
+  "dependencies": {
+    "katex": "0.16.47",
+    "mathml2omml": "0.5.0"
+  }
+}

@@ -315,9 +315,10 @@ Phase 4：版本管理（~1.5周）
 
 Phase 5：文档导出（~2周）
 目标：生成符合 GB/T 1.1-2020 的标准文件
-*  DOCX 导出（核心，使用 docx.js）
-    * 映射现有6类 Word 模板（国家标准、行业标准、地方标准、团体标准、企业标准、标准化指导性技术文件）
-    * 映射 styles.config 中的66+段落/字符样式到 DOCX 样式
+（2026-09-24 决策：**交付稿为 DOCX，PDF 仅供参考**。DOCX 从零生成 OOXML，不使用 docx.js，也不使用任何模板文件；此前参考的 .dotx 来自第三方编写工具的安装包，只作格式对照、不得随产品分发。实施规格见 docs/wp7-docx-delivery.md，以下原始条目中与此冲突的部分以该规格为准）
+*  DOCX 导出（核心，~~使用 docx.js~~ 从零生成）
+    * ~~映射现有6类 Word 模板~~ 6 类标准（国家标准、行业标准、地方标准、团体标准、企业标准、标准化指导性技术文件）的封面与版式按 GB/T 1.1-2020 自行实现
+    * ~~映射 styles.config 中的66+段落/字符样式到 DOCX 样式~~ 样式表按 GB/T 1.1-2020 表 F.1 与附录 E 自行定义
     * 封面页生成（标准编号、名称、日期等）
     * 正文排版（页眉页脚、奇偶页、章节编号）
     * 表格、图片、公式的正确嵌入
@@ -327,9 +328,9 @@ Phase 5：文档导出（~2周）
     * 方案B：基于排版后的 HTML，使用浏览器 print-to-pdf
     * 确保分页、页眉页脚正确
     * （现状：已实现为 DOCX → 服务端 LibreOffice 转换；该路径将由 Phase 5.5 的 IR + Vivliostyle 渲染方案取代，LibreOffice 降级为可选回退）
-*  模板管理
-    * 用户可选择标准类型模板
-    * 模板预览
+*  模板管理（2026-09-24 变更：不再使用模板文件；「标准类型」只决定封面样式与编号前缀）
+    * 用户可选择标准类型
+    * ~~模板预览~~
 —————
 Phase 5.5：IR 中间表示与多渲染器重构（~2周）
 目标：以 IR（中间结构）为枢纽重构导出层，摆脱 LibreOffice 强依赖
@@ -352,8 +353,8 @@ Phase 5.5：IR 中间表示与多渲染器重构（~2周）
 *  渲染器迁移（统一消费 Resolved IR）
     * XML（GB/T 37967）/ JSON / HTML 渲染器迁移，删除各自的编号逻辑
     * 新增 NISO STS / 新国标 XML 渲染器：输出《标准机器语言表达 第2部分》体系（<standard>/<front>/<body>/<back>/<sec> 等）；该标准尚为征求意见稿（2025-01 完成），需跟踪定稿变化；草案附录 F 的标签对比表（vs GB/T 37967/22373/42093）可作迁移映射依据
-    * DOCX 模板填充渲染器（docxTemplateExporter）迁移
-    * 废弃从零构建版 docxExporter.ts（已确认）：DocMeta/StandardType 等类型先迁至 packages/shared，模板渲染器迁移完成后删除文件
+    * ~~DOCX 模板填充渲染器（docxTemplateExporter）迁移~~（2026-09-24 变更：改为 WP7 系列从零生成 DOCX，docxTemplateExporter.ts 与 docxExporter.ts 直接删除，见 docs/wp7-docx-delivery.md）
+    * DocMeta/StandardType 等类型迁至 packages/shared
     * golden-file 回归基线：迁移前固化现有导出结果，迁移后逐项比对防回归
 *  PDF 渲染器（HTML + CSS Paged Media 分页引擎，替代 LibreOffice 路径）
     * 分页引擎首选 Vivliostyle（已确认）：原生支持 leader() 目次点线、GCPM 条文脚注、混合横竖页 PDF 输出（vivliostyle.js#751，2022 已实现）、CJK 排版（text-spacing / hanging-punctuation）；维护活跃
