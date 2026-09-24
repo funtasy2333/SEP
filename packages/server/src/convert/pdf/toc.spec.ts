@@ -3,6 +3,7 @@ import {
   computeTocPageNumbers,
   findBodyStartPage,
   injectTocPageNumbers,
+  stripBodyAnchor,
   toUpperRoman,
   type TocTarget,
 } from './toc';
@@ -94,6 +95,19 @@ describe('computeTocPageNumbers', () => {
     expect(m.has('x')).toBe(false);
   });
 
+  it('前置标题含全角字间隔被 pdftotext 拆分（前…言）仍按子序列命中真实页（item5 回归）', () => {
+    // 「前　言」居中后 pdftotext 把两字拆到不相邻位置（甚至跨页码），且该页正文不含连续“前言”，
+    // 连续子串会漏命中而误回退到目次页（致 I）；字符按序匹配应命中前言真实页 → II。
+    const split = [
+      '目次 前言 1 范围', // 目次页
+      '前 本文件按照…… II 言', // 前言页：标题被拆分，正文无连续“前言”
+      'SESBODYSTARTANCHOR 示例标准名称 1 范围',
+    ];
+    const toc: TocTarget[] = [{ target: 'front_foreword', text: '前言', division: 'front' }];
+    const m = computeTocPageNumbers(split, toc, '示例标准名称');
+    expect(m.get('front_foreword')).toBe('II');
+  });
+
   it('编号与标题被 pdftotext 分列时回退到仅标题匹配', () => {
     // 章「4 技术要求」紧跟子条「4.1 总体要求」，pdftotext 阅读序把编号/标题分列：
     const grouped = [
@@ -162,5 +176,23 @@ describe('injectTocPageNumbers', () => {
     const html = '<span class="ses-toc-page" data-target="x">　</span>';
     const out = injectTocPageNumbers(html, new Map([['x', '<b>']]));
     expect(out).toContain('>&lt;b&gt;</span>');
+  });
+});
+
+describe('stripBodyAnchor（item9：最终 PDF 文本层去哨兵）', () => {
+  it('移除哨兵 span，最终 HTML 文本层不含定位文本', () => {
+    const html =
+      '<div class="ses-body-content"><span class="ses-body-anchor" aria-hidden="true">' +
+      `${BODY_START_SENTINEL}</span><h1 class="ses-doc-title">某标准</h1></div>`;
+    const out = stripBodyAnchor(html);
+    expect(out).not.toContain(BODY_START_SENTINEL);
+    expect(out).not.toContain('ses-body-anchor');
+    // 其余内容保留
+    expect(out).toContain('<h1 class="ses-doc-title">某标准</h1>');
+  });
+
+  it('无哨兵时原样返回', () => {
+    const html = '<div class="ses-body-content"><h1>x</h1></div>';
+    expect(stripBodyAnchor(html)).toBe(html);
   });
 });

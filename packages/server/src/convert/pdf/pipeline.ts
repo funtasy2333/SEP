@@ -19,7 +19,12 @@ import { join } from 'path'
 import type { Logger } from '@nestjs/common'
 
 import { prerenderFormulas } from './katex-prerender'
-import { computeTocPageNumbers, injectTocPageNumbers, type TocTarget } from './toc'
+import {
+  computeTocPageNumbers,
+  injectTocPageNumbers,
+  stripBodyAnchor,
+  type TocTarget,
+} from './toc'
 import {
   injectHead,
   pdfPageCount,
@@ -82,8 +87,8 @@ export async function runHtmlToPdfPipeline(
       )
     }
 
-    // 4) 注入页码 → 5) 第二遍构建
-    const html2Content = injectTocPageNumbers(baseHtml, numbers)
+    // 4) 注入页码 + 剥离哨兵（最终 PDF 文本层不留内部定位文本）→ 5) 第二遍构建
+    const html2Content = stripBodyAnchor(injectTocPageNumbers(baseHtml, numbers))
     const html2 = join(tmpDir, 'pass2.html')
     const pdf2 = join(tmpDir, 'pass2.pdf')
     await writeHtmlFile(html2, html2Content)

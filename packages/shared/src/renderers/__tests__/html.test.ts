@@ -8,7 +8,7 @@ import { pmToIr } from '../../ir/pmToIr'
 import { resolve } from '../../ir/resolve'
 import { renderHtml } from '../html'
 import { printCss } from '../printCss'
-import { fullFixture } from '../../ir/__tests__/fixtures'
+import { fullFixture, landscapeFixture } from '../../ir/__tests__/fixtures'
 import type { IRDoc, NodeId, ResolvedLabel } from '../../ir/types'
 
 function renderFixture(variant: 'screen' | 'print'): string {
@@ -87,6 +87,58 @@ describe('print 变体：无内部链接（WP0 结论 1）', () => {
   })
 })
 
+describe('print 变体：英文译名/图表英文题不输出（封面专属，F5/F8）', () => {
+  const print = renderFixture('print')
+  const screen = renderFixture('screen')
+
+  it('print 不含正文首页英文名标题（ses-doc-title-en 元素）', () => {
+    // 可见英文标题不输出；data-title-en 作为元数据保留（IR 字段不删）属预期
+    expect(print).not.toContain('class="ses-doc-title ses-doc-title-en"')
+    expect(print).not.toContain('<h1 class="ses-doc-title ses-doc-title-en"')
+  })
+  it('print 不含图题/表题英文（class="ses-table-caption-en" / class="ses-figure-caption-en" 元素）', () => {
+    expect(print).not.toContain('class="ses-table-caption-en"')
+    expect(print).not.toContain('class="ses-figure-caption-en"')
+    expect(print).not.toContain('Performance')
+    expect(print).not.toContain('System architecture')
+  })
+  it('screen 仍保留以上英文（IR 字段未删）', () => {
+    expect(screen).toContain('ses-doc-title-en')
+    expect(screen).toContain('Standardization document editing system')
+    expect(screen).toContain('ses-table-caption-en')
+    expect(screen).toContain('ses-figure-caption-en')
+  })
+})
+
+describe('术语三段式结构（F6）', () => {
+  const html = renderFixture('print')
+  it('编号独占一行（ses-term-num-line）', () => {
+    expect(html).toContain('<p class="ses-term-num-line">3.1</p>')
+  })
+  it('术语与英文对应词同一行、英文行内（ses-term-head 内含 ses-term-name 与 ses-term-name-en）', () => {
+    expect(html).toMatch(
+      /<p class="ses-term-head"><span class="ses-term-name">标准<\/span>　<span class="ses-term-name-en" lang="en">standard<\/span><\/p>/,
+    )
+  })
+  it('term-2（编号 numbering）同样为编号行 + 术语英文同行结构', () => {
+    expect(html).toContain('<p class="ses-term-num-line">3.2</p>')
+    expect(html).toMatch(
+      /<p class="ses-term-head"><span class="ses-term-name">编号<\/span>　<span class="ses-term-name-en" lang="en">numbering<\/span><\/p>/,
+    )
+  })
+})
+
+describe('终结线（F9）', () => {
+  it('print 正文末尾输出 ses-end-mark（位于 body-content 收尾前）', () => {
+    const html = renderFixture('print')
+    expect(html).toContain('<div class="ses-end-mark" role="presentation"></div>')
+    const mark = html.indexOf('ses-end-mark')
+    const bodyClose = html.indexOf('</div>\n</article>')
+    expect(mark).toBeGreaterThan(-1)
+    expect(mark).toBeLessThan(bodyClose)
+  })
+})
+
 describe('前置页顺序与正文首页', () => {
   const html = renderFixture('print')
 
@@ -119,9 +171,11 @@ describe('前置页顺序与正文首页', () => {
     expect(renderFixture('screen')).not.toContain('SESBODYSTARTANCHOR')
   })
 
-  it('无题条编号与首段同排', () => {
-    // cl-421 无题条，编号 4.2.1
-    expect(html).toContain('<span class="ses-clause-num-only">4.2.1</span>')
+  it('无题条编号与首段同排，且首段顶格（ses-clause-numbered-para，非 ses-paragraph，F7）', () => {
+    // cl-421 无题条，编号 4.2.1；首段用顶格类、编号顶格起排
+    expect(html).toMatch(
+      /<p class="ses-clause-numbered-para" data-type="paragraph"[^>]*><span class="ses-clause-num-only">4\.2\.1<\/span>/,
+    )
   })
 })
 
@@ -155,14 +209,32 @@ describe('printCss', () => {
   })
   it('含镜像版心、外侧页码、命名横排页、空白页抑制', () => {
     const css = printCss()
-    expect(css).toContain('@page :right { size: A4; margin: 28mm 20mm 24mm 25mm; }')
-    expect(css).toContain('@page :left  { size: A4; margin: 28mm 25mm 24mm 20mm; }')
+    // F2：上 30mm（书眉下 5mm 起版心）、下 20mm（页码距纸底 20mm）；左右镜像不变
+    expect(css).toContain('@page :right { size: A4; margin: 30mm 20mm 20mm 25mm; }')
+    expect(css).toContain('@page :left  { size: A4; margin: 30mm 25mm 20mm 20mm; }')
     expect(css).toContain('size: A4 landscape')
     expect(css).toContain('@page front:blank')
     expect(css).toContain('counter-reset: page 1')
   })
   it('五号正文字号（10.5pt）', () => {
     expect(printCss()).toContain('--ses-fs-wu: 10.5pt')
+  })
+  it('F1：书眉无下划线（含横排 @top-center）', () => {
+    expect(printCss({ standardNo: 'GB/T 1—2026' })).not.toContain('text-decoration: underline')
+  })
+  it('F4：目次页码占位保留预留宽度但收窄至 2em（codex #28 评审采纳）', () => {
+    const css = printCss()
+    expect(css).toContain('.ses-toc-page { min-width: 2em; text-align: right; white-space: nowrap; }')
+    expect(css).not.toContain('min-width: 3em')
+  })
+  it('F10：表内文字为小五号（表 F.1 #40 注 a）', () => {
+    expect(printCss()).toMatch(/\.ses-table-block table \{[^}]*font-size: var\(--ses-fs-xiaowu\)/)
+  })
+  it('F9：含终结线样式（版心宽 1/4 ≈41mm、break-before: avoid）', () => {
+    const css = printCss()
+    expect(css).toContain('.ses-end-mark')
+    expect(css).toMatch(/\.ses-end-mark \{[^}]*width: 41mm/)
+    expect(css).toMatch(/\.ses-end-mark \{[^}]*break-before: avoid/)
   })
   it('对 standardNo 中的尖括号做 CSS 转义，防止突破 <style> 注入脚本', () => {
     const css = printCss({ standardNo: '</style><script>x</script>' })
@@ -174,6 +246,42 @@ describe('printCss', () => {
     // content 字符串内不得出现裸换行（会终止 CSS 字符串字面量）
     expect(css).toContain('GB/T\\a 1—2026')
     expect(css).not.toMatch(/content: "GB\/T\n/)
+  })
+  it('item1：正文不强制单数页起排（break-before: page，非 right），避免正文前空白页', () => {
+    const css = printCss()
+    expect(css).toMatch(/\.ses-body-content \{[^}]*break-before: page/)
+    expect(css).not.toMatch(/\.ses-body-content \{[^}]*break-before: right/)
+  })
+  it('item2：目次内容不加粗黑体（仅标题 .ses-front-heading 为黑体）', () => {
+    const css = printCss()
+    expect(css).not.toContain('.ses-toc-l1 > .ses-toc-text { font-family: var(--ses-hei)')
+  })
+})
+
+describe('电子出版交付订正（PDF 级，item1-4）', () => {
+  const print = renderFixture('print')
+
+  it('item3：前置三标题两字间为全角间隔（目　次/前　言/引　言）', () => {
+    expect(print).toContain('<h1 class="ses-front-heading">目　次</h1>')
+    expect(print).toContain('<h1 class="ses-front-heading">前　言</h1>')
+    expect(print).toContain('<h1 class="ses-front-heading">引　言</h1>')
+    // 不得为连排无间隔
+    expect(print).not.toContain('>目次</h1>')
+    expect(print).not.toContain('>前言</h1>')
+  })
+
+  it('item4：print 不渲染封面（本期范围差距，coverPage 仅入元数据）', () => {
+    // 首个可见区块为目次，非封面；不含封面正文文本
+    expect(print).not.toContain('data-type="cover"')
+    expect(print.indexOf('id="front_toc"')).toBeLessThan(print.indexOf('<div class="ses-body-content">'))
+    const firstSection = print.indexOf('data-type="toc"')
+    expect(firstSection).toBeGreaterThan(-1)
+  })
+
+  it('item7：图片为有效 data URI（非破图占位 base64,xx/yy）', () => {
+    expect(print).not.toContain('data:image/png;base64,xx')
+    expect(print).not.toContain('data:image/png;base64,yy')
+    expect(print).toContain('data:image/png;base64,iVBOR')
   })
 })
 
@@ -265,13 +373,32 @@ describe('横排（landscape）表/图的命名页包裹', () => {
   }
   const html = renderHtml(doc, labels, { variant: 'print' })
 
-  it('表与图各被 <div class="ses-landscape"> 包裹（共两处）', () => {
+  it('表、图各被 <div class="ses-landscape"> 包裹，末要素为横排图时终结线亦包入横排（共三处，item6）', () => {
     const wraps = html.match(/<div class="ses-landscape">/g) ?? []
-    expect(wraps.length).toBe(2)
+    expect(wraps.length).toBe(3)
   })
 
   it('包裹内仍为正常的表/图结构', () => {
     expect(html).toMatch(/<div class="ses-landscape">\s*<div class="ses-table-block"/)
     expect(html).toMatch(/<div class="ses-landscape">\s*<figure class="ses-figure-block"/)
+  })
+
+  it('末要素为横排图：终结线包入横排命名页上下文（item6，避免另起空白终结线页）', () => {
+    expect(html).toMatch(
+      /<div class="ses-landscape">\s*<div class="ses-end-mark" role="presentation"><\/div>\s*<\/div>\s*<\/div>\s*<\/article>/,
+    )
+  })
+})
+
+// ④ landscapeFixture（F12）：经真实管线渲染后含横排包裹，供 e2e 出件核对横排页
+describe('landscapeFixture（F12 横排核对用）', () => {
+  it('经 pmToIr → resolve → renderHtml(print) 后含 ses-landscape 包裹', () => {
+    const { doc } = pmToIr(landscapeFixture())
+    const { labels } = resolve(doc)
+    const html = renderHtml(doc, labels, { variant: 'print' })
+    expect(html).toContain('<div class="ses-landscape">')
+    expect(html).toMatch(/<div class="ses-landscape">\s*<div class="ses-table-block"/)
+    // 超宽表 9 列表头
+    expect(html).toContain('<th scope="col">参数H</th>')
   })
 })

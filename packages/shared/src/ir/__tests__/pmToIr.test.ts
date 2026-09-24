@@ -174,7 +174,7 @@ describe('pmToIr / 块级要素', () => {
     const cl422 = cl42.children[1] as IRClause
     const fig = cl422.children[1] as IRFigure
     expect(fig.kind).toBe('figure')
-    expect(fig.src).toBe('data:image/png;base64,xx')
+    expect(fig.src).toBe(fx.FIG_PNG_BLUE)
     expect(fig.caption).toEqual([{ text: '系统架构图' }])
     expect(fig.captionEn).toEqual([{ text: 'System architecture' }])
   })
