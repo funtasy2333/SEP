@@ -19,3 +19,6 @@ example/*.ini
 example/template/
 example/config/
 example/templatelist*.config
+
+# WP4-fix 临时核对产物（PDF/HTML/脚本，不提交）
+tmp-e2e/

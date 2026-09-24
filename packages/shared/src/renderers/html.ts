@@ -227,7 +227,8 @@ function renderTable(table: IRTable, ctx: RenderCtx): void {
   ctx.push(
     `<div class="ses-table-caption">${escapeHtml(captionLabel)}${captionText ? '　' + captionText : ''}</div>`,
   )
-  if (table.captionEn && table.captionEn.length > 0) {
+  // 表题英文仅 screen 预览输出；print 表题只排中文（10.4.2、表 F.1 #36）
+  if (table.captionEn && table.captionEn.length > 0 && ctx.variant === 'screen') {
     ctx.push(`<div class="ses-table-caption-en" lang="en">${renderInlines(table.captionEn, ctx)}</div>`)
   }
 
@@ -264,7 +265,8 @@ function renderFigure(fig: IRFigure, ctx: RenderCtx): void {
   ctx.push(
     `<figcaption class="ses-figure-caption">${escapeHtml(captionLabel)}${captionText ? '　' + captionText : ''}</figcaption>`,
   )
-  if (fig.captionEn && fig.captionEn.length > 0) {
+  // 图题英文仅 screen 预览输出；print 图题只排中文（10.4.2、表 F.1 #36）
+  if (fig.captionEn && fig.captionEn.length > 0 && ctx.variant === 'screen') {
     ctx.push(`<figcaption class="ses-figure-caption-en" lang="en">${renderInlines(fig.captionEn, ctx)}</figcaption>`)
   }
   for (const note of fig.notes) renderNote(note, ctx)
@@ -342,12 +344,15 @@ function renderBlock(block: IRBlock, ctx: RenderCtx): void {
 
 function renderTermEntry(entry: IRTermEntry, ctx: RenderCtx): void {
   ctx.push(`<div class="ses-term-entry" data-type="term-entry"${idAttr(entry.id)}${anchorAttr(ctx, entry.id)}>`)
-  ctx.push(
-    `<p class="ses-term-head"><span class="ses-term-num">${escapeHtml(ctx.label(entry.id))}</span><span class="ses-term-name">${renderInlines(entry.term, ctx)}</span></p>`,
-  )
-  if (entry.termEn && entry.termEn.length > 0) {
-    ctx.push(`<p class="ses-term-name-en" lang="en">${renderInlines(entry.termEn, ctx)}</p>`)
-  }
+  // 三段式（10.3.5）：①编号独占一行、顶格
+  ctx.push(`<p class="ses-term-num-line">${escapeHtml(ctx.label(entry.id))}</p>`)
+  // ②术语 + 空一个汉字 + 英文对应词（同一行；英文行内、黑体五号，仅当存在时附 U+3000 接排）
+  const termHtml = `<span class="ses-term-name">${renderInlines(entry.term, ctx)}</span>`
+  const enHtml =
+    entry.termEn && entry.termEn.length > 0
+      ? `　<span class="ses-term-name-en" lang="en">${renderInlines(entry.termEn, ctx)}</span>`
+      : ''
+  ctx.push(`<p class="ses-term-head">${termHtml}${enHtml}</p>`)
   for (const block of entry.definition) {
     if (block.kind === 'paragraph') {
       ctx.push(`<p class="ses-term-def"${idAttr(block.id)}>${renderInlines(block.content, ctx)}</p>`)
@@ -386,7 +391,8 @@ function renderClause(clause: IRClause, ctx: RenderCtx): void {
     const numHtml = `<span class="ses-clause-num-only">${escapeHtml(ctx.label(clause.id))}</span>`
     const [first, ...rest] = clause.children
     if (first && first.kind === 'paragraph') {
-      ctx.push(`<p class="ses-paragraph" data-type="paragraph"${idAttr(first.id)}>${numHtml} ${renderInlines(first.content, ctx)}</p>`)
+      // 无题条首段：编号顶格起排、不缩进（.ses-clause-numbered-para text-indent:0），编号后空一字（num-only margin-right:1em）接条文
+      ctx.push(`<p class="ses-clause-numbered-para" data-type="paragraph"${idAttr(first.id)}>${numHtml}${renderInlines(first.content, ctx)}</p>`)
       for (const child of rest) renderClauseChild(child, ctx)
     } else {
       ctx.push(numHtml)
@@ -492,7 +498,8 @@ function renderToc(doc: IRDoc, ctx: RenderCtx): void {
   const entries = collectToc(doc, ctx)
   if (entries.length === 0) return
   ctx.push('<nav class="ses-toc" data-type="toc" id="front_toc">')
-  ctx.push('<h1 class="ses-front-heading">目次</h1>')
+  // 前置标题两字间空一个全角字（图 E.8/E.9：目　次/前　言/引　言）；16pt 为字号非字距
+  ctx.push('<h1 class="ses-front-heading">目　次</h1>')
   ctx.push('<ol class="ses-toc-list">')
   for (const entry of entries) {
     ctx.push(`<li class="ses-toc-item ses-toc-l${entry.level}">`)
@@ -516,13 +523,13 @@ function renderFront(doc: IRDoc, ctx: RenderCtx): void {
   renderToc(doc, ctx)
   if (doc.front.foreword.length > 0) {
     ctx.push('<section class="ses-foreword" data-type="foreword" id="front_foreword" role="doc-foreword">')
-    ctx.push('<h1 class="ses-front-heading">前言</h1>')
+    ctx.push('<h1 class="ses-front-heading">前　言</h1>')
     for (const block of doc.front.foreword) renderBlock(block, ctx)
     ctx.push('</section>')
   }
   if (doc.front.introduction.length > 0) {
     ctx.push('<section class="ses-introduction" data-type="introduction" id="front_intro" role="doc-introduction">')
-    ctx.push('<h1 class="ses-front-heading">引言</h1>')
+    ctx.push('<h1 class="ses-front-heading">引　言</h1>')
     for (const block of doc.front.introduction) renderBlock(block, ctx)
     ctx.push('</section>')
   }
@@ -530,6 +537,37 @@ function renderFront(doc: IRDoc, ctx: RenderCtx): void {
 }
 
 // ---------- 正文部分 ----------
+
+/** 取一组章/条/术语/块级子节点中「末个块级末裔」（用于判断文末要素朝向）。 */
+function lastChildBlock(children: IRClauseChild[]): IRBlock | undefined {
+  const last = children[children.length - 1]
+  if (!last) return undefined
+  if (last.kind === 'clause') return lastChildBlock(last.children)
+  if (last.kind === 'termEntry') return undefined // 术语末裔为注/示例，非横排
+  return last
+}
+
+/**
+ * 文档最后一个要素是否为横排（landscape）表/图。
+ * 渲染顺序：正文章 → 附录 → 参考文献；参考文献条目非块级、恒为竖排。
+ * 终结线据此决定是否包入横排命名页上下文，避免回到竖排 body 页另起空白终结线页。
+ */
+function lastBlockIsLandscape(doc: IRDoc): boolean {
+  if (doc.bibliography.length > 0) return false
+  const container =
+    doc.appendices.length > 0
+      ? doc.appendices[doc.appendices.length - 1]
+      : doc.body.length > 0
+        ? doc.body[doc.body.length - 1]
+        : undefined
+  if (!container) return false
+  const last = lastChildBlock(container.children)
+  return (
+    !!last &&
+    (last.kind === 'table' || last.kind === 'figure') &&
+    last.orientation === 'landscape'
+  )
+}
 
 function renderBody(doc: IRDoc, ctx: RenderCtx): void {
   ctx.push('<div class="ses-body-content">')
@@ -544,7 +582,8 @@ function renderBody(doc: IRDoc, ctx: RenderCtx): void {
   if (doc.meta.title) {
     ctx.push('<div class="ses-doc-title-block">')
     ctx.push(`<h1 class="ses-doc-title">${escapeHtml(doc.meta.title)}</h1>`)
-    if (doc.meta.titleEn) {
+    // 英文译名仅在封面（表 F.1 #09）；正文首页 print 不输出，screen 预览保留（IR 字段不删）
+    if (doc.meta.titleEn && ctx.variant === 'screen') {
       ctx.push(`<h1 class="ses-doc-title ses-doc-title-en" lang="en">${escapeHtml(doc.meta.titleEn)}</h1>`)
     }
     ctx.push('</div>')
@@ -552,6 +591,16 @@ function renderBody(doc: IRDoc, ctx: RenderCtx): void {
   for (const chapter of doc.body) renderChapter(chapter, ctx)
   for (const appendix of doc.appendices) renderAppendix(appendix, ctx)
   renderBibliography(doc.bibliography, ctx)
+  // 终结线（10.1.5）：文件最后一个要素之下，居中粗实线，与末要素同页（CSS break-before: avoid）。
+  // 若末要素为横排表/图，终结线须留在同一横排命名页上下文，否则回到竖排 body 页会另起空白终结线页。
+  const endMark = '<div class="ses-end-mark" role="presentation"></div>'
+  if (lastBlockIsLandscape(doc)) {
+    ctx.push('<div class="ses-landscape">')
+    ctx.push(endMark)
+    ctx.push('</div>')
+  } else {
+    ctx.push(endMark)
+  }
   ctx.push('</div>')
 }
 
@@ -587,9 +636,9 @@ function screenStyles(): string {
     .ses-chapter-title .ses-num, .ses-clause-title .ses-num, .ses-clause-num-only { margin-right: 0.6em; }
     .ses-paragraph { text-indent: 2em; margin: 6px 0; }
     .ses-term-entry { margin: 10px 0; }
-    .ses-term-head { font-family: "SimHei", "黑体", sans-serif; margin: 4px 0 0; }
-    .ses-term-num { margin-right: 0.6em; }
-    .ses-term-name-en { font-style: italic; color: #555; margin: 0; }
+    .ses-term-num-line { font-family: "SimHei", "黑体", sans-serif; font-weight: bold; margin: 0; }
+    .ses-term-head { font-family: "SimHei", "黑体", sans-serif; margin: 0; }
+    .ses-term-name-en { font-family: "SimHei", "黑体", sans-serif; }
     .ses-term-def, .ses-term-source { text-indent: 2em; margin: 2px 0; }
     .ses-toc-list { list-style: none; padding: 0; }
     .ses-toc-item { margin: 4px 0; }

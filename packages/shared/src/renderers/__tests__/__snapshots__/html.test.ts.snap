@@ -17,80 +17,68 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
   --ses-fs-liu: 7.5pt;    /* 六号：图中数字与文字 */
 }
 
-/* 镜像版心：top right bottom left（单数=右页 左25右20，双数=左页 左20右25） */
-@page :right { size: A4; margin: 28mm 20mm 24mm 25mm; }
-@page :left  { size: A4; margin: 28mm 25mm 24mm 20mm; }
+/* 镜像版心：top right bottom left（上 30mm=书眉下 5mm 起版心；下 20mm=页码距纸底；单数=右页 左25右20，双数=左页 左20右25） */
+@page :right { size: A4; margin: 30mm 20mm 20mm 25mm; }
+@page :left  { size: A4; margin: 30mm 25mm 20mm 20mm; }
 
 /* 前置部分（目次/前言/引言）：罗马大写页码，书眉自目次页起 */
-@page front:right { margin: 28mm 20mm 24mm 25mm;
+@page front:right { margin: 30mm 20mm 20mm 25mm;
     @top-right {
       content: "GB/T 12345—2026";
       font-family: var(--ses-hei);
       font-size: var(--ses-fs-wu);
       vertical-align: bottom;
-      padding-bottom: 1mm;
-      text-decoration: underline;
-      text-underline-offset: 2pt;
+      padding-bottom: 5mm;
     }
     @bottom-right {
       content: counter(page, upper-roman);
       font-family: var(--ses-song);
       font-size: var(--ses-fs-xiaowu);
       vertical-align: top;
-      padding-top: 1mm;
     } }
-@page front:left  { margin: 28mm 25mm 24mm 20mm;
+@page front:left  { margin: 30mm 25mm 20mm 20mm;
     @top-left {
       content: "GB/T 12345—2026";
       font-family: var(--ses-hei);
       font-size: var(--ses-fs-wu);
       vertical-align: bottom;
-      padding-bottom: 1mm;
-      text-decoration: underline;
-      text-underline-offset: 2pt;
+      padding-bottom: 5mm;
     }
     @bottom-left {
       content: counter(page, upper-roman);
       font-family: var(--ses-song);
       font-size: var(--ses-fs-xiaowu);
       vertical-align: top;
-      padding-top: 1mm;
     } }
 
 /* 正文/附录/参考文献：阿拉伯页码（counter-reset 在 .ses-body-content 上从 1 起编） */
-@page body:right { margin: 28mm 20mm 24mm 25mm;
+@page body:right { margin: 30mm 20mm 20mm 25mm;
     @top-right {
       content: "GB/T 12345—2026";
       font-family: var(--ses-hei);
       font-size: var(--ses-fs-wu);
       vertical-align: bottom;
-      padding-bottom: 1mm;
-      text-decoration: underline;
-      text-underline-offset: 2pt;
+      padding-bottom: 5mm;
     }
     @bottom-right {
       content: counter(page);
       font-family: var(--ses-song);
       font-size: var(--ses-fs-xiaowu);
       vertical-align: top;
-      padding-top: 1mm;
     } }
-@page body:left  { margin: 28mm 25mm 24mm 20mm;
+@page body:left  { margin: 30mm 25mm 20mm 20mm;
     @top-left {
       content: "GB/T 12345—2026";
       font-family: var(--ses-hei);
       font-size: var(--ses-fs-wu);
       vertical-align: bottom;
-      padding-bottom: 1mm;
-      text-decoration: underline;
-      text-underline-offset: 2pt;
+      padding-bottom: 5mm;
     }
     @bottom-left {
       content: counter(page);
       font-family: var(--ses-song);
       font-size: var(--ses-fs-xiaowu);
       vertical-align: top;
-      padding-top: 1mm;
     } }
 
 /* 横排宽表（WP0 方案A 命名页）：页码居中、书眉居中 */
@@ -101,8 +89,6 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
     content: "GB/T 12345—2026";
     font-family: var(--ses-hei);
     font-size: var(--ses-fs-wu);
-    text-decoration: underline;
-    text-underline-offset: 2pt;
   }
   @bottom-center {
     content: counter(page);
@@ -124,8 +110,10 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 
 /* 前置部分（目次→前言→引言）：罗马页码命名页 */
 .ses-front-matter { page: front; }
-/* 正文（含附录、参考文献）：阿拉伯页码，从 1 起编；正文首页须从单数页起排 */
-.ses-body-content { page: body; counter-reset: page 1; break-before: right; }
+/* 正文（含附录、参考文献）：阿拉伯页码，从 1 起编。
+ * 电子出版 PDF 只要求正文页码从阿拉伯 1 起编，不要求正文落在物理单数页/右页，
+ * 故用 break-before: page（普通另起页）而非 right，避免在前置部分后插入空白物理页。 */
+.ses-body-content { page: body; counter-reset: page 1; break-before: page; }
 /* 横排宽表容器：命名横排页 */
 .ses-landscape { page: landscape; }
 
@@ -141,13 +129,13 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 /* 条文段落首行缩进两个汉字 */
 .ses-paragraph { text-indent: 2em; }
 
-/* —— 前置标题（目次/前言/引言）：三号黑体居中 —— */
+/* —— 前置标题（目次/前言/引言）：三号黑体居中；书眉下空 15mm、标题下空 12mm（图 E.8/E.9）—— */
 .ses-front-heading {
   font-family: var(--ses-hei);
   font-size: var(--ses-fs-san);
   font-weight: bold;
   text-align: center;
-  margin: 0 0 12pt;
+  margin: 15mm 0 12mm;
   break-after: avoid;
 }
 .ses-foreword, .ses-introduction { break-before: page; }
@@ -163,11 +151,13 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
   content: leader(dotted);
   flex: 1;
 }
-.ses-toc-l1 > .ses-toc-text { font-family: var(--ses-hei); font-weight: bold; }
-.ses-toc-l2 { padding-left: 2em; }
-.ses-toc-l3 { padding-left: 4em; }
-/* 页码占位：定宽，保证两遍构建分页不漂移（WP5 注入纯文本数字） */
-.ses-toc-page { min-width: 3em; text-align: right; white-space: nowrap; }
+/* 目次内容一律五号宋体、不加粗（表 F.1 #15）；仅「目　次」标题为三号黑体（.ses-front-heading） */
+/* 一级条空 1 字、二级条空 2 字起排（10.3.2、图 E.8） */
+.ses-toc-l2 { padding-left: 1em; }
+.ses-toc-l3 { padding-left: 2em; }
+/* 页码占位：定宽（≈刚够两位数页码 2em）右对齐，缩小点线与页码间隙；
+ * 占位 U+3000 与 WP5 注入的纯文本数字同处此定宽框、整框宽恒定 → 两遍分页不漂移（codex #28 评审采纳：保留预留宽度）。 */
+.ses-toc-page { min-width: 2em; text-align: right; white-space: nowrap; }
 
 /* —— 正文首页文件名称：三号黑体居中，书眉下空 15mm、名称下空 12mm —— */
 .ses-doc-title-block { margin: 15mm 0 12mm; text-align: center; }
@@ -182,33 +172,38 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 /* 正文首页隐藏哨兵锚点：透明 + 零高度，仅供 pdftotext 提取以定位正文起始页，不占版式空间 */
 .ses-body-anchor { display: block; height: 0; line-height: 0; color: transparent; font-size: 5pt; }
 
-/* —— 章标题：五号黑体（与正文同字号）—— */
+/* —— 章标题：五号黑体（与正文同字号）；上下各空一行（10.2.1）—— */
 .ses-chapter-title {
   font-family: var(--ses-hei);
   font-size: var(--ses-fs-wu);
   font-weight: bold;
-  margin: 12pt 0 6pt;
+  margin: 1em 0;
   break-after: avoid;
 }
 .ses-chapter-title .ses-num { margin-right: 1em; }
 
-/* —— 条标题：五号黑体 —— */
+/* —— 条标题：五号黑体；上下各空半行（10.2.1）—— */
 .ses-clause-title {
   font-family: var(--ses-hei);
   font-size: var(--ses-fs-wu);
   font-weight: bold;
-  margin: 8pt 0 4pt;
+  margin: 0.5em 0;
   break-after: avoid;
 }
 .ses-clause-title .ses-num { margin-right: 1em; }
-/* 无标题条：仅有编号标签 */
+/* 无标题条（10.2.1）：编号顶格、后空一字接条文 —— */
 .ses-clause-num-only { font-family: var(--ses-hei); font-weight: bold; margin-right: 1em; }
+/* 无标题条首段：顶格起排（编号顶格），不缩进（区别于一般 .ses-paragraph 的首行缩进 2 字） */
+.ses-clause-numbered-para { text-indent: 0; }
 
-/* —— 术语条目：编号/术语/英文对应词 黑体五号 —— */
+/* —— 术语条目（10.3.5、表 F.1 #22-24）三段式：
+ *   ①编号独占一行、顶格、上下无空行（黑体五号）；
+ *   ②术语 + 空一字 + 英文对应词 同一行、顶格（均黑体五号，英文行内、不斜体不灰）；
+ *   ③定义/来源等各项另行、空两字起排（五号宋体，回行顶格＝首行缩进 2em）。—— */
 .ses-term-entry { margin: 6pt 0; }
-.ses-term-head { font-family: var(--ses-hei); font-weight: bold; margin: 4pt 0 0; }
-.ses-term-num { margin-right: 1em; }
-.ses-term-name-en { font-family: var(--ses-hei); font-weight: bold; margin: 0; }
+.ses-term-num-line { font-family: var(--ses-hei); font-weight: bold; margin: 0; }
+.ses-term-head { font-family: var(--ses-hei); font-weight: bold; margin: 0; }
+.ses-term-name-en { font-family: var(--ses-hei); font-weight: bold; }
 .ses-term-def { text-indent: 2em; margin: 2pt 0; }
 .ses-term-source { text-indent: 2em; margin: 2pt 0; }
 
@@ -235,9 +230,11 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 }
 .ses-bib-entry { padding-left: 2em; text-indent: -2em; margin: 2pt 0; }
 
-/* —— 列项：标记由 CSS 计数器生成（保持渲染器无编号逻辑）—— */
+/* —— 列项（10.2.2）：标记由 CSS 计数器生成（保持渲染器无编号逻辑）；
+ *   一级标记空 2 字起排（margin-left 2em）、文字/回行第 5 字位（padding-left 2em → 4em）；
+ *   二级由嵌套再缩进 2 字（marker 4em / 文字 6em，容差从宽）。 —— */
 .ses-list { margin: 4pt 0 4pt 2em; counter-reset: ses-li; }
-.ses-list-item { position: relative; padding-left: 1.8em; }
+.ses-list-item { position: relative; padding-left: 2em; }
 .ses-list-item::before {
   position: absolute;
   left: 0;
@@ -260,8 +257,9 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
   margin: 8pt 0 3pt;
   break-after: avoid;
 }
-.ses-table-caption-en { text-align: center; font-style: italic; margin: 0 0 3pt; }
-.ses-table-block table { border-collapse: collapse; width: 100%; font-size: var(--ses-fs-wu); }
+/* 表题英文（.ses-table-caption-en）print 不输出（仅 screen），故 print CSS 不含其样式（F8） */
+/* 表中数字和文字：小五号宋体（表 F.1 #40 注 a；「以表形式编写的术语标准」用五号的例外本期未实现，列为范围差距） */
+.ses-table-block table { border-collapse: collapse; width: 100%; font-size: var(--ses-fs-xiaowu); }
 .ses-table-block thead { display: table-header-group; }
 .ses-table-block th, .ses-table-block td {
   border: 0.5pt solid #000;
@@ -284,7 +282,7 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
   margin: 3pt 0 0;
   break-before: avoid;
 }
-.ses-figure-caption-en { font-style: italic; margin: 0; }
+/* 图题英文（.ses-figure-caption-en）print 不输出（仅 screen），故 print CSS 不含其样式（F8） */
 /* 图中数字和文字：宋体六号（占位说明，实际作用于 SVG/位图内文本时由资源自带）*/
 .ses-figure-image text { font-size: var(--ses-fs-liu); }
 
@@ -310,13 +308,22 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 .ses-note-marker, .ses-example-marker { font-family: var(--ses-hei); }
 
 /* —— 交叉引用：print 变体为纯文本（无内部链接），此处仅保证字体一致 —— */
-.ses-xref { color: inherit; text-decoration: none; }</style>
+.ses-xref { color: inherit; text-decoration: none; }
+
+/* —— 终结线（10.1.5）：文件最后一个要素之下，居中粗实线，长度为版心宽 1/4（版心 165mm → ≈41mm）；
+ *   break-before: avoid 保证与末要素同页、不另起一面。 —— */
+.ses-end-mark {
+  width: 41mm;
+  margin: 12pt auto 0;
+  border-top: 1.5pt solid #000;
+  break-before: avoid;
+}</style>
 </head>
 <body>
 <article class="ses-standard" data-type="standard-doc" data-standard-no="GB/T 12345—2026" data-ics="35.240" data-ccs="L 70" data-title-cn="标准化文件编辑系统" data-title-en="Standardization document editing system" data-standard-type="gb">
 <div class="ses-front-matter">
 <nav class="ses-toc" data-type="toc" id="front_toc">
-<h1 class="ses-front-heading">目次</h1>
+<h1 class="ses-front-heading">目　次</h1>
 <ol class="ses-toc-list">
 <li class="ses-toc-item ses-toc-l1">
 <span class="ses-toc-text">前言</span>
@@ -369,12 +376,12 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 </ol>
 </nav>
 <section class="ses-foreword" data-type="foreword" id="front_foreword" role="doc-foreword">
-<h1 class="ses-front-heading">前言</h1>
+<h1 class="ses-front-heading">前　言</h1>
 <p class="ses-paragraph" data-type="paragraph" data-node-id="fw-p1">本文件按照GB/T 1.1—2020的规定起草。</p>
 <div class="ses-note" data-type="note" data-node-id="fw-note"><span class="ses-note-marker">注：</span>前言中的注。</div>
 </section>
 <section class="ses-introduction" data-type="introduction" id="front_intro" role="doc-introduction">
-<h1 class="ses-front-heading">引言</h1>
+<h1 class="ses-front-heading">引　言</h1>
 <p class="ses-paragraph" data-type="paragraph" data-node-id="intro-p1">引言内容。</p>
 </section>
 </div>
@@ -382,7 +389,6 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 <span class="ses-body-anchor" aria-hidden="true">SESBODYSTARTANCHOR</span>
 <div class="ses-doc-title-block">
 <h1 class="ses-doc-title">标准化文件编辑系统</h1>
-<h1 class="ses-doc-title ses-doc-title-en" lang="en">Standardization document editing system</h1>
 </div>
 <section class="ses-chapter" data-type="chapter" data-sec-type="scope" data-node-id="ch-scope" id="sec_1">
 <h2 class="ses-chapter-title"><span class="ses-num">1</span>范围</h2>
@@ -396,16 +402,16 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 <h2 class="ses-chapter-title"><span class="ses-num">3</span>术语和定义</h2>
 <p class="ses-paragraph" data-type="paragraph" data-node-id="terms-p0">下列术语和定义适用于本文件。</p>
 <div class="ses-term-entry" data-type="term-entry" data-node-id="term-1" id="sec_3.1">
-<p class="ses-term-head"><span class="ses-term-num">3.1</span><span class="ses-term-name">标准</span></p>
-<p class="ses-term-name-en" lang="en">standard</p>
+<p class="ses-term-num-line">3.1</p>
+<p class="ses-term-head"><span class="ses-term-name">标准</span>　<span class="ses-term-name-en" lang="en">standard</span></p>
 <p class="ses-term-def" data-node-id="term-1.def0">通过标准化活动制定的文件。</p>
 <p class="ses-term-source">[来源：GB/T 20000.1—2014，5.3]</p>
 <div class="ses-note" data-type="note" data-node-id="term-1-note"><span class="ses-note-marker">注：</span>术语注。</div>
 <div class="ses-example" data-type="example" data-node-id="term-1-ex"><span class="ses-example-marker">示例：</span>术语示例。</div>
 </div>
 <div class="ses-term-entry" data-type="term-entry" data-node-id="term-2" id="sec_3.2">
-<p class="ses-term-head"><span class="ses-term-num">3.2</span><span class="ses-term-name">编号</span></p>
-<p class="ses-term-name-en" lang="en">numbering</p>
+<p class="ses-term-num-line">3.2</p>
+<p class="ses-term-head"><span class="ses-term-name">编号</span>　<span class="ses-term-name-en" lang="en">numbering</span></p>
 <p class="ses-term-def" data-node-id="term-2.def0">为要素赋予序号。</p>
 </div>
 </section>
@@ -430,13 +436,12 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 <section class="ses-clause ses-clause-l1" data-type="clause" data-level="1" data-titled="true" data-node-id="cl-42" id="sec_4.2">
 <h3 class="ses-clause-title"><span class="ses-num">4.2</span>详细要求</h3>
 <section class="ses-clause ses-clause-l2" data-type="clause" data-level="2" data-titled="false" data-node-id="cl-421" id="sec_4.2.1">
-<p class="ses-paragraph" data-type="paragraph" data-node-id="p-4211"><span class="ses-clause-num-only">4.2.1</span> 无题条内容，见<span class="ses-xref" data-ref-target="fig-1">图1</span>、<span class="ses-xref" data-ref-target="f-1">公式(1)</span>。</p>
+<p class="ses-clause-numbered-para" data-type="paragraph" data-node-id="p-4211"><span class="ses-clause-num-only">4.2.1</span>无题条内容，见<span class="ses-xref" data-ref-target="fig-1">图1</span>、<span class="ses-xref" data-ref-target="f-1">公式(1)</span>。</p>
 </section>
 <section class="ses-clause ses-clause-l2" data-type="clause" data-level="2" data-titled="true" data-node-id="cl-422" id="sec_4.2.2">
 <h4 class="ses-clause-title"><span class="ses-num">4.2.2</span>性能</h4>
 <div class="ses-table-block" data-type="table" data-orientation="portrait" data-node-id="tbl-1">
 <div class="ses-table-caption">表1　性能指标</div>
-<div class="ses-table-caption-en" lang="en">Performance</div>
 <table id="tab_1">
 <thead>
 <tr>
@@ -454,9 +459,8 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 <div class="ses-note" data-type="note" data-node-id="tbl-1.note0"><span class="ses-note-marker">注：</span>表内的注。</div>
 </div>
 <figure class="ses-figure-block" data-type="figure" data-orientation="portrait" data-node-id="fig-1" id="fig_1">
-<img class="ses-figure-image" src="data:image/png;base64,xx" alt="系统架构图" />
+<img class="ses-figure-image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAa0lEQVR42u3QQQ0AAAgEoOsfzwRmMIEtnA82EpDq4UAUiBaNaNGiLYgWjWjRoi2IFo1o0aIRLRrRokUjWjSiRYtGtGhEixaNaNGIFi0a0aIRLRrRokUjWjSiRYtGtGhEixaNaNGiES0a0b8s0ipI1zvfEP8AAAAASUVORK5CYII=" alt="系统架构图" />
 <figcaption class="ses-figure-caption">图1　系统架构图</figcaption>
-<figcaption class="ses-figure-caption-en" lang="en">System architecture</figcaption>
 </figure>
 <div class="ses-formula-block" data-type="formula" data-node-id="f-1" id="formula_1">
 <span class="ses-formula" data-latex="E = mc^2"></span>
@@ -485,7 +489,7 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 <section class="ses-clause ses-clause-l1" data-type="clause" data-level="1" data-titled="true" data-node-id="cl-a2" id="sec_A.2">
 <h3 class="ses-clause-title"><span class="ses-num">A.2</span>附录图表</h3>
 <figure class="ses-figure-block" data-type="figure" data-orientation="portrait" data-node-id="fig-a1" id="fig_A.1">
-<img class="ses-figure-image" src="data:image/png;base64,yy" alt="附录图" />
+<img class="ses-figure-image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAa0lEQVR42u3QMQ0AAAgDsPkXyYECJOCCcDSpgqanOBAFokUjWrRoC6JFI1q0aAuiRSNatGhEi0a0aNGIFo1o0aIRLRrRokUjWjSiRYtGtGhEixaNaNGIFi0a0aIRLVo0okUjWrRoRItG9C8L4K2aZtr7WR4AAAAASUVORK5CYII=" alt="附录图" />
 <figcaption class="ses-figure-caption">图A.1　附录图</figcaption>
 </figure>
 <div class="ses-table-block" data-type="table" data-orientation="portrait" data-node-id="tbl-a1">
@@ -520,6 +524,7 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 <div class="ses-bib-entry" data-node-id="bib-2" id="bib_1">[1]　ISO/IEC Directives, Part 2</div>
 <div class="ses-bib-entry" data-node-id="bib-1" id="bib_2">[2]　GB/T 20000.1—2014 标准化工作指南</div>
 </section>
+<div class="ses-end-mark" role="presentation"></div>
 </div>
 </article>
 </body>
@@ -548,9 +553,9 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
     .ses-chapter-title .ses-num, .ses-clause-title .ses-num, .ses-clause-num-only { margin-right: 0.6em; }
     .ses-paragraph { text-indent: 2em; margin: 6px 0; }
     .ses-term-entry { margin: 10px 0; }
-    .ses-term-head { font-family: "SimHei", "黑体", sans-serif; margin: 4px 0 0; }
-    .ses-term-num { margin-right: 0.6em; }
-    .ses-term-name-en { font-style: italic; color: #555; margin: 0; }
+    .ses-term-num-line { font-family: "SimHei", "黑体", sans-serif; font-weight: bold; margin: 0; }
+    .ses-term-head { font-family: "SimHei", "黑体", sans-serif; margin: 0; }
+    .ses-term-name-en { font-family: "SimHei", "黑体", sans-serif; }
     .ses-term-def, .ses-term-source { text-indent: 2em; margin: 2px 0; }
     .ses-toc-list { list-style: none; padding: 0; }
     .ses-toc-item { margin: 4px 0; }
@@ -589,7 +594,7 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 <article class="ses-standard" data-type="standard-doc" data-standard-no="GB/T 12345—2026" data-ics="35.240" data-ccs="L 70" data-title-cn="标准化文件编辑系统" data-title-en="Standardization document editing system" data-standard-type="gb">
 <div class="ses-front-matter">
 <nav class="ses-toc" data-type="toc" id="front_toc">
-<h1 class="ses-front-heading">目次</h1>
+<h1 class="ses-front-heading">目　次</h1>
 <ol class="ses-toc-list">
 <li class="ses-toc-item ses-toc-l1">
 <a class="ses-toc-text" href="#front_foreword">前言</a>
@@ -630,12 +635,12 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 </ol>
 </nav>
 <section class="ses-foreword" data-type="foreword" id="front_foreword" role="doc-foreword">
-<h1 class="ses-front-heading">前言</h1>
+<h1 class="ses-front-heading">前　言</h1>
 <p class="ses-paragraph" data-type="paragraph" data-node-id="fw-p1">本文件按照GB/T 1.1—2020的规定起草。</p>
 <div class="ses-note" data-type="note" data-node-id="fw-note"><span class="ses-note-marker">注：</span>前言中的注。</div>
 </section>
 <section class="ses-introduction" data-type="introduction" id="front_intro" role="doc-introduction">
-<h1 class="ses-front-heading">引言</h1>
+<h1 class="ses-front-heading">引　言</h1>
 <p class="ses-paragraph" data-type="paragraph" data-node-id="intro-p1">引言内容。</p>
 </section>
 </div>
@@ -656,16 +661,16 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 <h2 class="ses-chapter-title"><span class="ses-num">3</span>术语和定义</h2>
 <p class="ses-paragraph" data-type="paragraph" data-node-id="terms-p0">下列术语和定义适用于本文件。</p>
 <div class="ses-term-entry" data-type="term-entry" data-node-id="term-1" id="sec_3.1">
-<p class="ses-term-head"><span class="ses-term-num">3.1</span><span class="ses-term-name">标准</span></p>
-<p class="ses-term-name-en" lang="en">standard</p>
+<p class="ses-term-num-line">3.1</p>
+<p class="ses-term-head"><span class="ses-term-name">标准</span>　<span class="ses-term-name-en" lang="en">standard</span></p>
 <p class="ses-term-def" data-node-id="term-1.def0">通过标准化活动制定的文件。</p>
 <p class="ses-term-source">[来源：GB/T 20000.1—2014，5.3]</p>
 <div class="ses-note" data-type="note" data-node-id="term-1-note"><span class="ses-note-marker">注：</span>术语注。</div>
 <div class="ses-example" data-type="example" data-node-id="term-1-ex"><span class="ses-example-marker">示例：</span>术语示例。</div>
 </div>
 <div class="ses-term-entry" data-type="term-entry" data-node-id="term-2" id="sec_3.2">
-<p class="ses-term-head"><span class="ses-term-num">3.2</span><span class="ses-term-name">编号</span></p>
-<p class="ses-term-name-en" lang="en">numbering</p>
+<p class="ses-term-num-line">3.2</p>
+<p class="ses-term-head"><span class="ses-term-name">编号</span>　<span class="ses-term-name-en" lang="en">numbering</span></p>
 <p class="ses-term-def" data-node-id="term-2.def0">为要素赋予序号。</p>
 </div>
 </section>
@@ -690,7 +695,7 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 <section class="ses-clause ses-clause-l1" data-type="clause" data-level="1" data-titled="true" data-node-id="cl-42" id="sec_4.2">
 <h3 class="ses-clause-title"><span class="ses-num">4.2</span>详细要求</h3>
 <section class="ses-clause ses-clause-l2" data-type="clause" data-level="2" data-titled="false" data-node-id="cl-421" id="sec_4.2.1">
-<p class="ses-paragraph" data-type="paragraph" data-node-id="p-4211"><span class="ses-clause-num-only">4.2.1</span> 无题条内容，见<a class="ses-xref" href="#fig_1" data-ref-target="fig-1">图1</a>、<a class="ses-xref" href="#formula_1" data-ref-target="f-1">公式(1)</a>。</p>
+<p class="ses-clause-numbered-para" data-type="paragraph" data-node-id="p-4211"><span class="ses-clause-num-only">4.2.1</span>无题条内容，见<a class="ses-xref" href="#fig_1" data-ref-target="fig-1">图1</a>、<a class="ses-xref" href="#formula_1" data-ref-target="f-1">公式(1)</a>。</p>
 </section>
 <section class="ses-clause ses-clause-l2" data-type="clause" data-level="2" data-titled="true" data-node-id="cl-422" id="sec_4.2.2">
 <h4 class="ses-clause-title"><span class="ses-num">4.2.2</span>性能</h4>
@@ -714,7 +719,7 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 <div class="ses-note" data-type="note" data-node-id="tbl-1.note0"><span class="ses-note-marker">注：</span>表内的注。</div>
 </div>
 <figure class="ses-figure-block" data-type="figure" data-orientation="portrait" data-node-id="fig-1" id="fig_1">
-<img class="ses-figure-image" src="data:image/png;base64,xx" alt="系统架构图" />
+<img class="ses-figure-image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAa0lEQVR42u3QQQ0AAAgEoOsfzwRmMIEtnA82EpDq4UAUiBaNaNGiLYgWjWjRoi2IFo1o0aIRLRrRokUjWjSiRYtGtGhEixaNaNGIFi0a0aIRLRrRokUjWjSiRYtGtGhEixaNaNGiES0a0b8s0ipI1zvfEP8AAAAASUVORK5CYII=" alt="系统架构图" />
 <figcaption class="ses-figure-caption">图1　系统架构图</figcaption>
 <figcaption class="ses-figure-caption-en" lang="en">System architecture</figcaption>
 </figure>
@@ -745,7 +750,7 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 <section class="ses-clause ses-clause-l1" data-type="clause" data-level="1" data-titled="true" data-node-id="cl-a2" id="sec_A.2">
 <h3 class="ses-clause-title"><span class="ses-num">A.2</span>附录图表</h3>
 <figure class="ses-figure-block" data-type="figure" data-orientation="portrait" data-node-id="fig-a1" id="fig_A.1">
-<img class="ses-figure-image" src="data:image/png;base64,yy" alt="附录图" />
+<img class="ses-figure-image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAa0lEQVR42u3QMQ0AAAgDsPkXyYECJOCCcDSpgqanOBAFokUjWrRoC6JFI1q0aAuiRSNatGhEi0a0aNGIFo1o0aIRLRrRokUjWjSiRYtGtGhEixaNaNGIFi0a0aIRLVo0okUjWrRoRItG9C8L4K2aZtr7WR4AAAAASUVORK5CYII=" alt="附录图" />
 <figcaption class="ses-figure-caption">图A.1　附录图</figcaption>
 </figure>
 <div class="ses-table-block" data-type="table" data-orientation="portrait" data-node-id="tbl-a1">
@@ -780,6 +785,7 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 <div class="ses-bib-entry" data-node-id="bib-2" id="bib_1">[1]　ISO/IEC Directives, Part 2</div>
 <div class="ses-bib-entry" data-node-id="bib-1" id="bib_2">[2]　GB/T 20000.1—2014 标准化工作指南</div>
 </section>
+<div class="ses-end-mark" role="presentation"></div>
 </div>
 </article>
 </body>
