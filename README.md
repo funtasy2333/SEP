@@ -52,8 +52,7 @@ SEP/
 │   ├── client/     # 前端 - Vue 3 + Vite + Tiptap
 │   ├── server/     # 后端 - NestJS + TypeORM + SQLite
 │   └── shared/     # 共享类型定义
-├── scripts/        # 辅助调试脚本
-└── example/        # 示例文件
+└── scripts/        # 辅助调试脚本
 ```
 
 - **前端**：Vue 3 + TypeScript + Vite，使用 Element Plus 组件库，Tiptap v3 编辑器
