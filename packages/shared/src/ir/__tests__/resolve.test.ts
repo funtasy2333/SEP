@@ -2,7 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { pmToIr } from '../pmToIr'
 import { resolve } from '../resolve'
 import { gbT11Strategy } from '../strategies'
-import type { ResolveResult } from '../types'
+import type {
+  IRBibEntry,
+  IRChapter,
+  IRDoc,
+  IRExample,
+  IRFigure,
+  IRNote,
+  IRParagraph,
+  IRTermEntry,
+  ResolveResult,
+} from '../types'
 import * as fx from './fixtures'
 
 function resolveFull(): ResolveResult {
@@ -134,6 +144,68 @@ describe('resolve / 参考文献', () => {
     const { labels, bibliographyOrder } = resolve(pmToIr(pm).doc)
     expect(bibliographyOrder).toEqual(['b1', 'b2'])
     expect(labels['b1'].label).toBe('[1]')
+  })
+})
+
+describe('resolve / 遍历顺序（§4.7）：DOCX 输出顺序与 Resolver 遍历顺序一致', () => {
+  // 这三个用例需要「注/示例内容里再嵌图」或「术语条目的示例/注各自引用参考文献」，
+  // pmToIr 目前产生不了这种结构（§4.7「遍历顺序」原文），直接手写 IR（IR 类型本身允许）。
+
+  function minimalDoc(chapter: IRChapter, bibliography: IRBibEntry[] = []): IRDoc {
+    return {
+      schemaVersion: 1,
+      meta: { standardType: 'gb' },
+      front: { foreword: [], introduction: [] },
+      body: [chapter],
+      appendices: [],
+      bibliography,
+    }
+  }
+
+  it('图的注里嵌图时，注里的图先编号（9.11.1：图中的注排在图题之上，§5.8）', () => {
+    const innerFig: IRFigure = { kind: 'figure', id: 'fig-inner', caption: [{ text: '内嵌图' }], orientation: 'portrait', src: 'x', notes: [] }
+    const noteInFig: IRNote = { kind: 'note', id: 'note-in-fig', content: [innerFig] }
+    const outerFig: IRFigure = { kind: 'figure', id: 'fig-outer', caption: [{ text: '外层图' }], orientation: 'portrait', src: 'x', notes: [noteInFig] }
+    const chapter: IRChapter = { kind: 'chapter', id: 'c1', secType: 'general', title: [{ text: '章一' }], children: [outerFig] }
+
+    const { labels } = resolve(minimalDoc(chapter))
+    expect(labels['fig-inner'].label).toBe('图1')
+    expect(labels['fig-outer'].label).toBe('图2')
+  })
+
+  it('术语条目的示例与注里各嵌一张图时，示例里的图先编号（8.7.3.1：示例在注之前，§5.4）', () => {
+    const figInExample: IRFigure = { kind: 'figure', id: 'fig-in-example', caption: [{ text: '示例图' }], orientation: 'portrait', src: 'x', notes: [] }
+    const example: IRExample = { kind: 'example', id: 'ex1', content: [figInExample] }
+    const figInNote: IRFigure = { kind: 'figure', id: 'fig-in-note', caption: [{ text: '注图' }], orientation: 'portrait', src: 'x', notes: [] }
+    const note: IRNote = { kind: 'note', id: 'note1', content: [figInNote] }
+    const entry: IRTermEntry = {
+      kind: 'termEntry', id: 'term1', term: [{ text: '术语' }],
+      definition: [{ kind: 'paragraph', id: 'def1', content: [{ text: '定义' }] }],
+      examples: [example], notes: [note],
+    }
+    const chapter: IRChapter = { kind: 'chapter', id: 'c1', secType: 'terms', title: [{ text: '术语和定义' }], children: [entry] }
+
+    const { labels } = resolve(minimalDoc(chapter))
+    expect(labels['fig-in-example'].label).toBe('图1')
+    expect(labels['fig-in-note'].label).toBe('图2')
+  })
+
+  it('术语条目的示例与注里各引用一条参考文献时，示例里引用的那条排在 bibliographyOrder 前面', () => {
+    const bibA: IRBibEntry = { kind: 'bibEntry', id: 'bib-a', content: [{ text: '文献甲' }] }
+    const bibB: IRBibEntry = { kind: 'bibEntry', id: 'bib-b', content: [{ text: '文献乙' }] }
+    const examplePara: IRParagraph = { kind: 'paragraph', id: 'ex-p', content: [{ text: '甲', marks: [{ type: 'crossRef', targetId: 'bib-a' }] }] }
+    const example: IRExample = { kind: 'example', id: 'ex1', content: [examplePara] }
+    const notePara: IRParagraph = { kind: 'paragraph', id: 'note-p', content: [{ text: '乙', marks: [{ type: 'crossRef', targetId: 'bib-b' }] }] }
+    const note: IRNote = { kind: 'note', id: 'note1', content: [notePara] }
+    const entry: IRTermEntry = {
+      kind: 'termEntry', id: 'term1', term: [{ text: '术语' }],
+      definition: [{ kind: 'paragraph', id: 'def1', content: [{ text: '定义' }] }],
+      examples: [example], notes: [note],
+    }
+    const chapter: IRChapter = { kind: 'chapter', id: 'c1', secType: 'terms', title: [{ text: '术语和定义' }], children: [entry] }
+
+    const { bibliographyOrder } = resolve(minimalDoc(chapter, [bibA, bibB]))
+    expect(bibliographyOrder).toEqual(['bib-a', 'bib-b'])
   })
 })
 
