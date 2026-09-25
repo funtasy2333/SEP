@@ -37,10 +37,13 @@ export function renderClause(ctx: RenderContext, clause: IRClause, bctx: BlockCt
   const numId = isAppendix ? ABSTRACT_NUM_ID.appendixClause : ABSTRACT_NUM_ID.chapter
   const numbered = { nodeId: clause.id, kind: 'clause' as const }
 
+  // §5.7：条的直属块作用域 = 该条自己的 id（不是外层章/条的 id），条内注/示例分组据此独立计数
+  const innerBctx: BlockCtx = { ...bctx, scopeKey: clause.id }
+
   if (clause.titled) {
     const styleId = isAppendix ? `SesAppClause${level}` : `SesClause${level}`
     let out = emitParagraph(ctx, styleId, { runsXml: renderInlines(clause.title, ctx.labels), numbered })
-    out += renderContainerChildren(ctx, clause.children, bctx, level)
+    out += renderContainerChildren(ctx, clause.children, innerBctx, level)
     return out
   }
 
@@ -50,11 +53,11 @@ export function renderClause(ctx: RenderContext, clause: IRClause, bctx: BlockCt
   const [first, ...rest] = clause.children
   if (first && first.kind === 'paragraph') {
     let out = emitParagraph(ctx, noTitleStyleId, { numPr, runsXml: renderInlines(first.content, ctx.labels), numbered })
-    out += renderContainerChildren(ctx, rest, bctx, level)
+    out += renderContainerChildren(ctx, rest, innerBctx, level)
     return out
   }
   let out = emitParagraph(ctx, noTitleStyleId, { numPr, numbered })
-  out += renderContainerChildren(ctx, clause.children, bctx, level)
+  out += renderContainerChildren(ctx, clause.children, innerBctx, level)
   return out
 }
 
