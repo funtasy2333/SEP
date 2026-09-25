@@ -10,7 +10,7 @@
 
 import { localNameOf, rankMapFor } from '../../xml'
 import type { DocxPackage } from '../../types'
-import { parseXml, type XmlElement } from './xmlTree'
+import { findChild, parseXml, type XmlElement } from './xmlTree'
 
 function extensionOf(path: string): string {
   const i = path.lastIndexOf('.')
@@ -84,12 +84,21 @@ export function assertWellFormed(pkg: DocxPackage): void {
 
   const packageHas = (path: string): boolean => Object.prototype.hasOwnProperty.call(pkg.parts, path) || Object.prototype.hasOwnProperty.call(pkg.binaries, path)
 
+  // relsPath -> 该 .rels 内的 Id 集合（同时检查 Id 在文件内不重复，WP7.2 增补）
+  const relationshipIdsByRelsPath = new Map<string, Set<string>>()
+
   for (const [path, tree] of Object.entries(trees)) {
     if (!path.endsWith('.rels')) continue
     const ownerDir = relsOwnerDir(path)
+    const ids = new Set<string>()
     for (const child of tree.children) {
       if (child.kind !== 'element' || child.name !== 'Relationship') continue
-      if (child.attrs.TargetMode === 'External') continue // 外部链接不在包内，不检查
+      const id = child.attrs.Id
+      if (id !== undefined) {
+        if (ids.has(id)) throw new Error(`assertWellFormed: "${path}" 内的关系 Id "${id}" 重复`)
+        ids.add(id)
+      }
+      if (child.attrs.TargetMode === 'External') continue // 外部链接不在包内，不检查 Target
       const target = child.attrs.Target
       if (target === undefined) throw new Error(`assertWellFormed: "${path}" 中的 Relationship 缺少 Target`)
       const resolved = resolveRelativeTarget(ownerDir, target)
@@ -97,6 +106,44 @@ export function assertWellFormed(pkg: DocxPackage): void {
         throw new Error(`assertWellFormed: "${path}" 中的关系 Target="${target}"（解析为 "${resolved}"）在包内不存在（悬空关系）`)
       }
     }
+    relationshipIdsByRelsPath.set(path, ids)
+  }
+
+  // r:id / r:embed / r:link 检查（WP7.2 增补）：值必须在该部件自己的 .rels 里有同 Id 的 Relationship
+  const R_ID_ATTRS = ['r:id', 'r:embed', 'r:link'] as const
+  for (const [path, tree] of Object.entries(trees)) {
+    if (path.endsWith('.rels')) continue
+    const refs: { attr: string; value: string }[] = []
+    collectRIdRefs(tree, R_ID_ATTRS, refs)
+    if (refs.length === 0) continue
+    const relsPath = relsPathFor(path)
+    const ids = relationshipIdsByRelsPath.get(relsPath)
+    if (!ids) {
+      throw new Error(`assertWellFormed: 部件 "${path}" 引用了 ${refs[0].attr}="${refs[0].value}"，但没有对应的关系文件 "${relsPath}"`)
+    }
+    for (const ref of refs) {
+      if (!ids.has(ref.value)) {
+        throw new Error(`assertWellFormed: 部件 "${path}" 的 ${ref.attr}="${ref.value}" 在 "${relsPath}" 里找不到对应的 Relationship`)
+      }
+    }
+  }
+}
+
+/** 部件路径 → 它自己的 .rels 部件路径（如 "word/document.xml" → "word/_rels/document.xml.rels"） */
+function relsPathFor(partPath: string): string {
+  const idx = partPath.lastIndexOf('/')
+  const dir = idx === -1 ? '' : partPath.slice(0, idx + 1)
+  const filename = idx === -1 ? partPath : partPath.slice(idx + 1)
+  return `${dir}_rels/${filename}.rels`
+}
+
+function collectRIdRefs(node: XmlElement, attrNames: readonly string[], out: { attr: string; value: string }[]): void {
+  for (const attr of attrNames) {
+    const v = node.attrs[attr]
+    if (v !== undefined) out.push({ attr, value: v })
+  }
+  for (const child of node.children) {
+    if (child.kind === 'element') collectRIdRefs(child, attrNames, out)
   }
 }
 
@@ -141,5 +188,83 @@ function checkOrder(node: XmlElement, containerKey: string, rank: Map<string, nu
     }
     lastRank = r
     lastName = child.name
+  }
+}
+
+/**
+ * 编号完整性检查（WP7.2 增补，§10.2）：
+ * - word/numbering.xml 里每个 `w:num` 引用的 `abstractNumId` 都存在；
+ * - document.xml、styles.xml 里段落/样式引用的 `numId` 都在 numbering.xml 中（`numId="0"` 表示
+ *   显式无编号，不检查）；
+ * - 每个 (abstractNumId, ilvl) 至多被一个样式的样式级 numPr 引用（§4.1 约束 1：一个编号级别
+ *   只能绑定一个属主样式，两个样式同时引用会被 Word 悄悄丢弃第二个）。
+ */
+export function assertNumberingIntegrity(pkg: DocxPackage): void {
+  const numberingXml = pkg.parts['word/numbering.xml']
+  if (numberingXml === undefined) throw new Error('assertNumberingIntegrity: 包内没有 word/numbering.xml')
+  const numberingTree = parseXml(numberingXml)
+
+  const abstractNumIds = new Set<string>()
+  const numToAbstract = new Map<string, string>()
+  for (const child of numberingTree.children) {
+    if (child.kind !== 'element') continue
+    if (child.name === 'w:abstractNum') {
+      const id = child.attrs['w:abstractNumId']
+      if (id !== undefined) abstractNumIds.add(id)
+    } else if (child.name === 'w:num') {
+      const numId = child.attrs['w:numId']
+      const abstractId = findChild(child, 'w:abstractNumId')?.attrs['w:val']
+      if (numId === undefined) continue
+      if (abstractId === undefined) throw new Error(`assertNumberingIntegrity: num "${numId}" 缺少 abstractNumId`)
+      if (!abstractNumIds.has(abstractId)) {
+        throw new Error(`assertNumberingIntegrity: num "${numId}" 引用的 abstractNumId "${abstractId}" 不存在`)
+      }
+      numToAbstract.set(numId, abstractId)
+    }
+  }
+
+  const stylesXml = pkg.parts['word/styles.xml']
+  if (stylesXml !== undefined) {
+    const stylesTree = parseXml(stylesXml)
+    const ownerOfLevel = new Map<string, string>() // "abstractId:ilvl" -> styleId
+    for (const styleEl of stylesTree.children) {
+      if (styleEl.kind !== 'element' || styleEl.name !== 'w:style') continue
+      const styleId = styleEl.attrs['w:styleId'] ?? '?'
+      const pPr = findChild(styleEl, 'w:pPr')
+      const numPr = pPr && findChild(pPr, 'w:numPr')
+      if (!numPr) continue
+      const numId = findChild(numPr, 'w:numId')?.attrs['w:val']
+      const ilvl = findChild(numPr, 'w:ilvl')?.attrs['w:val'] ?? '0'
+      if (numId === undefined) continue
+      const abstractId = numToAbstract.get(numId)
+      if (abstractId === undefined) {
+        throw new Error(`assertNumberingIntegrity: 样式 "${styleId}" 引用的 numId "${numId}" 不在 numbering.xml 中`)
+      }
+      const key = `${abstractId}:${ilvl}`
+      const existing = ownerOfLevel.get(key)
+      if (existing !== undefined) {
+        throw new Error(
+          `assertNumberingIntegrity: (abstractNumId=${abstractId}, ilvl=${ilvl}) 同时被样式 "${existing}" 与 "${styleId}" 的 numPr 引用（§4.1 约束 1：一个编号级别只能绑定一个属主样式）`,
+        )
+      }
+      ownerOfLevel.set(key, styleId)
+    }
+  }
+
+  const documentXml = pkg.parts['word/document.xml']
+  if (documentXml !== undefined) {
+    walkForParagraphNumIds(parseXml(documentXml), numToAbstract)
+  }
+}
+
+function walkForParagraphNumIds(node: XmlElement, numToAbstract: ReadonlyMap<string, string>): void {
+  if (node.kind === 'element' && node.name === 'w:numPr') {
+    const numId = findChild(node, 'w:numId')?.attrs['w:val']
+    if (numId !== undefined && numId !== '0' && !numToAbstract.has(numId)) {
+      throw new Error(`assertNumberingIntegrity: 段落引用的 numId "${numId}" 不在 numbering.xml 中`)
+    }
+  }
+  for (const child of node.children) {
+    if (child.kind === 'element') walkForParagraphNumIds(child, numToAbstract)
   }
 }
