@@ -35,6 +35,12 @@ describe('pmToIr / 元数据', () => {
     expect(doc.meta.standardType).toBe('gb')
     expect(warnings.some((w) => w.includes('weird'))).toBe(true)
   })
+
+  it('文档库口径 guidance 映射为 IR 口径 guide，不再报警告（WP7.1 修复）', () => {
+    const { doc, warnings } = pmToIr(fx.standardDoc({ standardType: 'guidance' }))
+    expect(doc.meta.standardType).toBe('guide')
+    expect(warnings).toEqual([])
+  })
 })
 
 describe('pmToIr / 结构', () => {

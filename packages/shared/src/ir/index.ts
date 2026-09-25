@@ -1,5 +1,6 @@
 export * from './types'
 export * from './nodeId'
+export * from './meta'
 export * from './pmToIr'
 export * from './resolve'
 export * from './strategies'
