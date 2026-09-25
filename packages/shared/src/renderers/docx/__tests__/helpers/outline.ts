@@ -18,7 +18,8 @@
 import type { DocxPackage } from '../../types'
 import { parseXml, type XmlElement, type XmlNode } from './xmlTree'
 
-function findChild(el: XmlElement, name: string): XmlElement | undefined {
+/** 导出供 numberingSim.ts 复用（§4.7 模拟器的 text 提取规则与大纲相同，见该文件顶部注释） */
+export function findChild(el: XmlElement, name: string): XmlElement | undefined {
   return el.children.find((c): c is XmlElement => c.kind === 'element' && c.name === name)
 }
 
@@ -51,7 +52,8 @@ function extractRunText(r: XmlElement): string {
   return out
 }
 
-function extractParagraphText(p: XmlElement): string {
+/** 导出供 numberingSim.ts 复用：§4.7 模拟器的 text 列提取规则与大纲相同 */
+export function extractParagraphText(p: XmlElement): string {
   let out = ''
   for (const child of p.children) {
     if (child.kind !== 'element') continue
