@@ -16,22 +16,33 @@ type Labels = Record<NodeId, ResolvedLabel>
 
 function markRprChildren(marks: IRInline['marks']): XmlChild[] {
   const out: XmlChild[] = []
+  // 去重：同一 mark 类型重复出现时只输出一次；sub/sup 都落在 vertAlign 这一个子元素名上，
+  // 两者同时出现时只保留先出现的那个——否则会产出两个 w:b、两个 w:vertAlign，不符合
+  // schema（rPr 的每个子元素至多一个，#34 审查；Word 16.113 能容忍，WPS 未验证）。
+  const seen = new Set<string>()
+  const add = (name: string, xml: string) => {
+    if (seen.has(name)) return
+    seen.add(name)
+    out.push([name, xml])
+  }
   for (const mark of marks ?? []) {
     switch (mark.type) {
       case 'bold':
-        out.push(['b', '<w:b/>'], ['bCs', '<w:bCs/>'])
+        add('b', '<w:b/>')
+        add('bCs', '<w:bCs/>')
         break
       case 'italic':
-        out.push(['i', '<w:i/>'], ['iCs', '<w:iCs/>'])
+        add('i', '<w:i/>')
+        add('iCs', '<w:iCs/>')
         break
       case 'underline':
-        out.push(['u', '<w:u w:val="single"/>'])
+        add('u', '<w:u w:val="single"/>')
         break
       case 'sub':
-        out.push(['vertAlign', '<w:vertAlign w:val="subscript"/>'])
+        add('vertAlign', '<w:vertAlign w:val="subscript"/>')
         break
       case 'sup':
-        out.push(['vertAlign', '<w:vertAlign w:val="superscript"/>'])
+        add('vertAlign', '<w:vertAlign w:val="superscript"/>')
         break
       case 'crossRef':
         break // 不是格式；文字本身在 renderRun 里按 labels[targetId].refText 换掉

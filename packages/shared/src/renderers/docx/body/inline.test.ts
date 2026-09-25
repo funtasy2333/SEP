@@ -59,6 +59,26 @@ describe('renderRun：marks → rPr', () => {
     const xml = renderRun({ text: 'x' }, NO_LABELS)
     expect(xml).not.toContain('<w:rPr>')
   })
+
+  it('同一 mark 类型重复出现时只输出一次（#34 审查：避免产出两个 w:b 不符合 schema）', () => {
+    const xml = renderRun({ text: 'x', marks: [{ type: 'bold' }, { type: 'bold' }] }, NO_LABELS)
+    expect((xml.match(/<w:b\/>/g) ?? []).length).toBe(1)
+    expect((xml.match(/<w:bCs\/>/g) ?? []).length).toBe(1)
+  })
+
+  it('sub 与 sup 同时出现时只保留先出现的那个（都落在 vertAlign 上，先 sub 后 sup 时取 sub）', () => {
+    const xml = renderRun({ text: 'x', marks: [{ type: 'sub' }, { type: 'sup' }] }, NO_LABELS)
+    expect((xml.match(/<w:vertAlign/g) ?? []).length).toBe(1)
+    expect(xml).toContain('<w:vertAlign w:val="subscript"/>')
+    expect(xml).not.toContain('superscript')
+  })
+
+  it('sub 与 sup 同时出现，先 sup 后 sub 时取 sup', () => {
+    const xml = renderRun({ text: 'x', marks: [{ type: 'sup' }, { type: 'sub' }] }, NO_LABELS)
+    expect((xml.match(/<w:vertAlign/g) ?? []).length).toBe(1)
+    expect(xml).toContain('<w:vertAlign w:val="superscript"/>')
+    expect(xml).not.toContain('subscript')
+  })
 })
 
 describe('renderRun / renderInlines：crossRef（§4.6）', () => {
