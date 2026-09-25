@@ -44,6 +44,10 @@
 4. IR 必须可 `JSON.stringify` 往返无损（无类实例、无函数、无 `undefined` 字段语义依赖）。
 5. 不引入本计划未列出的运行时依赖。如确有必要，先报告并说明理由，批准后再加。
 
+> **2026-09-24 修订（DOCX）**：DOCX 渲染器对不变式 2、3、5 的适用方式已修订——章条等编号委托 Word 原生编号并以
+> 一致性测试对齐 Resolver；返回 `DocxPackage` 纯数据而非 string；唯一新增依赖为 client 的 `mathml2omml@0.5.0`。
+> 以 [wp7-docx-delivery.md](wp7-docx-delivery.md) §1.4 为准。
+
 ---
 
 ## 2. IR 设计规范
@@ -249,6 +253,9 @@ export const gbT11Strategy: NumberingStrategy  // 默认实现，规则以 GB/T 
 ## 3. 工作包
 
 > 预估总量约 2~2.5 周。WP0 与 WP1 可并行启动；WP4/WP6/WP7/WP8 在 WP3 完成后可并行。
+>
+> **2026-09-24 调整**：交付稿改为 DOCX、PDF 仅供参考。WP0–WP5 已完成，PDF 线停止投入；WP7 扩为
+> WP7.1–WP7.6 系列并优先执行，WP6、WP8 后置。WP7 系列以 [wp7-docx-delivery.md](wp7-docx-delivery.md) 为准。
 
 ### WP0：Vivliostyle 毒场景 spike（1~2 天，可与 WP1 并行）
 
@@ -473,14 +480,12 @@ export const gbT11Strategy: NumberingStrategy  // 默认实现，规则以 GB/T 
 - **验收**：新输出 vs golden 逐字节一致（允许清单内的已知差异需在 PR 中逐条说明并获批准）；
   XML 往返测试：`parseXmlToJson(render(...))` 后再 render 一次输出幂等。
 
-### WP7：DOCX 模板渲染器迁移 + 废弃 docxExporter（1.5 天，依赖 WP3）
+### WP7：DOCX 交付稿（已由 WP7 系列取代）
 
-- `DocMeta`/`StandardType` 迁至 shared（`IRDocMeta` 已覆盖则做类型别名过渡）；
-- `docxTemplateExporter.ts` 改为消费 `(doc, labels)`，删除其内部编号上下文；
-  模板 fetch 与 JSZip 保留在 client 层（浏览器依赖允许存在于 client）；
-- golden 基线同 WP6（DOCX 解 zip 后比对 `word/document.xml`，时间戳字段归一化）；
-- **删除 `docxExporter.ts`**（从零构建版，已确认废弃），清理 `serializer/index.ts` 导出。
-- **验收**：golden 一致；Word/WPS 实际打开导出文件无报错（PR 附截图）。
+> **2026-09-24 起本节作废**，改为 WP7.1–WP7.6 系列，完整规格见 [wp7-docx-delivery.md](wp7-docx-delivery.md)。要点：
+> DOCX 为交付稿、**从零生成、不使用任何模板文件**（仓库中的 `.dotx` 为第三方工具模板，只作格式对照、不得分发）；
+> 编号「可编辑优先」（Word 原生编号 + 一致性测试）；现有 `docxTemplateExporter.ts`/`docxExporter.ts` 在 WP7.1
+> 直接删除，不再做迁移，也不做 golden 比对。
 
 ### WP8：NISO STS / 新国标 XML 渲染器（2 天，依赖 WP3，可后置）
 
