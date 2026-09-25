@@ -251,11 +251,55 @@ export function buildNumberingFixture(): NumberingFixture {
   markSelf('cl-mismatch', clMismatchTitle)
   const clMismatch: IRClause = { kind: 'clause', id: 'cl-mismatch', level: 5, titled: true, title: clMismatchTitle, children: [para('cl-mismatch-p', t('本条 level 字段故意写错。'))] }
 
+  // ---- 遍历顺序（§4.7）：图的注里再嵌一张图，注里的图应先编号 ----
+  // 放在既有三张图（引言图、术语章示例图、交错示例图）之后，避免打乱它们已核对过的编号。
+  const figOrderNestedCaption: IRInline[] = [t('图序内嵌图')]
+  const figOrderNested: IRFigure = {
+    kind: 'figure', id: 'fig-order-nested', caption: figOrderNestedCaption, orientation: 'portrait', src: 'data:image/png;base64,x', notes: [],
+  }
+  markSelf('fig-order-nested', figOrderNestedCaption)
+  const figOrderNoteP = para('fig-order-note-p', t('图序注释文字'))
+  markSelf('fig-order-note', figOrderNoteP.content)
+  const figOrderNote: IRNote = { kind: 'note', id: 'fig-order-note', content: [figOrderNoteP, figOrderNested] }
+  const figOrderOuterCaption: IRInline[] = [t('图序外层图')]
+  const figOrderOuter: IRFigure = {
+    kind: 'figure', id: 'fig-order-outer', caption: figOrderOuterCaption, orientation: 'portrait', src: 'data:image/png;base64,x', notes: [figOrderNote],
+  }
+  markSelf('fig-order-outer', figOrderOuterCaption)
+
+  // ---- 遍历顺序（§4.7）：术语条目的示例与注里各嵌一张图，示例里的图应先编号 ----
+  const termFigOrderTerm: IRInline[] = [t('图序术语')]
+  markPrev('term-fig-order', termFigOrderTerm)
+  const termFigExLeadP = para('term-fig-ex-lead-p', t('术语示例文字'))
+  markPrev('term-fig-ex', termFigExLeadP.content) // 示例标识恒为空段（§5.7），marker 放在示例内容第一段
+  const termFigExFigCaption: IRInline[] = [t('术语示例图')]
+  const termFigExFig: IRFigure = {
+    kind: 'figure', id: 'term-fig-ex-fig', caption: termFigExFigCaption, orientation: 'portrait', src: 'data:image/png;base64,x', notes: [],
+  }
+  markSelf('term-fig-ex-fig', termFigExFigCaption)
+  const termFigEx: IRExample = { kind: 'example', id: 'term-fig-ex', content: [termFigExLeadP, termFigExFig] }
+  const termFigNoteLeadP = para('term-fig-note-lead-p', t('术语注释文字'))
+  markSelf('term-fig-note', termFigNoteLeadP.content) // 注的首块是段落：与单条注标识同段
+  const termFigNoteFigCaption: IRInline[] = [t('术语注图')]
+  const termFigNoteFig: IRFigure = {
+    kind: 'figure', id: 'term-fig-note-fig', caption: termFigNoteFigCaption, orientation: 'portrait', src: 'data:image/png;base64,x', notes: [],
+  }
+  markSelf('term-fig-note-fig', termFigNoteFigCaption)
+  const termFigNote: IRNote = { kind: 'note', id: 'term-fig-note', content: [termFigNoteLeadP, termFigNoteFig] }
+  const termFigOrder: IRTermEntry = {
+    kind: 'termEntry', id: 'term-fig-order', term: termFigOrderTerm,
+    definition: [para('term-fig-order-def', t('用于验证遍历顺序的术语。'))],
+    examples: [termFigEx], notes: [termFigNote],
+  }
+
   const cl41Title: IRInline[] = [t('总体要求')]
   markSelf('cl41', cl41Title)
   const cl41: IRClause = {
     kind: 'clause', id: 'cl41', level: 1, titled: true, title: cl41Title,
-    children: [xrefPara, cl41NoteA, figInterleave, cl41NoteB, tbl41, formulaNumbered, formulaUnnumbered, clMismatch],
+    children: [
+      xrefPara, cl41NoteA, figInterleave, cl41NoteB, tbl41, formulaNumbered, formulaUnnumbered, clMismatch,
+      figOrderOuter, termFigOrder,
+    ],
   }
 
   // ---- 4.2 列项样例 ----
