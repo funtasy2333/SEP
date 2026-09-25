@@ -312,3 +312,12 @@ export function buildStylesXml(): string {
 export function styleSpecs(): readonly StyleSpec[] {
   return STYLE_SPECS
 }
+
+/**
+ * 带样式级 numPr 的「属主样式」ID 集合（§4.1：一个编号级别只能绑定一个属主样式）。
+ * render.ts 的 emitParagraph() 据此判断「样式本身即为编号段落」，即使调用方没有额外传
+ * 段落级 numPr，也必须传 nodeId/kind 记入 §4.7 的追踪（漏传即抛错）。
+ */
+export const OWNER_STYLE_IDS: ReadonlySet<string> = new Set(
+  STYLE_SPECS.filter((spec) => spec.numPr !== undefined).map((spec) => spec.id),
+)

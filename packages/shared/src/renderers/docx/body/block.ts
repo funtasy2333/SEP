@@ -1,0 +1,281 @@
+/**
+ * 块级要素渲染（docs/wp7-docx-delivery.md §4.4、§5.6–§5.10）。
+ *
+ * `renderBlock`/`renderBlocks` 是通用块分发入口：段落、列项、图/表/公式（WP7.2 只有占位段）、
+ * 注、示例都从这里分发，互相递归（列表项内容可以是段落或嵌套列表；注/示例内容可以是任意块）。
+ *
+ * 同构纯 TypeScript，不引用浏览器或 Node 专有 API。
+ */
+
+import type { IRBlock, IRExample, IRFigure, IRFormula, IRList, IRNote, IRParagraph, IRTable, NodeId } from '../../../ir/types'
+import { ABSTRACT_NUM_ID, listAbstractNumId } from '../numbering'
+import { emitParagraph, warn, type RenderContext } from './context'
+import { plainRun, renderInlines, tabRun } from './inline'
+
+const SP = '　'
+
+/** 当前所处的附录（§4.4 附录图/表按需实例；无值表示正文/前言/引言） */
+export interface AppendixContext {
+  id: NodeId
+  letter: string
+}
+
+export interface BlockCtx {
+  /** 注/示例分组的作用域键（§5.7），随渲染的容器切换（章/条/附录/术语条目/图/表/注/示例自身……） */
+  scopeKey: NodeId
+  appendix?: AppendixContext
+}
+
+function withScope(bctx: BlockCtx, scopeKey: NodeId): BlockCtx {
+  return { ...bctx, scopeKey }
+}
+
+// ---------------- 列表（§4.4、§5.6） ----------------
+
+type ListItem = IRList['items'][number]
+
+interface ListLevelPlan {
+  firstStyleId: string
+  firstNumPr?: { numId: number; ilvl: number }
+  contStyleId: string
+  /** true：第三层及更深的非 dash 列项——文字标识「n)」，不是编号段落，不用编号定义 */
+  literalOrdinal: boolean
+}
+
+/** 上层是编号列表（非 dash）时，第二层「格式相符」对应的列表类型（boxed 按 number 处理） */
+const EXPECTED_SUBLIST_TYPE = new Map<string, string>([
+  ['alpha', 'number'],
+  ['number', 'alpha'],
+  ['roman', 'number'],
+  ['romanUpper', 'number'],
+])
+
+interface ParentListInfo {
+  type: IRList['listType']
+  /** dash 没有分配实例，此时为 undefined */
+  numId?: number
+}
+
+function planForList(ctx: RenderContext, list: IRList, depth: number, parent: ParentListInfo | undefined): ListLevelPlan {
+  if (depth >= 3) {
+    warn(ctx, 'list-too-deep', `列表 "${list.id}" 嵌套超过两层（第 ${depth} 层，GB/T 1.1 7.5.2 细分不宜超过两个层次）`, list.id)
+    if (list.listType === 'dash') {
+      return { firstStyleId: 'SesListDot', contStyleId: 'SesListCont2', literalOrdinal: false }
+    }
+    return { firstStyleId: 'SesListCont2', contStyleId: 'SesListCont2', literalOrdinal: true }
+  }
+
+  if (depth === 1) {
+    if (list.listType === 'dash') {
+      return { firstStyleId: 'SesListDash', contStyleId: 'SesListCont', literalOrdinal: false }
+    }
+    if (list.listType === 'boxed') {
+      warn(ctx, 'list-format-fallback', `列表 "${list.id}" 为方框编号（boxed），本系列按数字编号（A13）渲染`, list.id)
+    }
+    const numId = ctx.numbering.allocListInstance(listAbstractNumId(list.listType))
+    return { firstStyleId: 'SesListItem', firstNumPr: { numId, ilvl: 0 }, contStyleId: 'SesListCont', literalOrdinal: false }
+  }
+
+  // depth === 2
+  if (list.listType === 'dash') {
+    return { firstStyleId: 'SesListDot', contStyleId: 'SesListCont2', literalOrdinal: false }
+  }
+  if (!parent) throw new Error('planForList: 第二层列表缺少父列表信息')
+  if (parent.type === 'dash') {
+    if (list.listType !== 'number') {
+      warn(ctx, 'list-format-fallback', `列表 "${list.id}" 嵌在破折号列表下，按数字编号（A12 第 2 级）渲染`, list.id)
+    }
+    const numId = ctx.numbering.allocListInstance(ABSTRACT_NUM_ID.listAlpha) // §4.4：新建 A12 实例，用 ilvl1
+    return { firstStyleId: 'SesListItem', firstNumPr: { numId, ilvl: 1 }, contStyleId: 'SesListCont2', literalOrdinal: false }
+  }
+  const parentEffective = parent.type === 'boxed' ? 'number' : parent.type
+  const expected = EXPECTED_SUBLIST_TYPE.get(parentEffective)
+  if (expected && list.listType !== expected) {
+    warn(ctx, 'list-format-fallback', `列表 "${list.id}" 的类型与上层列表第二级的格式不符，按上层格式渲染`, list.id)
+  }
+  if (parent.numId === undefined) throw new Error('planForList: 上层列表不是 dash 时必须有 numId')
+  return { firstStyleId: 'SesListItem', firstNumPr: { numId: parent.numId, ilvl: 1 }, contStyleId: 'SesListCont2', literalOrdinal: false }
+}
+
+function renderListItemRest(ctx: RenderContext, blocks: (IRParagraph | IRList)[], bctx: BlockCtx, depth: number, list: IRList, plan: ListLevelPlan): string {
+  let out = ''
+  for (const block of blocks) {
+    if (block.kind === 'paragraph') {
+      out += emitParagraph(ctx, plan.contStyleId, { runsXml: renderInlines(block.content, ctx.labels) })
+    } else {
+      out += renderListLevel(ctx, block, bctx, depth + 1, { type: list.listType, numId: plan.firstNumPr?.numId })
+    }
+  }
+  return out
+}
+
+function renderListLevel(ctx: RenderContext, list: IRList, bctx: BlockCtx, depth: number, parent: ParentListInfo | undefined): string {
+  const plan = planForList(ctx, list, depth, parent)
+  let out = ''
+  list.items.forEach((item: ListItem, idx: number) => {
+    const first = item.content[0]
+    const firstIsParagraph = first !== undefined && first.kind === 'paragraph'
+
+    if (plan.literalOrdinal) {
+      const ordinal = idx + 1
+      const label = plainRun(`${ordinal})${SP}`)
+      if (firstIsParagraph) {
+        out += emitParagraph(ctx, plan.firstStyleId, { runsXml: label + renderInlines((first as IRParagraph).content, ctx.labels) })
+        out += renderListItemRest(ctx, item.content.slice(1), bctx, depth, list, plan)
+      } else {
+        out += emitParagraph(ctx, plan.firstStyleId, { runsXml: label })
+        out += renderListItemRest(ctx, item.content, bctx, depth, list, plan)
+      }
+      return
+    }
+
+    const numbered = { nodeId: item.id, kind: 'listItem' as const }
+    if (firstIsParagraph) {
+      out += emitParagraph(ctx, plan.firstStyleId, {
+        numPr: plan.firstNumPr,
+        runsXml: renderInlines((first as IRParagraph).content, ctx.labels),
+        numbered,
+      })
+      out += renderListItemRest(ctx, item.content.slice(1), bctx, depth, list, plan)
+    } else {
+      out += emitParagraph(ctx, plan.firstStyleId, { numPr: plan.firstNumPr, numbered })
+      out += renderListItemRest(ctx, item.content, bctx, depth, list, plan)
+    }
+  })
+  return out
+}
+
+function renderList(ctx: RenderContext, list: IRList, bctx: BlockCtx): string {
+  return renderListLevel(ctx, list, bctx, 1, undefined)
+}
+
+// ---------------- 注 / 示例（§5.7） ----------------
+
+function resolveGroupLabel(
+  ctx: RenderContext,
+  id: NodeId,
+  word: '注' | '示例',
+): { isSingle: boolean; ordinal?: number } {
+  const label = ctx.labels[id]?.label
+  if (label === undefined) {
+    warn(ctx, 'label-missing', `${word === '注' ? '注' : '示例'} "${id}" 在 labels 中没有 label，按单条处理`, id)
+    return { isSingle: true }
+  }
+  if (label === `${word}：`) return { isSingle: true }
+  const m = new RegExp(`^${word}(\\d+)：$`).exec(label)
+  if (!m) return { isSingle: true } // 防御性兜底：不应发生（Resolver 的 label 格式已固定）
+  return { isSingle: false, ordinal: Number(m[1]) }
+}
+
+function renderContentBlocks(ctx: RenderContext, blocks: IRBlock[], bctx: BlockCtx, contStyleId: string): string {
+  let out = ''
+  for (const block of blocks) {
+    if (block.kind === 'paragraph') {
+      out += emitParagraph(ctx, contStyleId, { runsXml: renderInlines(block.content, ctx.labels) })
+    } else {
+      out += renderBlock(ctx, block, bctx)
+    }
+  }
+  return out
+}
+
+function renderNote(ctx: RenderContext, note: IRNote, bctx: BlockCtx): string {
+  const { isSingle, ordinal } = resolveGroupLabel(ctx, note.id, '注')
+  const firstStyleId = isSingle ? 'SesNote' : 'SesNoteN'
+  const contStyleId = isSingle ? 'SesNoteCont' : 'SesNoteNCont'
+  const firstNumPr = isSingle ? undefined : { numId: ctx.numbering.allocNoteInstance(bctx.scopeKey, ordinal!), ilvl: 0 }
+  const numbered = { nodeId: note.id, kind: 'note' as const }
+  const innerBctx = withScope(bctx, note.id) // §5.7：注内容中的块，作用域 = 该注的 id
+
+  const [first, ...rest] = note.content
+  if (first && first.kind === 'paragraph') {
+    let out = emitParagraph(ctx, firstStyleId, { numPr: firstNumPr, runsXml: renderInlines(first.content, ctx.labels), numbered })
+    out += renderContentBlocks(ctx, rest, innerBctx, contStyleId)
+    return out
+  }
+  let out = emitParagraph(ctx, firstStyleId, { numPr: firstNumPr, numbered })
+  out += renderContentBlocks(ctx, note.content, innerBctx, contStyleId)
+  return out
+}
+
+function renderExample(ctx: RenderContext, example: IRExample, bctx: BlockCtx): string {
+  const { isSingle, ordinal } = resolveGroupLabel(ctx, example.id, '示例')
+  const firstStyleId = isSingle ? 'SesExLabel' : 'SesExLabelN'
+  const firstNumPr = isSingle ? undefined : { numId: ctx.numbering.allocExampleInstance(bctx.scopeKey, ordinal!), ilvl: 0 }
+  // 示例标识单独一段、段落内无文字（与注不同：注的首段可以和内容文字同段）
+  let out = emitParagraph(ctx, firstStyleId, { numPr: firstNumPr, numbered: { nodeId: example.id, kind: 'example' } })
+  out += renderContentBlocks(ctx, example.content, withScope(bctx, example.id), 'SesExText')
+  return out
+}
+
+// ---------------- 图 / 表 / 公式占位（WP7.2 范围：见 §9 WP7.2「图、表、公式在本包的输出」表） ----------------
+
+function renderFigure(ctx: RenderContext, figure: IRFigure, bctx: BlockCtx): string {
+  let out = emitParagraph(ctx, 'SesFigure', { runsXml: plainRun('〔图片占位〕') })
+  const noteBctx = withScope(bctx, figure.id) // §5.7：图的 notes，作用域 = 该图的 id
+  for (const note of figure.notes) out += renderNote(ctx, note, noteBctx)
+
+  const captionRuns = renderInlines(figure.caption, ctx.labels)
+  const numbered = { nodeId: figure.id, kind: 'figure' as const }
+  if (bctx.appendix) {
+    const numId = ctx.numbering.allocAppendixFigureInstance(bctx.appendix.id, bctx.appendix.letter)
+    out += emitParagraph(ctx, 'SesAppFigCap', { numPr: { numId, ilvl: 0 }, runsXml: captionRuns, numbered })
+  } else {
+    out += emitParagraph(ctx, 'SesFigCap', { runsXml: captionRuns, numbered })
+  }
+  return out
+}
+
+function renderTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx): string {
+  const captionRuns = renderInlines(table.caption, ctx.labels)
+  const numbered = { nodeId: table.id, kind: 'table' as const }
+  let out: string
+  if (bctx.appendix) {
+    const numId = ctx.numbering.allocAppendixTableInstance(bctx.appendix.id, bctx.appendix.letter)
+    out = emitParagraph(ctx, 'SesAppTblCap', { numPr: { numId, ilvl: 0 }, runsXml: captionRuns, numbered })
+  } else {
+    out = emitParagraph(ctx, 'SesTblCap', { runsXml: captionRuns, numbered })
+  }
+  // WP7.2：单元格内容与表注不输出（WP7.4 替换），只有一个居中占位段
+  out += emitParagraph(ctx, 'SesTableCenter', { runsXml: plainRun('〔表格占位〕') })
+  return out
+}
+
+function renderFormula(ctx: RenderContext, formula: IRFormula): string {
+  let runs = tabRun() + plainRun('〔公式占位〕')
+  if (formula.numbered) {
+    const label = ctx.labels[formula.id]?.label
+    if (label === undefined) {
+      warn(ctx, 'label-missing', `公式 "${formula.id}" 需要编号但 labels 中没有 label，不写编号`, formula.id)
+    } else {
+      runs += tabRun() + plainRun(label)
+    }
+  }
+  // 公式不使用 Word 原生编号（§4.5），SesFormula 不是属主样式、不写 numPr，不记入 §4.7 追踪
+  return emitParagraph(ctx, 'SesFormula', { runsXml: runs })
+}
+
+// ---------------- 通用分发 ----------------
+
+export function renderBlock(ctx: RenderContext, block: IRBlock, bctx: BlockCtx): string {
+  switch (block.kind) {
+    case 'paragraph':
+      return emitParagraph(ctx, 'SesPara', { runsXml: renderInlines(block.content, ctx.labels) })
+    case 'list':
+      return renderList(ctx, block, bctx)
+    case 'table':
+      return renderTable(ctx, block, bctx)
+    case 'figure':
+      return renderFigure(ctx, block, bctx)
+    case 'formula':
+      return renderFormula(ctx, block)
+    case 'note':
+      return renderNote(ctx, block, bctx)
+    case 'example':
+      return renderExample(ctx, block, bctx)
+  }
+}
+
+export function renderBlocks(ctx: RenderContext, blocks: IRBlock[], bctx: BlockCtx): string {
+  return blocks.map((b) => renderBlock(ctx, b, bctx)).join('')
+}
