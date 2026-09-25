@@ -170,6 +170,13 @@ describe('assertWellFormed / r:id 检查（WP7.2 增补）', () => {
     )
     expect(() => assertWellFormed(pkg)).toThrow(/重复/)
   })
+
+  it('部件里有 r:id，但对应的 .rels 文件不存在时抛错（#34 审查）', () => {
+    const pkg = clone(buildPackageWithHeaderRef())
+    expect(pkg.parts['word/_rels/document.xml.rels']).toBeDefined() // 篡改前确认它本来存在
+    delete pkg.parts['word/_rels/document.xml.rels']
+    expect(() => assertWellFormed(pkg)).toThrow(/没有对应的关系文件/)
+  })
 })
 
 // ---------------- WP7.2 增补：assertNumberingIntegrity ----------------
