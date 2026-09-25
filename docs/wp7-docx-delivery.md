@@ -531,7 +531,15 @@ P(SesAppendix, `<w:br/>` + 「（规范性）」或「（资料性）」+ `<w:br
 按 Resolver 赋的序号输出：`renderDocx` 拿不到 `bibliographyOrder`，按 `labels[id].xmlId`（`bib_<n>`）中的 n 升序排列
 `doc.bibliography`（与 HTML 渲染器相同；Resolver 按 bibliographyOrder 赋号），没有 label 的排在最后并保持原顺序。
 P(SesBibTitle, 「参考文献」：「参」「考」「文」三个 run 各带 `w:spacing w:val="210"`，「献」不带，§3.3)，每条
-P(SesBibEntry, content)（编号由 A16 生成；content 的第一个 run 若以 `/^\s*[\[［]\d+[\]］]\s*/` 开头，先剥掉这部分）。
+P(SesBibEntry, content)，编号由 A16 生成。
+
+content 里若已写了编号（如「[9] 」），先剥掉，否则会排成「[1]　[9] ……」。这个前缀可能拆在几个 run 里：bibEntry 的内容是
+富文本，把其中的数字加粗就成了 `[`、加粗的 `9`、`] ……` 三个 run，XML 导入也按标记拆 run。剥离方法：
+
+1. 把 content 各 run 的 `text` 依次拼成一串，用 `/^\s*[\[［]\d+[\]］]\s*/` 匹配；不匹配就原样输出；
+2. 匹配长度为 L 时，从 run 序列开头删掉共 L 个字符：完全落在前缀内的 run 整个去掉；跨过前缀末尾的那个 run 只保留前缀之后
+   的部分，marks 不变；其后的 run 原样保留；
+3. 前缀范围内有带 crossRef mark 的 run 时不剥离，原样输出（这种 run 显示的是 refText，不是 text）。
 
 ### 5.13 终结线（10.1.5）
 
@@ -802,6 +810,9 @@ docProps 的标题取 `meta.title`（缺失为空串），时间取 `opts.create
   - sections：有无前言、引言、附录、参考文献的各种组合下的节序、type、pgNumType、页眉页脚引用个数（用大纲的 § 行断言）；
     页眉页脚部件的内容；
   - runs：各 mark、crossRef（有 label / 无 label）、文字中间的 `\n`、XML 特殊字符、正文首页名称的空格规则；
+  - 参考文献前缀剥离（§5.12）：前缀在一个 run 里；前缀拆在多个 run 里，剩余部分的 marks 保留；全角方括号；前缀范围内有
+    crossRef run 时不剥离；没有前缀时原样输出；
+  - 参考文献顺序：按 `labels[id].xmlId` 的序号排列，没有 label 的排在最后；
   - warning：每个 code 至少一例；
   - 空文档（无章、无附录、无参考文献、无前言引言）能生成并通过全部检查。
 - 模拟器自测：§4.7 表全部用例。
@@ -819,7 +830,8 @@ docProps 的标题取 `meta.title`（缺失为空串），时间取 `opts.create
       第一块是嵌套列表的项；
     - 图、表：正文至少两图两表且跨章；附录 A、B 各有图和表（每个附录从 1 起），附录 A 至少两张图；
     - 公式：编号、不编号各一；
-    - 参考文献：三条，正文按与 IR 不同的顺序引用其中两条；一条 content 以「[9] 」开头；
+    - 参考文献：三条，正文按与 IR 不同的顺序引用其中两条；一条 content 以拆在三个 run 里的「[9] 」开头（`[`、加粗的 `9`、
+      `] ` 接正文），验证 §5.12 的跨 run 剥离；
     - 交叉引用：条、图、表、公式、参考文献各一处；
     - **期望标记**（供 §10.3 `expect.py` 在 Word 的 PDF 上核对）：每个带编号的段落都用下列标记之一写明期望的标识（列项写
       手写的期望，其余写 Resolver 的 label）：
