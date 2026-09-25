@@ -276,11 +276,7 @@
           <span class="ec-label">PDF</span>
           <span class="ec-sub">{{ exportingPdf ? '正在转换…' : 'GB/T 1.1 版式排版' }}</span>
         </button>
-        <button
-          v-if="capabilities.libreOffice"
-          class="export-card"
-          disabled
-        >
+        <button v-if="capabilities.libreOffice" class="export-card" disabled>
           <span class="ec-glyph">PDF</span>
           <span class="ec-label">高保真 PDF</span>
           <span class="ec-sub">重建中</span>
