@@ -9,6 +9,9 @@
 >
 > **机制实测**：`spike/wp7-docx-word/`（Word for Mac 16.113，2026-09-24）。其中 `gen_spike.py` 的 XML 写法
 > 已被 Word 接受并正确渲染，实现时可直接参照。
+>
+> **修订记录**：2026-09-25 对照代码现状细化 WP7.1（标准类型的两套取值、导出面板与首页入口、shared 骨架接口），
+> 新增 §10.2 测试基建、§10.3 核对工具。
 
 ---
 
@@ -504,23 +507,89 @@ KaTeX 报错或转换异常时不传该公式的 OMML，由渲染器按 §5.10 �
 
 ### WP7.1 删除旧导出 + 基建（1 天）
 
-- **删除**：`packages/client/src/serializer/docxTemplateExporter.ts`、`docxExporter.ts`、`packages/client/public/templates/*.dotx`、client 的 `docx` 依赖、`serializer/index.ts` 中的相关导出、`EditorView.vue` 中的回退逻辑。
-- **UI（空档期）**：DOCX 卡片与「高保真 PDF」卡片禁用，副标题「重建中」；首页 `autoExport: 'docx'` 快捷入口移除。
-- **迁移**：`DocMeta`/`StandardType`/`STANDARD_TYPE_LABELS` 迁到 shared（shared 已有 `StandardType` 则复用，与 `IRDocMeta`、`DocumentMeta` 对齐）；`pdfExporter.ts` 改为从 shared 引入。
-- **shared 骨架**：`renderers/docx/` 下的 `units.ts`、`xml.ts`（附录 B 顺序）、`package.ts`，能产出一个「只有一段文字」的最小 DOCX。
-- **测试基建**：DOCX 快照（解包 → 规范化 → 输出「样式名 + 编号标识 + 文本」的段落序列）；所有部件 XML well-formed；`pPr`/`rPr`/`sectPr`/`lvl` 子元素顺序检查。
-- **工具**：`scripts/docx-check/`：用 AppleScript 让 Word 导出 PDF（仅 macOS 本地核对用）；300 dpi 墨迹测量脚本（量书眉、正文首行、页码、标题位置）。参照 `spike/wp7-docx-word/README.md`。
-- **验收**：最小 DOCX 在 Word 中打开无修复提示；测试全绿；`grep` 不到旧导出器的残留引用；PDF 导出（vivliostyle）不受影响。
+> 2026-09-25 对照代码细化。原「迁移」一项假设 shared 已有的 `StandardType` 可以直接复用，实际它与旧导出器的
+> `StandardType` 取值不同（见「元数据口径」），改为下述做法。
+
+**删除**
+
+- `packages/client/src/serializer/docxTemplateExporter.ts`、`docxExporter.ts`，以及 `serializer/index.ts` 中对应的导出；
+- `packages/client/public/templates/` 整个目录（5 个 `.dotx`）；
+- client 的 `docx` 依赖（`pnpm -F @ses/client remove docx`，同步 `pnpm-lock.yaml`）；`jszip` 保留，WP7.3 用；
+- `EditorView.vue`：`docx`、`pdf-hifi` 两个分支里的模板导出与回退调用；导出面板的「标准类型模板」单选组、`selectedStandardType`。
+  这组单选只用来挑 `.dotx`，模板删除后不再控制任何输出；导出时的标准类型一律取文档自身的元数据；
+- 首页「导出 DOCX」入口：`DocCard.vue` 的下拉项和 `export` 事件，`HomeView.vue` 的 `@export` 与 `handleExport`，
+  以及 `EditorView.vue` 中读取 `route.query.autoExport` 的代码（入口删除后没有调用方）。WP7.3 不恢复此入口；
+- `README.md`：功能列表中「DOCX 导出……模板」一条改为「DOCX 交付稿：生成器重建中（见 docs/wp7-docx-delivery.md）」，技术栈表删除 `docx` 一行。
+
+**UI（空档期）**：DOCX 卡片与「高保真 PDF」卡片保留、置为 `disabled`，副标题「重建中」，点击无反应。其余卡片不变。
+
+**元数据口径（替代原「迁移」）**
+
+仓库里的标准类型有两套取值：文档库口径 `StandardType`（shared `types/document.ts`：`national`/`guidance`…，存于数据库
+与编辑器根节点属性）；IR 口径 `IRDocMeta.standardType`（`gb`/`guide`…，定稿接口，不改）。旧导出器的 `StandardType`
+与 IR 口径相同。处理如下：
+
+- shared 新增 `ir/meta.ts`，由 `ir/index.ts` 导出：
+
+  ```ts
+  export type IRStandardType = IRDocMeta['standardType']
+  /** 文档库口径 → IR 口径：national→gb、guidance→guide；industry/local/group/enterprise 同名；也接受 gb、guide；其余返回 undefined */
+  export function toIrStandardType(t: string | undefined): IRStandardType | undefined
+  /**
+   * 数据库文档元数据 → IR 元数据覆盖项：titleCn→title、standardNo→stdCode，titleEn/icsCode/ccsCode/issuer/applicant/
+   * publishDate/implementDate 同名复制，standardType 经 toIrStandardType。只跳过 undefined，空字符串照常复制（与现行
+   * EditorView 的 buildDocMeta 一致）。proposer、technicalCommittee 不进 IR
+   */
+  export function irMetaFromDocumentMeta(meta: DocumentMeta | undefined): Partial<IRDocMeta>
+  ```
+
+- `pmToIr` 的 `STANDARD_TYPE_MAP` 改为调用 `toIrStandardType`，顺带修正一个现存问题：改前 `guidance` 被当作无法识别的类型、按国标处理；
+- client 的 `DocMeta`、`StandardType`、`STANDARD_TYPE_LABELS` 随旧导出器删除，不迁移（文档库口径的标签已在
+  `constants/standards.ts` 的 `TYPE_LABELS`）；
+- `EditorView` 的 `buildDocMeta()` 改为返回 `irMetaFromDocumentMeta(store.currentDocument?.meta)`；
+  `buildPdfExportRequest` 的参数类型改为 `Partial<IRDocMeta>`，**函数体不变**（仍只覆盖 title/titleEn/stdCode/icsCode/ccsCode），
+  PDF 输出因此与改前逐字节相同。
+
+**shared 骨架**（`packages/shared/src/renderers/docx/`；本包不改 `renderers/index.ts`，`renderDocx` 在 WP7.2 加入）
+
+- `units.ts`：§1.2 所列换算，结果取整；
+- `xml.ts`：文本、属性转义；附录 B 所列容器（`pPr`、`rPr`、`sectPr`、`lvl`、`num`、`style`、`tcPr`、`tbl`、`tr`）的构造函数：
+  调用方按元素名传入子元素 XML，构造函数按附录 B 的顺序拼接，遇到清单外的元素名直接抛错。此后各模块拼这些容器
+  一律经过这里，不手写字符串；
+- `package.ts`：`buildPackage(input) → DocxPackage`。输入为 `word/document.xml` 全文与可选部件（styles、numbering、
+  页眉页脚、media…）、`createdAt`、标题。要求：
+  - 关系 ID 由本模块的分配器按调用顺序发放（`rId1`、`rId2`…）：渲染器生成 `document.xml` 时先为页眉页脚、图片申请 ID；
+    styles、settings、fontTable、numbering 的关系由 `buildPackage` 最后自动登记；
+  - `[Content_Types].xml`、`_rels/.rels`、`word/_rels/document.xml.rels` 按包内实际存在的部件生成；
+  - `word/settings.xml` 按 §2.4 全文输出；`word/fontTable.xml` 登记宋体、黑体、Times New Roman、Cambria Math；
+  - `docProps/core.xml` 的创建、修改时间都取 `createdAt`，不读系统时间；`docProps/app.xml` 的 Application 写 `SES`；
+- 最小 DOCX（测试 fixture `minimal`）：一个段落，外加 `w:body` 末尾的 `sectPr`（§2.1 的纸张、页边距与文档网格，不引用页眉页脚）。
+
+**测试基建**：见 §10.2（shared 零新增依赖）。**核对工具**：见 §10.3。
+
+**验收**
+
+1. `pack.py` 打包 `minimal` 的 golden 目录，Word 打开无修复提示；`word_pdf.py` 能把它导出为 PDF；
+2. `measure.py` 对 `spike/wp7-docx-word/spike-word.pdf` 的输出与 §10.3 的基准表一致；
+3. `pnpm -F @ses/shared test`、`pnpm -F @ses/client test` 全绿；`pnpm -F @ses/shared exec tsc --noEmit` 与 `pnpm -F @ses/client build`（含 `vue-tsc -b`）通过；
+4. 在 `packages/`（不含 `node_modules`）与 `README.md` 中搜索
+   `docxExporter|docxTemplateExporter|exportDocx|STANDARD_TYPE_LABELS|selectedStandardType|autoExport|\.dotx|from 'docx'` 无结果；
+5. `pdfExporter.ts` 的 diff 只有 import 行与参数类型两处；在应用里实际导出一次 PDF（vivliostyle）确认可用；
+6. 新增测试覆盖：`toIrStandardType` 全部 6 个文档库取值与 `gb`/`guide`/未知值；`irMetaFromDocumentMeta` 的字段映射与
+   undefined/空字符串规则；`pmToIr` 对 `guidance` 不再报警告。
 
 ### WP7.2 样式、编号、分节（2.5 天）
 
-- 按 §3.2 实现 `styles.ts`；按 §4 实现 `numbering.ts`（定义 + 实例分配器）；按 §2 实现 `sections.ts`、页眉页脚部件与 settings。
+- 按 §3.2 实现 `styles.ts`；按 §4 实现 `numbering.ts`（定义 + 实例分配器）；按 §2 实现 `sections.ts` 与页眉页脚部件（settings 已在 WP7.1 按 §2.4 输出）。
 - 实现 §4.7 编号模拟器，先用手写段落序列验证模拟器自身。
 - **验收**：用手写 IR（每类编号至少两例，含无标题条、术语、跨章、多附录、多组注、多列表）生成 DOCX：模拟器结果与期望全部一致；Word 渲染后分节、页码、书眉与 §2.1 的实测值一致（±0.5 mm）。
 
 ### WP7.3 正文渲染 + 目次 + 重新开放 DOCX 按钮（3 天）
 
 - 实现 §5.1–5.7、5.11–5.14 与 §7；client 薄壳：`pmToIr` → `resolve` → `renderDocx` → JSZip → 下载。
+  `pmToIr` 之后用 `irMetaFromDocumentMeta(store.currentDocument?.meta)` 覆盖 IR meta 中所有非 undefined 的字段（封面、书眉
+  要用标准类型、文件编号、发布机构、日期；与 PDF 只覆盖五项不同，是有意的）；`opts.stage` 取 `store.currentDocument.stage`，
+  `createdAt` 取导出时刻。
 - DOCX 卡片重新启用，副标题「测试版」；「高保真 PDF」卡片随之恢复（它转换的就是新生成的 DOCX）。两张 PDF 卡片改名：「版式预览（GB/T 1.1 排版）」「交付稿预览（与 DOCX 一致）」。
 - **验收**：全要素 fixture 的 §4.7 一致性测试全过；Word 渲染逐项对照 §5（附截图）；更新目次后标题、编号与 Resolver 一致。
 
@@ -543,11 +612,52 @@ KaTeX 报错或转换异常时不传该公式的 OMML，由渲染器按 §5.10 �
 
 ---
 
-## 10. 验收环境与方法
+## 10. 验收环境、测试基建与核对工具
+
+### 10.1 环境
 
 - **Word（macOS）**：AppleScript 导出 PDF 已验证（Word 16.113）。输入输出文件必须放在 `~/Library/Containers/com.microsoft.Word/Data/` 下，否则 Word 沙盒会弹授权窗口；首次运行需在系统设置中允许「控制 Microsoft Word」。
 - **WPS**：主导人本机未安装。WP7.3 起的验收需在装有 WPS 的机器（WPS Office for Mac 或 Windows 版）上人工打开，按与 Word 相同的清单核对，并截图附在 PR 中。
-- **测量**：PyMuPDF 以 300 dpi 渲染、阈值取墨迹行列（`spike/wp7-docx-word/README.md` 附实测对照表），与 §2.1、§6.1 的毫米值比对。
+- **测量**：用 `scripts/docx-check/measure.py`（§10.3），与 §2.1、§6.1 的毫米值比对。
+
+### 10.2 shared 测试基建（WP7.1 建立，后续各包沿用）
+
+shared 不新增任何依赖（包括 devDependencies）。下列文件都是测试代码，放在 `packages/shared/src/renderers/docx/__tests__/`，
+不从任何 `index.ts` 导出。辅助文件不以 `.test.ts` 结尾，会被 shared 的 `tsc` 检查，同样不得使用 Node 或浏览器 API。
+
+| 文件 | 内容 |
+|---|---|
+| `helpers/xmlTree.ts` | 最小 XML 解析器，产出 `{ name, attrs, children }` 树（文本为独立节点）。支持 XML 声明、带前缀的元素名与属性名、单双引号、5 个预定义实体与数字字符引用、自闭合标签。以下情况抛错并给出位置：标签不配对或未闭合；文本或属性值中出现未转义的 `<` 或 `&`；同一元素属性重复；多个根元素；根元素之后还有内容。生成器不输出注释、CDATA、DTD 和处理指令（XML 声明除外），解析器遇到也抛错 |
+| `helpers/checks.ts` | `assertWellFormed(pkg)`：每个部件都能解析；`[Content_Types].xml` 为每个部件、每种二进制扩展名给出类型；每个 `.rels` 的 Target 都存在于包内（悬空关系会触发 Word 的修复提示）。`assertChildOrder(pkg)`：遍历所有部件，附录 B 所列容器的子元素必须是清单的子序列（`sectPr` 开头的 headerReference/footerReference 之间不限顺序），出现清单外的子元素也算失败 |
+| `helpers/outline.ts` | `docxOutline(pkg)`：按 `document.xml` 顺序每段一行，格式 `样式ID │ 编号 │ 文本`。编号一栏在 WP7.1 写 `numId:ilvl`（无 `numPr` 写 `—`），WP7.2 起改为 §4.7 模拟器算出的标识。文本中 `w:br` 记为 `⏎`、`w:tab` 记为 `⇥`，公式记为 `〔公式〕`，图片记为 `〔图〕`；表格内段落的行首加 `┆`；每个 `sectPr` 单独一行，写在它所结束那一节的末段之后：`§ type=… pgNumType=… orient=…`。用 `toMatchSnapshot()` 固化 |
+| `__golden__/<fixture>/` | 需要在 Word 中核对的 fixture：每个部件用 `await expect(…).toMatchFileSnapshot(路径)` 写成一个文件（二进制部件写 base64，文件名加 `.b64`），即解包后的 DOCX 目录，PR 里可以直接看 XML diff。WP7.1 只有 `minimal` |
+
+每个渲染测试都断言四项：`assertWellFormed`；`assertChildOrder`；同一输入两次输出深度相等；`JSON.parse(JSON.stringify(pkg))` 与原值深度相等。
+
+### 10.3 核对工具 `scripts/docx-check/`
+
+Python 3 + PyMuPDF，本地核对用，不是项目依赖，不进 CI。
+
+| 脚本 | 用法 | 要求 |
+|---|---|---|
+| `pack.py` | `pack.py <golden 目录> <out.docx>` | 把目录打成 zip：`[Content_Types].xml` 放第一个，其余按路径排序；`.b64` 文件解码后去掉该后缀；条目时间固定为 1980-01-01 |
+| `word_pdf.py` | `word_pdf.py <in.docx> <out.pdf>` | 复制到 `~/Library/Containers/com.microsoft.Word/Data/ses-check/`（沙盒内，免授权弹窗）；把**副本**的 `settings.xml` 中的 `w:updateFields` 删去，否则 Word 打开时的「更新域」提示会卡住自动化；AppleScript：打开 → 有目次则更新（写在 `try` 里）→ 另存为 PDF → 不保存关闭；把 PDF 复制到 `out.pdf`；120 秒无结果则报错退出 |
+| `measure.py` | `measure.py <pdf> [--pages 3-9] [--json]` | 300 dpi 灰度渲染，灰度 < 128 为墨迹，连续的墨迹行归为一个「行块」。每页输出：首个行块的字顶与左右范围（有书眉的页即书眉）；第二个行块的字顶（书眉之后的首行或标题）；末个行块底边距纸底（页码）；末个行块距外侧纸边（单数页量右侧，双数页量左侧，页序从 1 起算）。整页无墨迹时输出「空白页」。单位 mm，保留一位小数 |
+| `README.md` | — | 三个脚本的用法、Word 首次运行的授权步骤、下表基准值 |
+
+`measure.py` 的验收基准：对 `spike/wp7-docx-word/spike-word.pdf` 运行，第 2–9 页应得到下表（±0.3 mm；字顶随首行字形
+不同有 0.2 mm 左右的出入）。第 1 页是 spike 的简化封面，不比对。下表由主导人用同一算法实测。
+
+| 页 | 内容 | 首个行块字顶 | 第二个行块字顶 | 末个行块底边距纸底 | 距外侧纸边 |
+|---|---|---|---|---|---|
+| 2 | `oddPage` 插入的空白页 | 空白页 | | | |
+| 3 | 目次 | 26.0 | 43.9 | 20.7 | 24.1 |
+| 4 | 前言 | 26.0 | 43.9 | 20.7 | 24.1 |
+| 5 | 正文首页 | 26.0 | 43.9 | 20.7 | 24.4 |
+| 6 | 正文续页 | 26.0 | 35.3 | 20.7 | 24.0 |
+| 7 | 附录 A | 26.0 | 44.3 | 20.7 | 24.2 |
+| 8 | 附录 B | 26.0 | 44.3 | 20.7 | 24.0 |
+| 9 | 参考文献 | 26.0 | 44.2 | 20.7 | 24.2 |
 
 ---
 
