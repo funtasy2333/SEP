@@ -20,7 +20,7 @@ export interface IRDoc {
   bibliography: IRBibEntry[]
 }
 
-/** 从现有 docxExporter.ts 的 DocMeta/StandardType 迁移而来并保持兼容 */
+/** 定稿接口，字段与取值见 docs/dev-plan-phase-5.5.md 第 2.2 节；不得改名、改型 */
 export interface IRDocMeta {
   title?: string
   titleEn?: string
