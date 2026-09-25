@@ -20,6 +20,25 @@ describe('escapeXmlText / escapeXmlAttr', () => {
   it('属性值额外转义双引号', () => {
     expect(escapeXmlAttr('say "hi" & bye')).toBe('say &quot;hi&quot; &amp; bye')
   })
+
+  it('两个函数都静默删除 XML 1.0 不允许的字符（审查第 2 条）', () => {
+    // U+0000、U+000B：控制字符；U+FFFE：noncharacter；\uD800：孤立代理项
+    const dirty = 'A\u0000B\u000BC￾D\uD800E'
+    expect(escapeXmlText(dirty)).toBe('ABCDE')
+    expect(escapeXmlAttr(dirty)).toBe('ABCDE')
+  })
+
+  it('保留 TAB/LF/CR（XML 1.0 合法字符），escapeXmlText 原样保留', () => {
+    expect(escapeXmlText('a\tb\nc\rd')).toBe('a\tb\nc\rd')
+  })
+
+  it('escapeXmlAttr 把 \\t \\n \\r 编码成数字字符引用，避免属性值规范化吃掉', () => {
+    expect(escapeXmlAttr('a\tb\nc\rd')).toBe('a&#9;b&#10;c&#13;d')
+  })
+
+  it('合法的增补平面字符（正确配对代理对）不受影响', () => {
+    expect(escapeXmlText('x\u{1F600}y')).toBe('x\u{1F600}y')
+  })
 })
 
 describe('wrapElement', () => {
@@ -64,6 +83,12 @@ describe('joinOrderedChildren', () => {
     expect(() => joinOrderedChildren('notAContainer', [])).toThrow(/未知容器/)
   })
 
+  it('容器名撞上 Object.prototype 属性名时同样按未知容器处理（审查第 1 条）', () => {
+    expect(() => joinOrderedChildren('constructor', [])).toThrow(/未知容器/)
+    expect(() => joinOrderedChildren('toString', [])).toThrow(/未知容器/)
+    expect(() => joinOrderedChildren('hasOwnProperty', [])).toThrow(/未知容器/)
+  })
+
   it('sectPr 的 headerReference/footerReference 任意顺序，仍排在 footnotePr 之前', () => {
     const a = joinOrderedChildren('sectPr', [
       ['type', '<w:type/>'],
@@ -99,6 +124,12 @@ describe('9 个容器薄包装', () => {
 describe('childOrderOf / rankMapFor / localNameOf', () => {
   it('childOrderOf 对未知容器返回 undefined', () => {
     expect(childOrderOf('notAContainer')).toBeUndefined()
+  })
+
+  it('childOrderOf / rankMapFor 对撞名 Object.prototype 属性的容器名返回 undefined（审查第 1 条）', () => {
+    expect(childOrderOf('constructor')).toBeUndefined()
+    expect(rankMapFor('constructor')).toBeUndefined()
+    expect(childOrderOf('__proto__')).toBeUndefined()
   })
 
   it('rankMapFor 给出的名次表能查到已知子元素', () => {

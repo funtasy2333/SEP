@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CHAR_WIDTH_TWIPS, mmToEmu, mmToTwips, ptToHalfPoint } from './units'
+import { CHAR_WIDTH_TWIPS, mmToEmu, mmToTwips, ptToEighthPoint, ptToHalfPoint } from './units'
 
 describe('mmToTwips', () => {
   it('§2.1 页面参数的毫米值换算结果与规格表一致', () => {
@@ -21,6 +21,13 @@ describe('ptToHalfPoint', () => {
     expect(ptToHalfPoint(10.5)).toBe(21) // 五号
     expect(ptToHalfPoint(9)).toBe(18) // 小五
     expect(ptToHalfPoint(4)).toBe(8) // 终结线线宽对应的字号
+  })
+})
+
+describe('ptToEighthPoint', () => {
+  it('磅 → 1/8 磅，与 §3.3 表格线一致', () => {
+    expect(ptToEighthPoint(0.75)).toBe(6) // 粗线
+    expect(ptToEighthPoint(0.25)).toBe(2) // 细线
   })
 })
 

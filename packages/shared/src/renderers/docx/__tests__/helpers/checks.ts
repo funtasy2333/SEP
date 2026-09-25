@@ -67,6 +67,15 @@ export function assertWellFormed(pkg: DocxPackage): void {
 
   for (const path of Object.keys(pkg.parts)) {
     if (path === '[Content_Types].xml') continue
+    if (path.endsWith('.xml')) {
+      // .xml 部件必须有显式 Override：光靠 `Default Extension="xml"` 兜底会让 Word 无法
+      // 靠 [Content_Types].xml 识别出哪个是主文档/styles/settings，即便每个部件都「有」内容
+      // 类型（来自那条通用 Default）。.rels 等非 .xml 扩展名不受这条限制，Default 足够。
+      if (!overridesByPart.has(path)) {
+        throw new Error(`assertWellFormed: [Content_Types].xml 没有给 XML 部件 "${path}" 声明 Override 内容类型`)
+      }
+      continue
+    }
     if (!hasContentType(path)) throw new Error(`assertWellFormed: [Content_Types].xml 没有给部件 "${path}" 声明内容类型`)
   }
   for (const path of Object.keys(pkg.binaries)) {

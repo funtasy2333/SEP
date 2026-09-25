@@ -22,18 +22,54 @@ export type XmlAttrs = Record<string, string | number | boolean>
 
 // ---------------- 转义 ----------------
 
-/** 转义 XML 文本内容（用于 <w:t> 等元素的文本节点） */
-export function escapeXmlText(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+/**
+ * XML 1.0 Char 产生式排除的标量码点：控制字符（保留 TAB U+9、LF U+A、CR U+D）、
+ * noncharacter U+FFFE/U+FFFF。孤立代理项（U+D800–U+DFFF）在 stripInvalidXmlChars 里单独按
+ * 码点区间判断，这里只覆盖非代理项的禁用区间。
+ */
+function isForbiddenScalarCodePoint(cp: number): boolean {
+  if (cp <= 0x8) return true
+  if (cp === 0xb || cp === 0xc) return true
+  if (cp >= 0xe && cp <= 0x1f) return true
+  if (cp === 0xfffe || cp === 0xffff) return true
+  return false
 }
 
-/** 转义 XML 属性值（额外转义双引号，因为属性值统一用双引号包裹） */
+/**
+ * 删掉 XML 1.0 不允许的字符：控制字符、noncharacter、孤立代理项。静默删除（不告警——WP7.3
+ * 若要对这类输入告警再加）。按 Unicode 码点遍历（`for...of` 会把合法代理对合并成一个
+ * ≥0x10000 的码点），落在代理项区间说明是孤立代理项。
+ */
+function stripInvalidXmlChars(input: string): string {
+  let out = ''
+  for (const ch of input) {
+    const cp = ch.codePointAt(0)!
+    if (cp >= 0xd800 && cp <= 0xdfff) continue // 孤立代理项
+    if (isForbiddenScalarCodePoint(cp)) continue
+    out += ch
+  }
+  return out
+}
+
+/** 转义 XML 文本内容（用于 <w:t> 等元素的文本节点） */
+export function escapeXmlText(text: string): string {
+  return stripInvalidXmlChars(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/**
+ * 转义 XML 属性值（额外转义双引号，因为属性值统一用双引号包裹）。
+ * \t \n \r 额外编码成数字字符引用：属性值解析时会做「属性值规范化」，裸的这三个字符会被
+ * 规整成一个空格，写成 `&#9;`/`&#10;`/`&#13;` 才能在解析后精确保留原字符。
+ */
 export function escapeXmlAttr(value: string): string {
-  return value
+  return stripInvalidXmlChars(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+    .replace(/\t/g, '&#9;')
+    .replace(/\n/g, '&#10;')
+    .replace(/\r/g, '&#13;')
 }
 
 /** 把属性表格式化成 ` k="v" k2="v2"` 形式（前导空格；无属性时返回空串） */
@@ -56,11 +92,12 @@ export function formatXmlAttrs(attrs: XmlAttrs | undefined): string {
 type ChildOrderSpec = readonly (string | readonly string[])[]
 
 /**
- * 附录 B 顺序清单，键为容器的本地元素名（不含 `w:`/`m:` 前缀）。
+ * 附录 B 顺序清单的字面量（书写用；查找一律经过下面的 CHILD_ORDER Map，不直接用这个 object）。
+ * 键为容器的本地元素名（不含 `w:`/`m:` 前缀）。
  * `personal…`（w:style）按 ECMA-376 CT_Style 展开为 personal/personalCompose/personalReply；
  * GB/T 样式表用不到这三个元素，展开只为让清单本身完整、经得起校验。
  */
-const CHILD_ORDER: Record<string, ChildOrderSpec> = {
+const CHILD_ORDER_LITERAL: Record<string, ChildOrderSpec> = {
   pPr: [
     'pStyle', 'keepNext', 'keepLines', 'pageBreakBefore', 'framePr', 'widowControl', 'numPr',
     'suppressLineNumbers', 'pBdr', 'shd', 'tabs', 'suppressAutoHyphens', 'kinsoku', 'wordWrap',
@@ -95,9 +132,17 @@ const CHILD_ORDER: Record<string, ChildOrderSpec> = {
   tcPr: ['cnfStyle', 'tcW', 'gridSpan', 'hMerge', 'vMerge', 'tcBorders', 'shd', 'noWrap', 'tcMar', 'textDirection', 'tcFitText', 'vAlign', 'hideMark'],
 }
 
+/**
+ * 附录 B 顺序清单，Map 而不是 plain object：plain object 按外部字符串查找（`obj[containerName]`）
+ * 会命中 Object.prototype 上的属性（`constructor`/`toString`/`hasOwnProperty`……），让
+ * `joinOrderedChildren('constructor', …)` 这类调用绕过「未知容器」检查。CHILD_ORDER_LITERAL
+ * 本身只在这一处用 Object.entries 转换，键都是写死的字面量，不受这个问题影响。
+ */
+const CHILD_ORDER = new Map<string, ChildOrderSpec>(Object.entries(CHILD_ORDER_LITERAL))
+
 /** 供测试引用的只读清单（键：容器本地名；值：顺序清单，含同名次分组） */
 export function childOrderOf(containerName: string): ChildOrderSpec | undefined {
-  return CHILD_ORDER[containerName]
+  return CHILD_ORDER.get(containerName)
 }
 
 /**
@@ -115,7 +160,7 @@ export function localNameOf(qualifiedName: string): string {
  * 是不是需要做顺序校验的容器。
  */
 export function rankMapFor(containerName: string): Map<string, number> | undefined {
-  const spec = CHILD_ORDER[containerName]
+  const spec = CHILD_ORDER.get(containerName)
   return spec ? rankMapOf(spec) : undefined
 }
 
@@ -138,7 +183,7 @@ function rankMapOf(spec: ChildOrderSpec): Map<string, number> {
  * 元素名不在清单里时抛错（提示容器名与元素名，便于定位）。
  */
 export function joinOrderedChildren(containerName: string, children: readonly XmlChild[]): string {
-  const spec = CHILD_ORDER[containerName]
+  const spec = CHILD_ORDER.get(containerName)
   if (!spec) throw new Error(`xml.ts: 未知容器 "${containerName}"，附录 B 未定义顺序清单`)
   const rank = rankMapOf(spec)
   for (const [name] of children) {

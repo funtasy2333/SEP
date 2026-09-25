@@ -15,17 +15,21 @@ import type { IRDocMeta } from './types'
 
 export type IRStandardType = IRDocMeta['standardType']
 
-/** 文档库口径 → IR 口径的映射表；也接受已经是 IR 口径的取值（gb、guide）原样通过 */
-const DOC_TO_IR_STANDARD_TYPE: Record<string, IRStandardType> = {
-  national: 'gb',
-  guidance: 'guide',
-  industry: 'industry',
-  local: 'local',
-  group: 'group',
-  enterprise: 'enterprise',
-  gb: 'gb',
-  guide: 'guide',
-}
+/**
+ * 文档库口径 → IR 口径的映射表；也接受已经是 IR 口径的取值（gb、guide）原样通过。
+ * 用 Map 而不是 plain object：plain object 按外部字符串查找会命中 Object.prototype 上的属性
+ * （如 `t === 'constructor'` 时 `obj[t]` 返回 Object 构造函数），把不该识别的输入误判成合法值。
+ */
+const DOC_TO_IR_STANDARD_TYPE = new Map<string, IRStandardType>([
+  ['national', 'gb'],
+  ['guidance', 'guide'],
+  ['industry', 'industry'],
+  ['local', 'local'],
+  ['group', 'group'],
+  ['enterprise', 'enterprise'],
+  ['gb', 'gb'],
+  ['guide', 'guide'],
+])
 
 /**
  * 文档库口径 → IR 口径：national→gb、guidance→guide；industry/local/group/enterprise 同名；
@@ -33,7 +37,7 @@ const DOC_TO_IR_STANDARD_TYPE: Record<string, IRStandardType> = {
  */
 export function toIrStandardType(t: string | undefined): IRStandardType | undefined {
   if (t === undefined) return undefined
-  return DOC_TO_IR_STANDARD_TYPE[t]
+  return DOC_TO_IR_STANDARD_TYPE.get(t)
 }
 
 /**

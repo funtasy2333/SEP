@@ -22,11 +22,20 @@ FIXED_DATE_TIME = (1980, 1, 1, 0, 0, 0)
 CONTENT_TYPES = '[Content_Types].xml'
 
 
+JUNK_FILENAMES = {'.DS_Store'}
+
+
 def collect_entries(root):
-    """遍历 root，返回 [(zip 内路径, 磁盘路径, 是否 base64)]，已按打包顺序排序。"""
+    """遍历 root，返回 [(zip 内路径, 磁盘路径, 是否 base64)]，已按打包顺序排序。
+    跳过 Finder 等工具生成的垃圾文件（目前只有 .DS_Store）：这类文件不是 golden 目录的一部分，
+    打进包里也没有对应的内容类型声明，会让 Word 判定包不合法。
+    注意不能简单跳过所有「点开头」的文件——`_rels/.rels` 是 OOXML 包根关系部件，文件名本身
+    就以点开头，是合法且必需的部件，必须打进包里。"""
     entries = []
     for dirpath, _dirnames, filenames in os.walk(root):
         for name in filenames:
+            if name in JUNK_FILENAMES:
+                continue
             disk_path = os.path.join(dirpath, name)
             rel = os.path.relpath(disk_path, root)
             zip_path = rel.replace(os.sep, '/')

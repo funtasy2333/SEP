@@ -22,6 +22,13 @@ describe('toIrStandardType', () => {
     expect(toIrStandardType('')).toBeUndefined()
     expect(toIrStandardType(undefined)).toBeUndefined()
   })
+
+  it('撞上 Object.prototype 属性名的取值一律返回 undefined（审查第 1 条：原型链查找）', () => {
+    expect(toIrStandardType('constructor')).toBeUndefined()
+    expect(toIrStandardType('toString')).toBeUndefined()
+    expect(toIrStandardType('__proto__')).toBeUndefined()
+    expect(toIrStandardType('hasOwnProperty')).toBeUndefined()
+  })
 })
 
 describe('irMetaFromDocumentMeta', () => {

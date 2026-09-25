@@ -10,9 +10,15 @@ export function mmToTwips(mm: number): number {
   return Math.round((mm * 1440) / 25.4)
 }
 
-/** 磅 → 半磅（OOXML 里 w:sz 等字号/边框粗细属性的单位是半磅） */
+/** 磅 → 半磅（OOXML 里 w:sz/w:szCs 字号属性的单位是半磅；边框粗细的 w:sz 不是半磅，见 ptToEighthPoint） */
 export function ptToHalfPoint(pt: number): number {
   return Math.round(pt * 2)
+}
+
+/** 磅 → 1/8 磅（OOXML 边框粗细属性——w:pBdr/w:tcBorders/w:tblBorders 等的 w:sz——单位是 1/8 磅，
+ *  不是半磅；§3.3 表格线：粗 0.75 磅 → sz=6，细 0.25 磅 → sz=2） */
+export function ptToEighthPoint(pt: number): number {
+  return Math.round(pt * 8)
 }
 
 /** 毫米 → EMU（English Metric Units；1 mm = 36000 EMU），用于 wp:extent 等图片尺寸 */

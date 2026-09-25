@@ -41,6 +41,14 @@ describe('pmToIr / 元数据', () => {
     expect(doc.meta.standardType).toBe('guide')
     expect(warnings).toEqual([])
   })
+
+  it('standardType="constructor" 回落为 gb 并报警告，不把原型链上的函数写进 IR（审查第 1 条）', () => {
+    const { doc, warnings } = pmToIr(fx.standardDoc({ standardType: 'constructor' }))
+    expect(doc.meta.standardType).toBe('gb')
+    expect(warnings.some((w) => w.includes('constructor'))).toBe(true)
+    // 不变式 4：IR 必须可 JSON 往返无损——原实现会在这里丢失 standardType 这个键
+    expect(JSON.parse(JSON.stringify(doc))).toEqual(doc)
+  })
 })
 
 describe('pmToIr / 结构', () => {

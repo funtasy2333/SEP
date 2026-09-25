@@ -71,13 +71,15 @@ export interface DocxPackageInput {
   relatedParts?: readonly DocxRelatedPart[]
 }
 
-const BINARY_CONTENT_TYPES: Record<string, string> = {
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  tiff: 'image/tiff',
-}
+/** 用 Map 而不是 plain object：plain object 按外部扩展名字符串查找会命中 Object.prototype
+ * 上的属性（如扩展名恰好是 "constructor" 时），让未知扩展名绕过下面的报错分支。 */
+const BINARY_CONTENT_TYPES = new Map<string, string>([
+  ['png', 'image/png'],
+  ['jpg', 'image/jpeg'],
+  ['jpeg', 'image/jpeg'],
+  ['gif', 'image/gif'],
+  ['tiff', 'image/tiff'],
+])
 
 function extensionOf(target: string): string {
   const i = target.lastIndexOf('.')
@@ -184,10 +186,11 @@ function corePropsXml(title: string, createdAtSeconds: string): string {
     'xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" ' +
     'xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" ' +
     'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"'
+  const createdText = escapeXmlText(createdAtSeconds)
   const body =
     `<dc:title>${escapeXmlText(title)}</dc:title>` +
-    `<dcterms:created xsi:type="dcterms:W3CDTF">${createdAtSeconds}</dcterms:created>` +
-    `<dcterms:modified xsi:type="dcterms:W3CDTF">${createdAtSeconds}</dcterms:modified>`
+    `<dcterms:created xsi:type="dcterms:W3CDTF">${createdText}</dcterms:created>` +
+    `<dcterms:modified xsi:type="dcterms:W3CDTF">${createdText}</dcterms:modified>`
   return `${XML_DECL}<cp:coreProperties ${NS}>${body}</cp:coreProperties>`
 }
 
@@ -215,7 +218,7 @@ export function buildPackage(input: DocxPackageInput): DocxPackage {
     if (rel.binary) {
       binaries[rel.target] = rel.content
       const ext = extensionOf(rel.target)
-      const ct = rel.contentType ?? BINARY_CONTENT_TYPES[ext]
+      const ct = rel.contentType ?? BINARY_CONTENT_TYPES.get(ext)
       if (!ct) throw new Error(`buildPackage: 无法确定二进制部件 "${rel.target}" 的内容类型（未知扩展名 "${ext}"）`)
       binaryExtensions.set(ext, ct)
     } else {
