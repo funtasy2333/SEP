@@ -11,8 +11,8 @@
  */
 
 import type { DocxPackage } from '../../types'
-import { extractParagraphText, findChild } from './outline'
-import { parseXml, type XmlElement, type XmlNode } from './xmlTree'
+import { extractParagraphText } from './paragraphText'
+import { findChild, parseXml, type XmlElement, type XmlNode } from './xmlTree'
 
 /** OOXML 编号级别上限（w:ilvl 取值 0–8） */
 const MAX_LEVELS = 9

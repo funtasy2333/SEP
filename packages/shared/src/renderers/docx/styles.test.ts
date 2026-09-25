@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { buildStylesXml } from './styles'
-import { findChild } from './__tests__/helpers/outline'
+import { findChild } from './__tests__/helpers/xmlTree'
 import { parseXml, type XmlElement } from './__tests__/helpers/xmlTree'
 
 function styleMap(): Map<string, XmlElement> {

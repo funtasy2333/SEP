@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { ABSTRACT_NUM_ID, createNumberingAllocator, listAbstractNumId } from './numbering'
-import { findChild } from './__tests__/helpers/outline'
+import { findChild } from './__tests__/helpers/xmlTree'
 import { parseXml, type XmlElement } from './__tests__/helpers/xmlTree'
 
 function abstractNums(root: XmlElement): Map<string, XmlElement> {

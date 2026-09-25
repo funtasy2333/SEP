@@ -3,88 +3,59 @@
  *
  * `docxOutline(pkg)` 按 `word/document.xml` 顺序把每个段落写成一行：`样式ID │ 编号 │ 文本`。
  * - 样式ID：段落 `pPr/pStyle` 的 `w:val`；没有 `pStyle` 写 "—"。
- * - 编号：WP7.1 写 `numId:ilvl`（取自段落级 `pPr/numPr`）；没有 `numPr` 写 "—"。
- *   WP7.2 起编号栏改用 §4.7 模拟器算出的标识（不在本文件改动范围）。
- * - 文本：`w:t` 原文；`w:br` 记为 "⏎"；`w:tab` 记为 "⇥"；公式（`m:oMath`/`m:oMathPara`）
- *   记为 "〔公式〕"；图片（`w:r` 内的 `w:drawing`）记为 "〔图〕"。
+ * - 编号：WP7.2 起改用 §4.7 模拟器（numberingSim.ts）算出的 label，去掉末尾一个 U+3000；
+ *   无编号写 "—"。
+ * - 文本：规则见 paragraphText.ts（`w:t` 原文；`w:br`⏎；`w:tab`⇥；公式〔公式〕；图片〔图〕）。
  * - 表格内的段落（`w:tbl` > `w:tr` > `w:tc` > `w:p`）整行前面加 "┆"。
- * - 每个 `w:sectPr` 单独一行，紧跟在它所结束那一节的末段之后（含 body 末尾、不属于任何
- *   段落的最后一节 sectPr）：`§ type=… pgNumType=… orient=…`；属性缺失同样写 "—"。
+ * - 每个 `w:sectPr` 单独一行，紧跟在它所结束那一节的末段之后：WP7.2 起格式为
+ *   `§ type=… pgNumType=… start=… orient=… refs=…`：`start` 为 `pgNumType` 的 `w:start`，
+ *   `refs` 为 headerReference 与 footerReference 的个数（含 0），缺失的属性写 "—"。
  *
  * 这是测试代码（属于 shared 测试基建），配合 `toMatchSnapshot()` 固化，不从任何 index.ts
  * 导出，同样不得使用 Node 或浏览器专有 API。
  */
 
 import type { DocxPackage } from '../../types'
-import { parseXml, type XmlElement, type XmlNode } from './xmlTree'
-
-/** 导出供 numberingSim.ts 复用（§4.7 模拟器的 text 提取规则与大纲相同，见该文件顶部注释） */
-export function findChild(el: XmlElement, name: string): XmlElement | undefined {
-  return el.children.find((c): c is XmlElement => c.kind === 'element' && c.name === name)
-}
-
-function textOf(el: XmlElement): string {
-  let out = ''
-  for (const c of el.children) if (c.kind === 'text') out += c.text
-  return out
-}
+import { simulateNumbering, type SimParagraph } from './numberingSim'
+import { extractParagraphText } from './paragraphText'
+import { findChild, parseXml, type XmlElement, type XmlNode } from './xmlTree'
 
 function formatSectPr(sect: XmlElement): string {
   const type = findChild(sect, 'w:type')?.attrs['w:val'] ?? '—'
-  const pgNumType = findChild(sect, 'w:pgNumType')?.attrs['w:fmt'] ?? '—'
+  const pgNumTypeEl = findChild(sect, 'w:pgNumType')
+  const pgNumType = pgNumTypeEl?.attrs['w:fmt'] ?? '—'
+  const start = pgNumTypeEl?.attrs['w:start'] ?? '—'
   const orient = findChild(sect, 'w:pgSz')?.attrs['w:orient'] ?? '—'
-  return `§ type=${type} pgNumType=${pgNumType} orient=${orient}`
+  const refs = sect.children.filter(
+    (c): c is XmlElement => c.kind === 'element' && (c.name === 'w:headerReference' || c.name === 'w:footerReference'),
+  ).length
+  return `§ type=${type} pgNumType=${pgNumType} start=${start} orient=${orient} refs=${refs}`
 }
 
-function extractRunText(r: XmlElement): string {
-  let out = ''
-  for (const child of r.children) {
-    if (child.kind === 'text') {
-      out += child.text
-      continue
-    }
-    if (child.name === 'w:t') out += textOf(child)
-    else if (child.name === 'w:br') out += '⏎'
-    else if (child.name === 'w:tab') out += '⇥'
-    else if (child.name === 'w:drawing') out += '〔图〕'
-    // 其余（rPr、fldChar、instrText…）不影响大纲文本，忽略
-  }
-  return out
+/** 模拟器 label 去掉末尾一个 U+3000（§10.2）；无编号（undefined）写 "—" */
+function numberingColumn(sim: SimParagraph): string {
+  return sim.label !== undefined ? sim.label.replace(/　$/, '') : '—'
 }
 
-/** 导出供 numberingSim.ts 复用：§4.7 模拟器的 text 列提取规则与大纲相同 */
-export function extractParagraphText(p: XmlElement): string {
-  let out = ''
-  for (const child of p.children) {
-    if (child.kind !== 'element') continue
-    if (child.name === 'w:pPr') continue
-    if (child.name === 'w:r') out += extractRunText(child)
-    else if (child.name === 'm:oMath' || child.name === 'm:oMathPara') out += '〔公式〕'
-  }
-  return out
-}
-
-function formatParagraphLine(p: XmlElement, inTable: boolean): string {
+function formatParagraphLine(p: XmlElement, inTable: boolean, sim: SimParagraph): string {
   const pPr = findChild(p, 'w:pPr')
   const style = (pPr && findChild(pPr, 'w:pStyle')?.attrs['w:val']) ?? '—'
-  const numPr = pPr && findChild(pPr, 'w:numPr')
-  const numbering = numPr
-    ? `${findChild(numPr, 'w:numId')?.attrs['w:val'] ?? '?'}:${findChild(numPr, 'w:ilvl')?.attrs['w:val'] ?? '0'}`
-    : '—'
   const text = extractParagraphText(p)
-  return `${inTable ? '┆' : ''}${style} │ ${numbering} │ ${text}`
+  return `${inTable ? '┆' : ''}${style} │ ${numberingColumn(sim)} │ ${text}`
 }
 
-function walkBody(nodes: readonly XmlNode[], inTable: boolean, lines: string[]): void {
+/** 按与 numberingSim.ts 完全相同的顺序消费 simulated 数组：文档顺序深度优先，含表格单元格 */
+function walkBody(nodes: readonly XmlNode[], inTable: boolean, lines: string[], simulated: readonly SimParagraph[], nextIndex: () => number): void {
   for (const node of nodes) {
     if (node.kind !== 'element') continue
     if (node.name === 'w:p') {
-      lines.push(formatParagraphLine(node, inTable))
+      const sim = simulated[nextIndex()]
+      lines.push(formatParagraphLine(node, inTable, sim))
       const pPr = findChild(node, 'w:pPr')
       const sectPrInP = pPr && findChild(pPr, 'w:sectPr')
       if (sectPrInP) lines.push(formatSectPr(sectPrInP))
     } else if (node.name === 'w:tbl') {
-      walkTable(node, lines)
+      walkTable(node, lines, simulated, nextIndex)
     } else if (node.name === 'w:sectPr') {
       // body 直接子元素的 sectPr：最后一节，写在 body 末尾（见 §2.2）
       lines.push(formatSectPr(node))
@@ -92,12 +63,12 @@ function walkBody(nodes: readonly XmlNode[], inTable: boolean, lines: string[]):
   }
 }
 
-function walkTable(tbl: XmlElement, lines: string[]): void {
+function walkTable(tbl: XmlElement, lines: string[], simulated: readonly SimParagraph[], nextIndex: () => number): void {
   for (const row of tbl.children) {
     if (row.kind !== 'element' || row.name !== 'w:tr') continue
     for (const cell of row.children) {
       if (cell.kind !== 'element' || cell.name !== 'w:tc') continue
-      walkBody(cell.children, true, lines)
+      walkBody(cell.children, true, lines, simulated, nextIndex)
     }
   }
 }
@@ -109,7 +80,12 @@ export function docxOutline(pkg: DocxPackage): string {
   const doc = parseXml(documentXml)
   const body = findChild(doc, 'w:body')
   if (!body) throw new Error('docxOutline: word/document.xml 缺少 w:body')
+
+  // simulateNumbering 按同样的「文档顺序深度优先、含表格单元格」规则遍历，因此可以用一个
+  // 递增下标把两次独立的遍历结果一一对应起来。
+  const simulated = simulateNumbering(pkg)
+  let i = 0
   const lines: string[] = []
-  walkBody(body.children, false, lines)
+  walkBody(body.children, false, lines, simulated, () => i++)
   return lines.join('\n')
 }

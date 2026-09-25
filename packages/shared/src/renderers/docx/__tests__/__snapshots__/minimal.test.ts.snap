@@ -2,5 +2,5 @@
 
 exports[`minimal fixture > 大纲快照 1`] = `
 "— │ — │ 最小 DOCX 示例段落。
-§ type=— pgNumType=— orient=—"
+§ type=— pgNumType=— start=— orient=— refs=0"
 `;
