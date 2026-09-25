@@ -87,11 +87,14 @@ const EXPECTED_NAMES: Record<string, string> = {
   TOC3: 'toc 3',
   SesCoverStdNo: 'SES_封面文件编号',
 }
+// 条级样式中文名用汉字数字，不是阿拉伯数字（§3.2：SES_一级条标题…SES_五级条标题，#34 审查）
+const CN_LEVEL = ['一', '二', '三', '四', '五']
 for (let level = 1; level <= 5; level++) {
-  EXPECTED_NAMES[`SesClause${level}`] = `SES_${level}级条标题`
-  EXPECTED_NAMES[`SesNoTitle${level}`] = `SES_${level}级无标题条`
-  EXPECTED_NAMES[`SesAppClause${level}`] = `SES_附录${level}级条标题`
-  EXPECTED_NAMES[`SesAppNoTitle${level}`] = `SES_附录${level}级无标题条`
+  const cn = CN_LEVEL[level - 1]
+  EXPECTED_NAMES[`SesClause${level}`] = `SES_${cn}级条标题`
+  EXPECTED_NAMES[`SesNoTitle${level}`] = `SES_${cn}级无标题条`
+  EXPECTED_NAMES[`SesAppClause${level}`] = `SES_附录${cn}级条标题`
+  EXPECTED_NAMES[`SesAppNoTitle${level}`] = `SES_附录${cn}级无标题条`
 }
 
 describe('styles.ts：§3.2 全部样式都在，ID/中文名/basedOn 正确', () => {

@@ -130,12 +130,16 @@ function buildStyleXml(spec: StyleSpec): string {
 /** 标题类样式（§3.1）：keepNext 属于各自行单独给出，这里只处理 next=SesPara */
 const TITLE_NEXT_PARA = 'SesPara'
 
+/** 条级样式中文名用汉字数字（SES_一级条标题…SES_五级条标题），不是阿拉伯数字（§3.2、#34 审查） */
+const CN_LEVEL = ['一', '二', '三', '四', '五']
+
 function clauseFamily(): StyleSpec[] {
   const out: StyleSpec[] = []
   for (let level = 1; level <= 5; level++) {
+    const cn = CN_LEVEL[level - 1]
     out.push({
       id: `SesClause${level}`,
-      name: `SES_${level}级条标题`,
+      name: `SES_${cn}级条标题`,
       rFonts: 'hei',
       keepNext: true,
       spacing: SPACING_HALF_LINE,
@@ -143,10 +147,10 @@ function clauseFamily(): StyleSpec[] {
       next: TITLE_NEXT_PARA,
       numPr: { numId: ABSTRACT_NUM_ID.chapter, ilvl: level },
     })
-    out.push({ id: `SesNoTitle${level}`, name: `SES_${level}级无标题条` })
+    out.push({ id: `SesNoTitle${level}`, name: `SES_${cn}级无标题条` })
     out.push({
       id: `SesAppClause${level}`,
-      name: `SES_附录${level}级条标题`,
+      name: `SES_附录${cn}级条标题`,
       rFonts: 'hei',
       keepNext: true,
       spacing: SPACING_HALF_LINE,
@@ -154,7 +158,7 @@ function clauseFamily(): StyleSpec[] {
       next: TITLE_NEXT_PARA,
       numPr: { numId: ABSTRACT_NUM_ID.appendixClause, ilvl: level },
     })
-    out.push({ id: `SesAppNoTitle${level}`, name: `SES_附录${level}级无标题条` })
+    out.push({ id: `SesAppNoTitle${level}`, name: `SES_附录${cn}级无标题条` })
   }
   return out
 }
