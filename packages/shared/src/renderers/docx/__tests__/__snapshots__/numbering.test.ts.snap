@@ -66,6 +66,21 @@ SesFormula │ — │ ⇥〔公式占位〕⇥(1)
 SesFormula │ — │ ⇥〔公式占位〕
 SesClause2 │ 4.1.1 │ 深度不符样例〔期望4.1.1〕
 SesPara │ — │ 本条 level 字段故意写错。
+SesFigure │ — │ 〔图片占位〕
+SesNote │ 注： │ 图序注释文字〔期望注：〕
+SesFigure │ — │ 〔图片占位〕
+SesFigCap │ 图4 │ 图序内嵌图〔期望图4〕
+SesFigCap │ 图5 │ 图序外层图〔期望图5〕
+SesTermNum │ 4.1.2 │ 
+SesTermHead │ — │ 图序术语〔前段期望4.1.2〕
+SesPara │ — │ 用于验证遍历顺序的术语。
+SesExLabel │ 示例： │ 
+SesExText │ — │ 术语示例文字〔前段期望示例：〕
+SesFigure │ — │ 〔图片占位〕
+SesFigCap │ 图6 │ 术语示例图〔期望图6〕
+SesNote │ 注： │ 术语注释文字〔期望注：〕
+SesFigure │ — │ 〔图片占位〕
+SesFigCap │ 图7 │ 术语注图〔期望图7〕
 SesClause1 │ 4.2 │ 列项样例〔期望4.2〕
 SesListItem │ a) │ 字母项一〔期望a)〕
 SesListItem │ 1) │ 数字子项一〔期望1)〕
