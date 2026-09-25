@@ -143,8 +143,9 @@ const PREV_MARKER_RE = /〔前段期望([^〕]+)〕/
 
 /**
  * 扫描模拟器每段文本里的期望标记：「期望」「附录期望」核对本段的 label；「前段期望」核对
- * 上一段的 label（label 都先去掉末尾一个 U+3000 再比较）。至少要找到一个标记（否则说明
- * fixture 没有按规格要求写标记，测试本身就没有意义）。
+ * 上一段的 label（label 都先去掉末尾一个 U+3000 再比较）。规格里的写法是「〔期望 X〕」（带
+ * 空格，§9 WP7.2），X 两侧的空白先 trim 掉再比较，即使 fixture 本身不带空格也兼容（#34 审查）。
+ * 至少要找到一个标记（否则说明 fixture 没有按规格要求写标记，测试本身就没有意义）。
  */
 export function assertExpectMarkers(simulated: readonly SimParagraph[]): void {
   let found = 0
@@ -152,7 +153,7 @@ export function assertExpectMarkers(simulated: readonly SimParagraph[]): void {
     const self = SELF_MARKER_RE.exec(p.text)
     if (self) {
       found += 1
-      const expected = self[1]
+      const expected = self[1].trim()
       const actual = p.label?.replace(/　$/, '')
       if (actual !== expected) {
         throw new Error(`assertExpectMarkers: 第 ${i} 段「期望」标记为「${expected}」，模拟器标识为「${actual}」（text="${p.text}"）`)
@@ -161,7 +162,7 @@ export function assertExpectMarkers(simulated: readonly SimParagraph[]): void {
     const prev = PREV_MARKER_RE.exec(p.text)
     if (prev) {
       found += 1
-      const expected = prev[1]
+      const expected = prev[1].trim()
       const prevPara = simulated[i - 1]
       const actual = prevPara?.label?.replace(/　$/, '')
       if (actual !== expected) {

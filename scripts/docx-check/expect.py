@@ -82,7 +82,9 @@ def main():
         lines = build_visual_lines(doc[page_no])
         for i, line in enumerate(lines):
             for m in MARKER_RE.finditer(line['text']):
-                kind, expected = m.group(1), m.group(2)
+                # 规格写法「〔期望 X〕」带空格（§9 WP7.2）；X 两侧空白 strip 掉再比较，
+                # 兼容 fixture 里不带空格的写法（#34 审查）。
+                kind, expected = m.group(1), m.group(2).strip()
                 where = f'第 {page_no + 1} 页 第 {i + 1} 行'
 
                 if kind == '期望':
