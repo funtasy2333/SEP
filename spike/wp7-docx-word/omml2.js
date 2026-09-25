@@ -47,9 +47,10 @@ function absorb(n) {
     for (; j < n.kids.length; j++) {
       const s = n.kids[j]
       if (s.tag === 'mo' && depth === 0 && STOP.has(text(s).trim())) break
-      depth += s.tag ? fenceDelta(s) : 0
+      const d = s.tag ? fenceDelta(s) : 0
+      if (depth + d < 0) break          // 深度 0 遇到右括号：它属于外层分组，不吸收
+      depth += d
       body.push(s)
-      if (depth < 0) break
     }
     if (body.length) { out.push({ tag: 'mrow', attrs: '', kids: body }); i = j - 1 }
   }

@@ -127,7 +127,7 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 - **为什么前言、附录、参考文献要各起一节**：Word 在分页后的页首会吞掉段前距（`pageBreakBefore` 与手动分页符都会被吞），只有节的第一段保留段前距。这些标题「书眉下空 15 mm」只能靠分节实现（spike v6–v9）。
 - 无目次时省略目次节，前言节改为 `oddPage` + `upperRoman start=1`。
 - `oddPage` 自动插入的空白页不印书眉页码，符合 10.1.4（spike 实测）。
-- 横排节见 §5.9。
+- 横排节见 §5.15。
 
 ### 2.3 页眉页脚部件
 
@@ -339,7 +339,8 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
 
 顺序（9.7.5）：图片段 → 图中的注 → 图题。
 
-- 图片段：P(SesFigure)，内含 `w:drawing/wp:inline`。尺寸取 `widthPx/heightPx` 与 `dpi`（缺省 96）换算为 EMU（1 mm = 36000 EMU）；宽度超过版心宽（165 mm，横排节为横排版心宽）时等比缩到版心宽。媒体写入 `word/media/imageN.{ext}`，在 `document.xml.rels` 里登记。
+- 图片段：P(SesFigure)，内含 `w:drawing/wp:inline`。尺寸取 `widthPx/heightPx` 与 `dpi`（缺省 96）换算为 EMU（1 mm = 36000 EMU）；宽度超过版心宽（竖排 165 mm，横排 252 mm）时等比缩到版心宽。媒体写入 `word/media/imageN.{ext}`，在 `document.xml.rels` 里登记。
+- `orientation='landscape'` 的图按 §5.15 放进横排节（图片、图中的注、图题都在该节内）。
 - 图题：正文 P(SesFigCap, caption)；附录 P(SesAppFigCap, caption) + 本附录图实例。**不输出** `captionEn`。
 - `images` 中缺该图：输出一段文字「〔图片缺失〕」并记 `image-missing` warning。
 
@@ -350,10 +351,10 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
   - `tblPr`：`tblW` 5000 pct；`jc=center`；`tblLayout fixed`；边框外框 sz=6，`insideH/insideV` sz=2；
   - `tblGrid`：按最大列数平均分配版心宽（必须写，否则不符合 schema）；
   - 前 `headerRowCount` 行 `trPr` 写 `<w:tblHeader/>`（跨页重复表头，9.8.3），表头最后一行的单元格下边框 sz=6；
-  - 合并：`colspan` → `tcPr/gridSpan`；`rowspan` → 起始格 `vMerge val="restart"`，**被覆盖的后续行在同一网格位置补占位格** `<w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p/></w:tc>`（旧导出器缺这一步，会导致网格错位）；
+  - 合并：`colspan` → `tcPr/gridSpan`；`rowspan` → 起始格 `vMerge val="restart"`，**被覆盖的后续行在同一网格位置补占位格** `<w:tc><w:tcPr><w:gridSpan w:val="N"/><w:vMerge/></w:tcPr><w:p/></w:tc>`，其中 N = 起始格的 `colspan`（为 1 时省略 `gridSpan`）。占位格缺 `gridSpan` 会只占一列，同行后面的格整体左移，网格错位（旧导出器连占位格都没有）；
   - 单元格段落：表头格与纯数字格（`/^[\d\s.,±%~—-]+$/`）用 SesTableCenter，其余用 SesTableText；空单元格写一字线「—」（10.4.2.2）。
 - 表注：表内最后加一行，单元格 `gridSpan` 跨满全宽，上边框 sz=6，内容按 §5.7 规则，用 SesTableNote。
-- 横排（`orientation='landscape'`）：前后各插分节，本节 `w:type=nextPage`、`pgSz w=16838 h=11906 orient="landscape"`，页边距按横向换算（上 34 / 下 25 等不变，左右为内/外侧），页码续编；页眉页脚沿用同一组部件。WP7.4 开工前须在 Word 与 WPS 中验证书眉、页码的位置。
+- `orientation='landscape'` 的表按 §5.15 放进横排节（表题、表、表注都在该节内）。
 - 「表X（续）」、单位陈述：V2，不在本系列。
 
 ### 5.10 公式（10.4.3）
@@ -377,6 +378,16 @@ P(SesAppendix, `<w:br/>` + 「（规范性）」或「（资料性）」+ `<w:br
 ### 5.14 前言、引言
 
 P(SesFrontTitle, 「前言」/「引言」，字距按 §3.3) + 内容块。引言中的图、表、公式参与全文连续编号（9.7.2.1「图编号从引言开始」），实例同正文。
+
+### 5.15 横排（图、表共用）
+
+适用于 `orientation='landscape'` 的 `IRFigure` 与 `IRTable`：
+
+- 在该要素之前结束当前节（按 §2.2 的规则把当前节属性写进上一段），开一个横排节：`w:type=nextPage`，`pgSz w=16838 h=11906 orient="landscape"`，页码续编（显式写当前的 `pgNumType fmt`），页眉页脚引用同一组四个部件。
+- 横排节的页边距按横向换算：左右（内/外侧）25 / 20 mm 不变，上下 34 / 25 mm 不变；横排版心宽 = 297 − 25 − 20 = **252 mm**，图片按此上限缩放，表格 `tblW` 5000 pct 即占满横排版心。
+- 该要素（连同图题/表题、图中的注/表注）之后再开一个竖排节（`nextPage`，页码续编），恢复竖排页面。**连续的横排要素共用一个横排节**，中间不插竖排节。
+- 若文件最后一个要素是横排的，终结线（§5.13）放在该横排节内、与该要素同页，不再切回竖排另起一面。
+- 横排节里的书眉、页码会随纸张方向一起转到横向的顶部和底部；这是否符合要求须在 WP7.4 开工前的 spike 中用 Word 与 WPS 确认，结论写进 PR。
 
 ---
 
@@ -471,9 +482,9 @@ P(SesFrontTitle, 「前言」/「引言」，字距按 §3.3) + 内容块。引�
 
 - 只在顺序容器（`mrow`、`math`、`semantics`、`mstyle`、`mtd`、`msqrt`、`menclose` 等）里处理；上下标、分式等按位置取子节点的元素（`msub`/`msup`/`msubsup`/`munder`/`mover`/`munderover`/`mfrac`/`mroot`/`mmultiscripts`）**不改动其子节点**；
 - n-ary 元素：底为大型运算符（∑∏∐∫∬∭∮∯∰⋀⋁⋂⋃⨀⨁⨂）的 `munderover`/`munder`/`mover`/`msubsup`/`msub`/`msup`，或裸 `mo`；
-- 从 n-ary 之后收集兄弟节点，维护括号深度（`(`/`[`/`{`/`⟨` 加一，右括号及挂着上下标的右括号减一），深度为 0 时遇到 `= + − - ± ∓ < > ≤ ≥ ≈ ≠ ≡ ∼ , ;` 停止；收集到的节点包进一个新 `<mrow>`，紧跟在 n-ary 之后。
+- 从 n-ary 之后收集兄弟节点，维护括号深度（`(`/`[`/`{`/`⟨` 加一，右括号及挂着上下标的右括号减一）。深度为 0 时遇到 `= + − - ± ∓ < > ≤ ≥ ≈ ≠ ≡ ∼ , ;` 停止；**深度为 0 时遇到右括号也停止，且不吸收它**——它属于 n-ary 外层的分组（如 `(\sum_i x_i)+y` 中的「)」）。收集到的节点包进一个新 `<mrow>`，紧跟在 n-ary 之后。
 
-实测：`∑xᵢ`、`∑(xᵢ−x̄)²`、`∫e^{−x²}dx` 的主体全部正确。
+实测：`∑xᵢ`、`∑(xᵢ−x̄)²+1`、`∫e^{−x²}dx`、`(∑ᵢxᵢ)+y`、`(∑xᵢ)²−z` 的主体全部正确。
 
 ### 8.3 失败降级
 
@@ -517,7 +528,7 @@ KaTeX 报错或转换异常时不传该公式的 OMML，由渲染器按 §5.10 �
 
 - **开工前半天 spike**（Word，另备 WPS）：表头跨页重复、横排节书眉页码、`spike/wp7-docx-word/omml2.js` 的公式样例在两端的渲染。结论写进 PR。
 - 实现 §5.8–5.10、§8（公式转换放 client，动态 import `mathml2omml`）、横排节。
-- **验收**：14 个样例公式（含 `<`、`&`、∑、∫、根号、矩阵、分段函数）全部可打开、主体正确；含合并单元格的表格网格正确；横排页页眉页码位置经人工确认。
+- **验收**：14 个样例公式（含 `<`、`&`、∑、∫、根号、矩阵、分段函数，以及括号包住 ∑ 的写法）全部可打开、主体正确；含 rowspan 与 colspan 组合合并的表格网格正确（续格带相同 `gridSpan`）；横排图、横排表各至少一例，连续横排共用一节，末要素为横排时终结线同页；横排页书眉页码位置经人工确认。
 
 ### WP7.5 封面（2 天）
 
@@ -554,3 +565,4 @@ KaTeX 报错或转换异常时不传该公式的 OMML，由渲染器按 §5.10 �
 - `w:style`：name, aliases, basedOn, next, link, autoRedefine, hidden, uiPriority, semiHidden, unhideWhenUsed, qFormat, locked, personal…, rsid, pPr, rPr, tblPr, trPr, tcPr, tblStylePr
 - `w:settings`（本规格用到的）：mirrorMargins, defaultTabStop, evenAndOddHeaders, characterSpacingControl, updateFields, compat, m:mathPr
 - `w:tbl`：tblPr, tblGrid, tr+；`w:tr`：trPr, tc+；`w:tc`：tcPr, 块内容（至少一个 `w:p`）
+- `w:tcPr`：cnfStyle, tcW, gridSpan, hMerge, vMerge, tcBorders, shd, noWrap, tcMar, textDirection, tcFitText, vAlign, hideMark
