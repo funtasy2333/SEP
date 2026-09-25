@@ -1,0 +1,6 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`minimal fixture > 大纲快照 1`] = `
+"— │ — │ 最小 DOCX 示例段落。
+§ type=— pgNumType=— orient=—"
+`;
