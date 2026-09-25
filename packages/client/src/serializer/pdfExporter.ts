@@ -11,8 +11,7 @@
  */
 
 import type { Node as PMNode } from '@tiptap/pm/model'
-import { pmToIr, resolve, renderHtml, type PMJsonNode } from '@ses/shared'
-import type { DocMeta } from './docxExporter'
+import { pmToIr, resolve, renderHtml, type IRDocMeta, type PMJsonNode } from '@ses/shared'
 
 export interface PdfTocTarget {
   target: string
@@ -51,7 +50,7 @@ function extractToc(html: string): PdfTocTarget[] {
  * @param doc  当前编辑器 ProseMirror 文档
  * @param meta 导出面板元数据（覆盖 IR meta，保证书眉/正文首页名称与 DOCX 导出一致）
  */
-export function buildPdfExportRequest(doc: PMNode, meta: DocMeta): PdfExportRequest {
+export function buildPdfExportRequest(doc: PMNode, meta: Partial<IRDocMeta>): PdfExportRequest {
   const pmJson = doc.toJSON() as PMJsonNode
   const { doc: ir } = pmToIr(pmJson)
 

@@ -72,7 +72,6 @@
           @open="openDocument"
           @delete="handleDelete"
           @duplicate="handleDuplicate"
-          @export="handleExport"
         />
       </div>
 
@@ -290,10 +289,6 @@ async function handleDuplicate(row: DocumentData) {
   })
   ElMessage.success('已复制')
   router.push({ name: 'editor', params: { id: copy.id! } })
-}
-
-function handleExport(row: DocumentData) {
-  router.push({ name: 'editor', params: { id: row.id! }, query: { autoExport: 'docx' } })
 }
 
 function formatDate(s?: string) {

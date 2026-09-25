@@ -40,7 +40,6 @@
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item command="duplicate">复制</el-dropdown-item>
-              <el-dropdown-item command="export">导出 DOCX</el-dropdown-item>
               <el-dropdown-item divided command="delete" style="color: var(--ses-err)">删除</el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -65,7 +64,6 @@ const emit = defineEmits<{
   (e: 'open', doc: DocumentData): void
   (e: 'delete', doc: DocumentData): void
   (e: 'duplicate', doc: DocumentData): void
-  (e: 'export', doc: DocumentData): void
 }>()
 
 function stageLabel(s: string) { return STAGE_LABELS[s] || s }
@@ -107,7 +105,6 @@ const formattedTime = computed(() => {
 function onAction(cmd: string) {
   if (cmd === 'delete') emit('delete', props.doc)
   if (cmd === 'duplicate') emit('duplicate', props.doc)
-  if (cmd === 'export') emit('export', props.doc)
 }
 </script>
 

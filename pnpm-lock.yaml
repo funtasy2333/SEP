@@ -58,9 +58,6 @@ importers:
       diff:
         specifier: ^8.0.4
         version: 8.0.4
-      docx:
-        specifier: ^9.6.1
-        version: 9.6.1
       element-plus:
         specifier: ^2.13.6
         version: 2.13.6(typescript@5.9.3)(vue@3.5.31(typescript@5.9.3))
@@ -3041,10 +3038,6 @@ packages:
   doctype@3.0.1:
     resolution: {integrity: sha512-Ha+ox5/0B5VFY316bJgY9ed2KlZw7Fh6US9xoLuYNztgMX49JvE6lB39hWd097bu7pJhETDuoZ7kS1Nc35kVRg==}
 
-  docx@9.6.1:
-    resolution: {integrity: sha512-ZJja9/KBUuFC109sCMzovoq2GR2wCG/AuxivjA+OHj/q0TEgJIm3S7yrlUxIy3B+bV8YDj/BiHfWyrRFmyWpDQ==}
-    engines: {node: '>=10'}
-
   dompurify@3.3.2:
     resolution: {integrity: sha512-6obghkliLdmKa56xdbLOpUZ43pAR6xFy1uOrxBaIDjT+yaRuuybLjGS9eVBoSR/UPU5fq3OXClEHLJNGvbxKpQ==}
     engines: {node: '>=20'}
@@ -3548,9 +3541,6 @@ packages:
   has-tostringtag@1.0.2:
     resolution: {integrity: sha512-NqADB8VjPFLM2V0VvHUewwwsw0ZWBaIdgo+ieHtK3hasLz4qeCRjYcqfB6AQrBggRKppKF8L52/VqdVsO47Dlw==}
     engines: {node: '>= 0.4'}
-
-  hash.js@1.1.7:
-    resolution: {integrity: sha512-taOaskGt4z4SOANNseOviYDvjEJinIkRgmp7LbKP2YTTmVxWBl87s/uzK9r+44BclBSp2X7K1hqeNfz9JbBeXA==}
 
   hasown@2.0.2:
     resolution: {integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==}
@@ -4396,9 +4386,6 @@ packages:
     resolution: {integrity: sha512-z0yWI+4FDrrweS8Zmt4Ej5HdJmky15+L2e6Wgn3+iK5fWzb6T3fhNFq2+MeTRb064c6Wr4N/wv0DzQTjNzHNGQ==}
     engines: {node: '>=10'}
 
-  minimalistic-assert@1.0.1:
-    resolution: {integrity: sha512-UtJcAD4yEaGtjPezWuO9wC4nwUnVH/8/Im3yEHQP4b67cXlD/Qr9hdITCU1xDbSEXg2XKNaP8jsReV7vQd00/A==}
-
   minimatch@10.2.4:
     resolution: {integrity: sha512-oRjTw/97aTBN0RHbYCdtF1MQfvusSIBQM0IZEgzl6426+8jSC0nF1a/GmnVLpfB9yyr6g6FTqWqiZVbxrtaCIg==}
     engines: {node: 18 || 20 || >=22}
@@ -4484,11 +4471,6 @@ packages:
   nanoid@3.3.11:
     resolution: {integrity: sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
-    hasBin: true
-
-  nanoid@5.1.7:
-    resolution: {integrity: sha512-ua3NDgISf6jdwezAheMOk4mbE1LXjm1DfMUDMuJf4AqxLFK3ccGpgWizwa5YV7Yz9EpXwEaWoRXSb/BnV0t5dQ==}
-    engines: {node: ^18 || >=20}
     hasBin: true
 
   napi-build-utils@2.0.0:
@@ -5119,10 +5101,6 @@ packages:
 
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
-
-  sax@1.6.0:
-    resolution: {integrity: sha512-6R3J5M4AcbtLUdZmRv2SygeVaM7IhrLXu9BmnOGmmACak8fiUtOsYNWUS4uK7upbmHIBbLBeFeI//477BKLBzA==}
-    engines: {node: '>=11.0.0'}
 
   saxes@6.0.0:
     resolution: {integrity: sha512-xAg7SOnEhrm5zI3puOOKyy1OMcMlIJZYNJY7xLBwSze0UjhPLnWfj2GF2EpT0jmzaJKIWKHLsaSSajf35bcYnA==}
@@ -6212,16 +6190,9 @@ packages:
       utf-8-validate:
         optional: true
 
-  xml-js@1.6.11:
-    resolution: {integrity: sha512-7rVi2KMfwfWFl+GpPg6m80IVMWXLRjO+PxTq7V2CDhoGak0wzYzFgUY2m4XJ47OGdXd8eLE8EmwfAmdjw7lC1g==}
-    hasBin: true
-
   xml-name-validator@5.0.0:
     resolution: {integrity: sha512-EvGK8EJ3DhaHfbRlETOWAS5pO9MZITeauHKJyb8wyajUfQUenkIg2MvLDTZ4T/TgIcm3HU0TFBgWWboAZ30UHg==}
     engines: {node: '>=18'}
-
-  xml@1.0.1:
-    resolution: {integrity: sha512-huCv9IH9Tcf95zuYCsQraZtWnJvBtLVE0QHMOs8bWyZAFZNDcYjsPq1nEx8jKA9y+Beo9v+7OBPRisQTjinQMw==}
 
   xmlchars@2.2.0:
     resolution: {integrity: sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw==}
@@ -7997,6 +7968,7 @@ snapshots:
   '@types/node@25.5.2':
     dependencies:
       undici-types: 7.18.2
+    optional: true
 
   '@types/parse5@5.0.3': {}
 
@@ -9307,15 +9279,6 @@ snapshots:
 
   doctype@3.0.1: {}
 
-  docx@9.6.1:
-    dependencies:
-      '@types/node': 25.5.2
-      hash.js: 1.1.7
-      jszip: 3.10.1
-      nanoid: 5.1.7
-      xml: 1.0.1
-      xml-js: 1.6.11
-
   dompurify@3.3.2:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
@@ -9899,11 +9862,6 @@ snapshots:
   has-tostringtag@1.0.2:
     dependencies:
       has-symbols: 1.1.0
-
-  hash.js@1.1.7:
-    dependencies:
-      inherits: 2.0.4
-      minimalistic-assert: 1.0.1
 
   hasown@2.0.2:
     dependencies:
@@ -10963,8 +10921,6 @@ snapshots:
 
   mimic-response@3.1.0: {}
 
-  minimalistic-assert@1.0.1: {}
-
   minimatch@10.2.4:
     dependencies:
       brace-expansion: 5.0.5
@@ -11041,8 +10997,6 @@ snapshots:
   mute-stream@2.0.0: {}
 
   nanoid@3.3.11: {}
-
-  nanoid@5.1.7: {}
 
   napi-build-utils@2.0.0: {}
 
@@ -11818,8 +11772,6 @@ snapshots:
 
   safer-buffer@2.1.2: {}
 
-  sax@1.6.0: {}
-
   saxes@6.0.0:
     dependencies:
       xmlchars: 2.2.0
@@ -12481,7 +12433,8 @@ snapshots:
 
   undici-types@7.16.0: {}
 
-  undici-types@7.18.2: {}
+  undici-types@7.18.2:
+    optional: true
 
   undici@6.26.0: {}
 
@@ -13032,13 +12985,7 @@ snapshots:
 
   ws@8.21.0: {}
 
-  xml-js@1.6.11:
-    dependencies:
-      sax: 1.6.0
-
   xml-name-validator@5.0.0: {}
-
-  xml@1.0.1: {}
 
   xmlchars@2.2.0: {}
 
