@@ -1,6 +1,6 @@
 # scripts/docx-check/
 
-本地核对 DOCX 渲染器输出用的三个小工具（docs/wp7-docx-delivery.md §10.3）。**只用 Python 3
+本地核对 DOCX 渲染器输出用的四个小工具（docs/wp7-docx-delivery.md §10.3）。**只用 Python 3
 标准库 + PyMuPDF**（本机已装，`import fitz`），不是项目依赖，不进 CI，只在本机手动运行。
 
 | 脚本 | 用法 | 作用 |
@@ -8,10 +8,11 @@
 | `pack.py` | `pack.py <golden 目录> <out.docx>` | 把 shared 测试里 `__golden__/<fixture>/` 解包目录重新打成 `.docx` |
 | `word_pdf.py` | `word_pdf.py <in.docx> <out.pdf>` | 用本机 Microsoft Word 把 `.docx` 转成 `.pdf`（macOS，AppleScript 自动化） |
 | `measure.py` | `measure.py <pdf> [--pages A-B\|N] [--json]` | 300 dpi 渲染 PDF 每一页，量出书眉/首行/页码/页边距的毫米值 |
+| `expect.py`（WP7.2） | `expect.py <pdf>` | 核对 `numbering` fixture 里嵌的期望标记，与 Word 实际排出的编号逐条比对 |
 
 典型流程：`pack.py` 把测试生成的 golden 目录打成真正的 `.docx` → 在 Word 里人工打开核对
 （或用 `word_pdf.py` 自动导出 PDF）→ `measure.py` 量出关键位置的毫米值，和 §2.1、§6.1 的
-目标值比对。
+目标值比对；`numbering` fixture 另跑 `expect.py` 核对编号本身。
 
 ## pack.py
 
@@ -60,6 +61,25 @@ python3 scripts/docx-check/measure.py spike/wp7-docx-word/spike-word.pdf --pages
   在右、双数页外侧在左，与 §2.3 页脚缩进方向一致）。
 
 整页无墨迹时该页只报告「空白页」。加 `--json` 输出 JSON 数组，便于脚本化比对。
+
+## expect.py（WP7.2）
+
+```
+python3 scripts/docx-check/expect.py /tmp/numbering.pdf
+```
+
+按 span 取文字，同一页上基线（span `origin` 的 y）相差不到 1pt 的 span 归为一个「视觉行」，
+行内按 x 排序拼接。在视觉行里找 `numbering` fixture 嵌的三种期望标记：
+
+- 「〔期望X〕」：本行去掉全部空白后以 X（同样去掉空白）开头，且紧接 X 的字符不是数字或
+  「.」（避免「期望4」误配到 Word 实际排出的「4.1」）；
+- 「〔前段期望X〕」：同一页的上一个视觉行去掉空白后等于 X（用于只有编号、没有文字的段落，
+  如术语条目编号段、示例标识段）；
+- 「〔附录期望X〕」：同一页往上第二个视觉行去掉空白后等于 X（附录标识段的第三行，往上第二
+  行正是只含编号「附录A」的第一行）。
+
+逐条输出通过或失败及实际文字（同时打印到 stdout，方便直接贴进 PR）；有失败、或一个标记也
+没找到时退出码为 1。
 
 ### 验收基准（对 `spike/wp7-docx-word/spike-word.pdf` 第 2–9 页）
 
