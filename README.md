@@ -25,7 +25,7 @@
 
 ### 文档导出
 
-- **DOCX 导出**：符合 GB/T 1.1-2020 要求，支持国家/行业/地方/团体/企业标准等模板
+- **DOCX 交付稿**：生成器重建中（见 docs/wp7-docx-delivery.md）
 - **PDF 导出**：通过服务端 LibreOffice 引擎将 DOCX 转换为 PDF
 - 封面页、页眉页脚、目次、样式映射自动生成
 
@@ -118,7 +118,6 @@ pnpm build
 | [Element Plus](https://github.com/element-plus/element-plus) | Vue 3 UI 组件库 |
 | [Pinia](https://github.com/vuejs/pinia) | Vue 状态管理库 |
 | [Vue Router](https://github.com/vuejs/router) | Vue 官方路由库 |
-| [docx](https://github.com/dolanmiri/docx) | JavaScript 生成 Word DOCX 文件 |
 | [JSZip](https://github.com/Stuk/jszip) | JavaScript ZIP 压缩/解压库 |
 | [KaTeX](https://github.com/KaTeX/KaTeX) | 快速的数学公式排版库 |
 | [Axios](https://github.com/axios/axios) | HTTP 客户端 |

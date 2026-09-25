@@ -22,3 +22,7 @@ example/templatelist*.config
 
 # WP4-fix 临时核对产物（PDF/HTML/脚本，不提交）
 tmp-e2e/
+
+# scripts/docx-check/ 等本地 Python 工具的字节码缓存
+__pycache__/
+*.pyc

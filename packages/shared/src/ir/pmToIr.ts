@@ -6,6 +6,7 @@
  * 同构纯 TypeScript，不引用浏览器或 Node 专有 API。
  */
 
+import { toIrStandardType } from './meta'
 import type {
   IRAppendix,
   IRBibEntry,
@@ -647,16 +648,6 @@ function convertBibliography(node: PMJsonNode, ctx: Ctx): IRBibEntry[] {
 
 // ----- 元数据 -----
 
-const STANDARD_TYPE_MAP: Record<string, IRDocMeta['standardType']> = {
-  national: 'gb',
-  gb: 'gb',
-  industry: 'industry',
-  local: 'local',
-  group: 'group',
-  enterprise: 'enterprise',
-  guide: 'guide',
-}
-
 function strAttr(attrs: Record<string, unknown> | undefined, key: string): string | undefined {
   const v = attrs?.[key]
   return typeof v === 'string' && v.length > 0 ? v : undefined
@@ -665,7 +656,7 @@ function strAttr(attrs: Record<string, unknown> | undefined, key: string): strin
 function convertMeta(docNode: PMJsonNode, coverPage: PMJsonNode | undefined, ctx: Ctx): IRDocMeta {
   const attrs = docNode.attrs
   const rawType = String(attrs?.standardType ?? 'national')
-  let standardType = STANDARD_TYPE_MAP[rawType]
+  let standardType = toIrStandardType(rawType)
   if (!standardType) {
     ctx.warnings.push(`标准类型「${rawType}」无法识别，已按国家标准处理`)
     standardType = 'gb'
