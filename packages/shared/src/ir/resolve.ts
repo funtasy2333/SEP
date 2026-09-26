@@ -163,13 +163,15 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx): void {
       break
     }
     case 'figure': {
-      labelFigureOrTable(block.id, 'fig', ctx)
-      visitInlines(block.caption, block.id, ctx)
-      if (block.captionEn) visitInlines(block.captionEn, block.id, ctx)
+      // §4.7「遍历顺序」：DOCX 按 9.11.1 把图中的注排在图题之上（§5.8），Resolver 据此先遍历
+      // 注、再给图编号、最后遍历图题，与 Word 按文档顺序的计数保持一致。
       for (const note of block.notes) {
         visitNoteContent(note, ctx)
         ctx.scope(block.id).notes.push({ id: note.id })
       }
+      labelFigureOrTable(block.id, 'fig', ctx)
+      visitInlines(block.caption, block.id, ctx)
+      if (block.captionEn) visitInlines(block.captionEn, block.id, ctx)
       break
     }
     case 'formula': {
@@ -208,21 +210,23 @@ function visitTermEntry(
   numberPath: string,
   ctx: ResolveCtx,
 ): void {
+  // §4.7「遍历顺序」：DOCX 按 8.7.3.1／9.11.1 的顺序是 术语→定义→示例→注→来源（§5.4），
+  // Resolver 据此遍历，与 Word 按文档顺序的计数保持一致。
   ctx.registerId(entry.id)
   ctx.setLabel(entry.id, numberPath, `sec_${numberPath}`, numberPath)
   visitInlines(entry.term, entry.id, ctx)
   if (entry.termEn) visitInlines(entry.termEn, entry.id, ctx)
   for (const block of entry.definition) visitBlock(block, entry.id, ctx)
-  if (entry.source) visitInlines(entry.source, entry.id, ctx)
-  for (const note of entry.notes) {
-    visitNoteContent(note, ctx)
-    ctx.scope(entry.id).notes.push({ id: note.id })
-  }
   for (const example of entry.examples) {
     ctx.registerId(example.id)
     for (const block of example.content) visitBlock(block, example.id, ctx)
     ctx.scope(entry.id).examples.push({ id: example.id })
   }
+  for (const note of entry.notes) {
+    visitNoteContent(note, ctx)
+    ctx.scope(entry.id).notes.push({ id: note.id })
+  }
+  if (entry.source) visitInlines(entry.source, entry.id, ctx)
 }
 
 // ---------- 条 / 章 / 附录 ----------

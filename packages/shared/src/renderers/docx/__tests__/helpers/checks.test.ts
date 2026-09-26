@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildPackage, type DocxRelatedPart } from '../../package'
 import type { DocxPackage } from '../../types'
-import { assertChildOrder, assertWellFormed } from './checks'
+import { assertChildOrder, assertNumberingIntegrity, assertWellFormed } from './checks'
 
 const W_NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
 
@@ -123,5 +123,143 @@ describe('assertChildOrder / 反例', () => {
       '<w:p><w:pPr><w:notAThing/></w:pPr><w:r>',
     )
     expect(() => assertChildOrder(pkg)).toThrow(/不在附录 B 清单内/)
+  })
+})
+
+// ---------------- WP7.2 增补：r:id / r:embed / r:link（assertWellFormed） ----------------
+
+const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/'
+const WML = 'application/vnd.openxmlformats-officedocument.wordprocessingml.'
+const HDR_NS =
+  'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
+  'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+
+function buildPackageWithHeaderRef(): DocxPackage {
+  const documentXml =
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    `<w:document ${HDR_NS}><w:body><w:p><w:r><w:t xml:space="preserve">x</w:t></w:r></w:p>` +
+    '<w:sectPr><w:headerReference w:type="default" r:id="rIdHdr"/><w:pgSz w:w="11906" w:h="16838"/></w:sectPr>' +
+    '</w:body></w:document>'
+  const header1Xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr ${HDR_NS}><w:p/></w:hdr>`
+  return buildPackage({
+    documentXml,
+    title: 'r:id 测试包',
+    createdAt: '2026-09-25T08:00:00.000Z',
+    relatedParts: [
+      { id: 'rIdHdr', target: 'word/header1.xml', relationshipType: `${REL}header`, content: header1Xml, contentType: `${WML}header+xml` },
+    ],
+  })
+}
+
+describe('assertWellFormed / r:id 检查（WP7.2 增补）', () => {
+  it('r:id 在部件自己的 .rels 里能找到对应 Relationship 时通过', () => {
+    expect(() => assertWellFormed(buildPackageWithHeaderRef())).not.toThrow()
+  })
+
+  it('r:id 的值在 .rels 里找不到对应 Relationship 时抛错', () => {
+    const pkg = clone(buildPackageWithHeaderRef())
+    pkg.parts['word/document.xml'] = pkg.parts['word/document.xml'].replace('r:id="rIdHdr"', 'r:id="rIdNope"')
+    expect(() => assertWellFormed(pkg)).toThrow(/rIdNope/)
+  })
+
+  it('.rels 内 Id 重复时抛错', () => {
+    const pkg = clone(buildPackageWithHeaderRef())
+    pkg.parts['word/_rels/document.xml.rels'] = pkg.parts['word/_rels/document.xml.rels'].replace(
+      /<Relationship Id="rIdHdr"[^>]*\/>/,
+      (m) => m + m, // 复制一份同 Id 的 Relationship
+    )
+    expect(() => assertWellFormed(pkg)).toThrow(/重复/)
+  })
+
+  it('部件里有 r:id，但对应的 .rels 文件不存在时抛错（#34 审查）', () => {
+    const pkg = clone(buildPackageWithHeaderRef())
+    expect(pkg.parts['word/_rels/document.xml.rels']).toBeDefined() // 篡改前确认它本来存在
+    delete pkg.parts['word/_rels/document.xml.rels']
+    expect(() => assertWellFormed(pkg)).toThrow(/没有对应的关系文件/)
+  })
+})
+
+// ---------------- WP7.2 增补：assertNumberingIntegrity ----------------
+
+function buildPackageWithNumbering(): DocxPackage {
+  const W_NS_R = `${W_NS} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"`
+  const numberingXml =
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    `<w:numbering ${W_NS}>` +
+    '<w:abstractNum w:abstractNumId="1"><w:multiLevelType w:val="singleLevel"/>' +
+    '<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:suff w:val="nothing"/>' +
+    '<w:lvlText w:val="%1."/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="0" w:firstLine="0"/></w:pPr></w:lvl>' +
+    '</w:abstractNum>' +
+    '<w:num w:numId="1"><w:abstractNumId w:val="1"/></w:num>' +
+    '</w:numbering>'
+  const stylesXml =
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    `<w:styles ${W_NS}><w:docDefaults><w:rPrDefault><w:rPr/></w:rPrDefault><w:pPrDefault><w:pPr/></w:pPrDefault></w:docDefaults>` +
+    '<w:style w:type="paragraph" w:customStyle="1" w:styleId="TestOwner"><w:name w:val="TestOwner"/><w:qFormat/>' +
+    '<w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr></w:style>' +
+    '</w:styles>'
+  const documentXml =
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    `<w:document ${W_NS_R}><w:body><w:p><w:pPr><w:pStyle w:val="TestOwner"/></w:pPr><w:r><w:t xml:space="preserve">x</w:t></w:r></w:p></w:body></w:document>`
+  return buildPackage({
+    documentXml,
+    title: 'numbering 测试包',
+    createdAt: '2026-09-25T08:00:00.000Z',
+    stylesXml,
+    numberingXml,
+  })
+}
+
+describe('assertNumberingIntegrity', () => {
+  it('合法的包（num 的 abstractNumId 存在、样式 numPr 的 numId 存在）通过', () => {
+    expect(() => assertNumberingIntegrity(buildPackageWithNumbering())).not.toThrow()
+  })
+
+  it('num 引用的 abstractNumId 不存在时抛错', () => {
+    const pkg = clone(buildPackageWithNumbering())
+    pkg.parts['word/numbering.xml'] = pkg.parts['word/numbering.xml'].replace(
+      '<w:num w:numId="1"><w:abstractNumId w:val="1"/></w:num>',
+      '<w:num w:numId="1"><w:abstractNumId w:val="99"/></w:num>',
+    )
+    expect(() => assertNumberingIntegrity(pkg)).toThrow(/abstractNumId "99" 不存在/)
+  })
+
+  it('样式的 numPr 引用的 numId 不在 numbering.xml 中时抛错', () => {
+    const pkg = clone(buildPackageWithNumbering())
+    pkg.parts['word/styles.xml'] = pkg.parts['word/styles.xml'].replace('w:numId w:val="1"', 'w:numId w:val="999"')
+    expect(() => assertNumberingIntegrity(pkg)).toThrow(/numId "999" 不在 numbering\.xml 中/)
+  })
+
+  it('段落引用的 numId 不在 numbering.xml 中时抛错', () => {
+    const pkg = clone(buildPackageWithNumbering())
+    pkg.parts['word/document.xml'] = pkg.parts['word/document.xml'].replace(
+      '<w:pStyle w:val="TestOwner"/>',
+      '<w:pStyle w:val="TestOwner"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="777"/></w:numPr>',
+    )
+    expect(() => assertNumberingIntegrity(pkg)).toThrow(/段落引用的 numId "777" 不在/)
+  })
+
+  it('段落 numPr 的 numId="0"（显式无编号）不检查、不抛错', () => {
+    const pkg = clone(buildPackageWithNumbering())
+    pkg.parts['word/document.xml'] = pkg.parts['word/document.xml'].replace(
+      '<w:pStyle w:val="TestOwner"/>',
+      '<w:pStyle w:val="TestOwner"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="0"/></w:numPr>',
+    )
+    expect(() => assertNumberingIntegrity(pkg)).not.toThrow()
+  })
+
+  it('两个样式的 numPr 引用同一个 (abstractNumId, ilvl) 时抛错（§4.1 约束 1）', () => {
+    const pkg = clone(buildPackageWithNumbering())
+    pkg.parts['word/styles.xml'] = pkg.parts['word/styles.xml'].replace(
+      '</w:styles>',
+      '<w:style w:type="paragraph" w:customStyle="1" w:styleId="TestOwner2"><w:name w:val="TestOwner2"/><w:qFormat/>' +
+        '<w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr></w:style></w:styles>',
+    )
+    expect(() => assertNumberingIntegrity(pkg)).toThrow(/同时被样式 "TestOwner" 与 "TestOwner2"/)
+  })
+
+  it('包内没有 word/numbering.xml 时抛错', () => {
+    const pkg = clone(buildBasePackage())
+    expect(() => assertNumberingIntegrity(pkg)).toThrow(/没有 word\/numbering\.xml/)
   })
 })

@@ -1,0 +1,68 @@
+/**
+ * body/*.ts 共用的渲染上下文与「唯一段落输出函数」（docs/wp7-docx-delivery.md §4.7）。
+ *
+ * `emitParagraph` 是全部段落渲染的唯一入口：写了段落级 numPr、或样式是属主样式（§4.1）时，
+ * 要求调用方传入 `numbered`（nodeId/kind），并记入 `ctx.numbered`（供 §4.7 的比对使用）；
+ * 漏传即抛错——这样任何一处忘记标注编号段落的 bug 都会在测试阶段暴露，而不是让 §4.7 的
+ * 覆盖检查悄悄漏掉一项。
+ *
+ * 同构纯 TypeScript，不引用浏览器或 Node 专有 API；不用 class 的参数属性。
+ */
+
+import type { NodeId, ResolvedLabel } from '../../../ir/types'
+import { createNumberingAllocator, type NumberingAllocator } from '../numbering'
+import { OWNER_STYLE_IDS } from '../styles'
+import type { DocxPackage } from '../types'
+import { numPr as numPrXml, pPr, type XmlChild } from '../xml'
+
+/** §4.7 render.ts 导出的追踪类型；本文件是它的唯一实现来源，render.ts 直接 re-export，
+ * 避免 render.ts ↔ body/*.ts 之间因为「类型定义在 render.ts」而产生循环 import。 */
+export interface NumberedParagraphTrace {
+  nodeId: NodeId
+  kind: 'chapter' | 'clause' | 'termEntry' | 'appendix' | 'figure' | 'table' | 'note' | 'example' | 'bibEntry' | 'listItem'
+}
+
+export interface RenderContext {
+  readonly labels: Record<NodeId, ResolvedLabel>
+  readonly numbering: NumberingAllocator
+  readonly warnings: DocxPackage['warnings']
+  readonly numbered: NumberedParagraphTrace[]
+}
+
+export function createRenderContext(labels: Record<NodeId, ResolvedLabel>): RenderContext {
+  return { labels, numbering: createNumberingAllocator(), warnings: [], numbered: [] }
+}
+
+export function warn(ctx: RenderContext, code: string, message: string, nodeId?: NodeId): void {
+  ctx.warnings.push(nodeId !== undefined ? { code, nodeId, message } : { code, message })
+}
+
+export interface EmitParagraphOptions {
+  /** 段落级 numPr（§4.1：无标题条、术语条目编号、按需实例列项……都用这个） */
+  numPr?: { numId: number; ilvl: number }
+  /** 段落内容（一串 `<w:r>…</w:r>`），省略/空串 = 空段落（只有编号的段） */
+  runsXml?: string
+  /** 这段是否为「有效编号段落」（§4.7）：写了 numPr，或样式是属主样式时必须提供 */
+  numbered?: { nodeId: NodeId; kind: NumberedParagraphTrace['kind'] }
+}
+
+/**
+ * 全部段落经这一个函数输出（§4.7）：`<w:p><w:pPr><w:pStyle/>[numPr]</w:pPr>[runs]</w:p>`。
+ * 段落写了 `opts.numPr`，或 `styleId` 是属主样式（§4.1，OWNER_STYLE_IDS）时，`opts.numbered`
+ * 必须提供，否则抛错；提供时记入 `ctx.numbered`。
+ */
+export function emitParagraph(ctx: RenderContext, styleId: string, opts: EmitParagraphOptions = {}): string {
+  const isOwnerStyle = OWNER_STYLE_IDS.has(styleId)
+  if ((opts.numPr !== undefined || isOwnerStyle) && !opts.numbered) {
+    const reason = opts.numPr !== undefined ? '写了段落级 numPr' : '样式是属主样式'
+    throw new Error(`emitParagraph: 样式 "${styleId}" 的段落${reason}，但没有传入 numbered（nodeId/kind），违反 §4.7 追踪要求`)
+  }
+  if (opts.numbered) ctx.numbered.push(opts.numbered)
+
+  const pprChildren: XmlChild[] = [['pStyle', `<w:pStyle w:val="${styleId}"/>`]]
+  if (opts.numPr) pprChildren.push(['numPr', numPrXml([
+    ['ilvl', `<w:ilvl w:val="${opts.numPr.ilvl}"/>`],
+    ['numId', `<w:numId w:val="${opts.numPr.numId}"/>`],
+  ])])
+  return `<w:p>${pPr(pprChildren)}${opts.runsXml ?? ''}</w:p>`
+}

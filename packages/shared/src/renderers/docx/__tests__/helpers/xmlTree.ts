@@ -71,6 +71,14 @@ export function parseXml(source: string): XmlElement {
   return new Parser(source).parseDocument()
 }
 
+/**
+ * 找 el 的第一个名为 name 的直接子元素（不递归）。通用导航工具，供 checks.ts/outline.ts/
+ * numberingSim.ts 等复用，避免各自重复实现（也避免它们之间因各写一份而产生循环依赖）。
+ */
+export function findChild(el: XmlElement, name: string): XmlElement | undefined {
+  return el.children.find((c): c is XmlElement => c.kind === 'element' && c.name === name)
+}
+
 class Parser {
   private i = 0
   private readonly s: string

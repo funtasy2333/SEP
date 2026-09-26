@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import {
+  abstractNum,
   childOrderOf,
+  docDefaults,
   escapeXmlAttr,
   escapeXmlText,
   joinOrderedChildren,
   localNameOf,
   num,
+  numbering,
+  numPr,
+  pBdr,
   pPr,
   rankMapFor,
   sectPr,
+  styles,
   wrapElement,
 } from './xml'
 
@@ -118,6 +124,71 @@ describe('9 个容器薄包装', () => {
 
   it('sectPr 无内容时自闭合', () => {
     expect(sectPr([])).toBe('<w:sectPr/>')
+  })
+})
+
+describe('WP7.2 补的 6 个容器', () => {
+  it('numPr：ilvl 在前，numId 在后（附录 B 顺序，与调用方传入顺序无关）', () => {
+    const out = numPr([
+      ['numId', '<w:numId w:val="1"/>'],
+      ['ilvl', '<w:ilvl w:val="0"/>'],
+    ])
+    expect(out).toBe('<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>')
+  })
+
+  it('abstractNum：带 abstractNumId 属性，lvl 可重复', () => {
+    const out = abstractNum(
+      [
+        ['multiLevelType', '<w:multiLevelType w:val="multilevel"/>'],
+        ['lvl', '<w:lvl w:ilvl="0"/>'],
+        ['lvl', '<w:lvl w:ilvl="1"/>'],
+      ],
+      { 'w:abstractNumId': 1 },
+    )
+    expect(out).toBe(
+      '<w:abstractNum w:abstractNumId="1"><w:multiLevelType w:val="multilevel"/><w:lvl w:ilvl="0"/><w:lvl w:ilvl="1"/></w:abstractNum>',
+    )
+  })
+
+  it('numbering：abstractNum 在 num 之前，即使调用方顺序相反', () => {
+    const out = numbering([
+      ['num', '<w:num w:numId="1"/>'],
+      ['abstractNum', '<w:abstractNum w:abstractNumId="1"/>'],
+    ])
+    expect(out).toBe('<w:numbering><w:abstractNum w:abstractNumId="1"/><w:num w:numId="1"/></w:numbering>')
+  })
+
+  it('styles：docDefaults 在 style 之前', () => {
+    const out = styles([
+      ['style', '<w:style w:styleId="SesNormal"/>'],
+      ['docDefaults', '<w:docDefaults/>'],
+    ])
+    expect(out).toBe('<w:styles><w:docDefaults/><w:style w:styleId="SesNormal"/></w:styles>')
+  })
+
+  it('docDefaults：rPrDefault 在 pPrDefault 之前', () => {
+    const out = docDefaults([
+      ['pPrDefault', '<w:pPrDefault/>'],
+      ['rPrDefault', '<w:rPrDefault/>'],
+    ])
+    expect(out).toBe('<w:docDefaults><w:rPrDefault/><w:pPrDefault/></w:docDefaults>')
+  })
+
+  it('pBdr：按 top/left/bottom/right/between/bar 排序', () => {
+    const out = pBdr([
+      ['bottom', '<w:bottom w:val="single"/>'],
+      ['top', '<w:top w:val="single"/>'],
+    ])
+    expect(out).toBe('<w:pBdr><w:top w:val="single"/><w:bottom w:val="single"/></w:pBdr>')
+  })
+
+  it('元素名不在清单里的调用一律抛错（六个新容器都受 CHILD_ORDER 校验保护）', () => {
+    expect(() => numPr([['notAThing', '<x/>']])).toThrow(/不在.*清单内/)
+    expect(() => abstractNum([['notAThing', '<x/>']])).toThrow(/不在.*清单内/)
+    expect(() => numbering([['notAThing', '<x/>']])).toThrow(/不在.*清单内/)
+    expect(() => styles([['notAThing', '<x/>']])).toThrow(/不在.*清单内/)
+    expect(() => docDefaults([['notAThing', '<x/>']])).toThrow(/不在.*清单内/)
+    expect(() => pBdr([['notAThing', '<x/>']])).toThrow(/不在.*清单内/)
   })
 })
 

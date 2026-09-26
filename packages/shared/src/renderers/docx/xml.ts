@@ -130,6 +130,13 @@ const CHILD_ORDER_LITERAL: Record<string, ChildOrderSpec> = {
   tbl: ['tblPr', 'tblGrid', 'tr'],
   tr: ['trPr', 'tc'],
   tcPr: ['cnfStyle', 'tcW', 'gridSpan', 'hMerge', 'vMerge', 'tcBorders', 'shd', 'noWrap', 'tcMar', 'textDirection', 'tcFitText', 'vAlign', 'hideMark'],
+  // ---- WP7.2 补 ----
+  numPr: ['ilvl', 'numId'],
+  abstractNum: ['nsid', 'multiLevelType', 'tmpl', 'name', 'styleLink', 'numStyleLink', 'lvl'],
+  numbering: ['numPicBullet', 'abstractNum', 'num', 'numIdMacAtCleanup'],
+  styles: ['docDefaults', 'latentStyles', 'style'],
+  docDefaults: ['rPrDefault', 'pPrDefault'],
+  pBdr: ['top', 'left', 'bottom', 'right', 'between', 'bar'],
 }
 
 /**
@@ -237,4 +244,25 @@ export function tbl(children: readonly XmlChild[], attrs?: XmlAttrs): string {
 }
 export function tr(children: readonly XmlChild[], attrs?: XmlAttrs): string {
   return orderedElement('tr', children, attrs)
+}
+
+// ---------------- WP7.2 补的 6 个容器 ----------------
+
+export function numPr(children: readonly XmlChild[], attrs?: XmlAttrs): string {
+  return orderedElement('numPr', children, attrs)
+}
+export function abstractNum(children: readonly XmlChild[], attrs?: XmlAttrs): string {
+  return orderedElement('abstractNum', children, attrs)
+}
+export function numbering(children: readonly XmlChild[], attrs?: XmlAttrs): string {
+  return orderedElement('numbering', children, attrs)
+}
+export function styles(children: readonly XmlChild[], attrs?: XmlAttrs): string {
+  return orderedElement('styles', children, attrs)
+}
+export function docDefaults(children: readonly XmlChild[], attrs?: XmlAttrs): string {
+  return orderedElement('docDefaults', children, attrs)
+}
+export function pBdr(children: readonly XmlChild[], attrs?: XmlAttrs): string {
+  return orderedElement('pBdr', children, attrs)
 }
