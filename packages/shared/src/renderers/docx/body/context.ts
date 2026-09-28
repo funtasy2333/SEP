@@ -12,8 +12,8 @@
 import type { NodeId, ResolvedLabel } from '../../../ir/types'
 import { createNumberingAllocator, type NumberingAllocator } from '../numbering'
 import { OWNER_STYLE_IDS } from '../styles'
-import type { DocxPackage } from '../types'
-import { numPr as numPrXml, pPr, type XmlChild } from '../xml'
+import type { DocxBookmark, DocxPackage } from '../types'
+import { escapeXmlAttr, numPr as numPrXml, pPr, type XmlChild } from '../xml'
 
 /** §4.7 render.ts 导出的追踪类型；本文件是它的唯一实现来源，render.ts 直接 re-export，
  * 避免 render.ts ↔ body/*.ts 之间因为「类型定义在 render.ts」而产生循环 import。 */
@@ -27,10 +27,14 @@ export interface RenderContext {
   readonly numbering: NumberingAllocator
   readonly warnings: DocxPackage['warnings']
   readonly numbered: NumberedParagraphTrace[]
+  readonly bookmarksByNodeId: ReadonlyMap<NodeId, DocxBookmark>
 }
 
-export function createRenderContext(labels: Record<NodeId, ResolvedLabel>): RenderContext {
-  return { labels, numbering: createNumberingAllocator(), warnings: [], numbered: [] }
+export function createRenderContext(
+  labels: Record<NodeId, ResolvedLabel>,
+  bookmarksByNodeId: ReadonlyMap<NodeId, DocxBookmark> = new Map(),
+): RenderContext {
+  return { labels, numbering: createNumberingAllocator(), warnings: [], numbered: [], bookmarksByNodeId }
 }
 
 export function warn(ctx: RenderContext, code: string, message: string, nodeId?: NodeId): void {
@@ -44,6 +48,8 @@ export interface EmitParagraphOptions {
   runsXml?: string
   /** 这段是否为「有效编号段落」（§4.7）：写了 numPr，或样式是属主样式时必须提供 */
   numbered?: { nodeId: NodeId; kind: NumberedParagraphTrace['kind'] }
+  /** 无编号但仍需作为目次目标的段落（前言、引言、参考文献标题） */
+  bookmark?: DocxBookmark
 }
 
 /**
@@ -64,5 +70,10 @@ export function emitParagraph(ctx: RenderContext, styleId: string, opts: EmitPar
     ['ilvl', `<w:ilvl w:val="${opts.numPr.ilvl}"/>`],
     ['numId', `<w:numId w:val="${opts.numPr.numId}"/>`],
   ])])
-  return `<w:p>${pPr(pprChildren)}${opts.runsXml ?? ''}</w:p>`
+  const bookmark = opts.bookmark ?? (opts.numbered ? ctx.bookmarksByNodeId.get(opts.numbered.nodeId) : undefined)
+  const start = bookmark
+    ? `<w:bookmarkStart w:id="${bookmark.id}" w:name="${escapeXmlAttr(bookmark.name)}"/>`
+    : ''
+  const end = bookmark ? `<w:bookmarkEnd w:id="${bookmark.id}"/>` : ''
+  return `<w:p>${pPr(pprChildren)}${start}${opts.runsXml ?? ''}${end}</w:p>`
 }

@@ -10,7 +10,8 @@
 2. 在这份副本里删掉 word/settings.xml 的 `<w:updateFields .../>`：留着的话 Word 打开时会弹
    「是否更新域」对话框，卡住自动化；`w:updateFields` 是产品本身需要的行为（打开时提示更新
    目次页码），这里只是核对脚本用的副本临时去掉，不影响交付稿；
-3. AppleScript：打开副本 → 有目次就更新（包一层 try，没有目次或更新失败都不影响后续）→
+3. AppleScript：打开副本 → 有 Word 原生目次就更新（兼容旧 spike）→ 更新所有域（WP7.3 的
+   目次页码是 PAGEREF 域）→
    另存为 PDF → 关闭且不保存；
 4. 把生成的 PDF 复制到 <out.pdf>；
 5. 整个 AppleScript 调用 120 秒超时；超时或脚本报错都算失败，非零退出，不重试
@@ -55,13 +56,17 @@ def strip_update_fields(docx_path):
 
 def applescript_for(sandbox_docx, sandbox_pdf):
     # 逐行传给 osascript -e（与 spike/wp7-docx-word/README.md 里实测可行的写法一致）；
-    # 目次更新包一层 try：minimal 等没有目次的 fixture 也能正常走完。
+    # 目次更新包一层 try：WP7.3 固定目次和 minimal 等没有原生目录的 fixture 也能正常走完。
     return [
         'tell application "Microsoft Word"',
         f'open (POSIX file "{sandbox_docx}")',
         'try',
         'update (table of contents 1 of active document)',
         'end try',
+        'set docFields to fields of active document',
+        'repeat with docField in docFields',
+        'update field docField',
+        'end repeat',
         f'save as active document file name "{sandbox_pdf}" file format format PDF',
         'close active document saving no',
         'end tell',

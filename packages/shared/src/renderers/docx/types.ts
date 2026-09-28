@@ -38,3 +38,9 @@ export interface DocxPackage {
   /** 降级与告警：formula-missing-omml / image-missing / cover-field-missing / list-format-fallback … */
   warnings: { code: string; nodeId?: NodeId; message: string }[]
 }
+
+/** DOCX 书签目标；ID 与名称由文档遍历顺序确定。 */
+export interface DocxBookmark {
+  id: number
+  name: string
+}

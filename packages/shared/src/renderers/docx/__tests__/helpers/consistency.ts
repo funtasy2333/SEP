@@ -149,7 +149,9 @@ const PREV_MARKER_RE = /〔前段期望([^〕]+)〕/
  */
 export function assertExpectMarkers(simulated: readonly SimParagraph[]): void {
   let found = 0
+  // TOC1/TOC2 缓存会复制标题中的 fixture 标记，但这些目次行没有列表编号，不属于编号断言对象。
   simulated.forEach((p, i) => {
+    if (p.styleId === 'TOC1' || p.styleId === 'TOC2') return
     const self = SELF_MARKER_RE.exec(p.text)
     if (self) {
       found += 1

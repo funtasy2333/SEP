@@ -10,6 +10,7 @@
 import type { IRBlock } from '../../../ir/types'
 import { renderBlocks } from './block'
 import { emitParagraph, warn, type RenderContext } from './context'
+import type { DocxBookmark } from '../types'
 import { plainRun, spacingRpr } from './inline'
 
 const SP = '　'
@@ -20,14 +21,14 @@ export function renderTocTitle(ctx: RenderContext): string {
   return emitParagraph(ctx, 'SesTocTitle', { runsXml: plainRun('目', SPACING_640) + plainRun('次') })
 }
 
-export function renderForeword(ctx: RenderContext, blocks: readonly IRBlock[]): string {
-  let out = emitParagraph(ctx, 'SesFrontTitle', { runsXml: plainRun('前', SPACING_640) + plainRun('言') })
+export function renderForeword(ctx: RenderContext, blocks: readonly IRBlock[], bookmark?: DocxBookmark): string {
+  let out = emitParagraph(ctx, 'SesFrontTitle', { runsXml: plainRun('前', SPACING_640) + plainRun('言'), bookmark })
   out += renderBlocks(ctx, blocks as IRBlock[], { scopeKey: 'front.foreword' })
   return out
 }
 
-export function renderIntroduction(ctx: RenderContext, blocks: readonly IRBlock[]): string {
-  let out = emitParagraph(ctx, 'SesFrontTitle', { runsXml: plainRun('引', SPACING_640) + plainRun('言') })
+export function renderIntroduction(ctx: RenderContext, blocks: readonly IRBlock[], bookmark?: DocxBookmark): string {
+  let out = emitParagraph(ctx, 'SesFrontTitle', { runsXml: plainRun('引', SPACING_640) + plainRun('言'), bookmark })
   out += renderBlocks(ctx, blocks as IRBlock[], { scopeKey: 'front.introduction' })
   return out
 }

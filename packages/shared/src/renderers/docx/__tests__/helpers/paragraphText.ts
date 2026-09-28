@@ -37,6 +37,18 @@ function extractRunText(r: XmlElement): string {
   return out
 }
 
+/** 目次超链接等段落容器里的可见 run；fldChar/instrText 不属于可见文本。 */
+function extractVisibleDescendants(container: XmlElement): string {
+  let out = ''
+  for (const child of container.children) {
+    if (child.kind !== 'element') continue
+    if (child.name === 'w:r') out += extractRunText(child)
+    else if (child.name === 'w:hyperlink') out += extractVisibleDescendants(child)
+    else if (child.name === 'm:oMath' || child.name === 'm:oMathPara') out += '〔公式〕'
+  }
+  return out
+}
+
 /** 提取一个 `w:p` 段落的文本（含 run 内的 br/tab/图片标记与公式占位），规则见文件头注释 */
 export function extractParagraphText(p: XmlElement): string {
   let out = ''
@@ -44,6 +56,7 @@ export function extractParagraphText(p: XmlElement): string {
     if (child.kind !== 'element') continue
     if (child.name === 'w:pPr') continue
     if (child.name === 'w:r') out += extractRunText(child)
+    else if (child.name === 'w:hyperlink') out += extractVisibleDescendants(child)
     else if (child.name === 'm:oMath' || child.name === 'm:oMathPara') out += '〔公式〕'
   }
   return out

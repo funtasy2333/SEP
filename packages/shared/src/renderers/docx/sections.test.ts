@@ -111,7 +111,7 @@ describe('sections.ts：createSectionManager 节序（§2.2）', () => {
     expect(last.kind === 'element' && last.name === 'w:sectPr').toBe(true)
     // 分节空段：word/document.xml 里应能找到「无 pStyle」的 w:p，其 pPr 只有 sectPr
     const outline = docxOutline(pkg)
-    expect(outline).toContain('— │ — │ \n§ type=nextPage') // 封面节结束：空段 + 紧跟的 § 行
+    expect(outline).toContain('— │ — │\n§ type=nextPage') // 封面节结束：空段 + 紧跟的 § 行
   })
 
   it('finalSectPr() 在 startSection() 之前调用抛错', () => {

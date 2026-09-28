@@ -33,7 +33,7 @@ python3 scripts/docx-check/word_pdf.py /tmp/minimal.docx /tmp/minimal.pdf
 ```
 
 把 `.docx` 复制到 Word 的沙盒目录 `~/Library/Containers/com.microsoft.Word/Data/ses-check/`
-后用 AppleScript 驱动 Word 打开、（有目次则）更新域、另存为 PDF、不保存关闭。120 秒没结果
+后用 AppleScript 驱动 Word 打开、更新域（包括 WP7.3 目次的 PAGEREF 页码）、另存为 PDF、不保存关闭。120 秒没结果
 就报错退出，不会自己重试。
 
 **Word 首次运行的授权步骤（只需一次）**：
@@ -78,8 +78,9 @@ python3 scripts/docx-check/expect.py /tmp/numbering.pdf
 - 「〔附录期望X〕」：同一页往上第二个视觉行去掉空白后等于 X（附录标识段的第三行，往上第二
   行正是只含编号「附录A」的第一行）。
 
-逐条输出通过或失败及实际文字（同时打印到 stdout，方便直接贴进 PR）；有失败、或一个标记也
-没找到时退出码为 1。
+WP7.3 起目次条目也会复制标题中的期望标记；脚本跳过含连续点线的目次行，只核对正文中的
+编号段落。逐条输出通过或失败及实际文字（同时打印到 stdout，方便直接贴进 PR）；有失败、
+或一个标记也没找到时退出码为 1。
 
 ### 验收基准（对 `spike/wp7-docx-word/spike-word.pdf` 第 2–9 页）
 

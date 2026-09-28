@@ -45,8 +45,10 @@ const IND_LIST_CONT_L1 = '<w:ind w:left="840" w:firstLine="0"/>'
 const IND_LIST_CONT_L2 = '<w:ind w:left="1260" w:firstLine="0"/>'
 const IND_NOTE_CONT = '<w:ind w:left="780" w:firstLine="0"/>'
 const IND_NOTEN_CONT = '<w:ind w:left="870" w:firstLine="0"/>'
-/** 终结线左右缩进（§3.2：各 3508，占版心宽 9355 的 1/4，居中） */
-const IND_END_MARK = '<w:ind w:left="3508" w:right="3508"/>'
+/** 终结线左右缩进（§3.2：经 Word 边框延伸量校准） */
+// Word 16.113 会把段落底边框在两端各延伸约 0.5 mm；3532 的实测线宽约 41.3 mm，
+// 对应 165 mm 版心的 1/4（§5.13）。
+const IND_END_MARK = '<w:ind w:left="3532" w:right="3532"/>'
 const IND_TOC2 = '<w:ind w:left="210" w:firstLine="0"/>'
 const IND_TOC3 = '<w:ind w:left="420" w:firstLine="0"/>'
 

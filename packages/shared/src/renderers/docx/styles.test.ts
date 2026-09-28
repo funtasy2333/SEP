@@ -236,8 +236,8 @@ describe('styles.ts：显式缩进值（不依赖编号级别的样式）', () =
     expect(indOf(styles.get('SesTableText')!)?.attrs).toEqual({ 'w:left': '0', 'w:firstLine': '210' })
   })
 
-  it('SesEndMark：左右缩进各 3508', () => {
-    expect(indOf(styles.get('SesEndMark')!)?.attrs).toEqual({ 'w:left': '3508', 'w:right': '3508' })
+  it('SesEndMark：按 Word 边框两端延伸校准线宽，左右缩进各 3532', () => {
+    expect(indOf(styles.get('SesEndMark')!)?.attrs).toEqual({ 'w:left': '3532', 'w:right': '3532' })
   })
 
   it('TOC2/TOC3：左缩进 210/420', () => {

@@ -20,15 +20,35 @@ import { appendixLetterOf as strategyAppendixLetterOf } from '../../ir/strategie
 import { renderAppendix } from './body/appendix'
 import { renderBibliography } from './body/bibliography'
 import { renderChapter } from './body/clause'
-import { createRenderContext, type NumberedParagraphTrace, type RenderContext } from './body/context'
+import { createRenderContext, emitParagraph, type NumberedParagraphTrace, type RenderContext } from './body/context'
 import { renderBodyTitle, renderForeword, renderIntroduction, renderTocTitle } from './body/front'
 import { renderCoverPlaceholder } from './cover'
+import { buildStaticToc } from './toc'
 import { buildPackage, createRelationshipIdAllocator, type DocxRelatedPart } from './package'
 import { buildHeaderFooterParts, createSectionManager, type HeaderFooterRelIds } from './sections'
 import { buildStylesXml } from './styles'
 import type { DocxPackage, DocxRenderOptions } from './types'
 
 export type { NumberedParagraphTrace }
+
+/** 将唯一 keepNext 加到最后一个内容段；跳过仅含 sectPr 的分节空段。 */
+function keepLastContentParagraphWithNext(xml: string): string {
+  const paragraphs = [...xml.matchAll(/<w:p>([\s\S]*?)<\/w:p>/g)]
+  const last = [...paragraphs].reverse().find((match) => !match[1].includes('<w:sectPr'))
+  if (!last || last.index === undefined) return xml
+  const paragraph = last[0]
+  const pPrStart = paragraph.indexOf('<w:pPr>')
+  const pPrEnd = paragraph.indexOf('</w:pPr>')
+  if (pPrStart < 0 || pPrEnd < 0) throw new Error('renderDocx: 最后内容段缺少 pPr')
+  const pPrXml = paragraph.slice(pPrStart, pPrEnd + '</w:pPr>'.length)
+  if (pPrXml.includes('<w:keepNext')) return xml
+
+  const styleEnd = pPrXml.indexOf('/>')
+  const insertAt = styleEnd >= 0 && pPrXml.slice(0, styleEnd).includes('<w:pStyle') ? styleEnd + 2 : '<w:pPr>'.length
+  const updatedPPr = pPrXml.slice(0, insertAt) + '<w:keepNext/>' + pPrXml.slice(insertAt)
+  const updatedParagraph = paragraph.replace(pPrXml, updatedPPr)
+  return xml.slice(0, last.index) + updatedParagraph + xml.slice(last.index + paragraph.length)
+}
 
 const DOCUMENT_NS =
   'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
@@ -50,7 +70,8 @@ export function renderDocxTraced(
   labels: Record<NodeId, ResolvedLabel>,
   opts: DocxRenderOptions,
 ): { pkg: DocxPackage; numbered: NumberedParagraphTrace[] } {
-  const ctx = createRenderContext(labels)
+  const toc = buildStaticToc(doc, labels)
+  const ctx = createRenderContext(labels, toc.bookmarksByNodeId)
 
   // 页眉页脚四个部件的关系 ID：按 header1、header2、footer1、footer2 的顺序申请（§2.3）
   const allocateRelId = createRelationshipIdAllocator()
@@ -72,15 +93,16 @@ export function renderDocxTraced(
   // 2. 目次节
   body += sectionManager.startSection('toc')
   body += renderTocTitle(ctx)
+  body += toc.xml
 
   // 3. 前言、引言（各自非空才有）
   if (doc.front.foreword.length > 0) {
     body += sectionManager.startSection('foreword')
-    body += renderForeword(ctx, doc.front.foreword)
+    body += renderForeword(ctx, doc.front.foreword, toc.forewordBookmark)
   }
   if (doc.front.introduction.length > 0) {
     body += sectionManager.startSection('introduction')
-    body += renderIntroduction(ctx, doc.front.introduction)
+    body += renderIntroduction(ctx, doc.front.introduction, toc.introductionBookmark)
   }
 
   // 4. 正文节：正文首页名称 + 各章
@@ -97,9 +119,11 @@ export function renderDocxTraced(
   // 6. 参考文献节（非空才有）
   if (doc.bibliography.length > 0) {
     body += sectionManager.startSection('bibliography')
-    body += renderBibliography(ctx, doc.bibliography)
+    body += renderBibliography(ctx, doc.bibliography, toc.bibliographyBookmark)
   }
 
+  body = keepLastContentParagraphWithNext(body)
+  body += emitParagraph(ctx, 'SesEndMark')
   body += sectionManager.finalSectPr()
 
   const documentXml = `${XML_DECL}<w:document ${DOCUMENT_NS}><w:body>${body}</w:body></w:document>`
