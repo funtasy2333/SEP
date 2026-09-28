@@ -14,11 +14,16 @@ declare module '@tiptap/core' {
  */
 export type StdListType =
   | 'dash'           // 破折号列项 ——
-  | 'alpha'          // 字母编号列项 a) b) c)
-  | 'numeric'        // 数字编号列项 1) 2) 3)
-  | 'roman'          // 小写罗马数字 i) ii) iii)
-  | 'romanUpper'     // 大写罗马数字 I) II) III)
+  | 'alpha'          // 字母编号列项 a）b）c）
+  | 'numeric'        // 数字编号列项 1）2）3）
   | 'boxedNumeric'   // 方框数字 ① ② ③
+
+/** 将旧文档中的罗马列表类型降级为仍受支持的数字编号列项。 */
+export function normalizeStdListType(value: unknown): StdListType {
+  if (value === 'roman' || value === 'romanUpper') return 'numeric'
+  if (value === 'alpha' || value === 'numeric' || value === 'boxedNumeric') return value
+  return 'dash'
+}
 
 /**
  * 标准列表节点
@@ -46,7 +51,7 @@ export const StdList = Node.create({
         getAttrs(dom) {
           const el = dom as HTMLElement
           return {
-            listType: el.getAttribute('data-list-type') || 'dash',
+            listType: normalizeStdListType(el.getAttribute('data-list-type')),
             level: parseInt(el.getAttribute('data-level') || '1', 10),
           }
         },
@@ -55,13 +60,14 @@ export const StdList = Node.create({
   },
 
   renderHTML({ node, HTMLAttributes }): DOMOutputSpec {
+    const listType = normalizeStdListType(node.attrs.listType)
     return [
       'div',
       mergeAttributes(HTMLAttributes, {
         'data-type': 'std-list',
-        'data-list-type': node.attrs.listType,
+        'data-list-type': listType,
         'data-level': node.attrs.level,
-        class: `std-list std-list-${node.attrs.listType}`,
+        class: `std-list std-list-${listType}`,
       }),
       0,
     ]

@@ -152,8 +152,8 @@ const STD_LIST_TYPE_MAP: Record<string, IRList['listType']> = {
   dash: 'dash',
   alpha: 'alpha',
   numeric: 'number',
-  roman: 'roman',
-  romanUpper: 'romanUpper',
+  roman: 'number',
+  romanUpper: 'number',
   boxedNumeric: 'boxed',
 }
 
@@ -161,6 +161,9 @@ function convertStdList(node: PMJsonNode, ctx: Ctx): IRList {
   const id = ctx.id(node)
   const rawType = String(node.attrs?.listType ?? 'dash')
   let listType = STD_LIST_TYPE_MAP[rawType]
+  if (rawType === 'roman' || rawType === 'romanUpper') {
+    ctx.warnings.push(`旧罗马列项类型「${rawType}」已降级为数字编号列项`)
+  }
   if (!listType) {
     ctx.warnings.push(`列表类型「${rawType}」无法识别，已按破折号列项处理`)
     listType = 'dash'

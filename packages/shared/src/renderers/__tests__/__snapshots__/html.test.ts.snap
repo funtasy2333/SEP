@@ -241,11 +241,14 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
   counter-increment: ses-li;
 }
 .ses-list-dash > .ses-list-item::before { content: "— "; counter-increment: none; }
-.ses-list-number > .ses-list-item::before { content: counter(ses-li) ") "; }
-.ses-list-alpha > .ses-list-item::before { content: counter(ses-li, lower-alpha) ") "; }
-.ses-list-roman > .ses-list-item::before { content: counter(ses-li, lower-roman) ") "; }
-.ses-list-romanUpper > .ses-list-item::before { content: counter(ses-li, upper-roman) ") "; }
+.ses-list-number > .ses-list-item::before { content: counter(ses-li) "） "; }
+.ses-list-alpha > .ses-list-item::before { content: counter(ses-li, lower-alpha) "） "; }
+/* 旧罗马列表类按数字列项显示，确保旧文档不再产生罗马编号。 */
+.ses-list-roman > .ses-list-item::before,
+.ses-list-romanUpper > .ses-list-item::before { content: counter(ses-li) "） "; }
 .ses-list-boxed > .ses-list-item::before { content: counter(ses-li) " "; }
+/* 7.5.3：所有嵌套层次均优先用间隔号；更深层仍由 DOCX 渲染器另行发出超层警告。 */
+.ses-list .ses-list > .ses-list-item::before { content: "·"; counter-increment: none; }
 
 /* —— 表格：图表编号题 黑体五号居中；thead 跨页重复（含单位陈述行）—— */
 .ses-table-block { margin: 8pt 0; break-inside: auto; }

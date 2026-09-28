@@ -94,7 +94,6 @@
                   <el-dropdown-item command="dash">破折号列项</el-dropdown-item>
                   <el-dropdown-item command="alpha">字母编号列项</el-dropdown-item>
                   <el-dropdown-item command="numeric">数字编号列项</el-dropdown-item>
-                  <el-dropdown-item command="roman">罗马数字列项</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>

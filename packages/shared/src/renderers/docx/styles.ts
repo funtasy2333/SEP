@@ -18,6 +18,7 @@ import { docDefaults, escapeXmlAttr, numPr, pPr, rPr, style, styles as stylesEl,
 // ---------------- 字体、字号 ----------------
 
 const SONG_RFONTS = '<w:rFonts w:ascii="Times New Roman" w:eastAsia="宋体" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>'
+const SONG_ALL_RFONTS = '<w:rFonts w:ascii="宋体" w:eastAsia="宋体" w:hAnsi="宋体" w:cs="宋体"/>'
 const HEI_RFONTS = '<w:rFonts w:ascii="黑体" w:eastAsia="黑体" w:hAnsi="黑体" w:cs="黑体"/>'
 
 function szChildren(halfPoint: number): XmlChild[] {
@@ -36,6 +37,8 @@ const SPACING_QUARTER_LINE = '<w:spacing w:beforeLines="25" w:before="78" w:afte
 const SPACING_TITLE_20PT = '<w:spacing w:before="500" w:after="600" w:line="400" w:lineRule="exact"/>'
 /** SesAppendix、SesBibTitle 起始值，按 §10 实测调整（§3.2 表注） */
 const SPACING_APPENDIX_TITLE = '<w:spacing w:before="520" w:after="150"/>'
+const SPACING_APPENDIX_FIRST = '<w:spacing w:before="520" w:after="0"/>'
+const SPACING_APPENDIX_LAST = '<w:spacing w:before="0" w:after="150"/>'
 const SPACING_ZERO = '<w:spacing w:before="0" w:after="0"/>'
 
 const IND_ZERO = '<w:ind w:left="0" w:firstLine="0"/>'
@@ -77,7 +80,7 @@ interface StyleSpec {
   isDefault?: boolean
   next?: string
   outlineLvl?: number
-  rFonts?: 'song' | 'hei'
+  rFonts?: 'song' | 'songAll' | 'hei'
   sz?: number
   jc?: 'center' | 'right' | 'both'
   keepNext?: boolean
@@ -112,6 +115,7 @@ function buildStyleXml(spec: StyleSpec): string {
 
   const rprChildren: XmlChild[] = []
   if (spec.rFonts === 'song') rprChildren.push(['rFonts', SONG_RFONTS])
+  else if (spec.rFonts === 'songAll') rprChildren.push(['rFonts', SONG_ALL_RFONTS])
   else if (spec.rFonts === 'hei') rprChildren.push(['rFonts', HEI_RFONTS])
   if (spec.sz !== undefined) rprChildren.push(...szChildren(spec.sz))
 
@@ -219,18 +223,20 @@ const STYLE_SPECS: readonly StyleSpec[] = [
   },
   ...clauseFamily(),
   { id: 'SesTermNum', name: 'SES_术语条目编号', rFonts: 'hei', keepNext: true, spacing: SPACING_ZERO },
-  { id: 'SesTermHead', name: 'SES_术语', rFonts: 'hei', keepNext: true, ind: IND_ZERO },
+  { id: 'SesTermHead', name: 'SES_术语', rFonts: 'hei', keepNext: true, ind: IND_FIRSTLINE_2CH },
   {
     id: 'SesAppendix',
     name: 'SES_附录标识',
     rFonts: 'hei',
     keepNext: true,
     jc: 'center',
-    spacing: SPACING_APPENDIX_TITLE,
+    spacing: SPACING_APPENDIX_FIRST,
     outlineLvl: 0,
     next: TITLE_NEXT_PARA,
     numPr: { numId: ABSTRACT_NUM_ID.appendixClause, ilvl: 0 },
   },
+  { id: 'SesAppendixKind', name: 'SES_附录性质', rFonts: 'hei', keepNext: true, jc: 'center', spacing: SPACING_ZERO },
+  { id: 'SesAppendixTitle', name: 'SES_附录标题', rFonts: 'hei', keepNext: true, jc: 'center', spacing: SPACING_APPENDIX_LAST, next: TITLE_NEXT_PARA },
   { id: 'SesListDash', name: 'SES_破折号列项', numPr: { numId: ABSTRACT_NUM_ID.listDash, ilvl: 0 } },
   { id: 'SesListDot', name: 'SES_间隔号列项', numPr: { numId: ABSTRACT_NUM_ID.listDash, ilvl: 1 } },
   { id: 'SesListItem', name: 'SES_编号列项' },
@@ -283,9 +289,9 @@ const STYLE_SPECS: readonly StyleSpec[] = [
   },
   { id: 'SesHeader', name: 'SES_书眉', rFonts: 'hei' },
   { id: 'SesFooter', name: 'SES_页码', sz: 18 },
-  { id: 'TOC1', name: 'toc 1', tabs: TABS_TOC, spacing: SPACING_QUARTER_LINE },
-  { id: 'TOC2', name: 'toc 2', tabs: TABS_TOC, ind: IND_TOC2 },
-  { id: 'TOC3', name: 'toc 3', tabs: TABS_TOC, ind: IND_TOC3 },
+  { id: 'TOC1', name: 'toc 1', rFonts: 'songAll', tabs: TABS_TOC, spacing: SPACING_QUARTER_LINE },
+  { id: 'TOC2', name: 'toc 2', rFonts: 'songAll', tabs: TABS_TOC, ind: IND_TOC2 },
+  { id: 'TOC3', name: 'toc 3', rFonts: 'songAll', tabs: TABS_TOC, ind: IND_TOC3 },
   { id: 'SesCoverStdNo', name: 'SES_封面文件编号', rFonts: 'hei', sz: 28, jc: 'right' },
 ]
 

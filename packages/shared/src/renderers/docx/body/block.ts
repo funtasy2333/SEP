@@ -12,8 +12,6 @@ import { ABSTRACT_NUM_ID, listAbstractNumId } from '../numbering'
 import { emitParagraph, warn, type RenderContext } from './context'
 import { plainRun, renderInlines, tabRun } from './inline'
 
-const SP = '　'
-
 /** 当前所处的附录（§4.4 附录图/表按需实例；无值表示正文/前言/引言） */
 export interface AppendixContext {
   id: NodeId
@@ -38,17 +36,7 @@ interface ListLevelPlan {
   firstStyleId: string
   firstNumPr?: { numId: number; ilvl: number }
   contStyleId: string
-  /** true：第三层及更深的非 dash 列项——文字标识「n)」，不是编号段落，不用编号定义 */
-  literalOrdinal: boolean
 }
-
-/** 上层是编号列表（非 dash）时，第二层「格式相符」对应的列表类型（boxed 按 number 处理） */
-const EXPECTED_SUBLIST_TYPE = new Map<string, string>([
-  ['alpha', 'number'],
-  ['number', 'alpha'],
-  ['roman', 'number'],
-  ['romanUpper', 'number'],
-])
 
 interface ParentListInfo {
   type: IRList['listType']
@@ -59,42 +47,31 @@ interface ParentListInfo {
 function planForList(ctx: RenderContext, list: IRList, depth: number, parent: ParentListInfo | undefined): ListLevelPlan {
   if (depth >= 3) {
     warn(ctx, 'list-too-deep', `列表 "${list.id}" 嵌套超过两层（第 ${depth} 层，GB/T 1.1 7.5.2 细分不宜超过两个层次）`, list.id)
-    if (list.listType === 'dash') {
-      return { firstStyleId: 'SesListDot', contStyleId: 'SesListCont2', literalOrdinal: false }
-    }
-    return { firstStyleId: 'SesListCont2', contStyleId: 'SesListCont2', literalOrdinal: true }
+    return { firstStyleId: 'SesListDot', contStyleId: 'SesListCont2' }
   }
 
   if (depth === 1) {
     if (list.listType === 'dash') {
-      return { firstStyleId: 'SesListDash', contStyleId: 'SesListCont', literalOrdinal: false }
+      return { firstStyleId: 'SesListDash', contStyleId: 'SesListCont' }
     }
     if (list.listType === 'boxed') {
       warn(ctx, 'list-format-fallback', `列表 "${list.id}" 为方框编号（boxed），本系列按数字编号（A13）渲染`, list.id)
     }
     const numId = ctx.numbering.allocListInstance(listAbstractNumId(list.listType))
-    return { firstStyleId: 'SesListItem', firstNumPr: { numId, ilvl: 0 }, contStyleId: 'SesListCont', literalOrdinal: false }
+    return { firstStyleId: 'SesListItem', firstNumPr: { numId, ilvl: 0 }, contStyleId: 'SesListCont' }
   }
 
   // depth === 2
   if (list.listType === 'dash') {
-    return { firstStyleId: 'SesListDot', contStyleId: 'SesListCont2', literalOrdinal: false }
+    return { firstStyleId: 'SesListDot', contStyleId: 'SesListCont2' }
   }
   if (!parent) throw new Error('planForList: 第二层列表缺少父列表信息')
   if (parent.type === 'dash') {
-    if (list.listType !== 'number') {
-      warn(ctx, 'list-format-fallback', `列表 "${list.id}" 嵌在破折号列表下，按数字编号（A12 第 2 级）渲染`, list.id)
-    }
     const numId = ctx.numbering.allocListInstance(ABSTRACT_NUM_ID.listAlpha) // §4.4：新建 A12 实例，用 ilvl1
-    return { firstStyleId: 'SesListItem', firstNumPr: { numId, ilvl: 1 }, contStyleId: 'SesListCont2', literalOrdinal: false }
-  }
-  const parentEffective = parent.type === 'boxed' ? 'number' : parent.type
-  const expected = EXPECTED_SUBLIST_TYPE.get(parentEffective)
-  if (expected && list.listType !== expected) {
-    warn(ctx, 'list-format-fallback', `列表 "${list.id}" 的类型与上层列表第二级的格式不符，按上层格式渲染`, list.id)
+    return { firstStyleId: 'SesListItem', firstNumPr: { numId, ilvl: 1 }, contStyleId: 'SesListCont2' }
   }
   if (parent.numId === undefined) throw new Error('planForList: 上层列表不是 dash 时必须有 numId')
-  return { firstStyleId: 'SesListItem', firstNumPr: { numId: parent.numId, ilvl: 1 }, contStyleId: 'SesListCont2', literalOrdinal: false }
+  return { firstStyleId: 'SesListItem', firstNumPr: { numId: parent.numId, ilvl: 1 }, contStyleId: 'SesListCont2' }
 }
 
 function renderListItemRest(ctx: RenderContext, blocks: (IRParagraph | IRList)[], bctx: BlockCtx, depth: number, list: IRList, plan: ListLevelPlan): string {
@@ -112,22 +89,9 @@ function renderListItemRest(ctx: RenderContext, blocks: (IRParagraph | IRList)[]
 function renderListLevel(ctx: RenderContext, list: IRList, bctx: BlockCtx, depth: number, parent: ParentListInfo | undefined): string {
   const plan = planForList(ctx, list, depth, parent)
   let out = ''
-  list.items.forEach((item: ListItem, idx: number) => {
+  list.items.forEach((item: ListItem) => {
     const first = item.content[0]
     const firstIsParagraph = first !== undefined && first.kind === 'paragraph'
-
-    if (plan.literalOrdinal) {
-      const ordinal = idx + 1
-      const label = plainRun(`${ordinal})${SP}`)
-      if (firstIsParagraph) {
-        out += emitParagraph(ctx, plan.firstStyleId, { runsXml: label + renderInlines((first as IRParagraph).content, ctx.labels) })
-        out += renderListItemRest(ctx, item.content.slice(1), bctx, depth, list, plan)
-      } else {
-        out += emitParagraph(ctx, plan.firstStyleId, { runsXml: label })
-        out += renderListItemRest(ctx, item.content, bctx, depth, list, plan)
-      }
-      return
-    }
 
     const numbered = { nodeId: item.id, kind: 'listItem' as const }
     if (firstIsParagraph) {

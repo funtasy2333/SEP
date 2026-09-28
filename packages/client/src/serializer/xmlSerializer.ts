@@ -668,15 +668,19 @@ function serializeFormula(lines: string[], node: PMNode, depth: number) {
 }
 
 /** 序列化列表 */
-function serializeList(lines: string[], node: PMNode, depth: number) {
+export function toXmlListType(listType: string): string {
   const listTypeMap: Record<string, string> = {
     dash: 'dash',
     alpha: 'alpha-lower',
     numeric: 'arabic',
-    roman: 'roman-lower',
-    romanUpper: 'roman-upper',
+    roman: 'arabic',
+    romanUpper: 'arabic',
   }
-  const listType = listTypeMap[node.attrs.listType] || 'dash'
+  return listTypeMap[listType] || 'dash'
+}
+
+function serializeList(lines: string[], node: PMNode, depth: number) {
+  const listType = toXmlListType(node.attrs.listType)
 
   lines.push(`${indent(depth)}<list${buildAttrs({ 'list-type': listType })}>`)
 

@@ -211,8 +211,10 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 | SesClause1…5 | SES_一级条标题…五级条标题 | 黑 五 | keepNext；段前段后各半行；缩进见 A1 | 1…5 | 属主：章条 L1…L5 | 10.2.1 |
 | SesNoTitle1…5 | SES_一级无标题条…五级无标题条 | 宋 五 | 缩进见 A1 | — | 段落级：章条 L1…L5 | 10.2.1（编号顶格，空一字接条文；编号黑体见 A1） |
 | SesTermNum | SES_术语条目编号 | 黑 五 | keepNext；段前段后 0；缩进见 A1/A2 | — | 段落级：章条 Ln（附录中为附录 Ln，§4.4） | 10.3.5、#22 |
-| SesTermHead | SES_术语 | 黑 五 | keepNext；缩进 0 | — | — | #23 |
-| SesAppendix | SES_附录标识 | 黑 五 | keepNext；`jc=center`；段前 520 段后 150（起始值，按 §10 实测调整）；缩进见 A2 | 0 | 属主：附录 L0 | 图 E.12、#25–27 |
+| SesTermHead | SES_术语 | 黑 五 | keepNext；首行缩进 2 字（420） | — | — | 10.3.5、#23 |
+| SesAppendix | SES_附录标识 | 黑 五 | keepNext；`jc=center`；段前 520 段后 0；缩进见 A2 | 0 | 属主：附录 L0 | 图 E.12、#25 |
+| SesAppendixKind | SES_附录性质 | 黑 五 | keepNext；`jc=center`；段前段后 0 | — | — | 图 E.12、#26 |
+| SesAppendixTitle | SES_附录标题 | 黑 五 | keepNext；`jc=center`；段前 0 段后 150 | — | — | 图 E.12、#27 |
 | SesAppClause1…5 | SES_附录一级条标题… | 黑 五 | 同 SesClause；缩进见 A2 | 1…5 | 属主：附录 L1…L5 | 9.6.3.1 |
 | SesAppNoTitle1…5 | SES_附录一级无标题条… | 宋 五 | 缩进见 A2 | — | 段落级：附录 L1…L5 | 9.6.3.1 |
 | SesListDash | SES_破折号列项 | 宋 五 | 缩进见 A11 | — | 属主：破折号 L0 | 10.2.2 |
@@ -243,7 +245,7 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 | SesEndMark | SES_终结线 | 宋 4 磅 | keepLines；左右缩进各 3532（Word 实测校准）；下边框 single sz=6 | — | — | 10.1.5（本版心目标约 41.25 mm） |
 | SesHeader | SES_书眉 | 黑 五 | — | — | — | #47 |
 | SesFooter | SES_页码 | 宋 小五 | — | — | — | #48 |
-| TOC1 / TOC2 / TOC3 | toc 1 / toc 2 / toc 3 | 宋 五 | 右对齐点线制表位 9355；TOC1 段前段后各 1/4 行（25）；TOC2 左缩进 210；TOC3 左缩进 420 | — | — | 10.3.2、图 E.8、#15 |
+| TOC1 / TOC2 / TOC3 | toc 1 / toc 2 / toc 3 | 宋 五（含 ASCII 编号） | 右对齐点线制表位 9355；TOC1 段前段后各 1/4 行（25）；TOC2 左缩进 210；TOC3 左缩进 420 | — | — | 10.3.2、图 E.8、#15 |
 | SesCoverStdNo | SES_封面文件编号 | 黑 四 | `jc=right`（WP7.5 在段落上加 `framePr`） | — | — | #04；书眉 STYLEREF 的取值来源（§2.3），WP7.2 起就要有 |
 | SesCover*（其余） | SES_封面… | 见 §6 | 图文框定位 | — | — | 10.3.1、图 E.5–E.7、#01–13（WP7.5） |
 
@@ -290,11 +292,10 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 | A9 | 示例 | singleLevel | L0 none `示例：`；首行 420；标识 rPr 黑体 | SesExLabel |
 | A10 | 示例X | singleLevel | L0 decimal `示例%1：`；首行 420；标识 rPr 黑体 | —（按组实例） |
 | A11 | 破折号列项 | multilevel | L0 bullet `——`，左 840 悬挂 420；L1 bullet `·` suff=tab，左 1260 悬挂 420 | SesListDash、SesListDot |
-| A12 | 字母列项 | multilevel | L0 lowerLetter `%1)` suff=tab，左 840 悬挂 420；L1 decimal `%2)` suff=tab，左 1260 悬挂 420 | —（按列表实例） |
-| A13 | 数字列项 | multilevel | L0 decimal `%1)`；L1 lowerLetter `%2)`（suff、缩进同 A12） | — |
-| A14 | 罗马列项 | multilevel | L0 lowerRoman `%1)`；L1 decimal `%2)`（同上） | — |
-| A15 | 大写罗马列项 | multilevel | L0 upperRoman `%1)`；L1 decimal `%2)`（同上） | — |
-| A16 | 参考文献 | singleLevel | L0 decimal `[%1]　`；首行 420 | SesBibEntry |
+| A12 | 字母列项 | multilevel | L0 lowerLetter `%1）` suff=tab，左 840 悬挂 420；L1 bullet `·` suff=tab，左 1260 悬挂 420 | —（按列表实例） |
+| A13 | 数字列项 | multilevel | L0 decimal `%1）`；L1 bullet `·`（suff、缩进同 A12） | — |
+| A14 / A15 | 旧罗马类型兼容槽 | multilevel | L0 decimal `%1）`；L1 bullet `·`；旧文档的罗马列表降级为数字列项，不再输出罗马编号 | — |
+| A16 | 参考文献 | singleLevel | L0 decimal `[%1]　`，编号 rPr 指定宋体；首行 420 | SesBibEntry |
 
 - 标识后的「空一个汉字」用 lvlText 里的全角空格 U+3000，不用 `suff=space`（半角）。
 - A1、A2 各级标识都用黑体：无标题条与术语条目的编号也是「条编号」（表 F.1 #33），原件中无标题条的编号即为黑体（如 7.5.1），
@@ -354,18 +355,18 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 - 术语条目编号：**正文用 A1、附录用 A2** 的固定实例（段落级 numPr），L = 父节点深度 + 1（章、附录本身深度为 0：章直属 →
   「3.1」，条 3.1 之下 → 「3.1.1」，附录直属 → 「A.1」）；超过 5 同上处理。
 - 附录条、附录无标题条：A2，L = 深度。
-- 列项（GB/T 1.1 7.5.3：第一层用破折号或字母编号，第二层用间隔号或数字编号；字母编号的列项下可用间隔号或数字编号）：
+- 列项（依据用户对 GB/T 1.1 7.5.3 的人工核验反馈：不提供罗马项；字母/数字列项后用全角右括号，子列项统一用间隔号）：
 
   | 所在层 | 本层列表类型 | 渲染 |
   |---|---|---|
   | 第一层 | dash | P(SesListDash)，样式自带 A11 L0 |
-  | 第一层 | alpha / number / roman / romanUpper | P(SesListItem) + 新建 A12 / A13 / A14 / A15 实例的 ilvl 0 |
+  | 第一层 | alpha / number | P(SesListItem) + 新建 A12 / A13 实例的 ilvl 0，显示 `a）` / `1）` |
+  | 第一层 | 旧 roman / romanUpper | 降级为 number（A13），不输出罗马数字 |
   | 第一层 | boxed | 同 number（A13），记 `list-format-fallback` |
   | 第二层 | dash | P(SesListDot)，样式自带 A11 L1，不论上层是什么类型（spike v10 T8：不影响上层字母列表的计数） |
-  | 第二层，上层是编号列表 | 非 dash | 上层列表实例的 ilvl 1，格式由上层 abstractNum 的 L1 决定（A12、A14、A15 → `1)`，A13 → `a)`）；本层类型不是该格式对应的类型（`1)` 对应 number，`a)` 对应 alpha；如数字列表下再嵌数字列表）时记 `list-format-fallback` |
-  | 第二层，上层是 dash | 非 dash | 新建 A12 实例，用 ilvl 1（`1)`）；本层类型不是 number 时记 `list-format-fallback` |
-  | 第三层及更深 | dash | P(SesListDot)（破折号列项的编号不显示计数，共用 A11 无妨） |
-  | 第三层及更深 | 非 dash | P(SesListCont2)，段首写文字标识「n)」+ U+3000（n 为该项在本列表中的序号），**不用编号定义**：在外层编号列表里新建实例会重置外层计数（§4.3） |
+  | 第二层，上层是编号列表 | 任意类型 | 上层列表实例的 ilvl 1，统一显示间隔号 `·` |
+  | 第二层，上层是 dash | 任意类型 | P(SesListDot)，统一显示间隔号 `·` |
+  | 第三层及更深 | 任意类型 | P(SesListDot)，显示间隔号 `·`，并记 `list-too-deep` |
 
   第三层及更深的列表（不论类型）每个记一条 `list-too-deep`（GB/T 1.1 7.5.2：细分不宜超过两个层次）。
 
@@ -412,7 +413,7 @@ V1 写 `labels[targetId].refText` 纯文字，**不加颜色、不加下划线**
 - 输出每段：`index`（段落序号，从 0 起）、`styleId`、`numId`、`ilvl`、`label`（模拟出的标识全文，含 lvlText 里的全角
   空格；无编号为 undefined）、`text`（提取规则同 §10.2 的大纲）。
 
-**模拟器自测**（手写 styles、numbering、document 片段；原始 XML 见 `spike/wp7-docx-word/probe_v10.py`），全部必须复现：
+**模拟器自测**（历史 Word spike，手写 styles、numbering、document 片段；原始 XML 见 `spike/wp7-docx-word/probe_v10.py`）。下表用于复现 Word 编号计数行为，其中旧 `a)`/`1)` 仅为当时的实验标识，不代表当前列项输出格式：
 
 | 用例 | 构造 | Word 实测（期望输出） |
 |---|---|---|
@@ -475,10 +476,10 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
   第一个子块不是段落或没有子块时，先输出一个只有编号的 P(SesNoTitle{L}) + 同样的 `numPr`（无文字），其后照常输出全部子块。
   GB/T 7.3.3 要求同一层次有无标题一致、7.3.4 规定无标题条不再分条；违反时 Resolver 报 problem，渲染不拦截。
 
-### 5.4 术语条目（三段式，10.3.5）
+### 5.4 术语条目（10.3.5）
 
-1. P(SesTermNum) + 段落级 `numPr`（正文 A1、附录 A2 的固定实例，级别见 §4.4），段落无文字，只显示编号；
-2. P(SesTermHead, term + U+3000 + termEn)，termEn 缺省或为空时只写 term；
+1. “术语和定义”章内：P(SesTermNum) + 段落级 `numPr`（正文 A1，级别见 §4.4），编号独占一行；下一段 P(SesTermHead, term + U+3000 + termEn)，首行空两个汉字，termEn 缺省或为空时只写 term（10.3.5）。
+2. 其他章节和附录中出现的测试用 `termEntry`：编号与术语写在同一 P(SesTermNum) 中，分别使用正文 A1 或附录 A2。这是按人工验收反馈处理非“术语和定义”章内的异常结构，不套用上一项的分行格式。
 3. 定义各块：段落用 SesPara，其他块照常；
 4. 示例（`examples`），然后注（`notes`），按 §5.7，作用域为该术语条目；
 5. 来源：P(SesPara, `source`)，**原样输出**（pmToIr 已把「[来源：……]」整段作为 source，渲染器不得再加前缀）。
@@ -542,7 +543,7 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
 
 ### 5.11 附录
 
-P(SesAppendix, `<w:br/>` + 「（规范性）」或「（资料性）」+ `<w:br/>` + title)。编号「附录A」由 A2 L0 生成，字距按 §3.3。三行在同一段落；WP7.3 固定目次条目按 §7 单独生成「附录A（规范性）　标题」。
+附录编号、性质、标题分为三个居中段：P(SesAppendix) 的编号「附录A」由 A2 L0 生成，字距按 §3.3；P(SesAppendixKind,「（规范性）」或「（资料性）」)；P(SesAppendixTitle, title)。三段均 keepNext，只有第一段参与 A2 编号。分段可避免 Word 把同段内第二、三行相对编号悬挂区向右偏移。WP7.3 固定目次条目按 §7 单独生成「附录A（规范性）　标题」。
 
 ### 5.12 参考文献
 
@@ -856,8 +857,8 @@ docProps 的标题取 `meta.title`（缺失为空串），时间取 `opts.create
     - 术语：章直属两条（其中一条带 termEn、定义、两个示例、两条注、来源）、条内术语（如 3.3.1）、附录直属术语（A.n）；
     - 注：条内两条注之间夹一张带两条注的图（交错，§4.3）；有两段的单条注；多条注中有一条有两段；第一块不是段落的注；
     - 示例：同一作用域两个示例、另一作用域一个示例；
-    - 列项：alpha（项下嵌 number 列表、项下嵌 dash 列表）、number、roman、romanUpper、boxed；dash 下嵌 number 列表（新实例、
-      `1)`）；三层嵌套（第三层 dash 与非 dash 各一，其中一个嵌在字母列表里，验证外层计数不受影响）；一项两段（续段）；
+    - 列项：alpha（项下嵌 number 列表、项下嵌 dash 列表）、number、boxed；dash 下嵌 number 列表（按间隔号输出）；
+      三层嵌套（第三层 dash 与非 dash 各一，均按间隔号输出）；一项两段（续段）；
       第一块是嵌套列表的项；
     - 图、表：正文至少两图两表且跨章；附录 A、B 各有图和表（每个附录从 1 起），附录 A 至少两张图；
     - 公式：编号、不编号各一；
@@ -868,15 +869,15 @@ docProps 的标题取 `meta.title`（缺失为空串），时间取 `opts.create
     - **期望标记**（供 §10.3 `expect.py` 在 Word 的 PDF 上核对）：每个带编号的段落都用下列标记之一写明期望的标识（列项写
       手写的期望，其余写 Resolver 的 label）：
       - 「〔期望 X〕」：写在带编号段落自己的文字末尾；
-      - 「〔前段期望 X〕」：写在只有编号、没有文字的段落（术语条目编号段、示例标识段、只有编号的无标题条 / 注 / 列项）的
+      - 「〔前段期望 X〕」：写在只有编号、没有文字的段落（术语和定义章内的术语条目编号段、示例标识段、只有编号的无标题条 / 注 / 列项）的
         **下一段**；
-      - 「〔附录期望 X〕」：写在附录标题末尾（附录标识段的第三行）。
+      - 「〔附录期望 X〕」：写在第三个附录标题段末尾；其前两段依次是附录编号、附录性质。
 
-      第三层及更深的非 dash 列项是文字标识、不是编号段落，不写标记。带标记的段落文字要短，保证在 Word 中排成一行，且不以
+      带标记的段落文字要短，保证在 Word 中排成一行，且不以
       数字或「.」开头。测试断言每个标记与模拟器一致：「期望」「附录期望」
       对本段、「前段期望」对上一段的 label（去掉末尾一个 U+3000）；列项的手写期望即取自这些标记。
-  - `full`：`pmToIr(fullFixture()).doc` 经 `resolve` 的结果（不改 fixture）；列项手写期望 li-1 → a)、li-2 → b)。
-- `numbering` fixture 的 warnings 与期望列表完全一致（boxed、嵌套类型不符、三层嵌套等）。
+  - `full`：`pmToIr(fullFixture()).doc` 经 `resolve` 的结果（不改 fixture）；列项手写期望 li-1 → a）、li-2 → b）。
+- `numbering` fixture 的 warnings 与期望列表完全一致（boxed、三层嵌套等）。
 - Resolver（`ir/__tests__/resolve.test.ts`）：图的注中嵌图时，注里的图先编号；术语条目的示例与注中各嵌一张图时，示例里的
   图先编号；术语条目的示例与注中各引用一条参考文献时，示例里引用的排在前面。
 

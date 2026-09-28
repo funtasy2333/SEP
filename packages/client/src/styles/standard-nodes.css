@@ -456,43 +456,39 @@
 }
 
 .std-list-alpha .std-list-item::before {
-  content: counter(alpha-counter, lower-alpha) ') ';
+  content: counter(alpha-counter, lower-alpha) '） ';
 }
 
 .std-list-numeric .std-list-item {
   counter-increment: numeric-counter;
 }
 
-.std-list-numeric {
+.std-list-numeric,
+.std-list-roman,
+.std-list-romanUpper {
   counter-reset: numeric-counter;
 }
 
-.std-list-numeric .std-list-item::before {
-  content: counter(numeric-counter) ') ';
-}
-
-.std-list-roman .std-list-item {
-  counter-increment: roman-counter;
-}
-
-.std-list-roman {
-  counter-reset: roman-counter;
-}
-
-.std-list-roman .std-list-item::before {
-  content: counter(roman-counter, lower-roman) ') ';
-}
-
+.std-list-numeric .std-list-item,
+.std-list-roman .std-list-item,
 .std-list-romanUpper .std-list-item {
-  counter-increment: roman-upper-counter;
+  counter-increment: numeric-counter;
 }
 
-.std-list-romanUpper {
-  counter-reset: roman-upper-counter;
-}
-
+.std-list-numeric .std-list-item::before,
+.std-list-roman .std-list-item::before,
 .std-list-romanUpper .std-list-item::before {
-  content: counter(roman-upper-counter, upper-roman) ') ';
+  content: counter(numeric-counter) '） ';
+}
+
+/* 兼容嵌套 DOM：二级及更深列项统一使用间隔号。 */
+.std-list .std-list .std-list-item {
+  counter-increment: none;
+}
+
+.std-list .std-list .std-list-item::before {
+  content: '·';
+  margin-right: 0.5em;
 }
 
 /* 交叉引用 */

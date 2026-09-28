@@ -92,8 +92,7 @@ SesNote │ 注： │ 图序注释文字〔期望注：〕
 SesFigure │ — │ 〔图片占位〕
 SesFigCap │ 图4 │ 图序内嵌图〔期望图4〕
 SesFigCap │ 图5 │ 图序外层图〔期望图5〕
-SesTermNum │ 4.1.2 │
-SesTermHead │ — │ 图序术语〔前段期望4.1.2〕
+SesTermNum │ 4.1.2 │ 图序术语〔期望4.1.2〕
 SesPara │ — │ 用于验证遍历顺序的术语。
 SesExLabel │ 示例： │
 SesExText │ — │ 术语示例文字〔前段期望示例：〕
@@ -103,30 +102,26 @@ SesNote │ 注： │ 术语注释文字〔期望注：〕
 SesFigure │ — │ 〔图片占位〕
 SesFigCap │ 图7 │ 术语注图〔期望图7〕
 SesClause1 │ 4.2 │ 列项样例〔期望4.2〕
-SesListItem │ a) │ 字母项一〔期望a)〕
-SesListItem │ 1) │ 数字子项一〔期望1)〕
+SesListItem │ a） │ 字母项一〔期望a）〕
+SesListItem │ · │ 数字子项一〔期望·〕
 SesListCont2 │ — │ 数字子项一续段
 SesListDot │ · │ 破折三层一〔期望·〕
 SesListDot │ · │ 破折三层二〔期望·〕
-SesListItem │ 2) │ 数字子项二〔期望2)〕
-SesListItem │ b) │ 字母项二〔期望b)〕
+SesListItem │ · │ 数字子项二〔期望·〕
+SesListItem │ b） │ 字母项二〔期望b）〕
 SesListDot │ · │ 破折子项一〔期望·〕
 SesListDot │ · │ 破折子项二〔期望·〕
-SesListCont2 │ — │ 1)　数字三层一
-SesListCont2 │ — │ 2)　数字三层二
-SesListItem │ 1) │
-SesListDot │ · │ 数字项一之破折一〔期望·〕〔前段期望1)〕
+SesListDot │ · │ 数字三层一〔期望·〕
+SesListDot │ · │ 数字三层二〔期望·〕
+SesListItem │ 1） │
+SesListDot │ · │ 数字项一之破折一〔期望·〕〔前段期望1）〕
 SesListDot │ · │ 数字项一之破折二〔期望·〕
-SesListItem │ 2) │ 数字项二〔期望2)〕
-SesListItem │ i) │ 罗马项一〔期望i)〕
-SesListItem │ ii) │ 罗马项二〔期望ii)〕
-SesListItem │ I) │ 大写罗马项一〔期望I)〕
-SesListItem │ II) │ 大写罗马项二〔期望II)〕
-SesListItem │ 1) │ 方框项一〔期望1)〕
-SesListItem │ 2) │ 方框项二〔期望2)〕
+SesListItem │ 2） │ 数字项二〔期望2）〕
+SesListItem │ 1） │ 方框项一〔期望1）〕
+SesListItem │ 2） │ 方框项二〔期望2）〕
 SesListDash │ —— │ 破折顶层项一〔期望——〕
-SesListItem │ 1) │ 破折下数字一〔期望1)〕
-SesListItem │ 2) │ 破折下数字二〔期望2)〕
+SesListItem │ · │ 破折下数字一〔期望·〕
+SesListItem │ · │ 破折下数字二〔期望·〕
 SesListDash │ —— │ 破折顶层项二〔期望——〕
 SesClause1 │ 4.3 │ 单注两段样例〔期望4.3〕
 SesNote │ 注： │ 单注首段内容〔期望注：〕
@@ -137,7 +132,7 @@ SesNoteN │ 注2： │ 多注乙首段〔期望注2：〕
 SesNoteNCont │ — │ 多注乙续段
 SesClause1 │ 4.5 │ 注首块非段落样例〔期望4.5〕
 SesNote │ 注： │
-SesListItem │ a) │ 注内列表项〔期望a)〕〔前段期望注：〕
+SesListItem │ a） │ 注内列表项〔期望a）〕〔前段期望注：〕
 SesNoteCont │ — │ 注内后续段落
 SesClause1 │ 4.6 │ 双示例样例〔期望4.6〕
 SesExLabelN │ 示例1： │
@@ -147,7 +142,7 @@ SesExText │ — │ 示例乙内容〔前段期望示例2：〕
 SesNoTitle1 │ 4.7 │ 无标题条首段内容〔期望4.7〕
 SesPara │ — │ 无标题条续段内容
 SesNoTitle1 │ 4.8 │
-SesListItem │ a) │ 无标题条列表项〔期望a)〕〔前段期望4.8〕
+SesListItem │ a） │ 无标题条列表项〔期望a）〕〔前段期望4.8〕
 SesChapter │ 5 │ 深度链〔期望5〕
 SesClause1 │ 5.1 │ 链一〔期望5.1〕
 SesClause2 │ 5.1.1 │ 链二〔期望5.1.1〕
@@ -157,9 +152,10 @@ SesClause5 │ 5.1.1.1.1.1 │ 链五〔期望5.1.1.1.1.1〕
 SesPara │ — │ 第五层条文。
 — │ — │
 § type=oddPage pgNumType=decimal start=1 orient=— refs=4
-SesAppendix │ 附录A │ ⏎（规范性）⏎附录内容一〔附录期望附录A〕
-SesTermNum │ A.1 │
-SesTermHead │ — │ 附录术语〔前段期望A.1〕
+SesAppendix │ 附录A │
+SesAppendixKind │ — │ （规范性）
+SesAppendixTitle │ — │ 附录内容一〔附录期望附录A〕
+SesTermNum │ A.1 │ 附录术语〔期望A.1〕
 SesPara │ — │ 附录直属术语的定义。
 SesAppClause1 │ A.2 │ 附录条一〔期望A.2〕
 SesFigure │ — │ 〔图片占位〕
@@ -170,7 +166,9 @@ SesAppTblCap │ 表A.1 │ 附录表一〔期望表A.1〕
 SesTableCenter │ — │ 〔表格占位〕
 — │ — │
 § type=nextPage pgNumType=decimal start=— orient=— refs=4
-SesAppendix │ 附录B │ ⏎（资料性）⏎附录内容二〔附录期望附录B〕
+SesAppendix │ 附录B │
+SesAppendixKind │ — │ （资料性）
+SesAppendixTitle │ — │ 附录内容二〔附录期望附录B〕
 SesAppClause1 │ B.1 │ 附录条二〔期望B.1〕
 SesFigure │ — │ 〔图片占位〕
 SesAppFigCap │ 图B.1 │ 附录B图一〔期望图B.1〕

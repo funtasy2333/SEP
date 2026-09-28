@@ -16,18 +16,18 @@ import { renderInlines } from './inline'
 import { renderTermEntry } from './termEntry'
 
 /** 渲染一组「同一容器直属」的子节点（章/条/附录的 children）：条与术语条目的级别 = containerDepth + 1 */
-function renderContainerChildren(ctx: RenderContext, children: readonly (IRClauseChild | IRChapterChild)[], bctx: BlockCtx, containerDepth: number): string {
+function renderContainerChildren(ctx: RenderContext, children: readonly (IRClauseChild | IRChapterChild)[], bctx: BlockCtx, containerDepth: number, inTermsChapter: boolean): string {
   const childLevel = containerDepth + 1
   let out = ''
   for (const child of children) {
-    if (child.kind === 'clause') out += renderClause(ctx, child, bctx, childLevel)
-    else if (child.kind === 'termEntry') out += renderTermEntry(ctx, child, bctx, childLevel)
+    if (child.kind === 'clause') out += renderClause(ctx, child, bctx, childLevel, inTermsChapter)
+    else if (child.kind === 'termEntry') out += renderTermEntry(ctx, child, bctx, childLevel, inTermsChapter)
     else out += renderBlock(ctx, child, bctx)
   }
   return out
 }
 
-export function renderClause(ctx: RenderContext, clause: IRClause, bctx: BlockCtx, rawLevel: number): string {
+export function renderClause(ctx: RenderContext, clause: IRClause, bctx: BlockCtx, rawLevel: number, inTermsChapter = false): string {
   let level = rawLevel
   if (level > 5) {
     warn(ctx, 'clause-too-deep', `条 "${clause.id}" 的编号级别超过 5（嵌套深度 ${rawLevel}），按 5 级输出`, clause.id)
@@ -43,7 +43,7 @@ export function renderClause(ctx: RenderContext, clause: IRClause, bctx: BlockCt
   if (clause.titled) {
     const styleId = isAppendix ? `SesAppClause${level}` : `SesClause${level}`
     let out = emitParagraph(ctx, styleId, { runsXml: renderInlines(clause.title, ctx.labels), numbered })
-    out += renderContainerChildren(ctx, clause.children, innerBctx, level)
+    out += renderContainerChildren(ctx, clause.children, innerBctx, level, inTermsChapter)
     return out
   }
 
@@ -53,11 +53,11 @@ export function renderClause(ctx: RenderContext, clause: IRClause, bctx: BlockCt
   const [first, ...rest] = clause.children
   if (first && first.kind === 'paragraph') {
     let out = emitParagraph(ctx, noTitleStyleId, { numPr, runsXml: renderInlines(first.content, ctx.labels), numbered })
-    out += renderContainerChildren(ctx, rest, innerBctx, level)
+    out += renderContainerChildren(ctx, rest, innerBctx, level, inTermsChapter)
     return out
   }
   let out = emitParagraph(ctx, noTitleStyleId, { numPr, numbered })
-  out += renderContainerChildren(ctx, clause.children, innerBctx, level)
+  out += renderContainerChildren(ctx, clause.children, innerBctx, level, inTermsChapter)
   return out
 }
 
@@ -67,11 +67,11 @@ export function renderChapter(ctx: RenderContext, chapter: IRChapter): string {
     numbered: { nodeId: chapter.id, kind: 'chapter' },
   })
   const bctx: BlockCtx = { scopeKey: chapter.id }
-  out += renderContainerChildren(ctx, chapter.children, bctx, 0)
+  out += renderContainerChildren(ctx, chapter.children, bctx, 0, chapter.secType === 'terms')
   return out
 }
 
 /** 附录的直属子节点渲染入口（§5.11 用）：与章相同的机制，只是从 containerDepth=0 开始、bctx.appendix 已设置 */
 export function renderAppendixChildren(ctx: RenderContext, children: readonly IRClauseChild[], bctx: BlockCtx): string {
-  return renderContainerChildren(ctx, children, bctx, 0)
+  return renderContainerChildren(ctx, children, bctx, 0, false)
 }
