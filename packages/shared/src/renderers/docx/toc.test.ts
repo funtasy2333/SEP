@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { IRAppendix, IRChapter, IRClause, IRDoc, NodeId, ResolvedLabel } from '../../ir/types'
+import type { IRAppendix, IRChapter, IRClause, IRDoc, IRTermEntry, NodeId, ResolvedLabel } from '../../ir/types'
 import { buildStaticToc } from './toc'
 import { renderDocxTraced } from './render'
 import { assertChildOrder, assertWellFormed } from './__tests__/helpers/checks'
@@ -45,6 +45,25 @@ function tocFixture(): { doc: IRDoc; labels: Record<NodeId, ResolvedLabel> } {
     title: [{ text: '重复标题' }], children: [],
   }
 
+  const termEntryOne: IRTermEntry = {
+    kind: 'termEntry', id: 'terms-entry-one', term: [{ text: '术语条一' }],
+    definition: [{ kind: 'paragraph', id: 'terms-definition-one', content: [{ text: '术语定义一' }] }],
+    notes: [], examples: [],
+  }
+  const termEntryTwo: IRTermEntry = {
+    kind: 'termEntry', id: 'terms-entry-two', term: [{ text: '术语条二' }],
+    definition: [{ kind: 'paragraph', id: 'terms-definition-two', content: [{ text: '术语定义二' }] }],
+    notes: [], examples: [],
+  }
+  const termsSupplement: IRClause = {
+    kind: 'clause', id: 'terms-supplement', level: 1, titled: true,
+    title: [{ text: '补充说明' }], children: [],
+  }
+  const termsChapter: IRChapter = {
+    kind: 'chapter', id: 'terms-chapter', secType: 'terms',
+    title: [{ text: '术语和定义' }], children: [termEntryOne, termEntryTwo, termsSupplement],
+  }
+
   const nestedAppendixClause: IRClause = {
     kind: 'clause', id: 'nested-appendix-clause', level: 1, titled: true,
     title: [{ text: '附录二级条不入目次' }], children: [],
@@ -53,9 +72,14 @@ function tocFixture(): { doc: IRDoc; labels: Record<NodeId, ResolvedLabel> } {
     kind: 'clause', id: 'appendix-clause', level: 4, titled: true,
     title: [{ text: '附录一级条' }], children: [nestedAppendixClause],
   }
+  const appendixTermEntry: IRTermEntry = {
+    kind: 'termEntry', id: 'appendix-term-entry', term: [{ text: '附录术语' }],
+    definition: [{ kind: 'paragraph', id: 'appendix-term-definition', content: [{ text: '附录术语定义。' }] }],
+    notes: [], examples: [],
+  }
   const appendix: IRAppendix = {
     kind: 'appendix', id: 'appendix-a', normative: true,
-    title: [{ text: '附录标题' }], children: [appendixClause],
+    title: [{ text: '附录标题' }], children: [appendixTermEntry, appendixClause],
   }
 
   const doc: IRDoc = {
@@ -65,7 +89,7 @@ function tocFixture(): { doc: IRDoc; labels: Record<NodeId, ResolvedLabel> } {
       foreword: [{ kind: 'paragraph', id: 'foreword-p', content: [{ text: '前言正文' }] }],
       introduction: [{ kind: 'paragraph', id: 'introduction-p', content: [{ text: '引言正文' }] }],
     },
-    body: [chapterOne, chapterTwo],
+    body: [chapterOne, chapterTwo, termsChapter],
     appendices: [appendix],
     bibliography: [{ kind: 'bibEntry', id: 'bib-one', content: [{ text: '参考资料' }] }],
   }
@@ -77,9 +101,14 @@ function tocFixture(): { doc: IRDoc; labels: Record<NodeId, ResolvedLabel> } {
     untitled: label('1.2', 'sec_1.2'),
     'top-level-two': label('1.3', 'sec_1.3'),
     'chapter-two': label('2', 'sec_2'),
+    'terms-chapter': label('3', 'sec_3'),
+    'terms-entry-one': label('3.1', 'sec_3.1'),
+    'terms-entry-two': label('3.2', 'sec_3.2'),
+    'terms-supplement': label('3.3', 'sec_3.3'),
     'appendix-a': label('附录A', 'sec_A'),
-    'appendix-clause': label('A.1', 'sec_A.1'),
-    'nested-appendix-clause': label('A.1.1', 'sec_A.1.1'),
+    'appendix-term-entry': label('A.1', 'sec_A.1'),
+    'appendix-clause': label('A.2', 'sec_A.2'),
+    'nested-appendix-clause': label('A.2.1', 'sec_A.2.1'),
     'bib-one': label('[1]', 'bib_1'),
     'ref-target': label('3.1', 'sec_3.1', '目标&文本'),
   }
@@ -97,17 +126,73 @@ describe('static DOCX TOC', () => {
 
     expect(toc.entries.map(targetKey)).toEqual([
       'foreword', 'introduction', 'chapter-one', 'top-level-one', 'top-level-two',
-      'chapter-two', 'appendix-a', 'appendix-clause', 'bibliography',
+      'chapter-two', 'terms-chapter', 'appendix-a', 'appendix-term-entry', 'appendix-clause', 'bibliography',
     ])
     expect(toc.entries.map((entry) => entry.styleId)).toEqual([
-      'TOC1', 'TOC1', 'TOC1', 'TOC2', 'TOC2', 'TOC1', 'TOC1', 'TOC2', 'TOC1',
+      'TOC1', 'TOC1', 'TOC1', 'TOC2', 'TOC2', 'TOC1', 'TOC1', 'TOC1', 'TOC2', 'TOC2', 'TOC1',
     ])
     expect(toc.xml).toContain('结构 &lt;&amp; ')
     expect(toc.xml).toContain('目标&amp;文本')
     expect(toc.xml).toContain('<w:rPr><w:b/><w:bCs/></w:rPr>')
     expect(toc.xml).not.toContain('二级条不入目次')
     expect(toc.xml).not.toContain('附录二级条不入目次')
+    expect(toc.xml).not.toContain('术语条一')
+    expect(toc.xml).not.toContain('术语条二')
+    expect(toc.xml).not.toContain('补充说明')
     expect(toc.xml).not.toContain('1.2') // 无标题条不进入目次
+  })
+
+  it('把附录直属术语 A.1 和有标题条 A.2 作为 TOC2，并锚定到各自正文目标', () => {
+    const { doc, labels } = tocFixture()
+    const toc = buildStaticToc(doc, labels)
+    const appendixTermEntry = toc.entries.find(
+      (entry) => entry.target.kind === 'node' && entry.target.nodeId === 'appendix-term-entry',
+    )!
+    const appendixEntry = toc.entries.find(
+      (entry) => entry.target.kind === 'node' && entry.target.nodeId === 'appendix-clause',
+    )!
+    const { pkg } = renderDocxTraced(doc, labels, OPTS)
+    const xml = pkg.parts['word/document.xml']
+    const termBookmark = appendixTermEntry.bookmark
+    const clauseBookmark = appendixEntry.bookmark
+    const termParagraph = [...xml.matchAll(/<w:p>([\s\S]*?)<\/w:p>/g)]
+      .map((match) => match[0])
+      .find((paragraph) => paragraph.includes('<w:pStyle w:val="SesTermNum"/>') && paragraph.includes('附录术语'))
+
+    expect(appendixTermEntry.styleId).toBe('TOC2')
+    expect(appendixTermEntry.runsXml).toContain('A.1')
+    expect(appendixTermEntry.runsXml).toContain('附录术语')
+    expect(appendixEntry.styleId).toBe('TOC2')
+    expect(appendixEntry.runsXml).toContain('A.2')
+    expect(appendixEntry.runsXml).toContain('附录一级条')
+    expect(termParagraph).toBeDefined()
+    expect(termParagraph).toContain(`<w:bookmarkStart w:id="${termBookmark.id}" w:name="${termBookmark.name}"/>`)
+    expect(termParagraph).toContain('附录术语')
+    expect(termParagraph).toContain(`<w:bookmarkEnd w:id="${termBookmark.id}"/>`)
+
+    for (const bookmark of [termBookmark, clauseBookmark]) {
+      expect(toc.xml).toContain(`w:anchor="${bookmark.name}"`)
+      expect(xml.match(new RegExp(`<w:bookmarkStart w:id="${bookmark.id}" w:name="${bookmark.name}"/>`, 'g'))).toHaveLength(1)
+      expect(xml.match(new RegExp(`<w:bookmarkEnd w:id="${bookmark.id}"/>`, 'g'))).toHaveLength(1)
+      expect(xml.match(new RegExp(`PAGEREF ${bookmark.name} \\\\h`, 'g'))).toHaveLength(1)
+    }
+  })
+
+  it('术语和定义章中的术语条及补充说明条 3.3 均不生成 TOC2 或目次书签', () => {
+    const { doc, labels } = tocFixture()
+    const toc = buildStaticToc(doc, labels)
+    const termsEntries = toc.entries.filter(
+      (entry) => entry.target.kind === 'node' &&
+        ['terms-entry-one', 'terms-entry-two', 'terms-supplement'].includes(entry.target.nodeId),
+    )
+
+    expect(termsEntries).toEqual([])
+    expect(toc.entries.find((entry) => targetKey(entry) === 'terms-chapter')?.styleId).toBe('TOC1')
+    expect(toc.bookmarksByNodeId.has('terms-entry-one')).toBe(false)
+    expect(toc.bookmarksByNodeId.has('terms-entry-two')).toBe(false)
+    expect(toc.bookmarksByNodeId.has('terms-supplement')).toBe(false)
+    expect(toc.xml).not.toContain('3.3')
+    expect(toc.xml).not.toContain('补充说明')
   })
 
   it('给同名标题分配不同目标书签，每个 PAGEREF 与源书签一一对应', () => {

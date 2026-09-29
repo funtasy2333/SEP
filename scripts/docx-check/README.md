@@ -33,7 +33,8 @@ python3 scripts/docx-check/word_pdf.py /tmp/minimal.docx /tmp/minimal.pdf
 ```
 
 把 `.docx` 复制到 Word 的沙盒目录 `~/Library/Containers/com.microsoft.Word/Data/ses-check/`
-后用 AppleScript 驱动 Word 打开、更新域（包括 WP7.3 目次的 PAGEREF 页码）、另存为 PDF、不保存关闭。120 秒没结果
+后临时去掉副本中的打开时更新域与待更新标记，再用 AppleScript 驱动 Word 打开、更新域
+（包括 WP7.3 目次的 PAGEREF 页码）、另存为 PDF、不保存关闭。输入 DOCX 不会被修改。120 秒没结果
 就报错退出，不会自己重试。
 
 **Word 首次运行的授权步骤（只需一次）**：

@@ -104,7 +104,8 @@ export function buildStaticToc(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>
       'TOC1',
       labelRuns(labels[chapter.id]?.label) + renderInlines(chapter.title, labels),
     )
-    visitContainer(chapter.children)
+    // 术语章中的 termEntry 和补充说明条（如 3.3）均不作为目次二级条目。
+    if (chapter.secType !== 'terms') visitContainer(chapter.children)
   }
 
   for (const appendix of doc.appendices) {
@@ -118,6 +119,13 @@ export function buildStaticToc(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>
     )
     for (const child of appendix.children) {
       if (child.kind === 'clause') visitClause(child, 1)
+      else if (child.kind === 'termEntry') {
+        add(
+          { kind: 'node', nodeId: child.id },
+          'TOC2',
+          labelRuns(labels[child.id]?.label) + renderInlines(child.term, labels),
+        )
+      }
     }
   }
 
