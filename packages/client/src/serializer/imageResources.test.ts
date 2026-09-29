@@ -117,6 +117,21 @@ describe('collectImageResources', () => {
     expect(diagnostics).toEqual([])
   })
 
+  it('资源解析器返回含斜线的裸 base64 时按图片字节解码，不请求 URL', async () => {
+    const bytes = new Uint8Array([...pngBytes(4, 2), 0xff, 0xff])
+    const payload = base64(bytes)
+    expect(payload).toContain('/')
+    const fetcher = vi.fn<typeof fetch>()
+    const { images, diagnostics } = await collectImageResources(doc([figure('raw', 'asset:raw')]), {
+      resolveResourceKey: async () => payload,
+      fetcher,
+    })
+
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(images.raw).toMatchObject({ base64: payload, contentType: 'image/png', widthPx: 4, heightPx: 2 })
+    expect(diagnostics).toEqual([])
+  })
+
   it('收集前言、表格单元格和表注、术语定义及附录子句中的图', async () => {
     const src = `data:image/png;base64,${base64(pngBytes(2, 1))}`
     const nestedTable: IRTable = {

@@ -70,7 +70,7 @@ SesTermHead │ — │ 嵌套术语〔前段期望3.3.1〕
 SesPara │ — │ 条内出现的术语条目。
 SesFigure │ — │ 〔图片缺失〕
 SesFigCap │ 图2 │ 术语章示例图〔期望图2〕
-SesTblCap │ 表1 │ 术语章示例表〔期望表1〕
+┆SesTblCap │ 表1 │ 术语章示例表〔期望表1〕
 ┆SesTableCenter │ — │ —
 SesChapter │ 4 │ 技术要求〔期望4〕
 SesClause1 │ 4.1 │ 总体要求〔期望4.1〕
@@ -81,7 +81,7 @@ SesNoteN │ 注1： │ 交错图注一〔期望注1：〕
 SesNoteN │ 注2： │ 交错图注二〔期望注2：〕
 SesFigCap │ 图3 │ 交错示例图〔期望图3〕
 SesNoteN │ 注2： │ 条内次条注释〔期望注2：〕
-SesTblCap │ 表2 │ 总体要求示例表〔期望表2〕
+┆SesTblCap │ 表2 │ 总体要求示例表〔期望表2〕
 ┆SesTableCenter │ — │ —
 SesFormula │ — │ ⇥E=mc^2⇥（1）
 SesFormula │ — │ ⇥x=y
@@ -162,7 +162,7 @@ SesFigure │ — │ 〔图片缺失〕
 SesAppFigCap │ 图A.1 │ 附录图一〔期望图A.1〕
 SesFigure │ — │ 〔图片缺失〕
 SesAppFigCap │ 图A.2 │ 附录图二〔期望图A.2〕
-SesAppTblCap │ 表A.1 │ 附录表一〔期望表A.1〕
+┆SesAppTblCap │ 表A.1 │ 附录表一〔期望表A.1〕
 ┆SesTableCenter │ — │ —
 — │ — │
 § type=nextPage pgNumType=decimal start=— orient=— refs=4
@@ -172,7 +172,7 @@ SesAppendixTitle │ — │ 附录内容二〔附录期望附录B〕
 SesAppClause1 │ B.1 │ 附录条二〔期望B.1〕
 SesFigure │ — │ 〔图片缺失〕
 SesAppFigCap │ 图B.1 │ 附录B图一〔期望图B.1〕
-SesAppTblCap │ 表B.1 │ 附录B表一〔期望表B.1〕
+┆SesAppTblCap │ 表B.1 │ 附录B表一〔期望表B.1〕
 ┆SesTableCenter │ — │ —
 — │ — │
 § type=nextPage pgNumType=decimal start=— orient=— refs=4

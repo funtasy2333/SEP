@@ -56,6 +56,8 @@ export function warn(ctx: RenderContext, code: string, message: string, nodeId?:
 export interface EmitParagraphOptions {
   /** 段落级 numPr（§4.1：无标题条、术语条目编号、按需实例列项……都用这个） */
   numPr?: { numId: number; ilvl: number }
+  /** 分段续表的第一段与后续段从新页起排。 */
+  pageBreakBefore?: boolean
   /** 段落内容（一串 `<w:r>…</w:r>`），省略/空串 = 空段落（只有编号的段） */
   runsXml?: string
   /** 这段是否为「有效编号段落」（§4.7）：写了 numPr，或样式是属主样式时必须提供 */
@@ -78,6 +80,7 @@ export function emitParagraph(ctx: RenderContext, styleId: string, opts: EmitPar
   if (opts.numbered) ctx.numbered.push(opts.numbered)
 
   const pprChildren: XmlChild[] = [['pStyle', `<w:pStyle w:val="${styleId}"/>`]]
+  if (opts.pageBreakBefore) pprChildren.push(['pageBreakBefore', '<w:pageBreakBefore/>'])
   if (opts.numPr) pprChildren.push(['numPr', numPrXml([
     ['ilvl', `<w:ilvl w:val="${opts.numPr.ilvl}"/>`],
     ['numId', `<w:numId w:val="${opts.numPr.numId}"/>`],

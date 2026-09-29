@@ -73,10 +73,21 @@ describe('WP7.4 横排分节', () => {
   })
 
   it('末要素为横排表时终结线保留在横排节，且不额外开竖排节', () => {
-    const pkg = render(docWith([landscapeTable('tab-end')]))
+    const finalTable = landscapeTable('tab-end')
+    finalTable.rows.push({
+      id: 'tab-end-body',
+      cells: [{ id: 'tab-end-body-cell', colspan: 1, rowspan: 1, header: false,
+        content: [{ kind: 'paragraph', id: 'tab-end-body-p', content: [{ text: '末行数据' }] }] }],
+    })
+    const pkg = render(docWith([finalTable]))
     const outline = docxOutline(pkg)
     const sections = outline.split('\n').filter((line) => line.startsWith('§'))
     expect(sections.map((line) => line.match(/orient=([^ ]+)/)?.[1])).toEqual(['—', '—', '—', 'landscape'])
     expect(outline).toMatch(/SesEndMarkLandscape │ — │\n§ type=nextPage pgNumType=decimal start=— orient=landscape refs=4$/)
+    const xml = pkg.parts['word/document.xml']!
+    const lastRow = xml.slice(xml.lastIndexOf('<w:tr>'), xml.lastIndexOf('</w:tr>') + '</w:tr>'.length)
+    expect(lastRow).toContain('<w:cantSplit/>')
+    expect(lastRow).toContain('<w:keepNext/>')
+    expect(lastRow).toContain('末行数据')
   })
 })

@@ -266,6 +266,8 @@ const STYLE_SPECS: readonly StyleSpec[] = [
     numPr: { numId: ABSTRACT_NUM_ID.table, ilvl: 0 },
   },
   { id: 'SesAppTblCap', name: 'SES_附录表题', rFonts: 'hei', jc: 'center', keepNext: true, spacing: SPACING_HALF_LINE },
+  { id: 'SesTblCapCont', name: 'SES_续表题', rFonts: 'hei', jc: 'center', keepNext: true, spacing: SPACING_HALF_LINE },
+  { id: 'SesAppTblCapCont', name: 'SES_附录续表题', rFonts: 'hei', jc: 'center', keepNext: true, spacing: SPACING_HALF_LINE },
   { id: 'SesTableText', name: 'SES_表格文字', sz: 18, ind: IND_TABLETEXT },
   { id: 'SesTableCenter', name: 'SES_表格居中', sz: 18, jc: 'center', ind: IND_ZERO },
   { id: 'SesTableNote', name: 'SES_表注', sz: 18 },

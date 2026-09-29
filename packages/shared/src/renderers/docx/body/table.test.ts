@@ -32,11 +32,12 @@ function table(overrides: Partial<IRTable> = {}): IRTable {
   }
 }
 
-function render(tableIr: IRTable, notesXml?: string): { xml: string; rendered: Array<{ cell: IRTableCell; style: string; row: number; col: number; header: boolean }> } {
+function render(tableIr: IRTable, notesXml?: string, captionXml?: string): { xml: string; rendered: Array<{ cell: IRTableCell; style: string; row: number; col: number; header: boolean }> } {
   const rendered: Array<{ cell: IRTableCell; style: string; row: number; col: number; header: boolean }> = []
   const ctx = createRenderContext({})
   const xml = renderTableGrid(ctx, tableIr, {
     notesXml,
+    captionXml,
     renderCell: (cellArg, style, meta) => {
       rendered.push({ cell: cellArg, style, row: meta.rowIndex, col: meta.columnIndex, header: meta.header })
       if (cellArg.content.length === 0) return ''
@@ -105,8 +106,24 @@ describe('renderTableGrid', () => {
       ],
     }))
     const rows = childrenNamed(findChild(root(result.xml), 'w:tbl')!, 'w:tr')
-    expect(rows.map((row) => findChild(row, 'w:trPr') !== undefined)).toEqual([true, true, false])
+    expect(rows.map((row) => findChild(findChild(row, 'w:trPr')!, 'w:tblHeader') !== undefined)).toEqual([true, true, false])
+    expect(rows.every((row) => findChild(findChild(row, 'w:trPr')!, 'w:cantSplit') !== undefined)).toBe(true)
     expect(findChild(findChild(childrenNamed(rows[0]!, 'w:tc')[0]!, 'w:tcPr')!, 'w:tcBorders')).toBeUndefined()
+    expect(findChild(findChild(childrenNamed(rows[1]!, 'w:tc')[0]!, 'w:tcPr')!, 'w:tcBorders')).toBeDefined()
+  })
+
+  it('把表题设为首个重复行，后接列标题，表格逐行跨页', () => {
+    const caption = '<w:p><w:pPr><w:pStyle w:val="SesTblCap"/></w:pPr><w:r><w:t>跨页表题</w:t></w:r></w:p>'
+    const xml = render(table(), undefined, caption).xml
+    const rows = childrenNamed(findChild(root(xml), 'w:tbl')!, 'w:tr')
+    expect(rows).toHaveLength(3)
+    expect(rows.map((row) => findChild(findChild(row, 'w:trPr')!, 'w:tblHeader') !== undefined))
+      .toEqual([true, true, false])
+    expect(rows.every((row) => findChild(findChild(row, 'w:trPr')!, 'w:cantSplit') !== undefined)).toBe(true)
+    const captionCells = childrenNamed(rows[0]!, 'w:tc')
+    expect(captionCells).toHaveLength(1)
+    expect(findChild(findChild(captionCells[0]!, 'w:tcPr')!, 'w:gridSpan')?.attrs).toEqual({ 'w:val': '3' })
+    expect(xml).toContain('跨页表题')
     expect(findChild(findChild(childrenNamed(rows[1]!, 'w:tc')[0]!, 'w:tcPr')!, 'w:tcBorders')).toBeDefined()
   })
 
@@ -134,6 +151,18 @@ describe('renderTableGrid', () => {
     const result = render(table({ orientation: 'landscape', rows: [{ id: 'r', cells: [cell('a', '一'), cell('b', '二')] }] }))
     const grid = findChild(findChild(root(result.xml), 'w:tbl')!, 'w:tblGrid')!
     expect(childrenNamed(grid, 'w:gridCol').map((col) => Number(col.attrs['w:w'])).reduce((a, b) => a + b, 0)).toBe(14287)
+  })
+
+  it('续表片段可沿用原表列数，缺少的列用空格补齐', () => {
+    const ir = table({ rows: [{ id: 'narrow', cells: [cell('only', '文字')] }] })
+    const ctx = createRenderContext({})
+    const xml = renderTableGrid(ctx, ir, {
+      columnCount: 3,
+      renderCell: () => '<w:p><w:pPr><w:pStyle w:val="SesTableText"/></w:pPr></w:p>',
+    })
+    const tblEl = findChild(root(xml), 'w:tbl')!
+    expect(childrenNamed(findChild(tblEl, 'w:tblGrid')!, 'w:gridCol')).toHaveLength(3)
+    expect(childrenNamed(childrenNamed(tblEl, 'w:tr')[0]!, 'w:tc')).toHaveLength(3)
   })
 
   it('符合 DOCX 附录 B 的表格子元素顺序', () => {

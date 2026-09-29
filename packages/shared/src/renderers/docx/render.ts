@@ -32,23 +32,51 @@ import type { DocxPackage, DocxRenderOptions } from './types'
 
 export type { NumberedParagraphTrace }
 
-/** 将唯一 keepNext 加到最后一个内容段；跳过仅含 sectPr 的分节空段。 */
-function keepLastContentParagraphWithNext(xml: string): string {
-  const paragraphs = [...xml.matchAll(/<w:p>([\s\S]*?)<\/w:p>/g)]
-  const last = [...paragraphs].reverse().find((match) => !match[1].includes('<w:sectPr'))
-  if (!last || last.index === undefined) return xml
-  const paragraph = last[0]
+function paragraphWithKeepNext(paragraph: string): string {
+  if (paragraph === '<w:p/>') return '<w:p><w:pPr><w:keepNext/></w:pPr></w:p>'
   const pPrStart = paragraph.indexOf('<w:pPr>')
   const pPrEnd = paragraph.indexOf('</w:pPr>')
   if (pPrStart < 0 || pPrEnd < 0) throw new Error('renderDocx: 最后内容段缺少 pPr')
   const pPrXml = paragraph.slice(pPrStart, pPrEnd + '</w:pPr>'.length)
-  if (pPrXml.includes('<w:keepNext')) return xml
+  if (pPrXml.includes('<w:keepNext')) return paragraph
 
   const styleEnd = pPrXml.indexOf('/>')
   const insertAt = styleEnd >= 0 && pPrXml.slice(0, styleEnd).includes('<w:pStyle') ? styleEnd + 2 : '<w:pPr>'.length
   const updatedPPr = pPrXml.slice(0, insertAt) + '<w:keepNext/>' + pPrXml.slice(insertAt)
-  const updatedParagraph = paragraph.replace(pPrXml, updatedPPr)
-  return xml.slice(0, last.index) + updatedParagraph + xml.slice(last.index + paragraph.length)
+  return paragraph.replace(pPrXml, updatedPPr)
+}
+
+/** 找出结尾表格中最后一个顶层行，忽略单元格中的嵌套表。 */
+function lastTopLevelTableRow(xml: string): { start: number; end: number } | undefined {
+  let depth = 0
+  let rowStart = -1
+  let lastRow: { start: number; end: number } | undefined
+  for (const match of xml.matchAll(/<\/?w:(?:tbl|tr)>/g)) {
+    const tag = match[0]
+    if (tag === '<w:tbl>') depth += 1
+    else if (tag === '</w:tbl>') depth -= 1
+    else if (tag === '<w:tr>' && depth === 1) rowStart = match.index
+    else if (tag === '</w:tr>' && depth === 1 && rowStart >= 0) {
+      lastRow = { start: rowStart, end: match.index + tag.length }
+    }
+  }
+  return lastRow
+}
+
+/** 表格为末要素时，使最后一整行与其后的终结线同页；其他末段沿用 WP7.3 的 keepNext。 */
+function keepLastContentWithEndMark(xml: string): string {
+  if (xml.endsWith('</w:tbl>')) {
+    const row = lastTopLevelTableRow(xml)
+    if (row) {
+      const original = xml.slice(row.start, row.end)
+      const updated = original.replace(/<w:p>([\s\S]*?)<\/w:p>|<w:p\/>/g, paragraphWithKeepNext)
+      return xml.slice(0, row.start) + updated + xml.slice(row.end)
+    }
+  }
+  const paragraphs = [...xml.matchAll(/<w:p>([\s\S]*?)<\/w:p>/g)]
+  const last = [...paragraphs].reverse().find((match) => !match[1].includes('<w:sectPr'))
+  if (!last || last.index === undefined) return xml
+  return xml.slice(0, last.index) + paragraphWithKeepNext(last[0]) + xml.slice(last.index + last[0].length)
 }
 
 const DOCUMENT_NS =
@@ -161,7 +189,7 @@ export function renderDocxTraced(
     finalContentLandscape = rendered.endsLandscape
   }
 
-  body = keepLastContentParagraphWithNext(body)
+  body = keepLastContentWithEndMark(body)
   body += emitParagraph(ctx, finalContentLandscape ? 'SesEndMarkLandscape' : 'SesEndMark')
   body += sectionManager.finalSectPr()
 

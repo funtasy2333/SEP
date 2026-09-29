@@ -76,7 +76,7 @@ const pmDoc = {
       { type: 'chapterTitle', content: [text('范围')] },
       paragraph('sample-intro', '下列 14 个编号公式覆盖比较符、逻辑符、求和、积分、根号、矩阵与分段函数。'),
       ...formulas.map((source, index) => formula(`formula-${index + 1}`, source)),
-      table('long-table', '跨页合并单元格表', longRows, 'portrait', '表头应在后续页重复。'),
+      table('long-table', '跨页合并单元格表', longRows, 'portrait', '续表题与表头应在后续页重复。'),
       figure('wide-figure', 'landscape', bluePng),
       table('wide-table', '连续横排表', shortRows, 'landscape', '此表与前图应共用横排节。'),
       paragraph('portrait-restored', '此段应恢复竖排，页码继续。'),

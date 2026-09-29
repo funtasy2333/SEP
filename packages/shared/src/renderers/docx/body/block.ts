@@ -10,9 +10,10 @@
 import type { IRBlock, IRExample, IRFigure, IRList, IRNote, IRParagraph, IRTable, NodeId } from '../../../ir/types'
 import { ABSTRACT_NUM_ID, listAbstractNumId } from '../numbering'
 import { emitParagraph, warn, type RenderContext } from './context'
-import { renderInlines } from './inline'
+import { plainRun, renderInlines } from './inline'
 import { renderFigureImage } from './figure'
-import { renderTableGrid } from './table'
+import { renderTableGrid, tableGridColumnCount } from './table'
+import { paginateTable } from './tablePagination'
 import { renderFormula } from './formula'
 
 /** render.ts 在完整块之间解析这两个内部标记，连续横排块由此共用一节。 */
@@ -208,23 +209,60 @@ function renderFigure(ctx: RenderContext, figure: IRFigure, bctx: BlockCtx): str
 function renderTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx): string {
   const captionRuns = renderInlines(table.caption, ctx.labels)
   const numbered = { nodeId: table.id, kind: 'table' as const }
-  let out: string
+  const pagination = paginateTable(table)
+  if (pagination.oversizedGroup) {
+    warn(ctx, 'table-row-too-tall',
+      `表格 "${table.id}" 存在超出单页高度预算的跨行合并组，续表分页可能需要人工调整`, table.id)
+  }
+  let captionXml: string
   if (bctx.appendix) {
     const numId = ctx.numbering.allocAppendixTableInstance(bctx.appendix.id, bctx.appendix.letter)
-    out = emitParagraph(ctx, 'SesAppTblCap', { numPr: { numId, ilvl: 0 }, runsXml: captionRuns, numbered })
+    captionXml = emitParagraph(ctx, 'SesAppTblCap', {
+      numPr: { numId, ilvl: 0 }, runsXml: captionRuns, numbered,
+      pageBreakBefore: pagination.startOnNewPage,
+    })
   } else {
-    out = emitParagraph(ctx, 'SesTblCap', { runsXml: captionRuns, numbered })
+    captionXml = emitParagraph(ctx, 'SesTblCap', {
+      runsXml: captionRuns, numbered, pageBreakBefore: pagination.startOnNewPage,
+    })
   }
   const tableBctx = { ...withScope(bctx, table.id), suppressLandscape: true }
-  out += renderTableGrid(ctx, table, {
-    notesXml: () => table.notes.map((note) => renderNote(ctx, note, tableBctx, true)).join(''),
-    renderCell(cell, styleId) {
-      if (cell.content.length === 0 || cell.content.every((block) => block.kind === 'paragraph' &&
-        block.content.every((run) => run.text.trim() === ''))) return ''
-      return cell.content.map((block) => block.kind === 'paragraph'
-        ? emitParagraph(ctx, styleId, { runsXml: renderInlines(block.content, ctx.labels) })
-        : renderBlock(ctx, block, tableBctx)).join('')
-    },
+  const headerRowCount = Math.max(0, Math.min(Math.floor(table.headerRowCount), table.rows.length))
+  const headerRows = table.rows.slice(0, headerRowCount)
+  const columnCount = tableGridColumnCount(table)
+  const label = ctx.labels[table.id]?.label
+  let out = ''
+  pagination.bodySegments.forEach((bodyRows, index) => {
+    const lastSegment = index === pagination.bodySegments.length - 1
+    let segmentCaption = captionXml
+    if (index > 0) {
+      // 相邻 w:tbl 会被 Word 合并为同一张表；段落级换页同时隔开两个独立片段。
+      out += emitParagraph(ctx, 'SesNormal', { runsXml: '<w:r><w:br w:type="page"/></w:r>' })
+      if (!label) warn(ctx, 'label-missing', `续表 "${table.id}" 缺少表编号`, table.id)
+      segmentCaption = emitParagraph(ctx,
+        bctx.appendix ? 'SesAppTblCapCont' : 'SesTblCapCont', {
+          runsXml: plainRun(label ? `${label}　` : '表　') + captionRuns + plainRun('（续）'),
+        })
+    }
+    out += renderTableGrid(ctx, {
+      ...table,
+      rows: [...headerRows, ...bodyRows],
+      notes: lastSegment ? table.notes : [],
+    }, {
+      captionXml: segmentCaption,
+      keepTogether: true,
+      columnCount,
+      notesXml: lastSegment
+        ? () => table.notes.map((note) => renderNote(ctx, note, tableBctx, true)).join('')
+        : undefined,
+      renderCell(cell, styleId) {
+        if (cell.content.length === 0 || cell.content.every((block) => block.kind === 'paragraph' &&
+          block.content.every((run) => run.text.trim() === ''))) return ''
+        return cell.content.map((block) => block.kind === 'paragraph'
+          ? emitParagraph(ctx, styleId, { runsXml: renderInlines(block.content, ctx.labels) })
+          : renderBlock(ctx, block, tableBctx)).join('')
+      },
+    })
   })
   return out
 }

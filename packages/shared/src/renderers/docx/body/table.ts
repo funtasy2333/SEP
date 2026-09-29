@@ -22,6 +22,12 @@ export interface TableCellRenderMeta {
 }
 
 export interface TableGridRenderOptions {
+  /** 表题放在第一个重复标题行，Word 自动跨页时与列标题一起复现。 */
+  captionXml?: string
+  /** 小表/每个分段按整段保留；放不下时 Word 将整段移至下一页。 */
+  keepTogether?: boolean
+  /** 分段续表沿用原表的完整列数，避免不同片段列宽变化。 */
+  columnCount?: number
   /** 单元格内容由块分发器递归渲染，paragraphStyle 是其中普通段落的默认样式。 */
   renderCell: (cell: IRTableCell, paragraphStyle: TableCellParagraphStyle, meta: TableCellRenderMeta) => string
   /** 已按 SesTableNote 与 §5.7 编号输出的表注段落；非空时作为表格最后一行。 */
@@ -72,7 +78,7 @@ function positiveSpan(value: number, axis: string, cellId: string): number {
 }
 
 /** Expand the IR spans into an explicit, rectangular OOXML grid, including vertical merge cells. */
-function buildTableGrid(table: IRTable): TableGrid {
+function buildTableGrid(table: IRTable, minimumColumnCount = 1): TableGrid {
   const rowCount = table.rows.length
   const occupied: Array<Array<OriginCell | undefined>> = Array.from({ length: rowCount }, () => [])
   let columnCount = 0
@@ -114,7 +120,7 @@ function buildTableGrid(table: IRTable): TableGrid {
   })
 
   // An empty table still needs one grid column to keep tblGrid and tblW structurally meaningful.
-  columnCount = Math.max(1, columnCount)
+  columnCount = Math.max(1, minimumColumnCount, columnCount)
   const rows: GridCell[][] = table.rows.map((_row, rowIndex) => {
     const cells: GridCell[] = []
     let columnIndex = 0
@@ -141,6 +147,10 @@ function buildTableGrid(table: IRTable): TableGrid {
   return { columnCount, rows }
 }
 
+export function tableGridColumnCount(table: IRTable): number {
+  return buildTableGrid(table).columnCount
+}
+
 function borderXml(size: number): string {
   const border = (side: string, thickness: number): XmlChild => [
     side,
@@ -152,8 +162,8 @@ function borderXml(size: number): string {
   ])
 }
 
-function cellBorderXml(side: 'top' | 'bottom', size: number): string {
-  return tcBorders([[side, `<w:${side} w:val="single" w:sz="${size}" w:space="0" w:color="auto"/>`]])
+function cellBorderXml(sides: Array<'top' | 'bottom'>, size: number): string {
+  return tcBorders(sides.map((side) => [side, `<w:${side} w:val="single" w:sz="${size}" w:space="0" w:color="auto"/>`]))
 }
 
 function gridWidths(columnCount: number, table: IRTable): number[] {
@@ -185,9 +195,10 @@ function cellXml(
   if (gridCell.kind === 'continuation') tcPrChildren.push(['vMerge', '<w:vMerge/>'])
   else if (gridCell.kind === 'origin' && gridCell.origin!.rowspan > 1) tcPrChildren.push(['vMerge', '<w:vMerge w:val="restart"/>'])
 
-  if (headerRowCount > 0 && rowIndex === headerRowCount - 1) {
-    tcPrChildren.push(['tcBorders', cellBorderXml('bottom', 6)])
-  }
+  const strongBorders: Array<'top' | 'bottom'> = []
+  if (options.captionXml && rowIndex === 0) strongBorders.push('top')
+  if (headerRowCount > 0 && rowIndex === headerRowCount - 1) strongBorders.push('bottom')
+  if (strongBorders.length > 0) tcPrChildren.push(['tcBorders', cellBorderXml(strongBorders, 6)])
 
   let contentXml: string
   if (gridCell.kind === 'continuation') {
@@ -218,14 +229,47 @@ function noteRowXml(widths: number[], columnCount: number, notesXml: string): st
   const tcPrXml = tcPr([
     ['tcW', `<w:tcW w:w="${width}" w:type="dxa"/>`],
     ...(columnCount > 1 ? [['gridSpan', `<w:gridSpan w:val="${columnCount}"/>`] as const] : []),
-    ['tcBorders', cellBorderXml('top', 6)],
+    ['tcBorders', cellBorderXml(['top'], 6)],
   ])
-  return tr([['tc', `<w:tc>${tcPrXml}${notesXml}</w:tc>`]])
+  return tr([
+    ['trPr', trPr([['cantSplit', '<w:cantSplit/>']])],
+    ['tc', `<w:tc>${tcPrXml}${notesXml}</w:tc>`],
+  ])
+}
+
+function captionRowXml(widths: number[], columnCount: number, captionXml: string): string {
+  const width = widths.reduce((sum, value) => sum + value, 0)
+  const nilBorder = (side: 'top' | 'left' | 'bottom' | 'right'): XmlChild =>
+    [side, `<w:${side} w:val="nil"/>`]
+  const captionCellPr = tcPr([
+    ['tcW', `<w:tcW w:w="${width}" w:type="dxa"/>`],
+    ...(columnCount > 1 ? [['gridSpan', `<w:gridSpan w:val="${columnCount}"/>`] as const] : []),
+    ['tcBorders', tcBorders([
+      nilBorder('top'), nilBorder('left'), nilBorder('bottom'), nilBorder('right'),
+    ])],
+  ])
+  return tr([
+    ['trPr', trPr([['cantSplit', '<w:cantSplit/>'], ['tblHeader', '<w:tblHeader/>']])],
+    ['tc', `<w:tc>${captionCellPr}${captionXml}</w:tc>`],
+  ])
+}
+
+function keepRowWithNext(rowXml: string): string {
+  return rowXml.replace(/<w:p>([\s\S]*?)<\/w:p>|<w:p\/>/g, (paragraph) => {
+    if (paragraph === '<w:p/>') return '<w:p><w:pPr><w:keepNext/></w:pPr></w:p>'
+    const pPr = /<w:pPr>([\s\S]*?)<\/w:pPr>/.exec(paragraph)?.[0]
+    if (!pPr || pPr.includes('<w:keepNext')) return paragraph
+    const styleEnd = pPr.indexOf('/>')
+    const insertAt = styleEnd >= 0 && pPr.slice(0, styleEnd).includes('<w:pStyle')
+      ? styleEnd + 2 : '<w:pPr>'.length
+    const updated = pPr.slice(0, insertAt) + '<w:keepNext/>' + pPr.slice(insertAt)
+    return paragraph.replace(pPr, updated)
+  })
 }
 
 /** Build one complete w:tbl; caption and note paragraph numbering remain with the caller. */
 export function renderTableGrid(ctx: RenderContext, table: IRTable, options: TableGridRenderOptions): string {
-  const grid = buildTableGrid(table)
+  const grid = buildTableGrid(table, options.columnCount)
   const widths = gridWidths(grid.columnCount, table)
   const requestedHeaderRowCount = Number.isFinite(table.headerRowCount) ? Math.floor(table.headerRowCount) : 0
   const headerRowCount = Math.max(0, Math.min(requestedHeaderRowCount, table.rows.length))
@@ -238,19 +282,26 @@ export function renderTableGrid(ctx: RenderContext, table: IRTable, options: Tab
     ['tblLayout', '<w:tblLayout w:type="fixed"/>'],
   ])
   const rowsXml = rows.map((cells, rowIndex) => {
-    const trPrXml = rowIndex < headerRowCount ? trPr([['tblHeader', '<w:tblHeader/>']]) : ''
+    const trPrXml = trPr([
+      ['cantSplit', '<w:cantSplit/>'],
+      ...(rowIndex < headerRowCount ? [['tblHeader', '<w:tblHeader/>'] as const] : []),
+    ])
     const rowChildren = [] as Array<readonly [string, string]>
-    if (trPrXml) rowChildren.push(['trPr', trPrXml])
+    rowChildren.push(['trPr', trPrXml])
     for (const cell of cells) rowChildren.push(['tc', cellXml(ctx, cell, widths, rowIndex, headerRowCount, options)])
     return tr(rowChildren)
   })
   const notes = (typeof options.notesXml === 'function' ? options.notesXml() : options.notesXml)?.trim() ?? ''
   const tableNotesRow = notes.length > 0 ? noteRowXml(widths, grid.columnCount, notes) : ''
+  const captionRow = options.captionXml ? captionRowXml(widths, grid.columnCount, options.captionXml) : ''
+  const allRows = [...(captionRow ? [captionRow] : []), ...rowsXml, ...(tableNotesRow ? [tableNotesRow] : [])]
+  const renderedRows = options.keepTogether
+    ? allRows.map((row, index) => index < allRows.length - 1 ? keepRowWithNext(row) : row)
+    : allRows
 
   return tbl([
     ['tblPr', tblPrXml],
     ['tblGrid', gridXml],
-    ...rowsXml.map((rowXml) => ['tr', rowXml] as const),
-    ...(tableNotesRow ? [['tr', tableNotesRow] as const] : []),
+    ...renderedRows.map((rowXml) => ['tr', rowXml] as const),
   ])
 }

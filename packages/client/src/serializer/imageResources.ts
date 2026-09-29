@@ -223,8 +223,16 @@ async function bytesFromValue(value: ImageResourceValue, fetcher: typeof fetch):
   if (typeof value === 'string') {
     const normalized = value.trim()
     if (/^data:/i.test(normalized)) return parseDataUrl(normalized)
+    // A resolver may return raw base64 whose alphabet contains '/'. Validate its image signature
+    // before treating an otherwise ambiguous string as a relative URL.
+    try {
+      const bytes = decodeBase64(normalized)
+      inspectImage(bytes)
+      return { bytes }
+    } catch {
+      // Explicit URL syntax and relative paths are handled by the fetch branch below.
+    }
     if (isFetchableUrl(normalized)) return fetchBytes(normalized, fetcher)
-    // Resource stores sometimes return the base64 payload itself rather than a Blob.
     return { bytes: decodeBase64(normalized) }
   }
   if (typeof Response !== 'undefined' && value instanceof Response) return bytesFromResponse(value)
