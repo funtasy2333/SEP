@@ -57,6 +57,7 @@ const EXPECTED_NAMES: Record<string, string> = {
   SesChapter: 'SES_章标题',
   SesTermNum: 'SES_术语条目编号',
   SesTermHead: 'SES_术语',
+  SesTermSource: 'SES_术语来源',
   SesAppendix: 'SES_附录标识',
   SesAppendixKind: 'SES_附录性质',
   SesAppendixTitle: 'SES_附录标题',
@@ -235,6 +236,13 @@ describe('styles.ts：显式缩进值（不依赖编号级别的样式）', () =
 
   it('SesTermHead：术语和定义中的术语另行空 2 字', () => {
     expect(indOf(styles.get('SesTermHead')!)?.attrs).toEqual({ 'w:left': '0', 'w:firstLine': '420' })
+  })
+
+  it('SesTermSource：来源中英文字母、数字及中文均用宋体，保持正文首行缩进', () => {
+    expect(indOf(styles.get('SesTermSource')!)?.attrs).toEqual({ 'w:left': '0', 'w:firstLine': '420' })
+    expect(rFontsOf(styles.get('SesTermSource')!)?.attrs).toEqual({
+      'w:ascii': '宋体', 'w:eastAsia': '宋体', 'w:hAnsi': '宋体', 'w:cs': '宋体',
+    })
   })
 
   it('附录性质和标题各自居中，且不带附录编号', () => {

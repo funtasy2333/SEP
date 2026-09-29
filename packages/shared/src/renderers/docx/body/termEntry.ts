@@ -45,7 +45,7 @@ export function renderTermEntry(ctx: RenderContext, entry: IRTermEntry, bctx: Bl
   out += renderBlocks(ctx, entry.notes, innerBctx)
 
   if (entry.source && entry.source.length > 0) {
-    out += emitParagraph(ctx, 'SesPara', { runsXml: renderInlines(entry.source, ctx.labels) })
+    out += emitParagraph(ctx, 'SesTermSource', { runsXml: renderInlines(entry.source, ctx.labels) })
   }
   return out
 }

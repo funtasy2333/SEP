@@ -212,6 +212,7 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 | SesNoTitle1…5 | SES_一级无标题条…五级无标题条 | 宋 五 | 缩进见 A1 | — | 段落级：章条 L1…L5 | 10.2.1（编号顶格，空一字接条文；编号黑体见 A1） |
 | SesTermNum | SES_术语条目编号 | 黑 五 | keepNext；段前段后 0；缩进见 A1/A2 | — | 段落级：章条 Ln（附录中为附录 Ln，§4.4） | 10.3.5、#22 |
 | SesTermHead | SES_术语 | 黑 五 | keepNext；首行缩进 2 字（420） | — | — | 10.3.5、#23 |
+| SesTermSource | SES_术语来源 | 宋 五（含 ASCII） | 首行缩进 2 字（420） | — | — | 10.3.5、#24 |
 | SesAppendix | SES_附录标识 | 黑 五 | keepNext；`jc=center`；段前 520 段后 0；缩进见 A2 | 0 | 属主：附录 L0 | 图 E.12、#25 |
 | SesAppendixKind | SES_附录性质 | 黑 五 | keepNext；`jc=center`；段前段后 0 | — | — | 图 E.12、#26 |
 | SesAppendixTitle | SES_附录标题 | 黑 五 | keepNext；`jc=center`；段前 0 段后 150 | — | — | 图 E.12、#27 |
@@ -482,7 +483,7 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
 2. 其他章节和附录中出现的测试用 `termEntry`：编号与术语写在同一 P(SesTermNum) 中，分别使用正文 A1 或附录 A2。这是按人工验收反馈处理非“术语和定义”章内的异常结构，不套用上一项的分行格式。
 3. 定义各块：段落用 SesPara，其他块照常；
 4. 示例（`examples`），然后注（`notes`），按 §5.7，作用域为该术语条目；
-5. 来源：P(SesPara, `source`)，**原样输出**（pmToIr 已把「[来源：……]」整段作为 source，渲染器不得再加前缀）。
+5. 来源：P(SesTermSource, `source`)，**原样输出**（pmToIr 已把「[来源：……]」整段作为 source，渲染器不得再加前缀）；段内中英文、数字均指定宋体。
 
 顺序依据 8.7.3.1（术语条目中「依次」给出……定义、其他表述形式、示例、注、来源）与 9.11.1「术语条目的注应置于示例（如有）
 之后」。Resolver 按同一顺序遍历（§4.7「遍历顺序」）。HTML/PDF 渲染器目前把来源放在注、示例之前；PDF 已冻结，不回改。

@@ -77,6 +77,10 @@ describe('numbering fixture', () => {
     expect(outline).not.toContain('SesTermHead │ — │ 附录术语')
   })
 
+  it('术语来源使用专用宋体段落样式', () => {
+    expect(docxOutline(pkg)).toContain('SesTermSource │ — │ [来源：GB/T 20000.1—2014，5.3]')
+  })
+
   it('附录编号、性质、标题分段，后两行由独立居中样式承载', () => {
     const outline = docxOutline(pkg)
     expect(outline).toContain('SesAppendix │ 附录A │')

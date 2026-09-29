@@ -224,6 +224,7 @@ const STYLE_SPECS: readonly StyleSpec[] = [
   ...clauseFamily(),
   { id: 'SesTermNum', name: 'SES_术语条目编号', rFonts: 'hei', keepNext: true, spacing: SPACING_ZERO },
   { id: 'SesTermHead', name: 'SES_术语', rFonts: 'hei', keepNext: true, ind: IND_FIRSTLINE_2CH },
+  { id: 'SesTermSource', name: 'SES_术语来源', rFonts: 'songAll', ind: IND_FIRSTLINE_2CH },
   {
     id: 'SesAppendix',
     name: 'SES_附录标识',

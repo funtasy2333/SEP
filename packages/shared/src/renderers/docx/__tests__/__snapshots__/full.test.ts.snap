@@ -42,7 +42,7 @@ SesPara │ — │ 通过标准化活动制定的文件。
 SesExLabel │ 示例： │
 SesExText │ — │ 术语示例。
 SesNote │ 注： │ 术语注。
-SesPara │ — │ [来源：GB/T 20000.1—2014，5.3]
+SesTermSource │ — │ [来源：GB/T 20000.1—2014，5.3]
 SesTermNum │ 3.2 │
 SesTermHead │ — │ 编号　numbering
 SesPara │ — │ 为要素赋予序号。

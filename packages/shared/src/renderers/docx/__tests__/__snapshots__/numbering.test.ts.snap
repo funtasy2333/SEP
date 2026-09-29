@@ -60,7 +60,7 @@ SesExLabelN │ 示例2： │
 SesExText │ — │ 术语示例二〔前段期望示例2：〕
 SesNoteN │ 注1： │ 术语注释一〔期望注1：〕
 SesNoteN │ 注2： │ 术语注释二〔期望注2：〕
-SesPara │ — │ [来源：GB/T 20000.1—2014，5.3]
+SesTermSource │ — │ [来源：GB/T 20000.1—2014，5.3]
 SesTermNum │ 3.2 │
 SesTermHead │ — │ 术语〔前段期望3.2〕
 SesPara │ — │ 本文件使用的一般性术语。
