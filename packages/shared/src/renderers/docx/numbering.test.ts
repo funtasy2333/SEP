@@ -6,6 +6,9 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import type { IRBlock, IRList } from '../../ir/types'
+import { createRenderContext } from './body/context'
+import { renderBlocks } from './body/block'
 import { ABSTRACT_NUM_ID, createNumberingAllocator, listAbstractNumId } from './numbering'
 import { findChild } from './__tests__/helpers/xmlTree'
 import { parseXml, type XmlElement } from './__tests__/helpers/xmlTree'
@@ -54,6 +57,12 @@ function lvlInd(lvl: XmlElement): Record<string, string> {
 function lvlRFonts(lvl: XmlElement): string | undefined {
   const rPr = findChild(lvl, 'w:rPr')
   return rPr && findChild(rPr, 'w:rFonts')?.attrs['w:ascii']
+}
+
+function lvlRFontsAttrs(lvl: XmlElement): Record<string, string> | undefined {
+  const rPr = findChild(lvl, 'w:rPr')
+  const fonts = rPr && findChild(rPr, 'w:rFonts')
+  return fonts ? { ...fonts.attrs } : undefined
 }
 
 describe('numbering.ts：静态部分（16 个 abstractNum + 8 个固定实例）', () => {
@@ -132,35 +141,62 @@ describe('numbering.ts：静态部分（16 个 abstractNum + 8 个固定实例�
     expect(lvlAttr(lv.get(0)!, 'w:lvlText')).toBe('——')
     expect(lvlAttr(lv.get(0)!, 'w:suff')).toBe('nothing')
     expect(lvlInd(lv.get(0)!)).toEqual({ 'w:left': '840', 'w:hanging': '420' })
+    expect(lvlRFontsAttrs(lv.get(0)!)).toEqual({
+      'w:ascii': '宋体',
+      'w:eastAsia': '宋体',
+      'w:hAnsi': '宋体',
+      'w:cs': '宋体',
+    })
     expect(lvlAttr(lv.get(1)!, 'w:lvlText')).toBe('·')
     expect(lvlAttr(lv.get(1)!, 'w:suff')).toBe('tab')
     expect(lvlInd(lv.get(1)!)).toEqual({ 'w:left': '1260', 'w:hanging': '420' })
+    expect(lvlRFontsAttrs(lv.get(1)!)).toEqual({
+      'w:ascii': '宋体',
+      'w:eastAsia': '宋体',
+      'w:hAnsi': '宋体',
+      'w:cs': '宋体',
+    })
   })
 
-  it('A12–A15 列项：suff=tab，缩进同 A11，仅 numFmt 不同', () => {
-    const expectFmt: [string, string, string][] = [
-      ['12', 'lowerLetter', 'decimal'],
-      ['13', 'decimal', 'lowerLetter'],
-      ['14', 'lowerRoman', 'decimal'],
-      ['15', 'upperRoman', 'decimal'],
+  it('A12–A15：首层字母/数字用全角右括号，次层统一用间隔号', () => {
+    const expectFmt: [string, string][] = [
+      ['12', 'lowerLetter'],
+      ['13', 'decimal'],
+      ['14', 'decimal'],
+      ['15', 'decimal'],
     ]
-    for (const [id, l0Fmt, l1Fmt] of expectFmt) {
+    for (const [id, l0Fmt] of expectFmt) {
       const lv = levels(abs.get(id)!)
       expect(lvlAttr(lv.get(0)!, 'w:numFmt')).toBe(l0Fmt)
-      expect(lvlAttr(lv.get(0)!, 'w:lvlText')).toBe('%1)')
+      expect(lvlAttr(lv.get(0)!, 'w:lvlText')).toBe('%1）')
       expect(lvlAttr(lv.get(0)!, 'w:suff')).toBe('tab')
       expect(lvlInd(lv.get(0)!)).toEqual({ 'w:left': '840', 'w:hanging': '420' })
-      expect(lvlAttr(lv.get(1)!, 'w:numFmt')).toBe(l1Fmt)
-      expect(lvlAttr(lv.get(1)!, 'w:lvlText')).toBe('%2)')
+      expect(lvlAttr(lv.get(1)!, 'w:numFmt')).toBe('bullet')
+      expect(lvlAttr(lv.get(1)!, 'w:lvlText')).toBe('·')
+      expect(lvlAttr(lv.get(1)!, 'w:suff')).toBe('tab')
       expect(lvlInd(lv.get(1)!)).toEqual({ 'w:left': '1260', 'w:hanging': '420' })
+      for (const ilvl of [0, 1]) {
+        expect(lvlRFontsAttrs(lv.get(ilvl)!)).toEqual({
+          'w:ascii': '宋体',
+          'w:eastAsia': '宋体',
+          'w:hAnsi': '宋体',
+          'w:cs': '宋体',
+        })
+      }
     }
+    expect(xml).not.toMatch(/w:val="(?:lowerRoman|upperRoman)"/)
   })
 
-  it('A16 参考文献：decimal "[%1]　"，首行 420，无 rPr（正文非黑体）', () => {
+  it('A16 参考文献：编号标识为宋体，ASCII、East Asia、HAnsi 和复杂文字均明确指定', () => {
     const l0 = levels(abs.get('16')!).get(0)!
     expect(lvlAttr(l0, 'w:lvlText')).toBe('[%1]　')
     expect(lvlInd(l0)).toEqual({ 'w:left': '0', 'w:firstLine': '420' })
-    expect(findChild(l0, 'w:rPr')).toBeUndefined()
+    expect(lvlRFontsAttrs(l0)).toEqual({
+      'w:ascii': '宋体',
+      'w:eastAsia': '宋体',
+      'w:hAnsi': '宋体',
+      'w:cs': '宋体',
+    })
   })
 
   it('固定实例（numId=abstractNumId）恰好 8 个：A1/A2/A3/A4/A7/A9/A11/A16，都没有 lvlOverride', () => {
@@ -260,11 +296,11 @@ describe('numbering.ts：按需实例分配器（§4.3）', () => {
 })
 
 describe('listAbstractNumId：§4.4 列表类型 → 按需实例 abstractNum', () => {
-  it('alpha/number/roman/romanUpper 各对应 A12–A15', () => {
+  it('alpha/number 使用对应编号；旧罗马类型降级到数字编号 A13', () => {
     expect(listAbstractNumId('alpha')).toBe(ABSTRACT_NUM_ID.listAlpha)
     expect(listAbstractNumId('number')).toBe(ABSTRACT_NUM_ID.listNumber)
-    expect(listAbstractNumId('roman')).toBe(ABSTRACT_NUM_ID.listRoman)
-    expect(listAbstractNumId('romanUpper')).toBe(ABSTRACT_NUM_ID.listRomanUpper)
+    expect(listAbstractNumId('roman')).toBe(ABSTRACT_NUM_ID.listNumber)
+    expect(listAbstractNumId('romanUpper')).toBe(ABSTRACT_NUM_ID.listNumber)
   })
 
   it('boxed 退化为 number（A13），调用方另记 list-format-fallback', () => {
@@ -274,5 +310,53 @@ describe('listAbstractNumId：§4.4 列表类型 → 按需实例 abstractNum', 
   it('未知类型抛错（dash 不经过这里，调用方直接用属主样式）', () => {
     expect(() => listAbstractNumId('dash')).toThrow(/dash 不经过这里/)
     expect(() => listAbstractNumId('unknown')).toThrow()
+  })
+})
+
+describe('列项段落渲染', () => {
+  function list(id: string, listType: IRList['listType'], children: IRList[] = []): IRList {
+    return {
+      kind: 'list',
+      id,
+      listType,
+      items: [{
+        id: `${id}-item`,
+        content: [
+          { kind: 'paragraph', id: `${id}-p`, content: [{ text: id }] },
+          ...children,
+        ],
+      }],
+    }
+  }
+
+  it('任意父子列项类型组合的二级列表都使用间隔号且不报格式回退', () => {
+    const parentTypes: IRList['listType'][] = ['dash', 'alpha', 'number', 'roman', 'romanUpper']
+    const childTypes: IRList['listType'][] = ['dash', 'alpha', 'number', 'boxed', 'roman', 'romanUpper']
+    const blocks: IRBlock[] = parentTypes.map((parentType, i) =>
+      list(`parent-${i}`, parentType, childTypes.map((childType, j) => list(`child-${i}-${j}`, childType))),
+    )
+    const ctx = createRenderContext({})
+    const paragraphs = renderBlocks(ctx, blocks, { scopeKey: 'scope' })
+    const numberingXml = ctx.numbering.buildNumberingXml()
+
+    expect(paragraphs.match(/w:ilvl w:val="1"/g)).toHaveLength(25)
+    expect(paragraphs.match(/w:pStyle w:val="SesListDot"/g)).toHaveLength(5)
+    expect(numberingXml).toContain('<w:numFmt w:val="bullet"/>')
+    expect(numberingXml).toContain('<w:lvlText w:val="·"/>')
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('第三层及更深层保留超层警告并尽量使用间隔号', () => {
+    const blocks: IRBlock[] = [list('l1', 'alpha', [
+      list('l2', 'number', [list('l3', 'number')]),
+    ])]
+    const ctx = createRenderContext({})
+    const paragraphs = renderBlocks(ctx, blocks, { scopeKey: 'scope' })
+    const numberingXml = ctx.numbering.buildNumberingXml()
+
+    expect(paragraphs.match(/w:pStyle w:val="SesListDot"/g)).toHaveLength(1)
+    expect(paragraphs).not.toContain('>1）<')
+    expect(numberingXml).toContain('<w:lvlText w:val="·"/>')
+    expect(ctx.warnings.filter((warning) => warning.code === 'list-too-deep')).toHaveLength(1)
   })
 })

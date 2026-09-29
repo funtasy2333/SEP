@@ -9,6 +9,7 @@
  */
 
 import type { IRBibEntry, IRInline, NodeId } from '../../../ir/types'
+import type { DocxBookmark } from '../types'
 import { emitParagraph, type RenderContext } from './context'
 import { plainRun, renderInlines, spacingRpr } from './inline'
 
@@ -60,9 +61,9 @@ function bibTitleRuns(): string {
   return plainRun('参', spacing) + plainRun('考', spacing) + plainRun('文', spacing) + plainRun('献')
 }
 
-export function renderBibliography(ctx: RenderContext, entries: readonly IRBibEntry[]): string {
+export function renderBibliography(ctx: RenderContext, entries: readonly IRBibEntry[], titleBookmark?: DocxBookmark): string {
   if (entries.length === 0) return ''
-  let out = emitParagraph(ctx, 'SesBibTitle', { runsXml: bibTitleRuns() })
+  let out = emitParagraph(ctx, 'SesBibTitle', { runsXml: bibTitleRuns(), bookmark: titleBookmark })
 
   // 没有 label 的排在最后并保持原顺序：Array.prototype.sort 是稳定排序（ES2019+），
   // MAX_SAFE_INTEGER 相同的条目之间天然保持原始相对顺序。

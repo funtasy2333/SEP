@@ -131,6 +131,17 @@ describe('pmToIr / 块级要素', () => {
     expect(types).toEqual(['number', 'boxed', 'dash'])
   })
 
+  it('旧罗马列项类型兼容降级为数字编号并给出警告', () => {
+    const pm = fx.standardDoc({}, fx.chapter('c', 'X',
+      fx.stdList('l1', 'roman', ['i1', 'a']),
+      fx.stdList('l2', 'romanUpper', ['i2', 'b']),
+    ))
+    const { doc, warnings } = pmToIr(pm)
+    const types = doc.body[0].children.map((block) => (block as IRList).listType)
+    expect(types).toEqual(['number', 'number'])
+    expect(warnings.filter((warning) => warning.includes('旧罗马列项类型'))).toHaveLength(2)
+  })
+
   it('未知列表类型回退 dash 并警告；列表项内容包装为段落', () => {
     const pm = fx.standardDoc({}, fx.chapter('c', 'X', fx.stdList('l1', 'fancy', ['i1', '内容'])))
     const { doc, warnings } = pmToIr(pm)

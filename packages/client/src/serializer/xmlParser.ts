@@ -615,16 +615,20 @@ function parseFormula(el: Element): PMJsonNode {
 }
 
 /** 解析 <list> */
-function parseList(el: Element): PMJsonNode {
+export function fromXmlListType(xmlType: string): string {
   const listTypeMap: Record<string, string> = {
-    'dash': 'dash',
+    dash: 'dash',
     'alpha-lower': 'alpha',
-    'arabic': 'numeric',
-    'roman-lower': 'roman',
-    'roman-upper': 'romanUpper',
+    arabic: 'numeric',
+    'roman-lower': 'numeric',
+    'roman-upper': 'numeric',
   }
+  return listTypeMap[xmlType] || 'dash'
+}
+
+function parseList(el: Element): PMJsonNode {
   const xmlType = el.getAttribute('list-type') || 'dash'
-  const listType = listTypeMap[xmlType] || 'dash'
+  const listType = fromXmlListType(xmlType)
 
   const list: PMJsonNode = {
     type: 'stdList',

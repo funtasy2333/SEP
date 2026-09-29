@@ -25,9 +25,9 @@
 
 ### 文档导出
 
-- **DOCX 交付稿**：生成器重建中（见 docs/wp7-docx-delivery.md）
-- **PDF 导出**：通过服务端 LibreOffice 引擎将 DOCX 转换为 PDF
-- 封面页、页眉页脚、目次、样式映射自动生成
+- **DOCX 测试版**：从零生成章条结构、编号、分节、页眉页脚、目次和终结线；图、表、公式与完整封面仍在后续工作包中
+- **PDF 版式预览**：通过服务端排版管线生成；若服务端安装 LibreOffice，也可将 DOCX 转为预览 PDF，最终 DOCX 版式以 Word 为准
+- DOCX 中的目次页码由 Word 更新；增删章条后需重新导出以更新目次条目（见 docs/wp7-docx-delivery.md）
 
 ### 版本管理
 

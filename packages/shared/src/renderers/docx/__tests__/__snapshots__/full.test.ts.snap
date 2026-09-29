@@ -2,19 +2,32 @@
 
 exports[`full fixture (pmToIr(fullFixture()) → resolve) > 大纲快照 1`] = `
 "SesCoverStdNo │ — │ GB/T 12345—2026
-— │ — │ 
+— │ — │
 § type=nextPage pgNumType=— start=— orient=— refs=0
 SesTocTitle │ — │ 目次
-— │ — │ 
+TOC1 │ — │ 前言⇥
+TOC1 │ — │ 引言⇥
+TOC1 │ — │ 1　范围⇥
+TOC1 │ — │ 2　规范性引用文件⇥
+TOC1 │ — │ 3　术语和定义⇥
+TOC1 │ — │ 4　技术要求⇥
+TOC2 │ — │ 4.1　总体要求⇥
+TOC2 │ — │ 4.2　详细要求⇥
+TOC1 │ — │ 附录A（规范性）　附加技术内容⇥
+TOC2 │ — │ A.1　附录条⇥
+TOC2 │ — │ A.2　附录图表⇥
+TOC1 │ — │ 附录B（资料性）　资料性附录⇥
+TOC1 │ — │ 参考文献⇥
+— │ — │
 § type=oddPage pgNumType=upperRoman start=1 orient=— refs=4
 SesFrontTitle │ — │ 前言
 SesPara │ — │ 本文件按照GB/T 1.1—2020的规定起草。
 SesNote │ 注： │ 前言中的注。
-— │ — │ 
+— │ — │
 § type=nextPage pgNumType=upperRoman start=— orient=— refs=4
 SesFrontTitle │ — │ 引言
 SesPara │ — │ 引言内容。
-— │ — │ 
+— │ — │
 § type=nextPage pgNumType=upperRoman start=— orient=— refs=4
 SesBodyTitle │ — │ 标准化文件编辑系统
 SesChapter │ 1 │ 范围
@@ -23,26 +36,26 @@ SesChapter │ 2 │ 规范性引用文件
 SesPara │ — │ GB/T 1.1—2020
 SesChapter │ 3 │ 术语和定义
 SesPara │ — │ 下列术语和定义适用于本文件。
-SesTermNum │ 3.1 │ 
+SesTermNum │ 3.1 │
 SesTermHead │ — │ 标准　standard
 SesPara │ — │ 通过标准化活动制定的文件。
-SesExLabel │ 示例： │ 
+SesExLabel │ 示例： │
 SesExText │ — │ 术语示例。
 SesNote │ 注： │ 术语注。
-SesPara │ — │ [来源：GB/T 20000.1—2014，5.3]
-SesTermNum │ 3.2 │ 
+SesTermSource │ — │ [来源：GB/T 20000.1—2014，5.3]
+SesTermNum │ 3.2 │
 SesTermHead │ — │ 编号　numbering
 SesPara │ — │ 为要素赋予序号。
 SesChapter │ 4 │ 技术要求
 SesClause1 │ 4.1 │ 总体要求
 SesPara │ — │ 应满足4.2与表1的要求。
-SesListItem │ a) │ 第一项
-SesListItem │ b) │ 第二项
+SesListItem │ a） │ 第一项
+SesListItem │ b） │ 第二项
 SesNoteN │ 注1： │ 第一条注。
 SesNoteN │ 注2： │ 第二条注。
-SesExLabelN │ 示例1： │ 
+SesExLabelN │ 示例1： │
 SesExText │ — │ 第一个示例。
-SesExLabelN │ 示例2： │ 
+SesExLabelN │ 示例2： │
 SesExText │ — │ 第二个示例。
 SesClause1 │ 4.2 │ 详细要求
 SesNoTitle2 │ 4.2.1 │ 无题条内容，见图1、公式(1)。
@@ -51,11 +64,13 @@ SesTblCap │ 表1 │ 性能指标
 SesTableCenter │ — │ 〔表格占位〕
 SesFigure │ — │ 〔图片占位〕
 SesFigCap │ 图1 │ 系统架构图
-SesFormula │ — │ ⇥〔公式占位〕⇥(1)
+SesFormula │ — │ ⇥〔公式占位〕⇥（1）
 SesPara │ — │ 引用文献[1]。
-— │ — │ 
+— │ — │
 § type=oddPage pgNumType=decimal start=1 orient=— refs=4
-SesAppendix │ 附录A │ ⏎（规范性）⏎附加技术内容
+SesAppendix │ 附录A │
+SesAppendixKind │ — │ （规范性）
+SesAppendixTitle │ — │ 附加技术内容
 SesAppClause1 │ A.1 │ 附录条
 SesPara │ — │ 附录正文。
 SesAppClause1 │ A.2 │ 附录图表
@@ -63,15 +78,18 @@ SesFigure │ — │ 〔图片占位〕
 SesAppFigCap │ 图A.1 │ 附录图
 SesAppTblCap │ 表A.1 │ 附录表
 SesTableCenter │ — │ 〔表格占位〕
-SesFormula │ — │ ⇥〔公式占位〕⇥(A.1)
-— │ — │ 
+SesFormula │ — │ ⇥〔公式占位〕⇥（A.1）
+— │ — │
 § type=nextPage pgNumType=decimal start=— orient=— refs=4
-SesAppendix │ 附录B │ ⏎（资料性）⏎资料性附录
+SesAppendix │ 附录B │
+SesAppendixKind │ — │ （资料性）
+SesAppendixTitle │ — │ 资料性附录
 SesPara │ — │ 资料性内容。
-— │ — │ 
+— │ — │
 § type=nextPage pgNumType=decimal start=— orient=— refs=4
 SesBibTitle │ — │ 参考文献
 SesBibEntry │ [1] │ ISO/IEC Directives, Part 2
 SesBibEntry │ [2] │ GB/T 20000.1—2014 标准化工作指南
+SesEndMark │ — │
 § type=nextPage pgNumType=decimal start=— orient=— refs=4"
 `;

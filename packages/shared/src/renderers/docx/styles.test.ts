@@ -42,6 +42,10 @@ function indOf(el: XmlElement): XmlElement | undefined {
   const pPr = findChild(el, 'w:pPr')
   return pPr && findChild(pPr, 'w:ind')
 }
+function rFontsOf(el: XmlElement): XmlElement | undefined {
+  const rPr = findChild(el, 'w:rPr')
+  return rPr && findChild(rPr, 'w:rFonts')
+}
 
 // §3.2 全部样式的 (id -> 中文名)，不含留给 WP7.5 的 SesCover*（SesCoverStdNo 除外）
 const EXPECTED_NAMES: Record<string, string> = {
@@ -53,7 +57,10 @@ const EXPECTED_NAMES: Record<string, string> = {
   SesChapter: 'SES_章标题',
   SesTermNum: 'SES_术语条目编号',
   SesTermHead: 'SES_术语',
+  SesTermSource: 'SES_术语来源',
   SesAppendix: 'SES_附录标识',
+  SesAppendixKind: 'SES_附录性质',
+  SesAppendixTitle: 'SES_附录标题',
   SesListDash: 'SES_破折号列项',
   SesListDot: 'SES_间隔号列项',
   SesListItem: 'SES_编号列项',
@@ -135,7 +142,7 @@ describe('styles.ts：w:next（§3.1 标题类样式）', () => {
   const styles = styleMap()
   const withNext = new Set([
     'SesChapter', 'SesClause1', 'SesClause2', 'SesClause3', 'SesClause4', 'SesClause5',
-    'SesAppendix', 'SesAppClause1', 'SesAppClause2', 'SesAppClause3', 'SesAppClause4', 'SesAppClause5',
+    'SesAppendix', 'SesAppendixTitle', 'SesAppClause1', 'SesAppClause2', 'SesAppClause3', 'SesAppClause4', 'SesAppClause5',
     'SesFrontTitle', 'SesBibTitle',
   ])
 
@@ -227,6 +234,24 @@ describe('styles.ts：显式缩进值（不依赖编号级别的样式）', () =
     expect(indOf(styles.get('SesPara')!)?.attrs).toEqual({ 'w:left': '0', 'w:firstLine': '420' })
   })
 
+  it('SesTermHead：术语和定义中的术语另行空 2 字', () => {
+    expect(indOf(styles.get('SesTermHead')!)?.attrs).toEqual({ 'w:left': '0', 'w:firstLine': '420' })
+  })
+
+  it('SesTermSource：来源中英文字母、数字及中文均用宋体，保持正文首行缩进', () => {
+    expect(indOf(styles.get('SesTermSource')!)?.attrs).toEqual({ 'w:left': '0', 'w:firstLine': '420' })
+    expect(rFontsOf(styles.get('SesTermSource')!)?.attrs).toEqual({
+      'w:ascii': '宋体', 'w:eastAsia': '宋体', 'w:hAnsi': '宋体', 'w:cs': '宋体',
+    })
+  })
+
+  it('附录性质和标题各自居中，且不带附录编号', () => {
+    for (const id of ['SesAppendixKind', 'SesAppendixTitle']) {
+      expect(findChild(findChild(styles.get(id)!, 'w:pPr')!, 'w:jc')?.attrs['w:val']).toBe('center')
+      expect(numPrOf(styles.get(id)!)).toBeUndefined()
+    }
+  })
+
   it('SesListCont / SesListCont2：左 840/1260，首行 0', () => {
     expect(indOf(styles.get('SesListCont')!)?.attrs).toEqual({ 'w:left': '840', 'w:firstLine': '0' })
     expect(indOf(styles.get('SesListCont2')!)?.attrs).toEqual({ 'w:left': '1260', 'w:firstLine': '0' })
@@ -236,8 +261,12 @@ describe('styles.ts：显式缩进值（不依赖编号级别的样式）', () =
     expect(indOf(styles.get('SesTableText')!)?.attrs).toEqual({ 'w:left': '0', 'w:firstLine': '210' })
   })
 
-  it('SesEndMark：左右缩进各 3508', () => {
-    expect(indOf(styles.get('SesEndMark')!)?.attrs).toEqual({ 'w:left': '3508', 'w:right': '3508' })
+  it('SesEndMark：按 Word 边框两端延伸校准线宽，左右缩进各 3532', () => {
+    expect(indOf(styles.get('SesEndMark')!)?.attrs).toEqual({ 'w:left': '3532', 'w:right': '3532' })
+    const border = findChild(findChild(styles.get('SesEndMark')!, 'w:pPr')!, 'w:pBdr')!
+    expect(findChild(border, 'w:bottom')?.attrs).toEqual({
+      'w:val': 'single', 'w:sz': '8', 'w:space': '1', 'w:color': '000000',
+    })
   })
 
   it('TOC2/TOC3：左缩进 210/420', () => {
@@ -247,6 +276,25 @@ describe('styles.ts：显式缩进值（不依赖编号级别的样式）', () =
 
   it('TOC1 不写 ind（§3.2 未给出缩进值）', () => {
     expect(indOf(styles.get('TOC1')!)).toBeUndefined()
+  })
+
+  it('TOC1/TOC2 的编号与正文文字均指定宋体，不让 ASCII 数字回退到 Times New Roman', () => {
+    for (const id of ['TOC1', 'TOC2']) {
+      expect(rFontsOf(styles.get(id)!)?.attrs).toEqual({
+        'w:ascii': '宋体', 'w:eastAsia': '宋体', 'w:hAnsi': '宋体', 'w:cs': '宋体',
+      })
+    }
+  })
+
+  it('段与正文/附录无标题条的中英文均显式使用宋体', () => {
+    const ids = ['SesPara', ...[1, 2, 3, 4, 5].flatMap((level) => [
+      `SesNoTitle${level}`, `SesAppNoTitle${level}`,
+    ])]
+    for (const id of ids) {
+      expect(rFontsOf(styles.get(id)!)?.attrs).toEqual({
+        'w:ascii': '宋体', 'w:eastAsia': '宋体', 'w:hAnsi': '宋体', 'w:cs': '宋体',
+      })
+    }
   })
 })
 

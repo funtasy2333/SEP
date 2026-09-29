@@ -94,7 +94,6 @@
                   <el-dropdown-item command="dash">破折号列项</el-dropdown-item>
                   <el-dropdown-item command="alpha">字母编号列项</el-dropdown-item>
                   <el-dropdown-item command="numeric">数字编号列项</el-dropdown-item>
-                  <el-dropdown-item command="roman">罗马数字列项</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
@@ -260,38 +259,58 @@
     <!-- =====================  EXPORT DIALOG  ===================== -->
     <el-dialog v-model="showExport" title="导出文档" width="560px">
       <p style="margin: 0 0 16px; color: var(--ses-ink-3); font-size: 13px">选择导出格式：</p>
+      <el-alert
+        v-if="exportError"
+        :title="exportError"
+        type="error"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 14px"
+      />
+      <p style="margin: 0 0 12px; color: var(--ses-ink-3); font-size: 12px">
+        DOCX 目次：增删章条后需重新导出以更新目次条目；页码由 Word 更新。
+      </p>
       <div class="export-grid">
-        <button class="export-card primary" disabled>
+        <button
+          class="export-card primary"
+          :disabled="exportingFormat !== null"
+          @click="handleExportFormat('docx')"
+        >
           <span class="ec-glyph">W</span>
           <span class="ec-label">DOCX</span>
-          <span class="ec-sub">重建中</span>
+          <span class="ec-sub">{{ exportingFormat === 'docx' ? '正在生成…' : '测试版 · 图表公式暂为占位' }}</span>
         </button>
         <button
           v-if="capabilities.htmlToPdf"
           class="export-card"
-          :disabled="exportingPdf"
+          :disabled="exportingFormat !== null"
           @click="handleExportFormat('pdf')"
         >
           <span class="ec-glyph">PDF</span>
-          <span class="ec-label">PDF</span>
-          <span class="ec-sub">{{ exportingPdf ? '正在转换…' : 'GB/T 1.1 版式排版' }}</span>
+          <span class="ec-label">版式预览（GB/T 1.1 排版）</span>
+          <span class="ec-sub">{{ exportingFormat === 'pdf' ? '正在转换…' : '自动生成目次页码' }}</span>
         </button>
-        <button v-if="capabilities.libreOffice" class="export-card" disabled>
+        <button
+          v-if="capabilities.libreOffice"
+          class="export-card"
+          :disabled="exportingFormat !== null"
+          @click="handleExportFormat('pdf-hifi')"
+        >
           <span class="ec-glyph">PDF</span>
-          <span class="ec-label">高保真 PDF</span>
-          <span class="ec-sub">重建中</span>
+          <span class="ec-label">DOCX 转换预览</span>
+          <span class="ec-sub">{{ exportingFormat === 'pdf-hifi' ? '正在生成并转换…' : 'LibreOffice 转换；最终版式以 Word 为准' }}</span>
         </button>
-        <button class="export-card" @click="handleExportFormat('xml')">
+        <button class="export-card" :disabled="exportingFormat !== null" @click="handleExportFormat('xml')">
           <span class="ec-glyph">&lt;/&gt;</span>
           <span class="ec-label">XML</span>
           <span class="ec-sub">GB/T 37967 元数据</span>
         </button>
-        <button class="export-card" @click="handleExportFormat('html')">
+        <button class="export-card" :disabled="exportingFormat !== null" @click="handleExportFormat('html')">
           <span class="ec-glyph">&#9636;</span>
           <span class="ec-label">HTML</span>
           <span class="ec-sub">语义化标注</span>
         </button>
-        <button class="export-card" @click="handleExportFormat('json')">
+        <button class="export-card" :disabled="exportingFormat !== null" @click="handleExportFormat('json')">
           <span class="ec-glyph">{ }</span>
           <span class="ec-label">JSON</span>
           <span class="ec-sub">完整树形结构</span>
@@ -345,7 +364,7 @@ import { CrossRef } from '@/extensions'
 import {
   serializeToXml, parseXmlToJson,
   exportSemanticJson, exportSemanticHtml,
-  buildPdfExportRequest,
+  buildPdfExportRequest, buildDocxBlob, convertDocxToPdf,
 } from '@/serializer'
 import { irMetaFromDocumentMeta, type IRDocMeta } from '@ses/shared'
 
@@ -365,7 +384,8 @@ const codeViewFormat = ref<'xml' | 'json' | 'html' | 'raw'>('xml')
 const xmlFileInput = ref<HTMLInputElement | null>(null)
 const showVersionPanel = ref(false)
 const documentId = computed(() => Number(route.params.id))
-const exportingPdf = ref(false)
+const exportingFormat = ref<'docx' | 'pdf' | 'pdf-hifi' | null>(null)
+const exportError = ref('')
 /** 出件能力（服务端探测）：htmlToPdf=vivliostyle 管线，libreOffice=高保真路径 */
 const capabilities = ref<{ htmlToPdf: boolean; libreOffice: boolean }>({
   htmlToPdf: true,
@@ -995,6 +1015,7 @@ function setEditorContent(content: Record<string, unknown>) {
 
 // === 导出 ===
 function handleExport() {
+  exportError.value = ''
   showExport.value = true
 }
 
@@ -1003,37 +1024,69 @@ function buildDocMeta(): Partial<IRDocMeta> {
   return irMetaFromDocumentMeta(store.currentDocument?.meta)
 }
 
-function handleExportFormat(format: string) {
+async function handleExportFormat(format: 'docx' | 'pdf' | 'pdf-hifi' | 'xml' | 'html' | 'json') {
   if (!editor.value) return
+  if (exportingFormat.value !== null) return
+
   const doc = editor.value.state.doc
   const meta = buildDocMeta()
   const docTitle = meta.title || store.currentDocument?.meta?.titleCn || '标准文件'
 
-  if (format === 'pdf') {
-    showExport.value = false
-    exportingPdf.value = true
-    // IR→HTML→服务端两遍构建（GB/T 1.1 版式，KaTeX 预渲染 + 目次页码注入）
-    void (async () => {
-      try {
-        const req = buildPdfExportRequest(doc, meta)
-        const resp = await fetch('/api/convert/html-to-pdf', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(req),
-        })
-        if (!resp.ok) {
-          const errText = await resp.text().catch(() => resp.statusText)
-          throw new Error(`服务器转换失败 (${resp.status}): ${errText}`)
-        }
-        const pdfBlob = await resp.blob()
+  if (format === 'docx' || format === 'pdf-hifi') {
+    exportingFormat.value = format
+    exportError.value = ''
+    try {
+      const { blob } = await buildDocxBlob({
+        pmDoc: doc,
+        documentMeta: store.currentDocument?.meta,
+        stage: store.currentDocument?.stage,
+      })
+
+      if (format === 'docx') {
+        downloadBlob(blob, `${docTitle}.docx`)
+        ElMessage.success('DOCX 文件已导出')
+      } else {
+        const pdfBlob = await convertDocxToPdf(blob, docTitle)
         downloadBlob(pdfBlob, `${docTitle}.pdf`)
-        ElMessage.success('PDF 文件已导出')
-      } catch (e) {
-        ElMessage.error(`PDF 导出失败: ${e}`)
-      } finally {
-        exportingPdf.value = false
+        ElMessage.success('DOCX 转换预览 PDF 已导出')
       }
-    })()
+      showExport.value = false
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      exportError.value = `${format === 'docx' ? 'DOCX' : 'DOCX 转换预览 PDF'} 导出失败：${detail}`
+      ElMessage.error(exportError.value)
+    } finally {
+      exportingFormat.value = null
+    }
+    return
+  }
+
+  if (format === 'pdf') {
+    exportingFormat.value = format
+    exportError.value = ''
+    // IR→HTML→服务端两遍构建（GB/T 1.1 版式，KaTeX 预渲染 + 目次页码注入）
+    try {
+      const req = buildPdfExportRequest(doc, meta)
+      const resp = await fetch('/api/convert/html-to-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req),
+      })
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => resp.statusText)
+        throw new Error(`服务器转换失败 (${resp.status}): ${errText}`)
+      }
+      const pdfBlob = await resp.blob()
+      downloadBlob(pdfBlob, `${docTitle}.pdf`)
+      ElMessage.success('PDF 文件已导出')
+      showExport.value = false
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      exportError.value = `PDF 导出失败：${detail}`
+      ElMessage.error(exportError.value)
+    } finally {
+      exportingFormat.value = null
+    }
     return
   }
 
@@ -1060,7 +1113,6 @@ function handleExportFormat(format: string) {
         mimeType = 'application/json'
         break
       default:
-        ElMessage.info(`${format.toUpperCase()} 导出功能开发中`)
         return
     }
 
@@ -1389,8 +1441,12 @@ function handleXmlFileImport(event: Event) {
   margin-bottom: 4px;
 }
 .ec-label {
+  min-width: 0;
+  max-width: 100%;
   font-size: 13px;
   font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 .ec-sub {
   font-size: 10.5px;

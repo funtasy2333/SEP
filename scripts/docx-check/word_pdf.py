@@ -7,10 +7,11 @@
 1. 把 <in.docx> 复制一份到 Word 沙盒目录
    ~/Library/Containers/com.microsoft.Word/Data/ses-check/ ——文件在沙盒内，Word 不会为了
    访问它弹「授权」窗口（首次仍需在系统设置里允许「控制 Microsoft Word」，见 README）；
-2. 在这份副本里删掉 word/settings.xml 的 `<w:updateFields .../>`：留着的话 Word 打开时会弹
-   「是否更新域」对话框，卡住自动化；`w:updateFields` 是产品本身需要的行为（打开时提示更新
-   目次页码），这里只是核对脚本用的副本临时去掉，不影响交付稿；
-3. AppleScript：打开副本 → 有目次就更新（包一层 try，没有目次或更新失败都不影响后续）→
+2. 在这份副本里删掉 word/settings.xml 的 `<w:updateFields .../>` 和 document.xml 的
+   `w:dirty="true"`：两者任一保留都可能使 Word 弹出「是否更新域」对话框；这里只是核对脚本
+   用的副本临时去掉，不影响交付稿；
+3. AppleScript：打开并核对副本的完整路径，随后只操作这份文档 → 有 Word 原生目次就更新（兼容旧 spike）→ 更新所有域（WP7.3 的
+   目次页码是 PAGEREF 域）→
    另存为 PDF → 关闭且不保存；
 4. 把生成的 PDF 复制到 <out.pdf>；
 5. 整个 AppleScript 调用 120 秒超时；超时或脚本报错都算失败，非零退出，不重试
@@ -29,23 +30,29 @@ import zipfile
 SANDBOX_DIR = os.path.expanduser('~/Library/Containers/com.microsoft.Word/Data/ses-check')
 TIMEOUT_SECONDS = 120
 UPDATE_FIELDS_RE = re.compile(rb'<w:updateFields\b[^>]*/>')
+DIRTY_FIELD_RE = re.compile(rb'\s+w:dirty="true"')
 
 
-def strip_update_fields(docx_path):
-    """原地重写 docx_path：删掉 word/settings.xml 里的 <w:updateFields .../>（如果有）。"""
+def strip_field_update_triggers(docx_path):
+    """仅在核对副本中移除打开时自动更新域的两个触发标记。"""
     with zipfile.ZipFile(docx_path, 'r') as zf:
-        names = zf.namelist()
-        if 'word/settings.xml' not in names:
-            return
         infos = zf.infolist()
         contents = {info.filename: zf.read(info.filename) for info in infos}
 
-    settings = contents['word/settings.xml']
-    patched = UPDATE_FIELDS_RE.sub(b'', settings)
-    if patched == settings:
+    changed = False
+    if 'word/settings.xml' in contents:
+        settings = contents['word/settings.xml']
+        patched = UPDATE_FIELDS_RE.sub(b'', settings)
+        changed |= patched != settings
+        contents['word/settings.xml'] = patched
+    if 'word/document.xml' in contents:
+        document = contents['word/document.xml']
+        patched = DIRTY_FIELD_RE.sub(b'', document)
+        changed |= patched != document
+        contents['word/document.xml'] = patched
+    if not changed:
         return
 
-    contents['word/settings.xml'] = patched
     tmp_path = docx_path + '.tmp'
     with zipfile.ZipFile(tmp_path, 'w', zipfile.ZIP_DEFLATED) as zf:
         for info in infos:
@@ -55,15 +62,23 @@ def strip_update_fields(docx_path):
 
 def applescript_for(sandbox_docx, sandbox_pdf):
     # 逐行传给 osascript -e（与 spike/wp7-docx-word/README.md 里实测可行的写法一致）；
-    # 目次更新包一层 try：minimal 等没有目次的 fixture 也能正常走完。
+    # 目次更新包一层 try：WP7.3 固定目次和 minimal 等没有原生目录的 fixture 也能正常走完。
+    doc_name = os.path.basename(sandbox_docx)
     return [
         'tell application "Microsoft Word"',
         f'open (POSIX file "{sandbox_docx}")',
+        f'set targetDoc to document "{doc_name}"',
+        'set openedPath to POSIX path of (full name of targetDoc as alias)',
+        f'if openedPath is not "{sandbox_docx}" then error "Word opened a different document"',
         'try',
-        'update (table of contents 1 of active document)',
+        'update (table of contents 1 of targetDoc)',
         'end try',
-        f'save as active document file name "{sandbox_pdf}" file format format PDF',
-        'close active document saving no',
+        'set docFields to fields of targetDoc',
+        'repeat with docField in docFields',
+        'update field docField',
+        'end repeat',
+        f'save as targetDoc file name "{sandbox_pdf}" file format format PDF',
+        'close targetDoc saving no',
         'end tell',
     ]
 
@@ -88,7 +103,7 @@ def main():
     if os.path.exists(sandbox_pdf):
         os.remove(sandbox_pdf)  # 避免复用上一次运行遗留的 PDF，掩盖这次的失败
 
-    strip_update_fields(sandbox_docx)
+    strip_field_update_triggers(sandbox_docx)
 
     args = ['osascript']
     for line in applescript_for(sandbox_docx, sandbox_pdf):

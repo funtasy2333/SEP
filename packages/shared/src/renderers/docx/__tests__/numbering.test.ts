@@ -67,6 +67,27 @@ describe('numbering fixture', () => {
     expect(codes).toEqual(['list-format-fallback', 'list-too-deep', 'list-too-deep'].sort())
   })
 
+  it('术语和定义章的术语另行起排，其他章节和附录的测试术语与编号同排', () => {
+    const outline = docxOutline(pkg)
+    expect(outline).toContain('SesTermNum │ 3.1 │')
+    expect(outline).toContain('SesTermHead │ — │ 标准')
+    expect(outline).toContain('SesTermNum │ 4.1.2 │ 图序术语')
+    expect(outline).toContain('SesTermNum │ A.1 │ 附录术语')
+    expect(outline).not.toContain('SesTermHead │ — │ 图序术语')
+    expect(outline).not.toContain('SesTermHead │ — │ 附录术语')
+  })
+
+  it('术语来源使用专用宋体段落样式', () => {
+    expect(docxOutline(pkg)).toContain('SesTermSource │ — │ [来源：GB/T 20000.1—2014，5.3]')
+  })
+
+  it('附录编号、性质、标题分段，后两行由独立居中样式承载', () => {
+    const outline = docxOutline(pkg)
+    expect(outline).toContain('SesAppendix │ 附录A │')
+    expect(outline).toContain('SesAppendixKind │ — │ （规范性）')
+    expect(outline).toContain('SesAppendixTitle │ — │ 附录内容一')
+  })
+
   it('大纲快照', () => {
     expect(docxOutline(pkg)).toMatchSnapshot()
   })

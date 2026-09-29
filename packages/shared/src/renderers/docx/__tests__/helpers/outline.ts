@@ -41,7 +41,7 @@ function formatParagraphLine(p: XmlElement, inTable: boolean, sim: SimParagraph)
   const pPr = findChild(p, 'w:pPr')
   const style = (pPr && findChild(pPr, 'w:pStyle')?.attrs['w:val']) ?? '—'
   const text = extractParagraphText(p)
-  return `${inTable ? '┆' : ''}${style} │ ${numberingColumn(sim)} │ ${text}`
+  return `${inTable ? '┆' : ''}${style} │ ${numberingColumn(sim)} │${text === '' ? '' : ` ${text}`}`
 }
 
 /** 按与 numberingSim.ts 完全相同的顺序消费 simulated 数组：文档顺序深度优先，含表格单元格 */

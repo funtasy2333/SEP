@@ -29,8 +29,8 @@ export const ABSTRACT_NUM_ID = {
   listDash: 11, // A11 破折号/间隔号列项
   listAlpha: 12, // A12 字母列项
   listNumber: 13, // A13 数字列项
-  listRoman: 14, // A14 罗马列项
-  listRomanUpper: 15, // A15 大写罗马列项
+  listRoman: 14, // A14 旧罗马类型兼容槽，降级为数字列项
+  listRomanUpper: 15, // A15 旧罗马类型兼容槽，降级为数字列项
   bibEntry: 16, // A16 参考文献
 } as const
 
@@ -50,8 +50,8 @@ const FIXED_ABSTRACT_NUM_IDS: readonly number[] = [
 const LIST_TYPE_ABSTRACT_NUM = new Map<string, number>([
   ['alpha', ABSTRACT_NUM_ID.listAlpha],
   ['number', ABSTRACT_NUM_ID.listNumber],
-  ['roman', ABSTRACT_NUM_ID.listRoman],
-  ['romanUpper', ABSTRACT_NUM_ID.listRomanUpper],
+  ['roman', ABSTRACT_NUM_ID.listNumber],
+  ['romanUpper', ABSTRACT_NUM_ID.listNumber],
   ['boxed', ABSTRACT_NUM_ID.listNumber],
 ])
 
@@ -66,6 +66,8 @@ export function listAbstractNumId(listType: string): number {
 
 const HEI_RFONTS = '<w:rFonts w:ascii="黑体" w:eastAsia="黑体" w:hAnsi="黑体" w:cs="黑体"/>'
 const RPR_HEI = rPr([['rFonts', HEI_RFONTS]])
+const SONG_RFONTS = '<w:rFonts w:ascii="宋体" w:eastAsia="宋体" w:hAnsi="宋体" w:cs="宋体"/>'
+export const RPR_SONG = rPr([['rFonts', SONG_RFONTS]])
 /** A2 L0「附录%1」专用：黑体 + 字符间距 210（§3.3 标题字距偏差登记） */
 const RPR_HEI_SPACING = rPr([
   ['rFonts', HEI_RFONTS],
@@ -119,11 +121,11 @@ function appendixLevels(): LevelSpec[] {
   return levels
 }
 
-/** A12–A15：两级列项，suff=tab，缩进相同，仅 numFmt 不同（§4.2） */
+/** A12–A15：首层为字母/数字、次层统一为间隔号（§7.5.3、§10.2.2） */
 function listLevels(l0Fmt: string, l0Text: string, l1Fmt: string, l1Text: string): LevelSpec[] {
   return [
-    { ilvl: 0, numFmt: l0Fmt, lvlText: l0Text, suff: 'tab', ind: IND_LIST_L0 },
-    { ilvl: 1, numFmt: l1Fmt, lvlText: l1Text, suff: 'tab', ind: IND_LIST_L1 },
+    { ilvl: 0, numFmt: l0Fmt, lvlText: l0Text, suff: 'tab', ind: IND_LIST_L0, rPr: RPR_SONG },
+    { ilvl: 1, numFmt: l1Fmt, lvlText: l1Text, suff: 'tab', ind: IND_LIST_L1, rPr: RPR_SONG },
   ]
 }
 
@@ -143,15 +145,16 @@ const ABSTRACT_NUM_DEFS: readonly AbstractNumSpec[] = [
     id: ABSTRACT_NUM_ID.listDash,
     multilevel: true,
     levels: [
-      { ilvl: 0, numFmt: 'bullet', lvlText: '——', suff: 'nothing', ind: IND_LIST_L0 },
-      { ilvl: 1, numFmt: 'bullet', lvlText: '·', suff: 'tab', ind: IND_LIST_L1 },
+      { ilvl: 0, numFmt: 'bullet', lvlText: '——', suff: 'nothing', ind: IND_LIST_L0, rPr: RPR_SONG },
+      { ilvl: 1, numFmt: 'bullet', lvlText: '·', suff: 'tab', ind: IND_LIST_L1, rPr: RPR_SONG },
     ],
   },
-  { id: ABSTRACT_NUM_ID.listAlpha, multilevel: true, levels: listLevels('lowerLetter', '%1)', 'decimal', '%2)') },
-  { id: ABSTRACT_NUM_ID.listNumber, multilevel: true, levels: listLevels('decimal', '%1)', 'lowerLetter', '%2)') },
-  { id: ABSTRACT_NUM_ID.listRoman, multilevel: true, levels: listLevels('lowerRoman', '%1)', 'decimal', '%2)') },
-  { id: ABSTRACT_NUM_ID.listRomanUpper, multilevel: true, levels: listLevels('upperRoman', '%1)', 'decimal', '%2)') },
-  { id: ABSTRACT_NUM_ID.bibEntry, multilevel: false, levels: [{ ilvl: 0, numFmt: 'decimal', lvlText: `[%1]${SP}`, ind: IND_FIRSTLINE_420 }] },
+  { id: ABSTRACT_NUM_ID.listAlpha, multilevel: true, levels: listLevels('lowerLetter', '%1）', 'bullet', '·') },
+  { id: ABSTRACT_NUM_ID.listNumber, multilevel: true, levels: listLevels('decimal', '%1）', 'bullet', '·') },
+  // 保留编号槽位以维持 A1–A16 的文档结构；旧罗马列表不会再输出罗马数字。
+  { id: ABSTRACT_NUM_ID.listRoman, multilevel: true, levels: listLevels('decimal', '%1）', 'bullet', '·') },
+  { id: ABSTRACT_NUM_ID.listRomanUpper, multilevel: true, levels: listLevels('decimal', '%1）', 'bullet', '·') },
+  { id: ABSTRACT_NUM_ID.bibEntry, multilevel: false, levels: [{ ilvl: 0, numFmt: 'decimal', lvlText: `[%1]${SP}`, ind: IND_FIRSTLINE_420, rPr: RPR_SONG }] },
 ]
 
 function levelXml(spec: LevelSpec): string {

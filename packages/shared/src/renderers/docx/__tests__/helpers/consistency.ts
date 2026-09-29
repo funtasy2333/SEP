@@ -138,18 +138,22 @@ export function collectNumberedNodeIds(doc: IRDoc): NodeId[] {
 
 // ---------------- 期望标记（§9 WP7.2「numbering」fixture、§10.3 expect.py 的 TS 对应实现） ----------------
 
-const SELF_MARKER_RE = /〔(?:期望|附录期望)([^〕]+)〕/
+const SELF_MARKER_RE = /〔期望([^〕]+)〕/
+const APPENDIX_MARKER_RE = /〔附录期望([^〕]+)〕/
 const PREV_MARKER_RE = /〔前段期望([^〕]+)〕/
 
 /**
- * 扫描模拟器每段文本里的期望标记：「期望」「附录期望」核对本段的 label；「前段期望」核对
- * 上一段的 label（label 都先去掉末尾一个 U+3000 再比较）。规格里的写法是「〔期望 X〕」（带
+ * 扫描模拟器每段文本里的期望标记：「期望」核对本段的 label；「附录期望」核对标题前两段的
+ * 附录标识（中间为性质段）；「前段期望」核对上一段的 label（label 都先去掉末尾一个 U+3000
+ * 再比较）。规格里的写法是「〔期望 X〕」（带
  * 空格，§9 WP7.2），X 两侧的空白先 trim 掉再比较，即使 fixture 本身不带空格也兼容（#34 审查）。
  * 至少要找到一个标记（否则说明 fixture 没有按规格要求写标记，测试本身就没有意义）。
  */
 export function assertExpectMarkers(simulated: readonly SimParagraph[]): void {
   let found = 0
+  // TOC1/TOC2 缓存会复制标题中的 fixture 标记，但这些目次行没有列表编号，不属于编号断言对象。
   simulated.forEach((p, i) => {
+    if (p.styleId === 'TOC1' || p.styleId === 'TOC2') return
     const self = SELF_MARKER_RE.exec(p.text)
     if (self) {
       found += 1
@@ -157,6 +161,17 @@ export function assertExpectMarkers(simulated: readonly SimParagraph[]): void {
       const actual = p.label?.replace(/　$/, '')
       if (actual !== expected) {
         throw new Error(`assertExpectMarkers: 第 ${i} 段「期望」标记为「${expected}」，模拟器标识为「${actual}」（text="${p.text}"）`)
+      }
+    }
+    const appendix = APPENDIX_MARKER_RE.exec(p.text)
+    if (appendix) {
+      found += 1
+      const expected = appendix[1].trim()
+      const appendixPara = simulated[i - 2]
+      const kindPara = simulated[i - 1]
+      const actual = appendixPara?.label?.replace(/　$/, '')
+      if (p.styleId !== 'SesAppendixTitle' || kindPara?.styleId !== 'SesAppendixKind' || appendixPara?.styleId !== 'SesAppendix' || actual !== expected) {
+        throw new Error(`assertExpectMarkers: 第 ${i} 段附录期望为「${expected}」，前两段的附录标识为「${actual}」（text="${p.text}"）`)
       }
     }
     const prev = PREV_MARKER_RE.exec(p.text)

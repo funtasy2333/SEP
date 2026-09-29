@@ -5,8 +5,8 @@
  * 前言两条注一个示例；引言一图一注（图号从引言起算）；两层以上有标题条；无标题条（首块段落 /
  * 首块列表）；新章首条从 N.1 起；深度 5 条链；level 与深度不一致的条；章直属两条术语（一条带
  * termEn/定义/两示例/两注/来源）、条内术语、附录直属术语；注的交错（§4.3）、两段单条注、多条注
- * 中一条两段、首块非段落的注；同作用域两示例；alpha/number/roman/romanUpper/boxed 列项、
- * dash 嵌 number（新实例）、三层嵌套（含嵌在字母列表里的 dash 与非 dash）、一项两段、首块是
+ * 中一条两段、首块非段落的注；同作用域两示例；alpha/number/boxed 列项、
+ * dash 嵌 number（子项仍显示间隔号）、三层嵌套（含嵌在字母列表里的 dash 与非 dash）、一项两段、首块是
  * 嵌套列表的项；正文两图两表跨章，附录 A/B 各有图表（A 至少两图）；公式编号/不编号各一；参考
  * 文献三条（跨 run 前缀剥离一条）；条/图/表/公式/参考文献交叉引用各一处。
  *
@@ -53,7 +53,7 @@ interface MarkerTarget {
 
 export interface NumberingFixture {
   doc: IRDoc
-  /** 列项（Resolver 不给 label）的手写期望：nodeId -> 标识文本（如 "a)"） */
+  /** 列项（Resolver 不给 label）的手写期望：nodeId -> 标识文本（如 "a）"） */
   listItemExpected: Map<NodeId, string>
   /** resolve(doc) 之后调用：把 labels 里的标识写成期望标记，注入到对应段落的行内内容里 */
   applyExpectMarkers: (labels: Record<NodeId, ResolvedLabel>) => void
@@ -269,7 +269,7 @@ export function buildNumberingFixture(): NumberingFixture {
 
   // ---- 遍历顺序（§4.7）：术语条目的示例与注里各嵌一张图，示例里的图应先编号 ----
   const termFigOrderTerm: IRInline[] = [t('图序术语')]
-  markPrev('term-fig-order', termFigOrderTerm)
+  markSelf('term-fig-order', termFigOrderTerm)
   const termFigExLeadP = para('term-fig-ex-lead-p', t('术语示例文字'))
   markPrev('term-fig-ex', termFigExLeadP.content) // 示例标识恒为空段（§5.7），marker 放在示例内容第一段
   const termFigExFigCaption: IRInline[] = [t('术语示例图')]
@@ -329,11 +329,11 @@ export function buildNumberingFixture(): NumberingFixture {
       listItem('alpha-i1-num-i2', [numSub1Item2P]),
     ],
   }
-  markListItemSelf('alpha-i1-num-i1', '1)', numSub1Item1P.content)
-  markListItemSelf('alpha-i1-num-i2', '2)', numSub1Item2P.content)
+  markListItemSelf('alpha-i1-num-i1', '·', numSub1Item1P.content)
+  markListItemSelf('alpha-i1-num-i2', '·', numSub1Item2P.content)
 
   const alphaItem1P = para('alpha-i1-p', t('字母项一'))
-  markListItemSelf('alpha-i1', 'a)', alphaItem1P.content)
+  markListItemSelf('alpha-i1', 'a）', alphaItem1P.content)
 
   const dashSub1Item1P = para('alpha-i2-dash-i1-p', t('破折子项一'))
   // 第二层 dash 也复用 A11 L1（"·"），不论上层是什么类型（§4.4）
@@ -344,7 +344,9 @@ export function buildNumberingFixture(): NumberingFixture {
     kind: 'list', id: 'alpha-i2-dash-i2-num', listType: 'number',
     items: [listItem('alpha-i2-dash-i2-num-i1', [numL3Item1P]), listItem('alpha-i2-dash-i2-num-i2', [numL3Item2P])],
   }
-  // 第三层及更深的非 dash 列项：文字标识「n)」，不是编号段落，不写期望标记（§9 WP7.2）
+  // 第三层及更深仍按间隔号降级，并保留期望标记供一致性核对（该结构已超出 7.5.2 建议的两层）。
+  markListItemSelf('alpha-i2-dash-i2-num-i1', '·', numL3Item1P.content)
+  markListItemSelf('alpha-i2-dash-i2-num-i2', '·', numL3Item2P.content)
   const dashSub1Item2P = para('alpha-i2-dash-i2-p', t('破折子项二'))
   markListItemSelf('alpha-i2-dash-i2', '·', dashSub1Item2P.content)
   const dashSub1: IRList = {
@@ -352,7 +354,7 @@ export function buildNumberingFixture(): NumberingFixture {
     items: [listItem('alpha-i2-dash-i1', [dashSub1Item1P]), listItem('alpha-i2-dash-i2', [dashSub1Item2P, numL3])],
   }
   const alphaItem2P = para('alpha-i2-p', t('字母项二'))
-  markListItemSelf('alpha-i2', 'b)', alphaItem2P.content)
+  markListItemSelf('alpha-i2', 'b）', alphaItem2P.content)
 
   const alphaList: IRList = {
     kind: 'list', id: 'list-alpha', listType: 'alpha',
@@ -362,47 +364,32 @@ export function buildNumberingFixture(): NumberingFixture {
   // number 顶层：item1 首块是嵌套列表（不是段落）
   const numTopSubItem1P = para('num-top-i1-sub-i1-p', t('数字项一之破折一'))
   markListItemSelf('num-top-i1-sub-i1', '·', numTopSubItem1P.content)
-  markListItemPrevText('1)', numTopSubItem1P.content) // 兼作 number 顶层第一项（只有编号）的「前段期望」
+  markListItemPrevText('1）', numTopSubItem1P.content) // 兼作 number 顶层第一项（只有编号）的「前段期望」
   const numTopSubItem2P = para('num-top-i1-sub-i2-p', t('数字项一之破折二'))
   markListItemSelf('num-top-i1-sub-i2', '·', numTopSubItem2P.content)
   const numTopSub: IRList = {
     kind: 'list', id: 'num-top-i1-sub', listType: 'dash',
     items: [listItem('num-top-i1-sub-i1', [numTopSubItem1P]), listItem('num-top-i1-sub-i2', [numTopSubItem2P])],
   }
-  markListItemSelf('num-top-i1', '1)', [])
+  markListItemSelf('num-top-i1', '1）', [])
   const numTopItem2P = para('num-top-i2-p', t('数字项二'))
-  markListItemSelf('num-top-i2', '2)', numTopItem2P.content)
+  markListItemSelf('num-top-i2', '2）', numTopItem2P.content)
   const numberList: IRList = {
     kind: 'list', id: 'list-number', listType: 'number',
     items: [listItem('num-top-i1', [numTopSub]), listItem('num-top-i2', [numTopItem2P])],
   }
 
-  const romanItem1P = para('roman-i1-p', t('罗马项一'))
-  markListItemSelf('roman-i1', 'i)', romanItem1P.content)
-  const romanItem2P = para('roman-i2-p', t('罗马项二'))
-  markListItemSelf('roman-i2', 'ii)', romanItem2P.content)
-  const romanList: IRList = { kind: 'list', id: 'list-roman', listType: 'roman', items: [listItem('roman-i1', [romanItem1P]), listItem('roman-i2', [romanItem2P])] }
-
-  const romanUpperItem1P = para('romanU-i1-p', t('大写罗马项一'))
-  markListItemSelf('romanU-i1', 'I)', romanUpperItem1P.content)
-  const romanUpperItem2P = para('romanU-i2-p', t('大写罗马项二'))
-  markListItemSelf('romanU-i2', 'II)', romanUpperItem2P.content)
-  const romanUpperList: IRList = {
-    kind: 'list', id: 'list-romanUpper', listType: 'romanUpper',
-    items: [listItem('romanU-i1', [romanUpperItem1P]), listItem('romanU-i2', [romanUpperItem2P])],
-  }
-
   const boxedItem1P = para('boxed-i1-p', t('方框项一'))
-  markListItemSelf('boxed-i1', '1)', boxedItem1P.content) // boxed 退化为 number（A13）
+  markListItemSelf('boxed-i1', '1）', boxedItem1P.content) // boxed 退化为 number（A13）
   const boxedItem2P = para('boxed-i2-p', t('方框项二'))
-  markListItemSelf('boxed-i2', '2)', boxedItem2P.content)
+  markListItemSelf('boxed-i2', '2）', boxedItem2P.content)
   const boxedList: IRList = { kind: 'list', id: 'list-boxed', listType: 'boxed', items: [listItem('boxed-i1', [boxedItem1P]), listItem('boxed-i2', [boxedItem2P])] }
 
-  // dash 顶层下嵌 number 子列表（新建 A12 实例，用 ilvl1，"1)"）
+  // dash 顶层下嵌 number 子列表，二级按间隔号显示。
   const dashNumSubItem1P = para('dash-i1-num-i1-p', t('破折下数字一'))
-  markListItemSelf('dash-i1-num-i1', '1)', dashNumSubItem1P.content)
+  markListItemSelf('dash-i1-num-i1', '·', dashNumSubItem1P.content)
   const dashNumSubItem2P = para('dash-i1-num-i2-p', t('破折下数字二'))
-  markListItemSelf('dash-i1-num-i2', '2)', dashNumSubItem2P.content)
+  markListItemSelf('dash-i1-num-i2', '·', dashNumSubItem2P.content)
   const dashNumSub: IRList = {
     kind: 'list', id: 'dash-i1-num', listType: 'number',
     items: [listItem('dash-i1-num-i1', [dashNumSubItem1P]), listItem('dash-i1-num-i2', [dashNumSubItem2P])],
@@ -420,7 +407,7 @@ export function buildNumberingFixture(): NumberingFixture {
   markSelf('cl42', cl42Title)
   const cl42: IRClause = {
     kind: 'clause', id: 'cl42', level: 1, titled: true, title: cl42Title,
-    children: [alphaList, numberList, romanList, romanUpperList, boxedList, dashWithNumberList],
+    children: [alphaList, numberList, boxedList, dashWithNumberList],
   }
 
   // ---- 4.3 单注两段样例 ----
@@ -449,7 +436,7 @@ export function buildNumberingFixture(): NumberingFixture {
   // ---- 4.5 注首块非段落样例（首块是列表） ----
 
   const nonParaListItemP = para('note-nonpara-list-i1-p', t('注内列表项'))
-  markListItemSelf('note-nonpara-list-i1', 'a)', nonParaListItemP.content)
+  markListItemSelf('note-nonpara-list-i1', 'a）', nonParaListItemP.content)
   markPrev('note-nonpara', nonParaListItemP.content) // 兼作该注（首块非段落）的「前段期望」
   const nonParaList: IRList = { kind: 'list', id: 'note-nonpara-list', listType: 'alpha', items: [listItem('note-nonpara-list-i1', [nonParaListItemP])] }
   const noteNonParaTrailP = para('note-nonpara-trail-p', t('注内后续段落'))
@@ -472,7 +459,7 @@ export function buildNumberingFixture(): NumberingFixture {
 
   // ---- 4.7 无标题条：首块为段落 ----
 
-  const noTitleParaFirstP = para('cl47-first-p', t('无标题条首段内容'))
+  const noTitleParaFirstP = para('cl47-first-p', t('无标题条首段内容 ABC'))
   markSelf('cl47', noTitleParaFirstP.content)
   const cl47: IRClause = {
     kind: 'clause', id: 'cl47', level: 1, titled: false, title: [],
@@ -482,7 +469,7 @@ export function buildNumberingFixture(): NumberingFixture {
   // ---- 4.8 无标题条：首块为列表 ----
 
   const noTitleListItemP = para('cl48-list-i1-p', t('无标题条列表项'))
-  markListItemSelf('cl48-list-i1', 'a)', noTitleListItemP.content)
+  markListItemSelf('cl48-list-i1', 'a）', noTitleListItemP.content)
   markPrev('cl48', noTitleListItemP.content) // 兼作该无标题条（首块非段落）的「前段期望」
   const cl48List: IRList = { kind: 'list', id: 'cl48-list', listType: 'alpha', items: [listItem('cl48-list-i1', [noTitleListItemP])] }
   const cl48: IRClause = { kind: 'clause', id: 'cl48', level: 1, titled: false, title: [], children: [cl48List] }
@@ -519,7 +506,7 @@ export function buildNumberingFixture(): NumberingFixture {
   markAppendix('app-a', appATitle)
 
   const appATermTerm: IRInline[] = [t('附录术语')]
-  markPrev('app-a-term', appATermTerm)
+  markSelf('app-a-term', appATermTerm)
   const appATerm: IRTermEntry = {
     kind: 'termEntry', id: 'app-a-term', term: appATermTerm,
     definition: [para('app-a-term-def', t('附录直属术语的定义。'))], notes: [], examples: [],

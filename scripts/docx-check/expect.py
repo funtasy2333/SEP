@@ -10,6 +10,7 @@ WP7.2、§10.3）：
   「〔前段期望X〕」：同一页的上一个视觉行去掉空白后等于 X；
   「〔附录期望X〕」：同一页往上第二个视觉行去掉空白后等于 X。
 
+WP7.3 起目次条目也会复制标题中的期望标记；含连续点线的目次行只供目录核对，不作为正文编号断言。
 逐条输出通过或失败及实际文字；有失败、或一个标记也没找到时退出码为 1。
 
 用法：
@@ -26,6 +27,7 @@ import fitz  # PyMuPDF
 Y_TOLERANCE = 1.0  # pt：同一视觉行的基线容差
 
 MARKER_RE = re.compile(r'〔(期望|前段期望|附录期望)([^〕]+)〕')
+TOC_LEADER_RE = re.compile(r'\.{5,}|…{3,}')
 
 
 def build_visual_lines(page):
@@ -81,6 +83,10 @@ def main():
     for page_no in range(doc.page_count):
         lines = build_visual_lines(doc[page_no])
         for i, line in enumerate(lines):
+            # WP7.3 固定目次会复制标题中的期望标记；Word 的目录点线在 PDF 中是一串连续句点。
+            # 跳过这些目录行，避免把它们误当正文编号段（尤其是「附录期望」的上两行断言）。
+            if TOC_LEADER_RE.search(line['text']):
+                continue
             for m in MARKER_RE.finditer(line['text']):
                 # 规格写法「〔期望 X〕」带空格（§9 WP7.2）；X 两侧空白 strip 掉再比较，
                 # 兼容 fixture 里不带空格的写法（#34 审查）。

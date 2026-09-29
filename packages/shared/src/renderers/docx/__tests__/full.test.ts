@@ -1,8 +1,8 @@
 /**
  * `full` 一致性 fixture 测试（docs/wp7-docx-delivery.md §9 WP7.2）。
  *
- * `pmToIr(fullFixture()).doc` 经 `resolve` 的结果（不改 fixture）。列项手写期望 li-1 → a)、
- * li-2 → b)（stdList('list-1', 'alpha', ['li-1', ...], ['li-2', ...])，Resolver 不给列项编号）。
+ * `pmToIr(fullFixture()).doc` 经 `resolve` 的结果（不改 fixture）。列项手写期望 li-1 → a）、
+ * li-2 → b）（stdList('list-1', 'alpha', ['li-1', ...], ['li-2', ...])，Resolver 不给列项编号）。
  */
 
 import { describe, expect, it } from 'vitest'
@@ -15,8 +15,8 @@ import { assertCoverage, assertNumberingConsistency, collectNumberedNodeIds } fr
 import { docxOutline } from './helpers/outline'
 
 const LIST_ITEM_EXPECTED = new Map<string, string>([
-  ['li-1', 'a)'],
-  ['li-2', 'b)'],
+  ['li-1', 'a）'],
+  ['li-2', 'b）'],
 ])
 
 function buildResult() {
