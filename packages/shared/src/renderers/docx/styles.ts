@@ -61,7 +61,8 @@ const BODY_CENTER = 4677
 const TABS_TOC = `<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="${BODY_WIDTH}"/></w:tabs>`
 const TABS_FORMULA = `<w:tabs><w:tab w:val="center" w:pos="${BODY_CENTER}"/><w:tab w:val="right" w:leader="dot" w:pos="${BODY_WIDTH}"/></w:tabs>`
 
-const PBDR_END_MARK = wrapElement('w:pBdr', '<w:bottom w:val="single" w:sz="6" w:space="1" w:color="000000"/>')
+// 原终结线素材在 72 dpi 下为 1 像素实线，约等于 1 磅；边框保留可编辑性并避免低分辨率图片的白边。
+const PBDR_END_MARK = wrapElement('w:pBdr', '<w:bottom w:val="single" w:sz="8" w:space="1" w:color="000000"/>')
 
 function numPrXml(numId: number, ilvl: number): string {
   return numPr([
@@ -153,7 +154,7 @@ function clauseFamily(): StyleSpec[] {
       next: TITLE_NEXT_PARA,
       numPr: { numId: ABSTRACT_NUM_ID.chapter, ilvl: level },
     })
-    out.push({ id: `SesNoTitle${level}`, name: `SES_${cn}级无标题条` })
+    out.push({ id: `SesNoTitle${level}`, name: `SES_${cn}级无标题条`, rFonts: 'songAll' })
     out.push({
       id: `SesAppClause${level}`,
       name: `SES_附录${cn}级条标题`,
@@ -164,7 +165,7 @@ function clauseFamily(): StyleSpec[] {
       next: TITLE_NEXT_PARA,
       numPr: { numId: ABSTRACT_NUM_ID.appendixClause, ilvl: level },
     })
-    out.push({ id: `SesAppNoTitle${level}`, name: `SES_附录${cn}级无标题条` })
+    out.push({ id: `SesAppNoTitle${level}`, name: `SES_附录${cn}级无标题条`, rFonts: 'songAll' })
   }
   return out
 }
@@ -181,7 +182,7 @@ const STYLE_SPECS: readonly StyleSpec[] = [
     widowControl: true,
     autoSpaceDEDN: true,
   },
-  { id: 'SesPara', name: 'SES_段', ind: IND_FIRSTLINE_2CH },
+  { id: 'SesPara', name: 'SES_段', rFonts: 'songAll', ind: IND_FIRSTLINE_2CH },
   {
     id: 'SesTocTitle',
     name: 'SES_目次标题',

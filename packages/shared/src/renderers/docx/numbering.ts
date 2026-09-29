@@ -67,7 +67,7 @@ export function listAbstractNumId(listType: string): number {
 const HEI_RFONTS = '<w:rFonts w:ascii="黑体" w:eastAsia="黑体" w:hAnsi="黑体" w:cs="黑体"/>'
 const RPR_HEI = rPr([['rFonts', HEI_RFONTS]])
 const SONG_RFONTS = '<w:rFonts w:ascii="宋体" w:eastAsia="宋体" w:hAnsi="宋体" w:cs="宋体"/>'
-const RPR_SONG = rPr([['rFonts', SONG_RFONTS]])
+export const RPR_SONG = rPr([['rFonts', SONG_RFONTS]])
 /** A2 L0「附录%1」专用：黑体 + 字符间距 210（§3.3 标题字距偏差登记） */
 const RPR_HEI_SPACING = rPr([
   ['rFonts', HEI_RFONTS],
@@ -124,8 +124,8 @@ function appendixLevels(): LevelSpec[] {
 /** A12–A15：首层为字母/数字、次层统一为间隔号（§7.5.3、§10.2.2） */
 function listLevels(l0Fmt: string, l0Text: string, l1Fmt: string, l1Text: string): LevelSpec[] {
   return [
-    { ilvl: 0, numFmt: l0Fmt, lvlText: l0Text, suff: 'tab', ind: IND_LIST_L0 },
-    { ilvl: 1, numFmt: l1Fmt, lvlText: l1Text, suff: 'tab', ind: IND_LIST_L1 },
+    { ilvl: 0, numFmt: l0Fmt, lvlText: l0Text, suff: 'tab', ind: IND_LIST_L0, rPr: RPR_SONG },
+    { ilvl: 1, numFmt: l1Fmt, lvlText: l1Text, suff: 'tab', ind: IND_LIST_L1, rPr: RPR_SONG },
   ]
 }
 
@@ -145,8 +145,8 @@ const ABSTRACT_NUM_DEFS: readonly AbstractNumSpec[] = [
     id: ABSTRACT_NUM_ID.listDash,
     multilevel: true,
     levels: [
-      { ilvl: 0, numFmt: 'bullet', lvlText: '——', suff: 'nothing', ind: IND_LIST_L0 },
-      { ilvl: 1, numFmt: 'bullet', lvlText: '·', suff: 'tab', ind: IND_LIST_L1 },
+      { ilvl: 0, numFmt: 'bullet', lvlText: '——', suff: 'nothing', ind: IND_LIST_L0, rPr: RPR_SONG },
+      { ilvl: 1, numFmt: 'bullet', lvlText: '·', suff: 'tab', ind: IND_LIST_L1, rPr: RPR_SONG },
     ],
   },
   { id: ABSTRACT_NUM_ID.listAlpha, multilevel: true, levels: listLevels('lowerLetter', '%1）', 'bullet', '·') },

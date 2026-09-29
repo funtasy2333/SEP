@@ -263,6 +263,10 @@ describe('styles.ts：显式缩进值（不依赖编号级别的样式）', () =
 
   it('SesEndMark：按 Word 边框两端延伸校准线宽，左右缩进各 3532', () => {
     expect(indOf(styles.get('SesEndMark')!)?.attrs).toEqual({ 'w:left': '3532', 'w:right': '3532' })
+    const border = findChild(findChild(styles.get('SesEndMark')!, 'w:pPr')!, 'w:pBdr')!
+    expect(findChild(border, 'w:bottom')?.attrs).toEqual({
+      'w:val': 'single', 'w:sz': '8', 'w:space': '1', 'w:color': '000000',
+    })
   })
 
   it('TOC2/TOC3：左缩进 210/420', () => {
@@ -276,6 +280,17 @@ describe('styles.ts：显式缩进值（不依赖编号级别的样式）', () =
 
   it('TOC1/TOC2 的编号与正文文字均指定宋体，不让 ASCII 数字回退到 Times New Roman', () => {
     for (const id of ['TOC1', 'TOC2']) {
+      expect(rFontsOf(styles.get(id)!)?.attrs).toEqual({
+        'w:ascii': '宋体', 'w:eastAsia': '宋体', 'w:hAnsi': '宋体', 'w:cs': '宋体',
+      })
+    }
+  })
+
+  it('段与正文/附录无标题条的中英文均显式使用宋体', () => {
+    const ids = ['SesPara', ...[1, 2, 3, 4, 5].flatMap((level) => [
+      `SesNoTitle${level}`, `SesAppNoTitle${level}`,
+    ])]
+    for (const id of ids) {
       expect(rFontsOf(styles.get(id)!)?.attrs).toEqual({
         'w:ascii': '宋体', 'w:eastAsia': '宋体', 'w:hAnsi': '宋体', 'w:cs': '宋体',
       })

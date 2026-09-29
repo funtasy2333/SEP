@@ -64,7 +64,7 @@ SesTblCap │ 表1 │ 性能指标
 SesTableCenter │ — │ 〔表格占位〕
 SesFigure │ — │ 〔图片占位〕
 SesFigCap │ 图1 │ 系统架构图
-SesFormula │ — │ ⇥〔公式占位〕⇥(1)
+SesFormula │ — │ ⇥〔公式占位〕⇥（1）
 SesPara │ — │ 引用文献[1]。
 — │ — │
 § type=oddPage pgNumType=decimal start=1 orient=— refs=4
@@ -78,7 +78,7 @@ SesFigure │ — │ 〔图片占位〕
 SesAppFigCap │ 图A.1 │ 附录图
 SesAppTblCap │ 表A.1 │ 附录表
 SesTableCenter │ — │ 〔表格占位〕
-SesFormula │ — │ ⇥〔公式占位〕⇥(A.1)
+SesFormula │ — │ ⇥〔公式占位〕⇥（A.1）
 — │ — │
 § type=nextPage pgNumType=decimal start=— orient=— refs=4
 SesAppendix │ 附录B │

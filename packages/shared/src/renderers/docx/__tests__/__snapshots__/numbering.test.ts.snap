@@ -83,7 +83,7 @@ SesFigCap │ 图3 │ 交错示例图〔期望图3〕
 SesNoteN │ 注2： │ 条内次条注释〔期望注2：〕
 SesTblCap │ 表2 │ 总体要求示例表〔期望表2〕
 SesTableCenter │ — │ 〔表格占位〕
-SesFormula │ — │ ⇥〔公式占位〕⇥(1)
+SesFormula │ — │ ⇥〔公式占位〕⇥（1）
 SesFormula │ — │ ⇥〔公式占位〕
 SesClause2 │ 4.1.1 │ 深度不符样例〔期望4.1.1〕
 SesPara │ — │ 本条 level 字段故意写错。
@@ -139,7 +139,7 @@ SesExLabelN │ 示例1： │
 SesExText │ — │ 示例甲内容〔前段期望示例1：〕
 SesExLabelN │ 示例2： │
 SesExText │ — │ 示例乙内容〔前段期望示例2：〕
-SesNoTitle1 │ 4.7 │ 无标题条首段内容〔期望4.7〕
+SesNoTitle1 │ 4.7 │ 无标题条首段内容 ABC〔期望4.7〕
 SesPara │ — │ 无标题条续段内容
 SesNoTitle1 │ 4.8 │
 SesListItem │ a） │ 无标题条列表项〔期望a）〕〔前段期望4.8〕

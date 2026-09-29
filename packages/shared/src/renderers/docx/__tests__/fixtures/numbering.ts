@@ -459,7 +459,7 @@ export function buildNumberingFixture(): NumberingFixture {
 
   // ---- 4.7 无标题条：首块为段落 ----
 
-  const noTitleParaFirstP = para('cl47-first-p', t('无标题条首段内容'))
+  const noTitleParaFirstP = para('cl47-first-p', t('无标题条首段内容 ABC'))
   markSelf('cl47', noTitleParaFirstP.content)
   const cl47: IRClause = {
     kind: 'clause', id: 'cl47', level: 1, titled: false, title: [],

@@ -188,12 +188,13 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 - `SesNormal` 设为默认段落样式（`w:default="1"`），收稿方新写的段落自动带正文格式。
 - 字体：
   - 宋体类：`rFonts ascii/hAnsi/cs="Times New Roman" eastAsia="宋体"`
+  - 段和正文/附录无标题条正文：`rFonts ascii/hAnsi/cs/eastAsia` 均为 `"宋体"`；编号本身仍由编号级别指定字体。
   - 黑体类：`rFonts` 四个属性都为 `"黑体"`（章条编号数字也用黑体，表 F.1 #33）
 - 字号（半磅 `w:sz`，同时写 `w:szCs`）：一号 52、小一 48、二号 44、小二 36、三号 32、四号 28、五号 21、小五 18、六号 15。
 - 「空 N 个汉字」按五号计：1 字 = 210 twips（小五的注、示例、表格文字也按此计）。缩进一律写 twips，不写 `firstLineChars` 等字符单位属性（同 `gen_spike.py`）。
 - 「上下各空一行 / 半行」用 `beforeLines/afterLines = 100/50`，并同时写 `before/after = 312/156`。
 - 正文段落对齐文档网格（缺省）。**三号标题关闭网格**（`<w:snapToGrid w:val="0"/>`）并用固定 20 磅行距，否则三号字在网格上占两行、整体下移约 3 mm（spike v6）。
-- 格式只写在样式里。段落上只允许写 `pStyle`、段落级 `numPr`、`tabs`（式中条目）、`keepNext`（§5.13）、`framePr`（封面）、`sectPr`；行内只允许写 `b/i/u/vertAlign`（来自 IR marks）与标题字距 `w:spacing`（§3.3）。例外：页眉页脚部件的段落按 §2.3 写 `jc`/`ind`；分节空段只有 `sectPr`（§2.2）。
+- 格式只写在样式里。段落上只允许写 `pStyle`、段落级 `numPr`、`tabs`（式中条目）、`keepNext`（§5.13）、`framePr`（封面）、`sectPr`；行内只允许写 `b/i/u/vertAlign`（来自 IR marks）与标题字距 `w:spacing`（§3.3）。公式编号 run 另显式写宋体，以覆盖 SesFormula 对 ASCII 的默认字体。例外：页眉页脚部件的段落按 §2.3 写 `jc`/`ind`；分节空段只有 `sectPr`（§2.2）。
 - **带编号段落的缩进只写在编号级别的 `pPr/ind` 里**（§4.2），它们使用的样式不写 `ind`（§3.2 标「缩进见 Ax」的行）。样式与编号定义都写缩进时谁优先，ECMA-376 的规定与各软件的实现不尽一致（WPS 未验证），只写一处就没有歧义。
 - 除 SesNormal 外，全部样式 `basedOn` SesNormal；SesNormal 不写 `ind`。标题类样式（SesChapter、SesClause*、SesAppendix、SesAppClause*、SesFrontTitle、SesBibTitle）写 `w:next="SesPara"`。
 - `styles.xml` 的 `docDefaults`：`rPrDefault` 为宋体类 `rFonts` + `<w:lang w:val="en-US" w:eastAsia="zh-CN"/>`，`pPrDefault` 为空 `pPr`（同 `gen_spike.py`）。不写 `latentStyles`。
@@ -203,13 +204,13 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 | 样式 ID | 中文名 | 字体字号 | 段落属性 | 大纲 | 编号 | 依据 |
 |---|---|---|---|---|---|---|
 | SesNormal | SES_正文基础 | 宋 五 | `jc=both` widowControl autoSpaceDE autoSpaceDN；默认段落样式 | — | — | 表 F.1 #34 |
-| SesPara | SES_段 | 继承 | 首行缩进 2 字（420） | — | — | 10.2.1 |
+| SesPara | SES_段 | 宋 五（含 ASCII） | 首行缩进 2 字（420） | — | — | 10.2.1 |
 | SesTocTitle | SES_目次标题 | 黑 三 | `jc=center`；无网格；段前 500 段后 600 固定 20 磅 | — | — | 图 E.8、#14；实测字顶 43.9 mm、到下文 12.6 mm |
 | SesFrontTitle | SES_前言引言标题 | 黑 三 | 同 SesTocTitle | 0 | — | 图 E.9、#16/#18 |
 | SesBodyTitle | SES_正文首页名称 | 黑 三 | 同 SesTocTitle | — | — | 图 E.3、#20 |
 | SesChapter | SES_章标题 | 黑 五 | keepNext；段前段后各 1 行；缩进见 A1 | 0 | 属主：章条 L0 | 10.2.1、#33 |
 | SesClause1…5 | SES_一级条标题…五级条标题 | 黑 五 | keepNext；段前段后各半行；缩进见 A1 | 1…5 | 属主：章条 L1…L5 | 10.2.1 |
-| SesNoTitle1…5 | SES_一级无标题条…五级无标题条 | 宋 五 | 缩进见 A1 | — | 段落级：章条 L1…L5 | 10.2.1（编号顶格，空一字接条文；编号黑体见 A1） |
+| SesNoTitle1…5 | SES_一级无标题条…五级无标题条 | 宋 五（含 ASCII） | 缩进见 A1 | — | 段落级：章条 L1…L5 | 10.2.1（编号顶格，空一字接条文；编号黑体见 A1） |
 | SesTermNum | SES_术语条目编号 | 黑 五 | keepNext；段前段后 0；缩进见 A1/A2 | — | 段落级：章条 Ln（附录中为附录 Ln，§4.4） | 10.3.5、#22 |
 | SesTermHead | SES_术语 | 黑 五 | keepNext；首行缩进 2 字（420） | — | — | 10.3.5、#23 |
 | SesTermSource | SES_术语来源 | 宋 五（含 ASCII） | 首行缩进 2 字（420） | — | — | 10.3.5、#24 |
@@ -217,7 +218,7 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 | SesAppendixKind | SES_附录性质 | 黑 五 | keepNext；`jc=center`；段前段后 0 | — | — | 图 E.12、#26 |
 | SesAppendixTitle | SES_附录标题 | 黑 五 | keepNext；`jc=center`；段前 0 段后 150 | — | — | 图 E.12、#27 |
 | SesAppClause1…5 | SES_附录一级条标题… | 黑 五 | 同 SesClause；缩进见 A2 | 1…5 | 属主：附录 L1…L5 | 9.6.3.1 |
-| SesAppNoTitle1…5 | SES_附录一级无标题条… | 宋 五 | 缩进见 A2 | — | 段落级：附录 L1…L5 | 9.6.3.1 |
+| SesAppNoTitle1…5 | SES_附录一级无标题条… | 宋 五（含 ASCII） | 缩进见 A2 | — | 段落级：附录 L1…L5 | 9.6.3.1 |
 | SesListDash | SES_破折号列项 | 宋 五 | 缩进见 A11 | — | 属主：破折号 L0 | 10.2.2 |
 | SesListDot | SES_间隔号列项 | 宋 五 | 缩进见 A11 | — | 属主：破折号 L1 | 10.2.2 |
 | SesListItem | SES_编号列项 | 宋 五 | 缩进见 A12–A15 | — | 段落级：按列表实例 | 10.2.2 |
@@ -238,12 +239,12 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 | SesTableText | SES_表格文字 | 宋 小五 | 首行 1 字（210），回行顶格 | — | — | 10.4.2.2、#40 注 a |
 | SesTableCenter | SES_表格居中 | 宋 小五 | `jc=center`，缩进 0 | — | — | 10.4.2.2（表头、数字） |
 | SesTableNote | SES_表注 | 宋 小五 | 缩进见 A7 / A8 | — | 段落级：单条指向 A7 固定实例（spike v10 T6），多条按 §4.3 分配 A8 实例（WP7.4） | 10.4.4.1 |
-| SesFormula | SES_公式 | 宋 五 | 制表位：居中 4677、右对齐 9355 点线；缩进 0；段前段后各半行 | — | 编号为 Resolver 文字 | 10.4.3 |
+| SesFormula | SES_公式 | 宋 五；编号 run 全字符宋体 | 制表位：居中 4677、右对齐 9355 点线；缩进 0；段前段后各半行 | — | Resolver 编号用中文圆括号 | 10.4.3 |
 | SesWhereLabel | SES_式中 | 宋 五 | 首行 420 | — | — | 10.4.3 |
 | SesWhereItem | SES_式中条目 | 宋 五 | 按 §5.10 计算制表位与悬挂 | — | — | 10.4.3 |
 | SesBibTitle | SES_参考文献标题 | 黑 五 | keepNext；`jc=center`；段前 520 段后 150（起始值） | 0 | — | 图 E.10、#29 |
 | SesBibEntry | SES_参考文献条目 | 宋 五 | 缩进见 A16（首行 420，回行顶格） | — | 属主：参考文献 L0 | 10.3.6、#30 |
-| SesEndMark | SES_终结线 | 宋 4 磅 | keepLines；左右缩进各 3532（Word 实测校准）；下边框 single sz=6 | — | — | 10.1.5（本版心目标约 41.25 mm） |
+| SesEndMark | SES_终结线 | 宋 4 磅 | keepLines；左右缩进各 3532（Word 实测校准）；下边框 single sz=8（1 磅） | — | — | 10.1.5（本版心目标约 41.25 mm） |
 | SesHeader | SES_书眉 | 黑 五 | — | — | — | #47 |
 | SesFooter | SES_页码 | 宋 小五 | — | — | — | #48 |
 | TOC1 / TOC2 / TOC3 | toc 1 / toc 2 / toc 3 | 宋 五（含 ASCII 编号） | 右对齐点线制表位 9355；TOC1 段前段后各 1/4 行（25）；TOC2 左缩进 210；TOC3 左缩进 420 | — | — | 10.3.2、图 E.8、#15 |
@@ -260,7 +261,7 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 |---|---|---|---|
 | 书眉字号 | 参考模板为小五、未设黑体 | 五号黑体 | 表 F.1 #47 |
 | 标题字距 | WP4-fix D3 定为插一个全角空格（PDF 已如此实现） | **用字符间距（`rPr/w:spacing` 加宽）实现，文字本身不插空格**：目次/前言/引言两字间 2 个字宽（三号，`w:spacing w:val="640"`，只加在前一个字上）；参考文献逐字 1 个字宽（五号，210，最后一个字不加）；附录标识「附录A」由编号生成，在 A2 L0 的标识 rPr 上加 210。目次条目由渲染器单独生成纯文字，不继承标题 run 的字距 | 原件出版物实测（字间约 2 em / 1 em）；图 E.8 目次条目不带字距。PDF 已冻结，不回改 |
-| 终结线 | dev-plan 定稿表要求用 `docs/素材/终结线.jpg` | 段落下边框（0.75 磅），Word 16.113 实测把左右缩进设为 3532 twips 时线宽约 41.3 mm（当前版心 165 mm 的四分之一）；原件版心较窄，实测线宽 40.3 mm | 原图 117×25 px，印刷仅 72 dpi；用 OOXML 边框复现粗实线 |
+| 终结线 | dev-plan 定稿表要求用 `docs/素材/终结线.jpg` | 段落下边框（1 磅），Word 16.113 实测把左右缩进设为 3532 twips 时线长约 41.3 mm（当前版心 165 mm 的四分之一）；原件版心较窄，实测线长 40.3 mm | 原图 117×25 px、72 dpi，黑线仅底部 1 像素，约 1 磅；改粗边框以复现，并避免图片白边 |
 | GB 标志 | `docs/素材/GB标志.png`（152×77 px，印刷约 96 dpi） | 原件封面内嵌的 948×474 px、1 位、600 dpi 位图 | `pdfimages -f 1 -l 1` 提取 |
 | 表格线 | — | 粗 sz=6（0.75 磅）、细 sz=2（0.25 磅） | 原件实测：外框/表头 0.25 mm，内线约 0.1 mm |
 
@@ -292,10 +293,10 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 | A8 | 注X | singleLevel | L0 decimal `注%1：`；左 870 悬挂 450；标识 rPr 黑体 | —（按组实例） |
 | A9 | 示例 | singleLevel | L0 none `示例：`；首行 420；标识 rPr 黑体 | SesExLabel |
 | A10 | 示例X | singleLevel | L0 decimal `示例%1：`；首行 420；标识 rPr 黑体 | —（按组实例） |
-| A11 | 破折号列项 | multilevel | L0 bullet `——`，左 840 悬挂 420；L1 bullet `·` suff=tab，左 1260 悬挂 420 | SesListDash、SesListDot |
-| A12 | 字母列项 | multilevel | L0 lowerLetter `%1）` suff=tab，左 840 悬挂 420；L1 bullet `·` suff=tab，左 1260 悬挂 420 | —（按列表实例） |
-| A13 | 数字列项 | multilevel | L0 decimal `%1）`；L1 bullet `·`（suff、缩进同 A12） | — |
-| A14 / A15 | 旧罗马类型兼容槽 | multilevel | L0 decimal `%1）`；L1 bullet `·`；旧文档的罗马列表降级为数字列项，不再输出罗马编号 | — |
+| A11 | 破折号列项 | multilevel | L0 bullet `——`，左 840 悬挂 420；L1 bullet `·` suff=tab，左 1260 悬挂 420；两级标识 rPr 全字符宋体 | SesListDash、SesListDot |
+| A12 | 字母列项 | multilevel | L0 lowerLetter `%1）` suff=tab，左 840 悬挂 420；L1 bullet `·` suff=tab，左 1260 悬挂 420；两级标识 rPr 全字符宋体 | —（按列表实例） |
+| A13 | 数字列项 | multilevel | L0 decimal `%1）`；L1 bullet `·`（suff、缩进和字体同 A12） | — |
+| A14 / A15 | 旧罗马类型兼容槽 | multilevel | L0 decimal `%1）`；L1 bullet `·`（字体同 A12）；旧文档的罗马列表降级为数字列项，不再输出罗马编号 | — |
 | A16 | 参考文献 | singleLevel | L0 decimal `[%1]　`，编号 rPr 指定宋体；首行 420 | SesBibEntry |
 
 - 标识后的「空一个汉字」用 lvlText 里的全角空格 U+3000，不用 `suff=space`（半角）。
@@ -538,7 +539,7 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
 
 ### 5.10 公式（10.4.3）
 
-- 公式段：P(SesFormula, `<w:r><w:tab/></w:r>` + OMML + `<w:r><w:tab/></w:r>` + 编号文字)。`numbered=false` 时只有第一个制表符和 OMML。
+- 公式段：P(SesFormula, `<w:r><w:tab/></w:r>` + OMML + `<w:r><w:tab/></w:r>` + 编号文字)。编号沿用 Resolver 的数字/字母内容，把外层半角圆括号统一写为中文圆括号「（…）」，整段编号 run 的四类 `rFonts` 均指定宋体，避免英文字母和数字回退为 Times New Roman。`numbered=false` 时只有第一个制表符和 OMML。
 - `formulaOmml` 缺该公式：写 LaTeX 源码文字，记 `formula-missing-omml` warning。
 - 式中：`whereList` 非空时，先 P(SesWhereLabel, 「式中：」)，再每项一段 SesWhereItem：首行起于 420；符号后接一个制表位跳到破折号位置 `d`；「——」后接释义；回行对齐释义起点。`d` = 420 + 本组最长符号宽度 + 210（符号宽按汉字 1 字、ASCII 0.5 字估算）；段落 `tabs` 写 `d`，左缩进 = d + 420（「——」宽 2 字），悬挂 = 左缩进 − 420。
 
@@ -824,7 +825,7 @@ docProps 的标题取 `meta.title`（缺失为空串），时间取 `opts.create
 |---|---|
 | 图 | P(SesFigure, 「〔图片占位〕」) → 图的 `notes`（§5.7，作用域为该图）→ 图题：正文 P(SesFigCap, caption)；附录 P(SesAppFigCap, caption) + 本附录的 A5 实例 |
 | 表 | 表题：正文 P(SesTblCap, caption)；附录 P(SesAppTblCap, caption) + 本附录的 A6 实例 → P(SesTableCenter, 「〔表格占位〕」)；单元格内容与表注本包不输出 |
-| 公式 | P(SesFormula, `<w:r><w:tab/></w:r>` + 「〔公式占位〕」；`numbered` 时再接 `<w:r><w:tab/></w:r>` + `labels[id].label`)；编号公式缺 label 时不写编号并记 `label-missing`；式中本包不输出 |
+| 公式 | P(SesFormula, 首个制表位 + 「〔公式占位〕」；`numbered` 时再接第二个制表位和中文圆括号编号，编号 run 显式宋体)；编号公式缺 label 时不写编号并记 `label-missing`；式中本包不输出 |
 
 `orientation` 本包忽略；`captionEn` 不输出（§5.8、§5.9）。
 

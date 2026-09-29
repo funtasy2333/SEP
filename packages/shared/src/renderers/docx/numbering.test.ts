@@ -141,9 +141,21 @@ describe('numbering.ts：静态部分（16 个 abstractNum + 8 个固定实例�
     expect(lvlAttr(lv.get(0)!, 'w:lvlText')).toBe('——')
     expect(lvlAttr(lv.get(0)!, 'w:suff')).toBe('nothing')
     expect(lvlInd(lv.get(0)!)).toEqual({ 'w:left': '840', 'w:hanging': '420' })
+    expect(lvlRFontsAttrs(lv.get(0)!)).toEqual({
+      'w:ascii': '宋体',
+      'w:eastAsia': '宋体',
+      'w:hAnsi': '宋体',
+      'w:cs': '宋体',
+    })
     expect(lvlAttr(lv.get(1)!, 'w:lvlText')).toBe('·')
     expect(lvlAttr(lv.get(1)!, 'w:suff')).toBe('tab')
     expect(lvlInd(lv.get(1)!)).toEqual({ 'w:left': '1260', 'w:hanging': '420' })
+    expect(lvlRFontsAttrs(lv.get(1)!)).toEqual({
+      'w:ascii': '宋体',
+      'w:eastAsia': '宋体',
+      'w:hAnsi': '宋体',
+      'w:cs': '宋体',
+    })
   })
 
   it('A12–A15：首层字母/数字用全角右括号，次层统一用间隔号', () => {
@@ -163,6 +175,14 @@ describe('numbering.ts：静态部分（16 个 abstractNum + 8 个固定实例�
       expect(lvlAttr(lv.get(1)!, 'w:lvlText')).toBe('·')
       expect(lvlAttr(lv.get(1)!, 'w:suff')).toBe('tab')
       expect(lvlInd(lv.get(1)!)).toEqual({ 'w:left': '1260', 'w:hanging': '420' })
+      for (const ilvl of [0, 1]) {
+        expect(lvlRFontsAttrs(lv.get(ilvl)!)).toEqual({
+          'w:ascii': '宋体',
+          'w:eastAsia': '宋体',
+          'w:hAnsi': '宋体',
+          'w:cs': '宋体',
+        })
+      }
     }
     expect(xml).not.toMatch(/w:val="(?:lowerRoman|upperRoman)"/)
   })

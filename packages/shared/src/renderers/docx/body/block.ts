@@ -8,7 +8,7 @@
  */
 
 import type { IRBlock, IRExample, IRFigure, IRFormula, IRList, IRNote, IRParagraph, IRTable, NodeId } from '../../../ir/types'
-import { ABSTRACT_NUM_ID, listAbstractNumId } from '../numbering'
+import { ABSTRACT_NUM_ID, listAbstractNumId, RPR_SONG } from '../numbering'
 import { emitParagraph, warn, type RenderContext } from './context'
 import { plainRun, renderInlines, tabRun } from './inline'
 
@@ -205,6 +205,12 @@ function renderTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx): string
   return out
 }
 
+function fullWidthFormulaLabel(label: string): string {
+  const wrapped = /^(?:\((.*)\)|（(.*)）)$/.exec(label)
+  const inner = wrapped ? (wrapped[1] ?? wrapped[2]) : label
+  return `（${inner}）`
+}
+
 function renderFormula(ctx: RenderContext, formula: IRFormula): string {
   let runs = tabRun() + plainRun('〔公式占位〕')
   if (formula.numbered) {
@@ -212,7 +218,7 @@ function renderFormula(ctx: RenderContext, formula: IRFormula): string {
     if (label === undefined) {
       warn(ctx, 'label-missing', `公式 "${formula.id}" 需要编号但 labels 中没有 label，不写编号`, formula.id)
     } else {
-      runs += tabRun() + plainRun(label)
+      runs += tabRun() + plainRun(fullWidthFormulaLabel(label), RPR_SONG)
     }
   }
   // 公式不使用 Word 原生编号（§4.5），SesFormula 不是属主样式、不写 numPr，不记入 §4.7 追踪
