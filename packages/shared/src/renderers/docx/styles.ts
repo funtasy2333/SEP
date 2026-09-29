@@ -52,6 +52,8 @@ const IND_NOTEN_CONT = '<w:ind w:left="870" w:firstLine="0"/>'
 // Word 16.113 会把段落底边框在两端各延伸约 0.5 mm；3532 的实测线宽约 41.3 mm，
 // 对应 165 mm 版心的 1/4（§5.13）。
 const IND_END_MARK = '<w:ind w:left="3532" w:right="3532"/>'
+/** 横排 252 mm 版心的 1/4 终结线，扣除 Word 边框两端各约 0.5 mm 的延伸。 */
+const IND_END_MARK_LANDSCAPE = '<w:ind w:left="5415" w:right="5415"/>'
 const IND_TOC2 = '<w:ind w:left="210" w:firstLine="0"/>'
 const IND_TOC3 = '<w:ind w:left="420" w:firstLine="0"/>'
 
@@ -287,6 +289,14 @@ const STYLE_SPECS: readonly StyleSpec[] = [
     sz: 8, // 4 磅（字面量，非六个标准中文字号之一）
     keepLines: true,
     ind: IND_END_MARK,
+    pBdr: PBDR_END_MARK,
+  },
+  {
+    id: 'SesEndMarkLandscape',
+    name: 'SES_横排终结线',
+    sz: 8,
+    keepLines: true,
+    ind: IND_END_MARK_LANDSCAPE,
     pBdr: PBDR_END_MARK,
   },
   { id: 'SesHeader', name: 'SES_书眉', rFonts: 'hei' },

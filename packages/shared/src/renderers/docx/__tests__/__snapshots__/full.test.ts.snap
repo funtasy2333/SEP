@@ -61,10 +61,18 @@ SesClause1 │ 4.2 │ 详细要求
 SesNoTitle2 │ 4.2.1 │ 无题条内容，见图1、公式(1)。
 SesClause2 │ 4.2.2 │ 性能
 SesTblCap │ 表1 │ 性能指标
-SesTableCenter │ — │ 〔表格占位〕
-SesFigure │ — │ 〔图片占位〕
+┆SesTableCenter │ — │ 项目
+┆SesTableCenter │ — │ 指标
+┆SesTableCenter │ — │ 精度
+┆SesTableCenter │ — │ 0.1
+┆SesTableNote │ 注： │ 表内的注。
+SesFigure │ — │ 〔图片缺失〕
 SesFigCap │ 图1 │ 系统架构图
-SesFormula │ — │ ⇥〔公式占位〕⇥（1）
+SesFormula │ — │ ⇥E = mc^2⇥（1）
+SesWhereLabel │ — │ 式中：
+SesWhereItem │ — │ E⇥——能量，单位为焦耳（J）
+SesWhereItem │ — │ m⇥——质量
+SesWhereItem │ — │ c⇥——光速。
 SesPara │ — │ 引用文献[1]。
 — │ — │
 § type=oddPage pgNumType=decimal start=1 orient=— refs=4
@@ -74,11 +82,12 @@ SesAppendixTitle │ — │ 附加技术内容
 SesAppClause1 │ A.1 │ 附录条
 SesPara │ — │ 附录正文。
 SesAppClause1 │ A.2 │ 附录图表
-SesFigure │ — │ 〔图片占位〕
+SesFigure │ — │ 〔图片缺失〕
 SesAppFigCap │ 图A.1 │ 附录图
 SesAppTblCap │ 表A.1 │ 附录表
-SesTableCenter │ — │ 〔表格占位〕
-SesFormula │ — │ ⇥〔公式占位〕⇥（A.1）
+┆SesTableCenter │ — │ 列
+┆SesTableText │ — │ 值
+SesFormula │ — │ ⇥x = y⇥（A.1）
 — │ — │
 § type=nextPage pgNumType=decimal start=— orient=— refs=4
 SesAppendix │ 附录B │

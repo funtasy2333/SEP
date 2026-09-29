@@ -120,6 +120,7 @@ pnpm build
 | [Vue Router](https://github.com/vuejs/router) | Vue 官方路由库 |
 | [JSZip](https://github.com/Stuk/jszip) | JavaScript ZIP 压缩/解压库 |
 | [KaTeX](https://github.com/KaTeX/KaTeX) | 快速的数学公式排版库 |
+| [mathml2omml](https://github.com/fiduswriter/mathml2omml) | KaTeX MathML 转 Word OMML；LGPL-3.0-or-later，按需动态加载 |
 | [Axios](https://github.com/axios/axios) | HTTP 客户端 |
 | [diff](https://github.com/kpdecker/jsdiff) | JavaScript 文本差异比对库 |
 

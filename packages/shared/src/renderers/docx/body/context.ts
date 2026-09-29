@@ -13,6 +13,8 @@ import type { NodeId, ResolvedLabel } from '../../../ir/types'
 import { createNumberingAllocator, type NumberingAllocator } from '../numbering'
 import { OWNER_STYLE_IDS } from '../styles'
 import type { DocxBookmark, DocxPackage } from '../types'
+import type { DocxRenderOptions } from '../types'
+import type { DocxRelatedPart } from '../package'
 import { escapeXmlAttr, numPr as numPrXml, pPr, type XmlChild } from '../xml'
 
 /** §4.7 render.ts 导出的追踪类型；本文件是它的唯一实现来源，render.ts 直接 re-export，
@@ -28,13 +30,23 @@ export interface RenderContext {
   readonly warnings: DocxPackage['warnings']
   readonly numbered: NumberedParagraphTrace[]
   readonly bookmarksByNodeId: ReadonlyMap<NodeId, DocxBookmark>
+  readonly resources: Pick<DocxRenderOptions, 'images' | 'formulaOmml'>
+  readonly relatedParts: DocxRelatedPart[]
+  allocateImage(): { relationshipId: string; mediaIndex: number }
 }
 
 export function createRenderContext(
   labels: Record<NodeId, ResolvedLabel>,
   bookmarksByNodeId: ReadonlyMap<NodeId, DocxBookmark> = new Map(),
+  resources: Pick<DocxRenderOptions, 'images' | 'formulaOmml'> = { images: {}, formulaOmml: {} },
+  allocateRelId: () => string = () => { throw new Error('DOCX 图片关系 ID 分配器尚未配置') },
 ): RenderContext {
-  return { labels, numbering: createNumberingAllocator(), warnings: [], numbered: [], bookmarksByNodeId }
+  let mediaIndex = 0
+  return {
+    labels, numbering: createNumberingAllocator(), warnings: [], numbered: [], bookmarksByNodeId,
+    resources, relatedParts: [],
+    allocateImage() { return { relationshipId: allocateRelId(), mediaIndex: ++mediaIndex } },
+  }
 }
 
 export function warn(ctx: RenderContext, code: string, message: string, nodeId?: NodeId): void {

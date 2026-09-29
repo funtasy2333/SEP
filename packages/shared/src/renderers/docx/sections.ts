@@ -40,9 +40,10 @@ interface SectionProps {
   pgNumType?: PgNumType
   /** 封面节没有页眉页脚引用（首节无引用即无页眉页脚，§2.2） */
   withHeaderFooter: boolean
+  landscape?: boolean
 }
 
-/** §2.2 节序表：每种节固定的 type/pgNumType/页眉页脚引用（不含横排节，WP7.4） */
+/** §2.2 节序表：语义节的 type/pgNumType/页眉页脚引用；横排由 startSection 的选项派生。 */
 export function sectionPropsFor(kind: SectionKind): SectionProps {
   switch (kind) {
     case 'cover':
@@ -78,7 +79,9 @@ function sectPrXml(props: SectionProps, relIds: HeaderFooterRelIds): string {
     children.push(['footerReference', `<w:footerReference w:type="even" r:id="${relIds.footer2}"/>`])
   }
   children.push(['type', `<w:type w:val="${props.type}"/>`])
-  children.push(['pgSz', `<w:pgSz w:w="${PAGE_W}" w:h="${PAGE_H}"/>`])
+  children.push(['pgSz', props.landscape
+    ? `<w:pgSz w:w="${PAGE_H}" w:h="${PAGE_W}" w:orient="landscape"/>`
+    : `<w:pgSz w:w="${PAGE_W}" w:h="${PAGE_H}"/>`])
   children.push(['pgMar', pgMarXml()])
   if (props.pgNumType) {
     children.push(['pgNumType', `<w:pgNumType w:fmt="${props.pgNumType.fmt}"${props.pgNumType.start ? ' w:start="1"' : ''}/>`])
@@ -96,7 +99,7 @@ export interface SectionManager {
    * 结束当前节（如果有）、开始 kind 指定的新节：返回「上一节」的分节空段 XML（调用方需要把它拼在
    * 新节内容之前）；第一次调用（没有「上一节」）返回空串。
    */
-  startSection(kind: SectionKind): string
+  startSection(kind: SectionKind, options?: { continuation?: boolean; landscape?: boolean }): string
   /** 渲染结束后取最后一节的 sectPr（w:body 的最后一个子元素，不包在分节空段里） */
   finalSectPr(): string
 }
@@ -105,9 +108,12 @@ export function createSectionManager(relIds: HeaderFooterRelIds): SectionManager
   let current: SectionProps | undefined
 
   return {
-    startSection(kind) {
+    startSection(kind, options) {
       const closing = current ? sectionEmptyParagraphXml(current, relIds) : ''
-      current = sectionPropsFor(kind)
+      const props = sectionPropsFor(kind)
+      current = options?.continuation
+        ? { ...props, type: 'nextPage', pgNumType: props.pgNumType && { fmt: props.pgNumType.fmt }, landscape: options.landscape }
+        : props
       return closing
     },
     finalSectPr() {

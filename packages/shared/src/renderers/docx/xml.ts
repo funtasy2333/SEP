@@ -130,6 +130,17 @@ const CHILD_ORDER_LITERAL: Record<string, ChildOrderSpec> = {
   tbl: ['tblPr', 'tblGrid', 'tr'],
   tr: ['trPr', 'tc'],
   tcPr: ['cnfStyle', 'tcW', 'gridSpan', 'hMerge', 'vMerge', 'tcBorders', 'shd', 'noWrap', 'tcMar', 'textDirection', 'tcFitText', 'vAlign', 'hideMark'],
+  tblPr: [
+    'tblStyle', 'tblpPr', 'tblOverlap', 'bidiVisual', 'tblStyleRowBandSize', 'tblStyleColBandSize',
+    'tblW', 'jc', 'tblCellSpacing', 'tblInd', 'tblBorders', 'shd', 'tblLayout', 'tblCellMar',
+    'tblLook', 'tblCaption', 'tblDescription',
+  ],
+  trPr: [
+    'cnfStyle', 'divId', 'gridBefore', 'gridAfter', 'wBefore', 'wAfter', 'cantSplit', 'trHeight',
+    'tblHeader', 'tblCellSpacing', 'jc', 'hidden', 'ins', 'del', 'trPrChange',
+  ],
+  tblBorders: ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'],
+  tcBorders: ['top', 'left', 'bottom', 'right', 'insideH', 'insideV', 'start', 'end', 'tl2br', 'tr2bl'],
   // ---- WP7.2 补 ----
   numPr: ['ilvl', 'numId'],
   abstractNum: ['nsid', 'multiLevelType', 'tmpl', 'name', 'styleLink', 'numStyleLink', 'lvl'],
@@ -238,6 +249,18 @@ export function style(children: readonly XmlChild[], attrs?: XmlAttrs): string {
 }
 export function tcPr(children: readonly XmlChild[], attrs?: XmlAttrs): string {
   return orderedElement('tcPr', children, attrs)
+}
+export function tblPr(children: readonly XmlChild[], attrs?: XmlAttrs): string {
+  return orderedElement('tblPr', children, attrs)
+}
+export function trPr(children: readonly XmlChild[], attrs?: XmlAttrs): string {
+  return orderedElement('trPr', children, attrs)
+}
+export function tblBorders(children: readonly XmlChild[], attrs?: XmlAttrs): string {
+  return orderedElement('tblBorders', children, attrs)
+}
+export function tcBorders(children: readonly XmlChild[], attrs?: XmlAttrs): string {
+  return orderedElement('tcBorders', children, attrs)
 }
 export function tbl(children: readonly XmlChild[], attrs?: XmlAttrs): string {
   return orderedElement('tbl', children, attrs)

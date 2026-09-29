@@ -19,7 +19,10 @@ const SONG_FONT_ATTRS = {
 function renderFormula(label?: string): { xml: string; warnings: ReturnType<typeof createRenderContext>['warnings'] } {
   const labels: Record<NodeId, ResolvedLabel> = {}
   if (label !== undefined) labels['formula-1'] = { label, xmlId: 'formula_1', refText: `公式${label}` }
-  const ctx = createRenderContext(labels)
+  const ctx = createRenderContext(labels, new Map(), {
+    images: {},
+    formulaOmml: { 'formula-1': '<m:oMath><m:r><m:t>x=1</m:t></m:r></m:oMath>' },
+  })
   const formula: IRFormula = { kind: 'formula', id: 'formula-1', latex: 'x=1', numbered: true, whereList: [] }
   return { xml: renderBlock(ctx, formula, { scopeKey: 'chapter-1' }), warnings: ctx.warnings }
 }
@@ -29,7 +32,7 @@ function textContent(element: XmlElement): string {
 }
 
 function paragraph(xml: string): XmlElement {
-  const root = parseXml(`<w:root xmlns:w="${W_NS}">${xml}</w:root>`)
+  const root = parseXml(`<w:root xmlns:w="${W_NS}" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">${xml}</w:root>`)
   return findChild(root, 'w:p')!
 }
 
@@ -62,7 +65,7 @@ describe('renderFormula：编号标签', () => {
       nodeId: 'formula-1',
       message: '公式 "formula-1" 需要编号但 labels 中没有 label，不写编号',
     }])
-    expect(textContent(paragraphXml)).toContain('〔公式占位〕')
+    expect(textContent(paragraphXml)).toContain('x=1')
     expect(textContent(paragraphXml)).not.toContain('（')
   })
 })

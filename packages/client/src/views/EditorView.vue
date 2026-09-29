@@ -278,7 +278,7 @@
         >
           <span class="ec-glyph">W</span>
           <span class="ec-label">DOCX</span>
-          <span class="ec-sub">{{ exportingFormat === 'docx' ? '正在生成…' : '测试版 · 图表公式暂为占位' }}</span>
+          <span class="ec-sub">{{ exportingFormat === 'docx' ? '正在生成…' : '测试版 · 支持图表公式与横排' }}</span>
         </button>
         <button
           v-if="capabilities.htmlToPdf"

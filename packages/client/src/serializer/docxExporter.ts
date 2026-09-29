@@ -1,6 +1,6 @@
 /**
  * DOCX client 薄壳：ProseMirror → IR → Resolver → shared DOCX renderer → JSZip。
- * 图片与公式资源仍按 WP7.4 之前的约定留空。
+ * 图片由 client 解析为字节，公式由 KaTeX/MathML 转为 OMML 后交给 shared 渲染器。
  */
 
 import JSZip from 'jszip'
@@ -17,6 +17,8 @@ import {
   type IRDoc,
   type PMJsonNode,
 } from '@ses/shared'
+import { collectImageResources, type ImageResourceOptions } from './imageResources'
+import { convertFormulasToOmml } from './formulaOmml'
 
 export const DOCX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const ZIP_DATE = new Date(Date.UTC(1980, 0, 1))
@@ -32,6 +34,7 @@ export interface BuildDocxOptions {
   documentMeta?: DocumentMeta
   stage?: string
   createdAt?: string
+  imageResources?: ImageResourceOptions
 }
 
 /** 文档库元数据中所有非 undefined 字段都覆盖 pmToIr 结果，空字符串也保留。 */
@@ -78,15 +81,23 @@ export async function buildDocxBlob(options: BuildDocxOptions): Promise<{
   warnings: DocxPackage['warnings']
 }> {
   const { doc, labels } = prepareDocxInput(options.pmDoc, options.documentMeta)
+  const [imageResult, formulaResult] = await Promise.all([
+    collectImageResources(doc, options.imageResources),
+    convertFormulasToOmml(doc),
+  ])
   const docxPackage = renderDocx(doc, labels, {
-    images: {},
-    formulaOmml: {},
+    images: imageResult.images,
+    formulaOmml: formulaResult.formulaOmml,
     stage: resolveDocumentStage(options.stage),
     createdAt: options.createdAt ?? new Date().toISOString(),
   })
   return {
     blob: await packageDocx(docxPackage),
-    warnings: docxPackage.warnings,
+    warnings: [
+      ...formulaResult.warnings,
+      ...imageResult.diagnostics.map(({ nodeId, message }) => ({ code: 'image-resource-failed', nodeId, message })),
+      ...docxPackage.warnings,
+    ],
   }
 }
 
