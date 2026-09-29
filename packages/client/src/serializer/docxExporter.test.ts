@@ -73,7 +73,7 @@ describe('DOCX client exporter', () => {
     expect(await zip.file('word/media/pixel.png')!.async('uint8array')).toEqual(new Uint8Array([1, 2, 3]))
   })
 
-  it('同一包重复打包得到相同字节，且不产生隐式目录条目', async () => {
+  it('同一包重复打包得到相同字节，且条目日期固定为 UTC、无隐式目录', async () => {
     const pkg = {
       parts: { 'word/document.xml': '<document/>', '[Content_Types].xml': '<types/>' },
       binaries: { 'word/media/pixel.png': 'AQID' },
@@ -84,6 +84,9 @@ describe('DOCX client exporter', () => {
     expect(new Uint8Array(await first.arrayBuffer())).toEqual(new Uint8Array(await second.arrayBuffer()))
     const zip = await readZip(first)
     expect(Object.keys(zip.files)).toEqual(['[Content_Types].xml', 'word/document.xml', 'word/media/pixel.png'])
+    expect(Object.values(zip.files).map(file => file.date.toISOString())).toEqual(
+      Array(3).fill('1980-01-01T00:00:00.000Z'),
+    )
   })
 
   it('通过真实 shared 渲染链生成带创建时间和文档标题的 DOCX', async () => {

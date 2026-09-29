@@ -19,7 +19,7 @@ import {
 } from '@ses/shared'
 
 export const DOCX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-const ZIP_DATE = new Date(1980, 0, 1)
+const ZIP_DATE = new Date(Date.UTC(1980, 0, 1))
 
 export interface PreparedDocxInput {
   doc: IRDoc
