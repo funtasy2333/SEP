@@ -976,7 +976,7 @@ Python 3 + PyMuPDF，本地核对用，不是项目依赖，不进 CI。
 | 脚本 | 用法 | 要求 |
 |---|---|---|
 | `pack.py` | `pack.py <golden 目录> <out.docx>` | 把目录打成 zip：`[Content_Types].xml` 放第一个，其余按路径排序；`.b64` 文件解码后去掉该后缀；条目时间固定为 1980-01-01 |
-| `word_pdf.py` | `word_pdf.py <in.docx> <out.pdf>` | 复制到 `~/Library/Containers/com.microsoft.Word/Data/ses-check/`（沙盒内，免授权弹窗）；把**副本**的 `settings.xml` 中 `w:updateFields` 和 `document.xml` 中 `w:dirty="true"` 都删去，避免 Word 的「更新域」提示卡住自动化；AppleScript：打开 → 兼容旧 spike 的原生目次更新 → 更新所有域（含 WP7.3 的 `PAGEREF`）→ 另存为 PDF → 不保存关闭；把 PDF 复制到 `out.pdf`；120 秒无结果则报错退出 |
+| `word_pdf.py` | `word_pdf.py <in.docx> <out.pdf>` | 复制到 `~/Library/Containers/com.microsoft.Word/Data/ses-check/`（沙盒内，免授权弹窗）；把**副本**的 `settings.xml` 中 `w:updateFields` 和 `document.xml` 中 `w:dirty="true"` 都删去，避免 Word 的「更新域」提示卡住自动化；AppleScript：打开并核对副本路径 → 兼容旧 spike 的原生目次更新 → 更新这份文档的所有域（含 WP7.3 的 `PAGEREF`）→ 另存为 PDF → 不保存关闭这份文档；把 PDF 复制到 `out.pdf`；120 秒无结果则报错退出 |
 | `measure.py` | `measure.py <pdf> [--pages 3-9] [--json]` | 300 dpi 灰度渲染，灰度 < 128 为墨迹，连续的墨迹行归为一个「行块」。每页输出：首个行块的字顶与左右范围（有书眉的页即书眉）；第二个行块的字顶（书眉之后的首行或标题）；末个行块底边距纸底（页码）；末个行块距外侧纸边（单数页量右侧，双数页量左侧，页序从 1 起算）。整页无墨迹时输出「空白页」。单位 mm，保留一位小数 |
 | `expect.py`（WP7.2） | `expect.py <pdf>` | PyMuPDF 按 span 取文字：同一页上基线（span `origin` 的 y）相差不到 1 pt 的 span 归为一个「视觉行」，行内按 x 排序拼接。在视觉行中找三种期望标记（§9 WP7.2）：「〔期望 X〕」——本行去掉全部空白后以 X（同样去掉空白）开头，且紧接 X 的字符不是数字或「.」；「〔前段期望 X〕」——同一页的上一个视觉行去掉空白后等于 X；「〔附录期望 X〕」——同一页往上第二个视觉行去掉空白后等于 X。逐条输出通过或失败及实际文字；有失败、或一个标记也没找到时退出码为 1 |
 | `README.md` | — | 各脚本的用法、Word 首次运行的授权步骤、下表基准值 |

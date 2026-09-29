@@ -10,7 +10,7 @@
 2. 在这份副本里删掉 word/settings.xml 的 `<w:updateFields .../>` 和 document.xml 的
    `w:dirty="true"`：两者任一保留都可能使 Word 弹出「是否更新域」对话框；这里只是核对脚本
    用的副本临时去掉，不影响交付稿；
-3. AppleScript：打开副本 → 有 Word 原生目次就更新（兼容旧 spike）→ 更新所有域（WP7.3 的
+3. AppleScript：打开并核对副本的完整路径，随后只操作这份文档 → 有 Word 原生目次就更新（兼容旧 spike）→ 更新所有域（WP7.3 的
    目次页码是 PAGEREF 域）→
    另存为 PDF → 关闭且不保存；
 4. 把生成的 PDF 复制到 <out.pdf>；
@@ -63,18 +63,22 @@ def strip_field_update_triggers(docx_path):
 def applescript_for(sandbox_docx, sandbox_pdf):
     # 逐行传给 osascript -e（与 spike/wp7-docx-word/README.md 里实测可行的写法一致）；
     # 目次更新包一层 try：WP7.3 固定目次和 minimal 等没有原生目录的 fixture 也能正常走完。
+    doc_name = os.path.basename(sandbox_docx)
     return [
         'tell application "Microsoft Word"',
         f'open (POSIX file "{sandbox_docx}")',
+        f'set targetDoc to document "{doc_name}"',
+        'set openedPath to POSIX path of (full name of targetDoc as alias)',
+        f'if openedPath is not "{sandbox_docx}" then error "Word opened a different document"',
         'try',
-        'update (table of contents 1 of active document)',
+        'update (table of contents 1 of targetDoc)',
         'end try',
-        'set docFields to fields of active document',
+        'set docFields to fields of targetDoc',
         'repeat with docField in docFields',
         'update field docField',
         'end repeat',
-        f'save as active document file name "{sandbox_pdf}" file format format PDF',
-        'close active document saving no',
+        f'save as targetDoc file name "{sandbox_pdf}" file format format PDF',
+        'close targetDoc saving no',
         'end tell',
     ]
 
