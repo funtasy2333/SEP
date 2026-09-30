@@ -7,6 +7,7 @@
  */
 
 import type { Node as PMNode } from '@tiptap/pm/model'
+import { normalizePageOrientation } from '../utils/orientation'
 
 /** 缩进辅助 */
 function indent(depth: number): string {
@@ -552,7 +553,11 @@ function serializeBlockNode(lines: string[], node: PMNode, depth: number) {
 /** 序列化表格 */
 function serializeTable(lines: string[], node: PMNode, depth: number) {
   const id = node.attrs.id
-  lines.push(`${indent(depth)}<table-wrap${buildAttrs({ id: id || undefined })}>`)
+  const orientation = normalizePageOrientation(node.attrs.orientation)
+  lines.push(`${indent(depth)}<table-wrap${buildAttrs({
+    id: id || undefined,
+    orientation: orientation === 'landscape' ? orientation : undefined,
+  })}>`)
 
   node.forEach((child) => {
     switch (child.type.name) {
@@ -618,7 +623,11 @@ function serializeCellContent(cell: PMNode): string {
 /** 序列化图 */
 function serializeFigure(lines: string[], node: PMNode, depth: number) {
   const id = node.attrs.id
-  lines.push(`${indent(depth)}<fig${buildAttrs({ id: id || undefined })}>`)
+  const orientation = normalizePageOrientation(node.attrs.orientation)
+  lines.push(`${indent(depth)}<fig${buildAttrs({
+    id: id || undefined,
+    orientation: orientation === 'landscape' ? orientation : undefined,
+  })}>`)
 
   node.forEach((child) => {
     switch (child.type.name) {

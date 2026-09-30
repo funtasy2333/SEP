@@ -6,6 +6,8 @@
  * 输出：ProseMirror 兼容的 JSON 文档结构
  */
 
+import { readPageOrientation } from '../utils/orientation'
+
 /** ProseMirror JSON 节点类型 */
 export interface PMJsonNode {
   type: string
@@ -467,7 +469,7 @@ function parseBlockElement(el: Element): PMJsonNode | null {
 function parseTableWrap(el: Element): PMJsonNode {
   const stdTable: PMJsonNode = {
     type: 'stdTable',
-    attrs: { id: el.getAttribute('id') },
+    attrs: { id: el.getAttribute('id'), orientation: readPageOrientation(el) },
     content: [],
   }
 
@@ -548,7 +550,7 @@ function parseHtmlTable(el: Element): PMJsonNode {
 function parseFig(el: Element): PMJsonNode {
   const figure: PMJsonNode = {
     type: 'figure',
-    attrs: { id: el.getAttribute('id') },
+    attrs: { id: el.getAttribute('id'), orientation: readPageOrientation(el) },
     content: [],
   }
 
