@@ -67,7 +67,7 @@ SEP/
 
 | 依赖项  | 最低版本 |
 | ------- | -------- |
-| Node.js | 18.0.0   |
+| Node.js | 20.19.0  |
 | pnpm    | 9.0      |
 
 > 详细的环境配置说明请参阅 [ENVIRONMENT.md](ENVIRONMENT.md)
