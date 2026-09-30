@@ -54,6 +54,15 @@ describe('paginateTable', () => {
     expect(segment?.some((item) => item.id === 'row-20')).toBe(true)
   })
 
+  it('高低不同行交错时，均衡切分不把末段挤过单页预算', () => {
+    const uneven = [row(1, 'x'.repeat(1530)), row(2, 'x'.repeat(400)),
+      row(3, 'x'.repeat(2580)), row(4, 'x'.repeat(660))]
+    const segments = paginateTable(table(uneven)).bodySegments
+    expect(segments.map((part) => part.map((item) => item.id))).toEqual([
+      ['row-1', 'row-2'], ['row-3'], ['row-4'],
+    ])
+  })
+
   it('单组内容超出单页预算时显式标记人工分页风险', () => {
     const huge = row(1, '多行内容。'.repeat(1000))
     const paginated = paginateTable(table([huge, row(2)]))
