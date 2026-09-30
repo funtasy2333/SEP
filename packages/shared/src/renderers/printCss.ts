@@ -249,13 +249,14 @@ const CONTENT = `
  *   二级由嵌套再缩进 2 字（marker 4em / 文字 6em，容差从宽）。 —— */
 .ses-list { margin: 4pt 0 4pt 2em; counter-reset: ses-li; }
 .ses-list[data-level="2"], .ses-list-number, .ses-list-dot { margin-left: 4em; }
+.ses-list .ses-list { margin-left: 0; }
 .ses-list-item { position: relative; padding-left: 2em; }
 .ses-list-item::before {
   position: absolute;
   left: 0;
   counter-increment: ses-li;
 }
-.ses-list-dash > .ses-list-item::before { content: "— "; counter-increment: none; }
+.ses-list-dash > .ses-list-item::before { content: "——"; counter-increment: none; }
 .ses-list-dot > .ses-list-item::before { content: "·"; counter-increment: none; }
 .ses-list-number > .ses-list-item::before { content: counter(ses-li) "） "; }
 .ses-list-alpha > .ses-list-item::before { content: counter(ses-li, lower-alpha) "） "; }

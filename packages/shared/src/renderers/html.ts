@@ -647,9 +647,10 @@ function screenStyles(): string {
     .ses-toc-text { color: #0066cc; text-decoration: none; }
     .ses-list { padding-left: 2em; margin: 8px 0; counter-reset: ses-li; }
     .ses-list[data-level="2"], .ses-list-number, .ses-list-dot { padding-left: 4em; }
+    .ses-list .ses-list { padding-left: 0; }
     .ses-list-item { position: relative; padding-left: 2em; margin: 2px 0; }
     .ses-list-item::before { position: absolute; left: 0; counter-increment: ses-li; }
-    .ses-list-dash > .ses-list-item::before { content: "— "; counter-increment: none; }
+    .ses-list-dash > .ses-list-item::before { content: "——"; counter-increment: none; }
     .ses-list-dot > .ses-list-item::before { content: "·"; counter-increment: none; }
     .ses-list-number > .ses-list-item::before { content: counter(ses-li) "） "; }
     .ses-list-alpha > .ses-list-item::before { content: counter(ses-li, lower-alpha) "） "; }
