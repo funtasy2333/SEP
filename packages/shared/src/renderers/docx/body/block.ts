@@ -229,11 +229,38 @@ function renderTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx): string
   const tableBctx = { ...withScope(bctx, table.id), suppressLandscape: true }
   const headerRowCount = Math.max(0, Math.min(Math.floor(table.headerRowCount), table.rows.length))
   const headerRows = table.rows.slice(0, headerRowCount)
+  // A header merge may continue into data rows. Keep every covered row in the first segment so
+  // the original vMerge remains intact; repeated headers in later segments must stop at the
+  // header boundary or they would occupy cells belonging to that segment's first data row.
+  const headerSpanEnd = headerRows.reduce((end, row, rowIndex) => Math.max(end,
+    ...row.cells.map((cell) => rowIndex + cell.rowspan)), headerRowCount)
+  let bodySegments = pagination.bodySegments
+  const coveredBodyRowCount = headerSpanEnd - headerRowCount
+  if (coveredBodyRowCount > 0 && bodySegments.length > 0) {
+    const firstSegment = [...bodySegments[0]!]
+    let nextSegmentIndex = 1
+    while (firstSegment.length < coveredBodyRowCount && nextSegmentIndex < bodySegments.length) {
+      firstSegment.push(...bodySegments[nextSegmentIndex]!)
+      nextSegmentIndex += 1
+    }
+    if (nextSegmentIndex > 1) {
+      warn(ctx, 'table-header-rowspan-pagination',
+        `表格 "${table.id}" 的表头合并跨越表头行数，已将其覆盖的数据行并入首段；首段可能超过分页高度估算`, table.id)
+      bodySegments = [firstSegment, ...bodySegments.slice(nextSegmentIndex)]
+    }
+  }
+  const continuationHeaderRows = headerRows.map((row, rowIndex) => ({
+    ...row,
+    cells: row.cells.map((cell) => {
+      const maxRepeatedRowspan = headerRowCount - rowIndex
+      return cell.rowspan > maxRepeatedRowspan ? { ...cell, rowspan: maxRepeatedRowspan } : cell
+    }),
+  }))
   const columnCount = tableGridColumnCount(table)
   const label = ctx.labels[table.id]?.label
   let out = ''
-  pagination.bodySegments.forEach((bodyRows, index) => {
-    const lastSegment = index === pagination.bodySegments.length - 1
+  bodySegments.forEach((bodyRows, index) => {
+    const lastSegment = index === bodySegments.length - 1
     let segmentCaption = captionXml
     if (index > 0) {
       // 相邻 w:tbl 会被 Word 合并为同一张表；段落级换页同时隔开两个独立片段。
@@ -246,7 +273,7 @@ function renderTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx): string
     }
     out += renderTableGrid(ctx, {
       ...table,
-      rows: [...headerRows, ...bodyRows],
+      rows: [...(index === 0 ? headerRows : continuationHeaderRows), ...bodyRows],
       notes: lastSegment ? table.notes : [],
     }, {
       captionXml: segmentCaption,

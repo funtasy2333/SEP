@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import type { IRFormula, NodeId, ResolvedLabel } from '../../../ir/types'
+import type { IRFormula, IRTable, IRTableRow, NodeId, ResolvedLabel } from '../../../ir/types'
 import { findChild, parseXml, type XmlElement } from '../__tests__/helpers/xmlTree'
 import { renderBlock } from './block'
 import { createRenderContext } from './context'
@@ -34,6 +34,53 @@ function textContent(element: XmlElement): string {
 function paragraph(xml: string): XmlElement {
   const root = parseXml(`<w:root xmlns:w="${W_NS}" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">${xml}</w:root>`)
   return findChild(root, 'w:p')!
+}
+
+function childElements(element: XmlElement, name: string): XmlElement[] {
+  return element.children.filter((child): child is XmlElement => child.kind === 'element' && child.name === name)
+}
+
+function descendants(element: XmlElement, name: string): XmlElement[] {
+  return [
+    ...(element.name === name ? [element] : []),
+    ...element.children.flatMap((child) => child.kind === 'element' ? descendants(child, name) : []),
+  ]
+}
+
+function tableCell(id: string, text: string, options: { header?: boolean; rowspan?: number } = {}): IRTableRow['cells'][number] {
+  return {
+    id, colspan: 1, rowspan: options.rowspan ?? 1, header: options.header ?? false,
+    content: [{ kind: 'paragraph', id: `${id}-p`, content: [{ text }] }],
+  }
+}
+
+function tableWithHeaderRowspan(): IRTable {
+  const header: IRTableRow = {
+    id: 'header-row',
+    cells: [
+      tableCell('merged-header', '分类', { header: true, rowspan: 3 }),
+      tableCell('header-name', '名称', { header: true }),
+      tableCell('header-value', '取值', { header: true }),
+    ],
+  }
+  const bodyRows: IRTableRow[] = Array.from({ length: 64 }, (_, index) => ({
+    id: `body-row-${index + 1}`,
+    // The merged header occupies column 1 in the next two rows. Later rows have all columns.
+    cells: index < 2
+      ? [
+        tableCell(`body-name-${index + 1}`, index === 0 ? '长内容'.repeat(2500) : `名称-${index + 1}`),
+        tableCell(`body-value-${index + 1}`, `取值-${index + 1}`),
+      ]
+      : [
+        tableCell(`body-category-${index + 1}`, `分类-${index + 1}`),
+        tableCell(`body-name-${index + 1}`, `名称-${index + 1}`),
+        tableCell(`body-value-${index + 1}`, `取值-${index + 1}`),
+      ],
+  }))
+  return {
+    kind: 'table', id: 'table-rowspan', caption: [{ text: '跨界表头' }], orientation: 'portrait',
+    headerRowCount: 1, rows: [header, ...bodyRows], notes: [],
+  }
 }
 
 describe('renderFormula：编号标签', () => {
@@ -67,5 +114,33 @@ describe('renderFormula：编号标签', () => {
     }])
     expect(textContent(paragraphXml)).toContain('x=1')
     expect(textContent(paragraphXml)).not.toContain('（')
+  })
+})
+
+describe('renderTable：表头 rowspan 跨越 headerRowCount', () => {
+  it('首段保留合并覆盖行，续段截断重放表头的 rowspan 并保留首行数据列', () => {
+    const ctx = createRenderContext({
+      'table-rowspan': { label: '表1', xmlId: 'table_1', refText: '表1' },
+    })
+    const xml = renderBlock(ctx, tableWithHeaderRowspan(), { scopeKey: 'chapter-1' })
+    const root = parseXml(`<w:root xmlns:w="${W_NS}">${xml}</w:root>`)
+    const tables = descendants(root, 'w:tbl')
+
+    expect(tables.length).toBeGreaterThan(1)
+
+    const firstTableRows = childElements(tables[0]!, 'w:tr')
+    expect(firstTableRows.length).toBeGreaterThanOrEqual(4) // caption, header, and both covered data rows
+    const firstHeaderCells = childElements(firstTableRows[1]!, 'w:tc')
+    expect(findChild(findChild(firstHeaderCells[0]!, 'w:tcPr')!, 'w:vMerge')?.attrs).toEqual({ 'w:val': 'restart' })
+    for (const row of firstTableRows.slice(2, 4)) {
+      expect(findChild(findChild(childElements(row, 'w:tc')[0]!, 'w:tcPr')!, 'w:vMerge')?.attrs).toEqual({})
+    }
+
+    const continuationRows = childElements(tables[1]!, 'w:tr')
+    const continuationHeaderCells = childElements(continuationRows[1]!, 'w:tc')
+    expect(findChild(findChild(continuationHeaderCells[0]!, 'w:tcPr')!, 'w:vMerge')).toBeUndefined()
+    const firstContinuationDataCells = childElements(continuationRows[2]!, 'w:tc')
+    expect(firstContinuationDataCells).toHaveLength(3)
+    expect(textContent(firstContinuationDataCells[0]!)).toMatch(/^分类-/)
   })
 })
