@@ -346,7 +346,7 @@ import VersionPanel from '@/components/version/VersionPanel.vue'
 import { useEditor } from '@tiptap/vue-3'
 import { createEditorExtensions } from '@/extensions/editorExtensions'
 import {
-  serializeToXml, parseXmlToJson,
+  serializeToXml, parseXmlToEditorJson,
   exportSemanticJson, exportSemanticHtml,
   buildPdfExportRequest, buildDocxBlob,
 } from '@/serializer'
@@ -1170,8 +1170,9 @@ function handleXmlFileImport(event: Event) {
   reader.onload = (e) => {
     try {
       const xmlString = e.target?.result as string
-      const pmJson = parseXmlToJson(xmlString)
-      editor.value!.commands.setContent(pmJson)
+      const currentEditor = editor.value!
+      const pmJson = parseXmlToEditorJson(xmlString, currentEditor.schema.topNodeType.name)
+      currentEditor.commands.setContent(pmJson)
       ElMessage.success('XML 文件导入成功')
     } catch (err) {
       ElMessage.error(`XML 导入失败: ${err}`)

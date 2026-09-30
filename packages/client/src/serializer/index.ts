@@ -1,5 +1,5 @@
 export { serializeToXml } from './xmlSerializer'
-export { parseXmlToJson } from './xmlParser'
+export { parseXmlToJson, parseXmlToEditorJson } from './xmlParser'
 export type { PMJsonNode, PMJsonMark } from './xmlParser'
 export { exportSemanticJson } from './jsonExporter'
 export type { SemanticJsonNode } from './jsonExporter'
