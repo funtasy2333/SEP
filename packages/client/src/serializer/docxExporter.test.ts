@@ -104,6 +104,34 @@ describe('DOCX client exporter', () => {
     expect(zip.file('word/document.xml')).not.toBeNull()
   })
 
+  it('将图片字节和 OMML 公式接入真实导出包', async () => {
+    const imageData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6oJ8AAAAASUVORK5CYII='
+    const richDoc: PMJsonNode = {
+      type: 'standardDoc', attrs: { standardType: 'national', titleCn: '图文样稿', standardNo: 'GB/T 12345—2026' },
+      content: [{
+        type: 'chapter', attrs: { nodeId: 'ch1' }, content: [
+          { type: 'chapterTitle', content: [{ type: 'text', text: '范围' }] },
+          { type: 'figure', attrs: { nodeId: 'fig1' }, content: [
+            { type: 'figureImage', attrs: { src: imageData } },
+            { type: 'figureCaption', content: [{ type: 'text', text: '示意图' }] },
+          ] },
+          { type: 'formula', attrs: { nodeId: 'formula1' }, content: [
+            { type: 'formulaContent', content: [{ type: 'text', text: 'x < 0 \\quad A \\& B' }] },
+          ] },
+        ],
+      }],
+    }
+    const { blob, warnings } = await buildDocxBlob({ pmDoc: richDoc, createdAt: '2026-09-29T08:00:00Z' })
+    const zip = await readZip(blob)
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+    expect(documentXml).toContain('<w:drawing')
+    expect(documentXml).toContain('<m:oMath ')
+    expect(documentXml).toContain('&lt;')
+    expect(documentXml).toContain('&amp;')
+    expect(zip.file('word/media/image1.png')).not.toBeNull()
+    expect(warnings.filter((warning) => /^(?:image|formula)/.test(warning.code))).toEqual([])
+  })
+
   it('将同一 DOCX Blob 作为 file 上传并返回 PDF，服务端错误包含响应详情', async () => {
     const docx = new Blob(['docx bytes'], { type: DOCX_MIME_TYPE })
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(

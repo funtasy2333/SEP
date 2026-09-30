@@ -145,6 +145,23 @@
             <button class="tbar-btn" @click="insertStdParagraph()">段落</button>
           </div>
 
+          <!-- 图表方向 -->
+          <div v-if="activeOrientationNodeType()" class="tbar-group" aria-label="图表版面方向">
+            <span class="tbar-label">版面</span>
+            <button
+              class="tbar-btn"
+              :class="{ 'is-active': isActivePageOrientation('portrait') }"
+              title="将所选图或表设为纵向页面"
+              @click="setActivePageOrientation('portrait')"
+            >纵向</button>
+            <button
+              class="tbar-btn"
+              :class="{ 'is-active': isActivePageOrientation('landscape') }"
+              title="将所选图或表设为横向页面"
+              @click="setActivePageOrientation('landscape')"
+            >横向</button>
+          </div>
+
           <!-- 格式 -->
           <div class="tbar-group format-group">
             <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('bold') }"      @click="editor?.chain().focus().toggleBold().run()"><strong>B</strong></button>
@@ -252,7 +269,7 @@
           <li><kbd>/</kbd> 智能插入菜单</li>
         </ul>
         <h4>文档结构</h4>
-        <p>使用左上角"+"按钮添加章节结构（前言、引言、章、附录、参考文献）。使用工具栏按钮插入条、列项、注、示例、公式、表格、图片等内容要素。</p>
+        <p>使用左上角"+"按钮添加章节结构（前言、引言、章、附录、参考文献）。使用工具栏按钮插入条、列项、注、示例、公式、表格、图片等内容要素。选中图或表后，可切换纵向或横向版面。</p>
       </div>
     </el-dialog>
 
@@ -268,7 +285,7 @@
         style="margin-bottom: 14px"
       />
       <p style="margin: 0 0 12px; color: var(--ses-ink-3); font-size: 12px">
-        DOCX 目次：增删章条后需重新导出以更新目次条目；页码由 Word 更新。
+        DOCX 目次：增删章条后需重新导出以更新目次条目；页码由 Word 更新。续表分页请用 Word 校对。
       </p>
       <div class="export-grid">
         <button
@@ -278,7 +295,7 @@
         >
           <span class="ec-glyph">W</span>
           <span class="ec-label">DOCX</span>
-          <span class="ec-sub">{{ exportingFormat === 'docx' ? '正在生成…' : '测试版 · 图表公式暂为占位' }}</span>
+          <span class="ec-sub">{{ exportingFormat === 'docx' ? '正在生成…' : '测试版 · 支持图表公式与横排' }}</span>
         </button>
         <button
           v-if="capabilities.htmlToPdf"
@@ -323,7 +340,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { TextSelection } from '@tiptap/pm/state'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { useRoute, useRouter } from 'vue-router'
 import { useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
@@ -440,6 +457,36 @@ function scheduleAutoSave() {
   autoSaveTimer = setTimeout(() => {
     handleSave()
   }, 3000)
+}
+
+function activeOrientationNodeType(): 'figure' | 'stdTable' | undefined {
+  const currentEditor = editor.value
+  if (!currentEditor) return undefined
+
+  const selection = currentEditor.state.selection
+  if (selection instanceof NodeSelection) {
+    if (selection.node.type.name === 'figure' || selection.node.type.name === 'stdTable') {
+      return selection.node.type.name
+    }
+  }
+
+  for (let depth = selection.$from.depth; depth >= 0; depth -= 1) {
+    const nodeType = selection.$from.node(depth).type.name
+    if (nodeType === 'figure' || nodeType === 'stdTable') return nodeType
+  }
+  return undefined
+}
+
+function isActivePageOrientation(orientation: 'portrait' | 'landscape'): boolean {
+  const nodeType = activeOrientationNodeType()
+  const currentEditor = editor.value
+  if (!nodeType || !currentEditor) return false
+  return currentEditor.getAttributes(nodeType).orientation === orientation
+}
+
+function setActivePageOrientation(orientation: 'portrait' | 'landscape') {
+  const nodeType = activeOrientationNodeType()
+  if (nodeType) editor.value?.chain().focus().updateAttributes(nodeType, { orientation }).run()
 }
 
 const editor = useEditor({

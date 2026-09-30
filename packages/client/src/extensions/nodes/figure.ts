@@ -1,5 +1,6 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
+import { normalizePageOrientation, readPageOrientation } from '../../utils/orientation'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -26,6 +27,13 @@ export const Figure = Node.create({
       id: { default: null },
       /** 自动编号，如 "1", "A.1" */
       number: { default: null },
+      orientation: {
+        default: 'portrait',
+        parseHTML: (element) => readPageOrientation(element),
+        renderHTML: (attributes) => ({
+          'data-orientation': normalizePageOrientation(attributes.orientation),
+        }),
+      },
     }
   },
 

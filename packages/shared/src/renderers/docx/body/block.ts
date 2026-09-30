@@ -1,16 +1,24 @@
 /**
  * 块级要素渲染（docs/wp7-docx-delivery.md §4.4、§5.6–§5.10）。
  *
- * `renderBlock`/`renderBlocks` 是通用块分发入口：段落、列项、图/表/公式（WP7.2 只有占位段）、
+ * `renderBlock`/`renderBlocks` 是通用块分发入口：段落、列项、图/表/公式、
  * 注、示例都从这里分发，互相递归（列表项内容可以是段落或嵌套列表；注/示例内容可以是任意块）。
  *
  * 同构纯 TypeScript，不引用浏览器或 Node 专有 API。
  */
 
-import type { IRBlock, IRExample, IRFigure, IRFormula, IRList, IRNote, IRParagraph, IRTable, NodeId } from '../../../ir/types'
-import { ABSTRACT_NUM_ID, listAbstractNumId, RPR_SONG } from '../numbering'
+import type { IRBlock, IRExample, IRFigure, IRList, IRNote, IRParagraph, IRTable, NodeId } from '../../../ir/types'
+import { ABSTRACT_NUM_ID, listAbstractNumId } from '../numbering'
 import { emitParagraph, warn, type RenderContext } from './context'
-import { plainRun, renderInlines, tabRun } from './inline'
+import { plainRun, renderInlines } from './inline'
+import { renderFigureImage } from './figure'
+import { renderTableGrid, tableGridColumnCount } from './table'
+import { paginateTable } from './tablePagination'
+import { renderFormula } from './formula'
+
+/** render.ts 在完整块之间解析这两个内部标记，连续横排块由此共用一节。 */
+export const LANDSCAPE_START = '<!--SES:landscape:start-->'
+export const LANDSCAPE_END = '<!--SES:landscape:end-->'
 
 /** 当前所处的附录（§4.4 附录图/表按需实例；无值表示正文/前言/引言） */
 export interface AppendixContext {
@@ -22,6 +30,8 @@ export interface BlockCtx {
   /** 注/示例分组的作用域键（§5.7），随渲染的容器切换（章/条/附录/术语条目/图/表/注/示例自身……） */
   scopeKey: NodeId
   appendix?: AppendixContext
+  /** 表格/图注等完整要素内部不得插入分节。 */
+  suppressLandscape?: boolean
 }
 
 function withScope(bctx: BlockCtx, scopeKey: NodeId): BlockCtx {
@@ -143,11 +153,13 @@ function renderContentBlocks(ctx: RenderContext, blocks: IRBlock[], bctx: BlockC
   return out
 }
 
-function renderNote(ctx: RenderContext, note: IRNote, bctx: BlockCtx): string {
+function renderNote(ctx: RenderContext, note: IRNote, bctx: BlockCtx, inTable = false): string {
   const { isSingle, ordinal } = resolveGroupLabel(ctx, note.id, '注')
-  const firstStyleId = isSingle ? 'SesNote' : 'SesNoteN'
-  const contStyleId = isSingle ? 'SesNoteCont' : 'SesNoteNCont'
-  const firstNumPr = isSingle ? undefined : { numId: ctx.numbering.allocNoteInstance(bctx.scopeKey, ordinal!), ilvl: 0 }
+  const firstStyleId = inTable ? 'SesTableNote' : isSingle ? 'SesNote' : 'SesNoteN'
+  const contStyleId = inTable ? 'SesTableNote' : isSingle ? 'SesNoteCont' : 'SesNoteNCont'
+  const firstNumPr = inTable && isSingle
+    ? { numId: ABSTRACT_NUM_ID.note, ilvl: 0 }
+    : isSingle ? undefined : { numId: ctx.numbering.allocNoteInstance(bctx.scopeKey, ordinal!), ilvl: 0 }
   const numbered = { nodeId: note.id, kind: 'note' as const }
   const innerBctx = withScope(bctx, note.id) // §5.7：注内容中的块，作用域 = 该注的 id
 
@@ -172,11 +184,15 @@ function renderExample(ctx: RenderContext, example: IRExample, bctx: BlockCtx): 
   return out
 }
 
-// ---------------- 图 / 表 / 公式占位（WP7.2 范围：见 §9 WP7.2「图、表、公式在本包的输出」表） ----------------
+// ---------------- 图 / 表 / 公式（WP7.4） ----------------
 
 function renderFigure(ctx: RenderContext, figure: IRFigure, bctx: BlockCtx): string {
-  let out = emitParagraph(ctx, 'SesFigure', { runsXml: plainRun('〔图片占位〕') })
-  const noteBctx = withScope(bctx, figure.id) // §5.7：图的 notes，作用域 = 该图的 id
+  const image = ctx.resources.images[figure.id]
+  const allocation = image ? ctx.allocateImage() : undefined
+  const rendered = renderFigureImage(ctx, figure, image, allocation)
+  if (rendered.relatedPart) ctx.relatedParts.push(rendered.relatedPart)
+  let out = rendered.xml
+  const noteBctx = { ...withScope(bctx, figure.id), suppressLandscape: true } // 图注与图同节
   for (const note of figure.notes) out += renderNote(ctx, note, noteBctx)
 
   const captionRuns = renderInlines(figure.caption, ctx.labels)
@@ -193,41 +209,98 @@ function renderFigure(ctx: RenderContext, figure: IRFigure, bctx: BlockCtx): str
 function renderTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx): string {
   const captionRuns = renderInlines(table.caption, ctx.labels)
   const numbered = { nodeId: table.id, kind: 'table' as const }
-  let out: string
+  const pagination = paginateTable(table)
+  if (pagination.oversizedGroup) {
+    warn(ctx, 'table-row-too-tall',
+      `表格 "${table.id}" 存在超出单页高度预算的跨行合并组，续表分页可能需要人工调整`, table.id)
+  }
+  let captionXml: string
   if (bctx.appendix) {
     const numId = ctx.numbering.allocAppendixTableInstance(bctx.appendix.id, bctx.appendix.letter)
-    out = emitParagraph(ctx, 'SesAppTblCap', { numPr: { numId, ilvl: 0 }, runsXml: captionRuns, numbered })
+    captionXml = emitParagraph(ctx, 'SesAppTblCap', {
+      numPr: { numId, ilvl: 0 }, runsXml: captionRuns, numbered,
+      pageBreakBefore: pagination.startOnNewPage,
+    })
   } else {
-    out = emitParagraph(ctx, 'SesTblCap', { runsXml: captionRuns, numbered })
+    captionXml = emitParagraph(ctx, 'SesTblCap', {
+      runsXml: captionRuns, numbered, pageBreakBefore: pagination.startOnNewPage,
+    })
   }
-  // WP7.2：单元格内容与表注不输出（WP7.4 替换），只有一个居中占位段
-  out += emitParagraph(ctx, 'SesTableCenter', { runsXml: plainRun('〔表格占位〕') })
-  return out
-}
-
-function fullWidthFormulaLabel(label: string): string {
-  const wrapped = /^(?:\((.*)\)|（(.*)）)$/.exec(label)
-  const inner = wrapped ? (wrapped[1] ?? wrapped[2]) : label
-  return `（${inner}）`
-}
-
-function renderFormula(ctx: RenderContext, formula: IRFormula): string {
-  let runs = tabRun() + plainRun('〔公式占位〕')
-  if (formula.numbered) {
-    const label = ctx.labels[formula.id]?.label
-    if (label === undefined) {
-      warn(ctx, 'label-missing', `公式 "${formula.id}" 需要编号但 labels 中没有 label，不写编号`, formula.id)
-    } else {
-      runs += tabRun() + plainRun(fullWidthFormulaLabel(label), RPR_SONG)
+  const tableBctx = { ...withScope(bctx, table.id), suppressLandscape: true }
+  const headerRowCount = Math.max(0, Math.min(Math.floor(table.headerRowCount), table.rows.length))
+  const headerRows = table.rows.slice(0, headerRowCount)
+  // A header merge may continue into data rows. Keep every covered row in the first segment so
+  // the original vMerge remains intact; repeated headers in later segments must stop at the
+  // header boundary or they would occupy cells belonging to that segment's first data row.
+  const headerSpanEnd = headerRows.reduce((end, row, rowIndex) => Math.max(end,
+    ...row.cells.map((cell) => rowIndex + cell.rowspan)), headerRowCount)
+  let bodySegments = pagination.bodySegments
+  const coveredBodyRowCount = headerSpanEnd - headerRowCount
+  if (coveredBodyRowCount > 0 && bodySegments.length > 0) {
+    const firstSegment = [...bodySegments[0]!]
+    let nextSegmentIndex = 1
+    while (firstSegment.length < coveredBodyRowCount && nextSegmentIndex < bodySegments.length) {
+      firstSegment.push(...bodySegments[nextSegmentIndex]!)
+      nextSegmentIndex += 1
+    }
+    if (nextSegmentIndex > 1) {
+      warn(ctx, 'table-header-rowspan-pagination',
+        `表格 "${table.id}" 的表头合并跨越表头行数，已将其覆盖的数据行并入首段；首段可能超过分页高度估算`, table.id)
+      bodySegments = [firstSegment, ...bodySegments.slice(nextSegmentIndex)]
     }
   }
-  // 公式不使用 Word 原生编号（§4.5），SesFormula 不是属主样式、不写 numPr，不记入 §4.7 追踪
-  return emitParagraph(ctx, 'SesFormula', { runsXml: runs })
+  const continuationHeaderRows = headerRows.map((row, rowIndex) => ({
+    ...row,
+    cells: row.cells.map((cell) => {
+      const maxRepeatedRowspan = headerRowCount - rowIndex
+      return cell.rowspan > maxRepeatedRowspan ? { ...cell, rowspan: maxRepeatedRowspan } : cell
+    }),
+  }))
+  const columnCount = tableGridColumnCount(table)
+  const label = ctx.labels[table.id]?.label
+  let out = ''
+  bodySegments.forEach((bodyRows, index) => {
+    const lastSegment = index === bodySegments.length - 1
+    let segmentCaption = captionXml
+    if (index > 0) {
+      // 相邻 w:tbl 会被 Word 合并为同一张表；段落级换页同时隔开两个独立片段。
+      out += emitParagraph(ctx, 'SesNormal', { runsXml: '<w:r><w:br w:type="page"/></w:r>' })
+      if (!label) warn(ctx, 'label-missing', `续表 "${table.id}" 缺少表编号`, table.id)
+      segmentCaption = emitParagraph(ctx,
+        bctx.appendix ? 'SesAppTblCapCont' : 'SesTblCapCont', {
+          runsXml: plainRun(label ? `${label}　` : '表　') + captionRuns + plainRun('（续）'),
+        })
+    }
+    out += renderTableGrid(ctx, {
+      ...table,
+      rows: [...(index === 0 ? headerRows : continuationHeaderRows), ...bodyRows],
+      notes: lastSegment ? table.notes : [],
+    }, {
+      captionXml: segmentCaption,
+      keepTogether: true,
+      columnCount,
+      notesXml: lastSegment
+        ? () => table.notes.map((note) => renderNote(ctx, note, tableBctx, true)).join('')
+        : undefined,
+      renderCell(cell, styleId) {
+        if (cell.content.length === 0 || cell.content.every((block) => block.kind === 'paragraph' &&
+          block.content.every((run) => run.text.trim() === ''))) return ''
+        return cell.content.map((block) => block.kind === 'paragraph'
+          ? emitParagraph(ctx, styleId, { runsXml: renderInlines(block.content, ctx.labels) })
+          : renderBlock(ctx, block, tableBctx)).join('')
+      },
+    })
+  })
+  return out
 }
 
 // ---------------- 通用分发 ----------------
 
 export function renderBlock(ctx: RenderContext, block: IRBlock, bctx: BlockCtx): string {
+  if (!bctx.suppressLandscape && (block.kind === 'figure' || block.kind === 'table') && block.orientation === 'landscape') {
+    const xml = block.kind === 'figure' ? renderFigure(ctx, block, bctx) : renderTable(ctx, block, bctx)
+    return `${LANDSCAPE_START}${xml}${LANDSCAPE_END}`
+  }
   switch (block.kind) {
     case 'paragraph':
       return emitParagraph(ctx, 'SesPara', { runsXml: renderInlines(block.content, ctx.labels) })
@@ -238,7 +311,7 @@ export function renderBlock(ctx: RenderContext, block: IRBlock, bctx: BlockCtx):
     case 'figure':
       return renderFigure(ctx, block, bctx)
     case 'formula':
-      return renderFormula(ctx, block)
+      return renderFormula(ctx, block, ctx.resources.formulaOmml[block.id])
     case 'note':
       return renderNote(ctx, block, bctx)
     case 'example':

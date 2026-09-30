@@ -236,6 +236,8 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 | SesAppFigCap | SES_附录图题 | 黑 五 | `jc=center`；段前段后各半行；缩进见 A5 | — | 段落级：每附录一个实例 | 9.6.3.1 |
 | SesTblCap | SES_表题 | 黑 五 | `jc=center`；keepNext；段前段后各半行；缩进见 A4 | — | 属主：正文表 L0 | 10.4.2、#36 |
 | SesAppTblCap | SES_附录表题 | 黑 五 | `jc=center`；keepNext；段前段后各半行；缩进见 A6 | — | 段落级：每附录一个实例 | 9.6.3.1 |
+| SesTblCapCont | SES_续表题 | 黑 五 | `jc=center`；keepNext；段前段后各半行 | — | 续表字面量表号，不另计数 | 9.8.3、WP7.4 后续修订 |
+| SesAppTblCapCont | SES_附录续表题 | 黑 五 | `jc=center`；keepNext；段前段后各半行 | — | 续表字面量附录表号，不另计数 | 9.8.3、WP7.4 后续修订 |
 | SesTableText | SES_表格文字 | 宋 小五 | 首行 1 字（210），回行顶格 | — | — | 10.4.2.2、#40 注 a |
 | SesTableCenter | SES_表格居中 | 宋 小五 | `jc=center`，缩进 0 | — | — | 10.4.2.2（表头、数字） |
 | SesTableNote | SES_表注 | 宋 小五 | 缩进见 A7 / A8 | — | 段落级：单条指向 A7 固定实例（spike v10 T6），多条按 §4.3 分配 A8 实例（WP7.4） | 10.4.4.1 |
@@ -526,16 +528,16 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
 
 ### 5.9 表
 
-- 表题在表上方：P(SesTblCap / SesAppTblCap, caption)，不输出 `captionEn`。
+- 表题位于表格首个无边框、跨满全宽的标题行：P(SesTblCap / SesAppTblCap, caption)，不输出 `captionEn`。该行与列标题行均为重复标题行。
 - `w:tbl`：
   - `tblPr`：`tblW` 5000 pct；`jc=center`；`tblLayout fixed`；边框外框 sz=6，`insideH/insideV` sz=2；
   - `tblGrid`：按最大列数平均分配版心宽（必须写，否则不符合 schema）；
-  - 前 `headerRowCount` 行 `trPr` 写 `<w:tblHeader/>`（跨页重复表头，9.8.3），表头最后一行的单元格下边框 sz=6；
+  - 表题行及前 `headerRowCount` 个数据行 `trPr` 写 `<w:tblHeader/>`；表头最后一行的单元格下边框 sz=6，所有表格行写 `cantSplit`，在行边界分页；
   - 合并：`colspan` → `tcPr/gridSpan`；`rowspan` → 起始格 `vMerge val="restart"`，**被覆盖的后续行在同一网格位置补占位格** `<w:tc><w:tcPr><w:gridSpan w:val="N"/><w:vMerge/></w:tcPr><w:p/></w:tc>`，其中 N = 起始格的 `colspan`（为 1 时省略 `gridSpan`）。占位格缺 `gridSpan` 会只占一列，同行后面的格整体左移，网格错位（旧导出器连占位格都没有）；
   - 单元格段落：表头格与纯数字格（`/^[\d\s.,±%~—-]+$/`）用 SesTableCenter，其余用 SesTableText；空单元格写一字线「—」（10.4.2.2）。
 - 表注：表内最后加一行，单元格 `gridSpan` 跨满全宽，上边框 sz=6，内容按 §5.7 规则，用 SesTableNote。
 - `orientation='landscape'` 的表按 §5.15 放进横排节（表题、表、表注都在该节内）。
-- 「表X（续）」、单位陈述：V2，不在本系列。
+- WP7.4 后续修订：按用户要求将长表拆成独立的 Word 表段，续段另起页并写「表X　表题（续）」；每段重放列标题，切分点避开跨行合并区域，表注只在末段。Word 原生重复标题行不能只在续页改变文字，因此按 Word 样稿行高估算最少页数并均衡各段；长表首段另起页，无法根据前文在 Word 中的实际排版位置精确利用上一页余量。编辑后若行高变化，需重新导出并复核分页。单位陈述仍留给 V2。
 
 ### 5.10 公式（10.4.3）
 

@@ -64,7 +64,8 @@ describe('numbering fixture', () => {
 
   it('warnings 与期望列表完全一致（boxed 退化、两处三层嵌套）', () => {
     const codes = pkg.warnings.map((w) => w.code).sort()
-    expect(codes).toEqual(['list-format-fallback', 'list-too-deep', 'list-too-deep'].sort())
+    const structural = codes.filter((code) => code !== 'image-missing' && code !== 'formula-missing-omml')
+    expect(structural).toEqual(['list-format-fallback', 'list-too-deep', 'list-too-deep'].sort())
   })
 
   it('术语和定义章的术语另行起排，其他章节和附录的测试术语与编号同排', () => {

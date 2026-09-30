@@ -78,6 +78,8 @@ const EXPECTED_NAMES: Record<string, string> = {
   SesAppFigCap: 'SES_附录图题',
   SesTblCap: 'SES_表题',
   SesAppTblCap: 'SES_附录表题',
+  SesTblCapCont: 'SES_续表题',
+  SesAppTblCapCont: 'SES_附录续表题',
   SesTableText: 'SES_表格文字',
   SesTableCenter: 'SES_表格居中',
   SesTableNote: 'SES_表注',
@@ -87,6 +89,7 @@ const EXPECTED_NAMES: Record<string, string> = {
   SesBibTitle: 'SES_参考文献标题',
   SesBibEntry: 'SES_参考文献条目',
   SesEndMark: 'SES_终结线',
+  SesEndMarkLandscape: 'SES_横排终结线',
   SesHeader: 'SES_书眉',
   SesFooter: 'SES_页码',
   TOC1: 'toc 1',
@@ -267,6 +270,12 @@ describe('styles.ts：显式缩进值（不依赖编号级别的样式）', () =
     expect(findChild(border, 'w:bottom')?.attrs).toEqual({
       'w:val': 'single', 'w:sz': '8', 'w:space': '1', 'w:color': '000000',
     })
+  })
+
+  it('SesEndMarkLandscape：横排版心终结线按四分之一宽度校准', () => {
+    expect(indOf(styles.get('SesEndMarkLandscape')!)?.attrs).toEqual({ 'w:left': '5415', 'w:right': '5415' })
+    const border = findChild(findChild(styles.get('SesEndMarkLandscape')!, 'w:pPr')!, 'w:pBdr')!
+    expect(findChild(border, 'w:bottom')?.attrs['w:sz']).toBe('8')
   })
 
   it('TOC2/TOC3：左缩进 210/420', () => {

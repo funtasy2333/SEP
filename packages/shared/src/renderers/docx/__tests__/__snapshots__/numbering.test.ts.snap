@@ -38,7 +38,7 @@ SesExText │ — │ 前言示例内容〔前段期望示例：〕
 § type=nextPage pgNumType=upperRoman start=— orient=— refs=4
 SesFrontTitle │ — │ 引言
 SesPara │ — │ 引言说明文字。
-SesFigure │ — │ 〔图片占位〕
+SesFigure │ — │ 〔图片缺失〕
 SesFigCap │ 图1 │ 引言图〔期望图1〕
 SesNote │ 注： │ 引言注释内容〔期望注：〕
 — │ — │
@@ -68,38 +68,38 @@ SesClause1 │ 3.3 │ 补充说明〔期望3.3〕
 SesTermNum │ 3.3.1 │
 SesTermHead │ — │ 嵌套术语〔前段期望3.3.1〕
 SesPara │ — │ 条内出现的术语条目。
-SesFigure │ — │ 〔图片占位〕
+SesFigure │ — │ 〔图片缺失〕
 SesFigCap │ 图2 │ 术语章示例图〔期望图2〕
-SesTblCap │ 表1 │ 术语章示例表〔期望表1〕
-SesTableCenter │ — │ 〔表格占位〕
+┆SesTblCap │ 表1 │ 术语章示例表〔期望表1〕
+┆SesTableCenter │ — │ —
 SesChapter │ 4 │ 技术要求〔期望4〕
 SesClause1 │ 4.1 │ 总体要求〔期望4.1〕
 SesPara │ — │ 详见1.1、图2、表1、公式(1)与[1]。
 SesNoteN │ 注1： │ 条内首条注释〔期望注1：〕
-SesFigure │ — │ 〔图片占位〕
+SesFigure │ — │ 〔图片缺失〕
 SesNoteN │ 注1： │ 交错图注一〔期望注1：〕
 SesNoteN │ 注2： │ 交错图注二〔期望注2：〕
 SesFigCap │ 图3 │ 交错示例图〔期望图3〕
 SesNoteN │ 注2： │ 条内次条注释〔期望注2：〕
-SesTblCap │ 表2 │ 总体要求示例表〔期望表2〕
-SesTableCenter │ — │ 〔表格占位〕
-SesFormula │ — │ ⇥〔公式占位〕⇥（1）
-SesFormula │ — │ ⇥〔公式占位〕
+┆SesTblCap │ 表2 │ 总体要求示例表〔期望表2〕
+┆SesTableCenter │ — │ —
+SesFormula │ — │ ⇥E=mc^2⇥（1）
+SesFormula │ — │ ⇥x=y
 SesClause2 │ 4.1.1 │ 深度不符样例〔期望4.1.1〕
 SesPara │ — │ 本条 level 字段故意写错。
-SesFigure │ — │ 〔图片占位〕
+SesFigure │ — │ 〔图片缺失〕
 SesNote │ 注： │ 图序注释文字〔期望注：〕
-SesFigure │ — │ 〔图片占位〕
+SesFigure │ — │ 〔图片缺失〕
 SesFigCap │ 图4 │ 图序内嵌图〔期望图4〕
 SesFigCap │ 图5 │ 图序外层图〔期望图5〕
 SesTermNum │ 4.1.2 │ 图序术语〔期望4.1.2〕
 SesPara │ — │ 用于验证遍历顺序的术语。
 SesExLabel │ 示例： │
 SesExText │ — │ 术语示例文字〔前段期望示例：〕
-SesFigure │ — │ 〔图片占位〕
+SesFigure │ — │ 〔图片缺失〕
 SesFigCap │ 图6 │ 术语示例图〔期望图6〕
 SesNote │ 注： │ 术语注释文字〔期望注：〕
-SesFigure │ — │ 〔图片占位〕
+SesFigure │ — │ 〔图片缺失〕
 SesFigCap │ 图7 │ 术语注图〔期望图7〕
 SesClause1 │ 4.2 │ 列项样例〔期望4.2〕
 SesListItem │ a） │ 字母项一〔期望a）〕
@@ -158,22 +158,22 @@ SesAppendixTitle │ — │ 附录内容一〔附录期望附录A〕
 SesTermNum │ A.1 │ 附录术语〔期望A.1〕
 SesPara │ — │ 附录直属术语的定义。
 SesAppClause1 │ A.2 │ 附录条一〔期望A.2〕
-SesFigure │ — │ 〔图片占位〕
+SesFigure │ — │ 〔图片缺失〕
 SesAppFigCap │ 图A.1 │ 附录图一〔期望图A.1〕
-SesFigure │ — │ 〔图片占位〕
+SesFigure │ — │ 〔图片缺失〕
 SesAppFigCap │ 图A.2 │ 附录图二〔期望图A.2〕
-SesAppTblCap │ 表A.1 │ 附录表一〔期望表A.1〕
-SesTableCenter │ — │ 〔表格占位〕
+┆SesAppTblCap │ 表A.1 │ 附录表一〔期望表A.1〕
+┆SesTableCenter │ — │ —
 — │ — │
 § type=nextPage pgNumType=decimal start=— orient=— refs=4
 SesAppendix │ 附录B │
 SesAppendixKind │ — │ （资料性）
 SesAppendixTitle │ — │ 附录内容二〔附录期望附录B〕
 SesAppClause1 │ B.1 │ 附录条二〔期望B.1〕
-SesFigure │ — │ 〔图片占位〕
+SesFigure │ — │ 〔图片缺失〕
 SesAppFigCap │ 图B.1 │ 附录B图一〔期望图B.1〕
-SesAppTblCap │ 表B.1 │ 附录B表一〔期望表B.1〕
-SesTableCenter │ — │ 〔表格占位〕
+┆SesAppTblCap │ 表B.1 │ 附录B表一〔期望表B.1〕
+┆SesTableCenter │ — │ —
 — │ — │
 § type=nextPage pgNumType=decimal start=— orient=— refs=4
 SesBibTitle │ — │ 参考文献

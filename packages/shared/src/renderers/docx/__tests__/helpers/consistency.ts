@@ -5,8 +5,7 @@
  *   按顺序一一对应；对应段落的模拟器 label 去掉末尾一个 U+3000 后，kind 为 listItem 的等于
  *   手写期望，其余等于 `labels[nodeId].label`。
  * - `assertCoverage`：IR 中每个章/条/术语条目/附录/图/表/注/示例/参考文献条目在 numbered 中
- *   恰好出现一次（WP7.2 不含表格内部的节点）。`collectNumberedNodeIds` 按渲染器同样的规则
- *   （跳过表格内部）从 IRDoc 收集这些 id。
+ *   恰好出现一次（含表格内部的节点）。`collectNumberedNodeIds` 从 IRDoc 收集这些 id。
  * - `assertExpectMarkers`：扫描模拟器每段文本里的「〔期望X〕」「〔前段期望X〕」「〔附录期望X〕」
  *   标记，核对 X 与模拟器算出的对应段落 label（去掉末尾一个 U+3000）一致。
  *
@@ -67,7 +66,7 @@ export function assertCoverage(numbered: readonly NumberedParagraphTrace[], expe
   }
 }
 
-// ---------------- IR 覆盖 id 收集（跳过表格内部，WP7.2 范围） ----------------
+// ---------------- IR 覆盖 id 收集（含表格内部，WP7.4） ----------------
 
 function walkBlock(block: IRBlock, ids: NodeId[]): void {
   switch (block.kind) {
@@ -76,7 +75,9 @@ function walkBlock(block: IRBlock, ids: NodeId[]): void {
       for (const n of block.notes) walkBlock(n, ids)
       break
     case 'table':
-      ids.push(block.id) // WP7.2：单元格内容、表注不计入覆盖（表格内部不渲染）
+      ids.push(block.id)
+      for (const row of block.rows) for (const cell of row.cells) for (const child of cell.content) walkBlock(child, ids)
+      for (const note of block.notes) walkBlock(note, ids)
       break
     case 'note':
       ids.push(block.id)
@@ -119,7 +120,7 @@ function walkContainerChildren(children: readonly (IRClauseChild | IRChapterChil
   }
 }
 
-/** 按渲染器同样的规则从 IRDoc 收集所有「应恰好编号一次」的节点 id（WP7.2 不含表格内部） */
+/** 按渲染器同样的规则从 IRDoc 收集所有「应恰好编号一次」的节点 id */
 export function collectNumberedNodeIds(doc: IRDoc): NodeId[] {
   const ids: NodeId[] = []
   for (const b of doc.front.foreword) walkBlock(b, ids)
