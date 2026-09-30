@@ -8,7 +8,6 @@ export { buildPdfExportRequest } from './pdfExporter'
 export type { PdfExportRequest, PdfTocTarget } from './pdfExporter'
 export {
   buildDocxBlob,
-  convertDocxToPdf,
   packageDocx,
   prepareDocxInput,
   resolveDocumentStage,

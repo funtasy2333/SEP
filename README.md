@@ -25,8 +25,8 @@
 
 ### 文档导出
 
-- **DOCX 测试版**：从零生成章条结构、编号、分节、页眉页脚、目次和终结线；图、表、公式与完整封面仍在后续工作包中
-- **PDF 版式预览**：通过服务端排版管线生成；若服务端安装 LibreOffice，也可将 DOCX 转为预览 PDF，最终 DOCX 版式以 Word 为准
+- **DOCX 测试版**：从零生成章条结构、编号、分节、页眉页脚、目次、图、表、公式、横排和终结线；完整封面仍在后续工作包中
+- **PDF 版式预览**：由服务端 Vivliostyle 两遍排版生成，自动填充目次页码；无需 LibreOffice
 - DOCX 中的目次页码由 Word 更新；增删章条后需重新导出以更新目次条目（见 docs/wp7-docx-delivery.md）
 
 ### 版本管理
@@ -147,7 +147,7 @@ pnpm build
 
 | 项目 | 说明 |
 | ---- | ---- |
-| [LibreOffice](https://www.libreoffice.org/) | 开源办公套件，用于 DOCX → PDF 转换 |
+| [Poppler](https://poppler.freedesktop.org/) | PDF 版式预览的页码定位与页数检查 |
 
 ---
 

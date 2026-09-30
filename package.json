@@ -9,8 +9,7 @@
     "dev:server": "pnpm --filter @ses/server dev",
     "build": "pnpm -r run build",
     "build:client": "pnpm --filter @ses/client build",
-    "build:server": "pnpm --filter @ses/server build",
-    "setup": "node scripts/setup-office.mjs"
+    "build:server": "pnpm --filter @ses/server build"
   },
   "engines": {
     "node": ">=20.19.0"
