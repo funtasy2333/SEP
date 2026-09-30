@@ -38,6 +38,9 @@ describe('paginateTable', () => {
     const rows = Array.from({ length: 64 }, (_, index) => row(index + 1))
     const paginated = paginateTable(table(rows))
     expect(paginated.bodySegments.length).toBeGreaterThan(1)
+    expect(paginated.bodySegments).toHaveLength(2)
+    const lengths = paginated.bodySegments.map((segment) => segment.length)
+    expect(Math.max(...lengths) - Math.min(...lengths)).toBeLessThanOrEqual(1)
     expect(paginated.startOnNewPage).toBe(true)
     expect(paginated.oversizedGroup).toBe(false)
     expect(paginated.bodySegments.flat().map((item) => item.id)).toEqual(rows.map((item) => item.id))
@@ -56,6 +59,17 @@ describe('paginateTable', () => {
     const paginated = paginateTable(table([huge, row(2)]))
     expect(paginated.oversizedGroup).toBe(true)
     expect(paginated.bodySegments[0]?.[0]?.id).toBe('row-1')
+  })
+
+  it('只有表头的超高表格也保留一段空数据行', () => {
+    const headerOnly = table([])
+    headerOnly.rows[0]!.cells[0]!.content = [{
+      kind: 'paragraph', id: 'tall-header', content: [{ text: '很长的表头'.repeat(500) }],
+    }]
+    const paginated = paginateTable(headerOnly)
+    expect(paginated.bodySegments).toEqual([[]])
+    expect(renderBlock(createRenderContext({ table: { label: '表1', xmlId: 'table_1', refText: '表1' } }),
+      headerOnly, { scopeKey: 'chapter' })).toContain('<w:tbl>')
   })
 
   it('续段另起页并写相同表号和表题加“（续）”，编号属主只出现一次', () => {

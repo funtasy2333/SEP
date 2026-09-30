@@ -41,7 +41,8 @@ function rowHeightMm(row: IRTableRow, columnCount: number, landscape: boolean): 
     const capacity = Math.max(4, fullWidthUnits * cell.colspan / columnCount)
     return Math.max(1, cell.content.reduce((sum, block) => sum + blockLines(block, capacity), 0))
   }))
-  return Math.max(6, lines * 4 + 1.5)
+  // Word 样稿中两行文字的实际行高约 8.2 mm，按 8.3 mm 估算。
+  return Math.max(6, lines * 3.3 + 1.7)
 }
 
 function bodyGroups(rows: IRTableRow[], headerRowCount: number): IRTableRow[][] {
@@ -66,8 +67,8 @@ export function paginateTable(table: IRTable): TablePagination {
   const headerHeight = table.rows.slice(0, headerRowCount)
     .reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape), 0)
   const noteHeight = table.notes.length > 0 ? 10 + table.notes.length * 6 : 0
-  // 比实际版心高度留出余量，同时按 Word 样稿的 9 pt 表格文字估算行高。
-  const pageBudget = landscape ? 135 : 210
+  // A4 竖排样稿的可用版心约 234 mm，再预留 9 mm 给 Word 的布局浮动。
+  const pageBudget = landscape ? 135 : 225
   const dataBudget = Math.max(30, pageBudget - 8 - headerHeight - noteHeight - 10)
   const groups = bodyGroups(table.rows, headerRowCount)
   const groupHeights = groups.map((group) =>
@@ -83,21 +84,37 @@ export function paginateTable(table: IRTable): TablePagination {
     }
   }
 
+  const oversizedGroup = groupHeights.some((height) => height > dataBudget)
+  // 求从每组开始的最少页数，之后在不增加页数和不超预算的切点中选择最接近均分的位置。
+  const prefix = [0]
+  for (const height of groupHeights) prefix.push(prefix[prefix.length - 1]! + height)
+  const minPages = Array.from({ length: groups.length + 1 }, () => 0)
+  for (let start = groups.length - 1; start >= 0; start -= 1) {
+    let end = start + 1
+    while (end < groups.length && prefix[end + 1]! - prefix[start]! <= dataBudget) end += 1
+    minPages[start] = 1 + minPages[end]!
+  }
+
   const bodySegments: IRTableRow[][] = []
-  let current: IRTableRow[] = []
-  let used = 0
-  let oversizedGroup = false
-  groups.forEach((group, index) => {
-    const height = groupHeights[index]!
-    if (height > dataBudget) oversizedGroup = true
-    if (current.length > 0 && used + height > dataBudget) {
-      bodySegments.push(current)
-      current = []
-      used = 0
+  let start = 0
+  for (let pagesLeft = minPages[0]!; pagesLeft > 1; pagesLeft -= 1) {
+    const target = (prefix[groups.length]! - prefix[start]!) / pagesLeft
+    let bestEnd = start + 1
+    let bestDistance = Number.POSITIVE_INFINITY
+    for (let end = start + 1; end <= groups.length - pagesLeft + 1; end += 1) {
+      const height = prefix[end]! - prefix[start]!
+      if (end > start + 1 && height > dataBudget) break
+      if (minPages[end]! > pagesLeft - 1) continue
+      const distance = Math.abs(height - target)
+      if (distance < bestDistance) {
+        bestEnd = end
+        bestDistance = distance
+      }
     }
-    current.push(...group)
-    used += height
-  })
-  if (current.length > 0) bodySegments.push(current)
+    bodySegments.push(groups.slice(start, bestEnd).flat())
+    start = bestEnd
+  }
+  // 只有表头而且表头/表注超预算时，也必须保留表格。
+  bodySegments.push(groups.slice(start).flat())
   return { bodySegments, startOnNewPage: true, oversizedGroup }
 }
