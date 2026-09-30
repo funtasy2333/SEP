@@ -13,6 +13,7 @@ export const CoverPage = Node.create({
   addAttributes() {
     return {
       standardNo: { default: '' },
+      standardType: { default: '' },
       titleCn: { default: '' },
       titleEn: { default: '' },
       publishDate: { default: '' },

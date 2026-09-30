@@ -6,6 +6,10 @@
 import argparse
 import json
 import fitz
+from pathlib import Path
+
+# 先由用户模板及填值副本的 Word 渲染冻结，再校准实现；不是生成器测量值。
+REFERENCE = json.loads((Path(__file__).resolve().parents[2] / 'docs/wp7.5-template-reference.json').read_text())['targets']
 from measure import find_blocks, DPI, MM_PER_PX
 
 
@@ -21,7 +25,7 @@ def measure(path, kind=None, sample_flow=False):
     with fitz.open(path) as doc:
         p = doc[0]
         zones = {
-            'classification': (20, 7, 115, 30), 'logo': (135, 7, 190, 38),
+            'classification': (20, 7, 115, 30), 'logo': (90, 7, 196, 38),
             'designation': (20, 38, 200, 54), 'number': (80, 54, 196, 63),
             'replaces': (75, 63, 196, 71), 'rule': (20, 71, 200, 80),
             'name_block': (20, 105, 200, 240), 'dates': (20, 246, 200, 256),
@@ -36,13 +40,13 @@ def measure(path, kind=None, sample_flow=False):
                    ('date_rule', 'top', 257)]
         checks = []
         if kind:
-            targets += [('logo', 'left', 143), ('logo', 'top', 13), ('logo', 'right', 183), ('logo', 'bottom', 33),
-                        ('designation', 'left', 25), ('designation', 'right', 195), ('designation', 'bottom', 50.2)]
+            targets += [('logo', edge, target) for edge, target in zip(('left', 'top', 'right', 'bottom'), REFERENCE[kind]['logo'])]
+            targets += [('designation', 'left', 25), ('designation', 'right', 195), ('designation', 'bottom', 50.2)]
             # 发布机构国标为两行原件图片，其他类型是不同长度的一行可编辑文字。
             if kind in ('gb', 'guide'):
-                targets += [('issuer', 'left', 68.6), ('issuer', 'right', 151.4), ('issuer', 'top', 264), ('issuer', 'bottom', 276)]
+                targets += [('issuer', edge, target) for edge, target in zip(('left', 'top', 'right', 'bottom'), REFERENCE[kind]['issuer'])]
             else:
-                targets += [('issuer', 'top', 264)]
+                targets += [('issuer', 'top', 271.95)]
 
         for key, edge, target in targets:
             element_blocks = blocks[key]
@@ -55,6 +59,17 @@ def measure(path, kind=None, sample_flow=False):
                            'delta_mm': round(actual - target, 2) if actual is not None else None,
                            'pass': actual is not None and abs(actual-target) <= 1})
         relative_checks = []
+        if kind and blocks['issuer']:
+            issuer = blocks['issuer']
+            center = (min(b['left'] for b in issuer) + max(b['right'] for b in issuer)) / 2
+            relative_checks.append({'element': 'issuer_center', 'target_mm': 110, 'actual_mm': round(center, 2), 'delta_mm': round(center-110, 2), 'pass': abs(center-110) <= 1})
+            if kind in ('gb', 'guide'):
+                org = region(p, (60, 260, 134, 283))
+                release = region(p, (135, 260, 160, 283))
+                def middle(items):
+                    return (min(b['top'] for b in items) + max(b['bottom'] for b in items)) / 2
+                delta = middle(release)-middle(org) if org and release else None
+                relative_checks.append({'element': 'issuer_release_vertical_center', 'target_mm': 0, 'actual_mm': round(delta, 2) if delta is not None else None, 'delta_mm': round(delta, 2) if delta is not None else None, 'pass': delta is not None and abs(delta) <= 1})
         if sample_flow:
             if not kind:
                 raise ValueError('--sample-flow 必须同时指定 --kind')
@@ -71,7 +86,7 @@ def measure(path, kind=None, sample_flow=False):
                            ('english_line_pitch', flow[3]['top']-flow[2]['top'], 7.0)]
             else:
                 values += [('consistency_gap', flow[2]['top']-flow[1]['bottom'], 14.5)]
-            relative_checks = [{'element': key, 'target_mm': target, 'actual_mm': round(actual, 2),
+            relative_checks += [{'element': key, 'target_mm': target, 'actual_mm': round(actual, 2),
                                 'delta_mm': round(actual-target, 2), 'pass': abs(actual-target) <= 1}
                                for key, actual, target in values]
         return {'relative_checks': relative_checks, 'pdf': path, 'page_count': len(doc), 'method': '300dpi grayscale <128; pixel bounds in mm', 'blocks': blocks, 'checks': checks}

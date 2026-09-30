@@ -20,16 +20,25 @@ type CoverAsset = typeof COVER_ASSETS[keyof typeof COVER_ASSETS]
 
 // Word for Mac 16.113.3，300dpi墨迹校准值；§6.1的图文框列只是起始值。
 const FRAME_CODES: NonNullable<CoverFrame> = { xMm: 25, yMm: 9.17, widthMm: 90 }
-const FRAME_LOGO: NonNullable<CoverFrame> = { xMm: 143, yMm: 12.03, widthMm: 40 }
-const FRAME_DB_LOGO: NonNullable<CoverFrame> = { xMm: 143, yMm: 16.53, widthMm: 22 }
-const FRAME_DB_REGION: NonNullable<CoverFrame> = { xMm: 154.2, yMm: 3.5, widthMm: 40 }
+const FRAME_LOGO: NonNullable<CoverFrame> = { xMm: 139.01, yMm: 12.03, widthMm: 40 }
+const FRAME_MARKS = {
+  industry: { xMm: 100, yMm: 18.30, widthMm: 81.06 },
+  local: { xMm: 100, yMm: 14.50, widthMm: 81.48 },
+  group: { xMm: 100, yMm: 19.15, widthMm: 83.25 },
+  enterprise: { xMm: 100, yMm: 14.50, widthMm: 83.17 },
+} as const
 const FRAME_DESIGNATION: NonNullable<CoverFrame> = { xMm: 25, yMm: 37.54, widthMm: 170 }
 const FRAME_STD_NO: NonNullable<CoverFrame> = { xMm: 100, yMm: 54.59, widthMm: 90 }
 const FRAME_REPLACES: NonNullable<CoverFrame> = { xMm: 100, yMm: 64.41, widthMm: 90 }
 const FRAME_RULE: NonNullable<CoverFrame> = { xMm: 25, yMm: 69.16, widthMm: 170 }
 const FRAME_TITLE_FLOW: NonNullable<CoverFrame> = { xMm: 25, yMm: 112.55, widthMm: 170 }
 const FRAME_DATES: NonNullable<CoverFrame> = { xMm: 25, yMm: 249.6, widthMm: 170 }
-const FRAME_ISSUER: NonNullable<CoverFrame> = { xMm: 25, yMm: 262.5, widthMm: 170 }
+const FRAME_ISSUER: NonNullable<CoverFrame> = { xMm: 25, yMm: 268.77, widthMm: 170 }
+const FRAME_NATIONAL_ISSUERS = {
+  gb: { xMm: 25, yMm: 261.57, widthMm: 170 },
+  guide: { xMm: 25, yMm: 263.34, widthMm: 170 },
+} as const
+const SMALL_MARK_GAP_RPR = '<w:rPr><w:b w:val="0"/><w:bCs w:val="0"/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr>'
 
 const RELEASE_LABEL_RPR = buildCoverReleaseRunPr(false)
 const RELEASE_TEXT_RPR = buildCoverReleaseRunPr(true)
@@ -75,6 +84,23 @@ function frameText(ctx: RenderContext, styleId: string, text: string, framePr: N
   return emitParagraph(ctx, styleId, { runsXml: plainRun(text), framePr })
 }
 
+function imageRun(ctx: RenderContext, asset: CoverAsset, description: string): string {
+  const { relationshipId, mediaIndex } = registerImage(ctx, asset)
+  return `<w:r>${imageDrawing(asset, relationshipId, mediaIndex, description)}</w:r>`
+}
+
+function frameRuns(ctx: RenderContext, styleId: string, runsXml: string, framePr: NonNullable<CoverFrame>): string {
+  return emitParagraph(ctx, styleId, { runsXml, framePr })
+}
+
+function smallMarkGap(chineseFont = false): string {
+  // 模板 DB/T 图片后的空格使用中文字体度量；Q 的斜杠后保持西文字体度量。
+  const rPr = chineseFont
+    ? SMALL_MARK_GAP_RPR.replace('<w:rPr>', '<w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体"/>')
+    : SMALL_MARK_GAP_RPR
+  return plainRun(' ', rPr)
+}
+
 function imageDrawing(asset: CoverAsset, relationshipId: string, mediaIndex: number, description: string): string {
   const cx = mmToEmu(asset.widthMm)
   const cy = mmToEmu(asset.heightMm)
@@ -101,11 +127,7 @@ function frameImage(
   description: string,
   framePr: NonNullable<CoverFrame>,
 ): string {
-  const { relationshipId, mediaIndex } = registerImage(ctx, asset)
-  return emitParagraph(ctx, 'SesCoverLogo', {
-    runsXml: `<w:r>${imageDrawing(asset, relationshipId, mediaIndex, description)}</w:r>`,
-    framePr,
-  })
+  return frameRuns(ctx, 'SesCoverLogo', imageRun(ctx, asset, description), framePr)
 }
 
 function registerImage(ctx: RenderContext, asset: CoverAsset): { relationshipId: string; mediaIndex: number } {
@@ -132,18 +154,27 @@ function designation(meta: IRDocMeta): { text: string; styleId: string } {
   }
 }
 
-function industryLogoText(meta: IRDocMeta): string {
+function industryLogoFamily(meta: IRDocMeta): string | undefined {
   const code = normalizeCoverStdCode(meta.stdCode)
   const family = /^([A-Z]{2,6})(?:\/T)?\s+\d+(?:\.\d+)*(?:—\d{4})?$/i.exec(code)?.[1]?.toUpperCase()
   // GB is national and DB is local; neither is an industry-family mark. Require a complete
   // family/serial code after normalization so malformed strings such as "HH malformed" stay XX.
-  return family && family !== 'GB' && family !== 'DB' ? family : 'XX'
+  return family && family !== 'GB' && family !== 'DB' ? family : undefined
+}
+
+function warnMissingMarkCode(ctx: RenderContext, meta: IRDocMeta, code: string, message: string): void {
+  if (meta.stdCode?.trim() && !code) warn(ctx, 'cover-field-missing', message)
 }
 
 function localRegionCode(meta: IRDocMeta): string {
-  const code = meta.stdCode ?? ''
-  return /^DB([A-Z0-9]+)\/T(?=\s|\d)/i.exec(code)?.[1] ??
-    /^DB([A-Z0-9]+)\s+\d/i.exec(code)?.[1] ?? ''
+  const code = normalizeCoverStdCode(meta.stdCode)
+  return /^DB(\d{2}|\d{4})(?:\/T)?\s+\d+(?:\.\d+)*(?:—\d{4})?$/i.exec(code)?.[1] ?? ''
+}
+
+function typeMarkCode(meta: IRDocMeta, type: 'T' | 'Q'): string {
+  const code = normalizeCoverStdCode(meta.stdCode)
+  const match = /^([TQ])\/([^\s]+)\s+\d+(?:\.\d+)*(?:—\d{4})?$/i.exec(code)
+  return match?.[1]?.toUpperCase() === type ? match[2]! : ''
 }
 
 function renderLogo(ctx: RenderContext, meta: IRDocMeta): string {
@@ -152,19 +183,48 @@ function renderLogo(ctx: RenderContext, meta: IRDocMeta): string {
     case 'guide':
       return frameImage(ctx, COVER_ASSETS.gbLogo, 'GB 标志', FRAME_LOGO)
     case 'local': {
-      warn(ctx, 'cover-asset-approximation', 'DB 标志使用仓库 TIFF 转换素材，原始来源未核实')
-      return frameImage(ctx, COVER_ASSETS.dbLogo, 'DB 标志', FRAME_DB_LOGO) +
-        frameText(ctx, 'SesCoverDbRegion', localRegionCode(meta), FRAME_DB_REGION)
+      warn(ctx, 'cover-asset-approximation', '地方标准 DB 标志采用用户提供模板 TIFF 转换素材，原始来源未核实')
+      const region = localRegionCode(meta)
+      warnMissingMarkCode(ctx, meta, region, 'meta.stdCode 无法可靠提取地方标准地区代码，封面仅显示 DB 标志')
+      return frameRuns(
+        ctx,
+        'SesCoverDbRegion',
+        imageRun(ctx, COVER_ASSETS.dbLogo, 'DB 地方标准标志') + (region ? smallMarkGap(true) + plainRun(region) : ''),
+        FRAME_MARKS.local,
+      )
     }
-    case 'industry':
-      warn(ctx, 'cover-asset-approximation', '行业代号标志使用黑体加粗可编辑文字近似专用美术体')
-      return frameText(ctx, 'SesCoverLogoText', industryLogoText(meta), { ...FRAME_LOGO, yMm: 3.5 })
-    case 'group':
-      warn(ctx, 'cover-asset-approximation', '团体标准按国标布局近似；T 标志暂无合格来源素材，使用黑体加粗可编辑文字近似')
-      return frameText(ctx, 'SesCoverGroupLogo', 'T', { ...FRAME_LOGO, xMm: 139.1, yMm: 3.44, widthMm: 44 })
-    case 'enterprise':
-      warn(ctx, 'cover-asset-approximation', '企业标准按国标布局近似；Q 标志暂无合格来源素材，使用黑体加粗可编辑文字近似')
-      return frameText(ctx, 'SesCoverEnterpriseLogo', 'Q', { ...FRAME_LOGO, xMm: 141, yMm: 3.3, widthMm: 41.7 })
+    case 'industry': {
+      warn(ctx, 'cover-asset-approximation', '行业代号采用用户模板中的可编辑字样；行业专用标志字形尚未核验')
+      const family = industryLogoFamily(meta)
+      const mark = family ?? 'XX'
+      warnMissingMarkCode(ctx, meta, family ?? '', 'meta.stdCode 无法可靠提取行业代号，封面标志显示 XX')
+      return frameText(ctx, 'SesCoverLogoText', mark, FRAME_MARKS.industry)
+    }
+    case 'group': {
+      warn(ctx, 'cover-asset-approximation', '团体标准标志采用用户提供模板图片，原始来源未核实')
+      const code = typeMarkCode(meta, 'T')
+      warnMissingMarkCode(ctx, meta, code, 'meta.stdCode 无法可靠提取团体标准机构代码，封面仅显示 T/ 标志')
+      return frameRuns(
+        ctx,
+        'SesCoverGroupLogo',
+        imageRun(ctx, COVER_ASSETS.groupLogo, '团体标准 T 标志') +
+          imageRun(ctx, COVER_ASSETS.groupSlash, '团体标准斜线标志') +
+          (code ? smallMarkGap(true) + plainRun(code) : ''),
+        FRAME_MARKS.group,
+      )
+    }
+    case 'enterprise': {
+      warn(ctx, 'cover-asset-approximation', '企业标准 Q 标志采用用户提供模板图片（34×35 px，72 dpi），清晰度有限且原始来源未核实')
+      const code = typeMarkCode(meta, 'Q')
+      warnMissingMarkCode(ctx, meta, code, 'meta.stdCode 无法可靠提取企业标准机构代码，封面仅显示 Q 标志')
+      return frameRuns(
+        ctx,
+        'SesCoverEnterpriseLogo',
+        imageRun(ctx, COVER_ASSETS.enterpriseLogo, '企业标准 Q 标志') +
+          (code ? plainRun('/') + smallMarkGap() + plainRun(code) : ''),
+        FRAME_MARKS.enterprise,
+      )
+    }
   }
 }
 
@@ -174,18 +234,14 @@ function issuerReleaseRuns(issuer: string): string {
 
 function renderIssuer(ctx: RenderContext, meta: IRDocMeta): string {
   if (meta.standardType === 'gb' || meta.standardType === 'guide') {
-    // Use the fixed two-line raster cut from the 2020 source cover; meta.issuer cannot customize it.
-    const { relationshipId, mediaIndex } = registerImage(ctx, COVER_ASSETS.nationalIssuer)
-    return emitParagraph(ctx, 'SesCoverIssuer', {
-      runsXml: `<w:r>${imageDrawing(COVER_ASSETS.nationalIssuer, relationshipId, mediaIndex, '国家标准发布机构')}</w:r>` +
-        plainRun('　', RELEASE_LABEL_RPR) + plainRun('发　布', RELEASE_TEXT_RPR),
-      framePr: FRAME_ISSUER,
-    })
+    // 图片已经包含固定的两行发布机构和「发布」；meta.issuer 不能定制国家标准机构名称。
+    warn(ctx, 'cover-asset-approximation', '国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容')
+    return frameRuns(ctx, 'SesCoverIssuer', imageRun(ctx, COVER_ASSETS.nationalIssuer, '国家标准发布机构与发布'), FRAME_NATIONAL_ISSUERS[meta.standardType])
   }
 
   const issuer = meta.issuer?.trim() ?? ''
   if (!issuer) warn(ctx, 'cover-field-missing', 'meta.issuer 缺失，非国标发布机构名称留空')
-  else warn(ctx, 'cover-asset-approximation', '非国标发布机构用宋体加粗小二可编辑文字近似专用字')
+  else warn(ctx, 'cover-asset-approximation', '非国标发布机构按用户模板用黑体四号可编辑文字排版，专用机构字形未核验')
   return emitParagraph(ctx, 'SesCoverIssuer', {
     runsXml: issuerReleaseRuns(issuer),
     framePr: FRAME_ISSUER,

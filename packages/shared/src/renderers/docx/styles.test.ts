@@ -97,13 +97,13 @@ const EXPECTED_NAMES: Record<string, string> = {
   TOC3: 'toc 3',
   SesCoverIcs: 'SES_封面分类号',
   SesCoverLogo: 'SES_封面标志',
-  SesCoverLogoText: 'SES_封面标志文字',
-  SesCoverDbRegion: 'SES_封面地方代码',
+  SesCoverLogoText: 'SES_封面行业标志代号',
+  SesCoverDbRegion: 'SES_封面地方标志及代号',
   SesCoverDesignationGb: 'SES_封面国家标准称谓',
   SesCoverDesignationGuide: 'SES_封面指导性技术文件称谓',
   SesCoverDesignationOther: 'SES_封面其他标准称谓',
-  SesCoverGroupLogo: 'SES_封面团体标志近似',
-  SesCoverEnterpriseLogo: 'SES_封面企业标志近似',
+  SesCoverGroupLogo: 'SES_封面团体标志及代号',
+  SesCoverEnterpriseLogo: 'SES_封面企业标志及代号',
   SesCoverStdNo: 'SES_封面文件编号',
   SesCoverReplaces: 'SES_封面代替文件编号',
   SesCoverRule: 'SES_封面横线',
@@ -373,6 +373,31 @@ describe('styles.ts：字体字号（黑体/宋体、五号/小五等）', () =>
     expect(szVal('SesCoverStdNo')).toBe('28')
     const pPr = findChild(styles.get('SesCoverStdNo')!, 'w:pPr')!
     expect(findChild(pPr, 'w:jc')?.attrs['w:val']).toBe('right')
+  })
+
+  it('非国标发布机构按黑体 14 磅普通字，不沿用宋体小二粗体', () => {
+    const rPr = findChild(styles.get('SesCoverIssuer')!, 'w:rPr')!
+    const rFonts = findChild(rPr, 'w:rFonts')
+    expect(rFonts?.attrs['w:ascii']).toBe('黑体')
+    expect(rFonts?.attrs['w:eastAsia']).toBe('黑体')
+    expect(findChild(rPr, 'w:sz')?.attrs['w:val']).toBe('28')
+    expect(findChild(rPr, 'w:b')).toBeUndefined()
+  })
+
+  it('industry、local、T/Q 机构代号按模板用 Times New Roman 48 磅粗体并加宽 130%', () => {
+    const ids = ['SesCoverLogoText', 'SesCoverGroupLogo', 'SesCoverEnterpriseLogo', 'SesCoverDbRegion']
+    for (const id of ids) {
+      const style = styles.get(id)!
+      const rPr = findChild(style, 'w:rPr')!
+      const rFonts = findChild(rPr, 'w:rFonts')!
+      expect(rFonts?.attrs['w:ascii'], id).toBe('Times New Roman')
+      expect(rFonts?.attrs['w:hAnsi'], id).toBe('Times New Roman')
+      expect(rFonts?.attrs['w:eastAsia'], id).toBe('宋体')
+      expect(findChild(rPr, 'w:b'), id).toBeDefined()
+      expect(findChild(rPr, 'w:sz')?.attrs['w:val'], id).toBe('96')
+      expect(findChild(rPr, 'w:w')?.attrs['w:val'], id).toBe('130')
+      expect(findChild(rPr, 'w:fitText'), id).toBeUndefined()
+    }
   })
 })
 

@@ -296,7 +296,7 @@
         >
           <span class="ec-glyph">W</span>
           <span class="ec-label">DOCX</span>
-          <span class="ec-sub">{{ exportingFormat === 'docx' ? '正在生成…' : '测试版 · 支持图表公式、横排与封面' }}</span>
+          <span class="ec-sub">{{ exportingFormat === 'docx' ? '正在生成…' : '测试版 · 支持图表公式、横排与六类封面' }}</span>
         </button>
         <button
           v-if="capabilities.htmlToPdf"
@@ -1035,7 +1035,7 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
       const coverIssues = warnings.filter((warning) => warning.code === 'cover-asset-approximation' || warning.code === 'cover-field-missing')
       if (coverIssues.length) {
         const notes = [
-          ...(coverIssues.some((warning) => warning.code === 'cover-asset-approximation') ? ['部分标志或发布机构字样采用近似素材，请核对正式来源。'] : []),
+          ...(coverIssues.some((warning) => warning.code === 'cover-asset-approximation') ? ['部分封面素材的来源或清晰度有限，请核对后使用。'] : []),
           ...(coverIssues.some((warning) => warning.code === 'cover-field-missing') ? ['部分封面信息未填写，请补齐后核对。'] : []),
         ]
         ElMessage.warning({ message: `DOCX 已导出。${notes.join('')}`, duration: 8000 })

@@ -170,8 +170,9 @@ function serializeFront(lines: string[], doc: PMNode, coverNode: PMNode | null, 
   if (implDate) lines.push(`${indent(depth + 1)}<release-date>${escapeXml(implDate)}</release-date>`)
 
   // 标准类型
-  if (attrs.standardType) {
-    lines.push(`${indent(depth + 1)}<std-type>${escapeXml(attrs.standardType)}</std-type>`)
+  const standardType = attrs.standardType || coverNode?.attrs.standardType
+  if (standardType) {
+    lines.push(`${indent(depth + 1)}<std-type>${escapeXml(standardType)}</std-type>`)
   }
 
   // 发布机构

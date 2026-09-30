@@ -31,6 +31,12 @@ const LEGACY_COVER_META_KEYS = [
   'implementDate',
   'icsCode',
   'ccsCode',
+  'standardType',
+] as const
+const EDITOR_COVER_META_KEYS = [
+  ...LEGACY_COVER_META_KEYS,
+  'issuer',
+  ...SES_COVER_META_KEYS,
 ] as const
 
 /**
@@ -61,7 +67,30 @@ export function parseXmlToJson(xmlString: string): PMJsonNode {
 export function parseXmlToEditorJson(xmlString: string, topNodeTypeName: string): PMJsonNode {
   const parsed = parseXmlToJson(xmlString)
   if (parsed.type === topNodeTypeName) return parsed
-  return { type: topNodeTypeName, content: parsed.content ?? [] }
+
+  // StarterKit's production `doc` node has no attrs. Lift the parsed <front>/<std-meta> data
+  // onto the schema-backed coverPage before the standardDoc wrapper is discarded.
+  const rootAttrs = parsed.attrs ?? {}
+  const coverAttrs: Record<string, unknown> = {}
+  for (const key of EDITOR_COVER_META_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(rootAttrs, key)) coverAttrs[key] = rootAttrs[key]
+  }
+
+  const content = [...(parsed.content ?? [])]
+  const coverIndex = content.findIndex((node) => node.type === 'coverPage')
+  if (coverIndex >= 0) {
+    const coverPage = content[coverIndex]!
+    // Explicit cover metadata remains authoritative if an XML document contains both sources.
+    content[coverIndex] = { ...coverPage, attrs: { ...coverAttrs, ...coverPage.attrs } }
+  } else if (Object.keys(coverAttrs).length > 0) {
+    content.unshift({
+      type: 'coverPage',
+      attrs: coverAttrs,
+      content: [{ type: 'paragraph', content: [] }],
+    })
+  }
+
+  return { type: topNodeTypeName, content }
 }
 
 // ========== 解析函数 ==========
@@ -158,6 +187,8 @@ function parseStandard(el: Element): PMJsonNode {
 /** 解析 <front> 中的元数据 */
 function parseFrontMeta(front: Element): Record<string, unknown> {
   const attrs: Record<string, unknown> = {}
+  const issuer = parseCoverIssuer(front)
+  if (issuer) attrs.issuer = issuer
   const meta = front.querySelector(':scope > std-meta')
   if (!meta) return attrs
 

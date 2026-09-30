@@ -104,6 +104,6 @@ WP7.1 实测的结果与上表逐页逐列精确一致（见 PR 描述里的完�
 
 ## WP7.5 封面
 
-- `prepare_cover_assets.py`：从本地 GB/T 1.1-2020 原件提取 GB 标志、600dpi裁切发布机构并将 DB TIFF 转 PNG，重建内置 base64；另需 Pillow 和 `pdfimages`。来源与限制见 `docs/wp7.5-cover-assets.md`。
+- `prepare_cover_assets.py`：从本地 GB/T 1.1-2020 原件提取600dpi GB标志；其余使用已保存模板PNG，`--template-dir /absolute/templates` 可只读提取用户模板的DB/T/斜杠/Q及含发布的国家机构图片（固定媒体指纹、原像素、不重采样），重建内置base64；另需 Pillow 和 `pdfimages`。来源与限制见 `docs/wp7.5-cover-assets.md`。
 - `cover_measure.py <pdf> --kind gb|guide|industry|local|group|enterprise [--sample-flow] [--json]`：在300dpi灰度图上测封面各元素墨迹，误差大于1mm时非零退出。`--sample-flow` 仅用于 `wp75-samples.mjs` 固定两行中文名称/英文的样稿。
 - 完整生成命令、Word版本、逐项测量、人工DOCX/PDF路径和回归证据见 `docs/wp7.5-word-validation.md`。

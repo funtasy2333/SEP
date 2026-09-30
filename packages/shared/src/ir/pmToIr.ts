@@ -669,9 +669,26 @@ function coverMetaAttr(
   return strAttr(coverAttrs, key) ?? strAttr(rootAttrs, key)
 }
 
+/** 旧 front 字段仍以 standardDoc 根属性为主；生产编辑器 doc 根无 attrs 时回退到 coverPage。 */
+function legacyMetaAttr(
+  rootAttrs: Record<string, unknown> | undefined,
+  coverAttrs: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  return strAttr(rootAttrs, key) ?? strAttr(coverAttrs, key)
+}
+
 function convertMeta(docNode: PMJsonNode, coverPage: PMJsonNode | undefined, ctx: Ctx): IRDocMeta {
   const attrs = docNode.attrs
-  const rawType = String(attrs?.standardType ?? 'national')
+  const rootType = attrs?.standardType
+  const coverType = coverPage?.attrs?.standardType
+  const hasValue = (value: unknown) => value !== undefined && value !== null && String(value).trim() !== ''
+  const rawTypeValue = hasValue(rootType)
+    ? rootType
+    : hasValue(coverType)
+      ? coverType
+      : 'national'
+  const rawType = String(rawTypeValue)
   let standardType = toIrStandardType(rawType)
   if (!standardType) {
     ctx.warnings.push(`标准类型「${rawType}」无法识别，已按国家标准处理`)
@@ -681,13 +698,13 @@ function convertMeta(docNode: PMJsonNode, coverPage: PMJsonNode | undefined, ctx
   const set = (key: keyof Omit<IRDocMeta, 'standardType'>, value: string | undefined) => {
     if (value !== undefined) meta[key] = value
   }
-  set('title', strAttr(attrs, 'titleCn'))
-  set('titleEn', strAttr(attrs, 'titleEn'))
-  set('stdCode', strAttr(attrs, 'standardNo'))
-  set('icsCode', strAttr(attrs, 'icsCode'))
-  set('ccsCode', strAttr(attrs, 'ccsCode'))
-  set('publishDate', strAttr(attrs, 'publishDate'))
-  set('implementDate', strAttr(attrs, 'implementDate'))
+  set('title', legacyMetaAttr(attrs, coverPage?.attrs, 'titleCn'))
+  set('titleEn', legacyMetaAttr(attrs, coverPage?.attrs, 'titleEn'))
+  set('stdCode', legacyMetaAttr(attrs, coverPage?.attrs, 'standardNo'))
+  set('icsCode', legacyMetaAttr(attrs, coverPage?.attrs, 'icsCode'))
+  set('ccsCode', legacyMetaAttr(attrs, coverPage?.attrs, 'ccsCode'))
+  set('publishDate', legacyMetaAttr(attrs, coverPage?.attrs, 'publishDate'))
+  set('implementDate', legacyMetaAttr(attrs, coverPage?.attrs, 'implementDate'))
   // issuer 仅存在于 coverPage attrs（standardDoc 无此属性）
   set('issuer', strAttr(coverPage?.attrs, 'issuer'))
   // WP7.5 新增封面字段：封面节点为主，旧根属性仅作兼容回退。

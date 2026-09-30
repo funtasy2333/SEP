@@ -60,7 +60,6 @@ const SPACING_COVER_ENGLISH = '<w:spacing w:before="378" w:after="0" w:line="400
 const SPACING_COVER_CONSISTENCY = '<w:spacing w:before="639" w:after="0" w:line="400" w:lineRule="exact"/>'
 const TABS_COVER_DATES = '<w:tabs><w:tab w:val="right" w:pos="9638"/></w:tabs>'
 const PBDR_COVER_RULE = wrapElement('w:pBdr', '<w:bottom w:val="single" w:sz="4" w:space="1" w:color="000000"/>')
-const COVER_LOGO_FIT_WIDTH = 2325 // Word 墨迹40mm的行业代号拟合值
 const COVER_DESIGNATION_FIT_WIDTH = 9780 // Word 墨迹宽170mm的长称谓校准值
 
 /** 版心宽 9355、中线 4677（§2.1 字面值，不用除法重新计算避免舍入到 4678） */
@@ -323,10 +322,10 @@ const STYLE_SPECS: readonly StyleSpec[] = [
   { id: 'TOC3', name: 'toc 3', rFonts: 'songAll', tabs: TABS_TOC, ind: IND_TOC3 },
   { id: 'SesCoverIcs', name: 'SES_封面分类号', rFonts: 'hei', sz: 21, jc: 'left' },
   { id: 'SesCoverLogo', name: 'SES_封面标志', jc: 'center' },
-  { id: 'SesCoverLogoText', name: 'SES_封面标志文字', rFonts: 'hei', sz: 160, bold: true, fitText: COVER_LOGO_FIT_WIDTH, jc: 'center' },
-  { id: 'SesCoverGroupLogo', name: 'SES_封面团体标志近似', rFonts: 'hei', sz: 160, bold: true, characterScale: 360, jc: 'center' },
-  { id: 'SesCoverEnterpriseLogo', name: 'SES_封面企业标志近似', rFonts: 'hei', sz: 156, bold: true, characterScale: 323, jc: 'center' },
-  { id: 'SesCoverDbRegion', name: 'SES_封面地方代码', rFonts: 'hei', sz: 160, bold: true, fitText: 1020, jc: 'center' },
+  { id: 'SesCoverLogoText', name: 'SES_封面行业标志代号', rFonts: 'song', sz: 96, bold: true, characterScale: 130, jc: 'right' },
+  { id: 'SesCoverGroupLogo', name: 'SES_封面团体标志及代号', rFonts: 'song', sz: 96, bold: true, characterScale: 130, jc: 'right' },
+  { id: 'SesCoverEnterpriseLogo', name: 'SES_封面企业标志及代号', rFonts: 'song', sz: 96, bold: true, characterScale: 130, jc: 'right' },
+  { id: 'SesCoverDbRegion', name: 'SES_封面地方标志及代号', rFonts: 'song', sz: 96, bold: true, characterScale: 130, jc: 'right' },
   { id: 'SesCoverDesignationGb', name: 'SES_封面国家标准称谓', rFonts: 'song', sz: 52, bold: true, jc: 'distribute' },
   { id: 'SesCoverDesignationGuide', name: 'SES_封面指导性技术文件称谓', rFonts: 'song', sz: 52, bold: true, fitText: COVER_DESIGNATION_FIT_WIDTH, jc: 'distribute' },
   { id: 'SesCoverDesignationOther', name: 'SES_封面其他标准称谓', rFonts: 'hei', sz: 48, jc: 'distribute' },
@@ -339,7 +338,7 @@ const STYLE_SPECS: readonly StyleSpec[] = [
   { id: 'SesCoverStage', name: 'SES_封面阶段标识', rFonts: 'hei', sz: 28, jc: 'center' },
   { id: 'SesCoverPatent', name: 'SES_封面专利说明', rFonts: 'song', sz: 21, jc: 'center' },
   { id: 'SesCoverDates', name: 'SES_封面日期', rFonts: 'hei', sz: 28, jc: 'left', snapToGridOff: true, spacing: '<w:spacing w:before="0" w:after="0" w:line="400" w:lineRule="exact"/>', tabs: TABS_COVER_DATES, pBdr: PBDR_COVER_RULE },
-  { id: 'SesCoverIssuer', name: 'SES_封面发布机构', rFonts: 'song', sz: 36, bold: true, jc: 'center' },
+  { id: 'SesCoverIssuer', name: 'SES_封面发布机构', rFonts: 'hei', sz: 28, jc: 'center' },
 ]
 
 const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -381,13 +380,12 @@ export const OWNER_STYLE_IDS: ReadonlySet<string> = new Set(
   STYLE_SPECS.filter((spec) => spec.numPr !== undefined).map((spec) => spec.id),
 )
 
-/** §6.1 发布机构混合段中的「发　布」为四号黑体，区别于小二机构专用字。
- * 国标行内图片与文字同排，因此该专属run格式也统一由样式数据源输出。
- * 字符缩放87%经Word墨迹校准；间隔run不缩放，保持约5mm。
+/** §6.1 非国标发布机构与「发　布」均为四号黑体常规字。
+ * 「发　布」字符缩放87%经Word墨迹校准；间隔run不缩放，保持约5mm。
  */
 export function buildCoverReleaseRunPr(compress: boolean): string {
   const children: XmlChild[] = [
-    ['rFonts', HEI_RFONTS], ['b', '<w:b/>'], ['bCs', '<w:bCs/>'],
+    ['rFonts', HEI_RFONTS],
     ...szChildren(28),
   ]
   if (compress) children.push(['w', '<w:w w:val="87"/>'])
