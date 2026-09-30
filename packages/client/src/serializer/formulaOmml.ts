@@ -50,7 +50,13 @@ const ENTITY_PLACEHOLDERS = [
 let converterPromise: Promise<(mathml: string) => string> | undefined
 
 async function loadMathMlConverter(): Promise<(mathml: string) => string> {
-  converterPromise ??= import('mathml2omml').then(({ mml2omml }) => mml2omml)
+  converterPromise ??= import('mathml2omml')
+    .then(({ mml2omml }) => mml2omml)
+    .catch((error: unknown) => {
+      // 不缓存一次性的加载失败，让后续导出能够重新请求转换器 chunk。
+      converterPromise = undefined
+      throw error
+    })
   return converterPromise
 }
 
