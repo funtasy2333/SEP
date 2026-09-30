@@ -436,6 +436,13 @@
   padding-left: 2em;
 }
 
+/* 数字和间隔号列项均按二级字位起排。 */
+.std-list-dot,
+.std-list-numeric,
+.std-list[data-level="2"] {
+  padding-left: 4em;
+}
+
 .std-list-item {
   margin: 4px 0;
   line-height: 1.8;
@@ -444,6 +451,11 @@
 
 .std-list-dash .std-list-item::before {
   content: '——';
+  margin-right: 0.5em;
+}
+
+.std-list-dot .std-list-item::before {
+  content: '·';
   margin-right: 0.5em;
 }
 
@@ -481,12 +493,12 @@
   content: counter(numeric-counter) '） ';
 }
 
-/* 兼容嵌套 DOM：二级及更深列项统一使用间隔号。 */
-.std-list .std-list .std-list-item {
+/* 兼容嵌套 DOM：数字子列项保留编号，其他历史嵌套类型使用间隔号。 */
+.std-list .std-list:not(.std-list-numeric) .std-list-item {
   counter-increment: none;
 }
 
-.std-list .std-list .std-list-item::before {
+.std-list .std-list:not(.std-list-numeric) .std-list-item::before {
   content: '·';
   margin-right: 0.5em;
 }

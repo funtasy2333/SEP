@@ -329,8 +329,8 @@ export function buildNumberingFixture(): NumberingFixture {
       listItem('alpha-i1-num-i2', [numSub1Item2P]),
     ],
   }
-  markListItemSelf('alpha-i1-num-i1', '·', numSub1Item1P.content)
-  markListItemSelf('alpha-i1-num-i2', '·', numSub1Item2P.content)
+  markListItemSelf('alpha-i1-num-i1', '1）', numSub1Item1P.content)
+  markListItemSelf('alpha-i1-num-i2', '2）', numSub1Item2P.content)
 
   const alphaItem1P = para('alpha-i1-p', t('字母项一'))
   markListItemSelf('alpha-i1', 'a）', alphaItem1P.content)
@@ -385,11 +385,11 @@ export function buildNumberingFixture(): NumberingFixture {
   markListItemSelf('boxed-i2', '2）', boxedItem2P.content)
   const boxedList: IRList = { kind: 'list', id: 'list-boxed', listType: 'boxed', items: [listItem('boxed-i1', [boxedItem1P]), listItem('boxed-i2', [boxedItem2P])] }
 
-  // dash 顶层下嵌 number 子列表，二级按间隔号显示。
+  // dash 顶层下嵌 number 子列表，二级保留数字编号。
   const dashNumSubItem1P = para('dash-i1-num-i1-p', t('破折下数字一'))
-  markListItemSelf('dash-i1-num-i1', '·', dashNumSubItem1P.content)
+  markListItemSelf('dash-i1-num-i1', '1）', dashNumSubItem1P.content)
   const dashNumSubItem2P = para('dash-i1-num-i2-p', t('破折下数字二'))
-  markListItemSelf('dash-i1-num-i2', '·', dashNumSubItem2P.content)
+  markListItemSelf('dash-i1-num-i2', '2）', dashNumSubItem2P.content)
   const dashNumSub: IRList = {
     kind: 'list', id: 'dash-i1-num', listType: 'number',
     items: [listItem('dash-i1-num-i1', [dashNumSubItem1P]), listItem('dash-i1-num-i2', [dashNumSubItem2P])],

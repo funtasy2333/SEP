@@ -56,6 +56,8 @@ export function warn(ctx: RenderContext, code: string, message: string, nodeId?:
 export interface EmitParagraphOptions {
   /** 段落级 numPr（§4.1：无标题条、术语条目编号、按需实例列项……都用这个） */
   numPr?: { numId: number; ilvl: number }
+  /** 覆盖编号定义的缩进，例如独立的二级数字列项。 */
+  indent?: { left: number; hanging: number }
   /** 分段续表的第一段与后续段从新页起排。 */
   pageBreakBefore?: boolean
   /** 段落内容（一串 `<w:r>…</w:r>`），省略/空串 = 空段落（只有编号的段） */
@@ -85,6 +87,7 @@ export function emitParagraph(ctx: RenderContext, styleId: string, opts: EmitPar
     ['ilvl', `<w:ilvl w:val="${opts.numPr.ilvl}"/>`],
     ['numId', `<w:numId w:val="${opts.numPr.numId}"/>`],
   ])])
+  if (opts.indent) pprChildren.push(['ind', `<w:ind w:left="${opts.indent.left}" w:hanging="${opts.indent.hanging}"/>`])
   const bookmark = opts.bookmark ?? (opts.numbered ? ctx.bookmarksByNodeId.get(opts.numbered.nodeId) : undefined)
   const start = bookmark
     ? `<w:bookmarkStart w:id="${bookmark.id}" w:name="${escapeXmlAttr(bookmark.name)}"/>`

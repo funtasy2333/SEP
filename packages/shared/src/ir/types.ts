@@ -77,7 +77,9 @@ export interface IRParagraph {
 export interface IRList {
   kind: 'list'
   id: NodeId
-  listType: 'dash' | 'number' | 'alpha' | 'roman' | 'romanUpper' | 'boxed'
+  listType: 'dash' | 'number' | 'alpha' | 'roman' | 'romanUpper' | 'boxed' | 'dot'
+  /** 同级列项的视觉层级；省略时为一级。 */
+  level?: 1 | 2
   items: { id: NodeId; content: (IRParagraph | IRList)[] }[]
 }
 

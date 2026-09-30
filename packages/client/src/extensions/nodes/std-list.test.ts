@@ -8,5 +8,6 @@ describe('标准列项类型兼容', () => {
     expect(normalizeStdListType('alpha')).toBe('alpha')
     expect(normalizeStdListType('numeric')).toBe('numeric')
     expect(normalizeStdListType('dash')).toBe('dash')
+    expect(normalizeStdListType('dot')).toBe('dot')
   })
 })

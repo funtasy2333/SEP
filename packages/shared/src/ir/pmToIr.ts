@@ -152,6 +152,7 @@ const STD_LIST_TYPE_MAP: Record<string, IRList['listType']> = {
   dash: 'dash',
   alpha: 'alpha',
   numeric: 'number',
+  dot: 'dot',
   roman: 'number',
   romanUpper: 'number',
   boxedNumeric: 'boxed',
@@ -180,7 +181,9 @@ function convertStdList(node: PMJsonNode, ctx: Ctx): IRList {
       content: [wrapParagraph(itemId, 'p0', convertInlines(item.content, ctx))],
     })
   }
-  return { kind: 'list', id, listType, items }
+  // 数字和间隔号列项固定为二级，兼容旧文档中仍写着 level=1 的数字列项。
+  const level = rawType === 'numeric' || rawType === 'dot' ? 2 : 1
+  return level === 2 ? { kind: 'list', id, listType, level, items } : { kind: 'list', id, listType, items }
 }
 
 /** StarterKit bulletList / orderedList → IRList（dash / number） */
@@ -211,6 +214,7 @@ function convertStarterList(node: PMJsonNode, ctx: Ctx): IRList {
     kind: 'list',
     id,
     listType: node.type === 'orderedList' ? 'number' : 'dash',
+    ...(node.type === 'orderedList' ? { level: 2 as const } : {}),
     items,
   }
 }

@@ -11,7 +11,7 @@ describe('printCss 列项标记', () => {
     expect(css).not.toMatch(/counter\(ses-li, (?:lower|upper)-roman\)/)
   })
 
-  it('所有嵌套层级优先使用间隔号', () => {
-    expect(printCss()).toContain('.ses-list .ses-list > .ses-list-item::before { content: "·"; counter-increment: none; }')
+  it('嵌套数字列项保留编号，其他嵌套列项使用间隔号', () => {
+    expect(printCss()).toContain('.ses-list .ses-list:not(.ses-list-number) > .ses-list-item::before { content: "·"; counter-increment: none; }')
   })
 })

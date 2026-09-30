@@ -12,6 +12,12 @@ describe('standard-nodes.css 列项标记', () => {
   })
 
   it('嵌套列项使用间隔号', () => {
-    expect(css).toContain(".std-list .std-list .std-list-item::before {\n  content: '·';\n  margin-right: 0.5em;")
+    expect(css).toContain(".std-list .std-list:not(.std-list-numeric) .std-list-item::before {\n  content: '·';\n  margin-right: 0.5em;")
+  })
+
+  it('数字列项与间隔号列项均再缩进一层', () => {
+    expect(css).toContain('.std-list-dot .std-list-item::before')
+    expect(css).toContain('.std-list-numeric,')
+    expect(css).toContain('padding-left: 4em')
   })
 })

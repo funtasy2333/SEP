@@ -682,6 +682,7 @@ export function toXmlListType(listType: string): string {
     dash: 'dash',
     alpha: 'alpha-lower',
     numeric: 'arabic',
+    dot: 'bullet',
     roman: 'arabic',
     romanUpper: 'arabic',
   }
@@ -696,6 +697,7 @@ function serializeList(lines: string[], node: PMNode, depth: number) {
   node.forEach((child) => {
     if (child.type.name === 'stdListItem') {
       lines.push(`${indent(depth + 1)}<list-item>`)
+      if (listType === 'bullet') lines.push(`${indent(depth + 2)}<label>·</label>`)
       lines.push(`${indent(depth + 2)}<p>${serializeInlineContent(child)}</p>`)
       lines.push(`${indent(depth + 1)}</list-item>`)
     }

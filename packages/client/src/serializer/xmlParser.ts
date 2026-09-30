@@ -622,6 +622,9 @@ export function fromXmlListType(xmlType: string): string {
     dash: 'dash',
     'alpha-lower': 'alpha',
     arabic: 'numeric',
+    bullet: 'dot',
+    // 兼容先前测试版导出的非标准值。
+    dot: 'dot',
     'roman-lower': 'numeric',
     'roman-upper': 'numeric',
   }
@@ -634,7 +637,7 @@ function parseList(el: Element): PMJsonNode {
 
   const list: PMJsonNode = {
     type: 'stdList',
-    attrs: { listType },
+    attrs: { listType, level: listType === 'numeric' || listType === 'dot' ? 2 : 1 },
     content: [],
   }
 

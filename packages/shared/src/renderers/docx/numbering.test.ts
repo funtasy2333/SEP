@@ -329,7 +329,16 @@ describe('列项段落渲染', () => {
     }
   }
 
-  it('任意父子列项类型组合的二级列表都使用间隔号且不报格式回退', () => {
+  it('二级数字列项保留 1）编号并使用二级缩进，间隔号列项使用二级样式', () => {
+    const number = { ...list('number', 'number'), level: 2 as const }
+    const ctx = createRenderContext({})
+    const xml = renderBlocks(ctx, [number, list('dot', 'dot')], { scopeKey: 'scope' })
+    expect(xml).toMatch(/w:pStyle w:val="SesListItem"[^]*w:ilvl w:val="0"[^]*w:ind w:left="1260" w:hanging="420"/)
+    expect(xml).toContain('<w:pStyle w:val="SesListDot"/>')
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('二级数字列项保留数字编号，其他历史嵌套类型按间隔号兼容', () => {
     const parentTypes: IRList['listType'][] = ['dash', 'alpha', 'number', 'roman', 'romanUpper']
     const childTypes: IRList['listType'][] = ['dash', 'alpha', 'number', 'boxed', 'roman', 'romanUpper']
     const blocks: IRBlock[] = parentTypes.map((parentType, i) =>
@@ -339,7 +348,8 @@ describe('列项段落渲染', () => {
     const paragraphs = renderBlocks(ctx, blocks, { scopeKey: 'scope' })
     const numberingXml = ctx.numbering.buildNumberingXml()
 
-    expect(paragraphs.match(/w:ilvl w:val="1"/g)).toHaveLength(25)
+    expect(paragraphs.match(/w:ilvl w:val="1"/g)).toHaveLength(20)
+    expect(paragraphs.match(/w:ind w:left="1260" w:hanging="420"/g)).toHaveLength(6)
     expect(paragraphs.match(/w:pStyle w:val="SesListDot"/g)).toHaveLength(5)
     expect(numberingXml).toContain('<w:numFmt w:val="bullet"/>')
     expect(numberingXml).toContain('<w:lvlText w:val="·"/>')
