@@ -248,7 +248,7 @@ const CONTENT = `
  *   一级标记空 2 字起排（margin-left 2em）、文字/回行第 5 字位（padding-left 2em → 4em）；
  *   二级由嵌套再缩进 2 字（marker 4em / 文字 6em，容差从宽）。 —— */
 .ses-list { margin: 4pt 0 4pt 2em; counter-reset: ses-li; }
-.ses-list[data-level="2"], .ses-list-dot { margin-left: 4em; }
+.ses-list[data-level="2"], .ses-list-number, .ses-list-dot { margin-left: 4em; }
 .ses-list-item { position: relative; padding-left: 2em; }
 .ses-list-item::before {
   position: absolute;

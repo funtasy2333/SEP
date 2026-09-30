@@ -622,6 +622,8 @@ export function fromXmlListType(xmlType: string): string {
     dash: 'dash',
     'alpha-lower': 'alpha',
     arabic: 'numeric',
+    bullet: 'dot',
+    // 兼容先前测试版导出的非标准值。
     dot: 'dot',
     'roman-lower': 'numeric',
     'roman-upper': 'numeric',

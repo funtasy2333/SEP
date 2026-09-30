@@ -55,6 +55,7 @@ describe('XML 列项导入类型', () => {
     expect(fromXmlListType('arabic')).toBe('numeric')
     expect(fromXmlListType('alpha-lower')).toBe('alpha')
     expect(fromXmlListType('dash')).toBe('dash')
+    expect(fromXmlListType('bullet')).toBe('dot')
     expect(fromXmlListType('dot')).toBe('dot')
   })
 })

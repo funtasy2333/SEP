@@ -645,9 +645,16 @@ function screenStyles(): string {
     .ses-toc-l2 { padding-left: 2em; }
     .ses-toc-l3 { padding-left: 4em; }
     .ses-toc-text { color: #0066cc; text-decoration: none; }
-    .ses-list { padding-left: 2em; margin: 8px 0; }
-    .ses-list[data-level="2"], .ses-list-dot { padding-left: 4em; }
-    .ses-list-item { margin: 2px 0; }
+    .ses-list { padding-left: 2em; margin: 8px 0; counter-reset: ses-li; }
+    .ses-list[data-level="2"], .ses-list-number, .ses-list-dot { padding-left: 4em; }
+    .ses-list-item { position: relative; padding-left: 2em; margin: 2px 0; }
+    .ses-list-item::before { position: absolute; left: 0; counter-increment: ses-li; }
+    .ses-list-dash > .ses-list-item::before { content: "— "; counter-increment: none; }
+    .ses-list-dot > .ses-list-item::before { content: "·"; counter-increment: none; }
+    .ses-list-number > .ses-list-item::before { content: counter(ses-li) "） "; }
+    .ses-list-alpha > .ses-list-item::before { content: counter(ses-li, lower-alpha) "） "; }
+    .ses-list-roman > .ses-list-item::before, .ses-list-romanUpper > .ses-list-item::before { content: counter(ses-li) "） "; }
+    .ses-list .ses-list:not(.ses-list-number) > .ses-list-item::before { content: "·"; counter-increment: none; }
     .ses-table-block { margin: 16px 0; }
     .ses-table-caption { font-family: "SimHei", "黑体", sans-serif; font-weight: bold; text-align: center; margin: 8px 0 4px; }
     .ses-table-caption-en { text-align: center; font-style: italic; color: #555; }

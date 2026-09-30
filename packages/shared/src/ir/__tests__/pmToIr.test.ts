@@ -177,6 +177,7 @@ describe('pmToIr / 块级要素', () => {
     const { doc } = pmToIr(pm)
     const list = doc.body[0].children[0] as IRList
     expect(list.listType).toBe('number')
+    expect(list.level).toBe(2)
     expect(list.items[0].id).toBe('oli')
   })
 

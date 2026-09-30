@@ -214,6 +214,7 @@ function convertStarterList(node: PMJsonNode, ctx: Ctx): IRList {
     kind: 'list',
     id,
     listType: node.type === 'orderedList' ? 'number' : 'dash',
+    ...(node.type === 'orderedList' ? { level: 2 as const } : {}),
     items,
   }
 }

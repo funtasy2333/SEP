@@ -30,6 +30,13 @@ describe('renderHtml — 全要素 fixture', () => {
     expect(renderFixture('print')).toBe(renderFixture('print'))
     expect(renderFixture('screen')).toBe(renderFixture('screen'))
   })
+
+  it('screen 变体为间隔号和数字列项提供标记及二级缩进', () => {
+    const screen = renderFixture('screen')
+    expect(screen).toContain('.ses-list-dot > .ses-list-item::before { content: "·"')
+    expect(screen).toContain('.ses-list-number > .ses-list-item::before { content: counter(ses-li) "） "')
+    expect(screen).toContain('.ses-list[data-level="2"], .ses-list-number, .ses-list-dot { padding-left: 4em; }')
+  })
 })
 
 describe('编号一致性（编号全部取自 labels，渲染器无计数器）', () => {
