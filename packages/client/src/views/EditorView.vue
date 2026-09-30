@@ -308,16 +308,6 @@
           <span class="ec-label">版式预览（GB/T 1.1 排版）</span>
           <span class="ec-sub">{{ exportingFormat === 'pdf' ? '正在转换…' : '自动生成目次页码' }}</span>
         </button>
-        <button
-          v-if="capabilities.libreOffice"
-          class="export-card"
-          :disabled="exportingFormat !== null"
-          @click="handleExportFormat('pdf-hifi')"
-        >
-          <span class="ec-glyph">PDF</span>
-          <span class="ec-label">DOCX 转换预览</span>
-          <span class="ec-sub">{{ exportingFormat === 'pdf-hifi' ? '正在生成并转换…' : 'LibreOffice 转换；最终版式以 Word 为准' }}</span>
-        </button>
         <button class="export-card" :disabled="exportingFormat !== null" @click="handleExportFormat('xml')">
           <span class="ec-glyph">&lt;/&gt;</span>
           <span class="ec-label">XML</span>
@@ -382,7 +372,7 @@ import { CrossRef } from '@/extensions'
 import {
   serializeToXml, parseXmlToJson,
   exportSemanticJson, exportSemanticHtml,
-  buildPdfExportRequest, buildDocxBlob, convertDocxToPdf,
+  buildPdfExportRequest, buildDocxBlob,
 } from '@/serializer'
 import { irMetaFromDocumentMeta, type IRDocMeta } from '@ses/shared'
 
@@ -402,12 +392,11 @@ const codeViewFormat = ref<'xml' | 'json' | 'html' | 'raw'>('xml')
 const xmlFileInput = ref<HTMLInputElement | null>(null)
 const showVersionPanel = ref(false)
 const documentId = computed(() => Number(route.params.id))
-const exportingFormat = ref<'docx' | 'pdf' | 'pdf-hifi' | null>(null)
+const exportingFormat = ref<'docx' | 'pdf' | null>(null)
 const exportError = ref('')
-/** 出件能力（服务端探测）：htmlToPdf=vivliostyle 管线，libreOffice=高保真路径 */
-const capabilities = ref<{ htmlToPdf: boolean; libreOffice: boolean }>({
+/** 出件能力（服务端探测）：htmlToPdf=Vivliostyle 管线 */
+const capabilities = ref<{ htmlToPdf: boolean }>({
   htmlToPdf: true,
-  libreOffice: false,
 })
 
 /** 默认文档结构：前言 + 1范围 + 2规范性引用文件 + 3术语和定义 */
@@ -579,7 +568,7 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-  // 探测服务端出件能力（失败时保持默认：仅 vivliostyle 管线可用、隐藏高保真卡片）
+  // 探测服务端 PDF 出件能力。
   try {
     const resp = await fetch('/api/convert/capabilities')
     if (resp.ok) capabilities.value = await resp.json()
@@ -1072,7 +1061,7 @@ function buildDocMeta(): Partial<IRDocMeta> {
   return irMetaFromDocumentMeta(store.currentDocument?.meta)
 }
 
-async function handleExportFormat(format: 'docx' | 'pdf' | 'pdf-hifi' | 'xml' | 'html' | 'json') {
+async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'json') {
   if (!editor.value) return
   if (exportingFormat.value !== null) return
 
@@ -1080,7 +1069,7 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'pdf-hifi' | 'xml' | 
   const meta = buildDocMeta()
   const docTitle = meta.title || store.currentDocument?.meta?.titleCn || '标准文件'
 
-  if (format === 'docx' || format === 'pdf-hifi') {
+  if (format === 'docx') {
     exportingFormat.value = format
     exportError.value = ''
     try {
@@ -1090,18 +1079,12 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'pdf-hifi' | 'xml' | 
         stage: store.currentDocument?.stage,
       })
 
-      if (format === 'docx') {
-        downloadBlob(blob, `${docTitle}.docx`)
-        ElMessage.success('DOCX 文件已导出')
-      } else {
-        const pdfBlob = await convertDocxToPdf(blob, docTitle)
-        downloadBlob(pdfBlob, `${docTitle}.pdf`)
-        ElMessage.success('DOCX 转换预览 PDF 已导出')
-      }
+      downloadBlob(blob, `${docTitle}.docx`)
+      ElMessage.success('DOCX 文件已导出')
       showExport.value = false
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
-      exportError.value = `${format === 'docx' ? 'DOCX' : 'DOCX 转换预览 PDF'} 导出失败：${detail}`
+      exportError.value = `DOCX 导出失败：${detail}`
       ElMessage.error(exportError.value)
     } finally {
       exportingFormat.value = null

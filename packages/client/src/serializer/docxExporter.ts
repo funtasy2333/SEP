@@ -100,25 +100,3 @@ export async function buildDocxBlob(options: BuildDocxOptions): Promise<{
     ],
   }
 }
-
-/** 将同一 DOCX Blob 作为 multipart 文件提交给服务端 LibreOffice 转换接口。 */
-export async function convertDocxToPdf(
-  docxBlob: Blob,
-  filename: string,
-  fetcher: typeof fetch = fetch,
-): Promise<Blob> {
-  const baseName = filename.replace(/\.docx$/i, '') || '标准文件'
-  const form = new FormData()
-  form.append('file', docxBlob, `${baseName}.docx`)
-
-  const response = await fetcher('/api/convert/docx-to-pdf', {
-    method: 'POST',
-    body: form,
-  })
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '')
-    const message = detail.trim() || response.statusText
-    throw new Error(`服务器转换失败 (${response.status})${message ? `: ${message}` : ''}`)
-  }
-  return response.blob()
-}

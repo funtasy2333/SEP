@@ -6,7 +6,7 @@
 
 ## 1. 必需环境
 
-### 1.1 Node.js (>= 18.0.0)
+### 1.1 Node.js (>= 20.19.0)
 
 项目使用 Node.js 运行时，前端和后端均基于 TypeScript 开发。
 
@@ -16,7 +16,7 @@
 安装完成后验证：
 
 ```bash
-node --version   # 应输出 v18.x.x 或更高
+node --version   # 应输出 v20.19.0 或更高
 ```
 
 ### 1.2 pnpm (>= 9.0)
@@ -52,42 +52,15 @@ git --version
 
 ## 2. 可选环境
 
-### 2.1 LibreOffice（PDF 导出功能）
+### 2.1 Poppler（PDF 版式预览）
 
-后端的 DOCX → PDF 转换功能依赖 LibreOffice 的命令行工具 `soffice`。如果不需要 PDF 导出功能，可以跳过此项。
+PDF 版式预览使用工作区依赖 `@vivliostyle/cli` 排版，并通过 Poppler 的 `pdftotext` 和 `pdfinfo` 定位目次页码、核对页数。只导出 DOCX 时可以不安装 Poppler。
 
-- **下载地址**：https://www.libreoffice.org/download/
+- macOS：`brew install poppler`
+- Linux（Ubuntu/Debian）：`sudo apt install poppler-utils`
+- Windows：安装 Poppler 并将包含 `pdftotext`、`pdfinfo` 的目录加入 `PATH`
 
-#### Windows
-
-1. 下载并安装 LibreOffice
-2. 将 LibreOffice 安装目录添加到系统 `PATH` 环境变量中，例如：
-   ```
-   C:\Program Files\LibreOffice\program
-   ```
-3. 验证：
-   ```powershell
-   soffice --version
-   ```
-
-#### macOS
-
-```bash
-brew install --cask libreoffice
-```
-
-#### Linux (Ubuntu/Debian)
-
-```bash
-sudo apt update
-sudo apt install libreoffice-core
-```
-
-安装完成后验证：
-
-```bash
-soffice --version   # 应输出 LibreOffice x.x.x.x
-```
+用 `pdftotext -v` 和 `pdfinfo -v` 验证；服务端启动时会检查这两个命令。
 
 ### 2.2 Python 3（辅助脚本，可选）
 
@@ -157,8 +130,8 @@ pnpm build
 
 | 依赖项      | 是否必需 | 最低版本  | 用途                          |
 | ----------- | -------- | --------- | ----------------------------- |
-| Node.js     | 是       | 18.0.0    | JavaScript 运行时             |
+| Node.js     | 是       | 20.19.0   | JavaScript 运行时             |
 | pnpm        | 是       | 9.0       | 包管理器（Workspace monorepo）|
 | Git         | 是       | -         | 代码版本管理                  |
-| LibreOffice | 否       | -         | DOCX → PDF 转换               |
+| Poppler     | 否       | -         | PDF 版式预览的目次页码与页数检查 |
 | Python 3    | 否       | 3.x       | 辅助调试脚本                  |

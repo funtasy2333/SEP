@@ -327,7 +327,7 @@ Phase 5：文档导出（~2周）
     * 方案A：基于 DOCX 的打印为 PDF
     * 方案B：基于排版后的 HTML，使用浏览器 print-to-pdf
     * 确保分页、页眉页脚正确
-    * （现状：已实现为 DOCX → 服务端 LibreOffice 转换；该路径将由 Phase 5.5 的 IR + Vivliostyle 渲染方案取代，LibreOffice 降级为可选回退）
+    * （现状：采用 IR → HTML → Vivliostyle 两遍构建；DOCX → LibreOffice → PDF 路径已废除）
 *  模板管理（2026-09-24 变更：不再使用模板文件；「标准类型」只决定封面样式与编号前缀）
     * 用户可选择标准类型
     * ~~模板预览~~
@@ -336,7 +336,7 @@ Phase 5.5：IR 中间表示与多渲染器重构（~2周）
 目标：以 IR（中间结构）为枢纽重构导出层，摆脱 LibreOffice 强依赖
 背景与动因：
 *  编号逻辑在 docxExporter / htmlExporter / xmlSerializer 中重复实现三次，易不一致
-*  PDF 唯一路径为 DOCX → 服务端 LibreOffice，依赖重、跨平台脆弱
+*  早期 PDF 唯一路径为 DOCX → 服务端 LibreOffice，依赖重、跨平台脆弱（该路径现已废除）
 *  现有导出器绑定浏览器 API（fetch/DOMParser/Blob），阻碍 Phase 9 CLI/MCP 的服务端导出
 任务：
 *  IR 双态设计（放 packages/shared，纯数据、平台无关）
@@ -361,7 +361,7 @@ Phase 5.5：IR 中间表示与多渲染器重构（~2周）
     * Paged.js 作为备选引擎；IR-HTML 渲染器保持引擎无关（输出语义 HTML + 打印样式表），引擎可替换
     * 横排宽表/宽图：IR 节点增加 orientation 属性，spike 中验证「命名页 landscape」与「竖排页内容旋转 90°」两种方案（纸质国标的页眉页码本就保持竖排）
     * 自动出件：vivliostyle-cli（Playwright/Chromium，npm 锁版本，跨平台一致）用于服务端与未来 CLI/MCP；浏览器内预览复用同一 HTML 渲染器
-    * LibreOffice 降级为可选回退（「与 Word 模板逐像素一致」场景），未检测到则隐藏入口，setup 不再强制
+    * PDF 仅保留 Vivliostyle 版式预览；不再提供 LibreOffice 回退路径
 *  先行 spike（1~2 天，全面投入前验收）
     * 毒场景清单：跨页长表（表头重复 +「表X（续）」续标题）、横排宽表、带编号公式、三级目次（点线 + target-counter 页码）、奇偶页眉镜像、前言/目次罗马页码与正文阿拉伯页码
     * 对照 GB/T 1.1 版式检查单逐项验收，通过后再迁移渲染器
@@ -492,12 +492,10 @@ Phase 11：跨平台安装包与多人协作（~4周）[P3]
     * 内置运行环境：
         * Node.js 运行时（Electron 自带）
         * better-sqlite3 作为默认本地数据库
-        * LibreOffice（DOCX→PDF 转换）：
-            * 方案A：内置 LibreOffice 精简版（体积较大但开箱即用）
-            * 方案B：首次使用时引导安装，提供一键安装脚本
+        * PDF 版式预览使用 Vivliostyle 与 Poppler，不内置办公套件
     * 中国用户适配：
         * 安装包分发：支持国内 CDN / 镜像站下载
-        * 依赖安装（如 LibreOffice）：优先使用清华/中科大/阿里等国内镜像源
+        * 依赖安装优先使用可用的国内镜像源
         * 安装向导支持中文界面
     * 自动更新机制（electron-updater）
 *  服务器部署模式

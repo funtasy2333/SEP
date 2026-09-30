@@ -1,9 +1,8 @@
 import JSZip from 'jszip'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { DocumentMeta, PMJsonNode } from '@ses/shared'
 import {
   buildDocxBlob,
-  convertDocxToPdf,
   packageDocx,
   prepareDocxInput,
   resolveDocumentStage,
@@ -130,28 +129,6 @@ describe('DOCX client exporter', () => {
     expect(documentXml).toContain('&amp;')
     expect(zip.file('word/media/image1.png')).not.toBeNull()
     expect(warnings.filter((warning) => /^(?:image|formula)/.test(warning.code))).toEqual([])
-  })
-
-  it('将同一 DOCX Blob 作为 file 上传并返回 PDF，服务端错误包含响应详情', async () => {
-    const docx = new Blob(['docx bytes'], { type: DOCX_MIME_TYPE })
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(new Blob(['pdf bytes'], { type: 'application/pdf' }), { status: 200 }),
-    )
-
-    const pdf = await convertDocxToPdf(docx, '交付稿.docx', fetcher)
-    const [url, init] = fetcher.mock.calls[0]!
-    const uploaded = (init?.body as FormData).get('file') as File
-
-    expect(url).toBe('/api/convert/docx-to-pdf')
-    expect(init?.method).toBe('POST')
-    expect(uploaded.name).toBe('交付稿.docx')
-    expect(await uploaded.text()).toBe('docx bytes')
-    expect(await pdf.text()).toBe('pdf bytes')
-
-    const failingFetch = vi.fn<typeof fetch>().mockResolvedValue(new Response('LibreOffice failed', { status: 500 }))
-    await expect(convertDocxToPdf(docx, '交付稿', failingFetch)).rejects.toThrow(
-      '服务器转换失败 (500): LibreOffice failed',
-    )
   })
 
   it('无效或缺失的阶段回退到工作草案', () => {
