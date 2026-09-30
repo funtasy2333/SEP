@@ -47,7 +47,7 @@ function rFontsOf(el: XmlElement): XmlElement | undefined {
   return rPr && findChild(rPr, 'w:rFonts')
 }
 
-// §3.2 全部样式的 (id -> 中文名)，不含留给 WP7.5 的 SesCover*（SesCoverStdNo 除外）
+// §3.2 全部样式的 (id -> 中文名)，包含 WP7.5 封面样式。
 const EXPECTED_NAMES: Record<string, string> = {
   SesNormal: 'SES_正文基础',
   SesPara: 'SES_段',
@@ -95,7 +95,25 @@ const EXPECTED_NAMES: Record<string, string> = {
   TOC1: 'toc 1',
   TOC2: 'toc 2',
   TOC3: 'toc 3',
+  SesCoverIcs: 'SES_封面分类号',
+  SesCoverLogo: 'SES_封面标志',
+  SesCoverLogoText: 'SES_封面标志文字',
+  SesCoverDbRegion: 'SES_封面地方代码',
+  SesCoverDesignationGb: 'SES_封面国家标准称谓',
+  SesCoverDesignationGuide: 'SES_封面指导性技术文件称谓',
+  SesCoverDesignationOther: 'SES_封面其他标准称谓',
+  SesCoverGroupLogo: 'SES_封面团体标志近似',
+  SesCoverEnterpriseLogo: 'SES_封面企业标志近似',
   SesCoverStdNo: 'SES_封面文件编号',
+  SesCoverReplaces: 'SES_封面代替文件编号',
+  SesCoverRule: 'SES_封面横线',
+  SesCoverName: 'SES_封面文件名称',
+  SesCoverEnglish: 'SES_封面英文译名',
+  SesCoverConsistency: 'SES_封面一致性程度',
+  SesCoverStage: 'SES_封面阶段标识',
+  SesCoverPatent: 'SES_封面专利说明',
+  SesCoverDates: 'SES_封面日期',
+  SesCoverIssuer: 'SES_封面发布机构',
 }
 // 条级样式中文名用汉字数字，不是阿拉伯数字（§3.2：SES_一级条标题…SES_五级条标题，#34 审查）
 const CN_LEVEL = ['一', '二', '三', '四', '五']
@@ -110,7 +128,7 @@ for (let level = 1; level <= 5; level++) {
 describe('styles.ts：§3.2 全部样式都在，ID/中文名/basedOn 正确', () => {
   const styles = styleMap()
 
-  it('样式数量与 ID 集合与 §3.2（不含 WP7.5 的 SesCover*）完全一致', () => {
+  it('样式数量与 ID 集合与 §3.2 完全一致', () => {
     expect(new Set(styles.keys())).toEqual(new Set(Object.keys(EXPECTED_NAMES)))
   })
 

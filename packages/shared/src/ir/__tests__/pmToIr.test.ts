@@ -42,6 +42,79 @@ describe('pmToIr / 元数据', () => {
     expect(warnings).toEqual([])
   })
 
+  it('新增封面字段优先取 coverPage attrs，空值回退 root attrs', () => {
+    const { doc, warnings } = pmToIr(fx.standardDoc(
+      {
+        standardType: 'national',
+        replaces: 'ROOT replace',
+        consistency: 'ROOT consistency',
+        filingNo: 'ROOT filing',
+        industryName: 'ROOT industry',
+        regionName: 'ROOT region',
+      },
+      {
+        type: 'coverPage',
+        attrs: {
+          replaces: 'COVER replace',
+          consistency: '',
+          filingNo: 'COVER filing',
+          industryName: '',
+          regionName: 'COVER region',
+        },
+        content: [],
+      },
+    ))
+
+    expect(doc.meta).toMatchObject({
+      replaces: 'COVER replace',
+      consistency: 'ROOT consistency',
+      filingNo: 'COVER filing',
+      industryName: 'ROOT industry',
+      regionName: 'COVER region',
+    })
+    expect(warnings).toEqual([])
+  })
+
+  it('无 coverPage 时仍兼容从 root attrs 读取新增封面字段', () => {
+    const { doc } = pmToIr(fx.standardDoc({
+      standardType: 'national',
+      replaces: 'ROOT replace',
+      consistency: 'ROOT consistency',
+      filingNo: 'ROOT filing',
+      industryName: 'ROOT industry',
+      regionName: 'ROOT region',
+    }))
+
+    expect(doc.meta).toMatchObject({
+      replaces: 'ROOT replace',
+      consistency: 'ROOT consistency',
+      filingNo: 'ROOT filing',
+      industryName: 'ROOT industry',
+      regionName: 'ROOT region',
+    })
+  })
+
+  it('新增封面字段缺失或为空时不写入 IR', () => {
+    const { doc } = pmToIr(fx.standardDoc(
+      {},
+      {
+        type: 'coverPage',
+        attrs: {
+          replaces: '',
+          consistency: '',
+          filingNo: '',
+          industryName: '',
+          regionName: '',
+        },
+        content: [],
+      },
+    ))
+
+    for (const key of ['replaces', 'consistency', 'filingNo', 'industryName', 'regionName'] as const) {
+      expect(key in doc.meta).toBe(false)
+    }
+  })
+
   it('standardType="constructor" 回落为 gb 并报警告，不把原型链上的函数写进 IR（审查第 1 条）', () => {
     const { doc, warnings } = pmToIr(fx.standardDoc({ standardType: 'constructor' }))
     expect(doc.meta.standardType).toBe('gb')

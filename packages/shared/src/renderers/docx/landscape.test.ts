@@ -69,7 +69,12 @@ describe('WP7.4 横排分节', () => {
     expect(sections[3]).toContain('pgNumType=decimal start=—')
     expect(sections[4]).toContain('pgNumType=decimal start=—')
     expect(pkg.parts['word/document.xml']).not.toContain('<!--SES:landscape:')
-    expect(Object.keys(pkg.binaries)).toEqual(['word/media/image1.png'])
+    expect(Object.keys(pkg.binaries)).toEqual([
+      'word/media/image1.png', // GB 封面标志
+      'word/media/image2.png', // 国家标准发布机构
+      'word/media/image3.png', // 横排图
+    ])
+    expect(pkg.binaries['word/media/image3.png']).toBe(image.base64)
   })
 
   it('末要素为横排表时终结线保留在横排节，且不额外开竖排节', () => {

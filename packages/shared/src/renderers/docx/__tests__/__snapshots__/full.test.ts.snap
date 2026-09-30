@@ -1,7 +1,16 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`full fixture (pmToIr(fullFixture()) → resolve) > 大纲快照 1`] = `
-"SesCoverStdNo │ — │ GB/T 12345—2026
+"SesCoverIcs │ — │ ICS 35.240⏎CCS L 70
+SesCoverLogo │ — │ 〔图〕
+SesCoverDesignationGb │ — │ 中华人民共和国国家标准
+SesCoverStdNo │ — │ GB/T 12345—2026
+SesCoverRule │ — │
+SesCoverName │ — │ 标准化文件编辑系统
+SesCoverEnglish │ — │ Standardization document editing system
+SesCoverStage │ — │ （报批稿）
+SesCoverDates │ — │ 2026-06-01 发布⇥2026-12-01 实施
+SesCoverIssuer │ — │ 〔图〕　发　布
 — │ — │
 § type=nextPage pgNumType=— start=— orient=— refs=0
 SesTocTitle │ — │ 目次

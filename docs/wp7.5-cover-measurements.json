@@ -1,0 +1,2140 @@
+{
+  "date": "2026-09-30",
+  "word_version": "16.113.3",
+  "summary": [
+    {
+      "kind": "gb",
+      "checks": 31,
+      "passed": true,
+      "max_abs_delta_mm": 0.77
+    },
+    {
+      "kind": "guide",
+      "checks": 31,
+      "passed": true,
+      "max_abs_delta_mm": 0.83
+    },
+    {
+      "kind": "industry",
+      "checks": 28,
+      "passed": true,
+      "max_abs_delta_mm": 0.99
+    },
+    {
+      "kind": "local",
+      "checks": 26,
+      "passed": true,
+      "max_abs_delta_mm": 0.92
+    },
+    {
+      "kind": "group",
+      "checks": 28,
+      "passed": true,
+      "max_abs_delta_mm": 0.92
+    },
+    {
+      "kind": "enterprise",
+      "checks": 26,
+      "passed": true,
+      "max_abs_delta_mm": 0.92
+    }
+  ],
+  "results": [
+    {
+      "relative_checks": [
+        {
+          "element": "name_line_pitch",
+          "target_mm": 12.9,
+          "actual_mm": 12.95,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "name_center",
+          "target_mm": 110,
+          "actual_mm": 109.69,
+          "delta_mm": -0.31,
+          "pass": true
+        },
+        {
+          "element": "english_gap",
+          "target_mm": 10.5,
+          "actual_mm": 10.5,
+          "delta_mm": 0.0,
+          "pass": true
+        },
+        {
+          "element": "consistency_gap",
+          "target_mm": 14.5,
+          "actual_mm": 14.48,
+          "delta_mm": -0.02,
+          "pass": true
+        },
+        {
+          "element": "english_line_pitch",
+          "target_mm": 7.0,
+          "actual_mm": 7.11,
+          "delta_mm": 0.11,
+          "pass": true
+        }
+      ],
+      "pdf": "/Users/funtasy/.codex/worktrees/wp7-5-cover/set/tmp-e2e/wp7.5/gb.pdf",
+      "page_count": 5,
+      "method": "300dpi grayscale <128; pixel bounds in mm",
+      "blocks": {
+        "classification": [
+          {
+            "left": 25.74,
+            "top": 10.58,
+            "right": 48.85,
+            "bottom": 13.12
+          },
+          {
+            "left": 25.15,
+            "top": 16.09,
+            "right": 39.62,
+            "bottom": 18.63
+          }
+        ],
+        "logo": [
+          {
+            "left": 142.92,
+            "top": 12.95,
+            "right": 182.96,
+            "bottom": 33.02
+          }
+        ],
+        "designation": [
+          {
+            "left": 25.74,
+            "top": 41.49,
+            "right": 194.23,
+            "bottom": 50.04
+          }
+        ],
+        "number": [
+          {
+            "left": 150.62,
+            "top": 58.34,
+            "right": 189.91,
+            "bottom": 61.98
+          }
+        ],
+        "replaces": [
+          {
+            "left": 151.21,
+            "top": 65.45,
+            "right": 189.82,
+            "bottom": 68.83
+          }
+        ],
+        "rule": [
+          {
+            "left": 24.64,
+            "top": 75.01,
+            "right": 195.16,
+            "bottom": 75.18
+          }
+        ],
+        "name_block": [
+          {
+            "left": 27.69,
+            "top": 115.4,
+            "right": 191.69,
+            "bottom": 123.95
+          },
+          {
+            "left": 92.03,
+            "top": 128.35,
+            "right": 127.51,
+            "bottom": 136.74
+          },
+          {
+            "left": 32.34,
+            "top": 147.24,
+            "right": 187.54,
+            "bottom": 151.21
+          },
+          {
+            "left": 101.52,
+            "top": 154.35,
+            "right": 117.6,
+            "bottom": 157.65
+          },
+          {
+            "left": 85.85,
+            "top": 172.13,
+            "right": 134.11,
+            "bottom": 176.78
+          }
+        ],
+        "dates": [
+          {
+            "left": 25.15,
+            "top": 251.21,
+            "right": 194.73,
+            "bottom": 255.78
+          }
+        ],
+        "date_rule": [
+          {
+            "left": 24.64,
+            "top": 257.05,
+            "right": 195.16,
+            "bottom": 257.22
+          }
+        ],
+        "issuer": [
+          {
+            "left": 68.5,
+            "top": 263.99,
+            "right": 133.35,
+            "bottom": 269.75
+          },
+          {
+            "left": 68.5,
+            "top": 270.34,
+            "right": 151.13,
+            "bottom": 276.52
+          }
+        ]
+      },
+      "checks": [
+        {
+          "element": "classification",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.74,
+          "delta_mm": 0.74,
+          "pass": true
+        },
+        {
+          "element": "classification",
+          "edge": "top",
+          "target_mm": 10.6,
+          "actual_mm": 10.58,
+          "delta_mm": -0.02,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "top",
+          "target_mm": 41.5,
+          "actual_mm": 41.49,
+          "delta_mm": -0.01,
+          "pass": true
+        },
+        {
+          "element": "number",
+          "edge": "top",
+          "target_mm": 58.3,
+          "actual_mm": 58.34,
+          "delta_mm": 0.04,
+          "pass": true
+        },
+        {
+          "element": "number",
+          "edge": "right",
+          "target_mm": 190,
+          "actual_mm": 189.91,
+          "delta_mm": -0.09,
+          "pass": true
+        },
+        {
+          "element": "replaces",
+          "edge": "top",
+          "target_mm": 65.4,
+          "actual_mm": 65.45,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "replaces",
+          "edge": "right",
+          "target_mm": 190,
+          "actual_mm": 189.82,
+          "delta_mm": -0.18,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "top",
+          "target_mm": 75,
+          "actual_mm": 75.01,
+          "delta_mm": 0.01,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 24.64,
+          "delta_mm": -0.36,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 195.16,
+          "delta_mm": 0.16,
+          "pass": true
+        },
+        {
+          "element": "name_block",
+          "edge": "top",
+          "target_mm": 115.4,
+          "actual_mm": 115.4,
+          "delta_mm": 0.0,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "top",
+          "target_mm": 251.5,
+          "actual_mm": 251.21,
+          "delta_mm": -0.29,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.15,
+          "delta_mm": 0.15,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 194.73,
+          "delta_mm": -0.27,
+          "pass": true
+        },
+        {
+          "element": "date_rule",
+          "edge": "top",
+          "target_mm": 257,
+          "actual_mm": 257.05,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "left",
+          "target_mm": 143,
+          "actual_mm": 142.92,
+          "delta_mm": -0.08,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "top",
+          "target_mm": 13,
+          "actual_mm": 12.95,
+          "delta_mm": -0.05,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "right",
+          "target_mm": 183,
+          "actual_mm": 182.96,
+          "delta_mm": -0.04,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "bottom",
+          "target_mm": 33,
+          "actual_mm": 33.02,
+          "delta_mm": 0.02,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.74,
+          "delta_mm": 0.74,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 194.23,
+          "delta_mm": -0.77,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "bottom",
+          "target_mm": 50.2,
+          "actual_mm": 50.04,
+          "delta_mm": -0.16,
+          "pass": true
+        },
+        {
+          "element": "issuer",
+          "edge": "left",
+          "target_mm": 68.6,
+          "actual_mm": 68.5,
+          "delta_mm": -0.1,
+          "pass": true
+        },
+        {
+          "element": "issuer",
+          "edge": "right",
+          "target_mm": 151.4,
+          "actual_mm": 151.13,
+          "delta_mm": -0.27,
+          "pass": true
+        },
+        {
+          "element": "issuer",
+          "edge": "top",
+          "target_mm": 264,
+          "actual_mm": 263.99,
+          "delta_mm": -0.01,
+          "pass": true
+        },
+        {
+          "element": "issuer",
+          "edge": "bottom",
+          "target_mm": 276,
+          "actual_mm": 276.52,
+          "delta_mm": 0.52,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "relative_checks": [
+        {
+          "element": "name_line_pitch",
+          "target_mm": 12.9,
+          "actual_mm": 12.95,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "name_center",
+          "target_mm": 110,
+          "actual_mm": 109.69,
+          "delta_mm": -0.31,
+          "pass": true
+        },
+        {
+          "element": "english_gap",
+          "target_mm": 10.5,
+          "actual_mm": 10.5,
+          "delta_mm": 0.0,
+          "pass": true
+        },
+        {
+          "element": "consistency_gap",
+          "target_mm": 14.5,
+          "actual_mm": 14.48,
+          "delta_mm": -0.02,
+          "pass": true
+        },
+        {
+          "element": "english_line_pitch",
+          "target_mm": 7.0,
+          "actual_mm": 7.11,
+          "delta_mm": 0.11,
+          "pass": true
+        }
+      ],
+      "pdf": "/Users/funtasy/.codex/worktrees/wp7-5-cover/set/tmp-e2e/wp7.5/guide.pdf",
+      "page_count": 5,
+      "method": "300dpi grayscale <128; pixel bounds in mm",
+      "blocks": {
+        "classification": [
+          {
+            "left": 25.74,
+            "top": 10.58,
+            "right": 48.85,
+            "bottom": 13.12
+          },
+          {
+            "left": 25.15,
+            "top": 16.09,
+            "right": 39.62,
+            "bottom": 18.63
+          }
+        ],
+        "logo": [
+          {
+            "left": 142.92,
+            "top": 12.95,
+            "right": 182.96,
+            "bottom": 33.02
+          }
+        ],
+        "designation": [
+          {
+            "left": 25.65,
+            "top": 41.49,
+            "right": 195.83,
+            "bottom": 50.12
+          }
+        ],
+        "number": [
+          {
+            "left": 150.62,
+            "top": 58.34,
+            "right": 189.91,
+            "bottom": 61.98
+          }
+        ],
+        "replaces": [
+          {
+            "left": 151.21,
+            "top": 65.45,
+            "right": 189.82,
+            "bottom": 68.83
+          }
+        ],
+        "rule": [
+          {
+            "left": 24.64,
+            "top": 75.01,
+            "right": 195.16,
+            "bottom": 75.18
+          }
+        ],
+        "name_block": [
+          {
+            "left": 27.69,
+            "top": 115.4,
+            "right": 191.69,
+            "bottom": 123.95
+          },
+          {
+            "left": 92.03,
+            "top": 128.35,
+            "right": 127.51,
+            "bottom": 136.74
+          },
+          {
+            "left": 32.34,
+            "top": 147.24,
+            "right": 187.54,
+            "bottom": 151.21
+          },
+          {
+            "left": 101.52,
+            "top": 154.35,
+            "right": 117.6,
+            "bottom": 157.65
+          },
+          {
+            "left": 85.85,
+            "top": 172.13,
+            "right": 134.11,
+            "bottom": 176.78
+          },
+          {
+            "left": 100.67,
+            "top": 180.68,
+            "right": 119.3,
+            "bottom": 185.25
+          }
+        ],
+        "dates": [
+          {
+            "left": 25.15,
+            "top": 251.21,
+            "right": 194.73,
+            "bottom": 255.78
+          }
+        ],
+        "date_rule": [
+          {
+            "left": 24.64,
+            "top": 257.05,
+            "right": 195.16,
+            "bottom": 257.22
+          }
+        ],
+        "issuer": [
+          {
+            "left": 68.5,
+            "top": 263.99,
+            "right": 133.35,
+            "bottom": 269.75
+          },
+          {
+            "left": 68.5,
+            "top": 270.34,
+            "right": 151.13,
+            "bottom": 276.52
+          }
+        ]
+      },
+      "checks": [
+        {
+          "element": "classification",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.74,
+          "delta_mm": 0.74,
+          "pass": true
+        },
+        {
+          "element": "classification",
+          "edge": "top",
+          "target_mm": 10.6,
+          "actual_mm": 10.58,
+          "delta_mm": -0.02,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "top",
+          "target_mm": 41.5,
+          "actual_mm": 41.49,
+          "delta_mm": -0.01,
+          "pass": true
+        },
+        {
+          "element": "number",
+          "edge": "top",
+          "target_mm": 58.3,
+          "actual_mm": 58.34,
+          "delta_mm": 0.04,
+          "pass": true
+        },
+        {
+          "element": "number",
+          "edge": "right",
+          "target_mm": 190,
+          "actual_mm": 189.91,
+          "delta_mm": -0.09,
+          "pass": true
+        },
+        {
+          "element": "replaces",
+          "edge": "top",
+          "target_mm": 65.4,
+          "actual_mm": 65.45,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "replaces",
+          "edge": "right",
+          "target_mm": 190,
+          "actual_mm": 189.82,
+          "delta_mm": -0.18,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "top",
+          "target_mm": 75,
+          "actual_mm": 75.01,
+          "delta_mm": 0.01,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 24.64,
+          "delta_mm": -0.36,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 195.16,
+          "delta_mm": 0.16,
+          "pass": true
+        },
+        {
+          "element": "name_block",
+          "edge": "top",
+          "target_mm": 115.4,
+          "actual_mm": 115.4,
+          "delta_mm": 0.0,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "top",
+          "target_mm": 251.5,
+          "actual_mm": 251.21,
+          "delta_mm": -0.29,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.15,
+          "delta_mm": 0.15,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 194.73,
+          "delta_mm": -0.27,
+          "pass": true
+        },
+        {
+          "element": "date_rule",
+          "edge": "top",
+          "target_mm": 257,
+          "actual_mm": 257.05,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "left",
+          "target_mm": 143,
+          "actual_mm": 142.92,
+          "delta_mm": -0.08,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "top",
+          "target_mm": 13,
+          "actual_mm": 12.95,
+          "delta_mm": -0.05,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "right",
+          "target_mm": 183,
+          "actual_mm": 182.96,
+          "delta_mm": -0.04,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "bottom",
+          "target_mm": 33,
+          "actual_mm": 33.02,
+          "delta_mm": 0.02,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.65,
+          "delta_mm": 0.65,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 195.83,
+          "delta_mm": 0.83,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "bottom",
+          "target_mm": 50.2,
+          "actual_mm": 50.12,
+          "delta_mm": -0.08,
+          "pass": true
+        },
+        {
+          "element": "issuer",
+          "edge": "left",
+          "target_mm": 68.6,
+          "actual_mm": 68.5,
+          "delta_mm": -0.1,
+          "pass": true
+        },
+        {
+          "element": "issuer",
+          "edge": "right",
+          "target_mm": 151.4,
+          "actual_mm": 151.13,
+          "delta_mm": -0.27,
+          "pass": true
+        },
+        {
+          "element": "issuer",
+          "edge": "top",
+          "target_mm": 264,
+          "actual_mm": 263.99,
+          "delta_mm": -0.01,
+          "pass": true
+        },
+        {
+          "element": "issuer",
+          "edge": "bottom",
+          "target_mm": 276,
+          "actual_mm": 276.52,
+          "delta_mm": 0.52,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "relative_checks": [
+        {
+          "element": "name_line_pitch",
+          "target_mm": 12.9,
+          "actual_mm": 12.95,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "name_center",
+          "target_mm": 110,
+          "actual_mm": 109.69,
+          "delta_mm": -0.31,
+          "pass": true
+        },
+        {
+          "element": "english_gap",
+          "target_mm": 10.5,
+          "actual_mm": 10.5,
+          "delta_mm": 0.0,
+          "pass": true
+        },
+        {
+          "element": "consistency_gap",
+          "target_mm": 14.5,
+          "actual_mm": 14.48,
+          "delta_mm": -0.02,
+          "pass": true
+        },
+        {
+          "element": "english_line_pitch",
+          "target_mm": 7.0,
+          "actual_mm": 7.11,
+          "delta_mm": 0.11,
+          "pass": true
+        }
+      ],
+      "pdf": "/Users/funtasy/.codex/worktrees/wp7-5-cover/set/tmp-e2e/wp7.5/industry.pdf",
+      "page_count": 5,
+      "method": "300dpi grayscale <128; pixel bounds in mm",
+      "blocks": {
+        "classification": [
+          {
+            "left": 25.74,
+            "top": 10.58,
+            "right": 48.85,
+            "bottom": 13.12
+          },
+          {
+            "left": 25.15,
+            "top": 16.09,
+            "right": 39.62,
+            "bottom": 18.63
+          },
+          {
+            "left": 25.15,
+            "top": 21.17,
+            "right": 60.11,
+            "bottom": 24.55
+          }
+        ],
+        "logo": [
+          {
+            "left": 143.93,
+            "top": 13.04,
+            "right": 182.2,
+            "bottom": 32.6
+          }
+        ],
+        "designation": [
+          {
+            "left": 25.99,
+            "top": 41.74,
+            "right": 194.56,
+            "bottom": 49.61
+          }
+        ],
+        "number": [
+          {
+            "left": 153.08,
+            "top": 58.34,
+            "right": 189.91,
+            "bottom": 61.98
+          }
+        ],
+        "replaces": [
+          {
+            "left": 153.08,
+            "top": 65.45,
+            "right": 189.82,
+            "bottom": 68.83
+          }
+        ],
+        "rule": [
+          {
+            "left": 24.64,
+            "top": 75.01,
+            "right": 195.16,
+            "bottom": 75.18
+          }
+        ],
+        "name_block": [
+          {
+            "left": 27.69,
+            "top": 115.4,
+            "right": 191.69,
+            "bottom": 123.95
+          },
+          {
+            "left": 92.03,
+            "top": 128.35,
+            "right": 127.51,
+            "bottom": 136.74
+          },
+          {
+            "left": 32.34,
+            "top": 147.24,
+            "right": 187.54,
+            "bottom": 151.21
+          },
+          {
+            "left": 101.52,
+            "top": 154.35,
+            "right": 117.6,
+            "bottom": 157.65
+          },
+          {
+            "left": 85.85,
+            "top": 172.13,
+            "right": 134.11,
+            "bottom": 176.78
+          },
+          {
+            "left": 95.76,
+            "top": 180.68,
+            "right": 124.29,
+            "bottom": 185.25
+          },
+          {
+            "left": 52.75,
+            "top": 189.48,
+            "right": 165.02,
+            "bottom": 192.87
+          }
+        ],
+        "dates": [
+          {
+            "left": 25.15,
+            "top": 251.21,
+            "right": 194.73,
+            "bottom": 255.78
+          }
+        ],
+        "date_rule": [
+          {
+            "left": 24.64,
+            "top": 257.05,
+            "right": 195.16,
+            "bottom": 257.22
+          }
+        ],
+        "issuer": [
+          {
+            "left": 56.47,
+            "top": 264.92,
+            "right": 164.0,
+            "bottom": 270.93
+          }
+        ]
+      },
+      "checks": [
+        {
+          "element": "classification",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.74,
+          "delta_mm": 0.74,
+          "pass": true
+        },
+        {
+          "element": "classification",
+          "edge": "top",
+          "target_mm": 10.6,
+          "actual_mm": 10.58,
+          "delta_mm": -0.02,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "top",
+          "target_mm": 41.5,
+          "actual_mm": 41.74,
+          "delta_mm": 0.24,
+          "pass": true
+        },
+        {
+          "element": "number",
+          "edge": "top",
+          "target_mm": 58.3,
+          "actual_mm": 58.34,
+          "delta_mm": 0.04,
+          "pass": true
+        },
+        {
+          "element": "number",
+          "edge": "right",
+          "target_mm": 190,
+          "actual_mm": 189.91,
+          "delta_mm": -0.09,
+          "pass": true
+        },
+        {
+          "element": "replaces",
+          "edge": "top",
+          "target_mm": 65.4,
+          "actual_mm": 65.45,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "replaces",
+          "edge": "right",
+          "target_mm": 190,
+          "actual_mm": 189.82,
+          "delta_mm": -0.18,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "top",
+          "target_mm": 75,
+          "actual_mm": 75.01,
+          "delta_mm": 0.01,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 24.64,
+          "delta_mm": -0.36,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 195.16,
+          "delta_mm": 0.16,
+          "pass": true
+        },
+        {
+          "element": "name_block",
+          "edge": "top",
+          "target_mm": 115.4,
+          "actual_mm": 115.4,
+          "delta_mm": 0.0,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "top",
+          "target_mm": 251.5,
+          "actual_mm": 251.21,
+          "delta_mm": -0.29,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.15,
+          "delta_mm": 0.15,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 194.73,
+          "delta_mm": -0.27,
+          "pass": true
+        },
+        {
+          "element": "date_rule",
+          "edge": "top",
+          "target_mm": 257,
+          "actual_mm": 257.05,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "left",
+          "target_mm": 143,
+          "actual_mm": 143.93,
+          "delta_mm": 0.93,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "top",
+          "target_mm": 13,
+          "actual_mm": 13.04,
+          "delta_mm": 0.04,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "right",
+          "target_mm": 183,
+          "actual_mm": 182.2,
+          "delta_mm": -0.8,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "bottom",
+          "target_mm": 33,
+          "actual_mm": 32.6,
+          "delta_mm": -0.4,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.99,
+          "delta_mm": 0.99,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 194.56,
+          "delta_mm": -0.44,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "bottom",
+          "target_mm": 50.2,
+          "actual_mm": 49.61,
+          "delta_mm": -0.59,
+          "pass": true
+        },
+        {
+          "element": "issuer",
+          "edge": "top",
+          "target_mm": 264,
+          "actual_mm": 264.92,
+          "delta_mm": 0.92,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "relative_checks": [
+        {
+          "element": "name_line_pitch",
+          "target_mm": 12.9,
+          "actual_mm": 12.95,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "name_center",
+          "target_mm": 110,
+          "actual_mm": 109.69,
+          "delta_mm": -0.31,
+          "pass": true
+        },
+        {
+          "element": "consistency_gap",
+          "target_mm": 14.5,
+          "actual_mm": 14.56,
+          "delta_mm": 0.06,
+          "pass": true
+        }
+      ],
+      "pdf": "/Users/funtasy/.codex/worktrees/wp7-5-cover/set/tmp-e2e/wp7.5/local.pdf",
+      "page_count": 5,
+      "method": "300dpi grayscale <128; pixel bounds in mm",
+      "blocks": {
+        "classification": [
+          {
+            "left": 25.74,
+            "top": 10.58,
+            "right": 48.85,
+            "bottom": 13.12
+          },
+          {
+            "left": 25.15,
+            "top": 16.09,
+            "right": 39.62,
+            "bottom": 18.63
+          }
+        ],
+        "logo": [
+          {
+            "left": 142.92,
+            "top": 13.12,
+            "right": 182.12,
+            "bottom": 32.43
+          }
+        ],
+        "designation": [
+          {
+            "left": 25.4,
+            "top": 41.74,
+            "right": 194.56,
+            "bottom": 49.53
+          }
+        ],
+        "number": [
+          {
+            "left": 150.62,
+            "top": 58.34,
+            "right": 189.91,
+            "bottom": 61.98
+          }
+        ],
+        "replaces": [
+          {
+            "left": 151.21,
+            "top": 65.45,
+            "right": 189.82,
+            "bottom": 68.83
+          }
+        ],
+        "rule": [
+          {
+            "left": 24.64,
+            "top": 75.01,
+            "right": 195.16,
+            "bottom": 75.18
+          }
+        ],
+        "name_block": [
+          {
+            "left": 27.69,
+            "top": 115.4,
+            "right": 191.69,
+            "bottom": 123.95
+          },
+          {
+            "left": 92.03,
+            "top": 128.35,
+            "right": 127.51,
+            "bottom": 136.74
+          },
+          {
+            "left": 85.85,
+            "top": 151.3,
+            "right": 134.11,
+            "bottom": 155.96
+          },
+          {
+            "left": 100.67,
+            "top": 159.94,
+            "right": 119.3,
+            "bottom": 164.51
+          },
+          {
+            "left": 52.75,
+            "top": 168.74,
+            "right": 165.02,
+            "bottom": 172.13
+          }
+        ],
+        "dates": [
+          {
+            "left": 25.15,
+            "top": 251.21,
+            "right": 194.73,
+            "bottom": 255.78
+          }
+        ],
+        "date_rule": [
+          {
+            "left": 24.64,
+            "top": 257.05,
+            "right": 195.16,
+            "bottom": 257.22
+          }
+        ],
+        "issuer": [
+          {
+            "left": 68.83,
+            "top": 264.92,
+            "right": 151.05,
+            "bottom": 270.93
+          }
+        ]
+      },
+      "checks": [
+        {
+          "element": "classification",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.74,
+          "delta_mm": 0.74,
+          "pass": true
+        },
+        {
+          "element": "classification",
+          "edge": "top",
+          "target_mm": 10.6,
+          "actual_mm": 10.58,
+          "delta_mm": -0.02,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "top",
+          "target_mm": 41.5,
+          "actual_mm": 41.74,
+          "delta_mm": 0.24,
+          "pass": true
+        },
+        {
+          "element": "number",
+          "edge": "top",
+          "target_mm": 58.3,
+          "actual_mm": 58.34,
+          "delta_mm": 0.04,
+          "pass": true
+        },
+        {
+          "element": "number",
+          "edge": "right",
+          "target_mm": 190,
+          "actual_mm": 189.91,
+          "delta_mm": -0.09,
+          "pass": true
+        },
+        {
+          "element": "replaces",
+          "edge": "top",
+          "target_mm": 65.4,
+          "actual_mm": 65.45,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "replaces",
+          "edge": "right",
+          "target_mm": 190,
+          "actual_mm": 189.82,
+          "delta_mm": -0.18,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "top",
+          "target_mm": 75,
+          "actual_mm": 75.01,
+          "delta_mm": 0.01,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 24.64,
+          "delta_mm": -0.36,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 195.16,
+          "delta_mm": 0.16,
+          "pass": true
+        },
+        {
+          "element": "name_block",
+          "edge": "top",
+          "target_mm": 115.4,
+          "actual_mm": 115.4,
+          "delta_mm": 0.0,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "top",
+          "target_mm": 251.5,
+          "actual_mm": 251.21,
+          "delta_mm": -0.29,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.15,
+          "delta_mm": 0.15,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 194.73,
+          "delta_mm": -0.27,
+          "pass": true
+        },
+        {
+          "element": "date_rule",
+          "edge": "top",
+          "target_mm": 257,
+          "actual_mm": 257.05,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "left",
+          "target_mm": 143,
+          "actual_mm": 142.92,
+          "delta_mm": -0.08,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "top",
+          "target_mm": 13,
+          "actual_mm": 13.12,
+          "delta_mm": 0.12,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "right",
+          "target_mm": 183,
+          "actual_mm": 182.12,
+          "delta_mm": -0.88,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "bottom",
+          "target_mm": 33,
+          "actual_mm": 32.43,
+          "delta_mm": -0.57,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.4,
+          "delta_mm": 0.4,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 194.56,
+          "delta_mm": -0.44,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "bottom",
+          "target_mm": 50.2,
+          "actual_mm": 49.53,
+          "delta_mm": -0.67,
+          "pass": true
+        },
+        {
+          "element": "issuer",
+          "edge": "top",
+          "target_mm": 264,
+          "actual_mm": 264.92,
+          "delta_mm": 0.92,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "relative_checks": [
+        {
+          "element": "name_line_pitch",
+          "target_mm": 12.9,
+          "actual_mm": 12.95,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "name_center",
+          "target_mm": 110,
+          "actual_mm": 109.69,
+          "delta_mm": -0.31,
+          "pass": true
+        },
+        {
+          "element": "english_gap",
+          "target_mm": 10.5,
+          "actual_mm": 10.5,
+          "delta_mm": 0.0,
+          "pass": true
+        },
+        {
+          "element": "consistency_gap",
+          "target_mm": 14.5,
+          "actual_mm": 14.48,
+          "delta_mm": -0.02,
+          "pass": true
+        },
+        {
+          "element": "english_line_pitch",
+          "target_mm": 7.0,
+          "actual_mm": 7.11,
+          "delta_mm": 0.11,
+          "pass": true
+        }
+      ],
+      "pdf": "/Users/funtasy/.codex/worktrees/wp7-5-cover/set/tmp-e2e/wp7.5/group.pdf",
+      "page_count": 5,
+      "method": "300dpi grayscale <128; pixel bounds in mm",
+      "blocks": {
+        "classification": [
+          {
+            "left": 25.74,
+            "top": 10.58,
+            "right": 48.85,
+            "bottom": 13.12
+          },
+          {
+            "left": 25.15,
+            "top": 16.09,
+            "right": 39.62,
+            "bottom": 18.63
+          }
+        ],
+        "logo": [
+          {
+            "left": 142.92,
+            "top": 12.95,
+            "right": 183.13,
+            "bottom": 32.51
+          }
+        ],
+        "designation": [
+          {
+            "left": 25.82,
+            "top": 41.83,
+            "right": 194.56,
+            "bottom": 49.45
+          }
+        ],
+        "number": [
+          {
+            "left": 150.62,
+            "top": 58.34,
+            "right": 189.91,
+            "bottom": 61.98
+          }
+        ],
+        "replaces": [
+          {
+            "left": 151.21,
+            "top": 65.45,
+            "right": 189.82,
+            "bottom": 68.83
+          }
+        ],
+        "rule": [
+          {
+            "left": 24.64,
+            "top": 75.01,
+            "right": 195.16,
+            "bottom": 75.18
+          }
+        ],
+        "name_block": [
+          {
+            "left": 27.69,
+            "top": 115.4,
+            "right": 191.69,
+            "bottom": 123.95
+          },
+          {
+            "left": 92.03,
+            "top": 128.35,
+            "right": 127.51,
+            "bottom": 136.74
+          },
+          {
+            "left": 32.34,
+            "top": 147.24,
+            "right": 187.54,
+            "bottom": 151.21
+          },
+          {
+            "left": 101.52,
+            "top": 154.35,
+            "right": 117.6,
+            "bottom": 157.65
+          },
+          {
+            "left": 85.85,
+            "top": 172.13,
+            "right": 134.11,
+            "bottom": 176.78
+          },
+          {
+            "left": 100.67,
+            "top": 180.68,
+            "right": 119.3,
+            "bottom": 185.25
+          }
+        ],
+        "dates": [
+          {
+            "left": 25.15,
+            "top": 251.21,
+            "right": 194.73,
+            "bottom": 255.78
+          }
+        ],
+        "date_rule": [
+          {
+            "left": 24.64,
+            "top": 257.05,
+            "right": 195.16,
+            "bottom": 257.22
+          }
+        ],
+        "issuer": [
+          {
+            "left": 78.4,
+            "top": 264.92,
+            "right": 141.31,
+            "bottom": 270.93
+          }
+        ]
+      },
+      "checks": [
+        {
+          "element": "classification",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.74,
+          "delta_mm": 0.74,
+          "pass": true
+        },
+        {
+          "element": "classification",
+          "edge": "top",
+          "target_mm": 10.6,
+          "actual_mm": 10.58,
+          "delta_mm": -0.02,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "top",
+          "target_mm": 41.5,
+          "actual_mm": 41.83,
+          "delta_mm": 0.33,
+          "pass": true
+        },
+        {
+          "element": "number",
+          "edge": "top",
+          "target_mm": 58.3,
+          "actual_mm": 58.34,
+          "delta_mm": 0.04,
+          "pass": true
+        },
+        {
+          "element": "number",
+          "edge": "right",
+          "target_mm": 190,
+          "actual_mm": 189.91,
+          "delta_mm": -0.09,
+          "pass": true
+        },
+        {
+          "element": "replaces",
+          "edge": "top",
+          "target_mm": 65.4,
+          "actual_mm": 65.45,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "replaces",
+          "edge": "right",
+          "target_mm": 190,
+          "actual_mm": 189.82,
+          "delta_mm": -0.18,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "top",
+          "target_mm": 75,
+          "actual_mm": 75.01,
+          "delta_mm": 0.01,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 24.64,
+          "delta_mm": -0.36,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 195.16,
+          "delta_mm": 0.16,
+          "pass": true
+        },
+        {
+          "element": "name_block",
+          "edge": "top",
+          "target_mm": 115.4,
+          "actual_mm": 115.4,
+          "delta_mm": 0.0,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "top",
+          "target_mm": 251.5,
+          "actual_mm": 251.21,
+          "delta_mm": -0.29,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.15,
+          "delta_mm": 0.15,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 194.73,
+          "delta_mm": -0.27,
+          "pass": true
+        },
+        {
+          "element": "date_rule",
+          "edge": "top",
+          "target_mm": 257,
+          "actual_mm": 257.05,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "left",
+          "target_mm": 143,
+          "actual_mm": 142.92,
+          "delta_mm": -0.08,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "top",
+          "target_mm": 13,
+          "actual_mm": 12.95,
+          "delta_mm": -0.05,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "right",
+          "target_mm": 183,
+          "actual_mm": 183.13,
+          "delta_mm": 0.13,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "bottom",
+          "target_mm": 33,
+          "actual_mm": 32.51,
+          "delta_mm": -0.49,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.82,
+          "delta_mm": 0.82,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 194.56,
+          "delta_mm": -0.44,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "bottom",
+          "target_mm": 50.2,
+          "actual_mm": 49.45,
+          "delta_mm": -0.75,
+          "pass": true
+        },
+        {
+          "element": "issuer",
+          "edge": "top",
+          "target_mm": 264,
+          "actual_mm": 264.92,
+          "delta_mm": 0.92,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "relative_checks": [
+        {
+          "element": "name_line_pitch",
+          "target_mm": 12.9,
+          "actual_mm": 12.95,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "name_center",
+          "target_mm": 110,
+          "actual_mm": 109.69,
+          "delta_mm": -0.31,
+          "pass": true
+        },
+        {
+          "element": "consistency_gap",
+          "target_mm": 14.5,
+          "actual_mm": 14.56,
+          "delta_mm": 0.06,
+          "pass": true
+        }
+      ],
+      "pdf": "/Users/funtasy/.codex/worktrees/wp7-5-cover/set/tmp-e2e/wp7.5/enterprise.pdf",
+      "page_count": 5,
+      "method": "300dpi grayscale <128; pixel bounds in mm",
+      "blocks": {
+        "classification": [
+          {
+            "left": 25.74,
+            "top": 10.58,
+            "right": 48.85,
+            "bottom": 13.12
+          },
+          {
+            "left": 25.15,
+            "top": 16.09,
+            "right": 39.62,
+            "bottom": 18.63
+          }
+        ],
+        "logo": [
+          {
+            "left": 142.83,
+            "top": 12.95,
+            "right": 182.46,
+            "bottom": 33.7
+          }
+        ],
+        "designation": [
+          {
+            "left": 25.23,
+            "top": 41.83,
+            "right": 194.56,
+            "bottom": 49.45
+          }
+        ],
+        "number": [
+          {
+            "left": 150.62,
+            "top": 58.34,
+            "right": 189.91,
+            "bottom": 61.98
+          }
+        ],
+        "replaces": [
+          {
+            "left": 151.21,
+            "top": 65.45,
+            "right": 189.82,
+            "bottom": 68.83
+          }
+        ],
+        "rule": [
+          {
+            "left": 24.64,
+            "top": 75.01,
+            "right": 195.16,
+            "bottom": 75.18
+          }
+        ],
+        "name_block": [
+          {
+            "left": 27.69,
+            "top": 115.4,
+            "right": 191.69,
+            "bottom": 123.95
+          },
+          {
+            "left": 92.03,
+            "top": 128.35,
+            "right": 127.51,
+            "bottom": 136.74
+          },
+          {
+            "left": 85.85,
+            "top": 151.3,
+            "right": 134.11,
+            "bottom": 155.96
+          },
+          {
+            "left": 98.21,
+            "top": 159.94,
+            "right": 121.84,
+            "bottom": 164.51
+          }
+        ],
+        "dates": [
+          {
+            "left": 25.15,
+            "top": 251.21,
+            "right": 194.73,
+            "bottom": 255.78
+          }
+        ],
+        "date_rule": [
+          {
+            "left": 24.64,
+            "top": 257.05,
+            "right": 195.16,
+            "bottom": 257.22
+          }
+        ],
+        "issuer": [
+          {
+            "left": 71.97,
+            "top": 264.92,
+            "right": 147.83,
+            "bottom": 270.85
+          }
+        ]
+      },
+      "checks": [
+        {
+          "element": "classification",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.74,
+          "delta_mm": 0.74,
+          "pass": true
+        },
+        {
+          "element": "classification",
+          "edge": "top",
+          "target_mm": 10.6,
+          "actual_mm": 10.58,
+          "delta_mm": -0.02,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "top",
+          "target_mm": 41.5,
+          "actual_mm": 41.83,
+          "delta_mm": 0.33,
+          "pass": true
+        },
+        {
+          "element": "number",
+          "edge": "top",
+          "target_mm": 58.3,
+          "actual_mm": 58.34,
+          "delta_mm": 0.04,
+          "pass": true
+        },
+        {
+          "element": "number",
+          "edge": "right",
+          "target_mm": 190,
+          "actual_mm": 189.91,
+          "delta_mm": -0.09,
+          "pass": true
+        },
+        {
+          "element": "replaces",
+          "edge": "top",
+          "target_mm": 65.4,
+          "actual_mm": 65.45,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "replaces",
+          "edge": "right",
+          "target_mm": 190,
+          "actual_mm": 189.82,
+          "delta_mm": -0.18,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "top",
+          "target_mm": 75,
+          "actual_mm": 75.01,
+          "delta_mm": 0.01,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 24.64,
+          "delta_mm": -0.36,
+          "pass": true
+        },
+        {
+          "element": "rule",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 195.16,
+          "delta_mm": 0.16,
+          "pass": true
+        },
+        {
+          "element": "name_block",
+          "edge": "top",
+          "target_mm": 115.4,
+          "actual_mm": 115.4,
+          "delta_mm": 0.0,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "top",
+          "target_mm": 251.5,
+          "actual_mm": 251.21,
+          "delta_mm": -0.29,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.15,
+          "delta_mm": 0.15,
+          "pass": true
+        },
+        {
+          "element": "dates",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 194.73,
+          "delta_mm": -0.27,
+          "pass": true
+        },
+        {
+          "element": "date_rule",
+          "edge": "top",
+          "target_mm": 257,
+          "actual_mm": 257.05,
+          "delta_mm": 0.05,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "left",
+          "target_mm": 143,
+          "actual_mm": 142.83,
+          "delta_mm": -0.17,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "top",
+          "target_mm": 13,
+          "actual_mm": 12.95,
+          "delta_mm": -0.05,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "right",
+          "target_mm": 183,
+          "actual_mm": 182.46,
+          "delta_mm": -0.54,
+          "pass": true
+        },
+        {
+          "element": "logo",
+          "edge": "bottom",
+          "target_mm": 33,
+          "actual_mm": 33.7,
+          "delta_mm": 0.7,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "left",
+          "target_mm": 25,
+          "actual_mm": 25.23,
+          "delta_mm": 0.23,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "right",
+          "target_mm": 195,
+          "actual_mm": 194.56,
+          "delta_mm": -0.44,
+          "pass": true
+        },
+        {
+          "element": "designation",
+          "edge": "bottom",
+          "target_mm": 50.2,
+          "actual_mm": 49.45,
+          "delta_mm": -0.75,
+          "pass": true
+        },
+        {
+          "element": "issuer",
+          "edge": "top",
+          "target_mm": 264,
+          "actual_mm": 264.92,
+          "delta_mm": 0.92,
+          "pass": true
+        }
+      ]
+    }
+  ]
+}

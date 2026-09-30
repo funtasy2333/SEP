@@ -660,6 +660,15 @@ function strAttr(attrs: Record<string, unknown> | undefined, key: string): strin
   return typeof v === 'string' && v.length > 0 ? v : undefined
 }
 
+/** 新增封面字段优先读封面节点；旧文档曾将其写在根节点时回退到根属性。 */
+function coverMetaAttr(
+  rootAttrs: Record<string, unknown> | undefined,
+  coverAttrs: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  return strAttr(coverAttrs, key) ?? strAttr(rootAttrs, key)
+}
+
 function convertMeta(docNode: PMJsonNode, coverPage: PMJsonNode | undefined, ctx: Ctx): IRDocMeta {
   const attrs = docNode.attrs
   const rawType = String(attrs?.standardType ?? 'national')
@@ -681,6 +690,12 @@ function convertMeta(docNode: PMJsonNode, coverPage: PMJsonNode | undefined, ctx
   set('implementDate', strAttr(attrs, 'implementDate'))
   // issuer 仅存在于 coverPage attrs（standardDoc 无此属性）
   set('issuer', strAttr(coverPage?.attrs, 'issuer'))
+  // WP7.5 新增封面字段：封面节点为主，旧根属性仅作兼容回退。
+  set('replaces', coverMetaAttr(attrs, coverPage?.attrs, 'replaces'))
+  set('consistency', coverMetaAttr(attrs, coverPage?.attrs, 'consistency'))
+  set('filingNo', coverMetaAttr(attrs, coverPage?.attrs, 'filingNo'))
+  set('industryName', coverMetaAttr(attrs, coverPage?.attrs, 'industryName'))
+  set('regionName', coverMetaAttr(attrs, coverPage?.attrs, 'regionName'))
   return meta
 }
 

@@ -20,6 +20,11 @@ export const CoverPage = Node.create({
       issuer: { default: '' },
       ccsCode: { default: '' },
       icsCode: { default: '' },
+      replaces: { default: '' },
+      consistency: { default: '' },
+      filingNo: { default: '' },
+      industryName: { default: '' },
+      regionName: { default: '' },
     }
   },
 

@@ -43,11 +43,16 @@ describe('irMetaFromDocumentMeta', () => {
     standardType: 'national',
     issuer: '国家市场监督管理总局',
     applicant: '某申请单位',
+    replaces: 'GB/T 0001—2010',
+    consistency: '（ISO 1234:2020，MOD）',
+    filingNo: '备案 123',
+    industryName: '机械行业',
+    regionName: '浙江省',
     proposer: '某提出单位',
     technicalCommittee: '某归口单位',
   }
 
-  it('字段映射：titleCn→title、standardNo→stdCode，其余同名复制，standardType 经 toIrStandardType', () => {
+  it('既有字段与五个封面字段按同名规则映射，standardType 经 toIrStandardType', () => {
     expect(irMetaFromDocumentMeta(full)).toEqual({
       title: '标准化文件编辑系统',
       titleEn: 'Standardization document editing system',
@@ -59,6 +64,11 @@ describe('irMetaFromDocumentMeta', () => {
       standardType: 'gb',
       issuer: '国家市场监督管理总局',
       applicant: '某申请单位',
+      replaces: 'GB/T 0001—2010',
+      consistency: '（ISO 1234:2020，MOD）',
+      filingNo: '备案 123',
+      industryName: '机械行业',
+      regionName: '浙江省',
     })
   })
 
@@ -82,15 +92,28 @@ describe('irMetaFromDocumentMeta', () => {
     expect('ccsCode' in out).toBe(false)
     expect('issuer' in out).toBe(false)
     expect('applicant' in out).toBe(false)
+    expect('replaces' in out).toBe(false)
+    expect('consistency' in out).toBe(false)
+    expect('filingNo' in out).toBe(false)
+    expect('industryName' in out).toBe(false)
+    expect('regionName' in out).toBe(false)
     expect('publishDate' in out).toBe(false)
     expect('implementDate' in out).toBe(false)
   })
 
   it('空字符串照常复制，不当作 undefined 跳过', () => {
-    const withEmpty: DocumentMeta = { titleCn: '', titleEn: '', standardType: 'local' }
+    const withEmpty: DocumentMeta = {
+      titleCn: '', titleEn: '', standardType: 'local', replaces: '', consistency: '',
+      filingNo: '', industryName: '', regionName: '',
+    }
     const out = irMetaFromDocumentMeta(withEmpty)
     expect(out.title).toBe('')
     expect(out.titleEn).toBe('')
+    expect(out.replaces).toBe('')
+    expect(out.consistency).toBe('')
+    expect(out.filingNo).toBe('')
+    expect(out.industryName).toBe('')
+    expect(out.regionName).toBe('')
     expect('title' in out).toBe(true)
     expect('titleEn' in out).toBe(true)
   })
