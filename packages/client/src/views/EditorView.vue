@@ -348,6 +348,7 @@ import { useEditor } from '@tiptap/vue-3'
 import { createEditorExtensions } from '@/extensions/editorExtensions'
 import {
   serializeToXml, parseXmlToEditorJson,
+  prepareXmlImportDocumentUpdate,
   exportSemanticJson, exportSemanticHtml,
   buildPdfExportRequest, buildDocxBlob,
 } from '@/serializer'
@@ -379,6 +380,7 @@ const capabilities = ref<{ htmlToPdf: boolean }>({
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 const dirty = ref(false)
 const contentReady = ref(false)
+let importingXml = false
 
 function scheduleAutoSave() {
   if (!contentReady.value) return
@@ -495,7 +497,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
-  if (dirty.value && editor.value && store.currentDocument) {
+  if (dirty.value && !importingXml && editor.value && store.currentDocument) {
     const content = editor.value.getJSON()
     const currentId = store.currentDocument.id
     if (currentId != null) {
@@ -506,7 +508,7 @@ onBeforeUnmount(() => {
 })
 
 async function handleSave() {
-  if (!editor.value || !store.currentDocument) return
+  if (!editor.value || !store.currentDocument || importingXml) return
   if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null }
   saving.value = true
   try {
@@ -1128,23 +1130,81 @@ function triggerXmlImport() {
 function handleXmlFileImport(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
-  if (!file || !editor.value) return
+  const currentEditor = editor.value
+  const currentDocument = store.currentDocument
+  if (!file || !currentEditor) return
+  if (saving.value || importingXml) {
+    input.value = ''
+    ElMessage.warning('文档正在保存或导入，请稍后再导入 XML')
+    return
+  }
+  if (!currentDocument?.id) {
+    input.value = ''
+    ElMessage.error('当前文档不可用，无法导入 XML')
+    return
+  }
+  const currentDocumentId = currentDocument.id
+
+  importingXml = true
+  const wasEditable = currentEditor.isEditable
+  const wasDirty = dirty.value
+  currentEditor.setEditable(false)
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer)
+    autoSaveTimer = null
+  }
+
+  let persisted = false
+  const finishImport = () => {
+    if (!currentEditor.isDestroyed) currentEditor.setEditable(wasEditable)
+    importingXml = false
+    input.value = ''
+    if (!persisted && wasDirty && !currentEditor.isDestroyed) scheduleAutoSave()
+  }
 
   const reader = new FileReader()
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
-      const xmlString = e.target?.result as string
-      const currentEditor = editor.value!
+      const xmlString = e.target?.result
+      if (typeof xmlString !== 'string') throw new Error('无法读取 XML 文件内容')
       const pmJson = parseXmlToEditorJson(xmlString, currentEditor.schema.topNodeType.name)
-      currentEditor.commands.setContent(pmJson)
+      // Parse against the live production schema before making any persistent or editor changes.
+      const validatedDoc = currentEditor.schema.nodeFromJSON(pmJson)
+      validatedDoc.check()
+      const validatedJson = validatedDoc.toJSON()
+      if (currentEditor.isDestroyed || store.currentDocument?.id !== currentDocumentId) {
+        throw new Error('当前文档已切换，请重新导入')
+      }
+      const update = prepareXmlImportDocumentUpdate(validatedJson, currentDocument.meta)
+
+      saving.value = true
+      await store.updateDocument(currentDocumentId, {
+        title: update.title,
+        meta: update.meta,
+        content: validatedJson,
+      })
+      persisted = true
+      currentEditor.commands.setContent(validatedJson, { emitUpdate: false })
+      dirty.value = false
+      lastSaved.value = new Date().toLocaleTimeString('zh-CN')
       ElMessage.success('XML 文件导入成功')
     } catch (err) {
       ElMessage.error(`XML 导入失败: ${err}`)
+    } finally {
+      saving.value = false
+      finishImport()
     }
-    // 清空 input 以便再次选择同一文件
-    input.value = ''
   }
-  reader.readAsText(file, 'UTF-8')
+  reader.onerror = () => {
+    ElMessage.error('XML 文件读取失败')
+    finishImport()
+  }
+  try {
+    reader.readAsText(file, 'UTF-8')
+  } catch (err) {
+    ElMessage.error(`XML 文件读取失败: ${err}`)
+    finishImport()
+  }
 }
 </script>
 
