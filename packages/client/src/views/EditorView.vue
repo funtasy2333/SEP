@@ -330,6 +330,7 @@
 
 
 <script setup lang="ts">
+import { createDefaultDocumentContent } from '@/utils/newDocument'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { useRoute, useRouter } from 'vue-router'
@@ -374,43 +375,6 @@ const exportError = ref('')
 const capabilities = ref<{ htmlToPdf: boolean }>({
   htmlToPdf: true,
 })
-
-/** 默认文档结构：前言 + 1范围 + 2规范性引用文件 + 3术语和定义 */
-const defaultDocContent = {
-  type: 'doc',
-  content: [
-    {
-      type: 'foreword',
-      content: [
-        { type: 'paragraph', content: [{ type: 'text', text: '本文件按照GB/T 1.1-2020《标准化工作导则 第1部分：标准化文件的结构和起草规则》的规定起草。' }] },
-      ],
-    },
-    {
-      type: 'chapter',
-      attrs: { number: '1' },
-      content: [
-        { type: 'chapterTitle', content: [{ type: 'text', text: '范围' }] },
-        { type: 'stdParagraph' },
-      ],
-    },
-    {
-      type: 'chapter',
-      attrs: { number: '2' },
-      content: [
-        { type: 'chapterTitle', content: [{ type: 'text', text: '规范性引用文件' }] },
-        { type: 'stdParagraph' },
-      ],
-    },
-    {
-      type: 'chapter',
-      attrs: { number: '3' },
-      content: [
-        { type: 'chapterTitle', content: [{ type: 'text', text: '术语和定义' }] },
-        { type: 'stdParagraph' },
-      ],
-    },
-  ],
-}
 
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 const dirty = ref(false)
@@ -511,7 +475,7 @@ onMounted(async () => {
       editor.value?.commands.setContent(store.currentDocument.content)
     } else {
       // 新文档加载默认结构
-      editor.value?.commands.setContent(defaultDocContent)
+      editor.value?.commands.setContent(createDefaultDocumentContent(store.currentDocument?.meta))
     }
     contentReady.value = true
   } catch {

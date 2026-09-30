@@ -137,7 +137,7 @@ import { Download, Plus, Grid, List, Document } from '@element-plus/icons-vue'
 
 import { useDocumentStore } from '@/stores/document'
 import type { DocumentData } from '@/api/document'
-import type { StandardType } from '@ses/shared'
+import { createNewDocument, type NewDocForm } from '@/utils/newDocument'
 import { STAGE_LABELS, TYPE_LABELS } from '@/constants/standards'
 
 import HomeNav from '@/components/home/HomeNav.vue'
@@ -228,40 +228,8 @@ function openNewDoc(type?: string) {
   newDocOpen.value = true
 }
 
-async function handleCreate(form: {
-  type: StandardType
-  stage: string
-  stdPrefix: string
-  stdNo: string
-  titleCn: string
-  titleEn: string
-  icsCode: string
-  ccsCode: string
-  issuer: string
-  applicant: string
-  proposer: string
-  technicalCommittee: string
-}) {
-  const fullStdNo = form.stdNo
-    ? `${form.stdPrefix || ''} ${form.stdNo}`.trim()
-    : undefined
-  const doc = await store.createDocument({
-    title: form.titleCn,
-    meta: {
-      titleCn: form.titleCn,
-      titleEn: form.titleEn || undefined,
-      standardNo: fullStdNo,
-      icsCode: form.icsCode || undefined,
-      ccsCode: form.ccsCode || undefined,
-      standardType: form.type,
-      issuer: form.issuer || undefined,
-      applicant: form.applicant || undefined,
-      proposer: form.proposer || undefined,
-      technicalCommittee: form.technicalCommittee || undefined,
-    },
-    stage: form.stage,
-    content: {},
-  })
+async function handleCreate(form: NewDocForm) {
+  const doc = await store.createDocument(createNewDocument(form))
   newDocOpen.value = false
   ElMessage.success('创建成功')
   router.push({ name: 'editor', params: { id: doc.id! } })

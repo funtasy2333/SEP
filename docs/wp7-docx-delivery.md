@@ -669,7 +669,7 @@ P(SesFrontTitle, 「前言」/「引言」：「前」「引」的 run 带 `w:sp
 
 ### 6.5 IRDocMeta 需补充的字段（只增不改，均可选）
 
-`replaces`（代替文件编号）、`consistency`（一致性程度标识，如「（ISO 1234:2020，MOD）」）、`filingNo`（备案号）、`industryName`（××行业）、`regionName`（地方名称）。`pmToIr` 从封面节点属性取值；编辑器封面表单缺这些字段时，本系列只做 IR 与渲染侧，表单字段另开任务（在 PR「发现的问题」中列出）。
+`replaces`（代替文件编号）、`consistency`（一致性程度标识，如「（ISO 1234:2020，MOD）」）、`filingNo`（备案号）、`industryName`（××行业）、`regionName`（地方名称）。`pmToIr` 从封面节点属性取值；2026-09-30按用户补充要求，`replaces`（标准替代情况）和`consistency`（标准采标情况）已接入新建表单及持久化内容；`filingNo`、`industryName`、`regionName`的表单输入仍另开任务。新建编号未填时保存明确占位编号（如`GB/T XXXXX—XXXX`），不推定年份或未填写的行业/地区/机构代号。提出/归口/起草单位用于一次性生成前言，并加入用户指定的专利提示；已有正文不重新套用，详见`wp7.5-new-document-validation.md`。
 
 ---
 

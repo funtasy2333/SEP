@@ -42,9 +42,9 @@ export const TYPE_LABELS: Record<string, string> = {
 
 export const TYPE_DEFS = [
   { id: 'national',   glyph: '国', name: '国家标准',         code: 'GB / GB/T',         prefix: 'GB/T' },
-  { id: 'industry',   glyph: '行', name: '行业标准',         code: 'SJ / DL / JC / …',  prefix: 'SJ/T' },
-  { id: 'local',      glyph: '地', name: '地方标准',         code: 'DB',                prefix: 'DB31/T' },
-  { id: 'group',      glyph: '团', name: '团体标准',         code: 'T/',                prefix: 'T/CESA' },
-  { id: 'enterprise', glyph: '企', name: '企业标准',         code: 'Q/',                prefix: 'Q/COMPANY' },
+  { id: 'industry',   glyph: '行', name: '行业标准',         code: 'SJ / DL / JC / …',  prefix: 'XX/T' },
+  { id: 'local',      glyph: '地', name: '地方标准',         code: 'DB',                prefix: 'DBXX/T' },
+  { id: 'group',      glyph: '团', name: '团体标准',         code: 'T/',                prefix: 'T/XXX' },
+  { id: 'enterprise', glyph: '企', name: '企业标准',         code: 'Q/',                prefix: 'Q/XXX' },
   { id: 'guidance',   glyph: '导', name: '指导性技术文件',   code: 'GB/Z',              prefix: 'GB/Z' },
 ] as const

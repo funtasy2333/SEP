@@ -534,3 +534,19 @@ describe('WP7.5 封面素材来源提示', () => {
     for (const phrase of forbidden ?? []) expect(message).not.toContain(phrase)
   })
 })
+
+
+describe('新建草案编号占位符', () => {
+  it.each([
+    ['industry', 'SJ/T XXXXX—XXXX', 'SesCoverLogoText', 'SJ'],
+    ['local', 'DB33/T XXXXX—XXXX', 'SesCoverDbRegion', '33'],
+    ['local', 'DBXX/T XXXXX—XXXX', 'SesCoverDbRegion', 'XX'],
+    ['group', 'T/AbC XXXXX—XXXX', 'SesCoverGroupLogo', 'AbC'],
+    ['enterprise', 'Q/Acme XXXXX—XXXX', 'SesCoverEnterpriseLogo', '/ Acme'],
+  ] as const)('%s占位序号不应抹掉已填写的标记代码', (standardType, stdCode, style, mark) => {
+    const pkg = renderCoverPackage({ ...BASE_META, standardType, stdCode, industryName: '电子', regionName: '浙江省' })
+    expect(editableText(paragraphWithStyle(pkg, style)!)).toBe(mark === '/ Acme' ? mark : standardType === 'local' || standardType === 'group' ? ` ${mark}` : mark)
+    expect(editableText(paragraphWithStyle(pkg, 'SesCoverStdNo')!)).toBe(stdCode)
+    expect(pkg.warnings.some((w) => w.code === 'cover-field-missing')).toBe(false)
+  })
+})

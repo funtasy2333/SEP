@@ -154,9 +154,10 @@ function designation(meta: IRDocMeta): { text: string; styleId: string } {
   }
 }
 
+// 新建草案使用显式 XXXXX—XXXX 占位编号；已填写的家族/地区/机构代码仍应显示。
 function industryLogoFamily(meta: IRDocMeta): string | undefined {
   const code = normalizeCoverStdCode(meta.stdCode)
-  const family = /^([A-Z]{2,6})(?:\/T)?\s+\d+(?:\.\d+)*(?:—\d{4})?$/i.exec(code)?.[1]?.toUpperCase()
+  const family = /^([A-Z]{2,6})(?:\/T)?\s+(?:\d+(?:\.\d+)*|XXXXX)(?:—(?:\d{4}|XXXX))?$/i.exec(code)?.[1]?.toUpperCase()
   // GB is national and DB is local; neither is an industry-family mark. Require a complete
   // family/serial code after normalization so malformed strings such as "HH malformed" stay XX.
   return family && family !== 'GB' && family !== 'DB' ? family : undefined
@@ -168,12 +169,12 @@ function warnMissingMarkCode(ctx: RenderContext, meta: IRDocMeta, code: string, 
 
 function localRegionCode(meta: IRDocMeta): string {
   const code = normalizeCoverStdCode(meta.stdCode)
-  return /^DB(\d{2}|\d{4})(?:\/T)?\s+\d+(?:\.\d+)*(?:—\d{4})?$/i.exec(code)?.[1] ?? ''
+  return /^DB(\d{2}|\d{4}|XX)(?:\/T)?\s+(?:\d+(?:\.\d+)*|XXXXX)(?:—(?:\d{4}|XXXX))?$/i.exec(code)?.[1] ?? ''
 }
 
 function typeMarkCode(meta: IRDocMeta, type: 'T' | 'Q'): string {
   const code = normalizeCoverStdCode(meta.stdCode)
-  const match = /^([TQ])\/([^\s]+)\s+\d+(?:\.\d+)*(?:—\d{4})?$/i.exec(code)
+  const match = /^([TQ])\/([^\s]+)\s+(?:\d+(?:\.\d+)*|XXXXX)(?:—(?:\d{4}|XXXX))?$/i.exec(code)
   return match?.[1]?.toUpperCase() === type ? match[2]! : ''
 }
 
