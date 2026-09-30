@@ -133,10 +133,11 @@ function designation(meta: IRDocMeta): { text: string; styleId: string } {
 }
 
 function industryLogoText(meta: IRDocMeta): string {
-  const code = meta.stdCode ?? ''
-  const family = /^([A-Z][A-Z0-9]{1,5})\/T(?=\s|\d)/i.exec(code)?.[1] ??
-    /^([A-Z]{2,6})(?=\d)/i.exec(code)?.[1]
-  return family ?? 'XX'
+  const code = normalizeCoverStdCode(meta.stdCode)
+  const family = /^([A-Z]{2,6})(?:\/T)?\s+\d+(?:\.\d+)*(?:—\d{4})?$/i.exec(code)?.[1]?.toUpperCase()
+  // GB is national and DB is local; neither is an industry-family mark. Require a complete
+  // family/serial code after normalization so malformed strings such as "HH malformed" stay XX.
+  return family && family !== 'GB' && family !== 'DB' ? family : 'XX'
 }
 
 function localRegionCode(meta: IRDocMeta): string {

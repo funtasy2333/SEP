@@ -1,6 +1,7 @@
 {
   "date": "2026-09-30",
   "word_version": "16.113.3",
+  "base_commit": "a727ff82c8e1c6abb095bf6e6f944e1db7112d75",
   "summary": [
     {
       "kind": "gb",

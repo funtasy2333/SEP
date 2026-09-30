@@ -212,6 +212,20 @@ describe('WP7.5 六类封面与文件编号', () => {
     expect(local).toContain('SesCoverDbRegion │ — │ 33')
   })
 
+  it.each([
+    { stdCode: 'HG 1234—2026', expected: 'HG' },
+    { stdCode: 'HG1234-2026', expected: 'HG' },
+    { stdCode: 'HG/T 1234-2026', expected: 'HG' },
+    { stdCode: 'HG/T1234-2026', expected: 'HG' },
+    { stdCode: 'HH malformed', expected: 'XX' },
+    { stdCode: 'HH/T malformed', expected: 'XX' },
+    { stdCode: 'DB33 123', expected: 'XX' },
+    { stdCode: 'Q/TEST123', expected: 'XX' },
+  ])('行业标志从有效规范编号 $stdCode 提取代号 $expected，不猜测畸形或其他类型编号', ({ stdCode, expected }) => {
+    const outline = docxOutline(renderCoverPackage({ ...BASE_META, standardType: 'industry', stdCode }))
+    expect(outline).toContain(`SesCoverLogoText │ — │ ${expected}`)
+  })
+
   it('地方代码段按 1020 twips 拟合并定位在规定右上区域', () => {
     const pkg = renderCoverPackage({ ...BASE_META, standardType: 'local', stdCode: 'DB33 123', regionName: '浙江省' })
     const paragraph = paragraphWithStyle(pkg, 'SesCoverDbRegion')

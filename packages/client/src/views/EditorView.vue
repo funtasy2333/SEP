@@ -333,14 +333,6 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { useRoute, useRouter } from 'vue-router'
-import { useEditor } from '@tiptap/vue-3'
-import StarterKit from '@tiptap/starter-kit'
-import { Table } from '@tiptap/extension-table'
-import { TableRow } from '@tiptap/extension-table-row'
-import { TableCell } from '@tiptap/extension-table-cell'
-import { TableHeader } from '@tiptap/extension-table-header'
-import { Image } from '@tiptap/extension-image'
-import { Placeholder } from '@tiptap/extension-placeholder'
 // Underline is included in StarterKit (tiptap v3)
 import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon, Clock, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -351,24 +343,8 @@ import DocumentOutline from '@/components/editor/DocumentOutline.vue'
 import SlashMenu from '@/components/editor/SlashMenu.vue'
 import VersionPanel from '@/components/version/VersionPanel.vue'
 
-import {
-  Chapter, ChapterTitle,
-  Clause, ClauseTitle,
-  StdParagraph,
-  TermDef, TermName, TermNameEn, TermDefinition,
-  StdTable, TableCaption, TableCaptionEn, TableFootnote,
-  Figure, FigureImage, FigureCaption, FigureCaptionEn,
-  Formula, FormulaContent, FormulaDescription,
-  Note, Example,
-  Foreword, Introduction,
-  Appendix, AppendixLabel, AppendixTitle,
-  Bibliography, BibliographyTitle, BibEntry,
-  StdList, StdListItem,
-  SlashCommand,
-  AutoUnitSpacing,
-  NodeId,
-} from '@/extensions'
-import { CrossRef } from '@/extensions'
+import { useEditor } from '@tiptap/vue-3'
+import { createEditorExtensions } from '@/extensions/editorExtensions'
 import {
   serializeToXml, parseXmlToJson,
   exportSemanticJson, exportSemanticHtml,
@@ -480,31 +456,7 @@ function setActivePageOrientation(orientation: 'portrait' | 'landscape') {
 }
 
 const editor = useEditor({
-  extensions: [
-    // GB/T 标准文档不需要 blockquote/codeBlock/horizontalRule，禁用以免产生 IR 无法表达的内容
-    StarterKit.configure({ heading: false, blockquote: false, codeBlock: false, horizontalRule: false }),
-    Table.configure({ resizable: true }),
-    TableRow, TableCell, TableHeader,
-    Image,
-    Placeholder.configure({ placeholder: '开始编写标准内容...' }),
-    // 自定义节点
-    Chapter, ChapterTitle,
-    Clause, ClauseTitle,
-    StdParagraph,
-    TermDef, TermName, TermNameEn, TermDefinition,
-    StdTable, TableCaption, TableCaptionEn, TableFootnote,
-    Figure, FigureImage, FigureCaption, FigureCaptionEn,
-    Formula, FormulaContent, FormulaDescription,
-    Note, Example,
-    Foreword, Introduction,
-    Appendix, AppendixLabel, AppendixTitle,
-    Bibliography, BibliographyTitle, BibEntry,
-    StdList, StdListItem,
-    CrossRef,
-    SlashCommand,
-    AutoUnitSpacing,
-    NodeId,
-  ],
+  extensions: createEditorExtensions(),
   content: '',
   onUpdate() {
     scheduleAutoSave()

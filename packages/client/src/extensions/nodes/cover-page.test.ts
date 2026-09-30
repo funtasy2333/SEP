@@ -1,15 +1,12 @@
 import { getSchema } from '@tiptap/core'
-import StarterKit from '@tiptap/starter-kit'
 import { describe, expect, it } from 'vitest'
 import { pmToIr, type PMJsonNode } from '@ses/shared'
-import { CoverPage } from './cover-page'
+import { createEditorExtensions } from '../editorExtensions'
 
-describe('CoverPage 元数据属性', () => {
-  it('五个新增字段经真实 ProseMirror schema JSON 往返后仍可映射到 IR', () => {
-    const schema = getSchema([
-      StarterKit.configure({ heading: false, blockquote: false, codeBlock: false, horizontalRule: false }),
-      CoverPage,
-    ])
+describe('EditorView 实际扩展链的封面元数据 schema', () => {
+  it('真实编辑器 schema 保留五个新增字段并经 JSON 往返映射到 IR', () => {
+    const schema = getSchema(createEditorExtensions())
+    expect(schema.nodes.coverPage).toBeDefined()
     const attrs = {
       replaces: 'GB/T 1000—2010',
       consistency: '（ISO 1234:2020，MOD）',
