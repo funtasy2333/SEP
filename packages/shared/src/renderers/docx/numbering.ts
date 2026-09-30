@@ -121,7 +121,7 @@ function appendixLevels(): LevelSpec[] {
   return levels
 }
 
-/** A12–A15：首层为字母/数字、次层统一为间隔号（§7.5.3、§10.2.2） */
+/** A12–A15：保留双层抽象编号；二级数字列项另用 A13 L0 + 段落直接缩进。 */
 function listLevels(l0Fmt: string, l0Text: string, l1Fmt: string, l1Text: string): LevelSpec[] {
   return [
     { ilvl: 0, numFmt: l0Fmt, lvlText: l0Text, suff: 'tab', ind: IND_LIST_L0, rPr: RPR_SONG },

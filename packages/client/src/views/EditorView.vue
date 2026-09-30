@@ -91,9 +91,10 @@
               <button class="tbar-btn">列项 <el-icon><ArrowDownIcon /></el-icon></button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="dash">破折号列项</el-dropdown-item>
-                  <el-dropdown-item command="alpha">字母编号列项</el-dropdown-item>
-                  <el-dropdown-item command="numeric">数字编号列项</el-dropdown-item>
+                  <el-dropdown-item command="dash">破折号列项（一级）</el-dropdown-item>
+                  <el-dropdown-item command="alpha">字母编号列项（一级）</el-dropdown-item>
+                  <el-dropdown-item command="numeric">数字编号列项（二级）</el-dropdown-item>
+                  <el-dropdown-item command="dot">间隔号列项（二级）</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>

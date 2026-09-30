@@ -120,6 +120,18 @@ describe('pmToIr / 术语条目', () => {
 })
 
 describe('pmToIr / 块级要素', () => {
+  it('数字列项固定为二级缩进，间隔号列项保持独立类型', () => {
+    const pm = fx.standardDoc({}, fx.chapter('c', 'X',
+      fx.stdList('number', 'numeric', ['n', '数字子项']),
+      fx.stdList('alpha', 'alpha', ['a', '父项']),
+      fx.stdList('dot', 'dot', ['d', '间隔号子项']),
+    ))
+    const lists = pmToIr(pm).doc.body[0].children as IRList[]
+    expect(lists.map(({ listType, level }) => [listType, level ?? 1])).toEqual([
+      ['number', 2], ['alpha', 1], ['dot', 2],
+    ])
+  })
+
   it('stdList 类型映射：numeric→number，boxedNumeric→boxed', () => {
     const pm = fx.standardDoc({}, fx.chapter('c', 'X',
       fx.stdList('l1', 'numeric', ['i1', 'a']),

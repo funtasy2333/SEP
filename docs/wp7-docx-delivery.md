@@ -359,20 +359,21 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 - 术语条目编号：**正文用 A1、附录用 A2** 的固定实例（段落级 numPr），L = 父节点深度 + 1（章、附录本身深度为 0：章直属 →
   「3.1」，条 3.1 之下 → 「3.1.1」，附录直属 → 「A.1」）；超过 5 同上处理。
 - 附录条、附录无标题条：A2，L = 深度。
-- 列项（依据用户对 GB/T 1.1 7.5.3 的人工核验反馈：不提供罗马项；字母/数字列项后用全角右括号，子列项统一用间隔号）：
+- 列项（2026-09-30 用户验收修订：一级为破折号、字母列项；二级为数字、间隔号列项；数字列项保留 `1）` 标识）：
 
   | 所在层 | 本层列表类型 | 渲染 |
   |---|---|---|
   | 第一层 | dash | P(SesListDash)，样式自带 A11 L0 |
-  | 第一层 | alpha / number | P(SesListItem) + 新建 A12 / A13 实例的 ilvl 0，显示 `a）` / `1）` |
-  | 第一层 | 旧 roman / romanUpper | 降级为 number（A13），不输出罗马数字 |
-  | 第一层 | boxed | 同 number（A13），记 `list-format-fallback` |
-  | 第二层 | dash | P(SesListDot)，样式自带 A11 L1，不论上层是什么类型（spike v10 T8：不影响上层字母列表的计数） |
-  | 第二层，上层是编号列表 | 任意类型 | 上层列表实例的 ilvl 1，统一显示间隔号 `·` |
-  | 第二层，上层是 dash | 任意类型 | P(SesListDot)，统一显示间隔号 `·` |
+  | 第一层 | alpha | P(SesListItem) + 新建 A12 实例的 ilvl 0，显示 `a）` |
+  | 第二层 | number | P(SesListItem) + 新建 A13 实例的 ilvl 0，段落直接缩进 left=1260 / hanging=420，显示 `1）` |
+  | 第二层 | dot | P(SesListDot)，样式自带 A11 L1，显示 `·` |
+  | 旧数据 | roman / romanUpper | 降级为 number，不输出罗马数字 |
+  | 旧数据 | boxed | 按数字编号渲染，记 `list-format-fallback` |
+  | 历史嵌套第二层 | dash / alpha / boxed 等 | 保留间隔号降级；嵌套 number 保留数字编号 |
   | 第三层及更深 | 任意类型 | P(SesListDot)，显示间隔号 `·`，并记 `list-too-deep` |
 
   第三层及更深的列表（不论类型）每个记一条 `list-too-deep`（GB/T 1.1 7.5.2：细分不宜超过两个层次）。
+  编辑器中列项可以作为同级块存储，数字和间隔号仍按二级字位显示；旧文档里 `numeric` 节点虽标记 `level=1`，导出时也按二级处理。
 
   列表的一项有多个块时：第一块是段落，则它带编号；第一块不是段落（例如直接是嵌套列表），先输出一个只有编号的段
   （样式与 numPr 同上、无文字）。其后的段落用 SesListCont（第一层）或 SesListCont2（第二层及更深）；嵌套列表按上表。

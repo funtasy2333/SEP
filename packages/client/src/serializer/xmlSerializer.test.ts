@@ -8,5 +8,6 @@ describe('XML 列项导出类型', () => {
     expect(toXmlListType('numeric')).toBe('arabic')
     expect(toXmlListType('alpha')).toBe('alpha-lower')
     expect(toXmlListType('dash')).toBe('dash')
+    expect(toXmlListType('dot')).toBe('dot')
   })
 })

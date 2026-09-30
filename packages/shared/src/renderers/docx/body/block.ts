@@ -46,6 +46,7 @@ interface ListLevelPlan {
   firstStyleId: string
   firstNumPr?: { numId: number; ilvl: number }
   contStyleId: string
+  firstIndent?: { left: number; hanging: number }
 }
 
 interface ParentListInfo {
@@ -61,6 +62,9 @@ function planForList(ctx: RenderContext, list: IRList, depth: number, parent: Pa
   }
 
   if (depth === 1) {
+    if (list.listType === 'dot') {
+      return { firstStyleId: 'SesListDot', contStyleId: 'SesListCont2' }
+    }
     if (list.listType === 'dash') {
       return { firstStyleId: 'SesListDash', contStyleId: 'SesListCont' }
     }
@@ -68,11 +72,26 @@ function planForList(ctx: RenderContext, list: IRList, depth: number, parent: Pa
       warn(ctx, 'list-format-fallback', `列表 "${list.id}" 为方框编号（boxed），本系列按数字编号（A13）渲染`, list.id)
     }
     const numId = ctx.numbering.allocListInstance(listAbstractNumId(list.listType))
-    return { firstStyleId: 'SesListItem', firstNumPr: { numId, ilvl: 0 }, contStyleId: 'SesListCont' }
+    const secondLevel = list.level === 2 || list.listType === 'number'
+    return {
+      firstStyleId: 'SesListItem',
+      firstNumPr: { numId, ilvl: 0 },
+      contStyleId: secondLevel ? 'SesListCont2' : 'SesListCont',
+      firstIndent: secondLevel ? { left: 1260, hanging: 420 } : undefined,
+    }
   }
 
   // depth === 2
-  if (list.listType === 'dash') {
+  if (list.listType === 'number') {
+    const numId = ctx.numbering.allocListInstance(ABSTRACT_NUM_ID.listNumber)
+    return {
+      firstStyleId: 'SesListItem',
+      firstNumPr: { numId, ilvl: 0 },
+      contStyleId: 'SesListCont2',
+      firstIndent: { left: 1260, hanging: 420 },
+    }
+  }
+  if (list.listType === 'dash' || list.listType === 'dot') {
     return { firstStyleId: 'SesListDot', contStyleId: 'SesListCont2' }
   }
   if (!parent) throw new Error('planForList: 第二层列表缺少父列表信息')
@@ -107,12 +126,13 @@ function renderListLevel(ctx: RenderContext, list: IRList, bctx: BlockCtx, depth
     if (firstIsParagraph) {
       out += emitParagraph(ctx, plan.firstStyleId, {
         numPr: plan.firstNumPr,
+        indent: plan.firstIndent,
         runsXml: renderInlines((first as IRParagraph).content, ctx.labels),
         numbered,
       })
       out += renderListItemRest(ctx, item.content.slice(1), bctx, depth, list, plan)
     } else {
-      out += emitParagraph(ctx, plan.firstStyleId, { numPr: plan.firstNumPr, numbered })
+      out += emitParagraph(ctx, plan.firstStyleId, { numPr: plan.firstNumPr, indent: plan.firstIndent, numbered })
       out += renderListItemRest(ctx, item.content, bctx, depth, list, plan)
     }
   })

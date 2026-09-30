@@ -183,7 +183,7 @@ function renderParagraph(p: IRParagraph, ctx: RenderCtx): void {
 
 function renderList(list: IRList, ctx: RenderCtx): void {
   ctx.push(
-    `<div class="ses-list ses-list-${list.listType}" data-type="list" data-list-type="${list.listType}"${idAttr(list.id)}>`,
+    `<div class="ses-list ses-list-${list.listType}" data-type="list" data-list-type="${list.listType}"${list.level === 2 ? ' data-level="2"' : ''}${idAttr(list.id)}>`,
   )
   for (const item of list.items) {
     ctx.push(`<div class="ses-list-item"${idAttr(item.id)}>`)
@@ -646,6 +646,7 @@ function screenStyles(): string {
     .ses-toc-l3 { padding-left: 4em; }
     .ses-toc-text { color: #0066cc; text-decoration: none; }
     .ses-list { padding-left: 2em; margin: 8px 0; }
+    .ses-list[data-level="2"], .ses-list-dot { padding-left: 4em; }
     .ses-list-item { margin: 2px 0; }
     .ses-table-block { margin: 16px 0; }
     .ses-table-caption { font-family: "SimHei", "黑体", sans-serif; font-weight: bold; text-align: center; margin: 8px 0 4px; }

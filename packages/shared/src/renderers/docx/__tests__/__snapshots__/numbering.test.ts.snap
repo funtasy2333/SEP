@@ -103,11 +103,11 @@ SesFigure │ — │ 〔图片缺失〕
 SesFigCap │ 图7 │ 术语注图〔期望图7〕
 SesClause1 │ 4.2 │ 列项样例〔期望4.2〕
 SesListItem │ a） │ 字母项一〔期望a）〕
-SesListItem │ · │ 数字子项一〔期望·〕
+SesListItem │ 1） │ 数字子项一〔期望1）〕
 SesListCont2 │ — │ 数字子项一续段
 SesListDot │ · │ 破折三层一〔期望·〕
 SesListDot │ · │ 破折三层二〔期望·〕
-SesListItem │ · │ 数字子项二〔期望·〕
+SesListItem │ 2） │ 数字子项二〔期望2）〕
 SesListItem │ b） │ 字母项二〔期望b）〕
 SesListDot │ · │ 破折子项一〔期望·〕
 SesListDot │ · │ 破折子项二〔期望·〕
@@ -120,8 +120,8 @@ SesListItem │ 2） │ 数字项二〔期望2）〕
 SesListItem │ 1） │ 方框项一〔期望1）〕
 SesListItem │ 2） │ 方框项二〔期望2）〕
 SesListDash │ —— │ 破折顶层项一〔期望——〕
-SesListItem │ · │ 破折下数字一〔期望·〕
-SesListItem │ · │ 破折下数字二〔期望·〕
+SesListItem │ 1） │ 破折下数字一〔期望1）〕
+SesListItem │ 2） │ 破折下数字二〔期望2）〕
 SesListDash │ —— │ 破折顶层项二〔期望——〕
 SesClause1 │ 4.3 │ 单注两段样例〔期望4.3〕
 SesNote │ 注： │ 单注首段内容〔期望注：〕

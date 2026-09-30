@@ -16,12 +16,13 @@ export type StdListType =
   | 'dash'           // 破折号列项 ——
   | 'alpha'          // 字母编号列项 a）b）c）
   | 'numeric'        // 数字编号列项 1）2）3）
+  | 'dot'            // 间隔号列项 ·
   | 'boxedNumeric'   // 方框数字 ① ② ③
 
 /** 将旧文档中的罗马列表类型降级为仍受支持的数字编号列项。 */
 export function normalizeStdListType(value: unknown): StdListType {
   if (value === 'roman' || value === 'romanUpper') return 'numeric'
-  if (value === 'alpha' || value === 'numeric' || value === 'boxedNumeric') return value
+  if (value === 'alpha' || value === 'numeric' || value === 'boxedNumeric' || value === 'dot') return value
   return 'dash'
 }
 
@@ -52,7 +53,7 @@ export const StdList = Node.create({
           const el = dom as HTMLElement
           return {
             listType: normalizeStdListType(el.getAttribute('data-list-type')),
-            level: parseInt(el.getAttribute('data-level') || '1', 10),
+            level: ['numeric', 'dot'].includes(el.getAttribute('data-list-type') || '') ? 2 : 1,
           }
         },
       },
@@ -61,12 +62,13 @@ export const StdList = Node.create({
 
   renderHTML({ node, HTMLAttributes }): DOMOutputSpec {
     const listType = normalizeStdListType(node.attrs.listType)
+    const level = listType === 'numeric' || listType === 'dot' ? 2 : 1
     return [
       'div',
       mergeAttributes(HTMLAttributes, {
         'data-type': 'std-list',
         'data-list-type': listType,
-        'data-level': node.attrs.level,
+        'data-level': level,
         class: `std-list std-list-${listType}`,
       }),
       0,
@@ -81,7 +83,10 @@ export const StdList = Node.create({
           return chain()
             .insertContent({
               type: 'stdList',
-              attrs: { listType: attrs?.listType || 'dash' },
+              attrs: {
+                listType: attrs?.listType || 'dash',
+                level: attrs?.listType === 'numeric' || attrs?.listType === 'dot' ? 2 : 1,
+              },
               content: [
                 { type: 'stdListItem' },
               ],
