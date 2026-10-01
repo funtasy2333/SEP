@@ -59,6 +59,43 @@ describe('DOCX client exporter', () => {
     })
   })
 
+  it('数据库未提供新增封面元数据时保留 pmToIr 的封面值，提供空值时照常覆盖', () => {
+    const coverDoc: PMJsonNode = {
+      type: 'standardDoc',
+      attrs: { standardType: 'national' },
+      content: [{
+        type: 'coverPage',
+        attrs: {
+          replaces: '封面代替号',
+          consistency: '（ISO 1234:2020，MOD）',
+          filingNo: '封面备案号',
+          industryName: '封面行业',
+          regionName: '封面地区',
+        },
+        content: [],
+      }],
+    }
+    const partialDatabaseMeta: DocumentMeta = { titleCn: '标题', standardType: 'national' }
+
+    const { doc } = prepareDocxInput(coverDoc, partialDatabaseMeta)
+    expect(doc.meta).toMatchObject({
+      replaces: '封面代替号',
+      consistency: '（ISO 1234:2020，MOD）',
+      filingNo: '封面备案号',
+      industryName: '封面行业',
+      regionName: '封面地区',
+    })
+
+    const { doc: overridden } = prepareDocxInput(coverDoc, {
+      ...partialDatabaseMeta,
+      replaces: '',
+      regionName: '数据库地区',
+    })
+    expect(overridden.meta.replaces).toBe('')
+    expect(overridden.meta.regionName).toBe('数据库地区')
+    expect(overridden.meta.consistency).toBe('（ISO 1234:2020，MOD）')
+  })
+
   it('将 XML parts 和 base64 binaries 都打入 DOCX Blob', async () => {
     const blob = await packageDocx({
       parts: { '[Content_Types].xml': '<types/>', 'word/document.xml': '<document/>' },

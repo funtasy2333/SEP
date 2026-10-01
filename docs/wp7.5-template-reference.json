@@ -1,0 +1,83 @@
+{
+  "date": "2026-09-30",
+  "source": "用户提供的六类 DOCX 模板，仅作为本任务版式参照，不声明正式素材来源",
+  "word": "Microsoft Word for Mac 16.113.3",
+  "method": "300 dpi grayscale <128 pixel bounds, mm; original DOCX read-only",
+  "filled_reference": {
+    "industry": "将 HJ 占位代号替换为 HG",
+    "local": "保留 DB33",
+    "group": "仅表单缓存结果 TEST，去除其余默认 en-space 占位槽",
+    "enterprise": "将 CCC 表单缓存结果替换为 TEST"
+  },
+  "comparison_scope": "logo 四边为 HG/DB33/T/TEST/Q/TEST 固定样稿；非国标发布机构只比较字顶与110mm版心居中，名称长度由元数据决定",
+  "template_sha256": {
+    "国家标准.docx": "b5a28d1b80e5254f4fcd15fd1fb24292f6bd5304c9b39b98aaf21daf53fab063",
+    "标准化指导性技术文件.docx": "c943ea4a72ea9d83b698b8087458ce1e8f0ef49037b73b43d9aa06014173aa65",
+    "行业标准.docx": "a0e53fe1e2a10e968bf67d2ef0b4912306ac5bb8a21519e45df220d276103cab",
+    "地方标准.docx": "7a5c3c8032c61e7ee3cd6a06037727fab621112256a998e3c818882f9c3013ec",
+    "团体标准.docx": "69b791a5fd6a786d0ecd53cc558d38036c8b4ccc43c84c8d6b9dee58c1d641b0",
+    "企业标准.docx": "ece8e7c00554972acacb83087a538a3706c5a4caa4da26ad5d2be3438c73733f"
+  },
+  "targets": {
+    "gb": {
+      "logo": [
+        138.94,
+        12.95,
+        178.99,
+        33.1
+      ],
+      "issuer": [
+        72.39,
+        264.08,
+        147.07,
+        275.25
+      ]
+    },
+    "guide": {
+      "logo": [
+        138.94,
+        12.95,
+        178.99,
+        33.1
+      ],
+      "issuer": [
+        72.39,
+        265.85,
+        147.07,
+        276.94
+      ]
+    },
+    "industry": {
+      "logo": [
+        147.24,
+        23.54,
+        180.76,
+        35.31
+      ]
+    },
+    "local": {
+      "logo": [
+        134.7,
+        19.81,
+        180.09,
+        31.5
+      ]
+    },
+    "group": {
+      "logo": [
+        108.03,
+        23.71,
+        182.37,
+        36.15
+      ]
+    },
+    "enterprise": {
+      "logo": [
+        107.36,
+        18.88,
+        182.29,
+        31.5
+      ]
+    }
+  }
+}

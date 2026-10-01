@@ -32,3 +32,11 @@ describe('XML 列项导出类型', () => {
     expect(xml).not.toMatch(/<list[^>]*\blevel=/)
   })
 })
+
+describe('XML 文档类型序列化', () => {
+  it('编辑器 doc 根无 attrs 时，从 schema-backed coverPage 写回 std-type', () => {
+    const cover = node('coverPage', { standardType: 'local' }, [node('paragraph')])
+    const xml = serializeToXml(node('doc', {}, [cover]))
+    expect(xml).toContain('<std-type>local</std-type>')
+  })
+})

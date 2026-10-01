@@ -62,10 +62,10 @@ describe('numbering fixture', () => {
     expect(() => assertExpectMarkers(simulateNumbering(pkg))).not.toThrow()
   })
 
-  it('warnings 与期望列表完全一致（boxed 退化、两处三层嵌套）', () => {
+  it('warnings 与期望列表完全一致（封面素材提示、boxed退化、两处三层嵌套）', () => {
     const codes = pkg.warnings.map((w) => w.code).sort()
     const structural = codes.filter((code) => code !== 'image-missing' && code !== 'formula-missing-omml')
-    expect(structural).toEqual(['list-format-fallback', 'list-too-deep', 'list-too-deep'].sort())
+    expect(structural).toEqual(['cover-asset-approximation', 'list-format-fallback', 'list-too-deep', 'list-too-deep'].sort())
   })
 
   it('术语和定义章的术语另行起排，其他章节和附录的测试术语与编号同排', () => {

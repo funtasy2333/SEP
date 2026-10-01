@@ -1,7 +1,14 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`numbering fixture > 大纲快照 1`] = `
-"SesCoverStdNo │ — │ GB/T 99999—2026
+"SesCoverLogo │ — │ 〔图〕
+SesCoverDesignationGb │ — │ 中华人民共和国国家标准
+SesCoverStdNo │ — │ GB/T 99999—2026
+SesCoverRule │ — │
+SesCoverName │ — │ 编号一致性测试文档
+SesCoverStage │ — │ （报批稿）
+SesCoverDates │ — │ XXXX-XX-XX 发布⇥XXXX-XX-XX 实施
+SesCoverIssuer │ — │ 〔图〕
 — │ — │
 § type=nextPage pgNumType=— start=— orient=— refs=0
 SesTocTitle │ — │ 目次

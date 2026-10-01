@@ -296,7 +296,7 @@
         >
           <span class="ec-glyph">W</span>
           <span class="ec-label">DOCX</span>
-          <span class="ec-sub">{{ exportingFormat === 'docx' ? '正在生成…' : '测试版 · 支持图表公式与横排' }}</span>
+          <span class="ec-sub">{{ exportingFormat === 'docx' ? '正在生成…' : '测试版 · 支持图表公式、横排与六类封面' }}</span>
         </button>
         <button
           v-if="capabilities.htmlToPdf"
@@ -330,17 +330,10 @@
 
 
 <script setup lang="ts">
+import { createDefaultDocumentContent } from '@/utils/newDocument'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { useRoute, useRouter } from 'vue-router'
-import { useEditor } from '@tiptap/vue-3'
-import StarterKit from '@tiptap/starter-kit'
-import { Table } from '@tiptap/extension-table'
-import { TableRow } from '@tiptap/extension-table-row'
-import { TableCell } from '@tiptap/extension-table-cell'
-import { TableHeader } from '@tiptap/extension-table-header'
-import { Image } from '@tiptap/extension-image'
-import { Placeholder } from '@tiptap/extension-placeholder'
 // Underline is included in StarterKit (tiptap v3)
 import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon, Clock, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -351,26 +344,11 @@ import DocumentOutline from '@/components/editor/DocumentOutline.vue'
 import SlashMenu from '@/components/editor/SlashMenu.vue'
 import VersionPanel from '@/components/version/VersionPanel.vue'
 
+import { useEditor } from '@tiptap/vue-3'
+import { createEditorExtensions } from '@/extensions/editorExtensions'
 import {
-  Chapter, ChapterTitle,
-  Clause, ClauseTitle,
-  StdParagraph,
-  TermDef, TermName, TermNameEn, TermDefinition,
-  StdTable, TableCaption, TableCaptionEn, TableFootnote,
-  Figure, FigureImage, FigureCaption, FigureCaptionEn,
-  Formula, FormulaContent, FormulaDescription,
-  Note, Example,
-  Foreword, Introduction,
-  Appendix, AppendixLabel, AppendixTitle,
-  Bibliography, BibliographyTitle, BibEntry,
-  StdList, StdListItem,
-  SlashCommand,
-  AutoUnitSpacing,
-  NodeId,
-} from '@/extensions'
-import { CrossRef } from '@/extensions'
-import {
-  serializeToXml, parseXmlToJson,
+  serializeToXml, parseXmlToEditorJson,
+  prepareXmlImportDocumentUpdate,
   exportSemanticJson, exportSemanticHtml,
   buildPdfExportRequest, buildDocxBlob,
 } from '@/serializer'
@@ -399,46 +377,10 @@ const capabilities = ref<{ htmlToPdf: boolean }>({
   htmlToPdf: true,
 })
 
-/** 默认文档结构：前言 + 1范围 + 2规范性引用文件 + 3术语和定义 */
-const defaultDocContent = {
-  type: 'doc',
-  content: [
-    {
-      type: 'foreword',
-      content: [
-        { type: 'paragraph', content: [{ type: 'text', text: '本文件按照GB/T 1.1-2020《标准化工作导则 第1部分：标准化文件的结构和起草规则》的规定起草。' }] },
-      ],
-    },
-    {
-      type: 'chapter',
-      attrs: { number: '1' },
-      content: [
-        { type: 'chapterTitle', content: [{ type: 'text', text: '范围' }] },
-        { type: 'stdParagraph' },
-      ],
-    },
-    {
-      type: 'chapter',
-      attrs: { number: '2' },
-      content: [
-        { type: 'chapterTitle', content: [{ type: 'text', text: '规范性引用文件' }] },
-        { type: 'stdParagraph' },
-      ],
-    },
-    {
-      type: 'chapter',
-      attrs: { number: '3' },
-      content: [
-        { type: 'chapterTitle', content: [{ type: 'text', text: '术语和定义' }] },
-        { type: 'stdParagraph' },
-      ],
-    },
-  ],
-}
-
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 const dirty = ref(false)
 const contentReady = ref(false)
+let importingXml = false
 
 function scheduleAutoSave() {
   if (!contentReady.value) return
@@ -480,31 +422,7 @@ function setActivePageOrientation(orientation: 'portrait' | 'landscape') {
 }
 
 const editor = useEditor({
-  extensions: [
-    // GB/T 标准文档不需要 blockquote/codeBlock/horizontalRule，禁用以免产生 IR 无法表达的内容
-    StarterKit.configure({ heading: false, blockquote: false, codeBlock: false, horizontalRule: false }),
-    Table.configure({ resizable: true }),
-    TableRow, TableCell, TableHeader,
-    Image,
-    Placeholder.configure({ placeholder: '开始编写标准内容...' }),
-    // 自定义节点
-    Chapter, ChapterTitle,
-    Clause, ClauseTitle,
-    StdParagraph,
-    TermDef, TermName, TermNameEn, TermDefinition,
-    StdTable, TableCaption, TableCaptionEn, TableFootnote,
-    Figure, FigureImage, FigureCaption, FigureCaptionEn,
-    Formula, FormulaContent, FormulaDescription,
-    Note, Example,
-    Foreword, Introduction,
-    Appendix, AppendixLabel, AppendixTitle,
-    Bibliography, BibliographyTitle, BibEntry,
-    StdList, StdListItem,
-    CrossRef,
-    SlashCommand,
-    AutoUnitSpacing,
-    NodeId,
-  ],
+  extensions: createEditorExtensions(),
   content: '',
   onUpdate() {
     scheduleAutoSave()
@@ -559,7 +477,7 @@ onMounted(async () => {
       editor.value?.commands.setContent(store.currentDocument.content)
     } else {
       // 新文档加载默认结构
-      editor.value?.commands.setContent(defaultDocContent)
+      editor.value?.commands.setContent(createDefaultDocumentContent(store.currentDocument?.meta))
     }
     contentReady.value = true
   } catch {
@@ -579,7 +497,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
-  if (dirty.value && editor.value && store.currentDocument) {
+  if (dirty.value && !importingXml && editor.value && store.currentDocument) {
     const content = editor.value.getJSON()
     const currentId = store.currentDocument.id
     if (currentId != null) {
@@ -590,7 +508,7 @@ onBeforeUnmount(() => {
 })
 
 async function handleSave() {
-  if (!editor.value || !store.currentDocument) return
+  if (!editor.value || !store.currentDocument || importingXml) return
   if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null }
   saving.value = true
   try {
@@ -1073,14 +991,23 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
     exportingFormat.value = format
     exportError.value = ''
     try {
-      const { blob } = await buildDocxBlob({
+      const { blob, warnings } = await buildDocxBlob({
         pmDoc: doc,
         documentMeta: store.currentDocument?.meta,
         stage: store.currentDocument?.stage,
       })
 
       downloadBlob(blob, `${docTitle}.docx`)
-      ElMessage.success('DOCX 文件已导出')
+      const coverIssues = warnings.filter((warning) => warning.code === 'cover-asset-approximation' || warning.code === 'cover-field-missing')
+      if (coverIssues.length) {
+        const notes = [
+          ...(coverIssues.some((warning) => warning.code === 'cover-asset-approximation') ? ['部分封面素材的来源或清晰度有限，请核对后使用。'] : []),
+          ...(coverIssues.some((warning) => warning.code === 'cover-field-missing') ? ['部分封面信息未填写，请补齐后核对。'] : []),
+        ]
+        ElMessage.warning({ message: `DOCX 已导出。${notes.join('')}`, duration: 8000 })
+      } else {
+        ElMessage.success('DOCX 文件已导出')
+      }
       showExport.value = false
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
@@ -1203,22 +1130,81 @@ function triggerXmlImport() {
 function handleXmlFileImport(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
-  if (!file || !editor.value) return
+  const currentEditor = editor.value
+  const currentDocument = store.currentDocument
+  if (!file || !currentEditor) return
+  if (saving.value || importingXml) {
+    input.value = ''
+    ElMessage.warning('文档正在保存或导入，请稍后再导入 XML')
+    return
+  }
+  if (!currentDocument?.id) {
+    input.value = ''
+    ElMessage.error('当前文档不可用，无法导入 XML')
+    return
+  }
+  const currentDocumentId = currentDocument.id
+
+  importingXml = true
+  const wasEditable = currentEditor.isEditable
+  const wasDirty = dirty.value
+  currentEditor.setEditable(false)
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer)
+    autoSaveTimer = null
+  }
+
+  let persisted = false
+  const finishImport = () => {
+    if (!currentEditor.isDestroyed) currentEditor.setEditable(wasEditable)
+    importingXml = false
+    input.value = ''
+    if (!persisted && wasDirty && !currentEditor.isDestroyed) scheduleAutoSave()
+  }
 
   const reader = new FileReader()
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
-      const xmlString = e.target?.result as string
-      const pmJson = parseXmlToJson(xmlString)
-      editor.value!.commands.setContent(pmJson)
+      const xmlString = e.target?.result
+      if (typeof xmlString !== 'string') throw new Error('无法读取 XML 文件内容')
+      const pmJson = parseXmlToEditorJson(xmlString, currentEditor.schema.topNodeType.name)
+      // Parse against the live production schema before making any persistent or editor changes.
+      const validatedDoc = currentEditor.schema.nodeFromJSON(pmJson)
+      validatedDoc.check()
+      const validatedJson = validatedDoc.toJSON()
+      if (currentEditor.isDestroyed || store.currentDocument?.id !== currentDocumentId) {
+        throw new Error('当前文档已切换，请重新导入')
+      }
+      const update = prepareXmlImportDocumentUpdate(validatedJson, currentDocument.meta)
+
+      saving.value = true
+      await store.updateDocument(currentDocumentId, {
+        title: update.title,
+        meta: update.meta,
+        content: validatedJson,
+      })
+      persisted = true
+      currentEditor.commands.setContent(validatedJson, { emitUpdate: false })
+      dirty.value = false
+      lastSaved.value = new Date().toLocaleTimeString('zh-CN')
       ElMessage.success('XML 文件导入成功')
     } catch (err) {
       ElMessage.error(`XML 导入失败: ${err}`)
+    } finally {
+      saving.value = false
+      finishImport()
     }
-    // 清空 input 以便再次选择同一文件
-    input.value = ''
   }
-  reader.readAsText(file, 'UTF-8')
+  reader.onerror = () => {
+    ElMessage.error('XML 文件读取失败')
+    finishImport()
+  }
+  try {
+    reader.readAsText(file, 'UTF-8')
+  } catch (err) {
+    ElMessage.error(`XML 文件读取失败: ${err}`)
+    finishImport()
+  }
 }
 </script>
 

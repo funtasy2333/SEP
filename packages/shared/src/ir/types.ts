@@ -32,6 +32,16 @@ export interface IRDocMeta {
   applicant?: string
   publishDate?: string
   implementDate?: string
+  /** 被代替的标准文件编号 */
+  replaces?: string
+  /** 一致性程度标识 */
+  consistency?: string
+  /** 备案号（行业标准封面） */
+  filingNo?: string
+  /** 行业名称 */
+  industryName?: string
+  /** 地方名称 */
+  regionName?: string
 }
 
 export interface IRChapter {

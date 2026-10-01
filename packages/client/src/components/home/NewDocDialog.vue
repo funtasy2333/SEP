@@ -24,7 +24,7 @@
       <div class="mini-cover">
         <div class="left">
           <div class="stdno">
-            {{ form.stdNo ? `${form.stdPrefix || typeDef.prefix} ${form.stdNo}` : `${form.stdPrefix || typeDef.prefix}  XXXXX—2026` }}
+            {{ newDocumentStandardNo(form) }}
           </div>
           <div class="title-cn">{{ form.titleCn || '请输入文件名称…' }}</div>
           <div class="title-en">{{ form.titleEn || 'English title (optional)' }}</div>
@@ -134,8 +134,17 @@
                   class="prefix-input"
                   :placeholder="typeDef.prefix"
                 />
-                <input v-model="form.stdNo" placeholder="XXXXX—2026" />
+                <input v-model="form.stdNo" :placeholder="STANDARD_NO_PLACEHOLDER" />
               </div>
+            </el-form-item>
+            <el-form-item>
+              <template #label>标准替代情况 <span class="help">填写被代替的标准编号；首次发布可留空</span></template>
+              <el-input v-model="form.replaces" placeholder="如 GB/T 12345—2020" />
+            </el-form-item>
+
+            <el-form-item>
+              <template #label>标准采标情况 <span class="help">填写采标文件编号和一致性程度；未采标可留空</span></template>
+              <el-input v-model="form.consistency" placeholder="如 （ISO 1234:2020，MOD）" />
             </el-form-item>
           </el-form>
         </section>
@@ -229,27 +238,12 @@ import { Close, Check, Plus, MagicStick } from '@element-plus/icons-vue'
 import {
   STAGE_LABELS, STAGE_SHORT, STAGES, TYPE_DEFS,
 } from '@/constants/standards'
-import type { StandardType } from '@ses/shared'
+import { newDocumentStandardNo, STANDARD_NO_PLACEHOLDER, type NewDocForm } from '@/utils/newDocument'
 
 const props = defineProps<{
   modelValue: boolean
   initialType?: string
 }>()
-interface NewDocForm {
-  type: StandardType
-  stage: typeof STAGES[number]
-  stdPrefix: string
-  stdNo: string
-  titleCn: string
-  titleEn: string
-  icsCode: string
-  ccsCode: string
-  issuer: string
-  applicant: string
-  proposer: string
-  technicalCommittee: string
-}
-
 const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
   (e: 'create', form: NewDocForm): void
@@ -273,6 +267,8 @@ const form = ref<NewDocForm>({
   applicant: '',
   proposer: '',
   technicalCommittee: '',
+  replaces: '',
+  consistency: '',
 })
 
 const activeStep = ref<'type' | 'basic' | 'classify' | 'contrib'>('type')
@@ -284,7 +280,7 @@ const typeDef = computed(() =>
 
 const steps = computed(() => [
   { id: 'type' as const,     label: '标准类型',     meta: typeDef.value.name },
-  { id: 'basic' as const,    label: '基本信息',     meta: form.value.titleCn ? '✓ 已填写' : '题名 / 编号' },
+  { id: 'basic' as const,    label: '基本信息',     meta: form.value.titleCn ? '✓ 已填写' : '题名 / 编号 / 替代 / 采标' },
   { id: 'classify' as const, label: '分类与阶段',   meta: `${form.value.icsCode || 'ICS'} · ${STAGE_SHORT[form.value.stage]}` },
   { id: 'contrib' as const,  label: '起草信息',     meta: form.value.proposer || form.value.issuer ? '✓ 已填写' : '提出 / 归口 / 起草单位' },
 ])
@@ -311,6 +307,8 @@ watch(() => props.modelValue, (open) => {
       applicant: '',
       proposer: '',
       technicalCommittee: '',
+      replaces: '',
+      consistency: '',
     }
     activeStep.value = 'type'
   }

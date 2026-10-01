@@ -170,8 +170,9 @@ function serializeFront(lines: string[], doc: PMNode, coverNode: PMNode | null, 
   if (implDate) lines.push(`${indent(depth + 1)}<release-date>${escapeXml(implDate)}</release-date>`)
 
   // 标准类型
-  if (attrs.standardType) {
-    lines.push(`${indent(depth + 1)}<std-type>${escapeXml(attrs.standardType)}</std-type>`)
+  const standardType = attrs.standardType || coverNode?.attrs.standardType
+  if (standardType) {
+    lines.push(`${indent(depth + 1)}<std-type>${escapeXml(standardType)}</std-type>`)
   }
 
   // 发布机构
@@ -180,6 +181,31 @@ function serializeFront(lines: string[], doc: PMNode, coverNode: PMNode | null, 
     lines.push(`${indent(depth + 1)}<std-org>`)
     lines.push(`${indent(depth + 2)}<std-org-name>${escapeXml(issuer)}</std-org-name>`)
     lines.push(`${indent(depth + 1)}</std-org>`)
+  }
+
+  // SES-only cover metadata uses the STS custom-meta escape hatch; existing std-meta elements stay unchanged.
+  const coverMetaValue = (key: string): string | undefined => {
+    const coverValue = coverNode?.attrs[key]
+    if (typeof coverValue === 'string' && coverValue !== '') return coverValue
+    const rootValue = attrs[key]
+    return typeof rootValue === 'string' && rootValue !== '' ? rootValue : undefined
+  }
+  const coverMetadata = [
+    ['replaces', coverMetaValue('replaces')],
+    ['consistency', coverMetaValue('consistency')],
+    ['filingNo', coverMetaValue('filingNo')],
+    ['industryName', coverMetaValue('industryName')],
+    ['regionName', coverMetaValue('regionName')],
+  ].filter((entry): entry is [string, string] => entry[1] !== undefined)
+  if (coverMetadata.length > 0) {
+    lines.push(`${indent(depth + 1)}<custom-meta-group content-type="ses-cover">`)
+    for (const [name, value] of coverMetadata) {
+      lines.push(`${indent(depth + 2)}<custom-meta>`)
+      lines.push(`${indent(depth + 3)}<meta-name>${name}</meta-name>`)
+      lines.push(`${indent(depth + 3)}<meta-value>${escapeXml(value)}</meta-value>`)
+      lines.push(`${indent(depth + 2)}</custom-meta>`)
+    }
+    lines.push(`${indent(depth + 1)}</custom-meta-group>`)
   }
 
   lines.push(`${indent(depth)}</std-meta>`)

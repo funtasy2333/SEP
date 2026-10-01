@@ -1,6 +1,7 @@
 export { serializeToXml } from './xmlSerializer'
-export { parseXmlToJson } from './xmlParser'
+export { parseXmlToJson, parseXmlToEditorJson } from './xmlParser'
 export type { PMJsonNode, PMJsonMark } from './xmlParser'
+export { prepareXmlImportDocumentUpdate } from './xmlDocumentMeta'
 export { exportSemanticJson } from './jsonExporter'
 export type { SemanticJsonNode } from './jsonExporter'
 export { exportSemanticHtml } from './htmlExporter'

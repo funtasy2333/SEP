@@ -1,8 +1,7 @@
 /**
  * DOCX 样式表（docs/wp7-docx-delivery.md §3，格式的唯一数据源）。
  *
- * `buildStylesXml()` 输出 §3.2 列出的全部样式（除 SesCoverStdNo 以外的 SesCover* 留给
- * WP7.5，§3.2 表后说明）。约定（§3.1）：
+ * `buildStylesXml()` 输出 §3.2 与 §6 的全部样式。约定（§3.1）：
  * - 样式 ID 用 ASCII（Ses*），中文名 SES_*；全部 w:customStyle="1"、w:qFormat；
  * - 除 SesNormal 外全部 basedOn SesNormal；SesNormal 是默认段落样式；
  * - 带编号段落的缩进只写在编号级别（numbering.ts），标「缩进见 Ax」的样式本身不写 ind；
@@ -56,6 +55,12 @@ const IND_END_MARK = '<w:ind w:left="3532" w:right="3532"/>'
 const IND_END_MARK_LANDSCAPE = '<w:ind w:left="5415" w:right="5415"/>'
 const IND_TOC2 = '<w:ind w:left="210" w:firstLine="0"/>'
 const IND_TOC3 = '<w:ind w:left="420" w:firstLine="0"/>'
+const SPACING_COVER_TITLE = '<w:spacing w:before="0" w:after="0" w:line="732" w:lineRule="exact"/>'
+const SPACING_COVER_ENGLISH = '<w:spacing w:before="378" w:after="0" w:line="400" w:lineRule="exact"/>'
+const SPACING_COVER_CONSISTENCY = '<w:spacing w:before="639" w:after="0" w:line="400" w:lineRule="exact"/>'
+const TABS_COVER_DATES = '<w:tabs><w:tab w:val="right" w:pos="9638"/></w:tabs>'
+const PBDR_COVER_RULE = wrapElement('w:pBdr', '<w:bottom w:val="single" w:sz="4" w:space="1" w:color="000000"/>')
+const COVER_DESIGNATION_FIT_WIDTH = 9780 // Word 墨迹宽170mm的长称谓校准值
 
 /** 版心宽 9355、中线 4677（§2.1 字面值，不用除法重新计算避免舍入到 4678） */
 const BODY_WIDTH = 9355
@@ -85,7 +90,10 @@ interface StyleSpec {
   outlineLvl?: number
   rFonts?: 'song' | 'songAll' | 'hei'
   sz?: number
-  jc?: 'center' | 'right' | 'both'
+  jc?: 'left' | 'center' | 'right' | 'both' | 'distribute'
+  bold?: boolean
+  characterScale?: number
+  fitText?: number
   keepNext?: boolean
   keepLines?: boolean
   widowControl?: boolean
@@ -120,7 +128,13 @@ function buildStyleXml(spec: StyleSpec): string {
   if (spec.rFonts === 'song') rprChildren.push(['rFonts', SONG_RFONTS])
   else if (spec.rFonts === 'songAll') rprChildren.push(['rFonts', SONG_ALL_RFONTS])
   else if (spec.rFonts === 'hei') rprChildren.push(['rFonts', HEI_RFONTS])
+  if (spec.bold) {
+    rprChildren.push(['b', '<w:b/>'])
+    rprChildren.push(['bCs', '<w:bCs/>'])
+  }
   if (spec.sz !== undefined) rprChildren.push(...szChildren(spec.sz))
+  if (spec.characterScale !== undefined) rprChildren.push(['w', `<w:w w:val="${spec.characterScale}"/>`])
+  if (spec.fitText !== undefined) rprChildren.push(['fitText', `<w:fitText w:val="${spec.fitText}"/>`])
 
   const styleChildren: XmlChild[] = [['name', `<w:name w:val="${escapeXmlAttr(spec.name)}"/>`]]
   if (spec.basedOn !== null) styleChildren.push(['basedOn', `<w:basedOn w:val="${spec.basedOn ?? 'SesNormal'}"/>`])
@@ -306,7 +320,25 @@ const STYLE_SPECS: readonly StyleSpec[] = [
   { id: 'TOC1', name: 'toc 1', rFonts: 'songAll', tabs: TABS_TOC, spacing: SPACING_QUARTER_LINE },
   { id: 'TOC2', name: 'toc 2', rFonts: 'songAll', tabs: TABS_TOC, ind: IND_TOC2 },
   { id: 'TOC3', name: 'toc 3', rFonts: 'songAll', tabs: TABS_TOC, ind: IND_TOC3 },
+  { id: 'SesCoverIcs', name: 'SES_封面分类号', rFonts: 'hei', sz: 21, jc: 'left' },
+  { id: 'SesCoverLogo', name: 'SES_封面标志', jc: 'center' },
+  { id: 'SesCoverLogoText', name: 'SES_封面行业标志代号', rFonts: 'song', sz: 96, bold: true, characterScale: 130, jc: 'right' },
+  { id: 'SesCoverGroupLogo', name: 'SES_封面团体标志及代号', rFonts: 'song', sz: 96, bold: true, characterScale: 130, jc: 'right' },
+  { id: 'SesCoverEnterpriseLogo', name: 'SES_封面企业标志及代号', rFonts: 'song', sz: 96, bold: true, characterScale: 130, jc: 'right' },
+  { id: 'SesCoverDbRegion', name: 'SES_封面地方标志及代号', rFonts: 'song', sz: 96, bold: true, characterScale: 130, jc: 'right' },
+  { id: 'SesCoverDesignationGb', name: 'SES_封面国家标准称谓', rFonts: 'song', sz: 52, bold: true, jc: 'distribute' },
+  { id: 'SesCoverDesignationGuide', name: 'SES_封面指导性技术文件称谓', rFonts: 'song', sz: 52, bold: true, fitText: COVER_DESIGNATION_FIT_WIDTH, jc: 'distribute' },
+  { id: 'SesCoverDesignationOther', name: 'SES_封面其他标准称谓', rFonts: 'hei', sz: 48, jc: 'distribute' },
   { id: 'SesCoverStdNo', name: 'SES_封面文件编号', rFonts: 'hei', sz: 28, jc: 'right' },
+  { id: 'SesCoverReplaces', name: 'SES_封面代替文件编号', rFonts: 'hei', sz: 21, jc: 'right' },
+  { id: 'SesCoverRule', name: 'SES_封面横线', pBdr: PBDR_COVER_RULE },
+  { id: 'SesCoverName', name: 'SES_封面文件名称', rFonts: 'hei', sz: 52, jc: 'center', snapToGridOff: true, spacing: SPACING_COVER_TITLE },
+  { id: 'SesCoverEnglish', name: 'SES_封面英文译名', rFonts: 'hei', sz: 28, jc: 'center', snapToGridOff: true, spacing: SPACING_COVER_ENGLISH },
+  { id: 'SesCoverConsistency', name: 'SES_封面一致性程度', rFonts: 'hei', sz: 28, jc: 'center', snapToGridOff: true, spacing: SPACING_COVER_CONSISTENCY },
+  { id: 'SesCoverStage', name: 'SES_封面阶段标识', rFonts: 'hei', sz: 28, jc: 'center' },
+  { id: 'SesCoverPatent', name: 'SES_封面专利说明', rFonts: 'song', sz: 21, jc: 'center' },
+  { id: 'SesCoverDates', name: 'SES_封面日期', rFonts: 'hei', sz: 28, jc: 'left', snapToGridOff: true, spacing: '<w:spacing w:before="0" w:after="0" w:line="400" w:lineRule="exact"/>', tabs: TABS_COVER_DATES, pBdr: PBDR_COVER_RULE },
+  { id: 'SesCoverIssuer', name: 'SES_封面发布机构', rFonts: 'hei', sz: 28, jc: 'center' },
 ]
 
 const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -324,7 +356,7 @@ function buildDocDefaultsXml(): string {
   return docDefaults(children)
 }
 
-/** 生成完整的 word/styles.xml（含 XML 声明），§3.2 全部样式（不含留给 WP7.5 的 SesCover*） */
+/** 生成完整的 word/styles.xml（含 XML 声明），§3.2 与 §6 全部样式 */
 export function buildStylesXml(): string {
   const children: XmlChild[] = [
     ['docDefaults', buildDocDefaultsXml()],
@@ -347,3 +379,15 @@ export function styleSpecs(): readonly StyleSpec[] {
 export const OWNER_STYLE_IDS: ReadonlySet<string> = new Set(
   STYLE_SPECS.filter((spec) => spec.numPr !== undefined).map((spec) => spec.id),
 )
+
+/** §6.1 非国标发布机构与「发　布」均为四号黑体常规字。
+ * 「发　布」字符缩放87%经Word墨迹校准；间隔run不缩放，保持约5mm。
+ */
+export function buildCoverReleaseRunPr(compress: boolean): string {
+  const children: XmlChild[] = [
+    ['rFonts', HEI_RFONTS],
+    ...szChildren(28),
+  ]
+  if (compress) children.push(['w', '<w:w w:val="87"/>'])
+  return rPr(children)
+}

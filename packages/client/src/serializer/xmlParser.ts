@@ -22,6 +22,23 @@ export interface PMJsonMark {
   attrs?: Record<string, unknown>
 }
 
+const SES_COVER_META_KEYS = ['replaces', 'consistency', 'filingNo', 'industryName', 'regionName'] as const
+const LEGACY_COVER_META_KEYS = [
+  'standardNo',
+  'titleCn',
+  'titleEn',
+  'publishDate',
+  'implementDate',
+  'icsCode',
+  'ccsCode',
+  'standardType',
+] as const
+const EDITOR_COVER_META_KEYS = [
+  ...LEGACY_COVER_META_KEYS,
+  'issuer',
+  ...SES_COVER_META_KEYS,
+] as const
+
 /**
  * 将 GB/T 37967-2019 XML 字符串解析为 ProseMirror JSON
  */
@@ -43,6 +60,39 @@ export function parseXmlToJson(xmlString: string): PMJsonNode {
   return parseStandard(root)
 }
 
+/**
+ * XML uses a `standardDoc` wrapper, while the live editor currently uses StarterKit's `doc` top node.
+ * Keep parseXmlToJson's existing wrapper contract, and adapt only at the editor import boundary.
+ */
+export function parseXmlToEditorJson(xmlString: string, topNodeTypeName: string): PMJsonNode {
+  const parsed = parseXmlToJson(xmlString)
+  if (parsed.type === topNodeTypeName) return parsed
+
+  // StarterKit's production `doc` node has no attrs. Lift the parsed <front>/<std-meta> data
+  // onto the schema-backed coverPage before the standardDoc wrapper is discarded.
+  const rootAttrs = parsed.attrs ?? {}
+  const coverAttrs: Record<string, unknown> = {}
+  for (const key of EDITOR_COVER_META_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(rootAttrs, key)) coverAttrs[key] = rootAttrs[key]
+  }
+
+  const content = [...(parsed.content ?? [])]
+  const coverIndex = content.findIndex((node) => node.type === 'coverPage')
+  if (coverIndex >= 0) {
+    const coverPage = content[coverIndex]!
+    // Explicit cover metadata remains authoritative if an XML document contains both sources.
+    content[coverIndex] = { ...coverPage, attrs: { ...coverAttrs, ...coverPage.attrs } }
+  } else if (Object.keys(coverAttrs).length > 0) {
+    content.unshift({
+      type: 'coverPage',
+      attrs: coverAttrs,
+      content: [{ type: 'paragraph', content: [] }],
+    })
+  }
+
+  return { type: topNodeTypeName, content }
+}
+
 // ========== 解析函数 ==========
 
 /** 解析 <standard> 根元素 */
@@ -61,6 +111,23 @@ function parseStandard(el: Element): PMJsonNode {
   if (front) {
     const meta = parseFrontMeta(front)
     doc.attrs = { ...doc.attrs, ...meta }
+    const sesCoverAttrs = extractSesCoverMeta(meta)
+    if (Object.keys(sesCoverAttrs).length > 0) {
+      // The live editor uses a `doc` root without metadata attrs. Once SES cover metadata is
+      // present, carry the already parsed legacy cover fields on coverPage as well, so importing
+      // into the production schema does not lose them when the standardDoc wrapper is adapted.
+      const coverAttrs: Record<string, string> = {
+        ...extractLegacyCoverMeta(meta),
+        ...sesCoverAttrs,
+      }
+      const issuer = parseCoverIssuer(front)
+      if (issuer) coverAttrs.issuer = issuer
+      doc.content!.push({
+        type: 'coverPage',
+        attrs: coverAttrs,
+        content: [{ type: 'paragraph', content: [] }],
+      })
+    }
   }
 
   // 解析 body
@@ -120,6 +187,8 @@ function parseStandard(el: Element): PMJsonNode {
 /** 解析 <front> 中的元数据 */
 function parseFrontMeta(front: Element): Record<string, unknown> {
   const attrs: Record<string, unknown> = {}
+  const issuer = parseCoverIssuer(front)
+  if (issuer) attrs.issuer = issuer
   const meta = front.querySelector(':scope > std-meta')
   if (!meta) return attrs
 
@@ -155,7 +224,50 @@ function parseFrontMeta(front: Element): Record<string, unknown> {
   const stdType = meta.querySelector(':scope > std-type')
   if (stdType) attrs.standardType = stdType.textContent?.trim() || 'national'
 
+  // Keep the parsed values on root attrs for legacy PM JSON consumers; parseStandard also places
+  // them on coverPage so a schema-backed editor doc can retain them after its root wrapper is removed.
+  Object.assign(attrs, parseSesCoverMeta(meta))
+
   return attrs
+}
+
+/** Reads only our named STS custom-meta group, leaving other organizations' metadata untouched. */
+function parseSesCoverMeta(meta: Element): Record<string, string> {
+  const attrs: Record<string, string> = {}
+  for (const group of meta.querySelectorAll(':scope > custom-meta-group')) {
+    if (group.getAttribute('content-type') !== 'ses-cover') continue
+    for (const item of group.querySelectorAll(':scope > custom-meta')) {
+      const name = item.querySelector(':scope > meta-name')?.textContent?.trim()
+      if (!name || !SES_COVER_META_KEYS.includes(name as typeof SES_COVER_META_KEYS[number])) continue
+      const value = item.querySelector(':scope > meta-value')?.textContent?.trim()
+      if (value) attrs[name] = value
+    }
+  }
+  return attrs
+}
+
+function extractSesCoverMeta(meta: Record<string, unknown>): Record<string, string> {
+  const coverAttrs: Record<string, string> = {}
+  for (const key of SES_COVER_META_KEYS) {
+    const value = meta[key]
+    if (typeof value === 'string' && value !== '') coverAttrs[key] = value
+  }
+  return coverAttrs
+}
+
+function extractLegacyCoverMeta(meta: Record<string, unknown>): Record<string, string> {
+  const coverAttrs: Record<string, string> = {}
+  for (const key of LEGACY_COVER_META_KEYS) {
+    const value = meta[key]
+    if (typeof value === 'string' && value !== '') coverAttrs[key] = value
+  }
+  return coverAttrs
+}
+
+function parseCoverIssuer(front: Element): string {
+  return front
+    .querySelector(':scope > std-meta > std-org > std-org-name')
+    ?.textContent?.trim() ?? ''
 }
 
 /** 解析前言 */

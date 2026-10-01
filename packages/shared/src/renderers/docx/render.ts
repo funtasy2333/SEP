@@ -5,7 +5,7 @@
  * `numbered`（§4.7 追踪，供一致性测试用）。本文件不经 `index.ts` 导出（§4.7）。
  *
  * 文档结构（节序见 sections.ts）：
- * 1. 封面节（WP7.5 前占位）：SesCoverStdNo 段；
+ * 1. 封面节：§6 六类封面，其中标准文件编号同时为书眉 STYLEREF 的取值来源；
  * 2. 目次节：SesTocTitle 与固定条目/PAGEREF；
  * 3. 前言、引言（各自非空才有）；
  * 4. 正文节：正文首页名称 + 各章；
@@ -23,7 +23,7 @@ import { LANDSCAPE_END, LANDSCAPE_START } from './body/block'
 import { renderChapter } from './body/clause'
 import { createRenderContext, emitParagraph, type NumberedParagraphTrace, type RenderContext } from './body/context'
 import { renderBodyTitle, renderForeword, renderIntroduction, renderTocTitle } from './body/front'
-import { renderCoverPlaceholder } from './cover'
+import { normalizeCoverStdCode, renderCover } from './cover'
 import { buildStaticToc } from './toc'
 import { buildPackage, createRelationshipIdAllocator, type DocxRelatedPart } from './package'
 import { buildHeaderFooterParts, createSectionManager, type HeaderFooterRelIds, type SectionKind, type SectionManager } from './sections'
@@ -136,15 +136,15 @@ export function renderDocxTraced(
     footer1: allocateRelId(),
     footer2: allocateRelId(),
   }
-  const headerFooterParts = buildHeaderFooterParts(doc.meta.stdCode ?? '')
+  const headerFooterParts = buildHeaderFooterParts(normalizeCoverStdCode(doc.meta.stdCode))
   const sectionManager = createSectionManager(relIds)
 
   let body = ''
   let finalContentLandscape = false
 
-  // 1. 封面节（占位）
+  // 1. 封面节
   body += sectionManager.startSection('cover')
-  body += renderCoverPlaceholder(ctx, doc.meta.stdCode)
+  body += renderCover(ctx, doc.meta, opts.stage)
 
   // 2. 目次节
   body += sectionManager.startSection('toc')
