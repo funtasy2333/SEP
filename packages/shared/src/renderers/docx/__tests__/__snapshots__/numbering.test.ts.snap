@@ -7,6 +7,7 @@ SesCoverStdNo │ — │ GB/T 99999—2026
 SesCoverRule │ — │
 SesCoverName │ — │ 编号一致性测试文档
 SesCoverStage │ — │ （报批稿）
+SesCoverDates │ — │ XXXX-XX-XX 发布⇥XXXX-XX-XX 实施
 SesCoverIssuer │ — │ 〔图〕
 — │ — │
 § type=nextPage pgNumType=— start=— orient=— refs=0

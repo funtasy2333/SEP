@@ -55,7 +55,10 @@ it('新建时持久化的前言经生产schema、XML和DOCX保留单位、专利
   const zip = await JSZip.loadAsync(await blob.arrayBuffer())
   const body = await zip.file('word/document.xml')!.async('string')
   for (const text of [patent, '本文件由提出单位甲提出。', '本文件由归口单位乙归口。', '本文件起草单位：起草单位丙、起草单位丁。',
-    'GB/T XXXXX—XXXX', '代替 GB/T 1000—2020', '（ISO 1234:2020，MOD）']) expect(body).toContain(text)
+    'GB/T XXXXX—XXXX', 'XXXX-XX-XX 发布', 'XXXX-XX-XX 实施', '代替 GB/T 1000—2020', '（ISO 1234:2020，MOD）']) expect(body).toContain(text)
+  expect(body).toContain('w:val="SesCoverDates"')
+  expect(stored.meta.publishDate).toBeUndefined()
+  expect(stored.meta.implementDate).toBeUndefined()
   expect(warnings.some((w) => w.code === 'cover-field-missing' && w.message.includes('stdCode'))).toBe(false)
 })
 

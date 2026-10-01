@@ -378,6 +378,36 @@ describe('WP7.5 七阶段封面标识与专利征集说明', () => {
   })
 })
 
+describe('WP7.5 缺失日期的占位与固定横线', () => {
+  it.each(TYPE_CASES)('$standardType 未填写日期也保留两侧占位和日期下横线', ({ standardType, stdCode }) => {
+    const meta: IRDocMeta = { ...BASE_META, standardType, stdCode, publishDate: undefined, implementDate: undefined }
+    const pkg = renderCoverPackage(meta)
+    expect(docxOutline(pkg)).toContain('SesCoverDates │ — │ XXXX-XX-XX 发布⇥XXXX-XX-XX 实施')
+    expect(frameOf(paragraphWithStyle(pkg, 'SesCoverDates')!)?.attrs).toMatchObject({
+      'w:x': String(mmToTwips(25)), 'w:y': String(mmToTwips(249.6)), 'w:w': String(mmToTwips(170)),
+    })
+    const dateStyle = descendants(parseXml(pkg.parts['word/styles.xml']!), 'w:style')
+      .find((style) => style.attrs['w:styleId'] === 'SesCoverDates')!
+    expect(descendants(dateStyle, 'w:bottom')[0]?.attrs).toMatchObject({
+      'w:val': 'single', 'w:sz': '4', 'w:color': '000000',
+    })
+    expect(descendants(dateStyle, 'w:tab')[0]?.attrs).toMatchObject({ 'w:val': 'right', 'w:pos': '9638' })
+    expect(meta.publishDate).toBeUndefined()
+    expect(meta.implementDate).toBeUndefined()
+  })
+
+  it.each([
+    { publishDate: '', implementDate: '', expected: 'XXXX-XX-XX 发布⇥XXXX-XX-XX 实施' },
+    { publishDate: '  ', implementDate: '\t', expected: 'XXXX-XX-XX 发布⇥XXXX-XX-XX 实施' },
+    { publishDate: '2026-06-01', implementDate: undefined, expected: '2026-06-01 发布⇥XXXX-XX-XX 实施' },
+    { publishDate: undefined, implementDate: '2026-12-01', expected: 'XXXX-XX-XX 发布⇥2026-12-01 实施' },
+    { publishDate: ' 2026-06-01 ', implementDate: ' 2026-12-01 ', expected: '2026-06-01 发布⇥2026-12-01 实施' },
+  ])('日期空值/单侧值使用独立占位：$expected', ({ publishDate, implementDate, expected }) => {
+    const pkg = renderCoverPackage({ ...BASE_META, publishDate, implementDate })
+    expect(docxOutline(pkg)).toContain(`SesCoverDates │ — │ ${expected}`)
+  })
+})
+
 describe('WP7.5 封面定位与内容', () => {
   it('封面段落写入 §6.1 页面坐标图文框，文件编号和新增元数据格式正确', () => {
     const meta: IRDocMeta = {

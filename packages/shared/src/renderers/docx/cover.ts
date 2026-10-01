@@ -296,17 +296,13 @@ export function renderCover(ctx: RenderContext, meta: IRDocMeta, stage: Document
     xml += frameText(ctx, 'SesCoverPatent', '在提交反馈意见时，请将您知道的相关专利连同支持性文件一并附上。', FRAME_TITLE_FLOW)
   }
 
-  const dates: string[] = []
-  if (meta.publishDate) dates.push(`${meta.publishDate} 发布`)
-  if (meta.implementDate) dates.push(`${meta.implementDate} 实施`)
-  if (dates.length > 0) {
-    const runs = dates.length === 2
-      ? plainRun(dates[0]) + tabRun() + plainRun(dates[1])
-      : meta.publishDate
-        ? plainRun(dates[0])
-        : tabRun() + plainRun(dates[0])
-    xml += emitParagraph(ctx, 'SesCoverDates', { runsXml: runs, framePr: FRAME_DATES })
-  }
+  // 未知日期只在封面显示占位，不写入元数据；日期下横线属于固定封面结构。
+  const publishDate = meta.publishDate?.trim() || 'XXXX-XX-XX'
+  const implementDate = meta.implementDate?.trim() || 'XXXX-XX-XX'
+  xml += emitParagraph(ctx, 'SesCoverDates', {
+    runsXml: plainRun(`${publishDate} 发布`) + tabRun() + plainRun(`${implementDate} 实施`),
+    framePr: FRAME_DATES,
+  })
 
   xml += renderIssuer(ctx, meta)
   return xml
