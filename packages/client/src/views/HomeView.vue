@@ -138,6 +138,7 @@ import { Download, Plus, Grid, List, Document } from '@element-plus/icons-vue'
 import { useDocumentStore } from '@/stores/document'
 import type { DocumentData } from '@/api/document'
 import { createNewDocument, type NewDocForm } from '@/utils/newDocument'
+import { createDocumentDuplicate } from '@/utils/duplicateDocument'
 import { STAGE_LABELS, TYPE_LABELS } from '@/constants/standards'
 
 import HomeNav from '@/components/home/HomeNav.vue'
@@ -248,13 +249,7 @@ async function handleDelete(row: DocumentData) {
 }
 
 async function handleDuplicate(row: DocumentData) {
-  const baseTitle = row.meta?.titleCn || row.title
-  const copy = await store.createDocument({
-    title: `${baseTitle}（副本）`,
-    meta: { ...row.meta, titleCn: `${baseTitle}（副本）` },
-    stage: 'working_draft',
-    content: row.content,
-  })
+  const copy = await store.createDocument(createDocumentDuplicate(row))
   ElMessage.success('已复制')
   router.push({ name: 'editor', params: { id: copy.id! } })
 }
