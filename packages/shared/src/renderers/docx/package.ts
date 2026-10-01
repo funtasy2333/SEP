@@ -156,8 +156,8 @@ function settingsXml(): string {
     ],
     [
       'm:mathPr',
-      '<m:mathPr><m:mathFont m:val="Cambria Math"/><m:dispDef/><m:smallFrac m:val="0"/>' +
-        '<m:naryLim m:val="undOvr"/><m:intLim m:val="subSup"/></m:mathPr>',
+      '<m:mathPr><m:mathFont m:val="Cambria Math"/><m:smallFrac m:val="0"/><m:dispDef/>' +
+        '<m:intLim m:val="subSup"/><m:naryLim m:val="undOvr"/></m:mathPr>',
     ],
   ]
   const el = wrapElement('w:settings', joinOrderedChildren('settings', children), {

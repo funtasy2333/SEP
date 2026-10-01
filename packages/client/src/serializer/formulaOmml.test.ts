@@ -74,6 +74,8 @@ describe('公式 MathML → OMML', () => {
       expect(omml).toMatch(/^<m:oMath\b/)
       expect(omml).toMatch(/<\/m:oMath>$/)
       expect(omml).not.toMatch(/<m:e\s*\/>|<m:e\s*>\s*<\/m:e>/)
+      expect(omml).not.toMatch(/<m:sty\s+m:val="undefined"|<m:scrLvl\b/)
+      expect(omml).not.toMatch(/<w:rPr\s*\/>|<w:rPr>/)
       assertWellFormedXml(omml)
     }
     expect(converted[2]).toContain('&lt;')
@@ -84,6 +86,38 @@ describe('公式 MathML → OMML', () => {
     expect(converted[6]).toContain('<m:t xml:space="preserve">{</m:t>')
     expect(converted[11]).toContain('<m:nary>')
     expect(converted[12]).toContain('<m:nary>')
+    expect(converted[5].match(/<m:mr>/g)).toHaveLength(2)
+    expect(converted[5].match(/<m:e>/g)).toHaveLength(4)
+    for (const cell of ['a', 'b', 'c', 'd']) {
+      expect(converted[5]).toContain(`<m:t xml:space="preserve">${cell}</m:t>`)
+    }
+  })
+
+  it('schema 规整保留数学字形、脚本尺寸和公式主体', async () => {
+    const bold = await convertFormulaToOmml(String.raw`\mathbf{A}`)
+    const roman = await convertFormulaToOmml(String.raw`\mathrm{x}`)
+    const sans = await convertFormulaToOmml(String.raw`\mathsf{x}`)
+    const text = await convertFormulaToOmml(String.raw`\text{中文}`)
+    const sizedFraction = await convertFormulaToOmml(String.raw`\frac{\scriptstyle x}{\scriptscriptstyle y}`)
+
+    expect(bold).toContain('<m:sty m:val="b"/>')
+    expect(bold).not.toContain('<m:nor/>')
+    expect(bold).toContain('<m:t xml:space="preserve">A</m:t>')
+    expect(roman).toContain('<m:nor/>')
+    expect(roman).toContain('<m:t xml:space="preserve">x</m:t>')
+    expect(sans).toContain('<m:t xml:space="preserve">x</m:t>')
+    expect(text).toContain('<m:nor/>')
+    expect(text).toContain('<m:t xml:space="preserve">中文</m:t>')
+    expect(sizedFraction).toContain('<m:argSz m:val="-1"/>')
+    expect(sizedFraction).toContain('<m:argSz m:val="-2"/>')
+    expect(sizedFraction).toContain('<m:num>')
+    expect(sizedFraction).toContain('<m:den>')
+
+    for (const omml of [bold, roman, sans, text, sizedFraction]) {
+      expect(omml).not.toMatch(/<m:sty\s+m:val="undefined"|<m:scrLvl\b/)
+      expect(omml).not.toMatch(/<w:rPr\s*\/>|<w:rPr>/)
+      assertWellFormedXml(omml)
+    }
   })
 
   it('收集 IR 文档中的公式，单条转换失败时留下告警并继续处理', async () => {
