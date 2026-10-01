@@ -14,7 +14,7 @@
 
 ## 验证结果
 
-- shared 32文件/744测试通过，client 16文件/61测试通过；两端构建通过，git diff --check通过。Vite既有大chunk提示仍在。
+- shared 32文件/744测试通过，client 16文件/62测试通过；两端构建通过，git diff --check通过。Vite既有大chunk提示仍在。
 - 真实Vue/Element Plus新建对话框测试：新增输入实际进入create事件，所选团体类型和占位编号一致，单位进入持久化正文；关闭重开清空替代/采标填写值。
 - JSON保存回载→生产编辑器schema→IR→XML再导入→真实buildDocxBlob验证编号、两字段、单位语句及完整专利提示；缺单位时不输出空责任语句，独立文档不共享可变默认内容。
 - 编号覆盖六类默认、空白、显式前缀/序号及占位下仍保留的标记代码。没有改编号、目次、图表公式、横排、页眉页脚或现有PDF产品管线。
@@ -33,7 +33,11 @@
 
 样稿在Microsoft Word for Mac 16.113.3重新渲染为5页，300dpi测量日期字顶251.21 mm（目标251.5，差−0.29）、左右端25.06/194.73 mm、下横线257.05 mm（目标257，差+0.05）；当前样稿28/28封面位置检查通过，最大偏差0.77 mm。date-cover-measurements.json保留原始结果。已视觉检查封面与全页缩略图；第2–5页文字及150dpi灰度像素与修复前完全一致，DOCX唯一变化为新增封面日期段。编号fixture的golden/snapshot也仅增加该段，目次和正文逐字节不变。原9份已填写日期的封面/阶段DOCX与原Word验收稿逐字节一致；WP7.4样稿原未填日期，当前仅增加同一封面日期段，另行Word渲染仍12页，第2–12页文字、页尺寸及150dpi像素全部一致，复核稿位于/tmp/wp75-date-regression/wp74-regression.docx/.pdf。
 
-shared 744项、client 61项及两端构建通过。OfficeCLI HTML/outline/issues已检查，固定横线/分节空段及草案空章节是设计内容，目次在Word PDF中已计算；strict schema仍仅报原有settings/mathPr/smallFrac，不宣称完整schema通过。PDF产品管线未改。
+shared 744项、client 62项及两端构建通过。OfficeCLI HTML/outline/issues已检查，固定横线/分节空段及草案空章节是设计内容，目次在Word PDF中已计算；strict schema仍仅报原有settings/mathPr/smallFrac，不宣称完整schema通过。PDF产品管线未改。
+
+## 元数据容器审查修复
+
+新建文档的coverPage原有空子段落曾在编辑器暴露可输入区域，而导出链仅读取节点属性；现保留兼容的block+结构，节点设为原子/不可选，DOM隐藏并contenteditable=false，防止输入被导出静默丢弃。新增真实Editor DOM测试同时确认属性保存、IR映射和正文可编辑内容保留。当前client 62项测试及构建通过，最终代码样稿与本轮Word渲染DOCX逐字节一致。
 
 ## 人工检查与复现
 
