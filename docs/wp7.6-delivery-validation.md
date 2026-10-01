@@ -130,3 +130,7 @@ node --input-type=module -e 'import {createServer} from "vite"; const s=await cr
 | R6 | 自动/外部代码审查以PR当前状态为准 | 逐条核对实际意见并修复；本轮以草稿PR交付，未经用户授权不合并 |
 
 WP7.6总验收只有在R1完成、目标稿件需要的遗留问题处理并人工确认后才能标记完成。本轮的测试、schema和模板测量属于补充证据。
+
+## PR与审查状态
+
+[PR #40](https://github.com/funtasy2333/SEP/pull/40)已提交：OPEN、草稿、未合并。2026-10-01 11:23:22 UTC重查：外部reviews、review threads和远程checks均为0；已完成主导人代码审查，未将“没有意见”描述为外部审批通过。真实稿件验收及上表遗留项仍保留，未经用户授权不合并。

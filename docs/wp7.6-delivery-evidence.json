@@ -1162,5 +1162,43 @@
       "sha256": "a0b6d3254f2cd80c473b6e9a1a70c4b315ba83a9f8ad9463f73f3025ff07b927",
       "final_source_regenerated_byte_equal": true
     }
-  ]
+  ],
+  "pr_snapshot": {
+    "url": "https://github.com/funtasy2333/SEP/pull/40",
+    "checked_at": "2026-10-01 11:23:22 UTC",
+    "state": "OPEN",
+    "draft": true,
+    "merged": false,
+    "external_reviews": 0,
+    "review_threads": 0,
+    "remote_checks": 0,
+    "primary_review": "completed; scope and unresolved limitations recorded"
+  },
+  "asset_current_check": {
+    "enterprise_logo_png_size": [
+      34,
+      35
+    ],
+    "enterprise_logo_dpi": [
+      72.009,
+      72.009
+    ],
+    "national_issuer": "fixed template image remains in current assets; provenance not formally verified"
+  },
+  "primary_workspace_check": {
+    "endmark_sha256": "8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8",
+    "existing_uncommitted_image_and_store": "not modified by this task",
+    "new_untracked_directory": ".worktrees/",
+    "primary_db_documents": [
+      [
+        6,
+        "测试标准"
+      ],
+      [
+        7,
+        "测试标准TEST"
+      ]
+    ],
+    "primary_db_access": "read only; test UI uses separate worktree database"
+  }
 }
