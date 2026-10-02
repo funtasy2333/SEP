@@ -60,7 +60,8 @@ const SPACING_COVER_TITLE = '<w:spacing w:before="0" w:after="0" w:line="732" w:
 const SPACING_COVER_ENGLISH = '<w:spacing w:before="378" w:after="0" w:line="400" w:lineRule="exact"/>'
 const SPACING_COVER_CONSISTENCY = '<w:spacing w:before="639" w:after="0" w:line="400" w:lineRule="exact"/>'
 const TABS_COVER_DATES = '<w:tabs><w:tab w:val="right" w:pos="9638"/></w:tabs>'
-const PBDR_COVER_RULE = wrapElement('w:pBdr', '<w:bottom w:val="single" w:sz="4" w:space="1" w:color="000000"/>')
+// 六类封面的上下横线统一为 0.75 pt；OOXML 边框 w:sz 使用 1/8 pt。
+const PBDR_COVER_RULE = wrapElement('w:pBdr', '<w:bottom w:val="single" w:sz="6" w:space="1" w:color="000000"/>')
 const COVER_DESIGNATION_FIT_WIDTH = 9780 // Word 墨迹宽170mm的长称谓校准值
 
 /** 版心宽 9355、中线 4677（§2.1 字面值，不用除法重新计算避免舍入到 4678） */
