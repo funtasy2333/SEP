@@ -4,6 +4,10 @@ import { TextSelection } from '@tiptap/pm/state'
 
 const paragraphs = new Set(['stdParagraph', 'paragraph'])
 
+function isHeading(node: PMNode): boolean {
+  return node.type.name === 'clause' || node.type.name === 'termDef'
+}
+
 function children(node: PMNode): PMNode[] {
   const result: PMNode[] = []
   node.forEach(child => result.push(child))
@@ -46,6 +50,7 @@ export function setClauseFormat(editor: Editor, level: number, hasTitle = true):
   } else if (leaf.type.name === 'clauseTitle' && $from.node($from.depth - 1).type.name === 'clause') {
     targetDepth = $from.depth - 1
     const target = $from.node(targetDepth)
+    if (level !== target.attrs.level && children(target).some(isHeading)) return false
     clause = target.type.create({ ...target.attrs, level, hasTitle }, [
       leaf.type.create({ ...leaf.attrs, level }, leaf.content, leaf.marks),
       ...children(target).slice(1),
@@ -73,14 +78,22 @@ export function setClauseFormat(editor: Editor, level: number, hasTitle = true):
   let clausePos: number
   if (hostDepth === targetDepth - 1) {
     clausePos = $from.before(targetDepth)
-    tr.replaceWith(clausePos, $from.after(targetDepth), clause)
+    let end = $from.after(targetDepth)
+    if (paragraphs.has(leaf.type.name)) {
+      const following = children(host).slice($from.index(hostDepth) + 1)
+      const peerIndex = following.findIndex(node => isHeading(node) && node.attrs.level <= level)
+      const body = following.slice(0, peerIndex < 0 ? following.length : peerIndex)
+      clause = clause.copy(clause.content.append(Fragment.fromArray(body)))
+      end += body.reduce((size, node) => size + node.nodeSize, 0)
+    }
+    tr.replaceWith(clausePos, end, clause)
   } else {
     const ancestorDepth = hostDepth + 1
     const ancestor = $from.node(ancestorDepth)
     const path = Array.from({ length: targetDepth - ancestorDepth }, (_, i) => $from.index(ancestorDepth + i))
     const split = splitBeforeTarget(ancestor, path)
     // Paragraphs/subclauses after a new heading remain its body until the next peer heading.
-    const peerIndex = split.after.findIndex(node => node.type.name === 'clause' && node.attrs.level <= level)
+    const peerIndex = split.after.findIndex(node => isHeading(node) && node.attrs.level <= level)
     const bodyEnd = peerIndex < 0 ? split.after.length : peerIndex
     clause = clause.copy(clause.content.append(Fragment.fromArray(split.after.slice(0, bodyEnd))))
     const start = $from.before(ancestorDepth)
@@ -108,11 +121,28 @@ export function setParagraphFormat(editor: Editor): boolean {
   if (leaf.type.name === 'clauseTitle' && $from.node($from.depth - 1).type.name === 'clause') {
     const depth = $from.depth - 1
     const clause = $from.node(depth)
+    // Removing a heading is safe only if it has no numbered descendants.
+    // Keep their existing ancestry rather than silently promoting orphaned subclauses.
+    if (children(clause).some(isHeading)) return false
+    const parent = $from.node(depth - 1)
+    const index = $from.index(depth - 1)
+    const siblings = children(parent)
     paragraphPos = $from.before(depth)
-    tr.replaceWith(paragraphPos, $from.after(depth), [
+    const body = [
       state.schema.nodes.stdParagraph.create({ nodeId: clause.attrs.nodeId }, leaf.content),
       ...children(clause).slice(1),
-    ])
+    ]
+    if (siblings.some((node, i) => i !== index && node.type.name === 'clause')) {
+      const previous = siblings[index - 1]
+      // Following a leaf clause, the unnumbered text becomes that clause's body.
+      // Otherwise a direct paragraph alongside clauses would become hanging text.
+      if (!previous || previous.type.name !== 'clause' || children(previous).some(isHeading)) return false
+      const previousPos = paragraphPos - previous.nodeSize
+      paragraphPos -= 1 // The previous clause's closing token becomes the paragraph start.
+      tr.replaceWith(previousPos, $from.after(depth), previous.copy(previous.content.append(Fragment.fromArray(body))))
+    } else {
+      tr.replaceWith(paragraphPos, $from.after(depth), body)
+    }
   } else if (['paragraph', 'note', 'example'].includes(leaf.type.name)) {
     paragraphPos = $from.before($from.depth)
     tr.replaceWith(paragraphPos, $from.after($from.depth), state.schema.nodes.stdParagraph.create(

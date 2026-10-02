@@ -270,7 +270,7 @@
           <li><kbd>/</kbd> 智能插入菜单</li>
         </ul>
         <h4>文档结构</h4>
-        <p>使用左上角"+"按钮添加章节结构（前言、引言、章、附录、参考文献）。点击正文段落或选中其中的文字后，使用“条”“无题条”设置整段格式；点击条标题可修改其层级，使用“段落”恢复段落格式。需要新条时，先回车建立空段再设置格式。</p>
+        <p>使用左上角"+"按钮添加章节结构（前言、引言、章、附录、参考文献）。点击正文段落或选中其中的文字后，使用“条”“无题条”设置整段格式；新条之后的正文归入该条，直到下一个同级条。一级条置于章或附录内，其他级别置于上一级条内。含子条时保留原层级，可切换有题/无题；先调整子条结构再改层级或段落。需要新条时，先回车建立空段再设置格式。</p>
         <p>术语中英文名称同列显示：Tab 从中文名进入英文名，Enter 进入定义；在定义中 Enter 新建续段，末尾空续段再次 Enter 退出术语。使用工具栏插入列项、注、示例、公式、表格、图片等内容要素。选中图或表后，可切换纵向或横向版面。</p>
       </div>
     </el-dialog>
@@ -665,13 +665,13 @@ function getInsertRange(): { from: number; to: number } | null {
 // === 工具栏：条 ===
 function handleInsertClause(level: string) {
   if (editor.value && !setClauseFormat(editor.value, Number(level))) {
-    ElMessage.warning('请在章或附录内设置一级条，或在上一级条内设置下一级条；光标或选区须位于同一段落或条标题')
+    ElMessage.warning('请在章或附录内设置一级条，或在上一级条内设置下一级条；一次只改一段，有子条时保留原层级')
   }
 }
 
 function handleInsertClauseNoTitle(level: string) {
   if (editor.value && !setClauseFormat(editor.value, Number(level), false)) {
-    ElMessage.warning('请在章或附录内设置一级条，或在上一级条内设置下一级条；光标或选区须位于同一段落或条标题')
+    ElMessage.warning('请在章或附录内设置一级条，或在上一级条内设置下一级条；一次只改一段，有子条时保留原层级')
   }
 }
 
@@ -793,7 +793,7 @@ function getInsertAfterCurrentBlock(): number | null {
 // === 段落：格式覆盖保留条正文，已是段落时不新增空段 ===
 function insertStdParagraph() {
   if (editor.value && !setParagraphFormat(editor.value)) {
-    ElMessage.warning('请将光标或选中文字置于段落、条标题、注或示例内')
+    ElMessage.warning('当前位置不能直接改为段落；请先调整子条或同级条结构，原文与结构已保留')
   }
 }
 

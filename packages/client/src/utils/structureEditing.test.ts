@@ -2,7 +2,7 @@
 import { Editor } from '@tiptap/core'
 import type { JSONContent } from '@tiptap/core'
 import { afterEach, describe, expect, it } from 'vitest'
-import { pmToIr, type PMJsonNode } from '@ses/shared'
+import { pmToIr, resolve, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from '../extensions/editorExtensions'
 import { setClauseFormat, setParagraphFormat } from './structureEditing'
 
@@ -33,6 +33,10 @@ function clauseByTitle(e: Editor, title: string) {
   expect(nodes).toHaveLength(1)
   return nodes[0]!
 }
+function expectNoStructureWarnings(e: Editor) {
+  const { doc } = pmToIr(e.getJSON() as PMJsonNode)
+  expect(resolve(doc).problems.filter(p => ['heading-skip', 'hanging-paragraph'].includes(p.code))).toEqual([])
+}
 afterEach(() => { for (const e of editors.splice(0)) { const el = e.options.element; e.destroy(); if (el instanceof HTMLElement) el.remove() } })
 
 describe('结构格式覆盖（生产Tiptap schema）', () => {
@@ -48,7 +52,7 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     expect(converted.node.firstChild!.content.eq(original.content)).toBe(true)
     expect(e.state.selection.$from.parentOffset).toBe(1)
     expect(e.state.selection.$to.parentOffset).toBe(3)
-    expect(e.state.doc.child(0).child(2).textContent).toBe('后续正文')
+    expect(converted.node.lastChild?.textContent).toBe('后续正文')
     e.state.doc.check()
   })
 
@@ -102,21 +106,100 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     expect(clauseByTitle(e, '总体原则一').node.attrs.hasTitle).toBe(true)
   })
 
-  it('条转段落不拼接或丢弃正文/子条；已是段落时不新增空行', () => {
-    const e = editor([clause('a', '总体原则一', [p('body', '正文'), clause('nested', '子条', [], 2)])])
+  it('单个叶子条转段落不拼接或丢弃正文；已是段落时不新增空行', () => {
+    const e = editor([clause('a', '总体原则一', [p('body', '正文')])])
     const before = e.state.doc.textContent
     const body = clauseByTitle(e, '总体原则一').node.child(1)
-    const nested = clauseByTitle(e, '总体原则一').node.child(2)
     select(e, '总体原则一')
     expect(setParagraphFormat(e)).toBe(true)
     expect(e.state.doc.child(0).child(1).attrs.nodeId).toBe('a')
     expect(e.state.doc.child(0).child(2).eq(body)).toBe(true)
-    expect(e.state.doc.child(0).child(3).eq(nested)).toBe(true)
     expect(e.state.doc.textContent).toBe(before)
     const json = e.getJSON()
     expect(setParagraphFormat(e)).toBe(true)
     expect(e.getJSON()).toEqual(json)
     e.state.doc.check()
+    expectNoStructureWarnings(e)
+  })
+
+  it('新条接收后续正文直到同级条；章、附录及条内均无新增悬置段', () => {
+    const e = editor([p('target', '新条'), p('a', '后续正文一'), p('b', '后续正文二'), clause('peer', '下一条', [p('peer-body', '下一条正文')])])
+    const before = e.state.doc.textContent
+    select(e, '新条')
+    expect(setClauseFormat(e, 1)).toBe(true)
+    expect(clauseByTitle(e, '新条').node.childCount).toBe(3)
+    expect(clauseByTitle(e, '下一条').parent?.type.name).toBe('chapter')
+    expect(e.state.doc.textContent).toBe(before)
+    expectNoStructureWarnings(e)
+
+    e.commands.setContent({ type: 'doc', content: [{ type: 'appendix', attrs: { nodeId: 'appendix' }, content: [
+      { type: 'appendixLabel', content: [text('（规范性）')] },
+      { type: 'appendixTitle', content: [text('附录标题')] },
+      p('ap', '附录新条'), p('ap-body', '附录正文'), clause('ap-peer', '附录下一条'),
+    ] }] })
+    select(e, '附录新条')
+    expect(setClauseFormat(e, 1)).toBe(true)
+    expect(clauseByTitle(e, '附录新条').node.lastChild?.attrs.nodeId).toBe('ap-body')
+    expectNoStructureWarnings(e)
+
+    e.commands.setContent({ type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'chapter' }, content: [
+      { type: 'chapterTitle', content: [text('章标题')] },
+      clause('parent', '一级条', [p('nested', '新二级条'), p('nested-body', '二级条正文'), clause('peer2', '下一二级条', [], 2)]),
+    ] }] })
+    select(e, '新二级条')
+    expect(setClauseFormat(e, 2)).toBe(true)
+    expect(clauseByTitle(e, '新二级条').node.lastChild?.attrs.nodeId).toBe('nested-body')
+    expectNoStructureWarnings(e)
+  })
+
+  it('有子条或无前条可接收正文时，拒绝解除条容器并保持原层级', () => {
+    const e = editor([clause('a', '有子条', [clause('nested', '子条', [p('body', '子条正文')], 2)])])
+    select(e, '有子条')
+    const original = e.getJSON()
+    expect(setParagraphFormat(e)).toBe(false)
+    expect(e.getJSON()).toEqual(original)
+    expectNoStructureWarnings(e)
+
+    e.commands.setContent({ type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'chapter' }, content: [
+      { type: 'chapterTitle', content: [text('章标题')] }, clause('first', '第一条'), clause('second', '第二条'),
+    ] }] })
+    select(e, '第一条')
+    const siblings = e.getJSON()
+    expect(setParagraphFormat(e)).toBe(false)
+    expect(e.getJSON()).toEqual(siblings)
+    expectNoStructureWarnings(e)
+
+    e.commands.setContent({ type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'chapter' }, content: [
+      { type: 'chapterTitle', content: [text('章标题')] },
+      clause('outer', '一级条', [clause('child', '带子条的二级条', [clause('grandchild', '三级条', [p('body', '原正文')], 3)], 2)]),
+    ] }] })
+    select(e, '带子条的二级条')
+    const ancestry = e.getJSON()
+    expect(setClauseFormat(e, 1)).toBe(false)
+    expect(e.getJSON()).toEqual(ancestry)
+    expect(setClauseFormat(e, 2, false)).toBe(true)
+    expectNoStructureWarnings(e)
+  })
+
+  it('后续叶子条改段落时正文归入前条，保留顺序、marks、锚点及撤销重做', () => {
+    const e = editor([clause('a', '前条', [p('before', '原前条正文')]), clause('b', '转段标题', [p('body', '转段正文')])])
+    const before = e.state.doc.textContent
+    select(e, '转段标题', 1, 2)
+    e.commands.setMark('bold')
+    const title = clauseByTitle(e, '转段标题').node.firstChild!
+    expect(setParagraphFormat(e)).toBe(true)
+    const target = clauseByTitle(e, '前条').node
+    expect(e.state.doc.firstChild?.childCount).toBe(2)
+    expect(target.child(2).attrs.nodeId).toBe('b')
+    expect(target.child(2).content.eq(title.content)).toBe(true)
+    expect(target.lastChild?.attrs.nodeId).toBe('body')
+    expect(e.state.selection.$from.parentOffset).toBe(1)
+    expect(e.state.doc.textContent).toBe(before)
+    expectNoStructureWarnings(e)
+    expect(e.commands.undo()).toBe(true)
+    expect(clauseByTitle(e, '转段标题').node.attrs.nodeId).toBe('b')
+    expect(e.commands.redo()).toBe(true)
+    expectNoStructureWarnings(e)
   })
 
   it('一次格式转换可撤销和重做，不产生第二条或丢失文字', () => {
