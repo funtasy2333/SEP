@@ -153,6 +153,15 @@ export function setParagraphFormat(editor: Editor): boolean {
       tr.replaceWith(paragraphPos, $from.after(depth), body)
     }
   } else if (['paragraph', 'note', 'example'].includes(leaf.type.name)) {
+    const parent = $from.node($from.depth - 1)
+    const index = $from.index($from.depth - 1)
+    // StarterKit list items require their first generic paragraph. Changing it
+    // makes the replacement fitter invent an empty bullet before the real text.
+    if (leaf.type.name === 'paragraph' && parent.type.name === 'listItem') {
+      editor.view.focus()
+      return true
+    }
+    if (!parent.canReplaceWith(index, index + 1, state.schema.nodes.stdParagraph)) return false
     paragraphPos = $from.before($from.depth)
     tr.replaceWith(paragraphPos, $from.after($from.depth), state.schema.nodes.stdParagraph.create(
       { nodeId: leaf.attrs.nodeId }, leaf.content, leaf.marks,

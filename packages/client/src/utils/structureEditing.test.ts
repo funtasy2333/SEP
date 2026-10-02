@@ -40,6 +40,22 @@ function expectNoStructureWarnings(e: Editor) {
 afterEach(() => { for (const e of editors.splice(0)) { const el = e.options.element; e.destroy(); if (el instanceof HTMLElement) el.remove() } })
 
 describe('结构格式覆盖（生产Tiptap schema）', () => {
+  it.each(['bulletList', 'orderedList'])('%s 项的段落按钮不新增空项目符号，保留文字、marks 和续段', listType => {
+    const e = editor([{ type: listType, content: [{ type: 'listItem', content: [
+      { type: 'paragraph', attrs: { nodeId: 'list-p' }, content: [text('列表项正文', [{ type: 'bold' }])] },
+      { type: 'paragraph', attrs: { nodeId: 'list-continuation' }, content: [text('列表项续段')] },
+    ] }] }])
+    select(e, '列表项正文', 1, 2)
+    const json = e.getJSON()
+    expect(setParagraphFormat(e)).toBe(true)
+    expect(e.getJSON()).toEqual(json)
+    select(e, '列表项续段')
+    expect(setParagraphFormat(e)).toBe(true)
+    expect(e.getJSON()).toEqual(json)
+    expect(e.view.dom.querySelectorAll('li p')).toHaveLength(2)
+    expect(e.view.dom.querySelector('li p')?.textContent).toBe('列表项正文')
+    e.state.doc.check()
+  })
   it('部分选中文字也转换整个段落，保留inline标记、nodeId和相邻正文', () => {
     const source = p('target', '总体原则三')
     source.content = [text('总体原则三', [{ type: 'bold' }]), text('及引用', [{ type: 'crossRef', attrs: { targetNodeId: 'other', refType: 'section' } }])]
