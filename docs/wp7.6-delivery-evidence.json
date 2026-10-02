@@ -1,0 +1,1204 @@
+{
+  "recorded_date": "2026-10-01",
+  "status": "partial: real manuscript acceptance not completed",
+  "base_commit": "f2fad9e9f21ccd19d4e958e78680337715fdf986",
+  "branch": "codex/wp7.6-delivery",
+  "worktree": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery",
+  "environment": {
+    "word": "Microsoft Word for Mac 16.113.3",
+    "officecli": "1.0.152",
+    "node": "22.22.3",
+    "pnpm": "10.33.0",
+    "python": "3.11.4",
+    "os": "macOS",
+    "pdf_method": "Word QA copy update fields and export PDF; originals unchanged"
+  },
+  "tests": {
+    "shared": 745,
+    "client": 68,
+    "server": 23,
+    "build": "pnpm build passed"
+  },
+  "schema_baseline": {
+    "errors": 37,
+    "settings": 1,
+    "omml": 36,
+    "output_path": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/schema-before.txt"
+  },
+  "schema_final": [
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/covers/enterprise.docx",
+      "docx_sha256": "46421e2ffc0e225b96e2796eee713437b9ff89950dfd0e473ad3c2f0bfc8c77a",
+      "pdf_sha256": "dd728a28d3819691e7cc2f5be3eb674154ebc82a11101debf83bf1c11c5fcab0",
+      "pdf_pages": 5,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    },
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/covers/gb-comment.docx",
+      "docx_sha256": "517300a1e81aef7f551bdbd9165de64b1712f19d7e2c4c11e631d4e765fe4763",
+      "pdf_sha256": "62cacedf8c55b0ae2b39cc628fb52093eae20b6fe31cc5d3cd05e94bd73528f3",
+      "pdf_pages": 5,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    },
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/covers/gb-review-discussion.docx",
+      "docx_sha256": "b1156d540e89161ae78460788a7b79557e4674f09e9f34996d250e87ae03e11c",
+      "pdf_sha256": "20a67a774f293998ea4defdba4a9a4473b71efef027112215747c789f87bceb0",
+      "pdf_pages": 5,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    },
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/covers/gb-review.docx",
+      "docx_sha256": "574a0d4a1862f69a2a31c93d2c307f2f717da9ddb4490959d14cdb2589aa307a",
+      "pdf_sha256": "0455088b420c3683486bae98fe4077aae27876615845eadee41269d4a752db7f",
+      "pdf_pages": 5,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    },
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/covers/gb.docx",
+      "docx_sha256": "02379b22324d28bdf87f20a87115406930ff08093e26e6c2dcd995ca46cd4c4c",
+      "pdf_sha256": "9f02c5a955bf059b6de4636d7ff83fc0941339926e423914236f658d97b7a4c6",
+      "pdf_pages": 5,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    },
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/covers/group.docx",
+      "docx_sha256": "4a9e62177f2472e9ea32351e11a401fb28c671ab6caadb5c85eaa42be43dc8a5",
+      "pdf_sha256": "33ffa2af7a2a2a452a9fcce99b57bfaf3850b3da2df79a7523e5acd9b3af25ac",
+      "pdf_pages": 5,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    },
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/covers/guide.docx",
+      "docx_sha256": "9f624cf848fdee6d27dd294134b4de3db352a310607a1378a5fb0de523d5716d",
+      "pdf_sha256": "48d1dae309182599195cc4fbcaa8ebc643ddfc71126af1e7d4040d150b57cb7b",
+      "pdf_pages": 5,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    },
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/covers/industry.docx",
+      "docx_sha256": "e20d84f0a555e521c0222999d3e93e511dcdfafc5e3462aefcbf9fdf58e5acf2",
+      "pdf_sha256": "6ba22ae5db5373cd039b5bb8c3d5e1f423995d33861294dfea00490fceed788b",
+      "pdf_pages": 5,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    },
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/covers/local.docx",
+      "docx_sha256": "a0b6d3254f2cd80c473b6e9a1a70c4b315ba83a9f8ad9463f73f3025ff07b927",
+      "pdf_sha256": "477755785c926e22776565d3a1b6bfaa6417e0ebf4bbe06aa599c906b3bab601",
+      "pdf_pages": 5,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    },
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/new-document.docx",
+      "docx_sha256": "2f66d2631aa07b26b108caca0230661c150a7af935875356432aea4bbbeb473a",
+      "pdf_sha256": "e1d384392367f2dc880f49565cc7cd15917fe4533e9c24f3d2415600a4b66998",
+      "pdf_pages": 5,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    },
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/wp74.docx",
+      "docx_sha256": "5a38a9d83186ec5deab949c92281c2bf6151fb4fe694af43176dc0068cf38867",
+      "pdf_sha256": "88b517d3799afcd9930917b38a0fdbe87459898d468a35beb38f278bc784f274",
+      "pdf_pages": 12,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    },
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/full.docx",
+      "docx_sha256": "3ee478fbef53ff03c53e04a33deb73adeaf664656d83e9e9a73b52f53720d87c",
+      "pdf_sha256": "d1f18ebe5d3af41069a81d606a75750bc6a661f370cb958c19900eb4900325b1",
+      "pdf_pages": 11,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    },
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/minimal.docx",
+      "docx_sha256": "b84e49f65802a0c186793bef2889729dd953b850d3c89cf476c806eed7171842",
+      "pdf_sha256": "43a0020203b6bcec4fee94a4a6dc144f1eef50e481fdf3898c62273ea4879ade",
+      "pdf_pages": 1,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    },
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/numbering.docx",
+      "docx_sha256": "e67d32b94f441e060fd8d5d12326eb509b28af12e3248726984c4495c26867c6",
+      "pdf_sha256": "559794d5552157e38d29b8c9713a2a54ebcd34d28f963d9bc5f45605eba14020",
+      "pdf_pages": 13,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    },
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/browser-fixture/created.docx",
+      "docx_sha256": "a051c04d8658d740d256e145b0853b04e50e68bd431e25388c0884b1859c2894",
+      "pdf_sha256": "65d66e279051b1810d5bd3c508fce2917edaa6213f7f27a8cb43115dcbd47042",
+      "pdf_pages": 5,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    },
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/browser-fixture/duplicate.docx",
+      "docx_sha256": "7fa09ecc3dd84e15370e7d522d10ebfdacae8f1cf69c3428af862d1e4d60c71e",
+      "pdf_sha256": "2911ac0ca9a0de130b490f75a24c2889b531d79289d764cab447444d2fecbab5",
+      "pdf_pages": 10,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    },
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/browser-fixture/reopened.docx",
+      "docx_sha256": "77bef30035c49a72bc34d18fcbc66c6f93328d602d6067bced2f8d8af30f36ce",
+      "pdf_sha256": "f53ed6b515996c34aaed4e38a02116ca7fde9b357dee6b9ace2e8828444da0a0",
+      "pdf_pages": 10,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    },
+    {
+      "docx": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/schema-agent/style-variants.docx",
+      "docx_sha256": "d3daa31b3959a49fd717063cf7a09efdaa9a3b098b431e087bc3191de63e28d6",
+      "pdf_sha256": "c411ead06bcf806da25c8ea0d1c5721bac34325ef244b2f1a78619817a1acb60",
+      "pdf_pages": 5,
+      "schema_output": "Validation passed: no errors found.",
+      "schema_pass": true
+    }
+  ],
+  "browser_fixture": {
+    "source": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/packages/client/src/serializer/__fixtures__/sample-standard.xml",
+    "sourceSha256": "97df88fee2c5099660497b5e69a7603cacf4eb1c836933ad2a1903e4319fe8be",
+    "sourceQualification": "fixture",
+    "origin": "http://localhost:5174",
+    "status": "browser-flow-passed; Word and real-manuscript qualification are separate checks",
+    "steps": [
+      "UI 创建：空编号、替代/采标、单位和专利前言一次持久化",
+      "UI 新建 XML 导出再导入：替代/采标、空编号及单位元数据一致",
+      "UI XML 导入：题名、元数据、正文一起写入隔离数据库",
+      "UI 编辑 + 保存 + reload 重开：数据库正文和元数据一致，未重套初始化模板",
+      "UI 复制 + 重开 + DOCX/XML 下载：副本题名/阶段更新，原正文和源文档保留"
+    ],
+    "artifacts": [
+      {
+        "format": "DOCX",
+        "path": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/browser-fixture/created.docx",
+        "sha256": "a051c04d8658d740d256e145b0853b04e50e68bd431e25388c0884b1859c2894"
+      },
+      {
+        "format": "XML",
+        "path": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/browser-fixture/created.xml",
+        "sha256": "a595c4f9b50eb406c240c89a1e94d809c8131b359e69315996a5e2a596cebd93"
+      },
+      {
+        "format": "DOCX",
+        "path": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/browser-fixture/reopened.docx",
+        "sha256": "77bef30035c49a72bc34d18fcbc66c6f93328d602d6067bced2f8d8af30f36ce"
+      },
+      {
+        "format": "XML",
+        "path": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/browser-fixture/reopened.xml",
+        "sha256": "71f22f55457c1819f192900398623edc19f25d12577be83f0f260ac7fa2f0343"
+      },
+      {
+        "format": "DOCX",
+        "path": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/browser-fixture/duplicate.docx",
+        "sha256": "7fa09ecc3dd84e15370e7d522d10ebfdacae8f1cf69c3428af862d1e4d60c71e"
+      },
+      {
+        "format": "XML",
+        "path": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/browser-fixture/duplicate.xml",
+        "sha256": "604dccfb8d87282ad403428c0fae53db6445e87587cbcfd9281ca0307c992e77"
+      }
+    ],
+    "consoleErrors": []
+  },
+  "created_cover_measurements": {
+    "relative_checks": [
+      {
+        "element": "issuer_center",
+        "target_mm": 110,
+        "actual_mm": 110.15,
+        "delta_mm": 0.15,
+        "pass": true
+      },
+      {
+        "element": "issuer_release_vertical_center",
+        "target_mm": 0,
+        "actual_mm": -0.04,
+        "delta_mm": -0.04,
+        "pass": true
+      }
+    ],
+    "pdf": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/browser-fixture/created.pdf",
+    "page_count": 5,
+    "method": "300dpi grayscale <128; pixel bounds in mm",
+    "blocks": {
+      "classification": [
+        {
+          "left": 25.74,
+          "top": 10.58,
+          "right": 48.85,
+          "bottom": 13.12
+        },
+        {
+          "left": 25.15,
+          "top": 16.09,
+          "right": 39.62,
+          "bottom": 18.63
+        }
+      ],
+      "logo": [
+        {
+          "left": 138.94,
+          "top": 12.95,
+          "right": 178.99,
+          "bottom": 33.02
+        }
+      ],
+      "designation": [
+        {
+          "left": 25.74,
+          "top": 41.49,
+          "right": 194.23,
+          "bottom": 50.04
+        }
+      ],
+      "number": [
+        {
+          "left": 150.62,
+          "top": 58.34,
+          "right": 189.82,
+          "bottom": 61.98
+        }
+      ],
+      "replaces": [
+        {
+          "left": 151.21,
+          "top": 65.45,
+          "right": 189.82,
+          "bottom": 68.83
+        }
+      ],
+      "rule": [
+        {
+          "left": 24.64,
+          "top": 75.01,
+          "right": 195.16,
+          "bottom": 75.18
+        }
+      ],
+      "name_block": [
+        {
+          "left": 59.61,
+          "top": 115.4,
+          "right": 159.85,
+          "bottom": 123.87
+        },
+        {
+          "left": 85.85,
+          "top": 138.43,
+          "right": 134.11,
+          "bottom": 143.09
+        },
+        {
+          "left": 98.21,
+          "top": 146.98,
+          "right": 121.84,
+          "bottom": 151.55
+        }
+      ],
+      "dates": [
+        {
+          "left": 25.06,
+          "top": 251.21,
+          "right": 194.73,
+          "bottom": 255.78
+        }
+      ],
+      "date_rule": [
+        {
+          "left": 24.64,
+          "top": 257.05,
+          "right": 195.16,
+          "bottom": 257.22
+        }
+      ],
+      "issuer": [
+        {
+          "left": 72.81,
+          "top": 264.08,
+          "right": 147.49,
+          "bottom": 275.25
+        }
+      ]
+    },
+    "checks": [
+      {
+        "element": "classification",
+        "edge": "left",
+        "target_mm": 25,
+        "actual_mm": 25.74,
+        "delta_mm": 0.74,
+        "pass": true
+      },
+      {
+        "element": "classification",
+        "edge": "top",
+        "target_mm": 10.6,
+        "actual_mm": 10.58,
+        "delta_mm": -0.02,
+        "pass": true
+      },
+      {
+        "element": "designation",
+        "edge": "top",
+        "target_mm": 41.5,
+        "actual_mm": 41.49,
+        "delta_mm": -0.01,
+        "pass": true
+      },
+      {
+        "element": "number",
+        "edge": "top",
+        "target_mm": 58.3,
+        "actual_mm": 58.34,
+        "delta_mm": 0.04,
+        "pass": true
+      },
+      {
+        "element": "number",
+        "edge": "right",
+        "target_mm": 190,
+        "actual_mm": 189.82,
+        "delta_mm": -0.18,
+        "pass": true
+      },
+      {
+        "element": "replaces",
+        "edge": "top",
+        "target_mm": 65.4,
+        "actual_mm": 65.45,
+        "delta_mm": 0.05,
+        "pass": true
+      },
+      {
+        "element": "replaces",
+        "edge": "right",
+        "target_mm": 190,
+        "actual_mm": 189.82,
+        "delta_mm": -0.18,
+        "pass": true
+      },
+      {
+        "element": "rule",
+        "edge": "top",
+        "target_mm": 75,
+        "actual_mm": 75.01,
+        "delta_mm": 0.01,
+        "pass": true
+      },
+      {
+        "element": "rule",
+        "edge": "left",
+        "target_mm": 25,
+        "actual_mm": 24.64,
+        "delta_mm": -0.36,
+        "pass": true
+      },
+      {
+        "element": "rule",
+        "edge": "right",
+        "target_mm": 195,
+        "actual_mm": 195.16,
+        "delta_mm": 0.16,
+        "pass": true
+      },
+      {
+        "element": "name_block",
+        "edge": "top",
+        "target_mm": 115.4,
+        "actual_mm": 115.4,
+        "delta_mm": 0.0,
+        "pass": true
+      },
+      {
+        "element": "dates",
+        "edge": "top",
+        "target_mm": 251.5,
+        "actual_mm": 251.21,
+        "delta_mm": -0.29,
+        "pass": true
+      },
+      {
+        "element": "dates",
+        "edge": "left",
+        "target_mm": 25,
+        "actual_mm": 25.06,
+        "delta_mm": 0.06,
+        "pass": true
+      },
+      {
+        "element": "dates",
+        "edge": "right",
+        "target_mm": 195,
+        "actual_mm": 194.73,
+        "delta_mm": -0.27,
+        "pass": true
+      },
+      {
+        "element": "date_rule",
+        "edge": "top",
+        "target_mm": 257,
+        "actual_mm": 257.05,
+        "delta_mm": 0.05,
+        "pass": true
+      },
+      {
+        "element": "logo",
+        "edge": "left",
+        "target_mm": 138.94,
+        "actual_mm": 138.94,
+        "delta_mm": 0.0,
+        "pass": true
+      },
+      {
+        "element": "logo",
+        "edge": "top",
+        "target_mm": 12.95,
+        "actual_mm": 12.95,
+        "delta_mm": 0.0,
+        "pass": true
+      },
+      {
+        "element": "logo",
+        "edge": "right",
+        "target_mm": 178.99,
+        "actual_mm": 178.99,
+        "delta_mm": 0.0,
+        "pass": true
+      },
+      {
+        "element": "logo",
+        "edge": "bottom",
+        "target_mm": 33.1,
+        "actual_mm": 33.02,
+        "delta_mm": -0.08,
+        "pass": true
+      },
+      {
+        "element": "designation",
+        "edge": "left",
+        "target_mm": 25,
+        "actual_mm": 25.74,
+        "delta_mm": 0.74,
+        "pass": true
+      },
+      {
+        "element": "designation",
+        "edge": "right",
+        "target_mm": 195,
+        "actual_mm": 194.23,
+        "delta_mm": -0.77,
+        "pass": true
+      },
+      {
+        "element": "designation",
+        "edge": "bottom",
+        "target_mm": 50.2,
+        "actual_mm": 50.04,
+        "delta_mm": -0.16,
+        "pass": true
+      },
+      {
+        "element": "issuer",
+        "edge": "left",
+        "target_mm": 72.39,
+        "actual_mm": 72.81,
+        "delta_mm": 0.42,
+        "pass": true
+      },
+      {
+        "element": "issuer",
+        "edge": "top",
+        "target_mm": 264.08,
+        "actual_mm": 264.08,
+        "delta_mm": 0.0,
+        "pass": true
+      },
+      {
+        "element": "issuer",
+        "edge": "right",
+        "target_mm": 147.07,
+        "actual_mm": 147.49,
+        "delta_mm": 0.42,
+        "pass": true
+      },
+      {
+        "element": "issuer",
+        "edge": "bottom",
+        "target_mm": 275.25,
+        "actual_mm": 275.25,
+        "delta_mm": 0.0,
+        "pass": true
+      }
+    ]
+  },
+  "full_page_measurements": [
+    {
+      "page": 2,
+      "blank": true
+    },
+    {
+      "page": 3,
+      "blank": false,
+      "first_block_top_mm": 26.0,
+      "first_block_left_mm": 160.5,
+      "first_block_right_mm": 189.9,
+      "second_block_top_mm": 43.9,
+      "last_block_bottom_distance_mm": 20.7,
+      "last_block_outside_distance_mm": 24.1
+    },
+    {
+      "page": 4,
+      "blank": false,
+      "first_block_top_mm": 26.0,
+      "first_block_left_mm": 20.2,
+      "first_block_right_mm": 49.5,
+      "second_block_top_mm": 43.9,
+      "last_block_bottom_distance_mm": 20.7,
+      "last_block_outside_distance_mm": 24.1
+    },
+    {
+      "page": 5,
+      "blank": false,
+      "first_block_top_mm": 26.0,
+      "first_block_left_mm": 160.5,
+      "first_block_right_mm": 189.9,
+      "second_block_top_mm": 43.9,
+      "last_block_bottom_distance_mm": 20.7,
+      "last_block_outside_distance_mm": 24.1
+    },
+    {
+      "page": 6,
+      "blank": true
+    },
+    {
+      "page": 7,
+      "blank": false,
+      "first_block_top_mm": 26.0,
+      "first_block_left_mm": 160.5,
+      "first_block_right_mm": 189.9,
+      "second_block_top_mm": 43.9,
+      "last_block_bottom_distance_mm": 20.7,
+      "last_block_outside_distance_mm": 24.4
+    },
+    {
+      "page": 8,
+      "blank": false,
+      "first_block_top_mm": 26.0,
+      "first_block_left_mm": 20.2,
+      "first_block_right_mm": 49.5,
+      "second_block_top_mm": 35.1,
+      "last_block_bottom_distance_mm": 20.7,
+      "last_block_outside_distance_mm": 24.0
+    },
+    {
+      "page": 9,
+      "blank": false,
+      "first_block_top_mm": 26.0,
+      "first_block_left_mm": 160.5,
+      "first_block_right_mm": 189.9,
+      "second_block_top_mm": 44.3,
+      "last_block_bottom_distance_mm": 20.7,
+      "last_block_outside_distance_mm": 24.2
+    },
+    {
+      "page": 10,
+      "blank": false,
+      "first_block_top_mm": 26.0,
+      "first_block_left_mm": 20.2,
+      "first_block_right_mm": 49.5,
+      "second_block_top_mm": 44.3,
+      "last_block_bottom_distance_mm": 20.7,
+      "last_block_outside_distance_mm": 24.0
+    },
+    {
+      "page": 11,
+      "blank": false,
+      "first_block_top_mm": 26.0,
+      "first_block_left_mm": 160.5,
+      "first_block_right_mm": 189.9,
+      "second_block_top_mm": 44.3,
+      "last_block_bottom_distance_mm": 20.7,
+      "last_block_outside_distance_mm": 24.2
+    }
+  ],
+  "numbering": {
+    "checks": 90,
+    "passed": 90,
+    "output_path": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/numbering-expect.txt"
+  },
+  "wp73_full_compare": {
+    "baseline": "tmp-e2e/wp7.6/full-before.pdf",
+    "current": "tmp-e2e/wp7.6/full.pdf",
+    "baseline_sha256": "7b57f334bf1030029ca643cac2ecafbed442abcf0c9a94482551ad870e4dffdf",
+    "current_sha256": "d1f18ebe5d3af41069a81d606a75750bc6a661f370cb958c19900eb4900325b1",
+    "dpi": 150,
+    "page_counts": [
+      11,
+      11
+    ],
+    "pages": [
+      {
+        "page": 1,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "3278ff9384fb360aad19ab2ab1145bf2c6bb53e333c873cde9b6611b69781ba8",
+        "after_pixel_sha256": "3278ff9384fb360aad19ab2ab1145bf2c6bb53e333c873cde9b6611b69781ba8"
+      },
+      {
+        "page": 2,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "b903bb0b73af6699b680585f6ae4f0946d3d957a3508a58518251986ee1eaa75",
+        "after_pixel_sha256": "b903bb0b73af6699b680585f6ae4f0946d3d957a3508a58518251986ee1eaa75"
+      },
+      {
+        "page": 3,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "aec96d285ed32885c5d618bc0f9372821cf4a0c23fb7e7ae2dc9fba087ff6c53",
+        "after_pixel_sha256": "aec96d285ed32885c5d618bc0f9372821cf4a0c23fb7e7ae2dc9fba087ff6c53"
+      },
+      {
+        "page": 4,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "df395f958dbdec76e4e2f76b48f3440ddd1ceb6871d236bf28f8570a3b19712b",
+        "after_pixel_sha256": "df395f958dbdec76e4e2f76b48f3440ddd1ceb6871d236bf28f8570a3b19712b"
+      },
+      {
+        "page": 5,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "b0e2506db2dc0e291f2d1c7a85e9e2a31ff542fa9b2007893048b7e3e164e475",
+        "after_pixel_sha256": "b0e2506db2dc0e291f2d1c7a85e9e2a31ff542fa9b2007893048b7e3e164e475"
+      },
+      {
+        "page": 6,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "b903bb0b73af6699b680585f6ae4f0946d3d957a3508a58518251986ee1eaa75",
+        "after_pixel_sha256": "b903bb0b73af6699b680585f6ae4f0946d3d957a3508a58518251986ee1eaa75"
+      },
+      {
+        "page": 7,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "c4e0242058e488d0f33c780b446ccd215641fc3ad96a8b8ed8bc963adaf6560c",
+        "after_pixel_sha256": "c4e0242058e488d0f33c780b446ccd215641fc3ad96a8b8ed8bc963adaf6560c"
+      },
+      {
+        "page": 8,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "7e8d1e17c8e659b814c4978f087512f6d92eeb98f318ecbc143273c2167a1ac1",
+        "after_pixel_sha256": "7e8d1e17c8e659b814c4978f087512f6d92eeb98f318ecbc143273c2167a1ac1"
+      },
+      {
+        "page": 9,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "79d5fc6ebea0e0e1e683b763067fa694d03b1eb52c6629d5798d0258b055aa1c",
+        "after_pixel_sha256": "79d5fc6ebea0e0e1e683b763067fa694d03b1eb52c6629d5798d0258b055aa1c"
+      },
+      {
+        "page": 10,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "bf028aa06400bfd2417cf81e7210b223121f6e37556c5fbca04e1ccb2c5cf300",
+        "after_pixel_sha256": "bf028aa06400bfd2417cf81e7210b223121f6e37556c5fbca04e1ccb2c5cf300"
+      },
+      {
+        "page": 11,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "2f4ce230b83e54dca03e7a2324236227734563bdfec5eb86e101010c92e0a09d",
+        "after_pixel_sha256": "2f4ce230b83e54dca03e7a2324236227734563bdfec5eb86e101010c92e0a09d"
+      }
+    ],
+    "pass": true
+  },
+  "wp73_numbering_compare": {
+    "baseline": "tmp-e2e/wp7.6/numbering-before.pdf",
+    "current": "tmp-e2e/wp7.6/numbering.pdf",
+    "baseline_sha256": "f7e3345c8843a8d2de9bba47056cfaed6bf27345da13fe05fd79aa4bff54e31f",
+    "current_sha256": "559794d5552157e38d29b8c9713a2a54ebcd34d28f963d9bc5f45605eba14020",
+    "dpi": 150,
+    "page_counts": [
+      13,
+      13
+    ],
+    "pages": [
+      {
+        "page": 1,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "d8ab123216f1c49821059f7b0f79ceb2cf1271fce35c34ac1d793b5959fde129",
+        "after_pixel_sha256": "d8ab123216f1c49821059f7b0f79ceb2cf1271fce35c34ac1d793b5959fde129"
+      },
+      {
+        "page": 2,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "b903bb0b73af6699b680585f6ae4f0946d3d957a3508a58518251986ee1eaa75",
+        "after_pixel_sha256": "b903bb0b73af6699b680585f6ae4f0946d3d957a3508a58518251986ee1eaa75"
+      },
+      {
+        "page": 3,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "5c0c739e121f9874de84729c2757cc50f0ed1b9b61a4d395069e12aed79b553c",
+        "after_pixel_sha256": "5c0c739e121f9874de84729c2757cc50f0ed1b9b61a4d395069e12aed79b553c"
+      },
+      {
+        "page": 4,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "1f9a313a184b56e1bac718d5f28434aa3b2342105202f957b6805ba8eecb6755",
+        "after_pixel_sha256": "1f9a313a184b56e1bac718d5f28434aa3b2342105202f957b6805ba8eecb6755"
+      },
+      {
+        "page": 5,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "bb34ddf35674d8fd9fec86487b371d11d75bbb7e1a6cf7500ed9ed06361fceb1",
+        "after_pixel_sha256": "bb34ddf35674d8fd9fec86487b371d11d75bbb7e1a6cf7500ed9ed06361fceb1"
+      },
+      {
+        "page": 6,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "b903bb0b73af6699b680585f6ae4f0946d3d957a3508a58518251986ee1eaa75",
+        "after_pixel_sha256": "b903bb0b73af6699b680585f6ae4f0946d3d957a3508a58518251986ee1eaa75"
+      },
+      {
+        "page": 7,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "a0c6ceb9c157e04bfe11d6625e34e8b23e338d3d4487e5bb41adfe1bcc36509a",
+        "after_pixel_sha256": "a0c6ceb9c157e04bfe11d6625e34e8b23e338d3d4487e5bb41adfe1bcc36509a"
+      },
+      {
+        "page": 8,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "f839b52d3a725ea4de4e05c2f88542290f48387a6af624732657a8e4df1e5f7f",
+        "after_pixel_sha256": "f839b52d3a725ea4de4e05c2f88542290f48387a6af624732657a8e4df1e5f7f"
+      },
+      {
+        "page": 9,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "0209f17a873700e6dd6092eb493978845754beea9064dff8d8cc2966bbabe299",
+        "after_pixel_sha256": "0209f17a873700e6dd6092eb493978845754beea9064dff8d8cc2966bbabe299"
+      },
+      {
+        "page": 10,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "661cbb5c2e2d1e396a924d986b0b4947269f6f848222da85a1155a3742c5bff7",
+        "after_pixel_sha256": "661cbb5c2e2d1e396a924d986b0b4947269f6f848222da85a1155a3742c5bff7"
+      },
+      {
+        "page": 11,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "878670fda2f20a3b0690c7a06ccba1b53ddacfdf072ad11ec2259d1b2c36bc60",
+        "after_pixel_sha256": "878670fda2f20a3b0690c7a06ccba1b53ddacfdf072ad11ec2259d1b2c36bc60"
+      },
+      {
+        "page": 12,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "e7c7269a95f238f4540612941a66b22c171e4661a6f2aacfaf420de84834e415",
+        "after_pixel_sha256": "e7c7269a95f238f4540612941a66b22c171e4661a6f2aacfaf420de84834e415"
+      },
+      {
+        "page": 13,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "6a9e0f1dfd660827551ad3720dbf2c2d3b3004759d5b8d4e1fef771ce3972c38",
+        "after_pixel_sha256": "6a9e0f1dfd660827551ad3720dbf2c2d3b3004759d5b8d4e1fef771ce3972c38"
+      }
+    ],
+    "pass": true
+  },
+  "wp74_compare": {
+    "baseline": "tmp-e2e/wp7.6/wp74-before.pdf",
+    "current": "tmp-e2e/wp7.6/wp74.pdf",
+    "baseline_sha256": "99a3020962d58d925495827d97513b2ef2d55bd948d73c6bde26248999cf4426",
+    "current_sha256": "88b517d3799afcd9930917b38a0fdbe87459898d468a35beb38f278bc784f274",
+    "dpi": 150,
+    "page_counts": [
+      12,
+      12
+    ],
+    "pages": [
+      {
+        "page": 1,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "129c35e2dda649da0a3c546280231e22d67006e9bef84d458cf455e10aff83fb",
+        "after_pixel_sha256": "129c35e2dda649da0a3c546280231e22d67006e9bef84d458cf455e10aff83fb"
+      },
+      {
+        "page": 2,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "b903bb0b73af6699b680585f6ae4f0946d3d957a3508a58518251986ee1eaa75",
+        "after_pixel_sha256": "b903bb0b73af6699b680585f6ae4f0946d3d957a3508a58518251986ee1eaa75"
+      },
+      {
+        "page": 3,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "184bb5160fa94c06245e2ecf2eb88f9e2c06f932abf3cb0a60e6c264b4be84d9",
+        "after_pixel_sha256": "184bb5160fa94c06245e2ecf2eb88f9e2c06f932abf3cb0a60e6c264b4be84d9"
+      },
+      {
+        "page": 4,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "84e7517dfdb224e6d61d0cc4855860c9dc1f5fe56e4450b19d5532535bc8becd",
+        "after_pixel_sha256": "84e7517dfdb224e6d61d0cc4855860c9dc1f5fe56e4450b19d5532535bc8becd"
+      },
+      {
+        "page": 5,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "740426c41b4d85609f5cbe807db784e80125c3ef4d052b4b29f85a8cc4c2fcfc",
+        "after_pixel_sha256": "740426c41b4d85609f5cbe807db784e80125c3ef4d052b4b29f85a8cc4c2fcfc"
+      },
+      {
+        "page": 6,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "530b17bd3815eef6d99d39d4c2d92afbb3f2341e17303cbc3f4c025af1717b0d",
+        "after_pixel_sha256": "530b17bd3815eef6d99d39d4c2d92afbb3f2341e17303cbc3f4c025af1717b0d"
+      },
+      {
+        "page": 7,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "45beb083c9c7189370910609f42abae14fd0ed701ec40ca7a2534771c3f70bf0",
+        "after_pixel_sha256": "45beb083c9c7189370910609f42abae14fd0ed701ec40ca7a2534771c3f70bf0"
+      },
+      {
+        "page": 8,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "74601a3cd0281712912e2c0ca804da6e60392b579b2a414446b4a71a833a3175",
+        "after_pixel_sha256": "74601a3cd0281712912e2c0ca804da6e60392b579b2a414446b4a71a833a3175"
+      },
+      {
+        "page": 9,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "65f52aa71aa635fe2edfbb36b3874409608d85c32e2e6d04458a650bcb31bd61",
+        "after_pixel_sha256": "65f52aa71aa635fe2edfbb36b3874409608d85c32e2e6d04458a650bcb31bd61"
+      },
+      {
+        "page": 10,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "95ddc1a48b83d6f9ba3f6b5e87b0ac1afb92d8a8881b7d3ff8c8a38a8344bcf4",
+        "after_pixel_sha256": "95ddc1a48b83d6f9ba3f6b5e87b0ac1afb92d8a8881b7d3ff8c8a38a8344bcf4"
+      },
+      {
+        "page": 11,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": true,
+        "before_pixel_sha256": "8d90a38751602c6cbb30078ad6dd24a44ab99a6296ae8150d2fbb57811969085",
+        "after_pixel_sha256": "8d90a38751602c6cbb30078ad6dd24a44ab99a6296ae8150d2fbb57811969085"
+      },
+      {
+        "page": 12,
+        "size_equal": true,
+        "text_equal": true,
+        "pixels_equal": false,
+        "before_pixel_sha256": "94bf052326f48f26dcb6735258ce10450cc7db638824d6b1fabc48d12356d73a",
+        "after_pixel_sha256": "abf6b5460a95df7c2673c69f9c3fefd2f7a9505755868fda559f5304271b77ea"
+      }
+    ],
+    "pass": false
+  },
+  "landscape_end_rule": {
+    "before_width_mm": 61.976,
+    "after_width_mm": 62.992,
+    "target_width_mm": 63,
+    "after_center_mm": 150.96067140367296,
+    "target_center_mm": 151,
+    "same_last_page": true,
+    "before_after_outside_rule_pixels_equal": true,
+    "difference_rect_pt": [
+      336.6400146484375,
+      165.760009765625,
+      519.2000122070312,
+      170.72000122070312
+    ]
+  },
+  "vivliostyle": {
+    "status": 201,
+    "endpoint": "http://localhost:5174/api/convert/html-to-pdf",
+    "docTitle": "信息技术 标准编写系统 技术要求",
+    "tocTargets": 13,
+    "pdf": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/vivliostyle-preview.pdf",
+    "sha256": "f10bc3704205e55d3a3c97f23c9815029074d8733dfe171466186ef7ebcd7a72",
+    "pipeline": "UI → print HTML → existing Vivliostyle two-pass service; separate from Word PDFs"
+  },
+  "unresolved": [
+    "real manuscript not supplied; fixture cannot satisfy WP7.6 real-document acceptance",
+    "Q low resolution; cover materials provenance not verified; national agency picture fixed",
+    "mathsf font and color conversion not retained by existing converter; strict schema success is not full styling fidelity",
+    "other Word versions, arbitrary long titles, complex formulas and large merged tables not exhaustively validated",
+    "STS extensions not formally certified against GB/T 37967 extension schema; requested input controls outside scope"
+  ],
+  "normative_reference": {
+    "path": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/rules/GBT 1.1-2020 标准化工作导则 第1部分：标准化文件的结构和起草规则.pdf",
+    "sha256": "4eca456336c1d794cf05c6bd24b79d9afe7295058cdb919179112022f48b85c6",
+    "printed_pages_viewed": [
+      46,
+      47,
+      48,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      57
+    ],
+    "actual_pdf_page_offset": 7,
+    "method": "original PDF rendered images; no reliance on garbled text layer"
+  },
+  "stage_patent_checks": [
+    {
+      "sample": "gb",
+      "expected": false,
+      "actual": false,
+      "pass": true
+    },
+    {
+      "sample": "guide",
+      "expected": false,
+      "actual": false,
+      "pass": true
+    },
+    {
+      "sample": "industry",
+      "expected": true,
+      "actual": true,
+      "pass": true
+    },
+    {
+      "sample": "local",
+      "expected": true,
+      "actual": true,
+      "pass": true
+    },
+    {
+      "sample": "group",
+      "expected": false,
+      "actual": false,
+      "pass": true
+    },
+    {
+      "sample": "enterprise",
+      "expected": false,
+      "actual": false,
+      "pass": true
+    },
+    {
+      "sample": "gb-review-discussion",
+      "expected": false,
+      "actual": false,
+      "pass": true
+    },
+    {
+      "sample": "gb-comment",
+      "expected": true,
+      "actual": true,
+      "pass": true
+    },
+    {
+      "sample": "gb-review",
+      "expected": true,
+      "actual": true,
+      "pass": true
+    }
+  ],
+  "end_rule_vector_measurements": [
+    {
+      "pdf": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/full.pdf",
+      "page": 11,
+      "rect_pt": [
+        246.0,
+        193.44000244140625,
+        363.3599853515625,
+        194.39996337890625
+      ],
+      "width_mm": 41.40199483235677,
+      "target_width_mm": 41.25,
+      "center_mm": 107.48433074951171,
+      "target_center_mm": 107.5,
+      "method": "actual Word PDF filled vector rectangle; position visually checked"
+    },
+    {
+      "pdf": "/Users/funtasy/PycharmProjects/set/.worktrees/wp7.6-delivery/tmp-e2e/wp7.6/wp74.pdf",
+      "page": 12,
+      "rect_pt": [
+        338.6400146484375,
+        167.760009765625,
+        517.2000122070312,
+        168.72000122070312
+      ],
+      "width_mm": 62.99199913872613,
+      "target_width_mm": 63,
+      "center_mm": 150.96067140367296,
+      "target_center_mm": 151,
+      "method": "actual Word PDF filled vector rectangle; position visually checked"
+    }
+  ],
+  "final_source_fingerprint_verification": [
+    {
+      "artifact": "wp74.docx",
+      "sha256": "5a38a9d83186ec5deab949c92281c2bf6151fb4fe694af43176dc0068cf38867",
+      "final_source_regenerated_byte_equal": true
+    },
+    {
+      "artifact": "covers/enterprise.docx",
+      "sha256": "46421e2ffc0e225b96e2796eee713437b9ff89950dfd0e473ad3c2f0bfc8c77a",
+      "final_source_regenerated_byte_equal": true
+    },
+    {
+      "artifact": "covers/gb-comment.docx",
+      "sha256": "517300a1e81aef7f551bdbd9165de64b1712f19d7e2c4c11e631d4e765fe4763",
+      "final_source_regenerated_byte_equal": true
+    },
+    {
+      "artifact": "covers/gb-review-discussion.docx",
+      "sha256": "b1156d540e89161ae78460788a7b79557e4674f09e9f34996d250e87ae03e11c",
+      "final_source_regenerated_byte_equal": true
+    },
+    {
+      "artifact": "covers/gb-review.docx",
+      "sha256": "574a0d4a1862f69a2a31c93d2c307f2f717da9ddb4490959d14cdb2589aa307a",
+      "final_source_regenerated_byte_equal": true
+    },
+    {
+      "artifact": "covers/gb.docx",
+      "sha256": "02379b22324d28bdf87f20a87115406930ff08093e26e6c2dcd995ca46cd4c4c",
+      "final_source_regenerated_byte_equal": true
+    },
+    {
+      "artifact": "covers/group.docx",
+      "sha256": "4a9e62177f2472e9ea32351e11a401fb28c671ab6caadb5c85eaa42be43dc8a5",
+      "final_source_regenerated_byte_equal": true
+    },
+    {
+      "artifact": "covers/guide.docx",
+      "sha256": "9f624cf848fdee6d27dd294134b4de3db352a310607a1378a5fb0de523d5716d",
+      "final_source_regenerated_byte_equal": true
+    },
+    {
+      "artifact": "covers/industry.docx",
+      "sha256": "e20d84f0a555e521c0222999d3e93e511dcdfafc5e3462aefcbf9fdf58e5acf2",
+      "final_source_regenerated_byte_equal": true
+    },
+    {
+      "artifact": "covers/local.docx",
+      "sha256": "a0b6d3254f2cd80c473b6e9a1a70c4b315ba83a9f8ad9463f73f3025ff07b927",
+      "final_source_regenerated_byte_equal": true
+    }
+  ],
+  "pr_snapshot": {
+    "url": "https://github.com/funtasy2333/SEP/pull/40",
+    "checked_at": "2026-10-01 11:23:22 UTC",
+    "state": "OPEN",
+    "draft": true,
+    "merged": false,
+    "external_reviews": 0,
+    "review_threads": 0,
+    "remote_checks": 0,
+    "primary_review": "completed; scope and unresolved limitations recorded"
+  },
+  "asset_current_check": {
+    "enterprise_logo_png_size": [
+      34,
+      35
+    ],
+    "enterprise_logo_dpi": [
+      72.009,
+      72.009
+    ],
+    "national_issuer": "fixed template image remains in current assets; provenance not formally verified"
+  },
+  "primary_workspace_check": {
+    "endmark_sha256": "8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8",
+    "existing_uncommitted_image_and_store": "not modified by this task",
+    "new_untracked_directory": ".worktrees/",
+    "primary_db_documents": [
+      [
+        6,
+        "测试标准"
+      ],
+      [
+        7,
+        "测试标准TEST"
+      ]
+    ],
+    "primary_db_access": "read only; test UI uses separate worktree database"
+  }
+}

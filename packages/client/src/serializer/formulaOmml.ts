@@ -197,6 +197,79 @@ function restoreMathMlEntities(omml: string): string {
   return output
 }
 
+/**
+ * mathml2omml 0.5.0 有三类不符合 OMML schema 的冗余输出：
+ * - 变量样式同时写重复的 w:rPr 与 m:rPr；
+ * - 未识别样式写成 m:sty val="undefined"；
+ * - 将 MathML scriptlevel 写入不存在的 m:scrLvl。
+ * 这里只规整可等价映射的格式属性，不改 m:t、分式、矩阵、上下标等公式主体。
+ */
+function normalizeMathMl2Omml(omml: string): string {
+  let normalized = omml.replace(/<m:r\b([^>]*)>([\s\S]*?)<\/m:r>/g, (_run, attrs: string, rawChildren: string) => {
+    let children = rawChildren.replace(/<m:sty\s+m:val="undefined"\s*\/>/g, '')
+    const runStyle = /<m:sty\s+m:val="(b|i|bi|p)"\s*\/>/.exec(children)?.[1]
+    if (children.includes('<m:nor/>') && runStyle && runStyle !== 'p') {
+      // CT_RPr chooses either nor or the script/style pair; preserve explicit bold/italic style.
+      children = children.replace('<m:nor/>', '')
+    } else if (children.includes('<m:nor/>') && runStyle === 'p') {
+      // Plain text remains normal text, represented by nor rather than a conflicting sty child.
+      children = children.replace(/<m:sty\s+m:val="p"\s*\/>/, '')
+    }
+    const wordRunProperties = /<w:rPr\s*\/>|<w:rPr>([\s\S]*?)<\/w:rPr>/.exec(children)
+    if (wordRunProperties) {
+      const propertyBody = wordRunProperties[1]
+      if (propertyBody === undefined || propertyBody.trim() === '') {
+        children = children.replace(wordRunProperties[0], '')
+      } else {
+        const wordStyles = Array.from(propertyBody.matchAll(/<w:([bi])\s*\/>/g), (match) => match[1]!)
+        const unsupportedWordProperties = propertyBody.replace(/<w:[bi]\s*\/>/g, '').trim()
+        const mathRunProperties = /<m:rPr\b[^>]*>([\s\S]*?)<\/m:rPr>/.exec(children)?.[1]
+        const mathStyle = mathRunProperties?.match(/<m:sty\s+m:val="(b|i|bi)"\s*\/>/)?.[1]
+        const equivalentStyles: Record<string, readonly string[]> = {
+          b: ['b'],
+          i: ['i'],
+          bi: ['b', 'i'],
+        }
+        const expectedWordStyles = mathStyle ? equivalentStyles[mathStyle] : undefined
+        if (
+          unsupportedWordProperties === '' && expectedWordStyles &&
+          wordStyles.length === expectedWordStyles.length &&
+          expectedWordStyles.every((style) => wordStyles.includes(style))
+        ) {
+          // mathml2omml duplicates bold/italic in w:rPr and m:rPr; m:sty is the
+          // schema-native representation for a math run, so retain it.
+          children = children.replace(wordRunProperties[0], '')
+        }
+      }
+    }
+    return `<m:r${attrs}>${children}</m:r>`
+  })
+
+  normalized = normalized.replace(
+    /<m:argPr>\s*<m:scrLvl\s+m:val="([012])"\s*\/>\s*<\/m:argPr>/g,
+    (_property, level: string) => level === '0'
+      // Argument size defaults to zero; omitting this invalid explicit default
+      // keeps the converter's intended base size without adding an OMML node.
+      ? ''
+      // MathML script levels 1/2 mean one/two steps smaller than the base size.
+      : `<m:argPr><m:argSz m:val="-${level}"/></m:argPr>`,
+  )
+
+  normalized = normalized.replace(
+    /(?:<m:argPr><m:argSz\s+m:val="(-[12])"\s*\/><\/m:argPr>\s*){2,}/g,
+    (properties) => {
+      const sizes = Array.from(properties.matchAll(/m:val="(-[12])"/g), (match) => match[1]!)
+      if (new Set(sizes).size !== 1) throw new Error('MathML 转换器为同一公式参数输出了互相冲突的 scriptlevel')
+      return `<m:argPr><m:argSz m:val="${sizes[0]}"/></m:argPr>`
+    },
+  )
+
+  if (/<m:scrLvl\b|<m:sty\s+m:val="undefined"/.test(normalized)) {
+    throw new Error('MathML 转换器输出了无法无损规范化的 OMML 样式属性')
+  }
+  return normalized
+}
+
 /** 单条 LaTeX → OMML。转换异常向调用方抛出，由批量函数记录告警并按 LaTeX 降级。 */
 export async function convertFormulaToOmml(latex: string): Promise<string> {
   const rendered = katex.renderToString(latex, {
@@ -212,7 +285,7 @@ export async function convertFormulaToOmml(latex: string): Promise<string> {
   removeAnnotations(math)
   absorbNaryBodies(math)
   const safeMathMl = protectMathMlEntities(serializeMathMl(math))
-  const omml = restoreMathMlEntities(await (await loadMathMlConverter())(safeMathMl))
+  const omml = normalizeMathMl2Omml(restoreMathMlEntities(await (await loadMathMlConverter())(safeMathMl)))
   if (!/^\s*<m:oMath\b/.test(omml) || !/<\/m:oMath>\s*$/.test(omml)) {
     throw new Error('MathML 转换器未返回完整的 OMML `<m:oMath>` 元素')
   }

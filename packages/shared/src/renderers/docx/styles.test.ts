@@ -291,7 +291,13 @@ describe('styles.ts：显式缩进值（不依赖编号级别的样式）', () =
   })
 
   it('SesEndMarkLandscape：横排版心终结线按四分之一宽度校准', () => {
-    expect(indOf(styles.get('SesEndMarkLandscape')!)?.attrs).toEqual({ 'w:left': '5415', 'w:right': '5415' })
+    const indent = indOf(styles.get('SesEndMarkLandscape')!)!.attrs
+    const left = Number(indent['w:left']), right = Number(indent['w:right'])
+    expect(left).toBe(right)
+    // 252 mm版心，Word 16.113边框两端各延伸约0.5 mm；不能再把延伸量扣两次。
+    const bodyWidthMm = (16838 - 1417 - 1134) * 25.4 / 1440
+    const renderedWidthMm = bodyWidthMm - (left + right) * 25.4 / 1440 + 1
+    expect(Math.abs(renderedWidthMm - bodyWidthMm / 4)).toBeLessThan(0.2)
     const border = findChild(findChild(styles.get('SesEndMarkLandscape')!, 'w:pPr')!, 'w:pBdr')!
     expect(findChild(border, 'w:bottom')?.attrs['w:sz']).toBe('8')
   })
