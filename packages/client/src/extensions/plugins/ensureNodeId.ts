@@ -18,6 +18,7 @@ export const NODE_ID_TYPES = [
   'stdParagraph',
   'termDef',
   'stdTable',
+  'tableFootnoteEntry',
   'figure',
   'formula',
   'stdList',
@@ -38,6 +39,9 @@ export const NODE_ID_TYPES = [
   'codeBlock',
   'horizontalRule',
   'listItem',
+  // Inline footnote references have document-wide stable identities for labels and XML round trips.
+  'footnoteRef',
+  'tableFootnoteRef',
 ]
 
 export interface NodeIdFix {
@@ -71,6 +75,55 @@ export function findNodeIdFixes(doc: PMNode): NodeIdFix[] {
   return fixes
 }
 
+/**
+ * When ProseMirror pastes a complete table with table-footnote definitions, NodeId repairs the
+ * copied entry IDs. Remap that table's copied references with them so each copied table remains
+ * self-contained. A duplicate definition inside one table is ambiguous, so leave its references
+ * untouched and let the shared resolver report the invalid/unreferenced IDs.
+ */
+function findCopiedTableFootnoteTargets(doc: PMNode, fixes: NodeIdFix[]): Array<{ pos: number; targetId: string }> {
+  const fixPositions = new Set(fixes.map((fix) => fix.pos))
+  const seen = new Set<string>()
+  const remapsByTable = new Map<number, Map<string, string>>()
+
+  doc.descendants((node, pos) => {
+    if (!('nodeId' in node.attrs)) return
+    const id = node.attrs.nodeId
+    const duplicated = typeof id === 'string' && id.length > 0 && seen.has(id)
+    if (typeof id === 'string' && id.length > 0) seen.add(id)
+    if (node.type.name !== 'tableFootnoteEntry' || !duplicated || !fixPositions.has(pos)) return
+
+    const $pos = doc.resolve(pos + 1)
+    for (let depth = $pos.depth; depth > 0; depth -= 1) {
+      if ($pos.node(depth).type.name !== 'stdTable') continue
+      const table = $pos.node(depth)
+      const tablePos = $pos.before(depth)
+      let matchingEntries = 0
+      table.descendants((child) => {
+        if (child.type.name === 'tableFootnoteEntry' && child.attrs.nodeId === id) matchingEntries += 1
+      })
+      if (matchingEntries !== 1) return
+      const targetRemaps = remapsByTable.get(tablePos) ?? new Map<string, string>()
+      targetRemaps.set(id, fixes.find((fix) => fix.pos === pos)!.nodeId)
+      remapsByTable.set(tablePos, targetRemaps)
+      return
+    }
+  })
+
+  const targetFixes: Array<{ pos: number; targetId: string }> = []
+  doc.descendants((node, pos) => {
+    if (node.type.name !== 'tableFootnoteRef' || typeof node.attrs.targetId !== 'string') return
+    const $pos = doc.resolve(pos + 1)
+    for (let depth = $pos.depth; depth > 0; depth -= 1) {
+      if ($pos.node(depth).type.name !== 'stdTable') continue
+      const targetId = remapsByTable.get($pos.before(depth))?.get(node.attrs.targetId)
+      if (targetId) targetFixes.push({ pos, targetId })
+      return
+    }
+  })
+  return targetFixes
+}
+
 export const ensureNodeIdPluginKey = new PluginKey('ensureNodeId')
 
 /**
@@ -83,11 +136,15 @@ export function ensureNodeIdPlugin(): Plugin {
     appendTransaction(transactions, _oldState, newState) {
       if (!transactions.some((tr) => tr.docChanged)) return null
       const fixes = findNodeIdFixes(newState.doc)
-      if (fixes.length === 0) return null
+      const targetFixes = findCopiedTableFootnoteTargets(newState.doc, fixes)
+      if (fixes.length === 0 && targetFixes.length === 0) return null
       const tr = newState.tr
       // 仅改属性不改文档结构，pos 在本事务内保持有效
       for (const { pos, nodeId } of fixes) {
         tr.setNodeAttribute(pos, 'nodeId', nodeId)
+      }
+      for (const { pos, targetId } of targetFixes) {
+        tr.setNodeAttribute(pos, 'targetId', targetId)
       }
       tr.setMeta('addToHistory', false)
       return tr

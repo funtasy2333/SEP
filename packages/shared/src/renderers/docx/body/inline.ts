@@ -46,6 +46,8 @@ function markRprChildren(marks: IRInline['marks']): XmlChild[] {
         break
       case 'crossRef':
         break // 不是格式；文字本身在 renderRun 里按 labels[targetId].refText 换掉
+      case 'tableFootnoteRef':
+        break // 文字来自 labels[targetId].refText，并以脚注上标样式输出
     }
   }
   return out
@@ -65,6 +67,29 @@ function textRunsXml(text: string, rprXml: string): string {
 /** 渲染一个 IRInline：crossRef 换成 refText，其余 marks 正常应用，\n 拆成 br */
 export function renderRun(run: IRInline, labels: Labels): string {
   const marks = run.marks ?? []
+  if (run.footnote) {
+    const resolved = labels[run.footnote.id]
+    if (!resolved) throw new Error(`renderRun: 条文脚注 "${run.footnote.id}" 在 labels 中没有编号`)
+    const match = /^fn_(\d+)$/.exec(resolved.xmlId)
+    const id = match ? Number(match[1]) : Number.NaN
+    if (!Number.isSafeInteger(id) || id < 1) {
+      throw new Error(`renderRun: 条文脚注 "${run.footnote.id}" 的 xmlId "${resolved.xmlId}" 不是 fn_N`)
+    }
+    const markerRpr = rPr([['rStyle', '<w:rStyle w:val="FootnoteReference"/>']])
+    const labelRpr = rPr([['vertAlign', '<w:vertAlign w:val="superscript"/>']])
+    return `<w:r>${markerRpr}<w:footnoteReference w:id="${id}" w:customMarkFollows="1"/></w:r>` +
+      textRunsXml(resolved.refText, labelRpr)
+  }
+  const tableFootnote = marks.find((mark) => mark.type === 'tableFootnoteRef')
+  if (tableFootnote && tableFootnote.type === 'tableFootnoteRef') {
+    const resolved = labels[tableFootnote.targetId]
+    if (!resolved) throw new Error(`renderRun: 表脚注 "${tableFootnote.targetId}" 在 labels 中没有编号`)
+    const otherRpr = markRprChildren(marks.filter((mark) => mark.type !== 'tableFootnoteRef'))
+    if (!otherRpr.some(([name]) => name === 'vertAlign')) {
+      otherRpr.push(['vertAlign', '<w:vertAlign w:val="superscript"/>'])
+    }
+    return textRunsXml(resolved.refText, rPr(otherRpr))
+  }
   const xref = marks.find((m) => m.type === 'crossRef')
   let text = run.text
   if (xref && xref.type === 'crossRef') {
@@ -93,6 +118,11 @@ export function spacingRpr(val: number): string {
 
 export function tabRun(): string {
   return '<w:r><w:tab/></w:r>'
+}
+
+/** Superscript custom marker for body/table footnotes. */
+export function superscriptRun(text: string): string {
+  return textRunsXml(text, rPr([['vertAlign', '<w:vertAlign w:val="superscript"/>']]))
 }
 
 export function breakRun(): string {

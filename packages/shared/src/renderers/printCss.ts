@@ -110,6 +110,38 @@ function pageRules(standardNo: string): string {
     font-family: var(--ses-song);
     font-size: var(--ses-fs-xiaowu);
   }
+  @footnote {
+    margin-top: 3pt;
+    padding-top: 3pt;
+    font-family: var(--ses-song);
+    font-size: var(--ses-fs-xiaowu);
+    line-height: 1.25;
+  }
+  @footnote::before {
+    content: "";
+    display: block;
+    width: 60.25mm;
+    border-top: 0.5pt solid #000;
+    margin: 0 0 3pt;
+  }
+}
+
+/* 条文脚注区及短分隔线（10.4.4.2）：9 pt 宋体，竖排版心的四分之一。 */
+@page {
+  @footnote {
+    margin-top: 3pt;
+    padding-top: 3pt;
+    font-family: var(--ses-song);
+    font-size: var(--ses-fs-xiaowu);
+    line-height: 1.25;
+  }
+  @footnote::before {
+    content: "";
+    display: block;
+    width: 41.25mm;
+    border-top: 0.5pt solid #000;
+    margin: 0 0 3pt;
+  }
 }
 
 /* 自动插入的空白页：计数但不印内容（WP4 微验证：必须按命名上下文 :blank 抑制） */
@@ -281,6 +313,7 @@ const CONTENT = `
 /* 表中数字和文字：小五号宋体（表 F.1 #40 注 a；「以表形式编写的术语标准」用五号的例外本期未实现，列为范围差距） */
 .ses-table-block table { border-collapse: collapse; width: 100%; font-size: var(--ses-fs-xiaowu); }
 .ses-table-block thead { display: table-header-group; }
+.ses-table-block tfoot { display: table-row-group; }
 .ses-table-block th, .ses-table-block td {
   border: 0.5pt solid #000;
   padding: 1.5mm 3mm;
@@ -289,6 +322,38 @@ const CONTENT = `
 .ses-table-block th { font-family: var(--ses-hei); font-weight: bold; text-align: center; }
 .ses-table-block td { text-align: left; }
 .ses-table-block tr { break-inside: avoid; }
+.ses-table-notes td, .ses-table-footnotes td { border-left-width: 0.75pt; border-right-width: 0.75pt; }
+.ses-table-notes td { border-top-width: 0.75pt; }
+.ses-table-notes:not(:last-child) td { border-bottom-width: 0.25pt; }
+.ses-table-notes:last-child td, .ses-table-footnotes td { border-bottom-width: 0.75pt; }
+.ses-table-footnotes td { border-top-width: 0.25pt; }
+.ses-table-footnotes:first-child td { border-top-width: 0.75pt; }
+.ses-table-footnote { font-size: var(--ses-fs-xiaowu); margin-left: 2em; text-indent: -1em; break-inside: avoid; }
+.ses-table-footnote-marker { display: inline-block; width: calc(1em - 1pt); text-indent: 0; }
+.ses-table-footnote-marker sup { font-size: 0.75em; vertical-align: super; }
+.ses-table-footnote-ref { color: inherit; text-decoration: none; }
+
+/* 原位条文脚注：只消费 IR/Resolver 给出的标记，Vivliostyle 负责页底浮动。 */
+.ses-footnote {
+  float: footnote;
+  footnote-policy: line;
+  footnote-display: block;
+  margin-inline-start: 4em;
+  text-indent: 0;
+  font-family: var(--ses-song);
+  font-size: var(--ses-fs-xiaowu);
+  line-height: 1.25;
+}
+.ses-footnote::footnote-call {
+  content: attr(data-label);
+  vertical-align: super;
+  font-size: 0.75em;
+}
+.ses-footnote::footnote-marker {
+  content: none;
+}
+.ses-footnote-marker { float: left; width: 2em; margin-inline-start: -2em; line-height: 1.25; }
+.ses-footnote-marker sup { font-size: 0.75em; vertical-align: super; }
 /* 「关于单位的陈述」：IR 暂无独立字段（已知差距，出处 GB/T 1.1 9.8.3，与「表X（续）」一并进 V2），
  * 当前若作为表头行存在则随 thead 跨页重复（结构满足），其宋体小五/表右上方的字体定位待补字段后实现。 */
 

@@ -42,6 +42,42 @@ export const Note = Node.create({
     ]
   },
 
+  addNodeView() {
+    return ({ node }) => {
+      const dom = document.createElement('div')
+      const marker = document.createElement('span')
+      const contentDOM = document.createElement('span')
+      dom.className = 'std-note std-note-editor'
+      dom.dataset.type = 'note'
+      marker.className = 'std-note-marker'
+      marker.contentEditable = 'false'
+      contentDOM.className = 'std-note-content'
+      dom.contentEditable = 'true'
+      dom.append(marker, contentDOM)
+
+      const updateAttributes = (current: typeof node) => {
+        const nodeId = current.attrs.nodeId ?? ''
+        if (dom.dataset.nodeId !== nodeId) dom.dataset.nodeId = nodeId
+      }
+      updateAttributes(node)
+
+      return {
+        dom,
+        contentDOM,
+        update(current) {
+          if (current.type !== node.type) return false
+          updateAttributes(current)
+          return true
+        },
+        ignoreMutation(mutation) {
+          if (mutation.type === 'selection') return false
+          const target = mutation.target
+          return target !== contentDOM && !contentDOM.contains(target)
+        },
+      }
+    }
+  },
+
   addCommands() {
     return {
       insertNote:

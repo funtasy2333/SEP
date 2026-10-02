@@ -95,6 +95,38 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
     font-family: var(--ses-song);
     font-size: var(--ses-fs-xiaowu);
   }
+  @footnote {
+    margin-top: 3pt;
+    padding-top: 3pt;
+    font-family: var(--ses-song);
+    font-size: var(--ses-fs-xiaowu);
+    line-height: 1.25;
+  }
+  @footnote::before {
+    content: "";
+    display: block;
+    width: 60.25mm;
+    border-top: 0.5pt solid #000;
+    margin: 0 0 3pt;
+  }
+}
+
+/* 条文脚注区及短分隔线（10.4.4.2）：9 pt 宋体，竖排版心的四分之一。 */
+@page {
+  @footnote {
+    margin-top: 3pt;
+    padding-top: 3pt;
+    font-family: var(--ses-song);
+    font-size: var(--ses-fs-xiaowu);
+    line-height: 1.25;
+  }
+  @footnote::before {
+    content: "";
+    display: block;
+    width: 41.25mm;
+    border-top: 0.5pt solid #000;
+    margin: 0 0 3pt;
+  }
 }
 
 /* 自动插入的空白页：计数但不印内容（WP4 微验证：必须按命名上下文 :blank 抑制） */
@@ -267,6 +299,7 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 /* 表中数字和文字：小五号宋体（表 F.1 #40 注 a；「以表形式编写的术语标准」用五号的例外本期未实现，列为范围差距） */
 .ses-table-block table { border-collapse: collapse; width: 100%; font-size: var(--ses-fs-xiaowu); }
 .ses-table-block thead { display: table-header-group; }
+.ses-table-block tfoot { display: table-row-group; }
 .ses-table-block th, .ses-table-block td {
   border: 0.5pt solid #000;
   padding: 1.5mm 3mm;
@@ -275,6 +308,38 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 .ses-table-block th { font-family: var(--ses-hei); font-weight: bold; text-align: center; }
 .ses-table-block td { text-align: left; }
 .ses-table-block tr { break-inside: avoid; }
+.ses-table-notes td, .ses-table-footnotes td { border-left-width: 0.75pt; border-right-width: 0.75pt; }
+.ses-table-notes td { border-top-width: 0.75pt; }
+.ses-table-notes:not(:last-child) td { border-bottom-width: 0.25pt; }
+.ses-table-notes:last-child td, .ses-table-footnotes td { border-bottom-width: 0.75pt; }
+.ses-table-footnotes td { border-top-width: 0.25pt; }
+.ses-table-footnotes:first-child td { border-top-width: 0.75pt; }
+.ses-table-footnote { font-size: var(--ses-fs-xiaowu); margin-left: 2em; text-indent: -1em; break-inside: avoid; }
+.ses-table-footnote-marker { display: inline-block; width: calc(1em - 1pt); text-indent: 0; }
+.ses-table-footnote-marker sup { font-size: 0.75em; vertical-align: super; }
+.ses-table-footnote-ref { color: inherit; text-decoration: none; }
+
+/* 原位条文脚注：只消费 IR/Resolver 给出的标记，Vivliostyle 负责页底浮动。 */
+.ses-footnote {
+  float: footnote;
+  footnote-policy: line;
+  footnote-display: block;
+  margin-inline-start: 4em;
+  text-indent: 0;
+  font-family: var(--ses-song);
+  font-size: var(--ses-fs-xiaowu);
+  line-height: 1.25;
+}
+.ses-footnote::footnote-call {
+  content: attr(data-label);
+  vertical-align: super;
+  font-size: 0.75em;
+}
+.ses-footnote::footnote-marker {
+  content: none;
+}
+.ses-footnote-marker { float: left; width: 2em; margin-inline-start: -2em; line-height: 1.25; }
+.ses-footnote-marker sup { font-size: 0.75em; vertical-align: super; }
 /* 「关于单位的陈述」：IR 暂无独立字段（已知差距，出处 GB/T 1.1 9.8.3，与「表X（续）」一并进 V2），
  * 当前若作为表头行存在则随 thead 跨页重复（结构满足），其宋体小五/表右上方的字体定位待补字段后实现。 */
 
@@ -461,8 +526,10 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 <td>0.1</td>
 </tr>
 </tbody>
+<tfoot>
+<tr class="ses-table-notes"><td colspan="2"><div class="ses-note" data-type="note" data-node-id="tbl-1.note0"><span class="ses-note-marker">注：</span>表内的注。</div></td></tr>
+</tfoot>
 </table>
-<div class="ses-note" data-type="note" data-node-id="tbl-1.note0"><span class="ses-note-marker">注：</span>表内的注。</div>
 </div>
 <figure class="ses-figure-block" data-type="figure" data-orientation="portrait" data-node-id="fig-1" id="fig_1">
 <img class="ses-figure-image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAa0lEQVR42u3QQQ0AAAgEoOsfzwRmMIEtnA82EpDq4UAUiBaNaNGiLYgWjWjRoi2IFo1o0aIRLRrRokUjWjSiRYtGtGhEixaNaNGIFi0a0aIRLRrRokUjWjSiRYtGtGhEixaNaNGiES0a0b8s0ipI1zvfEP8AAAAASUVORK5CYII=" alt="系统架构图" />
@@ -598,6 +665,11 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
     .ses-where-list dd { margin: 0; }
     .ses-note, .ses-example { padding-left: 2em; font-size: 13px; color: #333; margin: 8px 0; }
     .ses-note-marker, .ses-example-marker { font-family: "SimHei", "黑体", sans-serif; }
+    .ses-footnote { font-size: 0.85em; }
+    .ses-footnote::before { content: attr(data-label); vertical-align: super; font-size: 0.75em; margin-right: 0.35em; }
+    .ses-table-footnote { font-size: 13px; margin-left: calc(3em - 8px); text-indent: -1em; }
+    .ses-table-footnote-marker { display: inline-block; width: 1em; text-indent: 0; }
+    .ses-table-footnote-ref { color: inherit; text-decoration: none; }
     .ses-appendix-label, .ses-appendix-kind, .ses-appendix-title { font-family: "SimHei", "黑体", sans-serif; text-align: center; margin: 4px 0; }
     .ses-appendix-title { font-size: 17px; }
     .ses-bib-title { font-family: "SimHei", "黑体", sans-serif; text-align: center; font-size: 17px; margin: 20px 0 12px; }
@@ -730,8 +802,10 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 <td>0.1</td>
 </tr>
 </tbody>
+<tfoot>
+<tr class="ses-table-notes"><td colspan="2"><div class="ses-note" data-type="note" data-node-id="tbl-1.note0"><span class="ses-note-marker">注：</span>表内的注。</div></td></tr>
+</tfoot>
 </table>
-<div class="ses-note" data-type="note" data-node-id="tbl-1.note0"><span class="ses-note-marker">注：</span>表内的注。</div>
 </div>
 <figure class="ses-figure-block" data-type="figure" data-orientation="portrait" data-node-id="fig-1" id="fig_1">
 <img class="ses-figure-image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAa0lEQVR42u3QQQ0AAAgEoOsfzwRmMIEtnA82EpDq4UAUiBaNaNGiLYgWjWjRoi2IFo1o0aIRLRrRokUjWjSiRYtGtGhEixaNaNGIFi0a0aIRLRrRokUjWjSiRYtGtGhEixaNaNGiES0a0b8s0ipI1zvfEP8AAAAASUVORK5CYII=" alt="系统架构图" />

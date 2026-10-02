@@ -46,6 +46,10 @@ class ResolveCtx {
   /** note/example 的 xmlId 全局序号（按文档顺序，确定性） */
   noteSeq = 0
   exampleSeq = 0
+  footnoteSeq = 0
+  footnoteDepth = 0
+  inTerm = false
+  tableFootnotes: { tableId: string; ids: Set<string>; referenced: Set<string>; seq: number } | undefined
   // 图/表/公式计数器：正文全文连续，附录内按附录重置
   figSeq = 0
   tableSeq = 0
@@ -100,9 +104,36 @@ class ResolveCtx {
 
 function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx): void {
   for (const run of inlines) {
+    if (run.footnote) {
+      const note = run.footnote
+      if (ctx.seenIds.has(note.id) || note.id.startsWith(MISSING_ID_PREFIX)) ctx.problems.push({ code: 'invalid-footnote', nodeId: note.id, severity: 'error', message: '脚注必须具有文档内唯一的稳定 ID' })
+      if (ctx.inTerm || ctx.tableFootnotes || ctx.footnoteDepth) {
+        ctx.problems.push({ code: 'invalid-footnote', nodeId: fromId, severity: 'error', message: '术语条目、表格及脚注内部不能插入条文脚注；表格请使用表脚注' })
+        if (ctx.footnoteDepth) continue
+      }
+      ctx.registerId(note.id)
+      const seq = ++ctx.footnoteSeq
+      ctx.setLabel(note.id, `${seq})`, `fn_${seq}`, `${seq})`)
+      if (!note.content.some(inline => inline.text.trim())) ctx.problems.push({ code: 'invalid-footnote', nodeId: note.id, severity: 'error', message: '脚注内容不能为空' })
+      ctx.footnoteDepth += 1
+      visitInlines(note.content, note.id, ctx)
+      ctx.footnoteDepth -= 1
+    }
     for (const mark of run.marks ?? []) {
       if (mark.type === 'crossRef') {
         ctx.xrefs.push({ targetId: mark.targetId, fromId })
+      }
+      if (mark.type === 'tableFootnoteRef') {
+        const scope = ctx.tableFootnotes
+        if (!scope || !scope.ids.has(mark.targetId) || ctx.footnoteDepth) {
+          ctx.problems.push({ code: 'dangling-footnote', nodeId: fromId, severity: 'error', message: `表脚注上标的目标「${mark.targetId}」不在当前表中，或位于脚注内部` })
+        } else if (!scope.referenced.has(mark.targetId)) {
+          scope.referenced.add(mark.targetId)
+          let n = ++scope.seq
+          let label = ''
+          while (n > 0) { n -= 1; label = String.fromCharCode(97 + n % 26) + label; n = Math.floor(n / 26) }
+          ctx.setLabel(mark.targetId, label, `tabfn_${ctx.labels[scope.tableId]!.xmlId}_${label}`, label)
+        }
       }
     }
   }
@@ -146,6 +177,13 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx): void {
       break
     case 'table': {
       labelFigureOrTable(block.id, 'tab', ctx)
+      const previousTable = ctx.tableFootnotes
+      const scope = { tableId: block.id, ids: new Set((block.footnotes ?? []).map(note => note.id)), referenced: new Set<string>(), seq: 0 }
+      ctx.tableFootnotes = scope
+      for (const note of block.footnotes ?? []) {
+        if (ctx.seenIds.has(note.id) || note.id.startsWith(MISSING_ID_PREFIX)) ctx.problems.push({ code: 'invalid-footnote', nodeId: note.id, severity: 'error', message: '表脚注必须具有文档内唯一的稳定 ID' })
+        ctx.registerId(note.id)
+      }
       visitInlines(block.caption, block.id, ctx)
       if (block.captionEn) visitInlines(block.captionEn, block.id, ctx)
       for (const row of block.rows) {
@@ -160,6 +198,14 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx): void {
         visitNoteContent(note, ctx)
         ctx.scope(block.id).notes.push({ id: note.id })
       }
+      for (const note of block.footnotes ?? []) {
+        if (!scope.referenced.has(note.id)) ctx.problems.push({ code: 'unreferenced-footnote', nodeId: note.id, severity: 'error', message: '表脚注没有当前表中的对应上标，请插入引用或删除该脚注' })
+        if (!note.content.some(inline => inline.text.trim())) ctx.problems.push({ code: 'invalid-footnote', nodeId: note.id, severity: 'error', message: '表脚注内容不能为空' })
+        ctx.footnoteDepth += 1
+        visitInlines(note.content, note.id, ctx)
+        ctx.footnoteDepth -= 1
+      }
+      ctx.tableFootnotes = previousTable
       break
     }
     case 'figure': {
@@ -210,6 +256,8 @@ function visitTermEntry(
   numberPath: string,
   ctx: ResolveCtx,
 ): void {
+  const previousTerm = ctx.inTerm
+  ctx.inTerm = true
   // §4.7「遍历顺序」：DOCX 按 8.7.3.1／9.11.1 的顺序是 术语→定义→示例→注→来源（§5.4），
   // Resolver 据此遍历，与 Word 按文档顺序的计数保持一致。
   ctx.registerId(entry.id)
@@ -227,6 +275,7 @@ function visitTermEntry(
     ctx.scope(entry.id).notes.push({ id: note.id })
   }
   if (entry.source) visitInlines(entry.source, entry.id, ctx)
+  ctx.inTerm = previousTerm
 }
 
 // ---------- 条 / 章 / 附录 ----------
@@ -366,7 +415,11 @@ function resolveBibliography(doc: IRDoc, ctx: ResolveCtx): NodeId[] {
     const label = ctx.strategy.bibEntry(i + 1)
     ctx.setLabel(id, label, `bib_${i + 1}`, label)
   })
-  for (const entry of doc.bibliography) visitInlines(entry.content, entry.id, ctx)
+  // 文献按引用顺序输出，文献中的脚注也必须按最终输出顺序编号。
+  for (const id of order) {
+    const entry = doc.bibliography.find(entry => entry.id === id)!
+    visitInlines(entry.content, entry.id, ctx)
+  }
   return order
 }
 

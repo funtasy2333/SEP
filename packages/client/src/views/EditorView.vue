@@ -130,6 +130,10 @@
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item command="insert">插入表格 (3×3)</el-dropdown-item>
+                  <el-dropdown-item divided command="addTableNote">添加表注行</el-dropdown-item>
+                  <el-dropdown-item command="addTableFootnote">添加表脚注行（插入上标）</el-dropdown-item>
+                  <el-dropdown-item command="referenceTableFootnote">引用已有表脚注</el-dropdown-item>
+                  <el-dropdown-item command="deleteTableFootnoteRef">删除当前上标引用</el-dropdown-item>
                   <el-dropdown-item divided command="addRowBefore">上方插入行</el-dropdown-item>
                   <el-dropdown-item command="addRowAfter">下方插入行</el-dropdown-item>
                   <el-dropdown-item command="deleteRow">删除行</el-dropdown-item>
@@ -267,6 +271,7 @@
           <li><kbd>Ctrl</kbd> + <kbd>Z</kbd> 撤销</li>
           <li><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> 重做</li>
           <li><kbd>Ctrl</kbd> + <kbd>S</kbd> 保存</li>
+          <li><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> 插入脚注</li>
           <li><kbd>/</kbd> 智能插入菜单</li>
         </ul>
         <h4>文档结构</h4>
@@ -287,7 +292,7 @@
         style="margin-bottom: 14px"
       />
       <p style="margin: 0 0 12px; color: var(--ses-ink-3); font-size: 12px">
-        DOCX 目次：增删章条后需重新导出以更新目次条目；页码由 Word 更新。续表分页请用 Word 校对。
+        DOCX 目次：增删章条后需重新导出以更新目次条目；页码由 Word 更新。续表与长脚注分页请用 Word 校对。
         真实标准文稿的整体验收尚未完成；部分封面素材来源或清晰度有限，正式交付前请核对。
       </p>
       <div class="export-grid">
@@ -327,6 +332,61 @@
         </button>
       </div>
     </el-dialog>
+
+    <el-dialog
+      v-model="showFootnoteDialog"
+      :title="footnoteDialogTitle"
+      width="560px"
+      destroy-on-close
+      @closed="clearFootnoteDialog"
+    >
+      <template v-if="footnoteDialogMode === 'table-reference'">
+        <el-form label-width="92px">
+          <el-form-item label="表脚注">
+            <el-select v-model="selectedTableFootnoteId" placeholder="选择本表已有脚注" style="width: 100%">
+              <el-option
+                v-for="item in tableFootnoteOptions"
+                :key="item.id"
+                :label="`${item.label} ${item.text}`"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+        </el-form>
+      </template>
+      <template v-else>
+        <el-input
+          v-model="footnoteText"
+          type="textarea"
+          :rows="6"
+          :placeholder="footnoteDialogMode === 'body-new' ? '输入脚注正文' : '输入表脚注正文'"
+          maxlength="2000"
+          show-word-limit
+        />
+        <p v-if="footnoteDialogMode === 'body-new' || footnoteDialogMode === 'body-edit'" class="footnote-dialog-hint">
+          条文脚注仅提供附加信息，不应包含要求型或推荐型条款（GB/T 1.1—2020 9.12.1）。编号由前言起按全文顺序生成。
+        </p>
+        <p v-else class="footnote-dialog-hint">
+          表脚注可包含要求型条款；同一表脚注可多次引用（GB/T 1.1—2020 9.12.2）。编号按本表首次引用顺序生成。
+        </p>
+      </template>
+      <template #footer>
+        <el-button @click="showFootnoteDialog = false">取消</el-button>
+        <el-button
+          v-if="footnoteDialogMode === 'table-edit'"
+          type="danger"
+          plain
+          @click="deleteTableFootnoteDefinition"
+        >删除表脚注定义</el-button>
+        <el-button
+          v-if="footnoteDialogMode === 'body-edit'"
+          type="danger"
+          plain
+          @click="deleteBodyFootnote"
+        >删除脚注</el-button>
+        <el-button type="primary" @click="saveFootnoteDialog">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -349,13 +409,14 @@ import VersionPanel from '@/components/version/VersionPanel.vue'
 
 import { useEditor } from '@tiptap/vue-3'
 import { createEditorExtensions } from '@/extensions/editorExtensions'
+import { canInsertBodyFootnote } from '@/extensions/nodes/footnotes'
 import {
   serializeToXml, parseXmlToEditorJson,
   prepareXmlImportDocumentUpdate,
   exportSemanticJson, exportSemanticHtml,
   buildPdfExportRequest, buildDocxBlob,
 } from '@/serializer'
-import { irMetaFromDocumentMeta, type IRDocMeta } from '@ses/shared'
+import { irMetaFromDocumentMeta, pmToIr, resolve, type IRDocMeta, type PMJsonNode } from '@ses/shared'
 
 const route = useRoute()
 const router = useRouter()
@@ -375,6 +436,21 @@ const showVersionPanel = ref(false)
 const documentId = computed(() => Number(route.params.id))
 const exportingFormat = ref<'docx' | 'pdf' | null>(null)
 const exportError = ref('')
+type FootnoteDialogMode = 'body-new' | 'body-edit' | 'table-new' | 'table-edit' | 'table-reference' | null
+const showFootnoteDialog = ref(false)
+const footnoteDialogMode = ref<FootnoteDialogMode>(null)
+const footnoteDialogTitle = computed(() => ({
+  'body-new': '插入脚注',
+  'body-edit': '编辑脚注',
+  'table-new': '添加表脚注',
+  'table-edit': '编辑表脚注',
+  'table-reference': '引用已有表脚注',
+}[footnoteDialogMode.value || 'body-new']))
+const footnoteText = ref('')
+const footnoteNodeId = ref('')
+const footnoteOriginalContent = ref<PMJsonNode[]>([])
+const selectedTableFootnoteId = ref('')
+const tableFootnoteOptions = ref<Array<{ id: string; label: string; text: string }>>([])
 /** 出件能力（服务端探测）：htmlToPdf=Vivliostyle 管线 */
 const capabilities = ref<{ htmlToPdf: boolean }>({
   htmlToPdf: true,
@@ -473,6 +549,8 @@ const codeViewContent = computed(() => {
 })
 
 onMounted(async () => {
+  window.addEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
+  window.addEventListener('ses:edit-footnote', handleFootnoteEditEvent)
   const id = Number(route.params.id)
   try {
     await store.fetchDocument(id)
@@ -499,6 +577,8 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
+  window.removeEventListener('ses:edit-footnote', handleFootnoteEditEvent)
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
   if (dirty.value && !importingXml && editor.value && store.currentDocument) {
     const content = editor.value.getJSON()
@@ -727,6 +807,18 @@ function handleTableCommand(command: string) {
     case 'deleteTable':
       chain.deleteTable().run()
       break
+    case 'addTableNote':
+      if (!chain.addTableNote().run()) ElMessage.warning('请将光标置于标准表格的单元格内')
+      break
+    case 'addTableFootnote':
+      openTableFootnoteDialog('table-new')
+      break
+    case 'referenceTableFootnote':
+      openTableFootnoteDialog('table-reference')
+      break
+    case 'deleteTableFootnoteRef':
+      if (!chain.deleteSelectedTableFootnoteRef().run()) ElMessage.warning('请先选中要删除的表脚注上标')
+      break
   }
 }
 
@@ -739,7 +831,232 @@ function handleInsertList(listType: string) {
 function handleInsertNote(command: string) {
   if (command === 'note') {
     editor.value?.chain().focus().insertNote().run()
+  } else if (command === 'footnote') {
+    openBodyFootnoteDialog()
   }
+}
+
+function plainTextFromInlines(content: PMJsonNode[]): string {
+  return content.map((node) => {
+    if (node.type === 'text') return node.text || ''
+    if (node.type === 'hardBreak') return '\n'
+    if (node.type === 'footnoteRef' && Array.isArray(node.attrs?.content)) return plainTextFromInlines(node.attrs.content as PMJsonNode[])
+    return ''
+  }).join('')
+}
+
+function inlineContentFromText(text: string): PMJsonNode[] {
+  const content: PMJsonNode[] = []
+  text.split(/\r?\n/).forEach((line, index) => {
+    if (index > 0) content.push({ type: 'hardBreak' })
+    if (line) content.push({ type: 'text', text: line })
+  })
+  return content
+}
+
+function currentTableLocation(): { node: import('@tiptap/pm/model').Node; pos: number } | null {
+  if (!editor.value) return null
+  const { $from } = editor.value.state.selection
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    const node = $from.node(depth)
+    if (node.type.name === 'stdTable') return { node, pos: $from.before(depth) }
+  }
+  return null
+}
+
+function selectionIsInTableCell(): boolean {
+  if (!editor.value) return false
+  const { $from, $to } = editor.value.state.selection
+  if ($from.parent !== $to.parent) return false
+  let foundCell = false
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    const type = $from.node(depth).type.name
+    if (type === 'tableCell' || type === 'tableHeader') foundCell = true
+    if (type === 'stdTable') return foundCell
+  }
+  return false
+}
+
+function collectTableFootnotes(): Array<{ id: string; label: string; text: string }> {
+  const table = currentTableLocation()
+  if (!table || !editor.value) return []
+  const { doc: irDoc } = pmToIr(editor.value.getJSON() as PMJsonNode)
+  const labels = resolve(irDoc).labels
+  const result: Array<{ id: string; label: string; text: string }> = []
+  table.node.descendants((node) => {
+    if (node.type.name !== 'tableFootnoteEntry') return
+    const id = typeof node.attrs.nodeId === 'string' ? node.attrs.nodeId : ''
+    if (!id) return
+    result.push({
+      id,
+      label: labels[id]?.label || '?',
+      text: plainTextFromInlines((node.toJSON().content || []) as PMJsonNode[]),
+    })
+  })
+  return result
+}
+
+function openBodyFootnoteDialog() {
+  const currentEditor = editor.value
+  if (!currentEditor) return
+  const selection = currentEditor.state.selection
+  if (selection instanceof NodeSelection && selection.node.type.name === 'footnoteRef') {
+    const nodeId = String(selection.node.attrs.nodeId || '')
+    if (nodeId) openFootnoteById(nodeId, false)
+    return
+  }
+  if (!canInsertBodyFootnote(selection)) {
+    const $from = selection.$from
+    const ancestors = Array.from({ length: $from.depth + 1 }, (_, index) => $from.node(index).type.name)
+    const reason = ancestors.includes('stdTable') || ancestors.includes('table')
+      ? '表格内请使用“添加表脚注”或“引用已有表脚注”。'
+      : ancestors.includes('termDef') || ancestors.includes('termDefinition') || ancestors.includes('termName')
+        ? '术语条及其定义中不能插入条文脚注。'
+        : '请将光标或选区置于正文普通段落中；标题和封面不支持脚注。'
+    ElMessage.warning(reason)
+    return
+  }
+  footnoteDialogMode.value = 'body-new'
+  footnoteNodeId.value = ''
+  footnoteOriginalContent.value = []
+  footnoteText.value = ''
+  showFootnoteDialog.value = true
+}
+
+function openTableFootnoteDialog(mode: 'table-new' | 'table-reference') {
+  if (!editor.value || !selectionIsInTableCell()) {
+    ElMessage.warning('请将光标置于标准表格的单元格内')
+    return
+  }
+  const options = collectTableFootnotes()
+  if (mode === 'table-reference' && options.length === 0) {
+    ElMessage.info('当前表格还没有可引用的表脚注')
+    return
+  }
+  footnoteDialogMode.value = mode
+  footnoteNodeId.value = ''
+  footnoteOriginalContent.value = []
+  footnoteText.value = ''
+  tableFootnoteOptions.value = options
+  selectedTableFootnoteId.value = options[0]?.id || ''
+  showFootnoteDialog.value = true
+}
+
+function openFootnoteById(nodeId: string, table: boolean) {
+  if (!editor.value) return
+  const found: { target: import('@tiptap/pm/model').Node | null } = { target: null }
+  editor.value.state.doc.descendants((node) => {
+    if (table) {
+      if (node.type.name === 'tableFootnoteEntry' && node.attrs.nodeId === nodeId) found.target = node
+    } else if (node.type.name === 'footnoteRef' && node.attrs.nodeId === nodeId) found.target = node
+  })
+  if (!found.target) {
+    ElMessage.warning('找不到对应脚注内容；请检查脚注引用与定义。')
+    return
+  }
+  const json = found.target.toJSON() as PMJsonNode
+  const content = table
+    ? (json.content || [])
+    : (Array.isArray(json.attrs?.content) ? json.attrs.content as PMJsonNode[] : [])
+  footnoteDialogMode.value = table ? 'table-edit' : 'body-edit'
+  footnoteNodeId.value = nodeId
+  footnoteOriginalContent.value = content
+  footnoteText.value = plainTextFromInlines(content)
+  showFootnoteDialog.value = true
+}
+
+function handleFootnoteEditEvent(event: Event) {
+  const detail = (event as CustomEvent<{ nodeId?: string; table?: boolean }>).detail
+  if (detail?.nodeId) openFootnoteById(detail.nodeId, detail.table === true)
+}
+
+function clearFootnoteDialog() {
+  footnoteDialogMode.value = null
+  footnoteNodeId.value = ''
+  footnoteOriginalContent.value = []
+  footnoteText.value = ''
+  selectedTableFootnoteId.value = ''
+  tableFootnoteOptions.value = []
+}
+
+function saveFootnoteDialog() {
+  const currentEditor = editor.value
+  const mode = footnoteDialogMode.value
+  if (!currentEditor || !mode) return
+
+  if (mode === 'table-reference') {
+    if (!selectedTableFootnoteId.value || !currentEditor.commands.insertTableFootnoteRef({ targetId: selectedTableFootnoteId.value })) {
+      ElMessage.warning('无法在当前表格插入引用，请确认光标仍位于原表格内。')
+      return
+    }
+    currentEditor.view.focus()
+    showFootnoteDialog.value = false
+    return
+  }
+
+  if (!footnoteText.value.trim()) {
+    ElMessage.warning('脚注内容不能为空')
+    return
+  }
+  const content = footnoteText.value === plainTextFromInlines(footnoteOriginalContent.value)
+    ? footnoteOriginalContent.value
+    : inlineContentFromText(footnoteText.value)
+  let saved = false
+  if (mode === 'body-new') {
+    saved = currentEditor.commands.insertFootnoteRef({ content })
+  } else if (mode === 'body-edit') {
+    saved = currentEditor.commands.updateFootnoteRef({ nodeId: footnoteNodeId.value, content })
+  } else if (mode === 'table-new') {
+    saved = currentEditor.commands.insertTableFootnote({ content })
+  } else if (mode === 'table-edit') {
+    saved = replaceTableFootnoteContent(footnoteNodeId.value, content)
+  }
+  if (!saved) {
+    ElMessage.warning(mode.startsWith('table-')
+      ? '无法在当前表格保存表脚注，请确认光标仍位于原表格内。'
+      : '脚注所在段落已变化，请重新选择正文段落后再试。')
+    return
+  }
+  currentEditor.view.focus()
+  showFootnoteDialog.value = false
+}
+
+function replaceTableFootnoteContent(nodeId: string, content: PMJsonNode[]): boolean {
+  const currentEditor = editor.value
+  if (!currentEditor) return false
+  const found: { target: { node: import('@tiptap/pm/model').Node; pos: number } | null } = { target: null }
+  currentEditor.state.doc.descendants((node, pos) => {
+    if (node.type.name === 'tableFootnoteEntry' && node.attrs.nodeId === nodeId) found.target = { node, pos }
+  })
+  if (!found.target) return false
+  const nodes = content.map((item) => currentEditor.schema.nodeFromJSON(item))
+  const tr = currentEditor.state.tr.replaceWith(found.target.pos + 1, found.target.pos + found.target.node.nodeSize - 1, nodes)
+  currentEditor.view.dispatch(tr)
+  return true
+}
+
+async function deleteBodyFootnote() {
+  const currentEditor = editor.value
+  if (!currentEditor || !footnoteNodeId.value) return
+  const deleted = currentEditor.commands.deleteFootnoteRef({ nodeId: footnoteNodeId.value })
+  if (!deleted) {
+    ElMessage.warning('脚注已不存在，请重新打开脚注编辑框。')
+    return
+  }
+  currentEditor.view.focus()
+  showFootnoteDialog.value = false
+}
+
+async function deleteTableFootnoteDefinition() {
+  const currentEditor = editor.value
+  if (!currentEditor || !footnoteNodeId.value) return
+  const deleted = currentEditor.commands.deleteTableFootnoteEntry({ nodeId: footnoteNodeId.value })
+  if (!deleted) {
+    ElMessage.warning('该表脚注仍有上标引用。请先删除对应上标引用，再删除定义。')
+    return
+  }
+  currentEditor.view.focus()
+  showFootnoteDialog.value = false
 }
 
 // === 工具栏：示例 ===
@@ -852,6 +1169,7 @@ function handleSlashCommand(command: string) {
       case 'formula': handleInsertFormula(); break
       case 'figure': handleInsertFigure(); break
       case 'note': handleInsertNote('note'); break
+      case 'footnote': handleInsertNote('footnote'); break
       case 'example': handleInsertExample('example'); break
       case 'termDef': handleInsertTermDef('1'); break
     }
@@ -919,6 +1237,12 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
   if (exportingFormat.value !== null) return
 
   const doc = editor.value.state.doc
+  const footnoteError = getFootnoteExportError(doc)
+  if (footnoteError) {
+    exportError.value = footnoteError
+    ElMessage.error(footnoteError)
+    return
+  }
   const meta = buildDocMeta()
   const docTitle = meta.title || store.currentDocument?.meta?.titleCn || '标准文件'
 
@@ -1053,8 +1377,26 @@ function downloadCodeContent() {
   }
   const info = formatInfo[codeViewFormat.value] || formatInfo.raw
   const doc = editor.value?.state.doc
+  if (doc) {
+    const footnoteError = getFootnoteExportError(doc)
+    if (footnoteError) {
+      ElMessage.error(footnoteError)
+      return
+    }
+  }
   const titleCn = doc?.attrs.titleCn || '标准文件'
   downloadFile(codeViewContent.value, `${titleCn}.${info.ext}`, info.mime)
+}
+
+function getFootnoteExportError(doc: import('@tiptap/pm/model').Node): string {
+  const { doc: irDoc } = pmToIr(doc.toJSON() as PMJsonNode)
+  const errors = resolve(irDoc).problems.filter((problem) =>
+    problem.severity === 'error'
+    && ['dangling-footnote', 'unreferenced-footnote', 'invalid-footnote'].includes(problem.code),
+  )
+  if (!errors.length) return ''
+  const details = [...new Set(errors.map((problem) => problem.message))]
+  return `脚注校验未通过，暂不能导出：${details.join('；')}`
 }
 
 // === 导入 XML ===

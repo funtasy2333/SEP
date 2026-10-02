@@ -10,11 +10,12 @@
 import type { IRBlock, IRExample, IRFigure, IRList, IRNote, IRParagraph, IRTable, NodeId } from '../../../ir/types'
 import { ABSTRACT_NUM_ID, listAbstractNumId } from '../numbering'
 import { emitParagraph, warn, type RenderContext } from './context'
-import { plainRun, renderInlines } from './inline'
+import { plainRun, renderInlines, superscriptRun, tabRun } from './inline'
 import { renderFigureImage } from './figure'
 import { renderTableGrid, tableGridColumnCount } from './table'
 import { paginateTable } from './tablePagination'
 import { renderFormula } from './formula'
+import { orderTableFootnotes } from '../../footnotes'
 
 /** render.ts 在完整块之间解析这两个内部标记，连续横排块由此共用一节。 */
 export const LANDSCAPE_START = '<!--SES:landscape:start-->'
@@ -234,6 +235,10 @@ function renderTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx): string
     warn(ctx, 'table-row-too-tall',
       `表格 "${table.id}" 存在超出单页高度预算的跨行合并组，续表分页可能需要人工调整`, table.id)
   }
+  if (pagination.footerTooTall) {
+    warn(ctx, 'table-footer-too-tall',
+      `表格 "${table.id}" 的表注与表脚注超过单页高度预算，可能需要人工分页调整`, table.id)
+  }
   let captionXml: string
   if (bctx.appendix) {
     const numId = ctx.numbering.allocAppendixTableInstance(bctx.appendix.id, bctx.appendix.letter)
@@ -301,6 +306,15 @@ function renderTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx): string
       columnCount,
       notesXml: lastSegment
         ? () => table.notes.map((note) => renderNote(ctx, note, tableBctx, true)).join('')
+        : undefined,
+      footnotesXml: lastSegment
+        ? () => orderTableFootnotes(table.footnotes ?? [], ctx.labels).map((footnote) => {
+            const resolved = ctx.labels[footnote.id]
+            if (!resolved) throw new Error(`renderTable: 表脚注 "${footnote.id}" 在 labels 中没有编号`)
+            return emitParagraph(ctx, 'SesTableFootnote', {
+              runsXml: superscriptRun(resolved.refText) + tabRun() + renderInlines(footnote.content, ctx.labels),
+            })
+          }).join('')
         : undefined,
       renderCell(cell, styleId) {
         if (cell.content.length === 0 || cell.content.every((block) => block.kind === 'paragraph' &&

@@ -15,7 +15,7 @@
  * 同构纯 TypeScript，不引用浏览器或 Node 专有 API。
  */
 
-import type { IRAppendix, IRDoc, NodeId, ResolvedLabel } from '../../ir/types'
+import type { IRAppendix, IRDoc, IRFootnote, NodeId, ResolvedLabel } from '../../ir/types'
 import { appendixLetterOf as strategyAppendixLetterOf } from '../../ir/strategies'
 import { renderAppendix } from './body/appendix'
 import { renderBibliography } from './body/bibliography'
@@ -29,6 +29,8 @@ import { buildPackage, createRelationshipIdAllocator, type DocxRelatedPart } fro
 import { buildHeaderFooterParts, createSectionManager, type HeaderFooterRelIds, type SectionKind, type SectionManager } from './sections'
 import { buildStylesXml } from './styles'
 import type { DocxPackage, DocxRenderOptions } from './types'
+import { assertFootnoteReferences, documentHasFootnotes } from '../footnotes'
+import { renderInlines, superscriptRun, tabRun } from './body/inline'
 
 export type { NumberedParagraphTrace }
 
@@ -120,12 +122,49 @@ function appendixLetterFor(ctx: RenderContext, appendix: IRAppendix, index: numb
   return m ? m[1] : strategyAppendixLetterOf(index + 1)
 }
 
+function noteNumber(noteId: string, labels: Record<NodeId, ResolvedLabel>): number {
+  const match = /^fn_(\d+)$/.exec(labels[noteId]?.xmlId ?? '')
+  const value = match ? Number(match[1]) : Number.NaN
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new Error(`renderDocx: 条文脚注 "${noteId}" 缺少有效的 resolver 编号`)
+  }
+  return value
+}
+
+function separatorFootnote(id: -1 | 0, kind: 'separator' | 'continuationSeparator'): string {
+  // Word extends paragraph borders by about 0.5 mm at each end. Compensate so the visible
+  // portrait rule starts at the left text edge and measures approximately 41.25 mm (¼ of 165 mm).
+  const pPr = '<w:pPr><w:pBdr><w:top w:val="single" w:sz="4" w:space="1" w:color="000000"/></w:pBdr>' +
+    '<w:ind w:left="28" w:right="7044"/></w:pPr>'
+  // The typed special entry tells Word which separator this is; the empty run avoids the
+  // built-in separator glyph so only the measured paragraph border is visible.
+  return `<w:footnote w:type="${kind}" w:id="${id}"><w:p>${pPr}<w:r/></w:p></w:footnote>`
+}
+
+function footnotesXml(
+  footnotes: IRFootnote[],
+  labels: Record<NodeId, ResolvedLabel>,
+): string {
+  const definitions = footnotes.map((footnote) => {
+    const resolved = labels[footnote.id]
+    const id = noteNumber(footnote.id, labels)
+    if (!resolved) throw new Error(`renderDocx: 条文脚注 "${footnote.id}" 在 labels 中没有编号`)
+    const marker = superscriptRun(resolved.refText)
+    const body = renderInlines(footnote.content, labels)
+    return `<w:footnote w:id="${id}"><w:p><w:pPr><w:pStyle w:val="SesFootnoteText"/></w:pPr>` +
+      marker + tabRun() + body + '</w:p></w:footnote>'
+  }).join('')
+  return `${XML_DECL}<w:footnotes ${DOCUMENT_NS}>${separatorFootnote(-1, 'separator')}` +
+    `${separatorFootnote(0, 'continuationSeparator')}${definitions}</w:footnotes>`
+}
+
 export function renderDocxTraced(
   doc: IRDoc,
   labels: Record<NodeId, ResolvedLabel>,
   opts: DocxRenderOptions,
 ): { pkg: DocxPackage; numbered: NumberedParagraphTrace[] } {
   const toc = buildStaticToc(doc, labels)
+  const bodyFootnotes = assertFootnoteReferences(doc, labels)
 
   // 页眉页脚四个部件的关系 ID：按 header1、header2、footer1、footer2 的顺序申请（§2.3）
   const allocateRelId = createRelationshipIdAllocator()
@@ -136,6 +175,7 @@ export function renderDocxTraced(
     footer1: allocateRelId(),
     footer2: allocateRelId(),
   }
+  const footnotesRelId = bodyFootnotes.length > 0 ? allocateRelId() : undefined
   const headerFooterParts = buildHeaderFooterParts(normalizeCoverStdCode(doc.meta.stdCode))
   const sectionManager = createSectionManager(relIds)
 
@@ -200,6 +240,13 @@ export function renderDocxTraced(
     { id: relIds.header2, target: 'word/header2.xml', relationshipType: `${REL}header`, content: headerFooterParts.header2, contentType: `${WML}header+xml` },
     { id: relIds.footer1, target: 'word/footer1.xml', relationshipType: `${REL}footer`, content: headerFooterParts.footer1, contentType: `${WML}footer+xml` },
     { id: relIds.footer2, target: 'word/footer2.xml', relationshipType: `${REL}footer`, content: headerFooterParts.footer2, contentType: `${WML}footer+xml` },
+    ...(footnotesRelId ? [{
+      id: footnotesRelId,
+      target: 'word/footnotes.xml',
+      relationshipType: `${REL}footnotes`,
+      content: footnotesXml(bodyFootnotes, labels),
+      contentType: `${WML}footnotes+xml`,
+    }] : []),
     ...ctx.relatedParts,
   ]
 
@@ -207,7 +254,7 @@ export function renderDocxTraced(
     documentXml,
     title: doc.meta.title ?? '',
     createdAt: opts.createdAt,
-    stylesXml: buildStylesXml(),
+    stylesXml: buildStylesXml({ includeFootnotes: documentHasFootnotes(doc, bodyFootnotes) }),
     numberingXml: ctx.numbering.buildNumberingXml(),
     relatedParts,
   })

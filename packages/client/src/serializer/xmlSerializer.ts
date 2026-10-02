@@ -7,7 +7,10 @@
  */
 
 import type { Node as PMNode } from '@tiptap/pm/model'
+import { pmToIr, resolve, type PMJsonNode, type ResolvedLabel } from '@ses/shared'
 import { normalizePageOrientation } from '../utils/orientation'
+
+let activeFootnoteLabels: Record<string, ResolvedLabel> = {}
 
 /** 缩进辅助 */
 function indent(depth: number): string {
@@ -39,6 +42,24 @@ function buildAttrs(attrs: Record<string, string | number | boolean | null | und
  * 将 ProseMirror 文档序列化为 GB/T 37967-2019 XML
  */
 export function serializeToXml(doc: PMNode): string {
+  const previousLabels = activeFootnoteLabels
+  // A few serializer unit tests and callers provide a minimal PMNode-shaped tree without
+  // ProseMirror's toJSON(). Keep those legacy callers working; production editor nodes always
+  // take the resolver-backed path so footnote numbering and XML IDs remain shared.
+  if (typeof doc.toJSON === 'function') {
+    const { doc: irDoc } = pmToIr(doc.toJSON() as PMJsonNode)
+    activeFootnoteLabels = resolve(irDoc).labels
+  } else {
+    activeFootnoteLabels = {}
+  }
+  try {
+    return serializeXmlDocument(doc)
+  } finally {
+    activeFootnoteLabels = previousLabels
+  }
+}
+
+function serializeXmlDocument(doc: PMNode): string {
   const lines: string[] = []
   lines.push('<?xml version="1.0" encoding="UTF-8"?>')
   lines.push('<standard xmlns="urn:csbts:std:xml:1.0">')
@@ -585,6 +606,7 @@ function serializeTable(lines: string[], node: PMNode, depth: number) {
     orientation: orientation === 'landscape' ? orientation : undefined,
   })}>`)
 
+  const footer: PMNode[] = []
   node.forEach((child) => {
     switch (child.type.name) {
       case 'tableCaption':
@@ -601,12 +623,36 @@ function serializeTable(lines: string[], node: PMNode, depth: number) {
         serializeHtmlTable(lines, child, depth + 1)
         break
       case 'tableFootnote':
-        lines.push(`${indent(depth + 1)}<table-wrap-foot>`)
-        lines.push(`${indent(depth + 2)}<p>${serializeInlineContent(child)}</p>`)
-        lines.push(`${indent(depth + 1)}</table-wrap-foot>`)
+      case 'tableNoteRow':
+      case 'tableFootnoteRow':
+        footer.push(child)
         break
     }
   })
+
+  if (footer.length > 0) {
+    lines.push(`${indent(depth + 1)}<table-wrap-foot>`)
+    for (const row of footer) {
+      if (row.type.name === 'tableFootnote') {
+        // Legacy editor node retained as a plain table-wrap-foot paragraph.
+        lines.push(`${indent(depth + 2)}<p>${serializeInlineContent(row)}</p>`)
+      } else if (row.type.name === 'tableNoteRow') {
+        row.forEach((note) => serializeBlockNode(lines, note, depth + 2))
+      } else if (row.type.name === 'tableFootnoteRow') {
+        row.forEach((entry) => {
+          if (entry.type.name !== 'tableFootnoteEntry') return
+          const nodeId = String(entry.attrs.nodeId || '')
+          const xmlId = tableFootnoteXmlId(nodeId)
+          const label = activeFootnoteLabels[nodeId]?.label || '?'
+          lines.push(`${indent(depth + 2)}<fn fn-type="table"${buildAttrs({ id: xmlId })}>`)
+          lines.push(`${indent(depth + 3)}<label>${escapeXml(label)}</label>`)
+          lines.push(`${indent(depth + 3)}<p>${serializeInlineContent(entry)}</p>`)
+          lines.push(`${indent(depth + 2)}</fn>`)
+        })
+      }
+    }
+    lines.push(`${indent(depth + 1)}</table-wrap-foot>`)
+  }
 
   lines.push(`${indent(depth)}</table-wrap>`)
 }
@@ -748,45 +794,72 @@ function serializeInlineContent(node: PMNode): string {
 
   node.forEach((child) => {
     if (child.isText) {
-      let text = escapeXml(child.text || '')
-      // 处理 marks
-      if (child.marks && child.marks.length > 0) {
-        for (const mark of child.marks) {
-          switch (mark.type.name) {
-            case 'bold':
-              text = `<bold>${text}</bold>`
-              break
-            case 'italic':
-              text = `<italic>${text}</italic>`
-              break
-            case 'subscript':
-              text = `<sub>${text}</sub>`
-              break
-            case 'superscript':
-              text = `<sup>${text}</sup>`
-              break
-            case 'underline':
-              text = `<underline>${text}</underline>`
-              break
-            case 'strike':
-              text = `<strike>${text}</strike>`
-              break
-            case 'crossRef':
-              text = `<xref${buildAttrs({
-                'ref-type': mark.attrs.refType || 'sec',
-                rid: mark.attrs.refId || '',
-              })}>${text}</xref>`
-              break
-          }
-        }
-      }
-      parts.push(text)
+      parts.push(serializeMarkedText(child.text || '', child.marks.map((mark) => ({ type: mark.type.name, attrs: mark.attrs }))))
+    } else if (child.type.name === 'footnoteRef') {
+      parts.push(serializeFootnoteReference(child.attrs.nodeId, child.attrs.content))
+    } else if (child.type.name === 'tableFootnoteRef') {
+      parts.push(serializeTableFootnoteReference(child.attrs.targetId))
     } else if (child.type.name === 'hardBreak') {
       parts.push('<break />')
     }
   })
 
   return parts.join('')
+}
+
+function serializeMarkedText(text: string, marks: Array<{ type: string; attrs?: Record<string, unknown> }> = []): string {
+  let result = escapeXml(text)
+  for (const mark of marks) {
+    switch (mark.type) {
+      case 'bold': result = `<bold>${result}</bold>`; break
+      case 'italic': result = `<italic>${result}</italic>`; break
+      case 'subscript': result = `<sub>${result}</sub>`; break
+      case 'superscript': result = `<sup>${result}</sup>`; break
+      case 'underline': result = `<underline>${result}</underline>`; break
+      case 'strike': result = `<strike>${result}</strike>`; break
+      case 'crossRef':
+        result = `<xref${buildAttrs({ 'ref-type': mark.attrs?.refType as string || 'sec', rid: mark.attrs?.refId as string || '' })}>${result}</xref>`
+        break
+    }
+  }
+  return result
+}
+
+function serializeInlineJson(content: unknown): string {
+  if (!Array.isArray(content)) return ''
+  return content.map((value) => {
+    if (!value || typeof value !== 'object') return ''
+    const node = value as PMJsonNode
+    if (node.type === 'text') return serializeMarkedText(node.text || '', (node.marks || []).map((mark) => ({ type: mark.type, attrs: mark.attrs })))
+    if (node.type === 'hardBreak') return '<break />'
+    if (node.type === 'footnoteRef') return serializeFootnoteReference(node.attrs?.nodeId, node.attrs?.content)
+    if (node.type === 'tableFootnoteRef') return serializeTableFootnoteReference(node.attrs?.targetId)
+    return ''
+  }).join('')
+}
+
+function bodyFootnoteXmlId(nodeId: unknown): string {
+  const id = typeof nodeId === 'string' ? nodeId : ''
+  return activeFootnoteLabels[id]?.xmlId || (id.startsWith('fn_') ? id : `fn_${id}`)
+}
+
+function tableFootnoteXmlId(nodeId: unknown): string {
+  const id = typeof nodeId === 'string' ? nodeId : ''
+  return activeFootnoteLabels[id]?.xmlId || (id.startsWith('tfn_') ? id : `tfn_${id}`)
+}
+
+function serializeFootnoteReference(nodeIdValue: unknown, content: unknown): string {
+  const nodeId = typeof nodeIdValue === 'string' ? nodeIdValue : ''
+  const id = bodyFootnoteXmlId(nodeId)
+  const label = activeFootnoteLabels[nodeId]?.label || '?'
+  return `<xref${buildAttrs({ 'ref-type': 'fn', rid: id })}>${escapeXml(label)}</xref><fn${buildAttrs({ id })}><label>${escapeXml(label)}</label><p>${serializeInlineJson(content)}</p></fn>`
+}
+
+function serializeTableFootnoteReference(targetIdValue: unknown): string {
+  const targetId = typeof targetIdValue === 'string' ? targetIdValue : ''
+  const id = tableFootnoteXmlId(targetId)
+  const label = activeFootnoteLabels[targetId]?.label || '?'
+  return `<xref${buildAttrs({ 'ref-type': 'table-fn', rid: id })}>${escapeXml(label)}</xref>`
 }
 
 /** 查找文档中某类型的第一个子节点 */

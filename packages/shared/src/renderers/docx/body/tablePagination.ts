@@ -11,6 +11,8 @@ export interface TablePagination {
   bodySegments: IRTableRow[][]
   startOnNewPage: boolean
   oversizedGroup: boolean
+  /** 表注和表脚注本身超过估算的单页版心高度。 */
+  footerTooTall: boolean
 }
 
 function textUnits(value: string): number {
@@ -67,13 +69,22 @@ export function paginateTable(table: IRTable): TablePagination {
   const headerHeight = table.rows.slice(0, headerRowCount)
     .reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape), 0)
   const noteHeight = table.notes.length > 0 ? 10 + table.notes.length * 6 : 0
+  const footnoteCapacity = Math.max(8, (landscape ? 73 : 48) - 4)
+  const tableFootnoteHeight = (table.footnotes ?? []).reduce((sum, footnote) => {
+    const units = textUnits(footnote.content.map((run) => run.text).join(''))
+    const lines = Math.max(1, Math.ceil(units / footnoteCapacity))
+    // Leave space for the separate merged footnote row and its line spacing/border.
+    return sum + 6 + lines * 4.2
+  }, 0)
+  const footerHeight = noteHeight + tableFootnoteHeight
   // A4 竖排样稿的可用版心约 234 mm，再预留 9 mm 给 Word 的布局浮动。
   const pageBudget = landscape ? 135 : 225
-  const dataBudget = Math.max(30, pageBudget - 8 - headerHeight - noteHeight - 10)
+  const dataBudget = Math.max(30, pageBudget - 8 - headerHeight - footerHeight - 10)
   const groups = bodyGroups(table.rows, headerRowCount)
   const groupHeights = groups.map((group) =>
     group.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape), 0))
-  const totalHeight = 8 + headerHeight + noteHeight + groupHeights.reduce((sum, height) => sum + height, 0)
+  const totalHeight = 8 + headerHeight + footerHeight + groupHeights.reduce((sum, height) => sum + height, 0)
+  const footerTooTall = footerHeight > pageBudget - 8
 
   // 小表由 Word 的 keepNext 链保持整体；中长表从新页开始，使首段享有完整版心。
   if (totalHeight <= pageBudget) {
@@ -81,6 +92,7 @@ export function paginateTable(table: IRTable): TablePagination {
       bodySegments: [table.rows.slice(headerRowCount)],
       startOnNewPage: totalHeight > 50,
       oversizedGroup: false,
+      footerTooTall,
     }
   }
 
@@ -116,5 +128,5 @@ export function paginateTable(table: IRTable): TablePagination {
   }
   // 只有表头而且表头/表注超预算时，也必须保留表格。
   bodySegments.push(groups.slice(start).flat())
-  return { bodySegments, startOnNewPage: true, oversizedGroup }
+  return { bodySegments, startOnNewPage: true, oversizedGroup, footerTooTall }
 }

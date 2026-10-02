@@ -32,12 +32,13 @@ function table(overrides: Partial<IRTable> = {}): IRTable {
   }
 }
 
-function render(tableIr: IRTable, notesXml?: string, captionXml?: string): { xml: string; rendered: Array<{ cell: IRTableCell; style: string; row: number; col: number; header: boolean }> } {
+function render(tableIr: IRTable, notesXml?: string, captionXml?: string, footnotesXml?: string): { xml: string; rendered: Array<{ cell: IRTableCell; style: string; row: number; col: number; header: boolean }> } {
   const rendered: Array<{ cell: IRTableCell; style: string; row: number; col: number; header: boolean }> = []
   const ctx = createRenderContext({})
   const xml = renderTableGrid(ctx, tableIr, {
     notesXml,
     captionXml,
+    footnotesXml,
     renderCell: (cellArg, style, meta) => {
       rendered.push({ cell: cellArg, style, row: meta.rowIndex, col: meta.columnIndex, header: meta.header })
       if (cellArg.content.length === 0) return ''
@@ -145,6 +146,23 @@ describe('renderTableGrid', () => {
       kind: 'element', name: 'w:top', attrs: { 'w:sz': '6' },
     })
     expect(noteCells[0]!.children.some((child) => child.kind === 'element' && child.name === 'w:p')).toBe(true)
+  })
+
+  it('表脚注在表注之后另成全宽末行，左单元格边距为零以便 9pt 缩进对齐表框', () => {
+    const note = '<w:p><w:pPr><w:pStyle w:val="SesTableNote"/></w:pPr><w:r><w:t>表注</w:t></w:r></w:p>'
+    const footnote = '<w:p><w:pPr><w:pStyle w:val="SesTableFootnote"/></w:pPr><w:r><w:t>a</w:t></w:r><w:r><w:tab/></w:r><w:r><w:t>表脚注内容</w:t></w:r></w:p>'
+    const xml = render(table(), note, undefined, footnote).xml
+    const rows = childrenNamed(findChild(root(xml), 'w:tbl')!, 'w:tr')
+    expect(rows).toHaveLength(4)
+    const noteCell = childrenNamed(rows[2]!, 'w:tc')[0]!
+    const footnoteCell = childrenNamed(rows[3]!, 'w:tc')[0]!
+    const notePr = findChild(noteCell, 'w:tcPr')!
+    const footnotePr = findChild(footnoteCell, 'w:tcPr')!
+    expect(findChild(notePr, 'w:gridSpan')?.attrs).toEqual({ 'w:val': '3' })
+    expect(findChild(notePr, 'w:tcMar')).toBeUndefined()
+    expect(findChild(footnotePr, 'w:gridSpan')?.attrs).toEqual({ 'w:val': '3' })
+    expect(findChild(findChild(footnotePr, 'w:tcMar')!, 'w:left')?.attrs).toEqual({ 'w:w': '0', 'w:type': 'dxa' })
+    expect(xml.indexOf('表注')).toBeLessThan(xml.indexOf('表脚注内容'))
   })
 
   it('横排表的 tblGrid 占满 252 mm 版心', () => {

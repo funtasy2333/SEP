@@ -41,6 +41,7 @@ import type {
 } from '../ir/types'
 import { MISSING_ID_PREFIX } from '../ir/pmToIr'
 import { printCss } from './printCss'
+import { assertFootnoteReferences, orderTableFootnotes, tableColumnCount } from './footnotes'
 
 export type HtmlVariant = 'screen' | 'print'
 
@@ -138,6 +139,29 @@ function applyTextMarks(text: string, marks: IRInline['marks']): string {
 
 function renderRun(run: IRInline, ctx: RenderCtx): string {
   const marks = run.marks ?? []
+  if (run.footnote) {
+    const resolved = ctx.labels[run.footnote.id]
+    if (!resolved || !/^fn_\d+$/.test(resolved.xmlId)) {
+      throw new Error(`renderHtml: 条文脚注 "${run.footnote.id}" 缺少有效的 resolver 编号`)
+    }
+    const content = renderInlines(run.footnote.content, ctx)
+    const attrs = `role="doc-footnote" id="${escapeAttr(resolved.xmlId)}" data-label="${escapeAttr(resolved.refText)}"`
+    if (ctx.variant === 'screen') {
+      return `<span class="ses-footnote" ${attrs}>${content}</span>`
+    }
+    return `<span class="ses-footnote" ${attrs}><span class="ses-footnote-marker"><sup>${escapeHtml(resolved.refText)}</sup></span><span class="ses-footnote-text">${content}</span></span>`
+  }
+  const tableFootnote = marks.find((mark) => mark.type === 'tableFootnoteRef')
+  if (tableFootnote && tableFootnote.type === 'tableFootnoteRef') {
+    const resolved = ctx.labels[tableFootnote.targetId]
+    if (!resolved || !resolved.xmlId.startsWith('tabfn_')) {
+      throw new Error(`renderHtml: 表脚注 "${tableFootnote.targetId}" 缺少有效的 resolver 编号`)
+    }
+    const marker = `<sup class="ses-table-footnote-call">${escapeHtml(resolved.refText)}</sup>`
+    return ctx.variant === 'screen'
+      ? `<a class="ses-table-footnote-ref" href="#${escapeAttr(resolved.xmlId)}">${marker}</a>`
+      : marker
+  }
   const xref = marks.find((m) => m.type === 'crossRef')
   if (xref && xref.type === 'crossRef') {
     const target = xref.targetId
@@ -245,9 +269,25 @@ function renderTable(table: IRTable, ctx: RenderCtx): void {
     renderTableRows(table.rows.slice(headerCount), 'tbody', ctx)
     ctx.push('</tbody>')
   }
+  const sortedFootnotes = orderTableFootnotes(table.footnotes ?? [], ctx.labels)
+  if (table.notes.length > 0 || sortedFootnotes.length > 0) {
+    const colspan = tableColumnCount(table)
+    ctx.push('<tfoot>')
+    if (table.notes.length > 0) {
+      const notes = table.notes.map((note) => ctx.capture(() => renderNote(note, ctx))).join('')
+      ctx.push(`<tr class="ses-table-notes"><td colspan="${colspan}">${notes}</td></tr>`)
+    }
+    if (sortedFootnotes.length > 0) {
+      const notes = sortedFootnotes.map((footnote) => {
+        const resolved = ctx.labels[footnote.id]
+        if (!resolved) throw new Error(`renderHtml: 表脚注 "${footnote.id}" 在 labels 中没有编号`)
+        return `<div class="ses-table-footnote" id="${escapeAttr(resolved.xmlId)}"><span class="ses-table-footnote-marker"><sup>${escapeHtml(resolved.refText)}</sup></span><span class="ses-table-footnote-text">${renderInlines(footnote.content, ctx)}</span></div>`
+      }).join('')
+      ctx.push(`<tr class="ses-table-footnotes"><td colspan="${colspan}">${notes}</td></tr>`)
+    }
+    ctx.push('</tfoot>')
+  }
   ctx.push('</table>')
-
-  for (const note of table.notes) renderNote(note, ctx)
   ctx.push('</div>')
   if (landscape) ctx.push('</div>')
 }
@@ -675,6 +715,11 @@ function screenStyles(): string {
     .ses-where-list dd { margin: 0; }
     .ses-note, .ses-example { padding-left: 2em; font-size: 13px; color: #333; margin: 8px 0; }
     .ses-note-marker, .ses-example-marker { font-family: "SimHei", "黑体", sans-serif; }
+    .ses-footnote { font-size: 0.85em; }
+    .ses-footnote::before { content: attr(data-label); vertical-align: super; font-size: 0.75em; margin-right: 0.35em; }
+    .ses-table-footnote { font-size: 13px; margin-left: calc(3em - 8px); text-indent: -1em; }
+    .ses-table-footnote-marker { display: inline-block; width: 1em; text-indent: 0; }
+    .ses-table-footnote-ref { color: inherit; text-decoration: none; }
     .ses-appendix-label, .ses-appendix-kind, .ses-appendix-title { font-family: "SimHei", "黑体", sans-serif; text-align: center; margin: 4px 0; }
     .ses-appendix-title { font-size: 17px; }
     .ses-bib-title { font-family: "SimHei", "黑体", sans-serif; text-align: center; font-size: 17px; margin: 20px 0 12px; }
@@ -692,6 +737,7 @@ function screenStyles(): string {
  * @param opts.variant 'screen'（默认，带链接）| 'print'（无内部链接，配 printCss）
  */
 export function renderHtml(doc: IRDoc, labels: Labels, opts: RenderHtmlOptions = {}): string {
+  assertFootnoteReferences(doc, labels)
   const variant: HtmlVariant = opts.variant ?? 'screen'
   const ctx = new RenderCtx(labels, variant)
 

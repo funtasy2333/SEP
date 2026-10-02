@@ -105,6 +105,8 @@ export interface IRTable {
   rows: IRTableRow[]
   /** 表注（表内注，编号独立于正文注） */
   notes: IRNote[]
+  /** 表脚注；与表注分开，通过稳定 ID 与单元格上标关联。旧文稿可省略。 */
+  footnotes?: IRFootnote[]
 }
 export interface IRTableRow {
   id: NodeId
@@ -152,12 +154,16 @@ export interface IRBibEntry { kind: 'bibEntry'; id: NodeId; content: IRInline[] 
 export interface IRInline {
   text: string
   marks?: IRMark[]
+  /** 原位条文脚注：引用与内容共同移动/删除，编号由 Resolver 派生。 */
+  footnote?: IRFootnote
 }
+export interface IRFootnote { id: NodeId; content: IRInline[] }
 export type IRMark =
   | { type: 'bold' } | { type: 'italic' } | { type: 'underline' }
   | { type: 'sub' } | { type: 'sup' }
   /** 引用文本由 Resolver 解析，不存死文本 */
   | { type: 'crossRef'; targetId: NodeId }
+  | { type: 'tableFootnoteRef'; targetId: NodeId }
 
 // ---------- Resolve 结果 ----------
 export interface ResolveResult {
@@ -178,6 +184,7 @@ export interface ResolvedLabel {
 export interface IRProblem {
   code: 'hanging-paragraph' | 'dangling-xref' | 'heading-skip'
       | 'duplicate-id' | 'missing-id' | 'empty-section'
+      | 'dangling-footnote' | 'unreferenced-footnote' | 'invalid-footnote'
   nodeId: NodeId | null
   severity: 'error' | 'warning'
   /** 中文，面向最终用户 */

@@ -47,6 +47,12 @@ const IND_LIST_CONT_L1 = '<w:ind w:left="840" w:firstLine="0"/>'
 const IND_LIST_CONT_L2 = '<w:ind w:left="1260" w:firstLine="0"/>'
 const IND_NOTE_CONT = '<w:ind w:left="780" w:firstLine="0"/>'
 const IND_NOTEN_CONT = '<w:ind w:left="870" w:firstLine="0"/>'
+/** 9 pt 脚注的汉字宽度，不沿用正文 10.5 pt 的全局 CH。 */
+const FOOTNOTE_CHAR_WIDTH_TWIPS = 180
+/** 条文脚注：标识从左侧第 3 字位起，内容和回行从第 5 字位起（10.4.4.2）。 */
+const IND_FOOTNOTE = `<w:ind w:left="${4 * FOOTNOTE_CHAR_WIDTH_TWIPS}" w:hanging="${2 * FOOTNOTE_CHAR_WIDTH_TWIPS}"/>`
+/** 表脚注：标识从表左第 3 字位起，内容和回行从第 4 字位起（10.4.4.2）。 */
+const IND_TABLE_FOOTNOTE = `<w:ind w:left="${3 * FOOTNOTE_CHAR_WIDTH_TWIPS}" w:hanging="${FOOTNOTE_CHAR_WIDTH_TWIPS}"/>`
 /** 终结线左右缩进（§3.2：经 Word 边框延伸量校准） */
 // Word 16.113 会把段落底边框在两端各延伸约 0.5 mm；3532 的实测线宽约 41.3 mm，
 // 对应 165 mm 版心的 1/4（§5.13）。
@@ -69,6 +75,8 @@ const BODY_WIDTH = 9355
 const BODY_CENTER = 4677
 const TABS_TOC = `<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="${BODY_WIDTH}"/></w:tabs>`
 const TABS_FORMULA = `<w:tabs><w:tab w:val="center" w:pos="${BODY_CENTER}"/><w:tab w:val="right" w:leader="dot" w:pos="${BODY_WIDTH}"/></w:tabs>`
+const TABS_FOOTNOTE = `<w:tabs><w:tab w:val="left" w:pos="${4 * FOOTNOTE_CHAR_WIDTH_TWIPS}"/></w:tabs>`
+const TABS_TABLE_FOOTNOTE = `<w:tabs><w:tab w:val="left" w:pos="${3 * FOOTNOTE_CHAR_WIDTH_TWIPS}"/></w:tabs>`
 
 // 原终结线素材在 72 dpi 下为 1 像素实线，约等于 1 磅；边框保留可编辑性并避免低分辨率图片的白边。
 const PBDR_END_MARK = wrapElement('w:pBdr', '<w:bottom w:val="single" w:sz="8" w:space="1" w:color="000000"/>')
@@ -287,6 +295,8 @@ const STYLE_SPECS: readonly StyleSpec[] = [
   { id: 'SesTableText', name: 'SES_表格文字', sz: 18, ind: IND_TABLETEXT },
   { id: 'SesTableCenter', name: 'SES_表格居中', sz: 18, jc: 'center', ind: IND_ZERO },
   { id: 'SesTableNote', name: 'SES_表注', sz: 18 },
+  { id: 'SesFootnoteText', name: 'SES_脚注内容', rFonts: 'songAll', sz: 18, ind: IND_FOOTNOTE, tabs: TABS_FOOTNOTE, snapToGridOff: true },
+  { id: 'SesTableFootnote', name: 'SES_表脚注', rFonts: 'songAll', sz: 18, ind: IND_TABLE_FOOTNOTE, tabs: TABS_TABLE_FOOTNOTE, snapToGridOff: true },
   { id: 'SesFormula', name: 'SES_公式', tabs: TABS_FORMULA, spacing: SPACING_HALF_LINE, ind: IND_ZERO },
   { id: 'SesWhereLabel', name: 'SES_式中', ind: IND_FIRSTLINE_2CH },
   { id: 'SesWhereItem', name: 'SES_式中条目' },
@@ -344,6 +354,7 @@ const STYLE_SPECS: readonly StyleSpec[] = [
 ]
 
 const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+const FOOTNOTE_STYLE_IDS = new Set(['SesFootnoteText', 'SesTableFootnote'])
 
 /** docDefaults：rPrDefault 为宋体类 rFonts + lang，pPrDefault 为空 pPr（§3.1，同 gen_spike.py） */
 function buildDocDefaultsXml(): string {
@@ -359,10 +370,13 @@ function buildDocDefaultsXml(): string {
 }
 
 /** 生成完整的 word/styles.xml（含 XML 声明），§3.2 与 §6 全部样式 */
-export function buildStylesXml(): string {
+export function buildStylesXml(options: { includeFootnotes?: boolean } = {}): string {
+  const styleSpecsToEmit = options.includeFootnotes
+    ? STYLE_SPECS
+    : STYLE_SPECS.filter((spec) => !FOOTNOTE_STYLE_IDS.has(spec.id))
   const children: XmlChild[] = [
     ['docDefaults', buildDocDefaultsXml()],
-    ...STYLE_SPECS.map((spec): XmlChild => ['style', buildStyleXml(spec)]),
+    ...styleSpecsToEmit.map((spec): XmlChild => ['style', buildStyleXml(spec)]),
   ]
   const el = stylesEl(children, { 'xmlns:w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main' })
   return XML_DECL + el

@@ -77,7 +77,7 @@ class Ctx {
 
 // ---------- 行内内容 ----------
 
-const MARK_MAP: Record<string, Exclude<IRMark, { type: 'crossRef' }>['type']> = {
+const MARK_MAP: Record<string, Exclude<IRMark, { targetId: string }>['type']> = {
   bold: 'bold',
   strong: 'bold',
   italic: 'italic',
@@ -124,6 +124,13 @@ function convertInlines(content: PMJsonNode[] | undefined, ctx: Ctx): IRInline[]
       out.push(inline)
     } else if (child.type === 'hardBreak') {
       out.push({ text: '\n' })
+    } else if (child.type === 'footnoteRef') {
+      const raw = child.attrs?.content
+      const content = Array.isArray(raw) ? raw as PMJsonNode[] : []
+      out.push({ text: '', footnote: { id: ctx.id(child), content: convertInlines(content, ctx) } })
+    } else if (child.type === 'tableFootnoteRef') {
+      const targetId = typeof child.attrs?.targetId === 'string' ? child.attrs.targetId : ''
+      out.push({ text: '', marks: [{ type: 'tableFootnoteRef', targetId }] })
     } else {
       ctx.unknown(child.type, '行内内容')
     }
@@ -338,6 +345,21 @@ function convertStdTable(node: PMJsonNode, ctx: Ctx): IRTable {
       id: noteId,
       content: [wrapParagraph(noteId, 'p0', convertInlines(footnote.content, ctx))],
     })
+  }
+  for (const row of node.content ?? []) {
+    if (row.type === 'tableNoteRow') {
+      for (const note of row.content ?? []) {
+        if (note.type === 'note') table.notes.push(convertNoteLike('note', note, ctx))
+        else ctx.unknown(note.type, '表注行')
+      }
+    }
+    if (row.type === 'tableFootnoteRow') {
+      table.footnotes ??= []
+      for (const entry of row.content ?? []) {
+        if (entry.type === 'tableFootnoteEntry') table.footnotes.push({ id: ctx.id(entry), content: convertInlines(entry.content, ctx) })
+        else ctx.unknown(entry.type, '表脚注行')
+      }
+    }
   }
   return table
 }

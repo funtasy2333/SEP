@@ -28,6 +28,7 @@ const ALL_ITEMS: SlashMenuItem[] = [
   { label: '公式', description: '插入LaTeX公式', command: 'formula', group: '内容' },
   { label: '图片', description: '插入图片', command: 'figure', group: '内容' },
   { label: '注', description: '插入注释', command: 'note', group: '内容' },
+  { label: '脚注', description: '在正文、列项、注、示例或文献中插入脚注引用', command: 'footnote', group: '内容', allowedIn: ['stdParagraph', 'paragraph', 'stdListItem', 'bibEntry', 'note', 'example'] },
   { label: '示例', description: '插入示例', command: 'example', group: '内容' },
   { label: '一级术语条', description: '插入一级术语定义', command: 'termDef:1', group: '术语', allowedIn: ['chapter', 'clause', 'appendix', 'termDef'] },
   { label: '二级术语条', description: '插入二级术语定义', command: 'termDef:2', group: '术语', allowedIn: ['chapter', 'clause', 'appendix', 'termDef'] },
