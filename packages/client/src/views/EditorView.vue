@@ -288,6 +288,7 @@
       />
       <p style="margin: 0 0 12px; color: var(--ses-ink-3); font-size: 12px">
         DOCX 目次：增删章条后需重新导出以更新目次条目；页码由 Word 更新。续表分页请用 Word 校对。
+        真实标准文稿的整体验收尚未完成；部分封面素材来源或清晰度有限，正式交付前请核对。
       </p>
       <div class="export-grid">
         <button
@@ -297,7 +298,7 @@
         >
           <span class="ec-glyph">W</span>
           <span class="ec-label">DOCX</span>
-          <span class="ec-sub">{{ exportingFormat === 'docx' ? '正在生成…' : '测试版 · 支持图表公式、横排与六类封面' }}</span>
+          <span class="ec-sub">{{ exportingFormat === 'docx' ? '正在生成…' : '测试版 · 真实文稿交付验收待完成' }}</span>
         </button>
         <button
           v-if="capabilities.htmlToPdf"

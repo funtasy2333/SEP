@@ -52,7 +52,8 @@ const IND_NOTEN_CONT = '<w:ind w:left="870" w:firstLine="0"/>'
 // 对应 165 mm 版心的 1/4（§5.13）。
 const IND_END_MARK = '<w:ind w:left="3532" w:right="3532"/>'
 /** 横排 252 mm 版心的 1/4 终结线，扣除 Word 边框两端各约 0.5 mm 的延伸。 */
-const IND_END_MARK_LANDSCAPE = '<w:ind w:left="5415" w:right="5415"/>'
+// 段落本体宽62 mm + Word两端延伸约1 mm = 63 mm；左右缩进为95 mm。
+const IND_END_MARK_LANDSCAPE = '<w:ind w:left="5386" w:right="5386"/>'
 const IND_TOC2 = '<w:ind w:left="210" w:firstLine="0"/>'
 const IND_TOC3 = '<w:ind w:left="420" w:firstLine="0"/>'
 const SPACING_COVER_TITLE = '<w:spacing w:before="0" w:after="0" w:line="732" w:lineRule="exact"/>'

@@ -57,3 +57,7 @@ pnpm --filter @ses/shared test
 HomeView复制入口原仅修改库中title/meta.titleCn，正文内coverPage仍存创建时题名，导致副本XML与DOCX题名不一致。复制现通过createDocumentDuplicate深拷贝正文及独立meta，标题仍加“（副本）”、阶段仍重置工作草案；库中明确字段同步到副本coverPage，旧根属性中同名字段也同步，明确空值清除旧值。库中缺省字段保留内嵌封面回退，旧正文无封面时从既有根属性和库元数据补元数据容器，空content保留已有初始化路径。前言和正文不重新套模板，源文档不修改。
 
 5项回归覆盖持久化副本→生产schema/check→XML往返→真实buildDocxBlob，确认新库名/封面/XML/DOCX题名与编号、类型一致；另验旧正文/根属性、空对象/空数组正文、缺省字段回退及源对象不变。客户端17文件/67测试和构建通过；shared/渲染器未变，原744项结果、Word日期补正/封面位置与WP7.4回归记录仍适用。既有Vite大chunk提示仍在。
+
+## 2026-10-01 WP7.6后续重验
+
+本文保留WP7.5历史结果。WP7.6本轮已修复已知mathPr/OMML严格schema错误并重新验证Word、封面和浏览器流程；真实稿件验收仍未完成，公式字体/颜色和素材边界仍须核对。当前状态与本轮证据见[WP7.6交付验收](wp7.6-delivery-validation.md)，不以本文历史结果代替。

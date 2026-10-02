@@ -1,6 +1,6 @@
 # scripts/docx-check/
 
-本地核对 DOCX 渲染器输出用的四个小工具（docs/wp7-docx-delivery.md §10.3）。**只用 Python 3
+本地核对 DOCX 渲染器输出用的核对工具（docs/wp7-docx-delivery.md §10.3）。**只用 Python 3
 标准库 + PyMuPDF**（本机已装，`import fitz`），不是项目依赖，不进 CI，只在本机手动运行。
 
 | 脚本 | 用法 | 作用 |
@@ -8,6 +8,7 @@
 | `pack.py` | `pack.py <golden 目录> <out.docx>` | 把 shared 测试里 `__golden__/<fixture>/` 解包目录重新打成 `.docx` |
 | `word_pdf.py` | `word_pdf.py <in.docx> <out.pdf>` | 用本机 Microsoft Word 把 `.docx` 转成 `.pdf`（macOS，AppleScript 自动化） |
 | `measure.py` | `measure.py <pdf> [--pages A-B\|N] [--json]` | 300 dpi 渲染 PDF 每一页，量出书眉/首行/页码/页边距的毫米值 |
+| `compare_pdf.py`（WP7.6） | `compare_pdf.py <baseline.pdf> <current.pdf>` | 对比两次Word输出的页数、尺寸、文字和150dpi灰度像素；差异退出1，逐页JSON仅证明所比较样稿 |
 | `expect.py`（WP7.2） | `expect.py <pdf>` | 核对 `numbering` fixture 里嵌的期望标记，与 Word 实际排出的编号逐条比对 |
 
 典型流程：`pack.py` 把测试生成的 golden 目录打成真正的 `.docx` → 在 Word 里人工打开核对

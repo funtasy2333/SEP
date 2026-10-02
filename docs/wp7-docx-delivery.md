@@ -12,6 +12,8 @@
 >
 > **2026-09-30 后续决策**：废除 LibreOffice 的 DOCX → PDF 转换预览及安装引导，只保留 Vivliostyle PDF 版式预览；下文“两张 PDF 卡片”和 LibreOffice 验收记录为历史实施记录，不再是当前产品要求。
 >
+> **2026-10-01 WP7.6 验收口径**：按用户本次要求只验 Microsoft Word，不要求 WPS；真实文稿缺失时先完成补充样稿回归，并将真实文稿流程明确保留为未完成。状态及证据见 [WP7.6 交付验收](wp7.6-delivery-validation.md)。
+>
 > **修订记录**：2026-09-25 对照代码现状细化 WP7.1（标准类型的两套取值、导出面板与首页入口、shared 骨架接口），
 > 新增 §10.2 测试基建、§10.3 核对工具。
 > 2026-09-25（二）对照代码与 Word 实测（spike v10）细化 WP7.2：WP7.2 扩为「结构渲染」（§5 中除图表公式本体、
@@ -178,7 +180,9 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 `<w:mirrorMargins/>`、`<w:defaultTabStop w:val="420"/>`、`<w:evenAndOddHeaders/>`、
 `<w:characterSpacingControl w:val="compressPunctuation"/>`、`<w:updateFields w:val="true"/>`（§7）、
 `<w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat>`、
-`<m:mathPr><m:mathFont m:val="Cambria Math"/><m:dispDef/><m:smallFrac m:val="0"/><m:naryLim m:val="undOvr"/><m:intLim m:val="subSup"/></m:mathPr>`。
+`<m:mathPr><m:mathFont m:val="Cambria Math"/><m:smallFrac m:val="0"/><m:dispDef/><m:intLim m:val="subSup"/><m:naryLim m:val="undOvr"/></m:mathPr>`。
+
+2026-10-01 WP7.6 勘误：原 mathPr 顺序被严格 schema 拒绝；以上只重排既有属性，不改变取值。
 
 ---
 
@@ -971,7 +975,7 @@ PR 描述附「验收标准逐项自查表」、两个 fixture 的大纲（节�
 
 ### WP7.6 交付验收（1 天，主导人 + 用户）
 
-用一份真实标准文稿走完整流程，在 Word 与 WPS 中对照附录 E 逐项核对，问题清单作为修订依据。
+用一份真实标准文稿走完整流程，在 Microsoft Word 中对照附录 E 逐项核对，问题清单作为修订依据。2026-10-01 用户明确本次不要求 WPS。fixture、模拟数据库稿件和历史测试通过均不能代替真实文稿验收。
 
 合计约 12.5 个工作日。WP7.2 完成后，WP7.3–7.5 改动的是不同模块，可以并行。
 

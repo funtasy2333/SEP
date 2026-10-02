@@ -35,6 +35,25 @@ describe('createRelationshipIdAllocator', () => {
   })
 })
 
+describe('buildPackage / settings 数学属性', () => {
+  it('mathPr 按 OOXML schema 顺序保留数学默认值', () => {
+    const pkg = buildPackage({
+      documentXml: documentXml(),
+      title: '数学设置 schema',
+      createdAt: '2026-09-25T08:00:00.000Z',
+    })
+    const settings = pkg.parts['word/settings.xml']!
+    const mathPr = /<m:mathPr>([\s\S]*?)<\/m:mathPr>/.exec(settings)?.[1]
+    expect(mathPr).toBeTruthy()
+    expect(Array.from(mathPr!.matchAll(/<m:([A-Za-z]+)\b/g), (match) => match[1])).toEqual([
+      'mathFont', 'smallFrac', 'dispDef', 'intLim', 'naryLim',
+    ])
+    expect(mathPr).toContain('<m:smallFrac m:val="0"/>')
+    expect(mathPr).toContain('<m:intLim m:val="subSup"/>')
+    expect(mathPr).toContain('<m:naryLim m:val="undOvr"/>')
+  })
+})
+
 describe('buildPackage / 关联部件（页眉 + 图片）', () => {
   it('用分配器申请两个 ID，挂一个 XML 部件与一个二进制部件', () => {
     const allocate = createRelationshipIdAllocator()
