@@ -11,6 +11,8 @@ import { buildDocxBlob } from '../../serializer/docxExporter'
 type TermFields = {
   termEn?: string
   annotations?: Array<'note' | 'example'>
+  sources?: string[]
+  trailingEmpty?: boolean
   definition?: string | Array<{
     type: 'text'
     text: string
@@ -55,6 +57,8 @@ function createEditor(fields: TermFields = {}) {
               ...(fields.annotations ?? []).map(type => ({
                 type, content: [{ type: 'text', text: `原${type}内容` }],
               })),
+              ...(fields.sources ?? []).map(text => ({ type: 'stdParagraph', content: [{ type: 'text', text }] })),
+              ...(fields.trailingEmpty ? [{ type: 'stdParagraph' }] : []),
             ],
           },
         ],
@@ -133,6 +137,50 @@ function termNode(editor: Editor): JsonNode | undefined {
 }
 
 describe('真实 Tiptap 术语编辑器的键盘行为', () => {
+  it('半角/全角来源段作为尾部元数据不阻止退出，来源与注/示例及IR来源保留', () => {
+    for (const source of ['[来源：GB/T 37967—2019，3.1]', '［来源：原文件］', '  [来源：原文件]']) {
+      const { editor, destroy } = createEditor({ definition: '原定义', annotations: ['note', 'example'], sources: [source] })
+      try {
+        setCaret(editor, 'termDefinition', 3)
+        const before = termNode(editor)
+        press(editor, 'Enter'); press(editor, 'Enter')
+        expect(termNode(editor)).toEqual(before)
+        expect(editor.state.doc.firstChild?.lastChild?.type.name).toBe('stdParagraph')
+        expect(editor.state.selection.$from.node(editor.state.selection.$from.depth - 1).type.name).toBe('chapter')
+        const { doc } = pmToIr(editor.getJSON() as PMJsonNode)
+        const entry = doc.body[0]?.children.find(child => child.kind === 'termEntry')
+        if (entry?.kind !== 'termEntry') throw new Error('缺少术语条目')
+        expect(entry.source?.map(inline => inline.text).join('')).toBe(source)
+        expect(entry.notes).toHaveLength(1)
+        expect(entry.examples).toHaveLength(1)
+        editor.state.doc.check()
+      } finally { destroy() }
+    }
+  })
+
+  it('重复来源按IR规则仍是定义内容，不能从它之前的空续段提前退出', () => {
+    const { editor, destroy } = createEditor({ definition: '原定义', sources: ['[来源：第一来源]', '[来源：后续定义内容]'] })
+    try {
+      setCaret(editor, 'termDefinition', 3)
+      press(editor, 'Enter'); press(editor, 'Enter')
+      expect(editor.state.doc.firstChild?.childCount).toBe(2)
+      expect(editor.state.selection.$from.node(editor.state.selection.$from.depth - 1).type.name).toBe('termDef')
+      expect(editor.state.doc.textContent).toContain('[来源：第一来源][来源：后续定义内容]')
+      editor.state.doc.check()
+    } finally { destroy() }
+  })
+
+  it('已有尾部空续段占位不阻止退出，不删除原占位或注', () => {
+    const { editor, destroy } = createEditor({ definition: '原定义', annotations: ['note'], trailingEmpty: true })
+    try {
+      setCaret(editor, 'termDefinition', 3)
+      const original = termNode(editor)
+      press(editor, 'Enter'); press(editor, 'Enter')
+      expect(termNode(editor)).toEqual(original)
+      expect(editor.state.selection.$from.node(editor.state.selection.$from.depth - 1).type.name).toBe('chapter')
+      editor.state.doc.check()
+    } finally { destroy() }
+  })
   it('末尾注/示例不阻止连续两次 Enter 退出，注/示例和定义保持在原术语内', () => {
     for (const annotations of [['note'], ['example'], ['note', 'example']] as Array<Array<'note' | 'example'>>) {
       const { editor, destroy } = createEditor({ definition: '原定义', annotations })

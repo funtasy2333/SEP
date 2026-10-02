@@ -71,10 +71,19 @@ function handleTermEnter(editor: Editor): boolean {
     if (depth < 0) return false
     const term = $from.node(depth)
     const continuation = $from.parent
+    // Match pmToIr's first recognized source paragraph; subsequent source-like
+    // paragraphs remain definition content there, so they must still block exit.
+    let sourceIndex = -1
+    for (let index = 0; index < term.childCount; index++) {
+      const child = term.child(index)
+      if (sourceIndex < 0 && child.type.name === 'stdParagraph' && /^\s*[[［]来源/.test(child.textContent)) sourceIndex = index
+    }
     // Trailing annotations still belong to the term. The last definition
     // continuation can exit before them, without moving or deleting the annotations.
     for (let index = $from.index(depth) + 1; index < term.childCount; index++) {
-      if (!['note', 'example'].includes(term.child(index).type.name)) return false
+      const child = term.child(index)
+      const emptyPlaceholder = child.type.name === 'stdParagraph' && child.content.size === 0
+      if (!['note', 'example'].includes(child.type.name) && index !== sourceIndex && !emptyPlaceholder) return false
     }
     const continuationPos = $from.before($from.depth)
     const termStart = $from.before(depth)
