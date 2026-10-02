@@ -173,3 +173,28 @@ describe('脚注与表脚注 XML round trip', () => {
     expect(() => parseXmlToEditorJson(repeatedExternalRef, schema.topNodeType.name)).toThrow(/同一脚注有多个引用/)
   })
 })
+
+
+describe('XML 导入的非法脚注位置不能再次导出', () => {
+  const noteXml = '<xref ref-type="fn" rid="forbidden-fn">1)</xref><fn id="forbidden-fn"><p>保留的非法位置说明</p></fn>'
+  const variants = [
+    ['附录标题', `<app-group><app id="app"><title>附录${noteXml}</title><p>正文</p></app></app-group>`],
+    ['章标题', `<sec id="ch"><title>章${noteXml}</title><p>正文</p></sec>`],
+    ['条标题', `<sec id="ch"><title>章</title><sec id="cl"><title>条${noteXml}</title><p>正文</p></sec></sec>`],
+    ['图题', `<sec id="ch"><title>章</title><fig id="fig"><graphic href="image.png"/><caption><title>图${noteXml}</title></caption></fig></sec>`],
+    ['英文图题', `<sec id="ch"><title>章</title><fig id="fig"><graphic href="image.png"/><caption><title xml:lang="en">Figure${noteXml}</title></caption></fig></sec>`],
+    ['公式说明', `<sec id="ch"><title>章</title><disp-formula id="formula"><tex-math>x</tex-math><def-list><p>式中：x——变量${noteXml}</p></def-list></disp-formula></sec>`],
+    ['仅有脚注的公式说明', `<sec id="ch"><title>章</title><disp-formula id="formula"><tex-math>x</tex-math><def-list><p>${noteXml}</p></def-list></disp-formula></sec>`],
+  ]
+  it.each(variants)('%s 保留引用与内容，序列化入口拒绝', (_name, body) => {
+    const schema = getSchema(createEditorExtensions())
+    const xml = _name === '附录标题'
+      ? `<standard><body/><back>${body}</back></standard>`
+      : `<standard><body>${body}</body></standard>`
+    const imported = schema.nodeFromJSON(parseXmlToEditorJson(xml, schema.topNodeType.name))
+    imported.check()
+    expect(findNodes(imported, 'footnoteRef')).toHaveLength(1)
+    expect(findNodes(imported, 'footnoteRef')[0]!.attrs.content).toEqual([{ type: 'text', text: '保留的非法位置说明' }])
+    expect(() => serializeToXml(imported)).toThrow(XmlFootnoteValidationError)
+  })
+})

@@ -102,13 +102,16 @@ class ResolveCtx {
 
 // ---------- 行内（收集交叉引用） ----------
 
-function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx): void {
+// 与编辑器 canInsertBodyFootnote 保持一致；图中的限制沿块级子树传递。
+type ForbiddenFootnoteContainer = '标题' | '图' | '公式说明'
+
+function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx, forbiddenContainer?: ForbiddenFootnoteContainer): void {
   for (const run of inlines) {
     if (run.footnote) {
       const note = run.footnote
       if (ctx.seenIds.has(note.id) || note.id.startsWith(MISSING_ID_PREFIX)) ctx.problems.push({ code: 'invalid-footnote', nodeId: note.id, severity: 'error', message: '脚注必须具有文档内唯一的稳定 ID' })
-      if (ctx.inTerm || ctx.tableFootnotes || ctx.footnoteDepth) {
-        ctx.problems.push({ code: 'invalid-footnote', nodeId: fromId, severity: 'error', message: '术语条目、表格及脚注内部不能插入条文脚注；表格请使用表脚注' })
+      if (forbiddenContainer || ctx.inTerm || ctx.tableFootnotes || ctx.footnoteDepth) {
+        ctx.problems.push({ code: 'invalid-footnote', nodeId: fromId, severity: 'error', message: forbiddenContainer ? `${forbiddenContainer}中不能插入条文脚注` : '术语条目、表格及脚注内部不能插入条文脚注；表格请使用表脚注' })
         if (ctx.footnoteDepth) continue
       }
       ctx.registerId(note.id)
@@ -153,26 +156,26 @@ function labelFigureOrTable(id: NodeId, kind: 'fig' | 'tab', ctx: ResolveCtx): v
   ctx.setLabel(id, label, `${kind}_${num}`, label)
 }
 
-function visitNoteContent(note: IRNote, ctx: ResolveCtx): void {
+function visitNoteContent(note: IRNote, ctx: ResolveCtx, forbiddenContainer?: ForbiddenFootnoteContainer): void {
   ctx.registerId(note.id)
-  for (const block of note.content) visitBlock(block, note.id, ctx)
+  for (const block of note.content) visitBlock(block, note.id, ctx, forbiddenContainer)
 }
 
 /**
  * 访问一个块：登记 ID、计数图/表/公式、把注/示例归入作用域。
  * scopeKey = 最近的条或章（或附录/术语条目/前言/引言）的 ID。
  */
-function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx): void {
+function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbiddenContainer?: ForbiddenFootnoteContainer): void {
   switch (block.kind) {
     case 'paragraph':
       ctx.registerId(block.id)
-      visitInlines(block.content, block.id, ctx)
+      visitInlines(block.content, block.id, ctx, forbiddenContainer)
       break
     case 'list':
       ctx.registerId(block.id)
       for (const item of block.items) {
         ctx.registerId(item.id)
-        for (const child of item.content) visitBlock(child, scopeKey, ctx)
+        for (const child of item.content) visitBlock(child, scopeKey, ctx, forbiddenContainer)
       }
       break
     case 'table': {
@@ -190,12 +193,12 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx): void {
         ctx.registerId(row.id)
         for (const cell of row.cells) {
           ctx.registerId(cell.id)
-          for (const child of cell.content) visitBlock(child, block.id, ctx)
+          for (const child of cell.content) visitBlock(child, block.id, ctx, forbiddenContainer)
         }
       }
       // 表内注独立计数：作用域 = 该表
       for (const note of block.notes) {
-        visitNoteContent(note, ctx)
+        visitNoteContent(note, ctx, forbiddenContainer)
         ctx.scope(block.id).notes.push({ id: note.id })
       }
       for (const note of block.footnotes ?? []) {
@@ -212,12 +215,12 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx): void {
       // §4.7「遍历顺序」：DOCX 按 9.11.1 把图中的注排在图题之上（§5.8），Resolver 据此先遍历
       // 注、再给图编号、最后遍历图题，与 Word 按文档顺序的计数保持一致。
       for (const note of block.notes) {
-        visitNoteContent(note, ctx)
+        visitNoteContent(note, ctx, '图')
         ctx.scope(block.id).notes.push({ id: note.id })
       }
       labelFigureOrTable(block.id, 'fig', ctx)
-      visitInlines(block.caption, block.id, ctx)
-      if (block.captionEn) visitInlines(block.captionEn, block.id, ctx)
+      visitInlines(block.caption, block.id, ctx, '图')
+      if (block.captionEn) visitInlines(block.captionEn, block.id, ctx, '图')
       break
     }
     case 'formula': {
@@ -232,18 +235,18 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx): void {
       }
       for (const item of block.whereList) {
         ctx.registerId(item.id)
-        visitInlines(item.term, item.id, ctx)
-        visitInlines(item.definition, item.id, ctx)
+        visitInlines(item.term, item.id, ctx, '公式说明')
+        visitInlines(item.definition, item.id, ctx, '公式说明')
       }
       break
     }
     case 'note':
-      visitNoteContent(block, ctx)
+      visitNoteContent(block, ctx, forbiddenContainer)
       ctx.scope(scopeKey).notes.push({ id: block.id })
       break
     case 'example':
       ctx.registerId(block.id)
-      for (const child of block.content) visitBlock(child, block.id, ctx)
+      for (const child of block.content) visitBlock(child, block.id, ctx, forbiddenContainer)
       ctx.scope(scopeKey).examples.push({ id: block.id })
       break
   }
@@ -346,7 +349,7 @@ function visitClause(
   ctx.registerId(clause.id)
   const numberPath = ctx.strategy.clause(path)
   ctx.setLabel(clause.id, numberPath, `sec_${numberPath}`, numberPath)
-  visitInlines(clause.title, clause.id, ctx)
+  visitInlines(clause.title, clause.id, ctx, '标题')
   visitSectionChildren(clause.children, clause.id, numberPath, path, expectedChildLevel, ctx)
 }
 
@@ -354,7 +357,7 @@ function visitChapter(chapter: IRChapter, seq: number, ctx: ResolveCtx): void {
   ctx.registerId(chapter.id)
   const num = ctx.strategy.chapter(seq)
   ctx.setLabel(chapter.id, num, `sec_${num}`, `第${num}章`)
-  visitInlines(chapter.title, chapter.id, ctx)
+  visitInlines(chapter.title, chapter.id, ctx, '标题')
   visitSectionChildren(chapter.children, chapter.id, `第${num}章`, [seq], 1, ctx)
 }
 
@@ -363,7 +366,7 @@ function visitAppendix(appendix: IRAppendix, seq: number, ctx: ResolveCtx): void
   const letter = ctx.strategy.appendixLetter(seq)
   const label = ctx.strategy.appendix(seq)
   ctx.setLabel(appendix.id, label, `sec_${letter}`, label)
-  visitInlines(appendix.title, appendix.id, ctx)
+  visitInlines(appendix.title, appendix.id, ctx, '标题')
   // 附录内图/表/公式按字母前缀重新计数
   ctx.appendixLetter = letter
   ctx.figSeq = 0

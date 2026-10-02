@@ -84,3 +84,12 @@
 | XML serializer 忽略脚注关联错误 | 序列化入口统一拒绝 `dangling-footnote`、`unreferenced-footnote`、`invalid-footnote`，避免版本保存/源码复制绕过 UI 导出检查；有效 XML 往返保持不变 |
 
 嵌套表格两项新增回归先在修复前失败，再在修复后通过。本轮客户端22个文件120项测试通过，client build通过（保留既有大chunk警告），`git diff --check`通过。XML入口新增7项回归，包括异常后有效文稿仍可完整序列化、缺少toJSON的旧调用拒绝生成脚注；版本保存对脚注校验错误中止，源码复制在写剪贴板前检查。日志为 `/private/tmp/sep-pr42-client-review.log` 与 `/private/tmp/sep-pr42-client-review-build.log`。本轮未改shared/server及DOCX/PDF版式；不把手动标记 resolved 等同于 Codex 复审通过。
+
+
+### 2026-10-03 复审：禁止位置的条文脚注
+
+Codex 针对 `dfdd1a89` 新增一条 P2：XML/JSON 导入的脚注能绕过编辑入口的位置限制。共享 Resolver 现对章/条/附录标题、中文/英文图题、图注子树（含列项）及公式说明的变量/释义报告 `invalid-footnote`；XML 序列化、HTML 与 DOCX 的既有入口校验据此中止。数据保留并报错，不能把非法位置的脚注静默丢掉。公式说明的拆分/去空白处理也保留脚注 atom，否则转换为 IR 前会丢失这一错误。
+
+本次新增10项共享回归（9种禁止位置以及合法正文/列项/注/示例不受影响），新增7项 XML 导入回归（包括附录标题和仅有脚注的公式说明）。修复前9项共享、6项 XML 回归失败，修复后共享35文件774项、客户端22文件127项测试通过；完整 `pnpm build` 通过，保留既有大 chunk 警告，`git diff --check` 通过。日志为 `/private/tmp/sep-pr42-placement-{shared,client,build}.log`；修复前证据为 `/private/tmp/sep-pr42-placement-before.log` 和 `/private/tmp/sep-pr42-placement-xml-before.log`。验证环境仍为 macOS、Node 22.22.3、pnpm 10.33.0。
+
+本次没有改动正式版式、服务端或转换管线，也未重跑 Word/PDF 人工验收；上文测量与严格 OOXML 结果仍是2026-10-02样稿证据。PR 保持未合并，审查意见修复与 Codex 再次复审结论分别记录。

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { pmToIr, type PMJsonNode } from '../pmToIr'
 import { resolve } from '../resolve'
 import { collectFootnotes } from '../footnotes'
-import type { IRTable } from '../types'
+import type { IRFigure, IRFormula, IRInline, IRTable } from '../types'
+import { renderHtml } from '../../renderers/html'
+import { renderDocx } from '../../renderers/docx'
 import * as fx from './fixtures'
 
 const fn = (id: string, value = '脚注说明'): PMJsonNode => ({ type: 'footnoteRef', attrs: { nodeId: id, content: [fx.text(value, [{ type: 'bold' }])] } })
@@ -105,5 +107,55 @@ describe('脚注 IR 关联与 GB/T 1.1 编号', () => {
     expect(resolved.labels['bib-first']?.label).toBe('2)')
     expect(collectFootnotes(doc, resolved.bibliographyOrder).map(note => note.id)).toEqual(['bib-second', 'bib-first'])
     expect(resolve(docOf(fx.para('p', fn('same'), fn('same')))).problems.some(p => p.code === 'invalid-footnote')).toBe(true)
+  })
+})
+
+
+describe('导入/粘贴的条文脚注位置校验', () => {
+  it.each(['chapter-title', 'clause-title', 'appendix-title', 'figure-caption', 'figure-caption-en', 'figure-note', 'figure-note-list', 'formula-term', 'formula-definition'])(
+    '%s 中的脚注保留数据但阻断 HTML/DOCX 渲染', (location) => {
+      const doc = docOf(fx.para('body', fx.text('合法正文'), fn('valid-fn')))
+      const inline: IRInline = { text: '', footnote: { id: 'forbidden-fn', content: [{ text: '应当保留的导入说明' }] } }
+      const chapter = doc.body[0]!
+      if (location === 'chapter-title') chapter.title.push(inline)
+      else if (location === 'clause-title') chapter.children.push({ kind: 'clause', id: 'clause', level: 1, titled: true, title: [inline], children: [] })
+      else if (location === 'appendix-title') doc.appendices.push({ kind: 'appendix', id: 'app', normative: false, title: [inline], children: [] })
+      else if (location.startsWith('figure')) {
+        const figure: IRFigure = { kind: 'figure', id: 'fig', src: '', orientation: 'portrait', caption: [], notes: [] }
+        if (location === 'figure-caption') figure.caption = [inline]
+        else if (location === 'figure-caption-en') figure.captionEn = [inline]
+        else {
+          const paragraph = { kind: 'paragraph' as const, id: 'fig-note-p', content: [inline] }
+          figure.notes.push({ kind: 'note', id: 'fig-note', content: location === 'figure-note' ? [paragraph] : [
+            { kind: 'list', id: 'fig-list', listType: 'dash', level: 1, items: [{ id: 'fig-item', content: [paragraph] }] },
+          ] })
+        }
+        chapter.children.push(figure)
+      } else {
+        const formula: IRFormula = { kind: 'formula', id: 'formula', latex: 'x', numbered: true, whereList: [{
+          id: 'where', term: location === 'formula-term' ? [inline] : [{ text: 'x' }],
+          definition: location === 'formula-definition' ? [inline] : [{ text: '变量' }],
+        }] }
+        chapter.children.push(formula)
+      }
+      const before = JSON.stringify(doc)
+      const result = resolve(doc)
+      expect(result.problems.filter(p => p.code === 'invalid-footnote')).toHaveLength(1)
+      expect(JSON.stringify(doc)).toBe(before)
+      expect(resolve(doc)).toEqual(result)
+      expect(() => renderHtml(doc, result.labels, { variant: 'print' })).toThrow('脚注关联无效')
+      expect(() => renderDocx(doc, result.labels, { formulaOmml: {}, images: {}, stage: 'approval_draft', createdAt: '2026-10-03T00:00:00Z' })).toThrow('脚注关联无效')
+    },
+  )
+
+  it('普通段落、列项、注和示例保留合法脚注，图的限制不泄漏到后续正文', () => {
+    const list = fx.stdList('list', 'dash', ['item', '列项'])
+    list.content![0]!.content!.push(fn('list-fn'))
+    const note = fx.note('note', '注'); note.content!.push(fn('note-fn'))
+    const example = fx.example('example', '示例'); example.content!.push(fn('example-fn'))
+    const doc = docOf(fx.figure('fig', '', '图题'), fx.para('p', fn('body-fn')), list, note, example)
+    const result = resolve(doc)
+    expect(result.problems.filter(p => p.code.includes('footnote'))).toEqual([])
+    expect(['body-fn', 'list-fn', 'note-fn', 'example-fn'].map(id => result.labels[id]?.label)).toEqual(['1)', '2)', '3)', '4)'])
   })
 })
