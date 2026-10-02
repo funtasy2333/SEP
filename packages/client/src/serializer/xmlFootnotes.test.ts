@@ -5,7 +5,7 @@ import type { PMJsonNode } from '@ses/shared'
 import { describe, expect, it } from 'vitest'
 import { createEditorExtensions } from '../extensions/editorExtensions'
 import { parseXmlToEditorJson } from './xmlParser'
-import { serializeToXml } from './xmlSerializer'
+import { serializeToXml, XmlFootnoteValidationError } from './xmlSerializer'
 
 function findNodes(node: PMNode, type: string): PMNode[] {
   const result: PMNode[] = []
@@ -34,6 +34,53 @@ const sourceXml = `<?xml version="1.0" encoding="UTF-8"?>
 </standard>`
 
 describe('脚注与表脚注 XML round trip', () => {
+  it.each(['orphan', 'missing', 'cross-table', 'empty', 'nested', 'term'])('XML 入口拒绝 %s 脚注，异常后有效序列化仍完整', (scenario) => {
+    const schema = getSchema(createEditorExtensions())
+    const valid = schema.nodeFromJSON(parseXmlToEditorJson(sourceXml, schema.topNodeType.name))
+    const expected = serializeToXml(valid)
+    const json = structuredClone(valid.toJSON()) as PMJsonNode
+    const nodes: PMJsonNode[] = []
+    const visit = (node: PMJsonNode) => { nodes.push(node); node.content?.forEach(visit) }
+    visit(json)
+    const bodyRef = nodes.find(node => node.type === 'footnoteRef')!
+    const table = nodes.find(node => node.type === 'stdTable')!
+    const entry = nodes.find(node => node.type === 'tableFootnoteEntry')!
+    if (scenario === 'orphan') {
+      for (const node of nodes) if (node.content) node.content = node.content.filter(child => child.type !== 'tableFootnoteRef')
+    } else if (scenario === 'missing') {
+      nodes.find(node => node.type === 'tableFootnoteRef')!.attrs!.targetId = 'missing-target'
+    } else if (scenario === 'cross-table') {
+      table.content = table.content!.filter(node => node.type !== 'tableFootnoteRow')
+      nodes.find(node => node.type === 'chapter')!.content!.push({ type: 'stdTable', attrs: { nodeId: 'other-table' }, content: [
+        { type: 'tableCaption' },
+        { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }] },
+        { type: 'tableFootnoteRow', content: [entry] },
+      ] })
+    } else if (scenario === 'empty') {
+      bodyRef.attrs!.content = []
+    } else if (scenario === 'nested') {
+      bodyRef.attrs!.content = [{ type: 'footnoteRef', attrs: { nodeId: 'nested-note', content: [{ type: 'text', text: '非法嵌套' }] } }]
+    } else {
+      nodes.find(node => node.type === 'chapter')!.content!.push({ type: 'termDef', attrs: { nodeId: 'term-with-note' }, content: [
+        { type: 'termName', content: [{ type: 'text', text: '测试术语' }] },
+        { type: 'termDefinition', content: [{ type: 'footnoteRef', attrs: { nodeId: 'term-note', content: [{ type: 'text', text: '术语内非法脚注' }] } }] },
+      ] })
+    }
+    const invalid = schema.nodeFromJSON(json)
+    invalid.check()
+    expect(() => serializeToXml(invalid)).toThrow(XmlFootnoteValidationError)
+    expect(() => serializeToXml(invalid)).toThrow(/脚注校验未通过/)
+    expect(serializeToXml(valid)).toBe(expected)
+  })
+
+  it('缺少 toJSON 的旧调用不能生成带伪造标签的脚注 XML', () => {
+    const schema = getSchema(createEditorExtensions())
+    const valid = schema.nodeFromJSON(parseXmlToEditorJson(sourceXml, schema.topNodeType.name))
+    const legacy = { type: valid.type, attrs: valid.attrs, forEach: valid.forEach.bind(valid) } as unknown as PMNode
+    expect(() => serializeToXml(legacy)).toThrow(XmlFootnoteValidationError)
+    expect(serializeToXml(valid)).toContain('<fn id="fn_1">')
+  })
+
   it('正文 xref+fn 折叠成一个 atom，保留富文本；表脚注多次引用同一稳定目标', () => {
     const schema = getSchema(createEditorExtensions())
     const imported = schema.nodeFromJSON(parseXmlToEditorJson(sourceXml, schema.topNodeType.name))

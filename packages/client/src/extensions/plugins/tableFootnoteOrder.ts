@@ -62,7 +62,8 @@ function footnoteRowReorders(doc: PMNode): FootnoteRowReorder[] {
       }
       offset += child.nodeSize
     }
-    return false
+    // Continue into cells: nested tables need their own pass, while tableReferenceOrder()
+    // deliberately excludes their references from the current table's ordering.
   })
   return reorders
 }

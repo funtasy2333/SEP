@@ -72,3 +72,15 @@
 ## 编辑区识别提示补充
 
 2026-10-02 根据用户实测反馈，SES 表注区使用蓝灰背景、色条及“表注”名称，表脚注区使用淡紫背景、色条及“表脚注”名称；旧 tableFootnote 表注也适用。样式仅匹配 `.ProseMirror` 编辑区，名称为 CSS 生成内容，不写入 JSON/XML，不改变 DOCX 或 Vivliostyle 输出。客户端构建通过，浏览器核验两区的计算样式和名称，并保留 `tmp-e2e/footnotes/editor-note-regions.png`。
+
+## Codex Review 后续修复
+
+本轮审查确认三条 P2，均针对客户端编辑/序列化边界，不改变正式渲染版式：
+
+| 审查意见 | 修复与回归 |
+|---|---|
+| 外表引用选项/命令混入内表定义 | 选项与命令共同使用只读取当前表直属 `tableFootnoteRow` 的 helper；真实 Tiptap 回归验证内外表双向拒绝跨表目标、原文不变、各自有效引用仍成功 |
+| 内表定义排序被外表遍历截断 | 外表处理后继续进入子树，各张表仍独立收集自己的引用；真实内表首次引用反转及撤销/重做回归验证内表定义重排、外表定义不变 |
+| XML serializer 忽略脚注关联错误 | 序列化入口统一拒绝 `dangling-footnote`、`unreferenced-footnote`、`invalid-footnote`，避免版本保存/源码复制绕过 UI 导出检查；有效 XML 往返保持不变 |
+
+嵌套表格两项新增回归先在修复前失败，再在修复后通过。本轮客户端22个文件120项测试通过，client build通过（保留既有大chunk警告），`git diff --check`通过。XML入口新增7项回归，包括异常后有效文稿仍可完整序列化、缺少toJSON的旧调用拒绝生成脚注；版本保存对脚注校验错误中止，源码复制在写剪贴板前检查。日志为 `/private/tmp/sep-pr42-client-review.log` 与 `/private/tmp/sep-pr42-client-review-build.log`。本轮未改shared/server及DOCX/PDF版式；不把手动标记 resolved 等同于 Codex 复审通过。

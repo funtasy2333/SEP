@@ -164,6 +164,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useVersionStore } from '@/stores/version'
 import { useDocumentStore } from '@/stores/document'
 import { serializeToXml } from '@/serializer'
+import { XmlFootnoteValidationError } from '@/serializer/xmlSerializer'
 import { diffDocuments, type DiffResult } from '@/utils/docDiff'
 import type { VersionData } from '@/api/version'
 
@@ -278,8 +279,9 @@ async function handleCreateVersion() {
         // 尝试使用 ProseMirror doc 序列化 XML
         xml = serializeToXml(doc as Parameters<typeof serializeToXml>[0])
       }
-    } catch {
-      // XML 序列化失败不影响版本创建
+    } catch (error) {
+      if (error instanceof XmlFootnoteValidationError) throw error
+      // Preserve legacy fallback for other XML failures; invalid footnote links block saving.
     }
 
     await versionStore.createVersion({

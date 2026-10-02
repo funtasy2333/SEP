@@ -22,6 +22,18 @@ declare module '@tiptap/core' {
   }
 }
 
+/** Only the active table's direct definition row owns its footnote targets. */
+export function getTableFootnoteEntries(table: PMNode): PMNode[] {
+  const entries: PMNode[] = []
+  table.forEach((child) => {
+    if (child.type.name !== 'tableFootnoteRow') return
+    child.forEach((entry) => {
+      if (entry.type.name === 'tableFootnoteEntry') entries.push(entry)
+    })
+  })
+  return entries
+}
+
 /**
  * 标准表格节点
  * 包裹表格，添加中/英文表标题和表注
@@ -180,13 +192,8 @@ export const StdTable = Node.create({
         ({ state, dispatch }) => {
           const location = findActiveStdTable(state.selection.$from)
           if (!location || !selectionInsideTableCell(state.selection.$from)) return false
-          let targetExists = false
-          location.node.descendants((node) => {
-            if (node.type.name === 'tableFootnoteEntry' && node.attrs.nodeId === targetId) {
-              targetExists = true
-              return false
-            }
-          })
+          const targetExists = getTableFootnoteEntries(location.node)
+            .some((entry) => entry.attrs.nodeId === targetId)
           if (!targetExists) return false
           const pos = state.selection.to
           const ref = state.schema.nodes.tableFootnoteRef.create({ nodeId: generateNodeId(), targetId })

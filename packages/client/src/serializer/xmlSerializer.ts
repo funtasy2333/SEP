@@ -12,6 +12,13 @@ import { normalizePageOrientation } from '../utils/orientation'
 
 let activeFootnoteLabels: Record<string, ResolvedLabel> = {}
 
+export class XmlFootnoteValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'XmlFootnoteValidationError'
+  }
+}
+
 /** 缩进辅助 */
 function indent(depth: number): string {
   return '  '.repeat(depth)
@@ -48,8 +55,23 @@ export function serializeToXml(doc: PMNode): string {
   // take the resolver-backed path so footnote numbering and XML IDs remain shared.
   if (typeof doc.toJSON === 'function') {
     const { doc: irDoc } = pmToIr(doc.toJSON() as PMJsonNode)
-    activeFootnoteLabels = resolve(irDoc).labels
+    const resolved = resolve(irDoc)
+    const errors = resolved.problems.filter(problem =>
+      problem.severity === 'error' && ['dangling-footnote', 'unreferenced-footnote', 'invalid-footnote'].includes(problem.code))
+    if (errors.length) {
+      throw new XmlFootnoteValidationError(`脚注校验未通过，不能生成 XML：${[...new Set(errors.map(problem => problem.message))].join('；')}`)
+    }
+    activeFootnoteLabels = resolved.labels
   } else {
+    // Minimal legacy trees have no Resolver context. Never invent IDs/labels for footnotes.
+    const hasFootnote = (node: PMNode): boolean => {
+      if (['footnoteRef', 'tableFootnoteRef', 'tableFootnoteEntry'].includes(node.type.name)) return true
+      if (node.isText || typeof node.forEach !== 'function') return false
+      let found = false
+      node.forEach(child => { if (hasFootnote(child)) found = true })
+      return found
+    }
+    if (hasFootnote(doc)) throw new XmlFootnoteValidationError('脚注 XML 序列化需要可验证的完整文档，不能使用缺少 toJSON 的文档树。')
     activeFootnoteLabels = {}
   }
   try {

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { pmToIr, resolve, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from '../editorExtensions'
 import { parseXmlToEditorJson } from '../../serializer/xmlParser'
+import { getTableFootnoteEntries } from './std-table'
 
 const editors: Editor[] = []
 
@@ -76,6 +77,81 @@ afterEach(() => {
 })
 
 describe('脚注编辑 schema 与命令', () => {
+  function nestedTableDocument(reverseInner = false): PMJsonNode {
+    const ref = (id: string) => ({ type: 'tableFootnoteRef', attrs: { nodeId: `ref-${id}`, targetId: id } })
+    const entry = (id: string) => ({ type: 'tableFootnoteEntry', attrs: { nodeId: id }, content: [{ type: 'text', text: `定义 ${id}` }] })
+    const paragraph = (text: string, ids: string[]) => ({ type: 'paragraph', content: [{ type: 'text', text }, ...ids.map(ref)] })
+    const inner = {
+      type: 'stdTable', attrs: { nodeId: 'inner-table' }, content: [
+        { type: 'tableCaption', content: [{ type: 'text', text: '内表' }] },
+        { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [paragraph('内表文本', reverseInner ? ['inner-b', 'inner-a'] : ['inner-a', 'inner-b'])] }] }] },
+        { type: 'tableFootnoteRow', content: [entry('inner-a'), entry('inner-b')] },
+      ],
+    }
+    return { type: 'doc', content: [{ type: 'chapter', content: [
+      { type: 'chapterTitle', content: [{ type: 'text', text: '嵌套表格验收' }] },
+      { type: 'stdTable', attrs: { nodeId: 'outer-table' }, content: [
+        { type: 'tableCaption', content: [{ type: 'text', text: '外表' }] },
+        { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [paragraph('外表文本', ['outer-a']), inner] }] }] },
+        { type: 'tableFootnoteRow', content: [entry('outer-a')] },
+      ] },
+    ] }] }
+  }
+
+  it('嵌套表格的定义不进入外表引用选项，命令双向拒绝跨表目标', () => {
+    const editor = createEditor()
+    editor.commands.setContent(nestedTableDocument())
+    const tableById = (id: string) => {
+      let found: import('@tiptap/pm/model').Node | undefined
+      editor.state.doc.descendants((node) => { if (node.attrs.nodeId === id) found = node })
+      if (!found) throw new Error(`找不到表 ${id}`)
+      return found
+    }
+    expect(getTableFootnoteEntries(tableById('outer-table')).map(node => node.attrs.nodeId)).toEqual(['outer-a'])
+    expect(getTableFootnoteEntries(tableById('inner-table')).map(node => node.attrs.nodeId)).toEqual(['inner-a', 'inner-b'])
+    const selectParagraph = (text: string) => {
+      let position = -1
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === 'paragraph' && node.textContent === text) position = pos + 1
+      })
+      if (position < 0) throw new Error(`找不到段落 ${text}`)
+      editor.commands.setTextSelection(position)
+    }
+    selectParagraph('外表文本')
+    const before = editor.getJSON()
+    expect(editor.commands.insertTableFootnoteRef({ targetId: 'inner-a' })).toBe(false)
+    expect(editor.getJSON()).toEqual(before)
+    expect(editor.commands.insertTableFootnoteRef({ targetId: 'outer-a' })).toBe(true)
+    selectParagraph('内表文本')
+    expect(editor.commands.insertTableFootnoteRef({ targetId: 'outer-a' })).toBe(false)
+    expect(editor.commands.insertTableFootnoteRef({ targetId: 'inner-a' })).toBe(true)
+    expect(resolve(pmToIr(editor.getJSON() as PMJsonNode).doc).problems.filter(p => p.code.includes('footnote'))).toEqual([])
+  })
+
+  it('嵌套表格独立重排定义，撤销重做不影响外表目标与定义', () => {
+    const editor = createEditor()
+    editor.commands.setContent(nestedTableDocument(true))
+    const entries = (id: string) => {
+      let table: import('@tiptap/pm/model').Node | undefined
+      editor.state.doc.descendants((node) => { if (node.attrs.nodeId === id) table = node })
+      return getTableFootnoteEntries(table!).map(node => node.attrs.nodeId)
+    }
+    expect(entries('inner-table')).toEqual(['inner-b', 'inner-a'])
+    expect(entries('outer-table')).toEqual(['outer-a'])
+    const refs: number[] = []
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'tableFootnoteRef' && String(node.attrs.targetId).startsWith('inner-')) refs.push(pos)
+    })
+    editor.view.dispatch(closeHistory(editor.state.tr))
+    editor.view.dispatch(editor.state.tr.setNodeAttribute(refs[0]!, 'targetId', 'inner-a').setNodeAttribute(refs[1]!, 'targetId', 'inner-b'))
+    expect(entries('inner-table')).toEqual(['inner-a', 'inner-b'])
+    expect(editor.commands.undo()).toBe(true)
+    expect(entries('inner-table')).toEqual(['inner-b', 'inner-a'])
+    expect(editor.commands.redo()).toBe(true)
+    expect(entries('inner-table')).toEqual(['inner-a', 'inner-b'])
+    expect(entries('outer-table')).toEqual(['outer-a'])
+  })
+
   it('生产 editor schema 注册表注行和脚注行', () => {
     const schema = getSchema(createEditorExtensions())
     expect(schema.nodes.tableFootnoteRow).toBeDefined()

@@ -410,6 +410,7 @@ import VersionPanel from '@/components/version/VersionPanel.vue'
 import { useEditor } from '@tiptap/vue-3'
 import { createEditorExtensions } from '@/extensions/editorExtensions'
 import { canInsertBodyFootnote } from '@/extensions/nodes/footnotes'
+import { getTableFootnoteEntries } from '@/extensions/nodes/std-table'
 import {
   serializeToXml, parseXmlToEditorJson,
   prepareXmlImportDocumentUpdate,
@@ -883,8 +884,7 @@ function collectTableFootnotes(): Array<{ id: string; label: string; text: strin
   const { doc: irDoc } = pmToIr(editor.value.getJSON() as PMJsonNode)
   const labels = resolve(irDoc).labels
   const result: Array<{ id: string; label: string; text: string }> = []
-  table.node.descendants((node) => {
-    if (node.type.name !== 'tableFootnoteEntry') return
+  getTableFootnoteEntries(table.node).forEach((node) => {
     const id = typeof node.attrs.nodeId === 'string' ? node.attrs.nodeId : ''
     if (!id) return
     result.push({
@@ -1359,6 +1359,14 @@ function downloadBlob(blob: Blob, filename: string) {
 
 /** 复制代码内容 */
 function copyCodeContent() {
+  const doc = editor.value?.state.doc
+  if (doc) {
+    const footnoteError = getFootnoteExportError(doc)
+    if (footnoteError) {
+      ElMessage.error(footnoteError)
+      return
+    }
+  }
   const content = codeViewContent.value
   navigator.clipboard.writeText(content).then(() => {
     ElMessage.success('已复制到剪贴板')
