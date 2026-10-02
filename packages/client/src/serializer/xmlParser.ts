@@ -734,8 +734,11 @@ function parseFormula(el: Element): PMJsonNode {
   const texMath = el.querySelector(':scope > tex-math')
   formula.content!.push({
     type: 'formulaContent',
+    // 保留 tex-math 中非法的脚注 atom，由共享 Resolver 报错而非静默丢失。
     content: texMath
-      ? [{ type: 'text', text: texMath.textContent?.trim() || '' }]
+      ? texMath.querySelector('fn, xref[ref-type="fn"], xref[ref-type="table-fn"]')
+        ? parseInlineContent(texMath)
+        : [{ type: 'text', text: texMath.textContent?.trim() || '' }]
       : [],
   })
 

@@ -17,7 +17,7 @@ export function collectFootnotes(doc: IRDoc, bibliographyOrder?: string[]): IRFo
         node.notes.forEach(block)
         break
       case 'figure': node.notes.forEach(block); inlines(node.caption); inlines(node.captionEn ?? []); break
-      case 'formula': for (const item of node.whereList) { inlines(item.term); inlines(item.definition) }; break
+      case 'formula': inlines(node.sourceInlines ?? []); for (const item of node.whereList) { inlines(item.term); inlines(item.definition) }; break
     }
   }
   const child = (node: IRClauseChild): void => {

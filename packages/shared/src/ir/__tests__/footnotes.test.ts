@@ -159,3 +159,48 @@ describe('导入/粘贴的条文脚注位置校验', () => {
     expect(['body-fn', 'list-fn', 'note-fn', 'example-fn'].map(id => result.labels[id]?.label)).toEqual(['1)', '2)', '3)', '4)'])
   })
 })
+
+
+describe('公式主体脚注不在转换为 LaTeX 时丢失', () => {
+  it.each(['only', 'mixed', 'nested'])('%s 公式主体保留脚注并阻断渲染', (scenario) => {
+    const formula = fx.formula('formula-body', '')
+    const footnote = fn('formula-fn')
+    if (scenario === 'nested') footnote.attrs!.content = [fx.text('外层说明'), fn('nested-formula-fn')]
+    formula.content![0]!.content = scenario === 'only' ? [footnote] : [fx.text('x'), footnote, fx.text('+1')]
+    const pm = fx.standardDoc({}, fx.chapter('chapter', '正文', formula))
+    const before = JSON.stringify(pm)
+    const { doc } = pmToIr(pm)
+    expect(JSON.stringify(pm)).toBe(before)
+    expect(collectFootnotes(doc)).toContainEqual({ id: 'formula-fn', content: scenario === 'nested'
+      ? [{ text: '外层说明' }, { text: '', footnote: { id: 'nested-formula-fn', content: [{ text: '脚注说明', marks: [{ type: 'bold' }] }] } }]
+      : [{ text: '脚注说明', marks: [{ type: 'bold' }] }] })
+    const result = resolve(doc)
+    expect(result.problems).toContainEqual(expect.objectContaining({ code: 'invalid-footnote', nodeId: 'formula-body', severity: 'error' }))
+    expect(() => renderHtml(doc, result.labels, { variant: 'print' })).toThrow('脚注关联无效')
+    expect(() => renderDocx(doc, result.labels, { formulaOmml: {}, images: {}, stage: 'approval_draft', createdAt: '2026-10-03T00:00:00Z' })).toThrow('脚注关联无效')
+  })
+})
+
+
+it('IR 表内公式的脚注上标即使目标有效也不能在降为纯 LaTeX 时丢失', () => {
+  const node = table('table-formula', ['target'])
+  const formula = fx.formula('math-with-ref', 'x')
+  formula.content![0]!.content!.push(ref('target'))
+  const doc = docOf(node, formula)
+  const irTable = doc.body[0]!.children[0] as IRTable
+  // 单元格 PM 转换只支持段落/列表；这里明确测试渲染入口直接接收 IR 的边界。
+  irTable.rows[0]!.cells[0]!.content.push(doc.body[0]!.children.pop() as IRFormula)
+  const result = resolve(doc)
+  expect(result.problems.filter(p => p.code === 'invalid-footnote')).toEqual([
+    expect.objectContaining({ nodeId: 'math-with-ref', severity: 'error' }),
+  ])
+  expect(result.problems.filter(p => p.code === 'dangling-footnote' || p.code === 'unreferenced-footnote')).toEqual([])
+  expect(() => renderHtml(doc, result.labels, { variant: 'print' })).toThrow('脚注关联无效')
+  expect(() => renderDocx(doc, result.labels, { formulaOmml: {}, images: {}, stage: 'approval_draft', createdAt: '2026-10-03T00:00:00Z' })).toThrow('脚注关联无效')
+})
+
+it('正常公式保留既有 IR 契约及 LaTeX 文本', () => {
+  const doc = docOf(fx.formula('plain-math', '  x+1  '))
+  expect(doc.body[0]!.children[0]).toEqual({ kind: 'formula', id: 'plain-math', latex: 'x+1', numbered: true, whereList: [] })
+  expect(resolve(doc).problems.filter(p => p.code.includes('footnote'))).toEqual([])
+})

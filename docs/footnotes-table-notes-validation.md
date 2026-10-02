@@ -93,3 +93,12 @@ Codex 针对 `dfdd1a89` 新增一条 P2：XML/JSON 导入的脚注能绕过编�
 本次新增10项共享回归（9种禁止位置以及合法正文/列项/注/示例不受影响），新增7项 XML 导入回归（包括附录标题和仅有脚注的公式说明）。修复前9项共享、6项 XML 回归失败，修复后共享35文件774项、客户端22文件127项测试通过；完整 `pnpm build` 通过，保留既有大 chunk 警告，`git diff --check` 通过。日志为 `/private/tmp/sep-pr42-placement-{shared,client,build}.log`；修复前证据为 `/private/tmp/sep-pr42-placement-before.log` 和 `/private/tmp/sep-pr42-placement-xml-before.log`。验证环境仍为 macOS、Node 22.22.3、pnpm 10.33.0。
 
 本次没有改动正式版式、服务端或转换管线，也未重跑 Word/PDF 人工验收；上文测量与严格 OOXML 结果仍是2026-10-02样稿证据。PR 保持未合并，审查意见修复与 Codex 再次复审结论分别记录。
+
+
+### 2026-10-03 再复审：公式主体中的脚注
+
+Codex 针对 `48e6c00579` 新增一条 P2：`formulaContent` 的行内脚注在转换为纯 LaTeX 时消失，后续 Resolver 无法阻断导出。现在含脚注的公式主体以可选 `sourceInlines` 保留原始行内数据，由 Resolver 报告 `invalid-footnote`，脚注收集器及渲染入口检查也读取该字段。纯 LaTeX 公式的原有 IR 结构保持不变。XML 的 `tex-math` 含脚注时也解析并保留 atom，不再通过 `textContent` 静默删除脚注。
+
+新增5项共享与4项客户端回归：仅脚注/文字与脚注混合/嵌套脚注的公式主体保留 ID、内容和行内格式；真实 ProseMirror schema 接受的粘贴 JSON 在 XML 入口被拒绝；XML 导入亦保留脚注并拒绝再次导出；HTML/DOCX 入口拒绝非法公式；正常公式 IR 保持不变。另以直接构造的 IR 验证表内公式上标即使目标有效也不能在纯 LaTeX 渲染时被抹掉，此项不代表支持单元格 PM 中的公式转换。修复前3项共享、4项客户端新增回归失败；修复后共享35文件779项、客户端22文件131项测试通过，完整构建及 `git diff --check` 通过，保留既有大 chunk 警告。
+
+本次日志为 `/private/tmp/sep-pr42-formula-{shared,client,build}.log`，修复前证据为 `/private/tmp/sep-pr42-formula-before-{shared,client}.log`。环境仍为 macOS、Node 22.22.3、pnpm 10.33.0；本次未重跑服务端测试和 Word/PDF 人工验收，未改版式或转换管线。PR 未合并，后续复审结论单独报告。

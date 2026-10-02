@@ -79,7 +79,7 @@ function blockHasFootnoteSyntax(block: IRBlock): boolean {
       block.notes.some((note) => note.content.some(blockHasFootnoteSyntax))
     case 'figure': return inlineHasFootnote(block.caption) || inlineHasFootnote(block.captionEn ?? []) ||
       block.notes.some((note) => note.content.some(blockHasFootnoteSyntax))
-    case 'formula': return block.whereList.some((item) => inlineHasFootnote(item.term) || inlineHasFootnote(item.definition))
+    case 'formula': return inlineHasFootnote(block.sourceInlines ?? []) || block.whereList.some((item) => inlineHasFootnote(item.term) || inlineHasFootnote(item.definition))
   }
 }
 

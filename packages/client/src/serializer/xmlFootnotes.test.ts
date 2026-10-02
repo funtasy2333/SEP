@@ -183,6 +183,8 @@ describe('XML 导入的非法脚注位置不能再次导出', () => {
     ['条标题', `<sec id="ch"><title>章</title><sec id="cl"><title>条${noteXml}</title><p>正文</p></sec></sec>`],
     ['图题', `<sec id="ch"><title>章</title><fig id="fig"><graphic href="image.png"/><caption><title>图${noteXml}</title></caption></fig></sec>`],
     ['英文图题', `<sec id="ch"><title>章</title><fig id="fig"><graphic href="image.png"/><caption><title xml:lang="en">Figure${noteXml}</title></caption></fig></sec>`],
+    ['公式主体', `<sec id="ch"><title>章</title><disp-formula id="formula"><tex-math>x${noteXml}+1</tex-math></disp-formula></sec>`],
+    ['仅有脚注的公式主体', `<sec id="ch"><title>章</title><disp-formula id="formula"><tex-math>${noteXml}</tex-math></disp-formula></sec>`],
     ['公式说明', `<sec id="ch"><title>章</title><disp-formula id="formula"><tex-math>x</tex-math><def-list><p>式中：x——变量${noteXml}</p></def-list></disp-formula></sec>`],
     ['仅有脚注的公式说明', `<sec id="ch"><title>章</title><disp-formula id="formula"><tex-math>x</tex-math><def-list><p>${noteXml}</p></def-list></disp-formula></sec>`],
   ]
@@ -196,5 +198,25 @@ describe('XML 导入的非法脚注位置不能再次导出', () => {
     expect(findNodes(imported, 'footnoteRef')).toHaveLength(1)
     expect(findNodes(imported, 'footnoteRef')[0]!.attrs.content).toEqual([{ type: 'text', text: '保留的非法位置说明' }])
     expect(() => serializeToXml(imported)).toThrow(XmlFootnoteValidationError)
+  })
+})
+
+
+describe('粘贴 JSON 的公式主体脚注校验', () => {
+  it.each([false, true])('只含脚注=%s 的合法 schema 节点仍拒绝 XML 输出', (onlyFootnote) => {
+    const schema = getSchema(createEditorExtensions())
+    const valid = schema.nodeFromJSON(parseXmlToEditorJson(sourceXml, schema.topNodeType.name))
+    const json = structuredClone(valid.toJSON()) as PMJsonNode
+    const chapter = json.content!.find(node => node.type === 'chapter')!
+    const note: PMJsonNode = { type: 'footnoteRef', attrs: { nodeId: 'formula-body-fn', content: [{ type: 'text', text: '公式主体中的说明' }] } }
+    chapter.content!.push({ type: 'formula', attrs: { nodeId: 'formula-body' }, content: [
+      { type: 'formulaContent', content: onlyFootnote ? [note] : [{ type: 'text', text: 'x' }, note, { type: 'text', text: '+1' }] },
+    ] })
+    const pasted = schema.nodeFromJSON(json)
+    pasted.check()
+    const before = pasted.toJSON()
+    expect(() => serializeToXml(pasted)).toThrow(XmlFootnoteValidationError)
+    expect(pasted.toJSON()).toEqual(before)
+    expect(serializeToXml(valid)).toContain('<fn id="fn_1">')
   })
 })

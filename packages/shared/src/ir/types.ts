@@ -128,6 +128,8 @@ export interface IRFormula {
   kind: 'formula'
   id: NodeId
   latex: string
+  /** 含脚注的公式主体原始行内数据，保留到 Resolver 校验；纯 LaTeX 时省略。 */
+  sourceInlines?: IRInline[]
   numbered: boolean
   /** 「式中：」键值对（NISO STS: disp-formula > legend > def-list） */
   whereList: { id: NodeId; term: IRInline[]; definition: IRInline[] }[]

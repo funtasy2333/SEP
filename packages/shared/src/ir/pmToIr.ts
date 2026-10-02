@@ -467,12 +467,15 @@ export function parseWhereList(
 function convertFormula(node: PMJsonNode, ctx: Ctx): IRFormula {
   const id = ctx.id(node)
   const content = node.content?.find((c) => c.type === 'formulaContent')
-  const latex = plainText(convertInlines(content?.content, ctx)).trim()
+  const sourceInlines = convertInlines(content?.content, ctx)
+  const latex = plainText(sourceInlines).trim()
   const desc = node.content?.find((c) => c.type === 'formulaDescription')
   return {
     kind: 'formula',
     id,
     latex,
+    // 不能让 plainText 丢掉脚注 atom，所有出口必须仍能校验其位置。
+    ...(sourceInlines.some(run => run.footnote || run.marks?.some(mark => mark.type === 'tableFootnoteRef')) ? { sourceInlines } : {}),
     numbered: true,
     whereList: desc ? parseWhereList(convertInlines(desc.content, ctx), id) : [],
   }

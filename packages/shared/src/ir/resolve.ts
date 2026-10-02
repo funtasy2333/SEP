@@ -103,7 +103,7 @@ class ResolveCtx {
 // ---------- 行内（收集交叉引用） ----------
 
 // 与编辑器 canInsertBodyFootnote 保持一致；图中的限制沿块级子树传递。
-type ForbiddenFootnoteContainer = '标题' | '图' | '公式说明'
+type ForbiddenFootnoteContainer = '标题' | '图' | '公式主体' | '公式说明'
 
 function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx, forbiddenContainer?: ForbiddenFootnoteContainer): void {
   for (const run of inlines) {
@@ -232,6 +232,13 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
           ? `${ctx.appendixLetter}.${ctx.formulaSeq}`
           : String(ctx.formulaSeq)
         ctx.setLabel(block.id, label, `formula_${num}`, `公式${label}`)
+      }
+      if (block.sourceInlines) {
+        visitInlines(block.sourceInlines, block.id, ctx, '公式主体')
+        // 表内公式的上标也不能在纯 LaTeX 渲染时被静默抹掉。
+        if (block.sourceInlines.some(run => run.marks?.some(mark => mark.type === 'tableFootnoteRef'))) {
+          ctx.problems.push({ code: 'invalid-footnote', nodeId: block.id, severity: 'error', message: '公式主体中不能插入表脚注上标' })
+        }
       }
       for (const item of block.whereList) {
         ctx.registerId(item.id)
