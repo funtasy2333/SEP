@@ -63,6 +63,11 @@ export function setClauseFormat(editor: Editor, level: number, hasTitle = true):
   }
   // Clauses belong to a chapter/appendix, never to a table, term, foreword or the root.
   if (hostDepth === 0) return false
+  const host = $from.node(hostDepth)
+  const expectedLevel = host.type.name === 'clause' ? host.attrs.level + 1 : 1
+  // A lower ancestor alone is insufficient: missing intermediate levels yield
+  // heading-skip warnings and incomplete numbering in the exported document.
+  if (level !== expectedLevel) return false
 
   const tr = state.tr
   let clausePos: number

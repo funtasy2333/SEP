@@ -665,13 +665,13 @@ function getInsertRange(): { from: number; to: number } | null {
 // === 工具栏：条 ===
 function handleInsertClause(level: string) {
   if (editor.value && !setClauseFormat(editor.value, Number(level))) {
-    ElMessage.warning('请将光标或选中文字置于章节正文段落或条标题内')
+    ElMessage.warning('请在章或附录内设置一级条，或在上一级条内设置下一级条；光标或选区须位于同一段落或条标题')
   }
 }
 
 function handleInsertClauseNoTitle(level: string) {
   if (editor.value && !setClauseFormat(editor.value, Number(level), false)) {
-    ElMessage.warning('请将光标或选中文字置于章节正文段落或条标题内')
+    ElMessage.warning('请在章或附录内设置一级条，或在上一级条内设置下一级条；光标或选区须位于同一段落或条标题')
   }
 }
 

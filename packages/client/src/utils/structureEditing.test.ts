@@ -141,6 +141,21 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     e.state.doc.check()
   })
 
+  it('拒绝缺少上级条的层级跳跃，正文、已有标题与编号结构保持不变', () => {
+    const e = editor([p('direct', '章下段落'), clause('first', '已有一级条', [p('nested', '条内段落')])])
+    select(e, '章下段落')
+    const original = e.getJSON()
+    for (const level of [2, 3, 4, 5]) expect(setClauseFormat(e, level)).toBe(false)
+    select(e, '已有一级条')
+    expect(setClauseFormat(e, 4)).toBe(false)
+    select(e, '条内段落')
+    for (const level of [3, 4, 5]) expect(setClauseFormat(e, level)).toBe(false)
+    expect(e.getJSON()).toEqual(original)
+    expect(setClauseFormat(e, 2)).toBe(true)
+    expect(clauseByTitle(e, '条内段落').parent?.attrs.level).toBe(1)
+    e.state.doc.check()
+  })
+
   it('附录段落可以覆盖为条，表格单元格里的段落不误转为章条', () => {
     const e = editor([])
     e.commands.setContent({ type: 'doc', content: [{ type: 'appendix', attrs: { nodeId: 'appendix' }, content: [
