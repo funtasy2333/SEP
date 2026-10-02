@@ -70,7 +70,7 @@
           <!-- 结构要素 -->
           <div class="tbar-group">
             <el-dropdown trigger="click" @command="handleInsertClause">
-              <button class="tbar-btn">条 <el-icon><ArrowDownIcon /></el-icon></button>
+              <button class="tbar-btn" title="将当前段落或条标题设为所选层级">条 <el-icon><ArrowDownIcon /></el-icon></button>
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item v-for="lv in 5" :key="lv" :command="String(lv)">{{ ['一','二','三','四','五'][lv-1] }}级条</el-dropdown-item>
@@ -79,7 +79,7 @@
             </el-dropdown>
 
             <el-dropdown trigger="click" @command="handleInsertClauseNoTitle">
-              <button class="tbar-btn">无题条 <el-icon><ArrowDownIcon /></el-icon></button>
+              <button class="tbar-btn" title="将当前段落或条标题设为无题条">无题条 <el-icon><ArrowDownIcon /></el-icon></button>
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item v-for="lv in 4" :key="lv" :command="String(lv)">{{ ['一','二','三','四'][lv-1] }}级无题条</el-dropdown-item>
@@ -270,7 +270,8 @@
           <li><kbd>/</kbd> 智能插入菜单</li>
         </ul>
         <h4>文档结构</h4>
-        <p>使用左上角"+"按钮添加章节结构（前言、引言、章、附录、参考文献）。使用工具栏按钮插入条、列项、注、示例、公式、表格、图片等内容要素。选中图或表后，可切换纵向或横向版面。</p>
+        <p>使用左上角"+"按钮添加章节结构（前言、引言、章、附录、参考文献）。点击正文段落或选中其中的文字后，使用“条”“无题条”设置整段格式；点击条标题可修改其层级，使用“段落”恢复段落格式。需要新条时，先回车建立空段再设置格式。</p>
+        <p>术语中英文名称同列显示：Tab 从中文名进入英文名，Enter 进入定义；在定义中 Enter 新建续段，末尾空续段再次 Enter 退出术语。使用工具栏插入列项、注、示例、公式、表格、图片等内容要素。选中图或表后，可切换纵向或横向版面。</p>
       </div>
     </el-dialog>
 
@@ -331,6 +332,7 @@
 
 <script setup lang="ts">
 import { createDefaultDocumentContent } from '@/utils/newDocument'
+import { setClauseFormat, setParagraphFormat } from '@/utils/structureEditing'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { useRoute, useRouter } from 'vue-router'
@@ -603,7 +605,7 @@ function handleAddStructure(command: string) {
             { type: 'chapterTitle' },
             { type: 'stdParagraph' },
           ],
-        }).setTextSelection(insertAt + 2).run()
+        }).setTextSelection(insertAt + 2).scrollIntoView().run()
       }
       break
     case 'appendixNorm':
@@ -662,43 +664,15 @@ function getInsertRange(): { from: number; to: number } | null {
 
 // === 工具栏：条 ===
 function handleInsertClause(level: string) {
-  const range = getInsertRange()
-  if (range === null) {
-    ElMessage.warning('请先将光标置于章节内部再插入条')
-    return
+  if (editor.value && !setClauseFormat(editor.value, Number(level))) {
+    ElMessage.warning('请将光标或选中文字置于章节正文段落或条标题内')
   }
-  const lv = Number(level)
-  const { tr } = editor.value!.state
-  const schema = editor.value!.state.schema
-  const clauseNode = schema.nodes.clause.create(
-    { level: lv, hasTitle: true },
-    [schema.nodes.clauseTitle.create({ level: lv }, [])],
-  )
-  tr.replaceWith(range.from, range.to, clauseNode)
-  // 光标放到 clauseTitle 内部: from + clause(+1) + clauseTitle(+1)
-  tr.setSelection(TextSelection.create(tr.doc, range.from + 2))
-  editor.value!.view.dispatch(tr)
-  editor.value!.view.focus()
 }
 
 function handleInsertClauseNoTitle(level: string) {
-  const range = getInsertRange()
-  if (range === null) {
-    ElMessage.warning('请先将光标置于章节内部再插入无题条')
-    return
+  if (editor.value && !setClauseFormat(editor.value, Number(level), false)) {
+    ElMessage.warning('请将光标或选中文字置于章节正文段落或条标题内')
   }
-  const lv = Number(level)
-  const { tr } = editor.value!.state
-  const schema = editor.value!.state.schema
-  const clauseNode = schema.nodes.clause.create(
-    { level: lv, hasTitle: false },
-    [schema.nodes.clauseTitle.create({ level: lv }, [])],
-  )
-  tr.replaceWith(range.from, range.to, clauseNode)
-  // 光标放到 clauseTitle 内部
-  tr.setSelection(TextSelection.create(tr.doc, range.from + 2))
-  editor.value!.view.dispatch(tr)
-  editor.value!.view.focus()
 }
 
 // === 工具栏：表格 ===
@@ -816,51 +790,11 @@ function getInsertAfterCurrentBlock(): number | null {
   return $from.after($from.depth)
 }
 
-/**
- * 尝试将当前所在的块节点替换为目标类型，若无法替换则返回 false
- * 可替换的块：clause, note, example, stdParagraph
- */
-function replaceCurrentBlock(targetType: string, targetContent?: object): boolean {
-  if (!editor.value) return false
-  const { $from } = editor.value.state.selection
-  const replaceableTypes = ['clause', 'note', 'example', 'stdParagraph']
-  for (let d = $from.depth; d > 0; d--) {
-    const node = $from.node(d)
-    if (!replaceableTypes.includes(node.type.name)) continue
-    // 已经是目标类型，无需替换
-    if (node.type.name === targetType) return false
-    const nodeStart = $from.before(d)
-    const schema = editor.value.state.schema
-    const targetNodeType = schema.nodes[targetType]
-    if (!targetNodeType) return false
-    // 提取纯文本内容
-    const text = node.textContent
-    let newNode
-    try {
-      newNode = targetNodeType.create(
-        targetContent || null,
-        text ? [schema.text(text)] : [],
-      )
-    } catch {
-      return false
-    }
-    const { tr } = editor.value.state
-    tr.replaceWith(nodeStart, nodeStart + node.nodeSize, newNode)
-    // 将光标移入新节点内容区
-    tr.setSelection(TextSelection.near(tr.doc.resolve(nodeStart + 1)))
-    editor.value.view.dispatch(tr)
-    return true
-  }
-  return false
-}
-
-// === 段落 ===
+// === 段落：格式覆盖保留条正文，已是段落时不新增空段 ===
 function insertStdParagraph() {
-  // 如果当前块是可替换类型，则替换；否则插入新段落
-  if (replaceCurrentBlock('stdParagraph')) return
-  const pos = getInsertAfterCurrentBlock()
-  if (pos === null) return
-  editor.value!.chain().focus().insertContentAt(pos, { type: 'stdParagraph' }).run()
+  if (editor.value && !setParagraphFormat(editor.value)) {
+    ElMessage.warning('请将光标或选中文字置于段落、条标题、注或示例内')
+  }
 }
 
 // === 公式 ===

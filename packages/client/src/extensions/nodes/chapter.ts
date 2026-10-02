@@ -68,7 +68,7 @@ export const Chapter = Node.create({
 
 /**
  * 章标题节点
- * 渲染为 h1 级别标题
+ * 渲染为 h2；编辑时编号与可输入的标题分开
  */
 export const ChapterTitle = Node.create({
   name: 'chapterTitle',
@@ -85,5 +85,23 @@ export const ChapterTitle = Node.create({
       mergeAttributes(HTMLAttributes, { 'data-type': 'chapter-title', class: 'std-chapter-title' }),
       0,
     ]
+  },
+  addNodeView() {
+    return ({ HTMLAttributes }) => {
+      const dom = document.createElement('h2')
+      const attributes = mergeAttributes(HTMLAttributes, {
+        'data-type': 'chapter-title', class: 'std-chapter-title',
+      })
+      for (const [name, value] of Object.entries(attributes)) dom.setAttribute(name, String(value))
+      // Numbering is a display label, never an editable cursor position.
+      const number = document.createElement('span')
+      number.className = 'std-chapter-number'
+      number.contentEditable = 'false'
+      number.setAttribute('aria-hidden', 'true')
+      const contentDOM = document.createElement('span')
+      contentDOM.className = 'std-chapter-title-content'
+      dom.append(number, contentDOM)
+      return { dom, contentDOM }
+    }
   },
 })

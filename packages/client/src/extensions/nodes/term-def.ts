@@ -1,5 +1,133 @@
 import { Node, mergeAttributes } from '@tiptap/core'
-import type { DOMOutputSpec } from '@tiptap/pm/model'
+import type { Editor } from '@tiptap/core'
+import type { DOMOutputSpec, Node as PMNode, ResolvedPos } from '@tiptap/pm/model'
+import { TextSelection } from '@tiptap/pm/state'
+
+type TermFieldName = 'termName' | 'termNameEn' | 'termDefinition'
+
+interface TermFieldPosition {
+  node: PMNode
+  start: number
+  contentStart: number
+}
+
+function termDepthAt($pos: ResolvedPos): number {
+  for (let depth = $pos.depth; depth > 0; depth--) {
+    if ($pos.node(depth).type.name === 'termDef') return depth
+  }
+  return -1
+}
+
+function findTermField(
+  term: PMNode,
+  termStart: number,
+  fieldName: TermFieldName,
+): TermFieldPosition | undefined {
+  let result: TermFieldPosition | undefined
+  term.forEach((child, offset) => {
+    if (!result && child.type.name === fieldName) {
+      const start = termStart + 1 + offset
+      result = { node: child, start, contentStart: start + 1 }
+    }
+  })
+  return result
+}
+
+function selectTermField(editor: Editor, field: TermFieldPosition): boolean {
+  const tr = editor.state.tr.setSelection(TextSelection.create(editor.state.doc, field.contentStart))
+  editor.view.dispatch(tr.scrollIntoView())
+  return true
+}
+
+function handleTermEnter(editor: Editor): boolean {
+  const { state } = editor
+  const { $from, $to } = state.selection
+  const fieldName = $from.parent.type.name
+
+  if (fieldName === 'termName' || fieldName === 'termNameEn') {
+    const depth = termDepthAt($from)
+    if (depth < 0) return false
+    const term = $from.node(depth)
+    const definition = findTermField(term, $from.before(depth), 'termDefinition')
+    return definition ? selectTermField(editor, definition) : false
+  }
+
+  if (fieldName === 'termDefinition') {
+    // Keep the split within a single definition block; a cross-block selection
+    // is left to ProseMirror's regular Enter handling.
+    if ($to.parent !== $from.parent) return false
+    const paragraphType = state.schema.nodes.stdParagraph
+    if (!paragraphType) return false
+    const tr = state.tr
+    if (!state.selection.empty) tr.deleteSelection()
+    const splitAt = tr.selection.from
+    tr.split(splitAt, 1, [{ type: paragraphType }])
+    editor.view.dispatch(tr.scrollIntoView())
+    return true
+  }
+
+  if (fieldName === 'stdParagraph' && state.selection.empty && $from.parent.content.size === 0) {
+    const depth = termDepthAt($from)
+    if (depth < 0) return false
+    const term = $from.node(depth)
+    const continuation = $from.parent
+    // An empty final continuation paragraph is the explicit way out of a term.
+    // Empty paragraphs before notes, examples, or other continuation content stay in place.
+    if (term.lastChild !== continuation) return false
+    const continuationPos = $from.before($from.depth)
+    const termStart = $from.before(depth)
+    const insertPos = termStart + term.nodeSize - continuation.nodeSize
+    const nextParagraph = state.schema.nodes.stdParagraph?.create()
+    if (!nextParagraph) return false
+    const tr = state.tr.delete(continuationPos, continuationPos + continuation.nodeSize)
+    tr.insert(insertPos, nextParagraph)
+    tr.setSelection(TextSelection.create(tr.doc, insertPos + 1))
+    editor.view.dispatch(tr.scrollIntoView())
+    return true
+  }
+
+  return false
+}
+
+function handleTermTab(editor: Editor): boolean {
+  const { state } = editor
+  const { $from } = state.selection
+  if ($from.parent.type.name !== 'termName' && $from.parent.type.name !== 'termNameEn') return false
+
+  const depth = termDepthAt($from)
+  if (depth < 0) return false
+  const term = $from.node(depth)
+  const termStart = $from.before(depth)
+
+  if ($from.parent.type.name === 'termNameEn') {
+    const definition = findTermField(term, termStart, 'termDefinition')
+    return definition ? selectTermField(editor, definition) : false
+  }
+
+  const english = findTermField(term, termStart, 'termNameEn')
+  if (english) return selectTermField(editor, english)
+
+  const chinese = findTermField(term, termStart, 'termName')
+  const englishType = state.schema.nodes.termNameEn
+  if (!chinese || !englishType) return false
+  const insertPos = chinese.start + chinese.node.nodeSize
+  const englishNode = englishType.create()
+  const tr = state.tr.insert(insertPos, englishNode)
+  tr.setSelection(TextSelection.create(tr.doc, insertPos + 1))
+  editor.view.dispatch(tr.scrollIntoView())
+  return true
+}
+
+function handleTermShiftTab(editor: Editor): boolean {
+  const { state } = editor
+  const { $from } = state.selection
+  if ($from.parent.type.name !== 'termNameEn') return false
+
+  const depth = termDepthAt($from)
+  if (depth < 0) return false
+  const chinese = findTermField($from.node(depth), $from.before(depth), 'termName')
+  return chinese ? selectTermField(editor, chinese) : false
+}
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -57,6 +185,9 @@ export const TermDef = Node.create({
 
   addKeyboardShortcuts() {
     return {
+      Enter: ({ editor }) => handleTermEnter(editor),
+      Tab: ({ editor }) => handleTermTab(editor),
+      'Shift-Tab': ({ editor }) => handleTermShiftTab(editor),
       Backspace: ({ editor }) => {
         const { $from } = editor.state.selection
         // 光标在 termName 开头时，删除整个 termDef

@@ -11,8 +11,29 @@
   margin: 24px 0 16px;
 }
 
-.std-chapter-title::before {
+.std-chapter-title:not(:has(> .std-chapter-number))::before,
+.std-chapter-number::before {
   content: counter(std-chapter) '\2003';
+}
+
+.std-chapter-title-content {
+  display: inline;
+}
+
+.std-chapter-title-content:has(> .ProseMirror-trailingBreak:only-child) {
+  display: inline-block;
+  min-width: 8em;
+}
+
+.std-chapter-title-content:has(> .ProseMirror-trailingBreak:only-child)::before {
+  content: '请输入章标题';
+  color: var(--ses-ink-3);
+  font-weight: normal;
+  pointer-events: none;
+}
+
+.std-chapter-title-content > .ProseMirror-trailingBreak:only-child {
+  display: none;
 }
 
 /* 一级条 */
@@ -127,6 +148,7 @@
 
 /* 术语名（标题）：黑体 */
 .std-term-name {
+  display: inline;
   font-family: 'SimHei', 'Heiti SC', sans-serif;
   font-weight: bold;
   font-size: 14px;
@@ -135,10 +157,19 @@
 
 /* 术语英文名 */
 .std-term-name-en {
+  display: inline;
+  margin-left: 0.75em;
   font-style: italic;
   font-size: 13px;
   color: #555;
   margin-bottom: 2px;
+}
+
+/* Empty name fields need a caret slot without creating another title line. */
+.std-term-name:has(> .ProseMirror-trailingBreak:only-child),
+.std-term-name-en:has(> .ProseMirror-trailingBreak:only-child) {
+  display: inline-block;
+  min-width: 1em;
 }
 
 /* 术语定义正文：宋体 */
