@@ -87,6 +87,11 @@ export function setClauseFormat(editor: Editor, level: number, hasTitle = true):
     clausePos = $from.before(targetDepth)
     let end = $from.after(targetDepth)
     if (paragraphs.has(leaf.type.name)) {
+      const preceding = children(host).slice(0, $from.index(hostDepth))
+      // A paragraph-only section is valid, but introducing a numbered child
+      // after its direct body would leave that earlier text hanging. Keep it
+      // unchanged until the user formats the first paragraph or moves the body.
+      if (preceding.some(node => !isHeading(node) && !['chapterTitle', 'appendixLabel', 'appendixTitle', 'clauseTitle'].includes(node.type.name))) return false
       const following = children(host).slice($from.index(hostDepth) + 1)
       const peerIndex = following.findIndex(node => isHeading(node) && node.attrs.level <= level)
       const body = following.slice(0, peerIndex < 0 ? following.length : peerIndex)

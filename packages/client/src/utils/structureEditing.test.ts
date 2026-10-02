@@ -40,6 +40,26 @@ function expectNoStructureWarnings(e: Editor) {
 afterEach(() => { for (const e of editors.splice(0)) { const el = e.options.element; e.destroy(); if (el instanceof HTMLElement) el.remove() } })
 
 describe('结构格式覆盖（生产Tiptap schema）', () => {
+  it.each(['chapter', 'appendix', 'clause'])('%s 中拒绝将前文留成悬置段，完整保留文字和选区', hostType => {
+    const body = [p('preceding', '前文段落'), p('target', '待转换段落'), p('following', '后续正文')]
+    const e = editor(hostType === 'clause' ? [clause('parent', '上级条', body)] : body)
+    if (hostType === 'appendix') e.commands.setContent({ type: 'doc', content: [{ type: 'appendix', attrs: { nodeId: 'appendix' }, content: [
+      { type: 'appendixLabel', content: [text('（规范性）')] },
+      { type: 'appendixTitle', content: [text('附录标题')] }, ...body,
+    ] }] })
+    select(e, '待转换段落', 1, 2)
+    const original = e.getJSON()
+    const selection = e.state.selection.toJSON()
+    expectNoStructureWarnings(e)
+    expect(setClauseFormat(e, hostType === 'clause' ? 2 : 1)).toBe(false)
+    expect(e.getJSON()).toEqual(original)
+    expect(e.state.selection.toJSON()).toEqual(selection)
+    expectNoStructureWarnings(e)
+    select(e, '前文段落')
+    expect(setClauseFormat(e, hostType === 'clause' ? 2 : 1)).toBe(true)
+    expect(clauseByTitle(e, '前文段落').node.childCount).toBe(3)
+    expectNoStructureWarnings(e)
+  })
   it.each(['bulletList', 'orderedList'])('%s 项的段落按钮不新增空项目符号，保留文字、marks 和续段', listType => {
     const e = editor([{ type: listType, content: [{ type: 'listItem', content: [
       { type: 'paragraph', attrs: { nodeId: 'list-p' }, content: [text('列表项正文', [{ type: 'bold' }])] },
