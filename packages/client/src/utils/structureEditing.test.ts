@@ -94,6 +94,39 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     e.state.doc.check()
   })
 
+  it('深层提升不会把后续三级条挂到一级条下；安全的后续二级条可保留', () => {
+    const e = editor([clause('one', '一级条', [clause('two', '二级条', [
+      clause('three-a', '第一个三级条', [p('deep-body', '三级条正文')], 3),
+      clause('three-b', '第二个三级条', [p('peer-body', '后续三级条正文')], 3),
+    ], 2)])])
+    select(e, '第一个三级条')
+    const original = e.getJSON()
+    expect(setClauseFormat(e, 1)).toBe(false)
+    select(e, '三级条正文')
+    expect(setClauseFormat(e, 1)).toBe(false)
+    expect(e.getJSON()).toEqual(original)
+    expectNoStructureWarnings(e)
+
+    const safe = editor([clause('one', '原一级条', [
+      clause('target', '待提升二级条', [], 2), clause('peer', '后续二级条', [p('body', '后续正文')], 2),
+    ])])
+    const textBefore = safe.state.doc.textContent
+    select(safe, '待提升二级条')
+    expect(setClauseFormat(safe, 1)).toBe(true)
+    expect(clauseByTitle(safe, '后续二级条').parent?.attrs.nodeId).toBe('target')
+    expect(safe.state.doc.textContent).toBe(textBefore)
+    expectNoStructureWarnings(safe)
+
+    const hanging = editor([clause('one', '原一级条', [
+      clause('target', '有正文的二级条', [p('body', '本条正文')], 2), clause('peer', '后续二级条', [], 2),
+    ])])
+    select(hanging, '有正文的二级条')
+    const json = hanging.getJSON()
+    expect(setClauseFormat(hanging, 1)).toBe(false)
+    expect(hanging.getJSON()).toEqual(json)
+    expectNoStructureWarnings(hanging)
+  })
+
   it('已有条标题切换有题/无题格式，保留正文、子条与稳定锚点', () => {
     const e = editor([clause('a', '总体原则一', [p('body', '正文'), clause('nested', '子条', [], 2)])])
     const source = clauseByTitle(e, '总体原则一').node

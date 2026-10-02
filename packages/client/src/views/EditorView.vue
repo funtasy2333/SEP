@@ -665,13 +665,13 @@ function getInsertRange(): { from: number; to: number } | null {
 // === 工具栏：条 ===
 function handleInsertClause(level: string) {
   if (editor.value && !setClauseFormat(editor.value, Number(level))) {
-    ElMessage.warning('请在章或附录内设置一级条，或在上一级条内设置下一级条；一次只改一段，有子条时保留原层级')
+    ElMessage.warning('当前结构不能设置该级别：须有对应上级；含子条或会破坏后续条结构时，请先调整条结构')
   }
 }
 
 function handleInsertClauseNoTitle(level: string) {
   if (editor.value && !setClauseFormat(editor.value, Number(level), false)) {
-    ElMessage.warning('请在章或附录内设置一级条，或在上一级条内设置下一级条；一次只改一段，有子条时保留原层级')
+    ElMessage.warning('当前结构不能设置该级别：须有对应上级；含子条或会破坏后续条结构时，请先调整条结构')
   }
 }
 

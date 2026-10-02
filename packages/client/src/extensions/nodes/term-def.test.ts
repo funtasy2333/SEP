@@ -10,6 +10,7 @@ import { buildDocxBlob } from '../../serializer/docxExporter'
 
 type TermFields = {
   termEn?: string
+  annotations?: Array<'note' | 'example'>
   definition?: string | Array<{
     type: 'text'
     text: string
@@ -51,6 +52,9 @@ function createEditor(fields: TermFields = {}) {
                   ? [{ type: 'text', text: fields.definition ?? '定义前后文' }]
                   : fields.definition,
               },
+              ...(fields.annotations ?? []).map(type => ({
+                type, content: [{ type: 'text', text: `原${type}内容` }],
+              })),
             ],
           },
         ],
@@ -129,6 +133,25 @@ function termNode(editor: Editor): JsonNode | undefined {
 }
 
 describe('真实 Tiptap 术语编辑器的键盘行为', () => {
+  it('末尾注/示例不阻止连续两次 Enter 退出，注/示例和定义保持在原术语内', () => {
+    for (const annotations of [['note'], ['example'], ['note', 'example']] as Array<Array<'note' | 'example'>>) {
+      const { editor, destroy } = createEditor({ definition: '原定义', annotations })
+      try {
+        setCaret(editor, 'termDefinition', 3)
+        const originalAnnotations = termNode(editor)?.content?.filter(node => annotations.includes(node.type as 'note' | 'example'))
+        press(editor, 'Enter')
+        expect(childrenOfTermDef(editor)).toEqual(['termName', 'termDefinition', 'stdParagraph', ...annotations])
+        press(editor, 'Enter')
+        expect(childrenOfTermDef(editor)).toEqual(['termName', 'termDefinition', ...annotations])
+        expect(termNode(editor)?.content?.filter(node => annotations.includes(node.type as 'note' | 'example'))).toEqual(originalAnnotations)
+        const chapter = editor.state.doc.firstChild!
+        expect(chapter.lastChild?.type.name).toBe('stdParagraph')
+        expect(editor.state.selection.$from.node(editor.state.selection.$from.depth - 1).type.name).toBe('chapter')
+        expect(chapter.child(1).textContent).toBe('中文术语原定义' + annotations.map(type => `原${type}内容`).join(''))
+        editor.state.doc.check()
+      } finally { destroy() }
+    }
+  })
   it('Enter 从中文名或英文名进入下一行定义，并保留已有术语内容', () => {
     const { editor, destroy } = createEditor({ termEn: 'English term' })
     try {

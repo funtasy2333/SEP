@@ -14,6 +14,13 @@ function children(node: PMNode): PMNode[] {
   return result
 }
 
+/** Moving a suffix must not orphan deeper headings or introduce hanging blocks. */
+function hasValidNewBody(clause: PMNode, level: number): boolean {
+  const body = children(clause).slice(1)
+  if (body.some(node => isHeading(node) && node.attrs.level !== level + 1)) return false
+  return !(body.some(node => node.type.name === 'clause') && body.some(node => !isHeading(node)))
+}
+
 /** Leave the preceding content in its original clauses, lifting the suffix in order. */
 function splitBeforeTarget(node: PMNode, path: number[]): { before: PMNode; after: PMNode[] } {
   const index = path[0]!
@@ -84,6 +91,7 @@ export function setClauseFormat(editor: Editor, level: number, hasTitle = true):
       const peerIndex = following.findIndex(node => isHeading(node) && node.attrs.level <= level)
       const body = following.slice(0, peerIndex < 0 ? following.length : peerIndex)
       clause = clause.copy(clause.content.append(Fragment.fromArray(body)))
+      if (!hasValidNewBody(clause, level)) return false
       end += body.reduce((size, node) => size + node.nodeSize, 0)
     }
     tr.replaceWith(clausePos, end, clause)
@@ -96,6 +104,7 @@ export function setClauseFormat(editor: Editor, level: number, hasTitle = true):
     const peerIndex = split.after.findIndex(node => isHeading(node) && node.attrs.level <= level)
     const bodyEnd = peerIndex < 0 ? split.after.length : peerIndex
     clause = clause.copy(clause.content.append(Fragment.fromArray(split.after.slice(0, bodyEnd))))
+    if (!hasValidNewBody(clause, level)) return false
     const start = $from.before(ancestorDepth)
     tr.replaceWith(start, $from.after(ancestorDepth), [split.before, clause, ...split.after.slice(bodyEnd)])
     clausePos = start + split.before.nodeSize

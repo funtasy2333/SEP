@@ -71,9 +71,11 @@ function handleTermEnter(editor: Editor): boolean {
     if (depth < 0) return false
     const term = $from.node(depth)
     const continuation = $from.parent
-    // An empty final continuation paragraph is the explicit way out of a term.
-    // Empty paragraphs before notes, examples, or other continuation content stay in place.
-    if (term.lastChild !== continuation) return false
+    // Trailing annotations still belong to the term. The last definition
+    // continuation can exit before them, without moving or deleting the annotations.
+    for (let index = $from.index(depth) + 1; index < term.childCount; index++) {
+      if (!['note', 'example'].includes(term.child(index).type.name)) return false
+    }
     const continuationPos = $from.before($from.depth)
     const termStart = $from.before(depth)
     const insertPos = termStart + term.nodeSize - continuation.nodeSize
