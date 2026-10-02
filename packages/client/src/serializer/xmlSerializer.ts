@@ -665,7 +665,7 @@ function serializeTable(lines: string[], node: PMNode, depth: number) {
           if (entry.type.name !== 'tableFootnoteEntry') return
           const nodeId = String(entry.attrs.nodeId || '')
           const xmlId = tableFootnoteXmlId(nodeId)
-          const label = activeFootnoteLabels[nodeId]?.label || '?'
+          const label = requireFootnoteLabel(nodeId, 'table').label
           lines.push(`${indent(depth + 2)}<fn fn-type="table"${buildAttrs({ id: xmlId })}>`)
           lines.push(`${indent(depth + 3)}<label>${escapeXml(label)}</label>`)
           lines.push(`${indent(depth + 3)}<p>${serializeInlineContent(entry)}</p>`)
@@ -860,27 +860,35 @@ function serializeInlineJson(content: unknown): string {
   }).join('')
 }
 
-function bodyFootnoteXmlId(nodeId: unknown): string {
+function requireFootnoteLabel(nodeId: unknown, kind: 'body' | 'table'): ResolvedLabel {
   const id = typeof nodeId === 'string' ? nodeId : ''
-  return activeFootnoteLabels[id]?.xmlId || (id.startsWith('fn_') ? id : `fn_${id}`)
+  const resolved = activeFootnoteLabels[id]
+  const valid = resolved && resolved.refText === resolved.label && (kind === 'body'
+    ? /^fn_[1-9][0-9]*$/.test(resolved.xmlId) && /^[1-9][0-9]*\)$/.test(resolved.label)
+    : /^tabfn_.+_[a-z]+$/.test(resolved.xmlId) && /^[a-z]+$/.test(resolved.label) && resolved.xmlId.endsWith(`_${resolved.label}`))
+  if (!valid) throw new XmlFootnoteValidationError(`脚注「${id}」缺少有效 Resolver 标签，不能生成 XML。`)
+  return resolved
+}
+
+function bodyFootnoteXmlId(nodeId: unknown): string {
+  return requireFootnoteLabel(nodeId, 'body').xmlId
 }
 
 function tableFootnoteXmlId(nodeId: unknown): string {
-  const id = typeof nodeId === 'string' ? nodeId : ''
-  return activeFootnoteLabels[id]?.xmlId || (id.startsWith('tfn_') ? id : `tfn_${id}`)
+  return requireFootnoteLabel(nodeId, 'table').xmlId
 }
 
 function serializeFootnoteReference(nodeIdValue: unknown, content: unknown): string {
   const nodeId = typeof nodeIdValue === 'string' ? nodeIdValue : ''
   const id = bodyFootnoteXmlId(nodeId)
-  const label = activeFootnoteLabels[nodeId]?.label || '?'
+  const label = requireFootnoteLabel(nodeId, 'body').label
   return `<xref${buildAttrs({ 'ref-type': 'fn', rid: id })}>${escapeXml(label)}</xref><fn${buildAttrs({ id })}><label>${escapeXml(label)}</label><p>${serializeInlineJson(content)}</p></fn>`
 }
 
 function serializeTableFootnoteReference(targetIdValue: unknown): string {
   const targetId = typeof targetIdValue === 'string' ? targetIdValue : ''
   const id = tableFootnoteXmlId(targetId)
-  const label = activeFootnoteLabels[targetId]?.label || '?'
+  const label = requireFootnoteLabel(targetId, 'table').label
   return `<xref${buildAttrs({ 'ref-type': 'table-fn', rid: id })}>${escapeXml(label)}</xref>`
 }
 

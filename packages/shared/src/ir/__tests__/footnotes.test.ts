@@ -204,3 +204,51 @@ it('正常公式保留既有 IR 契约及 LaTeX 文本', () => {
   expect(doc.body[0]!.children[0]).toEqual({ kind: 'formula', id: 'plain-math', latex: 'x+1', numbered: true, whereList: [] })
   expect(resolve(doc).problems.filter(p => p.code.includes('footnote'))).toEqual([])
 })
+
+
+describe('转换遗漏的脚注必须保留为阻断诊断', () => {
+  it.each(['bibliography-title', 'appendix-label', 'untitled-clause', 'unknown-block', 'overwritten-bibliography'])(
+    '%s 不静默丢失脚注，所有渲染出口报错', (scenario) => {
+      const note = fn('unmapped-fn')
+      let pm: PMJsonNode
+      if (scenario === 'bibliography-title') {
+        const bib = fx.bibliography(['entry', '文献'])
+        bib.content![0]!.content!.push(note)
+        pm = fx.standardDoc({}, bib)
+      } else if (scenario === 'appendix-label') {
+        const app = fx.appendix('app', true, '附录')
+        app.content![0]!.content!.push(note)
+        pm = fx.standardDoc({}, app)
+      } else if (scenario === 'untitled-clause') {
+        const clause = fx.clause('cl', 1, null)
+        clause.content![0]!.content = [note]
+        pm = fx.standardDoc({}, fx.chapter('ch', '章', clause))
+      } else if (scenario === 'overwritten-bibliography') {
+        const bib = fx.bibliography(['first', '第一组文献'])
+        bib.content![1]!.content!.push(note)
+        pm = fx.standardDoc({}, bib, fx.bibliography(['last', '末组文献']))
+      } else pm = fx.standardDoc({}, fx.chapter('ch', '章', { type: 'unsupported', content: [note] }))
+      const before = JSON.stringify(pm)
+      const converted = pmToIr(pm)
+      expect(JSON.stringify(pm)).toBe(before)
+      expect(pmToIr(structuredClone(pm))).toEqual(converted)
+      expect(collectFootnotes(converted.doc)).toContainEqual({ id: 'unmapped-fn', content: [{ text: '脚注说明', marks: [{ type: 'bold' }] }] })
+      const result = resolve(converted.doc)
+      expect(result.problems).toContainEqual(expect.objectContaining({ code: 'invalid-footnote', nodeId: 'unmapped-fn', severity: 'error' }))
+      expect(() => renderHtml(converted.doc, result.labels, { variant: 'print' })).toThrow('脚注关联无效')
+      expect(() => renderDocx(converted.doc, result.labels, { formulaOmml: {}, images: {}, stage: 'approval_draft', createdAt: '2026-10-03T00:00:00Z' })).toThrow('脚注关联无效')
+    },
+  )
+})
+
+
+it('未映射的表脚注上标也触发渲染入口检查，不能只检查条文脚注集合', () => {
+  const bib = fx.bibliography(['entry', '文献'])
+  bib.content![0]!.content!.push(ref('target'))
+  const doc = pmToIr(fx.standardDoc({}, fx.chapter('ch', '正文', table('t', ['target'])), bib)).doc
+  expect(collectFootnotes(doc)).toEqual([])
+  const result = resolve(doc)
+  expect(result.problems).toContainEqual(expect.objectContaining({ code: 'invalid-footnote', severity: 'error' }))
+  expect(() => renderHtml(doc, result.labels, { variant: 'print' })).toThrow('脚注关联无效')
+  expect(() => renderDocx(doc, result.labels, { formulaOmml: {}, images: {}, stage: 'approval_draft', createdAt: '2026-10-03T00:00:00Z' })).toThrow('脚注关联无效')
+})

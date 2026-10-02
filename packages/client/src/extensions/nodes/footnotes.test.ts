@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { pmToIr, resolve, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from '../editorExtensions'
 import { parseXmlToEditorJson } from '../../serializer/xmlParser'
+import { serializeToXml, XmlFootnoteValidationError } from '../../serializer/xmlSerializer'
 import { getTableFootnoteEntries } from './std-table'
 
 const editors: Editor[] = []
@@ -125,7 +126,13 @@ describe('脚注编辑 schema 与命令', () => {
     selectParagraph('内表文本')
     expect(editor.commands.insertTableFootnoteRef({ targetId: 'outer-a' })).toBe(false)
     expect(editor.commands.insertTableFootnoteRef({ targetId: 'inner-a' })).toBe(true)
-    expect(resolve(pmToIr(editor.getJSON() as PMJsonNode).doc).problems.filter(p => p.code.includes('footnote'))).toEqual([])
+    const converted = pmToIr(editor.getJSON() as PMJsonNode)
+    // 当前单元格转换不支持内嵌 stdTable；过去无错误是内表被跳过，不能作为合法导出的证明。
+    expect(converted.warnings).toContain('未知节点类型「stdTable」（位于表格单元格），已跳过')
+    expect(converted.doc.unmappedFootnotes?.some(source => source.content.some(run =>
+      run.marks?.some(mark => mark.type === 'tableFootnoteRef' && mark.targetId.startsWith('inner-'))))).toBe(true)
+    expect(resolve(converted.doc).problems.some(p => p.code === 'invalid-footnote')).toBe(true)
+    expect(() => serializeToXml(editor.state.doc)).toThrow(XmlFootnoteValidationError)
   })
 
   it('嵌套表格独立重排定义，撤销重做不影响外表目标与定义', () => {

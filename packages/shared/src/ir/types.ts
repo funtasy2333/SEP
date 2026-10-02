@@ -18,6 +18,8 @@ export interface IRDoc {
   body: IRChapter[]
   appendices: IRAppendix[]
   bibliography: IRBibEntry[]
+  /** 未进入正常 IR 树的脚注；保留数据并由 Resolver 阻断输出，不能静默跳过。 */
+  unmappedFootnotes?: { container: string; nodeId: NodeId; content: IRInline[] }[]
 }
 
 /** 定稿接口，字段与取值见 docs/dev-plan-phase-5.5.md 第 2.2 节；不得改名、改型 */

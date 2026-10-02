@@ -464,6 +464,14 @@ function checkXrefs(ctx: ResolveCtx): void {
 export function resolve(doc: IRDoc, strategy: NumberingStrategy = gbT11Strategy): ResolveResult {
   const ctx = new ResolveCtx(strategy)
 
+  for (const source of doc.unmappedFootnotes ?? []) {
+    const location = source.container === 'bibliographyTitle' ? '参考文献标题'
+      : source.container === 'appendixLabel' ? '附录标识'
+        : source.container === 'clauseTitle' ? '无题条标题' : '当前内容'
+    ctx.problems.push({ code: 'invalid-footnote', nodeId: source.nodeId, severity: 'error', message: `${location}中的脚注不支持导出，请移至受支持的正文或表格位置` })
+    visitInlines(source.content, source.nodeId, ctx)
+  }
+
   // 前置部分（前言/引言）：注/示例作用域为各自部分；图表公式与正文共用计数器
   for (const block of doc.front.foreword) visitBlock(block, 'front.foreword', ctx)
   for (const block of doc.front.introduction) visitBlock(block, 'front.introduction', ctx)

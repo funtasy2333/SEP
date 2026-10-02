@@ -56,6 +56,8 @@ export const MISSING_ID_PREFIX = '__missing-'
 
 class Ctx {
   warnings: string[] = []
+  /** 原始 atom 与转换结果的关联，用于最终检查是否实际进入 IR 树。 */
+  footnoteInlines = new WeakMap<PMJsonNode, IRInline>()
   private missingSeq = 0
   private warnedUnknown = new Set<string>()
 
@@ -127,10 +129,14 @@ function convertInlines(content: PMJsonNode[] | undefined, ctx: Ctx): IRInline[]
     } else if (child.type === 'footnoteRef') {
       const raw = child.attrs?.content
       const content = Array.isArray(raw) ? raw as PMJsonNode[] : []
-      out.push({ text: '', footnote: { id: ctx.id(child), content: convertInlines(content, ctx) } })
+      const inline: IRInline = { text: '', footnote: { id: ctx.id(child), content: convertInlines(content, ctx) } }
+      ctx.footnoteInlines.set(child, inline)
+      out.push(inline)
     } else if (child.type === 'tableFootnoteRef') {
       const targetId = typeof child.attrs?.targetId === 'string' ? child.attrs.targetId : ''
-      out.push({ text: '', marks: [{ type: 'tableFootnoteRef', targetId }] })
+      const inline: IRInline = { text: '', marks: [{ type: 'tableFootnoteRef', targetId }] }
+      ctx.footnoteInlines.set(child, inline)
+      out.push(inline)
     } else {
       ctx.unknown(child.type, '行内内容')
     }
@@ -748,6 +754,39 @@ function convertMeta(docNode: PMJsonNode, coverPage: PMJsonNode | undefined, ctx
   return meta
 }
 
+/**
+ * 检查 atom 确实留在最终 IR 中。固定标题、未知容器、被后一个部分覆盖的内容
+ * 都可能绕过常规节点分发；仅“曾调用 convertInlines”不代表转换结果未被丢弃。
+ */
+function preserveUnmappedFootnotes(pmDoc: PMJsonNode, doc: IRDoc, ctx: Ctx): void {
+  const represented = new WeakSet<object>()
+  const markIr = (value: unknown): void => {
+    if (!value || typeof value !== 'object' || represented.has(value)) return
+    represented.add(value)
+    Object.values(value).forEach(markIr)
+  }
+  markIr(doc)
+  const pending: NonNullable<IRDoc['unmappedFootnotes']> = []
+  const visit = (node: PMJsonNode, container: string): void => {
+    if (node.type === 'footnoteRef' || node.type === 'tableFootnoteRef') {
+      let inline = ctx.footnoteInlines.get(node)
+      const mapped = inline?.footnote ?? inline?.marks?.find(mark => mark.type === 'tableFootnoteRef')
+      if (!mapped || !represented.has(mapped)) {
+        inline ??= convertInlines([node], ctx)[0]
+        pending.push({ container, nodeId: inline.footnote?.id ?? ctx.id(node), content: [inline] })
+        // 原位脚注内容已随 atom 转换；避免把嵌套脚注重复登记为丢失节点。
+        return
+      }
+    }
+    for (const child of node.content ?? []) visit(child, node.type)
+    if (node.type === 'footnoteRef' && Array.isArray(node.attrs?.content)) {
+      for (const child of node.attrs.content as PMJsonNode[]) visit(child, node.type)
+    }
+  }
+  visit(pmDoc, pmDoc.type)
+  if (pending.length) doc.unmappedFootnotes = pending
+}
+
 // ---------- 入口 ----------
 
 /**
@@ -797,5 +836,6 @@ export function pmToIr(pmDoc: PMJsonNode): PmToIrResult {
     }
   }
 
+  preserveUnmappedFootnotes(pmDoc, doc, ctx)
   return { doc, warnings: ctx.warnings }
 }

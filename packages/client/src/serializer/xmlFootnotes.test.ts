@@ -220,3 +220,60 @@ describe('粘贴 JSON 的公式主体脚注校验', () => {
     expect(serializeToXml(valid)).toContain('<fn id="fn_1">')
   })
 })
+
+
+describe('参考文献标题的脚注拒绝生成伪造标签', () => {
+  it('XML 导入保留标题脚注并拒绝序列化，正常文献脚注仍可往返', () => {
+    const schema = getSchema(createEditorExtensions())
+    const pair = '<xref ref-type="fn" rid="bib-title-fn">1)</xref><fn id="bib-title-fn"><p>标题内说明</p></fn>'
+    const xml = `<standard><back><ref-list><title>参考文献${pair}</title><ref id="entry"><mixed-citation>文献甲</mixed-citation></ref></ref-list></back></standard>`
+    const imported = schema.nodeFromJSON(parseXmlToEditorJson(xml, schema.topNodeType.name))
+    imported.check()
+    expect(findNodes(imported, 'footnoteRef')).toHaveLength(1)
+    const before = imported.toJSON()
+    expect(() => serializeToXml(imported)).toThrow(XmlFootnoteValidationError)
+    expect(imported.toJSON()).toEqual(before)
+    const validXml = xml.replace(`参考文献${pair}`, '参考文献').replace('文献甲', `文献甲${pair}`)
+    const valid = schema.nodeFromJSON(parseXmlToEditorJson(validXml, schema.topNodeType.name))
+    const exported = serializeToXml(valid)
+    expect(exported).toContain('<fn id="fn_1">')
+    expect(exported).not.toContain('>?</label>')
+    expect(serializeToXml(schema.nodeFromJSON(parseXmlToEditorJson(exported, schema.topNodeType.name)))).toBe(exported)
+  })
+
+  it('JSON 中的参考文献标题脚注拒绝导出', () => {
+    const schema = getSchema(createEditorExtensions())
+    const valid = schema.nodeFromJSON(parseXmlToEditorJson(sourceXml, schema.topNodeType.name))
+    const json = structuredClone(valid.toJSON()) as PMJsonNode
+    json.content!.push({ type: 'bibliography', content: [{ type: 'bibliographyTitle', content: [
+      { type: 'text', text: '参考文献' }, { type: 'footnoteRef', attrs: { nodeId: 'bib-note', content: [{ type: 'text', text: '非法标题说明' }] } },
+    ] }, { type: 'bibEntry', attrs: { nodeId: 'bib-entry' }, content: [{ type: 'text', text: '文献甲' }] }] })
+    const pasted = schema.nodeFromJSON(json)
+    pasted.check()
+    expect(() => serializeToXml(pasted)).toThrow(XmlFootnoteValidationError)
+    expect(serializeToXml(valid)).toContain('<fn id="fn_1">')
+  })
+
+  it.each(['body', 'table'])('%s 序列化节点与 toJSON 不一致时，缺少 Resolver 标签也必须拒绝', (kind) => {
+    const schema = getSchema(createEditorExtensions())
+    const valid = schema.nodeFromJSON(parseXmlToEditorJson(sourceXml, schema.topNodeType.name))
+    const json = structuredClone(valid.toJSON()) as PMJsonNode
+    const note: PMJsonNode = { type: 'footnoteRef', attrs: { nodeId: 'unresolved-fn', content: [{ type: 'text', text: '不能编造标签' }] } }
+    if (kind === 'body') json.content!.push({ type: 'bibliography', content: [
+      { type: 'bibliographyTitle', content: [note] },
+      { type: 'bibEntry', attrs: { nodeId: 'bib-entry' }, content: [{ type: 'text', text: '文献甲' }] },
+    ] })
+    else {
+      const visit = (node: PMJsonNode) => {
+        if (node.type === 'tableFootnoteRef') node.attrs!.targetId = 'unresolved-table-fn'
+        node.content?.forEach(visit)
+      }
+      visit(json)
+    }
+    const actual = schema.nodeFromJSON(json)
+    actual.check()
+    const inconsistent = { type: actual.type, attrs: actual.attrs, forEach: actual.forEach.bind(actual), toJSON: valid.toJSON.bind(valid) } as unknown as PMNode
+    expect(() => serializeToXml(inconsistent)).toThrow(XmlFootnoteValidationError)
+    expect(serializeToXml(valid)).toContain('<fn id="fn_1">')
+  })
+})

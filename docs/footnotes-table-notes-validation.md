@@ -102,3 +102,14 @@ Codex 针对 `48e6c00579` 新增一条 P2：`formulaContent` 的行内脚注在�
 新增5项共享与4项客户端回归：仅脚注/文字与脚注混合/嵌套脚注的公式主体保留 ID、内容和行内格式；真实 ProseMirror schema 接受的粘贴 JSON 在 XML 入口被拒绝；XML 导入亦保留脚注并拒绝再次导出；HTML/DOCX 入口拒绝非法公式；正常公式 IR 保持不变。另以直接构造的 IR 验证表内公式上标即使目标有效也不能在纯 LaTeX 渲染时被抹掉，此项不代表支持单元格 PM 中的公式转换。修复前3项共享、4项客户端新增回归失败；修复后共享35文件779项、客户端22文件131项测试通过，完整构建及 `git diff --check` 通过，保留既有大 chunk 警告。
 
 本次日志为 `/private/tmp/sep-pr42-formula-{shared,client,build}.log`，修复前证据为 `/private/tmp/sep-pr42-formula-before-{shared,client}.log`。环境仍为 macOS、Node 22.22.3、pnpm 10.33.0；本次未重跑服务端测试和 Word/PDF 人工验收，未改版式或转换管线。PR 未合并，后续复审结论单独报告。
+
+
+### 2026-10-03 再复审：参考文献标题与未映射脚注
+
+Codex 针对 `ddadc522ea` 新增一条 P2：参考文献标题中的脚注未进入 IR，XML 出口以伪造 ID/“?”标签继续生成内容。现在转换器追踪脚注 atom 的实际转换结果，并检查其是否仍在最终 IR 树中；未映射的条文/表脚注上标以可选 `unmappedFootnotes` 保存内容、ID与所在容器，Resolver 明确报告 `invalid-footnote`，XML/HTML/DOCX 均阻断输出。检查最终树同时覆盖固定标题、未知容器，以及先前已转换却被后续部分覆盖的脚注。正常文稿不增加该诊断字段。
+
+XML 的条文脚注、表脚注引用和表脚注定义统一要求有效 Resolver 标签；删除伪造 `fn_<nodeId>`/`tfn_<nodeId>` 和“?”标签 fallback，序列化节点与 `toJSON()` 不一致时也不能绕过。新增6项共享、4项客户端回归，包括参考文献标题 XML/JSON、附录标识、隐藏的无题条标题、未知节点、被后续参考文献覆盖的数据、未映射的表上标，以及正文/表脚注缺失标签的最后一道校验。修复前已复现5项共享回归与参考文献标题 XML/缺少标签入口失败；正常文献条目脚注仍可往返。修复后共享35文件785项、客户端22文件135项测试、完整构建及 `git diff --check` 通过，保留既有大 chunk 警告。日志为 `/private/tmp/sep-pr42-unmapped-{shared,client,build}.log`；修复前日志为 `/private/tmp/sep-pr42-unmapped-before-{shared,client}.log`。
+
+本次全量检查纠正一项旧验收断言：`convertTableCellBlocks` 只支持段落和列表，嵌套 `stdTable` 被跳过，之前“嵌套表格无脚注错误”来自内表数据未入 IR，不能用作合法导出证据。内外表引用选项及命令、重排/撤销行为的测试保持；现在额外确认含内表上标的导出被拒绝，而不会丢失脚注后继续输出。嵌套表格导出尚未支持，保留为明确遗留项，未在此轮扩展转换能力。
+
+环境仍为 macOS、Node 22.22.3、pnpm 10.33.0。本次未重跑服务端测试、Word/PDF 人工验收，未改变正式版式或转换管线。所有审查修复与 Codex 新复审结论分别记录；PR 未合并。

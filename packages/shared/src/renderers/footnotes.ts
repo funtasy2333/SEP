@@ -101,7 +101,7 @@ function childHasFootnoteSyntax(child: IRClauseChild): boolean {
 }
 
 function documentHasFootnoteSyntax(doc: IRDoc): boolean {
-  return doc.front.foreword.some(blockHasFootnoteSyntax) || doc.front.introduction.some(blockHasFootnoteSyntax) ||
+  return (doc.unmappedFootnotes?.length ?? 0) > 0 || doc.front.foreword.some(blockHasFootnoteSyntax) || doc.front.introduction.some(blockHasFootnoteSyntax) ||
     doc.body.some((chapter) => inlineHasFootnote(chapter.title) || chapter.children.some(childHasFootnoteSyntax)) ||
     doc.appendices.some((appendix) => inlineHasFootnote(appendix.title) || appendix.children.some(childHasFootnoteSyntax)) ||
     doc.bibliography.some((entry) => inlineHasFootnote(entry.content))
