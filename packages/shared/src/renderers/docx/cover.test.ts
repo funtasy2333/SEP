@@ -386,11 +386,15 @@ describe('WP7.5 缺失日期的占位与固定横线', () => {
     expect(frameOf(paragraphWithStyle(pkg, 'SesCoverDates')!)?.attrs).toMatchObject({
       'w:x': String(mmToTwips(25)), 'w:y': String(mmToTwips(249.6)), 'w:w': String(mmToTwips(170)),
     })
-    const dateStyle = descendants(parseXml(pkg.parts['word/styles.xml']!), 'w:style')
-      .find((style) => style.attrs['w:styleId'] === 'SesCoverDates')!
-    expect(descendants(dateStyle, 'w:bottom')[0]?.attrs).toMatchObject({
-      'w:val': 'single', 'w:sz': '4', 'w:color': '000000',
-    })
+    const styles = descendants(parseXml(pkg.parts['word/styles.xml']!), 'w:style')
+    for (const id of ['SesCoverRule', 'SesCoverDates']) {
+      expect(paragraphWithStyle(pkg, id)).toBeDefined()
+      const style = styles.find((style) => style.attrs['w:styleId'] === id)!
+      expect(descendants(style, 'w:bottom')[0]?.attrs).toMatchObject({
+        'w:val': 'single', 'w:sz': '6', 'w:color': '000000',
+      })
+    }
+    const dateStyle = styles.find((style) => style.attrs['w:styleId'] === 'SesCoverDates')!
     expect(descendants(dateStyle, 'w:tab')[0]?.attrs).toMatchObject({ 'w:val': 'right', 'w:pos': '9638' })
     expect(meta.publishDate).toBeUndefined()
     expect(meta.implementDate).toBeUndefined()
