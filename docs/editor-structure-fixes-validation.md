@@ -46,6 +46,14 @@
 | `clauses-and-caret.jpg` | SES 整段转换及空章光标截图 |
 | `word-term-evidence.json` | Word 版本、DOCX SHA-256、PDF 总页数和正文坐标/文本 |
 | `source-preservation.json` | 源文档内容/更新时间保留核验 |
+| `user-fixed-version.jpg` | 切换后的 5174 页面，原稿保留，空章光标在标题处 |
+
+## PR 和继续实测
+
+- 新 PR：[**#41**](https://github.com/funtasy2333/SEP/pull/41)，Open、非 Draft，未合并。提交者已完成代码审查；截至 2026-10-02 13:24，GitHub 尚无外部 review 或 review thread，检查列表为空，不将其写为 CI 已通过。
+- 继续实测入口：`http://localhost:5174/editor/9`，仍使用原后端 3076 和原数据库。
+- 为同时保留已在实测的 WP7.6 修复，本机页面使用独立组合分支 `codex/editor-test-preview`，将 WP7.6 `48be1956` 与此次编辑修复组合；两个 PR 分支保持独立，未互相混入提交。组合预览客户端 **85 / 85**、client build 通过。
+- 切换页面并点击空章标题后，再次核实源数据库所有行及更新时间与快照一致。当前原稿的“总体原则三”仍是原段落，供用户自行尝试“条 → 一级条”。
 
 ## 范围和遗留
 
