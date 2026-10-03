@@ -228,9 +228,19 @@ function renderFigure(ctx: RenderContext, figure: IRFigure, bctx: BlockCtx): str
 }
 
 function renderTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx): string {
+  const nested = ctx.pageFlow.isSuspended
+  return ctx.pageFlow.suspend(() => renderTableContent(ctx, table, bctx, nested))
+}
+
+function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, nested: boolean): string {
   const captionRuns = renderInlines(table.caption, ctx.labels)
   const numbered = { nodeId: table.id, kind: 'table' as const }
-  const pagination = paginateTable(table)
+  if (!nested) ctx.pageFlow.beforeTable()
+  const pagination = paginateTable(table, { firstPageHeightMm: nested ? undefined : ctx.pageFlow.availableMm })
+  if (!nested && ctx.pageFlow.estimateUnavailable) {
+    warn(ctx, 'table-flow-estimate-unavailable',
+      `表格 "${table.id}" 前含无法估算高度的公式等内容，首段改从新页排起，请在 Word 中复核表前余量`, table.id)
+  }
   if (pagination.oversizedGroup) {
     warn(ctx, 'table-row-too-tall',
       `表格 "${table.id}" 存在超出单页高度预算的跨行合并组，续表分页可能需要人工调整`, table.id)
@@ -326,12 +336,19 @@ function renderTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx): string
       },
     })
   })
+  if (!nested) ctx.pageFlow.placeTable(pagination.segmentHeightsMm, pagination.startOnNewPage)
   return out
 }
 
 // ---------------- 通用分发 ----------------
 
 export function renderBlock(ctx: RenderContext, block: IRBlock, bctx: BlockCtx): string {
+  if (bctx.suppressLandscape) return renderBlockContent(ctx, block, bctx)
+  const landscape = (block.kind === 'figure' || block.kind === 'table') && block.orientation === 'landscape'
+  return ctx.pageFlow.withElement(landscape, () => renderBlockContent(ctx, block, bctx))
+}
+
+function renderBlockContent(ctx: RenderContext, block: IRBlock, bctx: BlockCtx): string {
   if (!bctx.suppressLandscape && (block.kind === 'figure' || block.kind === 'table') && block.orientation === 'landscape') {
     const xml = block.kind === 'figure' ? renderFigure(ctx, block, bctx) : renderTable(ctx, block, bctx)
     return `${LANDSCAPE_START}${xml}${LANDSCAPE_END}`

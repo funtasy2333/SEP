@@ -169,6 +169,12 @@ export function renderDocxTraced(
   // 页眉页脚四个部件的关系 ID：按 header1、header2、footer1、footer2 的顺序申请（§2.3）
   const allocateRelId = createRelationshipIdAllocator()
   const ctx = createRenderContext(labels, toc.bookmarksByNodeId, opts, allocateRelId)
+  ctx.pageFlow.setFootnoteHeights(new Map(bodyFootnotes.map(footnote => {
+    const text = footnote.content.map(run => run.text).join('')
+    const lineCount = text.split('\n').reduce((sum, line) => sum + Math.max(1, Math.ceil(
+      [...line].reduce((width, char) => width + (char.charCodeAt(0) < 128 ? 0.55 : 1), 0) / 48)), 0)
+    return [noteNumber(footnote.id, labels), lineCount * 4.2 + 2]
+  })))
   const relIds: HeaderFooterRelIds = {
     header1: allocateRelId(),
     header2: allocateRelId(),
@@ -194,12 +200,14 @@ export function renderDocxTraced(
   // 3. 前言、引言（各自非空才有）
   if (doc.front.foreword.length > 0) {
     body += sectionManager.startSection('foreword')
+    ctx.pageFlow.startSection()
     const rendered = insertLandscapeSections(renderForeword(ctx, doc.front.foreword, toc.forewordBookmark), 'foreword', sectionManager)
     body += rendered.xml
     finalContentLandscape = rendered.endsLandscape
   }
   if (doc.front.introduction.length > 0) {
     body += sectionManager.startSection('introduction')
+    ctx.pageFlow.startSection()
     const rendered = insertLandscapeSections(renderIntroduction(ctx, doc.front.introduction, toc.introductionBookmark), 'introduction', sectionManager)
     body += rendered.xml
     finalContentLandscape = rendered.endsLandscape
@@ -207,6 +215,7 @@ export function renderDocxTraced(
 
   // 4. 正文节：正文首页名称 + 各章
   body += sectionManager.startSection('body')
+  ctx.pageFlow.startSection()
   let bodyContent = renderBodyTitle(ctx, doc.meta.title)
   for (const chapter of doc.body) bodyContent += renderChapter(ctx, chapter)
   const renderedBody = insertLandscapeSections(bodyContent, 'body', sectionManager)
@@ -216,6 +225,7 @@ export function renderDocxTraced(
   // 5. 每个附录一节
   doc.appendices.forEach((appendix, i) => {
     body += sectionManager.startSection('appendix')
+    ctx.pageFlow.startSection()
     const rendered = insertLandscapeSections(renderAppendix(ctx, appendix, appendixLetterFor(ctx, appendix, i)), 'appendix', sectionManager)
     body += rendered.xml
     finalContentLandscape = rendered.endsLandscape
@@ -224,6 +234,7 @@ export function renderDocxTraced(
   // 6. 参考文献节（非空才有）
   if (doc.bibliography.length > 0) {
     body += sectionManager.startSection('bibliography')
+    ctx.pageFlow.startSection()
     const rendered = insertLandscapeSections(renderBibliography(ctx, doc.bibliography, toc.bibliographyBookmark), 'bibliography', sectionManager)
     body += rendered.xml
     finalContentLandscape = rendered.endsLandscape

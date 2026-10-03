@@ -17,6 +17,7 @@ import type { DocxRenderOptions } from '../types'
 import type { DocxRelatedPart } from '../package'
 import { escapeXmlAttr, numPr as numPrXml, pPr, type XmlChild } from '../xml'
 import { mmToTwips } from '../units'
+import { createPageFlow, type PageFlow } from './pageFlow'
 
 /** §4.7 render.ts 导出的追踪类型；本文件是它的唯一实现来源，render.ts 直接 re-export，
  * 避免 render.ts ↔ body/*.ts 之间因为「类型定义在 render.ts」而产生循环 import。 */
@@ -32,6 +33,7 @@ export interface RenderContext {
   readonly numbered: NumberedParagraphTrace[]
   readonly bookmarksByNodeId: ReadonlyMap<NodeId, DocxBookmark>
   readonly resources: Pick<DocxRenderOptions, 'images' | 'formulaOmml'>
+  readonly pageFlow: PageFlow
   readonly relatedParts: DocxRelatedPart[]
   allocateImage(): { relationshipId: string; mediaIndex: number }
 }
@@ -45,7 +47,7 @@ export function createRenderContext(
   let mediaIndex = 0
   return {
     labels, numbering: createNumberingAllocator(), warnings: [], numbered: [], bookmarksByNodeId,
-    resources, relatedParts: [],
+    resources, relatedParts: [], pageFlow: createPageFlow(),
     allocateImage() { return { relationshipId: allocateRelId(), mediaIndex: ++mediaIndex } },
   }
 }
@@ -59,7 +61,7 @@ export interface EmitParagraphOptions {
   numPr?: { numId: number; ilvl: number }
   /** 覆盖编号定义的缩进，例如独立的二级数字列项。 */
   indent?: { left: number; hanging: number }
-  /** 分段续表的第一段与后续段从新页起排。 */
+  /** 首段余量不足时显式另起页；续段仍从新页起排。 */
   pageBreakBefore?: boolean
   /** 封面定位图文框（页面坐标，mm；见 §6.1）。 */
   framePr?: { xMm: number; yMm: number; widthMm: number }
@@ -91,6 +93,8 @@ export function emitParagraph(ctx: RenderContext, styleId: string, opts: EmitPar
     throw new Error(`emitParagraph: 样式 "${styleId}" 的段落${reason}，但没有传入 numbered（nodeId/kind），违反 §4.7 追踪要求`)
   }
   if (opts.numbered) ctx.numbered.push(opts.numbered)
+
+  ctx.pageFlow.recordParagraph(styleId, opts.runsXml ?? '', opts.numPr !== undefined || isOwnerStyle)
 
   const pprChildren: XmlChild[] = [['pStyle', `<w:pStyle w:val="${styleId}"/>`]]
   if (opts.pageBreakBefore) pprChildren.push(['pageBreakBefore', '<w:pageBreakBefore/>'])

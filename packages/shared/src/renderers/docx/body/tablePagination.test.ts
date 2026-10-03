@@ -78,6 +78,76 @@ describe('paginateTable', () => {
     expect(paginateTable(multiline).bodySegments.length).toBeGreaterThan(1)
   })
 
+  it('首段按正文页140mm余量切分，不再整体移到下一页', () => {
+    const rows = Array.from({ length: 70 }, (_, index) => row(index + 1))
+    const result = paginateTable(table(rows), { firstPageHeightMm: 140 })
+    expect(result.startOnNewPage).toBe(false)
+    expect(result.bodySegments).toHaveLength(2)
+    expect(result.bodySegments[0]!.length).toBeGreaterThanOrEqual(25)
+    expect(result.bodySegments[0]!.length).toBeLessThanOrEqual(29)
+    expect(result.bodySegments.flat()).toEqual(rows)
+  })
+
+  it('余量不足放下表题表头及首组时，完整首组移至下一页且不生成空续段', () => {
+    const rows = Array.from({ length: 70 }, (_, index) => row(index + 1))
+    const result = paginateTable(table(rows), { firstPageHeightMm: 10 })
+    expect(result.startOnNewPage).toBe(true)
+    expect(result.bodySegments[0]!.length).toBeGreaterThanOrEqual(40)
+    expect(result.bodySegments.every(segment => segment.length > 0)).toBe(true)
+    expect(result.bodySegments.flat()).toEqual(rows)
+  })
+
+  it('整表虽能放入完整一页，仍可利用正文页余量起排', () => {
+    const rows = Array.from({ length: 30 }, (_, index) => row(index + 1))
+    const result = paginateTable(table(rows), { firstPageHeightMm: 100 })
+    expect(result.startOnNewPage).toBe(false)
+    expect(result.bodySegments).toHaveLength(2)
+    expect(result.bodySegments[0]!.length).toBeLessThan(30)
+    expect(result.bodySegments.flat()).toEqual(rows)
+  })
+
+  it('表头跨到数据行的合并组不能被首段余量切断', () => {
+    const ir = table(Array.from({ length: 70 }, (_, index) => row(index + 1)))
+    ir.rows[0]!.cells[0]!.rowspan = 3
+    const result = paginateTable(ir, { firstPageHeightMm: 28 })
+    expect(result.startOnNewPage).toBe(true)
+    expect(result.bodySegments[0]!.slice(0, 2).map(r => r.id)).toEqual(['row-1', 'row-2'])
+  })
+
+  it('只剩一个不可分组且表尾放不下时，不生成只有表头表注的续段', () => {
+    const ir = table([row(1), row(2)])
+    ir.rows[1]!.cells[0]!.rowspan = 2
+    ir.notes = [{ kind: 'note', id: 'note', content: [{ kind: 'paragraph', id: 'p', content: [{ text: '表注' }] }] }]
+    ir.footnotes = [{ id: 'fn1', content: [{ text: '脚注'.repeat(100) }] }, { id: 'fn2', content: [{ text: '脚注'.repeat(100) }] }]
+    const result = paginateTable(ir, { firstPageHeightMm: 40 })
+    expect(result.bodySegments).toHaveLength(1)
+    expect(result.bodySegments[0]).toEqual(ir.rows.slice(1))
+    expect(result.startOnNewPage).toBe(true)
+  })
+
+  it('正文页先排26条时，一条短表注不会把最后一条记录挤到第三页', () => {
+    const ir = table(Array.from({ length: 70 }, (_, index) => row(index + 1)))
+    ir.notes = [{ kind: 'note', id: 'note', content: [{ kind: 'paragraph', id: 'p', content: [{ text: '表注仅在末段。' }] }] }]
+    const result = paginateTable(ir, { firstPageHeightMm: 139 })
+    expect(result.bodySegments).toHaveLength(2)
+    expect(result.bodySegments[1]!.length).toBeGreaterThan(35)
+  })
+
+  it('仅超出一页少量时，末段至少保留三行，不能只剩一条记录', () => {
+    const result = paginateTable(table(Array.from({ length: 49 }, (_, index) => row(index + 1))))
+    expect(result.bodySegments).toHaveLength(2)
+    expect(result.bodySegments[result.bodySegments.length - 1]!.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('较长表题占用首段空间，不能按单行表题塞入同样数量的记录', () => {
+    const normal = table(Array.from({ length: 70 }, (_, index) => row(index + 1)))
+    const long = { ...normal, caption: [{ text: '长表题'.repeat(40) }] }
+    const brief = paginateTable(normal, { firstPageHeightMm: 140 })
+    const titled = paginateTable(long, { firstPageHeightMm: 140 })
+    expect(titled.bodySegments[0]!.length).toBeLessThan(brief.bodySegments[0]!.length)
+    expect(titled.bodySegments.flat()).toEqual(normal.rows.slice(1))
+  })
+
   it('跨行合并覆盖的行留在同一表段', () => {
     const rows = Array.from({ length: 60 }, (_, index) => row(index + 1))
     rows[18]!.cells[0]!.rowspan = 2

@@ -10,6 +10,8 @@ export interface TablePagination {
   /** 每段仅列出数据行；表头由调用方在每段之前重放。 */
   bodySegments: IRTableRow[][]
   startOnNewPage: boolean
+  /** 包含表题、表头和末段表尾的估算高度，用于后续正文/表格接排。 */
+  segmentHeightsMm: number[]
   oversizedGroup: boolean
   /** 表注和表脚注本身超过估算的单页版心高度。 */
   footerTooTall: boolean
@@ -56,7 +58,12 @@ function bodyGroups(rows: IRTableRow[], headerRowCount: number): IRTableRow[][] 
   const groups: IRTableRow[][] = []
   for (let start = headerRowCount; start < rows.length;) {
     let end = start + 1
-    for (let rowIndex = start; rowIndex < end; rowIndex += 1) {
+    if (start === headerRowCount) {
+      rows.slice(0, headerRowCount).forEach((row, rowIndex) => {
+        for (const cell of row.cells) end = Math.max(end, rowIndex + cell.rowspan)
+      })
+    }
+    for (let rowIndex = start; rowIndex < Math.min(end, rows.length); rowIndex += 1) {
       for (const cell of rows[rowIndex]!.cells) end = Math.max(end, rowIndex + cell.rowspan)
     }
     groups.push(rows.slice(start, Math.min(end, rows.length)))
@@ -66,40 +73,49 @@ function bodyGroups(rows: IRTableRow[], headerRowCount: number): IRTableRow[][] 
 }
 
 /** 切分时不穿过 rowspan，且每段以相同的表头行开头。 */
-export function paginateTable(table: IRTable): TablePagination {
+export function paginateTable(table: IRTable, options: { firstPageHeightMm?: number } = {}): TablePagination {
   const headerRowCount = Math.max(0, Math.min(Math.floor(table.headerRowCount), table.rows.length))
   const columnCount = Math.max(1, ...table.rows.map((row) =>
     row.cells.reduce((sum, cell) => sum + cell.colspan, 0)))
   const landscape = table.orientation === 'landscape'
   const headerHeight = table.rows.slice(0, headerRowCount)
     .reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape), 0)
-  const noteHeight = table.notes.length > 0 ? 10 + table.notes.length * 6 : 0
+  const noteCapacity = Math.max(8, (landscape ? 73 : 48) - 4)
+  const noteHeight = table.notes.length > 0 ? 1.2 + table.notes.reduce((sum, note) => sum +
+    note.content.reduce((height, block) => height + blockLines(block, noteCapacity) *
+      (block.kind === 'paragraph' ? 4.2 : 5.5), 0), 0) : 0
   const footnoteCapacity = Math.max(8, (landscape ? 73 : 48) - 4)
   const tableFootnoteHeight = (table.footnotes ?? []).reduce((sum, footnote) => {
     const lines = textLines(footnote.content.map((run) => run.text).join(''), footnoteCapacity)
-    // Leave space for the separate merged footnote row and its line spacing/border.
-    return sum + 6 + lines * 4.2
+    return sum + lines * 4.2
   }, 0)
-  const footerHeight = noteHeight + tableFootnoteHeight
+  // 表注/脚注分别占一个合并单元格；边框余量按行框预留，不逐条额外加6mm。
+  const footerHeight = noteHeight + tableFootnoteHeight + ((table.footnotes?.length ?? 0) > 0 ? 1.2 : 0)
+  const captionCapacity = landscape ? 68 : 44
+  const captionLines = textLines(table.caption.map(run => run.text).join('') + '表XX（续）', captionCapacity)
+  const captionHeight = 8 + Math.max(0, captionLines - 1) * 5.5
   // A4 竖排样稿的可用版心约 234 mm，再预留 9 mm 给 Word 的布局浮动。
   const pageBudget = landscape ? 135 : 225
   // 表注与表脚注只在末段出现，前页不能逐页重复扣除这份空间。
-  const dataBudget = Math.max(30, pageBudget - 8 - headerHeight - 10)
+  const dataBudget = Math.max(30, pageBudget - captionHeight - headerHeight)
   const finalDataBudget = Math.max(30, dataBudget - footerHeight)
   const groups = bodyGroups(table.rows, headerRowCount)
   const groupHeights = groups.map((group) =>
     group.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape), 0))
-  const totalHeight = 8 + headerHeight + footerHeight + groupHeights.reduce((sum, height) => sum + height, 0)
-  const footerTooTall = footerHeight > pageBudget - 8
+  const totalHeight = captionHeight + headerHeight + footerHeight + groupHeights.reduce((sum, height) => sum + height, 0)
+  const footerTooTall = footerHeight > pageBudget - captionHeight
 
-  // 小表由 Word 的 keepNext 链保持整体；中长表从新页开始，使首段享有完整版心。
-  if (totalHeight <= pageBudget) {
-    return {
-      bodySegments: [table.rows.slice(headerRowCount)],
-      startOnNewPage: totalHeight > 50,
-      oversizedGroup: false,
-      footerTooTall,
-    }
+  const firstPageHeight = Number.isFinite(options.firstPageHeightMm)
+    ? Math.max(0, Math.min(pageBudget, options.firstPageHeightMm!)) : undefined
+  const result = (bodySegments: IRTableRow[][], startOnNewPage: boolean, oversizedGroup: boolean): TablePagination => ({
+    bodySegments, startOnNewPage, oversizedGroup, footerTooTall,
+    segmentHeightsMm: bodySegments.map((rows, index) => captionHeight + headerHeight +
+      rows.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape), 0) +
+      (index === bodySegments.length - 1 ? footerHeight : 0)),
+  })
+  // 小表仍整体保留，由 Word 在余量不足时自然移到下一页。其余表按首段余量切分。
+  if (totalHeight <= pageBudget && (totalHeight <= 50 || firstPageHeight === undefined || totalHeight <= firstPageHeight)) {
+    return result([table.rows.slice(headerRowCount)], firstPageHeight === undefined && totalHeight > 50, false)
   }
 
   const oversizedGroup = groupHeights.some((height) => height > dataBudget) ||
@@ -120,11 +136,28 @@ export function paginateTable(table: IRTable): TablePagination {
     minPages[start] = 1 + minPages[end]!
   }
 
+  let tailStart = groups.length
+  let tailRows = 0
+  while (tailStart > 0 && tailRows < 3) tailRows += groups[--tailStart]!.length
+  const maxEndBeforeLast = tailRows >= 3 && prefix[groups.length]! - prefix[tailStart]! <= finalDataBudget
+    ? tailStart : Math.max(1, groups.length - 1)
   const bodySegments: IRTableRow[][] = []
   let start = 0
-  for (let pagesLeft = minPages[0]!; pagesLeft > 1; pagesLeft -= 1) {
+  let startOnNewPage = true
+  if (firstPageHeight !== undefined) {
+    const firstDataBudget = firstPageHeight - captionHeight - headerHeight - 10
+    // 第一组必须完整放入；表头跨到数据行的合并也已包含在同一组内。
+    if (groups.length > 1 && groupHeights[0]! <= firstDataBudget) {
+      let end = 1
+      while (end < Math.max(1, maxEndBeforeLast) && prefix[end + 1]! <= firstDataBudget) end += 1
+      bodySegments.push(groups.slice(0, end).flat())
+      start = end
+      startOnNewPage = false
+    }
+  }
+  for (let pagesLeft = minPages[start]!; pagesLeft > 1; pagesLeft -= 1) {
     let bestEnd = start + 1
-    for (let end = start + 1; end <= groups.length - pagesLeft + 1; end += 1) {
+    for (let end = start + 1; end <= Math.min(groups.length - pagesLeft + 1, pagesLeft === 2 ? Math.max(start + 1, maxEndBeforeLast) : groups.length); end += 1) {
       const height = prefix[end]! - prefix[start]!
       if (end > start + 1 && height > dataBudget) break
       if (minPages[end]! > pagesLeft - 1) continue
@@ -135,5 +168,6 @@ export function paginateTable(table: IRTable): TablePagination {
   }
   // 只有表头而且表头/表注超预算时，也必须保留表格。
   bodySegments.push(groups.slice(start).flat())
-  return { bodySegments, startOnNewPage: true, oversizedGroup, footerTooTall }
+  return result(bodySegments, startOnNewPage, oversizedGroup)
+
 }

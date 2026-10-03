@@ -1,0 +1,416 @@
+{
+  "qualification": "fixture; not a real standard manuscript",
+  "sourceBaseline": "ad83eb4c180599b9d4e668700dc8558f4e8b70f4",
+  "word": "16.113.3",
+  "platform": "macOS 26.4",
+  "tests": {
+    "shared": 813,
+    "client": 172,
+    "build": "passed"
+  },
+  "cases": [
+    {
+      "name": "body-followed-table",
+      "pages": 6,
+      "bodyLastPage": 5,
+      "segments": [
+        {
+          "page": 5,
+          "first": 1,
+          "last": 29,
+          "count": 29,
+          "widthMm": 209.973,
+          "continued": false
+        },
+        {
+          "page": 6,
+          "first": 30,
+          "last": 70,
+          "count": 41,
+          "widthMm": 209.973,
+          "continued": true
+        }
+      ],
+      "samePage": true,
+      "docxSha256": "f5ade93ac76ab80fd7afca96d48baf3eb90809c8d32358d3407bcb3976ebc2c4",
+      "pdfSha256": "1096f66051c167b77c97ae15e8082718c83ebbb21df63e85e84630aff1acac62"
+    },
+    {
+      "name": "body-footnote",
+      "pages": 6,
+      "bodyLastPage": 5,
+      "segments": [
+        {
+          "page": 5,
+          "first": 1,
+          "last": 26,
+          "count": 26,
+          "widthMm": 209.973,
+          "continued": false
+        },
+        {
+          "page": 6,
+          "first": 27,
+          "last": 70,
+          "count": 44,
+          "widthMm": 209.973,
+          "continued": true
+        }
+      ],
+      "samePage": true,
+      "docxSha256": "e1ed54daf6f99d10a88564106d577602bd9c77c400ccdd597f58fc0eb128371f",
+      "pdfSha256": "d8dfb266fcfcea3ae2d3107df284b04289f1f646f6a150726a5d18aeeebba90c"
+    },
+    {
+      "name": "landscape-followed-portrait-table",
+      "pages": 8,
+      "bodyLastPage": 7,
+      "segments": [
+        {
+          "page": 7,
+          "first": 1,
+          "last": 37,
+          "count": 37,
+          "widthMm": 209.973,
+          "continued": false
+        },
+        {
+          "page": 8,
+          "first": 38,
+          "last": 70,
+          "count": 33,
+          "widthMm": 209.973,
+          "continued": true
+        }
+      ],
+      "samePage": true,
+      "docxSha256": "90939c6ae4b5fd7393c50e201ec36473cd0f7faa0d0f50a3646c78c565fb5141",
+      "pdfSha256": "f99ddbd9f11522c6cf676e4bfd456a179b9d56a4e5e68256c87fbef1cb8adc60"
+    },
+    {
+      "name": "long-body",
+      "pages": 8,
+      "bodyLastPage": 7,
+      "segments": [
+        {
+          "page": 7,
+          "first": 1,
+          "last": 37,
+          "count": 37,
+          "widthMm": 209.973,
+          "continued": false
+        },
+        {
+          "page": 8,
+          "first": 38,
+          "last": 70,
+          "count": 33,
+          "widthMm": 209.973,
+          "continued": true
+        }
+      ],
+      "samePage": true,
+      "docxSha256": "f98ae9f1dda25569b51d00888407dd5931899bc860a58c3da31864e68fe9d8cb",
+      "pdfSha256": "69d99393c72b0f3f41c6d6274828a0e1e25ffdb8548e5013f9d1655eb5e290c6"
+    },
+    {
+      "name": "long-caption",
+      "pages": 7,
+      "bodyLastPage": 5,
+      "segments": [
+        {
+          "page": 5,
+          "first": 1,
+          "last": 25,
+          "count": 25,
+          "widthMm": 209.973,
+          "continued": false
+        },
+        {
+          "page": 6,
+          "first": 26,
+          "last": 67,
+          "count": 42,
+          "widthMm": 209.973,
+          "continued": true
+        },
+        {
+          "page": 7,
+          "first": 68,
+          "last": 70,
+          "count": 3,
+          "widthMm": 209.973,
+          "continued": true
+        }
+      ],
+      "samePage": true,
+      "docxSha256": "f42aee8e5a6f0a2676284cac086a847485d87e63869f8631beef49b3a91da075",
+      "pdfSha256": "0862ae99e0352469a8dc96d018362a341dcd0c9c474dc1d9a64ecf64fb7e21cf"
+    },
+    {
+      "name": "merged-table-footnotes",
+      "pages": 6,
+      "bodyLastPage": 5,
+      "segments": [
+        {
+          "page": 5,
+          "first": 1,
+          "last": 28,
+          "count": 28,
+          "widthMm": 209.973,
+          "continued": false
+        },
+        {
+          "page": 6,
+          "first": 29,
+          "last": 70,
+          "count": 42,
+          "widthMm": 209.973,
+          "continued": true
+        }
+      ],
+      "samePage": true,
+      "docxSha256": "096514545d6e44ebc465e2de16ee4670257dfbd06ba972224079e6c801c0f5ab",
+      "pdfSha256": "b8a8be0955145c6b9c6fbf1e0c802145cc848feaaf2c06fd6ba1cc4cb326d47e"
+    },
+    {
+      "name": "near-page-bottom",
+      "pages": 7,
+      "bodyLastPage": 5,
+      "segments": [
+        {
+          "page": 6,
+          "first": 1,
+          "last": 48,
+          "count": 48,
+          "widthMm": 209.973,
+          "continued": false
+        },
+        {
+          "page": 7,
+          "first": 49,
+          "last": 70,
+          "count": 22,
+          "widthMm": 209.973,
+          "continued": true
+        }
+      ],
+      "samePage": false,
+      "docxSha256": "f533a8a9816e703be5bf83576fb277a803c94ac0832f3fc1231017ced0bcdf35",
+      "pdfSha256": "5017db7d85aa8b409111344a02dbc58a00c9e1ea1befe545f1b3234eadd90003"
+    }
+  ],
+  "files": [
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/body-followed-table.docx",
+      "docxSha256": "f5ade93ac76ab80fd7afca96d48baf3eb90809c8d32358d3407bcb3976ebc2c4",
+      "pdfSha256": "1096f66051c167b77c97ae15e8082718c83ebbb21df63e85e84630aff1acac62",
+      "pages": 6
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/body-footnote.docx",
+      "docxSha256": "e1ed54daf6f99d10a88564106d577602bd9c77c400ccdd597f58fc0eb128371f",
+      "pdfSha256": "d8dfb266fcfcea3ae2d3107df284b04289f1f646f6a150726a5d18aeeebba90c",
+      "pages": 6
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/landscape-followed-portrait-table.docx",
+      "docxSha256": "90939c6ae4b5fd7393c50e201ec36473cd0f7faa0d0f50a3646c78c565fb5141",
+      "pdfSha256": "f99ddbd9f11522c6cf676e4bfd456a179b9d56a4e5e68256c87fbef1cb8adc60",
+      "pages": 8
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/long-body.docx",
+      "docxSha256": "f98ae9f1dda25569b51d00888407dd5931899bc860a58c3da31864e68fe9d8cb",
+      "pdfSha256": "69d99393c72b0f3f41c6d6274828a0e1e25ffdb8548e5013f9d1655eb5e290c6",
+      "pages": 8
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/long-caption.docx",
+      "docxSha256": "f42aee8e5a6f0a2676284cac086a847485d87e63869f8631beef49b3a91da075",
+      "pdfSha256": "0862ae99e0352469a8dc96d018362a341dcd0c9c474dc1d9a64ecf64fb7e21cf",
+      "pages": 7
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/merged-table-footnotes.docx",
+      "docxSha256": "096514545d6e44ebc465e2de16ee4670257dfbd06ba972224079e6c801c0f5ab",
+      "pdfSha256": "b8a8be0955145c6b9c6fbf1e0c802145cc848feaaf2c06fd6ba1cc4cb326d47e",
+      "pages": 6
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/near-page-bottom.docx",
+      "docxSha256": "f533a8a9816e703be5bf83576fb277a803c94ac0832f3fc1231017ced0bcdf35",
+      "pdfSha256": "5017db7d85aa8b409111344a02dbc58a00c9e1ea1befe545f1b3234eadd90003",
+      "pages": 7
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/delivery/delivery.docx",
+      "docxSha256": "6d19a2f0182db7dfd8ceca2960287e2a54383a856af6d1d8acff0738d0e6e128",
+      "pdfSha256": "a5ffe17ac7bf3a96bba66ddf4e505e8ac781fa2af6bea1e0ed978849452ee4c6",
+      "pages": 9
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/delivery/duplicate.docx",
+      "docxSha256": "8e48673f6ae04a5645eb13ae69b1cd48d52fdecdbdaa4438fb4d232becac1b2b",
+      "pdfSha256": "64f925390e6843847f9c6f69b5a3cfbc772cb4d015e1908b86e5cd3c237d55af",
+      "pages": 9
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/delivery/xml-roundtrip.docx",
+      "docxSha256": "6d19a2f0182db7dfd8ceca2960287e2a54383a856af6d1d8acff0738d0e6e128",
+      "pdfSha256": "867fcd45bcb82a3c0d7b620e0e4ecfb3d969f72a7ae19c9b6a72b9e45a04ffc5",
+      "pages": 9
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/wp74.docx",
+      "docxSha256": "a09efe671422483859e5250695d7c053dbc634846bc66bf37bc009c7054a870b",
+      "pdfSha256": "105d1132c65c6049a4e0c8ada280c6bbe1ce2661345b4bc86b65d2d6ce92a1bd",
+      "pages": 12
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/正文后跨页表格测试.docx",
+      "docxSha256": "f5ade93ac76ab80fd7afca96d48baf3eb90809c8d32358d3407bcb3976ebc2c4",
+      "pdfSha256": "26c8525a7317999a44c67e474452742b209eee96ffc138331ee20a8a9cc11646",
+      "pages": 6
+    }
+  ],
+  "primary": {
+    "bodyLastLineBottomMm": 120.07458292643229,
+    "tableCaptionTopMm": 124.3079162597656,
+    "records": [
+      29,
+      41
+    ]
+  },
+  "deliveryXmlRoundtripPixelIdentical": true,
+  "schema": [
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/body-followed-table.docx",
+      "exit": 0,
+      "output": "Validation passed: no errors found.\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/body-footnote.docx",
+      "exit": 0,
+      "output": "Validation passed: no errors found.\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/landscape-followed-portrait-table.docx",
+      "exit": 0,
+      "output": "Validation passed: no errors found.\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/long-body.docx",
+      "exit": 0,
+      "output": "Validation passed: no errors found.\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/long-caption.docx",
+      "exit": 0,
+      "output": "Validation passed: no errors found.\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/merged-table-footnotes.docx",
+      "exit": 0,
+      "output": "Validation passed: no errors found.\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/near-page-bottom.docx",
+      "exit": 0,
+      "output": "Validation passed: no errors found.\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/delivery/delivery.docx",
+      "exit": 0,
+      "output": "Validation passed: no errors found.\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/delivery/duplicate.docx",
+      "exit": 0,
+      "output": "Validation passed: no errors found.\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/delivery/xml-roundtrip.docx",
+      "exit": 0,
+      "output": "Validation passed: no errors found.\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/wp74.docx",
+      "exit": 0,
+      "output": "Validation passed: no errors found.\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/正文后跨页表格测试.docx",
+      "exit": 0,
+      "output": "Validation passed: no errors found.\n"
+    }
+  ],
+  "wordRender": [
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/body-followed-table.docx",
+      "exit": 0,
+      "output": "written /Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/flow-fix/cases/body-followed-table.pdf\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/body-footnote.docx",
+      "exit": 0,
+      "output": "written /Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/flow-fix/cases/body-footnote.pdf\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/landscape-followed-portrait-table.docx",
+      "exit": 0,
+      "output": "written /Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/flow-fix/cases/landscape-followed-portrait-table.pdf\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/long-body.docx",
+      "exit": 0,
+      "output": "written /Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/flow-fix/cases/long-body.pdf\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/long-caption.docx",
+      "exit": 0,
+      "output": "written /Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/flow-fix/cases/long-caption.pdf\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/merged-table-footnotes.docx",
+      "exit": 0,
+      "output": "written /Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/flow-fix/cases/merged-table-footnotes.pdf\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/cases/near-page-bottom.docx",
+      "exit": 0,
+      "output": "written /Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/flow-fix/cases/near-page-bottom.pdf\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/delivery/delivery.docx",
+      "exit": 0,
+      "output": "written /Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/flow-fix/delivery/delivery.pdf\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/delivery/duplicate.docx",
+      "exit": 0,
+      "output": "written /Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/flow-fix/delivery/duplicate.pdf\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/delivery/xml-roundtrip.docx",
+      "exit": 0,
+      "output": "written /Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/flow-fix/delivery/xml-roundtrip.pdf\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/wp74.docx",
+      "exit": 0,
+      "output": "written /Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/flow-fix/wp74.pdf\n"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-fix/正文后跨页表格测试.docx",
+      "exit": 0,
+      "output": "written /Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/flow-fix/正文后跨页表格测试.pdf\n"
+    }
+  ],
+  "remaining": [
+    "formula height unknown uses fresh-page fallback with warning",
+    "landscape body footnote separator remains unverified failure",
+    "real standard manuscript not supplied",
+    "long caption remains three segments (25/42/3), conservative height estimate is not exact Word pagination"
+  ]
+}

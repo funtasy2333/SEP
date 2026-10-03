@@ -1,0 +1,110 @@
+/** 正文后长表接排样稿：生产schema、JSON重开、XML往返和buildDocxBlob。
+ * node packages/client/scripts/wp76-inline-table-samples.mjs <absolute output directory>
+ * 所有材料均为功能fixture，不代替真实标准文稿。 */
+import { createRequire } from 'node:module'
+import { resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { writeFile, mkdir } from 'node:fs/promises'
+import assert from 'node:assert/strict'
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const output = process.argv[2]
+if (!output?.startsWith('/')) throw new Error('请提供输出目录绝对路径')
+const require = createRequire(resolve(root, 'package.json'))
+const { createServer } = await import(require.resolve('vite'))
+const { getSchema } = await import(require.resolve('@tiptap/core'))
+const { Window } = await import(require.resolve('happy-dom'))
+const window = new Window()
+window.document.write('<!doctype html><html><body></body></html>')
+for (const name of ['DOMParser','Node','Element','HTMLElement','CustomEvent']) globalThis[name] = window[name]
+globalThis.document = window.document
+globalThis.window = window
+Object.defineProperty(globalThis, 'navigator', {value:window.navigator, configurable:true})
+const server = await createServer({root, configFile:false, resolve:{alias:{'@':resolve(root,'src')}}, optimizeDeps:{noDiscovery:true}, server:{middlewareMode:true}})
+let counter = 0
+const id = prefix => `${prefix}-${++counter}`
+const t = text => ({type:'text', text})
+const paragraph = text => ({type:'stdParagraph', attrs:{nodeId:id('p')}, content:[t(text)]})
+const cell = (value, header=false) => ({type:header?'tableHeader':'tableCell', attrs:{colspan:1,rowspan:1}, content:[{type:'paragraph',content:[t(value)]}]})
+const meta = {titleCn:'正文后跨页表格分页测试', titleEn:'Pagination test for a table following body text',standardType:'national',standardNo:'GB/T XXXXX—XXXX',icsCode:'01.120',ccsCode:'A 00'}
+const intro = [
+ '本章规定记录表的编排要求。记录以编号为索引，说明栏采用相同长度的短句，使各数据行保持基本一致的高度，便于观察表格在正文后及续页中的位置。',
+ '记录编号从1连续编至70，每个编号对应一条说明。阅读时可按编号检查数据是否遗漏或重复，并核对各页最后一条记录与下一页第一条记录是否衔接。',
+ '表格跨页时，后续页面应重复表题和列标题，续表仍沿用同一表号。表注放在最后一段之后，表后文字应接续出现，不另插入空白页。',
+ '正文与表格之间不设置人工分页符。本段结束后仍有足够空间容纳表题、列标题及若干数据行，适合观察长表首段是否直接利用当前页余量。',
+ '以下记录按编号连续排列，正文结束后直接给出表1。',
+]
+const longTable = {type:'stdTable', attrs:{nodeId:'inline-long-table',orientation:'portrait'}, content:[
+ {type:'tableCaption',content:[t('连续编号记录表')]},
+ {type:'table',content:[{type:'tableRow',content:[cell('记录编号',true),cell('记录说明',true)]},...Array.from({length:70},(_,i)=>({type:'tableRow',content:[cell(`记录${i+1}`),cell('检查数据顺序与跨页衔接。')]}))]},
+ {type:'tableNoteRow',content:[{type:'note',attrs:{nodeId:'inline-table-note'},content:[t('本表共70条记录，表注仅置于最后一段。')]}]},
+]}
+const source = {type:'doc',content:[
+ {type:'coverPage',attrs:{nodeId:'cover',...meta},content:[{type:'paragraph'}]},
+ {type:'chapter',attrs:{nodeId:'body-chapter'},content:[{type:'chapterTitle',content:[t('记录编排')]},...intro.map(paragraph),longTable,paragraph('表1结束。上述70条记录应连续完整，表注仅出现一次。')]},
+]}
+const clone = value => JSON.parse(JSON.stringify(value))
+const variants = [['body-followed-table', clone(source)]]
+for (const [name, count] of [['near-page-bottom', 13], ['long-body', 40]]) {
+ const variant = clone(source)
+ const children = variant.content[1].content
+ children.splice(5, 0, ...Array.from({length:count}, (_,i) => paragraph(`补充段落${i+1}：记录应按次序整理，保持各项说明的完整性。跨页后仍按原编号继续排列，检查正文末尾与后续表格是否连续。`)))
+ variants.push([name, variant])
+}
+const noted = clone(source)
+noted.content[1].content[1].content.push({type:'footnoteRef',attrs:{nodeId:'body-note-call',content:[t('正文条文脚注占用页底空间。首表段应在扣除该空间后接排，脚注与调用保持同页，表格行不得覆盖脚注。')]}})
+variants.push(['body-footnote', noted])
+const merged = clone(source)
+const mergedTable = merged.content[1].content.find(block=>block.type==='stdTable')
+const rows = mergedTable.content[1].content
+for(let i=1;i<rows.length;i++) {
+ rows[i].content[0].content[0].content = [t(`项目${i}`)]
+ rows[i].content[1].content[0].content = [t(`记录${i}：检查数据顺序与跨页衔接。`)]
+}
+for (const index of [1, 29]) {
+ rows[index].content[0].attrs.rowspan=2
+ rows[index+1].content.splice(0,1)
+}
+for(const [index, targetId] of [[3,'table-def-b'],[4,'table-def-a'],[5,'table-def-b']]) {
+ rows[index].content.at(-1).content[0].content.push({type:'tableFootnoteRef',attrs:{nodeId:id('table-call'),targetId}})
+}
+mergedTable.content.push({type:'tableFootnoteRow',content:[
+ {type:'tableFootnoteEntry',attrs:{nodeId:'table-def-a'},content:[t('定义A：按第二次首次调用派生编号。')]},
+ {type:'tableFootnoteEntry',attrs:{nodeId:'table-def-b'},content:[t('定义B：按首次调用派生编号，重复调用不重造定义。')]},
+]})
+variants.push(['merged-table-footnotes',merged])
+const landscape = clone(source)
+const wide = clone(longTable)
+wide.attrs={nodeId:'wide-short-table',orientation:'landscape'}
+wide.content=[{type:'tableCaption',content:[t('横排前置表')]},{type:'table',content:[{type:'tableRow',content:[cell('项目',true),cell('说明',true)]},{type:'tableRow',content:[cell('横排检查'),cell('下文恢复竖排。')]}]}]
+landscape.content[1].content.splice(1,0,wide)
+variants.push(['landscape-followed-portrait-table',landscape])
+const captioned = clone(source)
+captioned.content[1].content.find(block=>block.type==='stdTable').content[0].content=[t('连续编号记录表：'+ '检查跨页表题换行后是否完整显示并为数据行预留空间。'.repeat(5))]
+variants.push(['long-caption',captioned])
+try {
+ await mkdir(output,{recursive:true})
+ const {createEditorExtensions}=await server.ssrLoadModule('/src/extensions/editorExtensions.ts')
+ const {buildDocxBlob}=await server.ssrLoadModule('/src/serializer/docxExporter.ts')
+ const {serializeToXml}=await server.ssrLoadModule('/src/serializer/xmlSerializer.ts')
+ const {parseXmlToEditorJson}=await server.ssrLoadModule('/src/serializer/xmlParser.ts')
+ const schema = getSchema(createEditorExtensions())
+ const normalize = source => {const node=schema.nodeFromJSON({...source,type:schema.topNodeType.name});node.check();return node}
+ const manifest=[]
+ for(const [name, source] of variants) {
+  const node=normalize(source)
+  const before=JSON.stringify(node.toJSON())
+  const reopened=normalize(JSON.parse(before));assert.deepEqual(reopened.toJSON(),node.toJSON())
+  const xml=serializeToXml(node)
+  const roundtrip=normalize(parseXmlToEditorJson(xml,schema.topNodeType.name))
+  const {blob,warnings}=await buildDocxBlob({pmDoc:node,documentMeta:meta,stage:'working_draft',createdAt:'2026-10-03T00:00:00Z'})
+  const exportedAgain=await buildDocxBlob({pmDoc:roundtrip,documentMeta:meta,stage:'working_draft',createdAt:'2026-10-03T00:00:00Z'})
+  assert.deepEqual(new Uint8Array(await blob.arrayBuffer()),new Uint8Array(await exportedAgain.blob.arrayBuffer()))
+  assert.equal(JSON.stringify(node.toJSON()),before)
+  await writeFile(resolve(output,`${name}.docx`),new Uint8Array(await blob.arrayBuffer()))
+  await writeFile(resolve(output,`${name}.json`),JSON.stringify({meta,stage:'working_draft',content:node.toJSON()},null,2))
+  await writeFile(resolve(output,`${name}.xml`),xml)
+  manifest.push({name,qualification:'fixture',sourceHasManualPageBreak:false,warnings,bytes:blob.size,jsonReopen:true,xmlRoundtripByteIdentical:true})
+ }
+ await writeFile(resolve(output,'manifest.json'),JSON.stringify(manifest,null,2))
+ console.log(JSON.stringify(manifest))
+} finally {await server.close();window.happyDOM.abort()}
