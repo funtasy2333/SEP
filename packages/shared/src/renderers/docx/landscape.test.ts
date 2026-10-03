@@ -3,7 +3,7 @@ import type { IRDoc, IRFigure, IRTable } from '../../ir/types'
 import { resolve } from '../../ir/resolve'
 import { renderDocxTraced } from './render'
 import { docxOutline } from './__tests__/helpers/outline'
-import { assertWellFormed } from './__tests__/helpers/checks'
+import { assertWellFormed, assertChildOrder } from './__tests__/helpers/checks'
 
 const image = {
   base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6oJ8AAAAASUVORK5CYII=',
@@ -75,6 +75,19 @@ describe('WP7.4 横排分节', () => {
       'word/media/image3.png', // 横排图
     ])
     expect(pkg.binaries['word/media/image3.png']).toBe(image.base64)
+  })
+
+  it.each(['portrait', 'landscape'] as const)('相邻%s表保持独立，不能被Word合并并复用第一张表的重复表头', (orientation) => {
+    const first = { ...landscapeTable('table-1'), orientation }
+    const second = { ...landscapeTable('table-2'), orientation }
+    const pkg = render(docWith([first, second]))
+    const xml = pkg.parts['word/document.xml']!
+    expect(xml).not.toContain('</w:tbl><w:tbl>')
+    expect(xml).toMatch(/<\/w:tbl><w:p><w:pPr><w:pStyle w:val="SesNormal"\/><\/w:pPr><\/w:p><w:tbl>/)
+    assertWellFormed(pkg)
+    assertChildOrder(pkg)
+    const sections = docxOutline(pkg).split('\n').filter(line => line.startsWith('§'))
+    expect(sections.filter(line => line.includes('orient=landscape'))).toHaveLength(orientation === 'landscape' ? 1 : 0)
   })
 
   it('末要素为横排表时终结线保留在横排节，且不额外开竖排节', () => {

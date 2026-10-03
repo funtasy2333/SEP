@@ -58,6 +58,8 @@ class Ctx {
   warnings: string[] = []
   /** 原始 atom 与转换结果的关联，用于最终检查是否实际进入 IR 树。 */
   footnoteInlines = new WeakMap<PMJsonNode, IRInline>()
+  /** 暂不支持的脚注负载保留为阻断诊断，避免导出时只写出部分内容。 */
+  invalidFootnotePayloads: { nodeId: NodeId; reason: string }[] = []
   private missingSeq = 0
   private warnedUnknown = new Set<string>()
 
@@ -89,14 +91,62 @@ const MARK_MAP: Record<string, Exclude<IRMark, { targetId: string }>['type']> = 
   superscript: 'sup',
 }
 
+function isPmJsonNode(value: unknown): value is PMJsonNode {
+  return value !== null
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && typeof (value as { type?: unknown }).type === 'string'
+}
+
+/** 脚注负载仅支持行内文本、换行及已有引用 atom；块结构或未知格式不得静默丢弃。 */
+function unsupportedFootnoteContent(content: unknown[]): string | undefined {
+  for (const value of content) {
+    if (!isPmJsonNode(value)) return '无效的行内节点'
+    const node = value
+    if (node.type === 'text') {
+      if (typeof node.text !== 'string') return '无效的文本内容'
+      if (node.marks != null && !Array.isArray(node.marks)) return '无效的格式标记'
+      for (const mark of node.marks ?? []) {
+        if (!mark || typeof mark !== 'object' || Array.isArray(mark) || typeof mark.type !== 'string') {
+          return '无效的格式标记'
+        }
+        if (Object.prototype.hasOwnProperty.call(MARK_MAP, mark.type)) continue
+        if (mark.type === 'crossRef' && typeof mark.attrs?.refId === 'string' && mark.attrs.refId.length > 0) continue
+        return mark.type === 'crossRef' ? '缺少目标的交叉引用' : `格式「${mark.type}」`
+      }
+      continue
+    }
+    if (node.type === 'hardBreak') continue
+    if (node.type === 'tableFootnoteRef') return '表脚注引用不能嵌入脚注内容'
+    if (node.type === 'footnoteRef') {
+      const nested = Array.isArray(node.attrs?.content) ? node.attrs.content as PMJsonNode[] : []
+      const reason = unsupportedFootnoteContent(nested)
+      if (reason) return reason
+      continue
+    }
+    return `节点「${node.type}」`
+  }
+  return undefined
+}
+
 function convertMarks(
   marks: PMJsonNode['marks'],
   ctx: Ctx,
 ): IRMark[] | undefined {
-  if (!marks || marks.length === 0) return undefined
+  if (marks == null) return undefined
+  if (!Array.isArray(marks)) {
+    ctx.warnings.push('行内格式标记结构无效，已跳过')
+    return undefined
+  }
+  if (marks.length === 0) return undefined
   const out: IRMark[] = []
-  for (const m of marks) {
-    const mapped = MARK_MAP[m.type]
+  for (const value of marks as unknown[]) {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || typeof (value as { type?: unknown }).type !== 'string') {
+      ctx.warnings.push('行内格式标记结构无效，已跳过')
+      continue
+    }
+    const m = value as { type: string; attrs?: Record<string, unknown> }
+    const mapped = Object.prototype.hasOwnProperty.call(MARK_MAP, m.type) ? MARK_MAP[m.type] : undefined
     if (mapped) {
       out.push({ type: mapped })
     } else if (m.type === 'crossRef') {
@@ -117,8 +167,17 @@ function convertMarks(
 function convertInlines(content: PMJsonNode[] | undefined, ctx: Ctx): IRInline[] {
   if (!content) return []
   const out: IRInline[] = []
-  for (const child of content) {
+  for (const value of content as unknown[]) {
+    if (!isPmJsonNode(value)) {
+      ctx.warnings.push('无效的行内节点结构，已跳过')
+      continue
+    }
+    const child = value
     if (child.type === 'text') {
+      if (typeof child.text !== 'string') {
+        ctx.warnings.push('行内文本结构无效，已跳过')
+        continue
+      }
       if (!child.text) continue
       const inline: IRInline = { text: child.text }
       const marks = convertMarks(child.marks, ctx)
@@ -129,7 +188,10 @@ function convertInlines(content: PMJsonNode[] | undefined, ctx: Ctx): IRInline[]
     } else if (child.type === 'footnoteRef') {
       const raw = child.attrs?.content
       const content = Array.isArray(raw) ? raw as PMJsonNode[] : []
-      const inline: IRInline = { text: '', footnote: { id: ctx.id(child), content: convertInlines(content, ctx) } }
+      const id = ctx.id(child)
+      const unsupported = unsupportedFootnoteContent(content)
+      if (unsupported) ctx.invalidFootnotePayloads.push({ nodeId: id, reason: unsupported })
+      const inline: IRInline = { text: '', footnote: { id, content: convertInlines(content, ctx) } }
       ctx.footnoteInlines.set(child, inline)
       out.push(inline)
     } else if (child.type === 'tableFootnoteRef') {
@@ -362,7 +424,13 @@ function convertStdTable(node: PMJsonNode, ctx: Ctx): IRTable {
     if (row.type === 'tableFootnoteRow') {
       table.footnotes ??= []
       for (const entry of row.content ?? []) {
-        if (entry.type === 'tableFootnoteEntry') table.footnotes.push({ id: ctx.id(entry), content: convertInlines(entry.content, ctx) })
+        if (entry.type === 'tableFootnoteEntry') {
+          const id = ctx.id(entry)
+          const content = entry.content ?? []
+          const unsupported = unsupportedFootnoteContent(content)
+          if (unsupported) ctx.invalidFootnotePayloads.push({ nodeId: id, reason: unsupported })
+          table.footnotes.push({ id, content: convertInlines(content, ctx) })
+        }
         else ctx.unknown(entry.type, '表脚注行')
       }
     }
@@ -767,7 +835,9 @@ function preserveUnmappedFootnotes(pmDoc: PMJsonNode, doc: IRDoc, ctx: Ctx): voi
   }
   markIr(doc)
   const pending: NonNullable<IRDoc['unmappedFootnotes']> = []
-  const visit = (node: PMJsonNode, container: string): void => {
+  const visit = (value: unknown, container: string): void => {
+    if (!isPmJsonNode(value)) return
+    const node = value
     if (node.type === 'footnoteRef' || node.type === 'tableFootnoteRef') {
       let inline = ctx.footnoteInlines.get(node)
       const mapped = inline?.footnote ?? inline?.marks?.find(mark => mark.type === 'tableFootnoteRef')
@@ -784,6 +854,14 @@ function preserveUnmappedFootnotes(pmDoc: PMJsonNode, doc: IRDoc, ctx: Ctx): voi
     }
   }
   visit(pmDoc, pmDoc.type)
+  for (const invalid of ctx.invalidFootnotePayloads) {
+    pending.push({
+      container: 'unsupportedFootnotePayload',
+      nodeId: invalid.nodeId,
+      content: [],
+      reason: invalid.reason,
+    })
+  }
   if (pending.length) doc.unmappedFootnotes = pending
 }
 

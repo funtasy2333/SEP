@@ -1,0 +1,1393 @@
+{
+  "date": "2026-10-03",
+  "status": "partial; real manuscript and landscape body footnote separator unfinished",
+  "baseline": "3ffff1f01367bff513482fd1217e4cc64751cb8c",
+  "worktree": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set",
+  "sourceQualification": "All inputs are fixtures. Main database documents 测试标准/测试标准TEST not accepted as real. User confirmation pending.",
+  "environment": {
+    "Word": "16.113.3",
+    "macOS": "26.4",
+    "officecli": "1.0.152",
+    "Node": "22.22.3",
+    "pnpm": "10.33.0",
+    "Python": "3.11.4"
+  },
+  "artifacts": [
+    {
+      "docx": "tmp-e2e/wp76-acceptance/browser-fixture/created.docx",
+      "docxSha256": "bb35467b59b8c19d3dccbb183ca86f8155c262cabba600b4c34af86779add927",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/browser-fixture/created.pdf",
+      "pdfSha256": "87fbf71bd2afe287b18a2bcc0306a685b977839b1280a5d859506df4e6f21310",
+      "pages": 5,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/browser-fixture/duplicate.docx",
+      "docxSha256": "94a7d5be02b7d2e201912eadba1dbcab894db1b3d13a66ea87f655a8b8bc6bab",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/browser-fixture/duplicate.pdf",
+      "pdfSha256": "a0e361d0c3229000b2857c3e30c1d38f60dc5322272c344d6db9526149fd553b",
+      "pages": 12,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          841.92,
+          595.2
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/browser-fixture/reopened.docx",
+      "docxSha256": "de1a9d96f4124fb1db748fe979e836ff6fad7b9645cfc18428ee25f8ae8957a0",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/browser-fixture/reopened.pdf",
+      "pdfSha256": "d9eb4c8f8258b2f5ff0d5ea4226d17734f83be71bd1df50dde64b83e35a13c0c",
+      "pages": 12,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          841.92,
+          595.2
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/covers/enterprise.docx",
+      "docxSha256": "20f5502239ec294496bb5993464f4a16ec88b1f2f4e37d3734a909ee158504a6",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/covers/enterprise.pdf",
+      "pdfSha256": "12ceb05a71150695d85b34ea5c80ad80af5183a4aee9c2d92a9045def4ae4a95",
+      "pages": 5,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/covers/gb-comment.docx",
+      "docxSha256": "12e218de5e38f5236d23a773e7bc6b68a370feae9a48a0d598736af115b97967",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/covers/gb-comment.pdf",
+      "pdfSha256": "f85adcba96c4e4b989b29864f3ec435f3f7db0cd24b565bc355179dc2df851be",
+      "pages": 5,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/covers/gb-review-discussion.docx",
+      "docxSha256": "4388917c488b0110bdf339e646706f9fcf15b479d85000bd7701db3555521129",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/covers/gb-review-discussion.pdf",
+      "pdfSha256": "216549bd3aebbd97815ed4a6d52f2ccae33089a46659bcda624a38cec2667039",
+      "pages": 5,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/covers/gb-review.docx",
+      "docxSha256": "9db4685c22d44c850e48050964db2accd88f29ca61610d55cf1998e8eaad9afc",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/covers/gb-review.pdf",
+      "pdfSha256": "c4698c7b6777294dbd6da78e324d55d2350113ab6881cdd80442caf02f50b75f",
+      "pages": 5,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/covers/gb.docx",
+      "docxSha256": "89e683ccded50c4fb87aff7a80dc3e30a9deaaacbcd8f167d98d8da32f10c3da",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/covers/gb.pdf",
+      "pdfSha256": "a52429d07fe150feeabb8b54156744bf1515fb563e0afce14e0af1aec9ea28dc",
+      "pages": 5,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/covers/group.docx",
+      "docxSha256": "6ed3401a108637631d8af71f600059e539ebd3506cbcb2c510d16476c6923f56",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/covers/group.pdf",
+      "pdfSha256": "ccb71f62a3e78d9d59a01849ec8a90de48ba0ee8480ed3703f3b3124fd348af6",
+      "pages": 5,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/covers/guide.docx",
+      "docxSha256": "19e9084fde678a5821e2a12944e48cdc787feb610ff30260291dfc6b99969359",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/covers/guide.pdf",
+      "pdfSha256": "85655e4a63636df56a67e16c5cb07425720742c606ac16f99f8dc872543ac9a8",
+      "pages": 5,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/covers/industry.docx",
+      "docxSha256": "3dbb9232238d65df3e7f94feddcec66576a016c985fdf2ebbc13db7b53839888",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/covers/industry.pdf",
+      "pdfSha256": "c3ee17d46112aa82d54a94d71c69bcbfb30a8cbe267c6f059c942b20df66ae4b",
+      "pages": 5,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/covers/local.docx",
+      "docxSha256": "9b3061d0769dbc022ef0e34fcc6d93c680c32a797924451eb9bb41016f57fec9",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/covers/local.pdf",
+      "pdfSha256": "64ec6c8ec46665277f76923fb5e1a2098ee41017d34db5a2c26d2785e2a5683d",
+      "pages": 5,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/final/delivery.docx",
+      "docxSha256": "622e87ed3b2deb79cd7f525d5af41310d2822b2308f2a9c7aa88ae40494bf67f",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/final/delivery.pdf",
+      "pdfSha256": "5c68a56dd0bdf04741c8718fadb434a36eda728177307ec31f7306d9e6c9e0ad",
+      "pages": 12,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          841.92,
+          595.2
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/final/duplicate.docx",
+      "docxSha256": "358ace2ff76bc54b3cef7bcd56b21afc4607f0730804770a2ad52cff259f7d86",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/final/duplicate.pdf",
+      "pdfSha256": "18c84f3940d5543fbb377ef1051991b3f4e209900cbc44971006aca126cc3bad",
+      "pages": 12,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          841.92,
+          595.2
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/final/standalone-border.docx",
+      "docxSha256": "28e1a769b1d0079d4f1fe1b644c151013840434273f4c5d47cc66bca5e9c43bd",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/final/standalone-border.pdf",
+      "pdfSha256": "ccdcb6580d67328e68deb08afbaf458d785269f960eb3db8e2c9c5be41209889",
+      "pages": 5,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/final/xml-roundtrip.docx",
+      "docxSha256": "622e87ed3b2deb79cd7f525d5af41310d2822b2308f2a9c7aa88ae40494bf67f",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/final/xml-roundtrip.pdf",
+      "pdfSha256": "e2b41a6a531f6e45e9dfeee16582a44909de331c19356cdd45f83edf714463c8",
+      "pages": 12,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          841.92,
+          595.2
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/footnote-landscape-probe.docx",
+      "docxSha256": "a5103d7dca5c4cce8d7d89a6288157376a9f2ee90a3e147221f903cc3d14595d",
+      "qualification": "physical-layout-probe",
+      "pdf": "tmp-e2e/wp76-acceptance/footnote-landscape-probe.pdf",
+      "pdfSha256": "a6a2dfb79f8acd6a78775edfdf1c31ede741da775e35a90e6ae0e5b8c3c365af",
+      "pages": 12,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          841.92,
+          595.2
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          841.92,
+          595.2
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/full.docx",
+      "docxSha256": "9f5dc8b2049c2f4c836f840b5b811b651afdc966b5052cc6bf51f0d5c625cff3",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/full.pdf",
+      "pdfSha256": "6171bbdcb36614d23643b2f74a4ab094c9da0f972ff665f9ccb79af41eceb382",
+      "pages": 11,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/new-document.docx",
+      "docxSha256": "fed116596ca676dbf4bced943f0e45dbb25516eedb21d42b67e002fd31676ad0",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/new-document.pdf",
+      "pdfSha256": "7a8fca183dbd4011c8708e877aecc66f68ece3726d0c5929acd7cdf664ec2dc2",
+      "pages": 5,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/numbering.docx",
+      "docxSha256": "62d403a34024234c8dcaeab7e6928860f77d43e904533e1b5f09946a45c6d5ff",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/numbering.pdf",
+      "pdfSha256": "473f690010f574cd4a4e2db9f37246e9d4da5c59f01e5995c86fdce4a969b603",
+      "pages": 13,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ]
+      ]
+    },
+    {
+      "docx": "tmp-e2e/wp76-acceptance/wp74.docx",
+      "docxSha256": "bed8474addd2498a9e627ce19a5b3085787e41209c8b023c74513eb66da2acd2",
+      "qualification": "fixture",
+      "pdf": "tmp-e2e/wp76-acceptance/wp74.pdf",
+      "pdfSha256": "6b37606b09819f525669732af62cf7454498d221915275fb7a9e7f6b77646a8a",
+      "pages": 12,
+      "pageSizesPt": [
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          841.92,
+          595.2
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          595.2,
+          841.92
+        ],
+        [
+          841.92,
+          595.2
+        ]
+      ]
+    }
+  ],
+  "schema": [
+    {
+      "path": "tmp-e2e/wp76-acceptance/final/standalone-border.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "28e1a769b1d0079d4f1fe1b644c151013840434273f4c5d47cc66bca5e9c43bd"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/final/delivery.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "622e87ed3b2deb79cd7f525d5af41310d2822b2308f2a9c7aa88ae40494bf67f"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/final/xml-roundtrip.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "622e87ed3b2deb79cd7f525d5af41310d2822b2308f2a9c7aa88ae40494bf67f"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/final/duplicate.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "358ace2ff76bc54b3cef7bcd56b21afc4607f0730804770a2ad52cff259f7d86"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/covers/gb.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "89e683ccded50c4fb87aff7a80dc3e30a9deaaacbcd8f167d98d8da32f10c3da"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/covers/gb-comment.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "12e218de5e38f5236d23a773e7bc6b68a370feae9a48a0d598736af115b97967"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/covers/enterprise.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "20f5502239ec294496bb5993464f4a16ec88b1f2f4e37d3734a909ee158504a6"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/covers/industry.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "3dbb9232238d65df3e7f94feddcec66576a016c985fdf2ebbc13db7b53839888"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/covers/local.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "9b3061d0769dbc022ef0e34fcc6d93c680c32a797924451eb9bb41016f57fec9"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/covers/gb-review.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "9db4685c22d44c850e48050964db2accd88f29ca61610d55cf1998e8eaad9afc"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/covers/guide.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "19e9084fde678a5821e2a12944e48cdc787feb610ff30260291dfc6b99969359"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/covers/group.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "6ed3401a108637631d8af71f600059e539ebd3506cbcb2c510d16476c6923f56"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/covers/gb-review-discussion.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "4388917c488b0110bdf339e646706f9fcf15b479d85000bd7701db3555521129"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/wp74.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "bed8474addd2498a9e627ce19a5b3085787e41209c8b023c74513eb66da2acd2"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/new-document.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "fed116596ca676dbf4bced943f0e45dbb25516eedb21d42b67e002fd31676ad0"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/full.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "9f5dc8b2049c2f4c836f840b5b811b651afdc966b5052cc6bf51f0d5c625cff3"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/numbering.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "62d403a34024234c8dcaeab7e6928860f77d43e904533e1b5f09946a45c6d5ff"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/browser-fixture/created.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "bb35467b59b8c19d3dccbb183ca86f8155c262cabba600b4c34af86779add927"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/browser-fixture/duplicate.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "94a7d5be02b7d2e201912eadba1dbcab894db1b3d13a66ea87f655a8b8bc6bab"
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/browser-fixture/reopened.docx",
+      "exitCode": 0,
+      "output": "Validation passed: no errors found.\n",
+      "passed": true,
+      "sha256": "de1a9d96f4124fb1db748fe979e836ff6fad7b9645cfc18428ee25f8ae8957a0"
+    }
+  ],
+  "covers": {
+    "gb": {
+      "passed": 33,
+      "total": 33,
+      "maxAbsDeltaMm": 0.77
+    },
+    "guide": {
+      "passed": 33,
+      "total": 33,
+      "maxAbsDeltaMm": 0.83
+    },
+    "industry": {
+      "passed": 29,
+      "total": 29,
+      "maxAbsDeltaMm": 0.99
+    },
+    "local": {
+      "passed": 27,
+      "total": 27,
+      "maxAbsDeltaMm": 0.74
+    },
+    "group": {
+      "passed": 29,
+      "total": 29,
+      "maxAbsDeltaMm": 0.82
+    },
+    "enterprise": {
+      "passed": 27,
+      "total": 27,
+      "maxAbsDeltaMm": 0.75
+    }
+  },
+  "coverRawFile": "docs/wp7.6-acceptance-2026-10-03-cover-measurements.json",
+  "blankPage": {
+    "file": "tmp-e2e/wp76-acceptance/final/delivery.pdf",
+    "page": 2,
+    "textLength": 0,
+    "drawings": 0,
+    "rasterMinGray": 255,
+    "expected": "oddPage automatic blank, no header/footer/page number"
+  },
+  "bodyFootnoteSeparators": [
+    {
+      "page": 4,
+      "targetWidthMm": 41.25,
+      "actual": [
+        {
+          "rectPt": [
+            56.64,
+            745.92,
+            173.52,
+            746.4
+          ],
+          "widthMm": 41.233,
+          "thicknessPt": 0.48
+        }
+      ]
+    },
+    {
+      "page": 5,
+      "targetWidthMm": 41.25,
+      "actual": [
+        {
+          "rectPt": [
+            70.8,
+            745.92,
+            187.68,
+            746.4
+          ],
+          "widthMm": 41.233,
+          "thicknessPt": 0.48
+        }
+      ]
+    },
+    {
+      "page": 12,
+      "targetWidthMm": 41.25,
+      "actual": [
+        {
+          "rectPt": [
+            231.84,
+            128.64,
+            349.2,
+            129.6
+          ],
+          "widthMm": 41.402,
+          "thicknessPt": 0.96
+        },
+        {
+          "rectPt": [
+            56.64,
+            745.92,
+            173.52,
+            746.4
+          ],
+          "widthMm": 41.233,
+          "thicknessPt": 0.48
+        }
+      ]
+    }
+  ],
+  "tableBorders": {
+    "file": "tmp-e2e/wp76-acceptance/final/standalone-border.pdf",
+    "page": 5,
+    "lines": [
+      {
+        "rectPt": [
+          71.76,
+          247.44,
+          304.56,
+          248.16
+        ],
+        "widthMm": 82.127,
+        "thicknessPt": 0.72
+      },
+      {
+        "rectPt": [
+          305.28,
+          247.44,
+          538.08,
+          248.16
+        ],
+        "widthMm": 82.127,
+        "thicknessPt": 0.72
+      },
+      {
+        "rectPt": [
+          71.04,
+          259.92,
+          304.56,
+          260.64
+        ],
+        "widthMm": 82.381,
+        "thicknessPt": 0.72
+      },
+      {
+        "rectPt": [
+          305.28,
+          259.92,
+          538.08,
+          260.64
+        ],
+        "widthMm": 82.127,
+        "thicknessPt": 0.72
+      },
+      {
+        "rectPt": [
+          71.04,
+          272.4,
+          538.08,
+          273.12
+        ],
+        "widthMm": 164.761,
+        "thicknessPt": 0.72
+      },
+      {
+        "rectPt": [
+          71.76,
+          317.76,
+          304.56,
+          318.48
+        ],
+        "widthMm": 82.127,
+        "thicknessPt": 0.72
+      },
+      {
+        "rectPt": [
+          305.28,
+          317.76,
+          538.08,
+          318.48
+        ],
+        "widthMm": 82.127,
+        "thicknessPt": 0.72
+      },
+      {
+        "rectPt": [
+          71.04,
+          330.24,
+          304.56,
+          330.96
+        ],
+        "widthMm": 82.381,
+        "thicknessPt": 0.72
+      },
+      {
+        "rectPt": [
+          305.28,
+          330.24,
+          538.08,
+          330.96
+        ],
+        "widthMm": 82.127,
+        "thicknessPt": 0.72
+      },
+      {
+        "rectPt": [
+          71.04,
+          342.72,
+          538.08,
+          342.96
+        ],
+        "widthMm": 164.761,
+        "thicknessPt": 0.24
+      },
+      {
+        "rectPt": [
+          71.04,
+          354.72,
+          538.08,
+          355.44
+        ],
+        "widthMm": 164.761,
+        "thicknessPt": 0.72
+      },
+      {
+        "rectPt": [
+          246.0,
+          372.0,
+          363.36,
+          372.96
+        ],
+        "widthMm": 41.402,
+        "thicknessPt": 0.96
+      }
+    ],
+    "standaloneTopPt": 0.72,
+    "combinedOuterTopPt": 0.72,
+    "combinedInternalPt": 0.24,
+    "ooxmlNominalPt": [
+      0.75,
+      0.75,
+      0.25
+    ]
+  },
+  "layoutProbe": {
+    "qualification": "test-only ZIP copy: foreword section rotated to landscape, not supported editor paragraph orientation",
+    "script": "/private/tmp/sep-wp76/probe.py",
+    "source": "tmp-e2e/wp76-acceptance/final/delivery.docx",
+    "page": 4,
+    "targetWidthMm": 63,
+    "actual": [
+      {
+        "rectPt": [
+          70.8,
+          499.2,
+          434.4,
+          499.68
+        ],
+        "widthMm": 128.27,
+        "thicknessPt": 0.48
+      }
+    ],
+    "status": "failed; unresolved"
+  },
+  "bodyFootnotePositionsPt": {
+    "page": 4,
+    "leftTextEdge": 56.64,
+    "markerLeft": 74.64,
+    "contentLeft": 92.64,
+    "markerOffset": 18,
+    "contentOffset": 36
+  },
+  "tableFootnotePositionsPt": {
+    "page": 7,
+    "leftEdge": 71.04,
+    "markerLeft": 89.28,
+    "firstContentCharLeft": 98.28,
+    "markerOffset": 18.24,
+    "contentOffset": 27.24
+  },
+  "browser": {
+    "source": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/final/delivery.xml",
+    "sourceSha256": "6b51f3fa6de75bbe749254d64ea098b7ab65f2ea86a2c7289564d339a2ba48cc",
+    "sourceQualification": "unconfirmed: caller must identify real manuscript or fixture",
+    "origin": "http://localhost:5193",
+    "status": "browser-flow-passed; Word and real-manuscript qualification are separate checks",
+    "steps": [
+      "UI 创建：空编号、替代/采标、单位和专利前言一次持久化",
+      "UI 新建 XML 导出再导入：替代/采标、空编号及单位元数据一致",
+      "UI XML 导入：题名、元数据、正文一起写入隔离数据库",
+      "UI 编辑 + 保存 + reload 重开：数据库正文和元数据一致，未重套初始化模板",
+      "UI 复制 + 重开 + DOCX/XML 下载：副本题名/阶段更新，原正文和源文档保留"
+    ],
+    "artifacts": [
+      {
+        "format": "DOCX",
+        "path": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/browser-fixture/created.docx",
+        "sha256": "bb35467b59b8c19d3dccbb183ca86f8155c262cabba600b4c34af86779add927"
+      },
+      {
+        "format": "XML",
+        "path": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/browser-fixture/created.xml",
+        "sha256": "a595c4f9b50eb406c240c89a1e94d809c8131b359e69315996a5e2a596cebd93"
+      },
+      {
+        "format": "DOCX",
+        "path": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/browser-fixture/reopened.docx",
+        "sha256": "de1a9d96f4124fb1db748fe979e836ff6fad7b9645cfc18428ee25f8ae8957a0"
+      },
+      {
+        "format": "XML",
+        "path": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/browser-fixture/reopened.xml",
+        "sha256": "e58fc115d27e4cf0f16416a334e86df72e4cdb537f5eb22fa6d7f91a2992b09f"
+      },
+      {
+        "format": "DOCX",
+        "path": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/browser-fixture/duplicate.docx",
+        "sha256": "94a7d5be02b7d2e201912eadba1dbcab894db1b3d13a66ea87f655a8b8bc6bab"
+      },
+      {
+        "format": "XML",
+        "path": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/browser-fixture/duplicate.xml",
+        "sha256": "27198b5b4dc2c3a4e6c788d711139ea4b34474491a73e1696ec91889169db112"
+      }
+    ],
+    "consoleErrors": []
+  },
+  "vivliostyle": {
+    "origin": "http://localhost:5193",
+    "inputQualification": "fixture",
+    "pipeline": "existing UI → html-to-pdf → Vivliostyle",
+    "pageErrors": [],
+    "httpStatus": 201,
+    "path": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/vivliostyle-preview.pdf",
+    "status": "passed"
+  },
+  "tests": {
+    "shared": 795,
+    "client": 153,
+    "server": 23,
+    "build": "passed",
+    "logs": [
+      "/private/tmp/sep-pr42-shared-full-after-malformed.log",
+      "/private/tmp/sep-pr42-client-full-after-malformed.log",
+      "/private/tmp/sep-wp76/server.log",
+      "/private/tmp/sep-wp76/build-final.log"
+    ]
+  },
+  "originalPdfImagesRead": [
+    38,
+    39,
+    40,
+    42,
+    53,
+    54,
+    55,
+    61,
+    62,
+    66
+  ],
+  "preservedMainImageSha256": "8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8"
+}

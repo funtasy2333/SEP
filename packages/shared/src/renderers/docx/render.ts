@@ -229,9 +229,16 @@ export function renderDocxTraced(
     finalContentLandscape = rendered.endsLandscape
   }
 
+  // Word merges adjacent tbl elements, including their repeated header rows. A normal
+  // empty paragraph separates distinct tables without changing section or numbering rules.
+  body = body.replace(/<\/w:tbl><w:tbl>/g, '</w:tbl>' + emitParagraph(ctx, 'SesNormal') + '<w:tbl>')
   body = keepLastContentWithEndMark(body)
   body += emitParagraph(ctx, finalContentLandscape ? 'SesEndMarkLandscape' : 'SesEndMark')
   body += sectionManager.finalSectPr()
+
+  if (bodyFootnotes.length > 0 && body.includes('w:orient="landscape"')) {
+    ctx.warnings.push({ code: 'footnote-landscape-separator', message: '文档含条文脚注和横排节；Word 横排页的条文脚注分隔线尚未支持按版心1/4自动调整，请校对横排脚注及跨页延续。' })
+  }
 
   const documentXml = `${XML_DECL}<w:document ${DOCUMENT_NS}><w:body>${body}</w:body></w:document>`
 
