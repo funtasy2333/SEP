@@ -226,12 +226,12 @@ function cellXml(
   return `<w:tc>${tcPr(tcPrChildren)}${contentXml}</w:tc>`
 }
 
-function noteRowXml(widths: number[], columnCount: number, notesXml: string, kind: 'notes' | 'footnotes'): string {
+function noteRowXml(widths: number[], columnCount: number, notesXml: string, kind: 'notes' | 'footnotes', topBorderSize: 2 | 6): string {
   const width = widths.reduce((sum, value) => sum + value, 0)
   const tcPrXml = tcPr([
     ['tcW', `<w:tcW w:w="${width}" w:type="dxa"/>`],
     ...(columnCount > 1 ? [['gridSpan', `<w:gridSpan w:val="${columnCount}"/>`] as const] : []),
-    ['tcBorders', cellBorderXml(['top'], kind === 'notes' ? 6 : 2)],
+    ['tcBorders', cellBorderXml(['top'], topBorderSize)],
     // Word's default 100-twip cell inset shifts the footnote paragraph away from the table frame.
     // Zero only the footnote row's left inset so its 9pt fourth-character tab aligns to that frame.
     ...(kind === 'footnotes' ? [['tcMar', '<w:tcMar><w:left w:w="0" w:type="dxa"/></w:tcMar>'] as const] : []),
@@ -298,8 +298,8 @@ export function renderTableGrid(ctx: RenderContext, table: IRTable, options: Tab
   })
   const notes = (typeof options.notesXml === 'function' ? options.notesXml() : options.notesXml)?.trim() ?? ''
   const footnotes = (typeof options.footnotesXml === 'function' ? options.footnotesXml() : options.footnotesXml)?.trim() ?? ''
-  const tableNotesRow = notes.length > 0 ? noteRowXml(widths, grid.columnCount, notes, 'notes') : ''
-  const tableFootnotesRow = footnotes.length > 0 ? noteRowXml(widths, grid.columnCount, footnotes, 'footnotes') : ''
+  const tableNotesRow = notes.length > 0 ? noteRowXml(widths, grid.columnCount, notes, 'notes', 6) : ''
+  const tableFootnotesRow = footnotes.length > 0 ? noteRowXml(widths, grid.columnCount, footnotes, 'footnotes', tableNotesRow ? 2 : 6) : ''
   const captionRow = options.captionXml ? captionRowXml(widths, grid.columnCount, options.captionXml) : ''
   const allRows = [...(captionRow ? [captionRow] : []), ...rowsXml,
     ...(tableNotesRow ? [tableNotesRow] : []), ...(tableFootnotesRow ? [tableFootnotesRow] : [])]

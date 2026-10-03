@@ -165,6 +165,25 @@ describe('renderTableGrid', () => {
     expect(xml.indexOf('表注')).toBeLessThan(xml.indexOf('表脚注内容'))
   })
 
+  it.each(['absent', 'whitespace', 'empty-callback', 'with-notes'])('表脚注上边框按实际前置表注决定粗细：%s', (scenario) => {
+    const note = '<w:p><w:r><w:t>表注</w:t></w:r></w:p>'
+    const footnote = '<w:p><w:pPr><w:pStyle w:val="SesTableFootnote"/></w:pPr><w:r><w:t>表脚注</w:t></w:r></w:p>'
+    const notesXml = scenario === 'with-notes' ? note : scenario === 'whitespace' ? '  \n  ' : scenario === 'empty-callback' ? () => ' \n ' : undefined
+    const xml = renderTableGrid(createRenderContext({}), table(), {
+      notesXml, footnotesXml: footnote, renderCell: () => '<w:p/>',
+    })
+    const tbl = findChild(root(xml), 'w:tbl')!
+    const rows = childrenNamed(tbl, 'w:tr')
+    expect(rows).toHaveLength(scenario === 'with-notes' ? 4 : 3)
+    const finalCellPr = findChild(childrenNamed(rows[rows.length - 1]!, 'w:tc')[0]!, 'w:tcPr')!
+    expect(findChild(findChild(finalCellPr, 'w:tcBorders')!, 'w:top')?.attrs).toMatchObject({
+      'w:val': 'single', 'w:sz': scenario === 'with-notes' ? '2' : '6',
+    })
+    expect(findChild(finalCellPr, 'w:gridSpan')?.attrs).toEqual({ 'w:val': '3' })
+    expect(findChild(findChild(finalCellPr, 'w:tcMar')!, 'w:left')?.attrs).toEqual({ 'w:w': '0', 'w:type': 'dxa' })
+    assertChildOrder({ parts: { 'word/document.xml': `<w:document xmlns:w="${W_NS}"><w:body>${xml}</w:body></w:document>` }, binaries: {}, warnings: [] })
+  })
+
   it('横排表的 tblGrid 占满 252 mm 版心', () => {
     const result = render(table({ orientation: 'landscape', rows: [{ id: 'r', cells: [cell('a', '一'), cell('b', '二')] }] }))
     const grid = findChild(findChild(root(result.xml), 'w:tbl')!, 'w:tblGrid')!

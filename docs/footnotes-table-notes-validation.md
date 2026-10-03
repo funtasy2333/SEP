@@ -113,3 +113,21 @@ XML 的条文脚注、表脚注引用和表脚注定义统一要求有效 Resolv
 本次全量检查纠正一项旧验收断言：`convertTableCellBlocks` 只支持段落和列表，嵌套 `stdTable` 被跳过，之前“嵌套表格无脚注错误”来自内表数据未入 IR，不能用作合法导出证据。内外表引用选项及命令、重排/撤销行为的测试保持；现在额外确认含内表上标的导出被拒绝，而不会丢失脚注后继续输出。嵌套表格导出尚未支持，保留为明确遗留项，未在此轮扩展转换能力。
 
 环境仍为 macOS、Node 22.22.3、pnpm 10.33.0。本次未重跑服务端测试、Word/PDF 人工验收，未改变正式版式或转换管线。所有审查修复与 Codex 新复审结论分别记录；PR 未合并。
+
+### 2026-10-03 再复审：独立表脚注区上边框
+
+Codex 针对 `fd0415d1` 新增一条 P2：仅有表脚注、没有表注时，DOCX 仍使用内部细线作为表脚注区上边框。修复为按实际已输出的表注行选择：独立表脚注上边框 `w:sz=6`（0.75 pt）；有表注时两区之间 `w:sz=2`（0.25 pt）。缺少表注、空白表注和回调返回空白均按独立表脚注处理。HTML 原有对应规则保持。
+
+新增4项回归覆盖以上3种独立情况及表注/表脚注组合，兼验跨列、零左内边距与 OOXML 子项顺序。修复前3项失败，修复后表格专项16项、共享全量35文件789项、客户端22文件135项通过；完整 `pnpm build` 及 `git diff --check` 通过，保留既有大 chunk 警告。本轮未重跑服务端测试或 Vivliostyle 实机管线。日志为 `/private/tmp/sep-pr42-border-{before,shared,client,build}.log`。
+
+用当前客户端 `buildDocxBlob` 生成两个对照表，再在 Microsoft Word 16.113.3 更新域、通过本地“最适合打印”导出 PDF。OfficeCLI 1.0.152 对新 DOCX 严格校验零错误；通用 issues 检查仍提示5处布局空段和2处原始 DOCX 中未缓存的 PAGEREF 域，Word 导出后目次显示 II/1。该样本无条文脚注或公式，只验证本次表边框，不能据此宣称所有文稿合规。
+
+| 第5页测量 | DOCX 设置 | Word PDF 路径厚度 | PDF 上边框 Y 坐标（pt） |
+|---|---|---|---|
+| 独立表脚注区上边框 | 0.75 pt | 约0.72 pt | 259.92–260.64（两段各约233 pt） |
+| 组合表注区上边框 | 0.75 pt | 约0.72 pt | 330.24–330.96 |
+| 表注与表脚注之间 | 0.25 pt | 约0.24 pt | 342.72–342.96 |
+
+PDF 将线输出为黑色填充矩形，以上厚度由矩形高度提取；Word PDF 量化值与 DOCX 设置分别记录。已查看5页缩略图及第5页原页渲染，无内容截断；封面后出现一张空白页，其原因尚未核实，本样本不作为封面/分页验收通过的证据，保留为交付复核项。
+
+本机产物仍在 `tmp-e2e/footnotes/` 忽略目录：`standalone-border-review.json`、`standalone-border-review.docx`、`standalone-border-word-review.pdf`、`standalone-border-word-page-5.png`、`standalone-border-measurements.json` 和 `border-contact.png`。样稿明确为测试 fixture，不是真实标准文稿；模板素材来源限制保留。环境为 macOS 26.4、Node 22.22.3、pnpm 10.33.0，PR 保持未合并，修复完成与 Codex 复审通过分别记录。
