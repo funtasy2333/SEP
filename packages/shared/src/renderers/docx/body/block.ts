@@ -236,7 +236,10 @@ function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, 
   const captionRuns = renderInlines(table.caption, ctx.labels)
   const numbered = { nodeId: table.id, kind: 'table' as const }
   if (!nested) ctx.pageFlow.beforeTable()
-  const pagination = paginateTable(table, { firstPageHeightMm: nested ? undefined : ctx.pageFlow.availableMm })
+  const pagination = paginateTable(table, {
+    firstPageHeightMm: nested ? undefined : ctx.pageFlow.availableMm,
+    forceStartOnNewPage: !nested && ctx.pageFlow.estimateUnavailable,
+  })
   if (!nested && ctx.pageFlow.estimateUnavailable) {
     warn(ctx, 'table-flow-estimate-unavailable',
       `表格 "${table.id}" 前含无法估算高度的公式等内容，首段改从新页排起，请在 Word 中复核表前余量`, table.id)
@@ -247,7 +250,7 @@ function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, 
   }
   if (pagination.footerTooTall) {
     warn(ctx, 'table-footer-too-tall',
-      `表格 "${table.id}" 的表注与表脚注超过单页高度预算，可能需要人工分页调整`, table.id)
+      `表格 "${table.id}" 的表题、重复表头与表尾组合超过单页高度预算，可能需要人工分页调整`, table.id)
   }
   let captionXml: string
   if (bctx.appendix) {

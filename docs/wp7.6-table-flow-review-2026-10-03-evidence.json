@@ -1,0 +1,460 @@
+{
+  "sourceBaseline": "8baae2e1e90ec69dc08bfc5377310bcb66338ac4",
+  "reviewUrl": "https://github.com/funtasy2333/SEP/pull/43#pullrequestreview-5400609840",
+  "reviewThreads": [
+    "PRRT_kwDORyKGNM6onOd0",
+    "PRRT_kwDORyKGNM6onOd3"
+  ],
+  "qualification": "fixture",
+  "word": "16.113.3",
+  "tests": {
+    "red": {
+      "failed": 3,
+      "passed": 17
+    },
+    "focused": 27,
+    "shared": 816,
+    "client": 172,
+    "build": "passed"
+  },
+  "wordMeasurements": [
+    {
+      "name": "formula-followed-small-table",
+      "pages": 6,
+      "details": [
+        {
+          "page": 1,
+          "records": [],
+          "notes": [],
+          "formula": false,
+          "continuation": false
+        },
+        {
+          "page": 2,
+          "records": [],
+          "notes": [],
+          "formula": false,
+          "continuation": false
+        },
+        {
+          "page": 3,
+          "records": [],
+          "notes": [],
+          "formula": false,
+          "continuation": false
+        },
+        {
+          "page": 4,
+          "records": [],
+          "notes": [],
+          "formula": false,
+          "continuation": false
+        },
+        {
+          "page": 5,
+          "records": [],
+          "notes": [],
+          "formula": true,
+          "continuation": false
+        },
+        {
+          "page": 6,
+          "records": [
+            1,
+            2
+          ],
+          "notes": [],
+          "formula": false,
+          "continuation": false
+        }
+      ],
+      "firstCaptionPageBreak": true,
+      "docxSha256": "7353603e2822b8e64a97d2a390e256b1efa10af8d08be97263037ea927c9b7cd",
+      "pdfSha256": "fa1864c0e7852232109c297aa18b77137f5110d6ae014237ce034439a68f1273"
+    },
+    {
+      "name": "tall-header-footer-risk",
+      "pages": 8,
+      "details": [
+        {
+          "page": 1,
+          "records": [],
+          "notes": [],
+          "formula": false,
+          "continuation": false
+        },
+        {
+          "page": 2,
+          "records": [],
+          "notes": [],
+          "formula": false,
+          "continuation": false
+        },
+        {
+          "page": 3,
+          "records": [],
+          "notes": [],
+          "formula": false,
+          "continuation": false
+        },
+        {
+          "page": 4,
+          "records": [],
+          "notes": [],
+          "formula": false,
+          "continuation": false
+        },
+        {
+          "page": 5,
+          "records": [],
+          "notes": [],
+          "formula": false,
+          "continuation": false
+        },
+        {
+          "page": 6,
+          "records": [
+            1
+          ],
+          "notes": [],
+          "formula": false,
+          "continuation": false
+        },
+        {
+          "page": 7,
+          "records": [],
+          "notes": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46
+          ],
+          "formula": false,
+          "continuation": false
+        },
+        {
+          "page": 8,
+          "records": [],
+          "notes": [],
+          "formula": false,
+          "continuation": false
+        }
+      ],
+      "firstCaptionPageBreak": true,
+      "docxSha256": "2608bad7ad306b7941853e8ac3dd4b22342c4faf2111025bc4e402417119cf03",
+      "pdfSha256": "9e46a5e9d24b54f4c14781d5e04c62344ab3d2a586c2c731829fdab296e49e72"
+    },
+    {
+      "name": "tight-footer-budget",
+      "pages": 6,
+      "details": [
+        {
+          "page": 1,
+          "records": [],
+          "notes": [],
+          "formula": false,
+          "continuation": false
+        },
+        {
+          "page": 2,
+          "records": [],
+          "notes": [],
+          "formula": false,
+          "continuation": false
+        },
+        {
+          "page": 3,
+          "records": [],
+          "notes": [],
+          "formula": false,
+          "continuation": false
+        },
+        {
+          "page": 4,
+          "records": [],
+          "notes": [],
+          "formula": false,
+          "continuation": false
+        },
+        {
+          "page": 5,
+          "records": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ],
+          "notes": [],
+          "formula": false,
+          "continuation": false
+        },
+        {
+          "page": 6,
+          "records": [
+            10
+          ],
+          "notes": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36
+          ],
+          "formula": false,
+          "continuation": true
+        }
+      ],
+      "firstCaptionPageBreak": false,
+      "docxSha256": "37bb16ba842506bdd9faa91b23dc61912cb2b93d57009167dd9a90763f43dc3b",
+      "pdfSha256": "c73137916977e67261bb7b7fcfed562a7834b9f32b6558a668c276ce866cbe92"
+    }
+  ],
+  "validation": [
+    {
+      "name": "formula-followed-small-table",
+      "schema": {
+        "exit": 0,
+        "output": "Validation passed: no errors found.\n"
+      },
+      "word": {
+        "exit": 0,
+        "output": "written /Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/flow-review/cases/formula-followed-small-table.pdf\n"
+      }
+    },
+    {
+      "name": "tall-header-footer-risk",
+      "schema": {
+        "exit": 0,
+        "output": "Validation passed: no errors found.\n"
+      },
+      "word": {
+        "exit": 0,
+        "output": "written /Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/flow-review/cases/tall-header-footer-risk.pdf\n"
+      }
+    },
+    {
+      "name": "tight-footer-budget",
+      "schema": {
+        "exit": 0,
+        "output": "Validation passed: no errors found.\n"
+      },
+      "word": {
+        "exit": 0,
+        "output": "written /Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/flow-review/cases/tight-footer-budget.pdf\n"
+      }
+    }
+  ],
+  "unchangedRegressions": [
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review/cases/body-followed-table.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-fix/cases/body-followed-table.docx",
+      "sha256": "f5ade93ac76ab80fd7afca96d48baf3eb90809c8d32358d3407bcb3976ebc2c4",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review/cases/body-footnote.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-fix/cases/body-footnote.docx",
+      "sha256": "e1ed54daf6f99d10a88564106d577602bd9c77c400ccdd597f58fc0eb128371f",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review/cases/landscape-followed-portrait-table.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-fix/cases/landscape-followed-portrait-table.docx",
+      "sha256": "90939c6ae4b5fd7393c50e201ec36473cd0f7faa0d0f50a3646c78c565fb5141",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review/cases/long-body.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-fix/cases/long-body.docx",
+      "sha256": "f98ae9f1dda25569b51d00888407dd5931899bc860a58c3da31864e68fe9d8cb",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review/cases/long-caption.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-fix/cases/long-caption.docx",
+      "sha256": "f42aee8e5a6f0a2676284cac086a847485d87e63869f8631beef49b3a91da075",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review/cases/merged-table-footnotes.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-fix/cases/merged-table-footnotes.docx",
+      "sha256": "096514545d6e44ebc465e2de16ee4670257dfbd06ba972224079e6c801c0f5ab",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review/cases/near-page-bottom.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-fix/cases/near-page-bottom.docx",
+      "sha256": "f533a8a9816e703be5bf83576fb277a803c94ac0832f3fc1231017ced0bcdf35",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review/delivery/delivery.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-fix/delivery/delivery.docx",
+      "sha256": "6d19a2f0182db7dfd8ceca2960287e2a54383a856af6d1d8acff0738d0e6e128",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review/delivery/duplicate.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-fix/delivery/duplicate.docx",
+      "sha256": "8e48673f6ae04a5645eb13ae69b1cd48d52fdecdbdaa4438fb4d232becac1b2b",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review/delivery/xml-roundtrip.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-fix/delivery/xml-roundtrip.docx",
+      "sha256": "6d19a2f0182db7dfd8ceca2960287e2a54383a856af6d1d8acff0738d0e6e128",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review/wp74.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-fix/wp74.docx",
+      "sha256": "a09efe671422483859e5250695d7c053dbc634846bc66bf37bc009c7054a870b",
+      "byteIdentical": true
+    }
+  ],
+  "newManifest": [
+    {
+      "name": "formula-followed-small-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 前含无法估算高度的公式等内容，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 36501,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": null,
+      "xmlRoundtripLimitation": "fixture DOM rejects CDATA; not executed"
+    },
+    {
+      "name": "tall-header-footer-risk",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-row-too-tall",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 存在超出单页高度预算的跨行合并组，续表分页可能需要人工调整"
+        },
+        {
+          "code": "table-footer-too-tall",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 的表题、重复表头与表尾组合超过单页高度预算，可能需要人工分页调整"
+        }
+      ],
+      "bytes": 36637,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "tight-footer-budget",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36789,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    }
+  ],
+  "limitations": [
+    "oversized header/footer combination warned; not automatically split",
+    "formula fixture XML roundtrip not run because happy-dom rejects valid CDATA; original XML independently parsed by ElementTree",
+    "real manuscript and landscape body footnote separator remain incomplete"
+  ]
+}

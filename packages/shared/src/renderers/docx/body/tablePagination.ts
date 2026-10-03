@@ -13,7 +13,7 @@ export interface TablePagination {
   /** 包含表题、表头和末段表尾的估算高度，用于后续正文/表格接排。 */
   segmentHeightsMm: number[]
   oversizedGroup: boolean
-  /** 表注和表脚注本身超过估算的单页版心高度。 */
+  /** 表题、重复表头与表尾合计超过估算的单页版心高度。 */
   footerTooTall: boolean
 }
 
@@ -73,7 +73,7 @@ function bodyGroups(rows: IRTableRow[], headerRowCount: number): IRTableRow[][] 
 }
 
 /** 切分时不穿过 rowspan，且每段以相同的表头行开头。 */
-export function paginateTable(table: IRTable, options: { firstPageHeightMm?: number } = {}): TablePagination {
+export function paginateTable(table: IRTable, options: { firstPageHeightMm?: number; forceStartOnNewPage?: boolean } = {}): TablePagination {
   const headerRowCount = Math.max(0, Math.min(Math.floor(table.headerRowCount), table.rows.length))
   const columnCount = Math.max(1, ...table.rows.map((row) =>
     row.cells.reduce((sum, cell) => sum + cell.colspan, 0)))
@@ -97,18 +97,19 @@ export function paginateTable(table: IRTable, options: { firstPageHeightMm?: num
   // A4 竖排样稿的可用版心约 234 mm，再预留 9 mm 给 Word 的布局浮动。
   const pageBudget = landscape ? 135 : 225
   // 表注与表脚注只在末段出现，前页不能逐页重复扣除这份空间。
-  const dataBudget = Math.max(30, pageBudget - captionHeight - headerHeight)
-  const finalDataBudget = Math.max(30, dataBudget - footerHeight)
+  // 不为高表头/表尾虚构最低数据空间；不足以容纳一个行组时仍保留内容并标记风险。
+  const dataBudget = Math.max(0, pageBudget - captionHeight - headerHeight)
+  const finalDataBudget = Math.max(0, dataBudget - footerHeight)
   const groups = bodyGroups(table.rows, headerRowCount)
   const groupHeights = groups.map((group) =>
     group.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape), 0))
   const totalHeight = captionHeight + headerHeight + footerHeight + groupHeights.reduce((sum, height) => sum + height, 0)
-  const footerTooTall = footerHeight > pageBudget - captionHeight
+  const footerTooTall = captionHeight + headerHeight + footerHeight > pageBudget
 
-  const firstPageHeight = Number.isFinite(options.firstPageHeightMm)
+  const firstPageHeight = !options.forceStartOnNewPage && Number.isFinite(options.firstPageHeightMm)
     ? Math.max(0, Math.min(pageBudget, options.firstPageHeightMm!)) : undefined
   const result = (bodySegments: IRTableRow[][], startOnNewPage: boolean, oversizedGroup: boolean): TablePagination => ({
-    bodySegments, startOnNewPage, oversizedGroup, footerTooTall,
+    bodySegments, startOnNewPage: options.forceStartOnNewPage || startOnNewPage, oversizedGroup, footerTooTall,
     segmentHeightsMm: bodySegments.map((rows, index) => captionHeight + headerHeight +
       rows.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape), 0) +
       (index === bodySegments.length - 1 ? footerHeight : 0)),

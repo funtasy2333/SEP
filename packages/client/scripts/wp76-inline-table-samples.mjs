@@ -81,6 +81,30 @@ variants.push(['landscape-followed-portrait-table',landscape])
 const captioned = clone(source)
 captioned.content[1].content.find(block=>block.type==='stdTable').content[0].content=[t('连续编号记录表：'+ '检查跨页表题换行后是否完整显示并为数据行预留空间。'.repeat(5))]
 variants.push(['long-caption',captioned])
+const formulaSmall = clone(source)
+const formulaBlocks = formulaSmall.content[1].content
+const small = formulaBlocks.find(block=>block.type==='stdTable')
+small.content[1].content=small.content[1].content.slice(0,3)
+small.content=small.content.slice(0,2)
+formulaBlocks.splice(formulaBlocks.indexOf(small),0,{type:'formula',attrs:{nodeId:'flow-unknown-formula',id:'flow-unknown-formula'},content:[{type:'formulaContent',content:[t('x=1')]}]})
+formulaBlocks.at(-1).content=[t('公式后小表结束，两条记录应完整；不可估高度回退应另起页。')]
+variants.push(['formula-followed-small-table',formulaSmall])
+const brokenLines = (count, text) => Array.from({length:count},(_,i)=>[...(i>0?[{type:'hardBreak'}]:[]),t(`${text}${i+1}`)]).flat()
+for(const [name,lineCount,records] of [['tall-header-footer-risk',46,1],['tight-footer-budget',36,10]]) {
+ const variant=clone(source)
+ const blocks=variant.content[1].content
+ const boundary=blocks.find(block=>block.type==='stdTable')
+ const header=boundary.content[1].content[0]
+ boundary.content[1].content=[...Array.from({length:6},()=>{
+  const copied=clone(header)
+  for(const cell of copied.content)cell.content[0].content=brokenLines(2,'表头')
+  return copied
+ }),...boundary.content[1].content.slice(1,records+1)]
+ boundary.content[2].content[0].content=brokenLines(lineCount,'表注')
+ blocks.at(-1).content=[t(`边界表结束，本表共${records}条记录。`)]
+ variants.push([name,variant])
+}
+
 try {
  await mkdir(output,{recursive:true})
  const {createEditorExtensions}=await server.ssrLoadModule('/src/extensions/editorExtensions.ts')
@@ -95,15 +119,19 @@ try {
   const before=JSON.stringify(node.toJSON())
   const reopened=normalize(JSON.parse(before));assert.deepEqual(reopened.toJSON(),node.toJSON())
   const xml=serializeToXml(node)
-  const roundtrip=normalize(parseXmlToEditorJson(xml,schema.topNodeType.name))
+  await writeFile(resolve(output,`${name}.xml`),xml)
+  // happy-dom 的 XML parser 拒绝合法 CDATA；公式样稿仅验证 JSON 重开和生产 DOCX，
+  // 原始 XML 仍输出供独立解析校验，不把未运行的往返写成通过。
+  const roundtrip=xml.includes('<![CDATA[') ? undefined : normalize(parseXmlToEditorJson(xml,schema.topNodeType.name))
   const {blob,warnings}=await buildDocxBlob({pmDoc:node,documentMeta:meta,stage:'working_draft',createdAt:'2026-10-03T00:00:00Z'})
-  const exportedAgain=await buildDocxBlob({pmDoc:roundtrip,documentMeta:meta,stage:'working_draft',createdAt:'2026-10-03T00:00:00Z'})
-  assert.deepEqual(new Uint8Array(await blob.arrayBuffer()),new Uint8Array(await exportedAgain.blob.arrayBuffer()))
+  if(roundtrip) {
+   const exportedAgain=await buildDocxBlob({pmDoc:roundtrip,documentMeta:meta,stage:'working_draft',createdAt:'2026-10-03T00:00:00Z'})
+   assert.deepEqual(new Uint8Array(await blob.arrayBuffer()),new Uint8Array(await exportedAgain.blob.arrayBuffer()))
+  }
   assert.equal(JSON.stringify(node.toJSON()),before)
   await writeFile(resolve(output,`${name}.docx`),new Uint8Array(await blob.arrayBuffer()))
   await writeFile(resolve(output,`${name}.json`),JSON.stringify({meta,stage:'working_draft',content:node.toJSON()},null,2))
-  await writeFile(resolve(output,`${name}.xml`),xml)
-  manifest.push({name,qualification:'fixture',sourceHasManualPageBreak:false,warnings,bytes:blob.size,jsonReopen:true,xmlRoundtripByteIdentical:true})
+  manifest.push({name,qualification:'fixture',sourceHasManualPageBreak:false,warnings,bytes:blob.size,jsonReopen:true,xmlRoundtripByteIdentical:roundtrip ? true : null,xmlRoundtripLimitation:roundtrip ? null : 'fixture DOM rejects CDATA; not executed'})
  }
  await writeFile(resolve(output,'manifest.json'),JSON.stringify(manifest,null,2))
  console.log(JSON.stringify(manifest))

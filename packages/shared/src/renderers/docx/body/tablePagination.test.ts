@@ -78,6 +78,60 @@ describe('paginateTable', () => {
     expect(paginateTable(multiline).bodySegments.length).toBeGreaterThan(1)
   })
 
+  it('公式使估算失效后小表也显式另起页，且回退后恢复后续余量估算', () => {
+    const ir = table([row(1), row(2)])
+    const ctx = createRenderContext({ table: { label: '表1', xmlId: 'table_1', refText: '表1' } })
+    ctx.pageFlow.startSection()
+    ctx.pageFlow.recordParagraph('SesFormula', '<m:oMath/>', false)
+    const xml = renderBlock(ctx, ir, { scopeKey: 'chapter' })
+    expect(xml).toContain('<w:pageBreakBefore/>')
+    expect(ctx.warnings.some(warning => warning.code === 'table-flow-estimate-unavailable')).toBe(true)
+    expect(ctx.pageFlow.availableMm).toBeGreaterThan(200)
+    expect(ctx.pageFlow.estimateUnavailable).toBe(false)
+    const known = createRenderContext({ table: { label: '表1', xmlId: 'table_1', refText: '表1' } })
+    known.pageFlow.startSection()
+    expect(renderBlock(known, ir, { scopeKey: 'chapter' })).not.toContain('<w:pageBreakBefore/>')
+  })
+
+  it('高表头与表尾组合放不下时保留数据且明确警告，不虚构末段数据预算', () => {
+    const ir = table([row(1)])
+    const header = ir.rows[0]!
+    ir.rows = [...Array.from({ length: 6 }, (_, index) => ({ ...header, id: `header-${index}`,
+      cells: header.cells.map(cell => ({ ...cell, id: `${cell.id}-${index}`, content: [
+        { kind: 'paragraph' as const, id: `header-p-${index}`, content: [{ text: '表头\n第二行' }] },
+      ] })) })), ...ir.rows.slice(1)]
+    ir.headerRowCount = 6
+    ir.notes = [{ kind: 'note', id: 'note', content: [{ kind: 'paragraph', id: 'note-p', content: [
+      { text: Array.from({ length: 46 }, () => '表注').join('\n') },
+    ] }] }]
+    const result = paginateTable(ir)
+    expect(result.footerTooTall).toBe(true)
+    expect(result.oversizedGroup).toBe(true)
+    expect(result.bodySegments.flat()).toEqual(ir.rows.slice(6))
+    const ctx = createRenderContext({ table: { label: '表1', xmlId: 'table_1', refText: '表1' } })
+    renderBlock(ctx, ir, { scopeKey: 'chapter' })
+    expect(ctx.warnings.map(warning => warning.code)).toContain('table-footer-too-tall')
+  })
+
+  it('末页不足30mm时使用实际余量切分，能够排入的组合不应溢出', () => {
+    const ir = table(Array.from({ length: 10 }, (_, index) => row(index + 1)))
+    const header = ir.rows[0]!
+    ir.rows = [...Array.from({ length: 6 }, (_, index) => ({ ...header, id: `header-${index}`,
+      cells: header.cells.map(cell => ({ ...cell, content: [
+        { kind: 'paragraph' as const, id: `header-p-${index}`, content: [{ text: '表头\n第二行' }] },
+      ] })) })), ...ir.rows.slice(1)]
+    ir.headerRowCount = 6
+    ir.notes = [{ kind: 'note', id: 'note', content: [{ kind: 'paragraph', id: 'note-p', content: [
+      { text: Array.from({ length: 36 }, () => '表注').join('\n') },
+    ] }] }]
+    const result = paginateTable(ir)
+    expect(result.segmentHeightsMm.every(height => height <= 225)).toBe(true)
+    expect(result.bodySegments[result.bodySegments.length - 1]!.length).toBeLessThanOrEqual(2)
+    expect(result.footerTooTall).toBe(false)
+    expect(result.oversizedGroup).toBe(false)
+    expect(result.bodySegments.flat()).toEqual(ir.rows.slice(6))
+  })
+
   it('首段按正文页140mm余量切分，不再整体移到下一页', () => {
     const rows = Array.from({ length: 70 }, (_, index) => row(index + 1))
     const result = paginateTable(table(rows), { firstPageHeightMm: 140 })
