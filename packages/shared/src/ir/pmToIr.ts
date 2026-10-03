@@ -111,7 +111,7 @@ function unsupportedFootnoteAttrs(attrs: unknown): string | undefined {
   return undefined
 }
 
-function unsupportedFootnoteMarks(marks: unknown, allowCrossRef: boolean): string | undefined {
+function unsupportedFootnoteMarks(marks: unknown): string | undefined {
   if (marks == null) return undefined
   if (!Array.isArray(marks)) return '无效的格式标记'
   for (const value of marks) {
@@ -125,7 +125,6 @@ function unsupportedFootnoteMarks(marks: unknown, allowCrossRef: boolean): strin
     if (attrsReason) return `格式标记${attrsReason}`
     if (CANONICAL_FOOTNOTE_MARKS.has(mark.type)) continue
     if (mark.type === 'crossRef') {
-      if (!allowCrossRef) return '换行节点不能携带交叉引用'
       const attrs = mark.attrs as Record<string, unknown> | undefined
       if (typeof attrs?.refId === 'string' && attrs.refId.length > 0) {
         if (Object.prototype.hasOwnProperty.call(attrs, 'refType') && typeof attrs.refType !== 'string') return '交叉引用类型无效'
@@ -152,15 +151,14 @@ function unsupportedFootnoteContent(content: unknown[]): string | undefined {
       const extraKey = Object.keys(node).find(key => !['type', 'text', 'marks'].includes(key))
       if (extraKey) return `文本节点包含不支持字段「${extraKey}」`
       if (typeof node.text !== 'string') return '无效的文本内容'
-      const marksReason = unsupportedFootnoteMarks(node.marks, true)
+      const marksReason = unsupportedFootnoteMarks(node.marks)
       if (marksReason) return marksReason
       continue
     }
     if (node.type === 'hardBreak') {
       const extraKey = Object.keys(node).find(key => !['type', 'marks'].includes(key))
       if (extraKey) return `换行节点包含不支持字段「${extraKey}」`
-      const marksReason = unsupportedFootnoteMarks(node.marks, false)
-      if (marksReason) return marksReason
+      if (node.marks != null && !(Array.isArray(node.marks) && node.marks.length === 0)) return '换行格式标记'
       continue
     }
     if (node.type === 'tableFootnoteRef') return '表脚注引用不能嵌入脚注内容'

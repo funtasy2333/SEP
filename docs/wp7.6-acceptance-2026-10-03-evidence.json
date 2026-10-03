@@ -1357,12 +1357,12 @@
   },
   "tests": {
     "shared": 795,
-    "client": 171,
+    "client": 172,
     "server": 23,
     "build": "passed",
     "logs": [
-      "/private/tmp/sep-pr43-shared-full-atom-marks.log",
-      "/private/tmp/sep-pr43-client-full-atom-marks.log",
+      "/private/tmp/sep-pr43-shared-full-break-marks.log",
+      "/private/tmp/sep-pr43-client-full-break-marks.log",
       "/private/tmp/sep-wp76/server.log",
       "/private/tmp/sep-wp76/build-final.log"
     ]
@@ -1828,7 +1828,7 @@
     "regenerationLog": "/private/tmp/sep-wp76/after-hidden-regeneration.log",
     "reason": "Word PDFs and strict schema inputs still byte-identical"
   },
-  "evidenceRecordedAt": "2026-10-03T07:47:16.756965+00:00",
+  "evidenceRecordedAt": "2026-10-03T07:58:26.511395+00:00",
   "validSamplesAfterAtomFix": {
     "allFourByteIdentical": {
       "delivery": true,
@@ -1838,5 +1838,20 @@
     },
     "regenerationLog": "/private/tmp/sep-wp76/after-atom-regeneration.log",
     "reason": "Word PDFs and strict schema inputs still byte-identical"
+  },
+  "breakMarksBoundary": {
+    "status": "red reproduced, rejected consistently",
+    "beforeLog": "/private/tmp/sep-pr43-break-marks-before.log",
+    "boundaryTests": 30,
+    "sourceUnchanged": true
+  },
+  "validSamplesAfterBreakFix": {
+    "allFourByteIdentical": {
+      "delivery": true,
+      "xml-roundtrip": true,
+      "duplicate": true,
+      "standalone-border": true
+    },
+    "regenerationLog": "/private/tmp/sep-wp76/after-break-regeneration.log"
   }
 }

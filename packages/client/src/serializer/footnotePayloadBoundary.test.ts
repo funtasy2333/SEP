@@ -195,6 +195,7 @@ describe('正文脚注内容的导出边界', () => {
   it.each([
     ['text.content', [{ type: 'text', text: '可见', content: [{ type: 'text', text: '丢失子内容' }] }]],
     ['text.attrs.content', [{ type: 'text', text: '可见', attrs: { content: [{ type: 'text', text: '丢失属性内容' }] } }]],
+    ['hardBreak.marks', [{ type: 'text', text: '可见' }, { type: 'hardBreak', marks: [{ type: 'bold' }] }, { type: 'text', text: '下一行' }]],
     ['hardBreak.content', [{ type: 'text', text: '可见' }, { type: 'hardBreak', content: [{ type: 'text', text: '丢失子内容' }] }]],
     ['hardBreak.text', [{ type: 'text', text: '可见' }, { type: 'hardBreak', text: '丢失文本' }]],
     ['hardBreak.attrs.content', [{ type: 'text', text: '可见' }, { type: 'hardBreak', attrs: { content: [{ type: 'text', text: '丢失属性内容' }] } }]],
