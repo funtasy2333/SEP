@@ -10,7 +10,7 @@
 import type { IRBlock, IRExample, IRFigure, IRList, IRNote, IRParagraph, IRTable, NodeId } from '../../../ir/types'
 import { ABSTRACT_NUM_ID, listAbstractNumId } from '../numbering'
 import { emitParagraph, warn, type RenderContext } from './context'
-import { plainRun, renderInlines, superscriptRun, tabRun } from './inline'
+import { plainRun, renderInlines, renderRun, superscriptRun, tabRun } from './inline'
 import { renderFigureImage } from './figure'
 import { renderTableGrid, tableGridColumnCount } from './table'
 import { paginateTable } from './tablePagination'
@@ -318,7 +318,8 @@ function renderTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx): string
         : undefined,
       renderCell(cell, styleId) {
         if (cell.content.length === 0 || cell.content.every((block) => block.kind === 'paragraph' &&
-          block.content.every((run) => run.text.trim() === ''))) return ''
+          // Empty source text may still render a footnote or a resolved cross-reference.
+          block.content.every((run) => renderRun({ ...run, text: run.text.trim() }, ctx.labels) === ''))) return ''
         return cell.content.map((block) => block.kind === 'paragraph'
           ? emitParagraph(ctx, styleId, { runsXml: renderInlines(block.content, ctx.labels) })
           : renderBlock(ctx, block, tableBctx)).join('')

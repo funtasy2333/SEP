@@ -131,3 +131,13 @@ Codex 针对 `fd0415d1` 新增一条 P2：仅有表脚注、没有表注时，DO
 PDF 将线输出为黑色填充矩形，以上厚度由矩形高度提取；Word PDF 量化值与 DOCX 设置分别记录。已查看5页缩略图及第5页原页渲染，无内容截断；封面后出现一张空白页，其原因尚未核实，本样本不作为封面/分页验收通过的证据，保留为交付复核项。
 
 本机产物仍在 `tmp-e2e/footnotes/` 忽略目录：`standalone-border-review.json`、`standalone-border-review.docx`、`standalone-border-word-review.pdf`、`standalone-border-word-page-5.png`、`standalone-border-measurements.json` 和 `border-contact.png`。样稿明确为测试 fixture，不是真实标准文稿；模板素材来源限制保留。环境为 macOS 26.4、Node 22.22.3、pnpm 10.33.0，PR 保持未合并，修复完成与 Codex 复审通过分别记录。
+
+### 2026-10-03 再复审：仅有表脚注上标的单元格
+
+Codex 针对 `ec819134` 新增一条 P2：空单元格中插入的表脚注 atom 在 IR 中源文字为空，DOCX 单元格空白判断只看 `run.text.trim()`，因此用“—”替代上标但仍输出定义。现使用现有 `renderRun` 判断去掉源文字首尾空白后是否仍有实际输出；表脚注上标和有效交叉引用不会误判为空，真正空白单元格仍用一字线。正式行内内容按原始数据渲染，不对实际文字进行 trim；重复引用共享定义、上标格式和首次引用顺序保持。
+
+本次按同类问题补查单元格过滤、行内渲染和分页估算：HTML 原有渲染无需修改；DOCX 分页估算对无源文字的段落至少计一行，不会因仅有上标而排除数据行。新增7项客户端完整导出回归，以真实编辑器 schema 校验，分别对原始 PM 和 XML 往返后的 PM 执行 HTML 与 `buildDocxBlob` 打包检查：仅上标、空白加上标、多段落、重复引用、colspan、rowspan、表头；逐格断言调用未丢失、上标格式、定义唯一且顺序一致、空白对照格仍为“—”、纵向合并续格不产生重复调用。修复前7种往返场景均在 DOCX 上标断言失败；修复后原始/往返两套都通过。另新增2项共享回归覆盖源文字为空的交叉引用及未解析目标的既有空格行为。
+
+本轮共享35文件791项、客户端23文件142项、完整 `pnpm build` 与 `git diff --check` 通过，保留既有大 chunk 警告。日志为 `/private/tmp/sep-pr42-emptycell-{before,targeted,shared,client,build}.log`。当前构建的客户端导出包另生成 `tmp-e2e/footnotes/footnote-only-cell-review.docx`（对应 JSON 同名），OfficeCLI 1.0.152 严格 OOXML 校验零错误。样稿为测试 fixture，模板素材来源限制保留。本轮没有重跑 Word/PDF 人工验收、服务端测试或 Vivliostyle 管线，不能复用前轮 PDF 作为本次人工验收证据。
+
+连续复审暴露了首轮检查对特殊输入与转换边界的覆盖不足；测试总数和手动 resolved 都不能代替最新提交的复审结论。本次修复与同类检查完成，最新 Codex 复审仍需单独确认。WP7.6 真实稿件、嵌套表导出、横排条文脚注分隔线与上一轮新样稿空白页的既有未完成项保持明确，PR 未合并。

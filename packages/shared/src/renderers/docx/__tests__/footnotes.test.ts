@@ -73,6 +73,25 @@ describe('DOCX 原生脚注与表脚注', () => {
     expect(() => renderDocxTraced(doc, labels, OPTIONS)).toThrow('脚注关联无效')
   })
 
+  it.each([true, false])('空源文字的交叉引用按实际输出判断空格：目标有效=%s', (validTarget) => {
+    const doc = footnoteFixture()
+    const table = doc.body[0]!.children[0] as IRTable
+    table.notes = []
+    table.footnotes = []
+    table.rows[0]!.cells[0]!.content = [{
+      kind: 'paragraph', id: 'xref-only-p',
+      content: [{ text: '', marks: [{ type: 'crossRef', targetId: validTarget ? 'chapter-1' : 'missing-target' }] }],
+    }]
+    const { labels } = resolve(doc)
+    const { pkg } = renderDocxTraced(doc, labels, OPTIONS)
+    const cells = pkg.parts['word/document.xml']!.match(/<w:tc>[\s\S]*?<\/w:tc>/g)!
+    // Caption is the first cell; the source-empty data cell is second.
+    expect(cells[1]).toContain(`<w:t xml:space="preserve">${validTarget ? labels['chapter-1']!.refText : '—'}</w:t>`)
+    if (validTarget) expect(cells[1]).not.toContain('>—</w:t>')
+    assertWellFormed(pkg)
+    assertChildOrder(pkg)
+  })
+
   it('无脚注文档继续省略脚注部件与新增脚注样式', () => {
     const doc = footnoteFixture()
     doc.front.foreword = []
