@@ -1118,16 +1118,6 @@
       "actual": [
         {
           "rectPt": [
-            231.84,
-            128.64,
-            349.2,
-            129.6
-          ],
-          "widthMm": 41.402,
-          "thicknessPt": 0.96
-        },
-        {
-          "rectPt": [
             56.64,
             745.92,
             173.52,
@@ -1367,12 +1357,12 @@
   },
   "tests": {
     "shared": 795,
-    "client": 153,
+    "client": 155,
     "server": 23,
     "build": "passed",
     "logs": [
-      "/private/tmp/sep-pr42-shared-full-after-malformed.log",
-      "/private/tmp/sep-pr42-client-full-after-malformed.log",
+      "/private/tmp/sep-pr43-shared-full.log",
+      "/private/tmp/sep-pr43-client-full.log",
       "/private/tmp/sep-wp76/server.log",
       "/private/tmp/sep-wp76/build-final.log"
     ]
@@ -1389,5 +1379,286 @@
     62,
     66
   ],
-  "preservedMainImageSha256": "8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8"
+  "preservedMainImageSha256": "8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8",
+  "headersWordPdfTextBBox": {
+    "method": "PDF text bounding boxes, distinct from raster ink bounds",
+    "rows": [
+      {
+        "file": "full",
+        "page": 3,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "I"
+      },
+      {
+        "file": "full",
+        "page": 4,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "II"
+      },
+      {
+        "file": "full",
+        "page": 5,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "III"
+      },
+      {
+        "file": "full",
+        "page": 7,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "1"
+      },
+      {
+        "file": "full",
+        "page": 8,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "2"
+      },
+      {
+        "file": "full",
+        "page": 9,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "3"
+      },
+      {
+        "file": "full",
+        "page": 10,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "4"
+      },
+      {
+        "file": "full",
+        "page": 11,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "5"
+      },
+      {
+        "file": "numbering",
+        "page": 3,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "I"
+      },
+      {
+        "file": "numbering",
+        "page": 4,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "II"
+      },
+      {
+        "file": "numbering",
+        "page": 5,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "III"
+      },
+      {
+        "file": "numbering",
+        "page": 7,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "1"
+      },
+      {
+        "file": "numbering",
+        "page": 8,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "2"
+      },
+      {
+        "file": "numbering",
+        "page": 9,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "3"
+      },
+      {
+        "file": "numbering",
+        "page": 10,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "4"
+      },
+      {
+        "file": "numbering",
+        "page": 11,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "5"
+      },
+      {
+        "file": "numbering",
+        "page": 12,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "6"
+      },
+      {
+        "file": "numbering",
+        "page": 13,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "7"
+      },
+      {
+        "file": "wp74",
+        "page": 3,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "I"
+      },
+      {
+        "file": "wp74",
+        "page": 4,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "II"
+      },
+      {
+        "file": "wp74",
+        "page": 5,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "1"
+      },
+      {
+        "file": "wp74",
+        "page": 6,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "2"
+      },
+      {
+        "file": "wp74",
+        "page": 7,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "3"
+      },
+      {
+        "file": "wp74",
+        "page": 8,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "4"
+      },
+      {
+        "file": "wp74",
+        "page": 9,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "5"
+      },
+      {
+        "file": "wp74",
+        "page": 10,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "6"
+      },
+      {
+        "file": "wp74",
+        "page": 11,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "7"
+      },
+      {
+        "file": "wp74",
+        "page": 12,
+        "headerTopMm": 25.5,
+        "pageNumberBottomDistanceMm": 19.96,
+        "pageNumber": "8"
+      }
+    ]
+  },
+  "coverLineThickness": {
+    "gb": {
+      "styleBorderSizeEighthPt": {
+        "SesCoverRule": "6",
+        "SesCoverDates": "6"
+      },
+      "pdfVectorThicknessPt": [
+        0.72,
+        0.72
+      ]
+    },
+    "guide": {
+      "styleBorderSizeEighthPt": {
+        "SesCoverRule": "6",
+        "SesCoverDates": "6"
+      },
+      "pdfVectorThicknessPt": [
+        0.72,
+        0.72
+      ]
+    },
+    "industry": {
+      "styleBorderSizeEighthPt": {
+        "SesCoverRule": "6",
+        "SesCoverDates": "6"
+      },
+      "pdfVectorThicknessPt": [
+        0.72,
+        0.72
+      ]
+    },
+    "local": {
+      "styleBorderSizeEighthPt": {
+        "SesCoverRule": "6",
+        "SesCoverDates": "6"
+      },
+      "pdfVectorThicknessPt": [
+        0.72,
+        0.72
+      ]
+    },
+    "group": {
+      "styleBorderSizeEighthPt": {
+        "SesCoverRule": "6",
+        "SesCoverDates": "6"
+      },
+      "pdfVectorThicknessPt": [
+        0.72,
+        0.72
+      ]
+    },
+    "enterprise": {
+      "styleBorderSizeEighthPt": {
+        "SesCoverRule": "6",
+        "SesCoverDates": "6"
+      },
+      "pdfVectorThicknessPt": [
+        0.72,
+        0.72
+      ]
+    }
+  },
+  "review": {
+    "pr": "https://github.com/funtasy2333/SEP/pull/43",
+    "reviewedOldHead": "6a4d9e426bdee0935455c0f827db4205a549291a",
+    "finding": "P2 strong/em accepted by IR but lost in XML",
+    "thread": "PRRT_kwDORyKGNM6ok6j1",
+    "fix": "reject alias marks consistently; red 2 cases then 13 boundary tests passed",
+    "newHeadReview": "pending; manual resolve is not approval"
+  },
+  "validSamplesAfterAliasFix": {
+    "allFourByteIdentical": {
+      "delivery": true,
+      "xml-roundtrip": true,
+      "duplicate": true,
+      "standalone-border": true
+    },
+    "regenerationLog": "/private/tmp/sep-wp76/after-alias-regeneration.log",
+    "reason": "Word PDFs and strict schema outputs apply to byte-identical DOCX"
+  }
 }

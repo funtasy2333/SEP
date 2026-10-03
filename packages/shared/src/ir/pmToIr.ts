@@ -91,6 +91,8 @@ const MARK_MAP: Record<string, Exclude<IRMark, { targetId: string }>['type']> = 
   superscript: 'sup',
 }
 
+const CANONICAL_FOOTNOTE_MARKS = new Set(['bold', 'italic', 'underline', 'subscript', 'superscript'])
+
 function isPmJsonNode(value: unknown): value is PMJsonNode {
   return value !== null
     && typeof value === 'object'
@@ -110,7 +112,7 @@ function unsupportedFootnoteContent(content: unknown[]): string | undefined {
         if (!mark || typeof mark !== 'object' || Array.isArray(mark) || typeof mark.type !== 'string') {
           return '无效的格式标记'
         }
-        if (Object.prototype.hasOwnProperty.call(MARK_MAP, mark.type)) continue
+        if (CANONICAL_FOOTNOTE_MARKS.has(mark.type)) continue
         if (mark.type === 'crossRef' && typeof mark.attrs?.refId === 'string' && mark.attrs.refId.length > 0) continue
         return mark.type === 'crossRef' ? '缺少目标的交叉引用' : `格式「${mark.type}」`
       }

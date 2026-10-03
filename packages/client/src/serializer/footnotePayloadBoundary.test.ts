@@ -139,6 +139,21 @@ describe('正文脚注内容的导出边界', () => {
     expect(() => serializeToXml(pmDoc)).toThrow(/脚注校验未通过/)
   })
 
+  it.each(['strong', 'em'])('%s 别名不属于脚注导出的规范格式，阻断所有导出', async markType => {
+    const { pmDoc } = bodyFootnoteDoc([
+      { type: 'text', text: '别名格式', marks: [{ type: markType }] },
+    ])
+    const { doc } = pmToIr(pmDoc.toJSON() as PMJsonNode)
+    const { labels, problems } = resolve(doc)
+    expect(problems.some(problem =>
+      problem.code === 'invalid-footnote' && problem.message.includes(`格式「${markType}」`),
+    )).toBe(true)
+    expect(() => serializeToXml(pmDoc)).toThrow(/脚注校验未通过/)
+    expect(() => renderHtml(doc, labels, { variant: 'print' })).toThrow(/脚注关联无效/)
+    await expect(buildDocxBlob({ pmDoc, createdAt: '2026-10-03T00:00:00Z' }))
+      .rejects.toThrow(/脚注关联无效/)
+  })
+
   it('粗体、斜体、上下标、换行和交叉引用在 XML 脚注中保留', () => {
     const { schema, pmDoc } = bodyFootnoteDoc([
       { type: 'text', text: '粗体', marks: [{ type: 'bold' }] },
