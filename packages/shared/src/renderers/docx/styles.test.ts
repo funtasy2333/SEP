@@ -12,8 +12,8 @@ import { buildStylesXml } from './styles'
 import { findChild } from './__tests__/helpers/xmlTree'
 import { parseXml, type XmlElement } from './__tests__/helpers/xmlTree'
 
-function styleMap(): Map<string, XmlElement> {
-  const root = parseXml(buildStylesXml())
+function styleMap(includeFootnotes = false): Map<string, XmlElement> {
+  const root = parseXml(buildStylesXml({ includeFootnotes }))
   const map = new Map<string, XmlElement>()
   for (const child of root.children) {
     if (child.kind === 'element' && child.name === 'w:style') {
@@ -280,6 +280,26 @@ describe('styles.ts：显式缩进值（不依赖编号级别的样式）', () =
 
   it('SesTableText：首行 1 字 = 210，左 0', () => {
     expect(indOf(styles.get('SesTableText')!)?.attrs).toEqual({ 'w:left': '0', 'w:firstLine': '210' })
+  })
+
+  it('脚注按 9pt 汉字宽度设置悬挂缩进、正文制表位并关闭网格吸附', () => {
+    const footnoteStyles = styleMap(true)
+    const expected = [
+      { id: 'SesFootnoteText', left: '720', hanging: '360', tab: '720' },
+      { id: 'SesTableFootnote', left: '540', hanging: '180', tab: '540' },
+    ]
+    for (const { id, left, hanging, tab } of expected) {
+      const style = footnoteStyles.get(id)!
+      const pPr = findChild(style, 'w:pPr')!
+      expect(findChild(pPr, 'w:ind')?.attrs).toEqual({ 'w:left': left, 'w:hanging': hanging })
+      const tabs = findChild(pPr, 'w:tabs')!
+      const tabElement = tabs.children.find((child): child is XmlElement => child.kind === 'element' && child.name === 'w:tab')
+      expect(tabElement?.attrs).toEqual({ 'w:val': 'left', 'w:pos': tab })
+      expect(findChild(pPr, 'w:snapToGrid')?.attrs).toEqual({ 'w:val': '0' })
+      expect(findChild(findChild(style, 'w:rPr')!, 'w:sz')?.attrs['w:val']).toBe('18')
+    }
+    // 脚注专用 180 twips 不应改变正文沿用的 10.5pt 字宽。
+    expect(indOf(styles.get('SesPara')!)?.attrs).toEqual({ 'w:left': '0', 'w:firstLine': '420' })
   })
 
   it('SesEndMark：按 Word 边框两端延伸校准线宽，左右缩进各 3532', () => {

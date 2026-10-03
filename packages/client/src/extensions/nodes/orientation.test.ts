@@ -6,7 +6,9 @@ import { TableHeader } from '@tiptap/extension-table-header'
 import { TableRow } from '@tiptap/extension-table-row'
 import { describe, expect, it } from 'vitest'
 import { Figure, FigureCaption, FigureCaptionEn, FigureImage } from './figure'
-import { StdTable, TableCaption, TableCaptionEn, TableFootnote } from './std-table'
+import { StdTable, TableCaption, TableCaptionEn, TableFootnote, TableFootnoteEntry, TableFootnoteRow, TableNoteRow } from './std-table'
+import { FootnoteRef, TableFootnoteRef } from './footnotes'
+import { Note } from './note'
 import { ChapterTitle } from './chapter'
 import { serializeToXml } from '../../serializer/xmlSerializer'
 
@@ -29,6 +31,12 @@ function createSchema() {
     TableCaption,
     TableCaptionEn,
     TableFootnote,
+    TableNoteRow,
+    TableFootnoteRow,
+    TableFootnoteEntry,
+    FootnoteRef,
+    TableFootnoteRef,
+    Note,
     Figure,
     FigureImage,
     FigureCaption,

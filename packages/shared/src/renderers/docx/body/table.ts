@@ -30,8 +30,10 @@ export interface TableGridRenderOptions {
   columnCount?: number
   /** 单元格内容由块分发器递归渲染，paragraphStyle 是其中普通段落的默认样式。 */
   renderCell: (cell: IRTableCell, paragraphStyle: TableCellParagraphStyle, meta: TableCellRenderMeta) => string
-  /** 已按 SesTableNote 与 §5.7 编号输出的表注段落；非空时作为表格最后一行。 */
+  /** 已按 SesTableNote 与 §5.7 编号输出的表注段落；独立合并行为表尾第一行。 */
   notesXml?: string | (() => string)
+  /** 已按 SesTableFootnote 输出的表脚注；独立合并行为表尾末行。 */
+  footnotesXml?: string | (() => string)
 }
 
 interface OriginCell {
@@ -224,12 +226,15 @@ function cellXml(
   return `<w:tc>${tcPr(tcPrChildren)}${contentXml}</w:tc>`
 }
 
-function noteRowXml(widths: number[], columnCount: number, notesXml: string): string {
+function noteRowXml(widths: number[], columnCount: number, notesXml: string, kind: 'notes' | 'footnotes', topBorderSize: 2 | 6): string {
   const width = widths.reduce((sum, value) => sum + value, 0)
   const tcPrXml = tcPr([
     ['tcW', `<w:tcW w:w="${width}" w:type="dxa"/>`],
     ...(columnCount > 1 ? [['gridSpan', `<w:gridSpan w:val="${columnCount}"/>`] as const] : []),
-    ['tcBorders', cellBorderXml(['top'], 6)],
+    ['tcBorders', cellBorderXml(['top'], topBorderSize)],
+    // Word's default 100-twip cell inset shifts the footnote paragraph away from the table frame.
+    // Zero only the footnote row's left inset so its 9pt fourth-character tab aligns to that frame.
+    ...(kind === 'footnotes' ? [['tcMar', '<w:tcMar><w:left w:w="0" w:type="dxa"/></w:tcMar>'] as const] : []),
   ])
   return tr([
     ['trPr', trPr([['cantSplit', '<w:cantSplit/>']])],
@@ -292,9 +297,12 @@ export function renderTableGrid(ctx: RenderContext, table: IRTable, options: Tab
     return tr(rowChildren)
   })
   const notes = (typeof options.notesXml === 'function' ? options.notesXml() : options.notesXml)?.trim() ?? ''
-  const tableNotesRow = notes.length > 0 ? noteRowXml(widths, grid.columnCount, notes) : ''
+  const footnotes = (typeof options.footnotesXml === 'function' ? options.footnotesXml() : options.footnotesXml)?.trim() ?? ''
+  const tableNotesRow = notes.length > 0 ? noteRowXml(widths, grid.columnCount, notes, 'notes', 6) : ''
+  const tableFootnotesRow = footnotes.length > 0 ? noteRowXml(widths, grid.columnCount, footnotes, 'footnotes', tableNotesRow ? 2 : 6) : ''
   const captionRow = options.captionXml ? captionRowXml(widths, grid.columnCount, options.captionXml) : ''
-  const allRows = [...(captionRow ? [captionRow] : []), ...rowsXml, ...(tableNotesRow ? [tableNotesRow] : [])]
+  const allRows = [...(captionRow ? [captionRow] : []), ...rowsXml,
+    ...(tableNotesRow ? [tableNotesRow] : []), ...(tableFootnotesRow ? [tableFootnotesRow] : [])]
   const renderedRows = options.keepTogether
     ? allRows.map((row, index) => index < allRows.length - 1 ? keepRowWithNext(row) : row)
     : allRows

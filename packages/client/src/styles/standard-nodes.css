@@ -260,6 +260,97 @@
   padding-left: 1em;
 }
 
+.std-footnote-ref,
+.std-table-footnote-ref {
+  color: #2367a8;
+  cursor: pointer;
+  font-size: 0.82em;
+  line-height: 0;
+  vertical-align: super;
+  margin: 0 1px;
+}
+
+.std-footnote-ref:hover,
+.std-table-footnote-ref:hover {
+  text-decoration: underline;
+}
+
+.std-footnote-ref.ProseMirror-selectednode,
+.std-table-footnote-ref.ProseMirror-selectednode {
+  outline: 1px solid var(--ses-accent);
+  border-radius: 2px;
+}
+
+.std-table-note-row {
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.std-table-note-row > .std-note {
+  margin: 2px 0;
+}
+
+.std-table-footnote-row {
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+/* 编辑区提示：生成的区域名称不进入文稿 JSON、XML 或正式导出。 */
+.ProseMirror .std-table-note-row,
+.ProseMirror .std-table-footnote,
+.ProseMirror .std-table-footnote-row {
+  margin: 8px 0;
+  padding: 8px 14px 10px;
+  border: 1px solid #d7e4ef;
+  border-left: 3px solid #6288aa;
+  border-radius: 6px;
+  background: #f5f9fc;
+}
+
+.ProseMirror .std-table-footnote-row {
+  border-color: #ded8ee;
+  border-left-color: #8870b4;
+  background: #f8f6fc;
+}
+
+.ProseMirror .std-table-note-row::before,
+.ProseMirror .std-table-footnote::before,
+.ProseMirror .std-table-footnote-row::before {
+  content: '表注';
+  display: block;
+  margin-bottom: 4px;
+  color: #486b8a;
+  font: 600 11px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  letter-spacing: 0.04em;
+  text-indent: 0;
+  user-select: none;
+  pointer-events: none;
+}
+
+.ProseMirror .std-table-footnote-row::before {
+  content: '表脚注';
+  color: #715797;
+}
+
+.std-table-footnote-entry {
+  margin: 2px 0;
+  padding-left: 0.7em;
+  color: #4b5563;
+  text-indent: 0;
+}
+
+.std-table-footnote-entry > sup {
+  margin-right: 0.35em;
+  color: #2367a8;
+  cursor: pointer;
+}
+
+.footnote-dialog-hint {
+  margin: 10px 0 0;
+  color: var(--ses-ink-3);
+  font-size: 12px;
+}
+
 /* 图 */
 .std-figure {
   counter-increment: std-figure;
@@ -351,6 +442,18 @@
 .std-note::before {
   content: '注：';
   font-family: 'SimHei', 'Heiti SC', sans-serif;
+}
+
+.std-note-editor::before {
+  content: none;
+}
+
+.std-note-marker {
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+}
+
+.std-note-content {
+  white-space: pre-wrap;
 }
 
 /* 示例（自动编号：同一父节点下多个示例时显示 示例1, 示例2） */

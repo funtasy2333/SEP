@@ -129,6 +129,108 @@ export function assertWellFormed(pkg: DocxPackage): void {
   }
 }
 
+/** Footnote package contract: refs, definitions, settings, relationship, and content type agree. */
+export function assertFootnoteIntegrity(pkg: DocxPackage): void {
+  const documentXml = pkg.parts['word/document.xml']
+  if (!documentXml) throw new Error('assertFootnoteIntegrity: 缺少 word/document.xml')
+  const documentTree = parseXml(documentXml)
+  const references: XmlElement[] = []
+  collectNamed(documentTree, 'w:footnoteReference', references)
+  const footnotesXml = pkg.parts['word/footnotes.xml']
+  if (references.length === 0 && footnotesXml === undefined) return
+  if (footnotesXml === undefined) throw new Error('assertFootnoteIntegrity: document.xml 有脚注引用但缺少 word/footnotes.xml')
+  if (references.length === 0) throw new Error('assertFootnoteIntegrity: footnotes.xml 存在但 document.xml 没有脚注引用')
+
+  const relsXml = pkg.parts['word/_rels/document.xml.rels']
+  if (!relsXml) throw new Error('assertFootnoteIntegrity: 缺少 document.xml.rels')
+  const relsTree = parseXml(relsXml)
+  const footnoteRels = relsTree.children.filter((child): child is XmlElement =>
+    child.kind === 'element' && child.name === 'Relationship' &&
+    child.attrs.Type === 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes')
+  if (footnoteRels.length !== 1 || footnoteRels[0]?.attrs.Target !== 'footnotes.xml') {
+    throw new Error('assertFootnoteIntegrity: footnotes.xml relationship 缺失或不唯一')
+  }
+
+  const contentTypesTree = parseXml(pkg.parts['[Content_Types].xml'] ?? '')
+  const footnoteOverride = contentTypesTree.children.find((child): child is XmlElement =>
+    child.kind === 'element' && child.name === 'Override' && child.attrs.PartName === '/word/footnotes.xml')
+  if (footnoteOverride?.attrs.ContentType !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml') {
+    throw new Error('assertFootnoteIntegrity: footnotes.xml content type override 缺失或错误')
+  }
+
+  const settingsTree = parseXml(pkg.parts['word/settings.xml'] ?? '')
+  const footnotePr = findChild(settingsTree, 'w:footnotePr')
+  if (!footnotePr || findChild(footnotePr, 'w:pos')?.attrs['w:val'] !== 'pageBottom' ||
+      findChild(footnotePr, 'w:numFmt')?.attrs['w:val'] !== 'decimal' ||
+      findChild(footnotePr, 'w:numStart')?.attrs['w:val'] !== '1' ||
+      findChild(footnotePr, 'w:numRestart')?.attrs['w:val'] !== 'continuous') {
+    throw new Error('assertFootnoteIntegrity: 脚注位置或连续编号设置错误')
+  }
+
+  const footnotesTree = parseXml(footnotesXml)
+  const definitions = footnotesTree.children.filter((child): child is XmlElement =>
+    child.kind === 'element' && child.name === 'w:footnote')
+  const ids = new Set<string>()
+  const separators = new Map<string, string>()
+  for (const definition of definitions) {
+    const id = definition.attrs['w:id']
+    if (!id || ids.has(id)) throw new Error(`assertFootnoteIntegrity: 脚注定义 ID 缺失或重复: "${id ?? ''}"`)
+    ids.add(id)
+    const type = definition.attrs['w:type']
+    if (type) separators.set(type, id)
+    else {
+      if (!/^\d+$/.test(id)) throw new Error(`assertFootnoteIntegrity: 正文脚注 ID 非正整数: "${id}"`)
+      const styles: XmlElement[] = []
+      collectNamed(definition, 'w:pStyle', styles)
+      if (!styles.some((style) => style.attrs['w:val'] === 'SesFootnoteText')) {
+        throw new Error(`assertFootnoteIntegrity: 脚注 ${id} 缺少小五脚注段落样式`)
+      }
+      const markerRuns: XmlElement[] = []
+      collectNamed(definition, 'w:vertAlign', markerRuns)
+      const text = collectText(definition).join('')
+      if (!markerRuns.some((run) => run.attrs['w:val'] === 'superscript') || !text.startsWith(`${id})`)) {
+        throw new Error(`assertFootnoteIntegrity: 脚注 ${id} 缺少 resolver 自定义上标标识`)
+      }
+    }
+  }
+  if (separators.get('separator') !== '-1' || separators.get('continuationSeparator') !== '0') {
+    throw new Error('assertFootnoteIntegrity: 缺少 separator / continuationSeparator 特殊条目')
+  }
+  for (const type of ['separator', 'continuationSeparator']) {
+    const definition = definitions.find((item) => item.attrs['w:type'] === type)!
+    const borders: XmlElement[] = []
+    collectNamed(definition, 'w:top', borders)
+    const nativeMarks: XmlElement[] = []
+    collectNamed(definition, `w:${type}`, nativeMarks)
+    if (borders.length !== 1 || nativeMarks.length !== 0) {
+      throw new Error(`assertFootnoteIntegrity: ${type} 必须只含自定义单条细边框`)
+    }
+  }
+  for (const reference of references) {
+    const id = reference.attrs['w:id']
+    if (!id || !ids.has(id) || reference.attrs['w:customMarkFollows'] !== '1') {
+      throw new Error(`assertFootnoteIntegrity: 脚注引用 ID "${id ?? ''}" 无定义或未标记 customMarkFollows`)
+    }
+  }
+}
+
+function collectNamed(node: XmlElement, name: string, out: XmlElement[]): void {
+  if (node.name === name) out.push(node)
+  for (const child of node.children) if (child.kind === 'element') collectNamed(child, name, out)
+}
+
+function collectText(node: XmlElement): string[] {
+  const out: string[] = []
+  const visit = (item: XmlElement): void => {
+    for (const child of item.children) {
+      if (child.kind === 'text') out.push(child.text)
+      else visit(child)
+    }
+  }
+  visit(node)
+  return out
+}
+
 /** 部件路径 → 它自己的 .rels 部件路径（如 "word/document.xml" → "word/_rels/document.xml.rels"） */
 function relsPathFor(partPath: string): string {
   const idx = partPath.lastIndexOf('/')

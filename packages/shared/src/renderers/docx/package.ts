@@ -142,13 +142,21 @@ function contentTypesXml(binaryExtensions: ReadonlyMap<string, string>, override
 }
 
 /** word/settings.xml：§2.4 全文固定输出，走 xml.ts 的附录 B 顺序拼接（不手写顺序） */
-function settingsXml(): string {
+function settingsXml(includeFootnotes: boolean): string {
   const children: XmlChild[] = [
     ['mirrorMargins', '<w:mirrorMargins/>'],
     ['defaultTabStop', `<w:defaultTabStop w:val="${2 * CHAR_WIDTH_TWIPS}"/>`],
     ['evenAndOddHeaders', '<w:evenAndOddHeaders/>'],
     ['characterSpacingControl', '<w:characterSpacingControl w:val="compressPunctuation"/>'],
     ['updateFields', '<w:updateFields w:val="true"/>'],
+    ...(includeFootnotes
+      ? [[
+          'footnotePr',
+          '<w:footnotePr><w:pos w:val="pageBottom"/><w:numFmt w:val="decimal"/>' +
+            '<w:numStart w:val="1"/><w:numRestart w:val="continuous"/>' +
+            '<w:footnote w:id="-1"/><w:footnote w:id="0"/></w:footnotePr>',
+        ] as const]
+      : []),
     [
       'compat',
       '<w:compat><w:compatSetting w:name="compatibilityMode" ' +
@@ -237,7 +245,7 @@ export function buildPackage(input: DocxPackageInput): DocxPackage {
     docRels.push({ id: nextAutoId(), type: `${REL}styles`, target: 'styles.xml' })
   }
 
-  parts['word/settings.xml'] = settingsXml()
+  parts['word/settings.xml'] = settingsXml(relatedParts.some((rel) => rel.target === 'word/footnotes.xml'))
   overrides.push({ partName: 'word/settings.xml', contentType: `${WML}settings+xml` })
   docRels.push({ id: nextAutoId(), type: `${REL}settings`, target: 'settings.xml' })
 

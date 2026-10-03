@@ -7,6 +7,7 @@
  */
 
 import { readPageOrientation } from '../utils/orientation'
+import { generateNodeId } from '@ses/shared'
 
 /** ProseMirror JSON 节点类型 */
 export interface PMJsonNode {
@@ -57,7 +58,8 @@ export function parseXmlToJson(xmlString: string): PMJsonNode {
     throw new Error(`期望根元素为 <standard>，实际为 <${root.tagName}>`)
   }
 
-  return parseStandard(root)
+  const parsed = parseStandard(root)
+  return resolveDetachedFootnoteReferences(parsed, root)
 }
 
 /**
@@ -611,13 +613,35 @@ function parseTableWrap(el: Element): PMJsonNode {
   }
 
   // 表注
-  const foot = el.querySelector(':scope > table-wrap-foot')
-  if (foot) {
-    const p = foot.querySelector(':scope > p')
-    stdTable.content!.push({
-      type: 'tableFootnote',
-      content: p ? parseInlineContent(p) : [],
-    })
+  const feet = Array.from(el.children).filter((child) => child.tagName === 'table-wrap-foot')
+  if (feet.length) {
+    const legacyParagraphs: Element[] = []
+    const tableNotes: PMJsonNode[] = []
+    const tableFootnotes: PMJsonNode[] = []
+    for (const foot of feet) {
+      for (const child of Array.from(foot.children)) {
+        if (child.tagName === 'fn') {
+          tableFootnotes.push(parseTableFootnoteEntry(child))
+        } else if (child.tagName === 'fn-group') {
+          for (const fn of Array.from(child.children).filter((candidate) => candidate.tagName === 'fn')) {
+            tableFootnotes.push(parseTableFootnoteEntry(fn))
+          }
+        } else if (child.tagName === 'non-normative-note') {
+          const paragraphs = Array.from(child.children).filter((candidate) => candidate.tagName === 'p')
+          if (paragraphs.length === 0) tableNotes.push({ type: 'note', content: parseInlineContent(child) })
+          else tableNotes.push({ type: 'note', content: joinInlineParagraphs(paragraphs) })
+        } else if (child.tagName === 'p') {
+          legacyParagraphs.push(child)
+        } else {
+          throw new Error(`无法导入表格注区：不支持 <${child.tagName}> 块，原 XML 未作修改。`)
+        }
+      }
+    }
+    if (legacyParagraphs.length) {
+      stdTable.content!.push({ type: 'tableFootnote', content: joinInlineParagraphs(legacyParagraphs) })
+    }
+    if (tableNotes.length) stdTable.content!.push({ type: 'tableNoteRow', content: tableNotes })
+    if (tableFootnotes.length) stdTable.content!.push({ type: 'tableFootnoteRow', content: tableFootnotes })
   }
 
   return stdTable
@@ -710,8 +734,11 @@ function parseFormula(el: Element): PMJsonNode {
   const texMath = el.querySelector(':scope > tex-math')
   formula.content!.push({
     type: 'formulaContent',
+    // 保留 tex-math 中非法的脚注 atom，由共享 Resolver 报错而非静默丢失。
     content: texMath
-      ? [{ type: 'text', text: texMath.textContent?.trim() || '' }]
+      ? texMath.querySelector('fn, xref[ref-type="fn"], xref[ref-type="table-fn"]')
+        ? parseInlineContent(texMath)
+        : [{ type: 'text', text: texMath.textContent?.trim() || '' }]
       : [],
   })
 
@@ -789,8 +816,12 @@ function parseBlockChildren(el: Element): PMJsonNode[] {
  */
 function parseInlineContent(el: Element): PMJsonNode[] {
   const result: PMJsonNode[] = []
+  const consumed = new Set<Node>()
 
-  for (const node of el.childNodes) {
+  const children = Array.from(el.childNodes)
+  for (let index = 0; index < children.length; index += 1) {
+    const node = children[index]!
+    if (consumed.has(node)) continue
     if (node.nodeType === Node.TEXT_NODE) {
       const text = node.textContent || ''
       if (text) {
@@ -818,7 +849,33 @@ function parseInlineContent(el: Element): PMJsonNode[] {
       }
 
       if (tag === 'xref') {
-        // 交叉引用
+        const refType = childEl.getAttribute('ref-type') || 'sec'
+        const targetId = childEl.getAttribute('rid') || ''
+        if (refType === 'table-fn') {
+          result.push({ type: 'tableFootnoteRef', attrs: { nodeId: generateNodeId(), targetId } })
+          continue
+        }
+        if (refType === 'fn') {
+          let nextIndex = index + 1
+          while (
+            nextIndex < children.length
+            && children[nextIndex]!.nodeType === Node.TEXT_NODE
+            && !(children[nextIndex]!.textContent || '').trim()
+          ) nextIndex += 1
+          const next = children[nextIndex]
+          if (next?.nodeType === Node.ELEMENT_NODE) {
+            const fn = next as Element
+            if (fn.tagName === 'fn' && (!fn.getAttribute('id') || fn.getAttribute('id') === targetId)) {
+              consumed.add(fn)
+              for (let skip = index + 1; skip < nextIndex; skip += 1) consumed.add(children[skip]!)
+              result.push(parseFootnoteReference(fn, targetId))
+              continue
+            }
+          }
+          result.push({ type: 'unresolvedFootnoteRef', attrs: { targetId } })
+          continue
+        }
+        // 普通交叉引用
         const innerNodes = parseInlineContent(childEl)
         for (const inner of innerNodes) {
           if (inner.type === 'text') {
@@ -827,7 +884,7 @@ function parseInlineContent(el: Element): PMJsonNode[] {
               type: 'crossRef',
               attrs: {
                 refId: childEl.getAttribute('rid') || '',
-                refType: childEl.getAttribute('ref-type') || 'sec',
+                refType,
               },
             })
           }
@@ -835,6 +892,8 @@ function parseInlineContent(el: Element): PMJsonNode[] {
         }
       } else if (tag === 'break' || tag === 'br') {
         result.push({ type: 'hardBreak' })
+      } else if (tag === 'fn') {
+        result.push(parseFootnoteReference(childEl, childEl.getAttribute('id') || generateNodeId()))
       } else if (markMap[tag]) {
         // 行内格式标记
         const markType = markMap[tag]
@@ -860,4 +919,108 @@ function parseInlineContent(el: Element): PMJsonNode[] {
   }
 
   return result
+}
+
+function parseFootnoteContent(fn: Element): PMJsonNode[] {
+  const paragraphs = Array.from(fn.children).filter((child) => child.tagName === 'p')
+  const inlineTags = new Set([
+    'bold', 'b', 'strong', 'italic', 'i', 'em', 'sub', 'sup', 'underline', 'u',
+    'strike', 's', 'del', 'xref', 'break', 'br',
+  ])
+  const unsupportedChildren = Array.from(fn.children).filter((child) => {
+    if (child.tagName === 'p' || child.tagName === 'label') return false
+    // NISO permits simple inline content directly in fn. If paragraph blocks are present,
+    // accepting siblings beside them would make their source order ambiguous, so reject them.
+    return paragraphs.length > 0 || !inlineTags.has(child.tagName)
+  })
+  if (unsupportedChildren.length) {
+    const tag = unsupportedChildren[0]!.tagName
+    throw new Error(`无法导入脚注「${fn.getAttribute('id') || ''}」：暂不支持 <${tag}> 子元素，原 XML 未作修改。`)
+  }
+  if (paragraphs.length === 0) {
+    const contentNodes = Array.from(fn.childNodes).filter((child) => child.nodeType !== Node.ELEMENT_NODE || (child as Element).tagName !== 'label')
+    const wrapper = fn.ownerDocument.createElement('span')
+    for (const child of contentNodes) wrapper.appendChild(child.cloneNode(true))
+    return parseInlineContent(wrapper)
+  }
+  return joinInlineParagraphs(paragraphs)
+}
+
+function joinInlineParagraphs(paragraphs: Element[]): PMJsonNode[] {
+  const content: PMJsonNode[] = []
+  paragraphs.forEach((paragraph, index) => {
+    if (index > 0) content.push({ type: 'hardBreak' })
+    content.push(...parseInlineContent(paragraph))
+  })
+  return content
+}
+
+function parseTableFootnoteEntry(fn: Element): PMJsonNode {
+  return {
+    type: 'tableFootnoteEntry',
+    attrs: { nodeId: fn.getAttribute('id') || generateNodeId() },
+    content: parseFootnoteContent(fn),
+  }
+}
+
+function parseFootnoteReference(fn: Element, id: string): PMJsonNode {
+  const sourceId = fn.getAttribute('id') || id || generateNodeId()
+  return {
+    type: 'footnoteRef',
+    attrs: { nodeId: sourceId, content: parseFootnoteContent(fn) },
+  }
+}
+
+/**
+ * Older NISO input can keep fn definitions in fn-group and refer to them elsewhere. The editor
+ * stores body footnotes inline, so map a single xref to its definition and reject ambiguous or
+ * orphaned groups instead of importing a document with its footnotes silently lost.
+ */
+function resolveDetachedFootnoteReferences(doc: PMJsonNode, root: Element): PMJsonNode {
+  const definitions = new Map<string, PMJsonNode[]>()
+  const detachedBodyDefinitions = Array.from(root.querySelectorAll('fn-group fn'))
+    .filter((fn) => !fn.closest('table-wrap-foot, table-wrap'))
+  for (const fn of detachedBodyDefinitions) {
+    const id = fn.getAttribute('id')
+    if (!id) throw new Error('无法导入 fn-group：脚注定义缺少 id，原 XML 未作修改。')
+    if (definitions.has(id)) throw new Error(`无法导入 fn-group：脚注 id「${id}」重复，原 XML 未作修改。`)
+    definitions.set(id, parseFootnoteContent(fn))
+  }
+
+  const references = new Map<string, number>()
+  const collect = (node: PMJsonNode) => {
+    if (node.type === 'unresolvedFootnoteRef') {
+      const id = String(node.attrs?.targetId || '')
+      references.set(id, (references.get(id) || 0) + 1)
+    }
+    for (const child of node.content ?? []) collect(child)
+    const attrsContent = node.attrs?.content
+    if (Array.isArray(attrsContent)) for (const child of attrsContent as PMJsonNode[]) collect(child)
+  }
+  collect(doc)
+
+  for (const [id, count] of references) {
+    if (!definitions.has(id)) throw new Error(`无法导入脚注引用「${id}」：未找到相邻 fn 或 fn-group 定义，原 XML 未作修改。`)
+    if (count > 1) throw new Error(`无法导入 fn-group 脚注「${id}」：同一脚注有多个引用，当前编辑模型要求脚注定义位于引用处；原 XML 未作修改。`)
+  }
+  for (const id of definitions.keys()) {
+    if (!references.has(id)) throw new Error(`无法导入 fn-group：脚注「${id}」没有引用；为避免丢失脚注内容，原 XML 未作修改。`)
+  }
+
+  const replace = (node: PMJsonNode): PMJsonNode => {
+    if (node.type === 'unresolvedFootnoteRef') {
+      const id = String(node.attrs?.targetId || '')
+      return { type: 'footnoteRef', attrs: { nodeId: id, content: definitions.get(id) ?? [] } }
+    }
+    const next: PMJsonNode = { ...node }
+    if (node.content) next.content = node.content.map(replace)
+    if (Array.isArray(node.attrs?.content)) {
+      next.attrs = {
+        ...node.attrs,
+        content: (node.attrs.content as PMJsonNode[]).map(replace),
+      }
+    }
+    return next
+  }
+  return replace(doc)
 }

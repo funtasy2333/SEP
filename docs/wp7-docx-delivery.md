@@ -542,9 +542,13 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
   - 表题行及前 `headerRowCount` 个数据行 `trPr` 写 `<w:tblHeader/>`；表头最后一行的单元格下边框 sz=6，所有表格行写 `cantSplit`，在行边界分页；
   - 合并：`colspan` → `tcPr/gridSpan`；`rowspan` → 起始格 `vMerge val="restart"`，**被覆盖的后续行在同一网格位置补占位格** `<w:tc><w:tcPr><w:gridSpan w:val="N"/><w:vMerge/></w:tcPr><w:p/></w:tc>`，其中 N = 起始格的 `colspan`（为 1 时省略 `gridSpan`）。占位格缺 `gridSpan` 会只占一列，同行后面的格整体左移，网格错位（旧导出器连占位格都没有）；
   - 单元格段落：表头格与纯数字格（`/^[\d\s.,±%~—-]+$/`）用 SesTableCenter，其余用 SesTableText；空单元格写一字线「—」（10.4.2.2）。
-- 表注：表内最后加一行，单元格 `gridSpan` 跨满全宽，上边框 sz=6，内容按 §5.7 规则，用 SesTableNote。
+- 表注：表内底部加一行，单元格 `gridSpan` 跨满全宽，上边框 sz=6，内容按 §5.7 规则，用 SesTableNote。若有表脚注，表注行在表脚注行之前。
 - `orientation='landscape'` 的表按 §5.15 放进横排节（表题、表、表注都在该节内）。
 - WP7.4 后续修订：按用户要求将长表拆成独立的 Word 表段，续段另起页并写「表X　表题（续）」；每段重放列标题，切分点避开跨行合并区域，表注只在末段。Word 原生重复标题行不能只在续页改变文字，因此按 Word 样稿行高估算最少页数并均衡各段；长表首段另起页，无法根据前文在 Word 中的实际排版位置精确利用上一页余量。编辑后若行高变化，需重新导出并复核分页。单位陈述仍留给 V2。
+
+2026-10-02 脚注补齐：新增独立表脚注行，跨满表宽，位于表注行之后。内容小五宋体，表脚注标识为上标小写字母，每张表独立、按首次引用顺序编号；重复引用只输出一条定义。长表只在末段输出表注和脚注定义，分页估算包含脚注行高。旧 `tableFootnote` 编辑节点继续代表表注，不能改换旧稿语义。
+
+条文脚注使用原位 `w:footnoteReference` 及 `word/footnotes.xml`，补齐关系和 Content Type；由 Word 排在引用所在页底。标识使用 Resolver 的连续 `1)`、`2)` 等，不跟正文分页或分节重启。分隔线左对齐、目标长度为竖排版心的1/4；内容按10.4.4缩进、小五宋体。HTML 用相同 labels 输出 Vivliostyle 页底脚注及表内 `tfoot` 注/脚注两行。非法脚注关联在 UI 和两个渲染器入口均阻断。规则图像、操作说明及本轮验证结果见 [脚注验收记录](footnotes-table-notes-validation.md)；样稿验证不代替真实稿件验收，也不等于全部 OOXML 或 STS schema 认证。
 
 ### 5.10 公式（10.4.3）
 

@@ -46,6 +46,10 @@ class ResolveCtx {
   /** note/example 的 xmlId 全局序号（按文档顺序，确定性） */
   noteSeq = 0
   exampleSeq = 0
+  footnoteSeq = 0
+  footnoteDepth = 0
+  inTerm = false
+  tableFootnotes: { tableId: string; ids: Set<string>; referenced: Set<string>; seq: number } | undefined
   // 图/表/公式计数器：正文全文连续，附录内按附录重置
   figSeq = 0
   tableSeq = 0
@@ -98,11 +102,41 @@ class ResolveCtx {
 
 // ---------- 行内（收集交叉引用） ----------
 
-function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx): void {
+// 与编辑器 canInsertBodyFootnote 保持一致；图中的限制沿块级子树传递。
+type ForbiddenFootnoteContainer = '标题' | '图' | '公式主体' | '公式说明'
+
+function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx, forbiddenContainer?: ForbiddenFootnoteContainer): void {
   for (const run of inlines) {
+    if (run.footnote) {
+      const note = run.footnote
+      if (ctx.seenIds.has(note.id) || note.id.startsWith(MISSING_ID_PREFIX)) ctx.problems.push({ code: 'invalid-footnote', nodeId: note.id, severity: 'error', message: '脚注必须具有文档内唯一的稳定 ID' })
+      if (forbiddenContainer || ctx.inTerm || ctx.tableFootnotes || ctx.footnoteDepth) {
+        ctx.problems.push({ code: 'invalid-footnote', nodeId: fromId, severity: 'error', message: forbiddenContainer ? `${forbiddenContainer}中不能插入条文脚注` : '术语条目、表格及脚注内部不能插入条文脚注；表格请使用表脚注' })
+        if (ctx.footnoteDepth) continue
+      }
+      ctx.registerId(note.id)
+      const seq = ++ctx.footnoteSeq
+      ctx.setLabel(note.id, `${seq})`, `fn_${seq}`, `${seq})`)
+      if (!note.content.some(inline => inline.text.trim())) ctx.problems.push({ code: 'invalid-footnote', nodeId: note.id, severity: 'error', message: '脚注内容不能为空' })
+      ctx.footnoteDepth += 1
+      visitInlines(note.content, note.id, ctx)
+      ctx.footnoteDepth -= 1
+    }
     for (const mark of run.marks ?? []) {
       if (mark.type === 'crossRef') {
         ctx.xrefs.push({ targetId: mark.targetId, fromId })
+      }
+      if (mark.type === 'tableFootnoteRef') {
+        const scope = ctx.tableFootnotes
+        if (!scope || !scope.ids.has(mark.targetId) || ctx.footnoteDepth) {
+          ctx.problems.push({ code: 'dangling-footnote', nodeId: fromId, severity: 'error', message: `表脚注上标的目标「${mark.targetId}」不在当前表中，或位于脚注内部` })
+        } else if (!scope.referenced.has(mark.targetId)) {
+          scope.referenced.add(mark.targetId)
+          let n = ++scope.seq
+          let label = ''
+          while (n > 0) { n -= 1; label = String.fromCharCode(97 + n % 26) + label; n = Math.floor(n / 26) }
+          ctx.setLabel(mark.targetId, label, `tabfn_${ctx.labels[scope.tableId]!.xmlId}_${label}`, label)
+        }
       }
     }
   }
@@ -122,56 +156,71 @@ function labelFigureOrTable(id: NodeId, kind: 'fig' | 'tab', ctx: ResolveCtx): v
   ctx.setLabel(id, label, `${kind}_${num}`, label)
 }
 
-function visitNoteContent(note: IRNote, ctx: ResolveCtx): void {
+function visitNoteContent(note: IRNote, ctx: ResolveCtx, forbiddenContainer?: ForbiddenFootnoteContainer): void {
   ctx.registerId(note.id)
-  for (const block of note.content) visitBlock(block, note.id, ctx)
+  for (const block of note.content) visitBlock(block, note.id, ctx, forbiddenContainer)
 }
 
 /**
  * 访问一个块：登记 ID、计数图/表/公式、把注/示例归入作用域。
  * scopeKey = 最近的条或章（或附录/术语条目/前言/引言）的 ID。
  */
-function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx): void {
+function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbiddenContainer?: ForbiddenFootnoteContainer): void {
   switch (block.kind) {
     case 'paragraph':
       ctx.registerId(block.id)
-      visitInlines(block.content, block.id, ctx)
+      visitInlines(block.content, block.id, ctx, forbiddenContainer)
       break
     case 'list':
       ctx.registerId(block.id)
       for (const item of block.items) {
         ctx.registerId(item.id)
-        for (const child of item.content) visitBlock(child, scopeKey, ctx)
+        for (const child of item.content) visitBlock(child, scopeKey, ctx, forbiddenContainer)
       }
       break
     case 'table': {
       labelFigureOrTable(block.id, 'tab', ctx)
+      const previousTable = ctx.tableFootnotes
+      const scope = { tableId: block.id, ids: new Set((block.footnotes ?? []).map(note => note.id)), referenced: new Set<string>(), seq: 0 }
+      ctx.tableFootnotes = scope
+      for (const note of block.footnotes ?? []) {
+        if (ctx.seenIds.has(note.id) || note.id.startsWith(MISSING_ID_PREFIX)) ctx.problems.push({ code: 'invalid-footnote', nodeId: note.id, severity: 'error', message: '表脚注必须具有文档内唯一的稳定 ID' })
+        ctx.registerId(note.id)
+      }
       visitInlines(block.caption, block.id, ctx)
       if (block.captionEn) visitInlines(block.captionEn, block.id, ctx)
       for (const row of block.rows) {
         ctx.registerId(row.id)
         for (const cell of row.cells) {
           ctx.registerId(cell.id)
-          for (const child of cell.content) visitBlock(child, block.id, ctx)
+          for (const child of cell.content) visitBlock(child, block.id, ctx, forbiddenContainer)
         }
       }
       // 表内注独立计数：作用域 = 该表
       for (const note of block.notes) {
-        visitNoteContent(note, ctx)
+        visitNoteContent(note, ctx, forbiddenContainer)
         ctx.scope(block.id).notes.push({ id: note.id })
       }
+      for (const note of block.footnotes ?? []) {
+        if (!scope.referenced.has(note.id)) ctx.problems.push({ code: 'unreferenced-footnote', nodeId: note.id, severity: 'error', message: '表脚注没有当前表中的对应上标，请插入引用或删除该脚注' })
+        if (!note.content.some(inline => inline.text.trim())) ctx.problems.push({ code: 'invalid-footnote', nodeId: note.id, severity: 'error', message: '表脚注内容不能为空' })
+        ctx.footnoteDepth += 1
+        visitInlines(note.content, note.id, ctx)
+        ctx.footnoteDepth -= 1
+      }
+      ctx.tableFootnotes = previousTable
       break
     }
     case 'figure': {
       // §4.7「遍历顺序」：DOCX 按 9.11.1 把图中的注排在图题之上（§5.8），Resolver 据此先遍历
       // 注、再给图编号、最后遍历图题，与 Word 按文档顺序的计数保持一致。
       for (const note of block.notes) {
-        visitNoteContent(note, ctx)
+        visitNoteContent(note, ctx, '图')
         ctx.scope(block.id).notes.push({ id: note.id })
       }
       labelFigureOrTable(block.id, 'fig', ctx)
-      visitInlines(block.caption, block.id, ctx)
-      if (block.captionEn) visitInlines(block.captionEn, block.id, ctx)
+      visitInlines(block.caption, block.id, ctx, '图')
+      if (block.captionEn) visitInlines(block.captionEn, block.id, ctx, '图')
       break
     }
     case 'formula': {
@@ -184,20 +233,27 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx): void {
           : String(ctx.formulaSeq)
         ctx.setLabel(block.id, label, `formula_${num}`, `公式${label}`)
       }
+      if (block.sourceInlines) {
+        visitInlines(block.sourceInlines, block.id, ctx, '公式主体')
+        // 表内公式的上标也不能在纯 LaTeX 渲染时被静默抹掉。
+        if (block.sourceInlines.some(run => run.marks?.some(mark => mark.type === 'tableFootnoteRef'))) {
+          ctx.problems.push({ code: 'invalid-footnote', nodeId: block.id, severity: 'error', message: '公式主体中不能插入表脚注上标' })
+        }
+      }
       for (const item of block.whereList) {
         ctx.registerId(item.id)
-        visitInlines(item.term, item.id, ctx)
-        visitInlines(item.definition, item.id, ctx)
+        visitInlines(item.term, item.id, ctx, '公式说明')
+        visitInlines(item.definition, item.id, ctx, '公式说明')
       }
       break
     }
     case 'note':
-      visitNoteContent(block, ctx)
+      visitNoteContent(block, ctx, forbiddenContainer)
       ctx.scope(scopeKey).notes.push({ id: block.id })
       break
     case 'example':
       ctx.registerId(block.id)
-      for (const child of block.content) visitBlock(child, block.id, ctx)
+      for (const child of block.content) visitBlock(child, block.id, ctx, forbiddenContainer)
       ctx.scope(scopeKey).examples.push({ id: block.id })
       break
   }
@@ -210,6 +266,8 @@ function visitTermEntry(
   numberPath: string,
   ctx: ResolveCtx,
 ): void {
+  const previousTerm = ctx.inTerm
+  ctx.inTerm = true
   // §4.7「遍历顺序」：DOCX 按 8.7.3.1／9.11.1 的顺序是 术语→定义→示例→注→来源（§5.4），
   // Resolver 据此遍历，与 Word 按文档顺序的计数保持一致。
   ctx.registerId(entry.id)
@@ -227,6 +285,7 @@ function visitTermEntry(
     ctx.scope(entry.id).notes.push({ id: note.id })
   }
   if (entry.source) visitInlines(entry.source, entry.id, ctx)
+  ctx.inTerm = previousTerm
 }
 
 // ---------- 条 / 章 / 附录 ----------
@@ -297,7 +356,7 @@ function visitClause(
   ctx.registerId(clause.id)
   const numberPath = ctx.strategy.clause(path)
   ctx.setLabel(clause.id, numberPath, `sec_${numberPath}`, numberPath)
-  visitInlines(clause.title, clause.id, ctx)
+  visitInlines(clause.title, clause.id, ctx, '标题')
   visitSectionChildren(clause.children, clause.id, numberPath, path, expectedChildLevel, ctx)
 }
 
@@ -305,7 +364,7 @@ function visitChapter(chapter: IRChapter, seq: number, ctx: ResolveCtx): void {
   ctx.registerId(chapter.id)
   const num = ctx.strategy.chapter(seq)
   ctx.setLabel(chapter.id, num, `sec_${num}`, `第${num}章`)
-  visitInlines(chapter.title, chapter.id, ctx)
+  visitInlines(chapter.title, chapter.id, ctx, '标题')
   visitSectionChildren(chapter.children, chapter.id, `第${num}章`, [seq], 1, ctx)
 }
 
@@ -314,7 +373,7 @@ function visitAppendix(appendix: IRAppendix, seq: number, ctx: ResolveCtx): void
   const letter = ctx.strategy.appendixLetter(seq)
   const label = ctx.strategy.appendix(seq)
   ctx.setLabel(appendix.id, label, `sec_${letter}`, label)
-  visitInlines(appendix.title, appendix.id, ctx)
+  visitInlines(appendix.title, appendix.id, ctx, '标题')
   // 附录内图/表/公式按字母前缀重新计数
   ctx.appendixLetter = letter
   ctx.figSeq = 0
@@ -366,7 +425,11 @@ function resolveBibliography(doc: IRDoc, ctx: ResolveCtx): NodeId[] {
     const label = ctx.strategy.bibEntry(i + 1)
     ctx.setLabel(id, label, `bib_${i + 1}`, label)
   })
-  for (const entry of doc.bibliography) visitInlines(entry.content, entry.id, ctx)
+  // 文献按引用顺序输出，文献中的脚注也必须按最终输出顺序编号。
+  for (const id of order) {
+    const entry = doc.bibliography.find(entry => entry.id === id)!
+    visitInlines(entry.content, entry.id, ctx)
+  }
   return order
 }
 
@@ -400,6 +463,14 @@ function checkXrefs(ctx: ResolveCtx): void {
  */
 export function resolve(doc: IRDoc, strategy: NumberingStrategy = gbT11Strategy): ResolveResult {
   const ctx = new ResolveCtx(strategy)
+
+  for (const source of doc.unmappedFootnotes ?? []) {
+    const location = source.container === 'bibliographyTitle' ? '参考文献标题'
+      : source.container === 'appendixLabel' ? '附录标识'
+        : source.container === 'clauseTitle' ? '无题条标题' : '当前内容'
+    ctx.problems.push({ code: 'invalid-footnote', nodeId: source.nodeId, severity: 'error', message: `${location}中的脚注不支持导出，请移至受支持的正文或表格位置` })
+    visitInlines(source.content, source.nodeId, ctx)
+  }
 
   // 前置部分（前言/引言）：注/示例作用域为各自部分；图表公式与正文共用计数器
   for (const block of doc.front.foreword) visitBlock(block, 'front.foreword', ctx)
