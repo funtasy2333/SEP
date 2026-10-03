@@ -1357,12 +1357,12 @@
   },
   "tests": {
     "shared": 795,
-    "client": 155,
+    "client": 169,
     "server": 23,
     "build": "passed",
     "logs": [
-      "/private/tmp/sep-pr43-shared-full.log",
-      "/private/tmp/sep-pr43-client-full.log",
+      "/private/tmp/sep-pr43-shared-full-hidden-content.log",
+      "/private/tmp/sep-pr43-client-full-hidden-content.log",
       "/private/tmp/sep-wp76/server.log",
       "/private/tmp/sep-wp76/build-final.log"
     ]
@@ -1649,7 +1649,15 @@
     "finding": "P2 strong/em accepted by IR but lost in XML",
     "thread": "PRRT_kwDORyKGNM6ok6j1",
     "fix": "reject alias marks consistently; red 2 cases then 13 boundary tests passed",
-    "newHeadReview": "pending; manual resolve is not approval"
+    "newHeadReview": "pending; manual resolve is not approval",
+    "additionalFinding": {
+      "head": "74c72b4b96f7433746b1d2e8e2e63a83e8d28423",
+      "thread": "PRRT_kwDORyKGNM6ok9b8",
+      "finding": "P2 leaf content or nested mark attrs could be discarded",
+      "fix": "canonical node shape and mark attrs checks; all 3 exporters reject and source unchanged",
+      "tests": 27,
+      "finalHeadReview": "pending at evidence commit; see GitHub for current status"
+    }
   },
   "validSamplesAfterAliasFix": {
     "allFourByteIdentical": {
@@ -1786,5 +1794,30 @@
         }
       ]
     }
-  ]
+  ],
+  "assetSourceRecheck": {
+    "Q pngSizePx": [
+      34,
+      35
+    ],
+    "Q tiffSizePx": [
+      34,
+      35
+    ],
+    "dpi": 72,
+    "paths": [
+      "docs/素材/Q标志.png",
+      "docs/素材/Q标志.tif"
+    ]
+  },
+  "validSamplesAfterLeafFix": {
+    "allFourByteIdentical": {
+      "delivery": true,
+      "xml-roundtrip": true,
+      "duplicate": true,
+      "standalone-border": true
+    },
+    "regenerationLog": "/private/tmp/sep-wp76/after-hidden-regeneration.log",
+    "reason": "Word PDFs and strict schema inputs still byte-identical"
+  }
 }

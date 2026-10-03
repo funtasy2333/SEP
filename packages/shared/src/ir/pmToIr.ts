@@ -100,25 +100,64 @@ function isPmJsonNode(value: unknown): value is PMJsonNode {
     && typeof (value as { type?: unknown }).type === 'string'
 }
 
-/** 脚注负载仅支持行内文本、换行及已有引用 atom；块结构或未知格式不得静默丢弃。 */
+/** 脚注负载只接受能由各导出器无损表示的 PM 行内形状。 */
+function unsupportedFootnoteAttrs(attrs: unknown): string | undefined {
+  if (attrs == null) return undefined
+  if (typeof attrs !== 'object' || Array.isArray(attrs)) return '无效的格式属性结构'
+  for (const [key, value] of Object.entries(attrs)) {
+    if (key === 'content' || key === 'text') return `属性字段「${key}」`
+    if (value !== null && typeof value === 'object') return `属性「${key}」包含暂不支持的嵌套数据`
+  }
+  return undefined
+}
+
+function unsupportedFootnoteMarks(marks: unknown, allowCrossRef: boolean): string | undefined {
+  if (marks == null) return undefined
+  if (!Array.isArray(marks)) return '无效的格式标记'
+  for (const value of marks) {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || typeof value.type !== 'string') {
+      return '无效的格式标记'
+    }
+    const mark = value as Record<string, unknown> & { type: string }
+    const extraKey = Object.keys(mark).find(key => key !== 'type' && key !== 'attrs')
+    if (extraKey) return `格式标记包含不支持字段「${extraKey}」`
+    const attrsReason = unsupportedFootnoteAttrs(mark.attrs)
+    if (attrsReason) return `格式标记${attrsReason}`
+    if (CANONICAL_FOOTNOTE_MARKS.has(mark.type)) continue
+    if (mark.type === 'crossRef') {
+      if (!allowCrossRef) return '换行节点不能携带交叉引用'
+      const attrs = mark.attrs as Record<string, unknown> | undefined
+      if (typeof attrs?.refId === 'string' && attrs.refId.length > 0) {
+        if (Object.prototype.hasOwnProperty.call(attrs, 'refType') && typeof attrs.refType !== 'string') return '交叉引用类型无效'
+        if (Object.prototype.hasOwnProperty.call(attrs, 'refText') && attrs.refText !== null && typeof attrs.refText !== 'string') return '交叉引用文本无效'
+        continue
+      }
+      return '缺少目标的交叉引用'
+    }
+    return `格式「${mark.type}」`
+  }
+  return undefined
+}
+
 function unsupportedFootnoteContent(content: unknown[]): string | undefined {
   for (const value of content) {
     if (!isPmJsonNode(value)) return '无效的行内节点'
-    const node = value
+    const node = value as PMJsonNode & Record<string, unknown>
     if (node.type === 'text') {
+      const extraKey = Object.keys(node).find(key => !['type', 'text', 'marks'].includes(key))
+      if (extraKey) return `文本节点包含不支持字段「${extraKey}」`
       if (typeof node.text !== 'string') return '无效的文本内容'
-      if (node.marks != null && !Array.isArray(node.marks)) return '无效的格式标记'
-      for (const mark of node.marks ?? []) {
-        if (!mark || typeof mark !== 'object' || Array.isArray(mark) || typeof mark.type !== 'string') {
-          return '无效的格式标记'
-        }
-        if (CANONICAL_FOOTNOTE_MARKS.has(mark.type)) continue
-        if (mark.type === 'crossRef' && typeof mark.attrs?.refId === 'string' && mark.attrs.refId.length > 0) continue
-        return mark.type === 'crossRef' ? '缺少目标的交叉引用' : `格式「${mark.type}」`
-      }
+      const marksReason = unsupportedFootnoteMarks(node.marks, true)
+      if (marksReason) return marksReason
       continue
     }
-    if (node.type === 'hardBreak') continue
+    if (node.type === 'hardBreak') {
+      const extraKey = Object.keys(node).find(key => !['type', 'marks'].includes(key))
+      if (extraKey) return `换行节点包含不支持字段「${extraKey}」`
+      const marksReason = unsupportedFootnoteMarks(node.marks, false)
+      if (marksReason) return marksReason
+      continue
+    }
     if (node.type === 'tableFootnoteRef') return '表脚注引用不能嵌入脚注内容'
     if (node.type === 'footnoteRef') {
       const nested = Array.isArray(node.attrs?.content) ? node.attrs.content as PMJsonNode[] : []

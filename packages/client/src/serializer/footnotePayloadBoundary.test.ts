@@ -139,6 +139,34 @@ describe('正文脚注内容的导出边界', () => {
     expect(() => serializeToXml(pmDoc)).toThrow(/脚注校验未通过/)
   })
 
+  it.each([
+    ['text.content', [{ type: 'text', text: '可见', content: [{ type: 'text', text: '丢失子内容' }] }]],
+    ['text.attrs.content', [{ type: 'text', text: '可见', attrs: { content: [{ type: 'text', text: '丢失属性内容' }] } }]],
+    ['hardBreak.content', [{ type: 'text', text: '可见' }, { type: 'hardBreak', content: [{ type: 'text', text: '丢失子内容' }] }]],
+    ['hardBreak.text', [{ type: 'text', text: '可见' }, { type: 'hardBreak', text: '丢失文本' }]],
+    ['hardBreak.attrs.content', [{ type: 'text', text: '可见' }, { type: 'hardBreak', attrs: { content: [{ type: 'text', text: '丢失属性内容' }] } }]],
+    ['bold.content', [{ type: 'text', text: '可见', marks: [{ type: 'bold', content: [{ type: 'text', text: '丢失标记内容' }] }] }]],
+    ['bold.attrs.content', [{ type: 'text', text: '可见', marks: [{ type: 'bold', attrs: { content: [{ type: 'text', text: '丢失标记内容' }] } }] }]],
+    ['bold.attrs.text', [{ type: 'text', text: '可见', marks: [{ type: 'bold', attrs: { text: '丢失标记文本' } }] }]],
+    ['bold.attrs.object', [{ type: 'text', text: '可见', marks: [{ type: 'bold', attrs: { futureAttr: { content: [{ type: 'text', text: '丢失未知属性内容' }] } } }] }]],
+    ['crossRef.attrs.content', [{ type: 'text', text: '引用', marks: [{ type: 'crossRef', attrs: { refId: 'chapter-1', refType: 'chapter', content: [{ type: 'text', text: '丢失引用内容' }] } }] }]],
+    ['crossRef.attrs.text', [{ type: 'text', text: '引用', marks: [{ type: 'crossRef', attrs: { refId: 'chapter-1', refType: 'chapter', text: '丢失引用文本' } }] }]],
+    ['crossRef.refType', [{ type: 'text', text: '引用', marks: [{ type: 'crossRef', attrs: { refId: 'chapter-1', refType: 7 } }] }]],
+    ['crossRef.refTypeNull', [{ type: 'text', text: '引用', marks: [{ type: 'crossRef', attrs: { refId: 'chapter-1', refType: null } }] }]],
+    ['crossRef.refText', [{ type: 'text', text: '引用', marks: [{ type: 'crossRef', attrs: { refId: 'chapter-1', refType: 'chapter', refText: 7 } }] }]],
+  ])('%s 等未支持的嵌套内容统一阻断导出且保留源 JSON', async (_shape, content) => {
+    const { pmDoc } = bodyFootnoteDoc(content)
+    const sourceBefore = JSON.parse(JSON.stringify(pmDoc.toJSON()))
+    const { doc } = pmToIr(pmDoc.toJSON() as PMJsonNode)
+    const { labels, problems } = resolve(doc)
+    expect(problems.some(problem => problem.code === 'invalid-footnote')).toBe(true)
+    expect(() => serializeToXml(pmDoc)).toThrow(/脚注校验未通过/)
+    expect(() => renderHtml(doc, labels, { variant: 'print' })).toThrow(/脚注关联无效/)
+    await expect(buildDocxBlob({ pmDoc, createdAt: '2026-10-03T00:00:00Z' }))
+      .rejects.toThrow(/脚注关联无效/)
+    expect(pmDoc.toJSON()).toEqual(sourceBefore)
+  })
+
   it.each(['strong', 'em'])('%s 别名不属于脚注导出的规范格式，阻断所有导出', async markType => {
     const { pmDoc } = bodyFootnoteDoc([
       { type: 'text', text: '别名格式', marks: [{ type: markType }] },
@@ -154,25 +182,32 @@ describe('正文脚注内容的导出边界', () => {
       .rejects.toThrow(/脚注关联无效/)
   })
 
-  it('粗体、斜体、上下标、换行和交叉引用在 XML 脚注中保留', () => {
+  it('粗体、斜体、下划线、上下标、换行和交叉引用在各导出路径中保留', async () => {
     const { schema, pmDoc } = bodyFootnoteDoc([
       { type: 'text', text: '粗体', marks: [{ type: 'bold' }] },
       { type: 'text', text: '斜体', marks: [{ type: 'italic' }] },
+      { type: 'text', text: '下划线', marks: [{ type: 'underline' }] },
       { type: 'text', text: '下标', marks: [{ type: 'subscript' }] },
       { type: 'text', text: '上标', marks: [{ type: 'superscript' }] },
       { type: 'hardBreak' },
       { type: 'text', text: '引用', marks: [{ type: 'crossRef', attrs: {
-        refId: 'chapter-1', refType: 'chapter', futureAttr: '保留为来源信息',
+        refId: 'chapter-1', refType: 'chapter', refText: '引用', futureAttr: '保留为来源信息',
+      } }] },
+      { type: 'text', text: '默认引用', marks: [{ type: 'crossRef', attrs: {
+        refId: 'chapter-1', refType: 'chapter', refText: null,
       } }] },
     ])
 
+    const sourceBefore = JSON.parse(JSON.stringify(pmDoc.toJSON()))
     const xml = serializeToXml(pmDoc)
     expect(xml).toContain('<bold>粗体</bold>')
     expect(xml).toContain('<italic>斜体</italic>')
+    expect(xml).toContain('<underline>下划线</underline>')
     expect(xml).toContain('<sub>下标</sub>')
     expect(xml).toContain('<sup>上标</sup>')
     expect(xml).toContain('<break />')
     expect(xml).toContain('<xref ref-type="chapter" rid="chapter-1">引用</xref>')
+    expect(xml).toContain('<xref ref-type="chapter" rid="chapter-1">默认引用</xref>')
 
     const reopened = schema.nodeFromJSON(parseXmlToEditorJson(xml, schema.topNodeType.name))
     reopened.check()
@@ -187,8 +222,13 @@ describe('正文脚注内容的导出边界', () => {
       && node.marks?.some(mark => mark.type === 'crossRef' && mark.attrs?.refId === 'chapter-1'),
     )).toBe(true)
     const { doc } = pmToIr(reopened.toJSON() as PMJsonNode)
-    expect(resolve(doc).problems.filter(problem =>
+    const resolved = resolve(doc)
+    expect(resolved.problems.filter(problem =>
       ['invalid-footnote', 'dangling-footnote', 'unreferenced-footnote'].includes(problem.code),
     )).toEqual([])
+    expect(() => renderHtml(doc, resolved.labels, { variant: 'print' })).not.toThrow()
+    const docx = await buildDocxBlob({ pmDoc: reopened, createdAt: '2026-10-03T00:00:00Z' })
+    expect(docx.blob).toBeInstanceOf(Blob)
+    expect(pmDoc.toJSON()).toEqual(sourceBefore)
   })
 })
