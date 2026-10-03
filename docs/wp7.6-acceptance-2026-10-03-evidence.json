@@ -1357,12 +1357,12 @@
   },
   "tests": {
     "shared": 795,
-    "client": 169,
+    "client": 171,
     "server": 23,
     "build": "passed",
     "logs": [
-      "/private/tmp/sep-pr43-shared-full-hidden-content.log",
-      "/private/tmp/sep-pr43-client-full-hidden-content.log",
+      "/private/tmp/sep-pr43-shared-full-atom-marks.log",
+      "/private/tmp/sep-pr43-client-full-atom-marks.log",
       "/private/tmp/sep-wp76/server.log",
       "/private/tmp/sep-wp76/build-final.log"
     ]
@@ -1657,6 +1657,14 @@
       "fix": "canonical node shape and mark attrs checks; all 3 exporters reject and source unchanged",
       "tests": 27,
       "finalHeadReview": "pending at evidence commit; see GitHub for current status"
+    },
+    "atomMarksFinding": {
+      "head": "1610ced2fa840e394124b17d235d452658799457",
+      "thread": "PRRT_kwDORyKGNM6olIVz",
+      "finding": "P2 schema-valid reference atom marks lost by exporters",
+      "fix": "reject non-empty marks for both body and table reference atoms; source unchanged",
+      "tests": 29,
+      "finalHeadReview": "pending at evidence commit; see GitHub for current status"
     }
   },
   "validSamplesAfterAliasFix": {
@@ -1818,6 +1826,17 @@
       "standalone-border": true
     },
     "regenerationLog": "/private/tmp/sep-wp76/after-hidden-regeneration.log",
+    "reason": "Word PDFs and strict schema inputs still byte-identical"
+  },
+  "evidenceRecordedAt": "2026-10-03T07:47:16.756965+00:00",
+  "validSamplesAfterAtomFix": {
+    "allFourByteIdentical": {
+      "delivery": true,
+      "xml-roundtrip": true,
+      "duplicate": true,
+      "standalone-border": true
+    },
+    "regenerationLog": "/private/tmp/sep-wp76/after-atom-regeneration.log",
     "reason": "Word PDFs and strict schema inputs still byte-identical"
   }
 }

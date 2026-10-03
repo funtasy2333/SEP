@@ -139,6 +139,11 @@ function unsupportedFootnoteMarks(marks: unknown, allowCrossRef: boolean): strin
   return undefined
 }
 
+function unsupportedFootnoteAtomMarks(marks: unknown): string | undefined {
+  if (marks == null || (Array.isArray(marks) && marks.length === 0)) return undefined
+  return '上标格式标记（请先取消上标的附加格式）'
+}
+
 function unsupportedFootnoteContent(content: unknown[]): string | undefined {
   for (const value of content) {
     if (!isPmJsonNode(value)) return '无效的行内节点'
@@ -230,13 +235,15 @@ function convertInlines(content: PMJsonNode[] | undefined, ctx: Ctx): IRInline[]
       const raw = child.attrs?.content
       const content = Array.isArray(raw) ? raw as PMJsonNode[] : []
       const id = ctx.id(child)
-      const unsupported = unsupportedFootnoteContent(content)
+      const unsupported = unsupportedFootnoteContent(content) ?? unsupportedFootnoteAtomMarks(child.marks)
       if (unsupported) ctx.invalidFootnotePayloads.push({ nodeId: id, reason: unsupported })
       const inline: IRInline = { text: '', footnote: { id, content: convertInlines(content, ctx) } }
       ctx.footnoteInlines.set(child, inline)
       out.push(inline)
     } else if (child.type === 'tableFootnoteRef') {
       const targetId = typeof child.attrs?.targetId === 'string' ? child.attrs.targetId : ''
+      const unsupported = unsupportedFootnoteAtomMarks(child.marks)
+      if (unsupported) ctx.invalidFootnotePayloads.push({ nodeId: targetId || ctx.id(child), reason: unsupported })
       const inline: IRInline = { text: '', marks: [{ type: 'tableFootnoteRef', targetId }] }
       ctx.footnoteInlines.set(child, inline)
       out.push(inline)

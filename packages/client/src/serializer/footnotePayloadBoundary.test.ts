@@ -7,7 +7,7 @@ import { buildDocxBlob } from './docxExporter'
 import { parseXmlToEditorJson } from './xmlParser'
 import { serializeToXml } from './xmlSerializer'
 
-function bodyFootnoteDoc(content: unknown) {
+function bodyFootnoteDoc(content: unknown, referenceMarks?: PMJsonNode['marks']) {
   const schema = getSchema(createEditorExtensions())
   const pmDoc = schema.nodeFromJSON({
     type: 'doc',
@@ -20,7 +20,42 @@ function bodyFootnoteDoc(content: unknown) {
           type: 'stdParagraph',
           content: [
             { type: 'text', text: '正文' },
-            { type: 'footnoteRef', attrs: { nodeId: 'fn-1', content } },
+            { type: 'footnoteRef', attrs: { nodeId: 'fn-1', content }, ...(referenceMarks ? { marks: referenceMarks } : {}) },
+          ],
+        },
+      ],
+    }],
+  })
+  pmDoc.check()
+  return { schema, pmDoc }
+}
+
+function tableFootnoteDoc(referenceMarks?: PMJsonNode['marks']) {
+  const schema = getSchema(createEditorExtensions())
+  const pmDoc = schema.nodeFromJSON({
+    type: 'doc',
+    content: [{
+      type: 'chapter',
+      attrs: { nodeId: 'chapter-1' },
+      content: [
+        { type: 'chapterTitle', content: [{ type: 'text', text: '范围' }] },
+        {
+          type: 'stdTable',
+          attrs: { nodeId: 'table-1' },
+          content: [
+            { type: 'tableCaption', content: [{ type: 'text', text: '表' }] },
+            { type: 'table', content: [{ type: 'tableRow', content: [{
+              type: 'tableCell',
+              attrs: { colspan: 1, rowspan: 1 },
+              content: [{ type: 'paragraph', content: [
+                { type: 'tableFootnoteRef', attrs: { nodeId: 'table-call-1', targetId: 'table-fn-1' }, ...(referenceMarks ? { marks: referenceMarks } : {}) },
+              ] }],
+            }] }] },
+            { type: 'tableFootnoteRow', content: [{
+              type: 'tableFootnoteEntry',
+              attrs: { nodeId: 'table-fn-1' },
+              content: [{ type: 'text', text: '表脚注内容' }],
+            }] },
           ],
         },
       ],
@@ -31,6 +66,24 @@ function bodyFootnoteDoc(content: unknown) {
 }
 
 describe('正文脚注内容的导出边界', () => {
+  it.each([
+    ['正文脚注引用', () => bodyFootnoteDoc([{ type: 'text', text: '保留的脚注内容' }], [{ type: 'bold' }])],
+    ['表脚注上标', () => tableFootnoteDoc([{ type: 'bold' }])],
+  ])('%s atom 自身带 mark 时阻断所有导出且不改源 JSON', async (_scenario, createDoc) => {
+    const { pmDoc } = createDoc()
+    const sourceBefore = JSON.parse(JSON.stringify(pmDoc.toJSON()))
+    const { doc } = pmToIr(pmDoc.toJSON() as PMJsonNode)
+    const { labels, problems } = resolve(doc)
+    expect(problems.some(problem =>
+      problem.code === 'invalid-footnote' && problem.message.includes('上标格式标记（请先取消上标的附加格式）'),
+    )).toBe(true)
+    expect(() => serializeToXml(pmDoc)).toThrow(/脚注校验未通过/)
+    expect(() => renderHtml(doc, labels, { variant: 'print' })).toThrow(/脚注关联无效/)
+    await expect(buildDocxBlob({ pmDoc, createdAt: '2026-10-03T00:00:00Z' }))
+      .rejects.toThrow(/脚注关联无效/)
+    expect(pmDoc.toJSON()).toEqual(sourceBefore)
+  })
+
   it('含未支持块结构的已保存脚注不能在 XML、HTML 或 DOCX 导出时静默截断', async () => {
     const schema = getSchema(createEditorExtensions())
     const pmDoc = schema.nodeFromJSON({
