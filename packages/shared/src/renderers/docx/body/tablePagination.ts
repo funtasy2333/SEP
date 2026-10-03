@@ -13,6 +13,8 @@ export interface TablePagination {
   /** 包含表题、表头和末段表尾的估算高度，用于后续正文/表格接排。 */
   segmentHeightsMm: number[]
   oversizedGroup: boolean
+  /** 固定表题/表头/表尾能放入一页，但末段余量容不下普通的最后数据组。 */
+  finalSegmentOverflow: boolean
   /** 表题、重复表头与表尾合计超过估算的单页版心高度。 */
   footerTooTall: boolean
 }
@@ -105,11 +107,16 @@ export function paginateTable(table: IRTable, options: { firstPageHeightMm?: num
     group.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape), 0))
   const totalHeight = captionHeight + headerHeight + footerHeight + groupHeights.reduce((sum, height) => sum + height, 0)
   const footerTooTall = captionHeight + headerHeight + footerHeight > pageBudget
+  const oversizedGroup = groupHeights.some(height => height > dataBudget)
+  const lastGroupHeight = groupHeights[groupHeights.length - 1] ?? 0
+  const finalSegmentOverflow = groups.length > 0 && !footerTooTall &&
+    lastGroupHeight > finalDataBudget && lastGroupHeight <= dataBudget
+
 
   const firstPageHeight = !options.forceStartOnNewPage && Number.isFinite(options.firstPageHeightMm)
     ? Math.max(0, Math.min(pageBudget, options.firstPageHeightMm!)) : undefined
   const result = (bodySegments: IRTableRow[][], startOnNewPage: boolean, oversizedGroup: boolean): TablePagination => ({
-    bodySegments, startOnNewPage: options.forceStartOnNewPage || startOnNewPage, oversizedGroup, footerTooTall,
+    bodySegments, startOnNewPage: options.forceStartOnNewPage || startOnNewPage, oversizedGroup, finalSegmentOverflow, footerTooTall,
     segmentHeightsMm: bodySegments.map((rows, index) => captionHeight + headerHeight +
       rows.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape), 0) +
       (index === bodySegments.length - 1 ? footerHeight : 0)),
@@ -119,8 +126,6 @@ export function paginateTable(table: IRTable, options: { firstPageHeightMm?: num
     return result([table.rows.slice(headerRowCount)], firstPageHeight === undefined && totalHeight > 50, false)
   }
 
-  const oversizedGroup = groupHeights.some((height) => height > dataBudget) ||
-    (groupHeights[groupHeights.length - 1] ?? 0) > finalDataBudget
   // 末页采用含脚注的预算；其余页采用完整数据预算。切点选最靠后的合法组，
   // 不再将各段均分，避免每页都留出本可以容纳后续记录的大块空白。
   const prefix = [0]

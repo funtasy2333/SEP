@@ -392,6 +392,7 @@
 
 
 <script setup lang="ts">
+import { getDocxExportFeedback } from '@/utils/docxExportFeedback'
 import { createDefaultDocumentContent } from '@/utils/newDocument'
 import { setClauseFormat, setParagraphFormat } from '@/utils/structureEditing'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
@@ -1257,18 +1258,7 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
       })
 
       downloadBlob(blob, `${docTitle}.docx`)
-      const coverIssues = warnings.filter((warning) => warning.code === 'cover-asset-approximation' || warning.code === 'cover-field-missing')
-      const footnoteLayoutIssue = warnings.find(warning => warning.code === 'footnote-landscape-separator')
-      if (coverIssues.length || footnoteLayoutIssue) {
-        const notes = [
-          ...(footnoteLayoutIssue ? [footnoteLayoutIssue.message] : []),
-          ...(coverIssues.some((warning) => warning.code === 'cover-asset-approximation') ? ['部分封面素材的来源或清晰度有限，请核对后使用。'] : []),
-          ...(coverIssues.some((warning) => warning.code === 'cover-field-missing') ? ['部分封面信息未填写，请补齐后核对。'] : []),
-        ]
-        ElMessage.warning({ message: `DOCX 已导出。${notes.join('')}`, duration: 8000 })
-      } else {
-        ElMessage.success('DOCX 文件已导出')
-      }
+      ElMessage(getDocxExportFeedback(warnings))
       showExport.value = false
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)

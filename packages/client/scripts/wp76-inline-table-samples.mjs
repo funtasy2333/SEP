@@ -90,14 +90,14 @@ formulaBlocks.splice(formulaBlocks.indexOf(small),0,{type:'formula',attrs:{nodeI
 formulaBlocks.at(-1).content=[t('公式后小表结束，两条记录应完整；不可估高度回退应另起页。')]
 variants.push(['formula-followed-small-table',formulaSmall])
 const brokenLines = (count, text) => Array.from({length:count},(_,i)=>[...(i>0?[{type:'hardBreak'}]:[]),t(`${text}${i+1}`)]).flat()
-for(const [name,lineCount,records] of [['tall-header-footer-risk',46,1],['tight-footer-budget',36,10]]) {
+for(const [name,lineCount,records] of [['tall-header-footer-risk',46,1],['tight-footer-budget',36,10],['last-group-footer-risk',50,1]]) {
  const variant=clone(source)
  const blocks=variant.content[1].content
  const boundary=blocks.find(block=>block.type==='stdTable')
  const header=boundary.content[1].content[0]
- boundary.content[1].content=[...Array.from({length:6},()=>{
+ boundary.content[1].content=[...Array.from({length:name==='last-group-footer-risk'?1:6},()=>{
   const copied=clone(header)
-  for(const cell of copied.content)cell.content[0].content=brokenLines(2,'表头')
+  for(const cell of copied.content)cell.content[0].content=name==='last-group-footer-risk'?[t('表头')]:brokenLines(2,'表头')
   return copied
  }),...boundary.content[1].content.slice(1,records+1)]
  boundary.content[2].content[0].content=brokenLines(lineCount,'表注')

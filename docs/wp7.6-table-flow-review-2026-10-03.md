@@ -1,5 +1,7 @@
 # 跨页表格复审边界修订（2026-10-03）
 
+> 后续风险提示与归因修正见[第二轮复审修订](wp7.6-table-flow-review2-2026-10-03.md)，本文保留上一轮状态与证据。
+
 Codex对 `8baae2e1e9` 的[实际复审](https://github.com/funtasy2333/SEP/pull/43#pullrequestreview-5400609840)提出两项P2，均已复现并修正。本报告补充上一轮[正文后长表接排验收](wp7.6-table-flow-2026-10-03.md)；原样稿与证据保留。
 
 ## 复审项与修正

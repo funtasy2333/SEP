@@ -252,6 +252,10 @@ function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, 
     warn(ctx, 'table-footer-too-tall',
       `表格 "${table.id}" 的表题、重复表头与表尾组合超过单页高度预算，可能需要人工分页调整`, table.id)
   }
+  if (pagination.finalSegmentOverflow) {
+    warn(ctx, 'table-final-segment-too-tall',
+      `表格 "${table.id}" 的末段余量不足以同时容纳最后数据组和表注/表脚注，可能需要人工分页调整`, table.id)
+  }
   let captionXml: string
   if (bctx.appendix) {
     const numId = ctx.numbering.allocAppendixTableInstance(bctx.appendix.id, bctx.appendix.letter)

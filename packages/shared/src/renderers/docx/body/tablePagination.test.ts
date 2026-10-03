@@ -106,11 +106,27 @@ describe('paginateTable', () => {
     ] }] }]
     const result = paginateTable(ir)
     expect(result.footerTooTall).toBe(true)
-    expect(result.oversizedGroup).toBe(true)
+    expect(result.oversizedGroup).toBe(false)
+    expect(result.finalSegmentOverflow).toBe(false)
     expect(result.bodySegments.flat()).toEqual(ir.rows.slice(6))
     const ctx = createRenderContext({ table: { label: '表1', xmlId: 'table_1', refText: '表1' } })
     renderBlock(ctx, ir, { scopeKey: 'chapter' })
     expect(ctx.warnings.map(warning => warning.code)).toContain('table-footer-too-tall')
+  })
+
+  it('普通末行只因表尾占用而放不下时，独立提示末段组合风险，不归咎于行过高', () => {
+    const ir = table([row(1)])
+    ir.notes = [{ kind: 'note', id: 'note', content: [{ kind: 'paragraph', id: 'p', content: [
+      { text: Array.from({ length: 50 }, () => '表注').join('\n') },
+    ] }] }]
+    const result = paginateTable(ir)
+    expect(result.footerTooTall).toBe(false)
+    expect(result.oversizedGroup).toBe(false)
+    expect(result.finalSegmentOverflow).toBe(true)
+    const ctx = createRenderContext({ table: { label: '表1', xmlId: 'table_1', refText: '表1' } })
+    renderBlock(ctx, ir, { scopeKey: 'chapter' })
+    expect(ctx.warnings.map(warning => warning.code)).toContain('table-final-segment-too-tall')
+    expect(ctx.warnings.map(warning => warning.code)).not.toContain('table-row-too-tall')
   })
 
   it('末页不足30mm时使用实际余量切分，能够排入的组合不应溢出', () => {
