@@ -1660,5 +1660,131 @@
     },
     "regenerationLog": "/private/tmp/sep-wp76/after-alias-regeneration.log",
     "reason": "Word PDFs and strict schema outputs apply to byte-identical DOCX"
-  }
+  },
+  "coverStages": [
+    {
+      "name": "gb",
+      "stage": "published",
+      "path": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/covers/gb.docx",
+      "bytes": 35771,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ]
+    },
+    {
+      "name": "guide",
+      "stage": "approval_draft",
+      "path": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/covers/guide.docx",
+      "bytes": 35812,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ]
+    },
+    {
+      "name": "industry",
+      "stage": "comment_draft",
+      "path": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/covers/industry.docx",
+      "bytes": 9719,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "行业代号采用用户模板中的可编辑字样；行业专用标志字形尚未核验"
+        },
+        {
+          "code": "cover-asset-approximation",
+          "message": "非国标发布机构按用户模板用黑体四号可编辑文字排版，专用机构字形未核验"
+        }
+      ]
+    },
+    {
+      "name": "local",
+      "stage": "review_draft",
+      "path": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/covers/local.docx",
+      "bytes": 10969,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "地方标准 DB 标志采用用户提供模板 TIFF 转换素材，原始来源未核实"
+        },
+        {
+          "code": "cover-asset-approximation",
+          "message": "非国标发布机构按用户模板用黑体四号可编辑文字排版，专用机构字形未核验"
+        }
+      ]
+    },
+    {
+      "name": "group",
+      "stage": "public_draft",
+      "path": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/covers/group.docx",
+      "bytes": 11653,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "团体标准标志采用用户提供模板图片，原始来源未核实"
+        },
+        {
+          "code": "cover-asset-approximation",
+          "message": "非国标发布机构按用户模板用黑体四号可编辑文字排版，专用机构字形未核验"
+        }
+      ]
+    },
+    {
+      "name": "enterprise",
+      "stage": "working_draft",
+      "path": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/covers/enterprise.docx",
+      "bytes": 11270,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "企业标准 Q 标志采用用户提供模板图片（34×35 px，72 dpi），清晰度有限且原始来源未核实"
+        },
+        {
+          "code": "cover-asset-approximation",
+          "message": "非国标发布机构按用户模板用黑体四号可编辑文字排版，专用机构字形未核验"
+        }
+      ]
+    },
+    {
+      "name": "gb-review-discussion",
+      "stage": "review_discussion_draft",
+      "path": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/covers/gb-review-discussion.docx",
+      "bytes": 35792,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ]
+    },
+    {
+      "name": "gb-comment",
+      "stage": "comment_draft",
+      "path": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/covers/gb-comment.docx",
+      "bytes": 35877,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ]
+    },
+    {
+      "name": "gb-review",
+      "stage": "review_draft",
+      "path": "/Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/covers/gb-review.docx",
+      "bytes": 35875,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ]
+    }
+  ]
 }
