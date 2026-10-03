@@ -30,7 +30,7 @@ function table(rows: IRTableRow[]): IRTable {
 }
 
 describe('paginateTable', () => {
-  it('小表保持一段，长表逐页分段且每个数据行恰好出现一次', () => {
+  it('小表保持一段，长表优先填满前页且每个数据行恰好出现一次', () => {
     const short = paginateTable(table([row(1), row(2)]))
     expect(short.bodySegments).toHaveLength(1)
     expect(short.startOnNewPage).toBe(false)
@@ -40,10 +40,42 @@ describe('paginateTable', () => {
     expect(paginated.bodySegments.length).toBeGreaterThan(1)
     expect(paginated.bodySegments).toHaveLength(2)
     const lengths = paginated.bodySegments.map((segment) => segment.length)
-    expect(Math.max(...lengths) - Math.min(...lengths)).toBeLessThanOrEqual(1)
+    expect(lengths[0]).toBeGreaterThan(lengths[1]!)
     expect(paginated.startOnNewPage).toBe(true)
     expect(paginated.oversizedGroup).toBe(false)
     expect(paginated.bodySegments.flat().map((item) => item.id)).toEqual(rows.map((item) => item.id))
+  })
+
+  it('70条短记录和合并行、表注、两条脚注用两页，前页至少容纳40条记录', () => {
+    const merged = [row(0), row(-1), row(-2), row(-3)]
+    merged[2]!.cells[0]!.rowspan = 2
+    const records = Array.from({ length: 70 }, (_, index) => row(index + 1, '数据保持，表注与定义只在末段出现。'))
+    const ir = table([...merged, ...records])
+    ir.notes = [{ kind: 'note', id: 'note', content: [{ kind: 'paragraph', id: 'note-p', content: [{ text: '测试表注内容。' }] }] }]
+    ir.footnotes = [{ id: 'a', content: [{ text: '定义B：首次引用应为上标a。' }] },
+      { id: 'b', content: [{ text: '定义A：第二次首次引用；重复调用只保留本条定义。' }] }]
+    const result = paginateTable(ir)
+    expect(result.bodySegments).toHaveLength(2)
+    expect(result.bodySegments[0]!.filter(item => records.includes(item)).length).toBeGreaterThanOrEqual(40)
+    expect(result.bodySegments.flat()).toEqual([...merged, ...records])
+  })
+
+  it('末页表脚注的空间只从末页扣除，不削减前页容量', () => {
+    const ir = table(Array.from({ length: 110 }, (_, index) => row(index + 1)))
+    const plain = paginateTable(ir)
+    ir.footnotes = Array.from({ length: 8 }, (_, index) => ({ id: `fn-${index}`, content: [{ text: '短脚注' }] }))
+    const withFootnotes = paginateTable(ir)
+    expect(withFootnotes.bodySegments).toHaveLength(3)
+    expect(withFootnotes.bodySegments[0]).toEqual(plain.bodySegments[0])
+    expect(withFootnotes.bodySegments[1]).toEqual(plain.bodySegments[1])
+    expect(withFootnotes.bodySegments.flat()).toEqual(ir.rows.slice(1))
+  })
+
+  it('单元格显式换行计入行高，不能按一行文字挤入同一页', () => {
+    const plain = table(Array.from({ length: 30 }, (_, index) => row(index + 1, '甲乙丙丁')))
+    const multiline = table(Array.from({ length: 30 }, (_, index) => row(index + 1, '甲\n乙\n丙\n丁')))
+    expect(paginateTable(plain).bodySegments).toHaveLength(1)
+    expect(paginateTable(multiline).bodySegments.length).toBeGreaterThan(1)
   })
 
   it('跨行合并覆盖的行留在同一表段', () => {
@@ -54,7 +86,7 @@ describe('paginateTable', () => {
     expect(segment?.some((item) => item.id === 'row-20')).toBe(true)
   })
 
-  it('高低不同行交错时，均衡切分不把末段挤过单页预算', () => {
+  it('高低不同行交错时，切分不把末段挤过单页预算', () => {
     const uneven = [row(1, 'x'.repeat(1530)), row(2, 'x'.repeat(400)),
       row(3, 'x'.repeat(2580)), row(4, 'x'.repeat(660))]
     const segments = paginateTable(table(uneven)).bodySegments
