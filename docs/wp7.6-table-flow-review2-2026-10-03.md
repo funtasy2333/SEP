@@ -19,3 +19,5 @@ Codex对 `a03a0f8b22` 的[实际复审](https://github.com/funtasy2333/SEP/pull/
 [提示文本、API范围、严格校验、Word测量及文件哈希](wp7.6-table-flow-review2-2026-10-03-evidence.json)。截图与下载文件位于忽略目录 `tmp-e2e/wp76-acceptance/flow-review2/ui/`，样稿位于同级 `cases/`。
 
 公式高度仍使用显式新页回退；超高表尾仍未自动拆分；真实稿与横排条文脚注分隔线未完成，公式fixture的CDATA/XML往返宿主限制保留。草稿PR #43提交后请求对应head复审，未合并；实际最终回复另存忽略目录，不为记录回复而再提交。
+
+2026-10-04追加审查的同页链与列表有效缩进修订及新head验证见[下一轮记录](wp7.6-table-flow-review3-2026-10-04.md)。此前测量保留为历史证据。

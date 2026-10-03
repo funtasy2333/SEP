@@ -11,13 +11,15 @@
 
 import type { NodeId, ResolvedLabel } from '../../../ir/types'
 import { createNumberingAllocator, type NumberingAllocator } from '../numbering'
-import { OWNER_STYLE_IDS } from '../styles'
+import { OWNER_STYLE_IDS, styleSpecs } from '../styles'
 import type { DocxBookmark, DocxPackage } from '../types'
 import type { DocxRenderOptions } from '../types'
 import type { DocxRelatedPart } from '../package'
 import { escapeXmlAttr, numPr as numPrXml, pPr, type XmlChild } from '../xml'
 import { mmToTwips } from '../units'
 import { createPageFlow, type PageFlow } from './pageFlow'
+
+const styles = new Map(styleSpecs().map(spec => [spec.id, spec]))
 
 /** §4.7 render.ts 导出的追踪类型；本文件是它的唯一实现来源，render.ts 直接 re-export，
  * 避免 render.ts ↔ body/*.ts 之间因为「类型定义在 render.ts」而产生循环 import。 */
@@ -94,7 +96,11 @@ export function emitParagraph(ctx: RenderContext, styleId: string, opts: EmitPar
   }
   if (opts.numbered) ctx.numbered.push(opts.numbered)
 
-  ctx.pageFlow.recordParagraph(styleId, opts.runsXml ?? '', opts.numPr !== undefined || isOwnerStyle)
+  const numbering = opts.numPr ?? styles.get(styleId)?.numPr
+  ctx.pageFlow.recordParagraph(styleId, opts.runsXml ?? '', numbering !== undefined, {
+    numberingIndent: numbering ? ctx.numbering.getIndent(numbering.numId, numbering.ilvl) : undefined,
+    indent: opts.indent, pageBreakBefore: opts.pageBreakBefore,
+  })
 
   const pprChildren: XmlChild[] = [['pStyle', `<w:pStyle w:val="${styleId}"/>`]]
   if (opts.pageBreakBefore) pprChildren.push(['pageBreakBefore', '<w:pageBreakBefore/>'])

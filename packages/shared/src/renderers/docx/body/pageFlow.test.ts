@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createPageFlow } from './pageFlow'
+import { createRenderContext, emitParagraph } from './context'
+import { ABSTRACT_NUM_ID } from '../numbering'
 
 const run = (text: string) => `<w:r><w:t>${text}</w:t></w:r>`
 
@@ -78,5 +80,62 @@ describe('正文页余量估算', () => {
     flow.withElement(false, () => flow.recordParagraph('SesFigure', '<w:drawing><wp:extent cx="3600000" cy="1440000"/></w:drawing>', false))
     expect(flow.availableMm!).toBeLessThanOrEqual(198)
     expect(flow.availableMm!).toBeGreaterThan(190)
+  })
+})
+
+
+describe('复审：同页链与有效列项缩进', () => {
+  const image = '<w:drawing><wp:extent cx="3600000" cy="1440000"/></w:drawing>'
+  it('临近页底的图片与图题整体移到新页，图高不会被遗忘', () => {
+    const near = createPageFlow(); near.startSection(); near.placeTable([188], false)
+    near.recordParagraph('SesFigure', image, false)
+    near.recordParagraph('SesFigCap', run('图题'), true)
+    const fresh = createPageFlow(); fresh.startSection()
+    fresh.recordParagraph('SesFigure', image, false)
+    fresh.recordParagraph('SesFigCap', run('图题'), true)
+    expect(near.availableMm).toBeCloseTo(fresh.availableMm!, 6)
+  })
+  it('连续keepNext标题与后段整体移页，而不是只移动末段', () => {
+    const near = createPageFlow(); near.startSection(); near.placeTable([216], false)
+    const fresh = createPageFlow(); fresh.startSection()
+    for (const flow of [near, fresh]) {
+      flow.recordParagraph('SesChapter', run('章标题'), true)
+      flow.recordParagraph('SesClause1', run('条标题'), true)
+      flow.recordParagraph('SesPara', run('后续正文'), false)
+    }
+    expect(near.availableMm).toBeCloseTo(fresh.availableMm!, 6)
+  })
+  it('中途读取余量不截断同页链，移页后脚注只预留一次', () => {
+    const near = createPageFlow(); near.setFootnoteHeights(new Map([[1, 12]])); near.startSection(); near.placeTable([178], false)
+    near.recordParagraph('SesFigure', image, false)
+    expect(near.availableMm).toBeDefined()
+    expect(near.availableMm).toBe(near.availableMm)
+    near.recordParagraph('SesFigCap', run('图题') + '<w:r><w:footnoteReference w:id="1"/></w:r>', true)
+    const fresh = createPageFlow(); fresh.setFootnoteHeights(new Map([[1, 12]])); fresh.startSection()
+    fresh.recordParagraph('SesFigure', image, false)
+    fresh.recordParagraph('SesFigCap', run('图题') + '<w:r><w:footnoteReference w:id="1"/></w:r>', true)
+    expect(near.availableMm).toBeCloseTo(fresh.availableMm!, 6)
+  })
+  it('动态编号二级的回行与属主间隔号二级使用相同宽度', () => {
+    const a=createRenderContext({}); const b=createRenderContext({})
+    for(const ctx of [a,b]) ctx.pageFlow.startSection()
+    emitParagraph(a,'SesListItem',{numPr:{numId:a.numbering.allocListInstance(ABSTRACT_NUM_ID.listAlpha),ilvl:1},runsXml:run('甲'.repeat(120)),numbered:{nodeId:'a',kind:'listItem'}})
+    emitParagraph(b,'SesListDot',{runsXml:run('甲'.repeat(120)),numbered:{nodeId:'b',kind:'listItem'}})
+    expect(a.pageFlow.availableMm).toBe(b.pageFlow.availableMm)
+  })
+  it.each([
+    ['编号定义一级', 'SesListItem', 840, false],
+    ['段落覆盖二级', 'SesListItem', 1260, true],
+    ['属主破折号一级', 'SesListDash', 840, false],
+    ['属主间隔号二级', 'SesListDot', 1260, false],
+  ])('%s的回行使用全部有效左缩进', (_, style, left, override) => {
+    const ctx = createRenderContext({}); ctx.pageFlow.startSection()
+    const numId = ctx.numbering.allocListInstance(ABSTRACT_NUM_ID.listAlpha)
+    emitParagraph(ctx, style as string, {
+      runsXml: run('甲'.repeat(120)), numbered: {nodeId: 'list-item', kind: 'listItem'},
+      ...(style === 'SesListItem' ? {numPr: {numId, ilvl: 0}} : {}),
+      ...(override ? {indent: {left: left as number, hanging: 420}} : {}),
+    })
+    expect(238 - ctx.pageFlow.availableMm!).toBeGreaterThanOrEqual(4 * 15.6 * 25.4 / 72 - 0.001)
   })
 })

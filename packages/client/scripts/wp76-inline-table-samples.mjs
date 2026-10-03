@@ -105,6 +105,26 @@ for(const [name,lineCount,records] of [['tall-header-footer-risk',46,1],['tight-
  variants.push([name,variant])
 }
 
+
+// 复审边界：图片与图题靠近页底；长列项的回行缩进影响紧随其后的长表。
+const chain = clone(source)
+chain.content[1].content = [chain.content[1].content[0], {
+ type:'stdParagraph',attrs:{nodeId:'keep-chain-preamble'},content:brokenLines(28,'图前正文')
+}, {type:'figure',attrs:{nodeId:'keep-chain-figure',orientation:'portrait'},content:[
+ {type:'figureImage',attrs:{src:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAACXCAIAAAAgZfEgAAABvklEQVR4nO3TMQEAIAzAsIEz3CAIwcjokxjo1XXuG6CzwzZgQuiZEGImhJgJIWZCiJkQYiaEmAkhZkKImRBiJoSYCSFmQoiZEGImhJgJIWZCiJkQYiaEmAkhZkKImRBiJoSYCSFmQoiZEGImhJgJIWZCiJkQYiaEmAkhZkKImRBiJoSYCSFmQoiZEGImhJgJIWZCiJkQYiaEmAkhZkKImRBiJoSYCSFmQoiZEGImhJgJIWZCiJkQYiaEmAkhZkKImRBiJoSYCSFmQoiZEGImhJgJIWZCiJkQYiaEmAkhZkKImRBiJoSYCSFmQoiZEGImhJgJIWZCiJkQYiaEmAkhZkKImRBiJoSYCSFmQoiZEGImhJgJIWZCiJkQYiaEmAkhZkKImRBiJoSYCSFmQoiZEGImhJgJIWZCiJkQYiaEmAkhZkKImRBiJoSYCSFmQoiZEGImhJgJIWZCiJkQYiaEmAkhZkKImRBiJoSYCSFmQoiZEGImhJgJIWZCiJkQYiaEmAkhZkKImRBiJoSYCSFmQoiZEGImhJgJIWZCiJkQYiaEmAkhZkKImRBiJoSYCSFmQoiZEGImhJgJIWZCmNYH1+UCazbBD8cAAAAASUVORK5CYII='}},
+ {type:'figureCaption',content:[t('图片与图题应同页')]},
+]},clone(longTable),paragraph('图后表结束，70条记录应连续完整。')]
+variants.push(['figure-caption-followed-table',chain])
+for(const [name,listType] of [['alpha-list-followed-table','alpha'],['numeric-list-followed-table','numeric'],['dash-list-followed-table','dash']]) {
+ const variant=clone(source)
+ variant.content[1].content=[variant.content[1].content[0],{
+  type:'stdList',attrs:{nodeId:`${name}-list`,listType,level:1},content:Array.from({length:8},(_,i)=>({
+   type:'stdListItem',attrs:{nodeId:`${name}-item-${i}`},content:[t(`列项${i+1}：`+'记录应保持完整并检查跨页衔接。'.repeat(8))]
+  }))
+ },clone(longTable),paragraph('列项后表结束，70条记录应连续完整。')]
+ variants.push([name,variant])
+}
+
 try {
  await mkdir(output,{recursive:true})
  const {createEditorExtensions}=await server.ssrLoadModule('/src/extensions/editorExtensions.ts')
