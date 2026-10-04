@@ -125,6 +125,17 @@ export function paginateTable(table: IRTable, options: TablePaginationOptions = 
   const reserved = Math.max(0, options.firstPageReservedMm ?? 0)
   const freshFirstPageHeight = Math.max(0, pageBudget - reserved)
   let firstStartsOnNewPage = options.forceStartOnNewPage === true || firstPageHeight === undefined
+  const result = (bodySegments: IRTableRow[][], startOnNewPage: boolean, oversizedGroup: boolean): TablePagination => ({
+    bodySegments, startOnNewPage: options.forceStartOnNewPage || startOnNewPage, oversizedGroup, finalSegmentOverflow, footerTooTall,
+    segmentHeightsMm: bodySegments.map((rows, index) => captionHeight + headerHeight +
+      rows.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape), 0) +
+      (index === bodySegments.length - 1 ? footerHeight : 0)),
+  })
+  // A complete table that fits needs no first-group safety allowance. Preserve the
+  // old-page position before considering a fresh-page budget for a split table.
+  if (firstPageHeight !== undefined && totalHeight <= firstPageHeight) {
+    return result([table.rows.slice(headerRowCount)], false, false)
+  }
   // If the chain cannot start the table on the old page, carry it to the new page
   // and size that first segment with the chain still reserved. Continuations use full budgets.
   if (reserved > 0 && (firstPageHeight === undefined ||
@@ -132,12 +143,6 @@ export function paginateTable(table: IRTable, options: TablePaginationOptions = 
     firstPageHeight = freshFirstPageHeight
     firstStartsOnNewPage = true
   }
-  const result = (bodySegments: IRTableRow[][], startOnNewPage: boolean, oversizedGroup: boolean): TablePagination => ({
-    bodySegments, startOnNewPage: options.forceStartOnNewPage || startOnNewPage, oversizedGroup, finalSegmentOverflow, footerTooTall,
-    segmentHeightsMm: bodySegments.map((rows, index) => captionHeight + headerHeight +
-      rows.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape), 0) +
-      (index === bodySegments.length - 1 ? footerHeight : 0)),
-  })
   if (reserved > 0 && totalHeight <= pageBudget) {
     if (firstPageHeight !== undefined && totalHeight <= firstPageHeight) {
       return result([table.rows.slice(headerRowCount)], firstStartsOnNewPage, false)

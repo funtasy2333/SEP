@@ -93,6 +93,30 @@ describe('paginateTable', () => {
     expect(renderBlock(known, ir, { scopeKey: 'chapter' })).not.toContain('<w:pageBreakBefore/>')
   })
 
+  it('完整短表能放入旧页时，不因首行额外10mm余量将标题链移页', () => {
+    const ir = table([row(1), row(2)])
+    const result = paginateTable(ir, { firstPageHeightMm: 24, firstPageReservedMm: 11 })
+    expect(result.segmentHeightsMm[0]).toBeCloseTo(21.2)
+    expect(result.startOnNewPage).toBe(false)
+    expect(result.bodySegments).toEqual([ir.rows.slice(1)])
+  })
+  it('留在旧页的标题和短表不会虚增后续长表余量', () => {
+    const ctx = createRenderContext({ table: { label: '表1', xmlId: 'table_1', refText: '表1' } })
+    ctx.pageFlow.startSection()
+    ctx.pageFlow.recordParagraph('SesClause1', '<w:r><w:t>表前条标题</w:t></w:r>', true)
+    const reserved = ctx.pageFlow.beforeTable().firstPageReservedMm!
+    // Arrange exactly 24mm after the heading on the current page.
+    const near = createRenderContext(ctx.labels); near.pageFlow.startSection()
+    near.pageFlow.placeTable([238 - reserved - 24], false)
+    near.pageFlow.recordParagraph('SesClause1', '<w:r><w:t>表前条标题</w:t></w:r>', true)
+    renderBlock(near, table([row(1), row(2)]), { scopeKey: 'chapter' })
+    expect(near.pageFlow.availableMm).toBeCloseTo(24 - 21.2)
+    // The separating grid line crosses the page end; no heading/table is charged to the next page.
+    const nextBudget = near.pageFlow.beforeTable()
+    expect(nextBudget.firstPageHeightMm).toBeCloseTo(238 - (15.6 * 25.4 / 72 - 2.8))
+    const long = table(Array.from({ length: 93 }, (_, i) => row(i + 1, '短记录')))
+    expect(paginateTable(long, nextBudget).bodySegments).toHaveLength(2)
+  })
   it('标题与短表一起移页后，后续余量包含标题高度', () => {
     const ir=table([row(1),row(2)])
     const contexts=[createRenderContext({table:{label:'表1',xmlId:'table_1',refText:'表1'}}),createRenderContext({table:{label:'表1',xmlId:'table_1',refText:'表1'}})]

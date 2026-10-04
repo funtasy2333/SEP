@@ -33,6 +33,7 @@ export interface ParagraphFlowOptions {
   numberingIndent?: string
   indent?: { left: number; hanging: number }
   pageBreakBefore?: boolean
+  forcePageBreakBefore?: () => void
 }
 
 interface ParagraphMeasure {
@@ -41,6 +42,7 @@ interface ParagraphMeasure {
   after: number
   atomic: boolean
   ids: number[]
+  forcePageBreakBefore?: () => void
 }
 
 export interface PageFlow {
@@ -51,8 +53,10 @@ export interface PageFlow {
   setOrientation(landscape: boolean): void
   withElement<T>(landscape: boolean, render: () => T): T
   suspend<T>(render: () => T): T
-  recordParagraph(styleId: string, runsXml: string, numbered: boolean, options?: ParagraphFlowOptions): void
+  /** Returns true only while this paragraph is retained in a pending keepNext chain. */
+  recordParagraph(styleId: string, runsXml: string, numbered: boolean, options?: ParagraphFlowOptions): boolean
   beforeTable(): TablePaginationOptions
+  breakBeforePendingChain(): boolean
   placeTable(heightsMm: readonly number[], startOnNewPage: boolean): void
   setFootnoteHeights(heights: ReadonlyMap<number, number>): void
 }
@@ -179,15 +183,15 @@ export function createPageFlow(): PageFlow {
       try { return render() } finally { paused -= 1 }
     },
     recordParagraph(styleId, runsXml, numbered, options = {}) {
-      if (!active || paused > 0) return
+      if (!active || paused > 0) return false
       if (elementDepth === 0) setOrientation(false)
       if (options.pageBreakBefore) { flushPending(); nextPage() }
       lastWasTable = false
       // OMML's physical height depends on its layout. Do not turn an unknown formula into
       // a made-up page position; the next table will use the existing fresh-page fallback.
-      if (styleId === 'SesFormula' || runsXml.includes('<m:oMath')) { flushPending(); known = false; return }
+      if (styleId === 'SesFormula' || runsXml.includes('<m:oMath')) { flushPending(); known = false; return false }
       const spec = specs.get(styleId)
-      if (!spec) { flushPending(); known = false; return }
+      if (!spec) { flushPending(); known = false; return false }
       const fontMm = ((spec.sz ?? 21) / 2) * MM_PER_POINT
       const text = [...runsXml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:br\b[^>]*\/>|<w:tab\/>/g)]
         .map(match => match[0].startsWith('<w:br') ? '\n' : match[0] === '<w:tab/>' ? '　' : decode(match[1] ?? '')).join('')
@@ -212,15 +216,22 @@ export function createPageFlow(): PageFlow {
       const ids = [...runsXml.matchAll(/<w:footnoteReference\b[^>]*w:id="([0-9]+)"/g)].map(match => Number(match[1]))
       pending.push({
         contentHeight: imageHeight > 0 ? imageHeight + 3 : count * lineHeight,
-        before, after, ids,
+        before, after, ids, forcePageBreakBefore: options.forcePageBreakBefore,
         atomic: spec.keepLines === true || imageHeight > 0,
       })
-      if (!spec.keepNext) flushPending()
+      if (!spec.keepNext) { flushPending(); return false }
+      return true
     },
     beforeTable() {
       if (active && lastWasTable) advance(GRID_LINE_MM, false)
       lastWasTable = false
       return tableOptions()
+    },
+    breakBeforePendingChain() {
+      const force = pending[0]?.forcePageBreakBefore
+      if (!force) return false
+      force()
+      return true
     },
     placeTable(heights, startOnNewPage) {
       if (!active) return

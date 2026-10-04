@@ -1,0 +1,1332 @@
+{
+  "qualification": "fixture",
+  "verificationDate": "2026-10-04",
+  "reviewedHead": "21ad869a4741bff152fc8d03159cfd2505dc3571",
+  "reviews": [
+    "https://github.com/funtasy2333/SEP/pull/43#discussion_r4175506767",
+    "https://github.com/funtasy2333/SEP/pull/43#discussion_r4175506772"
+  ],
+  "runtime": {
+    "word": "16.113.3",
+    "officecli": "1.0.152",
+    "node": "22.22.3",
+    "pnpm": "10.33.0"
+  },
+  "tests": {
+    "shared": 830,
+    "client": 180,
+    "fullBuild": "passed",
+    "oldImplementationRegressionFailures": 3,
+    "goldenParts": "unchanged"
+  },
+  "inlineManifest": [
+    {
+      "name": "body-followed-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 37111,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "near-page-bottom",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 37264,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "long-body",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 37372,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "body-footnote",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 37962,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "merged-table-footnotes",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 37617,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "landscape-followed-portrait-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 37264,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "long-caption",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 37201,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "formula-followed-small-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 前含无法估算高度的公式等内容，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 36506,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": null,
+      "xmlRoundtripLimitation": "fixture DOM rejects CDATA; not executed"
+    },
+    {
+      "name": "tall-header-footer-risk",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-footer-too-tall",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 的表题、重复表头与表尾组合超过单页高度预算，可能需要人工分页调整"
+        }
+      ],
+      "bytes": 36642,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "tight-footer-budget",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36794,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "last-group-footer-risk",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-final-segment-too-tall",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 的末段余量不足以同时容纳最后数据组和表注/表脚注，可能需要人工分页调整"
+        }
+      ],
+      "bytes": 36602,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "figure-caption-followed-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36990,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "alpha-list-followed-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36715,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "numeric-list-followed-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36731,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "dash-list-followed-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36652,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "heading-short-table-then-long-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36783,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "heading-long-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36734,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "heading-short-table-then-93-records",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36895,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "formula-heading-small-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "formula-heading-small-table-short",
+          "message": "表格 \"formula-heading-small-table-short\" 前含无法估算高度的公式等内容，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 36826,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": null,
+      "xmlRoundtripLimitation": "fixture DOM rejects CDATA; not executed"
+    },
+    {
+      "name": "formula-heading-long-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 前含无法估算高度的公式等内容，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 36773,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": null,
+      "xmlRoundtripLimitation": "fixture DOM rejects CDATA; not executed"
+    }
+  ],
+  "inlineComparison": [
+    {
+      "name": "body-followed-table",
+      "byteIdentical": true,
+      "beforeSha256": "44c33430d0f46b561a9dd229e2917af2a751e960c1614ae907156a1f214b07ae",
+      "afterSha256": "44c33430d0f46b561a9dd229e2917af2a751e960c1614ae907156a1f214b07ae"
+    },
+    {
+      "name": "near-page-bottom",
+      "byteIdentical": true,
+      "beforeSha256": "d6318805be4165fe5e531b0f1a79270f72e85c70ec9ebcf8f6fc0984e32cab87",
+      "afterSha256": "d6318805be4165fe5e531b0f1a79270f72e85c70ec9ebcf8f6fc0984e32cab87"
+    },
+    {
+      "name": "long-body",
+      "byteIdentical": true,
+      "beforeSha256": "204d0ba1d5cc2cbc80832918c0392893eccf497d23f9ecb40f833a669a959c15",
+      "afterSha256": "204d0ba1d5cc2cbc80832918c0392893eccf497d23f9ecb40f833a669a959c15"
+    },
+    {
+      "name": "body-footnote",
+      "byteIdentical": true,
+      "beforeSha256": "20adeff642cdc583a9378d2bd125b7206f95548c04904f9e490fd2d78baf550d",
+      "afterSha256": "20adeff642cdc583a9378d2bd125b7206f95548c04904f9e490fd2d78baf550d"
+    },
+    {
+      "name": "merged-table-footnotes",
+      "byteIdentical": true,
+      "beforeSha256": "2f72e7e29036a6b937e86fe4776c16eb39e9f1bba461b99dcdeb71157d4f78fe",
+      "afterSha256": "2f72e7e29036a6b937e86fe4776c16eb39e9f1bba461b99dcdeb71157d4f78fe"
+    },
+    {
+      "name": "landscape-followed-portrait-table",
+      "byteIdentical": true,
+      "beforeSha256": "d9d5e258530752b933effbc6111c9a9e4f0f58e897e19824ace6a51bbeeac1e1",
+      "afterSha256": "d9d5e258530752b933effbc6111c9a9e4f0f58e897e19824ace6a51bbeeac1e1"
+    },
+    {
+      "name": "long-caption",
+      "byteIdentical": true,
+      "beforeSha256": "49292447d80bf813e7e732601b1b6bee4564c661afb02a9384b59f624548861c",
+      "afterSha256": "49292447d80bf813e7e732601b1b6bee4564c661afb02a9384b59f624548861c"
+    },
+    {
+      "name": "formula-followed-small-table",
+      "byteIdentical": true,
+      "beforeSha256": "867de9c534ad2d97be6edee71d40e67284f9de487e0b3b600111aedc2ab7212f",
+      "afterSha256": "867de9c534ad2d97be6edee71d40e67284f9de487e0b3b600111aedc2ab7212f"
+    },
+    {
+      "name": "tall-header-footer-risk",
+      "byteIdentical": true,
+      "beforeSha256": "c15a2cdecdf1d81f1cdad104f7c2dfe4cb8f7c18f091e92086a3d2c4461e187c",
+      "afterSha256": "c15a2cdecdf1d81f1cdad104f7c2dfe4cb8f7c18f091e92086a3d2c4461e187c"
+    },
+    {
+      "name": "tight-footer-budget",
+      "byteIdentical": true,
+      "beforeSha256": "20a4746c2a334894eebf531bfe8cb912f366248c0d1d4d5e72b6ccb4c469cc20",
+      "afterSha256": "20a4746c2a334894eebf531bfe8cb912f366248c0d1d4d5e72b6ccb4c469cc20"
+    },
+    {
+      "name": "last-group-footer-risk",
+      "byteIdentical": true,
+      "beforeSha256": "c6490afea63bf9a9af3b1a8d2e03bb32378461f77c1e376049b2719590930aa7",
+      "afterSha256": "c6490afea63bf9a9af3b1a8d2e03bb32378461f77c1e376049b2719590930aa7"
+    },
+    {
+      "name": "figure-caption-followed-table",
+      "byteIdentical": true,
+      "beforeSha256": "d374e09813406f03ca2374b45590a16c23a948eba67a9f4ec660146a732789ea",
+      "afterSha256": "d374e09813406f03ca2374b45590a16c23a948eba67a9f4ec660146a732789ea"
+    },
+    {
+      "name": "alpha-list-followed-table",
+      "byteIdentical": true,
+      "beforeSha256": "57d01ea70791cab126d4cc4d21d42403f7dce64510d27ae83689a62f27251a3f",
+      "afterSha256": "57d01ea70791cab126d4cc4d21d42403f7dce64510d27ae83689a62f27251a3f"
+    },
+    {
+      "name": "numeric-list-followed-table",
+      "byteIdentical": true,
+      "beforeSha256": "76bc7e4a999e8011493906cef1eaa6825cf6b3cd687cdfafe54c17fb87bea4bd",
+      "afterSha256": "76bc7e4a999e8011493906cef1eaa6825cf6b3cd687cdfafe54c17fb87bea4bd"
+    },
+    {
+      "name": "dash-list-followed-table",
+      "byteIdentical": true,
+      "beforeSha256": "6df67c6a6269765b0ce3393750583959855b6d74ce5d4afcb7a24ad78848872b",
+      "afterSha256": "6df67c6a6269765b0ce3393750583959855b6d74ce5d4afcb7a24ad78848872b"
+    },
+    {
+      "name": "heading-short-table-then-long-table",
+      "byteIdentical": false,
+      "beforeSha256": "b6b0e644487f8e50ebb50270d8401938ba0833d297edef13828aa36bb9c54d6a",
+      "afterSha256": "f988b90ba1fd34f0d569fe6dcae4fb01096dfe0d9f1af522d3a377eda81ac671"
+    },
+    {
+      "name": "heading-long-table",
+      "byteIdentical": true,
+      "beforeSha256": "bd65bd878054c409e4d282aa14e5e916db096e2cae9cf34218e04271b2d9ffea",
+      "afterSha256": "bd65bd878054c409e4d282aa14e5e916db096e2cae9cf34218e04271b2d9ffea"
+    },
+    {
+      "name": "heading-short-table-then-93-records",
+      "byteIdentical": false,
+      "beforeSha256": "d1d4c219f553f96db8ac2d3003cb6a8c4e478efef302014fc1fa0d2e9da39e07",
+      "afterSha256": "e2ffb02a29ff4db6bd65addfe071c840cebdd210f123dd474a85f304c69972cd"
+    },
+    {
+      "name": "formula-heading-small-table",
+      "byteIdentical": false,
+      "beforeSha256": "019911077503ab9b69ae384c7b37ecf5c1c424e0433ce1cf9d75eee2dd88aca3",
+      "afterSha256": "c2f088541a677a7fa7b29ae11b6ebfa0485eecc142b9f5e82b2be957e533597d"
+    },
+    {
+      "name": "formula-heading-long-table",
+      "byteIdentical": false,
+      "beforeSha256": "39796ff6fec22cdad574f624d4ce7b2b513d8d5ca6fbd05f5c6c599c87ea6e43",
+      "afterSha256": "6ac25d0050f6b251dcabce24e7a2bffaa9eb07d6b43aecb47df575a434eb7a25"
+    }
+  ],
+  "wordComparisons": [
+    {
+      "stage": "before",
+      "name": "heading-short-table-then-long-table",
+      "pageCount": 7,
+      "longRecords": 70,
+      "longRecordsContinuous": true,
+      "pages": [
+        {
+          "page": 5,
+          "longRecordCount": 0,
+          "firstLongRecord": null,
+          "lastLongRecord": null,
+          "shortRecordCount": 2,
+          "clauseTitle": true,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": false,
+          "shortTableCaption": true,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 6,
+          "longRecordCount": 40,
+          "firstLongRecord": 1,
+          "lastLongRecord": 40,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": true,
+          "shortTableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 7,
+          "longRecordCount": 30,
+          "firstLongRecord": 41,
+          "lastLongRecord": 70,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": true,
+          "shortTableCaption": false,
+          "tableNoteCount": 1
+        }
+      ],
+      "pdfSha256": "fb066e2881e6db0e2c29177649e030e34a844fda404f3c958ff81f06a3300311"
+    },
+    {
+      "stage": "after",
+      "name": "heading-short-table-then-long-table",
+      "pageCount": 7,
+      "longRecords": 70,
+      "longRecordsContinuous": true,
+      "pages": [
+        {
+          "page": 5,
+          "longRecordCount": 0,
+          "firstLongRecord": null,
+          "lastLongRecord": null,
+          "shortRecordCount": 2,
+          "clauseTitle": true,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": false,
+          "shortTableCaption": true,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 6,
+          "longRecordCount": 46,
+          "firstLongRecord": 1,
+          "lastLongRecord": 46,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": true,
+          "shortTableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 7,
+          "longRecordCount": 24,
+          "firstLongRecord": 47,
+          "lastLongRecord": 70,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": true,
+          "shortTableCaption": false,
+          "tableNoteCount": 1
+        }
+      ],
+      "pdfSha256": "987c43adbd2d9e114ff0db218580b7f404904dd6916005ec3eede866c3261636"
+    },
+    {
+      "stage": "before",
+      "name": "heading-short-table-then-93-records",
+      "pageCount": 8,
+      "longRecords": 93,
+      "longRecordsContinuous": true,
+      "pages": [
+        {
+          "page": 5,
+          "longRecordCount": 0,
+          "firstLongRecord": null,
+          "lastLongRecord": null,
+          "shortRecordCount": 2,
+          "clauseTitle": true,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": false,
+          "shortTableCaption": true,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 6,
+          "longRecordCount": 40,
+          "firstLongRecord": 1,
+          "lastLongRecord": 40,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": true,
+          "shortTableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 7,
+          "longRecordCount": 48,
+          "firstLongRecord": 41,
+          "lastLongRecord": 88,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": true,
+          "shortTableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 8,
+          "longRecordCount": 5,
+          "firstLongRecord": 89,
+          "lastLongRecord": 93,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": true,
+          "shortTableCaption": false,
+          "tableNoteCount": 1
+        }
+      ],
+      "pdfSha256": "436e2282a68bd466ca70c58f7ae29077679c1da23fa199145ade0404fb5170d0"
+    },
+    {
+      "stage": "after",
+      "name": "heading-short-table-then-93-records",
+      "pageCount": 7,
+      "longRecords": 93,
+      "longRecordsContinuous": true,
+      "pages": [
+        {
+          "page": 5,
+          "longRecordCount": 0,
+          "firstLongRecord": null,
+          "lastLongRecord": null,
+          "shortRecordCount": 2,
+          "clauseTitle": true,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": false,
+          "shortTableCaption": true,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 6,
+          "longRecordCount": 46,
+          "firstLongRecord": 1,
+          "lastLongRecord": 46,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": true,
+          "shortTableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 7,
+          "longRecordCount": 47,
+          "firstLongRecord": 47,
+          "lastLongRecord": 93,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": true,
+          "shortTableCaption": false,
+          "tableNoteCount": 1
+        }
+      ],
+      "pdfSha256": "9db232dbc54213d32d2012239275ad66e6aa708a2fe91e06849e911bd397e588"
+    },
+    {
+      "stage": "before",
+      "name": "formula-heading-small-table",
+      "pageCount": 7,
+      "longRecords": 70,
+      "longRecordsContinuous": true,
+      "pages": [
+        {
+          "page": 5,
+          "longRecordCount": 0,
+          "firstLongRecord": null,
+          "lastLongRecord": null,
+          "shortRecordCount": 2,
+          "clauseTitle": false,
+          "firstFormulaHeading": true,
+          "secondFormulaHeading": true,
+          "formula": true,
+          "longTableCaption": false,
+          "shortTableCaption": true,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 6,
+          "longRecordCount": 38,
+          "firstLongRecord": 1,
+          "lastLongRecord": 38,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": true,
+          "shortTableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 7,
+          "longRecordCount": 32,
+          "firstLongRecord": 39,
+          "lastLongRecord": 70,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": true,
+          "shortTableCaption": false,
+          "tableNoteCount": 1
+        }
+      ],
+      "pdfSha256": "6355e83c1a5c6d6aa875094280c17af88eb2d175e37a3e5537228eafa8d402bf"
+    },
+    {
+      "stage": "after",
+      "name": "formula-heading-small-table",
+      "pageCount": 7,
+      "longRecords": 70,
+      "longRecordsContinuous": true,
+      "pages": [
+        {
+          "page": 5,
+          "longRecordCount": 0,
+          "firstLongRecord": null,
+          "lastLongRecord": null,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": true,
+          "longTableCaption": false,
+          "shortTableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 6,
+          "longRecordCount": 38,
+          "firstLongRecord": 1,
+          "lastLongRecord": 38,
+          "shortRecordCount": 2,
+          "clauseTitle": false,
+          "firstFormulaHeading": true,
+          "secondFormulaHeading": true,
+          "formula": false,
+          "longTableCaption": true,
+          "shortTableCaption": true,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 7,
+          "longRecordCount": 32,
+          "firstLongRecord": 39,
+          "lastLongRecord": 70,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": true,
+          "shortTableCaption": false,
+          "tableNoteCount": 1
+        }
+      ],
+      "pdfSha256": "e6fe946a5666977f0120bde45eaed7c44061774cd6d51dbe516079a335793faf"
+    },
+    {
+      "stage": "before",
+      "name": "formula-heading-long-table",
+      "pageCount": 7,
+      "longRecords": 70,
+      "longRecordsContinuous": true,
+      "pages": [
+        {
+          "page": 5,
+          "longRecordCount": 0,
+          "firstLongRecord": null,
+          "lastLongRecord": null,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": true,
+          "longTableCaption": false,
+          "shortTableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 6,
+          "longRecordCount": 41,
+          "firstLongRecord": 1,
+          "lastLongRecord": 41,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": true,
+          "secondFormulaHeading": true,
+          "formula": false,
+          "longTableCaption": true,
+          "shortTableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 7,
+          "longRecordCount": 29,
+          "firstLongRecord": 42,
+          "lastLongRecord": 70,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": true,
+          "shortTableCaption": false,
+          "tableNoteCount": 1
+        }
+      ],
+      "pdfSha256": "2c28e7d4d6dde6629478e740fd5648244e263a2d846592b899e21456faf73532"
+    },
+    {
+      "stage": "after",
+      "name": "formula-heading-long-table",
+      "pageCount": 7,
+      "longRecords": 70,
+      "longRecordsContinuous": true,
+      "pages": [
+        {
+          "page": 5,
+          "longRecordCount": 0,
+          "firstLongRecord": null,
+          "lastLongRecord": null,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": true,
+          "longTableCaption": false,
+          "shortTableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 6,
+          "longRecordCount": 41,
+          "firstLongRecord": 1,
+          "lastLongRecord": 41,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": true,
+          "secondFormulaHeading": true,
+          "formula": false,
+          "longTableCaption": true,
+          "shortTableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 7,
+          "longRecordCount": 29,
+          "firstLongRecord": 42,
+          "lastLongRecord": 70,
+          "shortRecordCount": 0,
+          "clauseTitle": false,
+          "firstFormulaHeading": false,
+          "secondFormulaHeading": false,
+          "formula": false,
+          "longTableCaption": true,
+          "shortTableCaption": false,
+          "tableNoteCount": 1
+        }
+      ],
+      "pdfSha256": "8ceaf22c4784c9b5833ad27215735933e19fa715578bfecd773da4718b18322b"
+    }
+  ],
+  "strictSchema": {
+    "inlineDocxCount": 40,
+    "existingDocxCount": 5,
+    "results": [
+      {
+        "stage": "before",
+        "name": "body-followed-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "body-followed-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "near-page-bottom",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "near-page-bottom",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "long-body",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "long-body",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "body-footnote",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "body-footnote",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "merged-table-footnotes",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "merged-table-footnotes",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "landscape-followed-portrait-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "landscape-followed-portrait-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "long-caption",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "long-caption",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "formula-followed-small-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "formula-followed-small-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "tall-header-footer-risk",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "tall-header-footer-risk",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "tight-footer-budget",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "tight-footer-budget",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "last-group-footer-risk",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "last-group-footer-risk",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "figure-caption-followed-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "figure-caption-followed-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "alpha-list-followed-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "alpha-list-followed-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "numeric-list-followed-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "numeric-list-followed-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "dash-list-followed-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "dash-list-followed-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "heading-short-table-then-long-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "heading-short-table-then-long-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "heading-long-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "heading-long-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "heading-short-table-then-93-records",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "heading-short-table-then-93-records",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "formula-heading-small-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "formula-heading-small-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "before",
+        "name": "formula-heading-long-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      },
+      {
+        "stage": "after",
+        "name": "formula-heading-long-table",
+        "validation": {
+          "success": true,
+          "data": "Validation passed: no errors found.",
+          "message": "Validation passed: no errors found."
+        }
+      }
+    ]
+  },
+  "existingExports": [
+    {
+      "name": "delivery",
+      "byteIdenticalToReviewedHead": true,
+      "sha256": "a0d97f168d825c2753921cf5b179bca3ffcb56cf7c1ee16f1ced8a0bf6a0b84e",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "duplicate",
+      "byteIdenticalToReviewedHead": true,
+      "sha256": "cd022b3ec5b31f464d718634e9427a3a2d7064d8b40b82362c911f29f6c42cb5",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "full-golden",
+      "byteIdenticalToReviewedHead": true,
+      "sha256": "f7b57604c7b1d031fd14915135898a2ced22cb74e3d7ed162c716598d9117627",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "wp74",
+      "byteIdenticalToReviewedHead": true,
+      "sha256": "e07655802bcef0048708001bfe84acc876bf09ad95c6187cdf84f3b783deb29e",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "xml-roundtrip",
+      "byteIdenticalToReviewedHead": true,
+      "sha256": "a0d97f168d825c2753921cf5b179bca3ffcb56cf7c1ee16f1ced8a0bf6a0b84e",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    }
+  ],
+  "unchangedDocxCount": 21,
+  "internalBreakMarkersInExport": false,
+  "gbCoverCharacterScale": 148,
+  "artifacts": "tmp-e2e/wp76-acceptance/flow-review5",
+  "notFinalAcceptance": [
+    "Real manuscript source/version/path unconfirmed",
+    "Landscape body footnote separator remains 128.270mm vs target 63mm",
+    "Oversized table footer not automatically split",
+    "Formula fixtures have not executed XML roundtrip because fixture DOM rejects CDATA",
+    "Pagination remains conservative; Word physical verification required"
+  ]
+}

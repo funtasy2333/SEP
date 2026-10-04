@@ -1,5 +1,7 @@
 # 标题同页链跨表格边界修订（2026-10-04）
 
+> 后续复审确认：公式加标题的强制分页被抑制、能放下的短表被误判移页。本页保留上一轮历史测量，当前修正及Word结果见[第五轮修订](wp7.6-table-flow-review5-2026-10-04.md)。
+
 对应审查：[Preserve keep-next chains across table boundaries](https://github.com/funtasy2333/SEP/pull/43#discussion_r4175439945)，针对提交 `72262e939797a83b5c146604ef42c030ca43990d`。
 
 ## 修正与验证

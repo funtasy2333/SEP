@@ -254,8 +254,11 @@ function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, 
       `表格 "${table.id}" 的末段余量不足以同时容纳最后数据组和表注/表脚注，可能需要人工分页调整`, table.id)
   }
   // An explicit break on the caption overrides the preceding keepNext chain in Word.
-  // Let Word move that chain naturally; the first segment still uses its reserved budget.
-  const pageBreakBefore = pagination.startOnNewPage && !((flowOptions.firstPageReservedMm ?? 0) > 0)
+  // Natural overflow can move the chain itself; an unknown-height fallback needs a real
+  // break at its first paragraph, resolved later without breaking the chain at the caption.
+  const forcedChainBreak = flowOptions.forceStartOnNewPage && ctx.pageFlow.breakBeforePendingChain()
+  const pageBreakBefore = pagination.startOnNewPage && !forcedChainBreak &&
+    (flowOptions.forceStartOnNewPage || !((flowOptions.firstPageReservedMm ?? 0) > 0))
   let captionXml: string
   if (bctx.appendix) {
     const numId = ctx.numbering.allocAppendixTableInstance(bctx.appendix.id, bctx.appendix.letter)

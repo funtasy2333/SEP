@@ -142,6 +142,36 @@ for(const [name,shortFirst] of [
  variants.push([name,variant])
 }
 
+// 接近两整页的数据量：短表旧页定位错误会让后续长表多出一张续页。
+const consecutive = clone(variants.find(([name]) => name === 'heading-short-table-then-long-table')[1])
+const consecutiveTable = consecutive.content[1].content[2].content.at(-1)
+consecutiveTable.content[1].content.push(...Array.from({length:23}, (_,i) => ({type:'tableRow',content:[cell(`记录${i+71}`),cell('检查数据顺序与跨页衔接。')]})))
+consecutiveTable.content[2].content[0].content = [t('本表共93条记录，表注仅置于最后一段。')]
+consecutive.content[1].content.at(-1).content = [t('标题后长表结束，93条记录应连续完整。')]
+variants.push(['heading-short-table-then-93-records', consecutive])
+
+// 不可测公式后仍有充足物理余量；强制回退必须把整个两级标题链带到新页。
+for (const [name, shortFirst] of [
+ ['formula-heading-small-table', true], ['formula-heading-long-table', false],
+]) {
+ const variant = clone(source)
+ const small = clone(longTable)
+ small.attrs.nodeId = `${name}-short`
+ small.content = small.content.slice(0, 2)
+ small.content[1].content = small.content[1].content.slice(0, 3)
+ small.content[0].content = [t('公式标题后短表')]
+ variant.content[1].content = [variant.content[1].content[0], paragraph('公式前正文，当前页仍有充足空间。'),
+  {type:'formula',attrs:{nodeId:`${name}-formula`,id:`${name}-formula`},content:[{type:'formulaContent',content:[t('x=1')]}]},
+  {type:'clause',attrs:{nodeId:`${name}-clause`,level:1,hasTitle:true},content:[
+   {type:'clauseTitle',attrs:{level:1},content:[t('公式后第一条标题')]},
+   {type:'clause',attrs:{nodeId:`${name}-child`,level:2,hasTitle:true},content:[
+    {type:'clauseTitle',attrs:{level:2},content:[t('公式后第二条标题')]},
+    ...(shortFirst?[small]:[]), clone(longTable),
+   ]},
+  ]}, paragraph('公式后长表结束，70条记录应连续完整。')]
+ variants.push([name, variant])
+}
+
 try {
  await mkdir(output,{recursive:true})
  const {createEditorExtensions}=await server.ssrLoadModule('/src/extensions/editorExtensions.ts')

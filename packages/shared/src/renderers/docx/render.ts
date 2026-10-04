@@ -251,6 +251,9 @@ export function renderDocxTraced(
     ctx.warnings.push({ code: 'footnote-landscape-separator', message: '文档含条文脚注和横排节；Word 横排页的条文脚注分隔线尚未支持按版心1/4自动调整，请校对横排脚注及跨页延续。' })
   }
 
+  // Resolve deferred breaks only after all keepNext chains and their following tables are known.
+  // Internal markers never become part of the exported DOCX.
+  body = ctx.resolveParagraphBreaks(body)
   const documentXml = `${XML_DECL}<w:document ${DOCUMENT_NS}><w:body>${body}</w:body></w:document>`
 
   const relatedParts: DocxRelatedPart[] = [
