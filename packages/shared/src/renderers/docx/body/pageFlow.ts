@@ -38,6 +38,7 @@ export interface ParagraphFlowOptions {
 
 interface ParagraphMeasure {
   contentHeight: number
+  lineCount: number
   before: number
   after: number
   atomic: boolean
@@ -120,12 +121,16 @@ export function createPageFlow(): PageFlow {
     let height = totalHeight()
     let reserve = reserveHeight()
     const atomic = chain.length > 1 || chain.some(paragraph => paragraph.atomic)
-    // A normal paragraph may split before or after its footnote reference. Without
-    // locating that reference in Word, neither the footnote page nor the final budget
-    // is known. Do not relocate the whole paragraph or charge the note to a guessed page.
-    if (!atomic && ids.length > 0 && height + reserve > remaining()) {
+    const terminal = chain[chain.length - 1]!
+    // keepNext binds the heading to the start of the following paragraph, not all
+    // of its lines. When a multi-line terminal paragraph can split, its final page
+    // (and any footnote reference page) cannot be inferred by relocating the chain.
+    // Single-line terminals retain the existing short-chain relocation behavior.
+    const splittableTerminal = !terminal.atomic && terminal.lineCount > 1
+    if (height + reserve > remaining() &&
+        ((chain.length > 1 && splittableTerminal) || (!atomic && ids.length > 0))) {
       known = false
-      previousAfter = chain[chain.length - 1]!.after
+      previousAfter = terminal.after
       return
     }
     const freshHeight = height + Math.min(previousAfter, chain[0]!.before)
@@ -224,6 +229,7 @@ export function createPageFlow(): PageFlow {
       const ids = [...runsXml.matchAll(/<w:footnoteReference\b[^>]*w:id="([0-9]+)"/g)].map(match => Number(match[1]))
       pending.push({
         contentHeight: imageHeight > 0 ? imageHeight + 3 : count * lineHeight,
+        lineCount: count,
         before, after, ids, forcePageBreakBefore: options.forcePageBreakBefore,
         atomic: spec.keepLines === true || imageHeight > 0,
       })

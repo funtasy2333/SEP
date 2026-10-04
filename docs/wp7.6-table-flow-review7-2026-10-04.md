@@ -1,5 +1,7 @@
 # 跨页脚注正文不再按整段移页估算（2026-10-04）
 
+后续复审的keep-next链末长正文处理见[第八轮报告](wp7.6-table-flow-review8-2026-10-04.md)；本页原测量保留。
+
 对应[Do not make every footnoted paragraph atomic](https://github.com/funtasy2333/SEP/pull/43#discussion_r4176007354)，审查提交 `4d7afb99e6e7a704f9b32badd838a326ee2bd1b9`，review `5404116687`。
 
 ## 问题与修正

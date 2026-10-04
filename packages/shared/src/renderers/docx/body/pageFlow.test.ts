@@ -129,6 +129,38 @@ describe('复审：同页链与有效列项缩进', () => {
     }
     expect(near.availableMm).toBeCloseTo(fresh.availableMm!, 6)
   })
+  it.each(['plain', 'early-footnote', 'late-footnote'])('标题链末的%s长正文可以跨页，不能将整链移页估算', kind => {
+    const flow = createPageFlow(); flow.startSection(); flow.setFootnoteHeights(new Map([[1, 12]]))
+    flow.placeTable([180], false)
+    flow.recordParagraph('SesChapter', run('章标题'), true)
+    if (kind === 'early-footnote') flow.recordParagraph('SesClause1', run('条标题'), true)
+    const content = Array.from({ length: 12 }, (_, i) => run(`链末正文第${i + 1}行`) +
+      (i === (kind === 'early-footnote' ? 0 : kind === 'late-footnote' ? 10 : -1)
+        ? '<w:r><w:footnoteReference w:id="1"/></w:r>' : '')).join('<w:r><w:br/></w:r>')
+    flow.recordParagraph('SesPara', content, false)
+    expect(flow.availableMm).toBeUndefined()
+    expect(flow.beforeTable().forceStartOnNewPage).toBe(true)
+    flow.recordParagraph('SesPara', run('继续正文'), false)
+    expect(flow.availableMm).toBeUndefined()
+    flow.placeTable([80], true)
+    expect(flow.availableMm).toBe(158)
+  })
+  it('标题后正文文字能放下但脚注预留跨过页底时，链末落页仍未知', () => {
+    const flow = createPageFlow(); flow.startSection(); flow.setFootnoteHeights(new Map([[1, 12]]))
+    flow.placeTable([185], false)
+    flow.recordParagraph('SesChapter', run('章标题'), true)
+    const content = Array.from({ length: 4 }, (_, i) => run(`链末正文第${i + 1}行`)).join('<w:r><w:br/></w:r>')
+    flow.recordParagraph('SesPara', content + '<w:r><w:footnoteReference w:id="1"/></w:r>', false)
+    expect(flow.availableMm).toBeUndefined()
+    expect(flow.estimateUnavailable).toBe(true)
+  })
+  it('标题后多行正文在当前页可完整放下时，保持已知余量', () => {
+    const flow = createPageFlow(); flow.startSection(); flow.placeTable([100], false)
+    flow.recordParagraph('SesChapter', run('章标题'), true)
+    flow.recordParagraph('SesPara', run('第一行') + '<w:r><w:br/></w:r>' + run('第二行'), false)
+    expect(flow.availableMm).toBeDefined()
+    expect(flow.beforeTable().forceStartOnNewPage).toBe(false)
+  })
   it('中途读取余量不截断同页链，移页后脚注只预留一次', () => {
     const near = createPageFlow(); near.setFootnoteHeights(new Map([[1, 12]])); near.startSection(); near.placeTable([178], false)
     near.recordParagraph('SesFigure', image, false)

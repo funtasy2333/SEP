@@ -160,6 +160,30 @@ for (const [name, anchor, heading] of [
  variants.push([name,variant])
 }
 
+// keepNext标题跟随长段开头，长段本身可跨页；同时覆盖无脚注和早/晚引用。
+for (const [name, anchor, nested] of [
+ ['heading-split-plain-then-table',-1,false],
+ ['headings-split-early-note-then-table',0,true],
+ ['heading-split-late-note-then-table',10,false],
+]) {
+ const variant = clone(source)
+ const content = brokenLines(12,'链末正文行')
+ if (anchor >= 0) {
+  const index = content.findIndex(node => node.type==='text' && node.text===`链末正文行${anchor+1}`)
+  content.splice(index+1,0,{type:'footnoteRef',attrs:{nodeId:`${name}-call`,content:[t('标题链末条文脚注检查：正文允许自然跨页，脚注定义应与引用同页。')]}})
+ }
+ const body = [{type:'stdParagraph',attrs:{nodeId:`${name}-paragraph`},content},clone(longTable)]
+ const clause = {type:'clause',attrs:{nodeId:`${name}-clause`,level:1,hasTitle:true},content:[
+  {type:'clauseTitle',attrs:{level:1},content:[t('长正文前的标题')]},
+  ...(nested ? [{type:'clause',attrs:{nodeId:`${name}-child`,level:2,hasTitle:true},content:[
+   {type:'clauseTitle',attrs:{level:2},content:[t('长正文前的第二级标题')]},...body,
+  ]}] : body),
+ ]}
+ variant.content[1].content=[variant.content[1].content[0],{type:'stdParagraph',attrs:{nodeId:`${name}-preamble`},content:brokenLines(nested?24:26,'标题链前正文行')},
+  clause,paragraph('标题链末长正文后的表格结束，70条记录应连续完整。')]
+ variants.push([name,variant])
+}
+
 // 表头合并覆盖较多数据行，甚至整张表；后续长表必须使用实际输出分段的页流。
 for (const [name, covered, total] of [
  ['header-rowspan-20-then-long-table',20,110],

@@ -135,6 +135,21 @@ describe('paginateTable', () => {
     expect(ctx.pageFlow.availableMm).toBeDefined()
     expect(ctx.pageFlow.estimateUnavailable).toBe(false)
   })
+  it('标题与可跨页长正文后的表格使用真实新页回退而非猜测旧页余量', () => {
+    const ctx = createRenderContext({ table: { label: '表1', xmlId: 'table_1', refText: '表1' } })
+    ctx.pageFlow.startSection(); ctx.pageFlow.placeTable([180], false)
+    emitParagraph(ctx, 'SesChapter', { runsXml: '<w:r><w:t>章标题</w:t></w:r>', numbered: { nodeId: 'chapter', kind: 'chapter' } })
+    const runs = Array.from({ length: 12 }, (_, i) => `<w:r><w:t>链末正文第${i + 1}行</w:t></w:r>`)
+      .join('<w:r><w:br/></w:r>')
+    const paragraph = emitParagraph(ctx, 'SesPara', { runsXml: runs })
+    expect(paragraph).not.toContain('<w:keepLines')
+    expect(paragraph).not.toContain('<w:pageBreakBefore')
+    const xml = renderBlock(ctx, table(Array.from({ length: 70 }, (_, i) => row(i + 1, '短记录'))), { scopeKey: 'chapter' })
+    expect(xml).toContain('<w:pageBreakBefore/>')
+    expect(ctx.warnings.map(w => w.code)).toContain('table-flow-estimate-unavailable')
+    expect(xml.match(/项目 \d+/g)).toHaveLength(70)
+    expect(ctx.pageFlow.availableMm).toBeDefined()
+  })
   it('标题与短表一起移页后，后续余量包含标题高度', () => {
     const ir=table([row(1),row(2)])
     const contexts=[createRenderContext({table:{label:'表1',xmlId:'table_1',refText:'表1'}}),createRenderContext({table:{label:'表1',xmlId:'table_1',refText:'表1'}})]
