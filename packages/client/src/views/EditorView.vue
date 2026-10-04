@@ -830,7 +830,9 @@ function handleSave(): Promise<void> {
     } finally {
       persistenceOperation.value = null
       saving.value = false
-      if (dirty.value) queueAutoSave()
+      // A failed snapshot stays dirty, but only edits made during this request
+      // require another autosave. Otherwise wait for a new edit or manual save.
+      if (dirty.value && bodyChangeVersion !== changeVersionAtStart) queueAutoSave()
     }
   })()
   bodySavePromise = promise
