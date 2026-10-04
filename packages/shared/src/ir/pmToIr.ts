@@ -865,6 +865,7 @@ function convertMeta(docNode: PMJsonNode, coverPage: PMJsonNode | undefined, ctx
   set('filingNo', coverMetaAttr(attrs, coverPage?.attrs, 'filingNo'))
   set('industryName', coverMetaAttr(attrs, coverPage?.attrs, 'industryName'))
   set('regionName', coverMetaAttr(attrs, coverPage?.attrs, 'regionName'))
+  set('coverDesignation', coverMetaAttr(attrs, coverPage?.attrs, 'coverDesignation'))
   return meta
 }
 

@@ -20,18 +20,19 @@ export interface DocumentSettingsDraft {
   filingNo: string
   industryName: string
   regionName: string
+  coverDesignation: string
 }
 
 export const DOCUMENT_SETTINGS_FIELDS = [
   'standardType', 'stage', 'titleCn', 'titleEn', 'standardNo', 'icsCode', 'ccsCode',
   'issuer', 'applicant', 'proposer', 'technicalCommittee', 'replaces', 'consistency',
-  'publishDate', 'implementDate', 'filingNo', 'industryName', 'regionName',
+  'publishDate', 'implementDate', 'filingNo', 'industryName', 'regionName', 'coverDesignation',
 ] as const satisfies ReadonlyArray<keyof DocumentSettingsDraft>
 
 /** Cover values are the editor/XML source of truth; legacy root attributes remain synchronized when present. */
 export const COVER_SETTINGS_KEYS = [
   'standardType', 'standardNo', 'titleCn', 'titleEn', 'icsCode', 'ccsCode', 'issuer',
-  'publishDate', 'implementDate', 'replaces', 'consistency', 'filingNo', 'industryName', 'regionName',
+  'publishDate', 'implementDate', 'replaces', 'consistency', 'filingNo', 'industryName', 'regionName', 'coverDesignation',
 ] as const satisfies ReadonlyArray<keyof DocumentMeta>
 
 const IR_TO_DOCUMENT_TYPE = new Map<string, string>([
@@ -109,6 +110,7 @@ export function documentSettingsDraftFromDocument(
     filingNo: value('filingNo'),
     industryName: value('industryName'),
     regionName: value('regionName'),
+    coverDesignation: value('coverDesignation'),
   }
 }
 
@@ -139,6 +141,7 @@ export function documentMetaFromSettingsDraft(
     filingNo: draft.filingNo.trim(),
     industryName: draft.industryName.trim(),
     regionName: draft.regionName.trim(),
+    coverDesignation: draft.coverDesignation.trim(),
   }
 }
 
@@ -153,7 +156,7 @@ export function synchronizeCoverMetadata(
   const rootAttrs = cloned.attrs && typeof cloned.attrs === 'object' && !Array.isArray(cloned.attrs)
     ? cloned.attrs as Record<string, unknown> : undefined
   const coverAttrs = cover?.attrs
-  const coverFirst = new Set(['replaces', 'consistency', 'filingNo', 'industryName', 'regionName'])
+  const coverFirst = new Set(['replaces', 'consistency', 'filingNo', 'industryName', 'regionName', 'coverDesignation'])
   const values: Record<string, string> = {}
   for (const key of COVER_SETTINGS_KEYS) {
     if (meta[key] !== undefined && meta[key] !== null) {

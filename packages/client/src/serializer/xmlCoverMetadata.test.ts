@@ -3,7 +3,7 @@ import { getSchema } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
 import { pmToIr, renderDocx, resolve, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from '../extensions/editorExtensions'
-import { parseXmlToEditorJson, parseXmlToJson, serializeToXml } from './index'
+import { exportSemanticJson, parseXmlToEditorJson, parseXmlToJson, serializeToXml } from './index'
 
 describe('XML 封面元数据往返', () => {
   it('真实序列化 XML 经 DOMParser 和生产编辑器 schema 导入后保留五字段', () => {
@@ -25,6 +25,7 @@ describe('XML 封面元数据往返', () => {
       filingNo: '备案 123 & 124',
       industryName: '机械',
       regionName: '浙江省',
+      coverDesignation: '中华人民共和国先进装备行业标准',
     }
     const source = schema.nodeFromJSON({
       type: schema.topNodeType.name,
@@ -38,6 +39,8 @@ describe('XML 封面元数据往返', () => {
     const xml = serializeToXml(source)
     expect(xml).toContain('<custom-meta-group content-type="ses-cover">')
     expect(xml).toContain('<meta-name>industryName</meta-name>')
+    expect(xml).toContain('<meta-name>coverDesignation</meta-name>')
+    expect(xml).toContain('<meta-value>中华人民共和国先进装备行业标准</meta-value>')
     expect(xml).toContain('备案 123 &amp; 124')
     expect(xml).toContain('<std-ref>HG/T 1000—2024</std-ref>')
     expect(xml).toContain('<std-type>industry</std-type>')
@@ -65,6 +68,8 @@ describe('XML 封面元数据往返', () => {
     expect(coverPage.attrs).toMatchObject(expectedCoverAttrs)
 
     const { doc: ir } = pmToIr(imported.toJSON() as PMJsonNode)
+    const semantic = exportSemanticJson(imported)
+    expect(semantic.content?.[0]?.attrs?.coverDesignation).toBe(attrs.coverDesignation)
     expect(ir.meta).toMatchObject(attrs)
     expect(ir.meta.standardType).toBe('industry')
 
@@ -76,11 +81,13 @@ describe('XML 封面元数据往返', () => {
     })
     const docxXml = docx.parts['word/document.xml'] ?? ''
     expect(docxXml).toContain('SesCoverDesignationOther')
-    expect(docxXml).toContain('中华人民共和国机械行业标准')
+    expect(docxXml).toContain('中华人民共和国先进装备行业标准')
     expect(docxXml).toContain('SesCoverLogoText')
 
     const reExportedXml = serializeToXml(imported)
     expect(reExportedXml).toContain('<meta-name>replaces</meta-name>')
+    expect(reExportedXml).toContain('<meta-name>coverDesignation</meta-name>')
+    expect(reExportedXml).toContain('<meta-value>中华人民共和国先进装备行业标准</meta-value>')
     expect(reExportedXml).toContain('HG/T 1000—2010 &amp; HG/T 2000—2018')
     expect(reExportedXml).toContain('<std-ref>HG/T 1000—2024</std-ref>')
     expect(reExportedXml).toContain('<std-type>industry</std-type>')

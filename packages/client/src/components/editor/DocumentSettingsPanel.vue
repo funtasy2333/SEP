@@ -43,6 +43,7 @@
           <div class="preview-content">
             <div class="preview-main">
               <div class="preview-standard-no">{{ draft.standardNo.trim() || '标准编号待填写' }}</div>
+              <div v-if="coverDesignationPreview" class="preview-designation">{{ coverDesignationPreview }}</div>
               <div class="preview-title-cn">{{ draft.titleCn.trim() || '请输入标准中文名称' }}</div>
               <div class="preview-title-en">{{ draft.titleEn.trim() || 'English title (optional)' }}</div>
             </div>
@@ -102,6 +103,16 @@
                 />
                 <div class="field-hint">按正式编号完整填写；系统不会推测编号或年份。</div>
               </el-form-item>
+
+              <el-form-item v-if="supportsCustomCoverDesignation" label="封面标准称谓" class="field-span-2">
+                <el-input
+                  v-model="draft.coverDesignation"
+                  :disabled="saving"
+                  :placeholder="coverDesignationPlaceholder"
+                  aria-label="封面标准称谓"
+                />
+                <div class="field-hint">填写完整名称；留空时按标准类型以及行业名称或地方名称自动生成。</div>
+              </el-form-item>
             </div>
           </section>
 
@@ -135,10 +146,12 @@
                 <div v-if="!knownStages.has(draft.stage)" class="field-hint">当前值「{{ draft.stage || '空值' }}」来自旧文档，已原样保留；选择受支持阶段后才会更新。</div>
               </el-form-item>
               <el-form-item label="行业名称">
-                <el-input v-model="draft.industryName" :disabled="saving" placeholder="行业标准可填写行业名称" aria-label="行业名称" />
+                <el-input v-model="draft.industryName" :disabled="saving" placeholder="用于自动生成行业标准称谓" aria-label="行业名称" />
+                <div class="field-hint">未填写封面标准称谓时，使用此名称自动生成。</div>
               </el-form-item>
               <el-form-item label="地方名称">
-                <el-input v-model="draft.regionName" :disabled="saving" placeholder="地方标准可填写省、市名称" aria-label="地方名称" />
+                <el-input v-model="draft.regionName" :disabled="saving" placeholder="用于自动生成地方标准称谓" aria-label="地方名称" />
+                <div class="field-hint">未填写封面标准称谓时，使用此名称自动生成。</div>
               </el-form-item>
             </div>
           </section>
@@ -216,6 +229,7 @@ import {
   ArrowRight, Calendar, CircleCheckFilled, CircleCloseFilled, CollectionTag,
   Grid, InfoFilled, OfficeBuilding, Select, Setting,
 } from '@element-plus/icons-vue'
+import { getCoverDesignation } from '@ses/shared'
 import { STAGES, STAGE_LABELS, STAGE_SHORT, TYPE_DEFS, TYPE_LABELS } from '@/constants/standards'
 import type { DocumentSettingsDraft } from '@/utils/documentSettings'
 
@@ -240,6 +254,19 @@ const sections = [
 const activeSection = ref(sections[0].id)
 const knownTypes = new Set<string>(TYPE_DEFS.map((type) => type.id))
 const knownStages = new Set<string>(STAGES)
+const customDesignationTypes = new Set(['industry', 'local', 'group', 'enterprise'])
+const supportsCustomCoverDesignation = computed(() => customDesignationTypes.has(props.draft.standardType))
+const coverDesignationMeta = computed(() => ({
+  standardType: props.draft.standardType,
+  coverDesignation: props.draft.coverDesignation,
+  industryName: props.draft.industryName.trim(),
+  regionName: props.draft.regionName.trim(),
+}))
+const coverDesignationPreview = computed(() => getCoverDesignation(coverDesignationMeta.value))
+const coverDesignationPlaceholder = computed(() => getCoverDesignation({
+  ...coverDesignationMeta.value,
+  coverDesignation: undefined,
+}))
 const typeName = computed(() => Object.prototype.hasOwnProperty.call(TYPE_LABELS, props.draft.standardType)
   ? TYPE_LABELS[props.draft.standardType]
   : `旧类型：${props.draft.standardType || '未设置'}`)
@@ -270,8 +297,8 @@ function onScroll(event: Event) {
 
 <style scoped>
 .settings-page { flex: 1; min-height: 0; overflow: auto; background: var(--ses-bg); }
-.settings-layout { min-height: 100%; display: grid; grid-template-columns: 218px minmax(0, 1fr); max-width: 1440px; margin: 0 auto; }
-.settings-rail { position: sticky; top: 0; align-self: start; min-height: calc(100vh - 48px); padding: 30px 16px 24px 20px; background: color-mix(in oklch, var(--ses-surface) 82%, var(--ses-bg)); border-right: 1px solid var(--ses-line); }
+.settings-layout { height: 100%; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr); grid-template-columns: 218px minmax(0, 1fr); max-width: 1440px; margin: 0 auto; }
+.settings-rail { position: sticky; top: 0; align-self: start; min-height: 100%; padding: 30px 16px 24px 20px; background: color-mix(in oklch, var(--ses-surface) 82%, var(--ses-bg)); border-right: 1px solid var(--ses-line); }
 .rail-heading { display: flex; align-items: center; gap: 11px; padding: 0 5px 26px; border-bottom: 1px solid var(--ses-line); }
 .rail-mark { width: 34px; height: 34px; display: grid; place-items: center; color: var(--ses-accent); background: var(--ses-accent-soft); border-radius: 10px; font-size: 17px; }
 .rail-heading strong, .rail-heading span:not(.rail-mark) { display: block; }
@@ -287,7 +314,7 @@ function onScroll(event: Event) {
 .rail-note { display: flex; gap: 8px; margin: 12px 2px 0; padding: 11px 10px; border: 1px solid var(--ses-line); border-radius: 9px; background: var(--ses-surface); }
 .note-icon { flex: 0 0 auto; margin-top: 1px; color: var(--ses-accent); font-size: 14px; }
 .rail-note p { margin: 0; color: var(--ses-ink-3); font-size: 10.5px; line-height: 1.65; }
-.settings-scroll { min-width: 0; max-height: calc(100vh - 48px); overflow: auto; padding: 30px clamp(18px, 4vw, 56px) 28px; scroll-behavior: smooth; }
+.settings-scroll { min-width: 0; min-height: 0; max-height: 100%; overflow: auto; padding: 30px clamp(18px, 4vw, 56px) 28px; scroll-behavior: smooth; }
 .settings-heading { max-width: 940px; display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; margin: 0 auto 20px; }
 .settings-eyebrow { color: var(--ses-accent); font: 650 9.5px var(--ses-font-mono); letter-spacing: .11em; }
 .settings-heading h1 { margin: 5px 0 4px; color: var(--ses-ink); font-size: 23px; letter-spacing: -.025em; }
@@ -304,12 +331,13 @@ function onScroll(event: Event) {
 .preview-live { display: inline-flex; align-items: center; gap: 5px; color: var(--ses-ink-4); font-size: 9.5px; font-weight: 400; }
 .preview-live i { width: 5px; height: 5px; background: var(--ses-accent); }
 .preview-content { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding-top: 13px; }
-.preview-main { min-width: 0; }
+.preview-main { min-width: 0; flex: 1 1 auto; }
 .preview-standard-no { margin-bottom: 9px; color: var(--ses-ink-2); font: 600 12px var(--ses-font-mono); overflow-wrap: anywhere; }
+.preview-designation { max-width: min(100%, 440px); margin: 0 0 6px; color: var(--ses-ink-2); font-size: 11.5px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; word-break: break-word; }
 .preview-title-cn { max-width: 660px; color: var(--ses-ink); font-size: 17px; font-weight: 650; line-height: 1.4; overflow-wrap: anywhere; }
 .preview-title-en { max-width: 660px; margin-top: 4px; color: var(--ses-ink-3); font: 11px/1.5 var(--ses-font-mono); overflow-wrap: anywhere; }
-.preview-details { flex: 0 0 auto; display: grid; justify-items: end; gap: 8px; }
-.preview-type { padding: 4px 8px; border-radius: 5px; background: var(--ses-accent-soft); color: var(--ses-accent); font-size: 10px; font-weight: 650; }
+.preview-details { flex: 0 1 180px; max-width: 180px; display: grid; justify-items: end; gap: 8px; overflow-wrap: anywhere; }
+.preview-type { max-width: 100%; padding: 4px 8px; border-radius: 5px; background: var(--ses-accent-soft); color: var(--ses-accent); font-size: 10px; font-weight: 650; overflow-wrap: anywhere; }
 .preview-stage { color: var(--ses-ink-2); font-size: 10.5px; }
 .preview-stage.is-unknown { color: var(--ses-warn); }
 .preview-classification { display: flex; gap: 14px; color: var(--ses-ink-2); font: 10px var(--ses-font-mono); }
@@ -356,7 +384,7 @@ function onScroll(event: Event) {
   .settings-actions { align-items: flex-start; }
 }
 @media (max-width: 760px) {
-  .settings-layout { display: block; }
+  .settings-layout { display: block; height: auto; min-height: 100%; }
   .settings-rail { position: static; min-height: 0; padding: 12px 14px 8px; border-right: 0; border-bottom: 1px solid var(--ses-line); }
   .rail-heading { padding: 0 2px 9px; border: 0; }
   .rail-mark { width: 29px; height: 29px; border-radius: 8px; }

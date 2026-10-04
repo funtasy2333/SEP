@@ -62,6 +62,22 @@ it('新建时持久化的前言经生产schema、XML和DOCX保留单位、专利
   expect(warnings.some((w) => w.code === 'cover-field-missing' && w.message.includes('stdCode'))).toBe(false)
 })
 
+it('新建表单中的完整封面称谓同步到文档元数据和生产封面属性', () => {
+  const created = createNewDocument({
+    ...blankForm(), type: 'enterprise', coverDesignation: '某科技有限公司企业标准',
+  })
+  expect(created.meta.coverDesignation).toBe('某科技有限公司企业标准')
+  expect(created.content.content?.[0]?.attrs?.coverDesignation).toBe('某科技有限公司企业标准')
+})
+
+it('新建内容初始化时保留可选封面完整称谓', () => {
+  const meta = { ...createNewDocument(blankForm()).meta, coverDesignation: '中华人民共和国定制企业标准' }
+  const content = createDefaultDocumentContent(meta)
+  const schema = getSchema(createEditorExtensions())
+  const node = schema.nodeFromJSON(content)
+  expect(node.child(0).attrs.coverDesignation).toBe(meta.coverDesignation)
+})
+
 it('未填写单位时省略空责任语句，仍保留专利提示且每份默认正文独立', () => {
   const first = createDefaultDocumentContent()
   const second = createDefaultDocumentContent()

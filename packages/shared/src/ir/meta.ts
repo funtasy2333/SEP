@@ -42,7 +42,7 @@ export function toIrStandardType(t: string | undefined): IRStandardType | undefi
 
 /**
  * 数据库文档元数据 → IR 元数据覆盖项：titleCn→title、standardNo→stdCode，titleEn/icsCode/ccsCode/issuer/
- * applicant/publishDate/implementDate/replaces/consistency/filingNo/industryName/regionName 同名复制，
+ * applicant/publishDate/implementDate/replaces/consistency/filingNo/industryName/regionName/coverDesignation 同名复制，
  * standardType 经 toIrStandardType。只跳过 undefined，空字符串照常复制（与现行 EditorView 的 buildDocMeta 一致）。
  * proposer、technicalCommittee 不进 IR。
  */
@@ -64,6 +64,7 @@ export function irMetaFromDocumentMeta(meta: DocumentMeta | undefined): Partial<
   set('filingNo', meta.filingNo)
   set('industryName', meta.industryName)
   set('regionName', meta.regionName)
+  set('coverDesignation', meta.coverDesignation)
   set('publishDate', meta.publishDate)
   set('implementDate', meta.implementDate)
   set('standardType', toIrStandardType(meta.standardType))

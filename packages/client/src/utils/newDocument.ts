@@ -16,6 +16,7 @@ export interface NewDocForm {
   technicalCommittee: string
   replaces: string
   consistency: string
+  coverDesignation?: string
 }
 
 export const STANDARD_NO_PLACEHOLDER = 'XXXXX—XXXX'
@@ -48,7 +49,7 @@ export function createDefaultDocumentContent(meta?: DocumentMeta): PMJsonNode & 
     // 保存到生产schema支持的封面属性，让XML/JSON和DOCX都能使用创建时的值。
     const attrs: Record<string, unknown> = {}
     for (const key of ['standardType', 'standardNo', 'titleCn', 'titleEn', 'icsCode', 'ccsCode', 'issuer',
-      'publishDate', 'implementDate', 'replaces', 'consistency', 'filingNo', 'industryName', 'regionName'] as const) {
+      'publishDate', 'implementDate', 'replaces', 'consistency', 'filingNo', 'industryName', 'regionName', 'coverDesignation'] as const) {
       if (meta[key] !== undefined) attrs[key] = meta[key]
     }
     content.push({ type: 'coverPage', attrs, content: [{ type: 'paragraph' }] })
@@ -79,6 +80,7 @@ export function createNewDocument(form: NewDocForm) {
     technicalCommittee: optional(form.technicalCommittee),
     replaces: optional(form.replaces),
     consistency: optional(form.consistency),
+    coverDesignation: optional(form.coverDesignation ?? ''),
   }
   return { title: meta.titleCn, stage: form.stage, meta, content: createDefaultDocumentContent(meta) }
 }

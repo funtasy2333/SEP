@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { getSchema } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
-import { pmToIr, type DocumentMeta, type PMJsonNode } from '@ses/shared'
+import { getCoverDesignation, pmToIr, type DocumentMeta, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from '../extensions/editorExtensions'
 import { exportSemanticJson, serializeToXml } from '../serializer'
 import { prepareDocxInput } from '../serializer/docxExporter'
@@ -22,7 +22,7 @@ function legacyContent(withCover = true) {
         standardType: 'industry', standardNo: 'HG/T 1000—2020', titleCn: '旧封面题名',
         titleEn: 'Old English title', icsCode: '35.240', ccsCode: 'L 70', issuer: '旧发布单位',
         replaces: 'HG/T 900—2018', consistency: '（ISO 1234:2020，MOD）', filingNo: '备案 123',
-        industryName: '机械', regionName: '浙江省',
+        industryName: '机械', regionName: '浙江省', coverDesignation: '中华人民共和国先进装备行业标准',
       },
       content: [{ type: 'paragraph' }],
     })
@@ -68,6 +68,7 @@ describe('文件设置草稿与封面同步', () => {
       ccsCode: 'L 70',
       issuer: '旧发布单位',
       replaces: 'HG/T 900—2018',
+      coverDesignation: '中华人民共和国先进装备行业标准',
       publishDate: '',
       stage: 'working_draft',
     })
@@ -114,6 +115,7 @@ describe('文件设置草稿与封面同步', () => {
       replaces: '',
       consistency: '',
       publishDate: '2026-05-01',
+      coverDesignation: '',
     })
     const savedJson = synchronizeCoverMetadata(original, meta)
     const saved = schema.nodeFromJSON(savedJson)
@@ -121,7 +123,7 @@ describe('文件设置草稿与封面同步', () => {
 
     expect(meta).toMatchObject({
       titleCn: '更新后的标准题名', titleEn: '', standardNo: 'HG/T 1000—2026',
-      icsCode: '', issuer: '', replaces: '', consistency: '', publishDate: '2026-05-01',
+      icsCode: '', issuer: '', replaces: '', consistency: '', publishDate: '2026-05-01', coverDesignation: '',
       customSettingsEvidence: { preserved: true },
     })
     expect(saved.child(1).toJSON()).toEqual(source.child(1).toJSON())
@@ -140,14 +142,16 @@ describe('文件设置草稿与封面同步', () => {
     expect(xml).toContain('更新后的标准题名')
     expect(xml).toContain('2026-05-01')
     expect(xml).not.toContain('旧发布单位')
+    expect(xml).not.toContain('<meta-name>coverDesignation</meta-name>')
 
     const semantic = exportSemanticJson(saved)
     expect(semantic.content?.[0]).toMatchObject({
       type: 'coverPage',
-      attrs: { standardNo: 'HG/T 1000—2026', titleCn: '更新后的标准题名', issuer: '' },
+      attrs: { standardNo: 'HG/T 1000—2026', titleCn: '更新后的标准题名', issuer: '', coverDesignation: '' },
     })
     const docxMeta = prepareDocxInput(saved, meta).doc.meta
-    expect(docxMeta).toMatchObject({ stdCode: 'HG/T 1000—2026', title: '更新后的标准题名', issuer: '' })
+    expect(docxMeta).toMatchObject({ stdCode: 'HG/T 1000—2026', title: '更新后的标准题名', issuer: '', coverDesignation: '' })
+    expect(getCoverDesignation(docxMeta)).toBe('中华人民共和国机械行业标准')
   })
 
   it('旧文档没有 coverPage 时插入封面且不丢正文，也不推测缺失日期', () => {

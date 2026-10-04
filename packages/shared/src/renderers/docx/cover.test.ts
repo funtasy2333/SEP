@@ -584,3 +584,49 @@ describe('新建草案编号占位符', () => {
     expect(pkg.warnings.some((w) => w.code === 'cover-field-missing')).toBe(false)
   })
 })
+
+
+describe('封面标准称谓自定义值', () => {
+  it.each([
+    ['industry', '中华人民共和国先进装备行业标准'],
+    ['local', '浙江省数字技术地方标准'],
+    ['group', '中国工业设计协会团体标准'],
+    ['enterprise', '某科技有限公司企业标准'],
+  ] as const)('%s 将完整覆盖值写入 DOCX 称谓段', (standardType, coverDesignation) => {
+    const pkg = renderCoverPackage({ ...BASE_META, standardType, coverDesignation })
+    expect(docxOutline(pkg)).toContain(`SesCoverDesignationOther │ — │ ${coverDesignation}`)
+  })
+
+  it.each([
+    ['industry', '机械', '中华人民共和国机械行业标准'],
+    ['local', '浙江省', '浙江省地方标准'],
+    ['group', '机械工业协会', '团体标准'],
+    ['enterprise', '某企业', '企业标准'],
+  ] as const)('%s 空覆盖值保持默认输出', (standardType, name, expected) => {
+    const meta: IRDocMeta = {
+      ...BASE_META,
+      standardType,
+      industryName: standardType === 'industry' ? name : undefined,
+      regionName: standardType === 'local' ? name : undefined,
+      coverDesignation: '',
+    }
+    expect(docxOutline(renderCoverPackage(meta))).toContain(`SesCoverDesignationOther │ — │ ${expected}`)
+  })
+
+  it.each([
+    ['gb', '中华人民共和国国家标准'],
+    ['guide', '中华人民共和国国家标准化指导性技术文件'],
+  ] as const)('%s 始终忽略保留的自定义值', (standardType, expected) => {
+    const outline = docxOutline(renderCoverPackage({ ...BASE_META, standardType, coverDesignation: '旧的自定义称谓' }))
+    expect(outline).toContain(`SesCoverDesignation${standardType === 'gb' ? 'Gb' : 'Guide'} │ — │ ${expected}`)
+    expect(outline).not.toContain('旧的自定义称谓')
+  })
+
+  it.each([
+    { standardType: 'industry', coverDesignation: '自定义行业标准', missingField: 'industryName' },
+    { standardType: 'local', coverDesignation: '自定义地方标准', missingField: 'regionName' },
+  ] as const)('提供 $missingField 的替代称谓时不发缺失字段 warning', ({ standardType, coverDesignation, missingField }) => {
+    const pkg = renderCoverPackage({ ...BASE_META, standardType, coverDesignation })
+    expect(pkg.warnings.some((warning) => warning.code === 'cover-field-missing' && warning.message.includes(missingField))).toBe(false)
+  })
+})

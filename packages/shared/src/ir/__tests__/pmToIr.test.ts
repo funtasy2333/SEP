@@ -51,6 +51,7 @@ describe('pmToIr / 元数据', () => {
         filingNo: 'ROOT filing',
         industryName: 'ROOT industry',
         regionName: 'ROOT region',
+        coverDesignation: 'ROOT designation',
       },
       {
         type: 'coverPage',
@@ -60,6 +61,7 @@ describe('pmToIr / 元数据', () => {
           filingNo: 'COVER filing',
           industryName: '',
           regionName: 'COVER region',
+          coverDesignation: 'COVER designation',
         },
         content: [],
       },
@@ -71,6 +73,7 @@ describe('pmToIr / 元数据', () => {
       filingNo: 'COVER filing',
       industryName: 'ROOT industry',
       regionName: 'COVER region',
+      coverDesignation: 'COVER designation',
     })
     expect(warnings).toEqual([])
   })
@@ -83,6 +86,7 @@ describe('pmToIr / 元数据', () => {
       filingNo: 'ROOT filing',
       industryName: 'ROOT industry',
       regionName: 'ROOT region',
+      coverDesignation: 'ROOT designation',
     }))
 
     expect(doc.meta).toMatchObject({
@@ -91,6 +95,7 @@ describe('pmToIr / 元数据', () => {
       filingNo: 'ROOT filing',
       industryName: 'ROOT industry',
       regionName: 'ROOT region',
+      coverDesignation: 'ROOT designation',
     })
   })
 
@@ -105,12 +110,13 @@ describe('pmToIr / 元数据', () => {
           filingNo: '',
           industryName: '',
           regionName: '',
+          coverDesignation: '',
         },
         content: [],
       },
     ))
 
-    for (const key of ['replaces', 'consistency', 'filingNo', 'industryName', 'regionName'] as const) {
+    for (const key of ['replaces', 'consistency', 'filingNo', 'industryName', 'regionName', 'coverDesignation'] as const) {
       expect(key in doc.meta).toBe(false)
     }
   })

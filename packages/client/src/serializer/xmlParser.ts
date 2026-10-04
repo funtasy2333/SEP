@@ -23,7 +23,7 @@ export interface PMJsonMark {
   attrs?: Record<string, unknown>
 }
 
-const SES_COVER_META_KEYS = ['replaces', 'consistency', 'filingNo', 'industryName', 'regionName'] as const
+const SES_COVER_META_KEYS = ['replaces', 'consistency', 'filingNo', 'industryName', 'regionName', 'coverDesignation'] as const
 const LEGACY_COVER_META_KEYS = [
   'standardNo',
   'titleCn',
