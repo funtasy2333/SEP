@@ -142,6 +142,25 @@ for(const [name,shortFirst] of [
  variants.push([name,variant])
 }
 
+// 表头合并覆盖较多数据行，甚至整张表；后续长表必须使用实际输出分段的页流。
+for (const [name, covered, total] of [
+ ['header-rowspan-20-then-long-table',20,110],
+ ['header-rowspan-60-then-long-table',60,110],
+ ['header-rowspan-all-then-long-table',70,70],
+]) {
+ const variant = clone(source)
+ const spanning = clone(longTable)
+ spanning.attrs.nodeId = `${name}-first`
+ spanning.content[0].content = [t('表头跨行合并表')]
+ const spanCell = cell('合并分类',true);spanCell.attrs.rowspan = covered+1
+ spanning.content[1].content = [{type:'tableRow',content:[spanCell,cell('合并记录编号',true),cell('记录说明',true)]},
+  ...Array.from({length:total},(_,i)=>({type:'tableRow',content:[...(i<covered?[]:[cell(`分类${i+1}`)]),cell(`合并记录${i+1}`),cell('检查合并行与后续表格接排。')]}))]
+ spanning.content[2].content[0].attrs.nodeId = `${name}-note`
+ spanning.content[2].content[0].content = [t(`本合并表共${total}条记录，合并表注只出现一次。`)]
+ variant.content[1].content = [variant.content[1].content[0],paragraph('下列表头分类列跨入数据行，检查输出分段与高度记账是否一致。'),spanning,clone(longTable),paragraph('合并表后的长表结束，70条记录应连续完整。')]
+ variants.push([name,variant])
+}
+
 // 接近两整页的数据量：短表旧页定位错误会让后续长表多出一张续页。
 const consecutive = clone(variants.find(([name]) => name === 'heading-short-table-then-long-table')[1])
 const consecutiveTable = consecutive.content[1].content[2].content.at(-1)

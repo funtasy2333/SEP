@@ -1,5 +1,7 @@
 # 强制回退分页与短表整表适配修订（2026-10-04）
 
+> 后续表头rowspan分段与页流意见已核实并移除冗余二次分段，见[第六轮修订](wp7.6-table-flow-review6-2026-10-04.md)。本页保留上一轮实际分页修复的历史证据。
+
 对应提交 `21ad869a4741bff152fc8d03159cfd2505dc3571` 的两条P2：[公式不可估后的真实强制分页](https://github.com/funtasy2333/SEP/pull/43#discussion_r4175506767)、[移页前优先检查完整表格是否能放入旧页](https://github.com/funtasy2333/SEP/pull/43#discussion_r4175506772)。
 
 ## 问题与修正
