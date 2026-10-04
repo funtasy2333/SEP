@@ -70,6 +70,15 @@ it('新建表单中的完整封面称谓同步到文档元数据和生产封面�
   expect(created.content.content?.[0]?.attrs?.coverDesignation).toBe('某科技有限公司企业标准')
 })
 
+it('新建将缺少固定前缀的旧行业称谓规范化，并同步兼容行业名称', () => {
+  const created = createNewDocument({
+    ...blankForm(), type: 'industry', coverDesignation: '先进装备行业标准', industryName: '旧名称',
+  })
+  expect(created.meta.coverDesignation).toBe('中华人民共和国先进装备行业标准')
+  expect(created.meta.industryName).toBe('先进装备')
+  expect(created.content.content?.[0]?.attrs?.coverDesignation).toBe('中华人民共和国先进装备行业标准')
+})
+
 it('新建内容初始化时保留可选封面完整称谓', () => {
   const meta = { ...createNewDocument(blankForm()).meta, coverDesignation: '中华人民共和国定制企业标准' }
   const content = createDefaultDocumentContent(meta)

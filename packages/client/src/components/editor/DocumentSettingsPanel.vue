@@ -66,8 +66,8 @@
               <span class="card-icon"><el-icon><CollectionTag /></el-icon></span>
             </header>
             <div class="field-grid">
-              <el-form-item label="标准类型" class="field-span-2">
-                <el-select v-model="draft.standardType" :disabled="saving" class="full-width" aria-label="标准类型">
+              <el-form-item label="标准类别" class="field-span-2">
+                <el-select v-model="draft.standardType" :disabled="saving" class="full-width" aria-label="标准类别" @change="onStandardTypeChange">
                   <el-option
                     v-if="!knownTypes.has(draft.standardType)"
                     :label="`未知旧类型（${draft.standardType || '空值'}）`"
@@ -80,6 +80,14 @@
                 </el-select>
                 <div v-if="!knownTypes.has(draft.standardType)" class="field-hint">当前值「{{ draft.standardType || '空值' }}」来自旧文档，已原样保留；选择受支持类型后才会更新。</div>
               </el-form-item>
+
+              <StandardTypeNameInput
+                v-if="supportsCustomCoverDesignation"
+                v-model="coverDesignationName"
+                class="field-span-2"
+                :standard-type="draft.standardType"
+                :disabled="saving"
+              />
 
               <el-form-item label="标准中文名称" class="field-span-2 is-required">
                 <el-input
@@ -104,22 +112,13 @@
                 <div class="field-hint">按正式编号完整填写；系统不会推测编号或年份。</div>
               </el-form-item>
 
-              <el-form-item v-if="supportsCustomCoverDesignation" label="封面标准称谓" class="field-span-2">
-                <el-input
-                  v-model="draft.coverDesignation"
-                  :disabled="saving"
-                  :placeholder="coverDesignationPlaceholder"
-                  aria-label="封面标准称谓"
-                />
-                <div class="field-hint">填写完整名称；留空时按标准类型以及行业名称或地方名称自动生成。</div>
-              </el-form-item>
             </div>
           </section>
 
           <section id="settings-classification" class="settings-card" aria-labelledby="settings-classification-title">
             <header class="card-heading">
               <span class="card-number">02</span>
-              <div><h2 id="settings-classification-title">分类与阶段</h2><p>分类号、阶段，以及行业或地方名称</p></div>
+              <div><h2 id="settings-classification-title">分类与阶段</h2><p>维护分类号和文档阶段</p></div>
               <span class="card-icon"><el-icon><Grid /></el-icon></span>
             </header>
             <div class="field-grid">
@@ -144,14 +143,6 @@
                   </el-option>
                 </el-select>
                 <div v-if="!knownStages.has(draft.stage)" class="field-hint">当前值「{{ draft.stage || '空值' }}」来自旧文档，已原样保留；选择受支持阶段后才会更新。</div>
-              </el-form-item>
-              <el-form-item label="行业名称">
-                <el-input v-model="draft.industryName" :disabled="saving" placeholder="用于自动生成行业标准称谓" aria-label="行业名称" />
-                <div class="field-hint">未填写封面标准称谓时，使用此名称自动生成。</div>
-              </el-form-item>
-              <el-form-item label="地方名称">
-                <el-input v-model="draft.regionName" :disabled="saving" placeholder="用于自动生成地方标准称谓" aria-label="地方名称" />
-                <div class="field-hint">未填写封面标准称谓时，使用此名称自动生成。</div>
               </el-form-item>
             </div>
           </section>
@@ -229,8 +220,11 @@ import {
   ArrowRight, Calendar, CircleCheckFilled, CircleCloseFilled, CollectionTag,
   Grid, InfoFilled, OfficeBuilding, Select, Setting,
 } from '@element-plus/icons-vue'
-import { getCoverDesignation } from '@ses/shared'
+import {
+  buildCoverDesignation, getCoverDesignation, getCoverDesignationName, getCoverDesignationParts,
+} from '@ses/shared'
 import { STAGES, STAGE_LABELS, STAGE_SHORT, TYPE_DEFS, TYPE_LABELS } from '@/constants/standards'
+import StandardTypeNameInput from '@/components/StandardTypeNameInput.vue'
 import type { DocumentSettingsDraft } from '@/utils/documentSettings'
 
 const props = defineProps<{
@@ -254,19 +248,28 @@ const sections = [
 const activeSection = ref(sections[0].id)
 const knownTypes = new Set<string>(TYPE_DEFS.map((type) => type.id))
 const knownStages = new Set<string>(STAGES)
-const customDesignationTypes = new Set(['industry', 'local', 'group', 'enterprise'])
-const supportsCustomCoverDesignation = computed(() => customDesignationTypes.has(props.draft.standardType))
+const supportsCustomCoverDesignation = computed(() => getCoverDesignationParts(props.draft.standardType) !== undefined)
 const coverDesignationMeta = computed(() => ({
   standardType: props.draft.standardType,
   coverDesignation: props.draft.coverDesignation,
   industryName: props.draft.industryName.trim(),
   regionName: props.draft.regionName.trim(),
 }))
-const coverDesignationPreview = computed(() => getCoverDesignation(coverDesignationMeta.value))
-const coverDesignationPlaceholder = computed(() => getCoverDesignation({
-  ...coverDesignationMeta.value,
-  coverDesignation: undefined,
-}))
+const coverDesignationName = computed({
+  get: () => getCoverDesignationName(coverDesignationMeta.value),
+  set: (value: string) => {
+    const name = value.trim()
+    props.draft.coverDesignation = name ? buildCoverDesignation(props.draft.standardType, name) : ''
+    if (props.draft.standardType === 'industry') props.draft.industryName = name
+    if (props.draft.standardType === 'local') props.draft.regionName = name
+  },
+})
+const coverDesignationPreview = computed(() => {
+  if (supportsCustomCoverDesignation.value && props.draft.coverDesignation.trim()) {
+    return buildCoverDesignation(props.draft.standardType, getCoverDesignationName(coverDesignationMeta.value))
+  }
+  return getCoverDesignation(coverDesignationMeta.value)
+})
 const typeName = computed(() => Object.prototype.hasOwnProperty.call(TYPE_LABELS, props.draft.standardType)
   ? TYPE_LABELS[props.draft.standardType]
   : `旧类型：${props.draft.standardType || '未设置'}`)
@@ -282,6 +285,10 @@ const statusText = computed(() => {
 function scrollToSection(id: string) {
   activeSection.value = id
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function onStandardTypeChange() {
+  props.draft.coverDesignation = ''
 }
 
 function onScroll(event: Event) {

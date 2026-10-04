@@ -2,7 +2,7 @@
   <el-dialog
     v-model="visible"
     :show-close="false"
-    width="960px"
+    width="min(960px, calc(100vw - 24px))"
     align-center
     class="new-doc-dialog"
     @open="onOpen"
@@ -26,6 +26,7 @@
           <div class="stdno">
             {{ newDocumentStandardNo(form) }}
           </div>
+          <div class="designation-cn">{{ coverDesignationPreview }}</div>
           <div class="title-cn">{{ form.titleCn || '请输入文件名称…' }}</div>
           <div class="title-en">{{ form.titleEn || 'English title (optional)' }}</div>
         </div>
@@ -75,7 +76,7 @@
         <!-- 1. Type -->
         <section class="form-section">
           <header>
-            <h3><span class="idx">01</span>标准类型</h3>
+            <h3><span class="idx">01</span>标准类别</h3>
             <p>编号前缀与模板将基于此自动设置。</p>
           </header>
           <div class="type-grid">
@@ -84,7 +85,7 @@
               :key="t.id"
               class="type-radio"
               :class="{ 'is-active': form.type === t.id }"
-              @click="form.type = t.id"
+              @click="selectType(t.id)"
             >
               <span class="glyph">{{ t.glyph }}</span>
               <div class="info">
@@ -93,6 +94,12 @@
               </div>
             </button>
           </div>
+          <el-form v-if="customDesignationTypes.has(form.type)" label-position="top" :model="form">
+            <StandardTypeNameInput
+              v-model="coverDesignationName"
+              :standard-type="form.type"
+            />
+          </el-form>
         </section>
 
         <!-- 2. Basic info -->
@@ -235,9 +242,11 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Close, Check, Plus, MagicStick } from '@element-plus/icons-vue'
+import { buildCoverDesignation, getCoverDesignation, getCoverDesignationName } from '@ses/shared'
 import {
   STAGE_LABELS, STAGE_SHORT, STAGES, TYPE_DEFS,
 } from '@/constants/standards'
+import StandardTypeNameInput from '@/components/StandardTypeNameInput.vue'
 import { newDocumentStandardNo, STANDARD_NO_PLACEHOLDER, type NewDocForm } from '@/utils/newDocument'
 
 const props = defineProps<{
@@ -269,14 +278,38 @@ const form = ref<NewDocForm>({
   technicalCommittee: '',
   replaces: '',
   consistency: '',
+  industryName: '',
+  regionName: '',
+  coverDesignation: '',
 })
 
 const activeStep = ref<'type' | 'basic' | 'classify' | 'contrib'>('type')
 const titleInputRef = ref<{ focus: () => void } | null>(null)
+const customDesignationTypes = new Set(['industry', 'local', 'group', 'enterprise'])
 
 const typeDef = computed(() =>
   TYPE_DEFS.find((t) => t.id === form.value.type) || TYPE_DEFS[0],
 )
+const coverDesignationName = computed({
+  get: () => getCoverDesignationName({
+    standardType: form.value.type,
+    coverDesignation: form.value.coverDesignation,
+    industryName: form.value.industryName,
+    regionName: form.value.regionName,
+  }),
+  set: (value: string) => {
+    const name = value.trim()
+    form.value.coverDesignation = name ? buildCoverDesignation(form.value.type, name) : ''
+    if (form.value.type === 'industry') form.value.industryName = name
+    if (form.value.type === 'local') form.value.regionName = name
+  },
+})
+const coverDesignationPreview = computed(() => getCoverDesignation({
+  standardType: form.value.type,
+  coverDesignation: form.value.coverDesignation,
+  industryName: form.value.industryName,
+  regionName: form.value.regionName,
+}))
 
 const steps = computed(() => [
   { id: 'type' as const,     label: '标准类型',     meta: typeDef.value.name },
@@ -309,10 +342,18 @@ watch(() => props.modelValue, (open) => {
       technicalCommittee: '',
       replaces: '',
       consistency: '',
+      industryName: '',
+      regionName: '',
+      coverDesignation: '',
     }
     activeStep.value = 'type'
   }
 })
+
+function selectType(type: NewDocForm['type']) {
+  if (form.value.type !== type) form.value.coverDesignation = ''
+  form.value.type = type
+}
 
 function onOpen() {
   nextTick(() => titleInputRef.value?.focus())
@@ -388,6 +429,7 @@ window.addEventListener('keydown', onKey)
   letter-spacing: 0.06em;
   color: var(--ses-ink-3);
 }
+.designation-cn { margin-top: 10px; color: var(--ses-ink-2); font-size: 12px; }
 .title-cn {
   font-family: var(--ses-font-zh-hei);
   font-size: 18px;
@@ -575,4 +617,21 @@ window.addEventListener('keydown', onKey)
 .new-doc-dialog .el-dialog__body { padding: 20px 24px; max-height: 70vh; overflow-y: auto; }
 .new-doc-dialog .el-dialog__footer { padding: 14px 24px; background: var(--ses-surface-2); }
 .new-doc-dialog .el-form-item__label { padding-bottom: 4px; font-size: 11.5px; font-weight: 500; color: var(--ses-ink-2); display: flex; align-items: center; }
+
+@media (max-width: 720px) {
+  .new-doc-dialog .el-dialog__body { padding: 16px; max-height: 72dvh; }
+  .new-doc-dialog .el-dialog__header { padding: 14px 16px; }
+  .new-doc-dialog .el-dialog__footer { padding: 12px 16px; }
+  .new-doc-dialog .dlg-preview { margin: -16px -16px 16px; padding: 16px; }
+  .new-doc-dialog .mini-cover { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 16px; }
+  .new-doc-dialog .mini-cover .right { align-items: flex-start; }
+  .new-doc-dialog .dlg-body { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .new-doc-dialog .dlg-steps { display: none; }
+  .new-doc-dialog .type-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .new-doc-dialog .type-radio { min-width: 0; gap: 8px; padding: 10px 9px; }
+  .new-doc-dialog .type-radio .glyph { width: 32px; height: 32px; }
+  .new-doc-dialog .dlg-foot { flex-wrap: wrap; }
+  .new-doc-dialog .foot-l { flex: 1 1 100%; }
+  .new-doc-dialog .foot-r { margin-left: auto; }
+}
 </style>

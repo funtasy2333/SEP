@@ -97,6 +97,34 @@ describe('文件设置草稿与封面同步', () => {
     })
   })
 
+  it('设置保存把非空旧完整称谓规范成前后缀加片段，空覆盖值保持为空', () => {
+    const draft = documentSettingsDraftFromDocument({
+      title: '行业称谓规范化',
+      meta: { ...documentMeta, standardType: 'industry' } as DocumentMeta,
+      stage: 'working_draft',
+      content: legacyContent(),
+    })
+    const normalized = documentMetaFromSettingsDraft(documentMeta, {
+      ...draft,
+      standardType: 'industry',
+      coverDesignation: '先进装备行业标准',
+      industryName: '旧行业名称',
+    })
+    expect(normalized).toMatchObject({
+      coverDesignation: '中华人民共和国先进装备行业标准',
+      industryName: '先进装备',
+    })
+
+    const cleared = documentMetaFromSettingsDraft(documentMeta, {
+      ...draft,
+      standardType: 'industry',
+      coverDesignation: '',
+      industryName: '',
+    })
+    expect(cleared.coverDesignation).toBe('')
+    expect(cleared.industryName).toBe('')
+  })
+
   it('空的可选字段显式清除，扩展元数据保留，生产 schema 下前言、正文和节点 ID不变', () => {
     const original = legacyContent()
     const source = schema.nodeFromJSON(original)

@@ -1,4 +1,5 @@
 import type { DocumentMeta, DocumentStage, StandardType, PMJsonNode } from '@ses/shared'
+import { buildCoverDesignation, getCoverDesignationName, getCoverDesignationParts } from '@ses/shared'
 import { TYPE_DEFS } from '../constants/standards'
 
 export interface NewDocForm {
@@ -16,6 +17,8 @@ export interface NewDocForm {
   technicalCommittee: string
   replaces: string
   consistency: string
+  industryName?: string
+  regionName?: string
   coverDesignation?: string
 }
 
@@ -67,6 +70,16 @@ export function createDefaultDocumentContent(meta?: DocumentMeta): PMJsonNode & 
 /** 一次创建即保存元数据和初始化正文，避免重新打开前文档只有空content。 */
 export function createNewDocument(form: NewDocForm) {
   const optional = (value: string) => value.trim() || undefined
+  const designationName = getCoverDesignationName({
+    standardType: form.type,
+    coverDesignation: form.coverDesignation,
+    industryName: form.industryName,
+    regionName: form.regionName,
+  })
+  const hasCustomParts = getCoverDesignationParts(form.type) !== undefined
+  const coverDesignation = hasCustomParts
+    ? optional(designationName ? buildCoverDesignation(form.type, designationName) : '')
+    : optional(form.coverDesignation ?? '')
   const meta: DocumentMeta = {
     titleCn: form.titleCn.trim(),
     titleEn: optional(form.titleEn),
@@ -80,7 +93,9 @@ export function createNewDocument(form: NewDocForm) {
     technicalCommittee: optional(form.technicalCommittee),
     replaces: optional(form.replaces),
     consistency: optional(form.consistency),
-    coverDesignation: optional(form.coverDesignation ?? ''),
+    industryName: form.type === 'industry' ? optional(designationName) : optional(form.industryName ?? ''),
+    regionName: form.type === 'local' ? optional(designationName) : optional(form.regionName ?? ''),
+    coverDesignation,
   }
   return { title: meta.titleCn, stage: form.stage, meta, content: createDefaultDocumentContent(meta) }
 }

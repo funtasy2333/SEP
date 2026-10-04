@@ -1,4 +1,7 @@
-import { pmToIr, type Document, type DocumentMeta, type PMJsonNode } from '@ses/shared'
+import {
+  buildCoverDesignation, getCoverDesignationName, getCoverDesignationParts, pmToIr,
+  type Document, type DocumentMeta, type PMJsonNode,
+} from '@ses/shared'
 
 /** Editable settings live in a form draft; optional fields stay strings so blank means clear. */
 export interface DocumentSettingsDraft {
@@ -122,6 +125,18 @@ export function documentMetaFromSettingsDraft(
   currentMeta: DocumentMeta,
   draft: DocumentSettingsDraft,
 ): DocumentMeta {
+  const coverDesignation = draft.coverDesignation.trim()
+  const structuredDesignation = getCoverDesignationParts(draft.standardType) !== undefined
+  const designationName = getCoverDesignationName({
+    standardType: draft.standardType,
+    coverDesignation,
+    industryName: draft.industryName,
+    regionName: draft.regionName,
+  })
+  const normalizedDesignation = structuredDesignation && coverDesignation
+    ? buildCoverDesignation(draft.standardType, designationName)
+    : coverDesignation
+
   return {
     ...currentMeta,
     standardType: draft.standardType as DocumentMeta['standardType'],
@@ -139,9 +154,11 @@ export function documentMetaFromSettingsDraft(
     publishDate: draft.publishDate.trim(),
     implementDate: draft.implementDate.trim(),
     filingNo: draft.filingNo.trim(),
-    industryName: draft.industryName.trim(),
-    regionName: draft.regionName.trim(),
-    coverDesignation: draft.coverDesignation.trim(),
+    industryName: structuredDesignation && coverDesignation && draft.standardType === 'industry'
+      ? designationName : draft.industryName.trim(),
+    regionName: structuredDesignation && coverDesignation && draft.standardType === 'local'
+      ? designationName : draft.regionName.trim(),
+    coverDesignation: normalizedDesignation,
   }
 }
 
