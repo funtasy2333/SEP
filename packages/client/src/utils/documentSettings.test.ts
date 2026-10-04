@@ -52,7 +52,7 @@ const documentMeta = {
   customSettingsEvidence: { preserved: true },
 } as DocumentMeta
 
-describe('文档设置草稿与封面同步', () => {
+describe('文件设置草稿与封面同步', () => {
   it('数据库明确值优先，旧文档缺失字段从有效封面回填，未知类型原样保留', () => {
     const content = legacyContent()
     const draft = documentSettingsDraftFromDocument({

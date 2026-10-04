@@ -21,7 +21,7 @@
           文件编辑<span v-if="dirty" class="tab-dirty-mark" aria-label="正文有未保存修改" />
         </button>
         <button class="ed-tab" :class="{ 'is-active': activeTab === 'settings' }" @click="activeTab = 'settings'">
-          文档设置<span v-if="settingsDirty" class="tab-dirty-mark settings-mark" aria-label="设置有未保存修改" />
+          文件设置<span v-if="settingsDirty" class="tab-dirty-mark settings-mark" aria-label="设置有未保存修改" />
         </button>
         <button class="ed-tab" :class="{ 'is-active': activeTab === 'preview' }" @click="activeTab = 'preview'">预览</button>
       </nav>
@@ -683,7 +683,7 @@ async function handleSettingsSave() {
     if (bodyChangeVersion === bodyVersionAtSave) dirty.value = false
     else dirty.value = true
     lastSaved.value = new Date().toLocaleTimeString('zh-CN')
-    ElMessage.success('文档设置已保存')
+    ElMessage.success('文件设置已保存')
   } catch (error) {
     settingsSaveError.value = true
     ElMessage.error(`设置保存失败，草稿已保留${error instanceof Error ? `：${error.message}` : ''}`)
@@ -786,8 +786,8 @@ onBeforeRouteLeave(async () => {
   if (!settingsDirty.value) return true
   try {
     await ElMessageBox.confirm(
-      '文档设置中有尚未保存的修改，离开后这些修改将丢失。',
-      '离开文档设置？',
+      '文件设置中有尚未保存的修改，离开后这些修改将丢失。',
+      '离开文件设置？',
       { confirmButtonText: '离开并放弃修改', cancelButtonText: '继续编辑', type: 'warning' },
     )
     return true
@@ -1459,7 +1459,7 @@ function handleExport() {
     return
   }
   if (settingsDirty.value) {
-    ElMessage.warning('文档设置有未保存修改，请先保存或重置')
+    ElMessage.warning('文件设置有未保存修改，请先保存或重置')
     activeTab.value = 'settings'
     return
   }
@@ -1480,7 +1480,7 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
     return
   }
   if (settingsDirty.value) {
-    ElMessage.warning('文档设置有未保存修改，请先保存或重置')
+    ElMessage.warning('文件设置有未保存修改，请先保存或重置')
     activeTab.value = 'settings'
     showExport.value = false
     return
@@ -1601,7 +1601,7 @@ function downloadBlob(blob: Blob, filename: string) {
 /** 复制代码内容 */
 function copyCodeContent() {
   if (persistenceOperation.value !== null || settingsDirty.value) {
-    ElMessage.warning(settingsDirty.value ? '文档设置有未保存修改，请先保存或重置' : '文档保存或导入完成后再复制')
+    ElMessage.warning(settingsDirty.value ? '文件设置有未保存修改，请先保存或重置' : '文档保存或导入完成后再复制')
     return
   }
   const doc = getSynchronizedEditorDoc()
@@ -1623,7 +1623,7 @@ function copyCodeContent() {
 /** 下载代码内容 */
 function downloadCodeContent() {
   if (persistenceOperation.value !== null || settingsDirty.value) {
-    ElMessage.warning(settingsDirty.value ? '文档设置有未保存修改，请先保存或重置' : '文档保存或导入完成后再下载')
+    ElMessage.warning(settingsDirty.value ? '文件设置有未保存修改，请先保存或重置' : '文档保存或导入完成后再下载')
     return
   }
   const formatInfo: Record<string, { ext: string; mime: string }> = {
@@ -1674,7 +1674,7 @@ function handleXmlFileImport(event: Event) {
   }
   if (settingsDirty.value) {
     input.value = ''
-    ElMessage.warning('文档设置有未保存修改，请先保存或重置')
+    ElMessage.warning('文件设置有未保存修改，请先保存或重置')
     activeTab.value = 'settings'
     return
   }

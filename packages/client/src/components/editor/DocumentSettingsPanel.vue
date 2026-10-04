@@ -1,10 +1,10 @@
 <template>
-  <main class="settings-page ses-scroll" aria-label="文档设置">
+  <main class="settings-page ses-scroll" aria-label="文件设置">
     <div class="settings-layout">
       <aside class="settings-rail">
         <div class="rail-heading">
           <span class="rail-mark"><el-icon><Setting /></el-icon></span>
-          <div><strong>文档设置</strong><span>DOCUMENT PROFILE</span></div>
+          <div><strong>文件设置</strong><span>DOCUMENT PROFILE</span></div>
         </div>
         <nav class="section-nav" aria-label="设置分组">
           <button
@@ -30,7 +30,7 @@
         <header class="settings-heading">
           <div>
             <div class="settings-eyebrow">DOCUMENT PROFILE</div>
-            <h1>文档设置</h1>
+            <h1>文件设置</h1>
             <p>维护标准文件的基础信息、分类阶段、发布字段与相关单位。</p>
           </div>
           <span class="draft-state" :class="{ 'is-dirty': dirty, 'is-saving': saving }">
