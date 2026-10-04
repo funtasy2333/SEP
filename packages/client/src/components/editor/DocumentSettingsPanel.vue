@@ -67,7 +67,7 @@
             </header>
             <div class="field-grid">
               <el-form-item label="标准类别" class="field-span-2">
-                <el-select v-model="draft.standardType" :disabled="saving" class="full-width" aria-label="标准类别" @change="onStandardTypeChange">
+                <el-select :model-value="draft.standardType" :disabled="saving" class="full-width" aria-label="标准类别" @update:model-value="onStandardTypeUpdate">
                   <el-option
                     v-if="!knownTypes.has(draft.standardType)"
                     :label="`未知旧类型（${draft.standardType || '空值'}）`"
@@ -225,6 +225,7 @@ import {
 } from '@ses/shared'
 import { STAGES, STAGE_LABELS, STAGE_SHORT, TYPE_DEFS, TYPE_LABELS } from '@/constants/standards'
 import StandardTypeNameInput from '@/components/StandardTypeNameInput.vue'
+import { useCoverDesignationDraft } from '@/composables/useCoverDesignationDraft'
 import type { DocumentSettingsDraft } from '@/utils/documentSettings'
 
 const props = defineProps<{
@@ -249,6 +250,11 @@ const activeSection = ref(sections[0].id)
 const knownTypes = new Set<string>(TYPE_DEFS.map((type) => type.id))
 const knownStages = new Set<string>(STAGES)
 const supportsCustomCoverDesignation = computed(() => getCoverDesignationParts(props.draft.standardType) !== undefined)
+const designationDraft = useCoverDesignationDraft({
+  getDraft: () => props.draft,
+  getType: (draft) => draft.standardType,
+  setType: (draft, type) => { draft.standardType = type },
+})
 const coverDesignationMeta = computed(() => ({
   standardType: props.draft.standardType,
   coverDesignation: props.draft.coverDesignation,
@@ -256,13 +262,8 @@ const coverDesignationMeta = computed(() => ({
   regionName: props.draft.regionName.trim(),
 }))
 const coverDesignationName = computed({
-  get: () => getCoverDesignationName(coverDesignationMeta.value),
-  set: (value: string) => {
-    const name = value.trim()
-    props.draft.coverDesignation = name ? buildCoverDesignation(props.draft.standardType, name) : ''
-    if (props.draft.standardType === 'industry') props.draft.industryName = name
-    if (props.draft.standardType === 'local') props.draft.regionName = name
-  },
+  get: designationDraft.getName,
+  set: designationDraft.setName,
 })
 const coverDesignationPreview = computed(() => {
   if (supportsCustomCoverDesignation.value && props.draft.coverDesignation.trim()) {
@@ -287,8 +288,8 @@ function scrollToSection(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
-function onStandardTypeChange() {
-  props.draft.coverDesignation = ''
+function onStandardTypeUpdate(type: string) {
+  designationDraft.changeType(type)
 }
 
 function onScroll(event: Event) {

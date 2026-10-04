@@ -242,11 +242,12 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Close, Check, Plus, MagicStick } from '@element-plus/icons-vue'
-import { buildCoverDesignation, getCoverDesignation, getCoverDesignationName } from '@ses/shared'
+import { getCoverDesignation } from '@ses/shared'
 import {
   STAGE_LABELS, STAGE_SHORT, STAGES, TYPE_DEFS,
 } from '@/constants/standards'
 import StandardTypeNameInput from '@/components/StandardTypeNameInput.vue'
+import { useCoverDesignationDraft } from '@/composables/useCoverDesignationDraft'
 import { newDocumentStandardNo, STANDARD_NO_PLACEHOLDER, type NewDocForm } from '@/utils/newDocument'
 
 const props = defineProps<{
@@ -286,23 +287,18 @@ const form = ref<NewDocForm>({
 const activeStep = ref<'type' | 'basic' | 'classify' | 'contrib'>('type')
 const titleInputRef = ref<{ focus: () => void } | null>(null)
 const customDesignationTypes = new Set(['industry', 'local', 'group', 'enterprise'])
+const designationDraft = useCoverDesignationDraft({
+  getDraft: () => form.value,
+  getType: (draft) => draft.type,
+  setType: (draft, type) => { draft.type = type },
+})
 
 const typeDef = computed(() =>
   TYPE_DEFS.find((t) => t.id === form.value.type) || TYPE_DEFS[0],
 )
 const coverDesignationName = computed({
-  get: () => getCoverDesignationName({
-    standardType: form.value.type,
-    coverDesignation: form.value.coverDesignation,
-    industryName: form.value.industryName,
-    regionName: form.value.regionName,
-  }),
-  set: (value: string) => {
-    const name = value.trim()
-    form.value.coverDesignation = name ? buildCoverDesignation(form.value.type, name) : ''
-    if (form.value.type === 'industry') form.value.industryName = name
-    if (form.value.type === 'local') form.value.regionName = name
-  },
+  get: designationDraft.getName,
+  set: designationDraft.setName,
 })
 const coverDesignationPreview = computed(() => getCoverDesignation({
   standardType: form.value.type,
@@ -351,8 +347,7 @@ watch(() => props.modelValue, (open) => {
 })
 
 function selectType(type: NewDocForm['type']) {
-  if (form.value.type !== type) form.value.coverDesignation = ''
-  form.value.type = type
+  designationDraft.changeType(type)
 }
 
 function onOpen() {
