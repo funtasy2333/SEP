@@ -1,7 +1,7 @@
 /**
  * WP7.6 浏览器验收：真实 UI → 隔离 SQLite API → 重开 → 复制 → 下载。
  * node packages/client/scripts/wp76-browser-flow.mjs <source.xml> <output-dir>
- * 只允许 http://localhost:5174 的空文档库；先将 Vite /api 代理指向独立工作树的 3076 服务。
+ * 只允许本机空文档库（默认5174，可由WP76_BROWSER_ORIGIN指定隔离端口）；先将 Vite /api 代理指向独立工作树的 3076 服务。
  * 输入的真实性须人工确认；脚本不会把输入文件认定为真实标准文稿。
  * 使用 server 已有 playwright-chromium，不新增依赖，不进入 CI。
  */
@@ -18,7 +18,9 @@ const sourceBytes = await readFile(source)
 await mkdir(output, { recursive: true })
 const browser = await chromium.launch({ headless: true })
 const page = await browser.newPage({ viewport: { width: 1440, height: 1100 }, acceptDownloads: true })
-const origin = 'http://localhost:5174'
+const origin = process.env.WP76_BROWSER_ORIGIN || 'http://localhost:5174'
+const originUrl = new URL(origin)
+if (originUrl.protocol !== 'http:' || !['localhost', '127.0.0.1'].includes(originUrl.hostname) || originUrl.origin !== origin) throw new Error('验收只允许本机HTTP origin')
 const evidence = { source, sourceSha256: createHash('sha256').update(sourceBytes).digest('hex'),
   sourceQualification: source.includes('/__fixtures__/') ? 'fixture' : 'unconfirmed: caller must identify real manuscript or fixture',
   origin, status: 'in-progress', steps: [], artifacts: [], consoleErrors: [] }

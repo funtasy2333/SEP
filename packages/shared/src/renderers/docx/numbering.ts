@@ -226,6 +226,8 @@ export interface NumberingAllocator {
   allocListInstance(abstractNumId: number): number
   /** 汇总 16 个 abstractNum + 8 个固定实例 + 已分配的按需实例，生成完整 word/numbering.xml（含 XML 声明） */
   buildNumberingXml(): string
+  /** 与生成的编号级别同源的段落缩进，供页流估算使用。 */
+  getIndent(numId: number, ilvl: number): string | undefined
 }
 
 const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -239,9 +241,11 @@ export function createNumberingAllocator(): NumberingAllocator {
   const appendixFigureIds = new Map<string, number>()
   const appendixTableIds = new Map<string, number>()
   const dynamicNums: string[] = []
+  const abstractIds = new Map(FIXED_ABSTRACT_NUM_IDS.map(id => [id, id] as [number, number]))
 
-  function nextId(): number {
+  function nextId(abstractId: number): number {
     const id = nextDynamicId
+    abstractIds.set(id, abstractId)
     nextDynamicId += 1
     return id
   }
@@ -249,7 +253,7 @@ export function createNumberingAllocator(): NumberingAllocator {
   return {
     allocNoteInstance(scopeKey, ordinalInScope) {
       if (lastNoteScope === scopeKey && lastNoteNumId !== undefined) return lastNoteNumId
-      const id = nextId()
+      const id = nextId(ABSTRACT_NUM_ID.noteGroup)
       dynamicNums.push(overrideOnlyNumXml(id, ABSTRACT_NUM_ID.noteGroup, [{ ilvl: 0, start: ordinalInScope }]))
       lastNoteScope = scopeKey
       lastNoteNumId = id
@@ -257,7 +261,7 @@ export function createNumberingAllocator(): NumberingAllocator {
     },
     allocExampleInstance(scopeKey, ordinalInScope) {
       if (lastExampleScope === scopeKey && lastExampleNumId !== undefined) return lastExampleNumId
-      const id = nextId()
+      const id = nextId(ABSTRACT_NUM_ID.exampleGroup)
       dynamicNums.push(overrideOnlyNumXml(id, ABSTRACT_NUM_ID.exampleGroup, [{ ilvl: 0, start: ordinalInScope }]))
       lastExampleScope = scopeKey
       lastExampleNumId = id
@@ -266,7 +270,7 @@ export function createNumberingAllocator(): NumberingAllocator {
     allocAppendixFigureInstance(appendixId, letter) {
       const existing = appendixFigureIds.get(appendixId)
       if (existing !== undefined) return existing
-      const id = nextId()
+      const id = nextId(ABSTRACT_NUM_ID.appendixFigure)
       dynamicNums.push(appendixOverrideNumXml(id, ABSTRACT_NUM_ID.appendixFigure, `图${letter}.%1${SP}`))
       appendixFigureIds.set(appendixId, id)
       return id
@@ -274,13 +278,13 @@ export function createNumberingAllocator(): NumberingAllocator {
     allocAppendixTableInstance(appendixId, letter) {
       const existing = appendixTableIds.get(appendixId)
       if (existing !== undefined) return existing
-      const id = nextId()
+      const id = nextId(ABSTRACT_NUM_ID.appendixTable)
       dynamicNums.push(appendixOverrideNumXml(id, ABSTRACT_NUM_ID.appendixTable, `表${letter}.%1${SP}`))
       appendixTableIds.set(appendixId, id)
       return id
     },
     allocListInstance(abstractNumId) {
-      const id = nextId()
+      const id = nextId(abstractNumId)
       dynamicNums.push(
         overrideOnlyNumXml(id, abstractNumId, [
           { ilvl: 0, start: 1 },
@@ -288,6 +292,9 @@ export function createNumberingAllocator(): NumberingAllocator {
         ]),
       )
       return id
+    },
+    getIndent(numId, ilvl) {
+      return ABSTRACT_NUM_DEFS.find(def => def.id === abstractIds.get(numId))?.levels.find(level => level.ilvl === ilvl)?.ind
     },
     buildNumberingXml() {
       const children: XmlChild[] = []

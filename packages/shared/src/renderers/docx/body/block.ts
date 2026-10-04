@@ -228,52 +228,57 @@ function renderFigure(ctx: RenderContext, figure: IRFigure, bctx: BlockCtx): str
 }
 
 function renderTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx): string {
+  const nested = ctx.pageFlow.isSuspended
+  return ctx.pageFlow.suspend(() => renderTableContent(ctx, table, bctx, nested))
+}
+
+function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, nested: boolean): string {
   const captionRuns = renderInlines(table.caption, ctx.labels)
   const numbered = { nodeId: table.id, kind: 'table' as const }
-  const pagination = paginateTable(table)
+  const flowOptions = nested ? {} : ctx.pageFlow.beforeTable()
+  const pagination = paginateTable(table, flowOptions)
+  if (!nested && flowOptions.forceStartOnNewPage) {
+    warn(ctx, 'table-flow-estimate-unavailable',
+      `表格 "${table.id}" 前的内容无法可靠确定页位置，首段改从新页排起，请在 Word 中复核表前余量`, table.id)
+  }
   if (pagination.oversizedGroup) {
     warn(ctx, 'table-row-too-tall',
       `表格 "${table.id}" 存在超出单页高度预算的跨行合并组，续表分页可能需要人工调整`, table.id)
   }
   if (pagination.footerTooTall) {
     warn(ctx, 'table-footer-too-tall',
-      `表格 "${table.id}" 的表注与表脚注超过单页高度预算，可能需要人工分页调整`, table.id)
+      `表格 "${table.id}" 的表题、重复表头与表尾组合超过单页高度预算，可能需要人工分页调整`, table.id)
   }
+  if (pagination.finalSegmentOverflow) {
+    warn(ctx, 'table-final-segment-too-tall',
+      `表格 "${table.id}" 的末段余量不足以同时容纳最后数据组和表注/表脚注，可能需要人工分页调整`, table.id)
+  }
+  // An explicit break on the caption overrides the preceding keepNext chain in Word.
+  // Single-line chains can relocate naturally. A chain containing a splittable
+  // paragraph may instead start on the old page, so moving its first table segment
+  // needs a real chain-start break too. Resolve it without splitting at the caption.
+  const forcedChainBreak = !nested && pagination.startOnNewPage &&
+    ctx.pageFlow.breakBeforePendingChain(!flowOptions.forceStartOnNewPage)
+  const pageBreakBefore = pagination.startOnNewPage && !forcedChainBreak &&
+    (flowOptions.forceStartOnNewPage || !((flowOptions.firstPageReservedMm ?? 0) > 0))
   let captionXml: string
   if (bctx.appendix) {
     const numId = ctx.numbering.allocAppendixTableInstance(bctx.appendix.id, bctx.appendix.letter)
     captionXml = emitParagraph(ctx, 'SesAppTblCap', {
       numPr: { numId, ilvl: 0 }, runsXml: captionRuns, numbered,
-      pageBreakBefore: pagination.startOnNewPage,
+      pageBreakBefore,
     })
   } else {
     captionXml = emitParagraph(ctx, 'SesTblCap', {
-      runsXml: captionRuns, numbered, pageBreakBefore: pagination.startOnNewPage,
+      runsXml: captionRuns, numbered, pageBreakBefore,
     })
   }
   const tableBctx = { ...withScope(bctx, table.id), suppressLandscape: true }
   const headerRowCount = Math.max(0, Math.min(Math.floor(table.headerRowCount), table.rows.length))
   const headerRows = table.rows.slice(0, headerRowCount)
-  // A header merge may continue into data rows. Keep every covered row in the first segment so
-  // the original vMerge remains intact; repeated headers in later segments must stop at the
-  // header boundary or they would occupy cells belonging to that segment's first data row.
-  const headerSpanEnd = headerRows.reduce((end, row, rowIndex) => Math.max(end,
-    ...row.cells.map((cell) => rowIndex + cell.rowspan)), headerRowCount)
-  let bodySegments = pagination.bodySegments
-  const coveredBodyRowCount = headerSpanEnd - headerRowCount
-  if (coveredBodyRowCount > 0 && bodySegments.length > 0) {
-    const firstSegment = [...bodySegments[0]!]
-    let nextSegmentIndex = 1
-    while (firstSegment.length < coveredBodyRowCount && nextSegmentIndex < bodySegments.length) {
-      firstSegment.push(...bodySegments[nextSegmentIndex]!)
-      nextSegmentIndex += 1
-    }
-    if (nextSegmentIndex > 1) {
-      warn(ctx, 'table-header-rowspan-pagination',
-        `表格 "${table.id}" 的表头合并跨越表头行数，已将其覆盖的数据行并入首段；首段可能超过分页高度估算`, table.id)
-      bodySegments = [firstSegment, ...bodySegments.slice(nextSegmentIndex)]
-    }
-  }
+  // paginateTable already groups all header/body rowspan dependencies. Emit that exact
+  // plan so segment heights, continuation captions/headers and the final footer agree.
+  const bodySegments = pagination.bodySegments
   const continuationHeaderRows = headerRows.map((row, rowIndex) => ({
     ...row,
     cells: row.cells.map((cell) => {
@@ -326,12 +331,19 @@ function renderTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx): string
       },
     })
   })
+  if (!nested) ctx.pageFlow.placeTable(pagination.segmentHeightsMm, pagination.startOnNewPage)
   return out
 }
 
 // ---------------- 通用分发 ----------------
 
 export function renderBlock(ctx: RenderContext, block: IRBlock, bctx: BlockCtx): string {
+  if (bctx.suppressLandscape) return renderBlockContent(ctx, block, bctx)
+  const landscape = (block.kind === 'figure' || block.kind === 'table') && block.orientation === 'landscape'
+  return ctx.pageFlow.withElement(landscape, () => renderBlockContent(ctx, block, bctx))
+}
+
+function renderBlockContent(ctx: RenderContext, block: IRBlock, bctx: BlockCtx): string {
   if (!bctx.suppressLandscape && (block.kind === 'figure' || block.kind === 'table') && block.orientation === 'landscape') {
     const xml = block.kind === 'figure' ? renderFigure(ctx, block, bctx) : renderTable(ctx, block, bctx)
     return `${LANDSCAPE_START}${xml}${LANDSCAPE_END}`

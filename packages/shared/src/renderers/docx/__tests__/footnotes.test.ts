@@ -92,6 +92,15 @@ describe('DOCX 原生脚注与表脚注', () => {
     assertChildOrder(pkg)
   })
 
+  it.each([true, false])('含条文脚注时仅混合横排发出实际分页限制提示：横排=%s', (landscape) => {
+    const doc = footnoteFixture()
+    const table = doc.body[0]!.children[0] as IRTable
+    table.orientation = landscape ? 'landscape' : 'portrait'
+    const { labels } = resolve(doc)
+    const { pkg } = renderDocxTraced(doc, labels, OPTIONS)
+    expect(pkg.warnings.filter(warning => warning.code === 'footnote-landscape-separator')).toHaveLength(landscape ? 1 : 0)
+  })
+
   it('无脚注文档继续省略脚注部件与新增脚注样式', () => {
     const doc = footnoteFixture()
     doc.front.foreword = []

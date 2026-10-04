@@ -7,6 +7,7 @@ import type { IRFormula, IRTable, IRTableRow, NodeId, ResolvedLabel } from '../.
 import { findChild, parseXml, type XmlElement } from '../__tests__/helpers/xmlTree'
 import { renderBlock } from './block'
 import { createRenderContext } from './context'
+import { paginateTable } from './tablePagination'
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
 const SONG_FONT_ATTRS = {
@@ -54,21 +55,21 @@ function tableCell(id: string, text: string, options: { header?: boolean; rowspa
   }
 }
 
-function tableWithHeaderRowspan(): IRTable {
+function tableWithHeaderRowspan(coveredRows = 2, rowCount = 64, longFirst = true): IRTable {
   const header: IRTableRow = {
     id: 'header-row',
     cells: [
-      tableCell('merged-header', '分类', { header: true, rowspan: 3 }),
+      tableCell('merged-header', '分类', { header: true, rowspan: coveredRows + 1 }),
       tableCell('header-name', '名称', { header: true }),
       tableCell('header-value', '取值', { header: true }),
     ],
   }
-  const bodyRows: IRTableRow[] = Array.from({ length: 64 }, (_, index) => ({
+  const bodyRows: IRTableRow[] = Array.from({ length: rowCount }, (_, index) => ({
     id: `body-row-${index + 1}`,
-    // The merged header occupies column 1 in the next two rows. Later rows have all columns.
-    cells: index < 2
+    // The merged header occupies column 1 throughout the covered rows.
+    cells: index < coveredRows
       ? [
-        tableCell(`body-name-${index + 1}`, index === 0 ? '长内容'.repeat(2500) : `名称-${index + 1}`),
+        tableCell(`body-name-${index + 1}`, longFirst && index === 0 ? '长内容'.repeat(2500) : `名称-${index + 1}`),
         tableCell(`body-value-${index + 1}`, `取值-${index + 1}`),
       ]
       : [
@@ -142,5 +143,58 @@ describe('renderTable：表头 rowspan 跨越 headerRowCount', () => {
     const firstContinuationDataCells = childElements(continuationRows[2]!, 'w:tc')
     expect(firstContinuationDataCells).toHaveLength(3)
     expect(textContent(firstContinuationDataCells[0]!)).toMatch(/^分类-/)
+  })
+})
+
+
+describe('表头跨行合并的分页与页流使用同一份计划', () => {
+  it.each([
+    { covered: 20, total: 110, naturallyOverflowingFinal: false },
+    { covered: 60, total: 110, naturallyOverflowingFinal: false },
+    { covered: 70, total: 70, naturallyOverflowingFinal: true },
+  ])('表头覆盖$covered条数据行，共$total条，输出分段与高度一一对应', ({ covered, total, naturallyOverflowingFinal }) => {
+    const ir = tableWithHeaderRowspan(covered, total, false)
+    ir.notes = [{ kind: 'note', id: 'note', content: [
+      { kind: 'paragraph', id: 'note-p', content: [{ text: '合并表最终表注' }] },
+    ] }]
+    const ctx = createRenderContext({ 'table-rowspan': { label: '表1', xmlId: 'table_1', refText: '表1' } })
+    ctx.pageFlow.startSection()
+    const plan = paginateTable(ir, ctx.pageFlow.beforeTable())
+    expect(plan.bodySegments[0]!.length).toBeGreaterThanOrEqual(covered)
+    const xml = renderBlock(ctx, ir, { scopeKey: 'chapter-1' })
+    const root = parseXml(`<w:root xmlns:w="${W_NS}">${xml}</w:root>`)
+    const tables = childElements(root, 'w:tbl')
+    expect(tables).toHaveLength(plan.bodySegments.length)
+    expect(plan.segmentHeightsMm).toHaveLength(tables.length)
+    const allNames: number[] = []
+    tables.forEach((grid, index) => {
+      const names = [...textContent(grid).matchAll(/名称-(\d+)/g)].map(m => Number(m[1]))
+      const plannedNames = plan.bodySegments[index]!.map(row => Number(row.id.replace('body-row-', '')))
+      expect(names).toEqual(plannedNames)
+      allNames.push(...names)
+      expect(textContent(grid).includes('合并表最终表注')).toBe(index === tables.length - 1)
+    })
+    expect(allNames).toEqual(Array.from({ length: total }, (_, i) => i + 1))
+    expect(ctx.warnings.some(w => w.code === 'table-header-rowspan-pagination')).toBe(false)
+    if (naturallyOverflowingFinal) {
+      // A single oversized merged grid can wrap naturally; it has no inferred final page position.
+      expect(plan.bodySegments).toHaveLength(1)
+      expect(ctx.pageFlow.availableMm).toBeUndefined()
+    } else {
+      expect(ctx.pageFlow.availableMm).toBeCloseTo(238 - plan.segmentHeightsMm.at(-1)!)
+    }
+    const following = tableWithHeaderRowspan(2, 70, false)
+    following.id = 'following-table'
+    const nextOptions = ctx.pageFlow.beforeTable()
+    expect(nextOptions.forceStartOnNewPage).toBe(naturallyOverflowingFinal)
+    const nextPlan = paginateTable(following, nextOptions)
+    const nextXml = renderBlock(ctx, following, { scopeKey: 'chapter-1' })
+    expect(nextXml.match(/<w:tbl>/g)).toHaveLength(nextPlan.bodySegments.length)
+    expect(ctx.pageFlow.availableMm).toBeCloseTo(238 - nextPlan.segmentHeightsMm.at(-1)!)
+    expect(ctx.pageFlow.estimateUnavailable).toBe(false)
+    if (naturallyOverflowingFinal) {
+      expect(nextXml).toContain('<w:pageBreakBefore/>')
+      expect(ctx.warnings.some(w => w.code === 'table-flow-estimate-unavailable')).toBe(true)
+    }
   })
 })

@@ -1,0 +1,302 @@
+{
+  "sourceBaseline": "a03a0f8b2255f6836a7ed1fba9071246cbc454f5",
+  "reviewUrl": "https://github.com/funtasy2333/SEP/pull/43#pullrequestreview-5400680960",
+  "reviewThreads": [
+    "PRRT_kwDORyKGNM6onXja",
+    "PRRT_kwDORyKGNM6onXjd"
+  ],
+  "qualification": "fixture",
+  "tests": {
+    "sharedRedFailed": 1,
+    "clientRedFailed": 6,
+    "shared": 817,
+    "client": 180,
+    "build": "passed"
+  },
+  "manifest": [
+    {
+      "name": "formula-followed-small-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 前含无法估算高度的公式等内容，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 36501,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": null,
+      "xmlRoundtripLimitation": "fixture DOM rejects CDATA; not executed"
+    },
+    {
+      "name": "tall-header-footer-risk",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-footer-too-tall",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 的表题、重复表头与表尾组合超过单页高度预算，可能需要人工分页调整"
+        }
+      ],
+      "bytes": 36637,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "tight-footer-budget",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36789,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "last-group-footer-risk",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-final-segment-too-tall",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 的末段余量不足以同时容纳最后数据组和表注/表脚注，可能需要人工分页调整"
+        }
+      ],
+      "bytes": 36597,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    }
+  ],
+  "word": {
+    "schema": {
+      "exit": 0,
+      "output": "Validation passed: no errors found.\n"
+    },
+    "word": {
+      "exit": 0,
+      "output": "written /Users/funtasy/.codex/worktrees/wp76-acceptance/set/tmp-e2e/wp76-acceptance/flow-review2/cases/last-group-footer-risk.pdf\n"
+    },
+    "pages": 6,
+    "recordPages": [
+      6
+    ],
+    "noteCount": 50,
+    "docxSha256": "c5dcbd8e1b9e3cc14893f8455de3527be80423c4967abc4ea65b6d14d92bac7e",
+    "pdfSha256": "fd4c9fb1103954ed39f319fadbcfe9166a902bd4bd0f4c837142a486704f71c5"
+  },
+  "unchangedRegressions": [
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review2/cases/body-followed-table.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-review/cases/body-followed-table.docx",
+      "sha256": "f5ade93ac76ab80fd7afca96d48baf3eb90809c8d32358d3407bcb3976ebc2c4",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review2/cases/body-footnote.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-review/cases/body-footnote.docx",
+      "sha256": "e1ed54daf6f99d10a88564106d577602bd9c77c400ccdd597f58fc0eb128371f",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review2/cases/formula-followed-small-table.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-review/cases/formula-followed-small-table.docx",
+      "sha256": "7353603e2822b8e64a97d2a390e256b1efa10af8d08be97263037ea927c9b7cd",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review2/cases/landscape-followed-portrait-table.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-review/cases/landscape-followed-portrait-table.docx",
+      "sha256": "90939c6ae4b5fd7393c50e201ec36473cd0f7faa0d0f50a3646c78c565fb5141",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review2/cases/long-body.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-review/cases/long-body.docx",
+      "sha256": "f98ae9f1dda25569b51d00888407dd5931899bc860a58c3da31864e68fe9d8cb",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review2/cases/long-caption.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-review/cases/long-caption.docx",
+      "sha256": "f42aee8e5a6f0a2676284cac086a847485d87e63869f8631beef49b3a91da075",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review2/cases/merged-table-footnotes.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-review/cases/merged-table-footnotes.docx",
+      "sha256": "096514545d6e44ebc465e2de16ee4670257dfbd06ba972224079e6c801c0f5ab",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review2/cases/near-page-bottom.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-review/cases/near-page-bottom.docx",
+      "sha256": "f533a8a9816e703be5bf83576fb277a803c94ac0832f3fc1231017ced0bcdf35",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review2/cases/tall-header-footer-risk.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-review/cases/tall-header-footer-risk.docx",
+      "sha256": "2608bad7ad306b7941853e8ac3dd4b22342c4faf2111025bc4e402417119cf03",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review2/cases/tight-footer-budget.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-review/cases/tight-footer-budget.docx",
+      "sha256": "37bb16ba842506bdd9faa91b23dc61912cb2b93d57009167dd9a90763f43dc3b",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review2/delivery/delivery.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-review/delivery/delivery.docx",
+      "sha256": "6d19a2f0182db7dfd8ceca2960287e2a54383a856af6d1d8acff0738d0e6e128",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review2/delivery/duplicate.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-review/delivery/duplicate.docx",
+      "sha256": "8e48673f6ae04a5645eb13ae69b1cd48d52fdecdbdaa4438fb4d232becac1b2b",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review2/delivery/xml-roundtrip.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-review/delivery/xml-roundtrip.docx",
+      "sha256": "6d19a2f0182db7dfd8ceca2960287e2a54383a856af6d1d8acff0738d0e6e128",
+      "byteIdentical": true
+    },
+    {
+      "path": "tmp-e2e/wp76-acceptance/flow-review2/wp74.docx",
+      "acceptedBaseline": "tmp-e2e/wp76-acceptance/flow-review/wp74.docx",
+      "sha256": "a09efe671422483859e5250695d7c053dbc634846bc66bf37bc009c7054a870b",
+      "byteIdentical": true
+    }
+  ],
+  "ui": [
+    {
+      "name": "formula-followed-small-table",
+      "message": "DOCX 已导出。部分表格前含无法可靠估高的内容，已从新页排起，请在 Word 中复核表前余量。部分封面素材的来源或清晰度有限，请核对后使用。",
+      "download": "正文后跨页表格分页测试.docx",
+      "persistentBeyond8Seconds": true,
+      "closable": true,
+      "apiIntercepted": true,
+      "api": [
+        {
+          "path": "/api/documents/9001",
+          "method": "GET"
+        },
+        {
+          "path": "/api/convert/capabilities",
+          "method": "GET"
+        }
+      ]
+    },
+    {
+      "name": "tall-header-footer-risk",
+      "message": "DOCX 已导出。部分表格的表题、重复表头与表注/表脚注合计超出一页，请在 Word 中调整分页。部分封面素材的来源或清晰度有限，请核对后使用。",
+      "download": "正文后跨页表格分页测试.docx",
+      "persistentBeyond8Seconds": true,
+      "closable": true,
+      "apiIntercepted": true,
+      "api": [
+        {
+          "path": "/api/documents/9001",
+          "method": "GET"
+        },
+        {
+          "path": "/api/convert/capabilities",
+          "method": "GET"
+        }
+      ]
+    },
+    {
+      "name": "last-group-footer-risk",
+      "message": "DOCX 已导出。部分表格的末段余量不足以同时容纳数据行与表注/表脚注，请在 Word 中调整分页。部分封面素材的来源或清晰度有限，请核对后使用。",
+      "download": "正文后跨页表格分页测试.docx",
+      "persistentBeyond8Seconds": true,
+      "closable": true,
+      "apiIntercepted": true,
+      "api": [
+        {
+          "path": "/api/documents/9001",
+          "method": "GET"
+        },
+        {
+          "path": "/api/convert/capabilities",
+          "method": "GET"
+        }
+      ]
+    },
+    {
+      "name": "oversized-row",
+      "message": "DOCX 已导出。部分表格的数据行或跨行合并组超出单页空间，请在 Word 中调整分页。部分封面素材的来源或清晰度有限，请核对后使用。",
+      "download": "正文后跨页表格分页测试.docx",
+      "persistentBeyond8Seconds": true,
+      "closable": true,
+      "apiIntercepted": true,
+      "api": [
+        {
+          "path": "/api/documents/9001",
+          "method": "GET"
+        },
+        {
+          "path": "/api/convert/capabilities",
+          "method": "GET"
+        }
+      ]
+    }
+  ],
+  "uiDownloads": [
+    {
+      "name": "formula-followed-small-table",
+      "sha256": "140927c30afd6a164c16c35f4033170f4eaf8e428dc81e693f00c923185b6325",
+      "schema": "Validation passed: no errors found.\n",
+      "screenshotSha256": "7a3b0aa25ec706962d9c0254a56afe35c123d057d9d3e49db4843e5c23da955c"
+    },
+    {
+      "name": "tall-header-footer-risk",
+      "sha256": "a35049c12ed0ffb5470f6c3427908d9c016d1335b8d2d91575ac4ec008cdc5c6",
+      "schema": "Validation passed: no errors found.\n",
+      "screenshotSha256": "0ce5e6ecabf2448d0cfb792a6eea0bab3dfa453d3805a897088a4c53325e9e63"
+    },
+    {
+      "name": "last-group-footer-risk",
+      "sha256": "608bc6bcdd17e72c5bf186ac401b9c0b68a5ea464bede028721e348cf3c82178",
+      "schema": "Validation passed: no errors found.\n",
+      "screenshotSha256": "e6c4c71158cd290d2380a2f3ed17635312d6b0cb8aa4e1f7f5777cb146c9971f"
+    },
+    {
+      "name": "oversized-row",
+      "sha256": "3d10ac562720ade15e91c22f541054cb3381f389276fe89b16c79fdcadb82aff",
+      "schema": "Validation passed: no errors found.\n",
+      "screenshotSha256": "7ab48f0033742e55970ab499b7c5545e8705316b1322aca38a93e516ef48e05f"
+    }
+  ],
+  "uiAPI": "all /api requests fulfilled with in-memory fixtures; no backend/database writes",
+  "limitations": [
+    "manual Word verification required for estimated overflow",
+    "oversized footer is warned, not automatically split",
+    "real manuscript/landscape separator/formula XML roundtrip limitations retained"
+  ]
+}

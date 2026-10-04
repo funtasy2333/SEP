@@ -338,7 +338,7 @@ const STYLE_SPECS: readonly StyleSpec[] = [
   { id: 'SesCoverGroupLogo', name: 'SES_封面团体标志及代号', rFonts: 'song', sz: 96, bold: true, characterScale: 130, jc: 'right' },
   { id: 'SesCoverEnterpriseLogo', name: 'SES_封面企业标志及代号', rFonts: 'song', sz: 96, bold: true, characterScale: 130, jc: 'right' },
   { id: 'SesCoverDbRegion', name: 'SES_封面地方标志及代号', rFonts: 'song', sz: 96, bold: true, characterScale: 130, jc: 'right' },
-  { id: 'SesCoverDesignationGb', name: 'SES_封面国家标准称谓', rFonts: 'song', sz: 52, bold: true, jc: 'distribute' },
+  { id: 'SesCoverDesignationGb', name: 'SES_封面国家标准称谓', rFonts: 'song', sz: 52, bold: true, characterScale: 148, jc: 'distribute' },
   { id: 'SesCoverDesignationGuide', name: 'SES_封面指导性技术文件称谓', rFonts: 'song', sz: 52, bold: true, fitText: COVER_DESIGNATION_FIT_WIDTH, jc: 'distribute' },
   { id: 'SesCoverDesignationOther', name: 'SES_封面其他标准称谓', rFonts: 'hei', sz: 48, jc: 'distribute' },
   { id: 'SesCoverStdNo', name: 'SES_封面文件编号', rFonts: 'hei', sz: 28, jc: 'right' },

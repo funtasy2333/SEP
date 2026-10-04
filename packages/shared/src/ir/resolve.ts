@@ -468,7 +468,10 @@ export function resolve(doc: IRDoc, strategy: NumberingStrategy = gbT11Strategy)
     const location = source.container === 'bibliographyTitle' ? '参考文献标题'
       : source.container === 'appendixLabel' ? '附录标识'
         : source.container === 'clauseTitle' ? '无题条标题' : '当前内容'
-    ctx.problems.push({ code: 'invalid-footnote', nodeId: source.nodeId, severity: 'error', message: `${location}中的脚注不支持导出，请移至受支持的正文或表格位置` })
+    const message = source.container === 'unsupportedFootnotePayload'
+      ? `脚注「${source.nodeId}」包含暂不支持的${source.reason ?? '内容结构'}，不能导出以避免内容丢失`
+      : `${location}中的脚注不支持导出，请移至受支持的正文或表格位置`
+    ctx.problems.push({ code: 'invalid-footnote', nodeId: source.nodeId, severity: 'error', message })
     visitInlines(source.content, source.nodeId, ctx)
   }
 

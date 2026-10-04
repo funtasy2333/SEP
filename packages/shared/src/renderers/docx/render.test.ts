@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import type { IRChapter, IRClause, IRDoc, IRNote, NodeId, ResolvedLabel } from '../../ir/types'
+import type { IRChapter, IRClause, IRDoc, IRNote, IRTable, NodeId, ResolvedLabel } from '../../ir/types'
 import { renderDocxTraced } from './render'
 import { assertChildOrder, assertNumberingIntegrity, assertWellFormed } from './__tests__/helpers/checks'
 import { docxOutline } from './__tests__/helpers/outline'
@@ -112,5 +112,41 @@ describe('空文档（无章、无附录、无参考文献、无前言引言）'
     // 仍然只有封面、目次、正文三节（无前言引言附录参考文献）
     const sectionLines = docxOutline(pkg).split('\n').filter((l) => l.startsWith('§'))
     expect(sectionLines).toHaveLength(3)
+  })
+})
+
+
+describe('不可测公式后的标题同页链', () => {
+  it('强制分页写在第一条标题前，表题不截断两条标题的同页链', () => {
+    const table: IRTable = { kind: 'table', id: 'forced-table', orientation: 'portrait',
+      caption: [{ text: '公式后短表' }], headerRowCount: 0, notes: [], rows: [{ id: 'row', cells: [
+        { id: 'cell', colspan: 1, rowspan: 1, header: false, content: [
+          { kind: 'paragraph', id: 'cell-p', content: [{ text: '短表内容' }] },
+        ] },
+      ] }] }
+    const clause: IRClause = { kind: 'clause', id: 'forced-heading', level: 1, titled: true,
+      title: [{ text: '第一条标题' }], children: [{ kind: 'clause', id: 'forced-child', level: 2,
+        titled: true, title: [{ text: '第二条标题' }], children: [table] }] }
+    const doc = emptyDoc({ body: [{ kind: 'chapter', id: 'chapter', secType: 'general',
+      title: [{ text: '章标题' }], children: [
+        { kind: 'clause', id: 'earlier-heading', level: 1, titled: true, title: clause.title,
+          children: [{ kind: 'paragraph', id: 'earlier-p', content: [{ text: '先前同名标题正文' }] }] },
+        { kind: 'formula', id: 'formula', latex: 'x=1', numbered: false, whereList: [] }, clause,
+      ] }] })
+    const { pkg } = renderDocxTraced(doc, {}, OPTS)
+    const paragraphs = [...pkg.parts['word/document.xml'].matchAll(/<w:p>([\s\S]*?)<\/w:p>/g)].map(m => m[1]!)
+    const sameTitles = paragraphs.filter(p => p.includes('SesClause1') && p.includes('第一条标题'))
+    expect(sameTitles).toHaveLength(2)
+    expect(sameTitles[0]).not.toContain('<w:pageBreakBefore/>')
+    const first = sameTitles[1]!
+    const second = paragraphs.find(p => p.includes('SesClause2') && p.includes('第二条标题'))!
+    const caption = paragraphs.find(p => p.includes('SesTblCap'))!
+    expect(first).toContain('<w:pageBreakBefore/>')
+    expect(second).not.toContain('<w:pageBreakBefore/>')
+    expect(caption).not.toContain('<w:pageBreakBefore/>')
+    expect(pkg.parts['word/document.xml']).not.toContain('<!--ses-')
+    expect(pkg.warnings.filter(w => w.code === 'table-flow-estimate-unavailable')).toHaveLength(1)
+    expect(() => assertChildOrder(pkg)).not.toThrow()
+    expect(() => assertWellFormed(pkg)).not.toThrow()
   })
 })

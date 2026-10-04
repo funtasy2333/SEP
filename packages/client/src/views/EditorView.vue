@@ -292,7 +292,7 @@
         style="margin-bottom: 14px"
       />
       <p style="margin: 0 0 12px; color: var(--ses-ink-3); font-size: 12px">
-        DOCX 目次：增删章条后需重新导出以更新目次条目；页码由 Word 更新。续表与长脚注分页请用 Word 校对。
+        DOCX 目次：增删章条后需重新导出以更新目次条目；页码由 Word 更新。续表与长脚注分页请用 Word 校对；横排页条文脚注分隔线的长度仍待完善。
         真实标准文稿的整体验收尚未完成；部分封面素材来源或清晰度有限，正式交付前请核对。
       </p>
       <div class="export-grid">
@@ -392,6 +392,7 @@
 
 
 <script setup lang="ts">
+import { getDocxExportFeedback } from '@/utils/docxExportFeedback'
 import { createDefaultDocumentContent } from '@/utils/newDocument'
 import { setClauseFormat, setParagraphFormat } from '@/utils/structureEditing'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
@@ -1257,16 +1258,7 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
       })
 
       downloadBlob(blob, `${docTitle}.docx`)
-      const coverIssues = warnings.filter((warning) => warning.code === 'cover-asset-approximation' || warning.code === 'cover-field-missing')
-      if (coverIssues.length) {
-        const notes = [
-          ...(coverIssues.some((warning) => warning.code === 'cover-asset-approximation') ? ['部分封面素材的来源或清晰度有限，请核对后使用。'] : []),
-          ...(coverIssues.some((warning) => warning.code === 'cover-field-missing') ? ['部分封面信息未填写，请补齐后核对。'] : []),
-        ]
-        ElMessage.warning({ message: `DOCX 已导出。${notes.join('')}`, duration: 8000 })
-      } else {
-        ElMessage.success('DOCX 文件已导出')
-      }
+      ElMessage(getDocxExportFeedback(warnings))
       showExport.value = false
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
