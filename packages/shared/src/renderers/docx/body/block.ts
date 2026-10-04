@@ -239,7 +239,7 @@ function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, 
   const pagination = paginateTable(table, flowOptions)
   if (!nested && flowOptions.forceStartOnNewPage) {
     warn(ctx, 'table-flow-estimate-unavailable',
-      `表格 "${table.id}" 前含跨页脚注、公式等无法可靠确定页位置的内容，首段改从新页排起，请在 Word 中复核表前余量`, table.id)
+      `表格 "${table.id}" 前的内容无法可靠确定页位置，首段改从新页排起，请在 Word 中复核表前余量`, table.id)
   }
   if (pagination.oversizedGroup) {
     warn(ctx, 'table-row-too-tall',
@@ -254,9 +254,11 @@ function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, 
       `表格 "${table.id}" 的末段余量不足以同时容纳最后数据组和表注/表脚注，可能需要人工分页调整`, table.id)
   }
   // An explicit break on the caption overrides the preceding keepNext chain in Word.
-  // Natural overflow can move the chain itself; an unknown-height fallback needs a real
-  // break at its first paragraph, resolved later without breaking the chain at the caption.
-  const forcedChainBreak = flowOptions.forceStartOnNewPage && ctx.pageFlow.breakBeforePendingChain()
+  // Single-line chains can relocate naturally. A chain containing a splittable
+  // paragraph may instead start on the old page, so moving its first table segment
+  // needs a real chain-start break too. Resolve it without splitting at the caption.
+  const forcedChainBreak = !nested && pagination.startOnNewPage &&
+    ctx.pageFlow.breakBeforePendingChain(!flowOptions.forceStartOnNewPage)
   const pageBreakBefore = pagination.startOnNewPage && !forcedChainBreak &&
     (flowOptions.forceStartOnNewPage || !((flowOptions.firstPageReservedMm ?? 0) > 0))
   let captionXml: string

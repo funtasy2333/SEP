@@ -1,5 +1,7 @@
 # keep-next 链末长正文的页流修订（2026-10-04）
 
+后续整链可拆分成员与接表边界修订见[第九轮报告](wp7.6-table-flow-review9-2026-10-04.md)；本页原测量保留。
+
 对应[Invalidate splittable paragraphs in keep-next chains](https://github.com/funtasy2333/SEP/pull/43#discussion_r4176322276)，审查提交 `3e6df2e0e9ebfc2b50c727d19ad5f3d1302762b5`，review `5404515519`。
 
 ## 核实与修正

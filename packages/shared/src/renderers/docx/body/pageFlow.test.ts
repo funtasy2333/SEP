@@ -161,6 +161,33 @@ describe('复审：同页链与有效列项缩进', () => {
     expect(flow.availableMm).toBeDefined()
     expect(flow.beforeTable().forceStartOnNewPage).toBe(false)
   })
+  it.each(['first', 'middle', 'wrapping-footnote'])('溢出链中%s位置的可拆分长标题使最终落页未知', position => {
+    const flow = createPageFlow(); flow.startSection(); flow.setFootnoteHeights(new Map([[1, 12]]))
+    flow.placeTable([180], false)
+    if (position === 'middle') flow.recordParagraph('SesChapter', run('短章标题'), true)
+    const long = position === 'wrapping-footnote'
+      ? run('自然回行长标题'.repeat(70)) + '<w:r><w:footnoteReference w:id="1"/></w:r>'
+      : Array.from({ length: 12 }, (_, i) => run(`长标题第${i + 1}行`)).join('<w:r><w:br/></w:r>')
+    flow.recordParagraph(position === 'middle' ? 'SesClause1' : 'SesChapter', long, true)
+    flow.recordParagraph('SesPara', run('单行后续正文'), false)
+    expect(flow.availableMm).toBeUndefined()
+    expect(flow.beforeTable().forceStartOnNewPage).toBe(true)
+    flow.placeTable([80], true)
+    expect(flow.availableMm).toBe(158)
+  })
+  it('前置多行标题和单行正文完整放得下时仍保持估算', () => {
+    const flow = createPageFlow(); flow.startSection()
+    flow.recordParagraph('SesChapter', run('第一行') + '<w:r><w:br/></w:r>' + run('第二行'), true)
+    flow.recordParagraph('SesPara', run('单行正文'), false)
+    expect(flow.availableMm).toBeDefined()
+    expect(flow.beforeTable().forceStartOnNewPage).toBe(false)
+  })
+  it('直接接表的待定长标题已超过旧页余量时，要求真实新页起排', () => {
+    const flow = createPageFlow(); flow.startSection(); flow.placeTable([180], false)
+    flow.recordParagraph('SesChapter', Array.from({ length: 12 }, (_, i) => run(`长标题第${i + 1}行`)).join('<w:r><w:br/></w:r>'), true)
+    expect(flow.beforeTable().firstPageHeightMm).toBeUndefined()
+    expect(flow.beforeTable().forceStartOnNewPage).toBe(true)
+  })
   it('中途读取余量不截断同页链，移页后脚注只预留一次', () => {
     const near = createPageFlow(); near.setFootnoteHeights(new Map([[1, 12]])); near.startSection(); near.placeTable([178], false)
     near.recordParagraph('SesFigure', image, false)

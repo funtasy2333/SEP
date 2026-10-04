@@ -184,6 +184,27 @@ for (const [name, anchor, nested] of [
  variants.push([name,variant])
 }
 
+// 长标题可在链首/链中跨页；直接接表时，首段移页必须落实到链首。
+for (const [name, middle, direct, count, preamble] of [
+ ['split-heading-short-body-table',false,false,12,26],
+ ['middle-split-heading-short-body-table',true,false,12,24],
+ ['split-heading-direct-table',false,true,12,26],
+ ['two-line-heading-direct-small-table',false,true,2,33],
+]) {
+ const variant = clone(source)
+ const title = {type:'clauseTitle',attrs:{level:middle?2:1},content:brokenLines(count,'跨页标题行')}
+ const table = clone(longTable)
+ if (count === 2) {table.content[1].content=table.content[1].content.slice(0,3);table.content=table.content.slice(0,2)}
+ const body = [title,...(direct?[]:[paragraph('长标题后的单行正文。')]),table]
+ const clause = {type:'clause',attrs:{nodeId:`${name}-clause`,level:1,hasTitle:true},content:middle?[
+  {type:'clauseTitle',attrs:{level:1},content:[t('前置短标题')]},
+  {type:'clause',attrs:{nodeId:`${name}-child`,level:2,hasTitle:true},content:body},
+ ]:body}
+ variant.content[1].content=[variant.content[1].content[0],{type:'stdParagraph',attrs:{nodeId:`${name}-preamble`},content:brokenLines(preamble,'长标题前正文行')},clause,
+  paragraph(count===2?'短表结束，两条记录应完整。':'长标题后的表格结束，70条记录应连续完整。')]
+ variants.push([name,variant])
+}
+
 // 表头合并覆盖较多数据行，甚至整张表；后续长表必须使用实际输出分段的页流。
 for (const [name, covered, total] of [
  ['header-rowspan-20-then-long-table',20,110],

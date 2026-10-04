@@ -1,0 +1,1609 @@
+{
+  "qualification": "fixture",
+  "verificationDate": "2026-10-04",
+  "reviewedHead": "8113adfc698ecbe59c4590940054568e48eb07f0",
+  "review": "https://github.com/funtasy2333/SEP/pull/43#discussion_r4176376930",
+  "reviewId": 5404578929,
+  "findingReproduced": true,
+  "fix": "Inspect any splittable multi-line member in overflowing keepNext chains; pending table boundaries request genuine chain-start breaks when moving a splittable chain; nested grids cannot alter outer pending chains",
+  "tests": {
+    "newRegressionCases": 8,
+    "reviewedHeadRedCases": 6,
+    "intermediateImplementationNestedRedCase": 1,
+    "oldWrongBudgetsMm": [
+      155.45,
+      147.195,
+      137.45
+    ],
+    "oldPendingOverflowBudgetMm": 0,
+    "targeted": 58,
+    "shared": 851,
+    "client": 180,
+    "fullBuild": "passed",
+    "goldenParts": "unchanged"
+  },
+  "inlineManifest": [
+    {
+      "name": "body-followed-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 37111,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "near-page-bottom",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 37264,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "long-body",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 37372,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "body-footnote",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 37962,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "merged-table-footnotes",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 37617,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "landscape-followed-portrait-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 37264,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "long-caption",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 37201,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "formula-followed-small-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 前的内容无法可靠确定页位置，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 36506,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": null,
+      "xmlRoundtripLimitation": "fixture DOM rejects CDATA; not executed"
+    },
+    {
+      "name": "tall-header-footer-risk",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-footer-too-tall",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 的表题、重复表头与表尾组合超过单页高度预算，可能需要人工分页调整"
+        }
+      ],
+      "bytes": 36642,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "tight-footer-budget",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36794,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "last-group-footer-risk",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-final-segment-too-tall",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 的末段余量不足以同时容纳最后数据组和表注/表脚注，可能需要人工分页调整"
+        }
+      ],
+      "bytes": 36602,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "figure-caption-followed-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36990,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "alpha-list-followed-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36715,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "numeric-list-followed-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36731,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "dash-list-followed-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36652,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "heading-short-table-then-long-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36783,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "heading-long-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36734,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "split-footnote-early-then-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 前的内容无法可靠确定页位置，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 37601,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "split-footnote-late-then-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 前的内容无法可靠确定页位置，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 37597,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "split-footnote-late-heading-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 前的内容无法可靠确定页位置，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 37663,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "heading-split-plain-then-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 前的内容无法可靠确定页位置，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 36838,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "headings-split-early-note-then-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 前的内容无法可靠确定页位置，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 37675,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "heading-split-late-note-then-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 前的内容无法可靠确定页位置，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 37655,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "split-heading-short-body-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 前的内容无法可靠确定页位置，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 36842,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "middle-split-heading-short-body-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 前的内容无法可靠确定页位置，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 36837,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "split-heading-direct-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 前的内容无法可靠确定页位置，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 36819,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "two-line-heading-direct-small-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36053,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "header-rowspan-20-then-long-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 38437,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "header-rowspan-60-then-long-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-row-too-tall",
+          "nodeId": "header-rowspan-60-then-long-table-first",
+          "message": "表格 \"header-rowspan-60-then-long-table-first\" 存在超出单页高度预算的跨行合并组，续表分页可能需要人工调整"
+        }
+      ],
+      "bytes": 38219,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "header-rowspan-all-then-long-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-row-too-tall",
+          "nodeId": "header-rowspan-all-then-long-table-first",
+          "message": "表格 \"header-rowspan-all-then-long-table-first\" 存在超出单页高度预算的跨行合并组，续表分页可能需要人工调整"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 前的内容无法可靠确定页位置，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 37593,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "heading-short-table-then-93-records",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        }
+      ],
+      "bytes": 36895,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": true,
+      "xmlRoundtripLimitation": null
+    },
+    {
+      "name": "formula-heading-small-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "formula-heading-small-table-short",
+          "message": "表格 \"formula-heading-small-table-short\" 前的内容无法可靠确定页位置，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 36826,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": null,
+      "xmlRoundtripLimitation": "fixture DOM rejects CDATA; not executed"
+    },
+    {
+      "name": "formula-heading-long-table",
+      "qualification": "fixture",
+      "sourceHasManualPageBreak": false,
+      "warnings": [
+        {
+          "code": "cover-asset-approximation",
+          "message": "国家标准发布机构与「发布」采用用户提供模板整幅图片，来源未核实且机构文字固定为模板内容"
+        },
+        {
+          "code": "table-flow-estimate-unavailable",
+          "nodeId": "inline-long-table",
+          "message": "表格 \"inline-long-table\" 前的内容无法可靠确定页位置，首段改从新页排起，请在 Word 中复核表前余量"
+        }
+      ],
+      "bytes": 36773,
+      "jsonReopen": true,
+      "xmlRoundtripByteIdentical": null,
+      "xmlRoundtripLimitation": "fixture DOM rejects CDATA; not executed"
+    }
+  ],
+  "docxBeforeAfter": [
+    {
+      "name": "body-followed-table",
+      "byteIdentical": true,
+      "beforeSha256": "44c33430d0f46b561a9dd229e2917af2a751e960c1614ae907156a1f214b07ae",
+      "afterSha256": "44c33430d0f46b561a9dd229e2917af2a751e960c1614ae907156a1f214b07ae"
+    },
+    {
+      "name": "near-page-bottom",
+      "byteIdentical": true,
+      "beforeSha256": "d6318805be4165fe5e531b0f1a79270f72e85c70ec9ebcf8f6fc0984e32cab87",
+      "afterSha256": "d6318805be4165fe5e531b0f1a79270f72e85c70ec9ebcf8f6fc0984e32cab87"
+    },
+    {
+      "name": "long-body",
+      "byteIdentical": true,
+      "beforeSha256": "204d0ba1d5cc2cbc80832918c0392893eccf497d23f9ecb40f833a669a959c15",
+      "afterSha256": "204d0ba1d5cc2cbc80832918c0392893eccf497d23f9ecb40f833a669a959c15"
+    },
+    {
+      "name": "body-footnote",
+      "byteIdentical": true,
+      "beforeSha256": "20adeff642cdc583a9378d2bd125b7206f95548c04904f9e490fd2d78baf550d",
+      "afterSha256": "20adeff642cdc583a9378d2bd125b7206f95548c04904f9e490fd2d78baf550d"
+    },
+    {
+      "name": "merged-table-footnotes",
+      "byteIdentical": true,
+      "beforeSha256": "2f72e7e29036a6b937e86fe4776c16eb39e9f1bba461b99dcdeb71157d4f78fe",
+      "afterSha256": "2f72e7e29036a6b937e86fe4776c16eb39e9f1bba461b99dcdeb71157d4f78fe"
+    },
+    {
+      "name": "landscape-followed-portrait-table",
+      "byteIdentical": true,
+      "beforeSha256": "d9d5e258530752b933effbc6111c9a9e4f0f58e897e19824ace6a51bbeeac1e1",
+      "afterSha256": "d9d5e258530752b933effbc6111c9a9e4f0f58e897e19824ace6a51bbeeac1e1"
+    },
+    {
+      "name": "long-caption",
+      "byteIdentical": true,
+      "beforeSha256": "49292447d80bf813e7e732601b1b6bee4564c661afb02a9384b59f624548861c",
+      "afterSha256": "49292447d80bf813e7e732601b1b6bee4564c661afb02a9384b59f624548861c"
+    },
+    {
+      "name": "formula-followed-small-table",
+      "byteIdentical": true,
+      "beforeSha256": "867de9c534ad2d97be6edee71d40e67284f9de487e0b3b600111aedc2ab7212f",
+      "afterSha256": "867de9c534ad2d97be6edee71d40e67284f9de487e0b3b600111aedc2ab7212f"
+    },
+    {
+      "name": "tall-header-footer-risk",
+      "byteIdentical": true,
+      "beforeSha256": "c15a2cdecdf1d81f1cdad104f7c2dfe4cb8f7c18f091e92086a3d2c4461e187c",
+      "afterSha256": "c15a2cdecdf1d81f1cdad104f7c2dfe4cb8f7c18f091e92086a3d2c4461e187c"
+    },
+    {
+      "name": "tight-footer-budget",
+      "byteIdentical": true,
+      "beforeSha256": "20a4746c2a334894eebf531bfe8cb912f366248c0d1d4d5e72b6ccb4c469cc20",
+      "afterSha256": "20a4746c2a334894eebf531bfe8cb912f366248c0d1d4d5e72b6ccb4c469cc20"
+    },
+    {
+      "name": "last-group-footer-risk",
+      "byteIdentical": true,
+      "beforeSha256": "c6490afea63bf9a9af3b1a8d2e03bb32378461f77c1e376049b2719590930aa7",
+      "afterSha256": "c6490afea63bf9a9af3b1a8d2e03bb32378461f77c1e376049b2719590930aa7"
+    },
+    {
+      "name": "figure-caption-followed-table",
+      "byteIdentical": true,
+      "beforeSha256": "d374e09813406f03ca2374b45590a16c23a948eba67a9f4ec660146a732789ea",
+      "afterSha256": "d374e09813406f03ca2374b45590a16c23a948eba67a9f4ec660146a732789ea"
+    },
+    {
+      "name": "alpha-list-followed-table",
+      "byteIdentical": true,
+      "beforeSha256": "57d01ea70791cab126d4cc4d21d42403f7dce64510d27ae83689a62f27251a3f",
+      "afterSha256": "57d01ea70791cab126d4cc4d21d42403f7dce64510d27ae83689a62f27251a3f"
+    },
+    {
+      "name": "numeric-list-followed-table",
+      "byteIdentical": true,
+      "beforeSha256": "76bc7e4a999e8011493906cef1eaa6825cf6b3cd687cdfafe54c17fb87bea4bd",
+      "afterSha256": "76bc7e4a999e8011493906cef1eaa6825cf6b3cd687cdfafe54c17fb87bea4bd"
+    },
+    {
+      "name": "dash-list-followed-table",
+      "byteIdentical": true,
+      "beforeSha256": "6df67c6a6269765b0ce3393750583959855b6d74ce5d4afcb7a24ad78848872b",
+      "afterSha256": "6df67c6a6269765b0ce3393750583959855b6d74ce5d4afcb7a24ad78848872b"
+    },
+    {
+      "name": "heading-short-table-then-long-table",
+      "byteIdentical": true,
+      "beforeSha256": "f988b90ba1fd34f0d569fe6dcae4fb01096dfe0d9f1af522d3a377eda81ac671",
+      "afterSha256": "f988b90ba1fd34f0d569fe6dcae4fb01096dfe0d9f1af522d3a377eda81ac671"
+    },
+    {
+      "name": "heading-long-table",
+      "byteIdentical": true,
+      "beforeSha256": "bd65bd878054c409e4d282aa14e5e916db096e2cae9cf34218e04271b2d9ffea",
+      "afterSha256": "bd65bd878054c409e4d282aa14e5e916db096e2cae9cf34218e04271b2d9ffea"
+    },
+    {
+      "name": "split-footnote-early-then-table",
+      "byteIdentical": true,
+      "beforeSha256": "79b0a4379b10d527fde20309047a0ba715606aa48c75aa182fbe8fad81b1ecf2",
+      "afterSha256": "79b0a4379b10d527fde20309047a0ba715606aa48c75aa182fbe8fad81b1ecf2"
+    },
+    {
+      "name": "split-footnote-late-then-table",
+      "byteIdentical": true,
+      "beforeSha256": "e260c0d821620c32f9ecd72bb5c0524cebc0712a69dd542e726b5524e14f5440",
+      "afterSha256": "e260c0d821620c32f9ecd72bb5c0524cebc0712a69dd542e726b5524e14f5440"
+    },
+    {
+      "name": "split-footnote-late-heading-table",
+      "byteIdentical": true,
+      "beforeSha256": "99ba595d92d9de4f6e20deab78af8f098581fbe2a1517b350f4077439b6ba613",
+      "afterSha256": "99ba595d92d9de4f6e20deab78af8f098581fbe2a1517b350f4077439b6ba613"
+    },
+    {
+      "name": "heading-split-plain-then-table",
+      "byteIdentical": true,
+      "beforeSha256": "319ced0ba18604ec93aa318fe271ff5883e13fb756ca931a87fc4101875bbbf8",
+      "afterSha256": "319ced0ba18604ec93aa318fe271ff5883e13fb756ca931a87fc4101875bbbf8"
+    },
+    {
+      "name": "headings-split-early-note-then-table",
+      "byteIdentical": true,
+      "beforeSha256": "1899cf6511a7380a105b400240932141498aa7f9c1aa24f7c76f4f2c0bc10dba",
+      "afterSha256": "1899cf6511a7380a105b400240932141498aa7f9c1aa24f7c76f4f2c0bc10dba"
+    },
+    {
+      "name": "heading-split-late-note-then-table",
+      "byteIdentical": true,
+      "beforeSha256": "caa5c51e2fac6d56502e577659292daaeb178c13068e3102f96410e7e61eba25",
+      "afterSha256": "caa5c51e2fac6d56502e577659292daaeb178c13068e3102f96410e7e61eba25"
+    },
+    {
+      "name": "split-heading-short-body-table",
+      "byteIdentical": false,
+      "beforeSha256": "fdd7ad007adb61d776728e4f283e7f516a57400050d89161cd64e23f8cc1cebb",
+      "afterSha256": "480004c7abf1675876e1ed33454002c6272ff607c6f3083f30917a6ca12b985f"
+    },
+    {
+      "name": "middle-split-heading-short-body-table",
+      "byteIdentical": false,
+      "beforeSha256": "3f90949b44263c2ad3d29ce8995b76b1249d51c279e5a9a60670545ddfe9ba7d",
+      "afterSha256": "fa3084b376eaf1a99e1e1db2072a8415a5e31f25ed8219d710c89d96442dd868"
+    },
+    {
+      "name": "split-heading-direct-table",
+      "byteIdentical": false,
+      "beforeSha256": "abef61f97466b7759d4f90a0ca2421090ea39da9c48baf71dd9f41289dfe5944",
+      "afterSha256": "88493db7a47b785108fcf1f8164d0d5b25c3c437fae8ca746827157d5f5634c2"
+    },
+    {
+      "name": "two-line-heading-direct-small-table",
+      "byteIdentical": false,
+      "beforeSha256": "dc86b31760868a714fd1d053b83bf4331bf020a00d51f841c5457c71f69a5a54",
+      "afterSha256": "043c8f167ec428e25e5186c828e0048d951338994d00e7671c8b9717f50833a4"
+    },
+    {
+      "name": "header-rowspan-20-then-long-table",
+      "byteIdentical": true,
+      "beforeSha256": "7b9fe806189ea8638895c20156bcc3ebc0b8af0df227ee970f8c9cbaf818810c",
+      "afterSha256": "7b9fe806189ea8638895c20156bcc3ebc0b8af0df227ee970f8c9cbaf818810c"
+    },
+    {
+      "name": "header-rowspan-60-then-long-table",
+      "byteIdentical": true,
+      "beforeSha256": "33095ea955ab98228dcd37cffbfa3e688e9c7586f4bb56be10e3918b259d74a6",
+      "afterSha256": "33095ea955ab98228dcd37cffbfa3e688e9c7586f4bb56be10e3918b259d74a6"
+    },
+    {
+      "name": "header-rowspan-all-then-long-table",
+      "byteIdentical": true,
+      "beforeSha256": "e647b353b8f2972bb2c07a117bc86c30ad7382e9bf8a7e01ef1ba06cde4a0507",
+      "afterSha256": "e647b353b8f2972bb2c07a117bc86c30ad7382e9bf8a7e01ef1ba06cde4a0507"
+    },
+    {
+      "name": "heading-short-table-then-93-records",
+      "byteIdentical": true,
+      "beforeSha256": "e2ffb02a29ff4db6bd65addfe071c840cebdd210f123dd474a85f304c69972cd",
+      "afterSha256": "e2ffb02a29ff4db6bd65addfe071c840cebdd210f123dd474a85f304c69972cd"
+    },
+    {
+      "name": "formula-heading-small-table",
+      "byteIdentical": true,
+      "beforeSha256": "c2f088541a677a7fa7b29ae11b6ebfa0485eecc142b9f5e82b2be957e533597d",
+      "afterSha256": "c2f088541a677a7fa7b29ae11b6ebfa0485eecc142b9f5e82b2be957e533597d"
+    },
+    {
+      "name": "formula-heading-long-table",
+      "byteIdentical": true,
+      "beforeSha256": "6ac25d0050f6b251dcabce24e7a2bffaa9eb07d6b43aecb47df575a434eb7a25",
+      "afterSha256": "6ac25d0050f6b251dcabce24e7a2bffaa9eb07d6b43aecb47df575a434eb7a25"
+    }
+  ],
+  "strictSchema": [
+    {
+      "name": "body-followed-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "near-page-bottom",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "long-body",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "body-footnote",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "merged-table-footnotes",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "landscape-followed-portrait-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "long-caption",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "formula-followed-small-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "tall-header-footer-risk",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "tight-footer-budget",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "last-group-footer-risk",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "figure-caption-followed-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "alpha-list-followed-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "numeric-list-followed-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "dash-list-followed-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "heading-short-table-then-long-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "heading-long-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "split-footnote-early-then-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "split-footnote-late-then-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "split-footnote-late-heading-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "heading-split-plain-then-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "headings-split-early-note-then-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "heading-split-late-note-then-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "split-heading-short-body-table",
+      "stage": "before",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "split-heading-short-body-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "middle-split-heading-short-body-table",
+      "stage": "before",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "middle-split-heading-short-body-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "split-heading-direct-table",
+      "stage": "before",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "split-heading-direct-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "two-line-heading-direct-small-table",
+      "stage": "before",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "two-line-heading-direct-small-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "header-rowspan-20-then-long-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "header-rowspan-60-then-long-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "header-rowspan-all-then-long-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "heading-short-table-then-93-records",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "formula-heading-small-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    },
+    {
+      "name": "formula-heading-long-table",
+      "stage": "after",
+      "validation": {
+        "success": true,
+        "data": "Validation passed: no errors found.",
+        "message": "Validation passed: no errors found."
+      }
+    }
+  ],
+  "wordBeforeAfter": [
+    {
+      "stage": "before",
+      "name": "split-heading-short-body-table",
+      "pageCount": 7,
+      "headingLinesContinuous": true,
+      "recordsContinuous": true,
+      "expectedRecords": 70,
+      "pages": [
+        {
+          "page": 5,
+          "headingLines": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 0,
+          "firstRecord": null,
+          "lastRecord": null,
+          "tableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 6,
+          "headingLines": [
+            11,
+            12
+          ],
+          "prefixHeading": false,
+          "singleBody": true,
+          "recordCount": 31,
+          "firstRecord": 1,
+          "lastRecord": 31,
+          "tableCaption": true,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 7,
+          "headingLines": [],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 39,
+          "firstRecord": 32,
+          "lastRecord": 70,
+          "tableCaption": true,
+          "tableNoteCount": 1
+        }
+      ],
+      "pdfSha256": "e98f90f25f4e6a685f5d10d52c2bbb2647ed78b99ea8360dfe1a411b030e6263"
+    },
+    {
+      "stage": "before",
+      "name": "middle-split-heading-short-body-table",
+      "pageCount": 7,
+      "headingLinesContinuous": true,
+      "recordsContinuous": true,
+      "expectedRecords": 70,
+      "pages": [
+        {
+          "page": 5,
+          "headingLines": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "prefixHeading": true,
+          "singleBody": false,
+          "recordCount": 0,
+          "firstRecord": null,
+          "lastRecord": null,
+          "tableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 6,
+          "headingLines": [
+            11,
+            12
+          ],
+          "prefixHeading": false,
+          "singleBody": true,
+          "recordCount": 29,
+          "firstRecord": 1,
+          "lastRecord": 29,
+          "tableCaption": true,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 7,
+          "headingLines": [],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 41,
+          "firstRecord": 30,
+          "lastRecord": 70,
+          "tableCaption": true,
+          "tableNoteCount": 1
+        }
+      ],
+      "pdfSha256": "089c9994372f031b4c76d3861fbbe81fa52650d6ad12a17cb9ee1ac75593fdfc"
+    },
+    {
+      "stage": "before",
+      "name": "split-heading-direct-table",
+      "pageCount": 7,
+      "headingLinesContinuous": true,
+      "recordsContinuous": true,
+      "expectedRecords": 70,
+      "pages": [
+        {
+          "page": 5,
+          "headingLines": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 0,
+          "firstRecord": null,
+          "lastRecord": null,
+          "tableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 6,
+          "headingLines": [
+            11,
+            12
+          ],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 29,
+          "firstRecord": 1,
+          "lastRecord": 29,
+          "tableCaption": true,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 7,
+          "headingLines": [],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 41,
+          "firstRecord": 30,
+          "lastRecord": 70,
+          "tableCaption": true,
+          "tableNoteCount": 1
+        }
+      ],
+      "pdfSha256": "72a938a34547447c218a903a16d1dcb9d84bfbe24533e0017bf54dba526d4ba1"
+    },
+    {
+      "stage": "before",
+      "name": "two-line-heading-direct-small-table",
+      "pageCount": 6,
+      "headingLinesContinuous": true,
+      "recordsContinuous": true,
+      "expectedRecords": 2,
+      "pages": [
+        {
+          "page": 5,
+          "headingLines": [],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 0,
+          "firstRecord": null,
+          "lastRecord": null,
+          "tableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 6,
+          "headingLines": [
+            1,
+            2
+          ],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 2,
+          "firstRecord": 1,
+          "lastRecord": 2,
+          "tableCaption": true,
+          "tableNoteCount": 0
+        }
+      ],
+      "pdfSha256": "86d146ca864c0099a6798f28f1600bc44600717a08137868da67c97d66486a43"
+    },
+    {
+      "stage": "after",
+      "name": "split-heading-short-body-table",
+      "pageCount": 8,
+      "headingLinesContinuous": true,
+      "recordsContinuous": true,
+      "expectedRecords": 70,
+      "pages": [
+        {
+          "page": 5,
+          "headingLines": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 0,
+          "firstRecord": null,
+          "lastRecord": null,
+          "tableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 6,
+          "headingLines": [
+            11,
+            12
+          ],
+          "prefixHeading": false,
+          "singleBody": true,
+          "recordCount": 0,
+          "firstRecord": null,
+          "lastRecord": null,
+          "tableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 7,
+          "headingLines": [],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 48,
+          "firstRecord": 1,
+          "lastRecord": 48,
+          "tableCaption": true,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 8,
+          "headingLines": [],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 22,
+          "firstRecord": 49,
+          "lastRecord": 70,
+          "tableCaption": true,
+          "tableNoteCount": 1
+        }
+      ],
+      "pdfSha256": "ae4c434452353396dc117f37bbf0fee7cc66365851b46d57484f4249dd96a7f7"
+    },
+    {
+      "stage": "after",
+      "name": "middle-split-heading-short-body-table",
+      "pageCount": 8,
+      "headingLinesContinuous": true,
+      "recordsContinuous": true,
+      "expectedRecords": 70,
+      "pages": [
+        {
+          "page": 5,
+          "headingLines": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "prefixHeading": true,
+          "singleBody": false,
+          "recordCount": 0,
+          "firstRecord": null,
+          "lastRecord": null,
+          "tableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 6,
+          "headingLines": [
+            11,
+            12
+          ],
+          "prefixHeading": false,
+          "singleBody": true,
+          "recordCount": 0,
+          "firstRecord": null,
+          "lastRecord": null,
+          "tableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 7,
+          "headingLines": [],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 48,
+          "firstRecord": 1,
+          "lastRecord": 48,
+          "tableCaption": true,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 8,
+          "headingLines": [],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 22,
+          "firstRecord": 49,
+          "lastRecord": 70,
+          "tableCaption": true,
+          "tableNoteCount": 1
+        }
+      ],
+      "pdfSha256": "a6303fa3c13cd0647fa4e96cb5db1af2b1ca90b5cce19394be095881ead90fe6"
+    },
+    {
+      "stage": "after",
+      "name": "split-heading-direct-table",
+      "pageCount": 7,
+      "headingLinesContinuous": true,
+      "recordsContinuous": true,
+      "expectedRecords": 70,
+      "pages": [
+        {
+          "page": 5,
+          "headingLines": [],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 0,
+          "firstRecord": null,
+          "lastRecord": null,
+          "tableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 6,
+          "headingLines": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 29,
+          "firstRecord": 1,
+          "lastRecord": 29,
+          "tableCaption": true,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 7,
+          "headingLines": [],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 41,
+          "firstRecord": 30,
+          "lastRecord": 70,
+          "tableCaption": true,
+          "tableNoteCount": 1
+        }
+      ],
+      "pdfSha256": "d2e856034817373d3bdc42985f28b089627a2be852fabdaa705fb698a405a08d"
+    },
+    {
+      "stage": "after",
+      "name": "two-line-heading-direct-small-table",
+      "pageCount": 6,
+      "headingLinesContinuous": true,
+      "recordsContinuous": true,
+      "expectedRecords": 2,
+      "pages": [
+        {
+          "page": 5,
+          "headingLines": [],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 0,
+          "firstRecord": null,
+          "lastRecord": null,
+          "tableCaption": false,
+          "tableNoteCount": 0
+        },
+        {
+          "page": 6,
+          "headingLines": [
+            1,
+            2
+          ],
+          "prefixHeading": false,
+          "singleBody": false,
+          "recordCount": 2,
+          "firstRecord": 1,
+          "lastRecord": 2,
+          "tableCaption": true,
+          "tableNoteCount": 0
+        }
+      ],
+      "pdfSha256": "343fe170ae530fd511bd6c5b8b31729b03f793ac8af5b3d0f24bcdf01e9ca706"
+    }
+  ],
+  "finalNestedGuardDocxAndManifestByteIdentical": 33,
+  "wordVisualInspection": {
+    "beforeAndAfterBodyPages": "all body physical pages for four fixtures",
+    "overlapOrClippingObserved": false,
+    "largeWhitespaceObserved": true
+  },
+  "runtime": {
+    "word": "16.113.3",
+    "officecli": "1.0.152",
+    "node": "22.22.3",
+    "pnpm": "10.33.0"
+  },
+  "gbCoverCharacterScale": 148,
+  "internalMarkersInExport": false,
+  "artifacts": "tmp-e2e/wp76-acceptance/flow-review9",
+  "limitations": [
+    "Conservative invalidation adds one page in the two long-heading plus short-body fixtures",
+    "Direct heading-to-table fixtures retain 7/6 pages; optimal whitespace not claimed",
+    "Previously observed early-footnote same-page acceptance remains incomplete",
+    "Real-manuscript total acceptance incomplete",
+    "Landscape body footnote separator unresolved",
+    "Oversized footer not automatically split",
+    "Three formula fixture XML roundtrips unexecuted due fixture DOM CDATA limitation"
+  ]
+}

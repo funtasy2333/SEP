@@ -57,9 +57,13 @@ export interface PageFlow {
   /** Returns true only while this paragraph is retained in a pending keepNext chain. */
   recordParagraph(styleId: string, runsXml: string, numbered: boolean, options?: ParagraphFlowOptions): boolean
   beforeTable(): TablePaginationOptions
-  breakBeforePendingChain(): boolean
+  breakBeforePendingChain(onlyIfSplittable?: boolean): boolean
   placeTable(heightsMm: readonly number[], startOnNewPage: boolean): void
   setFootnoteHeights(heights: ReadonlyMap<number, number>): void
+}
+
+function canSplit(paragraph: ParagraphMeasure): boolean {
+  return !paragraph.atomic && paragraph.lineCount > 1
 }
 
 export function createPageFlow(): PageFlow {
@@ -122,13 +126,12 @@ export function createPageFlow(): PageFlow {
     let reserve = reserveHeight()
     const atomic = chain.length > 1 || chain.some(paragraph => paragraph.atomic)
     const terminal = chain[chain.length - 1]!
-    // keepNext binds the heading to the start of the following paragraph, not all
-    // of its lines. When a multi-line terminal paragraph can split, its final page
-    // (and any footnote reference page) cannot be inferred by relocating the chain.
-    // Single-line terminals retain the existing short-chain relocation behavior.
-    const splittableTerminal = !terminal.atomic && terminal.lineCount > 1
+    // keepNext does not imply keepLines for any member of the chain. A heading
+    // or body paragraph can split while its end remains with the next paragraph.
+    // Do not infer the final page by moving a chain containing such a paragraph.
+    // Chains made only of single-line or explicitly atomic members still relocate.
     if (height + reserve > remaining() &&
-        ((chain.length > 1 && splittableTerminal) || (!atomic && ids.length > 0))) {
+        ((chain.length > 1 && chain.some(canSplit)) || (!atomic && ids.length > 0))) {
       known = false
       previousAfter = terminal.after
       return
@@ -172,7 +175,10 @@ export function createPageFlow(): PageFlow {
         (added.length > 0 && (fresh || footnotes.size === 0) ? 6 : 0)
     }
     const firstPageReservedMm = chainHeight(0) + reserve(true)
-    const unavailable = active && (!known || firstPageReservedMm >= capacity())
+    // A pending multi-line heading can wrap before a directly following table.
+    // Request a real break before the chain rather than assume it relocates intact.
+    const pendingOverflow = pending.some(canSplit) && chainHeight(previousAfter) + reserve(false) > remaining()
+    const unavailable = active && (!known || firstPageReservedMm >= capacity() || pendingOverflow)
     return {
       firstPageHeightMm: active && !unavailable ? Math.max(0, remaining() - chainHeight(previousAfter) - reserve(false)) : undefined,
       firstPageReservedMm,
@@ -241,7 +247,8 @@ export function createPageFlow(): PageFlow {
       lastWasTable = false
       return tableOptions()
     },
-    breakBeforePendingChain() {
+    breakBeforePendingChain(onlyIfSplittable = false) {
+      if (onlyIfSplittable && !pending.some(canSplit)) return false
       const force = pending[0]?.forcePageBreakBefore
       if (!force) return false
       force()

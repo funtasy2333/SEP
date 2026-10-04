@@ -150,6 +150,35 @@ describe('paginateTable', () => {
     expect(xml.match(/项目 \d+/g)).toHaveLength(70)
     expect(ctx.pageFlow.availableMm).toBeDefined()
   })
+  it.each([12, 2])('直接接表的%s行可拆分标题在首段移页时显式从链首换页', count => {
+    const ctx = createRenderContext({ table: { label: '表1', xmlId: 'table_1', refText: '表1' } })
+    ctx.pageFlow.startSection(); ctx.pageFlow.placeTable([count === 12 ? 180 : 200], false)
+    const heading = emitParagraph(ctx, 'SesChapter', {
+      runsXml: Array.from({ length: count }, (_, i) => `<w:r><w:t>长标题第${i + 1}行</w:t></w:r>`).join('<w:r><w:br/></w:r>'),
+      numbered: { nodeId: 'long-chapter', kind: 'chapter' },
+    })
+    const ir = table(Array.from({ length: count === 12 ? 70 : 2 }, (_, i) => row(i + 1, '短记录')))
+    const xml = ctx.resolveParagraphBreaks(heading + renderBlock(ctx, ir, { scopeKey: 'chapter' }))
+    const firstParagraph = xml.slice(0, xml.indexOf('</w:p>'))
+    expect(firstParagraph).toContain('<w:pageBreakBefore/>')
+    const caption = xml.slice(xml.indexOf('<w:pStyle w:val="SesTblCap"'), xml.indexOf('</w:p>', xml.indexOf('<w:pStyle w:val="SesTblCap"')))
+    expect(caption).not.toContain('<w:pageBreakBefore/>')
+    expect(xml).not.toContain('<!--ses-page-break:')
+    expect(xml.match(/项目 \d+/g)).toHaveLength(count === 12 ? 70 : 2)
+    expect(ctx.pageFlow.availableMm).toBeDefined()
+  })
+  it('嵌套表格的分段不触发外层待定标题链的分页符', () => {
+    const ctx = createRenderContext({ table: { label: '表1', xmlId: 'table_1', refText: '表1' } })
+    ctx.pageFlow.startSection()
+    const heading = emitParagraph(ctx, 'SesChapter', {
+      runsXml: '<w:r><w:t>第一行标题</w:t><w:br/><w:t>第二行标题</w:t></w:r>',
+      numbered: { nodeId: 'chapter', kind: 'chapter' },
+    })
+    const remaining = ctx.pageFlow.availableMm
+    ctx.pageFlow.suspend(() => renderBlock(ctx, table(Array.from({ length: 70 }, (_, i) => row(i + 1, '短记录'))), { scopeKey: 'cell' }))
+    expect(ctx.resolveParagraphBreaks(heading)).not.toContain('<w:pageBreakBefore/>')
+    expect(ctx.pageFlow.availableMm).toBe(remaining)
+  })
   it('标题与短表一起移页后，后续余量包含标题高度', () => {
     const ir=table([row(1),row(2)])
     const contexts=[createRenderContext({table:{label:'表1',xmlId:'table_1',refText:'表1'}}),createRenderContext({table:{label:'表1',xmlId:'table_1',refText:'表1'}})]
