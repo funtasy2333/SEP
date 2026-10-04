@@ -2,7 +2,7 @@ import type { CreateDocumentDto, Document, DocumentMeta, PMJsonNode } from '@ses
 
 const COVER_META_KEYS = [
   'standardType', 'standardNo', 'titleCn', 'titleEn', 'icsCode', 'ccsCode', 'issuer',
-  'publishDate', 'implementDate', 'replaces', 'consistency', 'filingNo', 'industryName', 'regionName',
+  'publishDate', 'implementDate', 'replaces', 'consistency', 'filingNo', 'industryName', 'regionName', 'coverDesignation',
 ] as const satisfies ReadonlyArray<keyof DocumentMeta>
 
 /** 复制正文为独立对象，并把库中明确保存的封面元数据同步到副本供XML读取。 */

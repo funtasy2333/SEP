@@ -44,6 +44,8 @@ export interface IRDocMeta {
   industryName?: string
   /** 地方名称 */
   regionName?: string
+  /** 封面标准称谓完整覆盖值；国家标准和指导性技术文件仍使用固定称谓 */
+  coverDesignation?: string
 }
 
 export interface IRChapter {

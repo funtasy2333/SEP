@@ -17,16 +17,25 @@
       </div>
 
       <nav class="ed-tabs">
-        <button class="ed-tab" :class="{ 'is-active': activeTab === 'edit' }"     @click="activeTab = 'edit'">文件编辑</button>
-        <button class="ed-tab" :class="{ 'is-active': activeTab === 'settings' }" @click="activeTab = 'settings'">文件设置</button>
-        <button class="ed-tab" :class="{ 'is-active': activeTab === 'preview' }"  @click="activeTab = 'preview'">预览</button>
+        <button class="ed-tab" :class="{ 'is-active': activeTab === 'edit' }" @click="activeTab = 'edit'">
+          文件编辑<span v-if="dirty" class="tab-dirty-mark" aria-label="正文有未保存修改" />
+        </button>
+        <button class="ed-tab" :class="{ 'is-active': activeTab === 'settings' }" @click="activeTab = 'settings'">
+          文件设置<span v-if="settingsDirty" class="tab-dirty-mark settings-mark" aria-label="设置有未保存修改" />
+        </button>
+        <button class="ed-tab" :class="{ 'is-active': activeTab === 'preview' }" @click="activeTab = 'preview'">预览</button>
       </nav>
 
       <div class="nav-r">
         <span class="ses-save-pill" :class="{ 'is-saving': saving }">
           <span class="dot" />
-          <template v-if="saving">保存中…</template>
+          <template v-if="persistenceOperation === 'settings-save'">设置保存中…</template>
+          <template v-else-if="persistenceOperation === 'xml-import'">导入中…</template>
+          <template v-else-if="saving">保存中…</template>
+          <template v-else-if="settingsDirty">设置待保存</template>
+          <template v-else-if="dirty">正文待保存</template>
           <template v-else-if="lastSaved">已保存 {{ lastSaved }}</template>
+          <template v-else-if="documentLoaded">已保存</template>
           <template v-else>未保存</template>
         </span>
         <div class="ses-avatar-stack">
@@ -232,13 +241,21 @@
       <SlashMenu @execute="handleSlashCommand" />
     </template>
 
-    <!-- =====================  SETTINGS TAB  ===================== -->
-    <div v-else-if="activeTab === 'settings'" class="tab-placeholder">
-      <el-empty description="文件设置（开发中）" />
+    <!-- Keep the independent settings draft mounted while switching tabs. -->
+    <div v-show="activeTab === 'settings'" class="settings-host">
+      <DocumentSettingsPanel
+        v-if="settingsDraft"
+        :draft="settingsDraft"
+        :dirty="settingsDirty"
+        :saving="persistenceOperation !== null"
+        :save-error="settingsSaveError"
+        @save="handleSettingsSave"
+        @reset="resetSettingsDraft"
+      />
     </div>
 
     <!-- =====================  PREVIEW TAB  ===================== -->
-    <div v-else-if="activeTab === 'preview'" class="tab-placeholder">
+    <div v-if="activeTab === 'preview'" class="tab-placeholder">
       <el-empty description="GB/T 1.1 文档预览（开发中）" />
     </div>
 
@@ -394,17 +411,25 @@
 <script setup lang="ts">
 import { getDocxExportFeedback } from '@/utils/docxExportFeedback'
 import { createDefaultDocumentContent } from '@/utils/newDocument'
+import {
+  COVER_SETTINGS_KEYS,
+  documentMetaFromSettingsDraft,
+  documentSettingsDraftFromDocument,
+  synchronizeCoverMetadata,
+  type DocumentSettingsDraft,
+} from '@/utils/documentSettings'
 import { setClauseFormat, setParagraphFormat } from '@/utils/structureEditing'
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 // Underline is included in StarterKit (tiptap v3)
 import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon, Clock, Download } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { documentApi } from '@/api/document'
 import { useDocumentStore } from '@/stores/document'
 import SesEditorContent from '@/components/editor/EditorContent.vue'
 import DocumentOutline from '@/components/editor/DocumentOutline.vue'
+import DocumentSettingsPanel from '@/components/editor/DocumentSettingsPanel.vue'
 import SlashMenu from '@/components/editor/SlashMenu.vue'
 import VersionPanel from '@/components/version/VersionPanel.vue'
 
@@ -418,16 +443,23 @@ import {
   exportSemanticJson, exportSemanticHtml,
   buildPdfExportRequest, buildDocxBlob,
 } from '@/serializer'
-import { irMetaFromDocumentMeta, pmToIr, resolve, type IRDocMeta, type PMJsonNode } from '@ses/shared'
+import { irMetaFromDocumentMeta, pmToIr, resolve, type DocumentMeta, type IRDocMeta, type PMJsonNode } from '@ses/shared'
 
 const route = useRoute()
 const router = useRouter()
 const store = useDocumentStore()
 
 const loading = ref(true)
+const documentLoaded = ref(false)
 const saving = ref(false)
 const lastSaved = ref('')
 const activeTab = ref<'edit' | 'settings' | 'preview'>('edit')
+const persistenceOperation = ref<'body-save' | 'settings-save' | 'xml-import' | null>(null)
+const settingsDraft = ref<DocumentSettingsDraft | null>(null)
+const settingsBaseline = ref('')
+const settingsSaveError = ref(false)
+const settingsDirty = computed(() => Boolean(settingsDraft.value)
+  && JSON.stringify(settingsDraft.value) !== settingsBaseline.value)
 const searchText = ref('')
 const showXmlCode = ref(false)
 const showHelp = ref(false)
@@ -462,14 +494,24 @@ let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 const dirty = ref(false)
 const contentReady = ref(false)
 let importingXml = false
+let suppressEditorUpdate = false
+let bodyChangeVersion = 0
+let bodySavePromise: Promise<void> | null = null
+
+watch(settingsDraft, () => {
+  if (settingsDirty.value) settingsSaveError.value = false
+}, { deep: true })
 
 function scheduleAutoSave() {
   if (!contentReady.value) return
+  bodyChangeVersion += 1
   dirty.value = true
+  queueAutoSave()
+}
+
+function queueAutoSave(delay = 3000) {
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
-  autoSaveTimer = setTimeout(() => {
-    handleSave()
-  }, 3000)
+  autoSaveTimer = setTimeout(() => { void handleSave() }, delay)
 }
 
 function activeOrientationNodeType(): 'figure' | 'stdTable' | undefined {
@@ -506,7 +548,7 @@ const editor = useEditor({
   extensions: createEditorExtensions(),
   content: '',
   onUpdate() {
-    scheduleAutoSave()
+    if (!suppressEditorUpdate) scheduleAutoSave()
   },
   editorProps: {
     handleKeyDown(_view, event) {
@@ -520,9 +562,141 @@ const editor = useEditor({
   },
 })
 
+function hydrateSettingsDraft(document = store.currentDocument) {
+  if (!document) {
+    settingsDraft.value = null
+    settingsBaseline.value = ''
+    return
+  }
+  const draft = documentSettingsDraftFromDocument(document as {
+    title: string
+    meta: DocumentMeta
+    stage: string
+    content: Record<string, unknown>
+  })
+  settingsDraft.value = draft
+  settingsBaseline.value = JSON.stringify(draft)
+  settingsSaveError.value = false
+}
+
+function resetSettingsDraft() {
+  if (persistenceOperation.value !== null) return
+  hydrateSettingsDraft()
+  ElMessage.success('已恢复为最近一次保存的设置')
+}
+
+/** Update just the cover attributes so body nodes, selection and undo history stay intact. */
+function synchronizeEditorCover(meta: DocumentMeta): Record<string, unknown> {
+  const currentEditor = editor.value
+  if (!currentEditor) return {}
+  const synchronizedJson = synchronizeCoverMetadata(currentEditor.getJSON(), meta)
+  const synchronizedDoc = currentEditor.schema.nodeFromJSON(synchronizedJson)
+  const state = currentEditor.state
+  const transaction = state.tr
+  let coverPosition = -1
+  state.doc.forEach((node, position) => {
+    if (coverPosition < 0 && node.type.name === 'coverPage') {
+      coverPosition = position
+    }
+  })
+
+  const nextCoverIndex = synchronizedDoc.content.content.findIndex((node) => node.type.name === 'coverPage')
+  if (nextCoverIndex < 0) throw new Error('无法建立封面元数据节点')
+  const nextCover = synchronizedDoc.child(nextCoverIndex)
+  if (coverPosition >= 0) {
+    transaction.setNodeMarkup(coverPosition, nextCover.type, nextCover.attrs, nextCover.marks)
+  } else {
+    transaction.insert(0, nextCover)
+  }
+
+  for (const key of COVER_SETTINGS_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(state.doc.attrs, key)
+      && state.doc.attrs[key] !== synchronizedDoc.attrs[key]) {
+      transaction.setDocAttribute(key, synchronizedDoc.attrs[key])
+    }
+  }
+
+  if (transaction.docChanged) {
+    transaction.setMeta('addToHistory', false)
+    suppressEditorUpdate = true
+    try {
+      currentEditor.view.dispatch(transaction)
+    } finally {
+      suppressEditorUpdate = false
+    }
+  }
+  return synchronizeCoverMetadata(currentEditor.getJSON(), meta)
+}
+
+function getSynchronizedEditorDoc() {
+  const currentEditor = editor.value
+  const currentDocument = store.currentDocument
+  if (!currentEditor || !currentDocument) return currentEditor?.state.doc ?? null
+  const synchronizedJson = synchronizeCoverMetadata(currentEditor.getJSON(), currentDocument.meta)
+  return currentEditor.schema.nodeFromJSON(synchronizedJson)
+}
+
+function clearAutoSaveTimer() {
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer)
+    autoSaveTimer = null
+  }
+}
+
+async function handleSettingsSave() {
+  const currentDocument = store.currentDocument
+  const draft = settingsDraft.value
+  const currentEditor = editor.value
+  if (!currentDocument?.id || !draft || !currentEditor) return
+  if (persistenceOperation.value !== null) {
+    if (dirty.value && persistenceOperation.value !== 'body-save') queueAutoSave()
+    return
+  }
+
+  const title = draft.titleCn.trim()
+  if (!title) {
+    ElMessage.warning('标准中文名称不能为空')
+    return
+  }
+
+  const draftSnapshot = { ...draft, titleCn: title }
+  const meta = documentMetaFromSettingsDraft(currentDocument.meta, draftSnapshot)
+  clearAutoSaveTimer()
+  persistenceOperation.value = 'settings-save'
+  saving.value = true
+  settingsSaveError.value = false
+  const bodyVersionAtSave = bodyChangeVersion
+  try {
+    const content = synchronizeCoverMetadata(currentEditor.getJSON(), meta)
+    // Validate the candidate against the live production schema without changing editor state.
+    const validatedContent = currentEditor.schema.nodeFromJSON(content)
+    validatedContent.check()
+    const updated = await store.updateDocument(currentDocument.id, {
+      title,
+      meta,
+      stage: draftSnapshot.stage,
+      content,
+    })
+    // Apply only cover attributes after persistence succeeds; the request may have overlapped body edits.
+    synchronizeEditorCover(meta)
+    hydrateSettingsDraft(updated)
+    if (bodyChangeVersion === bodyVersionAtSave) dirty.value = false
+    else dirty.value = true
+    lastSaved.value = new Date().toLocaleTimeString('zh-CN')
+    ElMessage.success('文件设置已保存')
+  } catch (error) {
+    settingsSaveError.value = true
+    ElMessage.error(`设置保存失败，草稿已保留${error instanceof Error ? `：${error.message}` : ''}`)
+  } finally {
+    persistenceOperation.value = null
+    saving.value = false
+    if (dirty.value) queueAutoSave()
+  }
+}
+
 const codeViewContent = computed(() => {
   if (!editor.value) return ''
-  const doc = editor.value.state.doc
+  const doc = getSynchronizedEditorDoc() || editor.value.state.doc
 
   switch (codeViewFormat.value) {
     case 'xml':
@@ -544,7 +718,7 @@ const codeViewContent = computed(() => {
         return `HTML 导出错误: ${e}`
       }
     case 'raw':
-      return JSON.stringify(editor.value.getJSON(), null, 2)
+      return JSON.stringify(doc.toJSON(), null, 2)
     default:
       return ''
   }
@@ -553,9 +727,14 @@ const codeViewContent = computed(() => {
 onMounted(async () => {
   window.addEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
   window.addEventListener('ses:edit-footnote', handleFootnoteEditEvent)
+  window.addEventListener('beforeunload', guardUnsavedSettings)
   const id = Number(route.params.id)
   try {
     await store.fetchDocument(id)
+    documentLoaded.value = true
+    const updatedAt = store.currentDocument?.updatedAt
+    lastSaved.value = updatedAt ? new Date(updatedAt).toLocaleTimeString('zh-CN') : ''
+    hydrateSettingsDraft()
     if (store.currentDocument?.content && Object.keys(store.currentDocument.content).length > 0) {
       editor.value?.commands.setContent(store.currentDocument.content)
     } else {
@@ -581,9 +760,10 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
   window.removeEventListener('ses:edit-footnote', handleFootnoteEditEvent)
+  window.removeEventListener('beforeunload', guardUnsavedSettings)
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
   if (dirty.value && !importingXml && editor.value && store.currentDocument) {
-    const content = editor.value.getJSON()
+    const content = synchronizeCoverMetadata(editor.value.getJSON(), store.currentDocument.meta)
     const currentId = store.currentDocument.id
     if (currentId != null) {
       void documentApi.update(currentId, { content })
@@ -592,20 +772,72 @@ onBeforeUnmount(() => {
   editor.value?.destroy()
 })
 
-async function handleSave() {
-  if (!editor.value || !store.currentDocument || importingXml) return
-  if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null }
-  saving.value = true
-  try {
-    const content = editor.value.getJSON()
-    await store.updateDocument(store.currentDocument.id!, { content })
-    dirty.value = false
-    lastSaved.value = new Date().toLocaleTimeString('zh-CN')
-  } catch {
-    ElMessage.error('保存失败')
-  } finally {
-    saving.value = false
+function guardUnsavedSettings(event: BeforeUnloadEvent) {
+  if (!settingsDirty.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+onBeforeRouteLeave(async () => {
+  if (persistenceOperation.value !== null) {
+    ElMessage.warning('文档仍在保存或导入，请稍后再离开')
+    return false
   }
+  if (!settingsDirty.value) return true
+  try {
+    await ElMessageBox.confirm(
+      '文件设置中有尚未保存的修改，离开后这些修改将丢失。',
+      '离开文件设置？',
+      { confirmButtonText: '离开并放弃修改', cancelButtonText: '继续编辑', type: 'warning' },
+    )
+    return true
+  } catch {
+    return false
+  }
+})
+
+function handleSave(): Promise<void> {
+  if (!editor.value || !store.currentDocument || importingXml) return Promise.resolve()
+  if (persistenceOperation.value !== null) {
+    if (persistenceOperation.value === 'body-save') return bodySavePromise ?? Promise.resolve()
+    if (dirty.value) queueAutoSave()
+    return Promise.resolve()
+  }
+  clearAutoSaveTimer()
+  persistenceOperation.value = 'body-save'
+  saving.value = true
+  const currentEditor = editor.value
+  const currentDocumentId = store.currentDocument.id!
+  const persistedMeta = store.currentDocument.meta
+  try {
+    synchronizeEditorCover(persistedMeta)
+  } catch (error) {
+    persistenceOperation.value = null
+    saving.value = false
+    ElMessage.error(`封面元数据同步失败：${error instanceof Error ? error.message : String(error)}`)
+    return Promise.resolve()
+  }
+  clearAutoSaveTimer()
+  const changeVersionAtStart = bodyChangeVersion
+  const promise = (async () => {
+    try {
+      const content = synchronizeCoverMetadata(currentEditor.getJSON(), persistedMeta)
+      await store.updateDocument(currentDocumentId, { content })
+      if (bodyChangeVersion === changeVersionAtStart) dirty.value = false
+      lastSaved.value = new Date().toLocaleTimeString('zh-CN')
+    } catch {
+      ElMessage.error('保存失败；正文仍保留在编辑器中')
+    } finally {
+      persistenceOperation.value = null
+      saving.value = false
+      // A failed snapshot stays dirty, but only edits made during this request
+      // require another autosave. Otherwise wait for a new edit or manual save.
+      if (dirty.value && bodyChangeVersion !== changeVersionAtStart) queueAutoSave()
+    }
+  })()
+  bodySavePromise = promise
+  void promise.finally(() => { if (bodySavePromise === promise) bodySavePromise = null })
+  return promise
 }
 
 function goHome() {
@@ -1224,6 +1456,15 @@ function setEditorContent(content: Record<string, unknown>) {
 
 // === 导出 ===
 function handleExport() {
+  if (persistenceOperation.value !== null) {
+    ElMessage.warning('文档保存或导入完成后再导出')
+    return
+  }
+  if (settingsDirty.value) {
+    ElMessage.warning('文件设置有未保存修改，请先保存或重置')
+    activeTab.value = 'settings'
+    return
+  }
   exportError.value = ''
   showExport.value = true
 }
@@ -1236,8 +1477,18 @@ function buildDocMeta(): Partial<IRDocMeta> {
 async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'json') {
   if (!editor.value) return
   if (exportingFormat.value !== null) return
+  if (persistenceOperation.value !== null) {
+    ElMessage.warning('文档保存或导入完成后再导出')
+    return
+  }
+  if (settingsDirty.value) {
+    ElMessage.warning('文件设置有未保存修改，请先保存或重置')
+    activeTab.value = 'settings'
+    showExport.value = false
+    return
+  }
 
-  const doc = editor.value.state.doc
+  const doc = getSynchronizedEditorDoc() || editor.value.state.doc
   const footnoteError = getFootnoteExportError(doc)
   if (footnoteError) {
     exportError.value = footnoteError
@@ -1351,7 +1602,11 @@ function downloadBlob(blob: Blob, filename: string) {
 
 /** 复制代码内容 */
 function copyCodeContent() {
-  const doc = editor.value?.state.doc
+  if (persistenceOperation.value !== null || settingsDirty.value) {
+    ElMessage.warning(settingsDirty.value ? '文件设置有未保存修改，请先保存或重置' : '文档保存或导入完成后再复制')
+    return
+  }
+  const doc = getSynchronizedEditorDoc()
   if (doc) {
     const footnoteError = getFootnoteExportError(doc)
     if (footnoteError) {
@@ -1369,6 +1624,10 @@ function copyCodeContent() {
 
 /** 下载代码内容 */
 function downloadCodeContent() {
+  if (persistenceOperation.value !== null || settingsDirty.value) {
+    ElMessage.warning(settingsDirty.value ? '文件设置有未保存修改，请先保存或重置' : '文档保存或导入完成后再下载')
+    return
+  }
   const formatInfo: Record<string, { ext: string; mime: string }> = {
     xml: { ext: 'xml', mime: 'application/xml' },
     json: { ext: 'json', mime: 'application/json' },
@@ -1376,7 +1635,7 @@ function downloadCodeContent() {
     raw: { ext: 'json', mime: 'application/json' },
   }
   const info = formatInfo[codeViewFormat.value] || formatInfo.raw
-  const doc = editor.value?.state.doc
+  const doc = getSynchronizedEditorDoc()
   if (doc) {
     const footnoteError = getFootnoteExportError(doc)
     if (footnoteError) {
@@ -1384,7 +1643,7 @@ function downloadCodeContent() {
       return
     }
   }
-  const titleCn = doc?.attrs.titleCn || '标准文件'
+  const titleCn = store.currentDocument?.meta?.titleCn || store.currentDocument?.title || '标准文件'
   downloadFile(codeViewContent.value, `${titleCn}.${info.ext}`, info.mime)
 }
 
@@ -1410,9 +1669,15 @@ function handleXmlFileImport(event: Event) {
   const currentEditor = editor.value
   const currentDocument = store.currentDocument
   if (!file || !currentEditor) return
-  if (saving.value || importingXml) {
+  if (persistenceOperation.value !== null || importingXml) {
     input.value = ''
     ElMessage.warning('文档正在保存或导入，请稍后再导入 XML')
+    return
+  }
+  if (settingsDirty.value) {
+    input.value = ''
+    ElMessage.warning('文件设置有未保存修改，请先保存或重置')
+    activeTab.value = 'settings'
     return
   }
   if (!currentDocument?.id) {
@@ -1423,6 +1688,8 @@ function handleXmlFileImport(event: Event) {
   const currentDocumentId = currentDocument.id
 
   importingXml = true
+  persistenceOperation.value = 'xml-import'
+  saving.value = true
   const wasEditable = currentEditor.isEditable
   const wasDirty = dirty.value
   currentEditor.setEditable(false)
@@ -1435,6 +1702,8 @@ function handleXmlFileImport(event: Event) {
   const finishImport = () => {
     if (!currentEditor.isDestroyed) currentEditor.setEditable(wasEditable)
     importingXml = false
+    persistenceOperation.value = null
+    saving.value = false
     input.value = ''
     if (!persisted && wasDirty && !currentEditor.isDestroyed) scheduleAutoSave()
   }
@@ -1453,22 +1722,23 @@ function handleXmlFileImport(event: Event) {
         throw new Error('当前文档已切换，请重新导入')
       }
       const update = prepareXmlImportDocumentUpdate(validatedJson, currentDocument.meta)
+      const meta = { ...currentDocument.meta, ...update.meta }
+      const content = synchronizeCoverMetadata(validatedJson, meta)
 
-      saving.value = true
-      await store.updateDocument(currentDocumentId, {
+      const updated = await store.updateDocument(currentDocumentId, {
         title: update.title,
-        meta: update.meta,
-        content: validatedJson,
+        meta,
+        content,
       })
       persisted = true
-      currentEditor.commands.setContent(validatedJson, { emitUpdate: false })
+      currentEditor.commands.setContent(content, { emitUpdate: false })
+      hydrateSettingsDraft(updated)
       dirty.value = false
       lastSaved.value = new Date().toLocaleTimeString('zh-CN')
       ElMessage.success('XML 文件导入成功')
     } catch (err) {
       ElMessage.error(`XML 导入失败: ${err}`)
     } finally {
-      saving.value = false
       finishImport()
     }
   }
@@ -1505,7 +1775,7 @@ function handleXmlFileImport(event: Event) {
   border-bottom: 1px solid var(--ses-line);
   flex-shrink: 0;
 }
-.nav-l, .nav-r { display: flex; align-items: center; gap: 12px; }
+.nav-l, .nav-r { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .nav-r { justify-content: flex-end; }
 .brand-sep { width: 1px; height: 14px; background: var(--ses-line-2); margin: 0 4px; }
 
@@ -1530,6 +1800,7 @@ function handleXmlFileImport(event: Event) {
   border-radius: 8px;
 }
 .ed-tab {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   padding: 5px 14px;
   border-radius: 5px;
   font-size: 13px;
@@ -1547,6 +1818,8 @@ function handleXmlFileImport(event: Event) {
   font-weight: 600;
   box-shadow: var(--ses-shadow-1);
 }
+.tab-dirty-mark { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--ses-warn); box-shadow: 0 0 0 2px var(--ses-warn-soft); }
+.tab-dirty-mark.settings-mark { background: var(--ses-accent); box-shadow: 0 0 0 2px var(--ses-accent-soft); }
 
 /* === toolbar === */
 .ed-toolbar {
@@ -1661,6 +1934,7 @@ function handleXmlFileImport(event: Event) {
 .slide-right-enter-from,  .slide-right-leave-to     { transform: translateX(100%); opacity: 0; }
 
 /* === placeholder tabs === */
+.settings-host { flex: 1; min-height: 0; display: flex; overflow: hidden; }
 .tab-placeholder {
   flex: 1;
   display: flex;
@@ -1748,4 +2022,33 @@ function handleXmlFileImport(event: Event) {
   text-align: center;
 }
 .export-card.primary .ec-sub { color: oklch(0.95 0.005 270 / 0.85); }
+
+@media (max-width: 1000px) {
+  .ed-nav {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'nav-left nav-right' 'nav-tabs nav-tabs';
+    gap: 5px 10px;
+    height: auto;
+    min-height: 48px;
+    padding: 7px 10px;
+  }
+  .nav-l { grid-area: nav-left; }
+  .ed-tabs { grid-area: nav-tabs; justify-self: center; }
+  .nav-r { grid-area: nav-right; gap: 7px; }
+  .doc-crumb { max-width: min(300px, 34vw); }
+  .nav-r .ses-avatar-stack { display: none; }
+  .nav-r > .el-button:first-of-type span { display: none; }
+}
+@media (max-width: 620px) {
+  .ed-nav { padding: 6px 8px; }
+  .nav-l { gap: 7px; }
+  .brand-sep, .doc-crumb .std-no, .doc-crumb .dot-sep, .doc-crumb .caret { display: none; }
+  .doc-crumb { max-width: 34vw; padding: 4px 5px; font-size: 11px; }
+  .nav-r { gap: 4px; }
+  .nav-r > .el-button:first-of-type { display: none; }
+  .nav-r > .el-button:last-of-type span { display: none; }
+  .nav-r > .el-button:last-of-type { padding: 7px 9px; }
+  .ses-save-pill { padding: 4px 7px; font-size: 9px; }
+  .ed-tab { padding: 5px 10px; font-size: 11px; }
+}
 </style>

@@ -6,6 +6,7 @@
  */
 
 import type { IRDocMeta } from '../../ir/types'
+import { getCoverDesignation } from '../../coverDesignation'
 import type { DocumentStage } from '../../types/document'
 import { COVER_ASSETS } from './assets'
 import type { DocxRelatedPart } from './package'
@@ -144,14 +145,12 @@ function registerImage(ctx: RenderContext, asset: CoverAsset): { relationshipId:
 }
 
 function designation(meta: IRDocMeta): { text: string; styleId: string } {
-  switch (meta.standardType) {
-    case 'gb': return { text: '中华人民共和国国家标准', styleId: 'SesCoverDesignationGb' }
-    case 'guide': return { text: '中华人民共和国国家标准化指导性技术文件', styleId: 'SesCoverDesignationGuide' }
-    case 'industry': return { text: `中华人民共和国${meta.industryName ?? ''}行业标准`, styleId: 'SesCoverDesignationOther' }
-    case 'local': return { text: `${meta.regionName ?? ''}地方标准`, styleId: 'SesCoverDesignationOther' }
-    case 'group': return { text: '团体标准', styleId: 'SesCoverDesignationOther' }
-    case 'enterprise': return { text: '企业标准', styleId: 'SesCoverDesignationOther' }
-  }
+  const styleId = meta.standardType === 'gb'
+    ? 'SesCoverDesignationGb'
+    : meta.standardType === 'guide'
+      ? 'SesCoverDesignationGuide'
+      : 'SesCoverDesignationOther'
+  return { text: getCoverDesignation(meta), styleId }
 }
 
 // 新建草案使用显式 XXXXX—XXXX 占位编号；已填写的家族/地区/机构代码仍应显示。
@@ -259,10 +258,10 @@ export function renderCover(ctx: RenderContext, meta: IRDocMeta, stage: Document
   if (meta.standardType === 'industry') codeLines.push(`备案号：${meta.filingNo ?? ''}`)
   if (codeLines.length > 0) xml += frameText(ctx, 'SesCoverIcs', codeLines.join('\n'), FRAME_CODES)
 
-  if (meta.standardType === 'industry' && !meta.industryName?.trim()) {
+  if (meta.standardType === 'industry' && !meta.coverDesignation?.trim() && !meta.industryName?.trim()) {
     warn(ctx, 'cover-field-missing', 'meta.industryName 缺失，封面标准称谓中的行业名称留空')
   }
-  if (meta.standardType === 'local' && !meta.regionName?.trim()) {
+  if (meta.standardType === 'local' && !meta.coverDesignation?.trim() && !meta.regionName?.trim()) {
     warn(ctx, 'cover-field-missing', 'meta.regionName 缺失，封面标准称谓中的地方名称留空')
   }
 

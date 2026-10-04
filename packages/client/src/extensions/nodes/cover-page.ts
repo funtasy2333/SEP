@@ -28,6 +28,7 @@ export const CoverPage = Node.create({
       filingNo: { default: '' },
       industryName: { default: '' },
       regionName: { default: '' },
+      coverDesignation: { default: '' },
     }
   },
 

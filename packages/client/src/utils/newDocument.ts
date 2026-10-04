@@ -1,4 +1,5 @@
 import type { DocumentMeta, DocumentStage, StandardType, PMJsonNode } from '@ses/shared'
+import { buildCoverDesignation, getCoverDesignationName, getCoverDesignationParts } from '@ses/shared'
 import { TYPE_DEFS } from '../constants/standards'
 
 export interface NewDocForm {
@@ -16,6 +17,9 @@ export interface NewDocForm {
   technicalCommittee: string
   replaces: string
   consistency: string
+  industryName?: string
+  regionName?: string
+  coverDesignation?: string
 }
 
 export const STANDARD_NO_PLACEHOLDER = 'XXXXX—XXXX'
@@ -48,7 +52,7 @@ export function createDefaultDocumentContent(meta?: DocumentMeta): PMJsonNode & 
     // 保存到生产schema支持的封面属性，让XML/JSON和DOCX都能使用创建时的值。
     const attrs: Record<string, unknown> = {}
     for (const key of ['standardType', 'standardNo', 'titleCn', 'titleEn', 'icsCode', 'ccsCode', 'issuer',
-      'publishDate', 'implementDate', 'replaces', 'consistency', 'filingNo', 'industryName', 'regionName'] as const) {
+      'publishDate', 'implementDate', 'replaces', 'consistency', 'filingNo', 'industryName', 'regionName', 'coverDesignation'] as const) {
       if (meta[key] !== undefined) attrs[key] = meta[key]
     }
     content.push({ type: 'coverPage', attrs, content: [{ type: 'paragraph' }] })
@@ -66,6 +70,16 @@ export function createDefaultDocumentContent(meta?: DocumentMeta): PMJsonNode & 
 /** 一次创建即保存元数据和初始化正文，避免重新打开前文档只有空content。 */
 export function createNewDocument(form: NewDocForm) {
   const optional = (value: string) => value.trim() || undefined
+  const designationName = getCoverDesignationName({
+    standardType: form.type,
+    coverDesignation: form.coverDesignation,
+    industryName: form.industryName,
+    regionName: form.regionName,
+  })
+  const hasCustomParts = getCoverDesignationParts(form.type) !== undefined
+  const coverDesignation = hasCustomParts
+    ? optional(designationName ? buildCoverDesignation(form.type, designationName) : '')
+    : optional(form.coverDesignation ?? '')
   const meta: DocumentMeta = {
     titleCn: form.titleCn.trim(),
     titleEn: optional(form.titleEn),
@@ -79,6 +93,9 @@ export function createNewDocument(form: NewDocForm) {
     technicalCommittee: optional(form.technicalCommittee),
     replaces: optional(form.replaces),
     consistency: optional(form.consistency),
+    industryName: form.type === 'industry' ? optional(designationName) : optional(form.industryName ?? ''),
+    regionName: form.type === 'local' ? optional(designationName) : optional(form.regionName ?? ''),
+    coverDesignation,
   }
   return { title: meta.titleCn, stage: form.stage, meta, content: createDefaultDocumentContent(meta) }
 }

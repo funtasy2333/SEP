@@ -48,11 +48,12 @@ describe('irMetaFromDocumentMeta', () => {
     filingNo: '备案 123',
     industryName: '机械行业',
     regionName: '浙江省',
+    coverDesignation: '中华人民共和国装备制造行业标准',
     proposer: '某提出单位',
     technicalCommittee: '某归口单位',
   }
 
-  it('既有字段与五个封面字段按同名规则映射，standardType 经 toIrStandardType', () => {
+  it('既有字段与封面元数据按同名规则映射，standardType 经 toIrStandardType', () => {
     expect(irMetaFromDocumentMeta(full)).toEqual({
       title: '标准化文件编辑系统',
       titleEn: 'Standardization document editing system',
@@ -69,6 +70,7 @@ describe('irMetaFromDocumentMeta', () => {
       filingNo: '备案 123',
       industryName: '机械行业',
       regionName: '浙江省',
+      coverDesignation: '中华人民共和国装备制造行业标准',
     })
   })
 
@@ -97,6 +99,7 @@ describe('irMetaFromDocumentMeta', () => {
     expect('filingNo' in out).toBe(false)
     expect('industryName' in out).toBe(false)
     expect('regionName' in out).toBe(false)
+    expect('coverDesignation' in out).toBe(false)
     expect('publishDate' in out).toBe(false)
     expect('implementDate' in out).toBe(false)
   })
@@ -104,7 +107,7 @@ describe('irMetaFromDocumentMeta', () => {
   it('空字符串照常复制，不当作 undefined 跳过', () => {
     const withEmpty: DocumentMeta = {
       titleCn: '', titleEn: '', standardType: 'local', replaces: '', consistency: '',
-      filingNo: '', industryName: '', regionName: '',
+      filingNo: '', industryName: '', regionName: '', coverDesignation: '',
     }
     const out = irMetaFromDocumentMeta(withEmpty)
     expect(out.title).toBe('')
@@ -114,6 +117,7 @@ describe('irMetaFromDocumentMeta', () => {
     expect(out.filingNo).toBe('')
     expect(out.industryName).toBe('')
     expect(out.regionName).toBe('')
+    expect(out.coverDesignation).toBe('')
     expect('title' in out).toBe(true)
     expect('titleEn' in out).toBe(true)
   })

@@ -62,6 +62,7 @@ export function prepareXmlImportDocumentUpdate(
     filingNo: doc.meta.filingNo ?? '',
     industryName: doc.meta.industryName ?? '',
     regionName: doc.meta.regionName ?? '',
+    coverDesignation: doc.meta.coverDesignation ?? '',
     applicant: currentMeta.applicant,
     proposer: currentMeta.proposer,
     technicalCommittee: currentMeta.technicalCommittee,

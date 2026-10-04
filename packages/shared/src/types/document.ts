@@ -76,6 +76,8 @@ export interface DocumentMeta {
   industryName?: string;
   /** 地方名称 */
   regionName?: string;
+  /** 封面标准称谓完整覆盖值；仅行业、地方、团体、企业标准使用 */
+  coverDesignation?: string;
   /** 提出单位 */
   proposer?: string;
   /** 归口单位 */

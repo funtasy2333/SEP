@@ -239,6 +239,7 @@ function serializeFront(lines: string[], doc: PMNode, coverNode: PMNode | null, 
     ['filingNo', coverMetaValue('filingNo')],
     ['industryName', coverMetaValue('industryName')],
     ['regionName', coverMetaValue('regionName')],
+    ['coverDesignation', coverMetaValue('coverDesignation')],
   ].filter((entry): entry is [string, string] => entry[1] !== undefined)
   if (coverMetadata.length > 0) {
     lines.push(`${indent(depth + 1)}<custom-meta-group content-type="ses-cover">`)

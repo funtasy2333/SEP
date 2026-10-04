@@ -51,6 +51,7 @@ describe('XML 导入后的 DocumentMeta 同步', () => {
     <custom-meta-group content-type="ses-cover">
       <custom-meta><meta-name>regionName</meta-name><meta-value>浙江省</meta-value></custom-meta>
       <custom-meta><meta-name>consistency</meta-name><meta-value>MOD</meta-value></custom-meta>
+      <custom-meta><meta-name>coverDesignation</meta-name><meta-value>浙江省数字经济地方标准</meta-value></custom-meta>
     </custom-meta-group>
   </std-meta></front>
   <body><foreword><p>XML 前言正文</p></foreword><sec><title>范围</title></sec></body>
@@ -74,6 +75,7 @@ describe('XML 导入后的 DocumentMeta 同步', () => {
       filingNo: '',
       industryName: '',
       regionName: '浙江省',
+      coverDesignation: '浙江省数字经济地方标准',
       applicant: '保留申请单位',
       proposer: '保留提出单位',
       technicalCommittee: '保留归口单位',
@@ -85,6 +87,7 @@ describe('XML 导入后的 DocumentMeta 同步', () => {
       stdCode: 'DB33/T 12345—2026',
       title: '新地方标准名称',
       issuer: '浙江省市场监督管理局',
+      coverDesignation: '浙江省数字经济地方标准',
     })
     expect(docx.meta).not.toMatchObject({
       standardType: 'gb',
@@ -114,7 +117,7 @@ describe('XML 导入后的 DocumentMeta 同步', () => {
     expect(update.meta).toMatchObject({
       standardNo: '', titleEn: '', icsCode: '', ccsCode: '',
       publishDate: '', implementDate: '', issuer: '', replaces: '',
-      consistency: '', filingNo: '', industryName: '', regionName: '',
+      consistency: '', filingNo: '', industryName: '', regionName: '', coverDesignation: '',
     })
     expect(update.meta).toMatchObject({
       applicant: OLD_META.applicant,

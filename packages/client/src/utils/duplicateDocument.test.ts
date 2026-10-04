@@ -22,12 +22,13 @@ it('复制后库名/封面/XML/DOCX题名一致，正文保留且不修改源文
   source.meta.titleCn = '最新标准名称'
   source.meta.standardType = 'local'
   source.meta.standardNo = 'DB33/T 12345—2026'
+  source.meta.coverDesignation = '浙江省数字技术地方标准'
   source.meta.replaces = ''
   source.meta.consistency = 'MOD'
   const before = JSON.parse(JSON.stringify(source))
   const duplicate = JSON.parse(JSON.stringify(createDocumentDuplicate(source)))
   expect(duplicate).toMatchObject({ title: '最新标准名称（副本）', stage: 'working_draft',
-    meta: { titleCn: '最新标准名称（副本）', standardType: 'local', standardNo: 'DB33/T 12345—2026' } })
+    meta: { titleCn: '最新标准名称（副本）', standardType: 'local', standardNo: 'DB33/T 12345—2026', coverDesignation: '浙江省数字技术地方标准' } })
   expect(duplicate.content.content.slice(1)).toEqual(before.content.content.slice(1))
   expect(source).toEqual(before)
   const schema = getSchema(createEditorExtensions())
@@ -37,16 +38,19 @@ it('复制后库名/封面/XML/DOCX题名一致，正文保留且不修改源文
   expect(xml).toContain('<main>最新标准名称（副本）</main>')
   expect(xml).toContain('<std-ref>DB33/T 12345—2026</std-ref>')
   expect(xml).toContain('<std-type>local</std-type>')
+  expect(xml).toContain('<meta-name>coverDesignation</meta-name>')
+  expect(xml).toContain('<meta-value>浙江省数字技术地方标准</meta-value>')
   expect(xml).not.toContain('原标准名称')
   expect(xml).not.toContain('<meta-name>replaces</meta-name>')
   const reloaded = schema.nodeFromJSON(parseXmlToEditorJson(xml, schema.topNodeType.name))
   reloaded.check()
   expect(prepareDocxInput(reloaded).doc.meta).toMatchObject({ title: duplicate.meta.titleCn,
-    stdCode: duplicate.meta.standardNo, standardType: 'local', consistency: 'MOD' })
+    stdCode: duplicate.meta.standardNo, standardType: 'local', consistency: 'MOD', coverDesignation: duplicate.meta.coverDesignation })
   const { blob } = await buildDocxBlob({ pmDoc: node, documentMeta: duplicate.meta, stage: duplicate.stage })
   const zip = await JSZip.loadAsync(await blob.arrayBuffer())
   const body = await zip.file('word/document.xml')!.async('string')
   expect(body).toContain('最新标准名称（副本）')
+  expect(body).toContain('浙江省数字技术地方标准')
   expect(body).not.toContain('原标准名称')
   duplicate.content.content[1].content[0].content[0].text = '副本中的新正文'
   expect(source).toEqual(before)
