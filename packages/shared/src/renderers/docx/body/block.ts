@@ -239,7 +239,7 @@ function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, 
   const pagination = paginateTable(table, flowOptions)
   if (!nested && flowOptions.forceStartOnNewPage) {
     warn(ctx, 'table-flow-estimate-unavailable',
-      `表格 "${table.id}" 前含无法估算高度的公式等内容，首段改从新页排起，请在 Word 中复核表前余量`, table.id)
+      `表格 "${table.id}" 前含跨页脚注、公式等无法可靠确定页位置的内容，首段改从新页排起，请在 Word 中复核表前余量`, table.id)
   }
   if (pagination.oversizedGroup) {
     warn(ctx, 'table-row-too-tall',

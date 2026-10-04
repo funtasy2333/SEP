@@ -75,6 +75,30 @@ describe('正文页余量估算', () => {
     expect(flow.availableMm).toBe(178)
   })
 
+  it.each(['early', 'late'])('普通长正文的%s脚注引用跨页后，页位置未知而非整段移页', position => {
+    const flow = createPageFlow(); flow.startSection(); flow.setFootnoteHeights(new Map([[1, 12]]))
+    flow.placeTable([200], false)
+    const content = Array.from({ length: 12 }, (_, i) =>
+      run(`正文第${i + 1}行`) + (i === (position === 'early' ? 0 : 10) ? '<w:r><w:footnoteReference w:id="1"/></w:r>' : '')
+    ).join('<w:r><w:br/></w:r>')
+    flow.recordParagraph('SesPara', content, false)
+    expect(flow.availableMm).toBeUndefined()
+    expect(flow.estimateUnavailable).toBe(true)
+    expect(flow.beforeTable().forceStartOnNewPage).toBe(true)
+    flow.recordParagraph('SesPara', run('后续普通文字'), false)
+    expect(flow.availableMm).toBeUndefined()
+    flow.placeTable([80], true)
+    expect(flow.availableMm).toBe(158)
+    expect(flow.estimateUnavailable).toBe(false)
+  })
+  it('正文文字能放下但脚注预留会使其跨页时，不能声称引用仍在当前页', () => {
+    const flow = createPageFlow(); flow.startSection(); flow.setFootnoteHeights(new Map([[1, 12]]))
+    flow.placeTable([210], false)
+    const content = Array.from({ length: 4 }, (_, i) => run(`正文第${i+1}行`)).join('<w:r><w:br/></w:r>')
+    flow.recordParagraph('SesPara', content + '<w:r><w:footnoteReference w:id="1"/></w:r>', false)
+    expect(flow.availableMm).toBeUndefined()
+    expect(flow.beforeTable().forceStartOnNewPage).toBe(true)
+  })
   it('DrawingML的真实高度参与后续余量，不将图片当一行空文字', () => {
     const flow = createPageFlow(); flow.startSection()
     flow.withElement(false, () => flow.recordParagraph('SesFigure', '<w:drawing><wp:extent cx="3600000" cy="1440000"/></w:drawing>', false))

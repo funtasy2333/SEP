@@ -119,7 +119,15 @@ export function createPageFlow(): PageFlow {
     const wasKnown = known
     let height = totalHeight()
     let reserve = reserveHeight()
-    const atomic = chain.length > 1 || chain.some(paragraph => paragraph.atomic) || ids.length > 0
+    const atomic = chain.length > 1 || chain.some(paragraph => paragraph.atomic)
+    // A normal paragraph may split before or after its footnote reference. Without
+    // locating that reference in Word, neither the footnote page nor the final budget
+    // is known. Do not relocate the whole paragraph or charge the note to a guessed page.
+    if (!atomic && ids.length > 0 && height + reserve > remaining()) {
+      known = false
+      previousAfter = chain[chain.length - 1]!.after
+      return
+    }
     const freshHeight = height + Math.min(previousAfter, chain[0]!.before)
     const freshReserve = ids.length > 0 ? 6 + ids.reduce((sum, id) => sum + (definitionHeights.get(id) ?? 8), 0) : 0
     if (atomic && height + reserve > remaining() && freshHeight + freshReserve <= capacity()) {

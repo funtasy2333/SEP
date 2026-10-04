@@ -4,7 +4,7 @@ import type { DocxPackage } from '@ses/shared'
 export function getDocxExportFeedback(warnings: DocxPackage['warnings']) {
   const codes = new Set(warnings.map(warning => warning.code))
   const tableNotes: Record<string, string> = {
-    'table-flow-estimate-unavailable': '部分表格前含无法可靠估高的内容，已从新页排起，请在 Word 中复核表前余量。',
+    'table-flow-estimate-unavailable': '部分表格前的内容无法可靠确定页位置，已从新页排起，请在 Word 中复核表前余量。',
     'table-row-too-tall': '部分表格的数据行或跨行合并组超出单页空间，请在 Word 中调整分页。',
     'table-footer-too-tall': '部分表格的表题、重复表头与表注/表脚注合计超出一页，请在 Word 中调整分页。',
     'table-final-segment-too-tall': '部分表格的末段余量不足以同时容纳数据行与表注/表脚注，请在 Word 中调整分页。',

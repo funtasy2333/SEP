@@ -1,5 +1,7 @@
 # 表头跨行合并使用统一分段与页流计划（2026-10-04）
 
+后续复审的跨页脚注正文处理见[第七轮报告](wp7.6-table-flow-review7-2026-10-04.md)；本页原测量保留。
+
 对应[Recompute page flow after merging rowspan segments](https://github.com/funtasy2333/SEP/pull/43#discussion_r4175584594)，审查提交 `c423b45efd5b0e6bfd80da800ca233c1b9a89658`。
 
 ## 核实与修正

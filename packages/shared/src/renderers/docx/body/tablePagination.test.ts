@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { IRTable, IRTableRow } from '../../../ir/types'
 import { renderBlock } from './block'
-import { createRenderContext } from './context'
+import { createRenderContext, emitParagraph } from './context'
 import { paginateTable } from './tablePagination'
 
 function row(index: number, description = '用于检查跨页表题与标题行重复。'): IRTableRow {
@@ -116,6 +116,24 @@ describe('paginateTable', () => {
     expect(nextBudget.firstPageHeightMm).toBeCloseTo(238 - (15.6 * 25.4 / 72 - 2.8))
     const long = table(Array.from({ length: 93 }, (_, i) => row(i + 1, '短记录')))
     expect(paginateTable(long, nextBudget).bodySegments).toHaveLength(2)
+  })
+  it('允许跨页的脚注正文位置未知时，后续长表真实新页回退并恢复估算', () => {
+    const ctx = createRenderContext({ table: { label: '表1', xmlId: 'table_1', refText: '表1' } })
+    ctx.pageFlow.startSection(); ctx.pageFlow.setFootnoteHeights(new Map([[1, 12]]))
+    ctx.pageFlow.placeTable([200], false)
+    const runs = Array.from({ length: 12 }, (_, i) => `<w:r><w:t>脚注正文第${i+1}行</w:t></w:r>`)
+      .join('<w:r><w:br/></w:r>') + '<w:r><w:footnoteReference w:id="1"/></w:r>'
+    const paragraph = emitParagraph(ctx, 'SesPara', { runsXml: runs })
+    expect(paragraph).not.toContain('<w:keepLines')
+    expect(paragraph).not.toContain('<w:pageBreakBefore')
+    expect(ctx.pageFlow.availableMm).toBeUndefined()
+    const ir = table(Array.from({ length: 70 }, (_, i) => row(i+1, '短记录')))
+    const xml = renderBlock(ctx, ir, { scopeKey: 'chapter' })
+    expect(xml).toContain('<w:pageBreakBefore/>')
+    expect(ctx.warnings.map(w => w.code)).toContain('table-flow-estimate-unavailable')
+    expect(xml.match(/项目 \d+/g)).toHaveLength(70)
+    expect(ctx.pageFlow.availableMm).toBeDefined()
+    expect(ctx.pageFlow.estimateUnavailable).toBe(false)
   })
   it('标题与短表一起移页后，后续余量包含标题高度', () => {
     const ir=table([row(1),row(2)])

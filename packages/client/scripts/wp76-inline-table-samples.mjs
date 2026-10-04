@@ -142,6 +142,24 @@ for(const [name,shortFirst] of [
  variants.push([name,variant])
 }
 
+// 普通正文不带keepLines；脚注引用在早/晚行，Word应允许这段自然跨页。
+for (const [name, anchor, heading] of [
+ ['split-footnote-early-then-table',0,false],
+ ['split-footnote-late-then-table',10,false],
+ ['split-footnote-late-heading-table',10,true],
+]) {
+ const variant = clone(source)
+ const content = brokenLines(12,'跨页脚注正文行')
+ const anchorIndex = content.findIndex(node => node.type==='text' && node.text===`跨页脚注正文行${anchor+1}`)
+ content.splice(anchorIndex+1,0,{type:'footnoteRef',attrs:{nodeId:`${name}-call`,content:[t('跨页条文脚注检查：定义应与调用标记同页，段落允许分布在相邻两页。')]}})
+ const following = heading ? {type:'clause',attrs:{nodeId:`${name}-clause`,level:1,hasTitle:true},content:[
+  {type:'clauseTitle',attrs:{level:1},content:[t('脚注正文后的表前标题')]},clone(longTable)
+ ]} : clone(longTable)
+ variant.content[1].content=[variant.content[1].content[0],{type:'stdParagraph',attrs:{nodeId:`${name}-preamble`},content:brokenLines(30,'脚注前正文行')},
+  {type:'stdParagraph',attrs:{nodeId:`${name}-paragraph`},content},following,paragraph('脚注正文后的长表结束，70条记录应连续完整。')]
+ variants.push([name,variant])
+}
+
 // 表头合并覆盖较多数据行，甚至整张表；后续长表必须使用实际输出分段的页流。
 for (const [name, covered, total] of [
  ['header-rowspan-20-then-long-table',20,110],
