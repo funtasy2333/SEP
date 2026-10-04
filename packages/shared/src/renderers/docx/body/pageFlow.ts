@@ -1,5 +1,6 @@
 /** 首段接排的高度估算。使用同一份段落样式、版心与网格参数；不替代 Word 实排。 */
 import { styleSpecs } from '../styles'
+import type { TablePaginationOptions } from './tablePagination'
 
 const MM_PER_POINT = 25.4 / 72
 const GRID_LINE_MM = 15.6 * MM_PER_POINT
@@ -51,7 +52,7 @@ export interface PageFlow {
   withElement<T>(landscape: boolean, render: () => T): T
   suspend<T>(render: () => T): T
   recordParagraph(styleId: string, runsXml: string, numbered: boolean, options?: ParagraphFlowOptions): void
-  beforeTable(): void
+  beforeTable(): TablePaginationOptions
   placeTable(heightsMm: readonly number[], startOnNewPage: boolean): void
   setFootnoteHeights(heights: ReadonlyMap<number, number>): void
 }
@@ -138,6 +139,29 @@ export function createPageFlow(): PageFlow {
     ;({used, previousAfter, footnoteHeight, footnotes, known, lastWasTable, pending} = saved)
     return result
   }
+  function tableOptions(): TablePaginationOptions {
+    const chainHeight = (previous: number) => {
+      let height = 0
+      for (const paragraph of pending) {
+        height += Math.max(0, paragraph.before - previous) + paragraph.contentHeight + paragraph.after
+        previous = paragraph.after
+      }
+      return height
+    }
+    const ids = [...new Set(pending.flatMap(paragraph => paragraph.ids))]
+    const reserve = (fresh: boolean) => {
+      const added = fresh ? ids : ids.filter(id => !footnotes.has(id))
+      return added.reduce((sum, id) => sum + (definitionHeights.get(id) ?? 8), 0) +
+        (added.length > 0 && (fresh || footnotes.size === 0) ? 6 : 0)
+    }
+    const firstPageReservedMm = chainHeight(0) + reserve(true)
+    const unavailable = active && (!known || firstPageReservedMm >= capacity())
+    return {
+      firstPageHeightMm: active && !unavailable ? Math.max(0, remaining() - chainHeight(previousAfter) - reserve(false)) : undefined,
+      firstPageReservedMm,
+      forceStartOnNewPage: unavailable,
+    }
+  }
   return {
     get availableMm() { return projectedRemaining() },
     get estimateUnavailable() { return active && projectedRemaining() === undefined },
@@ -194,17 +218,24 @@ export function createPageFlow(): PageFlow {
       if (!spec.keepNext) flushPending()
     },
     beforeTable() {
-      flushPending()
       if (active && lastWasTable) advance(GRID_LINE_MM, false)
       lastWasTable = false
+      return tableOptions()
     },
     placeTable(heights, startOnNewPage) {
       if (!active) return
-      flushPending()
       heights.forEach((height, index) => {
         if (index > 0 || startOnNewPage) nextPage()
+        if (index === 0) {
+          // Keep the pending title with the table even when a short table moves naturally.
+          const budget = tableOptions()
+          if (!startOnNewPage && budget.firstPageHeightMm !== undefined && height > budget.firstPageHeightMm) nextPage()
+          flushPending()
+        }
         const wasKnown = known
+        const jointOverflow = index === 0 && height > remaining()
         advance(height, true)
+        if (jointOverflow) known = false
         if (index === 0 && !startOnNewPage && !wasKnown) known = false
       })
       previousAfter = 0

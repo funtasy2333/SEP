@@ -93,6 +93,31 @@ describe('paginateTable', () => {
     expect(renderBlock(known, ir, { scopeKey: 'chapter' })).not.toContain('<w:pageBreakBefore/>')
   })
 
+  it('标题与短表一起移页后，后续余量包含标题高度', () => {
+    const ir=table([row(1),row(2)])
+    const contexts=[createRenderContext({table:{label:'表1',xmlId:'table_1',refText:'表1'}}),createRenderContext({table:{label:'表1',xmlId:'table_1',refText:'表1'}})]
+    const [near,fresh]=contexts
+    for(const ctx of contexts)ctx.pageFlow.startSection()
+    near!.pageFlow.placeTable([200],false)
+    for(const ctx of contexts){
+      ctx.pageFlow.recordParagraph('SesChapter','<w:r><w:t>表前章标题</w:t></w:r>',true)
+      ctx.pageFlow.recordParagraph('SesClause1','<w:r><w:t>表前条标题</w:t></w:r>',true)
+      expect(renderBlock(ctx,ir,{scopeKey:'chapter'})).not.toContain('<w:pageBreakBefore/>')
+    }
+    expect(near!.pageFlow.availableMm).toBeCloseTo(fresh!.pageFlow.availableMm!,6)
+    expect(near!.pageFlow.availableMm).toBeLessThan(200)
+  })
+  it('标题链移到新页的长表首段为标题预留空间，续段恢复完整预算', () => {
+    const ctx=createRenderContext({table:{label:'表1',xmlId:'table_1',refText:'表1'}})
+    ctx.pageFlow.startSection();ctx.pageFlow.placeTable([200],false)
+    ctx.pageFlow.recordParagraph('SesChapter','<w:r><w:t>章标题</w:t></w:r>',true)
+    ctx.pageFlow.recordParagraph('SesClause1','<w:r><w:t>条标题</w:t></w:r>',true)
+    const xml=renderBlock(ctx,table(Array.from({length:110},(_,i)=>row(i+1,'短记录'))),{scopeKey:'chapter'})
+    expect(xml).not.toContain('<w:pageBreakBefore/>')
+    const counts=[...xml.matchAll(/<w:tbl>([\s\S]*?)<\/w:tbl>/g)].map(m=>(m[1]!.match(/<w:t(?:[^>]*)>项目 \d+<\/w:t>/g)??[]).length)
+    expect(counts[0]).toBeLessThan(counts[1]!)
+    expect(counts.reduce((a,b)=>a+b,0)).toBe(110)
+  })
   it('高表头与表尾组合放不下时保留数据且明确警告，不虚构末段数据预算', () => {
     const ir = table([row(1)])
     const header = ir.rows[0]!

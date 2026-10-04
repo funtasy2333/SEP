@@ -125,6 +125,23 @@ for(const [name,listType] of [['alpha-list-followed-table','alpha'],['numeric-li
  variants.push([name,variant])
 }
 
+
+// 标题后直接接表：标题本身能留在旧页，但标题与表格首段应一起移页。
+for(const [name,shortFirst] of [
+ ['heading-short-table-then-long-table',true],
+ ['heading-long-table',false],
+]) {
+ const variant=clone(source)
+ const small=clone(longTable);small.attrs.nodeId=`${name}-short`;small.content=small.content.slice(0,2);small.content[1].content=small.content[1].content.slice(0,3);small.content[0].content=[t('标题后短表')]
+ const title=[t('表前条标题')]
+ variant.content[1].content=[variant.content[1].content[0],{type:'stdParagraph',attrs:{nodeId:`${name}-preamble`},content:brokenLines(30,'标题前正文')},{
+  type:'clause',attrs:{nodeId:`${name}-clause`,level:1,hasTitle:true},content:[
+   {type:'clauseTitle',attrs:{level:1},content:title},...(shortFirst?[small]:[]),clone(longTable)
+  ]
+ },paragraph('标题后长表结束，70条记录应连续完整。')]
+ variants.push([name,variant])
+}
+
 try {
  await mkdir(output,{recursive:true})
  const {createEditorExtensions}=await server.ssrLoadModule('/src/extensions/editorExtensions.ts')

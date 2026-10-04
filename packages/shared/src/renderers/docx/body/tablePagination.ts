@@ -74,8 +74,15 @@ function bodyGroups(rows: IRTableRow[], headerRowCount: number): IRTableRow[][] 
   return groups
 }
 
+export interface TablePaginationOptions {
+  firstPageHeightMm?: number
+  forceStartOnNewPage?: boolean
+  /** 表前待定同页链移到新页后，首段仍须预留的高度（含脚注）。 */
+  firstPageReservedMm?: number
+}
+
 /** 切分时不穿过 rowspan，且每段以相同的表头行开头。 */
-export function paginateTable(table: IRTable, options: { firstPageHeightMm?: number; forceStartOnNewPage?: boolean } = {}): TablePagination {
+export function paginateTable(table: IRTable, options: TablePaginationOptions = {}): TablePagination {
   const headerRowCount = Math.max(0, Math.min(Math.floor(table.headerRowCount), table.rows.length))
   const columnCount = Math.max(1, ...table.rows.map((row) =>
     row.cells.reduce((sum, cell) => sum + cell.colspan, 0)))
@@ -113,16 +120,34 @@ export function paginateTable(table: IRTable, options: { firstPageHeightMm?: num
     lastGroupHeight > finalDataBudget && lastGroupHeight <= dataBudget
 
 
-  const firstPageHeight = !options.forceStartOnNewPage && Number.isFinite(options.firstPageHeightMm)
+  let firstPageHeight = !options.forceStartOnNewPage && Number.isFinite(options.firstPageHeightMm)
     ? Math.max(0, Math.min(pageBudget, options.firstPageHeightMm!)) : undefined
+  const reserved = Math.max(0, options.firstPageReservedMm ?? 0)
+  const freshFirstPageHeight = Math.max(0, pageBudget - reserved)
+  let firstStartsOnNewPage = options.forceStartOnNewPage === true || firstPageHeight === undefined
+  // If the chain cannot start the table on the old page, carry it to the new page
+  // and size that first segment with the chain still reserved. Continuations use full budgets.
+  if (reserved > 0 && (firstPageHeight === undefined ||
+      firstPageHeight < captionHeight + headerHeight + (groupHeights[0] ?? footerHeight) + 10)) {
+    firstPageHeight = freshFirstPageHeight
+    firstStartsOnNewPage = true
+  }
   const result = (bodySegments: IRTableRow[][], startOnNewPage: boolean, oversizedGroup: boolean): TablePagination => ({
     bodySegments, startOnNewPage: options.forceStartOnNewPage || startOnNewPage, oversizedGroup, finalSegmentOverflow, footerTooTall,
     segmentHeightsMm: bodySegments.map((rows, index) => captionHeight + headerHeight +
       rows.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape), 0) +
       (index === bodySegments.length - 1 ? footerHeight : 0)),
   })
+  if (reserved > 0 && totalHeight <= pageBudget) {
+    if (firstPageHeight !== undefined && totalHeight <= firstPageHeight) {
+      return result([table.rows.slice(headerRowCount)], firstStartsOnNewPage, false)
+    }
+    if (totalHeight <= 50 && totalHeight <= freshFirstPageHeight) {
+      return result([table.rows.slice(headerRowCount)], true, false)
+    }
+  }
   // 小表仍整体保留，由 Word 在余量不足时自然移到下一页。其余表按首段余量切分。
-  if (totalHeight <= pageBudget && (totalHeight <= 50 || firstPageHeight === undefined || totalHeight <= firstPageHeight)) {
+  if (reserved === 0 && totalHeight <= pageBudget && (totalHeight <= 50 || firstPageHeight === undefined || totalHeight <= firstPageHeight)) {
     return result([table.rows.slice(headerRowCount)], firstPageHeight === undefined && totalHeight > 50, false)
   }
 
@@ -158,7 +183,7 @@ export function paginateTable(table: IRTable, options: { firstPageHeightMm?: num
       while (end < Math.max(1, maxEndBeforeLast) && prefix[end + 1]! <= firstDataBudget) end += 1
       bodySegments.push(groups.slice(0, end).flat())
       start = end
-      startOnNewPage = false
+      startOnNewPage = firstStartsOnNewPage
     }
   }
   for (let pagesLeft = minPages[start]!; pagesLeft > 1; pagesLeft -= 1) {

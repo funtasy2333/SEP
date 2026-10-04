@@ -26,3 +26,5 @@ Codex对 `eea22aa3ebfc15b53075bad437b9d14624c30dc9` 的追加审查提出两项P
 [实际页分布、校验结果与DOCX/PDF指纹](wp7.6-table-flow-review3-2026-10-04-evidence.json)。忽略目录 `tmp-e2e/wp76-acceptance/flow-review3/before` 与 `after` 保留对照稿及页面图，复现命令仍为 `node packages/client/scripts/wp76-inline-table-samples.mjs <绝对输出目录>`。
 
 页流仍是保守估算，未替代目标Word文稿实排。真实标准稿件来源/版本/路径、横排条文脚注分隔线及超高表尾自动拆分仍未完成；公式fixture的CDATA宿主限制继续标为XML往返未执行。PR #43当前为OPEN、可审查状态，未合并；修订提交后请求新head复审，不把本轮旧审查或已通过测试当作新head的审查结论。
+
+同页链跨表格边界的后续意见、修订及Word证据见[下一轮记录](wp7.6-table-flow-review4-2026-10-04.md)。

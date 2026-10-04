@@ -235,12 +235,9 @@ function renderTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx): string
 function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, nested: boolean): string {
   const captionRuns = renderInlines(table.caption, ctx.labels)
   const numbered = { nodeId: table.id, kind: 'table' as const }
-  if (!nested) ctx.pageFlow.beforeTable()
-  const pagination = paginateTable(table, {
-    firstPageHeightMm: nested ? undefined : ctx.pageFlow.availableMm,
-    forceStartOnNewPage: !nested && ctx.pageFlow.estimateUnavailable,
-  })
-  if (!nested && ctx.pageFlow.estimateUnavailable) {
+  const flowOptions = nested ? {} : ctx.pageFlow.beforeTable()
+  const pagination = paginateTable(table, flowOptions)
+  if (!nested && flowOptions.forceStartOnNewPage) {
     warn(ctx, 'table-flow-estimate-unavailable',
       `表格 "${table.id}" 前含无法估算高度的公式等内容，首段改从新页排起，请在 Word 中复核表前余量`, table.id)
   }
@@ -256,16 +253,19 @@ function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, 
     warn(ctx, 'table-final-segment-too-tall',
       `表格 "${table.id}" 的末段余量不足以同时容纳最后数据组和表注/表脚注，可能需要人工分页调整`, table.id)
   }
+  // An explicit break on the caption overrides the preceding keepNext chain in Word.
+  // Let Word move that chain naturally; the first segment still uses its reserved budget.
+  const pageBreakBefore = pagination.startOnNewPage && !((flowOptions.firstPageReservedMm ?? 0) > 0)
   let captionXml: string
   if (bctx.appendix) {
     const numId = ctx.numbering.allocAppendixTableInstance(bctx.appendix.id, bctx.appendix.letter)
     captionXml = emitParagraph(ctx, 'SesAppTblCap', {
       numPr: { numId, ilvl: 0 }, runsXml: captionRuns, numbered,
-      pageBreakBefore: pagination.startOnNewPage,
+      pageBreakBefore,
     })
   } else {
     captionXml = emitParagraph(ctx, 'SesTblCap', {
-      runsXml: captionRuns, numbered, pageBreakBefore: pagination.startOnNewPage,
+      runsXml: captionRuns, numbered, pageBreakBefore,
     })
   }
   const tableBctx = { ...withScope(bctx, table.id), suppressLandscape: true }
