@@ -147,8 +147,19 @@ function blocksToPm(blocks: IRBlock[], path: string, errors: IRToPmDiagnostic[])
   return blocks.map((block, index) => blockToPm(block, `${path}[${index}]`, errors)).filter((item): item is PMJsonNode => !!item)
 }
 
-function noteContent(content: IRBlock[], path: string, errors: IRToPmDiagnostic[]): PMJsonNode[] {
-  if (content.length === 1 && content[0].kind === 'paragraph') return inlinesToPm(content[0].content)
+function noteContent(ownerId: string, content: IRBlock[], path: string, errors: IRToPmDiagnostic[]): PMJsonNode[] {
+  if (content.length === 1 && content[0].kind === 'paragraph') {
+    const paragraph = content[0]
+    const expectedId = `${ownerId}.p0`
+    if (paragraph.id !== expectedId) {
+      errors.push({
+        path: `${path}.content[0]`,
+        nodeId: paragraph.id,
+        reason: `生产 note/example 行内内容会将段落 ID 派生为「${expectedId}」，无法保留「${paragraph.id}」`,
+      })
+    }
+    return inlinesToPm(paragraph.content)
+  }
   errors.push({ path, nodeId: content[0]?.id, reason: '生产 note/example 只接受一段行内内容，IR 中存在多块或非段落内容' })
   return []
 }
@@ -177,11 +188,11 @@ function termToPm(entry: IRTermEntry, path: string, errors: IRToPmDiagnostic[]):
   }
   if (entry.source !== undefined) content.push(node('termSource', undefined, inlinesToPm(entry.source)))
   for (const note of entry.notes) {
-    const inlineContent = noteContent(note.content, `${path}.notes.${note.id}`, errors)
+    const inlineContent = noteContent(note.id, note.content, `${path}.notes.${note.id}`, errors)
     content.push(node('note', withId(note.id), inlineContent))
   }
   for (const example of entry.examples) {
-    const inlineContent = noteContent(example.content, `${path}.examples.${example.id}`, errors)
+    const inlineContent = noteContent(example.id, example.content, `${path}.examples.${example.id}`, errors)
     content.push(node('example', withId(example.id), inlineContent))
   }
   for (const child of entry.nestedEntries ?? []) content.push(termToPm(child, `${path}.nestedEntries.${child.id}`, errors))
@@ -264,7 +275,7 @@ function tableToPm(table: IRTable, path: string, errors: IRToPmDiagnostic[]): PM
     node('table', undefined, rows),
   ]
   if (table.notes.length) content.push(node('tableNoteRow', undefined, table.notes.map(note => {
-    const inlineContent = noteContent(note.content, `${path}.notes.${note.id}`, errors)
+    const inlineContent = noteContent(note.id, note.content, `${path}.notes.${note.id}`, errors)
     return node('note', withId(note.id), inlineContent)
   })))
   if (table.footnotes?.length) content.push(node('tableFootnoteRow', undefined, table.footnotes.map(footnote => node('tableFootnoteEntry', withId(footnote.id), inlinesToPm(footnote.content)))))
@@ -313,7 +324,7 @@ function blockToPm(block: IRBlock, path: string, errors: IRToPmDiagnostic[]): PM
     case 'figure': return figureToPm(block, path, errors)
     case 'formula': return formulaToPm(block)
     case 'note': case 'example': {
-      const content = noteContent(block.content, path, errors)
+      const content = noteContent(block.id, block.content, path, errors)
       return node(block.kind, withId(block.id), content)
     }
     case 'warning': return node('warning', withId(block.id), blocksToPm(block.content, path, errors))

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { IRToPmError, irToPm } from '../irToPm'
 import { pmToIr } from '../pmToIr'
-import type { IRDoc, IRList, IRTermEntry } from '../types'
+import { resolve } from '../resolve'
+import type { IRBlock, IRDoc, IRExample, IRList, IRNote, IRTable, IRTermEntry } from '../types'
 
 function docWithList(list: IRList): IRDoc {
   return {
@@ -11,6 +12,28 @@ function docWithList(list: IRList): IRDoc {
     body: [{ kind: 'chapter', id: 'chapter-list', secType: 'general', title: [], children: [list] }],
     appendices: [],
     bibliography: [],
+  }
+}
+
+function docWithChildren(children: IRDoc['body'][number]['children']): IRDoc {
+  return {
+    schemaVersion: 1,
+    meta: { standardType: 'gb' },
+    front: { foreword: [], introduction: [] },
+    body: [{ kind: 'chapter', id: 'chapter-owner', secType: 'general', title: [{ text: '正文' }], children }],
+    appendices: [],
+    bibliography: [],
+  }
+}
+
+function paragraph(id: string, text: string, targetId?: string): IRBlock {
+  return {
+    kind: 'paragraph',
+    id,
+    content: [{
+      text,
+      ...(targetId ? { marks: [{ type: 'crossRef' as const, targetId, targetKind: 'chapter' as const }] } : {}),
+    }],
   }
 }
 
@@ -157,5 +180,103 @@ describe('irToPm / native IR roundtrip', () => {
       nodeId: 'nested-number-list',
       reason: expect.stringContaining('固定为 2 级'),
     }))
+  })
+
+  it('preserves derived paragraph IDs for every note/example inline owner and retains cross-references', () => {
+    const blockNote: IRNote = { kind: 'note', id: 'block-note', content: [paragraph('block-note.p0', '注释', 'chapter-target')] }
+    const blockExample: IRExample = { kind: 'example', id: 'block-example', content: [paragraph('block-example.p0', '示例')] }
+    const termNote: IRNote = { kind: 'note', id: 'term-note', content: [paragraph('term-note.p0', '术语注')] }
+    const termExample: IRExample = { kind: 'example', id: 'term-example', content: [paragraph('term-example.p0', '术语示例')] }
+    const term: IRTermEntry = {
+      kind: 'termEntry',
+      id: 'term-owner',
+      term: [{ text: '术语' }],
+      definition: [paragraph('term-owner.def0', '定义')],
+      notes: [termNote],
+      examples: [termExample],
+    }
+    const tableNote: IRNote = { kind: 'note', id: 'table-note', content: [paragraph('table-note.p0', '表注')] }
+    const table: IRTable = {
+      kind: 'table',
+      id: 'table-owner',
+      caption: [{ text: '表题' }],
+      orientation: 'portrait',
+      headerRowCount: 0,
+      rows: [{ id: 'table-row', cells: [{
+        id: 'table-cell', colspan: 1, rowspan: 1, header: false, content: [paragraph('table-cell.p0', '单元格')],
+      }] }],
+      notes: [tableNote],
+    }
+    const warning = {
+      kind: 'warning' as const,
+      id: 'warning-owner',
+      content: [paragraph('warning-paragraph', '警告段落')],
+    }
+    const authored = docWithChildren([
+      blockNote,
+      blockExample,
+      term,
+      table,
+      warning,
+      { kind: 'paragraph', id: 'target-paragraph', content: [{ text: '见注段落', marks: [{ type: 'crossRef', targetId: 'block-note.p0', targetKind: 'paragraph' }] }] },
+    ])
+    authored.body.push({ kind: 'chapter', id: 'chapter-target', secType: 'general', title: [{ text: '引用目标' }], children: [paragraph('target-body', '目标')] })
+
+    const reopened = pmToIr(irToPm(authored)).doc
+    const children = reopened.body[0]!.children
+    expect((children[0] as IRNote).content[0]?.id).toBe('block-note.p0')
+    expect((children[1] as IRExample).content[0]?.id).toBe('block-example.p0')
+    expect((children[2] as IRTermEntry).notes[0]?.content[0]?.id).toBe('term-note.p0')
+    expect((children[2] as IRTermEntry).examples[0]?.content[0]?.id).toBe('term-example.p0')
+    expect((children[3] as IRTable).notes[0]?.content[0]?.id).toBe('table-note.p0')
+    expect((children[4] as Extract<IRBlock, { kind: 'warning' }>).content[0]?.id).toBe('warning-paragraph')
+
+    expect(resolve(reopened).problems.filter(problem => problem.severity === 'error')).toEqual([])
+  })
+
+  it('rejects non-derived paragraph IDs at every note/example flattening callsite', () => {
+    const cases: Array<{ path: string; makeDoc: (paragraphId: string) => IRDoc }> = [
+      {
+        path: 'body[0][0].content[0]',
+        makeDoc: paragraphId => docWithChildren([{ kind: 'note', id: 'block-note', content: [paragraph(paragraphId, '注')] }]),
+      },
+      {
+        path: 'body[0][0].content[0]',
+        makeDoc: paragraphId => docWithChildren([{ kind: 'example', id: 'block-example', content: [paragraph(paragraphId, '示例')] }]),
+      },
+      {
+        path: 'body[0][0].notes.term-note.content[0]',
+        makeDoc: paragraphId => docWithChildren([{
+          kind: 'termEntry', id: 'term-owner', term: [{ text: '术语' }],
+          definition: [paragraph('term-owner.def0', '定义')],
+          notes: [{ kind: 'note', id: 'term-note', content: [paragraph(paragraphId, '注')] }], examples: [],
+        }]),
+      },
+      {
+        path: 'body[0][0].examples.term-example.content[0]',
+        makeDoc: paragraphId => docWithChildren([{
+          kind: 'termEntry', id: 'term-owner', term: [{ text: '术语' }],
+          definition: [paragraph('term-owner.def0', '定义')], notes: [],
+          examples: [{ kind: 'example', id: 'term-example', content: [paragraph(paragraphId, '示例')] }],
+        }]),
+      },
+      {
+        path: 'body[0][0].notes.table-note.content[0]',
+        makeDoc: paragraphId => docWithChildren([{
+          kind: 'table', id: 'table-owner', caption: [], orientation: 'portrait', headerRowCount: 0, rows: [],
+          notes: [{ kind: 'note', id: 'table-note', content: [paragraph(paragraphId, '表注')] }],
+        }]),
+      },
+    ]
+
+    for (const testCase of cases) {
+      const paragraphId = 'authored-paragraph-id'
+      const error = captureIrToPmError(testCase.makeDoc(paragraphId))
+      expect(error.diagnostics).toContainEqual(expect.objectContaining({
+        path: testCase.path,
+        nodeId: paragraphId,
+        reason: expect.stringContaining('无法保留'),
+      }))
+    }
   })
 })

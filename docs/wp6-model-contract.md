@@ -44,3 +44,9 @@ Tiptap `setContent` 仅替换子内容。生产加载、版本回滚与 XML 导�
 - `stdTable.headerRowCount` 独立持久化，不由单元格 header 标志覆盖；旧表格缺省或 null 时按连续表头单元格推断。非法显式角色或表头计数返回 unsupportedContent 诊断。
 - 脚注交叉引用与普通行内引用使用一致目标优先级：`targetId ?? refId`；空目标仍拒绝。
 - 原生 IR 标准列项中的唯一段落 ID 必须等于 `${item.id}.p0`，否则 IR→PM 拒绝转换。生产列表不支持的 roman/romanUpper、与固定级别冲突的显式 level 同样通过带路径与 nodeId 的 IRToPmError 拒绝；不静默降级或改写稳定 ID。生产标准列表 numeric/dot 固定二级，其余固定一级；此项检查也覆盖嵌套 StarterList 分支。
+
+## 复审补充（2026-10-06）
+
+- `note/example` 及术语注、术语示例、表注只承载一段行内内容；IR 唯一段落 ID 必须等于 `${owner.id}.p0`，否则通过 IRToPmError 返回源段落 nodeId 与路径，避免引用失效。warning/quote 的块段落 ID 仍原样保留。
+- 生产 `textStyle` 的七个属性从对应的 inline CSS 回读，渲染与解析使用同一属性映射；CSS 字符串遵循浏览器的规范化，不要求保留相同的颜色字面量拼写。
+- 生产表格 td/th 的单位从 `data-unit` 回读，兼容直接 `unit` 属性；带编辑器包装的单元格只解析内容槽，不将展示用单位标签写进正文。普通外部 HTML 单元格仍解析全部内容。

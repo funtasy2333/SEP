@@ -513,6 +513,16 @@ const cellMeasureAttrs = {
   paddingLeft: { default: null }, paddingLeftUnit: { default: null },
 }
 
+const cellUnitAttribute = {
+  default: null,
+  parseHTML: (element: HTMLElement) => element.getAttribute('data-unit') ?? element.getAttribute('unit'),
+}
+
+/** The visible unit badge is presentation; only the content hole belongs to a pasted cell. */
+function cellContentElement(element: HTMLElement): HTMLElement {
+  return element.querySelector<HTMLElement>(':scope > .std-table-cell-wrapper > .std-table-cell-content') ?? element
+}
+
 function renderCell(node: { attrs: Record<string, unknown> }, tag: 'td' | 'th', HTMLAttributes: Record<string, unknown>): DOMOutputSpec {
   const attributes = { ...HTMLAttributes }
   delete attributes.unit
@@ -545,7 +555,7 @@ export const StandardTableCell = TableCell.extend({
     return {
       ...this.parent?.(),
       cellType: { default: null },
-      unit: { default: null },
+      unit: cellUnitAttribute,
       width: { default: null },
       widthUnit: { default: null },
       textAlign: { default: null },
@@ -553,6 +563,10 @@ export const StandardTableCell = TableCell.extend({
       backgroundColor: { default: null },
       ...cellMeasureAttrs,
     }
+  },
+
+  parseHTML() {
+    return (this.parent?.() ?? []).map(rule => ({ ...rule, contentElement: cellContentElement }))
   },
 
   renderHTML({ node, HTMLAttributes }) {
@@ -565,7 +579,7 @@ export const StandardTableHeader = TableHeader.extend({
     return {
       ...this.parent?.(),
       cellType: { default: null },
-      unit: { default: null },
+      unit: cellUnitAttribute,
       width: { default: null },
       widthUnit: { default: null },
       textAlign: { default: null },
@@ -573,6 +587,10 @@ export const StandardTableHeader = TableHeader.extend({
       backgroundColor: { default: null },
       ...cellMeasureAttrs,
     }
+  },
+
+  parseHTML() {
+    return (this.parent?.() ?? []).map(rule => ({ ...rule, contentElement: cellContentElement }))
   },
 
   renderHTML({ node, HTMLAttributes }) {
@@ -954,20 +972,21 @@ export const SemanticCodeBlock = Node.create({
   },
 })
 
+const textStyleCss = {
+  fontFamily: 'font-family', fontSize: 'font-size', color: 'color',
+  backgroundColor: 'background-color', letterSpacing: 'letter-spacing',
+  baseline: 'vertical-align', textTransform: 'text-transform',
+} as const
+
 export const TextStyle = Mark.create({
   name: 'textStyle',
   inclusive: true,
 
   addAttributes() {
-    return {
-      fontFamily: { default: null },
-      fontSize: { default: null },
-      color: { default: null },
-      backgroundColor: { default: null },
-      letterSpacing: { default: null },
-      baseline: { default: null },
-      textTransform: { default: null },
-    }
+    return Object.fromEntries(Object.entries(textStyleCss).map(([name, cssName]) => [name, {
+      default: null,
+      parseHTML: (element: HTMLElement) => element.style.getPropertyValue(cssName) || element.getAttribute(name) || null,
+    }]))
   },
 
   parseHTML() {
@@ -984,12 +1003,7 @@ export const TextStyle = Mark.create({
     delete visibleAttrs.baseline
     delete visibleAttrs.textTransform
     const css: string[] = []
-    const styleMap: Array<[string, string]> = [
-      ['fontFamily', 'font-family'], ['fontSize', 'font-size'], ['color', 'color'],
-      ['backgroundColor', 'background-color'], ['letterSpacing', 'letter-spacing'],
-      ['baseline', 'vertical-align'], ['textTransform', 'text-transform'],
-    ]
-    for (const [key, cssName] of styleMap) {
+    for (const [key, cssName] of Object.entries(textStyleCss)) {
       const value = HTMLAttributes[key]
       if (typeof value === 'string' && value.length > 0) css.push(`${cssName}: ${value}`)
     }
