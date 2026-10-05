@@ -1,0 +1,25 @@
+{
+  "baselineCommit": "e4690a320233b23122df0ba9a510b30ced16fbe2",
+  "baselineExporter": "packages/client/src/serializer/jsonExporter.ts",
+  "serialization": "JSON.stringify(exportSemanticJson(editor.state.doc), null, 2), UTF-8, no trailing newline",
+  "sources": {
+    "sample-standard": {
+      "path": "packages/client/src/serializer/__fixtures__/sample-standard.xml",
+      "sha256": "97df88fee2c5099660497b5e69a7603cacf4eb1c836933ad2a1903e4319fe8be"
+    },
+    "all-elements": {
+      "path": "packages/shared/src/ir/__tests__/fixtures.ts (fullFixture)",
+      "sha256": "cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d"
+    }
+  },
+  "goldens": {
+    "sample-standard": {
+      "path": "sample-standard.json.golden",
+      "sha256": "c199dc4b5690f8738f3dfb698899533fd5faf0ff4d8d896c037280560fe31a6f"
+    },
+    "all-elements": {
+      "path": "all-elements.json.golden",
+      "sha256": "64b73d2cff26ff9ba97f494d3af5c237575ec9dd97f08ba8ae66db8c5a0efd43"
+    }
+  }
+}

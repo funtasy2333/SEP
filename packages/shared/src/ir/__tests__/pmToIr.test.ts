@@ -7,6 +7,7 @@ import type {
   IRFormula,
   IRList,
   IRNote,
+  IRCodeBlock,
   IRParagraph,
   IRTable,
   IRTermEntry,
@@ -188,13 +189,16 @@ describe('pmToIr / 术语条目', () => {
     expect(t1.source?.[0].text).toContain('[来源：GB/T 20000.1—2014')
   })
 
-  it('嵌套 termDef 拍平为同级条目并警告', () => {
+  it('嵌套 termDef 保留为术语子条目', () => {
     const nested = fx.termDef('t-in', '内层', { definition: 'd2' })
-    const outer = fx.termDef('t-out', '外层', { definition: 'd1', extra: [nested] })
-    const { doc, warnings } = pmToIr(fx.standardDoc({}, fx.chapter('c', '术语和定义', outer)))
-    const ids = doc.body[0].children.map((c) => c.id)
-    expect(ids).toEqual(['t-out', 't-in'])
-    expect(warnings.some((w) => w.includes('嵌套术语'))).toBe(true)
+    const outerPm = fx.termDef('t-out', '外层', { definition: 'd1', extra: [nested] })
+    const { doc, warnings } = pmToIr(fx.standardDoc({}, fx.chapter('c', '术语和定义', outerPm)))
+    const outer = doc.body[0].children[0] as IRTermEntry
+    expect(doc.body[0].children).toHaveLength(1)
+    expect(outer.id).toBe('t-out')
+    expect(outer.nestedEntries?.map((entry) => entry.id)).toEqual(['t-in'])
+    expect(outer.nestedEntries?.[0].term).toEqual([{ text: '内层' }])
+    expect(warnings).toEqual([])
   })
 })
 
@@ -320,8 +324,8 @@ describe('pmToIr / 块级要素', () => {
   })
 })
 
-describe('pmToIr / StarterKit 节点降级（历史文档兼容）', () => {
-  it('blockquote 降级为普通段落，多段以换行连接，文本不丢', () => {
+describe('pmToIr / StarterKit 节点类型化保真（WP6）', () => {
+  it('blockquote 保留为引文块，分段、ID与行内标记不丢', () => {
     const pm = fx.standardDoc({}, fx.chapter('c', 'X', {
       type: 'blockquote',
       attrs: { nodeId: 'bq' },
@@ -331,25 +335,28 @@ describe('pmToIr / StarterKit 节点降级（历史文档兼容）', () => {
       ],
     }))
     const { doc, warnings } = pmToIr(pm)
-    const p = doc.body[0].children[0] as IRParagraph
-    expect(p).toEqual({
-      kind: 'paragraph',
+    const quote = doc.body[0].children[0]
+    expect(quote).toEqual({
+      kind: 'quote',
       id: 'bq',
-      content: [{ text: '第一段', marks: [{ type: 'bold' }] }, { text: '\n' }, { text: '第二段' }],
+      content: [
+        { kind: 'paragraph', id: 'bqp1', content: [{ text: '第一段', marks: [{ type: 'bold' }] }] },
+        { kind: 'paragraph', id: 'bqp2', content: [{ text: '第二段' }] },
+      ],
     })
-    expect(warnings.filter((w) => w.includes('blockquote')).length).toBe(1)
+    expect(warnings).toEqual([])
   })
 
-  it('codeBlock 降级为普通段落，文本不丢', () => {
+  it('codeBlock 保留为带语言属性的类型化代码块', () => {
     const pm = fx.standardDoc({}, fx.chapter('c', 'X', {
       type: 'codeBlock',
-      attrs: { nodeId: 'cb' },
+      attrs: { nodeId: 'cb', language: 'typescript' },
       content: [fx.text('const x = 1')],
     }))
     const { doc, warnings } = pmToIr(pm)
-    const p = doc.body[0].children[0] as IRParagraph
-    expect(p).toEqual({ kind: 'paragraph', id: 'cb', content: [{ text: 'const x = 1' }] })
-    expect(warnings.filter((w) => w.includes('codeBlock')).length).toBe(1)
+    const code = doc.body[0].children[0] as IRCodeBlock
+    expect(code).toEqual({ kind: 'code', id: 'cb', language: 'typescript', text: 'const x = 1' })
+    expect(warnings).toEqual([])
   })
 
   it('horizontalRule 跳过并警告', () => {
@@ -394,7 +401,7 @@ describe('pmToIr / 行内与健壮性', () => {
       [{ type: 'bold' }],
       [{ type: 'sub' }],
       [{ type: 'sup' }],
-      [{ type: 'crossRef', targetId: 'target-1' }],
+      [{ type: 'crossRef', targetId: 'target-1', targetKind: 'clause' }],
     ])
   })
 

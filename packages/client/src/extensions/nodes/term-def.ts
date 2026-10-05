@@ -83,7 +83,7 @@ function handleTermEnter(editor: Editor): boolean {
     for (let index = $from.index(depth) + 1; index < term.childCount; index++) {
       const child = term.child(index)
       const emptyPlaceholder = child.type.name === 'stdParagraph' && child.content.size === 0
-      if (!['note', 'example'].includes(child.type.name) && index !== sourceIndex && !emptyPlaceholder) return false
+      if (!['note', 'example', 'termSource'].includes(child.type.name) && index !== sourceIndex && !emptyPlaceholder) return false
     }
     const continuationPos = $from.before($from.depth)
     const termStart = $from.before(depth)
@@ -157,7 +157,7 @@ declare module '@tiptap/core' {
 export const TermDef = Node.create({
   name: 'termDef',
   group: 'block',
-  content: 'termName termNameEn? termDefinition (stdParagraph | note | example | termDef)*',
+  content: 'termName termNameEn? termDefinition (stdParagraph | note | example | termDef | tbxLangSet | termSource)*',
   defining: true,
 
   addAttributes() {
@@ -320,6 +320,26 @@ export const TermDefinition = Node.create({
         class: 'std-term-definition',
       }),
       0,
+    ]
+  },
+})
+
+/** Typed source carrier so plain IR source values do not need a lossy text prefix. */
+export const TermSource = Node.create({
+  name: 'termSource',
+  content: 'inline*',
+  defining: true,
+
+  parseHTML() {
+    return [{ tag: '[data-type="term-source"]' }]
+  },
+
+  renderHTML({ HTMLAttributes }): DOMOutputSpec {
+    return [
+      'p',
+      mergeAttributes(HTMLAttributes, { 'data-type': 'term-source', class: 'std-term-source' }),
+      ['span', { class: 'std-term-source-label' }, '来源：'],
+      ['span', { class: 'std-term-source-content' }, 0],
     ]
   },
 })

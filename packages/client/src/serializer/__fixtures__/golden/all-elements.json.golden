@@ -1,0 +1,1074 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "coverPage",
+      "attrs": {
+        "nodeId": "cover",
+        "standardNo": "",
+        "standardType": "",
+        "titleCn": "",
+        "titleEn": "",
+        "publishDate": "",
+        "implementDate": "",
+        "issuer": "国家市场监督管理总局",
+        "ccsCode": "",
+        "icsCode": "",
+        "replaces": "",
+        "consistency": "",
+        "filingNo": "",
+        "industryName": "",
+        "regionName": "",
+        "coverDesignation": ""
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "attrs": {
+            "nodeId": "cover-p"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "封面"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "foreword",
+      "attrs": {
+        "nodeId": "fw"
+      },
+      "path": "前言",
+      "content": [
+        {
+          "type": "stdParagraph",
+          "attrs": {
+            "nodeId": "fw-p1"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "本文件按照GB/T 1.1—2020的规定起草。"
+            }
+          ]
+        },
+        {
+          "type": "note",
+          "attrs": {
+            "nodeId": "fw-note"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "前言中的注。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "introduction",
+      "attrs": {
+        "nodeId": "intro"
+      },
+      "path": "引言",
+      "content": [
+        {
+          "type": "stdParagraph",
+          "attrs": {
+            "nodeId": "intro-p1"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "引言内容。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "chapter",
+      "attrs": {
+        "nodeId": "ch-scope"
+      },
+      "number": "1",
+      "path": "1",
+      "content": [
+        {
+          "type": "chapterTitle",
+          "content": [
+            {
+              "type": "text",
+              "text": "范围"
+            }
+          ]
+        },
+        {
+          "type": "stdParagraph",
+          "attrs": {
+            "nodeId": "scope-p1"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "本文件规定了……"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "chapter",
+      "attrs": {
+        "nodeId": "ch-refs"
+      },
+      "number": "2",
+      "path": "2",
+      "content": [
+        {
+          "type": "chapterTitle",
+          "content": [
+            {
+              "type": "text",
+              "text": "规范性引用文件"
+            }
+          ]
+        },
+        {
+          "type": "stdParagraph",
+          "attrs": {
+            "nodeId": "refs-p1"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "GB/T 1.1—2020"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "chapter",
+      "attrs": {
+        "nodeId": "ch-terms"
+      },
+      "number": "3",
+      "path": "3",
+      "content": [
+        {
+          "type": "chapterTitle",
+          "content": [
+            {
+              "type": "text",
+              "text": "术语和定义"
+            }
+          ]
+        },
+        {
+          "type": "stdParagraph",
+          "attrs": {
+            "nodeId": "terms-p0"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "下列术语和定义适用于本文件。"
+            }
+          ]
+        },
+        {
+          "type": "termDef",
+          "attrs": {
+            "nodeId": "term-1",
+            "level": 1
+          },
+          "number": "3.1",
+          "path": "3.1",
+          "content": [
+            {
+              "type": "termName",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "标准"
+                }
+              ]
+            },
+            {
+              "type": "termNameEn",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "standard"
+                }
+              ]
+            },
+            {
+              "type": "termDefinition",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "通过标准化活动制定的文件。"
+                }
+              ]
+            },
+            {
+              "type": "note",
+              "attrs": {
+                "nodeId": "term-1-note"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "术语注。"
+                }
+              ]
+            },
+            {
+              "type": "example",
+              "attrs": {
+                "nodeId": "term-1-ex"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "术语示例。"
+                }
+              ]
+            },
+            {
+              "type": "stdParagraph",
+              "attrs": {
+                "nodeId": "term-1-src"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "[来源：GB/T 20000.1—2014，5.3]"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "termDef",
+          "attrs": {
+            "nodeId": "term-2",
+            "level": 1
+          },
+          "number": "3.2",
+          "path": "3.2",
+          "content": [
+            {
+              "type": "termName",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "编号"
+                }
+              ]
+            },
+            {
+              "type": "termNameEn",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "numbering"
+                }
+              ]
+            },
+            {
+              "type": "termDefinition",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "为要素赋予序号。"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "chapter",
+      "attrs": {
+        "nodeId": "ch-4"
+      },
+      "number": "4",
+      "path": "4",
+      "content": [
+        {
+          "type": "chapterTitle",
+          "content": [
+            {
+              "type": "text",
+              "text": "技术要求"
+            }
+          ]
+        },
+        {
+          "type": "clause",
+          "attrs": {
+            "nodeId": "cl-41",
+            "level": 1,
+            "hasTitle": true
+          },
+          "number": "4.1",
+          "path": "4.1",
+          "content": [
+            {
+              "type": "clauseTitle",
+              "attrs": {
+                "level": 1
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "总体要求"
+                }
+              ]
+            },
+            {
+              "type": "stdParagraph",
+              "attrs": {
+                "nodeId": "p-411"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "应满足"
+                },
+                {
+                  "type": "text",
+                  "text": "4.2",
+                  "marks": [
+                    {
+                      "type": "crossRef",
+                      "attrs": {
+                        "refId": "cl-42",
+                        "refType": "clause"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": "与"
+                },
+                {
+                  "type": "text",
+                  "text": "表1",
+                  "marks": [
+                    {
+                      "type": "crossRef",
+                      "attrs": {
+                        "refId": "tbl-1",
+                        "refType": "clause"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": "的要求。"
+                }
+              ]
+            },
+            {
+              "type": "stdList",
+              "attrs": {
+                "nodeId": "list-1",
+                "listType": "alpha",
+                "level": 1
+              },
+              "content": [
+                {
+                  "type": "stdListItem",
+                  "attrs": {
+                    "nodeId": "li-1"
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "第一项"
+                    }
+                  ]
+                },
+                {
+                  "type": "stdListItem",
+                  "attrs": {
+                    "nodeId": "li-2"
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "第二项"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "note",
+              "attrs": {
+                "nodeId": "n-41a"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "第一条注。"
+                }
+              ]
+            },
+            {
+              "type": "note",
+              "attrs": {
+                "nodeId": "n-41b"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "第二条注。"
+                }
+              ]
+            },
+            {
+              "type": "example",
+              "attrs": {
+                "nodeId": "ex-41a"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "第一个示例。"
+                }
+              ]
+            },
+            {
+              "type": "example",
+              "attrs": {
+                "nodeId": "ex-41b"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "第二个示例。"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "clause",
+          "attrs": {
+            "nodeId": "cl-42",
+            "level": 1,
+            "hasTitle": true
+          },
+          "number": "4.2",
+          "path": "4.2",
+          "content": [
+            {
+              "type": "clauseTitle",
+              "attrs": {
+                "level": 1
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "详细要求"
+                }
+              ]
+            },
+            {
+              "type": "clause",
+              "attrs": {
+                "nodeId": "cl-421",
+                "level": 2,
+                "hasTitle": false
+              },
+              "number": "4.2.1",
+              "path": "4.2.1",
+              "content": [
+                {
+                  "type": "clauseTitle",
+                  "attrs": {
+                    "level": 2
+                  }
+                },
+                {
+                  "type": "stdParagraph",
+                  "attrs": {
+                    "nodeId": "p-4211"
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "无题条内容，见"
+                    },
+                    {
+                      "type": "text",
+                      "text": "图1",
+                      "marks": [
+                        {
+                          "type": "crossRef",
+                          "attrs": {
+                            "refId": "fig-1",
+                            "refType": "clause"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "text": "、"
+                    },
+                    {
+                      "type": "text",
+                      "text": "公式(1)",
+                      "marks": [
+                        {
+                          "type": "crossRef",
+                          "attrs": {
+                            "refId": "f-1",
+                            "refType": "clause"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "text": "。"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "clause",
+              "attrs": {
+                "nodeId": "cl-422",
+                "level": 2,
+                "hasTitle": true
+              },
+              "number": "4.2.2",
+              "path": "4.2.2",
+              "content": [
+                {
+                  "type": "clauseTitle",
+                  "attrs": {
+                    "level": 2
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "性能"
+                    }
+                  ]
+                },
+                {
+                  "type": "stdTable",
+                  "attrs": {
+                    "nodeId": "tbl-1",
+                    "orientation": "portrait"
+                  },
+                  "content": [
+                    {
+                      "type": "tableCaption",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "性能指标"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "tableCaptionEn",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Performance"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "table",
+                      "content": [
+                        {
+                          "type": "tableRow",
+                          "content": [
+                            {
+                              "type": "tableHeader",
+                              "attrs": {
+                                "colspan": 1,
+                                "rowspan": 1
+                              },
+                              "content": [
+                                {
+                                  "type": "paragraph",
+                                  "content": [
+                                    {
+                                      "type": "text",
+                                      "text": "项目"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "tableHeader",
+                              "attrs": {
+                                "colspan": 1,
+                                "rowspan": 1
+                              },
+                              "content": [
+                                {
+                                  "type": "paragraph",
+                                  "content": [
+                                    {
+                                      "type": "text",
+                                      "text": "指标"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "tableRow",
+                          "content": [
+                            {
+                              "type": "tableHeader",
+                              "attrs": {
+                                "colspan": 1,
+                                "rowspan": 1
+                              },
+                              "content": [
+                                {
+                                  "type": "paragraph",
+                                  "content": [
+                                    {
+                                      "type": "text",
+                                      "text": "精度"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "tableCell",
+                              "attrs": {
+                                "colspan": 1,
+                                "rowspan": 1
+                              },
+                              "content": [
+                                {
+                                  "type": "paragraph",
+                                  "content": [
+                                    {
+                                      "type": "text",
+                                      "text": "0.1"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "tableFootnote",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "表内的注。"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "figure",
+                  "attrs": {
+                    "nodeId": "fig-1",
+                    "orientation": "portrait"
+                  },
+                  "content": [
+                    {
+                      "type": "figureImage",
+                      "attrs": {
+                        "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAa0lEQVR42u3QQQ0AAAgEoOsfzwRmMIEtnA82EpDq4UAUiBaNaNGiLYgWjWjRoi2IFo1o0aIRLRrRokUjWjSiRYtGtGhEixaNaNGIFi0a0aIRLRrRokUjWjSiRYtGtGhEixaNaNGiES0a0b8s0ipI1zvfEP8AAAAASUVORK5CYII=",
+                        "alt": ""
+                      }
+                    },
+                    {
+                      "type": "figureCaption",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "系统架构图"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "figureCaptionEn",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "System architecture"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "formula",
+                  "attrs": {
+                    "nodeId": "f-1"
+                  },
+                  "content": [
+                    {
+                      "type": "formulaContent",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "E = mc^2"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "formulaDescription",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "式中：E——能量，单位为焦耳（J）；m——质量；c——光速。"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "stdParagraph",
+                  "attrs": {
+                    "nodeId": "p-4221"
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "引用文献"
+                    },
+                    {
+                      "type": "text",
+                      "text": "[1]",
+                      "marks": [
+                        {
+                          "type": "crossRef",
+                          "attrs": {
+                            "refId": "bib-2",
+                            "refType": "clause"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "text": "。"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "appendix",
+      "attrs": {
+        "nodeId": "app-a",
+        "normative": true
+      },
+      "number": "A",
+      "path": "附录A",
+      "content": [
+        {
+          "type": "appendixLabel",
+          "content": [
+            {
+              "type": "text",
+              "text": "（规范性）"
+            }
+          ]
+        },
+        {
+          "type": "appendixTitle",
+          "content": [
+            {
+              "type": "text",
+              "text": "附加技术内容"
+            }
+          ]
+        },
+        {
+          "type": "clause",
+          "attrs": {
+            "nodeId": "cl-a1",
+            "level": 1,
+            "hasTitle": true
+          },
+          "number": "A.1",
+          "path": "A.1",
+          "content": [
+            {
+              "type": "clauseTitle",
+              "attrs": {
+                "level": 1
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "附录条"
+                }
+              ]
+            },
+            {
+              "type": "stdParagraph",
+              "attrs": {
+                "nodeId": "p-a11"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "附录正文。"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "clause",
+          "attrs": {
+            "nodeId": "cl-a2",
+            "level": 1,
+            "hasTitle": true
+          },
+          "number": "A.2",
+          "path": "A.2",
+          "content": [
+            {
+              "type": "clauseTitle",
+              "attrs": {
+                "level": 1
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "附录图表"
+                }
+              ]
+            },
+            {
+              "type": "figure",
+              "attrs": {
+                "nodeId": "fig-a1",
+                "orientation": "portrait"
+              },
+              "content": [
+                {
+                  "type": "figureImage",
+                  "attrs": {
+                    "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAa0lEQVR42u3QMQ0AAAgDsPkXyYECJOCCcDSpgqanOBAFokUjWrRoC6JFI1q0aAuiRSNatGhEi0a0aNGIFo1o0aIRLRrRokUjWjSiRYtGtGhEixaNaNGIFi0a0aIRLVo0okUjWrRoRItG9C8L4K2aZtr7WR4AAAAASUVORK5CYII=",
+                    "alt": ""
+                  }
+                },
+                {
+                  "type": "figureCaption",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "附录图"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "stdTable",
+              "attrs": {
+                "nodeId": "tbl-a1",
+                "orientation": "portrait"
+              },
+              "content": [
+                {
+                  "type": "tableCaption",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "附录表"
+                    }
+                  ]
+                },
+                {
+                  "type": "table",
+                  "content": [
+                    {
+                      "type": "tableRow",
+                      "content": [
+                        {
+                          "type": "tableHeader",
+                          "attrs": {
+                            "colspan": 1,
+                            "rowspan": 1
+                          },
+                          "content": [
+                            {
+                              "type": "paragraph",
+                              "content": [
+                                {
+                                  "type": "text",
+                                  "text": "列"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "tableRow",
+                      "content": [
+                        {
+                          "type": "tableCell",
+                          "attrs": {
+                            "colspan": 1,
+                            "rowspan": 1
+                          },
+                          "content": [
+                            {
+                              "type": "paragraph",
+                              "content": [
+                                {
+                                  "type": "text",
+                                  "text": "值"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "formula",
+              "attrs": {
+                "nodeId": "f-a1"
+              },
+              "content": [
+                {
+                  "type": "formulaContent",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "x = y"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "appendix",
+      "attrs": {
+        "nodeId": "app-b",
+        "normative": false
+      },
+      "number": "B",
+      "path": "附录B",
+      "content": [
+        {
+          "type": "appendixLabel",
+          "content": [
+            {
+              "type": "text",
+              "text": "（资料性）"
+            }
+          ]
+        },
+        {
+          "type": "appendixTitle",
+          "content": [
+            {
+              "type": "text",
+              "text": "资料性附录"
+            }
+          ]
+        },
+        {
+          "type": "stdParagraph",
+          "attrs": {
+            "nodeId": "p-b1"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "资料性内容。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "bibliography",
+      "path": "参考文献",
+      "content": [
+        {
+          "type": "bibliographyTitle",
+          "content": [
+            {
+              "type": "text",
+              "text": "参考文献"
+            }
+          ]
+        },
+        {
+          "type": "bibEntry",
+          "attrs": {
+            "nodeId": "bib-1"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "GB/T 20000.1—2014 标准化工作指南"
+            }
+          ]
+        },
+        {
+          "type": "bibEntry",
+          "attrs": {
+            "nodeId": "bib-2"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "ISO/IEC Directives, Part 2"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

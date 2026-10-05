@@ -51,7 +51,7 @@ export function createDefaultDocumentContent(meta?: DocumentMeta): PMJsonNode & 
   if (meta) {
     // 保存到生产schema支持的封面属性，让XML/JSON和DOCX都能使用创建时的值。
     const attrs: Record<string, unknown> = {}
-    for (const key of ['standardType', 'standardNo', 'titleCn', 'titleEn', 'icsCode', 'ccsCode', 'issuer',
+    for (const key of ['standardType', 'standardNo', 'titleCn', 'titleEn', 'icsCode', 'ccsCode', 'issuer', 'applicant', 'proposer', 'technicalCommittee',
       'publishDate', 'implementDate', 'replaces', 'consistency', 'filingNo', 'industryName', 'regionName', 'coverDesignation'] as const) {
       if (meta[key] !== undefined) attrs[key] = meta[key]
     }

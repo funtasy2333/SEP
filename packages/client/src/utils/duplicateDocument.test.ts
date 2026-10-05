@@ -58,7 +58,10 @@ it('复制后库名/封面/XML/DOCX题名一致，正文保留且不修改源文
 
 it('旧正文没有封面节点时补元数据容器，保留原正文与根属性兼容', () => {
   const content = { type: 'doc', attrs: { titleCn: '旧根题名', standardNo: '旧根编号', issuer: '旧根发布机构', icsCode: '01.020', custom: '保留扩展' },
-    content: [{ type: 'paragraph', content: [{ type: 'text', text: '原有编辑正文' }] }] }
+    content: [{ type: 'chapter', attrs: { nodeId: 'legacy-chapter' }, content: [
+      { type: 'chapterTitle', content: [{ type: 'text', text: '范围' }] },
+      { type: 'stdParagraph', attrs: { nodeId: 'legacy-body' }, content: [{ type: 'text', text: '原有编辑正文' }] },
+    ] }] }
   const source = { title: '旧文档', meta: originalMeta, content }
   const duplicate = createDocumentDuplicate(source)
   const copied = duplicate.content as typeof content
@@ -113,4 +116,16 @@ it('库元数据缺省字段保留内嵌封面回退值，XML与DOCX仍一致', 
     issuer: '原封面发布机构', publishDate: '2026-10-01',
   })
   expect(JSON.parse(JSON.stringify(source))).toEqual(before)
+})
+
+
+it('非空根段落没有IR正文对应位置时明确阻断旧XML，不丢原JSON', () => {
+  const source = { title: '旧文档', meta: originalMeta, content: { type: 'doc', content: [{ type: 'paragraph', attrs: { nodeId: 'root-p' }, content: [{ type: 'text', text: '需要保留的根正文' }] }] } }
+  const duplicate = createDocumentDuplicate(source)
+  const schema = getSchema(createEditorExtensions())
+  const node = schema.nodeFromJSON(duplicate.content)
+  const before = node.toJSON()
+  expect(() => serializeToXml(node)).toThrow(/doc.content\[1\]/)
+  expect(node.toJSON()).toEqual(before)
+  expect(JSON.stringify(duplicate.content)).toContain('需要保留的根正文')
 })

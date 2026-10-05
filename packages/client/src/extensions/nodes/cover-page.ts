@@ -29,6 +29,9 @@ export const CoverPage = Node.create({
       industryName: { default: '' },
       regionName: { default: '' },
       coverDesignation: { default: '' },
+      applicant: { default: null },
+      proposer: { default: null },
+      technicalCommittee: { default: null },
     }
   },
 

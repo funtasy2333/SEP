@@ -7,7 +7,7 @@ import { Node } from '@tiptap/core'
 export const StandardDoc = Node.create({
   name: 'standardDoc',
   topNode: true,
-  content: 'coverPage? foreword? introduction? chapter+ appendix* bibliography?',
+  content: 'coverPage? metadataBlock? foreword? introduction? chapter+ appendix* bibliography? indexBlock? figureResource*',
 
   addAttributes() {
     return {
@@ -19,6 +19,9 @@ export const StandardDoc = Node.create({
       publishDate: { default: null },
       implementDate: { default: null },
       standardType: { default: 'national' },
+      applicant: { default: null },
+      proposer: { default: null },
+      technicalCommittee: { default: null },
     }
   },
 

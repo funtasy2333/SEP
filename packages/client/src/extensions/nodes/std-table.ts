@@ -51,6 +51,20 @@ export const StdTable = Node.create({
       id: { default: null },
       /** 自动编号 */
       number: { default: null },
+      unit: { default: null },
+      /** 表格整体宽度与样式字段，均为JSON安全的标量。 */
+      width: { default: null },
+      widthUnit: { default: null },
+      layout: { default: null },
+      borderModel: { default: null },
+      textAlign: { default: null },
+      verticalAlign: { default: null },
+      borderColor: { default: null },
+      borderWidth: { default: null },
+      borderWidthUnit: { default: null },
+      backgroundColor: { default: null },
+      cellPadding: { default: null },
+      cellPaddingUnit: { default: null },
       orientation: {
         default: 'portrait',
         parseHTML: (element) => readPageOrientation(element),

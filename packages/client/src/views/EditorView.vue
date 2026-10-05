@@ -47,7 +47,7 @@
           <el-icon><Clock /></el-icon>
           <span>{{ showVersionPanel ? '关闭历史' : '版本历史' }}</span>
         </el-button>
-        <el-button type="primary" @click="handleExport">
+        <el-button type="primary" aria-label="导出" @click="handleExport">
           <el-icon><Download /></el-icon>
           <span>导出</span>
         </el-button>
@@ -269,8 +269,8 @@
           <el-radio-button value="raw">原始 JSON</el-radio-button>
         </el-radio-group>
         <div style="display: flex; gap: 8px">
-          <el-button size="small" @click="copyCodeContent">复制</el-button>
-          <el-button size="small" @click="downloadCodeContent">下载</el-button>
+          <el-button size="small" :disabled="Boolean(codeViewError)" @click="copyCodeContent">复制</el-button>
+          <el-button size="small" :disabled="Boolean(codeViewError)" @click="downloadCodeContent">下载</el-button>
         </div>
       </div>
       <pre class="xml-code">{{ codeViewContent }}</pre>
@@ -434,6 +434,7 @@ import SlashMenu from '@/components/editor/SlashMenu.vue'
 import VersionPanel from '@/components/version/VersionPanel.vue'
 
 import { useEditor } from '@tiptap/vue-3'
+import { replaceEditorDocument } from '@/utils/editorDocument'
 import { createEditorExtensions } from '@/extensions/editorExtensions'
 import { canInsertBodyFootnote } from '@/extensions/nodes/footnotes'
 import { getTableFootnoteEntries } from '@/extensions/nodes/std-table'
@@ -443,7 +444,7 @@ import {
   exportSemanticJson, exportSemanticHtml,
   buildPdfExportRequest, buildDocxBlob,
 } from '@/serializer'
-import { irMetaFromDocumentMeta, pmToIr, resolve, type DocumentMeta, type IRDocMeta, type PMJsonNode } from '@ses/shared'
+import { getOutputSupportProblems, irMetaFromDocumentMeta, pmToIr, resolve, type DocumentMeta, type IRDocMeta, type PMJsonNode } from '@ses/shared'
 
 const route = useRoute()
 const router = useRouter()
@@ -694,35 +695,23 @@ async function handleSettingsSave() {
   }
 }
 
-const codeViewContent = computed(() => {
-  if (!editor.value) return ''
+const codeViewResult = computed(() => {
+  if (!editor.value) return { content: '', error: '' }
   const doc = getSynchronizedEditorDoc() || editor.value.state.doc
-
-  switch (codeViewFormat.value) {
-    case 'xml':
-      try {
-        return serializeToXml(doc)
-      } catch (e) {
-        return `XML 序列化错误: ${e}`
-      }
-    case 'json':
-      try {
-        return JSON.stringify(exportSemanticJson(doc), null, 2)
-      } catch (e) {
-        return `JSON 导出错误: ${e}`
-      }
-    case 'html':
-      try {
-        return exportSemanticHtml(doc)
-      } catch (e) {
-        return `HTML 导出错误: ${e}`
-      }
-    case 'raw':
-      return JSON.stringify(doc.toJSON(), null, 2)
-    default:
-      return ''
+  try {
+    const format = codeViewFormat.value
+    const content = format === 'xml' ? serializeToXml(doc)
+      : format === 'json' ? JSON.stringify(exportSemanticJson(doc), null, 2)
+      : format === 'html' ? exportSemanticHtml(doc)
+      : JSON.stringify(doc.toJSON(), null, 2)
+    return { content, error: '' }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    return { content: '', error: `${codeViewFormat.value.toUpperCase()} 导出错误：${detail}` }
   }
 })
+const codeViewError = computed(() => codeViewResult.value.error)
+const codeViewContent = computed(() => codeViewResult.value.error || codeViewResult.value.content)
 
 onMounted(async () => {
   window.addEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
@@ -736,10 +725,10 @@ onMounted(async () => {
     lastSaved.value = updatedAt ? new Date(updatedAt).toLocaleTimeString('zh-CN') : ''
     hydrateSettingsDraft()
     if (store.currentDocument?.content && Object.keys(store.currentDocument.content).length > 0) {
-      editor.value?.commands.setContent(store.currentDocument.content)
+      if (editor.value) replaceEditorDocument(editor.value, store.currentDocument.content)
     } else {
       // 新文档加载默认结构
-      editor.value?.commands.setContent(createDefaultDocumentContent(store.currentDocument?.meta))
+      if (editor.value) replaceEditorDocument(editor.value, createDefaultDocumentContent(store.currentDocument?.meta))
     }
     contentReady.value = true
   } catch {
@@ -1451,7 +1440,7 @@ function getEditorDoc() {
 
 /** 设置编辑器内容（用于版本回滚） */
 function setEditorContent(content: Record<string, unknown>) {
-  editor.value?.commands.setContent(content)
+  if (editor.value) replaceEditorDocument(editor.value, content)
 }
 
 // === 导出 ===
@@ -1494,6 +1483,15 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
     exportError.value = footnoteError
     ElMessage.error(footnoteError)
     return
+  }
+  if (format !== 'json') {
+    const outputFormat = format === 'docx' ? 'DOCX' : format === 'xml' ? 'XML' : 'HTML'
+    const problems = getOutputSupportProblems(pmToIr(doc.toJSON() as PMJsonNode).doc, outputFormat)
+    if (problems.length) {
+      exportError.value = `${format.toUpperCase()} 暂未支持本文档中的部分信息（${problems.length} 项）。请导出 JSON 保存完整内容。`
+      ElMessage.error('此格式尚未支持文档中的新信息，请导出 JSON。')
+      return
+    }
   }
   const meta = buildDocMeta()
   const docTitle = meta.title || store.currentDocument?.meta?.titleCn || '标准文件'
@@ -1550,7 +1548,6 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
     return
   }
 
-  showExport.value = false
   try {
     let content = ''
     let filename = ''
@@ -1577,9 +1574,11 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
     }
 
     downloadFile(content, filename, mimeType)
+    showExport.value = false
     ElMessage.success(`${format.toUpperCase()} 文件已导出`)
   } catch (e) {
-    ElMessage.error(`导出失败: ${e}`)
+    exportError.value = `导出失败：${e instanceof Error ? e.message : String(e)}`
+    ElMessage.error(exportError.value)
   }
 }
 
@@ -1602,6 +1601,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 /** 复制代码内容 */
 function copyCodeContent() {
+  if (codeViewError.value) return
   if (persistenceOperation.value !== null || settingsDirty.value) {
     ElMessage.warning(settingsDirty.value ? '文件设置有未保存修改，请先保存或重置' : '文档保存或导入完成后再复制')
     return
@@ -1624,6 +1624,7 @@ function copyCodeContent() {
 
 /** 下载代码内容 */
 function downloadCodeContent() {
+  if (codeViewError.value) return
   if (persistenceOperation.value !== null || settingsDirty.value) {
     ElMessage.warning(settingsDirty.value ? '文件设置有未保存修改，请先保存或重置' : '文档保存或导入完成后再下载')
     return
@@ -1731,7 +1732,7 @@ function handleXmlFileImport(event: Event) {
         content,
       })
       persisted = true
-      currentEditor.commands.setContent(content, { emitUpdate: false })
+      replaceEditorDocument(currentEditor, content, false)
       hydrateSettingsDraft(updated)
       dirty.value = false
       lastSaved.value = new Date().toLocaleTimeString('zh-CN')

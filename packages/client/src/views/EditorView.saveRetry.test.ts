@@ -3,6 +3,7 @@ import { createApp, h, nextTick } from 'vue'
 import ElementPlus from 'element-plus'
 import { afterEach, expect, it, vi } from 'vitest'
 import EditorView from './EditorView.vue'
+import { createWp6Fixture } from '../extensions/__fixtures__/wp6'
 
 const mocks = vi.hoisted(() => ({
   store: {
@@ -53,6 +54,8 @@ function createDocumentJson() {
 function createEditorMock() {
   let json = createDocumentJson()
   const transaction = () => ({
+    doc: state.doc,
+    replaceWith() { this.docChanged = true; return this },
     docChanged: false,
     setNodeMarkup() { this.docChanged = true; return this },
     setMeta() { return this },
@@ -79,7 +82,10 @@ function createEditorMock() {
   Object.defineProperty(state, 'tr', { get: transaction })
 
   return {
-    commands: { setContent: vi.fn() },
+    commands: {
+      setContent: vi.fn(),
+      command: (command: (context: any) => boolean) => command({ tr: transaction(), dispatch: vi.fn() }),
+    },
     state,
     schema: {
       nodeFromJSON: (value: any) => {
@@ -93,6 +99,7 @@ function createEditorMock() {
           attrs: value.attrs ?? {},
           child: (index: number) => children[index],
           check: vi.fn(),
+          toJSON: () => structuredClone(value),
         }
       },
     },
@@ -293,6 +300,30 @@ it.each([
     await flushMicrotasks()
     expect(view.updateDocument).toHaveBeenCalledTimes(2)
     expectBodyDirty(view.root)
+  } finally {
+    view.unmount()
+  }
+})
+
+it('无法生成XML的源码保持诊断并禁用复制/下载，语义JSON仍完整可用', async () => {
+  const view = await mountEditor()
+  try {
+    mocks.editor.getJSON = () => createWp6Fixture()
+    const sourceButton = [...view.root.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('源码'))!
+    sourceButton.click()
+    await flushMicrotasks()
+    const dialog = document.body.querySelector<HTMLElement>('.ses-code-dlg')!
+    const buttons = () => [...dialog.querySelectorAll<HTMLButtonElement>('button')]
+    expect(dialog.querySelector('pre')?.textContent).toContain('XML 导出错误')
+    expect(buttons().find(button => button.textContent?.trim() === '复制')?.disabled).toBe(true)
+    expect(buttons().find(button => button.textContent?.trim() === '下载')?.disabled).toBe(true)
+    const jsonRadio = [...dialog.querySelectorAll<HTMLElement>('.el-radio-button')].find(radio => radio.textContent?.includes('语义 JSON'))!
+    jsonRadio.click()
+    await flushMicrotasks()
+    const exported = JSON.parse(dialog.querySelector('pre')!.textContent!)
+    expect(exported.attrs.extensionVersion).toBe(1)
+    expect(JSON.stringify(exported)).toContain('term-lang-zh')
+    expect(buttons().find(button => button.textContent?.trim() === '下载')?.disabled).toBe(false)
   } finally {
     view.unmount()
   }

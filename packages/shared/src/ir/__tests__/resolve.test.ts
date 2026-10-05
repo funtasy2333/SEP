@@ -210,9 +210,11 @@ describe('resolve / 遍历顺序（§4.7）：DOCX 输出顺序与 Resolver 遍�
 })
 
 describe('resolve / problems', () => {
-  it('全要素文档无任何 problems', () => {
+  it('旧黄金样本的默认 clause 类型与表/图/公式/文献目标不一致时明确报告', () => {
     const { problems } = resolveFull()
-    expect(problems).toEqual([])
+    expect(problems).toHaveLength(4)
+    expect(problems.every(problem => problem.code === 'dangling-typed-ref')).toBe(true)
+    expect(problems.map(problem => problem.nodeId)).toEqual(['p-411', 'p-4211', 'p-4211', 'p-4221'])
   })
 
   it('dangling-xref：引用目标不存在', () => {

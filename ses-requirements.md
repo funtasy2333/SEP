@@ -1,5 +1,7 @@
 # 标准化文件编辑系统(Standards Editor System, SES)需求规格文档
 
+> **2026-10-05 XML开发决策（用户确认）**：XML导入、导出只采用GB/T 46687.2—2026，完全切断GB/T 37967及SEP历史自定义XML，不开发兼容或转换器；独立NISO STS功能暂缓。JSON正文存储继续使用，原始数据不删除。实施范围及验收见 [Phase 5.5主计划](docs/dev-plan-phase-5.5.md) 和 [WP8 XML方案](docs/wp8-xml46687.md)。方案已修订，代码切换尚未实施。
+
 ## 1. 项目背景
 随着标准化工作的不断深入，对标准文件编辑的规范性和效率提出了更高的要求。本项目旨在开发一套专业的标准文件编辑系统，解决现有标准编写过程中的痛点问题。
 
@@ -227,7 +229,7 @@ Phase 0：项目初始化与基础架构（~1周）
 
 Phase 1：自定义 Schema 与核心节点（~2周）
 目标：定义标准文档的完整数据结构
-基于 GB/T 37967-2019 和现有 styles.config 中的66+样式，开发自定义 Tiptap 节点：
+节点以标准文档语义及GB/T 1.1编写结构为基础，XML目标统一为GB/T 46687.2—2026；现有节点的语义补齐在Phase 5.5 WP6实施：
 核心节点开发：
 * StandardDoc — 文档根节点，含元数据属性（标准号、ICS分类号、CCS分类号等）
 *  CoverPage — 封面节点（标准名称、编号、发布/实施日期、密级等）
@@ -245,7 +247,7 @@ Phase 1：自定义 Schema 与核心节点（~2周）
 *  BibRef — 参考文献条目
 *  Footnote — 脚注（条文脚注、图表脚注）
 Schema 设计原则：
-* 每个节点携带语义属性（id, type, level 等），与 XML 标签一一对应
+* 每个节点携带语义属性（id, type, level等），通过IR适配到新国标XML；TBX、MathML等不能假定与编辑器节点一对一
 * parseHTML / renderHTML 使用 data-* 属性保留语义信息
 * 层级约束通过 ProseMirror Schema 的 content 表达式严格限定
 ————————
@@ -277,16 +279,11 @@ Phase 2：编辑器界面与交互（~2周）
     * 例外（不自动加空格）：平面角度 `°` `′` `″`（GB 3101 明文例外），以及 `%` `‰`（按中文排版惯例）
     * 实现方式：Tiptap InputRule，在用户键入"数字+单位"组合的最后一个字符时自动插入半角空格
 —————————
-Phase 3：XML 序列化与结构化标注（~2周）
-目标：实现 ProseMirror JSON ↔ GB/T 37967-2019 XML 的双向转换
-*  XML 序列化器 (ProseMirror Doc → XML)
-    * 遍历文档树，按节点类型输出对应 XML 标签
-    * 符合 GB/T 37967-2019 的 <standard><content> 根结构
-    * 正确处理 <basic_info>, <term>, <technology>, <appendix>, <reference> 等节点
-    * CDATA 处理、语言属性（lang="en"）、图片路径等
-*  XML 解析器 (XML → ProseMirror Doc)
-    * 解析 GB/T 37967 XML，还原为 ProseMirror 文档结构
-    * 处理属性映射（t_id, tech_itiid 等 → 节点 attrs）（已确认延后：暂无对接外部系统的实际需求；且 GB/T 37967 体系或将被《标准机器语言表达》系列（NISO STS 路线）取代，37967 专有属性不再深耕，XML 标注演进方向见 Phase 5.5）
+Phase 3：XML 序列化与结构化标注（旧XML规划已由Phase 5.5替换）
+目标：ProseMirror JSON ↔ IR ↔ GB/T 46687.2—2026 XML双向转换，按WP6/WP8实施。
+* XML导出：消费统一IR及Resolver，以 `standard/front/body/back` 表达元数据和全文，支持TBX、MathML、XHTML表格、引用及配套资源
+* XML导入：解析/验证新国标XML及资源，经IR还原生产Schema；先完整校验再替换文档，保存重开保真
+* 旧XML：37967和SEP早期格式均明确拒绝，不保留解析器、兼容选项或迁移任务
 *  JSON 标注导出
     * 将文档结构导出为 JSON 格式（基于 ProseMirror JSON 的语义增强版）
 *  HTML 语义化导出
@@ -332,8 +329,8 @@ Phase 5：文档导出（~2周）
     * 用户可选择标准类型
     * ~~模板预览~~
 —————
-Phase 5.5：IR 中间表示与多渲染器重构（~2周）
-目标：以 IR（中间结构）为枢纽重构导出层，摆脱 LibreOffice 强依赖
+Phase 5.5：IR 中间表示与多渲染器重构
+目标：以IR为枢纽统一输出，补齐新国标XML双向转换；WP6/WP8工期在原文/校验约定及数据模型差距明确后更新，不沿用原两周估算。
 背景与动因：
 *  编号逻辑在 docxExporter / htmlExporter / xmlSerializer 中重复实现三次，易不一致
 *  早期 PDF 唯一路径为 DOCX → 服务端 LibreOffice，依赖重、跨平台脆弱（该路径现已废除）
@@ -342,8 +339,8 @@ Phase 5.5：IR 中间表示与多渲染器重构（~2周）
 *  IR 双态设计（放 packages/shared，纯数据、平台无关）
     * Authoring IR：语义结构本体，不含编号（编号是派生数据），与 ProseMirror 文档一一对应；同时作为 Phase 10 AI 导入的 LLM 结构化输出契约（语义角色枚举封闭、可导出 JSON Schema）
     * Resolved IR：经 Resolver 解析后的渲染输入（编号、交叉引用文本、参考文献序号已就位）
-    * 稳定节点标识（nodeId）：Schema 与 IR 为每个块级节点分配全局唯一且持久的 ID，作为版本结构化 diff/合并（Phase 11 PR 协作）、批注锚定、AI 编辑指令寻址（Phase 10）的共同基础——设计期加入成本极低，事后补加成本高；ID 命名方案对齐《标准机器语言表达 第2部分》（征求意见稿）附录 E 与 IEC/ISO Coding Guidelines 3.4 的带 ID 元素清单（sec_1 / sec_A / formula_1 等风格），使编辑器内部锚点与导出 XML 的 ID 同源、免二次映射
-    * IR 语义角色与 NISO STS 1.2 元素对齐（依据：IEC/ISO Coding Guidelines ed.2.1 + 新国标草案）：sec-type 枚举、术语条目、公式「式中」键（disp-formula + legend/def-list，现有 Formula 节点需补结构化表达）、图例（fig/fig-group + legend）、注（non-normative-note）、无标题条（草案 5.3.3.6）、资料性/规范性附录、参考文献（ref-list/mixed-citation），保证 IR → NISO STS 渲染为平凡映射
+    * 稳定nodeId终生不随编号改变，用于版本diff/合并、批注和AI寻址；导出xmlId由Resolver按GB/T 46687.2约定派生，通过labels关联。XML导入建立外部ID到内部nodeId映射，不能把显示编号用作内部身份
+    * IR语义以GB/T 46687.2—2026正式文本为目标：章角色、无标题条、TBX多语种术语、MathML及式中说明、XHTML表格、图组/资源、注/示例、类型化文献、脚注/引用和索引。正文/示例的异写及DTD/XSD版本在WP8.1固定约定，不以旧草案或通用STS配置替代
 *  Resolver（一次性结构解析，全系统唯一的编号实现）
     * 章/条/附录编号、图表/公式编号（附录内自动加字母前缀）
     * 注/示例编号规则：条款内单条不编号，多条编「注1/注2」（借鉴 ISO OSD，GB/T 1.1 同规则）
@@ -351,11 +348,11 @@ Phase 5.5：IR 中间表示与多渲染器重构（~2周）
     * 编号策略实现为可配置策略对象（借鉴 OSD 项目级编号方案配置，适应不同标准类型）
     * 解析过程中产出结构问题报告（悬空段、编号断档、悬空引用等），供 Phase 6 持续质检复用
 *  渲染器迁移（统一消费 Resolved IR）
-    * XML（GB/T 37967）/ JSON / HTML 渲染器迁移，删除各自的编号逻辑
-    * 新增 NISO STS / 新国标 XML 渲染器：输出《标准机器语言表达 第2部分》体系（<standard>/<front>/<body>/<back>/<sec> 等）；该标准尚为征求意见稿（2025-01 完成），需跟踪定稿变化；草案附录 F 的标签对比表（vs GB/T 37967/22373/42093）可作迁移映射依据
+    * WP6迁移JSON渲染并补齐IR/生产Schema、PM↔IR、引用/ID和资源数据；HTML等消费相同IR及Resolver
+    * WP8只新增GB/T 46687.2—2026 XML双向实现：原文/校验约定、导出、导入、统一切换、真实流程及互操作验收。删除旧XML实现及所有调用fallback；独立NISO STS功能暂缓
     * ~~DOCX 模板填充渲染器（docxTemplateExporter）迁移~~（2026-09-24 变更：改为 WP7 系列从零生成 DOCX，docxTemplateExporter.ts 与 docxExporter.ts 直接删除，见 docs/wp7-docx-delivery.md）
     * DocMeta/StandardType 等类型迁至 packages/shared
-    * golden-file 回归基线：迁移前固化现有导出结果，迁移后逐项比对防回归
+    * JSON迁移保留golden回归；新XML按新国标语义、结构和资源保真验收，不保留旧XML字节一致性要求
 *  PDF 渲染器（HTML + CSS Paged Media 分页引擎，替代 LibreOffice 路径）
     * 分页引擎首选 Vivliostyle（已确认）：原生支持 leader() 目次点线、GCPM 条文脚注、混合横竖页 PDF 输出（vivliostyle.js#751，2022 已实现）、CJK 排版（text-spacing / hanging-punctuation）；维护活跃
     * Paged.js 作为备选引擎；IR-HTML 渲染器保持引擎无关（输出语义 HTML + 打印样式表），引擎可替换
@@ -367,7 +364,7 @@ Phase 5.5：IR 中间表示与多渲染器重构（~2周）
     * 对照 GB/T 1.1 版式检查单逐项验收，通过后再迁移渲染器
 *  测试补课
     * Resolver 单元测试（编号、附录、交叉引用、注/示例规则各情形）
-    * XML 往返一致性测试（XML → PM → XML 幂等）
+    * 新XML→IR→生产Schema→保存重开→IR→新XML，规范化输出幂等及语义/资源保真；增加固定结构校验、旧格式拒绝、真实原文和独立互操作验收
 ——————
 Phase 6：智能校验（~1.5周）
 目标：辅助用户写出规范的标准文件

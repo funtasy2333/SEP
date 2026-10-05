@@ -696,3 +696,24 @@
   font-weight: bold;
   margin-bottom: 16px;
 }
+
+/* Editor labels are projected by Resolver; counters remain for detached legacy HTML. */
+.tiptap [data-resolved-label].std-chapter-title::before,
+.tiptap [data-resolved-label].std-clause-title::before,
+.tiptap [data-resolved-label].std-term-name::before,
+.tiptap [data-resolved-label].std-appendix-label::before {
+  content: attr(data-resolved-label) '\2003';
+}
+.tiptap [data-resolved-label].std-table-caption::before {
+  content: attr(data-resolved-label) '\2003';
+}
+.tiptap [data-resolved-label].std-figure-caption::before {
+  content: attr(data-resolved-label) '\2003';
+}
+.tiptap [data-resolved-label].std-example::before {
+  content: attr(data-resolved-label);
+}
+
+.tiptap .std-chapter-title[data-resolved-label] > .std-chapter-number::before {
+  content: none;
+}

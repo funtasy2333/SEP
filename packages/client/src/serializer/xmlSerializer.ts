@@ -7,7 +7,7 @@
  */
 
 import type { Node as PMNode } from '@tiptap/pm/model'
-import { pmToIr, resolve, type PMJsonNode, type ResolvedLabel } from '@ses/shared'
+import { UnsupportedOutputError, assertOutputSupported, pmToIr, resolve, type PMJsonNode, type ResolvedLabel } from '@ses/shared'
 import { normalizePageOrientation } from '../utils/orientation'
 
 let activeFootnoteLabels: Record<string, ResolvedLabel> = {}
@@ -54,13 +54,26 @@ export function serializeToXml(doc: PMNode): string {
   // ProseMirror's toJSON(). Keep those legacy callers working; production editor nodes always
   // take the resolver-backed path so footnote numbering and XML IDs remain shared.
   if (typeof doc.toJSON === 'function') {
-    const { doc: irDoc } = pmToIr(doc.toJSON() as PMJsonNode)
+    const pmJson = doc.toJSON() as PMJsonNode
+    const { doc: irDoc } = pmToIr(pmJson)
+    // WP6 new authoring semantics must not be dropped by the old XML path pending WP8.
     const resolved = resolve(irDoc)
     const errors = resolved.problems.filter(problem =>
       problem.severity === 'error' && ['dangling-footnote', 'unreferenced-footnote', 'invalid-footnote'].includes(problem.code))
     if (errors.length) {
       throw new XmlFootnoteValidationError(`脚注校验未通过，不能生成 XML：${[...new Set(errors.map(problem => problem.message))].join('；')}`)
     }
+    assertOutputSupported(irDoc, 'XML')
+    // Native termSource has no lossless counterpart in this legacy XML serializer.
+    // Its generic textblock fallback would turn source metadata into definition text.
+    const checkSources = (node: PMJsonNode, path: string): void => {
+      if (node.type === 'termSource' && node.content?.length) throw new UnsupportedOutputError([{
+        code: 'unsupported-output', path,
+        message: 'XML 暂未支持独立的术语来源节点；请保留 JSON 文档并等待 WP8 转换。',
+      }])
+      node.content?.forEach((child, index) => checkSources(child, `${path}.content[${index}]`))
+    }
+    checkSources(pmJson, 'pm')
     activeFootnoteLabels = resolved.labels
   } else {
     // Minimal legacy trees have no Resolver context. Never invent IDs/labels for footnotes.

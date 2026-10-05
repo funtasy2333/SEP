@@ -21,7 +21,7 @@ const formulaPluginKey = new PluginKey('formulaPreview')
 export const Formula = Node.create({
   name: 'formula',
   group: 'block',
-  content: 'formulaContent formulaDescription?',
+  content: 'formulaContent formulaDescription? formulaNote* whereList?',
   defining: true,
   isolating: true,
 
@@ -29,6 +29,10 @@ export const Formula = Node.create({
     return {
       id: { default: null },
       number: { default: null },
+      /** 原生 MathML 原文，作为不经 LaTeX 反译的权威表示保留。 */
+      mathml: { default: null },
+      /** 可用的 LaTeX 编辑源；不要求从 MathML 反向推导。 */
+      latex: { default: null },
     }
   },
 

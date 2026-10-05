@@ -1,3 +1,4 @@
+import { assertOutputSupported } from './outputBoundary'
 /**
  * HTML 渲染器（Phase 5.5 / WP4）。
  *
@@ -738,6 +739,7 @@ function screenStyles(): string {
  */
 export function renderHtml(doc: IRDoc, labels: Labels, opts: RenderHtmlOptions = {}): string {
   assertFootnoteReferences(doc, labels)
+  assertOutputSupported(doc, 'HTML')
   const variant: HtmlVariant = opts.variant ?? 'screen'
   const ctx = new RenderCtx(labels, variant)
 

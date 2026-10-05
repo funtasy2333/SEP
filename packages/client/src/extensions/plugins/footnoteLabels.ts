@@ -1,7 +1,7 @@
 import { Extension } from '@tiptap/core'
 import { Plugin } from '@tiptap/pm/state'
 import { pmToIr, resolve, type PMJsonNode } from '@ses/shared'
-import type { EditorView } from '@tiptap/pm/view'
+import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 
 function refreshFootnoteLabels(view: EditorView) {
   try {
@@ -50,6 +50,20 @@ export const FootnoteLabels = Extension.create({
 
   addProseMirrorPlugins() {
     return [new Plugin({
+      props: {
+        decorations(state) {
+          const labels = resolve(pmToIr(state.doc.toJSON()).doc).labels
+          const decorations: Decoration[] = []
+          const titles = new Set(['chapterTitle', 'clauseTitle', 'termName', 'tableCaption', 'figureCaption', 'appendixLabel'])
+          state.doc.descendants((node, pos, parent) => {
+            const owner = titles.has(node.type.name) ? parent : node.type.name === 'example' ? node : null
+            if (owner) decorations.push(Decoration.node(pos, pos + node.nodeSize, {
+              'data-resolved-label': labels[owner.attrs.nodeId || '']?.label ?? '?',
+            }))
+          })
+          return DecorationSet.create(state.doc, decorations)
+        },
+      },
       view(view) {
         refreshFootnoteLabels(view)
         return {

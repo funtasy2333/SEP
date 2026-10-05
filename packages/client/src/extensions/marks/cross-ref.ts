@@ -22,6 +22,8 @@ export const CrossRef = Mark.create({
     return {
       /** 被引用元素的 id */
       refId: { default: null },
+      /** 新IR契约的稳定目标ID；refId继续用于旧PM文档兼容。 */
+      targetId: { default: null },
       /** 引用类型 */
       refType: { default: 'chapter' },
       /** 显示文本（自动生成的编号文本） */
@@ -34,12 +36,13 @@ export const CrossRef = Mark.create({
   },
 
   renderHTML({ HTMLAttributes }) {
+    const targetId = HTMLAttributes.targetId || HTMLAttributes.refId
     return [
       'a',
       mergeAttributes(HTMLAttributes, {
         'data-type': 'cross-ref',
         class: 'std-cross-ref',
-        href: `#${HTMLAttributes.refId}`,
+        href: targetId ? `#${targetId}` : null,
       }),
       0,
     ]

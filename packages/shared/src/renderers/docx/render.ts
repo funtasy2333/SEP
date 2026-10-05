@@ -1,3 +1,4 @@
+import { assertOutputSupported } from '../outputBoundary'
 /**
  * DOCX 渲染组装（docs/wp7-docx-delivery.md §1.2 render.ts、§4.7、§9 WP7.2「文档结构」）。
  *
@@ -163,8 +164,9 @@ export function renderDocxTraced(
   labels: Record<NodeId, ResolvedLabel>,
   opts: DocxRenderOptions,
 ): { pkg: DocxPackage; numbered: NumberedParagraphTrace[] } {
-  const toc = buildStaticToc(doc, labels)
   const bodyFootnotes = assertFootnoteReferences(doc, labels)
+  assertOutputSupported(doc, 'DOCX')
+  const toc = buildStaticToc(doc, labels)
 
   // 页眉页脚四个部件的关系 ID：按 header1、header2、footer1、footer2 的顺序申请（§2.3）
   const allocateRelId = createRelationshipIdAllocator()

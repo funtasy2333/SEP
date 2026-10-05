@@ -18,7 +18,7 @@ declare module '@tiptap/core' {
 export const Figure = Node.create({
   name: 'figure',
   group: 'block',
-  content: 'figureImage figureCaption figureCaptionEn?',
+  content: 'figureImage figureCaption figureCaptionEn? figureDescription* figureGroup*',
   defining: true,
   isolating: true,
 
@@ -34,6 +34,7 @@ export const Figure = Node.create({
           'data-orientation': normalizePageOrientation(attributes.orientation),
         }),
       },
+      unit: { default: null },
     }
   },
 
@@ -88,6 +89,12 @@ export const FigureImage = Node.create({
       alt: { default: '' },
       width: { default: null },
       height: { default: null },
+      /** Stable resource identity; src remains the legacy/editor rendering input. */
+      resourceId: { default: null },
+      /** Dimensions default to CSS pixels for legacy width/height attrs. */
+      widthUnit: { default: null },
+      heightUnit: { default: null },
+      title: { default: null },
     }
   },
 

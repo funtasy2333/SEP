@@ -45,6 +45,7 @@
 import { ref, watch } from 'vue'
 import { Document, Close, Rank } from '@element-plus/icons-vue'
 import type { Editor } from '@tiptap/vue-3'
+import { pmToIr, resolve } from '@ses/shared'
 
 const props = defineProps<{
   editor: Editor | undefined
@@ -172,10 +173,8 @@ function updateActiveIndex() {
 function updateHeadings() {
   if (!props.editor) return
   const items: HeadingItem[] = []
-  let chapterCount = 0
-  let appendixCount = 0
-  let currentAppendixLetter = ''
-  const clauseCounters = [0, 0, 0, 0, 0]
+  const labels = resolve(pmToIr(props.editor.state.doc.toJSON()).doc).labels
+  const labelFor = (id: string) => labels[id]?.label ?? '?'
 
   props.editor.state.doc.descendants((node, pos) => {
     if (node.type.name === 'foreword') {
@@ -185,14 +184,11 @@ function updateHeadings() {
       items.push({ level: 1, text: '引言', pos, nodePos: pos, nodeSize: node.nodeSize, deletable: true })
       return false
     } else if (node.type.name === 'chapter') {
-      chapterCount++
-      currentAppendixLetter = ''
-      clauseCounters.fill(0)
       node.forEach((child, offset) => {
         if (child.type.name === 'chapterTitle') {
           items.push({
             level: 1,
-            text: `${chapterCount} ${child.textContent || '(空标题)'}`,
+            text: `${labelFor(node.attrs.nodeId)} ${child.textContent || '(空标题)'}`,
             pos: pos + offset + 1,
             nodePos: pos,
             nodeSize: node.nodeSize,
@@ -202,15 +198,13 @@ function updateHeadings() {
       })
       // 继续递归进章内部，以找到条
     } else if (node.type.name === 'appendix') {
-      appendixCount++
-      currentAppendixLetter = String.fromCharCode(64 + appendixCount)
-      clauseCounters.fill(0)
+      const appendixLabel = labelFor(node.attrs.nodeId)
       node.forEach((child, offset) => {
         if (child.type.name === 'appendixTitle') {
           const title = child.textContent
           items.push({
             level: 1,
-            text: title ? `附录${currentAppendixLetter} ${title}` : `附录${currentAppendixLetter}`,
+            text: title ? `${appendixLabel} ${title}` : appendixLabel,
             pos: pos + offset + 1,
             nodePos: pos,
             nodeSize: node.nodeSize,
@@ -223,16 +217,12 @@ function updateHeadings() {
       // 无题条不展示在大纲中
       if (node.attrs.hasTitle === false) return false
       const level = node.attrs.level || 1
-      clauseCounters[level - 1]++
-      for (let i = level; i < 5; i++) clauseCounters[i] = 0
-      const prefix = currentAppendixLetter || String(chapterCount)
-      const numParts = [prefix, ...clauseCounters.slice(0, level)]
-      const numStr = numParts.join('.')
+      const numStr = labelFor(node.attrs.nodeId)
       node.forEach((child, offset) => {
         if (child.type.name === 'clauseTitle') {
           const title = child.textContent
           items.push({
-            level: level + 1,
+            level: numStr === '?' ? level + 1 : numStr.split('.').length,
             text: title ? `${numStr} ${title}` : numStr,
             pos: pos + offset + 1,
             nodePos: pos,
@@ -243,16 +233,12 @@ function updateHeadings() {
       })
     } else if (node.type.name === 'termDef') {
       const level = node.attrs.level || 1
-      clauseCounters[level - 1]++
-      for (let i = level; i < 5; i++) clauseCounters[i] = 0
-      const prefix = currentAppendixLetter || String(chapterCount)
-      const numParts = [prefix, ...clauseCounters.slice(0, level)]
-      const numStr = numParts.join('.')
+      const numStr = labelFor(node.attrs.nodeId)
       node.forEach((child, offset) => {
         if (child.type.name === 'termName') {
           const title = child.textContent
           items.push({
-            level: level + 1,
+            level: numStr === '?' ? level + 1 : numStr.split('.').length,
             text: title ? `${numStr} ${title}` : numStr,
             pos: pos + offset + 1,
             nodePos: pos,

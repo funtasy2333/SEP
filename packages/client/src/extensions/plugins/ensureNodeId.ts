@@ -4,8 +4,8 @@ import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { generateNodeId } from '@ses/shared'
 
 /**
- * 携带 nodeId 属性的块级节点类型清单。
- * 含全部自定义块级节点 + StarterKit 中可出现在 block 内容里的节点；
+ * 携带 nodeId 属性的生产节点类型清单。
+ * 除块级实体外，也包括拥有稳定 IR ID 的行内 atom 和结构化文献实体；
  * 清单中未注册到 schema 的类型名会被 Tiptap 忽略，无副作用。
  */
 export const NODE_ID_TYPES = [
@@ -17,6 +17,8 @@ export const NODE_ID_TYPES = [
   'clause',
   'stdParagraph',
   'termDef',
+  // termDefinition itself maps to the first IR definition paragraph entity.
+  'termDefinition',
   'stdTable',
   'tableFootnoteEntry',
   'figure',
@@ -26,17 +28,51 @@ export const NODE_ID_TYPES = [
   'example',
   'appendix',
   'bibliography',
+  // Structured document metadata records (metadataBlock is a non-semantic container).
+  'titlePart',
+  'standardIdentifier',
+  'identifierPart',
+  'language',
+  'publisher',
+  'adoption',
+  'replacedStandard',
+  'copyright',
+  // TBX language sets, term groups, variants and descriptors.
+  'tbxLangSet',
+  'tbxTig',
+  'tbxTermVariant',
+  'tbxTermDescriptor',
+  // Formula semantic records (formulaInline is a referenceable inline atom).
+  'formulaInline',
+  'formulaNote',
+  'whereItem',
+  // Figure/resource and typed bibliography semantic records.
+  'figureGroup',
+  'figureDescription',
+  'figureResource',
+  'bibField',
+  'bibIdentifier',
+  // Index and prose-role blocks.
+  'indexBlock',
+  'indexGroup',
+  'indexEntry',
+  'warning',
+  'quoteBlock',
+  'codeBlock',
   // 块级容器内的可引用子节点（IR 类型中带 id，需稳定锚点供 WP3 pmToIr 使用）；
   // 表格行/单元格与公式 whereList 项的 ID 来源策略在 WP3 设计时确定
   'stdListItem',
   'bibEntry',
+  // Resolver assigns stable IDs to table rows/cells as well as their semantic table wrapper.
+  'tableRow',
+  'tableCell',
+  'tableHeader',
   // StarterKit 中可出现在 block 内容里的节点
   // （table 不在列表中：其 NodeView 不渲染 data-node-id，且语义节点是外层 stdTable）
   'paragraph',
   'blockquote',
   'bulletList',
   'orderedList',
-  'codeBlock',
   'horizontalRule',
   'listItem',
   // Inline footnote references have document-wide stable identities for labels and XML round trips.
