@@ -189,8 +189,9 @@ function unsupportedFootnoteMarks(marks: unknown): string | undefined {
     if (attrsReason) return `格式标记${attrsReason}`
     if (CANONICAL_FOOTNOTE_MARKS.has(mark.type)) continue
     if (mark.type === 'crossRef') {
-      const attrs = mark.attrs as Record<string, unknown> | undefined
-      if (typeof attrs?.refId === 'string' && attrs.refId.length > 0) {
+      const attrs = (mark.attrs ?? {}) as Record<string, unknown>
+      const targetId = attrs?.targetId ?? attrs?.refId
+      if (typeof targetId === 'string' && targetId.length > 0) {
         if (Object.prototype.hasOwnProperty.call(attrs, 'refType') && typeof attrs.refType !== 'string') return '交叉引用类型无效'
         if (Object.prototype.hasOwnProperty.call(attrs, 'refText') && attrs.refText !== null && typeof attrs.refText !== 'string') return '交叉引用文本无效'
         continue
@@ -727,6 +728,15 @@ function convertStdTable(node: PMJsonNode, ctx: Ctx): IRTable {
     rowSeq += 1
   }
 
+  const explicitHeaderCount = node.attrs?.headerRowCount
+  if (explicitHeaderCount !== undefined && explicitHeaderCount !== null) {
+    if (typeof explicitHeaderCount === 'number' && Number.isInteger(explicitHeaderCount) && explicitHeaderCount >= 0 && explicitHeaderCount <= rows.length) {
+      headerRowCount = explicitHeaderCount
+    } else {
+      ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '表格'), nodeType: node.type, reason: 'headerRowCount必须为不超过表格行数的非负整数' })
+    }
+  }
+
   const table: IRTable = {
     kind: 'table',
     id,
@@ -1158,8 +1168,16 @@ const CHAPTER_SEC_TYPES: { match: RegExp; secType: IRChapter['secType'] }[] = [
 function convertChapter(node: PMJsonNode, ctx: Ctx): IRChapter {
   const title = childInlines(node, 'chapterTitle', ctx)
   const titleText = plainText(title).trim()
-  const secType =
-    CHAPTER_SEC_TYPES.find((s) => s.match.test(titleText))?.secType ?? 'general'
+  const explicitSecType = node.attrs?.secType
+  const inferredSecType = CHAPTER_SEC_TYPES.find((s) => s.match.test(titleText))?.secType ?? 'general'
+  let secType = inferredSecType
+  if (explicitSecType !== undefined && explicitSecType !== null) {
+    if (typeof explicitSecType === 'string' && ['scope', 'norm-refs', 'terms', 'general'].includes(explicitSecType)) {
+      secType = explicitSecType as IRChapter['secType']
+    } else {
+      ctx.unsupportedContent.push({ nodeId: ctx.id(node), path: ctx.path(node, '章'), nodeType: node.type, reason: '章的secType不是受支持的文档角色' })
+    }
+  }
   return {
     kind: 'chapter',
     id: ctx.id(node),

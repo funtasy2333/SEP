@@ -67,3 +67,23 @@ API 验收仅在显式指定的空本地数据库和非默认服务端端口运�
 ## 后续边界
 
 WP8 负责原文元素/属性矩阵、正式 ID 约定、唯一 XML46687.2 双向转换、校验及真实外部互操作。当前描述符 kind/value 与外部 ID 映射是项目数据契约，不是具体 TBX/XML 标准元素认证。新增 MathML 保存原文和编辑源；本次不保证编辑器已把所有原生 MathML 排成数学视觉效果。
+
+## Codex review 修复验收（2026-10-06）
+
+PR #45 在 `9ad90668` 和 `df27182a` 上的两轮 review 共提出 7 条 P2 问题。本次逐条修复：
+
+| Review 问题 | 处理与回归证据 |
+|---|---|
+| 脚注 crossRef 的 canonical targetId 被误判缺目标 | 与普通引用统一使用 targetId ?? refId；生产 Schema 往返后 Resolver 无 invalid-footnote |
+| 简单列项丢段落稳定 ID | 无法保留的原生 IR 段落 ID 通过 IRToPmError 拒绝；五种受支持列表的派生段落 ID 及对应引用往返有效 |
+| 显式章角色被标题推断覆盖 | 生产 chapter.secType 持久化并优先读取；四种角色均覆盖非标准标题或与标题相反的角色 |
+| 罗马列项被静默降级 | roman/romanUpper 均返回带位置诊断，不改为 numeric |
+| 公式 numbered:false 被 Schema 丢弃 | 新增 nullable 生产属性，显式 false 保留；后续 Resolver 标签保持；旧文档默认编号及 JSON byte golden 不变 |
+| 表头行数被单元格类型推断覆盖 | 独立保存 headerRowCount，覆盖显式 0/1/2 与混合单元格标志；旧文档缺省继续推断 |
+| 显式列表级别被规范化 | 与生产固定级别冲突时拒绝，覆盖嵌套 StarterList 分支 |
+
+先运行生产 Schema 回归复现：最初 9 个用例中 8 个失败；修复后通过。随后补旧属性缺省、非法显式值和五种生产列表段落引用用例，`wp6Review.test.ts` 共 21 项通过；shared `irToPm.test.ts` 新增 4 项列表边界用例。
+
+本次 shared 完整回归 897 项通过，tsc --noEmit 通过；client 完整回归 227 项通过、隔离 API 用例仍默认跳过 1 项，最后追加的 5 项生产列表用例定向验证通过（client 总计 232 项）；client 类型检查与 Vite 构建通过，仍只有已有大包体提示；server 23 项 Jest 回归通过。未修改 golden、依赖、lockfile 或数据库结构。本次未重复运行历史 API/浏览器冷重开验收，新增字段的生产加载及往返由 Schema 回归覆盖；前述冷重开证据属于 2026-10-05 的验收记录。
+
+范围仍为 WP6 文档作者模型保真及转换错误边界，不扩展技术对象语义建模或 WP8 XML 标准符合性任务。PR 仍待合并；本次测试结果不代表 Codex review 已重新审核批准。

@@ -196,13 +196,37 @@ function termToPm(entry: IRTermEntry, path: string, errors: IRToPmDiagnostic[]):
 }
 
 function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+  if (list.listType === 'roman' || list.listType === 'romanUpper') {
+    errors.push({
+      path: `${path}.listType`,
+      nodeId: list.id,
+      reason: `生产列表schema不支持「${list.listType}」编号，不能无损转换`,
+    })
+    return node('stdList', withId(list.id, { listType: 'dash', level: 1 }), [])
+  }
+
+  const fixedLevel = list.listType === 'number' || list.listType === 'dot' ? 2 : 1
+  if (list.level !== undefined && list.level !== fixedLevel) {
+    errors.push({
+      path: `${path}.level`,
+      nodeId: list.id,
+      reason: `生产列表「${list.listType}」固定为 ${fixedLevel} 级，IR 显式给出 ${list.level} 级`,
+    })
+  }
+
   const simple = list.items.every(item => item.content.length === 1 && item.content[0]?.kind === 'paragraph')
   if (simple) {
-    const typeByList = { dash: 'dash', number: 'numeric', alpha: 'alpha', roman: 'numeric', romanUpper: 'numeric', boxed: 'boxedNumeric', dot: 'dot' } as const
+    const typeByList = { dash: 'dash', number: 'numeric', alpha: 'alpha', boxed: 'boxedNumeric', dot: 'dot' } as const
     const rawType = typeByList[list.listType]
-    const level = list.level ?? (rawType === 'numeric' || rawType === 'dot' ? 2 : 1)
-    return node('stdList', withId(list.id, { listType: rawType, level }), list.items.map(item => {
+    return node('stdList', withId(list.id, { listType: rawType, level: fixedLevel }), list.items.map((item, index) => {
       const content = item.content[0]
+      if (content?.kind === 'paragraph' && content.id !== `${item.id}.p0`) {
+        errors.push({
+          path: `${path}.items[${index}].content[0]`,
+          nodeId: content.id,
+          reason: `生产标准列表会将列项段落 ID 派生为「${item.id}.p0」，无法保留「${content.id}」`,
+        })
+      }
       return node('stdListItem', withId(item.id), content?.kind === 'paragraph' ? inlinesToPm(content.content) : [])
     }))
   }
@@ -219,7 +243,7 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJso
 }
 
 function tableToPm(table: IRTable, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
-  const attrs: PmAttrs = withId(table.id, { orientation: table.orientation, unit: table.unit ?? null })
+  const attrs: PmAttrs = withId(table.id, { orientation: table.orientation, unit: table.unit ?? null, headerRowCount: table.headerRowCount })
   measureAttrs(attrs, 'width', table.width)
   if (table.style) Object.assign(attrs, tableStyleAttrs(table.style))
   const rows = table.rows.map((row, ri) => node('tableRow', withId(row.id, row.style ? rowStyleAttrs(row.style) : {}), row.cells.map((cell, ci) => {
@@ -315,7 +339,7 @@ function clauseToPm(clause: IRClause, path: string, errors: IRToPmDiagnostic[]):
 }
 
 function chapterToPm(chapter: IRChapter, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
-  return node('chapter', withId(chapter.id), [
+  return node('chapter', withId(chapter.id, { secType: chapter.secType }), [
     node('chapterTitle', undefined, inlinesToPm(chapter.title)),
     ...childrenToPm(chapter.children, path, errors),
   ])

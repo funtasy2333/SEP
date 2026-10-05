@@ -52,6 +52,8 @@ export const StdTable = Node.create({
       /** 自动编号 */
       number: { default: null },
       unit: { default: null },
+      /** 重复表头行数独立于单元格类型；null 兼容旧表格的自动推断。 */
+      headerRowCount: { default: null },
       /** 表格整体宽度与样式字段，均为JSON安全的标量。 */
       width: { default: null },
       widthUnit: { default: null },

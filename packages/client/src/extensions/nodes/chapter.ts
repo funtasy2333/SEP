@@ -24,6 +24,8 @@ export const Chapter = Node.create({
   addAttributes() {
     return {
       id: { default: null },
+      /** 显式章角色优先；null 时沿用旧文档按标题推断。 */
+      secType: { default: null },
       /** 自动编号 (由插件计算) */
       number: { default: null },
     }
