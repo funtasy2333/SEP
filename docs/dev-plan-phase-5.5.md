@@ -7,6 +7,10 @@
 > 每个工作包（WP）对应一个独立分支与一次代码审查，按编号顺序执行（标注「可并行」的除外）。
 >
 > **2026-09-30 后续决策**：DOCX → LibreOffice → PDF 转换预览及其安装引导已废除；下文涉及该回退路径的历史实施条目不再适用。PDF 仅保留 IR → HTML → Vivliostyle 两遍构建。
+>
+> **2026-10-05 XML 决策（用户确认）**：XML 导入、导出统一采用 **GB/T 46687.2—2026**，完全切断 GB/T 37967 和 SEP 历史自定义 XML；不保留旧格式解析、导出、兼容开关或迁移器。独立 NISO STS 功能暂不开发。WP6 改为 JSON 渲染迁移及新 XML 所需的数据模型补齐，WP8 改为新国标 XML 双向转换与统一切换。具体规格见 [WP8 XML 实施方案](wp8-xml46687.md)。本条是开发目标，代码切换尚未实施。
+
+> **2026-10-05 编辑器范围决策（用户确认）**：GB/T 46687.1—2025、GB/T 46687.3—2026暂作背景资料，不作为本阶段实施或符合性目标，不扩大WP6/WP8。SES当前负责内容编写、文档结构、格式检查、引用管理及第2部分XML交换；不增加语义模型预留、技术指标抽取、对象/属性/关系建模、规则执行或检测结果判定任务。下文“IR语义”“语义字段”“语义校验”均指文档要素、章条角色和XML字段含义，既有结构、引用、日期、术语、公式及资源完整性要求继续执行。
 
 ---
 
@@ -25,15 +29,18 @@
                     │  ResolveResult              │  packages/shared
                     │  = doc + labels + problems  │
                     └─────────────┬──────────────┘
-          ┌──────────┬────────────┼────────────┬──────────────┐
-          ▼          ▼            ▼            ▼              ▼
-       XML 37967   JSON       语义 HTML     DOCX 模板填充   NISO STS XML
-       渲染器       渲染器     +打印 CSS      渲染器          渲染器
+          ┌──────────────┬────────────┼──────────────┐
+          ▼              ▼            ▼              ▼
+       XML 46687.2      JSON       语义 HTML       DOCX 包
+       渲染器           渲染器     +打印 CSS        渲染器
                                   │
                                   ▼
                        Vivliostyle（浏览器预览 /
                        vivliostyle-cli 服务端出 PDF）
 ```
+
+XML 导入走 `GB/T 46687.2 XML + 配套资源 → 解析/验证 → Authoring IR → irToPm → 编辑器`。
+shared 只处理纯数据；DOM 解析、公式转换、文件和资源读取位于 client/server 适配层。旧 XML 的识别仅用于明确拒绝，不进行兼容解析。
 
 ### 1.1 全局不变式（审查时逐条检查，违反即打回）
 
@@ -45,6 +52,8 @@
    字节级相同的输出（DOCX zip 时间戳等不可避免项除外，需在测试中归一化）。
 4. IR 必须可 `JSON.stringify` 往返无损（无类实例、无函数、无 `undefined` 字段语义依赖）。
 5. 不引入本计划未列出的运行时依赖。如确有必要，先报告并说明理由，批准后再加。
+6. XML 只提供 GB/T 46687.2—2026 一种格式；正文内容、公式、引用或资源无法无损映射时，
+   返回明确问题并阻止导入/导出，禁止静默跳过、降级为旧格式或以空文档覆盖原文。
 
 > **2026-09-24 修订（DOCX）**：DOCX 渲染器对不变式 2、3、5 的适用方式已修订——章条等编号委托 Word 原生编号并以
 > 一致性测试对齐 Resolver；返回 `DocxPackage` 纯数据而非 string；唯一新增依赖为 client 的 `mathml2omml@0.5.0`。
@@ -63,7 +72,9 @@
 
 ### 2.2 核心类型骨架（packages/shared/src/ir/types.ts）
 
-以下骨架为**定稿接口**，字段可按实现需要补充，已有字段不得改名、改型：
+以下是既有基础接口骨架；新XML所需扩展以第2.6节及WP8规格为准。
+现有JSON正文已使用的字段保持语义，新增字段/节点须贯通生产Schema和全部消费边界；
+确需调整已有字段时，在实施PR中列出存储及输出影响，不以旧XML兼容限制新模型：
 
 ```ts
 export type NodeId = string  // 稳定内部 ID，见 2.3
@@ -88,7 +99,7 @@ export interface IRDocMeta {
 
 export interface IRChapter {
   kind: 'chapter'; id: NodeId
-  // NISO STS sec-type 对齐：范围/规范性引用文件/术语和定义章需要特殊渲染
+  // GB/T 46687.2 sec-type：范围/规范性引用文件/术语和定义章需要特殊渲染
   secType: 'scope' | 'norm-refs' | 'terms' | 'general'
   title: IRInline[]
   children: IRChapterChild[]
@@ -148,7 +159,7 @@ export interface IRFormula {
   kind: 'formula'; id: NodeId
   latex: string
   numbered: boolean
-  // 「式中：」键值对（NISO STS: disp-formula > legend > def-list）
+  // 「式中：」键值对（GB/T 46687.2: disp-formula > legend > def-list）
   whereList: { id: NodeId; term: IRInline[]; definition: IRInline[] }[]
 }
 
@@ -159,7 +170,7 @@ export interface IRTermEntry {
   kind: 'termEntry'; id: NodeId
   term: IRInline[]; termEn?: IRInline[]
   definition: IRBlock[]
-  source?: IRInline[]        // 最多一个定义、最多一个来源（对齐 ISO OSD/NISO STS 约束）
+  source?: IRInline[]        // 基础术语字段；TBX 多语种及描述符扩展见 2.6
   notes: IRNote[]; examples: IRExample[]
 }
 
@@ -184,7 +195,7 @@ export interface ResolveResult {
 }
 export interface ResolvedLabel {
   label: string      // 人读编号："5.1.2" / "表A.1" / "注2" / "(3)" / "附录B"
-  xmlId: string      // 导出 XML 用 ID，按 NISO 风格派生："sec_5.1.2" / "tab_A.1" / "formula_3"
+  xmlId: string      // 新国标 XML ID："sec_5.1.2" / "tab_A.1" / "formula_3"
   refText: string    // 交叉引用処的展示文本："5.1.2" / "表A.1" / "公式(3)"
 }
 export interface IRProblem {
@@ -202,11 +213,11 @@ export interface IRProblem {
   （nanoid 风格 12 位字母数字，由 shared 提供 `generateNodeId()`，不引入 nanoid 依赖，
   用 `crypto.getRandomValues`/`globalThis.crypto` 同构实现）。
   作用：版本 diff/合并、批注锚定、AI 编辑指令寻址。**绝不由编号派生**（编号随增删变化）。
-- **导出 xmlId**（派生层）：`resolve()` 时按 NISO 风格从编号确定性派生
-  （`sec_1`、`sec_5.1.2`、`sec_A`、`tab_1`、`fig_A.1`、`formula_3`、`bib_2`），
+- **导出 xmlId**（派生层）：`resolve()` 时按 GB/T 46687.2 的 ID 约定从编号确定性派生
+  （`sec_1`、`sec_5.1.2`、`sec_A`、`tab_1`、`fig_A.1`、`formula_3`、`bibref_2`），
   存放于 `ResolvedLabel.xmlId`，渲染 XML 时使用。命名细节以
-  `rules/` 下《标准机器语言表达 第2部分》附录 E 与 IEC/ISO Coding Guidelines 3.4 为准，
-  **拿不准时查原 PDF，不要凭 OCR markdown 猜**。
+  GB/T 46687.2—2026 正式文本正文和附录 E 为依据；正文/示例/附录的异写在 WP8.1
+  固化统一的实现约定，**拿不准时查原 PDF，不要凭 OCR markdown 猜**。
 - 两层通过 `labels` 映射关联，渲染器与协作功能各取所需。
 
 ### 2.4 编号策略接口（可配置）
@@ -231,30 +242,53 @@ export const gbT11Strategy: NumberingStrategy  // 默认实现，规则以 GB/T 
 固定规则（写进 Resolver，不属于策略）：图/表/公式在正文全文连续编号、不按章重置；
 进入附录后按附录字母前缀重新计数；交叉引用解析失败产出 `dangling-xref` problem。
 
-### 2.5 IR 语义角色 ↔ NISO STS 元素速查（渲染器 WP8 的映射基准）
+### 2.5 IR 语义角色 ↔ GB/T 46687.2—2026 元素速查
 
-| IR | NISO STS（新国标草案） |
+| IR | GB/T 46687.2—2026（细化及校验见 WP8.1） |
 |---|---|
 | IRDoc | `<standard>` + `<front>/<body>/<back>` |
-| meta | `<std-meta>`（ics/ccs/title-wrap/std-ident/release-date…） |
-| foreword / introduction | `<sec sec-type="foreword|intro">` |
-| IRChapter(secType) | `<sec sec-type="scope|norm-refs|terms">`，普通章不带 sec-type |
-| IRClause | 嵌套 `<sec>`；无标题条：只有 `<label>` 无 `<title>`（草案 5.3.3.6） |
-| IRAppendix | `<app content-type="norm-annex|inform-annex">` + `<annex-type>` |
-| IRTable | `<table-wrap>` + `<label>/<caption>` |
-| IRFigure | `<fig>` + `<label>/<caption>/<graphic>` |
-| IRFormula | `<disp-formula>` + `<label>` + `<mml:math>`；whereList → `<legend><def-list>` |
+| meta | `front/std-meta`（ics/ccs/title-wrap/std-ident；发布/实施日期语义分别映射） |
+| foreword / introduction | `front/sec`，分别为 `sec-type="foreword"`、`"intro"` |
+| IRChapter(secType) | `<sec>` 的 `sec-type` 分别为 `scope`、`norm-refs`、`terms`；普通章不带 sec-type |
+| IRClause | 嵌套 `<sec>`；无标题条 `sec-type="numbered-paragraph"`，有 `<label>` 无 `<title>`（4.4.2.5） |
+| IRAppendix | `back/app-group/app` + `<annex-type>`；规范性/资料性属性值存在原文异写，须由 WP8.1 固定 |
+| IRTable | `<table-wrap>` + `<label>/<caption>` + XHTML `<table>`；表注/表脚注分开 |
+| IRFigure | `<fig>` + `<label>/<caption>/<graphic xlink:href="…">`；含配套资源 |
+| IRFormula / 行内公式 | `<disp-formula>` / `<inline-formula>` + `<mml:math>`；whereList → `<legend><def-list>` |
 | IRNote | `<non-normative-note>` |
 | IRExample | `<non-normative-example>` |
-| IRTermEntry | `<term-sec>`（TBX 结构，以原 PDF 为准） |
-| IRBibEntry | `<ref-list>` + `<ref><mixed-citation>` |
-| crossRef | `<xref rid="...">` |
+| IRTermEntry | `<term-sec>` 内 `<tbx:termEntry>/<tbx:langSet>/<tbx:tig>`；术语注/示例用 TBX 标签 |
+| 引用文件 / IRBibEntry | `<ref-list>/<ref>`；标准用 `<std>`，其他文献用 `<mixed-citation>` |
+| crossRef / 脚注 | `<xref ref-type="…" rid="…">`，目标 ID 唯一；脚注用 `<fn>` |
+| 索引 | `back/index`，包括索引标题、分组、条目及参见 |
+| XML 技术处理信息 | `standard/processing-meta`，与标准业务元数据分开 |
+
+这张表不是完整内容模型。独立 NISO STS 入口暂缓；新国标所使用的 STS、MathML、TBX、XLink 技术仍在 WP8 范围内。
+
+### 2.6 新国标的数据模型补齐（WP6，新增字段可扩展）
+
+第2.2节是原有基础骨架，不能据此认为目前 IR 已覆盖新国标。以当前 `types.ts` 及生产
+Schema 为基线，在保持已用字段语义的前提下增加新字段/节点，配套更新 PM↔IR、JSON、
+Resolver 及消费这些数据的输出边界。需要改动既有接口时，在实施 PR 中明确列出影响。
+
+| 数据领域 | 必须表达的内容 |
+|---|---|
+| 元数据 | 题名分段/多语种、编号组成、文本语言、发布机构、采用一致性、代替关系、版权；保留现有文件设置数据 |
+| 术语 | TBX语言集、每语言多个术语组、词性/采用级别/术语类型/领域/来源、定义/注/示例；不得从中英文名称臆造描述符 |
+| 公式 | 原生MathML及可用的LaTeX编辑源、行内/行间公式、公式注、“式中”及引用关系；保留不可逆的MathML原文 |
+| 表/图及资源 | 单元格类型、跨度、单位、注/脚注、必要样式、宽度和方向；图组、图说明及可序列化资源清单 |
+| 文本/引用/索引 | 变量、完整样式、警告/引文/代码、类型化文献、外链、术语间引用、索引条目与目标 |
+
+新信息必须经过生产 Schema 保存、重开和 JSON 往返保持；无法表达的必做要素属于工作包未完成，
+不能以扩展字段被忽略、只保存显示文字或只通过自家 XML 往返来替代。
 
 ---
 
 ## 3. 工作包
 
-> 预估总量约 2~2.5 周。WP0 与 WP1 可并行启动；WP4/WP6/WP7/WP8 在 WP3 完成后可并行。
+> 原总量估算属于初版计划。2026-10-05 扩展后的 WP6/WP8 不沿用原“1.5天/2天”估算；
+> 当前后续顺序为 **WP6 → WP8.1～WP8.5**。WP8.1 的原文/校验约定准备可与 WP6 并行，
+> 完整 XML 双向实现依赖 WP6 数据模型完成。工期在 WP8.1 明确实际差距后更新，不作为验收豁免。
 >
 > **2026-09-24 调整**：交付稿改为 DOCX、PDF 仅供参考。WP0–WP5 已完成，PDF 线停止投入；WP7 扩为
 > WP7.1–WP7.6 系列并优先执行，WP6、WP8 后置。WP7 系列以 [wp7-docx-delivery.md](wp7-docx-delivery.md) 为准。
@@ -472,15 +506,19 @@ export const gbT11Strategy: NumberingStrategy  // 默认实现，规则以 GB/T 
 - **验收**：全要素 fixture 一键导出 PDF 成功；WP0 七个场景在真实管线复验通过；
   LibreOffice 未安装的环境不再出现报错弹窗。
 
-### WP6：XML(37967) 与 JSON 渲染器迁移（1.5 天，依赖 WP3）
+### WP6：JSON 渲染迁移与新国标数据模型补齐（依赖 WP3）
 
-- 先做 **golden 基线**：用 `packages/client/src/serializer/__fixtures__/sample-standard.xml`
-  + 全要素 fixture 经现有 `xmlSerializer`/`jsonExporter` 生成输出，存入
-  `packages/client/src/serializer/__fixtures__/golden/`。
-- 迁移：`packages/shared/src/renderers/xml37967.ts`、`json.ts`，删除其中编号逻辑；
-  client 侧改薄壳。
-- **验收**：新输出 vs golden 逐字节一致（允许清单内的已知差异需在 PR 中逐条说明并获批准）；
-  XML 往返测试：`parseXmlToJson(render(...))` 后再 render 一次输出幂等。
+- 用当前生产 JSON 导出器和全要素文档建立 JSON golden；迁移为
+  `packages/shared/src/renderers/json.ts`，client 改薄壳，编号只消费 Resolver。
+- 按第2.6节补齐 IR、生产 Schema、PM→IR 及新增 `irToPm` 双向适配；记录字段、
+  默认值、JSON存储版本、引用关联和新增信息对 DOCX/HTML 消费边界的影响。
+- 补齐新国标ID派生及术语、文献、索引等引用目标；导入XML的外部ID映射到稳定内部nodeId，
+  导出仍采用统一xmlId；不得以显示编号替代内部ID。
+- 列出所有现有XML调用入口和XML依赖的存储/版本路径，交由WP8统一切换；只读盘点旧XML存量。
+  不迁移旧XML渲染器，不新增 `xml37967.ts`，不开发旧XML解析或转换器。
+- **验收**：原有JSON行为按golden回归，新增语义字段按明确扩展契约验证；新要素经
+  `生产Schema → PM → IR → PM → 保存重开` 和JSON往返无损，引用及编号一致。
+  旧XML字节一致性不再作为验收要求。既有生产旧XML实现只允许存续到WP8统一切换，不能作为新接口继续扩展。
 
 ### WP7：DOCX 交付稿（已由 WP7 系列取代）
 
@@ -489,15 +527,17 @@ export const gbT11Strategy: NumberingStrategy  // 默认实现，规则以 GB/T 
 > 编号「可编辑优先」（Word 原生编号 + 一致性测试）；现有 `docxTemplateExporter.ts`/`docxExporter.ts` 在 WP7.1
 > 直接删除，不再做迁移，也不做 golden 比对。
 
-### WP8：NISO STS / 新国标 XML 渲染器（2 天，依赖 WP3，可后置）
+### WP8：GB/T 46687.2—2026 XML 双向转换与旧格式切断（依赖 WP6）
 
-- `packages/shared/src/renderers/nisoSts.ts`，映射表见 2.5 节；
-- 元数据、`sec-type`、无标题条、`disp-formula/legend/def-list`、`app content-type`、
-  `ref-list/mixed-citation` 为必做项；MathML 转换（LaTeX→MathML）暂以
-  `<tex-math>` 包裹原文输出并 TODO 标注，不引入转换依赖；
-- 导出菜单增加「XML（NISO STS·征求意见稿）」入口，标注 beta。
-- **验收**：全要素 fixture 输出经 XML well-formed 校验；标签用法与 `rules/` 原 PDF
-  附录 C/D/E 抽查一致（PR 中列出抽查的 10 个标签及出处页码）。
+实施详情及逐项验收见 [wp8-xml46687.md](wp8-xml46687.md)，按以下阶段分支/审查：
+
+1. **WP8.1 原文、映射与校验约定**：正式文本条款矩阵、原文异写的统一约定、DTD/XSD及扩展规则、真实样稿来源；固定支持范围和缺口。
+2. **WP8.2 导出**：`packages/shared/src/renderers/xml46687.ts`，消费IR/labels及预处理MathML、资源清单；完整表达第4～10章的必做要素。
+3. **WP8.3 导入**：client解析适配→shared纯数据映射→IR→生产Schema；资源、MathML、TBX、ID/引用保真，先完整校验再替换文档。
+4. **WP8.4 统一切换**：XML上传/下载、源码查看/复制、版本快照和其他调用统一新格式；删除旧实现、旧菜单/开关及兼容测试，明确拒绝旧XML。
+5. **WP8.5 验收**：语法、结构校验、语义/资源完整性、正负例、生产流程、真实标准原文及独立互操作验证。
+
+不得以 `<tex-math>` TODO、只通过well-formed或只抽查10个标签宣称完成；独立NISO STS渲染器/入口暂不开发。
 
 ---
 
@@ -506,20 +546,26 @@ export const gbT11Strategy: NumberingStrategy  // 默认实现，规则以 GB/T 
 | 层 | 工具 | 要求 |
 |---|---|---|
 | shared 单测 | vitest | Resolver ≥30 用例；渲染器快照测试；nodeId 唯一性 |
-| golden 回归 | vitest + fixtures | WP6/WP7 迁移前先落 golden，迁移后比对 |
-| XML 往返 | vitest | 37967：parse→render 幂等 |
+| JSON golden 回归 | vitest + fixtures | WP6固化原有JSON语义；新增字段有明确扩展契约，不保留旧XML golden |
+| 新国标 XML 往返 | vitest + fixtures | 46687.2：XML→IR→生产Schema→保存重开→IR→XML，语义/资源保真及规范化输出幂等 |
+| XML 结构/语义 | 固定DTD/XSD及项目语义校验 | 命名空间、元素/属性模型、唯一ID、引用、日期、TBX/MathML、配套资源；版本和约定记录见WP8.1 |
+| 旧格式拒绝 | vitest + 浏览器流程 | 真正37967及SEP旧XML均拒绝；不清空当前文档，不写入失败导入，不回退到旧解析器 |
 | 端到端 | 手动 + PR 截图 | PDF 七场景、Word 打开 DOCX |
+| 新XML互操作 | 原文核对 + 独立校验/实现 | 真实标准稿的全要素核对；不能只以自家parser/renderer互相通过认定符合性 |
 
 ## 5. 工程与协作约定
 
 1. **分支/PR**：每个 WP 一个分支 `feat/wp<N>-<slug>`，一个 PR；PR 描述必须含
    「验收标准逐项自查表」。审查通过才合并，审查意见必须逐条回应。
 2. **允许新增的依赖**（已批准）：shared→vitest（dev）；server→`@vivliostyle/cli`、
-   `playwright-chromium`。其余先问。
+   `playwright-chromium`。新XML公式预处理优先复用client现有KaTeX，不在shared引入DOM/Node依赖；
+   DTD/XSD校验工具和版本在WP8.1记录。确需新增运行时依赖时仍按不变式5处理。
 3. **不要顺手重构**：与本 WP 无关的代码不动（包括格式化）。发现问题记录在 PR 描述
    的「发现的问题」一节，由主导人决定是否另开任务。
 4. **查证优先级**：`rules/` 下 GB/T 1.1-2020 原 PDF 的渲染图像页 > 仓库 OCR markdown
    （仅作条款定位）> 任何模型记忆。读中文标准 PDF 用图像方式渲染阅读，不要相信文本提取结果。
+   XML规格以GB/T 46687.2—2026正式原文为准，不用旧征求意见稿、37967或通用STS配置替代；
+   来源与原文异写的处理依据必须进入WP8.1交付记录。
 5. 提交信息遵循仓库现有 conventional commits 风格（中文描述可）。
 
 ## 6. 后续阶段衔接（本计划不实施，仅供理解走向）
