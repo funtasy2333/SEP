@@ -314,6 +314,58 @@ describe('pmToIr / 块级要素', () => {
     ])
   })
 
+  it('formulaDescription 拆分/裁剪保留完整行内载荷且不修改 PM 输入', () => {
+    const pm = fx.standardDoc({}, fx.chapter('chapter', 'X', {
+      type: 'formula',
+      attrs: { nodeId: 'formula-payload', latex: 'x=1', numbered: true },
+      content: [
+        { type: 'formulaContent', content: [fx.text('x=1')] },
+        {
+          type: 'formulaDescription',
+          content: [
+            fx.text('式中：A——定义', [
+              { type: 'bold' },
+              { type: 'textStyle', attrs: { color: '#123456' } },
+            ]),
+            {
+              type: 'formulaInline',
+              attrs: { nodeId: 'where-formula-inline', latex: 'z', source: 'z' },
+              marks: [
+                { type: 'variable', attrs: { kind: 'symbol', name: 'z' } },
+                { type: 'textStyle', attrs: { color: '#abcdef' } },
+              ],
+            },
+            { type: 'footnoteRef', attrs: { nodeId: 'where-footnote', content: [fx.text('脚注内容')] } },
+            { type: 'tableFootnoteRef', attrs: { nodeId: 'where-table-footnote', targetId: 'table-note' } },
+            fx.text('；B——第二定义', [{ type: 'italic' }]),
+          ],
+        },
+      ],
+    }))
+    const before = JSON.stringify(pm)
+
+    const { doc } = pmToIr(pm)
+    const formula = doc.body[0]!.children[0] as IRFormula
+
+    expect(formula.whereList[0]!.term).toEqual([
+      { text: 'A', marks: [{ type: 'bold' }], style: { color: '#123456' } },
+    ])
+    expect(formula.whereList[0]!.definition).toEqual([
+      { text: '定义', marks: [{ type: 'bold' }], style: { color: '#123456' } },
+      {
+        text: '',
+        formula: { id: 'where-formula-inline', latex: 'z', source: 'z' },
+        marks: [{ type: 'variable', kind: 'symbol', name: 'z' }],
+        style: { color: '#abcdef' },
+      },
+      { text: '', footnote: { id: 'where-footnote', content: [{ text: '脚注内容' }] } },
+      { text: '', marks: [{ type: 'tableFootnoteRef', targetId: 'table-note', id: 'where-table-footnote' }] },
+    ])
+    expect(formula.whereList[1]!.term).toEqual([{ text: 'B', marks: [{ type: 'italic' }] }])
+    expect(formula.whereList[1]!.definition).toEqual([{ text: '第二定义', marks: [{ type: 'italic' }] }])
+    expect(JSON.stringify(pm)).toBe(before)
+  })
+
   it('note/example 行内内容包装为派生 ID 段落', () => {
     const { doc } = pmToIr(fx.fullFixture())
     const cl41 = doc.body[3].children[0] as IRClause

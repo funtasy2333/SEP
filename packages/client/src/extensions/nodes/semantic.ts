@@ -11,6 +11,16 @@ function safeExternalHref(value: unknown): string | null {
   return /^(https?:\/\/|mailto:|tel:)/i.test(href) ? href : null
 }
 
+/** Tiptap's implicit parser coerces numeric/boolean-looking strings; these fields are textual. */
+function stringAttribute(name: string, defaultValue: string | null = null) {
+  return { default: defaultValue, parseHTML: (element: HTMLElement) => element.getAttribute(name) ?? defaultValue }
+}
+
+/** Read the editable slot only; external plain tagged HTML can use the element itself. */
+function contentSlot(className: string): (element: HTMLElement) => HTMLElement {
+  return element => element.querySelector<HTMLElement>(`:scope > .${className}`) ?? element
+}
+
 /** Metadata stored in PM JSON on the root/legacy cover nodes as a typed fallback. */
 export const MetadataFields = Extension.create({
   name: 'metadataFields',
@@ -63,13 +73,13 @@ export const TitlePart = Node.create({
 
   addAttributes() {
     return {
-      lang: { default: null },
-      role: { default: null },
+      lang: stringAttribute('lang'),
+      role: stringAttribute('role'),
     }
   },
 
   parseHTML() {
-    return [{ tag: '[data-type="title-part"]' }]
+    return [{ tag: '[data-type="title-part"]', priority: 51, contentElement: contentSlot('std-title-part-content') }]
   },
 
   renderHTML({ node, HTMLAttributes }): DOMOutputSpec {
@@ -91,13 +101,13 @@ export const StandardIdentifier = Node.create({
 
   addAttributes() {
     return {
-      scheme: { default: null },
-      value: { default: null },
+      scheme: stringAttribute('scheme'),
+      value: stringAttribute('value'),
     }
   },
 
   parseHTML() {
-    return [{ tag: '[data-type="standard-identifier"]' }]
+    return [{ tag: '[data-type="standard-identifier"]', priority: 51, contentElement: contentSlot('std-identifier-parts') }]
   },
 
   renderHTML({ node, HTMLAttributes }): DOMOutputSpec {
@@ -120,13 +130,13 @@ export const IdentifierPart = Node.create({
 
   addAttributes() {
     return {
-      kind: { default: '' },
+      kind: stringAttribute('kind', ''),
       position: { default: null },
     }
   },
 
   parseHTML() {
-    return [{ tag: '[data-type="identifier-part"]' }]
+    return [{ tag: '[data-type="identifier-part"]', priority: 51, contentElement: contentSlot('std-identifier-part-content') }]
   },
 
   renderHTML({ node, HTMLAttributes }): DOMOutputSpec {
@@ -148,8 +158,8 @@ export const MetadataLanguage = Node.create({
 
   addAttributes() {
     return {
-      tag: { default: '' },
-      usage: { default: null },
+      tag: stringAttribute('tag', ''),
+      usage: stringAttribute('usage'),
     }
   },
 
@@ -174,13 +184,13 @@ export const Publisher = Node.create({
 
   addAttributes() {
     return {
-      role: { default: null },
-      identifier: { default: null },
+      role: stringAttribute('role'),
+      identifier: stringAttribute('identifier'),
     }
   },
 
   parseHTML() {
-    return [{ tag: '[data-type="publisher"]' }]
+    return [{ tag: '[data-type="publisher"]', priority: 51, contentElement: contentSlot('std-publisher-content') }]
   },
 
   renderHTML({ node, HTMLAttributes }): DOMOutputSpec {
@@ -201,9 +211,9 @@ export const Adoption = Node.create({
 
   addAttributes() {
     return {
-      reference: { default: '' },
-      degree: { default: null },
-      language: { default: null },
+      reference: stringAttribute('reference', ''),
+      degree: stringAttribute('degree'),
+      language: stringAttribute('language'),
     }
   },
 
@@ -228,8 +238,8 @@ export const ReplacedStandard = Node.create({
 
   addAttributes() {
     return {
-      reference: { default: '' },
-      relation: { default: null },
+      reference: stringAttribute('reference', ''),
+      relation: stringAttribute('relation'),
     }
   },
 
@@ -254,14 +264,14 @@ export const Copyright = Node.create({
 
   addAttributes() {
     return {
-      holder: { default: null },
-      year: { default: null },
-      language: { default: null },
+      holder: stringAttribute('holder'),
+      year: stringAttribute('year'),
+      language: stringAttribute('language'),
     }
   },
 
   parseHTML() {
-    return [{ tag: '[data-type="copyright"]' }]
+    return [{ tag: '[data-type="copyright"]', priority: 51, contentElement: contentSlot('std-copyright-content') }]
   },
 
   renderHTML({ node, HTMLAttributes }): DOMOutputSpec {
@@ -283,11 +293,11 @@ export const TbxLangSet = Node.create({
   defining: true,
 
   addAttributes() {
-    return { lang: { default: '' } }
+    return { lang: stringAttribute('lang', '') }
   },
 
   parseHTML() {
-    return [{ tag: '[data-type="tbx-lang-set"]' }]
+    return [{ tag: '[data-type="tbx-lang-set"]', priority: 51, contentElement: contentSlot('std-tbx-lang-set-content') }]
   },
 
   renderHTML({ node, HTMLAttributes }): DOMOutputSpec {
@@ -341,7 +351,7 @@ export const TbxTerm = Node.create({
   defining: true,
 
   parseHTML() {
-    return [{ tag: '[data-type="tbx-term"]' }]
+    return [{ tag: '[data-type="tbx-term"]', priority: 51 }]
   },
 
   renderHTML({ HTMLAttributes }): DOMOutputSpec {
@@ -363,7 +373,7 @@ export const TbxTermDescriptor = Node.create({
   },
 
   parseHTML() {
-    return [{ tag: '[data-type="tbx-term-descriptor"]' }]
+    return [{ tag: '[data-type="tbx-term-descriptor"]', priority: 51, contentElement: contentSlot('std-tbx-descriptor-value') }]
   },
 
   renderHTML({ node, HTMLAttributes }): DOMOutputSpec {
@@ -382,7 +392,7 @@ export const FormulaNote = Node.create({
   defining: true,
 
   parseHTML() {
-    return [{ tag: '[data-type="formula-note"]' }]
+    return [{ tag: '[data-type="formula-note"]', priority: 51 }]
   },
 
   renderHTML({ HTMLAttributes }): DOMOutputSpec {
@@ -468,9 +478,9 @@ export const FormulaInline = Node.create({
 
   addAttributes() {
     return {
-      mathml: { default: null },
-      latex: { default: null },
-      source: { default: null },
+      mathml: stringAttribute('mathml'),
+      latex: stringAttribute('latex'),
+      source: stringAttribute('source'),
     }
   },
 
@@ -491,26 +501,26 @@ export const FormulaInline = Node.create({
 /** Flat table attributes; every measure has an explicit unit attribute. */
 const rowMeasureAttrs = {
   height: { default: null },
-  heightUnit: { default: null },
-  borderColor: { default: null },
+  heightUnit: stringAttribute('heightUnit'),
+  borderColor: stringAttribute('borderColor'),
   borderWidth: { default: null },
-  borderWidthUnit: { default: null },
-  backgroundColor: { default: null },
-  borderTop: { default: null }, borderTopUnit: { default: null },
-  borderRight: { default: null }, borderRightUnit: { default: null },
-  borderBottom: { default: null }, borderBottomUnit: { default: null },
-  borderLeft: { default: null }, borderLeftUnit: { default: null },
+  borderWidthUnit: stringAttribute('borderWidthUnit'),
+  backgroundColor: stringAttribute('backgroundColor'),
+  borderTop: { default: null }, borderTopUnit: stringAttribute('borderTopUnit'),
+  borderRight: { default: null }, borderRightUnit: stringAttribute('borderRightUnit'),
+  borderBottom: { default: null }, borderBottomUnit: stringAttribute('borderBottomUnit'),
+  borderLeft: { default: null }, borderLeftUnit: stringAttribute('borderLeftUnit'),
 }
 
 const cellMeasureAttrs = {
-  borderTop: { default: null }, borderTopUnit: { default: null },
-  borderRight: { default: null }, borderRightUnit: { default: null },
-  borderBottom: { default: null }, borderBottomUnit: { default: null },
-  borderLeft: { default: null }, borderLeftUnit: { default: null },
-  paddingTop: { default: null }, paddingTopUnit: { default: null },
-  paddingRight: { default: null }, paddingRightUnit: { default: null },
-  paddingBottom: { default: null }, paddingBottomUnit: { default: null },
-  paddingLeft: { default: null }, paddingLeftUnit: { default: null },
+  borderTop: { default: null }, borderTopUnit: stringAttribute('borderTopUnit'),
+  borderRight: { default: null }, borderRightUnit: stringAttribute('borderRightUnit'),
+  borderBottom: { default: null }, borderBottomUnit: stringAttribute('borderBottomUnit'),
+  borderLeft: { default: null }, borderLeftUnit: stringAttribute('borderLeftUnit'),
+  paddingTop: { default: null }, paddingTopUnit: stringAttribute('paddingTopUnit'),
+  paddingRight: { default: null }, paddingRightUnit: stringAttribute('paddingRightUnit'),
+  paddingBottom: { default: null }, paddingBottomUnit: stringAttribute('paddingBottomUnit'),
+  paddingLeft: { default: null }, paddingLeftUnit: stringAttribute('paddingLeftUnit'),
 }
 
 const cellUnitAttribute = {
@@ -543,8 +553,8 @@ export const StandardTableRow = TableRow.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
-      textAlign: { default: null },
-      verticalAlign: { default: null },
+      textAlign: stringAttribute('textAlign'),
+      verticalAlign: stringAttribute('verticalAlign'),
       ...rowMeasureAttrs,
     }
   },
@@ -554,13 +564,13 @@ export const StandardTableCell = TableCell.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
-      cellType: { default: null },
+      cellType: stringAttribute('cellType'),
       unit: cellUnitAttribute,
       width: { default: null },
-      widthUnit: { default: null },
-      textAlign: { default: null },
-      verticalAlign: { default: null },
-      backgroundColor: { default: null },
+      widthUnit: stringAttribute('widthUnit'),
+      textAlign: stringAttribute('textAlign'),
+      verticalAlign: stringAttribute('verticalAlign'),
+      backgroundColor: stringAttribute('backgroundColor'),
       ...cellMeasureAttrs,
     }
   },
@@ -578,13 +588,13 @@ export const StandardTableHeader = TableHeader.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
-      cellType: { default: null },
+      cellType: stringAttribute('cellType'),
       unit: cellUnitAttribute,
       width: { default: null },
-      widthUnit: { default: null },
-      textAlign: { default: null },
-      verticalAlign: { default: null },
-      backgroundColor: { default: null },
+      widthUnit: stringAttribute('widthUnit'),
+      textAlign: stringAttribute('textAlign'),
+      verticalAlign: stringAttribute('verticalAlign'),
+      backgroundColor: stringAttribute('backgroundColor'),
       ...cellMeasureAttrs,
     }
   },
@@ -623,7 +633,7 @@ export const FigureDescription = Node.create({
   defining: true,
 
   parseHTML() {
-    return [{ tag: '[data-type="figure-description"]' }]
+    return [{ tag: '[data-type="figure-description"]', priority: 51 }]
   },
 
   renderHTML({ HTMLAttributes }): DOMOutputSpec {
@@ -642,9 +652,9 @@ export const FigureResource = Node.create({
 
   addAttributes() {
     return {
-      mediaType: { default: null },
-      name: { default: null },
-      encoding: { default: 'dataUrl' },
+      mediaType: stringAttribute('mediaType'),
+      name: stringAttribute('name'),
+      encoding: stringAttribute('encoding', 'dataUrl'),
       data: {
         default: '',
         parseHTML: element => {
@@ -682,7 +692,7 @@ export const FigureResourceRef = Node.create({
   atom: true,
 
   addAttributes() {
-    return { targetId: { default: '' } }
+    return { targetId: stringAttribute('targetId', '') }
   },
 
   parseHTML() {
@@ -724,11 +734,11 @@ export const BibField = Node.create({
   defining: true,
 
   addAttributes() {
-    return { name: { default: '' } }
+    return { name: stringAttribute('name', '') }
   },
 
   parseHTML() {
-    return [{ tag: '[data-type="bib-field"]' }]
+    return [{ tag: '[data-type="bib-field"]', priority: 51, contentElement: contentSlot('std-bib-field-value') }]
   },
 
   renderHTML({ node, HTMLAttributes }): DOMOutputSpec {
@@ -748,8 +758,8 @@ export const BibIdentifier = Node.create({
 
   addAttributes() {
     return {
-      scheme: { default: '' },
-      value: { default: '' },
+      scheme: stringAttribute('scheme', ''),
+      value: stringAttribute('value', ''),
     }
   },
 
@@ -774,16 +784,16 @@ export const BibExternalLink = Node.create({
 
   addAttributes() {
     return {
-      href: { default: '' },
-      title: { default: null },
-      displayText: { default: null },
-      target: { default: null },
-      rel: { default: null },
+      href: stringAttribute('href', ''),
+      title: stringAttribute('title'),
+      displayText: stringAttribute('displayText'),
+      target: stringAttribute('target'),
+      rel: stringAttribute('rel'),
     }
   },
 
   parseHTML() {
-    return [{ tag: '[data-type="bib-external-link"]' }]
+    return [{ tag: '[data-type="bib-external-link"]', priority: 51 }]
   },
 
   renderHTML({ node, HTMLAttributes }): DOMOutputSpec {
@@ -805,11 +815,11 @@ export const IndexBlock = Node.create({
   defining: true,
 
   addAttributes() {
-    return { title: { default: null } }
+    return { title: stringAttribute('title') }
   },
 
   parseHTML() {
-    return [{ tag: 'section[data-type="index"]' }]
+    return [{ tag: 'section[data-type="index"]', priority: 51, contentElement: contentSlot('std-index-content') }]
   },
 
   renderHTML({ node, HTMLAttributes }): DOMOutputSpec {
@@ -828,11 +838,11 @@ export const IndexGroup = Node.create({
   defining: true,
 
   addAttributes() {
-    return { label: { default: null } }
+    return { label: stringAttribute('label') }
   },
 
   parseHTML() {
-    return [{ tag: '[data-type="index-group"]' }]
+    return [{ tag: '[data-type="index-group"]', priority: 51, contentElement: contentSlot('std-index-group-content') }]
   },
 
   renderHTML({ node, HTMLAttributes }): DOMOutputSpec {
@@ -872,7 +882,7 @@ export const IndexTerm = Node.create({
   defining: true,
 
   parseHTML() {
-    return [{ tag: '[data-type="index-term"]' }]
+    return [{ tag: '[data-type="index-term"]', priority: 51 }]
   },
 
   renderHTML({ HTMLAttributes }): DOMOutputSpec {
@@ -889,7 +899,7 @@ export const IndexTarget = Node.create({
   atom: true,
 
   addAttributes() {
-    return { targetId: { default: '' } }
+    return { targetId: stringAttribute('targetId', '') }
   },
 
   parseHTML() {
@@ -910,7 +920,7 @@ export const IndexSeeAlso = Node.create({
   atom: true,
 
   addAttributes() {
-    return { targetId: { default: '' } }
+    return { targetId: stringAttribute('targetId', '') }
   },
 
   parseHTML() {
@@ -970,7 +980,7 @@ export const SemanticCodeBlock = Node.create({
   defining: true,
 
   addAttributes() {
-    return { language: { default: null } }
+    return { language: stringAttribute('language') }
   },
 
   parseHTML() {
@@ -1035,8 +1045,8 @@ export const Variable = Mark.create({
 
   addAttributes() {
     return {
-      kind: { default: null },
-      name: { default: null },
+      kind: stringAttribute('kind'),
+      name: stringAttribute('name'),
     }
   },
 
@@ -1061,15 +1071,15 @@ export const ExternalLink = Mark.create({
 
   addAttributes() {
     return {
-      href: { default: '' },
-      title: { default: null },
-      target: { default: null },
-      rel: { default: null },
+      href: stringAttribute('href', ''),
+      title: stringAttribute('title'),
+      target: stringAttribute('target'),
+      rel: stringAttribute('rel'),
     }
   },
 
   parseHTML() {
-    return [{ tag: 'a[data-type="external-link"]' }]
+    return [{ tag: 'a[data-type="external-link"]', priority: 51 }]
   },
 
   renderHTML({ HTMLAttributes }) {
@@ -1090,11 +1100,11 @@ function referenceMark(name: 'bibRef' | 'termRef', dataType: string, className: 
     inclusive: false,
 
     addAttributes() {
-      return { targetId: { default: null } }
+      return { targetId: stringAttribute('targetId') }
     },
 
     parseHTML() {
-      return [{ tag: `a[data-type="${dataType}"]` }]
+      return [{ tag: `a[data-type="${dataType}"]`, priority: 51 }]
     },
 
     renderHTML({ HTMLAttributes }) {

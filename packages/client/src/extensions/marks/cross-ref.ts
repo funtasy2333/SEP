@@ -21,18 +21,18 @@ export const CrossRef = Mark.create({
   addAttributes() {
     return {
       /** 被引用元素的 id */
-      refId: { default: null },
+      refId: { default: null, parseHTML: element => element.getAttribute('refId') },
       /** 新IR契约的稳定目标ID；refId继续用于旧PM文档兼容。 */
-      targetId: { default: null },
+      targetId: { default: null, parseHTML: element => element.getAttribute('targetId') },
       /** 引用类型 */
-      refType: { default: 'chapter' },
+      refType: { default: 'chapter', parseHTML: element => element.getAttribute('refType') ?? 'chapter' },
       /** 显示文本（自动生成的编号文本） */
-      refText: { default: null },
+      refText: { default: null, parseHTML: element => element.getAttribute('refText') },
     }
   },
 
   parseHTML() {
-    return [{ tag: 'a[data-type="cross-ref"]' }]
+    return [{ tag: 'a[data-type="cross-ref"]', priority: 51 }]
   },
 
   renderHTML({ HTMLAttributes }) {

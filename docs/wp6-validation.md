@@ -128,3 +128,23 @@ PR #45 在 `9ad90668` 和 `df27182a` 上的两轮 review 共提出 7 条 P2 问�
 主代理审阅子代理 Resolver 改动后运行完整回归：shared **42 files / 911 tests**；client **36 files / 269 tests**、隔离 API 默认跳过1项；server **2 suites / 23 tests**，合计 **1203 项通过**。shared `tsc --noEmit`、client `vue-tsc -b` 与 Vite 构建通过，仅已有大包体提示。日志为 `/private/tmp/wp6-rereview3-*.log`。
 
 未修改 golden、依赖、lockfile 或数据库结构。主工作区素材哈希与未提交文件保留。本轮没有重复真实浏览器、SQLite 冷重开或 Word 打开验收；此前冷重开证据仍明确属于 2026-10-05。修复与审计已进入同一个 PR，尚未执行合并，未声称下一轮 Codex 复审已批准。
+
+
+## a3adb2af 复审及同类 HTML 解析检查（2026-10-06）
+
+本轮最新 review（北京时间13:59）针对 `a3adb2af` 提出两条 P2；通过对应 review ID 获取评论，避免把旧评论的更新位置当成新意见。
+
+| 新意见 | 修复与回归 |
+|---|---|
+| [题名展示标签混入正文](https://github.com/funtasy2333/SEP/pull/45#discussion_r4192024667) | titlePart 只读取 std-title-part-content。同类 identifierPart、publisher、copyright、TBX descriptor、bibField 只读取各自内容槽；standardIdentifier、TBX语言集、索引/分组也只读取实际子项容器。无槽位的外部普通带类型 HTML 保留直接解析 |
+| [自由公式说明丢公式/样式](https://github.com/funtasy2333/SEP/pull/45#discussion_r4192024679) | splitInlines 复制完整 IRInline，trimInlines 保留公式/脚注/引用等空文本载荷；旧纯文本 whereList 拆分规则继续回归。shared 测试先复现 style 丢失；生产 Schema 验证仅含公式 atom、公式在前/在后、带样式文本经 PM→IR→PM→IR 保真 |
+
+同类主审检查补修：
+
+- 明确类型的 p/a 解析规则优先于通用段落/链接规则，避免 title/publisher/copyright/TBX/公式注/图说明/索引词被普通 paragraph 吞掉，以及文献/术语/条文引用、外链和文献链接 atom 被泛化成 link。普通外链仍照常解析。
+- Tiptap 默认属性解析会把数字/布尔外观的文本转型；作者模型中的文本字段明确按字符串解析，保留版权年份、编号字符串、公式 LaTeX 与引用目标等。数据值2026、0012、true、false经过连续3次 HTML 往返保持；数值度量属性仍采用已有数值解析。
+- `wp6MetadataHtml.test.ts` 初始8项有7项失败，修复后扩展至20项通过，覆盖标签、类型、属性、结构子项数、ID、空正文和外部普通 HTML；`wp6FormulaDescription.test.ts` 3项生产 Schema 回归通过。没有靠更改 golden 或忽略字段接受损失。
+
+主代理完成代码审阅并运行 shared **42 files / 912 tests**、client **38 files / 292 tests**（另1项隔离 API 默认跳过）、server **2 suites / 23 tests**；合计 **1227 项通过**。shared tsc、client vue-tsc/Vite 构建通过，仅已有包体提示。日志 `/private/tmp/wp6-rereview4-*.log`。
+
+本轮仍是生产作者模型和转换保真修复，未新增旧 XML 能力、依赖、数据库迁移或改变 WP6/WP8 范围。未重做浏览器/SQLite 冷重开或 Word 验收；此前历史证据不能当成本轮实测。合并与新一轮 Codex 审阅确认仍未完成。

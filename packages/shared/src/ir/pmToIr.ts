@@ -796,8 +796,8 @@ function splitInlines(inlines: IRInline[], separator: RegExp): IRInline[][] {
   const segments: IRInline[][] = []
   let current: IRInline[] = []
   for (const run of inlines) {
-    // 空文本的脚注 atom 仍是数据，保留到 Resolver 做位置校验。
-    if (run.footnote || run.marks?.some(mark => mark.type === 'tableFootnoteRef')) {
+    // 空文本的公式/脚注 atom 仍是数据，保留完整负载到 Resolver 做位置校验。
+    if (isInlineAtom(run)) {
       current.push(run)
       continue
     }
@@ -806,25 +806,34 @@ function splitInlines(inlines: IRInline[], separator: RegExp): IRInline[][] {
       const m = rest.match(separator)
       if (!m || m.index === undefined) break
       const before = rest.slice(0, m.index)
-      if (before) current.push(run.marks ? { text: before, marks: run.marks } : { text: before })
+      if (before) current.push({ ...run, text: before })
       segments.push(current)
       current = []
       rest = rest.slice(m.index + m[0].length)
     }
-    if (rest) current.push(run.marks ? { text: rest, marks: run.marks } : { text: rest })
+    if (rest) current.push({ ...run, text: rest })
   }
   segments.push(current)
   return segments
+}
+
+function isInlineAtom(run: IRInline): boolean {
+  return Boolean(
+    run.formula ||
+    run.footnote ||
+    run.marks?.some(mark => mark.type === 'tableFootnoteRef') ||
+    (!run.text && (run.style || run.marks?.length)),
+  )
 }
 
 /** 去除首尾空白与空运行：只在首尾边界克隆，单遍 + 边界收缩 */
 function trimInlines(inlines: IRInline[]): IRInline[] {
   const out: IRInline[] = []
   for (const run of inlines) {
-    if (run.text.length > 0 || run.footnote || run.marks?.some(mark => mark.type === 'tableFootnoteRef')) out.push(run)
+    if (run.text.length > 0 || isInlineAtom(run) || run.style || run.marks?.length) out.push(run)
   }
   while (out.length > 0) {
-    if (out[0].footnote || out[0].marks?.some(mark => mark.type === 'tableFootnoteRef')) break
+    if (isInlineAtom(out[0])) break
     const text = out[0].text.replace(/^\s+/, '')
     if (text) {
       if (text !== out[0].text) out[0] = { ...out[0], text }
@@ -834,7 +843,7 @@ function trimInlines(inlines: IRInline[]): IRInline[] {
   }
   while (out.length > 0) {
     const last = out[out.length - 1]
-    if (last.footnote || last.marks?.some(mark => mark.type === 'tableFootnoteRef')) break
+    if (isInlineAtom(last)) break
     const text = last.text.replace(/\s+$/, '')
     if (text) {
       if (text !== last.text) out[out.length - 1] = { ...last, text }
