@@ -11,6 +11,8 @@ import type {
   IRParagraph,
   IRTable,
   IRTermEntry,
+  IRReferenceTargetKind,
+  IRTitlePart,
 } from '../types'
 import * as fx from './fixtures'
 
@@ -29,6 +31,58 @@ describe('pmToIr / 元数据', () => {
       issuer: '国家市场监督管理总局',
     })
     expect(warnings).toEqual([])
+  })
+
+  it.each(['root', 'cover'] as const)('structured metadata fallback keeps inline reference payloads from %s attrs', (location) => {
+    const targetKinds = [
+      'chapter', 'clause', 'appendix', 'figure', 'table', 'formula',
+      'note', 'example', 'bibliography', 'term', 'index', 'paragraph',
+    ] as const satisfies readonly IRReferenceTargetKind[]
+    const titleParts: IRTitlePart[] = targetKinds.map((targetKind, index) => ({
+      id: `title-ref-${index}`,
+      content: [{ text: `引用${index}`, marks: [{ type: 'crossRef', targetId: `target-${index}`, targetKind }] }],
+    }))
+    titleParts.push(
+      { id: 'title-ref-no-kind', content: [{ text: '兼容引用', marks: [{ type: 'crossRef', targetId: 'legacy-target' }] }] },
+      { id: 'title-ref-table-footnote', content: [{ text: '表注', marks: [{ type: 'tableFootnoteRef', targetId: 'table-note-target', id: 'table-note-ref' }] }] },
+      { id: 'title-ref-inline-footnote', content: [{ text: '脚注宿主', footnote: { id: 'inline-footnote', content: [{ text: '脚注内容', marks: [{ type: 'crossRef', targetId: 'note-target', targetKind: 'note' }] }] } }] },
+    )
+    const input = location === 'root'
+      ? { type: 'doc', attrs: { titleParts }, content: [] }
+      : { type: 'doc', content: [{ type: 'coverPage', attrs: { titleParts }, content: [] }] }
+    const originalBytes = JSON.stringify(input)
+
+    const { doc } = pmToIr(input)
+
+    expect(doc.meta.titleParts).toEqual(titleParts)
+    expect(JSON.stringify(input)).toBe(originalBytes)
+  })
+
+  it('structured metadata fallback diagnoses invalid reference kinds and footnote payloads', () => {
+    const input = {
+      type: 'doc',
+      attrs: {
+        titleParts: [{
+          id: 'invalid-metadata-inline',
+          content: [{
+            text: '兼容文本',
+            marks: [{ type: 'crossRef', targetId: 'target', targetKind: 'not-a-reference-kind' }],
+            footnote: { id: '', content: [{ text: '脚注内容' }] },
+          }],
+        }],
+      },
+      content: [],
+    }
+
+    const { doc } = pmToIr(input)
+    const inline = doc.meta.titleParts?.[0]?.content[0]
+
+    expect(inline?.marks).toEqual([{ type: 'crossRef', targetId: 'target' }])
+    expect(inline && 'footnote' in inline).toBe(false)
+    expect(doc.unsupportedContent).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'meta.titleParts[0].content[0]', nodeType: 'metadataInline', reason: expect.stringContaining('引用目标类型') }),
+      expect.objectContaining({ path: 'meta.titleParts[0].content[0].footnote', nodeType: 'metadataInline', reason: expect.stringContaining('脚注') }),
+    ]))
   })
 
   it('未知 standardType 回退为 gb 并产生警告', () => {

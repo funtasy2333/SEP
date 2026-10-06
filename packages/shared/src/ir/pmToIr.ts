@@ -35,6 +35,7 @@ import type {
   IRInlineFormula,
   IRInlineStyle,
   IRInline,
+  IRReferenceTargetKind,
   IRLanguage,
   IRList,
   IRMark,
@@ -1350,18 +1351,32 @@ function plainRecord(value: unknown): Record<string, unknown> | undefined {
     ? value as Record<string, unknown> : undefined
 }
 
+const IR_REFERENCE_TARGET_KINDS = [
+  'chapter', 'clause', 'appendix', 'figure', 'table', 'formula',
+  'note', 'example', 'bibliography', 'term', 'index', 'paragraph',
+] as const satisfies readonly IRReferenceTargetKind[]
+
+function isIRReferenceTargetKind(value: unknown): value is IRReferenceTargetKind {
+  return typeof value === 'string' && IR_REFERENCE_TARGET_KINDS.some(kind => kind === value)
+}
+
+function metadataInlineProblem(ctx: Ctx, path: string, reason: string): void {
+  ctx.unsupportedContent.push({ nodeId: null, path, nodeType: 'metadataInline', reason })
+}
+
 function storedInlines(value: unknown, ctx: Ctx, path: string): IRInline[] {
   if (!Array.isArray(value)) {
     if (value !== undefined && value !== null) {
-      ctx.unsupportedContent.push({ nodeId: null, path, nodeType: 'metadataInline', reason: 'inline数据必须为数组' })
+      metadataInlineProblem(ctx, path, 'inline数据必须为数组')
     }
     return []
   }
   const out: IRInline[] = []
-  for (const item of value) {
+  for (const [index, item] of value.entries()) {
+    const itemPath = `${path}[${index}]`
     const row = plainRecord(item)
     if (!row || typeof row.text !== 'string') {
-      ctx.unsupportedContent.push({ nodeId: null, path, nodeType: 'metadataInline', reason: 'inline项必须包含字符串text' })
+      metadataInlineProblem(ctx, itemPath, 'inline项必须包含字符串text')
       continue
     }
     const inline: IRInline = { text: row.text }
@@ -1372,33 +1387,62 @@ function storedInlines(value: unknown, ctx: Ctx, path: string): IRInline[] {
       for (const markValue of row.marks) {
         const mark = plainRecord(markValue)
         if (!mark || typeof mark.type !== 'string') {
-          ctx.unsupportedContent.push({ nodeId: null, path, nodeType: 'metadataInline', reason: 'inline mark结构无效' })
+          metadataInlineProblem(ctx, itemPath, 'inline mark结构无效')
           continue
         }
         if (mark.type === 'bold' || mark.type === 'italic' || mark.type === 'underline' || mark.type === 'sub' || mark.type === 'sup' || mark.type === 'strike' || mark.type === 'code') {
           inline.marks.push({ type: mark.type })
-        } else if ((mark.type === 'crossRef' || mark.type === 'bibRef' || mark.type === 'termRef' || mark.type === 'tableFootnoteRef') && typeof mark.targetId === 'string') {
-          inline.marks.push({ type: mark.type, targetId: mark.targetId } as IRMark)
+        } else if (mark.type === 'crossRef' && typeof mark.targetId === 'string') {
+          const crossRef: Extract<IRMark, { type: 'crossRef' }> = { type: 'crossRef', targetId: mark.targetId }
+          if (Object.prototype.hasOwnProperty.call(mark, 'targetKind')) {
+            if (isIRReferenceTargetKind(mark.targetKind)) crossRef.targetKind = mark.targetKind
+            else metadataInlineProblem(ctx, itemPath, 'crossRef引用目标类型无效')
+          }
+          inline.marks.push(crossRef)
+        } else if (mark.type === 'bibRef' && typeof mark.targetId === 'string') {
+          inline.marks.push({ type: 'bibRef', targetId: mark.targetId })
+        } else if (mark.type === 'termRef' && typeof mark.targetId === 'string') {
+          inline.marks.push({ type: 'termRef', targetId: mark.targetId })
+        } else if (mark.type === 'tableFootnoteRef' && typeof mark.targetId === 'string') {
+          const tableFootnoteRef: Extract<IRMark, { type: 'tableFootnoteRef' }> = { type: 'tableFootnoteRef', targetId: mark.targetId }
+          if (Object.prototype.hasOwnProperty.call(mark, 'id')) {
+            if (typeof mark.id === 'string') tableFootnoteRef.id = mark.id
+            else metadataInlineProblem(ctx, itemPath, 'tableFootnoteRef引用ID无效')
+          }
+          inline.marks.push(tableFootnoteRef)
         } else if (mark.type === 'variable') {
           inline.marks.push({ type: 'variable', ...(typeof mark.kind === 'string' ? { kind: mark.kind } : {}), ...(typeof mark.name === 'string' ? { name: mark.name } : {}) })
         } else if (mark.type === 'externalLink' && typeof mark.href === 'string') {
           inline.marks.push({ type: 'externalLink', href: mark.href, ...(typeof mark.title === 'string' ? { title: mark.title } : {}), ...(typeof mark.target === 'string' ? { target: mark.target } : {}), ...(typeof mark.rel === 'string' ? { rel: mark.rel } : {}) })
         } else {
-          ctx.unsupportedContent.push({ nodeId: null, path, nodeType: 'metadataInline', reason: `不支持inline mark ${mark.type}` })
+          metadataInlineProblem(ctx, itemPath, `不支持inline mark ${mark.type}`)
         }
       }
       if (inline.marks.length === 0) delete inline.marks
+    } else if (row.marks !== undefined && row.marks !== null) {
+      metadataInlineProblem(ctx, itemPath, 'inline mark必须为数组')
     }
-    if (row.formula) {
+    if (row.formula !== undefined && row.formula !== null) {
       const formula = plainRecord(row.formula)
-      if (formula && typeof formula.id === 'string') {
+      if (formula && typeof formula.id === 'string' && formula.id.length > 0) {
         inline.formula = {
           id: formula.id,
           ...(typeof formula.mathml === 'string' ? { mathml: formula.mathml } : {}),
           ...(typeof formula.latex === 'string' ? { latex: formula.latex } : {}),
           ...(typeof formula.source === 'string' ? { source: formula.source } : {}),
         }
-      } else ctx.unsupportedContent.push({ nodeId: null, path, nodeType: 'metadataInline', reason: '行内公式必须具有稳定ID' })
+      } else metadataInlineProblem(ctx, itemPath, '行内公式必须具有稳定ID')
+    }
+    if (Object.prototype.hasOwnProperty.call(row, 'footnote')) {
+      const footnote = plainRecord(row.footnote)
+      if (!footnote || typeof footnote.id !== 'string' || footnote.id.length === 0 || !Array.isArray(footnote.content)) {
+        metadataInlineProblem(ctx, `${itemPath}.footnote`, '脚注必须具有非空ID和行内内容数组')
+      } else {
+        inline.footnote = {
+          id: footnote.id,
+          content: storedInlines(footnote.content, ctx, `${itemPath}.footnote.content`),
+        }
+      }
     }
     out.push(inline)
   }

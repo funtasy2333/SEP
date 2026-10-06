@@ -75,3 +75,10 @@ Tiptap `setContent` 仅替换子内容。生产加载、版本回滚与 XML 导�
 
 - termSource HTML 只解析 std-term-source-content，展示用“来源：”不属于 source；专用规则优先于通用 p，外部无内容槽的带类型 HTML 可直接解析正文。
 - externalLink/bibExternalLink 的 href 是作者数据，不随点击地址过滤被改写。HTML 使用 JSON 字符串编码的 data-external-href 保留原值，href 属性继续采用既有安全过滤；回读优先使用字符串载荷，没有有效载荷时读取普通 href。相对地址、URN、空值及控制字符等不能成为可点击地址时，仍能无损回到作者模型。
+
+
+## 063f5427 复审契约补充（2026-10-06）
+
+- 无 metadataBlock 时，根/封面结构化元数据 fallback 的 inline 使用 IR 字段契约：crossRef.targetKind 按12种 IRReferenceTargetKind 保留，缺省仍允许；不把 PM 的 bibEntry 别名当作 IR 目标类型。非法类型记录带位置诊断，不能通过丢掉类型而绕过校验。
+- 同一入口保留 tableFootnoteRef 的可选 atom ID 和 IRInline.footnote 的稳定 ID/行内内容，脚注中的标记递归读取；无效字段/脚注结构产生 unsupportedContent。保留载荷不代表放宽脚注的位置或嵌套限制，仍由 Resolver 处理。
+- 题名、编号部件、机构和版权声明的引用类型经生产 Schema 与 JSON 重开保持。版权持有人等纯字符串 carrier 的富引用仍在 IR 中保留，但 IR→PM 继续明确拒绝，不能静默转为纯文本。

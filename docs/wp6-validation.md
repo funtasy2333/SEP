@@ -163,3 +163,16 @@ PR #45 在 `9ad90668` 和 `df27182a` 上的两轮 review 共提出 7 条 P2 问�
 
 
 主代理审阅子代理术语来源实现，要求补齐无槽位带类型 HTML 回退后，新增5项全部通过；客户端最终完整回归 **39 files / 310 tests**（另1项隔离 API 默认跳过）。shared **42 files / 912 tests** 和 server **2 suites / 23 tests** 均通过，合计 **1245 项**。shared tsc、client vue-tsc/Vite 构建通过，仅已有大包体提示；日志 `/private/tmp/wp6-rereview5-*.log`。主工作区受保护素材的 SHA-256 与未提交文件保持。
+
+
+## 063f5427 复审与 fallback 字段验收（2026-10-06）
+
+最新 review ID 5425116106，提交时间北京时间15:26，针对063f5427提出一条 P2：[fallback crossRef 丢 targetKind](https://github.com/funtasy2333/SEP/pull/45#discussion_r4192628639)。已通过该 review 的 comments 接口核对。
+
+- 子代理先复现根/封面两个入口的 targetKind 丢失，再按 IRReferenceTargetKind 保留合法值并诊断非法值；覆盖12种类型、无类型旧数据及源输入不变。主审在相同读取函数发现 tableFootnoteRef.id 与 IRInline.footnote 也被丢弃，一并保留或报告非法结构，未扩大 Schema/旧 XML 能力。
+- 生产 Schema 初始4项全部失败：合法图类型丢失，图目标被错误标成表的类型诊断也消失。修复后 `wp6FallbackReferences.test.ts` 扩展至10项通过，覆盖根/封面的题名、编号部件、机构、版权声明，投影后的 PM refType 均保持 figure；通过 JSON 序列化再加载，IR及 Resolver 结果一致。
+- 错误的目标类型继续由 Resolver 报告。纯字符串版权持有人中的富引用保留在 IR，投影返回带位置的 IRToPmError；脚注的嵌套引用往返保留。非法 targetKind（包括PM别名bibEntry）、引用 ID 与脚注 content 在实际加载/Resolver/投影入口均有明确诊断，原输入不变。
+
+最终 shared **42 files / 915 tests**、client **40 files / 320 tests**（另1项隔离 API 默认跳过）、server **2 suites / 23 tests**，合计 **1258 项通过**。shared tsc、client vue-tsc/Vite 构建通过，仅已有大包体提示。日志 `/private/tmp/wp6-rereview6-*.log`。未改 golden、依赖、lockfile或数据库结构。
+
+本轮验证覆盖生产 Schema 和 JSON 重加载，未重复实际浏览器、SQLite 冷重开或 Word 验收；历史冷重开证据仍属于2026-10-05。调整后的 WP6/WP8 范围不变，修复已验收不意味着新提交已获 Codex 复审批准，PR 尚未合并。
