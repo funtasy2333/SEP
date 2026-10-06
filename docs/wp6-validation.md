@@ -148,3 +148,18 @@ PR #45 在 `9ad90668` 和 `df27182a` 上的两轮 review 共提出 7 条 P2 问�
 主代理完成代码审阅并运行 shared **42 files / 912 tests**、client **38 files / 292 tests**（另1项隔离 API 默认跳过）、server **2 suites / 23 tests**；合计 **1227 项通过**。shared tsc、client vue-tsc/Vite 构建通过，仅已有包体提示。日志 `/private/tmp/wp6-rereview4-*.log`。
 
 本轮仍是生产作者模型和转换保真修复，未新增旧 XML 能力、依赖、数据库迁移或改变 WP6/WP8 范围。未重做浏览器/SQLite 冷重开或 Word 验收；此前历史证据不能当成本轮实测。合并与新一轮 Codex 审阅确认仍未完成。
+
+
+## 296a3fb3 复审修复验收（2026-10-06）
+
+最新 review ID 5424696957（北京时间14:41）针对 296a3fb3 提出两条 P2，通过该 review 的 comments 接口核对，未将旧评论重新定位误认为新问题。
+
+| 意见 | 处理与生产回归 |
+|---|---|
+| [术语来源丢失或混入展示标签](https://github.com/funtasy2333/SEP/pull/45#discussion_r4192293657) | termSource 优先匹配专用规则并仅读内容槽；嵌在 termDef 中的富文本和空 source 连续3次 DOM→HTML文本→DOM→PM→IR 保留，不混入“来源：”，源输入不变。主审要求保留原来的带类型选择器以及无槽位外部 p/div 正文解析 |
+| [过滤后的外链无法恢复原始 href](https://github.com/funtasy2333/SEP/pull/45#discussion_r4192293666) | externalLink/bibExternalLink 用 JSON 字符串 data-external-href 保留作者地址，点击 href 继续过滤。最初31项中7项失败；新增安全协议后33项通过，连续3次覆盖相对/URN/锚点/首尾空白/特殊字符/空值及 mailto/tel；危险地址不生成点击 href。缺失、非法 JSON 或非字符串载荷回退普通 href |
+
+本轮仅修改作者模型 HTML 保真入口与对应测试；shared JSON golden、旧 XML、依赖、lockfile 与数据库结构未改。未重复真实浏览器、隔离 SQLite 冷重开或 Word 验收，前述冷重开证据仍属于2026-10-05。测试完成不等于新一轮 Codex 已批准，PR 尚未合并。
+
+
+主代理审阅子代理术语来源实现，要求补齐无槽位带类型 HTML 回退后，新增5项全部通过；客户端最终完整回归 **39 files / 310 tests**（另1项隔离 API 默认跳过）。shared **42 files / 912 tests** 和 server **2 suites / 23 tests** 均通过，合计 **1245 项**。shared tsc、client vue-tsc/Vite 构建通过，仅已有大包体提示；日志 `/private/tmp/wp6-rereview5-*.log`。主工作区受保护素材的 SHA-256 与未提交文件保持。

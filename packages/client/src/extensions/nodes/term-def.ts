@@ -331,7 +331,12 @@ export const TermSource = Node.create({
   defining: true,
 
   parseHTML() {
-    return [{ tag: '[data-type="term-source"]' }]
+    return [{
+      tag: '[data-type="term-source"]',
+      priority: 51,
+      contentElement: element =>
+        element.querySelector<HTMLElement>(':scope > .std-term-source-content') ?? element,
+    }]
   },
 
   renderHTML({ HTMLAttributes }): DOMOutputSpec {

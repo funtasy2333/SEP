@@ -16,6 +16,23 @@ function stringAttribute(name: string, defaultValue: string | null = null) {
   return { default: defaultValue, parseHTML: (element: HTMLElement) => element.getAttribute(name) ?? defaultValue }
 }
 
+/** Navigation is filtered separately from the stored authoring value. JSON protects control characters in HTML. */
+function externalHrefAttribute() {
+  return {
+    default: '',
+    parseHTML: (element: HTMLElement) => {
+      const payload = element.getAttribute('data-external-href')
+      if (payload !== null) {
+        try {
+          const value: unknown = JSON.parse(payload)
+          if (typeof value === 'string') return value
+        } catch { /* External tagged HTML may omit a valid editor payload. */ }
+      }
+      return element.getAttribute('href') ?? ''
+    },
+  }
+}
+
 /** Read the editable slot only; external plain tagged HTML can use the element itself. */
 function contentSlot(className: string): (element: HTMLElement) => HTMLElement {
   return element => element.querySelector<HTMLElement>(`:scope > .${className}`) ?? element
@@ -784,7 +801,7 @@ export const BibExternalLink = Node.create({
 
   addAttributes() {
     return {
-      href: stringAttribute('href', ''),
+      href: externalHrefAttribute(),
       title: stringAttribute('title'),
       displayText: stringAttribute('displayText'),
       target: stringAttribute('target'),
@@ -799,6 +816,7 @@ export const BibExternalLink = Node.create({
   renderHTML({ node, HTMLAttributes }): DOMOutputSpec {
     return ['a', mergeAttributes(HTMLAttributes, {
       'data-type': 'bib-external-link',
+      'data-external-href': JSON.stringify(node.attrs.href),
       href: safeExternalHref(node.attrs.href),
       title: node.attrs.title,
       target: node.attrs.target,
@@ -1071,7 +1089,7 @@ export const ExternalLink = Mark.create({
 
   addAttributes() {
     return {
-      href: stringAttribute('href', ''),
+      href: externalHrefAttribute(),
       title: stringAttribute('title'),
       target: stringAttribute('target'),
       rel: stringAttribute('rel'),
@@ -1085,6 +1103,7 @@ export const ExternalLink = Mark.create({
   renderHTML({ HTMLAttributes }) {
     return ['a', mergeAttributes(HTMLAttributes, {
       'data-type': 'external-link',
+      'data-external-href': JSON.stringify(HTMLAttributes.href),
       href: safeExternalHref(HTMLAttributes.href),
       title: HTMLAttributes.title,
       target: HTMLAttributes.target,

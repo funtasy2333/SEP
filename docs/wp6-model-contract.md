@@ -69,3 +69,9 @@ Tiptap `setContent` 仅替换子内容。生产加载、版本回滚与 XML 导�
 - HTML 解析只把编辑内容槽写回作者数据，题名/机构/版权/编号部件/TBX描述符/文献字段的展示标签不属于字段正文；结构化容器的语言/编号/索引标题也不属于子项。
 - 带明确类型的段落、引用和链接 atom 优先匹配其专用规则，保留 Schema 类型与引用字段；无类型的普通 HTML 继续使用通用规则。文本属性不使用 Tiptap 自动数字/布尔转型；position/度量等数值属性保持数值契约。
 - 旧生产 PM formulaDescription 解析为 whereList 时保留完整行内样式、marks、MathML/LaTeX公式及脚注引用负载。解析纯文本分隔符与首尾空白的既有规则保持；投影为新 whereList 后生产 Schema 回读保真。此处“旧”指现有 PM 节点，不是新增旧 XML 兼容转换器。
+
+
+## 296a3fb3 复审契约补充（2026-10-06）
+
+- termSource HTML 只解析 std-term-source-content，展示用“来源：”不属于 source；专用规则优先于通用 p，外部无内容槽的带类型 HTML 可直接解析正文。
+- externalLink/bibExternalLink 的 href 是作者数据，不随点击地址过滤被改写。HTML 使用 JSON 字符串编码的 data-external-href 保留原值，href 属性继续采用既有安全过滤；回读优先使用字符串载荷，没有有效载荷时读取普通 href。相对地址、URN、空值及控制字符等不能成为可点击地址时，仍能无损回到作者模型。

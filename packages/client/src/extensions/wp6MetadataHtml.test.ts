@@ -164,3 +164,46 @@ it('preserves bibliography external-link atoms and leaves ordinary external anch
   const plain = DOMParser.fromSchema(schema).parse(container)
   expect(plain.firstChild?.firstChild?.marks.find(mark => mark.type.name === 'link')?.attrs.href).toBe('https://example.org/plain')
 })
+
+it.each([
+  '../references/source.html', 'urn:isbn:9780000000000', '#section-1',
+  'mailto:author@example.org', 'tel:+861234567890',
+  'javascript:alert(1)', 'data:text/html,<script>alert(1)</script>',
+  ' HTTPS://example.org/source ', 'https://example.org/a?x=1&y="quoted"',
+  'line\rbreak\u0000payload', '',
+])('preserves original semantic link href while filtering navigation: %j', href => {
+  const attrs = { href, title: '来源', target: '_self', rel: 'nofollow' }
+  let current: object = { type: 'doc', content: [
+    { type: 'stdParagraph', content: [{ type: 'text', text: '外链', marks: [{ type: 'externalLink', attrs }] }] },
+    { type: 'bibliography', content: [{ type: 'bibliographyTitle' }, { type: 'bibEntry', content: [
+      { type: 'bibStructured', content: [{ type: 'bibExternalLink', attrs: { ...attrs, displayText: '文献链接' } }] },
+    ] }] },
+  ] }
+  for (let i = 0; i < 3; i++) {
+    const source = schema.nodeFromJSON(current)
+    const container = document.createElement('div')
+    container.append(DOMSerializer.fromSchema(schema).serializeFragment(source.content))
+    const anchors = Array.from(container.querySelectorAll('a[data-type]'))
+    expect(anchors).toHaveLength(2)
+    for (const anchor of anchors) {
+      const clickable = href.trim()
+      const allowed = /^(https?:\/\/|mailto:|tel:)/i.test(clickable) && !/[\u0000-\u0020]/.test(clickable)
+      expect(anchor.getAttribute('href')).toBe(allowed ? clickable : null)
+    }
+    const parsed = roundtrip(current)
+    expect(parsed.child(0).firstChild!.marks.find(mark => mark.type.name === 'externalLink')?.attrs).toEqual(attrs)
+    expect(parsed.child(1).child(1).firstChild!.firstChild!.attrs).toEqual({ ...attrs, displayText: '文献链接' })
+    current = parsed.toJSON()
+  }
+})
+
+it.each(['external-link', 'bib-external-link'])('reads ordinary tagged %s href when payload is absent or malformed', type => {
+  for (const payload of ['', ' data-external-href="invalid-json"', ' data-external-href="123"']) {
+    const container = document.createElement('div')
+    container.innerHTML = `<p><a data-type="${type}" href="urn:test:source"${payload}>来源</a></p>`
+    const parsed = DOMParser.fromSchema(schema).parse(container)
+    const inline = parsed.firstChild!.firstChild!
+    const attrs = type === 'external-link' ? inline.marks.find(mark => mark.type.name === 'externalLink')!.attrs : inline.attrs
+    expect(attrs.href).toBe('urn:test:source')
+  }
+})
