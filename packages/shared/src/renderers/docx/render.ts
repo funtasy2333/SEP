@@ -276,6 +276,11 @@ export function renderDocxTraced(
   const pkg = buildPackage({
     documentXml,
     title: doc.meta.title ?? '',
+    customProperties: Object.fromEntries(
+      (['proposer', 'technicalCommittee'] as const)
+        .filter(field => Boolean(doc.meta[field]))
+        .map(field => [`ses-${field}`, doc.meta[field]!]),
+    ),
     createdAt: opts.createdAt,
     stylesXml: buildStylesXml({ includeFootnotes: documentHasFootnotes(doc, bodyFootnotes) }),
     numberingXml: ctx.numbering.buildNumberingXml(),

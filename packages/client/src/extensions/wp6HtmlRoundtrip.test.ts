@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { pmToIr, resolve, type PMJsonNode } from '@ses/shared'
 import { getSchema } from '@tiptap/core'
 import { DOMParser, DOMSerializer } from '@tiptap/pm/model'
 import { describe, expect, it } from 'vitest'
@@ -10,7 +11,9 @@ function htmlRoundtrip(json: object) {
   source.check()
   const container = document.createElement('div')
   container.append(DOMSerializer.fromSchema(schema).serializeFragment(source.content))
-  const reopened = DOMParser.fromSchema(schema).parse(container)
+  const parsedHtml = document.createElement('div')
+  parsedHtml.innerHTML = container.innerHTML
+  const reopened = DOMParser.fromSchema(schema).parse(parsedHtml)
   reopened.check()
   return { source, container, reopened }
 }
@@ -95,4 +98,51 @@ it('keeps explicit header row counts and unnumbered formulas typed when pasted f
   ] })
   expect(reopened.firstChild?.attrs.numbered).toBe(false)
   expect(reopened.child(1).attrs.headerRowCount).toBe(0)
+})
+
+
+it.each([
+  ['base64', 'AAEC+/=='],
+  ['text', '资源中文 <tag> & "引号" \n第二行'],
+  ['dataUrl', 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"><text>图 &amp; 例</text></svg>'],
+  ['text', ''],
+  ['text', '特殊字符\r\n\t\u0000结束'],
+])('retains %s figure resource payloads through repeated production HTML parsing', (encoding, data) => {
+  let current: object = { type: 'doc', content: [{
+    type: 'figureResource', attrs: { nodeId: 'resource-1', mediaType: 'image/svg+xml', name: '资源一', encoding, data },
+  }] }
+  for (let i = 0; i < 3; i++) {
+    const { reopened, container } = htmlRoundtrip(current)
+    expect(reopened.firstChild?.attrs).toMatchObject({ nodeId: 'resource-1', mediaType: 'image/svg+xml', name: '资源一', encoding, data })
+    expect(container.querySelector('[data-type="figure-resource"]')?.getAttribute('data-resource-payload')).toBe(JSON.stringify(data))
+    expect(reopened.textContent).toBe('')
+    current = reopened.toJSON()
+  }
+})
+
+it('reads an external resource without a payload as empty', () => {
+  const container = document.createElement('div')
+  container.innerHTML = '<div data-type="figure-resource" encoding="text">资源名称</div>'
+  const reopened = DOMParser.fromSchema(schema).parse(container)
+  reopened.check()
+  expect(reopened.firstChild?.attrs.data).toBe('')
+})
+
+
+it('retains a figure resource association after clipboard HTML is loaded into the authoring model', () => {
+  const data = 'data:image/png;base64,AAEC'
+  const { reopened } = htmlRoundtrip({ type: 'doc', content: [
+    { type: 'chapter', attrs: { nodeId: 'chapter-resource' }, content: [
+      { type: 'chapterTitle', content: [{ type: 'text', text: '范围' }] },
+      { type: 'figure', attrs: { nodeId: 'figure-resource-owner' }, content: [
+        { type: 'figureImage', attrs: { src: data, resourceId: 'resource-target' } },
+        { type: 'figureCaption', content: [{ type: 'text', text: '资源图' }] },
+      ] },
+    ] },
+    { type: 'figureResource', attrs: { nodeId: 'resource-target', encoding: 'dataUrl', data } },
+  ] })
+  const doc = pmToIr(reopened.toJSON() as PMJsonNode).doc
+  expect(doc.resources).toContainEqual(expect.objectContaining({ id: 'resource-target', encoding: 'dataUrl', data }))
+  expect(doc.body[0]?.children[0]).toMatchObject({ kind: 'figure', resourceId: 'resource-target' })
+  expect(resolve(doc).problems.filter(problem => problem.code === 'dangling-resource')).toEqual([])
 })

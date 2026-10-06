@@ -33,6 +33,7 @@ const FIELDS: Record<string, ReadonlySet<string>> = Object.fromEntries(Object.en
   mark: ['type', 'id', 'targetId', 'targetKind'],
   unmappedFootnote: ['container', 'nodeId', 'content', 'reason'],
 }).map(([key, values]) => [key, new Set(values)]))
+const PRINT_META_FIELDS = new Set(['proposer', 'technicalCommittee'])
 const MARKS = new Set(['bold', 'italic', 'underline', 'sub', 'sup', 'crossRef', 'tableFootnoteRef'])
 
 function present(value: unknown): boolean {
@@ -58,7 +59,10 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
     })
     if (!allowed) { report('kind'); return }
     for (const [key, child] of Object.entries(object)) {
-      if (!allowed.has(key)) { if (present(child)) report(key); continue }
+      if (!allowed.has(key) && !(kind === 'meta' && format !== 'XML' && PRINT_META_FIELDS.has(key))) {
+        if (present(child)) report(key)
+        continue
+      }
       if (kind === 'mark' && key === 'type' && !MARKS.has(String(child))) { report(key); continue }
       if (key === 'unsupportedContent') continue
       const childShape = key === 'meta' ? 'meta' : key === 'front' ? 'front'

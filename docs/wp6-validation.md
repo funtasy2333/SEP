@@ -1,6 +1,6 @@
 # WP6 验收记录
 
-状态：调整后的 WP6 实现、代码审查与项目契约验收通过（2026-10-05），待 PR 审阅及合并。按用户确认的调整方案实施。基线为 `origin/main` 的 `e4690a320233b23122df0ba9a510b30ced16fbe2`；开发分支 `codex/wp6-json-model`。本记录不表示 GB/T 46687.2—2026 XML、外部互操作或 Word 真实稿件验收完成。
+状态：按调整后 WP6 方案实施，内部数据契约回归与最新复审修复记录见下文；待 PR 审阅及合并。2026-10-06 已重新对照 main，完整完成范围与限制见 [方案审计](wp6-plan-audit.md)。按用户确认的调整方案实施。基线为 `origin/main` 的 `e4690a320233b23122df0ba9a510b30ced16fbe2`；开发分支 `codex/wp6-json-model`。本记录不表示 GB/T 46687.2—2026 XML、外部互操作或 Word 真实稿件验收完成。
 
 ## 交付契约
 
@@ -62,7 +62,7 @@ API 验收仅在显式指定的空本地数据库和非默认服务端端口运�
 
 ![未支持 HTML 时保留 JSON 选项](qa/wp6-output-boundary.png)
 
-主工作区现有素材修改和未跟踪目录均保留；主素材文件 SHA-256 保持 `8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8`。远端 main 再次 fetch 后仍为上述基线。
+主工作区现有素材修改和未跟踪目录均保留；主素材文件 SHA-256 保持 `8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8`。该基线为 2026-10-05 初始验收状态；2026-10-06 main 已为 e0e9ab09（调整方案 PR #46 合入），开发分支已合入该 main，最新审计以此为准。
 
 ## 后续边界
 
@@ -112,3 +112,19 @@ PR #45 在 `9ad90668` 和 `df27182a` 上的两轮 review 共提出 7 条 P2 问�
 - 最终 shared 完整回归 42 files / 908 tests；client 36 files / 261 tests，隔离 API 默认跳过 1 项；server 2 suites / 23 tests，合计 1192 项通过。shared tsc、client vue-tsc/Vite 构建通过；仅已有大包体提示。golden、依赖、lockfile 和数据库结构未改。
 
 本轮未重复真实浏览器或隔离 SQLite 冷重开；生产加载、引用关联和实际出口的行为由自动测试核验。新提交仍待自动复审和 PR 合并。
+
+
+## 2fc726e7 复审与调整方案复核（2026-10-06）
+
+本轮重新 fetch 并读取 main 的调整方案（`e0e9ab09`），逐项审计结果见 [WP6 方案审计](wp6-plan-audit.md)。审计记录区分内部模型、实际输出限制、必要交互尚未验收与 WP8 工作，不能用本次自动回归替代标准 XML/Word/真实稿件验收。
+
+| 本轮问题 | 修复及验证 |
+|---|---|
+| [扩展引用顺序](https://github.com/funtasy2333/SEP/pull/45#discussion_r4190217764) | 最初复现公式注 B 排在后续段落 A 之后。metadata、公式注、图/图组说明、TBX 词项/描述符在所属位置遍历；正文到附录顺序及重复引用去重覆盖，顶层对象 key 重排不影响顺序。文献自身与索引在其输出位置扫描，不抢正文首次引用顺序 |
+| [图资源 HTML 丢负载](https://github.com/funtasy2333/SEP/pull/45#discussion_r4190217769) | 最初新增4项资源回读失败。data-resource-payload 使用 JSON 字符串编码，生产 DOMSerializer→HTML 文本→DOMParser 连续3次往返；base64/text/data URL/空值/CR/NUL 保真，资源 ID 与 figure 关联有效。该文件现共21项通过 |
+| 主审：文献行内公式与索引目标校验时序 | 延后的行内数组中的 ID 在其实际遍历时登记；索引目标校验在文献/索引行内扫描后执行。覆盖索引指向文献 field 中的行内公式，既不误报悬空，也不重复登记 |
+| 方案审计：既有提出/归口设置导致 DOCX/HTML 回归 | 实际输出 DOCX native custom-properties 与 HTML meta 后解除对应阻断。生产 ZIP 解包、XML parser/HTML parser 读取元数据，验证新建/复制/库设置/嵌入设置与特殊字符。人工前言不重写；旧 XML 不新增能力，继续明确拒绝 |
+
+主代理审阅子代理 Resolver 改动后运行完整回归：shared **42 files / 911 tests**；client **36 files / 269 tests**、隔离 API 默认跳过1项；server **2 suites / 23 tests**，合计 **1203 项通过**。shared `tsc --noEmit`、client `vue-tsc -b` 与 Vite 构建通过，仅已有大包体提示。日志为 `/private/tmp/wp6-rereview3-*.log`。
+
+未修改 golden、依赖、lockfile 或数据库结构。主工作区素材哈希与未提交文件保留。本轮没有重复真实浏览器、SQLite 冷重开或 Word 打开验收；此前冷重开证据仍明确属于 2026-10-05。修复与审计已进入同一个 PR，尚未执行合并，未声称下一轮 Codex 复审已批准。

@@ -176,6 +176,24 @@ function visitNoteContent(note: IRNote, ctx: ResolveCtx, forbiddenContainer?: Fo
   for (const block of note.content) visitBlock(block, note.id, ctx, forbiddenContainer)
 }
 
+/** Metadata inline fields precede the body and are serialized in this order by irToPm. */
+function visitMetadataInlines(meta: IRDoc['meta'], ctx: ResolveCtx): void {
+  for (const titlePart of meta.titleParts ?? []) {
+    visitInlines(titlePart.content, titlePart.id, ctx, '标题')
+  }
+  for (const identifier of meta.identifiers ?? []) {
+    for (const part of identifier.parts) visitInlines(part.content, part.id, ctx)
+  }
+  for (const publisher of meta.publishers ?? []) {
+    visitInlines(publisher.name, publisher.id, ctx)
+  }
+  for (const copyright of meta.copyrights ?? []) {
+    // holder is projected into a plain-text attribute; PM rejects marks on it.
+    if (copyright.holder) visitInlines(copyright.holder, copyright.id, ctx)
+    visitInlines(copyright.statement, copyright.id, ctx)
+  }
+}
+
 /**
  * 访问一个块：登记 ID、计数图/表/公式、把注/示例归入作用域。
  * scopeKey = 最近的条或章（或附录/术语条目/前言/引言）的 ID。
@@ -236,6 +254,16 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
       labelFigureOrTable(block.id, 'fig', ctx)
       visitInlines(block.caption, block.id, ctx, '图')
       if (block.captionEn) visitInlines(block.captionEn, block.id, ctx, '图')
+      // Extended descriptions are emitted directly after the captions. Visit their
+      // inline references here so bibliography order follows the figure's position.
+      for (const description of block.descriptions ?? []) {
+        visitInlines(description.content, description.id, ctx, '图')
+      }
+      for (const group of block.groups ?? []) {
+        for (const description of group.descriptions) {
+          visitInlines(description.content, description.id, ctx, '图')
+        }
+      }
       break
     }
     case 'formula': {
@@ -254,6 +282,9 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
         if (block.sourceInlines.some(run => run.marks?.some(mark => mark.type === 'tableFootnoteRef'))) {
           ctx.problems.push({ code: 'invalid-footnote', nodeId: block.id, severity: 'error', message: '公式主体中不能插入表脚注上标' })
         }
+      }
+      for (const note of block.notes ?? []) {
+        visitInlines(note.content, note.id, ctx, '公式说明')
       }
       for (const item of block.whereList) {
         ctx.registerId(item.id)
@@ -309,6 +340,19 @@ function visitTermEntry(
   if (entry.source) visitInlines(entry.source, entry.id, ctx)
   for (const [index, child] of (entry.nestedEntries ?? []).entries()) {
     visitTermEntry(child, `${numberPath}.${index + 1}`, ctx)
+  }
+  // TBX language sets follow the term entry's ordinary content in the PM model.
+  // Walk term variants and their descriptors at that point instead of leaving
+  // their references for the generic end-of-document extension scan.
+  for (const languageSet of entry.languageSets ?? []) {
+    for (const group of languageSet.groups) {
+      for (const variant of group.terms) {
+        visitInlines(variant.content, variant.id, ctx)
+        for (const descriptor of variant.descriptors) {
+          visitInlines(descriptor.value, descriptor.id, ctx)
+        }
+      }
+    }
   }
   ctx.inTerm = previousTerm
 }
@@ -454,6 +498,7 @@ function resolveBibliography(doc: IRDoc, ctx: ResolveCtx): NodeId[] {
   for (const id of order) {
     const entry = doc.bibliography.find(entry => entry.id === id)!
     visitInlines(entry.content, entry.id, ctx)
+    for (const field of entry.fields ?? []) visitInlines(field.value, field.id, ctx)
   }
   return order
 }
@@ -495,15 +540,43 @@ function contentText(value: unknown): string {
   return typeof row.text === 'string' ? row.text : contentText(row.content)
 }
 
-/** Inspect every typed field, including metadata/TBX/descriptors/notes not printed by legacy outputs. */
-function registerExtendedData(doc: IRDoc, ctx: ResolveCtx): void {
+/** Inline arrays emitted after the body are processed at their own output positions. */
+function collectDeferredInlineArrays(doc: IRDoc): WeakSet<object> {
+  const arrays = new WeakSet<object>()
+  const defer = (inlines: IRInline[] | undefined): void => {
+    if (inlines) arrays.add(inlines)
+  }
+  for (const entry of doc.bibliography) {
+    defer(entry.content)
+    for (const field of entry.fields ?? []) defer(field.value)
+  }
+  if (doc.index) {
+    defer(doc.index.title)
+    for (const group of doc.index.groups) {
+      defer(group.label)
+      for (const entry of group.entries) defer(entry.term)
+    }
+  }
+  return arrays
+}
+
+/** Inspect typed IDs/resources/index targets without consuming deferred inline arrays. */
+function registerExtendedData(
+  doc: IRDoc,
+  ctx: ResolveCtx,
+  deferredInlineArrays: WeakSet<object>,
+): { targetId: string; ownerId: string | null; path: string }[] {
   const definitions = new Set<string>()
   const resourceIds = new Set((doc.resources ?? []).map(resource => resource.id))
   const resourceRefs: { targetId: string; ownerId: string | null; path: string }[] = []
   const indexRefs: { targetId: string; ownerId: string | null; path: string }[] = []
   const visit = (value: unknown, path: string, parentId: string | null, forbidden?: ForbiddenFootnoteContainer): void => {
     if (!value || typeof value !== 'object') return
-    if (Array.isArray(value)) { value.forEach((item, index) => visit(item, `${path}[${index}]`, parentId, forbidden)); return }
+    if (Array.isArray(value)) {
+      if (deferredInlineArrays.has(value)) return
+      value.forEach((item, index) => visit(item, `${path}[${index}]`, parentId, forbidden))
+      return
+    }
     const row = value as Record<string, unknown>
     const id = typeof row.id === 'string' ? row.id : null
     const ownerId = id ?? parentId
@@ -546,12 +619,10 @@ function registerExtendedData(doc: IRDoc, ctx: ResolveCtx): void {
   for (const ref of resourceRefs) if (!resourceIds.has(ref.targetId)) {
     ctx.problems.push({ code: 'dangling-resource', nodeId: ref.ownerId, severity: 'error', message: `${ref.path} 的资源目标「${ref.targetId}」不存在` })
   }
-  for (const ref of indexRefs) if (!ctx.seenIds.has(ref.targetId)) {
-    ctx.problems.push({ code: 'dangling-index-target', nodeId: ref.ownerId, severity: 'error', message: `${ref.path} 的索引目标「${ref.targetId}」不存在` })
-  }
   for (const issue of doc.unsupportedContent ?? []) {
     ctx.problems.push({ code: 'unsupported-content', nodeId: issue.nodeId, severity: 'error', message: `${issue.path}（${issue.nodeType}）：${issue.reason}` })
   }
+  return indexRefs
 }
 
 function checkTypedReferences(ctx: ResolveCtx): void {
@@ -564,6 +635,25 @@ function checkTypedReferences(ctx: ResolveCtx): void {
       // Explicit typed targets can reference entities without a numbered label.
       ctx.setLabel(ref.targetId, '', stableExtensionXmlId(ref.targetId), ctx.targetTexts.get(ref.targetId) ?? ref.targetId)
     }
+  }
+}
+
+/** Index content is serialized after the bibliography and must not affect its order. */
+function visitIndexInlines(index: IRDoc['index'], ctx: ResolveCtx): void {
+  if (!index) return
+  if (index.title) visitInlines(index.title, index.id, ctx)
+  for (const group of index.groups) {
+    if (group.label) visitInlines(group.label, group.id, ctx)
+    for (const entry of group.entries) visitInlines(entry.term, entry.id, ctx)
+  }
+}
+
+function checkIndexTargets(
+  refs: { targetId: string; ownerId: string | null; path: string }[],
+  ctx: ResolveCtx,
+): void {
+  for (const ref of refs) if (!ctx.seenIds.has(ref.targetId)) {
+    ctx.problems.push({ code: 'dangling-index-target', nodeId: ref.ownerId, severity: 'error', message: `${ref.path} 的索引目标「${ref.targetId}」不存在` })
   }
 }
 
@@ -587,6 +677,8 @@ export function resolve(doc: IRDoc, strategy: NumberingStrategy = gbT11Strategy)
     visitInlines(source.content, source.nodeId, ctx)
   }
 
+  visitMetadataInlines(doc.meta, ctx)
+
   // 前置部分（前言/引言）：注/示例作用域为各自部分；图表公式与正文共用计数器
   for (const block of doc.front.foreword) visitBlock(block, 'front.foreword', ctx)
   for (const block of doc.front.introduction) visitBlock(block, 'front.introduction', ctx)
@@ -594,8 +686,11 @@ export function resolve(doc: IRDoc, strategy: NumberingStrategy = gbT11Strategy)
   doc.body.forEach((chapter, i) => visitChapter(chapter, i + 1, ctx))
   doc.appendices.forEach((appendix, i) => visitAppendix(appendix, i + 1, ctx))
 
-  registerExtendedData(doc, ctx)
+  const deferredInlineArrays = collectDeferredInlineArrays(doc)
+  const indexTargets = registerExtendedData(doc, ctx, deferredInlineArrays)
   const bibliographyOrder = resolveBibliography(doc, ctx)
+  visitIndexInlines(doc.index, ctx)
+  checkIndexTargets(indexTargets, ctx)
   checkTypedReferences(ctx)
   labelNotesAndExamples(ctx)
   checkXrefs(ctx)

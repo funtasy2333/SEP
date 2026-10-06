@@ -32,7 +32,7 @@ it('明确填写的前缀和编号保留，空前缀使用所选类型而不丢�
   expect(createNewDocument({ ...blankForm(), type: 'guidance', stdNo: '1234—2026' }).meta.standardNo).toBe('GB/Z 1234—2026')
 })
 
-it('新建时完整持久化前言和提出/归口元数据，未支持的旧出口明确拒绝', async () => {
+it('新建时完整持久化前言和提出/归口元数据，DOCX保留而旧XML拒绝', async () => {
   const created = createNewDocument({ ...blankForm(),
     proposer: '  提出单位甲  ', technicalCommittee: '归口单位乙', applicant: '起草单位丙、起草单位丁',
     replaces: ' GB/T 1000—2020 ', consistency: '（ISO 1234:2020，MOD）',
@@ -48,7 +48,13 @@ it('新建时完整持久化前言和提出/归口元数据，未支持的旧出
   ])
   expect(prepareDocxInput(node, stored.meta).doc.meta).toMatchObject({ proposer: '提出单位甲', technicalCommittee: '归口单位乙' })
   expect(() => serializeToXml(node)).toThrow(UnsupportedOutputError)
-  await expect(buildDocxBlob({ pmDoc: node, documentMeta: stored.meta })).rejects.toThrow(UnsupportedOutputError)
+  const zip = await JSZip.loadAsync(await (await buildDocxBlob({ pmDoc: node, documentMeta: stored.meta })).blob.arrayBuffer())
+  const documentXml = await zip.file('word/document.xml')!.async('string')
+  expect(documentXml).toContain('本文件由提出单位甲提出。')
+  expect(documentXml).toContain('本文件由归口单位乙归口。')
+  const properties = new DOMParser().parseFromString(await zip.file('docProps/custom.xml')!.async('string'), 'application/xml')
+  expect(properties.querySelector('[name="ses-proposer"]')?.textContent).toBe('提出单位甲')
+  expect(properties.querySelector('[name="ses-technicalCommittee"]')?.textContent).toBe('归口单位乙')
   expect(JSON.stringify(node.toJSON())).toContain('提出单位甲')
   expect(JSON.stringify(node.toJSON())).toContain('归口单位乙')
 })

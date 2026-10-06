@@ -1,6 +1,6 @@
 # WP6 IR / ProseMirror model contract
 
-状态：WP6 实现与项目契约验收通过（2026-10-05），见 [验收记录](wp6-validation.md)。目标为 `codex/xml-46687-plan` 的 WP6 与 `docs/wp8-xml46687.md` §3.1；不是 GB/T 46687.2 元素合规性声明。外部 XML ID 的最终词法和正式 ID 约定留 WP8.1 核实。
+状态：WP6 内部模型与项目契约回归已实施，最新复审修复和输出限制见 [方案审计](wp6-plan-audit.md)及 [验收记录](wp6-validation.md)。目标为 `codex/xml-46687-plan` 的 WP6 与 `docs/wp8-xml46687.md` §3.1；不是 GB/T 46687.2 元素合规性声明。外部 XML ID 的最终词法和正式 ID 约定留 WP8.1 核实。
 
 ## 保持的旧接口
 
@@ -54,5 +54,11 @@ Tiptap `setContent` 仅替换子内容。生产加载、版本回滚与 XML 导�
 ## bd0c6eb3 复审契约补充（2026-10-06）
 
 - `tableFootnoteRef` 是行内 atom，不是生产 mark；一个 IR run 同时带正文/公式与表脚注引用时，投影为正文/公式节点及独立引用 atom，普通 marks 与各引用 ID 保持。回读允许拆为语义等价的多个 IR run。
-- `proposer`、`technicalCommittee` 虽完整保存在作者模型中，当前旧 HTML/DOCX/XML 出口没有消费这两个元数据字段。因此字段非空时明确阻断这些出口，缺省或空字符串不额外阻断；JSON 可完整保留。前言中出现同名文字不等于元数据字段已被出口消费。
+- 历史 `2fc726e7` 将非空 `proposer/technicalCommittee` 阻断于所有出口；本轮已纠正 DOCX/HTML 的既有设置回归：DOCX native custom-properties 与 HTML meta 实际保留字段后解除对应阻断。旧 XML 继续拒绝，JSON 保留原值。前言原文不自动重写。
 - 空 warning/quote 及其他不满足生产 Schema 最小子项约束的原生 IR 必须返回带 path/nodeId 的 IRToPmError。不得通过创建占位文字或改写稳定 ID 掩盖无法表示的数据。
+
+## 2fc726e7 复审补充（2026-10-06）
+
+- figureResource.data 通过 JSON 字符串编码的 data-resource-payload 属性进行 HTML 序列化/解析，base64、文本、data URL、空值及资源关联均以生产 DOM 路径验证；资源负载不进入可见正文。
+- 扩展行内引用在所属元数据/公式/图/术语等实际遍历位置收集，避免后续普通段落抢占首次引用顺序。
+- 提出/归口单位的输出能力与限制以 [最新方案审计](wp6-plan-audit.md)为准；不能沿用上一轮“所有出口阻断”的结论。

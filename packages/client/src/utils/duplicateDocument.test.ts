@@ -131,7 +131,7 @@ it('非空根段落没有IR正文对应位置时明确阻断旧XML，不丢原JS
 })
 
 
-it('复制完整保留新增提出/归口元数据，旧出口明确阻断并保护原稿', async () => {
+it('复制完整保留既有提出/归口元数据，DOCX保留而旧XML阻断', async () => {
   const meta = { ...originalMeta, proposer: '原提出单位', technicalCommittee: '原归口单位' }
   const source = { title: meta.titleCn, meta, content: createDefaultDocumentContent(meta) }
   const before = JSON.parse(JSON.stringify(source))
@@ -141,7 +141,10 @@ it('复制完整保留新增提出/归口元数据，旧出口明确阻断并保
   node.check()
   expect(prepareDocxInput(node, duplicate.meta).doc.meta).toMatchObject({ proposer: meta.proposer, technicalCommittee: meta.technicalCommittee })
   expect(() => serializeToXml(node)).toThrow(UnsupportedOutputError)
-  await expect(buildDocxBlob({ pmDoc: node, documentMeta: duplicate.meta })).rejects.toThrow(UnsupportedOutputError)
+  const zip = await JSZip.loadAsync(await (await buildDocxBlob({ pmDoc: node, documentMeta: duplicate.meta })).blob.arrayBuffer())
+  const properties = new DOMParser().parseFromString(await zip.file('docProps/custom.xml')!.async('string'), 'application/xml')
+  expect(properties.querySelector('[name="ses-proposer"]')?.textContent).toBe(meta.proposer)
+  expect(properties.querySelector('[name="ses-technicalCommittee"]')?.textContent).toBe(meta.technicalCommittee)
   expect(JSON.stringify(node.toJSON())).toContain(meta.proposer)
   expect(JSON.stringify(node.toJSON())).toContain(meta.technicalCommittee)
   expect(source).toEqual(before)

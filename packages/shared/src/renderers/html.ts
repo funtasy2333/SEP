@@ -752,6 +752,10 @@ export function renderHtml(doc: IRDoc, labels: Labels, opts: RenderHtmlOptions =
   ctx.push('<meta charset="UTF-8" />')
   ctx.push('<meta name="viewport" content="width=device-width, initial-scale=1.0" />')
   ctx.push(`<title>${title}</title>`)
+  for (const field of ['proposer', 'technicalCommittee'] as const) {
+    const value = doc.meta[field]
+    if (value) ctx.push(`<meta name="ses-${field}" content="${escapeAttr(value).replace(/\r/g, '&#13;').replace(/\n/g, '&#10;').replace(/\t/g, '&#9;')}" />`)
+  }
   ctx.push(`<style>${css}</style>`)
   ctx.push('</head>')
   ctx.push('<body>')

@@ -1,0 +1,48 @@
+# WP6 调整方案对照审计
+
+日期：2026-10-06。审计对象：PR #45，`codex/wp6-json-model`。远端 `main` 已重新 fetch，基线为 `e0e9ab09`（PR #46 已合入调整后的方案）。开发的最初代码基线仍为 `e4690a32`，二者不能混称。
+
+依据为 main 的 `docs/dev-plan-phase-5.5.md` §2.6/WP6，以及 `docs/wp8-xml46687.md` §1.1/3.1/4.1/6；先读 main 文件，再核对本分支实现与生产入口。历史记忆只作索引，不代替当前方案。
+
+## 结论与完成范围
+
+开发遵循调整后的 **JSON 渲染迁移 + 新国标内部文档数据模型补齐**。没有按初版实施“旧 XML 渲染迁移”，没有新增 xml37967、旧 XML 转换器、独立 NISO STS 入口或第1/3部分的技术对象/属性/关系及规则执行能力。
+
+当前能验收的是项目内部模型、生产 Schema、JSON、引用和转换错误边界。不能据此声称新国标 XML、所有新增内容的打印排版、完整的新要素操作面板或标准符合性已经完成。复审修复通过本地测试后仍需 PR 审阅；本记录不是 Codex 自动复审批准。
+
+## WP6 逐项证据
+
+| 调整后要求 | 实际实现与核验入口 | 结论 |
+|---|---|---|
+| JSON 渲染迁入 shared；client 薄壳；编号消费 Resolver | `shared/src/renderers/json.ts`、`client/src/serializer/jsonExporter.ts`；两组 `jsonExporter.test.ts` byte golden 及源文件哈希固定 | 已实现；已披露的三种异常层级/附录编号行为采用 Resolver，不声称任意异常输入字节一致 |
+| 补齐元数据并保留现有文件设置 | `IRDocMeta`、metadata 节点、`ir/meta.ts`、PM 双向映射；titleParts/identifiers/languages/publishers/adoptions/replacedStandards/copyrights；库/根/封面优先级在模型契约记录 | 已实现内部表达与保存契约；不凭编号部件猜完整编号 |
+| 多语言 TBX、多组/变体/描述符、定义/注/例/来源及引用 | languageSets/groups/terms/descriptors 与生产 TBX 节点；词性、采用、类型、领域、来源是显式 kind/value | 已实现项目作者模型；不从中英文名称伪造描述符，也不宣称已通过正式 TBX 校验 |
+| 原生 MathML、LaTeX、行内/行间、公式注/式中/引用 | `IRFormula/IRInlineFormula`、`FormulaInline/FormulaNote/WhereList`、双向映射与 `wp6Roundtrip.test.ts` | 原文和可用编辑源保留；MathML 不强制反译。全部原生 MathML 的数学视觉显示及打印交付尚未完成 |
+| 表格类型/跨度/单位/注脚注/样式宽度方向、图组说明资源 | typed table/row/cell、figure descriptions/groups 与独立 `IRDoc.resources`；逐属性 `wp6Projection.test.ts` 与生产 HTML 回读 | 已实现内部表达；本轮补修复制粘贴时资源负载丢失；XML+资源包归 WP8 |
+| 样式/变量/警告/引文/代码、类型化文献/外链、术语引用、索引 | semantic nodes/marks、IR typed fields、索引目标/参见；生产 fixture 和两向往返 | 已实现内部表达，原来会降级丢失的内容改为保留类型或明确拒绝 |
+| 稳定内部 ID、Resolver 引用及统一标签、外部 ID 同时映射定义和引用 | `externalIds.ts`、Resolver、编辑器 Decoration、大纲/版本文本/JSON 共用 labels；Resolver/external-ID tests | 已实现项目约定；本轮修复扩展字段引用顺序。正式 XML ID 词法留 WP8.1 |
+| 生产 Schema → PM → IR → PM → 保存重开；明确版本与非法结构诊断 | `createEditorExtensions`、`irToPm/pmToIr`、`wp6Projection/wp6Roundtrip/wp6Labels`；实际根属性加载入口 `replaceEditorDocument`；extensionVersion 1 | 自动回归覆盖生产结构和加载。SQLite/浏览器真实冷重开证据来自 2026-10-05，本轮未重复，不以本轮单测冒充冷重开 |
+| 盘点 XML 入口与 XML 依赖存储，只读盘点旧存量 | `wp6-storage-xml-inventory.md`、EditorView/VersionPanel/serializer 与 Document/Version entity | 已盘点；主数据库历史统计注明日期，目标部署切换前须重新盘点。旧 XML 路径未统一切换，这是 WP8.4 工作 |
+| 新信息在输出边界保持或明确报告 | `outputBoundary.ts`、DOCX/HTML/XML 真实入口、错误显示和源码复制/下载保护 | 已实现诊断边界；拒绝输出不是新增排版支持。DOCX/HTML 既有提出/归口设置的回归已纠正，详见下节 |
+
+表内路径相对 `packages/`，文档路径相对仓库根。字段、默认值及 PM 来源的完整清单见 [模型契约](wp6-model-contract.md)；历史与本轮验证分别见 [验收记录](wp6-validation.md)。
+
+## 审计发现与纠正
+
+上一轮 `2fc726e7` 为避免丢信息，把非空 `proposer/technicalCommittee` 在所有出口都阻断。它们属于既有文件设置，这会使原来正常使用的新建/复制稿不能输出 DOCX。只修改测试接受阻断，不能作为“既有文档输出未受影响”的证据。
+
+本轮 DOCX 实际生成 `docProps/custom.xml`，通过包根 relationship 和 content-type 注册两个 `ses-*` 自定义属性；HTML 在 head 中生成对应 meta。解除阻断仅适用于这两种已实际消费字段的出口；JSON、正文和人工编辑的前言不改写。测试从生产 DOCX ZIP 解包后用 XML parser 读取字段，并覆盖库设置、嵌入元数据、新建、复制、特殊字符和多行内容。不凭前言中恰好出现同名文字推断 metadata 已消费。
+
+旧 XML 仍不消费这些新进入 IR 的字段，继续明确阻断，避免为了 WP6 扩展旧交换格式。含这些字段的旧 XML 导出可用性改变已明确披露；它不等于新国标 XML 已完成。
+
+## 尚未完成与实际影响
+
+- 新国标 XML 双向转换、固定 DTD/XSD、正式 ID/原文约定、唯一 XML 菜单与旧实现删除、配套资源包、独立互操作均属于 WP8，当前没有实现。
+- 新元数据/TBX/MathML/图组/资源/完整样式/索引等的 DOCX/HTML 完整输出仍未实现，非空未消费字段返回 unsupported-output。某些旧生产属性（如表格 colwidth）现在会进入保真 IR，因此对应旧稿也可能被输出边界阻断；不能将旧 byte golden 的 JSON 通过解释成所有旧打印工作流无变化。
+- DOCX 自定义属性保留 metadata；HTML meta 保留 metadata。它们不自动生成责任语句，不代表 PDF 文件能保留这些结构化元数据，也不代表新字段已获得正文排版能力。
+- 新增节点已进入生产 Schema 并能加载/保存，但完整的新增要素插入、属性编辑面板和所有 MathML 数学显示未逐项验收。后续必要交互补齐仍须按 WP6/WP8 责任清单跟踪，不能以“JSON 存得住”宣称整个编辑器产品交付完成。
+- 原生 IR 的部分结构（例如 note/example 的独立段落 ID、罗马列项、带 marks 的纯字符串 carrier）无法无损投影时明确拒绝，不能冒充已支持。WP8 映射须遵守已记录的生产契约或继续补齐 Schema。
+- VersionPanel 仍保留一般 XML 失败后存 JSON 快照的旧 fallback（脚注错误除外）；WP8.4 必须统一修改。普通正文 JSON 保存和 JSON 回滚不依赖 XML。
+- 本轮没有重做真实浏览器、SQLite 冷重开或 Microsoft Word 打开验收；DOCX 变更的证据是生产导出 ZIP、属性 XML 与关联注册测试。没有把这类证据升级为真实稿件或排版验收。
+
+因此，按调整后的 WP6 开发方向和内部模型要求可以继续审阅；将本 PR 宣称为“全部新要素已完成编辑/打印/新 XML 交付”不成立。最终合并尚未执行。

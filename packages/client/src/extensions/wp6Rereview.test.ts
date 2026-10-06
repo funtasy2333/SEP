@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
+import JSZip from 'jszip'
 import { getSchema } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
 import {
   IRToPmError, UnsupportedOutputError, getOutputSupportProblems, irToPm, pmToIr, resolve,
-  type IRDoc, type IRInline, type IRList, type IRTable, type IRTermEntry, type PMJsonNode,
+  renderHtml, type IRDoc, type IRInline, type IRList, type IRTable, type IRTermEntry, type PMJsonNode,
 } from '@ses/shared'
 import { createEditorExtensions } from './editorExtensions'
 import { StandardDoc } from './nodes/standard-doc'
@@ -62,7 +63,7 @@ describe('bd0c6eb3 review through production schema and outputs', () => {
     expect(pmToIr(loaded.toJSON() as PMJsonNode).doc.body[0].children).toEqual(authored.body[0].children)
   })
 
-  it.each(['proposer', 'technicalCommittee'] as const)('keeps %s in JSON while blocking old XML and DOCX outputs', async field => {
+  it.each(['proposer', 'technicalCommittee'] as const)('keeps %s in JSON and DOCX properties while blocking old XML', async field => {
     const authored = base()
     authored.meta[field] = '必须保留的单位'
     const loaded = schema.nodeFromJSON(irToPm(authored))
@@ -72,7 +73,9 @@ describe('bd0c6eb3 review through production schema and outputs', () => {
     expect(reopened.meta[field]).toBe(authored.meta[field])
     expect(getOutputSupportProblems(reopened, 'XML')).toContainEqual(expect.objectContaining({ path: `doc.meta.${field}` }))
     expect(() => serializeToXml(loaded)).toThrow(UnsupportedOutputError)
-    await expect(buildDocxBlob({ pmDoc: source, documentMeta: { titleCn: '标题', standardType: 'national' } })).rejects.toThrow(UnsupportedOutputError)
+    const zip = await JSZip.loadAsync(await (await buildDocxBlob({ pmDoc: source, documentMeta: { titleCn: '标题', standardType: 'national' } })).blob.arrayBuffer())
+    const properties = new DOMParser().parseFromString(await zip.file('docProps/custom.xml')!.async('string'), 'application/xml')
+    expect(properties.querySelector(`[name="ses-${field}"]`)?.textContent).toBe(authored.meta[field])
     expect(JSON.stringify(exportSemanticJson(loaded))).toContain('必须保留的单位')
     expect(loaded.toJSON()).toEqual(source)
   })
@@ -119,12 +122,15 @@ it.each(['doc', 'standardDoc'] as const)('rejects empty %s roots and loads valid
   targetSchema.nodeFromJSON(irToPm(base(), { rootType })).check()
 })
 
-it.each(['proposer', 'technicalCommittee'] as const)('cannot bypass DOCX metadata protection when %s comes only from document settings', async field => {
+it.each(['proposer', 'technicalCommittee'] as const)('preserves %s in DOCX when it comes only from document settings', async field => {
   const loaded = schema.nodeFromJSON(irToPm(base()))
   const source = loaded.toJSON() as PMJsonNode
-  await expect(buildDocxBlob({
+  const { blob } = await buildDocxBlob({
     pmDoc: loaded, documentMeta: { titleCn: '标题', standardType: 'national', [field]: '文档设置中的单位' },
-  })).rejects.toThrow(UnsupportedOutputError)
+  })
+  const zip = await JSZip.loadAsync(await blob.arrayBuffer())
+  const properties = new DOMParser().parseFromString(await zip.file('docProps/custom.xml')!.async('string'), 'application/xml')
+  expect(properties.querySelector(`[name="ses-${field}"]`)?.textContent).toBe('文档设置中的单位')
   expect(loaded.toJSON()).toEqual(source)
 })
 
@@ -141,4 +147,25 @@ it.each(['dash', 'number'] as const)('loads valid Starter %s lists with an empty
   const loaded = schema.nodeFromJSON(irToPm(authored))
   loaded.check()
   expect(pmToIr(loaded.toJSON() as PMJsonNode).doc.body[0].children).toEqual(authored.body[0].children)
+})
+
+
+it('preserves authoring metadata verbatim in exported HTML and DOCX without rewriting an edited foreword', async () => {
+  const authored = base()
+  const name = '单位 <甲> & "乙"\r\n第二行\t末尾'
+  authored.meta.proposer = name
+  authored.meta.technicalCommittee = '不同的归口单位'
+  authored.front.foreword = [{ kind: 'paragraph', id: 'foreword-authored', content: [{ text: '人工修改的前言正文。' }] }]
+  const loaded = schema.nodeFromJSON(irToPm(authored))
+  const before = loaded.toJSON()
+  const html = new DOMParser().parseFromString(renderHtml(authored, resolve(authored).labels), 'text/html')
+  expect(html.querySelector('meta[name="ses-proposer"]')?.getAttribute('content')).toBe(name)
+  expect(html.querySelector('.ses-foreword')?.textContent).toContain('人工修改的前言正文。')
+  const { blob } = await buildDocxBlob({ pmDoc: loaded })
+  const zip = await JSZip.loadAsync(await blob.arrayBuffer())
+  const properties = new DOMParser().parseFromString(await zip.file('docProps/custom.xml')!.async('string'), 'application/xml')
+  expect(properties.querySelector('[name="ses-proposer"]')?.textContent).toBe(name)
+  expect(properties.querySelector('[name="ses-technicalCommittee"]')?.textContent).toBe('不同的归口单位')
+  expect(await zip.file('word/document.xml')!.async('string')).toContain('人工修改的前言正文。')
+  expect(loaded.toJSON()).toEqual(before)
 })

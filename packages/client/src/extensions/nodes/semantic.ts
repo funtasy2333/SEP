@@ -645,7 +645,21 @@ export const FigureResource = Node.create({
       mediaType: { default: null },
       name: { default: null },
       encoding: { default: 'dataUrl' },
-      data: { default: '', renderHTML: () => ({}) },
+      data: {
+        default: '',
+        parseHTML: element => {
+          const raw = element.getAttribute('data-resource-payload')
+          if (raw === null) return ''
+          try {
+            const data: unknown = JSON.parse(raw)
+            return typeof data === 'string' ? data : raw
+          } catch {
+            return raw
+          }
+        },
+        // JSON escaping keeps CR, NUL and other text payload characters intact in clipboard HTML.
+        renderHTML: attributes => ({ 'data-resource-payload': JSON.stringify(attributes.data) }),
+      },
     }
   },
 

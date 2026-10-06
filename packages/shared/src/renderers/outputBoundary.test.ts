@@ -37,18 +37,33 @@ describe('新增语义的实际输出边界', () => {
   })
 })
 
-it.each(['proposer', 'technicalCommittee'] as const)('blocks unconsumed metadata %s in every legacy output without changing the authoring data', field => {
+it.each(['proposer', 'technicalCommittee'] as const)('preserves %s in print metadata while keeping legacy XML guarded', field => {
   const doc = base()
-  doc.meta[field] = '必须保留的机构名称'
+  doc.meta[field] = '单位 <甲> & "乙"'
   const before = JSON.stringify(doc)
-  for (const format of ['DOCX', 'HTML', 'XML'] as const) {
-    expect(getOutputSupportProblems(doc, format)).toContainEqual(expect.objectContaining({
-      code: 'unsupported-output', path: `doc.meta.${field}`, message: expect.stringContaining('请保留 JSON'),
-    }))
-  }
-  expect(() => renderHtml(doc, resolve(doc).labels)).toThrow(UnsupportedOutputError)
-  expect(() => renderDocx(doc, resolve(doc).labels, options)).toThrow(UnsupportedOutputError)
+  const html = renderHtml(doc, resolve(doc).labels)
+  expect(html).toContain(`<meta name="ses-${field}" content="单位 &lt;甲&gt; &amp; &quot;乙&quot;" />`)
+  const pkg = renderDocx(doc, resolve(doc).labels, options)
+  expect(pkg.parts['docProps/custom.xml']).toContain(`name="ses-${field}"`)
+  expect(pkg.parts['docProps/custom.xml']).toContain('单位 &lt;甲&gt; &amp; "乙"')
+  expect(pkg.parts['_rels/.rels']).toContain('relationships/custom-properties')
+  expect(pkg.parts['_rels/.rels']).toContain('Target="docProps/custom.xml"')
+  expect(pkg.parts['[Content_Types].xml']).toContain('PartName="/docProps/custom.xml"')
+  expect(getOutputSupportProblems(doc, 'DOCX')).toEqual([])
+  expect(getOutputSupportProblems(doc, 'HTML')).toEqual([])
+  expect(getOutputSupportProblems(doc, 'XML')).toContainEqual(expect.objectContaining({ path: `doc.meta.${field}` }))
   expect(JSON.stringify(doc)).toBe(before)
+})
+
+it('keeps packages without authoring metadata unchanged and handles both property IDs deterministically', () => {
+  const doc = base()
+  expect(renderDocx(doc, resolve(doc).labels, options).parts['docProps/custom.xml']).toBeUndefined()
+  doc.meta.proposer = '提出甲'
+  doc.meta.technicalCommittee = '归口乙'
+  const pkg = renderDocx(doc, resolve(doc).labels, options)
+  expect(pkg.parts['docProps/custom.xml']).toContain('pid="2" name="ses-proposer"')
+  expect(pkg.parts['docProps/custom.xml']).toContain('pid="3" name="ses-technicalCommittee"')
+  expect(renderDocx(doc, resolve(doc).labels, options).parts).toEqual(pkg.parts)
 })
 
 it.each(['proposer', 'technicalCommittee'] as const)('keeps legacy output available when %s has no data', field => {
