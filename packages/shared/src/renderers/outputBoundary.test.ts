@@ -36,3 +36,27 @@ describe('新增语义的实际输出边界', () => {
     expect(() => renderHtml(doc, resolve(doc).labels)).toThrow(/请保留 JSON 文档/)
   })
 })
+
+it.each(['proposer', 'technicalCommittee'] as const)('blocks unconsumed metadata %s in every legacy output without changing the authoring data', field => {
+  const doc = base()
+  doc.meta[field] = '必须保留的机构名称'
+  const before = JSON.stringify(doc)
+  for (const format of ['DOCX', 'HTML', 'XML'] as const) {
+    expect(getOutputSupportProblems(doc, format)).toContainEqual(expect.objectContaining({
+      code: 'unsupported-output', path: `doc.meta.${field}`, message: expect.stringContaining('请保留 JSON'),
+    }))
+  }
+  expect(() => renderHtml(doc, resolve(doc).labels)).toThrow(UnsupportedOutputError)
+  expect(() => renderDocx(doc, resolve(doc).labels, options)).toThrow(UnsupportedOutputError)
+  expect(JSON.stringify(doc)).toBe(before)
+})
+
+it.each(['proposer', 'technicalCommittee'] as const)('keeps legacy output available when %s has no data', field => {
+  for (const value of [undefined, '']) {
+    const doc = base()
+    doc.meta[field] = value
+    expect(getOutputSupportProblems(doc, 'DOCX')).toEqual([])
+    expect(getOutputSupportProblems(doc, 'HTML')).toEqual([])
+    expect(getOutputSupportProblems(doc, 'XML')).toEqual([])
+  }
+})

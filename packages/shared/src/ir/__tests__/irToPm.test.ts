@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { IRToPmError, irToPm } from '../irToPm'
-import { pmToIr } from '../pmToIr'
+import { IRToPmError, irToPm, type IRToPmOptions } from '../irToPm'
+import { pmToIr, type PMJsonNode } from '../pmToIr'
 import { resolve } from '../resolve'
 import type { IRBlock, IRDoc, IRExample, IRList, IRNote, IRTable, IRTermEntry } from '../types'
 
@@ -37,10 +37,17 @@ function paragraph(id: string, text: string, targetId?: string): IRBlock {
   }
 }
 
-function captureIrToPmError(doc: IRDoc): IRToPmError {
+function findNodes(root: PMJsonNode, type: string): PMJsonNode[] {
+  return [
+    ...(root.type === type ? [root] : []),
+    ...(root.content ?? []).flatMap(child => findNodes(child, type)),
+  ]
+}
+
+function captureIrToPmError(doc: IRDoc, options?: IRToPmOptions): IRToPmError {
   let caught: unknown
   try {
-    irToPm(doc)
+    irToPm(doc, options)
   } catch (error) {
     caught = error
   }
@@ -278,5 +285,172 @@ describe('irToPm / native IR roundtrip', () => {
         reason: expect.stringContaining('无法保留'),
       }))
     }
+  })
+
+  it('projects table-footnote references as atoms while retaining other text/formula marks', () => {
+    const table: IRTable = {
+      kind: 'table',
+      id: 'footnote-table',
+      caption: [],
+      orientation: 'portrait',
+      headerRowCount: 0,
+      rows: [{ id: 'footnote-row', cells: [{
+        id: 'footnote-cell', colspan: 1, rowspan: 1, header: false,
+        content: [{
+          kind: 'paragraph',
+          id: 'footnote-paragraph',
+          content: [
+            { text: '加粗文字', marks: [
+              { type: 'bold' },
+              { type: 'tableFootnoteRef', id: 'text-ref', targetId: 'table-footnote' },
+            ] },
+            { text: '', formula: { id: 'inline-formula', latex: 'x' }, marks: [
+              { type: 'italic' },
+              { type: 'tableFootnoteRef', id: 'formula-ref', targetId: 'table-footnote' },
+            ] },
+          ],
+        }],
+      }] }],
+      notes: [],
+      footnotes: [{ id: 'table-footnote', content: [{ text: '表脚注内容' }] }],
+    }
+    const pm = irToPm(docWithChildren([table]))
+    const textNode = findNodes(pm, 'text').find(item => item.text === '加粗文字')!
+    const formulaNode = findNodes(pm, 'formulaInline')[0]!
+    const refs = findNodes(pm, 'tableFootnoteRef')
+
+    expect(textNode.marks).toEqual([{ type: 'bold' }])
+    expect(formulaNode.marks).toEqual([{ type: 'italic' }])
+    expect(refs.map(ref => ref.attrs)).toEqual([
+      { nodeId: 'text-ref', targetId: 'table-footnote' },
+      { nodeId: 'formula-ref', targetId: 'table-footnote' },
+    ])
+
+    const reopenedTable = pmToIr(pm).doc.body[0]!.children[0] as IRTable
+    expect(reopenedTable.rows[0]!.cells[0]!.content[0]).toMatchObject({
+      kind: 'paragraph',
+      content: [
+        { text: '加粗文字', marks: [{ type: 'bold' }] },
+        { text: '', marks: [{ type: 'tableFootnoteRef', id: 'text-ref', targetId: 'table-footnote' }] },
+        { text: '', formula: { id: 'inline-formula', latex: 'x' }, marks: [{ type: 'italic' }] },
+        { text: '', marks: [{ type: 'tableFootnoteRef', id: 'formula-ref', targetId: 'table-footnote' }] },
+      ],
+    })
+  })
+
+  it('rejects empty warning and quote nodes without dropping existing diagnostics', () => {
+    const doc = docWithChildren([
+      { kind: 'warning', id: 'empty-warning', content: [] },
+      { kind: 'quote', id: 'empty-quote', content: [] },
+    ])
+    doc.unsupportedContent = [{ nodeId: 'future-node', path: 'chapter.future', nodeType: 'futureNode', reason: 'unsupported' }]
+
+    const error = captureIrToPmError(doc)
+    expect(error.diagnostics).toContainEqual(expect.objectContaining({
+      path: 'body[0][0]',
+      nodeId: 'empty-warning',
+      reason: expect.stringContaining('至少一个块'),
+    }))
+    expect(error.diagnostics).toContainEqual(expect.objectContaining({
+      path: 'body[0][1]',
+      nodeId: 'empty-quote',
+      reason: expect.stringContaining('至少一个块'),
+    }))
+    expect(error.diagnostics).toContainEqual(expect.objectContaining({
+      path: 'chapter.future',
+      nodeId: 'future-node',
+      reason: expect.stringContaining('futureNode'),
+    }))
+  })
+
+  it('rejects all empty PM containers with their source paths and IDs while aggregating diagnostics', () => {
+    const nestedList: IRList = {
+      kind: 'list', id: 'nested-first-block', listType: 'dash',
+      items: [{ id: 'nested-first-item', content: [{ kind: 'paragraph', id: 'nested-first-item.p0', content: [{ text: '嵌套项' }] }] }],
+    }
+    const starterList: IRList = {
+      kind: 'list', id: 'starter-list', listType: 'dash',
+      items: [
+        { id: 'starter-empty-item', content: [] },
+        { id: 'starter-first-nested', content: [nestedList] },
+      ],
+    }
+    const emptyList: IRList = { kind: 'list', id: 'empty-list', listType: 'alpha', items: [] }
+    const tableBase = (id: string, rows: IRTable['rows']): IRTable => ({
+      kind: 'table', id, caption: [], orientation: 'portrait', headerRowCount: 0, rows, notes: [],
+    })
+    const term: IRTermEntry = {
+      kind: 'termEntry', id: 'tbx-owner', term: [{ text: '术语' }],
+      definition: [paragraph('tbx-definition', '定义')], notes: [], examples: [],
+      languageSets: [
+        { id: 'empty-language-set', language: 'en', groups: [] },
+        { id: 'language-set-with-empty-tig', language: 'en', groups: [{ id: 'empty-tig', terms: [] }] },
+      ],
+    }
+    const doc = docWithChildren([
+      emptyList,
+      starterList,
+      tableBase('empty-rows-table', []),
+      tableBase('empty-cells-table', [{ id: 'empty-cells-row', cells: [] }]),
+      tableBase('empty-cell-content-table', [{ id: 'row-with-empty-cell', cells: [{
+        id: 'empty-cell', colspan: 1, rowspan: 1, header: false, content: [],
+      }] }]),
+      term,
+    ])
+    doc.index = { id: 'index-root', groups: [{ id: 'empty-index-group', entries: [] }] }
+    doc.unsupportedContent = [{ nodeId: 'prior-diagnostic', path: 'unsupported.previous', nodeType: 'future', reason: 'kept' }]
+
+    const error = captureIrToPmError(doc)
+    const diagnostics = [
+      ['body[0][0].items', 'empty-list'],
+      ['body[0][1].items[0].content[0]', 'starter-empty-item'],
+      ['body[0][1].items[1].content[0]', 'nested-first-block'],
+      ['body[0][2].rows', 'empty-rows-table'],
+      ['body[0][3].rows[0].cells', 'empty-cells-row'],
+      ['body[0][4].rows[0].cells[0].content', 'empty-cell'],
+      ['body[0][5].languageSets[0].groups', 'empty-language-set'],
+      ['body[0][5].languageSets[1].groups[0].terms', 'empty-tig'],
+      ['index.groups[0].entries', 'empty-index-group'],
+      ['unsupported.previous', 'prior-diagnostic'],
+    ] as const
+    for (const [path, nodeId] of diagnostics) {
+      expect(error.diagnostics).toContainEqual(expect.objectContaining({ path, nodeId }))
+    }
+  })
+
+  it('allows an empty first paragraph when a StarterKit list item has a first block', () => {
+    const list: IRList = {
+      kind: 'list', id: 'starter-empty-paragraph-list', listType: 'dash',
+      items: [{
+        id: 'starter-empty-paragraph-item',
+        content: [
+          { kind: 'paragraph', id: 'starter-empty-paragraph-item.empty', content: [] },
+          { kind: 'paragraph', id: 'starter-empty-paragraph-item.p1', content: [{ text: '后续段落' }] },
+        ],
+      }],
+    }
+
+    const pm = irToPm(docWithList(list))
+    const item = findNodes(pm, 'listItem')[0]!
+    expect(item.content?.[0]).toEqual({ type: 'paragraph', attrs: { nodeId: 'starter-empty-paragraph-item.empty' }, content: [] })
+    expect(pmToIr(pm).doc.body[0]!.children[0]).toEqual(list)
+  })
+
+  it('rejects empty roots and standardDoc roots without chapters', () => {
+    const emptyDoc: IRDoc = {
+      schemaVersion: 1, meta: { standardType: 'gb' },
+      front: { foreword: [], introduction: [] }, body: [], appendices: [], bibliography: [],
+    }
+    const docRootError = captureIrToPmError(emptyDoc)
+    expect(docRootError.diagnostics).toContainEqual(expect.objectContaining({
+      path: 'doc.content',
+      reason: expect.stringContaining('至少需要一个内容节点'),
+    }))
+
+    const standardDocError = captureIrToPmError(emptyDoc, { rootType: 'standardDoc' })
+    expect(standardDocError.diagnostics).toContainEqual(expect.objectContaining({
+      path: 'body',
+      reason: expect.stringContaining('至少需要一个chapter'),
+    }))
   })
 })

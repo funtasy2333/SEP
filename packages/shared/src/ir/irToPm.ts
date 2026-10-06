@@ -34,6 +34,8 @@ export interface IRToPmOptions {
 }
 
 type PmAttrs = Record<string, unknown>
+type IRInlineMark = NonNullable<IRInline['marks']>[number]
+type IRTextMark = Exclude<IRInlineMark, { type: 'tableFootnoteRef' }>
 const node = (type: string, attrs?: PmAttrs, content?: PMJsonNode[]): PMJsonNode => ({
   type,
   ...(attrs && Object.keys(attrs).length ? { attrs } : {}),
@@ -49,7 +51,7 @@ const targetKinds: Record<string, string> = {
   bibliography: 'bibEntry', term: 'term', index: 'index', paragraph: 'paragraph',
 }
 
-function markToPm(mark: NonNullable<IRInline['marks']>[number]): { type: string; attrs?: PmAttrs } {
+function markToPm(mark: IRTextMark): { type: string; attrs?: PmAttrs } {
   switch (mark.type) {
     case 'bold': return { type: 'bold' }
     case 'italic': return { type: 'italic' }
@@ -66,12 +68,15 @@ function markToPm(mark: NonNullable<IRInline['marks']>[number]): { type: string;
     }
     case 'bibRef': return { type: 'bibRef', attrs: { targetId: mark.targetId } }
     case 'termRef': return { type: 'termRef', attrs: { targetId: mark.targetId } }
-    case 'tableFootnoteRef': return { type: 'tableFootnoteRef', attrs: { targetId: mark.targetId } }
   }
 }
 
 function inlineToPm(run: IRInline): PMJsonNode[] {
-  const marks = [...(run.marks ?? []).map(markToPm)]
+  // tableFootnoteRef is an inline atom, not a ProseMirror mark. Keep it out of
+  // text/formula mark sets and emit its node after the inline payload instead.
+  const tableFootnoteRefs = (run.marks ?? []).filter((mark): mark is Extract<IRInlineMark, { type: 'tableFootnoteRef' }> => mark.type === 'tableFootnoteRef')
+  const textMarks = (run.marks ?? []).filter((mark): mark is IRTextMark => mark.type !== 'tableFootnoteRef')
+  const marks = [...textMarks.map(markToPm)]
   if (run.style && Object.keys(run.style).length) marks.push({ type: 'textStyle', attrs: { ...run.style } })
   const result: PMJsonNode[] = []
   if (run.text) {
@@ -94,11 +99,7 @@ function inlineToPm(run: IRInline): PMJsonNode[] {
       content: inlinesToPm(run.footnote.content),
     })))
   }
-  if (run.marks?.some(mark => mark.type === 'tableFootnoteRef')) {
-    for (const mark of run.marks) {
-      if (mark.type === 'tableFootnoteRef') result.push(node('tableFootnoteRef', withId(mark.id ?? '', { targetId: mark.targetId })))
-    }
-  }
+  for (const mark of tableFootnoteRefs) result.push(node('tableFootnoteRef', withId(mark.id ?? '', { targetId: mark.targetId })))
   return result
 }
 
@@ -196,17 +197,28 @@ function termToPm(entry: IRTermEntry, path: string, errors: IRToPmDiagnostic[]):
     content.push(node('example', withId(example.id), inlineContent))
   }
   for (const child of entry.nestedEntries ?? []) content.push(termToPm(child, `${path}.nestedEntries.${child.id}`, errors))
-  for (const set of entry.languageSets ?? []) {
-    const tigs = set.groups.map(group => node('tbxTig', withId(group.id), group.terms.map(variant => node('tbxTermVariant', withId(variant.id), [
-      node('tbxTerm', undefined, inlinesToPm(variant.content)),
-      ...variant.descriptors.map(descriptor => node('tbxTermDescriptor', withId(descriptor.id, { type: descriptor.kind }), inlinesToPm(descriptor.value))),
-    ]))))
+  for (const [setIndex, set] of (entry.languageSets ?? []).entries()) {
+    if (set.groups.length === 0) {
+      errors.push({ path: `${path}.languageSets[${setIndex}].groups`, nodeId: set.id, reason: '生产tbxLangSet节点至少需要一个术语组' })
+    }
+    const tigs = set.groups.map((group, groupIndex) => {
+      if (group.terms.length === 0) {
+        errors.push({ path: `${path}.languageSets[${setIndex}].groups[${groupIndex}].terms`, nodeId: group.id, reason: '生产tbxTig节点至少需要一个术语变体' })
+      }
+      return node('tbxTig', withId(group.id), group.terms.map(variant => node('tbxTermVariant', withId(variant.id), [
+        node('tbxTerm', undefined, inlinesToPm(variant.content)),
+        ...variant.descriptors.map(descriptor => node('tbxTermDescriptor', withId(descriptor.id, { type: descriptor.kind }), inlinesToPm(descriptor.value))),
+      ])))
+    })
     content.push(node('tbxLangSet', withId(set.id, { lang: set.language }), tigs))
   }
   return node('termDef', withId(entry.id, { level: entry.level ?? 1 }), content)
 }
 
 function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+  if (list.items.length === 0) {
+    errors.push({ path: `${path}.items`, nodeId: list.id, reason: '生产列表至少需要一个列项' })
+  }
   if (list.listType === 'roman' || list.listType === 'romanUpper') {
     errors.push({
       path: `${path}.listType`,
@@ -242,6 +254,16 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJso
     }))
   }
   if (list.listType === 'dash' || list.listType === 'number') {
+    for (const [index, item] of list.items.entries()) {
+      const first = item.content[0]
+      if (first?.kind !== 'paragraph') {
+        errors.push({
+          path: `${path}.items[${index}].content[0]`,
+          nodeId: first?.id ?? item.id,
+          reason: 'StarterKit列项必须以段落开头',
+        })
+      }
+    }
     const type = list.listType === 'number' ? 'orderedList' : 'bulletList'
     return node(type, withId(list.id), list.items.map(item => node('listItem', withId(item.id), [
       ...item.content.flatMap((block, index) => block.kind === 'paragraph'
@@ -254,21 +276,33 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJso
 }
 
 function tableToPm(table: IRTable, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+  if (table.rows.length === 0) {
+    errors.push({ path: `${path}.rows`, nodeId: table.id, reason: '生产表格至少需要一个表格行' })
+  }
   const attrs: PmAttrs = withId(table.id, { orientation: table.orientation, unit: table.unit ?? null, headerRowCount: table.headerRowCount })
   measureAttrs(attrs, 'width', table.width)
   if (table.style) Object.assign(attrs, tableStyleAttrs(table.style))
-  const rows = table.rows.map((row, ri) => node('tableRow', withId(row.id, row.style ? rowStyleAttrs(row.style) : {}), row.cells.map((cell, ci) => {
-    const cellAttrs: PmAttrs = withId(cell.id, {
-      colspan: cell.colspan,
-      rowspan: cell.rowspan,
-      colwidth: cell.columnWidths ? [...cell.columnWidths] : null,
-      cellType: cell.cellType ?? null,
-      unit: cell.unit ?? null,
+  const rows = table.rows.map((row, ri) => {
+    if (row.cells.length === 0) {
+      errors.push({ path: `${path}.rows[${ri}].cells`, nodeId: row.id, reason: '生产表格行至少需要一个单元格' })
+    }
+    const cells = row.cells.map((cell, ci) => {
+      if (cell.content.length === 0) {
+        errors.push({ path: `${path}.rows[${ri}].cells[${ci}].content`, nodeId: cell.id, reason: '生产表格单元格至少需要一个块级内容' })
+      }
+      const cellAttrs: PmAttrs = withId(cell.id, {
+        colspan: cell.colspan,
+        rowspan: cell.rowspan,
+        colwidth: cell.columnWidths ? [...cell.columnWidths] : null,
+        cellType: cell.cellType ?? null,
+        unit: cell.unit ?? null,
+      })
+      measureAttrs(cellAttrs, 'width', cell.width)
+      if (cell.style) Object.assign(cellAttrs, cellStyleAttrs(cell.style))
+      return node(cell.header ? 'tableHeader' : 'tableCell', cellAttrs, blocksToPm(cell.content, `${path}.rows[${ri}].cells[${ci}].content`, errors))
     })
-    measureAttrs(cellAttrs, 'width', cell.width)
-    if (cell.style) Object.assign(cellAttrs, cellStyleAttrs(cell.style))
-    return node(cell.header ? 'tableHeader' : 'tableCell', cellAttrs, blocksToPm(cell.content, `${path}.rows[${ri}].cells[${ci}].content`, errors))
-  })))
+    return node('tableRow', withId(row.id, row.style ? rowStyleAttrs(row.style) : {}), cells)
+  })
   const content: PMJsonNode[] = [
     node('tableCaption', undefined, inlinesToPm(table.caption)),
     ...(table.captionEn ? [node('tableCaptionEn', undefined, inlinesToPm(table.captionEn))] : []),
@@ -327,8 +361,14 @@ function blockToPm(block: IRBlock, path: string, errors: IRToPmDiagnostic[]): PM
       const content = noteContent(block.id, block.content, path, errors)
       return node(block.kind, withId(block.id), content)
     }
-    case 'warning': return node('warning', withId(block.id), blocksToPm(block.content, path, errors))
-    case 'quote': return node('quoteBlock', withId(block.id), blocksToPm(block.content, path, errors))
+    case 'warning': {
+      if (block.content.length === 0) errors.push({ path, nodeId: block.id, reason: '生产 warning 节点要求至少一个块级子节点' })
+      return node('warning', withId(block.id), blocksToPm(block.content, path, errors))
+    }
+    case 'quote': {
+      if (block.content.length === 0) errors.push({ path, nodeId: block.id, reason: '生产 quoteBlock 节点要求至少一个块级子节点' })
+      return node('quoteBlock', withId(block.id), blocksToPm(block.content, path, errors))
+    }
     case 'code': return node('codeBlock', withId(block.id, { language: block.language ?? null }), block.text ? [text(block.text)] : [])
   }
 }
@@ -418,11 +458,16 @@ function metaToCover(meta: IRDocMeta): PmAttrs {
 }
 
 function indexToPm(index: NonNullable<IRDoc['index']>, errors: IRToPmDiagnostic[]): PMJsonNode {
-  const groups = index.groups.map(group => node('indexGroup', withId(group.id, { label: group.label ? textOnlyField(group.label, `index.groups.${group.id}.label`, group.id, errors) : null }), group.entries.map(entry => node('indexEntry', withId(entry.id), [
-    node('indexTerm', undefined, inlinesToPm(entry.term)),
-    ...entry.targets.map(targetId => node('indexTarget', { targetId })),
-    ...entry.seeAlso.map(targetId => node('indexSeeAlso', { targetId })),
-  ]))))
+  const groups = index.groups.map((group, groupIndex) => {
+    if (group.entries.length === 0) {
+      errors.push({ path: `index.groups[${groupIndex}].entries`, nodeId: group.id, reason: '生产indexGroup节点至少需要一个索引词条' })
+    }
+    return node('indexGroup', withId(group.id, { label: group.label ? textOnlyField(group.label, `index.groups.${group.id}.label`, group.id, errors) : null }), group.entries.map(entry => node('indexEntry', withId(entry.id), [
+      node('indexTerm', undefined, inlinesToPm(entry.term)),
+      ...entry.targets.map(targetId => node('indexTarget', { targetId })),
+      ...entry.seeAlso.map(targetId => node('indexSeeAlso', { targetId })),
+    ])))
+  })
   return node('indexBlock', withId(index.id, { title: index.title ? textOnlyField(index.title, 'index.title', index.id, errors) : null }), groups)
 }
 
@@ -456,6 +501,13 @@ export function irToPm(doc: IRDoc, options: IRToPmOptions = {}): PMJsonNode {
       mediaType: resource.mediaType ?? null, name: resource.name ?? null,
       encoding: resource.encoding, data: resource.data,
     })))
+  }
+
+  if (rootType === 'standardDoc' && doc.body.length === 0) {
+    errors.push({ path: 'body', reason: '生产standardDoc根至少需要一个chapter' })
+  }
+  if (rootType === 'doc' && content.length === 0) {
+    errors.push({ path: 'doc.content', reason: '生产doc根至少需要一个内容节点' })
   }
 
   // Older IR snapshots did not carry a stable identity for table-footnote reference atoms.

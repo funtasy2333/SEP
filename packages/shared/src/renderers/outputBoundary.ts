@@ -10,7 +10,7 @@ export interface OutputSupportProblem {
 /** Current print renderers' explicit consumption contract. New authoring fields must not vanish silently. */
 const FIELDS: Record<string, ReadonlySet<string>> = Object.fromEntries(Object.entries({
   doc: ['schemaVersion', 'extensionVersion', 'meta', 'front', 'body', 'appendices', 'bibliography', 'unsupportedContent', 'unmappedFootnotes'],
-  meta: ['title', 'titleEn', 'stdCode', 'icsCode', 'ccsCode', 'standardType', 'issuer', 'applicant', 'proposer', 'technicalCommittee', 'publishDate', 'implementDate', 'replaces', 'consistency', 'filingNo', 'industryName', 'regionName', 'coverDesignation'],
+  meta: ['title', 'titleEn', 'stdCode', 'icsCode', 'ccsCode', 'standardType', 'issuer', 'applicant', 'publishDate', 'implementDate', 'replaces', 'consistency', 'filingNo', 'industryName', 'regionName', 'coverDesignation'],
   front: ['foreword', 'introduction'],
   chapter: ['kind', 'id', 'secType', 'title', 'children'],
   clause: ['kind', 'id', 'level', 'titled', 'title', 'children'],

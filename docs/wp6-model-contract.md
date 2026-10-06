@@ -50,3 +50,9 @@ Tiptap `setContent` 仅替换子内容。生产加载、版本回滚与 XML 导�
 - `note/example` 及术语注、术语示例、表注只承载一段行内内容；IR 唯一段落 ID 必须等于 `${owner.id}.p0`，否则通过 IRToPmError 返回源段落 nodeId 与路径，避免引用失效。warning/quote 的块段落 ID 仍原样保留。
 - 生产 `textStyle` 的七个属性从对应的 inline CSS 回读，渲染与解析使用同一属性映射；CSS 字符串遵循浏览器的规范化，不要求保留相同的颜色字面量拼写。
 - 生产表格 td/th 的单位从 `data-unit` 回读，兼容直接 `unit` 属性；带编辑器包装的单元格只解析内容槽，不将展示用单位标签写进正文。普通外部 HTML 单元格仍解析全部内容。
+
+## bd0c6eb3 复审契约补充（2026-10-06）
+
+- `tableFootnoteRef` 是行内 atom，不是生产 mark；一个 IR run 同时带正文/公式与表脚注引用时，投影为正文/公式节点及独立引用 atom，普通 marks 与各引用 ID 保持。回读允许拆为语义等价的多个 IR run。
+- `proposer`、`technicalCommittee` 虽完整保存在作者模型中，当前旧 HTML/DOCX/XML 出口没有消费这两个元数据字段。因此字段非空时明确阻断这些出口，缺省或空字符串不额外阻断；JSON 可完整保留。前言中出现同名文字不等于元数据字段已被出口消费。
+- 空 warning/quote 及其他不满足生产 Schema 最小子项约束的原生 IR 必须返回带 path/nodeId 的 IRToPmError。不得通过创建占位文字或改写稳定 ID 掩盖无法表示的数据。

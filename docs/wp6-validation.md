@@ -97,3 +97,18 @@ PR #45 在 `9ad90668` 和 `df27182a` 上的两轮 review 共提出 7 条 P2 问�
 - shared 完整回归 42 个文件、899 项通过；client 完整回归 35 个文件、246 项通过，隔离 API 验收默认跳过 1 项。shared tsc、client vue-tsc/Vite 构建通过，仅现有大包体提示。未改 golden、依赖、lockfile、数据库；本轮 HTML 验证使用生产 DOM 路径，未重复真实浏览器或 SQLite 冷重开验收。
 
 此次仅处理复审已确认的问题和紧邻的单位标签内容问题，不扩展 WP8 或技术对象建模范围。新提交仍需自动复审；完成修复不等于已获 Codex 批准。
+
+## bd0c6eb3 复审及相邻约束验收（2026-10-06）
+
+本轮 3 条 P2 已修复：表脚注引用只投影为 atom，非空正文和行内公式保留普通 marks；proposer/technicalCommittee 非空时阻断未消费这些字段的 HTML/DOCX/XML；空 warning/quote 在 IR→PM 阶段产生可定位诊断。
+
+同时核对生产 Schema 的最小子项规则，为空列表、Starter 列项缺少首段或首块非段落、空表格/行/单元格、空 TBX languageSet/TIG、空索引组、完全无内容 doc 根和无章节 standardDoc 根补齐 IRToPmError。空段落自身是合法内容，已验证多段 Starter 列项的空首段可正常加载及回读。不添加占位文字或虚构根 ID；根级错误使用路径；多个错误与已有 unsupportedContent 诊断一同保留。
+
+回归证据：
+
+- shared IR 定向测试先复现 tableFootnoteRef 未知 mark 与空结构未拒绝，修复后 12 项通过；生产 Schema 的新用例覆盖混合正文/公式与表脚注引用、合法和非法空结构、两个根类型、文档设置来源的元数据出口保护。
+- 输出边界新增的两个非空元数据用例初始失败；修复后 HTML/DOCX 实际渲染入口和旧 XML 序列化入口明确抛出 UnsupportedOutputError，JSON 原值及源文档不变。
+- 新建与复制测试同步新出口契约。普通前言中存在提出/归口单位文字不意味着两个元数据字段已被旧出口消费；含字段的原稿与副本仍保留字段，旧出口明确阻断。不含这些字段的旧正文、题名、封面与前言导出回归继续通过。
+- 最终 shared 完整回归 42 files / 908 tests；client 36 files / 261 tests，隔离 API 默认跳过 1 项；server 2 suites / 23 tests，合计 1192 项通过。shared tsc、client vue-tsc/Vite 构建通过；仅已有大包体提示。golden、依赖、lockfile 和数据库结构未改。
+
+本轮未重复真实浏览器或隔离 SQLite 冷重开；生产加载、引用关联和实际出口的行为由自动测试核验。新提交仍待自动复审和 PR 合并。

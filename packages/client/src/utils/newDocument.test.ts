@@ -2,6 +2,7 @@
 import JSZip from 'jszip'
 import { getSchema } from '@tiptap/core'
 import { expect, it } from 'vitest'
+import { UnsupportedOutputError } from '@ses/shared'
 import { createEditorExtensions } from '../extensions/editorExtensions'
 import { buildDocxBlob, prepareDocxInput } from '../serializer/docxExporter'
 import { parseXmlToEditorJson, serializeToXml } from '../serializer'
@@ -31,7 +32,7 @@ it('明确填写的前缀和编号保留，空前缀使用所选类型而不丢�
   expect(createNewDocument({ ...blankForm(), type: 'guidance', stdNo: '1234—2026' }).meta.standardNo).toBe('GB/Z 1234—2026')
 })
 
-it('新建时持久化的前言经生产schema、XML和DOCX保留单位、专利及两项封面信息', async () => {
+it('新建时完整持久化前言和提出/归口元数据，未支持的旧出口明确拒绝', async () => {
   const created = createNewDocument({ ...blankForm(),
     proposer: '  提出单位甲  ', technicalCommittee: '归口单位乙', applicant: '起草单位丙、起草单位丁',
     replaces: ' GB/T 1000—2020 ', consistency: '（ISO 1234:2020，MOD）',
@@ -45,6 +46,27 @@ it('新建时持久化的前言经生产schema、XML和DOCX保留单位、专利
     '本文件按照GB/T 1.1-2020《标准化工作导则 第1部分：标准化文件的结构和起草规则》的规定起草。',
     patent, '本文件由提出单位甲提出。', '本文件由归口单位乙归口。', '本文件起草单位：起草单位丙、起草单位丁。',
   ])
+  expect(prepareDocxInput(node, stored.meta).doc.meta).toMatchObject({ proposer: '提出单位甲', technicalCommittee: '归口单位乙' })
+  expect(() => serializeToXml(node)).toThrow(UnsupportedOutputError)
+  await expect(buildDocxBlob({ pmDoc: node, documentMeta: stored.meta })).rejects.toThrow(UnsupportedOutputError)
+  expect(JSON.stringify(node.toJSON())).toContain('提出单位甲')
+  expect(JSON.stringify(node.toJSON())).toContain('归口单位乙')
+})
+
+it('不含新增作者元数据的旧文档仍能导出前言正文和封面信息', async () => {
+  const created = createNewDocument({ ...blankForm(), applicant: '起草单位丙、起草单位丁',
+    replaces: ' GB/T 1000—2020 ', consistency: '（ISO 1234:2020，MOD）',
+  })
+  // Older manuscripts may already contain these responsibility sentences as ordinary text.
+  created.content.content![1]!.content!.splice(2, 0,
+    { type: 'paragraph', attrs: { nodeId: 'legacy-proposer-text' }, content: [{ type: 'text', text: '本文件由提出单位甲提出。' }] },
+    { type: 'paragraph', attrs: { nodeId: 'legacy-committee-text' }, content: [{ type: 'text', text: '本文件由归口单位乙归口。' }] },
+  )
+  const stored = JSON.parse(JSON.stringify(created))
+  const schema = getSchema(createEditorExtensions())
+  const node = schema.nodeFromJSON(stored.content)
+  node.check()
+  const foreword = node.child(1)
   const xml = serializeToXml(node)
   const reloaded = schema.nodeFromJSON(parseXmlToEditorJson(xml, schema.topNodeType.name))
   expect(prepareDocxInput(reloaded).doc.meta).toMatchObject({

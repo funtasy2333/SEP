@@ -2,7 +2,7 @@
 import JSZip from 'jszip'
 import { getSchema } from '@tiptap/core'
 import { expect, it } from 'vitest'
-import type { DocumentMeta } from '@ses/shared'
+import { UnsupportedOutputError, type DocumentMeta } from '@ses/shared'
 import { createEditorExtensions } from '../extensions/editorExtensions'
 import { buildDocxBlob, prepareDocxInput } from '../serializer/docxExporter'
 import { parseXmlToEditorJson, serializeToXml } from '../serializer'
@@ -11,7 +11,7 @@ import { createDocumentDuplicate } from './duplicateDocument'
 
 const originalMeta: DocumentMeta = {
   titleCn: '原标准名称', standardNo: 'GB/T 12345—2026', standardType: 'national',
-  proposer: '原提出单位', technicalCommittee: '原归口单位', applicant: '原起草单位',
+  applicant: '原起草单位',
   replaces: 'GB/T 12345—2020', consistency: 'IDT',
 }
 const makeSource = () => ({ title: originalMeta.titleCn, meta: { ...originalMeta }, content: createDefaultDocumentContent(originalMeta) })
@@ -128,4 +128,21 @@ it('非空根段落没有IR正文对应位置时明确阻断旧XML，不丢原JS
   expect(() => serializeToXml(node)).toThrow(/doc.content\[1\]/)
   expect(node.toJSON()).toEqual(before)
   expect(JSON.stringify(duplicate.content)).toContain('需要保留的根正文')
+})
+
+
+it('复制完整保留新增提出/归口元数据，旧出口明确阻断并保护原稿', async () => {
+  const meta = { ...originalMeta, proposer: '原提出单位', technicalCommittee: '原归口单位' }
+  const source = { title: meta.titleCn, meta, content: createDefaultDocumentContent(meta) }
+  const before = JSON.parse(JSON.stringify(source))
+  const duplicate = createDocumentDuplicate(source)
+  expect(duplicate.meta).toMatchObject({ proposer: meta.proposer, technicalCommittee: meta.technicalCommittee })
+  const node = getSchema(createEditorExtensions()).nodeFromJSON(duplicate.content)
+  node.check()
+  expect(prepareDocxInput(node, duplicate.meta).doc.meta).toMatchObject({ proposer: meta.proposer, technicalCommittee: meta.technicalCommittee })
+  expect(() => serializeToXml(node)).toThrow(UnsupportedOutputError)
+  await expect(buildDocxBlob({ pmDoc: node, documentMeta: duplicate.meta })).rejects.toThrow(UnsupportedOutputError)
+  expect(JSON.stringify(node.toJSON())).toContain(meta.proposer)
+  expect(JSON.stringify(node.toJSON())).toContain(meta.technicalCommittee)
+  expect(source).toEqual(before)
 })
