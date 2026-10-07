@@ -75,3 +75,68 @@ it.each(['proposer', 'technicalCommittee'] as const)('keeps legacy output availa
     expect(getOutputSupportProblems(doc, 'XML')).toEqual([])
   }
 })
+
+
+it.each(['HTML', 'DOCX', 'XML'] as const)('rejects rich or divergent formula source in %s but accepts equivalent plain text', format => {
+  const rich = base()
+  rich.body[0]!.children.push({
+    kind: 'formula', id: 'rich-formula', latex: 'x', numbered: false, whereList: [],
+    sourceInlines: [{ text: 'x', marks: [{ type: 'bold' }] }],
+  } as IRDoc['body'][number]['children'][number])
+  expect(getOutputSupportProblems(rich, format)).toEqual(expect.arrayContaining([
+    expect.objectContaining({ nodeId: 'rich-formula', path: 'doc.body[0].children[1].sourceInlines' }),
+  ]))
+
+  const divergent = base()
+  divergent.body[0]!.children.push({
+    kind: 'formula', id: 'divergent-formula', latex: 'x', numbered: false, whereList: [],
+    sourceInlines: [{ text: 'y' }],
+  } as IRDoc['body'][number]['children'][number])
+  expect(getOutputSupportProblems(divergent, format)).toEqual(expect.arrayContaining([
+    expect.objectContaining({ nodeId: 'divergent-formula', path: 'doc.body[0].children[1].sourceInlines' }),
+  ]))
+
+  const equivalent = base()
+  equivalent.body[0]!.children.push({
+    kind: 'formula', id: 'plain-formula', latex: 'x', numbered: false, whereList: [],
+    sourceInlines: [{ text: ' x ', marks: [], style: {} }],
+  } as IRDoc['body'][number]['children'][number])
+  expect(getOutputSupportProblems(equivalent, format)).toEqual([])
+})
+
+it('preserves applicant in HTML and DOCX metadata while keeping the established legacy XML contract', () => {
+  const doc = base()
+  doc.meta.applicant = '起草单位 <甲> & "乙"'
+  expect(getOutputSupportProblems(doc, 'HTML')).toEqual([])
+  expect(getOutputSupportProblems(doc, 'DOCX')).toEqual([])
+  // applicant is outside the legacy XML front. Import deliberately keeps the current editor value;
+  // this is not a claim that XML independently carries the metadata.
+  expect(getOutputSupportProblems(doc, 'XML')).toEqual([])
+
+  const html = renderHtml(doc, resolve(doc).labels)
+  expect(html).toContain('<meta name="ses-applicant" content="起草单位 &lt;甲&gt; &amp; &quot;乙&quot;" />')
+  const pkg = renderDocx(doc, resolve(doc).labels, options)
+  expect(pkg.parts['docProps/custom.xml']).toContain('name="ses-applicant"')
+  expect(pkg.parts['docProps/custom.xml']).toContain('起草单位 &lt;甲&gt; &amp; "乙"')
+})
+
+
+it('blocks XML only when explicit headerRowCount cannot be represented by legacy cell tags', () => {
+  const doc = base()
+  doc.body[0]!.children.push({
+    kind: 'table', id: 'mixed-header-table', caption: [], orientation: 'portrait', headerRowCount: 1, notes: [],
+    rows: [{ id: 'row', cells: [{ id: 'cell', colspan: 1, rowspan: 1, header: false, content: [{ kind: 'paragraph', id: 'cell-p', content: [{ text: '值' }] }] }] }],
+  })
+  expect(getOutputSupportProblems(doc, 'XML')).toEqual(expect.arrayContaining([
+    expect.objectContaining({ nodeId: 'mixed-header-table', path: 'doc.body[0].children[1].headerRowCount' }),
+  ]))
+  expect(getOutputSupportProblems(doc, 'HTML')).toEqual([])
+  expect(getOutputSupportProblems(doc, 'DOCX')).toEqual([])
+
+  const equivalent = base()
+  equivalent.body[0]!.children.push({
+    kind: 'table', id: 'all-header-table', caption: [], orientation: 'portrait', headerRowCount: 1, notes: [],
+    rows: [{ id: 'row', cells: [{ id: 'cell', colspan: 1, rowspan: 1, header: true, content: [{ kind: 'paragraph', id: 'cell-p', content: [{ text: '列名' }] }] }] }],
+  })
+  expect(getOutputSupportProblems(equivalent, 'XML')).toEqual([])
+})

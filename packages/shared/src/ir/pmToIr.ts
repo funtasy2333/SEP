@@ -352,7 +352,11 @@ function convertInlines(content: PMJsonNode[] | undefined, ctx: Ctx): IRInline[]
       if (converted?.style) inline.style = converted.style
       out.push(inline)
     } else if (child.type === 'hardBreak') {
-      out.push({ text: '\n' })
+      const inline: IRInline = { text: '\n' }
+      const converted = convertMarks(child.marks, ctx, child)
+      if (converted?.marks.length) inline.marks = converted.marks
+      if (converted?.style) inline.style = converted.style
+      out.push(inline)
     } else if (child.type === 'footnoteRef') {
       const raw = child.attrs?.content
       const content = Array.isArray(raw) ? raw as PMJsonNode[] : []
@@ -1159,12 +1163,21 @@ function convertClause(node: PMJsonNode, ctx: Ctx): IRClause {
   }
   if (level > 5) level = 5
   const titled = node.attrs?.hasTitle !== false
+  const title = childInlines(node, 'clauseTitle', ctx)
+  if (!titled && title.length > 0) {
+    ctx.unsupportedContent.push({
+      nodeId: ctx.id(node),
+      path: ctx.path(node, '条'),
+      nodeType: node.type,
+      reason: '无题条包含非空clauseTitle；IR要求titled=false时title为空，原内容不能安全投影',
+    })
+  }
   return {
     kind: 'clause',
     id: ctx.id(node),
     level: level as IRClause['level'],
     titled,
-    title: titled ? childInlines(node, 'clauseTitle', ctx) : [],
+    title: titled ? title : [],
     children: convertClauseChildren(node.content, ctx, '条', ['clauseTitle']),
   }
 }
@@ -1688,7 +1701,11 @@ export function pmToIr(pmDoc: PMJsonNode): PmToIrResult {
     ctx.warnings.push(`根节点类型「${pmDoc.type}」不是 standardDoc，按 standardDoc 处理`)
   }
 
-  const coverPage = pmDoc.content?.find((c) => c.type === 'coverPage')
+  const coverPages = pmDoc.content?.filter((c) => c.type === 'coverPage') ?? []
+  const coverPage = coverPages[0]
+  for (const duplicate of coverPages.slice(1)) {
+    ctx.unsupportedContent.push({ nodeId: typeof duplicate.attrs?.nodeId === 'string' ? duplicate.attrs.nodeId : null, path: ctx.path(duplicate, '封面'), nodeType: duplicate.type, reason: 'IR只能表达一个coverPage；额外封面的元数据未合并且容器边界无法保留' })
+  }
   doc.meta = convertMeta(pmDoc, coverPage, ctx)
   const rootVersion = pmDoc.attrs?.extensionVersion
   if (rootVersion === 1) doc.extensionVersion = 1
@@ -1706,6 +1723,8 @@ export function pmToIr(pmDoc: PMJsonNode): PmToIrResult {
     readStructuredMetaAttrs(pmDoc, coverPage, doc.meta, ctx)
   }
 
+  let sawForeword = false
+  let sawIntroduction = false
   let sawBibliography = false
   for (const node of pmDoc.content ?? []) {
     switch (node.type) {
@@ -1715,10 +1734,18 @@ export function pmToIr(pmDoc: PMJsonNode): PmToIrResult {
       case 'metadataBlock':
         break
       case 'foreword':
-        doc.front.foreword = convertBlocks(node.content, ctx, '前言')
+        if (sawForeword) {
+          ctx.unsupportedContent.push({ nodeId: typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : null, path: ctx.path(node, '前言'), nodeType: node.type, reason: '多个foreword容器合并后无法保留原容器边界' })
+          doc.front.foreword.push(...convertBlocks(node.content, ctx, '前言'))
+        } else doc.front.foreword = convertBlocks(node.content, ctx, '前言')
+        sawForeword = true
         break
       case 'introduction':
-        doc.front.introduction = convertBlocks(node.content, ctx, '引言')
+        if (sawIntroduction) {
+          ctx.unsupportedContent.push({ nodeId: typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : null, path: ctx.path(node, '引言'), nodeType: node.type, reason: '多个introduction容器合并后无法保留原容器边界' })
+          doc.front.introduction.push(...convertBlocks(node.content, ctx, '引言'))
+        } else doc.front.introduction = convertBlocks(node.content, ctx, '引言')
+        sawIntroduction = true
         break
       case 'chapter':
         doc.body.push(convertChapter(node, ctx))

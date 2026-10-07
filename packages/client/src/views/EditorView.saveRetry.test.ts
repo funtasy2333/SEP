@@ -26,10 +26,12 @@ vi.mock('vue-router', () => ({
 }))
 vi.mock('@tiptap/vue-3', async () => {
   const vue = await import('vue')
+  const { Editor: ProductionEditor } = await import('@tiptap/core')
   return {
     useEditor: (options: any) => {
       mocks.editorOptions = options
-      return vue.ref(mocks.editor)
+      mocks.editor = new ProductionEditor(options)
+      return vue.shallowRef(mocks.editor)
     },
   }
 })
@@ -45,71 +47,9 @@ function createDocumentJson() {
     attrs: {},
     content: [{
       type: 'coverPage',
-      attrs: { standardType: 'national' },
-      content: [{ type: 'paragraph' }],
+      attrs: { nodeId: 'stable-cover', standardType: 'national' },
+      content: [{ type: 'paragraph', attrs: { nodeId: 'stable-cover-paragraph' } }],
     }],
-  }
-}
-
-function createEditorMock() {
-  let json = createDocumentJson()
-  const transaction = () => ({
-    doc: state.doc,
-    replaceWith() { this.docChanged = true; return this },
-    docChanged: false,
-    setNodeMarkup() { this.docChanged = true; return this },
-    setMeta() { return this },
-    insert() { this.docChanged = true; return this },
-    setDocAttribute() { this.docChanged = true; return this },
-  })
-  const docForEach = (callback: (node: any, position: number) => void) => {
-    json.content.forEach((node, index) => callback({ type: { name: node.type } }, index))
-  }
-  const state: any = {
-    doc: {
-      attrs: {},
-      content: { size: 1 },
-      forEach: docForEach,
-    },
-    selection: {
-      $from: { depth: 0, node: () => ({ type: { name: 'doc' } }) },
-      $to: { depth: 0, node: () => ({ type: { name: 'doc' } }) },
-      from: 1,
-      to: 1,
-      empty: true,
-    },
-  }
-  Object.defineProperty(state, 'tr', { get: transaction })
-
-  return {
-    commands: {
-      setContent: vi.fn(),
-      command: (command: (context: any) => boolean) => command({ tr: transaction(), dispatch: vi.fn() }),
-    },
-    state,
-    schema: {
-      nodeFromJSON: (value: any) => {
-        const children = value.content.map((node: any) => ({
-          type: { name: node.type },
-          attrs: node.attrs,
-          marks: [],
-        }))
-        return {
-          content: { content: children },
-          attrs: value.attrs ?? {},
-          child: (index: number) => children[index],
-          check: vi.fn(),
-          toJSON: () => structuredClone(value),
-        }
-      },
-    },
-    view: { dispatch: vi.fn(), focus: vi.fn() },
-    getJSON: () => JSON.parse(JSON.stringify(json)),
-    isActive: () => false,
-    can: () => ({ undo: () => false, redo: () => false }),
-    chain: () => ({ focus: () => ({ run: vi.fn() }) }),
-    destroy: vi.fn(),
-    isDestroyed: false,
   }
 }
 
@@ -157,7 +97,7 @@ async function mountEditor() {
   mocks.store.updateDocument.mockReset()
   mocks.documentApiUpdate.mockReset().mockResolvedValue(undefined)
   mocks.routerPush.mockReset()
-  mocks.editor = createEditorMock()
+  mocks.editor = null
   mocks.editorOptions = null
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
     ok: true,

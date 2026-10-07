@@ -2,6 +2,10 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
 import { normalizePageOrientation, readPageOrientation } from '../../utils/orientation'
 
+function stringAttribute(name: string, defaultValue: string | null = null) {
+  return { default: defaultValue, parseHTML: (element: HTMLElement) => element.getAttribute(name) ?? defaultValue }
+}
+
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     figure: {
@@ -34,7 +38,7 @@ export const Figure = Node.create({
           'data-orientation': normalizePageOrientation(attributes.orientation),
         }),
       },
-      unit: { default: null },
+      unit: stringAttribute('unit'),
     }
   },
 
@@ -85,21 +89,22 @@ export const FigureImage = Node.create({
 
   addAttributes() {
     return {
-      src: { default: '' },
-      alt: { default: '' },
+      src: stringAttribute('src', ''),
+      alt: stringAttribute('alt', ''),
       width: { default: null },
       height: { default: null },
       /** Stable resource identity; src remains the legacy/editor rendering input. */
-      resourceId: { default: null },
+      resourceId: stringAttribute('resourceId'),
       /** Dimensions default to CSS pixels for legacy width/height attrs. */
-      widthUnit: { default: null },
-      heightUnit: { default: null },
-      title: { default: null },
+      widthUnit: stringAttribute('widthUnit'),
+      heightUnit: stringAttribute('heightUnit'),
+      title: stringAttribute('title'),
     }
   },
 
   parseHTML() {
-    return [{ tag: 'img[data-type="figure-image"]' }]
+    // Outrank Tiptap's generic Image rule so the editor-only image node is not parsed twice.
+    return [{ tag: 'img[data-type="figure-image"]', priority: 51 }]
   },
 
   renderHTML({ HTMLAttributes }): DOMOutputSpec {

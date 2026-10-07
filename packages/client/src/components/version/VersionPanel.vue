@@ -339,18 +339,27 @@ async function restoreVersion(version: VersionData) {
       '回滚确认',
       { type: 'warning', confirmButtonText: '确定回滚', cancelButtonText: '取消' },
     )
+  } catch (error) {
+    // Element Plus rejects with "cancel" or "close" when the user declines.
+    // Other confirmation failures are operational errors and should be visible.
+    const reason = error instanceof Error ? error.message : String(error)
+    if (reason === 'cancel' || reason === 'close') return
+    ElMessage.error(`回滚失败: ${reason}`)
+    return
+  }
 
+  try {
     const fullVersion = version.content
       ? version
       : await versionStore.fetchVersion(version.id!)
 
-    if (fullVersion.content) {
-      props.setContent(fullVersion.content)
-      ElMessage.success(`已回滚到版本 v${version.versionNo}`)
-      emit('close')
-    }
-  } catch {
-    // 用户取消
+    if (!fullVersion.content) throw new Error('版本正文为空')
+    props.setContent(fullVersion.content)
+    ElMessage.success(`已回滚到版本 v${version.versionNo}`)
+    emit('close')
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    ElMessage.error(`回滚失败: ${reason}`)
   }
 }
 

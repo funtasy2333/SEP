@@ -193,3 +193,18 @@ latest review ID 5428705712，2026-10-06北京时间20:59提交，针对81f7814e
 
 
 主代理最终回归：shared **42 files / 929 tests**、client **41 files / 324 tests**（另1项隔离API默认跳过）、server **2 suites / 23 tests**，合计 **1276项通过**。shared tsc、client vue-tsc/Vite构建通过，仅已有大包体提示。日志 `/private/tmp/wp6-rereview7-*.log`。修复提交仍需新一轮Codex审阅确认，尚未合并。
+
+
+## c24181ca 复审修复验收（2026-10-07）
+
+最新 Codex review ID `5441631826` 针对 PR #45 的审阅提交 `c24181ca77fa77bdb73923d26f498bed265bf7b3`，北京时间 2026-10-07 19:31 提出一条 P2：[公式源行内格式在导出中可能静默丢失](https://github.com/funtasy2333/SEP/pull/45#discussion_r4206339440)。本轮继续检查这一意见关联的实际生产出口，并对生产 Schema 与编辑集成做了全路径复核。
+
+| 复核组 | 问题与处理 | 生产回归证据 |
+|---|---|---|
+| 输出边界 | IR 公式的 `sourceInlines`（来自 PM `formulaContent`）含格式 marks、嵌套公式/脚注或与 LaTeX 文本不一致时，HTML、DOCX、旧 XML 不能完整表示；现按实际消费能力阻断，JSON 保留原结构。旧 XML 对 native typed `whereList`、无法表示的单元格语义块、显式表头行数不一致及 `secType` 与标题推断冲突也作精确阻断；不更改 legacy XML 格式。申请单位由 HTML meta 和 DOCX custom property 实际输出，旧 XML 维持既有维护值契约。 | shared `outputBoundary.test.ts` 与 client `wp6OutputBoundaryAudit.test.ts`；实际 HTML/DOCX/XML 生产入口；新建/复制与文件设置兼容回归 |
+| 作者 Schema 与 HTML 往返 | 修正 typed paragraph 与通用 `<p>` 的解析优先级；表脚注正文改用唯一 content slot，typed parser 优先且旧无 slot 段落仍兼容，同时排除展示编号。表格完整结构连续 DOM 往返后保留脚注行、定义 ID、marks/crossRef、引用 target；未扩展 XML 语义。 | `wp6HtmlRoundtrip.test.ts`、`tableFootnoteHtml.test.ts`；model 定向报告含 stdParagraph 2 files/24 tests、HTML 往返 3 files/26 tests |
+| 编辑器集成与剪贴 | 冷加载/新建/XML 导入补 ID 后先持久化规范化正文；失败保持 dirty 或完整原 EditorState。离开路由等待保存并在设置确认后重新检查 dirty；版本恢复区分取消与真实失败；JSON/raw JSON 下载不被脚注打印校验误拦。粘贴只重映射当前 slice 中唯一复制定义与明确 typed 内部引用；cut/move 保留 ID、片外引用不变。slice 内重复定义存在歧义或与当前文档 ID 冲突时显示原因并拒绝，不 dispatch；段落合并会丢失内部引用目标时也拒绝。 | `wp6IntegrationAudit.test.ts`、`EditorView.saveRetry.test.ts`、`VersionPanel.restore.test.ts`、`ensureNodeId.paste.test.ts` 与 `tableFootnoteHtml.test.ts`；最后一组真实 `DOMSerializer → view.pasteHTML` 2 files/11 tests 通过，含表脚注实际粘贴 |
+
+主代理最终验收：shared **43 files / 942 tests**，`tsc --noEmit` 通过；client **48 files passed、1 skipped**，**366 tests passed、1 默认 opt-in API test skipped**，`vue-tsc -b` 与 Vite build 通过；server **2 suites / 23 tests**，Nest build 通过，合计 **1331 tests passed**。日志：`/private/tmp/wp6-final-shared-test.log`、`/private/tmp/wp6-final-server-test.log`、`/private/tmp/wp6-final-server-build.log`、`/private/tmp/wp6-final-client-test.log`、`/private/tmp/wp6-final-client-build.log`。Vite 仅有既存 chunk-size warning。
+
+本轮未重复 opt-in API、真实浏览器、SQLite 冷重开、Word 打开/排版或正式 XML 外部互操作；这些自动回归不能替代相应验收。验证对象为基于 `c24181ca` 的本轮修复；最终提交与远端状态以 PR 记录核验。本记录不表示新一轮 Codex 审查已批准或 PR 已合并，也不宣称 WP8 新标准 XML 完成。

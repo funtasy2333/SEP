@@ -10,7 +10,9 @@ export const StdParagraph = Node.create({
   content: 'inline*',
 
   parseHTML() {
-    return [{ tag: 'p[data-type="std-paragraph"]' }]
+    // The generic Paragraph rule also matches every <p>. Give the persisted
+    // semantic marker precedence so chapter children survive HTML round trips.
+    return [{ tag: 'p[data-type="std-paragraph"]', priority: 51 }]
   },
 
   renderHTML({ HTMLAttributes }) {

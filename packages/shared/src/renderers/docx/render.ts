@@ -277,7 +277,7 @@ export function renderDocxTraced(
     documentXml,
     title: doc.meta.title ?? '',
     customProperties: Object.fromEntries(
-      (['proposer', 'technicalCommittee'] as const)
+      (['applicant', 'proposer', 'technicalCommittee'] as const)
         .filter(field => Boolean(doc.meta[field]))
         .map(field => [`ses-${field}`, doc.meta[field]!]),
     ),

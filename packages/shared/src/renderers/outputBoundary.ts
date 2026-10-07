@@ -10,6 +10,8 @@ export interface OutputSupportProblem {
 /** Current print renderers' explicit consumption contract. New authoring fields must not vanish silently. */
 const FIELDS: Record<string, ReadonlySet<string>> = Object.fromEntries(Object.entries({
   doc: ['schemaVersion', 'extensionVersion', 'meta', 'front', 'body', 'appendices', 'bibliography', 'unsupportedContent', 'unmappedFootnotes'],
+  // applicant is an editor-maintained legacy field: XML front does not carry it, and XML import
+  // deliberately retains the current editor metadata. Keep that established XML export contract.
   meta: ['title', 'titleEn', 'stdCode', 'icsCode', 'ccsCode', 'standardType', 'issuer', 'applicant', 'publishDate', 'implementDate', 'replaces', 'consistency', 'filingNo', 'industryName', 'regionName', 'coverDesignation'],
   front: ['foreword', 'introduction'],
   chapter: ['kind', 'id', 'secType', 'title', 'children'],
@@ -42,6 +44,28 @@ function present(value: unknown): boolean {
     && (typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length > 0)
 }
 
+function inferredLegacyHeaderRowCount(rows: unknown): number {
+  if (!Array.isArray(rows)) return 0
+  let count = 0
+  for (const row of rows) {
+    const cells = row && typeof row === 'object' && Array.isArray((row as Record<string, unknown>).cells)
+      ? (row as Record<string, unknown>).cells as unknown[] : []
+    if (cells.length === 0 || !cells.every(cell => cell && typeof cell === 'object' && (cell as Record<string, unknown>).header === true)) break
+    count += 1
+  }
+  return count
+}
+
+/** Formula renderers consume LaTeX, so only the plain-text equivalent may pass. */
+function formulaSourceHasUnrenderedData(source: unknown, latex: unknown): boolean {
+  if (!Array.isArray(source)) return false
+  const runs = source as Array<Record<string, unknown>>
+  if (runs.some(run => !run || typeof run !== 'object'
+    || present(run.marks) || present(run.style) || present(run.formula) || present(run.footnote))) return true
+  const text = runs.map(run => typeof run.text === 'string' ? run.text : '').join('').trim()
+  return typeof latex !== 'string' || text !== latex.trim()
+}
+
 export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | 'XML'): OutputSupportProblem[] {
   const problems: OutputSupportProblem[] = (doc.unsupportedContent ?? []).map(issue => ({
     code: 'unsupported-output', nodeId: issue.nodeId ?? undefined, path: issue.path,
@@ -59,6 +83,15 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
     })
     if (!allowed) { report('kind'); return }
     for (const [key, child] of Object.entries(object)) {
+      if (kind === 'table' && key === 'headerRowCount' && format === 'XML'
+        && typeof child === 'number' && child !== inferredLegacyHeaderRowCount(object.rows)) {
+        report(key)
+        continue
+      }
+      if (kind === 'formula' && key === 'sourceInlines' && formulaSourceHasUnrenderedData(child, object.latex)) {
+        report(key)
+        continue
+      }
       if (!allowed.has(key) && !(kind === 'meta' && format !== 'XML' && PRINT_META_FIELDS.has(key))) {
         if (present(child)) report(key)
         continue

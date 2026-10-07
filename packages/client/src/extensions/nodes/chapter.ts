@@ -25,7 +25,7 @@ export const Chapter = Node.create({
     return {
       id: { default: null },
       /** 显式章角色优先；null 时沿用旧文档按标题推断。 */
-      secType: { default: null },
+      secType: { default: null, parseHTML: (element) => element.getAttribute('secType') },
       /** 自动编号 (由插件计算) */
       number: { default: null },
     }

@@ -7,7 +7,7 @@
  */
 
 import type { Node as PMNode } from '@tiptap/pm/model'
-import { UnsupportedOutputError, assertOutputSupported, pmToIr, resolve, type PMJsonNode, type ResolvedLabel } from '@ses/shared'
+import { UnsupportedOutputError, assertOutputSupported, pmToIr, resolve, type OutputSupportProblem, type PMJsonNode, type ResolvedLabel } from '@ses/shared'
 import { normalizePageOrientation } from '../utils/orientation'
 
 let activeFootnoteLabels: Record<string, ResolvedLabel> = {}
@@ -64,16 +64,58 @@ export function serializeToXml(doc: PMNode): string {
       throw new XmlFootnoteValidationError(`脚注校验未通过，不能生成 XML：${[...new Set(errors.map(problem => problem.message))].join('；')}`)
     }
     assertOutputSupported(irDoc, 'XML')
-    // Native termSource has no lossless counterpart in this legacy XML serializer.
-    // Its generic textblock fallback would turn source metadata into definition text.
-    const checkSources = (node: PMJsonNode, path: string): void => {
-      if (node.type === 'termSource' && node.content?.length) throw new UnsupportedOutputError([{
-        code: 'unsupported-output', path,
-        message: 'XML 暂未支持独立的术语来源节点；请保留 JSON 文档并等待 WP8 转换。',
-      }])
-      node.content?.forEach((child, index) => checkSources(child, `${path}.content[${index}]`))
+    // These shapes pass through IR's broad authoring contract, but this legacy serializer
+    // does not consume them. Keep provenance here so legacy formulaDescription remains exportable.
+    const unsupported: OutputSupportProblem[] = []
+    const addUnsupported = (node: PMNode, path: string, message: string, fallbackId?: unknown): void => {
+      const id = node.attrs.nodeId ?? node.attrs.id ?? fallbackId
+      unsupported.push({
+        code: 'unsupported-output',
+        ...(typeof id === 'string' ? { nodeId: id } : {}),
+        path,
+        message: `${message} 请保留 JSON 文档并等待 WP8 转换。`,
+      })
     }
-    checkSources(pmJson, 'pm')
+    const legacyChapters = irDoc.body.filter(block => block.kind === 'chapter')
+    let chapterIndex = 0
+    const checkUnsupportedLegacyXmlShapes = (node: PMNode, path: string): void => {
+      if (node.type.name === 'chapter') {
+        const chapter = legacyChapters[chapterIndex++]
+        const explicitSecType = node.attrs.secType
+        if (chapter && typeof explicitSecType === 'string'
+          && ['scope', 'norm-refs', 'terms', 'general'].includes(explicitSecType)) {
+          const title = chapter.title.map(inline => inline.text).join('').trim()
+          const inferredSecType = title === '范围' ? 'scope'
+            : title === '规范性引用文件' ? 'norm-refs'
+              : title === '术语和定义' ? 'terms' : 'general'
+          if (explicitSecType !== inferredSecType) {
+            addUnsupported(node, `${path}.attrs.secType`, `XML 不保存显式章角色；按标题重新导入会得到「${inferredSecType}」而不是「${explicitSecType}」。`)
+          }
+        }
+      }
+      if (node.type.name === 'termSource' && node.childCount > 0) {
+        addUnsupported(node, path, 'XML 暂未支持独立的术语来源节点。')
+      }
+      if (node.type.name === 'formula') {
+        node.forEach((child, _offset, index) => {
+          if (child.type.name === 'whereList' && child.childCount > 0) {
+            const formulaId = node.attrs.nodeId ?? node.attrs.id
+            addUnsupported(child, `${path}.content[${index}]`, 'XML 暂未支持类型化的公式式中列表。', formulaId)
+          }
+        })
+      }
+      if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
+        node.forEach((child, _offset, index) => {
+          if (!child.isTextblock || !['paragraph', 'stdParagraph'].includes(child.type.name)) {
+            const cellId = node.attrs.nodeId ?? node.attrs.id
+            addUnsupported(child, `${path}.content[${index}]`, `XML 暂未支持表格单元格中的块「${child.type.name}」。`, cellId)
+          }
+        })
+      }
+      node.forEach((child, _offset, index) => checkUnsupportedLegacyXmlShapes(child, `${path}.content[${index}]`))
+    }
+    checkUnsupportedLegacyXmlShapes(doc, 'pm')
+    if (unsupported.length > 0) throw new UnsupportedOutputError(unsupported)
     activeFootnoteLabels = resolved.labels
   } else {
     // Minimal legacy trees have no Resolver context. Never invent IDs/labels for footnotes.

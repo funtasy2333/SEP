@@ -386,6 +386,9 @@ function childrenToPm(children: IRClauseChild[], path: string, errors: IRToPmDia
 }
 
 function clauseToPm(clause: IRClause, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+  if (!clause.titled && clause.title.length > 0) {
+    errors.push({ path: `${path}.title`, nodeId: clause.id, reason: '无题条不能携带非空title；生产schema无法区分隐藏标题与有效标题' })
+  }
   return node('clause', withId(clause.id, { level: clause.level, hasTitle: clause.titled }), [
     node('clauseTitle', undefined, inlinesToPm(clause.title)),
     ...childrenToPm(clause.children, path, errors),
@@ -445,6 +448,36 @@ function metadataToPm(meta: IRDocMeta, errors: IRToPmDiagnostic[]): PMJsonNode |
 
 function inlinePlainText(inlines: IRInline[]): string { return inlines.map(item => item.text).join('') }
 
+const REFERENCE_MARK_TYPES = new Set(['crossRef', 'bibRef', 'termRef'])
+
+/** A semantic reference mark needs actual text or a formula atom to attach to in ProseMirror. */
+function diagnoseReferenceRunsWithoutCarrier(value: unknown, path: string, ownerId: string | undefined, errors: IRToPmDiagnostic[]): void {
+  if (Array.isArray(value)) {
+    value.forEach((child, index) => diagnoseReferenceRunsWithoutCarrier(child, `${path}[${index}]`, ownerId, errors))
+    return
+  }
+  if (!value || typeof value !== 'object') return
+
+  const record = value as Record<string, unknown>
+  const currentOwnerId = typeof record.id === 'string' ? record.id : ownerId
+  if (typeof record.text === 'string' && record.text.length === 0 && !record.formula && Array.isArray(record.marks)) {
+    record.marks.forEach((mark, index) => {
+      if (!mark || typeof mark !== 'object' || Array.isArray(mark)) return
+      const type = (mark as { type?: unknown }).type
+      if (typeof type !== 'string' || !REFERENCE_MARK_TYPES.has(type)) return
+      errors.push({
+        path: `${path}.marks[${index}]`,
+        nodeId: currentOwnerId,
+        reason: `空文本上的${type}没有生产ProseMirror节点载体，投影会丢失目标引用`,
+      })
+    })
+  }
+  for (const [key, child] of Object.entries(record)) {
+    if (key === 'id') continue
+    diagnoseReferenceRunsWithoutCarrier(child, `${path}.${key}`, currentOwnerId, errors)
+  }
+}
+
 function metaToCover(meta: IRDocMeta): PmAttrs {
   const types: Record<IRDocMeta['standardType'], string> = {
     gb: 'national', industry: 'industry', local: 'local', group: 'group', enterprise: 'enterprise', guide: 'guidance',
@@ -478,6 +511,7 @@ function indexToPm(index: NonNullable<IRDoc['index']>, errors: IRToPmDiagnostic[
 export function irToPm(doc: IRDoc, options: IRToPmOptions = {}): PMJsonNode {
   const rootType = options.rootType ?? 'doc'
   const errors: IRToPmDiagnostic[] = []
+  diagnoseReferenceRunsWithoutCarrier(doc, 'doc', undefined, errors)
   if (doc.unsupportedContent?.length) {
     errors.push(...doc.unsupportedContent.map(item => ({ path: item.path, nodeId: item.nodeId ?? undefined, reason: `${item.nodeType}: ${item.reason}` })))
   }

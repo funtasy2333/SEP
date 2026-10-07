@@ -386,7 +386,12 @@ export const TbxTermDescriptor = Node.create({
   defining: true,
 
   addAttributes() {
-    return { type: { default: '' } }
+    return {
+      type: {
+        default: '',
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-descriptor-type') ?? element.getAttribute('type') ?? '',
+      },
+    }
   },
 
   parseHTML() {

@@ -32,9 +32,9 @@ export const Formula = Node.create({
       /** 未编号公式也必须在生产JSON中保留，避免重开时改变后续编号。 */
       numbered: { default: null },
       /** 原生 MathML 原文，作为不经 LaTeX 反译的权威表示保留。 */
-      mathml: { default: null },
+      mathml: { default: null, parseHTML: (element) => element.getAttribute('mathml') },
       /** 可用的 LaTeX 编辑源；不要求从 MathML 反向推导。 */
-      latex: { default: null },
+      latex: { default: null, parseHTML: (element) => element.getAttribute('latex') },
     }
   },
 

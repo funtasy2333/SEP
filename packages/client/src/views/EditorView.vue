@@ -436,6 +436,7 @@ import VersionPanel from '@/components/version/VersionPanel.vue'
 import { useEditor } from '@tiptap/vue-3'
 import { replaceEditorDocument } from '@/utils/editorDocument'
 import { createEditorExtensions } from '@/extensions/editorExtensions'
+import { hasNodeIdIssues, normalizeNodeIds } from '@/extensions/plugins/ensureNodeId'
 import { canInsertBodyFootnote } from '@/extensions/nodes/footnotes'
 import { getTableFootnoteEntries } from '@/extensions/nodes/std-table'
 import {
@@ -497,7 +498,7 @@ const contentReady = ref(false)
 let importingXml = false
 let suppressEditorUpdate = false
 let bodyChangeVersion = 0
-let bodySavePromise: Promise<void> | null = null
+let bodySavePromise: Promise<boolean> | null = null
 
 watch(settingsDraft, () => {
   if (settingsDirty.value) settingsSaveError.value = false
@@ -716,6 +717,7 @@ const codeViewContent = computed(() => codeViewResult.value.error || codeViewRes
 onMounted(async () => {
   window.addEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
   window.addEventListener('ses:edit-footnote', handleFootnoteEditEvent)
+  window.addEventListener('ses:paste-reference-error', handleAmbiguousPasteReference)
   window.addEventListener('beforeunload', guardUnsavedSettings)
   const id = Number(route.params.id)
   try {
@@ -724,13 +726,31 @@ onMounted(async () => {
     const updatedAt = store.currentDocument?.updatedAt
     lastSaved.value = updatedAt ? new Date(updatedAt).toLocaleTimeString('zh-CN') : ''
     hydrateSettingsDraft()
+    let needsNodeIdPersistence = false
     if (store.currentDocument?.content && Object.keys(store.currentDocument.content).length > 0) {
-      if (editor.value) replaceEditorDocument(editor.value, store.currentDocument.content)
+      if (editor.value) {
+        const candidate = editor.value.schema.nodeFromJSON(store.currentDocument.content)
+        candidate.check()
+        needsNodeIdPersistence = hasNodeIdIssues(candidate)
+        replaceEditorDocument(editor.value, store.currentDocument.content)
+      }
     } else {
       // 新文档加载默认结构
-      if (editor.value) replaceEditorDocument(editor.value, createDefaultDocumentContent(store.currentDocument?.meta))
+      if (editor.value) {
+        const initialContent = createDefaultDocumentContent(store.currentDocument?.meta)
+        const candidate = editor.value.schema.nodeFromJSON(initialContent)
+        candidate.check()
+        needsNodeIdPersistence = hasNodeIdIssues(candidate)
+        replaceEditorDocument(editor.value, initialContent)
+      }
     }
     contentReady.value = true
+    if (needsNodeIdPersistence) {
+      // The NodeId plugin has already normalized the live editor state. Persist
+      // that exact document now so a cold reopen does not generate new anchors.
+      scheduleAutoSave()
+      await handleSave()
+    }
   } catch {
     ElMessage.error('文档加载失败')
     router.push('/')
@@ -749,6 +769,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
   window.removeEventListener('ses:edit-footnote', handleFootnoteEditEvent)
+  window.removeEventListener('ses:paste-reference-error', handleAmbiguousPasteReference)
   window.removeEventListener('beforeunload', guardUnsavedSettings)
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
   if (dirty.value && !importingXml && editor.value && store.currentDocument) {
@@ -762,16 +783,20 @@ onBeforeUnmount(() => {
 })
 
 function guardUnsavedSettings(event: BeforeUnloadEvent) {
-  if (!settingsDirty.value) return
+  if (!dirty.value && !settingsDirty.value) return
   event.preventDefault()
   event.returnValue = ''
 }
 
+function handleAmbiguousPasteReference(event: Event) {
+  const message = event instanceof CustomEvent && typeof event.detail?.message === 'string'
+    ? event.detail.message
+    : '粘贴内容含重复引用目标，无法确定关联，请先修正源内容'
+  ElMessage.error(message)
+}
+
 onBeforeRouteLeave(async () => {
-  if (persistenceOperation.value !== null) {
-    ElMessage.warning('文档仍在保存或导入，请稍后再离开')
-    return false
-  }
+  if (!await saveDirtyBodyBeforeRouteLeave()) return false
   if (!settingsDirty.value) return true
   try {
     await ElMessageBox.confirm(
@@ -779,18 +804,39 @@ onBeforeRouteLeave(async () => {
       '离开文件设置？',
       { confirmButtonText: '离开并放弃修改', cancelButtonText: '继续编辑', type: 'warning' },
     )
-    return true
+    // The user can still edit the body while the settings confirmation is open.
+    return await saveDirtyBodyBeforeRouteLeave()
   } catch {
     return false
   }
 })
 
-function handleSave(): Promise<void> {
-  if (!editor.value || !store.currentDocument || importingXml) return Promise.resolve()
+async function saveDirtyBodyBeforeRouteLeave(): Promise<boolean> {
+  if (persistenceOperation.value === 'body-save') {
+    const saved = await (bodySavePromise ?? Promise.resolve(false))
+    if (!saved) {
+      ElMessage.warning('正文保存失败，请重试后再离开')
+      return false
+    }
+  } else if (persistenceOperation.value !== null) {
+    ElMessage.warning('文档仍在保存或导入，请稍后再离开')
+    return false
+  }
+  if (!dirty.value) return true
+  const saved = await handleSave()
+  if (!saved || dirty.value) {
+    ElMessage.warning('正文尚未保存成功，请重试后再离开')
+    return false
+  }
+  return true
+}
+
+function handleSave(): Promise<boolean> {
+  if (!editor.value || !store.currentDocument || importingXml) return Promise.resolve(false)
   if (persistenceOperation.value !== null) {
-    if (persistenceOperation.value === 'body-save') return bodySavePromise ?? Promise.resolve()
+    if (persistenceOperation.value === 'body-save') return bodySavePromise ?? Promise.resolve(false)
     if (dirty.value) queueAutoSave()
-    return Promise.resolve()
+    return Promise.resolve(false)
   }
   clearAutoSaveTimer()
   persistenceOperation.value = 'body-save'
@@ -804,18 +850,20 @@ function handleSave(): Promise<void> {
     persistenceOperation.value = null
     saving.value = false
     ElMessage.error(`封面元数据同步失败：${error instanceof Error ? error.message : String(error)}`)
-    return Promise.resolve()
+    return Promise.resolve(false)
   }
   clearAutoSaveTimer()
   const changeVersionAtStart = bodyChangeVersion
-  const promise = (async () => {
+  const promise = (async (): Promise<boolean> => {
     try {
       const content = synchronizeCoverMetadata(currentEditor.getJSON(), persistedMeta)
       await store.updateDocument(currentDocumentId, { content })
       if (bodyChangeVersion === changeVersionAtStart) dirty.value = false
       lastSaved.value = new Date().toLocaleTimeString('zh-CN')
+      return true
     } catch {
       ElMessage.error('保存失败；正文仍保留在编辑器中')
+      return false
     } finally {
       persistenceOperation.value = null
       saving.value = false
@@ -1478,11 +1526,13 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
   }
 
   const doc = getSynchronizedEditorDoc() || editor.value.state.doc
-  const footnoteError = getFootnoteExportError(doc)
-  if (footnoteError) {
-    exportError.value = footnoteError
-    ElMessage.error(footnoteError)
-    return
+  if (format !== 'json') {
+    const footnoteError = getFootnoteExportError(doc)
+    if (footnoteError) {
+      exportError.value = footnoteError
+      ElMessage.error(footnoteError)
+      return
+    }
   }
   if (format !== 'json') {
     const outputFormat = format === 'docx' ? 'DOCX' : format === 'xml' ? 'XML' : 'HTML'
@@ -1607,7 +1657,7 @@ function copyCodeContent() {
     return
   }
   const doc = getSynchronizedEditorDoc()
-  if (doc) {
+  if (doc && !['json', 'raw'].includes(codeViewFormat.value)) {
     const footnoteError = getFootnoteExportError(doc)
     if (footnoteError) {
       ElMessage.error(footnoteError)
@@ -1637,7 +1687,7 @@ function downloadCodeContent() {
   }
   const info = formatInfo[codeViewFormat.value] || formatInfo.raw
   const doc = getSynchronizedEditorDoc()
-  if (doc) {
+  if (doc && !['json', 'raw'].includes(codeViewFormat.value)) {
     const footnoteError = getFootnoteExportError(doc)
     if (footnoteError) {
       ElMessage.error(footnoteError)
@@ -1718,21 +1768,29 @@ function handleXmlFileImport(event: Event) {
       // Parse against the live production schema before making any persistent or editor changes.
       const validatedDoc = currentEditor.schema.nodeFromJSON(pmJson)
       validatedDoc.check()
-      const validatedJson = validatedDoc.toJSON()
+      const validatedJson = normalizeNodeIds(validatedDoc).toJSON()
       if (currentEditor.isDestroyed || store.currentDocument?.id !== currentDocumentId) {
         throw new Error('当前文档已切换，请重新导入')
       }
       const update = prepareXmlImportDocumentUpdate(validatedJson, currentDocument.meta)
       const meta = { ...currentDocument.meta, ...update.meta }
       const content = synchronizeCoverMetadata(validatedJson, meta)
-
+      const finalCandidate = currentEditor.schema.nodeFromJSON(content)
+      finalCandidate.check()
+      const normalizedContent = normalizeNodeIds(finalCandidate).toJSON()
       const updated = await store.updateDocument(currentDocumentId, {
         title: update.title,
         meta,
-        content,
+        content: normalizedContent,
       })
       persisted = true
-      replaceEditorDocument(currentEditor, content, false)
+      if (currentEditor.isDestroyed || store.currentDocument?.id !== currentDocumentId) {
+        throw new Error('当前文档已切换，导入结果已保存但无法安装到此编辑器')
+      }
+      // The candidate has already passed the production schema and NodeId rules.
+      // Install only after persistence succeeds so a failed request cannot alter
+      // the live selection or undo history.
+      replaceEditorDocument(currentEditor, normalizedContent, false)
       hydrateSettingsDraft(updated)
       dirty.value = false
       lastSaved.value = new Date().toLocaleTimeString('zh-CN')

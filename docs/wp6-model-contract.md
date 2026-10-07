@@ -89,3 +89,25 @@ Tiptap `setContent` 仅替换子内容。生产加载、版本回滚与 XML 导�
 - 行间公式的 formulaContent 是当前可编辑 LaTeX 源，存在时优先于 attrs.latex，包括用户清空后的空字符串；只有缺少内容节点时回退属性，并同时报告最小子项错误。现有正文提取的 trim 规则保持。MathML 原文、富载荷 sourceInlines 和脚注继续保留，不自动派生或同步 MathML。
 - IR→PM 对原生 IR 同时提供的 latex/sourceInlines 文本做一致性检查（沿用首尾 trim 规则）；冲突时返回带位置的 IRToPmError，不能用正文优先规则静默覆盖原生 IR 中另一个源。这与编辑后保留旧属性的生产 PM 不同。
 - typed crossRef 的目标类型检查依据目标是否真实存在，不依据是否已经分配编号标签；已有无编号段落/公式的错误类型必须报告，且不随引用遍历顺序变化。确实缺失的目标仍由 dangling-xref 报告；正确的显式类型继续支持无编号目标。
+
+## 2026-10-07 模型与生产 Schema 复审补充
+
+- 同一生产文档可有多个 `foreword` 或 `introduction` 容器，而 IR 各自只有一个内容 bucket。PM→IR 保留所有容器中的正文并按出现顺序合并；从第二个同类容器起记录带路径、节点 ID 与原因的 `unsupportedContent`，说明容器边界已不可逆。IR 消费边界仍须按诊断阻断，不能把“正文已合并”解释为完整往返。
+- 多个 `coverPage` 时仅第一个作为兼容元数据来源；额外封面的元数据不合并，逐个报告 `unsupportedContent`。IR 目前只表达一份封面。
+- `clause.hasTitle=false`（IR `titled=false`）必须对应空标题。生产 PM 中隐藏但非空的 `clauseTitle` 在 PM→IR 产生诊断；原生 IR 在 IR→PM 以带路径和节点 ID 的 `IRToPmError` 拒绝。空标题的无题条仍合法，避免静默丢弃隐藏内容。
+- 普通 `hardBreak` 转为 `IRInline.text='\n'` 时保留其可表达的 marks 与 textStyle；脚注负载中带格式的换行继续受现有脚注映射限制并报告为未映射，不因该修复放宽脚注规则。
+- `crossRef`、`bibRef`、`termRef` 是附着于实际文本或公式 atom 的语义 mark。空文本 run 没有可承载的生产 PM 节点时，IR→PM 必须用带路径和所属实体 ID 的 `IRToPmError` 拒绝；仅有 footnote atom 也不构成 mark carrier。非空文本、公式 atom 可以承载这些引用；专用 `tableFootnoteRef` atom 仍可独立存在。此约束不扩展为对空格式 marks 的通用校验。
+- 生产 Schema 中作者模型的字符串 attrs 使用显式 HTML 属性读取，避免 Tiptap 把 `007`、`true`、`false` 隐式转换成数值或布尔值。范围包括 TBX 描述符类型、公式 `latex/mathml`、封面文本字段、`bibEntry.entryType`、`chapter.secType`、图及图片文本/单位字段、表格文本单位和样式字段。缺省与空字符串按各字段既有默认值契约处理；数值度量/计数和 `formula.numbered` 布尔值继续保持数值/布尔类型。`FigureImage` 的 parse rule 优先于通用 Image 规则，避免同一生产图片被重复解析成两个节点。
+- 以上是 WP6 内部 IR 与作者 Schema 的往返契约，不引入 GB/T 46687.2 XML 规则，也不把 46687.1/3 的背景材料转换为技术语义或执行要求。
+
+## 2026-10-07 typed paragraph 与表脚注 HTML 往返补充
+
+- `stdParagraph` 的生产 HTML 使用 `p[data-type="std-paragraph"]`。该专用规则优先于通用 `<p>`，完整 chapter 经两轮 DOM 序列化/解析仍保持 `stdParagraph` 类型、稳定 `nodeId` 和 inline marks；没有类型标记的普通 `<p>` 仍解析为通用 `paragraph`。
+- `tableFootnoteEntry` 序列化为带展示编号 `sup[data-table-footnote-label]` 和正文槽 `.std-table-footnote-entry-content` 的 typed `<p>`。正文槽是 ProseMirror content hole 的唯一子节点；解析优先匹配 typed 节点，并只读取正文槽，展示编号不能并入作者正文。兼容没有正文槽的旧 typed `<p>` 时读取其其余行内正文，同时排除展示编号。
+- 完整生产表格经连续两轮 DOM 序列化/解析后，`tableFootnoteRow > tableFootnoteEntry` 结构、定义 `nodeId`、正文 marks/crossRef 和 `tableFootnoteRef.targetId` 保持；表脚注引用仍按独立 atom 保存。HTML 往返不扩展到 XML 规则或标准技术语义。
+
+## 2026-10-07 clipboard ID 与 typed 引用契约
+
+- HTML 剪贴按当前单个 ProseMirror slice 收集定义。slice 中唯一定义的 ID 若与目标文档定义冲突，则为副本生成新 ID，并只同步改写有明确模型字段的内部引用；片外目标不改，剪切后移动且原定义已离开目标文档时保留原 ID。
+- 映射范围包括 `crossRef`、`bibRef`、`termRef` marks，`figureImage.resourceId`、`figureResourceRef.targetId`、`indexTarget/indexSeeAlso.targetId`、`tableFootnoteRef.targetId`，以及脚注内容 `footnoteRef.attrs.content` 中的 typed 引用。封面/根 `MetadataFields` fallback 只遍历声明的实体数组与 typed inline carrier，包含其中的公式/脚注定义 ID；不扫描或重写任意作者字符串。
+- slice 内同一 ID 有多个定义且其关系含歧义时，或重复定义与目标文档冲突时，`handlePaste` 发出可见诊断并拒绝，不提交事务；唯一内部引用目标若会被普通段落合并丢弃，也依据 ProseMirror 实际替换预览拒绝。拒绝时文档、选区和撤销历史保持不变。
