@@ -337,7 +337,10 @@ function figureToPm(figure: Extract<IRBlock, { kind: 'figure' }>, path: string, 
   return node('figure', withId(figure.id, { orientation: figure.orientation, unit: figure.unit ?? null }), content)
 }
 
-function formulaToPm(formula: Extract<IRBlock, { kind: 'formula' }>): PMJsonNode {
+function formulaToPm(formula: Extract<IRBlock, { kind: 'formula' }>, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+  if (formula.sourceInlines && inlinePlainText(formula.sourceInlines).trim() !== formula.latex.trim()) {
+    errors.push({ path: `${path}.sourceInlines`, nodeId: formula.id, reason: 'IR公式latex与sourceInlines文本不一致，不能无损投影为单一编辑源' })
+  }
   const source = formula.sourceInlines ?? [{ text: formula.latex }]
   const content: PMJsonNode[] = [node('formulaContent', undefined, inlinesToPm(source))]
   if (formula.notes?.length) content.push(...formula.notes.map(note => node('formulaNote', withId(note.id), inlinesToPm(note.content))))
@@ -356,7 +359,7 @@ function blockToPm(block: IRBlock, path: string, errors: IRToPmDiagnostic[]): PM
     case 'list': return listToPm(block, path, errors)
     case 'table': return tableToPm(block, path, errors)
     case 'figure': return figureToPm(block, path, errors)
-    case 'formula': return formulaToPm(block)
+    case 'formula': return formulaToPm(block, path, errors)
     case 'note': case 'example': {
       const content = noteContent(block.id, block.content, path, errors)
       return node(block.kind, withId(block.id), content)

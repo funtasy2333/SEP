@@ -454,3 +454,19 @@ describe('irToPm / native IR roundtrip', () => {
     }))
   })
 })
+
+it.each(['different', ''])('rejects conflicting native formula source text %j before projecting an IR document', sourceText => {
+  const input = docWithChildren([{ kind: 'formula', id: 'conflicting-formula', latex: 'x=1', numbered: true,
+    sourceInlines: sourceText ? [{ text: sourceText, marks: [{ type: 'bold' }] }] : [], whereList: [],
+  }])
+  const before = JSON.stringify(input)
+  expect(() => irToPm(input)).toThrow(IRToPmError)
+  try {
+    irToPm(input)
+  } catch (error) {
+    expect((error as IRToPmError).diagnostics).toContainEqual(expect.objectContaining({
+      nodeId: 'conflicting-formula', path: expect.stringContaining('sourceInlines'),
+    }))
+  }
+  expect(JSON.stringify(input)).toBe(before)
+})

@@ -904,10 +904,10 @@ function convertFormula(node: PMJsonNode, ctx: Ctx): IRFormula {
   const sourceInlines = convertInlines(content?.content, ctx)
   const latexFromContent = plainText(sourceInlines).trim()
   const latexAttr = typeof node.attrs?.latex === 'string' ? node.attrs.latex : undefined
-  if (latexAttr !== undefined && latexFromContent && latexAttr !== latexFromContent) {
-    ctx.unsupportedContent.push({ nodeId: id, path: '公式', nodeType: node.type, reason: 'formula.attrs.latex与formulaContent文本不一致，无法无损选择单一编辑源' })
-  }
-  const latex = latexAttr ?? latexFromContent
+  // formulaContent is the editable source. An empty content node represents an
+  // intentionally cleared formula; attrs.latex is only a legacy fallback when
+  // the content node is absent (the missing-node diagnostic above still applies).
+  const latex = content !== undefined ? latexFromContent : latexAttr ?? latexFromContent
   const mathml = typeof node.attrs?.mathml === 'string' && node.attrs.mathml.length > 0 ? node.attrs.mathml : undefined
   const descriptions = node.content?.filter((c) => c.type === 'formulaDescription') ?? []
   const whereLists = node.content?.filter((c) => c.type === 'whereList') ?? []

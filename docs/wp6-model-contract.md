@@ -82,3 +82,10 @@ Tiptap `setContent` 仅替换子内容。生产加载、版本回滚与 XML 导�
 - 无 metadataBlock 时，根/封面结构化元数据 fallback 的 inline 使用 IR 字段契约：crossRef.targetKind 按12种 IRReferenceTargetKind 保留，缺省仍允许；不把 PM 的 bibEntry 别名当作 IR 目标类型。非法类型记录带位置诊断，不能通过丢掉类型而绕过校验。
 - 同一入口保留 tableFootnoteRef 的可选 atom ID 和 IRInline.footnote 的稳定 ID/行内内容，脚注中的标记递归读取；无效字段/脚注结构产生 unsupportedContent。保留载荷不代表放宽脚注的位置或嵌套限制，仍由 Resolver 处理。
 - 题名、编号部件、机构和版权声明的引用类型经生产 Schema 与 JSON 重开保持。版权持有人等纯字符串 carrier 的富引用仍在 IR 中保留，但 IR→PM 继续明确拒绝，不能静默转为纯文本。
+
+
+## 81f7814e 复审契约补充（2026-10-07）
+
+- 行间公式的 formulaContent 是当前可编辑 LaTeX 源，存在时优先于 attrs.latex，包括用户清空后的空字符串；只有缺少内容节点时回退属性，并同时报告最小子项错误。现有正文提取的 trim 规则保持。MathML 原文、富载荷 sourceInlines 和脚注继续保留，不自动派生或同步 MathML。
+- IR→PM 对原生 IR 同时提供的 latex/sourceInlines 文本做一致性检查（沿用首尾 trim 规则）；冲突时返回带位置的 IRToPmError，不能用正文优先规则静默覆盖原生 IR 中另一个源。这与编辑后保留旧属性的生产 PM 不同。
+- typed crossRef 的目标类型检查依据目标是否真实存在，不依据是否已经分配编号标签；已有无编号段落/公式的错误类型必须报告，且不随引用遍历顺序变化。确实缺失的目标仍由 dangling-xref 报告；正确的显式类型继续支持无编号目标。

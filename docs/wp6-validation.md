@@ -176,3 +176,20 @@ PR #45 在 `9ad90668` 和 `df27182a` 上的两轮 review 共提出 7 条 P2 问�
 最终 shared **42 files / 915 tests**、client **40 files / 320 tests**（另1项隔离 API 默认跳过）、server **2 suites / 23 tests**，合计 **1258 项通过**。shared tsc、client vue-tsc/Vite 构建通过，仅已有大包体提示。日志 `/private/tmp/wp6-rereview6-*.log`。未改 golden、依赖、lockfile或数据库结构。
 
 本轮验证覆盖生产 Schema 和 JSON 重加载，未重复实际浏览器、SQLite 冷重开或 Word 验收；历史冷重开证据仍属于2026-10-05。调整后的 WP6/WP8 范围不变，修复已验收不意味着新提交已获 Codex 复审批准，PR 尚未合并。
+
+
+## 81f7814e 复审修复验收（2026-10-07）
+
+latest review ID 5428705712，2026-10-06北京时间20:59提交，针对81f7814e提出一项P1和一项P2；通过该 review 的 comments 接口核对。
+
+| 意见 | 修复与实测 |
+|---|---|
+| [编辑公式仍读取陈旧属性/清空后恢复旧公式](https://github.com/funtasy2333/SEP/pull/45#discussion_r4195550776) | 存在的formulaContent始终作为LaTeX编辑源，包括空正文；移除与陈旧snapshot属性的冲突诊断。shared TDD先复现修改与清空两项失败，再验证旧无属性、MathML-only及缺节点诊断。真实Editor事务加载IR→PM后修改/清空正文，attrs仍为旧值，但IR、HTML data-latex、生产DOCX ZIP文本、原JSON重载及IR投影重载均消费新正文，源JSON不变 |
+| [无编号目标的错误引用类型漏报](https://github.com/funtasy2333/SEP/pull/45#discussion_r4195550783) | 豁免只用于真正不存在的crossRef目标；已有实体必须检验类型。最初7项新增测试有2项失败：错误引用先出现，后续正确引用生成label后错误被漏报。段落和不编号公式两种目标、两个引用顺序及合法/缺失目标均通过；生产Schema两种顺序回归通过 |
+
+主审补齐原生IR入口边界：latex与sourceInlines文本冲突时，IRToPmError携带节点/位置，不把原生IR的冲突数据当作陈旧PM snapshot而覆盖。新增2项先失败后通过。既有错误类型的默认clause引用指向无编号段落，现同时返回类型不匹配和无引用文本；对应旧测试已按收紧后的诊断更新，未修改golden。MathML原文继续保留，不自动解释、反译或更新它；不将本轮LaTeX修复宣称为完整MathML交付。
+
+本轮未重做真实浏览器、SQLite冷重开或Word稿件验收；真实Editor由生产扩展的自动事务测试覆盖，DOCX从实际ZIP验证公式文本，不能替代Word排版验收。旧XML、依赖、lockfile和数据库结构未改，主工作区受保护素材和未提交文件保留。范围仍为调整后的WP6作者模型与引用校验，未扩大WP8。
+
+
+主代理最终回归：shared **42 files / 929 tests**、client **41 files / 324 tests**（另1项隔离API默认跳过）、server **2 suites / 23 tests**，合计 **1276项通过**。shared tsc、client vue-tsc/Vite构建通过，仅已有大包体提示。日志 `/private/tmp/wp6-rereview7-*.log`。修复提交仍需新一轮Codex审阅确认，尚未合并。

@@ -368,6 +368,99 @@ describe('pmToIr / 块级要素', () => {
     ])
   })
 
+  it('公式内容编辑后以 formulaContent 为准，并保留富载荷、脚注和原始 MathML', () => {
+    const nativeMathml = '<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>Ω</mi><mo>≤</mo></math>'
+    const pm = fx.standardDoc({}, fx.chapter('formula-chapter', 'X', {
+      type: 'formula',
+      attrs: { nodeId: 'formula-edited', latex: '旧公式', mathml: nativeMathml },
+      content: [{
+        type: 'formulaContent',
+        content: [
+          fx.text('x=2', [{ type: 'bold' }, { type: 'textStyle', attrs: { color: '#123456' } }]),
+          {
+            type: 'formulaInline',
+            attrs: { nodeId: 'source-inline-formula', latex: 'z', source: 'z' },
+            marks: [{ type: 'variable', attrs: { kind: 'symbol', name: 'z' } }],
+          },
+          { type: 'footnoteRef', attrs: { nodeId: 'source-footnote', content: [fx.text('脚注负载')] } },
+        ],
+      }],
+    }))
+    const before = JSON.stringify(pm)
+
+    const { doc } = pmToIr(pm)
+    const formula = doc.body[0]!.children[0] as IRFormula
+
+    expect(formula.latex).toBe('x=2')
+    expect(formula.mathml).toBe(nativeMathml)
+    expect(formula.sourceInlines).toEqual([
+      { text: 'x=2', marks: [{ type: 'bold' }], style: { color: '#123456' } },
+      {
+        text: '',
+        formula: { id: 'source-inline-formula', latex: 'z', source: 'z' },
+        marks: [{ type: 'variable', kind: 'symbol', name: 'z' }],
+      },
+      { text: '', footnote: { id: 'source-footnote', content: [{ text: '脚注负载' }] } },
+    ])
+    expect(doc.unsupportedContent).toBeUndefined()
+    expect(JSON.stringify(pm)).toBe(before)
+  })
+
+  it('formulaContent 清空后保留空 LaTeX，不恢复旧 attrs.latex', () => {
+    const pm = fx.standardDoc({}, fx.chapter('formula-chapter', 'X', {
+      type: 'formula',
+      attrs: { nodeId: 'formula-cleared', latex: '已删除公式' },
+      content: [{ type: 'formulaContent', content: [] }],
+    }))
+    const before = JSON.stringify(pm)
+
+    const { doc } = pmToIr(pm)
+    const formula = doc.body[0]!.children[0] as IRFormula
+
+    expect(formula.latex).toBe('')
+    expect(doc.unsupportedContent).toBeUndefined()
+    expect(JSON.stringify(pm)).toBe(before)
+  })
+
+  it('旧文档只有 formulaContent 时继续读取正文', () => {
+    const { doc } = pmToIr(fx.standardDoc({}, fx.chapter('formula-chapter', 'X', {
+      type: 'formula',
+      attrs: { nodeId: 'formula-legacy' },
+      content: [{ type: 'formulaContent', content: [fx.text('legacy = 1')] }],
+    })))
+
+    expect((doc.body[0]!.children[0] as IRFormula).latex).toBe('legacy = 1')
+  })
+
+  it('MathML-only 公式保留原文且 LaTeX 为空', () => {
+    const nativeMathml = '<math data-native="keep"><mi>λ</mi></math>'
+    const { doc } = pmToIr(fx.standardDoc({}, fx.chapter('formula-chapter', 'X', {
+      type: 'formula',
+      attrs: { nodeId: 'formula-mathml-only', mathml: nativeMathml },
+      content: [{ type: 'formulaContent', content: [] }],
+    })))
+    const formula = doc.body[0]!.children[0] as IRFormula
+
+    expect(formula.latex).toBe('')
+    expect(formula.mathml).toBe(nativeMathml)
+  })
+
+  it('仅在缺少 formulaContent 时回退 attrs.latex，并诊断缺少内容节点', () => {
+    const nativeMathml = '<math><mi>legacy</mi></math>'
+    const { doc } = pmToIr(fx.standardDoc({}, fx.chapter('formula-chapter', 'X', {
+      type: 'formula',
+      attrs: { nodeId: 'formula-no-content', latex: 'fallback = 1', mathml: nativeMathml },
+      content: [],
+    })))
+    const formula = doc.body[0]!.children[0] as IRFormula
+
+    expect(formula.latex).toBe('fallback = 1')
+    expect(formula.mathml).toBe(nativeMathml)
+    expect(doc.unsupportedContent).toEqual(expect.arrayContaining([
+      expect.objectContaining({ nodeId: 'formula-no-content', nodeType: 'formula', reason: expect.stringContaining('formulaContent数量为0') }),
+    ]))
+  })
+
   it('formulaDescription 拆分/裁剪保留完整行内载荷且不修改 PM 输入', () => {
     const pm = fx.standardDoc({}, fx.chapter('chapter', 'X', {
       type: 'formula',

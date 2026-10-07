@@ -628,7 +628,9 @@ function registerExtendedData(
 function checkTypedReferences(ctx: ResolveCtx): void {
   for (const ref of ctx.typedRefs) {
     const actualKind = ctx.kinds.get(ref.targetId)
-    if (ref.refKind === 'crossRef' && actualKind !== ref.expectedKind && !ctx.labels[ref.targetId]) continue
+    // Missing crossRef targets are reported by checkXrefs; existing targets must
+    // still be type-checked even when no numbered label has been assigned.
+    if (ref.refKind === 'crossRef' && !ctx.seenIds.has(ref.targetId)) continue
     if (actualKind !== ref.expectedKind) {
       ctx.problems.push({ code: 'dangling-typed-ref', nodeId: ref.fromId, severity: 'error', message: `引用目标「${ref.targetId}」应为 ${ref.expectedKind}，实际为 ${actualKind ?? '不存在'}` })
     } else if (!ctx.labels[ref.targetId]) {
