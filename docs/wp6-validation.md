@@ -247,3 +247,25 @@ Codex review `5450144611` 于北京时间 2026-10-08 08:52:04 针对 `2fa9787240
 上一条 typed-reference 记录中的 1,339 通过不能作为当时审阅提交 `2fa97872` 的完整冻结验收：client full-suite 早于 `fullRendererFixture()` 被追加到 SHA 锁定的 `ir/__tests__/fixtures.ts`；随后 shared、client、server 计数对应不同文件状态。此后本轮先将 helper 迁出锁定文件并恢复 source SHA，再重跑 HTML/DOCX suites 与 client JSON exporter SHA consumer，最后由主代理对冻结工作树统一全量验收。旧数字保留为历史记录，不冒充完整验收，也不与新结果相加。
 
 未重新执行 Word 打开/排版、正式 XML 外部互操作、真实标准稿件或浏览器/SQLite 冷重开；本轮自动回归不代表 Codex 已批准本次修复或 PR 已合并。旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器；不新增 XML 映射或 MathML 打印。
+
+
+## e39101da StandardDoc 根类型复审
+
+Codex review 5450305128 针对审阅提交 e39101daab853a4a926fdc00ff0d4f1d022ca3bb 提出唯一 P2（[comment 4213672349](https://github.com/funtasy2333/SEP/pull/45#discussion_r4213672349)）：IR→PM 生成 StandardDoc 时仅 coverPage 有标准类型；生产 StandardDoc 根默认 national，且 pmToIr 以根类型为优先来源，导致非国标文档重开后被改写成 gb。
+
+本轮只在 StandardDoc 根投影中复用 metaToCover 的现有类型映射，将同一 standardType 写入根与封面：gb→national、industry→industry、local→local、group→group、enterprise→enterprise、guide→guidance。生产 schema 默认、pmToIr 根优先规则和默认 doc 根分支保持不变；默认 doc 仍只在 coverPage 写入类型。相邻审查未发现此路径上的其他非空默认覆盖；缺省和空字符串沿用现有归一化，不将本轮描述为字节全等或空值契约变更。
+
+shared irToPm.test.ts 定向测试 16 项，其中本轮新增 2 项，检查六类映射及 default doc 根仍只使用 coverPage。client 生产 schema 测试 7 项，通过关闭 StarterKit document 并加入 StandardDoc 构建真实 StandardDoc topNode；验证原始 JSON schema reload 与 exportSemanticJson 输出再次 schema reload 后，root/cover 类型、非空元数据、extensionVersion、typed crossRef 保持，且 source IR 未被修改。两组定向测试通过。shared tsc --noEmit 和 client vue-tsc -b 通过。
+
+### 主代理最终冻结验收
+
+- shared：46 files / 960 tests 通过；tsc --noEmit 通过。
+- client：53 files 中 52 passed、1 skipped；384 tests 中 383 passed、1 个 opt-in API test 默认 skipped；vue-tsc -b 与 Vite build 通过，仅既有 chunk-size warning。
+- server：2 suites / 23 tests 通过；Nest build 通过。
+- 合计 1,366 tests passed，另有 1 项默认跳过的 opt-in API test。
+
+六份冻结日志：/private/tmp/wp6-standarddoc-final-shared-test.log、/private/tmp/wp6-standarddoc-final-shared-types.log、/private/tmp/wp6-standarddoc-final-client-test.log、/private/tmp/wp6-standarddoc-final-client-build.log、/private/tmp/wp6-standarddoc-final-server-test.log、/private/tmp/wp6-standarddoc-final-server-build.log。fixture SHA 仍为 cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d；无 golden 或 manifest 变更。
+
+上一轮 1,357 项通过是 e39101da 修复提交的历史验收（review 5450144611 审阅的是 2fa97872），早于本轮根类型修复；本轮统一验收已经在修复冻结后重新运行。历史数值保留，但不能代表当前最终状态，也不与本轮相加。
+
+本轮没有运行正式 GB/T 46687.2 XML 互操作、Microsoft Word 打开/排版、真实浏览器冷启动、SQLite 冷重开或真实标准稿件验收。测试结果不表示 Codex 已批准本轮修复或 PR 已合并。WP8 负责移除旧 XML 实现并统一切换至新国标 XML，本轮不重建旧转换器，也不新增 XML 映射或 MathML 打印。

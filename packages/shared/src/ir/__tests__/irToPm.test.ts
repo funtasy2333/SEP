@@ -436,6 +436,38 @@ describe('irToPm / native IR roundtrip', () => {
     expect(pmToIr(pm).doc.body[0]!.children[0]).toEqual(list)
   })
 
+  it('projects each IR standardType onto both standardDoc root and cover from one mapping', () => {
+    const mappings = [
+      ['gb', 'national'],
+      ['industry', 'industry'],
+      ['local', 'local'],
+      ['group', 'group'],
+      ['enterprise', 'enterprise'],
+      ['guide', 'guidance'],
+    ] as const
+    for (const [standardType, expectedPmType] of mappings) {
+      const authored = docWithChildren([])
+      authored.meta.standardType = standardType
+      const projected = irToPm(authored, { rootType: 'standardDoc' })
+      const cover = projected.content?.find(child => child.type === 'coverPage')
+
+      expect(projected.type).toBe('standardDoc')
+      expect(projected.attrs?.standardType).toBe(expectedPmType)
+      expect(cover?.attrs?.standardType).toBe(expectedPmType)
+    }
+  })
+
+  it('keeps standardType on coverPage for the default doc root', () => {
+    const authored = docWithChildren([])
+    authored.meta.standardType = 'industry'
+    const projected = irToPm(authored)
+    const cover = projected.content?.find(child => child.type === 'coverPage')
+
+    expect(projected.type).toBe('doc')
+    expect(projected.attrs?.standardType).toBeUndefined()
+    expect(cover?.attrs?.standardType).toBe('industry')
+  })
+
   it('rejects empty roots and standardDoc roots without chapters', () => {
     const emptyDoc: IRDoc = {
       schemaVersion: 1, meta: { standardType: 'gb' },

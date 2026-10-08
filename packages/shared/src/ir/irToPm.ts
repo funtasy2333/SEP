@@ -577,7 +577,10 @@ export function irToPm(doc: IRDoc, options: IRToPmOptions = {}): PMJsonNode {
   if (errors.length) throw new IRToPmError(errors)
   const attrs = hasSemanticExtensions(doc) ? { extensionVersion: 1 } : undefined
   if (rootType === 'standardDoc') {
-    return node('standardDoc', attrs, content)
+    const standardDocAttrs = attrs
+      ? { ...attrs, standardType: metaToCover(doc.meta).standardType }
+      : { standardType: metaToCover(doc.meta).standardType }
+    return node('standardDoc', standardDocAttrs, content)
   }
   return node('doc', attrs, content)
 }

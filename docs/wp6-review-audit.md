@@ -3,7 +3,7 @@
 ## 基线与复审范围
 
 - PR：[#45](https://github.com/funtasy2333/SEP/pull/45)，最早记录的复审起点 head `c24181ca77fa77bdb73923d26f498bed265bf7b3`，相对 `origin/main` 的 merge base 为 `e0e9ab09d2b5867ba81bdf7be9f17866a1ab1f28`。83 个文件只描述该历史起点的 PR 差异；之后各轮新增修改已扩大差异，不能把 83 视作当前或最终 PR 文件总数。
-- 最新复审起点：PR 提交 `2fa9787240634a022dab33ce5ffd61d793babd04`；Codex review ID `5450144611`，审阅提交 `2fa97872`，于 2026-10-08 08:52:04（Asia/Shanghai）提交；唯一 P2 inline comment ID `4213525717`，[查看意见](https://github.com/funtasy2333/SEP/pull/45#discussion_r4213525717)，针对公式注被 Resolver 误判为 entity。前一轮 typed-reference 复审起点为 `72e127b5`，review `5443480187`；83 个文件只描述更早的 PR 差异基线，不是当前或最终 PR 文件总数。
+- 最新复审起点：审阅提交 `e39101daab853a4a926fdc00ff0d4f1d022ca3bb`；Codex review ID `5450305128`，于 2026-10-08 09:21:44（Asia/Shanghai）提交，唯一 P2 inline comment ID `4213672349`，[查看意见](https://github.com/funtasy2333/SEP/pull/45#discussion_r4213672349)，针对 StandardDoc 根标准类型投影丢失。上一轮公式注与无类型引用复审 review `5450144611` 审阅提交 `2fa97872`；83 个文件只描述更早的 PR 差异基线，不是当前或最终 PR 文件总数。
 - 复审由三条相互衔接的路径组成：生产 Tiptap schema 与 `pmToIr`/`irToPm`/Resolver；编辑器和 JSON/HTML/DOCX/XML 的生产导出入口；IR allowlist 与每种渲染器实际消费的字段。结论只覆盖 PR #45 改动及其直接生产入口，不能推断整个仓库没有其他问题。
 
 核心生产路径包括：生产 `createEditorExtensions()` schema → 编辑器加载/保存和稳定 nodeId → `pmToIr` → Resolver/输出边界 → `renderJson`、HTML exporter、DOCX exporter、旧 XML `serializeToXml`；反向路径包括 native IR → `irToPm` → 生产 schema → 保存/加载。真实 API/SQLite 冷重开、浏览器验收、Word 排版和正式 XML 互操作是不同层级，不能以单元测试代替。
@@ -88,7 +88,7 @@ Codex review `5443480187` 于北京时间 2026-10-07 22:02:30 针对 `72e127b5` 
 
 本记录不声称全仓库无缺陷，不代表 PR 已由 Codex 重新批准，不代表 WP8 正式 XML 结构、外部互操作、Word 渲染或真实标准文稿验收完成。旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器；本轮仅在已核实的静默丢失点添加精确边界，不扩展 XML 模式，不新增 MathML 打印。
 
-## 最新公式注与无类型引用复审（2026-10-08，review 5450144611）
+## 上一轮公式注与无类型引用复审（2026-10-08，review 5450144611）
 
 Codex review `5450144611` 于北京时间 2026-10-08 08:52:04 针对复审提交 `2fa9787240634a022dab33ce5ffd61d793babd04` 提出唯一 P2（[comment 4213525717](https://github.com/funtasy2333/SEP/pull/45#discussion_r4213525717)）：公式注（`IRFormulaNote`）只有 `id` 与 `content`，没有 `kind`；Resolver 的扩展实体兜底将公式注标为 `entity`，导致合法 `targetKind='note'` 交叉引用产生错误的 `dangling-typed-ref`。
 
@@ -111,3 +111,18 @@ TDD 回归先复现两种错误：公式注被当作 `entity`，以及未声明�
 上一轮 typed-reference review `5443480187` 的 1,339 项通过不是已发布审阅提交 `2fa97872` 的完整冻结验收：client 全套测试早于 `fullRendererFixture()` 被追加到 SHA 锁定的 `ir/__tests__/fixtures.ts`；后续 shared、client、server 计数也对应不同文件状态。该历史计数保留为历史证据。本轮先将 helper 迁出锁定文件并恢复 source SHA，再由主代理对冻结状态统一全量验收，结果为 1,357 项通过；不与旧计数相加。
 
 本轮没有宣称最新 Codex review 已批准、PR 已合并、正式 XML 外部互操作或 Word 排版已完成；VersionPanel JSON-only snapshot fallback 保留。旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器；本轮不扩展 MathML 打印。
+
+
+## 最新 StandardDoc 根类型复审（2026-10-08，review 5450305128）
+
+Codex review 5450305128 针对审阅提交 e39101daab853a4a926fdc00ff0d4f1d022ca3bb 于北京时间 2026-10-08 09:21:44 提出唯一 P2（[comment 4213672349](https://github.com/funtasy2333/SEP/pull/45#discussion_r4213672349)）：irToPm({rootType: 'standardDoc'}) 只在 coverPage 保存映射标准类型，而 production StandardDoc 根属性缺省为 national；pmToIr 根属性优先，故非国标类型 schema 重开后静默变为 gb。
+
+修复仅在 standardDoc 根 attrs 复用 metaToCover 的既有标准类型映射，并与 coverPage 保持相同值：gb→national、industry→industry、local→local、group→group、enterprise→enterprise、guide→guidance。生产 schema 默认值、pmToIr 根优先规则及默认 doc 根分支均未改；默认 doc 仍将类型保存在 coverPage。邻接检查没有在这一映射路径发现其他非空默认覆盖；缺失值和空字符串继续沿用既有归一化，不扩大为新的空值保真契约。
+
+生产回归以 StarterKit document:false 加 StandardDoc 构建真实 StandardDoc topNode schema，覆盖 IR→PM→schema→JSON reload→pmToIr，以及 exportSemanticJson→schema reload→pmToIr。检查六种类型映射、root/cover 一致、非空元数据、extensionVersion、typed crossRef 和源 IR 不变。shared 定向测试 16 项、client 定向测试 7 项通过；shared tsc 与 client vue-tsc 通过。未修改 fixture、golden 或 manifest，fixture SHA 仍为 cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d。
+
+### 本轮冻结统一验收
+
+shared 46 files / 960 tests 通过，tsc --noEmit 通过；client 53 files 中 52 passed、1 skipped，384 tests 中 383 passed、1 个 opt-in API test skipped，vue-tsc -b 与 Vite build 通过；server 2 suites / 23 tests 通过，Nest build 通过。合计 1,366 tests passed，另 1 项默认跳过。详细日志与历史数字边界见[本轮验收记录](wp6-validation.md#e39101da-standarddoc-根类型复审)。Vite 只有既有 chunk-size warning。
+
+上一轮 1,357 项通过是 e39101da 修复提交的历史验收（review 5450144611 审阅的是 2fa97872），早于本轮 StandardDoc 根类型修复，不能代表本轮冻结状态，也不与本轮总数相加。本轮针对 5450305128 的修复不表示已获新 Codex 批准或 PR 已合并。正式 GB/T 46687.2 XML、Word 排版、浏览器真实冷重开、SQLite 冷重开及真实标准稿件均未在本轮执行；这份 PR 复审也不声称全仓库无缺陷。WP6/WP8 边界不变：旧 XML 实现移除及新国标 XML 统一切换归 WP8，不重建旧转换器。

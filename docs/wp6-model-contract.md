@@ -127,3 +127,12 @@ Tiptap `setContent` 仅替换子内容。生产加载、版本回滚与 XML 导�
 - IR crossRef 未声明 `targetKind` 时，IR→PM 在 production mark attrs 中写 `refType:''`，避免 schema 缺省把它变成 `chapter`；PM→IR 对空字符串不生成 `targetKind`。历史 PM JSON 若完全省略 refType 仍依 CrossRef schema 的 `chapter` 默认值解释。显式 chapter、figure、note 类型映射保持。
 - PM crossRef `refType` 若显式为非字符串，不解释为缺省/未类型；转换产生位置诊断，非 JSON 输出不可绕过。semantic JSON 为 `crossRef.refType:null` 保留原值用于纠错；既有其他属性的 null 清理及 JSON goldens 不变。
 - renderer 的 `fullRendererFixture()` 属于 `renderers/__tests__`，从通用 fixture 深拷贝后只给打印回归的明确目标标注类型。`ir/__tests__/fixtures.ts` 本身保持字节锁定 SHA `cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d`；不按 ID 前缀推断产品 target kind，不更新 manifest 或 golden。
+
+
+## 2026-10-08 StandardDoc 根标准类型投影补充
+
+针对 Codex review 5450305128（审阅提交 e39101daab853a4a926fdc00ff0d4f1d022ca3bb；北京时间 2026-10-08 09:21:44）指出的 StandardDoc 根类型丢失，IR→PM 在 rootType 为 standardDoc 时现在把既有 metaToCover 映射出的 standardType 同时写入 standardDoc 根 attrs 与 coverPage。映射为 gb→national、industry→industry、local→local、group→group、enterprise→enterprise、guide→guidance。
+
+改动只在 IR→PM 的 standardDoc 根投影。production StandardDoc schema 的 national 默认值、pmToIr 对显式根类型优先于 cover 的既有规则和默认 doc 根分支均不变；默认 doc 根继续只在 coverPage 表达标准类型。周边检查未发现同一投影路径上其他非空默认值被覆盖的问题；缺失属性和空字符串继续沿用现有归一化行为。
+
+回归使用真实 StandardDoc topNode schema（StarterKit 的 document 节点关闭后加入 StandardDoc），验证 IR 投影后的 JSON 重开，以及 exportSemanticJson 输出再次经该 schema 重开。测试检查根与封面类型一致、非空元数据、extensionVersion、typed crossRef 和 source 不变；不声称 JSON 字节完全相等，也不改变空值契约。该投影修复不扩展 XML 映射或标准符合性范围。

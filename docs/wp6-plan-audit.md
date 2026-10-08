@@ -72,3 +72,12 @@ review `5443480187`（comment `4207853177`，提交于北京时间 2026-10-07 22
 同一审查补齐 IR→PM 属性 carrier：未声明 `targetKind` 的 IR crossRef 显式投影为空 `refType`，使生产 Schema 不会静默补成 chapter；旧 PM 缺省属性的 chapter 默认保持。生产Schema重开、typed/untyped labels/source 保真和实际图目标 HTML/DOCX 输出均有回归。PM 显式非字符串 refType 单独诊断；semantic JSON 只为 `crossRef.refType:null` 保留纠错值，原有其他 null 过滤及 goldens 保持。
 
 打印 full fixture helper 已迁到 renderer 测试目录，恢复被 client JSON 源 SHA 锁定的通用 fixture 文件（恢复 SHA `cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d`）。冻结后统一验收 shared 46 files/958 tests、client 51 passed+1 skipped/376 passed+1 opt-in skipped、server 23 tests，合计 1,357 项通过；具体日志与限制见[本轮最终验收](wp6-validation.md#2fa97872-公式注与无类型引用复审2026-10-08)。fixture SHA 消费者重跑未改变 manifest、snapshot 或 golden。该复审不扩展 WP8、Word 排版或 MathML 打印，也不表示获得 Codex 批准。
+
+
+## 最新 StandardDoc 根类型复审（2026-10-08，review 5450305128）
+
+Codex review 5450305128 针对审阅提交 e39101daab853a4a926fdc00ff0d4f1d022ca3bb 提出一项 P2（[comment 4213672349](https://github.com/funtasy2333/SEP/pull/45#discussion_r4213672349)，北京时间 2026-10-08 09:21:44）：当 IR 标准类型不是 gb 时，irToPm 只在 coverPage 写入映射值，而生产 StandardDoc 根 schema 默认补 national；pmToIr 又优先读取根属性，因而重开时会把行业、地方、团体、企业或指导性技术文件类型改成国家标准。
+
+修复沿用既有 metaToCover 类型映射，仅在 rootType 为 standardDoc 时将同一 standardType 写入根 attrs 与 coverPage：gb→national、industry→industry、local→local、group→group、enterprise→enterprise、guide→guidance。PM schema 默认、pmToIr 根优先规则和默认 doc 根分支都不变；普通 doc 仍由 coverPage 表达标准类型。相邻检查未发现同一投影路径中另有非空值被默认覆盖，缺失值和空字符串继续按现有归一化规则处理；本轮不声称字节级相等或重新定义空值契约。
+
+验证使用真实 StandardDoc topNode schema，覆盖原始 PM JSON reload 与 exportSemanticJson 后再次 schema reload，并检查 root/cover 类型、非空元数据、extensionVersion、typed crossRef 及源 IR 不变。最终冻结验收与未覆盖的正式 XML、Word、浏览器和 SQLite 检查见[最新验收记录](wp6-validation.md#e39101da-standarddoc-根类型复审)。本修复仍属于 WP6 的作者模型投影，不改变 WP8 边界。
