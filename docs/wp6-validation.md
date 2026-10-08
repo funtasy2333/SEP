@@ -269,3 +269,22 @@ shared irToPm.test.ts 定向测试 16 项，其中本轮新增 2 项，检查六
 上一轮 1,357 项通过是 e39101da 修复提交的历史验收（review 5450144611 审阅的是 2fa97872），早于本轮根类型修复；本轮统一验收已经在修复冻结后重新运行。历史数值保留，但不能代表当前最终状态，也不与本轮相加。
 
 本轮没有运行正式 GB/T 46687.2 XML 互操作、Microsoft Word 打开/排版、真实浏览器冷启动、SQLite 冷重开或真实标准稿件验收。测试结果不表示 Codex 已批准本轮修复或 PR 已合并。WP8 负责移除旧 XML 实现并统一切换至新国标 XML，本轮不重建旧转换器，也不新增 XML 映射或 MathML 打印。
+
+## 9c1565b9 转换边界复审
+
+Codex review `5452133440` 针对审阅提交 `9c1565b9acc724b9b13b8361d70b5f0a4af54ffe` 于北京时间 2026-10-08 13:51:24 提出唯一 P2（[comment 4215335293](https://github.com/funtasy2333/SEP/pull/45#discussion_r4215335293)）：生产 Schema 能保存脚注 attrs JSON，但其中超出 `pmToIr` canonical 脚注子集的内容会在反向转换时产生 `unsupportedFootnotePayload`，因此依赖该转换的非 JSON 导出受阻。
+
+- **脚注双向边界**：正文 `IRInline.footnote.content` 与 `IRTable.footnotes` 共用纯 canonical validator。IR→PM 对无法按现有 `pmToIr` 规则回读的 native 脚注负载，返回带来源路径、脚注 ID 和理由的诊断；不放宽 reverse parser、脚注位置/嵌套约束，不改 raw/semantic PM JSON 的纠错出口。
+- **行内投影/schema**：IR→PM 精确拒绝 code 与其他 marks/style 冲突、重复非 atom mark、空 mark/style carrier，并保留空 crossRef 的既有专用诊断。生产 Schema 的 12 种 mark 矩阵覆盖 sub/sup 注册；新增普通上标 `<sup>` 解析规则排除 `<sup data-type="footnote-ref">` 与 `<sup data-type="table-footnote-ref">` 两种专用脚注 atom，避免普通上标规则抢走 atom 并丢失 ID。脚注内容位于 attrs JSON，ProseMirror 节点 content schema 不会检查它；其可回读性仍由 canonical 脚注校验决定，既有规则支持 sub/sup marks。JSON 原稿仍能用于纠错，但 native `renderJson(IRDoc)` 经 `irToPm`，会拒绝不能映射的数据。
+- **直接 HTML/DOCX 行内渲染**：同一有效 source IR 中，run host text 按既有转义、换行、marks、crossRef 流程输出，之后输出 body footnote atom 与全部 `tableFootnoteRef` atoms；marks 不继承到独立 atom。多 crossRef 同一 run 和 crossRef-bearing newline 在 HTML/DOCX output boundary 明确拒绝；native IR 跨行 crossRef另由 IR→PM 诊断。普通 marked newline、合法单 crossRef、脚注 atoms 和空文本单 crossRef 的既有 label 输出保留。
+- **DOCX sub/sup**：仅 DOCX 阻断同一实际输出文本同时包含 sub 与 sup。实际文本含非空 host text，或空源文本但有效 crossRef 产生非空 `refText`；单一 sub/sup、空 crossRef+sub 可输出。HTML、JSON及 native PM 投影不受这一 DOCX 输出格式限制影响。XML 规则与旧转换器实现不变。
+- **已有出口契约**：typed-reference 的 Resolver source marker、原 message 与 owner nodeId 保留，不伪造 field path；公式注若未被 renderer 消费仍按既有输出边界拒绝。VersionPanel JSON-only snapshot fallback 保持。UI 语义 JSON 仍是 `exportSemanticJson → renderSemanticJson` 原 PM 路径，不宣称为全量 PM→IR→`renderJson`。
+
+### 冻结后统一验收
+
+- shared：50 files / 1,007 tests 通过；`tsc --noEmit` 通过。
+- client：56 files 中 55 passed、1 skipped；401 tests 中 400 passed、1 个 opt-in API test skipped；`vue-tsc` 与 Vite build 通过。Vite 仅有既有 chunk-size warning。
+- server：2 suites / 23 tests 通过；Nest build 通过。
+- 合计 **1,430 tests passed，另 1 项 skipped**。六份日志：`/private/tmp/wp6-footnote-final-shared-test.log`、`/private/tmp/wp6-footnote-final-shared-types.log`、`/private/tmp/wp6-footnote-final-client-test.log`、`/private/tmp/wp6-footnote-final-client-build.log`、`/private/tmp/wp6-footnote-final-server-test.log`、`/private/tmp/wp6-footnote-final-server-build.log`。
+
+锁定 fixture SHA `cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d` 与 primary material SHA `8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8` 已核对未变；无 golden/manifest 修改。冻结验收对象是基于审阅起点 `9c1565b9` 的工作树，未声称产生新 review 批准或合并状态。未在本轮执行真实浏览器/SQLite 冷重开、Word 打开/排版、正式 GB/T 46687.2 XML 互操作或真实标准稿件验证，不代表全仓库无缺陷。WP6/WP8 边界不变：旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器；本轮不新增 MathML 打印、XML 映射、标准技术语义或新操作面板。

@@ -3,7 +3,10 @@ import { renderHtml } from './html'
 import { renderDocx } from './docx'
 import { getOutputSupportProblems, UnsupportedOutputError } from './outputBoundary'
 import { resolve } from '../ir/resolve'
-import type { IRDoc, IRInline, IRParagraph } from '../ir/types'
+import { irToPm, pmToIr } from '../ir'
+import { renderJson, renderSemanticJson } from './json'
+import { footnoteFixture } from './__tests__/footnoteFixture'
+import type { IRDoc, IRInline, IRParagraph, PMJsonNode } from '../ir/types'
 
 const base = (): IRDoc => ({
   schemaVersion: 1, meta: { standardType: 'gb' },
@@ -239,4 +242,171 @@ it('does not widen the boundary to unrelated Resolver errors', () => {
   for (const format of outputFormats) expect(getOutputSupportProblems(doc, format)).toEqual([])
   expect(() => renderHtml(doc, resolve(doc).labels)).not.toThrow()
   expect(() => renderDocx(doc, resolve(doc).labels, options)).not.toThrow()
+})
+
+it('blocks multiple valid crossRef marks in one run for HTML/DOCX but leaves XML unchanged', () => {
+  const doc = base()
+  doc.body[0]!.children.push({ kind: 'figure', id: 'figure-target', caption: [{ text: '图' }], orientation: 'portrait', src: '', notes: [] })
+  setReference(doc, { text: '双目标引用', marks: [
+    { type: 'crossRef', targetId: 'chapter', targetKind: 'chapter' },
+    { type: 'crossRef', targetId: 'figure-target', targetKind: 'figure' },
+  ] })
+  const resolution = resolve(doc)
+  expect(resolution.problems.filter(problem => problem.severity === 'error')).toEqual([])
+
+  for (const format of ['HTML', 'DOCX'] as const) {
+    expect(getOutputSupportProblems(doc, format)).toContainEqual(expect.objectContaining({
+      nodeId: 'p1', path: 'doc.body[0].children[0].content[0].marks[1]',
+      message: expect.stringContaining('多个 crossRef'),
+    }))
+  }
+  expect(getOutputSupportProblems(doc, 'XML')).toEqual([])
+  expect(() => renderHtml(doc, resolution.labels)).toThrow(UnsupportedOutputError)
+  expect(() => renderDocx(doc, resolution.labels, options)).toThrow(UnsupportedOutputError)
+})
+
+it('blocks crossRef text with a newline in native IR and imported PM hardBreaks', () => {
+  const native = base()
+  setReference(native, { text: '第一行\n第二行', marks: [{ type: 'crossRef', targetId: 'chapter', targetKind: 'chapter' }] })
+  const nativeBefore = JSON.stringify(native)
+  const nativeResolution = resolve(native)
+  expect(nativeResolution.problems.filter(problem => problem.severity === 'error')).toEqual([])
+  for (const format of ['HTML', 'DOCX'] as const) {
+    expect(getOutputSupportProblems(native, format)).toContainEqual(expect.objectContaining({
+      nodeId: 'p1', path: 'doc.body[0].children[0].content[0].text',
+      message: expect.stringContaining('含换行'),
+    }))
+  }
+  expect(getOutputSupportProblems(native, 'XML')).toEqual([])
+  expect(() => renderHtml(native, nativeResolution.labels)).toThrow(UnsupportedOutputError)
+  expect(() => renderDocx(native, nativeResolution.labels, options)).toThrow(UnsupportedOutputError)
+  expect(JSON.stringify(native)).toBe(nativeBefore)
+
+  const rawPm = irToPm(base())
+  const chapter = rawPm.content?.find(child => child.type === 'chapter')
+  const paragraph = chapter?.content?.find(child => child.type === 'stdParagraph')
+  const mark = { type: 'crossRef', attrs: { targetId: 'chapter', refType: 'chapter' } }
+  if (!paragraph) throw new Error('test setup: paragraph missing from PM tree')
+  paragraph.content = [
+    { type: 'text', text: '第一行', marks: [mark] },
+    { type: 'hardBreak', marks: [mark] },
+    { type: 'text', text: '第二行', marks: [mark] },
+  ]
+  const rawBefore = JSON.stringify(rawPm)
+  const imported = pmToIr(rawPm as PMJsonNode).doc
+  const roundTripProblem = resolve(imported).problems.filter(problem => problem.severity === 'error')
+  expect(roundTripProblem).toEqual([])
+  for (const format of ['HTML', 'DOCX'] as const) {
+    expect(getOutputSupportProblems(imported, format)).toContainEqual(expect.objectContaining({
+      nodeId: 'p1', path: 'doc.body[0].children[0].content[1].text',
+      message: expect.stringContaining('含换行'),
+    }))
+  }
+  const semantic = renderSemanticJson(rawPm as PMJsonNode, resolve(imported).labels)
+  const semanticChapter = semantic.content?.find(child => child.type === 'chapter')
+  const semanticParagraph = semanticChapter?.content?.find(child => child.type === 'stdParagraph')
+  expect(semanticParagraph?.content?.map(child => child.type)).toEqual(['text', 'hardBreak', 'text'])
+  expect(semanticParagraph?.content?.[1]?.marks).toEqual([mark])
+  expect(JSON.stringify(rawPm)).toBe(rawBefore)
+})
+
+it('keeps ordinary marked newlines, one crossRef, empty crossRef labels, and reference/footnote atoms printable', () => {
+  const ordinary = base()
+  setReference(ordinary, { text: '加粗\n续行', marks: [{ type: 'bold' }] })
+  const ordinaryLabels = resolve(ordinary).labels
+  expect(getOutputSupportProblems(ordinary, 'HTML')).toEqual([])
+  expect(getOutputSupportProblems(ordinary, 'DOCX')).toEqual([])
+  expect(renderHtml(ordinary, ordinaryLabels)).toContain('<strong>加粗</strong><br /><strong>续行</strong>')
+  expect(renderDocx(ordinary, ordinaryLabels, options).parts['word/document.xml']).toContain('<w:br/>')
+
+  const emptyReference = base()
+  setReference(emptyReference, { text: '', marks: [{ type: 'crossRef', targetId: 'chapter', targetKind: 'chapter' }] })
+  const emptyLabels = resolve(emptyReference).labels
+  expect(getOutputSupportProblems(emptyReference, 'HTML')).toEqual([])
+  expect(getOutputSupportProblems(emptyReference, 'DOCX')).toEqual([])
+  expect(renderHtml(emptyReference, emptyLabels)).toContain('<a class="ses-xref" href="#sec_1" data-ref-target="chapter">第1章</a>')
+  expect(renderDocx(emptyReference, emptyLabels, options).parts['word/document.xml']).toContain('第1章')
+
+  const atomDoc = footnoteFixture()
+  const foreword = atomDoc.front.foreword[0] as IRParagraph
+  foreword.content = [{
+    text: '前言条文',
+    marks: [{ type: 'crossRef', targetId: 'chapter-1', targetKind: 'chapter' }],
+    footnote: { id: 'body-fn-1', content: [{ text: '正文脚注' }] },
+  }]
+  const table = atomDoc.body[0]!.children[0]
+  if (table.kind !== 'table') throw new Error('test setup: table missing')
+  const cellParagraph = table.rows[0]!.cells[0]!.content[0]
+  if (cellParagraph.kind !== 'paragraph') throw new Error('test setup: cell paragraph missing')
+  cellParagraph.content = [{
+    text: '合法引用',
+    marks: [
+      { type: 'crossRef', targetId: 'chapter-1', targetKind: 'chapter' },
+      { type: 'tableFootnoteRef', targetId: 'table-fn-a' },
+      { type: 'tableFootnoteRef', targetId: 'table-fn-b' },
+    ],
+  }]
+  const atomLabels = resolve(atomDoc).labels
+  expect(getOutputSupportProblems(atomDoc, 'HTML')).toEqual([])
+  expect(getOutputSupportProblems(atomDoc, 'DOCX')).toEqual([])
+  expect(renderHtml(atomDoc, atomLabels)).toContain('class="ses-xref"')
+  expect(renderDocx(atomDoc, atomLabels, options).parts['word/document.xml']).toContain('第1章')
+})
+
+it('rejects only DOCX when one text run combines sub and sup', () => {
+  const doc = base()
+  setReference(doc, { text: '上下标', marks: [{ type: 'sub' }, { type: 'sup' }] })
+  const before = JSON.stringify(doc)
+  const labels = resolve(doc).labels
+
+  expect(getOutputSupportProblems(doc, 'DOCX')).toContainEqual(expect.objectContaining({
+    nodeId: 'p1',
+    path: 'doc.body[0].children[0].content[0].marks[1]',
+    message: expect.stringContaining('下标和上标'),
+  }))
+  expect(getOutputSupportProblems(doc, 'HTML')).toEqual([])
+  expect(getOutputSupportProblems(doc, 'XML')).toEqual([])
+  expect(() => renderDocx(doc, labels, options)).toThrow(UnsupportedOutputError)
+  expect(renderHtml(doc, labels)).toContain('<sup><sub>上下标</sub></sup>')
+
+  const projected = irToPm(doc)
+  const chapter = projected.content?.find(child => child.type === 'chapter')
+  const textNode = chapter?.content?.find(child => child.type === 'stdParagraph')?.content?.[0]
+  expect(textNode?.marks?.map(mark => mark.type)).toEqual(['subscript', 'superscript'])
+  expect(() => renderJson(doc, labels)).not.toThrow()
+  expect(JSON.stringify(doc)).toBe(before)
+
+  for (const mark of ['sub', 'sup'] as const) {
+    const single = base()
+    setReference(single, { text: '单一垂直对齐', marks: [{ type: mark }] })
+    expect(getOutputSupportProblems(single, 'DOCX')).toEqual([])
+    expect(renderDocx(single, resolve(single).labels, options).parts['word/document.xml']).toContain(
+      mark === 'sub' ? 'w:val="subscript"' : 'w:val="superscript"',
+    )
+  }
+
+  const emptyCrossRefWithSub = base()
+  setReference(emptyCrossRefWithSub, { text: '', marks: [
+    { type: 'crossRef', targetId: 'chapter', targetKind: 'chapter' }, { type: 'sub' },
+  ] })
+  const emptySubLabels = resolve(emptyCrossRefWithSub).labels
+  expect(getOutputSupportProblems(emptyCrossRefWithSub, 'DOCX')).toEqual([])
+  expect(renderHtml(emptyCrossRefWithSub, emptySubLabels)).toContain('第1章')
+  expect(renderDocx(emptyCrossRefWithSub, emptySubLabels, options).parts['word/document.xml']).toContain('w:val="subscript"')
+
+  const emptyCrossRefWithBoth = base()
+  setReference(emptyCrossRefWithBoth, { text: '', marks: [
+    { type: 'crossRef', targetId: 'chapter', targetKind: 'chapter' },
+    { type: 'sub' }, { type: 'sup' },
+  ] })
+  const emptyBothBefore = JSON.stringify(emptyCrossRefWithBoth)
+  const emptyBothLabels = resolve(emptyCrossRefWithBoth).labels
+  expect(getOutputSupportProblems(emptyCrossRefWithBoth, 'DOCX')).toContainEqual(expect.objectContaining({
+    nodeId: 'p1', path: 'doc.body[0].children[0].content[0].marks[2]',
+    message: expect.stringContaining('下标和上标'),
+  }))
+  expect(getOutputSupportProblems(emptyCrossRefWithBoth, 'HTML')).toEqual([])
+  expect(renderHtml(emptyCrossRefWithBoth, emptyBothLabels)).toContain('第1章')
+  expect(() => renderDocx(emptyCrossRefWithBoth, emptyBothLabels, options)).toThrow(UnsupportedOutputError)
+  expect(JSON.stringify(emptyCrossRefWithBoth)).toBe(emptyBothBefore)
 })

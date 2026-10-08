@@ -96,7 +96,7 @@ Tiptap `setContent` 仅替换子内容。生产加载、版本回滚与 XML 导�
 - 多个 `coverPage` 时仅第一个作为兼容元数据来源；额外封面的元数据不合并，逐个报告 `unsupportedContent`。IR 目前只表达一份封面。
 - `clause.hasTitle=false`（IR `titled=false`）必须对应空标题。生产 PM 中隐藏但非空的 `clauseTitle` 在 PM→IR 产生诊断；原生 IR 在 IR→PM 以带路径和节点 ID 的 `IRToPmError` 拒绝。空标题的无题条仍合法，避免静默丢弃隐藏内容。
 - 普通 `hardBreak` 转为 `IRInline.text='\n'` 时保留其可表达的 marks 与 textStyle；脚注负载中带格式的换行继续受现有脚注映射限制并报告为未映射，不因该修复放宽脚注规则。
-- `crossRef`、`bibRef`、`termRef` 是附着于实际文本或公式 atom 的语义 mark。空文本 run 没有可承载的生产 PM 节点时，IR→PM 必须用带路径和所属实体 ID 的 `IRToPmError` 拒绝；仅有 footnote atom 也不构成 mark carrier。非空文本、公式 atom 可以承载这些引用；专用 `tableFootnoteRef` atom 仍可独立存在。此约束不扩展为对空格式 marks 的通用校验。
+- `crossRef`、`bibRef`、`termRef` 是附着于实际文本或公式 atom 的语义 mark。空文本 run 没有可承载的生产 PM 节点时，IR→PM 必须用带路径和所属实体 ID 的 `IRToPmError` 拒绝；仅有 footnote atom 也不构成 mark carrier。非空文本、公式 atom 可以承载这些引用；专用 `tableFootnoteRef` atom 仍可独立存在。本轮后续审查已将此约束扩展到 IR→PM 无法承载的非 atom mark/style：空 carrier、重复非 atom mark 以及与 code 冲突的 mark 现在均以源路径和 owner ID 明确拒绝。
 - 生产 Schema 中作者模型的字符串 attrs 使用显式 HTML 属性读取，避免 Tiptap 把 `007`、`true`、`false` 隐式转换成数值或布尔值。范围包括 TBX 描述符类型、公式 `latex/mathml`、封面文本字段、`bibEntry.entryType`、`chapter.secType`、图及图片文本/单位字段、表格文本单位和样式字段。缺省与空字符串按各字段既有默认值契约处理；数值度量/计数和 `formula.numbered` 布尔值继续保持数值/布尔类型。`FigureImage` 的 parse rule 优先于通用 Image 规则，避免同一生产图片被重复解析成两个节点。
 - 以上是 WP6 内部 IR 与作者 Schema 的往返契约，不引入 GB/T 46687.2 XML 规则，也不把 46687.1/3 的背景材料转换为技术语义或执行要求。
 
@@ -136,3 +136,15 @@ Tiptap `setContent` 仅替换子内容。生产加载、版本回滚与 XML 导�
 改动只在 IR→PM 的 standardDoc 根投影。production StandardDoc schema 的 national 默认值、pmToIr 对显式根类型优先于 cover 的既有规则和默认 doc 根分支均不变；默认 doc 根继续只在 coverPage 表达标准类型。周边检查未发现同一投影路径上其他非空默认值被覆盖的问题；缺失属性和空字符串继续沿用现有归一化行为。
 
 回归使用真实 StandardDoc topNode schema（StarterKit 的 document 节点关闭后加入 StandardDoc），验证 IR 投影后的 JSON 重开，以及 exportSemanticJson 输出再次经该 schema 重开。测试检查根与封面类型一致、非空元数据、extensionVersion、typed crossRef 和 source 不变；不声称 JSON 字节完全相等，也不改变空值契约。该投影修复不扩展 XML 映射或标准符合性范围。
+
+## 2026-10-08 脚注与行内投影及打印边界补充
+
+针对 Codex review `5452133440`（审阅提交 `9c1565b9acc724b9b13b8361d70b5f0a4af54ffe`，北京时间 2026-10-08 13:51:24；[P2 comment 4215335293](https://github.com/funtasy2333/SEP/pull/45#discussion_r4215335293)），本轮把 IR→PM 可表示范围与反向 `pmToIr` 的既有 canonical 脚注子集对齐。正文脚注负载 `IRInline.footnote.content` 和 `IRTable.footnotes` 共用同一纯 canonical 校验；native IR 不满足回读规则时，以脚注源路径、脚注 ID 和具体原因返回 `IRToPmError`。不放宽 `pmToIr` 的内容、位置和嵌套限制，也不把已有 PM 的 raw/semantic JSON 纠错路径改成 IR 投影路径。
+
+行内投影对生产 Schema 与既有 PM→IR 规则无法无损往返的组合给出精确诊断：code 与其他 marks/style 冲突、重复的非 atom mark、没有文本或公式载体的非 atom mark/style 均拒绝；已有空 crossRef carrier 诊断保持精确路径。生产 Schema 的 12 种 mark 矩阵覆盖 sub/sup 注册；新增普通上标 `<sup>` 解析规则排除 `<sup data-type="footnote-ref">` 与 `<sup data-type="table-footnote-ref">` 两种专用脚注 atom，避免普通上标规则抢走 atom 并丢失 ID。脚注内容位于 attrs JSON，ProseMirror 节点 content schema 不会检查它；其可回读性仍由 canonical 脚注校验决定，既有规则支持 sub/sup marks。
+
+直接 native HTML/DOCX renderer 保留 run 的 host text（沿用转义、换行、普通 marks 与 crossRef 的原有处理），随后输出 body footnote atom 和全部 `tableFootnoteRef` atoms；普通 marks 只格式化 host text，不继承到独立 atom。含多个 crossRef 的同一 run、或带 crossRef 的换行文本，在 HTML/DOCX 输出边界精确拒绝；native IR 的 crossRef 换行另由 IR→PM 拒绝。DOCX 还会在同一实际输出文本同时带 sub 与 sup 时拒绝，实际输出文本包括非空 host text 或有非空 `refText` 的空文本 crossRef；单独 sub/sup、空 crossRef+sub 仍可用，HTML 继续保留该组合和 label。
+
+raw/semantic PM JSON 仍保留已有 PM 内容以供纠错；native `renderJson(IRDoc)` 经过 `irToPm`，因此不可投影的 native IR 会得到明确错误。UI 语义 JSON 仍由 `exportSemanticJson → renderSemanticJson` 消费原 PM 文档和 Resolver labels，本轮不把它描述成全量 PM→IR→`renderJson` 流水线。VersionPanel 的 JSON-only snapshot fallback 保持。
+
+以上是 WP6 JSON 与作者 IR 的双向投影/输出边界收紧，不新增 XML 或 MathML 打印能力。旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器；不扩展标准技术语义或新增工具栏。

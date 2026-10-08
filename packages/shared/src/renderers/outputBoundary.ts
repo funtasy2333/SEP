@@ -1,5 +1,6 @@
 import type { IRDoc } from '../ir/types'
 import { resolve } from '../ir/resolve'
+import { findCrossRefRunProjectionIssues } from '../ir/inlineProjectionDiagnostics'
 
 export interface OutputSupportProblem {
   code: 'unsupported-output'
@@ -72,11 +73,29 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
     code: 'unsupported-output', nodeId: issue.nodeId ?? undefined, path: issue.path,
     message: `${format} 不能输出 ${issue.path}（${issue.nodeType}）：${issue.reason}。请保留 JSON 文档。`,
   }))
+  const resolution = resolve(doc)
   const visit = (value: unknown, shape: string, path: string, parentId?: string): void => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return
     const object = value as Record<string, unknown>
     const id = typeof object.id === 'string' ? object.id : parentId
     const kind = typeof object.kind === 'string' ? object.kind : shape
+    if (format === 'DOCX' && typeof object.text === 'string' && Array.isArray(object.marks)) {
+      const marks = object.marks as Array<{ type?: unknown }>
+      const subIndex = marks.findIndex(mark => mark?.type === 'sub')
+      const supIndex = marks.findIndex(mark => mark?.type === 'sup')
+      const crossRef = marks.find(mark => mark?.type === 'crossRef') as { targetId?: unknown } | undefined
+      const refText = typeof crossRef?.targetId === 'string' ? resolution.labels[crossRef.targetId]?.refText : undefined
+      const hasOutputText = object.text.length > 0 || (typeof refText === 'string' && refText.length > 0)
+      if (hasOutputText && subIndex >= 0 && supIndex >= 0) {
+        const conflictIndex = Math.max(subIndex, supIndex)
+        problems.push({
+          code: 'unsupported-output',
+          ...(id === undefined ? {} : { nodeId: id }),
+          path: `${path}.marks[${conflictIndex}]`,
+          message: 'DOCX 不能在同一文本中同时保留下标和上标；行内格式只能保存一种垂直对齐。请保留 JSON 文档。',
+        })
+      }
+    }
     const allowed = Object.prototype.hasOwnProperty.call(FIELDS, kind) ? FIELDS[kind] : undefined
     const report = (field: string) => problems.push({
       code: 'unsupported-output', nodeId: id, path: `${path}.${field}`,
@@ -110,11 +129,25 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
   }
   visit(doc, 'doc', 'doc')
 
+  // HTML/DOCX replace a marked run's text with one refText. They cannot represent
+  // multiple destinations in one run or one reference spanning a hard break.
+  // Keep this print-only check narrow; XML and JSON retain their existing paths.
+  if (format === 'HTML' || format === 'DOCX') {
+    for (const issue of findCrossRefRunProjectionIssues(doc)) {
+      problems.push({
+        code: 'unsupported-output',
+        ...(issue.nodeId === undefined ? {} : { nodeId: issue.nodeId }),
+        path: issue.path,
+        message: `${format} 暂不支持此引用范围：${issue.reason}。请保留 JSON 文档。`,
+      })
+    }
+  }
+
   // Resolver typed-reference errors are a narrow non-JSON export boundary. Do not
   // block unrelated Resolver diagnostics: warnings and other error codes retain
   // their existing export policy. IRProblem has no source-field path, so identify
   // the diagnostic source explicitly rather than fabricating an inline mark path.
-  for (const issue of resolve(doc).problems) {
+  for (const issue of resolution.problems) {
     if (issue.code !== 'dangling-typed-ref' || issue.severity !== 'error') continue
     problems.push({
       code: 'unsupported-output',

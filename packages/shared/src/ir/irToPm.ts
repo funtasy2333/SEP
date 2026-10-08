@@ -11,6 +11,8 @@ import type {
 } from './types'
 import type { PMJsonNode } from './pmToIr'
 import { hasSemanticExtensions } from './extensions'
+import { unsupportedFootnoteContent } from './footnotePayload'
+import { diagnoseInlineProjection, findCrossRefRunProjectionIssues } from './inlineProjectionDiagnostics'
 
 export interface IRToPmDiagnostic {
   path: string
@@ -107,6 +109,55 @@ function inlineToPm(run: IRInline): PMJsonNode[] {
 
 function inlinesToPm(inlines: IRInline[]): PMJsonNode[] {
   return inlines.flatMap(inlineToPm)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function diagnoseFootnotePayload(content: IRInline[], path: string, id: string | undefined, errors: IRToPmDiagnostic[]): void {
+  const reason = unsupportedFootnoteContent(inlinesToPm(content))
+  if (reason) errors.push({
+    path,
+    ...(id === undefined ? {} : { nodeId: id }),
+    reason: `脚注内容无法完整保存并重开：${reason}`,
+  })
+}
+
+/** Walk the source IR so diagnostics keep the exact owner path before PM projection. */
+function diagnoseFootnotePayloads(doc: IRDoc, errors: IRToPmDiagnostic[]): void {
+  const active = new Set<object>()
+  const visit = (value: unknown, path: string): void => {
+    if (Array.isArray(value)) {
+      value.forEach((child, index) => visit(child, `${path}[${index}]`))
+      return
+    }
+    if (!isRecord(value) || active.has(value)) return
+    active.add(value)
+
+    if (typeof value.text === 'string' && isRecord(value.footnote) && Array.isArray(value.footnote.content)) {
+      diagnoseFootnotePayload(
+        value.footnote.content as IRInline[],
+        `${path}.footnote.content`,
+        typeof value.footnote.id === 'string' ? value.footnote.id : undefined,
+        errors,
+      )
+    }
+    if (value.kind === 'table' && Array.isArray(value.footnotes)) {
+      value.footnotes.forEach((footnote, index) => {
+        if (!isRecord(footnote) || !Array.isArray(footnote.content)) return
+        diagnoseFootnotePayload(
+          footnote.content as IRInline[],
+          `${path}.footnotes[${index}].content`,
+          typeof footnote.id === 'string' ? footnote.id : undefined,
+          errors,
+        )
+      })
+    }
+    for (const [key, child] of Object.entries(value)) visit(child, `${path}.${key}`)
+    active.delete(value)
+  }
+  visit(doc, 'doc')
 }
 
 function measureAttrs(attrs: PmAttrs, key: string, value?: IRMeasure): void {
@@ -514,6 +565,16 @@ export function irToPm(doc: IRDoc, options: IRToPmOptions = {}): PMJsonNode {
   const rootType = options.rootType ?? 'doc'
   const errors: IRToPmDiagnostic[] = []
   diagnoseReferenceRunsWithoutCarrier(doc, 'doc', undefined, errors)
+  diagnoseInlineProjection(doc, 'doc', undefined, errors)
+  for (const issue of findCrossRefRunProjectionIssues(doc)) {
+    if (issue.kind !== 'crossref-newline') continue
+    errors.push({
+      path: issue.path,
+      ...(issue.nodeId === undefined ? {} : { nodeId: issue.nodeId }),
+      reason: issue.reason,
+    })
+  }
+  diagnoseFootnotePayloads(doc, errors)
   if (doc.unsupportedContent?.length) {
     errors.push(...doc.unsupportedContent.map(item => ({ path: item.path, nodeId: item.nodeId ?? undefined, reason: `${item.nodeType}: ${item.reason}` })))
   }

@@ -74,10 +74,22 @@ review `5443480187`（comment `4207853177`，提交于北京时间 2026-10-07 22
 打印 full fixture helper 已迁到 renderer 测试目录，恢复被 client JSON 源 SHA 锁定的通用 fixture 文件（恢复 SHA `cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d`）。冻结后统一验收 shared 46 files/958 tests、client 51 passed+1 skipped/376 passed+1 opt-in skipped、server 23 tests，合计 1,357 项通过；具体日志与限制见[本轮最终验收](wp6-validation.md#2fa97872-公式注与无类型引用复审2026-10-08)。fixture SHA 消费者重跑未改变 manifest、snapshot 或 golden。该复审不扩展 WP8、Word 排版或 MathML 打印，也不表示获得 Codex 批准。
 
 
-## 最新 StandardDoc 根类型复审（2026-10-08，review 5450305128）
+## 上一轮 StandardDoc 根类型复审（2026-10-08，review 5450305128）
 
 Codex review 5450305128 针对审阅提交 e39101daab853a4a926fdc00ff0d4f1d022ca3bb 提出一项 P2（[comment 4213672349](https://github.com/funtasy2333/SEP/pull/45#discussion_r4213672349)，北京时间 2026-10-08 09:21:44）：当 IR 标准类型不是 gb 时，irToPm 只在 coverPage 写入映射值，而生产 StandardDoc 根 schema 默认补 national；pmToIr 又优先读取根属性，因而重开时会把行业、地方、团体、企业或指导性技术文件类型改成国家标准。
 
 修复沿用既有 metaToCover 类型映射，仅在 rootType 为 standardDoc 时将同一 standardType 写入根 attrs 与 coverPage：gb→national、industry→industry、local→local、group→group、enterprise→enterprise、guide→guidance。PM schema 默认、pmToIr 根优先规则和默认 doc 根分支都不变；普通 doc 仍由 coverPage 表达标准类型。相邻检查未发现同一投影路径中另有非空值被默认覆盖，缺失值和空字符串继续按现有归一化规则处理；本轮不声称字节级相等或重新定义空值契约。
 
 验证使用真实 StandardDoc topNode schema，覆盖原始 PM JSON reload 与 exportSemanticJson 后再次 schema reload，并检查 root/cover 类型、非空元数据、extensionVersion、typed crossRef 及源 IR 不变。最终冻结验收与未覆盖的正式 XML、Word、浏览器和 SQLite 检查见[最新验收记录](wp6-validation.md#e39101da-standarddoc-根类型复审)。本修复仍属于 WP6 的作者模型投影，不改变 WP8 边界。
+
+## 2026-10-08 9c1565b9 转换边界复审（review 5452133440）
+
+review `5452133440` 针对审阅提交 `9c1565b9acc724b9b13b8361d70b5f0a4af54ffe` 于北京时间 13:51:24 提出一项 P2（[comment 4215335293](https://github.com/funtasy2333/SEP/pull/45#discussion_r4215335293)）：native IR 的脚注正文可含 IR→PM 能写入脚注 attrs JSON、但反向 `pmToIr` 按既有 canonical 脚注规则拒绝的 marks/hardBreak 等内容，并产生 `unsupportedFootnotePayload`；因此依赖 IR 往返的非 JSON 导出会被阻断。本轮收紧 IR→PM 对正文脚注与表脚注负载的预检，复用共同 canonical validator，并保留来源 path、脚注 ID 和诊断原因；不放宽反向映射、脚注位置或嵌套限制。
+
+审查同时补齐相邻 inline 与直接 renderer 边界。IR→PM 明确拒绝无法通过生产 Schema 无损投影的 code/其他 marks 冲突、重复非 atom marks 和空 mark/style carrier。生产 12-mark Schema 矩阵注册 sub/sup；新增普通上标 `<sup>` 解析规则排除 `<sup data-type="footnote-ref">` 与 `<sup data-type="table-footnote-ref">` 两种专用脚注 atom，避免普通上标规则抢走 atom 并丢失 ID。脚注内容位于 attrs JSON，ProseMirror 节点 content schema 不会检查它；其可回读性仍由 canonical 脚注校验决定，既有规则支持 sub/sup marks。直接 HTML/DOCX renderer 按“host text → body footnote atom → 所有 table-footnote atoms”输出；marks 只作用于 host text。多 crossRef 同 run 与 crossRef-bearing newline 仅在 HTML/DOCX 输出边界拒绝，native IR crossRef-bearing newline 另在 IR→PM 报错；DOCX 对同一实际输出文本中的 sub+sup 精确拒绝，HTML/JSON/native PM 投影不受此 DOCX 专属规则影响。旧 XML 未纳入本轮新规则。
+
+Resolver 的 typed-reference 来源诊断仍保留 owner ID、原 message 和 Resolver 来源标记，不虚构 field path。公式注、已有 non-string refType 和 typed reference 的先前精确限制继续有效；VersionPanel JSON-only fallback 保持。raw/semantic PM JSON 用于纠错；native `renderJson` 仍经 `irToPm`，UI 语义 JSON 仍从原 PM 输入 `renderSemanticJson`。
+
+主代理对冻结工作树的统一验收为 shared 50 files / 1,007 tests、shared `tsc --noEmit` 通过；client 56 files（55 passed、1 skipped）、401 tests（400 passed、1 个 opt-in API skipped）、`vue-tsc`/Vite build 通过；server 2 suites / 23 tests、Nest build 通过。总计 1,430 tests passed，另 1 个 skipped。Vite 只有既有 chunk-size warning。日志与逐项证据见[本轮验收记录](wp6-validation.md#9c1565b9-转换边界复审)。
+
+fixture SHA `cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d` 和 primary material SHA `8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8` 已核对未变；golden/manifest 未修改。此验收对象是基于 `9c1565b9` 的冻结工作树，不能作为 Codex 已批准或 PR 已合并的证明。未执行真实浏览器/SQLite 冷重开、Word 打开排版、正式 GB/T 46687.2 XML 互操作或真实标准稿件验收；不据此声称全仓库无缺陷。范围仍为 WP6 JSON/作者 IR，不扩展 WP8、新 XML 映射、MathML 打印、标准技术语义或新操作面板。

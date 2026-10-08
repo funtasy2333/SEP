@@ -3,7 +3,7 @@
 ## 基线与复审范围
 
 - PR：[#45](https://github.com/funtasy2333/SEP/pull/45)，最早记录的复审起点 head `c24181ca77fa77bdb73923d26f498bed265bf7b3`，相对 `origin/main` 的 merge base 为 `e0e9ab09d2b5867ba81bdf7be9f17866a1ab1f28`。83 个文件只描述该历史起点的 PR 差异；之后各轮新增修改已扩大差异，不能把 83 视作当前或最终 PR 文件总数。
-- 最新复审起点：审阅提交 `e39101daab853a4a926fdc00ff0d4f1d022ca3bb`；Codex review ID `5450305128`，于 2026-10-08 09:21:44（Asia/Shanghai）提交，唯一 P2 inline comment ID `4213672349`，[查看意见](https://github.com/funtasy2333/SEP/pull/45#discussion_r4213672349)，针对 StandardDoc 根标准类型投影丢失。上一轮公式注与无类型引用复审 review `5450144611` 审阅提交 `2fa97872`；83 个文件只描述更早的 PR 差异基线，不是当前或最终 PR 文件总数。
+- 最新复审起点：审阅提交 `9c1565b9acc724b9b13b8361d70b5f0a4af54ffe`；Codex review `5452133440` 于北京时间 2026-10-08 13:51:24 提交，唯一 P2 inline comment `4215335293`，[查看意见](https://github.com/funtasy2333/SEP/pull/45#discussion_r4215335293)，涉及 native IR 脚注负载与生产 PM canonical 回读规则不一致。上一轮 review `5450305128` 审阅提交 `e39101da`，针对 StandardDoc 根类型丢失；该意见的修复提交为 `9c1565b9`，历史冻结验收为 1,366 项通过。更早的 `5450144611` 审阅的是 `2fa97872`。83 个文件只描述更早的 PR 差异基线，不是当前或最终 PR 文件总数。
 - 复审由三条相互衔接的路径组成：生产 Tiptap schema 与 `pmToIr`/`irToPm`/Resolver；编辑器和 JSON/HTML/DOCX/XML 的生产导出入口；IR allowlist 与每种渲染器实际消费的字段。结论只覆盖 PR #45 改动及其直接生产入口，不能推断整个仓库没有其他问题。
 
 核心生产路径包括：生产 `createEditorExtensions()` schema → 编辑器加载/保存和稳定 nodeId → `pmToIr` → Resolver/输出边界 → `renderJson`、HTML exporter、DOCX exporter、旧 XML `serializeToXml`；反向路径包括 native IR → `irToPm` → 生产 schema → 保存/加载。真实 API/SQLite 冷重开、浏览器验收、Word 排版和正式 XML 互操作是不同层级，不能以单元测试代替。
@@ -113,7 +113,7 @@ TDD 回归先复现两种错误：公式注被当作 `entity`，以及未声明�
 本轮没有宣称最新 Codex review 已批准、PR 已合并、正式 XML 外部互操作或 Word 排版已完成；VersionPanel JSON-only snapshot fallback 保留。旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器；本轮不扩展 MathML 打印。
 
 
-## 最新 StandardDoc 根类型复审（2026-10-08，review 5450305128）
+## 上一轮 StandardDoc 根类型复审（2026-10-08，review 5450305128）
 
 Codex review 5450305128 针对审阅提交 e39101daab853a4a926fdc00ff0d4f1d022ca3bb 于北京时间 2026-10-08 09:21:44 提出唯一 P2（[comment 4213672349](https://github.com/funtasy2333/SEP/pull/45#discussion_r4213672349)）：irToPm({rootType: 'standardDoc'}) 只在 coverPage 保存映射标准类型，而 production StandardDoc 根属性缺省为 national；pmToIr 根属性优先，故非国标类型 schema 重开后静默变为 gb。
 
@@ -126,3 +126,20 @@ Codex review 5450305128 针对审阅提交 e39101daab853a4a926fdc00ff0d4f1d022ca
 shared 46 files / 960 tests 通过，tsc --noEmit 通过；client 53 files 中 52 passed、1 skipped，384 tests 中 383 passed、1 个 opt-in API test skipped，vue-tsc -b 与 Vite build 通过；server 2 suites / 23 tests 通过，Nest build 通过。合计 1,366 tests passed，另 1 项默认跳过。详细日志与历史数字边界见[本轮验收记录](wp6-validation.md#e39101da-standarddoc-根类型复审)。Vite 只有既有 chunk-size warning。
 
 上一轮 1,357 项通过是 e39101da 修复提交的历史验收（review 5450144611 审阅的是 2fa97872），早于本轮 StandardDoc 根类型修复，不能代表本轮冻结状态，也不与本轮总数相加。本轮针对 5450305128 的修复不表示已获新 Codex 批准或 PR 已合并。正式 GB/T 46687.2 XML、Word 排版、浏览器真实冷重开、SQLite 冷重开及真实标准稿件均未在本轮执行；这份 PR 复审也不声称全仓库无缺陷。WP6/WP8 边界不变：旧 XML 实现移除及新国标 XML 统一切换归 WP8，不重建旧转换器。
+
+## 9c1565b9 转换边界复审（2026-10-08）
+
+Codex review `5452133440` 于北京时间 2026-10-08 13:51:24 针对审阅提交 `9c1565b9acc724b9b13b8361d70b5f0a4af54ffe` 提出唯一 P2（[comment 4215335293](https://github.com/funtasy2333/SEP/pull/45#discussion_r4215335293)）：生产 Schema 可以保存脚注 attrs JSON，但 native IR 脚注 payload 若不符合既有 `pmToIr` canonical 规则，反向转换会产生 `unsupportedFootnotePayload` 并阻断非 JSON 导出。本轮按共同 canonical 规则拒绝不可回读的 native 正文脚注和表脚注负载，保留脚注 path、ID 与具体原因；不放宽 reverse parser、脚注位置或嵌套规则。原有 PM raw/semantic JSON 仍可保存用于纠错，native `renderJson` 则经过 `irToPm` 并拒绝不可投影数据。
+
+同轮完整复核证实以下相邻出口问题并收紧边界：
+
+- IR→PM 对生产 Schema 无法保真的 code 与其他 marks/style 冲突、重复非 atom marks、空 mark/style carrier 返回 path/owner 诊断。Production schema 12-mark 矩阵包含 sub/sup 注册；新增普通上标 `<sup>` 解析规则排除 `<sup data-type="footnote-ref">` 与 `<sup data-type="table-footnote-ref">` 两种专用脚注 atom，避免普通上标规则抢走 atom 并丢失 ID。脚注内容位于 attrs JSON，ProseMirror 节点 content schema 不会检查它；其可回读性仍由 canonical 脚注校验决定，既有规则支持 sub/sup marks。
+- 直接 HTML/DOCX renderer 继续打印含 body text 的 footnote run，并按 host text、body footnote atom、全部 table-footnote atoms 输出；marks 只作用于 host text。普通转义、换行、marks 和 crossRef host text 流程保留。
+- 同一 run 的多个 crossRef、以及带 crossRef 的换行文本会被 HTML/DOCX output boundary 精确拒绝；native IR 的 crossRef 换行由 IR→PM 另行拒绝。普通有格式换行、正确单个引用、body/table footnote atoms 与空文本单 crossRef 既有 label 行为保留。XML 不新增对应规则。
+- DOCX 对同一实际输出文本中的 sub+sup 冲突作格式专属拒绝：实际文本包括非空 source text 或空 source text 但能通过 crossRef 输出非空 label 的情形。单 sub/sup 与空 crossRef+sub 可输出；HTML 仍保留 sub+sup 和有效 label。
+
+上述错误边界不改变 Resolver 语义，也不把所有 diagnostics 一律设为阻断。既有 typed-reference owner/message/source 定位、公式注输出限制、VersionPanel JSON-only snapshot fallback 保持。UI semantic JSON 仍由 `exportSemanticJson → renderSemanticJson` 使用原 PM 与 Resolver labels；本 PR 不宣称 UI 已切换到完整 native IR JSON pipeline，也未新增操作面板。
+
+主代理冻结验收：shared 50 files / 1,007 tests，`tsc --noEmit` 通过；client 56 files 中 55 passed、1 skipped，401 tests 中 400 passed、1 opt-in API skipped，`vue-tsc` 与 Vite build 通过；server 2 suites / 23 tests、Nest build 通过。合计 1,430 tests passed、1 skipped；Vite 仅有既有 chunk-size warning。冻结日志为 `/private/tmp/wp6-footnote-final-shared-test.log`、`/private/tmp/wp6-footnote-final-shared-types.log`、`/private/tmp/wp6-footnote-final-client-test.log`、`/private/tmp/wp6-footnote-final-client-build.log`、`/private/tmp/wp6-footnote-final-server-test.log`、`/private/tmp/wp6-footnote-final-server-build.log`。
+
+历史 fixture SHA `cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d` 与 primary material SHA `8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8` 均核对未变；无 golden/manifest 变更。此处记录的是针对 `9c1565b9` 工作树的冻结验收，不表示 Codex 已批准、PR 已合并或全仓库无 bug。正式 GB/T 46687.2 XML 互操作、Word 打开/排版、真实浏览器/SQLite 冷重开及真实标准稿件未在本轮执行；旧 XML 移除与新国标 XML 统一切换归 WP8，不重建旧转换器。

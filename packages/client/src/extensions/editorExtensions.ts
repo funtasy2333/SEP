@@ -28,6 +28,7 @@ import {
   SlashCommand,
   StandardIdentifier, StandardTableCell, StandardTableHeader, StandardTableRow,
   TableFootnoteOrder,
+  Subscript, Superscript,
   TbxLangSet, TbxTerm, TbxTermDescriptor, TbxTermVariant, TbxTig, TermRef, TextStyle, TitlePart,
   Variable, WarningBlock, WhereDefinition, WhereItem, WhereList, WhereTerm,
   StdList, StdListItem,
@@ -75,6 +76,6 @@ export function createEditorExtensions(): Extensions {
     BibStructured, BibField, BibIdentifier, BibExternalLink,
     IndexBlock, IndexGroup, IndexEntry, IndexTerm, IndexTarget, IndexSeeAlso,
     WarningBlock, QuoteBlock, SemanticCodeBlock,
-    TextStyle, Variable, ExternalLink, BibRef, TermRef,
+    TextStyle, Subscript, Superscript, Variable, ExternalLink, BibRef, TermRef,
   ]
 }

@@ -140,6 +140,37 @@ function applyTextMarks(text: string, marks: IRInline['marks']): string {
 
 function renderRun(run: IRInline, ctx: RenderCtx): string {
   const marks = run.marks ?? []
+
+  // Keep the ordinary text/crossRef output on its existing path, then append
+  // the separate atom nodes in the same order as irToPm: body footnote, then
+  // each table-footnote reference. Atom marks never style the source text.
+  const xref = marks.find((m) => m.type === 'crossRef')
+  let body = ''
+  if (xref && xref.type === 'crossRef') {
+    const target = xref.targetId
+    const resolved = ctx.labels[target]
+    // 渲染文本取 Resolver 解析的 refText（不存死文本）；目标缺编号时回退作者原文，避免空白
+    const refText = resolved ? resolved.refText : run.text
+    const inner = applyTextMarks(
+      escapeHtml(refText),
+      marks.filter((m) => m.type !== 'crossRef' && m.type !== 'tableFootnoteRef'),
+    )
+    // print 变体不输出内部链接（WP0 结论 1）
+    if (ctx.variant === 'screen' && resolved) {
+      body = `<a class="ses-xref" href="#${escapeAttr(resolved.xmlId)}" data-ref-target="${escapeAttr(target)}">${inner}</a>`
+    } else {
+      body = `<span class="ses-xref" data-ref-target="${escapeAttr(target)}">${inner}</span>`
+    }
+  } else if (run.text === '\n') {
+    body = '<br />'
+  } else {
+    const bodyMarks = marks.filter((mark) => mark.type !== 'tableFootnoteRef')
+    body = run.text.split('\n').map((part, index, parts) =>
+      `${part ? applyTextMarks(escapeHtml(part), bodyMarks) : ''}${index < parts.length - 1 ? '<br />' : ''}`,
+    ).join('')
+  }
+
+  let footnoteAtom = ''
   if (run.footnote) {
     const resolved = ctx.labels[run.footnote.id]
     if (!resolved || !/^fn_\d+$/.test(resolved.xmlId)) {
@@ -148,39 +179,25 @@ function renderRun(run: IRInline, ctx: RenderCtx): string {
     const content = renderInlines(run.footnote.content, ctx)
     const attrs = `role="doc-footnote" id="${escapeAttr(resolved.xmlId)}" data-label="${escapeAttr(resolved.refText)}"`
     if (ctx.variant === 'screen') {
-      return `<span class="ses-footnote" ${attrs}>${content}</span>`
+      footnoteAtom = `<span class="ses-footnote" ${attrs}>${content}</span>`
+    } else {
+      footnoteAtom = `<span class="ses-footnote" ${attrs}><span class="ses-footnote-marker"><sup>${escapeHtml(resolved.refText)}</sup></span><span class="ses-footnote-text">${content}</span></span>`
     }
-    return `<span class="ses-footnote" ${attrs}><span class="ses-footnote-marker"><sup>${escapeHtml(resolved.refText)}</sup></span><span class="ses-footnote-text">${content}</span></span>`
   }
-  const tableFootnote = marks.find((mark) => mark.type === 'tableFootnoteRef')
-  if (tableFootnote && tableFootnote.type === 'tableFootnoteRef') {
-    const resolved = ctx.labels[tableFootnote.targetId]
+
+  let tableFootnoteAtoms = ''
+  for (const mark of marks) {
+    if (mark.type !== 'tableFootnoteRef') continue
+    const resolved = ctx.labels[mark.targetId]
     if (!resolved || !resolved.xmlId.startsWith('tabfn_')) {
-      throw new Error(`renderHtml: 表脚注 "${tableFootnote.targetId}" 缺少有效的 resolver 编号`)
+      throw new Error(`renderHtml: 表脚注 "${mark.targetId}" 缺少有效的 resolver 编号`)
     }
     const marker = `<sup class="ses-table-footnote-call">${escapeHtml(resolved.refText)}</sup>`
-    return ctx.variant === 'screen'
+    tableFootnoteAtoms += ctx.variant === 'screen'
       ? `<a class="ses-table-footnote-ref" href="#${escapeAttr(resolved.xmlId)}">${marker}</a>`
       : marker
   }
-  const xref = marks.find((m) => m.type === 'crossRef')
-  if (xref && xref.type === 'crossRef') {
-    const target = xref.targetId
-    const resolved = ctx.labels[target]
-    // 渲染文本取 Resolver 解析的 refText（不存死文本）；目标缺编号时回退作者原文，避免空白
-    const refText = resolved ? resolved.refText : run.text
-    const inner = applyTextMarks(
-      escapeHtml(refText),
-      marks.filter((m) => m.type !== 'crossRef'),
-    )
-    // print 变体不输出内部链接（WP0 结论 1）
-    if (ctx.variant === 'screen' && resolved) {
-      return `<a class="ses-xref" href="#${escapeAttr(resolved.xmlId)}" data-ref-target="${escapeAttr(target)}">${inner}</a>`
-    }
-    return `<span class="ses-xref" data-ref-target="${escapeAttr(target)}">${inner}</span>`
-  }
-  if (run.text === '\n') return '<br />'
-  return applyTextMarks(escapeHtml(run.text), marks)
+  return `${body}${footnoteAtom}${tableFootnoteAtoms}`
 }
 
 function renderInlines(inlines: IRInline[], ctx: RenderCtx): string {
