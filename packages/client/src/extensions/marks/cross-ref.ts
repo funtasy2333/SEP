@@ -1,9 +1,14 @@
 import { Mark, mergeAttributes } from '@tiptap/core'
 
+type CrossRefCommandAttrs = (
+  | { targetId: string; refId?: string | null }
+  | { targetId?: null; refId: string }
+) & { refType: string }
+
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     crossRef: {
-      setCrossRef: (attrs: { refId: string; refType: string }) => ReturnType
+      setCrossRef: (attrs: CrossRefCommandAttrs) => ReturnType
       unsetCrossRef: () => ReturnType
     }
   }
@@ -36,7 +41,7 @@ export const CrossRef = Mark.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    const targetId = HTMLAttributes.targetId || HTMLAttributes.refId
+    const targetId = HTMLAttributes.targetId ?? HTMLAttributes.refId
     return [
       'a',
       mergeAttributes(HTMLAttributes, {
@@ -53,7 +58,13 @@ export const CrossRef = Mark.create({
       setCrossRef:
         (attrs) =>
         ({ commands }) => {
-          return commands.setMark(this.name, attrs)
+          // Keep legacy calls on refId while clearing any stale canonical value.
+          // Canonical calls win if both fields are provided, including an empty targetId.
+          const targetId = attrs.targetId ?? attrs.refId
+          const markAttrs = attrs.targetId == null
+            ? { ...attrs, targetId: null, refId: targetId }
+            : { ...attrs, targetId, refId: null }
+          return commands.setMark(this.name, markAttrs)
         },
       unsetCrossRef:
         () =>

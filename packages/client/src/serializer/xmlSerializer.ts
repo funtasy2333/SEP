@@ -11,11 +11,39 @@ import { UnsupportedOutputError, assertOutputSupported, pmToIr, resolve, type Ou
 import { normalizePageOrientation } from '../utils/orientation'
 
 let activeFootnoteLabels: Record<string, ResolvedLabel> = {}
+let activeXmlReferenceContext: XmlReferenceContext | undefined
+
+interface XmlTargetDefinition {
+  xmlId: string
+  stableId?: string
+  legacyIds: string[]
+  emittedXmlId?: string
+  emittedDefinitionCount: number
+}
+
+interface XmlReferenceContext {
+  hasResolver: boolean
+  labels?: Record<string, ResolvedLabel>
+  definitionsByNode: WeakMap<PMNode, XmlTargetDefinition>
+  byStableId: Map<string, XmlTargetDefinition[]>
+  byLegacyId: Map<string, XmlTargetDefinition[]>
+  byXmlId: Map<string, XmlTargetDefinition[]>
+  emittedIdCounts: Map<string, number>
+  emittedRids: Set<string>
+  resolvedReferences: { rid: string; target?: XmlTargetDefinition }[]
+}
 
 export class XmlFootnoteValidationError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'XmlFootnoteValidationError'
+  }
+}
+
+export class XmlCrossRefValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'XmlCrossRefValidationError'
   }
 }
 
@@ -39,10 +67,205 @@ function buildAttrs(attrs: Record<string, string | number | boolean | null | und
   const parts: string[] = []
   for (const [key, value] of Object.entries(attrs)) {
     if (value != null && value !== '') {
-      parts.push(`${key}="${escapeXml(String(value))}"`)
+      const renderedValue = String(value)
+      const context = activeXmlReferenceContext
+      if (context && key === 'id') {
+        context.emittedIdCounts.set(renderedValue, (context.emittedIdCounts.get(renderedValue) ?? 0) + 1)
+      } else if (context && key === 'rid') {
+        context.emittedRids.add(renderedValue)
+      }
+      parts.push(`${key}="${escapeXml(renderedValue)}"`)
     }
   }
   return parts.length > 0 ? ' ' + parts.join(' ') : ''
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function mapDefinition(
+  context: XmlReferenceContext,
+  node: PMNode,
+  fallbackXmlId?: unknown,
+  legacyAliases: unknown[] = [],
+): void {
+  const stableId = nonEmptyString(node.attrs.nodeId)
+  const resolvedXmlId = stableId ? nonEmptyString(context.labels?.[stableId]?.xmlId) : undefined
+  const xmlId = resolvedXmlId ?? nonEmptyString(fallbackXmlId)
+  if (!xmlId) return
+
+  const definition: XmlTargetDefinition = {
+    xmlId,
+    ...(resolvedXmlId && stableId ? { stableId } : {}),
+    legacyIds: legacyAliases.map(nonEmptyString).filter((value): value is string => value !== undefined),
+    emittedDefinitionCount: 0,
+  }
+  context.definitionsByNode.set(node, definition)
+  const add = (index: Map<string, XmlTargetDefinition[]>, key: string | undefined) => {
+    if (!key) return
+    const entries = index.get(key) ?? []
+    entries.push(definition)
+    index.set(key, entries)
+  }
+  add(context.byStableId, definition.stableId)
+  for (const legacyId of definition.legacyIds) add(context.byLegacyId, legacyId)
+  add(context.byXmlId, definition.xmlId)
+}
+
+/** The tree scan records possible targets; only IDs actually emitted below can satisfy a reference. */
+function createXmlReferenceContext(
+  doc: PMNode,
+  labels?: Record<string, ResolvedLabel>,
+): XmlReferenceContext {
+  const context: XmlReferenceContext = {
+    hasResolver: labels !== undefined,
+    ...(labels === undefined ? {} : { labels }),
+    definitionsByNode: new WeakMap(),
+    byStableId: new Map(),
+    byLegacyId: new Map(),
+    byXmlId: new Map(),
+    emittedIdCounts: new Map(),
+    emittedRids: new Set(),
+    resolvedReferences: [],
+  }
+
+  const walk = (node: PMNode): void => {
+    const rawId = nonEmptyString(node.attrs.id)
+    const resolverId = nonEmptyString(context.labels?.[nonEmptyString(node.attrs.nodeId) ?? '']?.xmlId)
+    if (resolverId || rawId) mapDefinition(context, node, resolverId ?? rawId, [rawId])
+    node.forEach(child => walk(child))
+  }
+  walk(doc)
+  return context
+}
+
+function xmlDefinitionId(node: PMNode, fallback?: unknown): string | undefined {
+  const stableId = nonEmptyString(node.attrs.nodeId)
+  const resolvedId = stableId
+    ? nonEmptyString(activeXmlReferenceContext?.labels?.[stableId]?.xmlId)
+    : undefined
+  const xmlId = resolvedId ?? nonEmptyString(fallback)
+  if (xmlId) {
+    const definition = activeXmlReferenceContext?.definitionsByNode.get(node)
+    if (definition) {
+      definition.emittedXmlId = xmlId
+      definition.emittedDefinitionCount += 1
+    }
+  }
+  return xmlId
+}
+
+function recordEmittedDefinitionByStableId(nodeIdValue: unknown, xmlId: string): void {
+  const nodeId = nonEmptyString(nodeIdValue)
+  const context = activeXmlReferenceContext
+  if (!nodeId || !context?.hasResolver) return
+  const matches = uniqueDefinitions(context.byStableId.get(nodeId)).filter(definition => definition.xmlId === xmlId)
+  if (matches.length !== 1) return
+  matches[0]!.emittedXmlId = xmlId
+  matches[0]!.emittedDefinitionCount += 1
+}
+
+function uniqueDefinitions(entries: XmlTargetDefinition[] | undefined): XmlTargetDefinition[] {
+  return [...new Set(entries ?? [])]
+}
+
+function assertNonEmptyCrossRefTargets(value: unknown): void {
+  if (Array.isArray(value)) {
+    value.forEach(assertNonEmptyCrossRefTargets)
+    return
+  }
+  if (!value || typeof value !== 'object') return
+  const record = value as Record<string, unknown>
+  if (record.type === 'text' && Array.isArray(record.marks)) {
+    for (const mark of record.marks) {
+      if (!mark || typeof mark !== 'object' || (mark as Record<string, unknown>).type !== 'crossRef') continue
+      const attrs = (mark as { attrs?: Record<string, unknown> }).attrs
+      const hasTargetId = attrs?.targetId !== null && attrs?.targetId !== undefined
+      const selected = hasTargetId ? attrs?.targetId : attrs?.refId
+      if (typeof selected !== 'string' || selected.length === 0) {
+        throw new XmlCrossRefValidationError(hasTargetId
+          ? '交叉引用目标为空；空 targetId 不回退到 refId。'
+          : '旧交叉引用缺少 refId，不能生成无目标的 xref。')
+      }
+    }
+  }
+  Object.values(record).forEach(assertNonEmptyCrossRefTargets)
+}
+
+function resolveCrossRefXmlId(attrs: Record<string, unknown> | undefined): string {
+  const hasTargetId = attrs?.targetId !== null && attrs?.targetId !== undefined
+  const selected = hasTargetId ? attrs?.targetId : attrs?.refId
+  if (typeof selected !== 'string' || selected.length === 0) {
+    throw new XmlCrossRefValidationError(hasTargetId
+      ? '交叉引用目标为空；空 targetId 不回退到 refId。'
+      : '旧交叉引用缺少 refId，不能生成无目标的 xref。')
+  }
+
+  const context = activeXmlReferenceContext
+  if (!context?.hasResolver) {
+    if (hasTargetId) {
+      throw new XmlCrossRefValidationError(`交叉引用目标「${selected}」需要 Resolver 才能映射为 XML id。`)
+    }
+    // Minimal legacy PMNode-shaped callers have no stable-ID space. Keep their explicit
+    // refId verbatim instead of pretending it was Resolver-mapped.
+    return selected
+  }
+
+  let candidates: XmlTargetDefinition[]
+  if (hasTargetId) {
+    candidates = uniqueDefinitions(context.byStableId.get(selected))
+  } else {
+    candidates = uniqueDefinitions([
+      ...(context.byStableId.get(selected) ?? []),
+      ...(context.byLegacyId.get(selected) ?? []),
+      ...(context.byXmlId.get(selected) ?? []),
+    ])
+  }
+
+  if (candidates.length === 0) {
+    if (!hasTargetId) {
+      // Older schema trees may refer directly to a legacy emitted id without nodeId/attrs.id.
+      // Keep the spelling and let the actual serialized ID inventory decide whether it exists.
+      context.resolvedReferences.push({ rid: selected })
+      return selected
+    }
+    throw new XmlCrossRefValidationError(`交叉引用目标「${selected}」未找到稳定 ID 映射，不能生成 XML 引用。`)
+  }
+  if (candidates.length > 1) {
+    throw new XmlCrossRefValidationError(`交叉引用 refId「${selected}」同时匹配多个定义，目标有歧义。`)
+  }
+
+  const target = candidates[0]!
+  const sameXmlId = uniqueDefinitions(context.byXmlId.get(target.xmlId))
+  if (sameXmlId.length !== 1) {
+    throw new XmlCrossRefValidationError(`交叉引用目标的 XML id「${target.xmlId}」重复，无法唯一定位。`)
+  }
+  context.resolvedReferences.push({ rid: target.xmlId, target })
+  return target.xmlId
+}
+
+function validateEmittedXmlReferences(context: XmlReferenceContext): void {
+  if (!context.hasResolver) return
+  for (const rid of context.emittedRids) {
+    const count = context.emittedIdCounts.get(rid) ?? 0
+    if (count !== 1) {
+      throw new XmlCrossRefValidationError(count === 0
+        ? `交叉引用目标「${rid}」未在当前 XML 输出中出现；旧 XML 没有可承载该目标的 id 属性，请保留 JSON 并等待 WP8 转换。`
+        : `交叉引用目标的 XML id「${rid}」在当前输出中重复，无法唯一定位。`)
+    }
+  }
+  for (const { rid, target } of context.resolvedReferences) {
+    const count = context.emittedIdCounts.get(rid) ?? 0
+    if (count !== 1) {
+      throw new XmlCrossRefValidationError(count === 0
+        ? `交叉引用目标「${rid}」未在当前 XML 输出中出现；旧 XML 没有可承载该目标的 id 属性，请保留 JSON 并等待 WP8 转换。`
+        : `交叉引用目标的 XML id「${rid}」在当前输出中重复，无法唯一定位。`)
+    }
+    if (target && (target.emittedDefinitionCount !== 1 || target.emittedXmlId !== rid)) {
+      throw new XmlCrossRefValidationError(`交叉引用目标「${rid}」没有作为其定义出现在当前 XML 输出中，请保留 JSON 并等待 WP8 转换。`)
+    }
+  }
 }
 
 /**
@@ -50,89 +273,98 @@ function buildAttrs(attrs: Record<string, string | number | boolean | null | und
  */
 export function serializeToXml(doc: PMNode): string {
   const previousLabels = activeFootnoteLabels
-  // A few serializer unit tests and callers provide a minimal PMNode-shaped tree without
-  // ProseMirror's toJSON(). Keep those legacy callers working; production editor nodes always
-  // take the resolver-backed path so footnote numbering and XML IDs remain shared.
-  if (typeof doc.toJSON === 'function') {
-    const pmJson = doc.toJSON() as PMJsonNode
-    const { doc: irDoc } = pmToIr(pmJson)
-    // WP6 new authoring semantics must not be dropped by the old XML path pending WP8.
-    const resolved = resolve(irDoc)
-    const errors = resolved.problems.filter(problem =>
-      problem.severity === 'error' && ['dangling-footnote', 'unreferenced-footnote', 'invalid-footnote'].includes(problem.code))
-    if (errors.length) {
-      throw new XmlFootnoteValidationError(`脚注校验未通过，不能生成 XML：${[...new Set(errors.map(problem => problem.message))].join('；')}`)
-    }
-    assertOutputSupported(irDoc, 'XML')
-    // These shapes pass through IR's broad authoring contract, but this legacy serializer
-    // does not consume them. Keep provenance here so legacy formulaDescription remains exportable.
-    const unsupported: OutputSupportProblem[] = []
-    const addUnsupported = (node: PMNode, path: string, message: string, fallbackId?: unknown): void => {
-      const id = node.attrs.nodeId ?? node.attrs.id ?? fallbackId
-      unsupported.push({
-        code: 'unsupported-output',
-        ...(typeof id === 'string' ? { nodeId: id } : {}),
-        path,
-        message: `${message} 请保留 JSON 文档并等待 WP8 转换。`,
-      })
-    }
-    const legacyChapters = irDoc.body.filter(block => block.kind === 'chapter')
-    let chapterIndex = 0
-    const checkUnsupportedLegacyXmlShapes = (node: PMNode, path: string): void => {
-      if (node.type.name === 'chapter') {
-        const chapter = legacyChapters[chapterIndex++]
-        const explicitSecType = node.attrs.secType
-        if (chapter && typeof explicitSecType === 'string'
-          && ['scope', 'norm-refs', 'terms', 'general'].includes(explicitSecType)) {
-          const title = chapter.title.map(inline => inline.text).join('').trim()
-          const inferredSecType = title === '范围' ? 'scope'
-            : title === '规范性引用文件' ? 'norm-refs'
-              : title === '术语和定义' ? 'terms' : 'general'
-          if (explicitSecType !== inferredSecType) {
-            addUnsupported(node, `${path}.attrs.secType`, `XML 不保存显式章角色；按标题重新导入会得到「${inferredSecType}」而不是「${explicitSecType}」。`)
+  const previousReferenceContext = activeXmlReferenceContext
+  try {
+    // A few serializer unit tests and callers provide a minimal PMNode-shaped tree without
+    // ProseMirror's toJSON(). Keep those legacy callers working; production editor nodes always
+    // take the resolver-backed path so footnote numbering and XML IDs remain shared.
+    if (typeof doc.toJSON === 'function') {
+      const pmJson = doc.toJSON() as PMJsonNode
+      assertNonEmptyCrossRefTargets(pmJson)
+      const { doc: irDoc } = pmToIr(pmJson)
+      // WP6 new authoring semantics must not be dropped by the old XML path pending WP8.
+      const resolved = resolve(irDoc)
+      const errors = resolved.problems.filter(problem =>
+        problem.severity === 'error' && ['dangling-footnote', 'unreferenced-footnote', 'invalid-footnote'].includes(problem.code))
+      if (errors.length) {
+        throw new XmlFootnoteValidationError(`脚注校验未通过，不能生成 XML：${[...new Set(errors.map(problem => problem.message))].join('；')}`)
+      }
+      activeFootnoteLabels = resolved.labels
+      activeXmlReferenceContext = createXmlReferenceContext(doc, resolved.labels)
+      assertOutputSupported(irDoc, 'XML')
+      // These shapes pass through IR's broad authoring contract, but this legacy serializer
+      // does not consume them. Keep provenance here so legacy formulaDescription remains exportable.
+      const unsupported: OutputSupportProblem[] = []
+      const addUnsupported = (node: PMNode, path: string, message: string, fallbackId?: unknown): void => {
+        const id = node.attrs.nodeId ?? node.attrs.id ?? fallbackId
+        unsupported.push({
+          code: 'unsupported-output',
+          ...(typeof id === 'string' ? { nodeId: id } : {}),
+          path,
+          message: `${message} 请保留 JSON 文档并等待 WP8 转换。`,
+        })
+      }
+      const legacyChapters = irDoc.body.filter(block => block.kind === 'chapter')
+      let chapterIndex = 0
+      const checkUnsupportedLegacyXmlShapes = (node: PMNode, path: string): void => {
+        if (node.type.name === 'chapter') {
+          const chapter = legacyChapters[chapterIndex++]
+          const explicitSecType = node.attrs.secType
+          if (chapter && typeof explicitSecType === 'string'
+            && ['scope', 'norm-refs', 'terms', 'general'].includes(explicitSecType)) {
+            const title = chapter.title.map(inline => inline.text).join('').trim()
+            const inferredSecType = title === '范围' ? 'scope'
+              : title === '规范性引用文件' ? 'norm-refs'
+                : title === '术语和定义' ? 'terms' : 'general'
+            if (explicitSecType !== inferredSecType) {
+              addUnsupported(node, `${path}.attrs.secType`, `XML 不保存显式章角色；按标题重新导入会得到「${inferredSecType}」而不是「${explicitSecType}」。`)
+            }
           }
         }
+        if (node.type.name === 'termSource' && node.childCount > 0) {
+          addUnsupported(node, path, 'XML 暂未支持独立的术语来源节点。')
+        }
+        if (node.type.name === 'formula') {
+          node.forEach((child, _offset, index) => {
+            if (child.type.name === 'whereList' && child.childCount > 0) {
+              const formulaId = node.attrs.nodeId ?? node.attrs.id
+              addUnsupported(child, `${path}.content[${index}]`, 'XML 暂未支持类型化的公式式中列表。', formulaId)
+            }
+          })
+        }
+        if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
+          node.forEach((child, _offset, index) => {
+            if (!child.isTextblock || !['paragraph', 'stdParagraph'].includes(child.type.name)) {
+              const cellId = node.attrs.nodeId ?? node.attrs.id
+              addUnsupported(child, `${path}.content[${index}]`, `XML 暂未支持表格单元格中的块「${child.type.name}」。`, cellId)
+            }
+          })
+        }
+        node.forEach((child, _offset, index) => checkUnsupportedLegacyXmlShapes(child, `${path}.content[${index}]`))
       }
-      if (node.type.name === 'termSource' && node.childCount > 0) {
-        addUnsupported(node, path, 'XML 暂未支持独立的术语来源节点。')
+      checkUnsupportedLegacyXmlShapes(doc, 'pm')
+      if (unsupported.length > 0) throw new UnsupportedOutputError(unsupported)
+    } else {
+      // Minimal legacy trees have no Resolver context. Never invent IDs/labels for footnotes.
+      const hasFootnote = (node: PMNode): boolean => {
+        if (['footnoteRef', 'tableFootnoteRef', 'tableFootnoteEntry'].includes(node.type.name)) return true
+        if (node.isText || typeof node.forEach !== 'function') return false
+        let found = false
+        node.forEach(child => { if (hasFootnote(child)) found = true })
+        return found
       }
-      if (node.type.name === 'formula') {
-        node.forEach((child, _offset, index) => {
-          if (child.type.name === 'whereList' && child.childCount > 0) {
-            const formulaId = node.attrs.nodeId ?? node.attrs.id
-            addUnsupported(child, `${path}.content[${index}]`, 'XML 暂未支持类型化的公式式中列表。', formulaId)
-          }
-        })
-      }
-      if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
-        node.forEach((child, _offset, index) => {
-          if (!child.isTextblock || !['paragraph', 'stdParagraph'].includes(child.type.name)) {
-            const cellId = node.attrs.nodeId ?? node.attrs.id
-            addUnsupported(child, `${path}.content[${index}]`, `XML 暂未支持表格单元格中的块「${child.type.name}」。`, cellId)
-          }
-        })
-      }
-      node.forEach((child, _offset, index) => checkUnsupportedLegacyXmlShapes(child, `${path}.content[${index}]`))
+      if (hasFootnote(doc)) throw new XmlFootnoteValidationError('脚注 XML 序列化需要可验证的完整文档，不能使用缺少 toJSON 的文档树。')
+      activeFootnoteLabels = {}
+      activeXmlReferenceContext = createXmlReferenceContext(doc)
     }
-    checkUnsupportedLegacyXmlShapes(doc, 'pm')
-    if (unsupported.length > 0) throw new UnsupportedOutputError(unsupported)
-    activeFootnoteLabels = resolved.labels
-  } else {
-    // Minimal legacy trees have no Resolver context. Never invent IDs/labels for footnotes.
-    const hasFootnote = (node: PMNode): boolean => {
-      if (['footnoteRef', 'tableFootnoteRef', 'tableFootnoteEntry'].includes(node.type.name)) return true
-      if (node.isText || typeof node.forEach !== 'function') return false
-      let found = false
-      node.forEach(child => { if (hasFootnote(child)) found = true })
-      return found
-    }
-    if (hasFootnote(doc)) throw new XmlFootnoteValidationError('脚注 XML 序列化需要可验证的完整文档，不能使用缺少 toJSON 的文档树。')
-    activeFootnoteLabels = {}
-  }
-  try {
-    return serializeXmlDocument(doc)
+
+    const xml = serializeXmlDocument(doc)
+    const referenceContext = activeXmlReferenceContext
+    if (referenceContext) validateEmittedXmlReferences(referenceContext)
+    return xml
   } finally {
     activeFootnoteLabels = previousLabels
+    activeXmlReferenceContext = previousReferenceContext
   }
 }
 
@@ -332,7 +564,7 @@ function serializeChapter(
   clauseCounters: number[],
   depth: number,
 ) {
-  const id = node.attrs.id || `sec_${chapterNum}`
+  const id = xmlDefinitionId(node, node.attrs.id || `sec_${chapterNum}`) || `sec_${chapterNum}`
   lines.push(`${indent(depth)}<sec${buildAttrs({ id })}>`)
 
   node.forEach((child) => {
@@ -369,7 +601,7 @@ function serializeClause(
 
   const numParts = [chapterNum, ...clauseCounters.slice(0, level)]
   const numStr = numParts.join('.')
-  const id = node.attrs.id || `sec_${numStr}`
+  const id = xmlDefinitionId(node, node.attrs.id || `sec_${numStr}`) || `sec_${numStr}`
   const hasTitle = node.attrs.hasTitle !== false
 
   const attrs: Record<string, string | number | boolean | null> = { id }
@@ -411,7 +643,7 @@ function serializeTermDef(
 
   const numParts = [chapterNum, ...clauseCounters.slice(0, level)]
   const numStr = numParts.join('.')
-  const id = node.attrs.id || `term_${numStr}`
+  const id = xmlDefinitionId(node, node.attrs.id || `term_${numStr}`) || `term_${numStr}`
 
   lines.push(`${indent(depth)}<term-sec${buildAttrs({ id })}>`)
 
@@ -466,7 +698,7 @@ function serializeTermDef(
 /** 序列化附录 */
 function serializeAppendix(lines: string[], node: PMNode, letter: string, depth: number) {
   const normative = node.attrs.normative ? 'normative' : 'informative'
-  const id = node.attrs.id || `app_${letter}`
+  const id = xmlDefinitionId(node, node.attrs.id || `app_${letter}`) || `app_${letter}`
   lines.push(`${indent(depth)}<app${buildAttrs({ id, 'content-type': normative })}>`)
 
   const clauseCounters = [0, 0, 0, 0, 0]
@@ -508,7 +740,7 @@ function serializeAppendixClause(
 
   const numParts = [letter, ...clauseCounters.slice(0, level)]
   const numStr = numParts.join('.')
-  const id = node.attrs.id || `sec_${numStr}`
+  const id = xmlDefinitionId(node, node.attrs.id || `sec_${numStr}`) || `sec_${numStr}`
   const hasTitle = node.attrs.hasTitle !== false
 
   const attrs: Record<string, string | number | boolean | null> = { id }
@@ -550,7 +782,7 @@ function serializeAppendixTermDef(
 
   const numParts = [letter, ...clauseCounters.slice(0, level)]
   const numStr = numParts.join('.')
-  const id = node.attrs.id || `term_${numStr}`
+  const id = xmlDefinitionId(node, node.attrs.id || `term_${numStr}`) || `term_${numStr}`
 
   lines.push(`${indent(depth)}<term-sec${buildAttrs({ id })}>`)
 
@@ -612,8 +844,8 @@ function serializeBibliography(lines: string[], node: PMNode, depth: number) {
         break
       case 'bibEntry': {
         const index = child.attrs.index
-        const attrs: Record<string, string | null> = {}
-        if (index) attrs.id = `bib_${index}`
+        const id = xmlDefinitionId(child, index ? `bib_${index}` : undefined)
+        const attrs: Record<string, string | null | undefined> = { id }
         lines.push(`${indent(depth + 1)}<ref${buildAttrs(attrs)}>`)
         lines.push(`${indent(depth + 2)}<mixed-citation>${serializeInlineContent(child)}</mixed-citation>`)
         lines.push(`${indent(depth + 1)}</ref>`)
@@ -677,7 +909,7 @@ function serializeBlockNode(lines: string[], node: PMNode, depth: number) {
 
 /** 序列化表格 */
 function serializeTable(lines: string[], node: PMNode, depth: number) {
-  const id = node.attrs.id
+  const id = xmlDefinitionId(node, node.attrs.id)
   const orientation = normalizePageOrientation(node.attrs.orientation)
   lines.push(`${indent(depth)}<table-wrap${buildAttrs({
     id: id || undefined,
@@ -722,7 +954,9 @@ function serializeTable(lines: string[], node: PMNode, depth: number) {
           const nodeId = String(entry.attrs.nodeId || '')
           const xmlId = tableFootnoteXmlId(nodeId)
           const label = requireFootnoteLabel(nodeId, 'table').label
-          lines.push(`${indent(depth + 2)}<fn fn-type="table"${buildAttrs({ id: xmlId })}>`)
+          const attrs = buildAttrs({ id: xmlId })
+          recordEmittedDefinitionByStableId(nodeId, xmlId)
+          lines.push(`${indent(depth + 2)}<fn fn-type="table"${attrs}>`)
           lines.push(`${indent(depth + 3)}<label>${escapeXml(label)}</label>`)
           lines.push(`${indent(depth + 3)}<p>${serializeInlineContent(entry)}</p>`)
           lines.push(`${indent(depth + 2)}</fn>`)
@@ -772,7 +1006,7 @@ function serializeCellContent(cell: PMNode): string {
 
 /** 序列化图 */
 function serializeFigure(lines: string[], node: PMNode, depth: number) {
-  const id = node.attrs.id
+  const id = xmlDefinitionId(node, node.attrs.id)
   const orientation = normalizePageOrientation(node.attrs.orientation)
   lines.push(`${indent(depth)}<fig${buildAttrs({
     id: id || undefined,
@@ -807,7 +1041,7 @@ function serializeFigure(lines: string[], node: PMNode, depth: number) {
 
 /** 序列化公式 */
 function serializeFormula(lines: string[], node: PMNode, depth: number) {
-  const id = node.attrs.id
+  const id = xmlDefinitionId(node, node.attrs.id)
   lines.push(`${indent(depth)}<disp-formula${buildAttrs({ id: id || undefined })}>`)
 
   node.forEach((child) => {
@@ -895,9 +1129,11 @@ function serializeMarkedText(text: string, marks: Array<{ type: string; attrs?: 
       case 'superscript': result = `<sup>${result}</sup>`; break
       case 'underline': result = `<underline>${result}</underline>`; break
       case 'strike': result = `<strike>${result}</strike>`; break
-      case 'crossRef':
-        result = `<xref${buildAttrs({ 'ref-type': mark.attrs?.refType as string || 'sec', rid: mark.attrs?.refId as string || '' })}>${result}</xref>`
+      case 'crossRef': {
+        const rid = resolveCrossRefXmlId(mark.attrs)
+        result = `<xref${buildAttrs({ 'ref-type': mark.attrs?.refType as string || 'sec', rid })}>${result}</xref>`
         break
+      }
     }
   }
   return result
@@ -938,7 +1174,9 @@ function serializeFootnoteReference(nodeIdValue: unknown, content: unknown): str
   const nodeId = typeof nodeIdValue === 'string' ? nodeIdValue : ''
   const id = bodyFootnoteXmlId(nodeId)
   const label = requireFootnoteLabel(nodeId, 'body').label
-  return `<xref${buildAttrs({ 'ref-type': 'fn', rid: id })}>${escapeXml(label)}</xref><fn${buildAttrs({ id })}><label>${escapeXml(label)}</label><p>${serializeInlineJson(content)}</p></fn>`
+  const attrs = buildAttrs({ id })
+  recordEmittedDefinitionByStableId(nodeId, id)
+  return `<xref${buildAttrs({ 'ref-type': 'fn', rid: id })}>${escapeXml(label)}</xref><fn${attrs}><label>${escapeXml(label)}</label><p>${serializeInlineJson(content)}</p></fn>`
 }
 
 function serializeTableFootnoteReference(targetIdValue: unknown): string {

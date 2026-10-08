@@ -93,3 +93,14 @@ Resolver 的 typed-reference 来源诊断仍保留 owner ID、原 message 和 Re
 主代理对冻结工作树的统一验收为 shared 50 files / 1,007 tests、shared `tsc --noEmit` 通过；client 56 files（55 passed、1 skipped）、401 tests（400 passed、1 个 opt-in API skipped）、`vue-tsc`/Vite build 通过；server 2 suites / 23 tests、Nest build 通过。总计 1,430 tests passed，另 1 个 skipped。Vite 只有既有 chunk-size warning。日志与逐项证据见[本轮验收记录](wp6-validation.md#9c1565b9-转换边界复审)。
 
 fixture SHA `cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d` 和 primary material SHA `8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8` 已核对未变；golden/manifest 未修改。此验收对象是基于 `9c1565b9` 的冻结工作树，不能作为 Codex 已批准或 PR 已合并的证明。未执行真实浏览器/SQLite 冷重开、Word 打开排版、正式 GB/T 46687.2 XML 互操作或真实标准稿件验收；不据此声称全仓库无缺陷。范围仍为 WP6 JSON/作者 IR，不扩展 WP8、新 XML 映射、MathML 打印、标准技术语义或新操作面板。
+
+## 2026-10-08 280e2e54 引用目标复审（review 5453609687）
+
+Codex review `5453609687` 于北京时间 2026-10-08 16:07:19 针对审阅提交 `280e2e54c48221467c5d379eda37abb3991df4fa` 提出两项 P2：[XML 定义 ID 与引用 rid 不一致](https://github.com/funtasy2333/SEP/pull/45#discussion_r4216522799)及 [HTML 交叉引用未指向实际渲染锚点](https://github.com/funtasy2333/SEP/pull/45#discussion_r4216522808)。审阅起点是 `280e2e54`；下文总结当前冻结工作树的修复，不把起点和最终修复状态混写。
+
+- **legacy XML 目标 ID**：定义与 `xref rid` 使用同一 Resolver 候选 ID，并核验到实际序列化定义 `id`。范围只含既有载体 `sec`、`term-sec`、`app`、`table-wrap`、`fig`、`disp-formula`、`ref`、`fn` 载体。回归覆盖自动脚注引用及普通 untyped crossRef 指向正文/表脚注定义；生成的每个受测 `rid` 唯一命中一个实际 `id`。附录和术语默认候选也与 Resolver 一致；派生 note ID 与 chapter fallback 同名时明确拒绝。无 ID 载体的 paragraph、note、example、list 等合法 IR 目标在旧 XML 出口精准拒绝，不增加目标消费能力。JSON-backed 重复 bibliography 用例是 schema-invalid compatibility boundary，不作为有效生产文档证据。
+- **HTML 真实锚点**：在同一实际渲染路径预收集锚点。screen 只有唯一且实际输出的目标会成为 href；隐藏、重复、空或未输出目标均无链接。有 resolved label 时保留其 refText（包括空值）和 marks；没有 label 时保留作者原文和 marks，以无链接 span 呈现。print 不含内部 href。list/item/row/cell/where 没有 Resolver 实际标签；使用调用方 labels 的 renderer carrier 测试不表示这些目标在生产 Resolver 下受支持。
+- **PM crossRef producer**：统一 `targetId ?? refId` 优先级；空 canonical target 不回退。旧命令仍可只传 `refId`，并清除陈旧 `targetId`；canonical 命令写入 `targetId` 并清除 `refId`，从而替换选区 mark 或 cursor stored mark 上的旧活动目标。该范围是现有公共命令契约，不新增 crossRef UI。
+- HTML snapshot 仅 screen 与 print 两个变体各补 8 个 note/example ID 属性；JSON golden 和 manifest 未变。fixture `fixtures.ts` SHA 及 primary material SHA 经核对保持不变。
+
+冻结后的完整验证数字与限制见[本轮验收记录](wp6-validation.md#280e2e54-引用目标复审)。本轮未宣称 Codex 已批准或 PR 已合并；自动回归也不证明新国标 XML 互操作、Word 排版、浏览器 UI、SQLite 冷重开、真实标准稿件或全仓库无缺陷。新国标 XML 双向映射仍归 WP8，不重建 legacy 转换器。

@@ -3,7 +3,7 @@
 ## 基线与复审范围
 
 - PR：[#45](https://github.com/funtasy2333/SEP/pull/45)，最早记录的复审起点 head `c24181ca77fa77bdb73923d26f498bed265bf7b3`，相对 `origin/main` 的 merge base 为 `e0e9ab09d2b5867ba81bdf7be9f17866a1ab1f28`。83 个文件只描述该历史起点的 PR 差异；之后各轮新增修改已扩大差异，不能把 83 视作当前或最终 PR 文件总数。
-- 最新复审起点：审阅提交 `9c1565b9acc724b9b13b8361d70b5f0a4af54ffe`；Codex review `5452133440` 于北京时间 2026-10-08 13:51:24 提交，唯一 P2 inline comment `4215335293`，[查看意见](https://github.com/funtasy2333/SEP/pull/45#discussion_r4215335293)，涉及 native IR 脚注负载与生产 PM canonical 回读规则不一致。上一轮 review `5450305128` 审阅提交 `e39101da`，针对 StandardDoc 根类型丢失；该意见的修复提交为 `9c1565b9`，历史冻结验收为 1,366 项通过。更早的 `5450144611` 审阅的是 `2fa97872`。83 个文件只描述更早的 PR 差异基线，不是当前或最终 PR 文件总数。
+- 最新复审起点：审阅提交 `280e2e54c48221467c5d379eda37abb3991df4fa`；Codex review `5453609687` 于北京时间 2026-10-08 16:07:19 提交两项 P2：[XML 定义 ID 与 rid 不一致](https://github.com/funtasy2333/SEP/pull/45#discussion_r4216522799)及 [HTML 链接未指向实际输出锚点](https://github.com/funtasy2333/SEP/pull/45#discussion_r4216522808)。上一轮 review `5452133440` 对 `9c1565b9` 的脚注/行内边界意见见后续历史章节；此前 83 个文件仅描述更早的 PR 差异基线，不是当前文件总数。
 - 复审由三条相互衔接的路径组成：生产 Tiptap schema 与 `pmToIr`/`irToPm`/Resolver；编辑器和 JSON/HTML/DOCX/XML 的生产导出入口；IR allowlist 与每种渲染器实际消费的字段。结论只覆盖 PR #45 改动及其直接生产入口，不能推断整个仓库没有其他问题。
 
 核心生产路径包括：生产 `createEditorExtensions()` schema → 编辑器加载/保存和稳定 nodeId → `pmToIr` → Resolver/输出边界 → `renderJson`、HTML exporter、DOCX exporter、旧 XML `serializeToXml`；反向路径包括 native IR → `irToPm` → 生产 schema → 保存/加载。真实 API/SQLite 冷重开、浏览器验收、Word 排版和正式 XML 互操作是不同层级，不能以单元测试代替。
@@ -143,3 +143,14 @@ Codex review `5452133440` 于北京时间 2026-10-08 13:51:24 针对审阅提交
 主代理冻结验收：shared 50 files / 1,007 tests，`tsc --noEmit` 通过；client 56 files 中 55 passed、1 skipped，401 tests 中 400 passed、1 opt-in API skipped，`vue-tsc` 与 Vite build 通过；server 2 suites / 23 tests、Nest build 通过。合计 1,430 tests passed、1 skipped；Vite 仅有既有 chunk-size warning。冻结日志为 `/private/tmp/wp6-footnote-final-shared-test.log`、`/private/tmp/wp6-footnote-final-shared-types.log`、`/private/tmp/wp6-footnote-final-client-test.log`、`/private/tmp/wp6-footnote-final-client-build.log`、`/private/tmp/wp6-footnote-final-server-test.log`、`/private/tmp/wp6-footnote-final-server-build.log`。
 
 历史 fixture SHA `cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d` 与 primary material SHA `8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8` 均核对未变；无 golden/manifest 变更。此处记录的是针对 `9c1565b9` 工作树的冻结验收，不表示 Codex 已批准、PR 已合并或全仓库无 bug。正式 GB/T 46687.2 XML 互操作、Word 打开/排版、真实浏览器/SQLite 冷重开及真实标准稿件未在本轮执行；旧 XML 移除与新国标 XML 统一切换归 WP8，不重建旧转换器。
+
+## 280e2e54 引用目标复审（2026-10-08，review 5453609687）
+
+Codex review `5453609687` 于北京时间 2026-10-08 16:07:19 审阅提交 `280e2e54c48221467c5d379eda37abb3991df4fa`，提出两项 P2：[legacy XML 定义 ID 与 rid 不一致](https://github.com/funtasy2333/SEP/pull/45#discussion_r4216522799)；[HTML 内部链接可能指向未输出的节点](https://github.com/funtasy2333/SEP/pull/45#discussion_r4216522808)。验收对象为基于审阅起点 `280e2e54` 的冻结修复工作树；对应提交以 PR 最终 head 记录为准。
+
+- **XML**：candidate 统计覆盖实际定义与引用共享的旧 XML ID 载体 `sec`、`term-sec`、`app`、`table-wrap`、`fig`、`disp-formula`、`ref`、`fn` 载体。定义 `id` 与引用 `rid` 取同一 Resolver 候选，并由生产序列化结果核对唯一命中。回归额外覆盖自动脚注 xref 和普通 untyped crossRef 指向正文/表脚注 fn 定义；note 派生 ID 与 chapter fallback 碰撞时拒绝。无 ID 载体的 paragraph、note、example、list 等目标仍在 legacy XML 边界精确拒绝。重复 bibliography 的 JSON-backed 用例只代表 schema-invalid compatibility boundary，不代表可装入生产 Schema 的文档。
+- **HTML**：同一实际 render path 预收集实际锚点。screen 仅对唯一且输出的目标生成 href；隐藏、重复、空或未输出的目标均不生成链接。有 resolved label 时保留其 refText（包括空值）与原有 marks；没有 label 时保留作者原文与原有 marks，均输出为无内部链接 span。print 不生成内部 href。Resolver 没有真实 labels 的 list/item/row/cell/where 不据 renderer carrier 单测扩大为生产支持，也未修改 Resolver。
+- **PM producer**：真实 Editor 回归覆盖 `setCrossRef` 在选区和 stored-mark 两条路径上的旧/新目标更新。命令保留 legacy refId 调用，清掉另一字段的陈旧值；canonical 空字符串仍按 canonical 优先，不使用 refId fallback。没有新增 UI。
+- **snapshot 与锁定输入**：获准的 HTML snapshot 变更仅为 screen/print 各 8 个 note/example ID 属性。JSON golden、manifest 未修改；`fixtures.ts` SHA 为 `cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d`，primary material SHA 为 `8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8`，冻结核对未变。
+
+主代理冻结后的完整命令、测试数、日志和证据限制见[验收记录](wp6-validation.md#280e2e54-引用目标复审)。早先 1,430 项是 9c1565b9 验收历史值，不是本轮结果，且不能与本轮相加。验收对象为基于审阅起点 `280e2e54` 的冻结修复工作树；对应提交以 PR 最终 head 记录为准。本节不声称新 review 批准、PR 合并、全仓库无缺陷或 Word、SQLite 冷重开、浏览器 UI、正式 XML 互操作及真实标准稿件已验收。WP6/WP8 边界不变：本轮只收紧现有 legacy XML ID carrier，GB/T 46687.2 双向 XML 归 WP8，不新增旧 p/note/list 目标能力、不重建旧转换器或增加新格式映射。

@@ -148,3 +148,13 @@ Tiptap `setContent` 仅替换子内容。生产加载、版本回滚与 XML 导�
 raw/semantic PM JSON 仍保留已有 PM 内容以供纠错；native `renderJson(IRDoc)` 经过 `irToPm`，因此不可投影的 native IR 会得到明确错误。UI 语义 JSON 仍由 `exportSemanticJson → renderSemanticJson` 消费原 PM 文档和 Resolver labels，本轮不把它描述成全量 PM→IR→`renderJson` 流水线。VersionPanel 的 JSON-only snapshot fallback 保持。
 
 以上是 WP6 JSON 与作者 IR 的双向投影/输出边界收紧，不新增 XML 或 MathML 打印能力。旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器；不扩展标准技术语义或新增工具栏。
+
+## 2026-10-08 引用目标输出一致性补充
+
+PM crossRef 的活动目标遵循 `targetId ?? refId`：canonical `targetId` 存在时优先，空字符串也算已提供的 canonical 值，不回退到 legacy `refId`。PM→IR 对空目标仍按无效目标处理；HTML 不为它生成内部链接。
+
+`setCrossRef({ refId, refType })` 保持旧调用方式，写入新的 `refId` 并将 `targetId` 清为 null；canonical 调用写入 `targetId` 并将 `refId` 清为 null。两个字段同时传入时按 nullish 优先级选目标，包括空字符串 canonical 值。该更新规则使已存在 mark 的新目标能替换旧活动目标。
+
+legacy XML 的内部引用只映射到现有带 ID 的定义载体：`sec`、`term-sec`、`app`、`table-wrap`、`fig`、`disp-formula`、`ref` 和 `fn`。对这些载体，定义 `id` 与 `xref rid` 共用同一 Resolver 候选 ID；不为 paragraph、note、example、list 等无 ID 载体新增消费能力，无支持的目标继续精确拒绝。自动脚注引用及本轮覆盖的普通 crossRef 脚注目标都有实际定义 ID 对照；该范围不重建 legacy 转换器，也不新增 GB/T 46687.2 映射，后者属于 WP8。
+
+HTML 在同一实际渲染路径收集候选锚点。screen 输出只为唯一且实际输出的目标生成内部链接；隐藏、重复、空或未输出的目标不生成内部链接。有 resolved label 时保留其 `refText`（包括空值）及其他 marks；没有 label 时保留作者原文及其他 marks，均渲染为无内部链接的 span。print 输出不生成内部 href。Resolver 未为 list/item/row/cell/where 提供实际标签的场景仍不视为生产交叉引用支持；相应 renderer carrier 单测使用调用方提供的 labels，不改变 Resolver。

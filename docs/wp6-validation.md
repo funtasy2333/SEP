@@ -288,3 +288,25 @@ Codex review `5452133440` 针对审阅提交 `9c1565b9acc724b9b13b8361d70b5f0a4a
 - 合计 **1,430 tests passed，另 1 项 skipped**。六份日志：`/private/tmp/wp6-footnote-final-shared-test.log`、`/private/tmp/wp6-footnote-final-shared-types.log`、`/private/tmp/wp6-footnote-final-client-test.log`、`/private/tmp/wp6-footnote-final-client-build.log`、`/private/tmp/wp6-footnote-final-server-test.log`、`/private/tmp/wp6-footnote-final-server-build.log`。
 
 锁定 fixture SHA `cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d` 与 primary material SHA `8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8` 已核对未变；无 golden/manifest 修改。冻结验收对象是基于审阅起点 `9c1565b9` 的工作树，未声称产生新 review 批准或合并状态。未在本轮执行真实浏览器/SQLite 冷重开、Word 打开/排版、正式 GB/T 46687.2 XML 互操作或真实标准稿件验证，不代表全仓库无缺陷。WP6/WP8 边界不变：旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器；本轮不新增 MathML 打印、XML 映射、标准技术语义或新操作面板。
+
+## 280e2e54 引用目标复审
+
+Codex review `5453609687` 于北京时间 2026-10-08 16:07:19 审阅提交 `280e2e54c48221467c5d379eda37abb3991df4fa`，提出两项 P2：[XML `targetId` 与 `rid` 目标不一致](https://github.com/funtasy2333/SEP/pull/45#discussion_r4216522799)和 [HTML 引用未锚定到实际输出目标](https://github.com/funtasy2333/SEP/pull/45#discussion_r4216522808)。验收对象为基于审阅起点 `280e2e54` 的冻结修复工作树；对应提交以 PR 最终 head 记录为准。
+
+### 修复与定向证据
+
+- **legacy XML ID**：定义和 `xref rid` 取同一 Resolver 候选 ID，并核验候选实际写入定义 `id`。一致性范围限于既有 `sec`、`term-sec`、`app`、`table-wrap`、`fig`、`disp-formula`、`ref`、`fn` 载体。自动脚注 xref 与普通 untyped crossRef 指向正文/表脚注 fn 的回归均验证每个受测 rid 唯一命中一个实际 id。附录和术语默认候选同步 Resolver；note 派生 ID 与 chapter fallback 同名时明确拒绝。paragraph、note、example、list 等无 ID 载体不会新增旧 XML 目标能力，合法 IR 指向这些目标时在旧 XML 出口精确拒绝。JSON-backed 重复 bibliography 案例是 schema-invalid compatibility boundary，不作为有效生产文档。
+- **HTML 实际锚点**：同一 render path 预收集候选 ID，screen 仅对唯一且实际输出的目标生成 href。隐藏、重复、空或未输出目标均不生成链接；有 resolved label 时保留其 refText（包括空值）和其他 marks，没有 label 时保留作者原文和其他 marks，均作为无链接 span 输出。print 不生成内部 href。list/item/row/cell/where 没有生产 Resolver label；相关 renderer carrier 单测仅使用调用方 labels，未改变 Resolver，也不据此声称生产支持这些引用目标。
+- **PM crossRef producer**：`targetId ?? refId` 是统一活动目标优先级，空 targetId 不回退。legacy `setCrossRef({ refId, refType })` 清空旧 targetId，canonical 调用清空旧 refId；选区 mark 与光标 stored mark 的真实 Editor 用例覆盖新目标保存/重开和 legacy 调用兼容。没有新增引用 UI。
+- **测试资源与源材料**：HTML snapshot 的获准修改只涉及 screen、print 各 8 个 note/example ID 属性；JSON goldens 和 manifest 未变。fixture `packages/shared/src/ir/__tests__/fixtures.ts` SHA `cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d` 和 primary material SHA `8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8` 已复核保持不变。定向新测：shared HTML anchor 4 项；client HTML DOM anchor 1 项、real Editor crossRef producer 4 项、XML crossRef 13 项。
+
+### 冻结后统一验收
+
+- shared：51 files / 1,011 tests 通过；`tsc --noEmit` 通过。日志：`/private/tmp/wp6-reference-final-shared-test.log`、`/private/tmp/wp6-reference-final-shared-types.log`。
+- client：59 files 中 58 passed、1 skipped；419 tests 中 418 passed、1 个 opt-in API test skipped；`vue-tsc` 与 Vite build 通过，仅有既有 chunk-size warning。日志：`/private/tmp/wp6-reference-final-client-test.log`、`/private/tmp/wp6-reference-final-client-build.log`。
+- server：2 suites / 23 tests 通过；Nest build 通过。日志：`/private/tmp/wp6-reference-final-server-test.log`、`/private/tmp/wp6-reference-final-server-build.log`。
+- 合计 **1,452 tests passed，另 1 项 skipped**。
+
+首次 client test/build 运行未通过，日志保留于 `/private/tmp/wp6-reference-initial-client-test.log` 和 `/private/tmp/wp6-reference-initial-client-build.log`。问题在测试边界：旧 footnote 测试把内部 ID 写死为 XML rid；后续改为解析实际 XML definition ID 并验证唯一绑定，新增测试的类型错误也已修正。之后主代理重跑 client test/build 均通过。此阶段 shared/server 源未改，三份 production source SHA 复核一致；不能将首次全套描述为一次通过。
+
+更早的 1,430 passed / 1 skipped 属于 9c1565b9 冻结工作树，是历史验收，不代表本轮结果，也不与本轮相加。本轮验收仅证明已列出的回归和构建通过，不表示 Codex 已批准或 PR 已合并，也不证明全仓库无缺陷。未在本轮执行真实浏览器 UI、Word 打开/排版、SQLite 冷重开、正式 GB/T 46687.2 XML 外部互操作或真实标准稿件验收；新国标双向 XML 属 WP8。

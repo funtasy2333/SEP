@@ -260,8 +260,28 @@ describe('正文脚注内容的导出边界', () => {
     expect(xml).toContain('<sub>下标</sub>')
     expect(xml).toContain('<sup>上标</sup>')
     expect(xml).toContain('<break />')
-    expect(xml).toContain('<xref ref-type="chapter" rid="chapter-1">引用</xref>')
-    expect(xml).toContain('<xref ref-type="chapter" rid="chapter-1">默认引用</xref>')
+    const xmlDocument = new DOMParser().parseFromString(xml, 'application/xml')
+    const chapterDefinition = Array.from(xmlDocument.getElementsByTagName('*')).find(element =>
+      element.tagName === 'sec' && element.textContent?.includes('范围'),
+    )
+    const chapterId = chapterDefinition?.getAttribute('id')
+    expect(chapterId).toBe('sec_1')
+
+    const emittedIds = Array.from(xmlDocument.getElementsByTagName('*'))
+      .map(element => element.getAttribute('id'))
+      .filter((id): id is string => id !== null)
+    expect(emittedIds.filter(id => id === chapterId)).toHaveLength(1)
+
+    const payloadReferences = Array.from(xmlDocument.getElementsByTagName('xref'))
+      .filter(element => element.textContent === '引用' || element.textContent === '默认引用')
+    expect(payloadReferences.map(element => [element.textContent, element.getAttribute('rid')])).toEqual([
+      ['引用', chapterId],
+      ['默认引用', chapterId],
+    ])
+    for (const reference of payloadReferences) {
+      const rid = reference.getAttribute('rid')
+      expect(emittedIds.filter(id => id === rid)).toHaveLength(1)
+    }
 
     const reopened = schema.nodeFromJSON(parseXmlToEditorJson(xml, schema.topNodeType.name))
     reopened.check()
@@ -273,7 +293,7 @@ describe('正文脚注内容的导出边界', () => {
     })
     expect(footnoteContent.some(node =>
       node.type === 'text' && node.text === '引用'
-      && node.marks?.some(mark => mark.type === 'crossRef' && mark.attrs?.refId === 'chapter-1'),
+      && node.marks?.some(mark => mark.type === 'crossRef' && mark.attrs?.refId === chapterId),
     )).toBe(true)
     const { doc } = pmToIr(reopened.toJSON() as PMJsonNode)
     const resolved = resolve(doc)
