@@ -64,7 +64,9 @@ function markToPm(mark: IRTextMark): { type: string; attrs?: PmAttrs } {
     case 'externalLink': return { type: 'externalLink', attrs: { href: mark.href, title: mark.title ?? null, target: mark.target ?? null, rel: mark.rel ?? null } }
     case 'crossRef': return {
       type: 'crossRef',
-      attrs: { targetId: mark.targetId, ...(mark.targetKind ? { refType: targetKinds[mark.targetKind] ?? mark.targetKind } : {}) },
+      // Preserve an untyped IR reference explicitly: the production PM mark defaults
+      // missing refType to `chapter` for legacy PM documents.
+      attrs: { targetId: mark.targetId, refType: mark.targetKind ? targetKinds[mark.targetKind] ?? mark.targetKind : '' },
     }
     case 'bibRef': return { type: 'bibRef', attrs: { targetId: mark.targetId } }
     case 'termRef': return { type: 'termRef', attrs: { targetId: mark.targetId } }

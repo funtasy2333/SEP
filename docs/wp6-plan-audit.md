@@ -64,3 +64,11 @@ PR #45 前一轮 Codex review ID `5441631826` 针对审阅提交 `c24181ca77fa77
 review `5443480187`（comment `4207853177`，提交于北京时间 2026-10-07 22:02:30）指出：已有 Resolver `dangling-typed-ref` 的错误类型引用仍可绕过 allowlist 进入 HTML/DOCX。此轮将唯一已确认的 Resolver 错误代码接入 HTML、DOCX、legacy XML 共享非 JSON 输出边界，PDF 经 HTML 出口同样受保护；既有 EditorView 菜单与源码入口显示原始诊断并避免错误格式复制/下载。JSON semantic/raw 继续保留原作者数据，没有新增操作面板。
 
 该变更是 WP6 内部作者模型和输出错误边界收紧，不修改 Resolver 目标类型规则、不统一阻断 Resolver 其他 warnings/errors、不改变 legacy XML schema/映射。VersionPanel 现有 JSON-only snapshot fallback 保留。旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器；正式互操作、Word 排版仍属于 WP8 或相应人工验收，不因本轮自动测试通过而视为完成。验证范围及 1,339 项总计见[验收记录](wp6-validation.md#72e127b5-typed-reference-输出边界复审-2026-10-08)。该 review 修复未宣称已获下一轮 Codex 批准。
+
+## 2026-10-08 公式注（IRFormulaNote）与无类型引用复审（review 5450144611）
+
+针对复审提交 `2fa9787240634a022dab33ce5ffd61d793babd04` 的 P2 `4213525717`，修复边界仍属于 WP6 内部作者模型与既有 Resolver：公式注没有独立 kind 字段，因此在遍历公式注时登记已有 `note.id` 的类型，不新增 ID/序号/label 算法，也不把 JSON 保真误认为打印支持。对不存在的目标保留 dangling-xref；非空公式注在当前 HTML/DOCX/legacy XML 中仍不被消费，继续精确阻断。
+
+同一审查补齐 IR→PM 属性 carrier：未声明 `targetKind` 的 IR crossRef 显式投影为空 `refType`，使生产 Schema 不会静默补成 chapter；旧 PM 缺省属性的 chapter 默认保持。生产Schema重开、typed/untyped labels/source 保真和实际图目标 HTML/DOCX 输出均有回归。PM 显式非字符串 refType 单独诊断；semantic JSON 只为 `crossRef.refType:null` 保留纠错值，原有其他 null 过滤及 goldens 保持。
+
+打印 full fixture helper 已迁到 renderer 测试目录，恢复被 client JSON 源 SHA 锁定的通用 fixture 文件（恢复 SHA `cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d`）。冻结后统一验收 shared 46 files/958 tests、client 51 passed+1 skipped/376 passed+1 opt-in skipped、server 23 tests，合计 1,357 项通过；具体日志与限制见[本轮最终验收](wp6-validation.md#2fa97872-公式注与无类型引用复审2026-10-08)。fixture SHA 消费者重跑未改变 manifest、snapshot 或 golden。该复审不扩展 WP8、Word 排版或 MathML 打印，也不表示获得 Codex 批准。

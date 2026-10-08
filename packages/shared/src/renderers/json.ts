@@ -73,6 +73,14 @@ function copyMarks(node: PMJsonNode, target: SemanticJsonNode): void {
     const rendered: SemanticJsonMark = { type: mark.type }
     const markAttrs = nonNullRecord(mark.attrs)
     if (markAttrs) rendered.attrs = markAttrs
+    // An explicit null refType is invalid input, not an omitted legacy value.
+    // Preserve it so semantic JSON cannot silently turn it into the PM default.
+    if (mark.type === 'crossRef' && mark.attrs
+      && Object.prototype.hasOwnProperty.call(mark.attrs, 'refType') && mark.attrs.refType === null) {
+      const preservedAttrs = rendered.attrs ?? {}
+      setOwn(preservedAttrs, 'refType', null)
+      rendered.attrs = preservedAttrs
+    }
     for (const [key, value] of Object.entries(mark as unknown as Record<string, unknown>)) {
       if (key !== 'type' && key !== 'attrs') setOwn(rendered, key, value)
     }

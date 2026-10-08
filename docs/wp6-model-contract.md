@@ -119,3 +119,11 @@ Tiptap `setContent` 仅替换子内容。生产加载、版本回滚与 XML 导�
 - 正确显式 targetKind、合法无编号 paragraph/formula 目标和未声明 targetKind 的旧 crossRef 继续可输出；实际不存在的目标仍由已有 `dangling-xref` 单独诊断，本修复不改变其处理策略。错误 typed refs 位于脚注、note 等递归内容时同样经过统一 boundary。
 - renderer full tests 使用独立 `fullRendererFixture()` 对历史全要素 fixture 的五个已知引用目标明确赋类型；该 helper 只修改深拷贝，不改变 `fullFixture()` 默认内容、JSON goldens 或产品类型推断规则。
 - 本轮没有修改 `resolve()` 的类型语义，没有扩展 legacy XML 转换器。VersionPanel 的既有 JSON-only snapshot fallback 保持；旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器。
+
+## 2026-10-08 公式注（IRFormulaNote）与无类型 crossRef 契约补充
+
+- 公式注（`IRFormulaNote`）形状是 `{ id, content }`，没有 `kind` 属性。Resolver 遍历公式 `notes` 时只登记该现有 ID 的 target kind 为 `note`；通用扩展扫描继续负责同一对象既有的 ID、stable label 与遍历/引用文本。不得为修复类型判断重复注册 ID、生成新编号或改变脚注序号。
+- `targetKind:'note'` 指向公式注是合法 Resolver 引用；其他 targetKind 仍按实际类型报告错误，引用 owner 不变。真正不存在的 target 由 `dangling-xref` 定位引用者，而不是“实际类型不匹配”。Resolver 可解析引用不意味着 renderer 消费公式注正文：非空 `formula.notes` 目前仍被 HTML、DOCX、legacy XML 输出边界拒绝，JSON 路径保留完整公式注和引用。
+- IR crossRef 未声明 `targetKind` 时，IR→PM 在 production mark attrs 中写 `refType:''`，避免 schema 缺省把它变成 `chapter`；PM→IR 对空字符串不生成 `targetKind`。历史 PM JSON 若完全省略 refType 仍依 CrossRef schema 的 `chapter` 默认值解释。显式 chapter、figure、note 类型映射保持。
+- PM crossRef `refType` 若显式为非字符串，不解释为缺省/未类型；转换产生位置诊断，非 JSON 输出不可绕过。semantic JSON 为 `crossRef.refType:null` 保留原值用于纠错；既有其他属性的 null 清理及 JSON goldens 不变。
+- renderer 的 `fullRendererFixture()` 属于 `renderers/__tests__`，从通用 fixture 深拷贝后只给打印回归的明确目标标注类型。`ir/__tests__/fixtures.ts` 本身保持字节锁定 SHA `cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d`；不按 ID 前缀推断产品 target kind，不更新 manifest 或 golden。

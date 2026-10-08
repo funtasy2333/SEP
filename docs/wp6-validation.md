@@ -223,3 +223,27 @@ Codex review `5443480187` 于北京时间 2026-10-07 22:02:30 针对 `72e127b5` 
 日志：`/private/tmp/wp6-typed-ref-shared-test.log`、`/private/tmp/wp6-typed-ref-shared-types.log`、`/private/tmp/wp6-typed-ref-client-test.log`、`/private/tmp/wp6-typed-ref-client-build.log`、`/private/tmp/wp6-typed-ref-server-test.log`、`/private/tmp/wp6-typed-ref-server-build.log`。之前 c24181ca 复审的 1,331 通过是上一轮历史计数，未与本轮累加。
 
 本轮保留 VersionPanel 既有 JSON-only snapshot fallback，不改 Resolver 类型语义，不新增操作面板、旧 XML 转换或 MathML 打印；仅更新既有出口诊断。旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器。未重新执行 Microsoft Word/真实标准稿件排版、浏览器冷启动、SQLite 冷重开或外部 PDF 服务验收；本轮回归不表示新 Codex review 已批准或 PR 已合并。
+
+
+## 2fa97872 公式注与无类型引用复审（2026-10-08）
+
+Codex review `5450144611` 于北京时间 2026-10-08 08:52:04 针对 `2fa9787240634a022dab33ce5ffd61d793babd04` 提出唯一 P2：[公式注（IRFormulaNote）的合法 note 引用被误判为 entity](https://github.com/funtasy2333/SEP/pull/45#discussion_r4213525717)。问题输入是 `formula.notes[n] = {id, content}` 上被 `crossRef.targetKind='note'` 引用：`IRFormulaNote` 没有 `kind`，Resolver 通用扩展兜底记录成 `entity`，错误地产生 `dangling-typed-ref`。
+
+| 覆盖项 | 修复与回归 |
+|---|---|
+| 公式注 Resolver 类型 | 只在 `visitBlock(formula)` 登记 `ctx.kinds[note.id]='note'`。generic extension 扫描仍负责既有 ID、stable label 与原遍历顺序；不重复 register ID、不计入正文脚注序号、不改 IR 形状。正确 note 引用、错类型引用、前向/后向引用、前言/正文/附录/表格单元格位置、属性键顺序与确定性结果均验证。正确引用不受类型误报；实际不存在的 note target 仍只报原 owner 的 `dangling-xref`；duplicate/missing ID 诊断保留。shared 回归 4 项通过。 |
+| 原生 IR 无类型 crossRef 投影 | IR 未声明 `targetKind` 时 `irToPm` 显式写 `refType:''`，避免生产 schema 以默认 `chapter` 改义；PM→IR 将空字符串保留为未声明 kind。production schema → JSON reload → `pmToIr` → `resolve` 回归证明 targetKind、labels、ID 与 source 不变。chapter/figure/note 显式类型继续映射；旧 PM 缺省 refType 的 `chapter` 默认契约不变。未类型目标 figure 由 HTML 与 DOCX 实际 renderer 输出。 |
+| 非字符串 refType 与 JSON 保真 | explicit non-string `refType`（包括 null、数字、布尔值）按非法输入诊断，不伪装为默认或缺省类型，并阻断非 JSON 输出。semantic JSON 窄保留 `crossRef.refType:null` 供纠错；其余既有 null normalization 和 JSON golden 保持。 |
+| 公式注导出边界 | 虽然 Resolver 现在正确识别 note target，HTML/DOCX/legacy XML 当前并未消费非空 `formula.notes`，所以 boundary 仍精准报告 `.notes` unsupported-output；JSON native、semantic、raw 保留作者数据。 |
+| 打印 fixture 哈希消费者 | 移除 renderer helper 对锁定 `ir/__tests__/fixtures.ts` 的修改，迁到 `renderers/__tests__/fullRendererFixture.ts`。原文件 SHA 恢复为 manifest 记录的 `cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d`；未改 JSON manifest、HTML snapshots 或 DOCX golden。HTML + DOCX 两 suite 66/66、client `jsonExporter.test.ts` 7/7 通过。 |
+
+### 最终冻结验收
+
+- shared：46 files / 958 tests 通过；`tsc --noEmit` 通过。
+- client：51 files passed + 1 skipped（52）；376 tests passed + 1 opt-in API skipped（377）；`vue-tsc -b`、Vite build 通过，只有既有 chunk warning。
+- server：2 suites / 23 tests 通过，Nest build 通过。合计 958 + 376 + 23 = **1,357 tests passed**，另有 1 项默认跳过的 opt-in API 测试。
+- 最终日志：`/private/tmp/wp6-formula-note-shared-test.log`、`/private/tmp/wp6-formula-note-shared-types.log`、`/private/tmp/wp6-formula-note-client-test.log`、`/private/tmp/wp6-formula-note-client-build.log`、`/private/tmp/wp6-formula-note-server-test.log`、`/private/tmp/wp6-formula-note-server-build.log`。
+
+上一条 typed-reference 记录中的 1,339 通过不能作为当时审阅提交 `2fa97872` 的完整冻结验收：client full-suite 早于 `fullRendererFixture()` 被追加到 SHA 锁定的 `ir/__tests__/fixtures.ts`；随后 shared、client、server 计数对应不同文件状态。此后本轮先将 helper 迁出锁定文件并恢复 source SHA，再重跑 HTML/DOCX suites 与 client JSON exporter SHA consumer，最后由主代理对冻结工作树统一全量验收。旧数字保留为历史记录，不冒充完整验收，也不与新结果相加。
+
+未重新执行 Word 打开/排版、正式 XML 外部互操作、真实标准稿件或浏览器/SQLite 冷重开；本轮自动回归不代表 Codex 已批准本次修复或 PR 已合并。旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器；不新增 XML 映射或 MathML 打印。

@@ -313,10 +313,26 @@ function convertMarks(
     } else if (m.type === 'crossRef') {
       const refId = m.attrs?.targetId ?? m.attrs?.refId
       if (typeof refId === 'string' && refId.length > 0) {
-        const rawKind = typeof m.attrs?.refType === 'string' ? m.attrs.refType : undefined
+        const attrs = m.attrs && typeof m.attrs === 'object' ? m.attrs : undefined
+        const hasRefType = attrs !== undefined && Object.prototype.hasOwnProperty.call(attrs, 'refType')
+        const refTypeValue = attrs?.refType
+        const rawKind = typeof refTypeValue === 'string' ? refTypeValue : undefined
         const targetKind = rawKind && Object.prototype.hasOwnProperty.call(REF_KIND_MAP, rawKind) ? REF_KIND_MAP[rawKind] : undefined
+        const ownerId = typeof sourceNode?.attrs?.nodeId === 'string'
+          ? sourceNode.attrs.nodeId
+          : sourceNode ? ctx.ownerIds.get(sourceNode) ?? null : null
+        if (hasRefType && typeof refTypeValue !== 'string') {
+          const actualType = refTypeValue === null ? 'null' : Array.isArray(refTypeValue) ? '数组' : typeof refTypeValue
+          ctx.unsupportedContent.push({
+            nodeId: ownerId,
+            path: ctx.path(sourceNode, '行内标记'),
+            nodeType: 'crossRef',
+            reason: `crossRef.refType必须为字符串，实际值类型为${actualType}`,
+          })
+          ctx.warnings.push(`crossRef.refType必须为字符串，实际值类型为${actualType}；已保留引用目标`)
+        }
         if (rawKind && !targetKind) {
-          ctx.unsupportedContent.push({ nodeId: typeof sourceNode?.attrs?.nodeId === 'string' ? sourceNode.attrs.nodeId : null, path: ctx.path(sourceNode, '行内标记'), nodeType: 'crossRef', reason: `引用类型「${rawKind}」没有映射到IR目标类型` })
+          ctx.unsupportedContent.push({ nodeId: ownerId, path: ctx.path(sourceNode, '行内标记'), nodeType: 'crossRef', reason: `引用类型「${rawKind}」没有映射到IR目标类型` })
           ctx.warnings.push(`交叉引用类型「${rawKind}」没有IR映射`)
         }
         out.push({ type: 'crossRef', targetId: refId, ...(targetKind ? { targetKind } : {}) })

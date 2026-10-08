@@ -3,7 +3,7 @@
 ## 基线与复审范围
 
 - PR：[#45](https://github.com/funtasy2333/SEP/pull/45)，最早记录的复审起点 head `c24181ca77fa77bdb73923d26f498bed265bf7b3`，相对 `origin/main` 的 merge base 为 `e0e9ab09d2b5867ba81bdf7be9f17866a1ab1f28`。83 个文件只描述该历史起点的 PR 差异；之后各轮新增修改已扩大差异，不能把 83 视作当前或最终 PR 文件总数。
-- 本次复审起点：PR 提交 `72e127b52ffd446cb20e575235d5377e2df0c891`；最新 Codex review ID `5443480187`，审阅提交 `72e127b5`，于 2026-10-07 22:02:30（Asia/Shanghai）提交；唯一 P2 inline comment ID `4207853177`，[查看意见](https://github.com/funtasy2333/SEP/pull/45#discussion_r4207853177)，针对 Resolver 已报错的 typed cross-reference 仍被 HTML/DOCX 输出的问题。此前 `c24181ca` 是上一轮复审起点；83 个文件只描述更早的 PR 差异基线，不是当前或最终 PR 文件总数。
+- 最新复审起点：PR 提交 `2fa9787240634a022dab33ce5ffd61d793babd04`；Codex review ID `5450144611`，审阅提交 `2fa97872`，于 2026-10-08 08:52:04（Asia/Shanghai）提交；唯一 P2 inline comment ID `4213525717`，[查看意见](https://github.com/funtasy2333/SEP/pull/45#discussion_r4213525717)，针对公式注被 Resolver 误判为 entity。前一轮 typed-reference 复审起点为 `72e127b5`，review `5443480187`；83 个文件只描述更早的 PR 差异基线，不是当前或最终 PR 文件总数。
 - 复审由三条相互衔接的路径组成：生产 Tiptap schema 与 `pmToIr`/`irToPm`/Resolver；编辑器和 JSON/HTML/DOCX/XML 的生产导出入口；IR allowlist 与每种渲染器实际消费的字段。结论只覆盖 PR #45 改动及其直接生产入口，不能推断整个仓库没有其他问题。
 
 核心生产路径包括：生产 `createEditorExtensions()` schema → 编辑器加载/保存和稳定 nodeId → `pmToIr` → Resolver/输出边界 → `renderJson`、HTML exporter、DOCX exporter、旧 XML `serializeToXml`；反向路径包括 native IR → `irToPm` → 生产 schema → 保存/加载。真实 API/SQLite 冷重开、浏览器验收、Word 排版和正式 XML 互操作是不同层级，不能以单元测试代替。
@@ -66,7 +66,7 @@ integration 子代理报告下列生产入口的定向验收已通过；其范�
 - client：最终全套测试 48 个文件通过、1 个文件跳过（49 files）；366 项通过、1 项 opt-in API 测试跳过（367 tests）。日志：`/private/tmp/wp6-final-client-test.log`。`vue-tsc -b` 与 `pnpm build` 通过，Vite 报现有 chunk size warning；build 日志：`/private/tmp/wp6-final-client-build.log`。最新 paste + 表脚注 HTML 定向组合 `ensureNodeId.paste.test.ts` + `tableFootnoteHtml.test.ts` 为 2 个文件 / 11 项通过；此前 7 文件 / 56 项组合是扩展前历史定向证据，不与新组合相加。
 - 上一轮总计：shared 942 + client 366 + server 23 = 1,331 项通过，另有 1 项 opt-in API 测试跳过；不是本轮 typed-reference 复审的计数。
 
-## 最新 typed-reference 复审（2026-10-08）
+## 上一轮 typed-reference 复审（2026-10-08）
 
 Codex review `5443480187` 于北京时间 2026-10-07 22:02:30 针对 `72e127b5` 提出唯一 P2（comment `4207853177`）：当 `crossRef.targetKind='figure'` 指向实际存在的 chapter 时，Resolver 已产生 `dangling-typed-ref` error，但输出 allowlist 未消费该诊断；HTML/DOCX 仍按 targetId 读取目标 label，可能把章编号作为图引用标签输出。相同 Resolver typed-reference 错误也涵盖 bibRef/termRef 和嵌套/脚注引用。
 
@@ -87,3 +87,27 @@ Codex review `5443480187` 于北京时间 2026-10-07 22:02:30 针对 `72e127b5` 
 ## 尚未声称完成的验证
 
 本记录不声称全仓库无缺陷，不代表 PR 已由 Codex 重新批准，不代表 WP8 正式 XML 结构、外部互操作、Word 渲染或真实标准文稿验收完成。旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器；本轮仅在已核实的静默丢失点添加精确边界，不扩展 XML 模式，不新增 MathML 打印。
+
+## 最新公式注与无类型引用复审（2026-10-08，review 5450144611）
+
+Codex review `5450144611` 于北京时间 2026-10-08 08:52:04 针对复审提交 `2fa9787240634a022dab33ce5ffd61d793babd04` 提出唯一 P2（[comment 4213525717](https://github.com/funtasy2333/SEP/pull/45#discussion_r4213525717)）：公式注（`IRFormulaNote`）只有 `id` 与 `content`，没有 `kind`；Resolver 的扩展实体兜底将公式注标为 `entity`，导致合法 `targetKind='note'` 交叉引用产生错误的 `dangling-typed-ref`。
+
+TDD 回归先复现两种错误：公式注被当作 `entity`，以及未声明类型的 IR figure 引用经生产 schema 后变为 `refType='chapter'`；修复后分别验证合法类型保留与实际 HTML/DOCX 打印。
+
+- `resolve.ts` 在访问 `formula.notes` 时只将已有 ID 的 `ctx.kinds` 登记为 `note`，随后仍由通用扩展扫描处理 ID、稳定 label 和原有遍历。没有额外注册 ID、分配编号、改写 label 或改变脚注计数。正确 note 引用不再误报；错误 targetKind 仍报告原引用 owner 的 `dangling-typed-ref`。真实不存在的 note 目标保留 `dangling-xref`，不会替换成类型错误。
+- 另一个被本次输出校验暴露的投影问题是：IR 未声明 `targetKind` 时，`irToPm` 原本省略 `refType`，生产 PM schema 因默认值把引用改成 `chapter`。IR→PM 现在明确写 `refType: ''` 表示无类型；PM→IR 将空字符串还原为未声明类型。既有 PM 文档中完全缺省 `refType` 仍遵守 schema 的 `chapter` 默认值。显式 chapter、figure、note 类型均保持映射。
+- PM 中显式 `refType` 为非字符串时不再按缺省类型处理，而是产生精确诊断并受非 JSON 输出边界保护。语义 JSON 仅为 `crossRef.refType: null` 保留这个纠错值；其他原有 null 过滤行为和 JSON goldens 不变。
+- Resolver 能解析公式注，不代表打印器已消费公式注正文。当前 HTML、DOCX 与 legacy XML 的输出边界仍对非空 `formula.notes` 返回 unsupported-output；本轮没有增添公式注排版，也没有削弱既有阻断。
+- production-schema 往返覆盖 IR→PM→真实 schema→JSON 重开→PM→IR→resolve；未类型 figure 引用经过 HTML/DOCX 实际 renderer 仍可打印。公式注的 JSON/raw/semantic 保留与打印阻断分别验证。历史 renderer fixture helper 已移到 `renderers/__tests__/fullRendererFixture.ts`；固定 `ir/__tests__/fixtures.ts` 的 SHA 恢复为 `cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d`，未改 manifest、snapshot 或 golden。
+
+### 本轮最终冻结验收
+
+- shared：46 个文件 / 958 项通过，`tsc --noEmit` 通过。
+- client：52 个文件中 51 passed、1 skipped；377 项中 376 passed、1 项 opt-in API skipped；`vue-tsc -b` 与 Vite build 通过，只有既有 chunk warning。
+- server：2 suites / 23 项通过，Nest build 通过。
+- 合计 1,357 项通过、另 1 项默认跳过。冻结后日志：`/private/tmp/wp6-formula-note-shared-test.log`、`/private/tmp/wp6-formula-note-shared-types.log`、`/private/tmp/wp6-formula-note-client-test.log`、`/private/tmp/wp6-formula-note-client-build.log`、`/private/tmp/wp6-formula-note-server-test.log`、`/private/tmp/wp6-formula-note-server-build.log`。
+- fixture 哈希锁定消费者回归重新核验：HTML + DOCX renderer tests 66/66 通过，client `jsonExporter.test.ts` 7/7 通过；`fixtures.ts` SHA 与 manifest 锁一致，golden 与 manifest 未改。定向日志为 `/private/tmp/wp6-formula-note-fixture-shared-renderers.log`、`/private/tmp/wp6-formula-note-fixture-client-json.log`。
+
+上一轮 typed-reference review `5443480187` 的 1,339 项通过不是已发布审阅提交 `2fa97872` 的完整冻结验收：client 全套测试早于 `fullRendererFixture()` 被追加到 SHA 锁定的 `ir/__tests__/fixtures.ts`；后续 shared、client、server 计数也对应不同文件状态。该历史计数保留为历史证据。本轮先将 helper 迁出锁定文件并恢复 source SHA，再由主代理对冻结状态统一全量验收，结果为 1,357 项通过；不与旧计数相加。
+
+本轮没有宣称最新 Codex review 已批准、PR 已合并、正式 XML 外部互操作或 Word 排版已完成；VersionPanel JSON-only snapshot fallback 保留。旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器；本轮不扩展 MathML 打印。

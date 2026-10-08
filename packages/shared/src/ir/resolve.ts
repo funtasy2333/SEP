@@ -284,6 +284,9 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
         }
       }
       for (const note of block.notes ?? []) {
+        // Formula notes have no `kind` discriminator in IRFormulaNote. The generic
+        // extension scan preserves a kind registered here instead of assigning `entity`.
+        ctx.kinds.set(note.id, 'note')
         visitInlines(note.content, note.id, ctx, '公式说明')
       }
       for (const item of block.whereList) {

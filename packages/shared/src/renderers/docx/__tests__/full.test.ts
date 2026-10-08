@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { fullRendererFixture } from '../../../ir/__tests__/fixtures'
+import { fullRendererFixture } from '../../__tests__/fullRendererFixture'
 import { pmToIr } from '../../../ir/pmToIr'
 import { resolve } from '../../../ir/resolve'
 import { renderDocxTraced } from '../render'
