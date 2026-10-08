@@ -208,3 +208,18 @@ latest review ID 5428705712，2026-10-06北京时间20:59提交，针对81f7814e
 主代理最终验收：shared **43 files / 942 tests**，`tsc --noEmit` 通过；client **48 files passed、1 skipped**，**366 tests passed、1 默认 opt-in API test skipped**，`vue-tsc -b` 与 Vite build 通过；server **2 suites / 23 tests**，Nest build 通过，合计 **1331 tests passed**。日志：`/private/tmp/wp6-final-shared-test.log`、`/private/tmp/wp6-final-server-test.log`、`/private/tmp/wp6-final-server-build.log`、`/private/tmp/wp6-final-client-test.log`、`/private/tmp/wp6-final-client-build.log`。Vite 仅有既存 chunk-size warning。
 
 本轮未重复 opt-in API、真实浏览器、SQLite 冷重开、Word 打开/排版或正式 XML 外部互操作；这些自动回归不能替代相应验收。验证对象为基于 `c24181ca` 的本轮修复；最终提交与远端状态以 PR 记录核验。本记录不表示新一轮 Codex 审查已批准或 PR 已合并，也不宣称 WP8 新标准 XML 完成。
+
+
+## 72e127b5 typed-reference 输出边界复审（2026-10-08）
+
+Codex review `5443480187` 于北京时间 2026-10-07 22:02:30 针对 `72e127b5` 提出唯一 P2：[错误 targetKind 的交叉引用仍可导出](https://github.com/funtasy2333/SEP/pull/45#discussion_r4207853177)。可复现输入为一个已存在的 chapter ID 被 `crossRef.targetKind='figure'` 引用：Resolver 已输出 `severity='error' / code='dangling-typed-ref'` 和引用 owner ID；旧输出边界只检查字段 allowlist，HTML/DOCX 根据 targetId 取 label，因此错误类型可被印成有效内容。
+
+- shared `outputBoundary.ts` 现只把 Resolver 的 `dangling-typed-ref` error 映射为 HTML、DOCX、legacy XML 的 `unsupported-output`；保留 owner nodeId 与 Resolver 原 message，以 `resolver.problems[dangling-typed-ref]` 作为来源标识。IRProblem 没有字段 path，因此不捏造 crossRef/bibRef/termRef 具体 mark 的位置。Resolver 的 warning、其他 error code 不扩大阻断范围。PDF 请求使用 HTML 生产内容出口，同步被拒绝。
+- `outputBoundary.test.ts` 覆盖 wrong-kind figure→chapter、脚注内 crossRef、nested note 内 bibRef/termRef，且直接 renderHtml/renderDocx 传空 labels 或错误 labels 仍抛 `UnsupportedOutputError`。正确显式 chapter、正确无编号 paragraph/formula、正确和缺省 targetKind 的旧稿继续可输出；无关 Resolver warnings/errors 不阻断。该测试文件 16 项通过。
+- client `wp6TypedReferenceOutput.test.ts` 覆盖生产 HTML、DOCX、PDF request builder、legacy XML 错误 target 拒绝；JSON semantic/raw 保留原始错误引用且源对象不变。正确 typed 与旧缺省类型均通过。定向文件 3 项通过。集成菜单/源码入口 `wp6IntegrationAudit.test.ts` 10 项通过：HTML/XML/DOCX/PDF 菜单反馈具体原因，不错误复制/下载；semantic/raw JSON 仍可用。PDF 测试只验证请求构建，不发送外部转换 POST。
+- 首次 full shared 暴露两组历史 print tests 使用 `fullFixture()` 通用 helper `xref()`，其把 `tbl-1`、`fig-1`、`f-1`、`bib-2` 也声明成 `clause`。这是错误输入被新 boundary 正确发现，不是应放宽 guard。新增打印专用 `fullRendererFixture()`：深拷贝历史 fixture，只按五个明确 target ID 设置测试引用类型；旧 `fullFixture()`、语义 JSON 输入与所有 JSON goldens 不动。HTML/DOCX 测试 assert 无 `dangling-xref` / `dangling-typed-ref`，两 suite 共 66 项通过，snapshot 与 DOCX golden 未更新。
+- 最终 shared 全套 43 files / 946 tests 通过，`tsc --noEmit` 通过；client 全套 50 files 中 49 passed、1 skipped，370 tests passed、1 个 opt-in API test 默认跳过，`vue-tsc -b` 与 Vite build 通过（既有 chunk-size warning）；server 2 suites / 23 tests 与 Nest build 通过。本轮合计 1,339 tests passed，另 1 个默认跳过的 opt-in API 测试。
+
+日志：`/private/tmp/wp6-typed-ref-shared-test.log`、`/private/tmp/wp6-typed-ref-shared-types.log`、`/private/tmp/wp6-typed-ref-client-test.log`、`/private/tmp/wp6-typed-ref-client-build.log`、`/private/tmp/wp6-typed-ref-server-test.log`、`/private/tmp/wp6-typed-ref-server-build.log`。之前 c24181ca 复审的 1,331 通过是上一轮历史计数，未与本轮累加。
+
+本轮保留 VersionPanel 既有 JSON-only snapshot fallback，不改 Resolver 类型语义，不新增操作面板、旧 XML 转换或 MathML 打印；仅更新既有出口诊断。旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器。未重新执行 Microsoft Word/真实标准稿件排版、浏览器冷启动、SQLite 冷重开或外部 PDF 服务验收；本轮回归不表示新 Codex review 已批准或 PR 已合并。

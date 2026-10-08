@@ -53,8 +53,14 @@
 `a3adb2af` 的题名标签污染和自由公式说明富文本丢失已修复，并检查相邻 metadata/TBX/bibliography/index 内容槽与通用 p/a 规则冲突、文本属性自动转型。完整生产 HTML 文本往返与 Schema 投影证据见 [最新验收记录](wp6-validation.md)。本轮1227项回归通过；上述未完成范围仍适用，不因此宣称新增交互、打印或新XML交付已经完成。
 
 
-## 最新复审跟进（2026-10-07）
+## 前一轮复审跟进（2026-10-07，review 5441631826）
 
-PR #45 最新 Codex review ID `5441631826` 针对审阅提交 `c24181ca77fa77bdb73923d26f498bed265bf7b3`（北京时间 2026-10-07 19:31）指出公式源行内格式可能在 HTML、DOCX 和 legacy XML 输出时被静默丢弃。复核按三层边界补齐：IR allowlist 与实际 renderer 消费保持一致；生产 Schema 的 HTML 解析/序列化保留作者模型类型及表脚注语义；编辑器加载、保存、恢复和 clipboard 路径在不能保真时保持 dirty、返回诊断或拒绝事务。具体复现、代码入口和 1331 项最终回归证据见[本轮验收记录](wp6-validation.md#c24181ca-复审修复验收2026-10-07)。
+PR #45 前一轮 Codex review ID `5441631826` 针对审阅提交 `c24181ca77fa77bdb73923d26f498bed265bf7b3`（北京时间 2026-10-07 19:31）指出公式源行内格式可能在 HTML、DOCX 和 legacy XML 输出时被静默丢弃。复核按三层边界补齐：IR allowlist 与实际 renderer 消费保持一致；生产 Schema 的 HTML 解析/序列化保留作者模型类型及表脚注语义；编辑器加载、保存、恢复和 clipboard 路径在不能保真时保持 dirty、返回诊断或拒绝事务。具体复现、代码入口和上一轮 1,331 项回归证据见[上一轮验收记录](wp6-validation.md#c24181ca-复审修复验收2026-10-07)。
 
 复审覆盖 PR 改动的 JSON/IR 渲染、HTML/DOCX/legacy XML 生产出口及其相邻编辑器入口，不是全仓库无缺陷证明。legacy XML 的本轮改动只增加经验证的精确阻断，不扩展其映射；GB/T 46687.2 新 XML、正式互操作、Word 排版和真实标准稿件仍按 WP8/后续验收处理。验证对象为基于 `c24181ca` 的本轮修复；最终提交与远端状态以 PR 记录核验。本记录不表示新一轮 Codex 审查已批准或 PR 已合并。
+
+## 2026-10-08 typed-reference 出口复核
+
+review `5443480187`（comment `4207853177`，提交于北京时间 2026-10-07 22:02:30）指出：已有 Resolver `dangling-typed-ref` 的错误类型引用仍可绕过 allowlist 进入 HTML/DOCX。此轮将唯一已确认的 Resolver 错误代码接入 HTML、DOCX、legacy XML 共享非 JSON 输出边界，PDF 经 HTML 出口同样受保护；既有 EditorView 菜单与源码入口显示原始诊断并避免错误格式复制/下载。JSON semantic/raw 继续保留原作者数据，没有新增操作面板。
+
+该变更是 WP6 内部作者模型和输出错误边界收紧，不修改 Resolver 目标类型规则、不统一阻断 Resolver 其他 warnings/errors、不改变 legacy XML schema/映射。VersionPanel 现有 JSON-only snapshot fallback 保留。旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器；正式互操作、Word 排版仍属于 WP8 或相应人工验收，不因本轮自动测试通过而视为完成。验证范围及 1,339 项总计见[验收记录](wp6-validation.md#72e127b5-typed-reference-输出边界复审-2026-10-08)。该 review 修复未宣称已获下一轮 Codex 批准。

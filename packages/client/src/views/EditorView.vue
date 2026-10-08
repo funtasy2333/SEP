@@ -1538,8 +1538,18 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
     const outputFormat = format === 'docx' ? 'DOCX' : format === 'xml' ? 'XML' : 'HTML'
     const problems = getOutputSupportProblems(pmToIr(doc.toJSON() as PMJsonNode).doc, outputFormat)
     if (problems.length) {
-      exportError.value = `${format.toUpperCase()} 暂未支持本文档中的部分信息（${problems.length} 项）。请导出 JSON 保存完整内容。`
-      ElMessage.error('此格式尚未支持文档中的新信息，请导出 JSON。')
+      const details = problems.map((problem) => {
+        const location = [
+          problem.nodeId ? `节点 ${problem.nodeId}` : '',
+          problem.path ? `位置 ${problem.path}` : '',
+        ].filter(Boolean).join('，')
+        return `${problem.message}${location ? `【${location}】` : ''}`
+      }).join('；')
+      exportError.value = `导出被阻止：${details}`
+      const firstProblem = problems[0]!
+      ElMessage.error(problems.length > 1
+        ? `导出被阻止：${firstProblem.message}（另有 ${problems.length - 1} 项，详见导出详情）`
+        : `导出被阻止：${firstProblem.message}`)
       return
     }
   }

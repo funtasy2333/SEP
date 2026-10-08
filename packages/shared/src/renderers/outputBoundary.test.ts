@@ -3,7 +3,7 @@ import { renderHtml } from './html'
 import { renderDocx } from './docx'
 import { getOutputSupportProblems, UnsupportedOutputError } from './outputBoundary'
 import { resolve } from '../ir/resolve'
-import type { IRDoc } from '../ir/types'
+import type { IRDoc, IRInline, IRParagraph } from '../ir/types'
 
 const base = (): IRDoc => ({
   schemaVersion: 1, meta: { standardType: 'gb' },
@@ -139,4 +139,104 @@ it('blocks XML only when explicit headerRowCount cannot be represented by legacy
     rows: [{ id: 'row', cells: [{ id: 'cell', colspan: 1, rowspan: 1, header: true, content: [{ kind: 'paragraph', id: 'cell-p', content: [{ text: '列名' }] }] }] }],
   })
   expect(getOutputSupportProblems(equivalent, 'XML')).toEqual([])
+})
+
+const outputFormats = ['HTML', 'DOCX', 'XML'] as const
+
+function setReference(doc: IRDoc, inline: IRInline): void {
+  ;(doc.body[0]!.children[0] as IRParagraph).content = [inline]
+}
+
+it('rejects a mismatched typed cross-reference through all non-JSON boundaries, regardless of labels', () => {
+  const doc = base()
+  setReference(doc, { text: '图引用', marks: [{ type: 'crossRef', targetId: 'chapter', targetKind: 'figure' }] })
+  const before = JSON.stringify(doc)
+  const resolverProblem = resolve(doc).problems.find(problem => problem.code === 'dangling-typed-ref')
+  expect(resolverProblem).toMatchObject({ code: 'dangling-typed-ref', nodeId: 'p1', severity: 'error' })
+
+  for (const format of outputFormats) {
+    expect(getOutputSupportProblems(doc, format)).toContainEqual(expect.objectContaining({
+      code: 'unsupported-output',
+      nodeId: 'p1',
+      path: 'resolver.problems[dangling-typed-ref]',
+      message: expect.stringContaining(resolverProblem!.message),
+    }))
+  }
+
+  expect(() => renderHtml(doc, {})).toThrow(UnsupportedOutputError)
+  expect(() => renderHtml(doc, { chapter: { label: '图1', xmlId: 'fig_1', refText: '图1' } })).toThrow(UnsupportedOutputError)
+  expect(() => renderDocx(doc, {}, options)).toThrow(UnsupportedOutputError)
+  expect(() => renderDocx(doc, { chapter: { label: '图1', xmlId: 'fig_1', refText: '图1' } }, options)).toThrow(UnsupportedOutputError)
+  expect(JSON.stringify(doc)).toBe(before)
+})
+
+it('covers typed errors in footnotes and nested notes, including bibRef and termRef', () => {
+  const doc = base()
+  const paragraph = doc.body[0]!.children[0] as IRParagraph
+  paragraph.content = [{
+    text: '脚注',
+    footnote: {
+      id: 'footnote-owner',
+      content: [{ text: '错类型', marks: [{ type: 'crossRef', targetId: 'chapter', targetKind: 'figure' }] }],
+    },
+  }]
+  doc.body[0]!.children.push({
+    kind: 'note', id: 'nested-note-owner',
+    content: [
+      { text: '文献错类型', marks: [{ type: 'bibRef', targetId: 'chapter' }] },
+      { text: '术语错类型', marks: [{ type: 'termRef', targetId: 'chapter' }] },
+    ],
+  })
+
+  const resolverProblems = resolve(doc).problems.filter(problem => problem.code === 'dangling-typed-ref')
+  expect(resolverProblems.map(problem => problem.nodeId)).toEqual(['footnote-owner', 'nested-note-owner', 'nested-note-owner'])
+  for (const format of outputFormats) {
+    const problems = getOutputSupportProblems(doc, format).filter(problem => problem.path === 'resolver.problems[dangling-typed-ref]')
+    expect(problems.map(problem => problem.nodeId)).toEqual(['footnote-owner', 'nested-note-owner', 'nested-note-owner'])
+    for (const resolverProblem of resolverProblems) {
+      expect(problems).toContainEqual(expect.objectContaining({ nodeId: resolverProblem.nodeId, message: expect.stringContaining(resolverProblem.message) }))
+    }
+  }
+})
+
+it('allows correctly typed, untyped, and valid unnumbered paragraph/formula references', () => {
+  const cases: IRDoc[] = []
+
+  const chapterRef = base()
+  setReference(chapterRef, { text: '章引用', marks: [{ type: 'crossRef', targetId: 'chapter', targetKind: 'chapter' }] })
+  cases.push(chapterRef)
+
+  const legacyUntypedRef = base()
+  setReference(legacyUntypedRef, { text: '旧引用', marks: [{ type: 'crossRef', targetId: 'chapter' }] })
+  cases.push(legacyUntypedRef)
+
+  const paragraphRef = base()
+  setReference(paragraphRef, { text: '段落引用', marks: [{ type: 'crossRef', targetId: 'p1', targetKind: 'paragraph' }] })
+  cases.push(paragraphRef)
+
+  const formulaRef = base()
+  formulaRef.body[0]!.children.push({ kind: 'formula', id: 'unnumbered-formula', latex: 'x', numbered: false, whereList: [] })
+  setReference(formulaRef, { text: '公式引用', marks: [{ type: 'crossRef', targetId: 'unnumbered-formula', targetKind: 'formula' }] })
+  cases.push(formulaRef)
+
+  for (const doc of cases) {
+    const labels = resolve(doc).labels
+    for (const format of outputFormats) expect(getOutputSupportProblems(doc, format)).toEqual([])
+    expect(() => renderHtml(doc, labels)).not.toThrow()
+    expect(() => renderDocx(doc, labels, options)).not.toThrow()
+  }
+})
+
+it('does not widen the boundary to unrelated Resolver errors', () => {
+  const doc = base()
+  setReference(doc, { text: '未类型化缺失引用', marks: [{ type: 'crossRef', targetId: 'missing-target' }] })
+  doc.body[0]!.children.push({
+    kind: 'clause', id: 'skipped-level', level: 2, titled: true,
+    title: [{ text: '跳级' }], children: [{ kind: 'paragraph', id: 'nested-paragraph', content: [{ text: '正文' }] }],
+  } as never)
+  expect(resolve(doc).problems).toContainEqual(expect.objectContaining({ code: 'dangling-xref', severity: 'error', nodeId: 'p1' }))
+  expect(resolve(doc).problems).toContainEqual(expect.objectContaining({ code: 'heading-skip', severity: 'warning', nodeId: 'skipped-level' }))
+  for (const format of outputFormats) expect(getOutputSupportProblems(doc, format)).toEqual([])
+  expect(() => renderHtml(doc, resolve(doc).labels)).not.toThrow()
+  expect(() => renderDocx(doc, resolve(doc).labels, options)).not.toThrow()
 })

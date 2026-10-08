@@ -108,6 +108,25 @@ function createDocument(content: Record<string, unknown>) {
   }
 }
 
+function createWrongKindReferenceContent() {
+  const content = assignNodeIds(createDefaultDocumentContent(meta) as any)
+  const firstChapter = content.content.find((node: any) => node.type === 'chapter')
+  if (!firstChapter) throw new Error('默认正文缺少合法 chapter fixture')
+  const referenceParagraph = firstChapter.content.find((node: any) => node.type === 'stdParagraph')
+  if (!referenceParagraph) throw new Error('chapter fixture 缺少 stdParagraph')
+  const targetId = firstChapter.attrs.nodeId
+  referenceParagraph.content = [{
+    type: 'text',
+    text: '错类型引用',
+    marks: [{ type: 'crossRef', attrs: { targetId, refType: 'figure' } }],
+  }]
+  return {
+    content,
+    targetId: targetId as string,
+    referenceId: referenceParagraph.attrs.nodeId as string,
+  }
+}
+
 async function flushMicrotasks() {
   for (let index = 0; index < 10; index += 1) {
     await Promise.resolve()
@@ -484,5 +503,92 @@ it('语义 JSON 与原始 JSON 代码下载不被脚注打印校验阻断', asyn
     expect(clickAnchor).toHaveBeenCalledTimes(3)
   } finally {
     view.unmount()
+  }
+})
+
+it('错类型 typed crossRef 阻断所有非 JSON 导出并显示具体诊断，JSON/raw 仍可复制下载', async () => {
+  const fixture = createWrongKindReferenceContent()
+  const view = await mountEditor(fixture.content)
+  const clickAnchor = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+  const createObjectUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:typed-reference-error')
+  const clipboardWrite = vi.fn().mockResolvedValue(undefined)
+  const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: clipboardWrite },
+  })
+  const messageError = vi.spyOn(ElMessage, 'error').mockImplementation(() => undefined as any)
+
+  try {
+    view.editor.state.doc.check()
+    const exportButton = [...view.root.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.getAttribute('aria-label') === '导出')!
+    exportButton.click()
+    await flushMicrotasks()
+
+    const fetchMock = vi.mocked(fetch)
+    fetchMock.mockClear()
+    const exportCard = (label: string) => [...document.body.querySelectorAll<HTMLButtonElement>('.export-card')]
+      .find(button => button.textContent?.includes(label))!
+    const formatCards = ['HTML', 'XML', 'DOCX', 'PDF'].map(format => {
+      const card = [...document.body.querySelectorAll<HTMLButtonElement>('.export-card')]
+        .find(button => button.textContent?.includes(format))
+      expect(card, `${format} 导出卡片应真实存在`).toBeDefined()
+      return card!
+    })
+    for (const card of formatCards) {
+      card.click()
+      await flushMicrotasks()
+      const alertText = document.body.querySelector('.el-alert__title')?.textContent ?? ''
+      expect(alertText).toContain(`引用目标「${fixture.targetId}」应为 figure，实际为 chapter`)
+      expect(alertText).toContain(`节点 ${fixture.referenceId}`)
+      expect(messageError.mock.calls.at(-1)?.[0]).toContain(`引用目标「${fixture.targetId}」应为 figure，实际为 chapter`)
+      expect(createObjectUrl).not.toHaveBeenCalled()
+      expect(clickAnchor).not.toHaveBeenCalled()
+    }
+    expect(fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST')).toHaveLength(0)
+
+    exportCard('JSON').click()
+    await flushMicrotasks()
+    expect(createObjectUrl).toHaveBeenCalledOnce()
+    expect(clickAnchor).toHaveBeenCalledOnce()
+
+    const sourceButton = [...view.root.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('源码'))!
+    sourceButton.click()
+    await flushMicrotasks()
+    const dialog = document.body.querySelector<HTMLElement>('.ses-code-dlg')!
+    const codeButtons = () => [...dialog.querySelectorAll<HTMLButtonElement>('button')]
+      .filter(button => ['复制', '下载'].includes(button.textContent?.trim() ?? ''))
+    const radio = (label: string) => [...dialog.querySelectorAll<HTMLElement>('.el-radio-button')]
+      .find(button => button.textContent?.includes(label))!
+
+    for (const [format, label] of [['xml', 'XML'], ['html', '语义 HTML']] as const) {
+      radio(label).click()
+      await flushMicrotasks()
+      expect(dialog.querySelector('pre')?.textContent).toContain(`${format.toUpperCase()} 导出错误`)
+      expect(dialog.querySelector('pre')?.textContent).toContain(`引用目标「${fixture.targetId}」应为 figure，实际为 chapter`)
+      expect(codeButtons().every(button => button.disabled)).toBe(true)
+      codeButtons().forEach(button => button.click())
+    }
+    expect(clipboardWrite).not.toHaveBeenCalled()
+    expect(createObjectUrl).toHaveBeenCalledOnce()
+    expect(clickAnchor).toHaveBeenCalledOnce()
+
+    for (const label of ['语义 JSON', '原始 JSON']) {
+      radio(label).click()
+      await flushMicrotasks()
+      expect(codeButtons().every(button => !button.disabled)).toBe(true)
+      codeButtons().find(button => button.textContent?.trim() === '复制')!.click()
+      codeButtons().find(button => button.textContent?.trim() === '下载')!.click()
+      await flushMicrotasks()
+    }
+    expect(clipboardWrite).toHaveBeenCalledTimes(2)
+    expect(createObjectUrl).toHaveBeenCalledTimes(3)
+    expect(clickAnchor).toHaveBeenCalledTimes(3)
+  } finally {
+    view.unmount()
+    if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard)
+    else Reflect.deleteProperty(navigator, 'clipboard')
   }
 })

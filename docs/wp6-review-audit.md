@@ -2,8 +2,8 @@
 
 ## 基线与复审范围
 
-- PR：[#45](https://github.com/funtasy2333/SEP/pull/45)，复审起点 head `c24181ca77fa77bdb73923d26f498bed265bf7b3`，相对 `origin/main` 的 merge base 为 `e0e9ab09d2b5867ba81bdf7be9f17866a1ab1f28`。83 个文件是该起点的 PR 差异基线；本轮新增修改扩大了该差异，83 仅为复审起点，不能视作最终 PR 文件总数。
-- 最新 Codex review：ID `5441631826`，审阅提交 `c24181ca77`，2026-10-07 19:31:11（Asia/Shanghai）；唯一 P2 inline comment ID `4206339440`，针对公式源行内格式会被 HTML/DOCX/旧 XML 静默丢弃的问题。
+- PR：[#45](https://github.com/funtasy2333/SEP/pull/45)，最早记录的复审起点 head `c24181ca77fa77bdb73923d26f498bed265bf7b3`，相对 `origin/main` 的 merge base 为 `e0e9ab09d2b5867ba81bdf7be9f17866a1ab1f28`。83 个文件只描述该历史起点的 PR 差异；之后各轮新增修改已扩大差异，不能把 83 视作当前或最终 PR 文件总数。
+- 本次复审起点：PR 提交 `72e127b52ffd446cb20e575235d5377e2df0c891`；最新 Codex review ID `5443480187`，审阅提交 `72e127b5`，于 2026-10-07 22:02:30（Asia/Shanghai）提交；唯一 P2 inline comment ID `4207853177`，[查看意见](https://github.com/funtasy2333/SEP/pull/45#discussion_r4207853177)，针对 Resolver 已报错的 typed cross-reference 仍被 HTML/DOCX 输出的问题。此前 `c24181ca` 是上一轮复审起点；83 个文件只描述更早的 PR 差异基线，不是当前或最终 PR 文件总数。
 - 复审由三条相互衔接的路径组成：生产 Tiptap schema 与 `pmToIr`/`irToPm`/Resolver；编辑器和 JSON/HTML/DOCX/XML 的生产导出入口；IR allowlist 与每种渲染器实际消费的字段。结论只覆盖 PR #45 改动及其直接生产入口，不能推断整个仓库没有其他问题。
 
 核心生产路径包括：生产 `createEditorExtensions()` schema → 编辑器加载/保存和稳定 nodeId → `pmToIr` → Resolver/输出边界 → `renderJson`、HTML exporter、DOCX exporter、旧 XML `serializeToXml`；反向路径包括 native IR → `irToPm` → 生产 schema → 保存/加载。真实 API/SQLite 冷重开、浏览器验收、Word 排版和正式 XML 互操作是不同层级，不能以单元测试代替。
@@ -50,7 +50,7 @@ integration 子代理报告下列生产入口的定向验收已通过；其范�
 
 此前发现的表脚注邻接缺陷已修复：`TableFootnoteEntry` 使用唯一内容槽避免 DOMSerializer hole 异常，typed parser 提高优先级，完整 `view.pasteHTML` 回归确认表脚注行、ID 和 target 语义保留。仅在 slice 内重复定义且带内部引用，或重复定义同时撞当前文档 ID 时拒绝；唯一目标复制仍执行 ID 重映射。普通段落合并若会丢失唯一被引用目标也拒绝。测试检查拒绝时原件、外部 crossRef、selection 和 undo/history 不变及可见提示。integration 子代理报告最后一次 `vue-tsc -b` 通过；该代理未运行 full-client 或 Vite build，之后主代理完整 client 测试已通过，`pnpm build` 也通过（Vite 仅有 chunk size warning），具体计数与日志见最终验证证据。
 
-## 本子任务验证与证据等级
+## 上一轮子任务验证与证据等级（c24181ca）
 
 - 本轮定向 shared 输出边界：`packages/shared/src/renderers/outputBoundary.test.ts`，12 项通过。
 - 本轮定向 client 生产出口、申请单位新建/复制兼容：`wp6OutputBoundaryAudit.test.ts`、`newDocument.test.ts`、`duplicateDocument.test.ts`，31 项通过。
@@ -59,13 +59,31 @@ integration 子代理报告下列生产入口的定向验收已通过；其范�
 
 证据分层：当前代码回归用于验证数据映射和拒绝边界；JSON golden 固定旧文档字节兼容；`docs/qa/wp6-output-boundary.png` 是静态 QA 资源；`docs/wp6-validation.md` 中 API/SQLite、浏览器与历史测试记录是先前执行证据。历史测试数字与本轮最新差异不是同一次运行，不能混写为当前验收结果。
 
-## 主代理最终验证证据
+## 上一轮主代理最终验证证据（c24181ca）
 
 - shared：43 个测试文件 / 942 项通过；`tsc --noEmit` 通过。日志：`/private/tmp/wp6-final-shared-test.log`。
 - server：2 个 test suites / 23 项通过，Nest `pnpm build` 通过。日志：`/private/tmp/wp6-final-server-test.log`、`/private/tmp/wp6-final-server-build.log`。
 - client：最终全套测试 48 个文件通过、1 个文件跳过（49 files）；366 项通过、1 项 opt-in API 测试跳过（367 tests）。日志：`/private/tmp/wp6-final-client-test.log`。`vue-tsc -b` 与 `pnpm build` 通过，Vite 报现有 chunk size warning；build 日志：`/private/tmp/wp6-final-client-build.log`。最新 paste + 表脚注 HTML 定向组合 `ensureNodeId.paste.test.ts` + `tableFootnoteHtml.test.ts` 为 2 个文件 / 11 项通过；此前 7 文件 / 56 项组合是扩展前历史定向证据，不与新组合相加。
-- 当前总计：shared 942 + client 366 + server 23 = 1,331 项通过，另有 1 项 opt-in API 测试跳过。
+- 上一轮总计：shared 942 + client 366 + server 23 = 1,331 项通过，另有 1 项 opt-in API 测试跳过；不是本轮 typed-reference 复审的计数。
+
+## 最新 typed-reference 复审（2026-10-08）
+
+Codex review `5443480187` 于北京时间 2026-10-07 22:02:30 针对 `72e127b5` 提出唯一 P2（comment `4207853177`）：当 `crossRef.targetKind='figure'` 指向实际存在的 chapter 时，Resolver 已产生 `dangling-typed-ref` error，但输出 allowlist 未消费该诊断；HTML/DOCX 仍按 targetId 读取目标 label，可能把章编号作为图引用标签输出。相同 Resolver typed-reference 错误也涵盖 bibRef/termRef 和嵌套/脚注引用。
+
+- shared 非 JSON 输出边界现在只把 `severity='error' && code='dangling-typed-ref'` 转成 `unsupported-output`，格式包括 HTML、DOCX、legacy XML（PDF 生产请求经 HTML 出口处理）。记录 Resolver 原 message、owner nodeId，并用 `resolver.problems[dangling-typed-ref]` 明示诊断来源；IRProblem 没有 mark field path，因此不伪造字段位置。其他 Resolver warning/error 不因本修复一并阻断。
+- 直接 HTML/DOCX renderer 即使收到空 labels 或错误 labels 也先执行统一 boundary。生产 client 回归覆盖 HTML、DOCX、PDF request builder 和 legacy XML；菜单/源码出口展示详细原因并阻止错误格式复制/下载。JSON semantic/raw 仍可保留并导出原始错类型数据，不修改源 IR/PM。
+- 正向兼容覆盖正确 chapter 引用、正确的无编号 paragraph/formula typed 引用、正确/缺省 kind 旧引用；wrong-type crossRef、bibRef、termRef 覆盖脚注及 nested note。未将所有 Resolver problem 泛化为导出阻断。
+- 首次 full shared 回归发现历史 `fullFixture()` 的通用 `xref()` 把 table、figure、formula、bibliography 引用也全部标成 `clause`。没有放宽 guard 或更改 JSON golden；新增仅用于 HTML/DOCX 的 `fullRendererFixture()` 深拷贝，在测试中按五个明确目标 ID 设置真实 target kind，保持原 `fullFixture()` 以及语义 JSON 输入不变。HTML/DOCX builder 断言没有 `dangling-xref` 或 `dangling-typed-ref`；快照与 DOCX golden 未更新。
+
+### 本轮验证
+
+- shared：43 files / 946 tests 通过；`tsc --noEmit` 通过。日志 `/private/tmp/wp6-typed-ref-shared-test.log`、`/private/tmp/wp6-typed-ref-shared-types.log`。
+- client：50 files 中 49 passed、1 skipped；370 tests passed、1 个 opt-in API 测试 skipped。`vue-tsc -b` 与 Vite build 通过，只有既有 chunk-size warning。日志 `/private/tmp/wp6-typed-ref-client-test.log`、`/private/tmp/wp6-typed-ref-client-build.log`。
+- server：2 suites / 23 tests 与 Nest build 通过。日志 `/private/tmp/wp6-typed-ref-server-test.log`、`/private/tmp/wp6-typed-ref-server-build.log`。
+- 本轮总计 shared 946 + client 370 + server 23 = 1,339 tests passed，另有 1 个默认跳过的 opt-in API 测试。此数字基于本轮复审起点及修复，不与上一轮 1,331 累加。
+
+本轮自动回归不代表新 Codex 复审已批准或 PR 已合并；也不代表正式 XML 外部互操作、Microsoft Word 排版、真实标准文稿、浏览器冷启动或 SQLite 冷重开已经重新验收。VersionPanel 原有 JSON-only snapshot fallback 保留；本轮只补既有出口诊断，未新增操作面板。旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器。
 
 ## 尚未声称完成的验证
 
-本记录不声称全仓库无缺陷，不代表 PR 已由 Codex 重新批准，不代表 WP8 正式 XML 结构、外部互操作、Word 渲染或真实标准文稿验收完成。旧 XML 仍是待 WP8 替换的 legacy serializer；本轮仅在已核实的静默丢失点添加精确边界，不扩展 XML 模式，不新增 MathML 打印。
+本记录不声称全仓库无缺陷，不代表 PR 已由 Codex 重新批准，不代表 WP8 正式 XML 结构、外部互操作、Word 渲染或真实标准文稿验收完成。旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器；本轮仅在已核实的静默丢失点添加精确边界，不扩展 XML 模式，不新增 MathML 打印。

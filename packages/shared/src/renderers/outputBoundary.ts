@@ -1,4 +1,5 @@
 import type { IRDoc } from '../ir/types'
+import { resolve } from '../ir/resolve'
 
 export interface OutputSupportProblem {
   code: 'unsupported-output'
@@ -108,6 +109,20 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
     }
   }
   visit(doc, 'doc', 'doc')
+
+  // Resolver typed-reference errors are a narrow non-JSON export boundary. Do not
+  // block unrelated Resolver diagnostics: warnings and other error codes retain
+  // their existing export policy. IRProblem has no source-field path, so identify
+  // the diagnostic source explicitly rather than fabricating an inline mark path.
+  for (const issue of resolve(doc).problems) {
+    if (issue.code !== 'dangling-typed-ref' || issue.severity !== 'error') continue
+    problems.push({
+      code: 'unsupported-output',
+      ...(issue.nodeId !== null ? { nodeId: issue.nodeId } : {}),
+      path: 'resolver.problems[dangling-typed-ref]',
+      message: `${format} 不能输出类型错误的引用：${issue.message}。请修正引用目标；如需保留原稿，请导出 JSON。`,
+    })
+  }
   return problems
 }
 

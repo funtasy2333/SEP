@@ -111,3 +111,11 @@ Tiptap `setContent` 仅替换子内容。生产加载、版本回滚与 XML 导�
 - HTML 剪贴按当前单个 ProseMirror slice 收集定义。slice 中唯一定义的 ID 若与目标文档定义冲突，则为副本生成新 ID，并只同步改写有明确模型字段的内部引用；片外目标不改，剪切后移动且原定义已离开目标文档时保留原 ID。
 - 映射范围包括 `crossRef`、`bibRef`、`termRef` marks，`figureImage.resourceId`、`figureResourceRef.targetId`、`indexTarget/indexSeeAlso.targetId`、`tableFootnoteRef.targetId`，以及脚注内容 `footnoteRef.attrs.content` 中的 typed 引用。封面/根 `MetadataFields` fallback 只遍历声明的实体数组与 typed inline carrier，包含其中的公式/脚注定义 ID；不扫描或重写任意作者字符串。
 - slice 内同一 ID 有多个定义且其关系含歧义时，或重复定义与目标文档冲突时，`handlePaste` 发出可见诊断并拒绝，不提交事务；唯一内部引用目标若会被普通段落合并丢弃，也依据 ProseMirror 实际替换预览拒绝。拒绝时文档、选区和撤销历史保持不变。
+
+## 2026-10-08 typed-reference 输出边界补充
+
+- `resolve()` 产出的 `severity='error' && code='dangling-typed-ref'` 表示 typed crossRef/bibRef/termRef 与目标实际类型不一致。HTML、DOCX、legacy XML 统一输出边界必须拒绝该错误，即使 renderer 收到空或伪造的 labels；PDF 经 HTML 内容出口受同一边界保护。JSON semantic/raw 输出继续保留源数据。
+- 输出诊断保留 Resolver 原 message 与引用所属实体的 `nodeId`，并使用 `resolver.problems[dangling-typed-ref]` 说明诊断来源。`IRProblem` 不提供引用 mark 的 field path，因此不把该来源标识伪装成精确字段路径。只阻断此 error code，不据此扩大到其他 Resolver warnings/errors。
+- 正确显式 targetKind、合法无编号 paragraph/formula 目标和未声明 targetKind 的旧 crossRef 继续可输出；实际不存在的目标仍由已有 `dangling-xref` 单独诊断，本修复不改变其处理策略。错误 typed refs 位于脚注、note 等递归内容时同样经过统一 boundary。
+- renderer full tests 使用独立 `fullRendererFixture()` 对历史全要素 fixture 的五个已知引用目标明确赋类型；该 helper 只修改深拷贝，不改变 `fullFixture()` 默认内容、JSON goldens 或产品类型推断规则。
+- 本轮没有修改 `resolve()` 的类型语义，没有扩展 legacy XML 转换器。VersionPanel 的既有 JSON-only snapshot fallback 保持；旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器。

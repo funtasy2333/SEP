@@ -1,12 +1,12 @@
 /**
  * `full` 一致性 fixture 测试（docs/wp7-docx-delivery.md §9 WP7.2）。
  *
- * `pmToIr(fullFixture()).doc` 经 `resolve` 的结果（不改 fixture）。列项手写期望 li-1 → a）、
+ * `pmToIr(fullRendererFixture()).doc` 经 `resolve` 的结果。列项手写期望 li-1 → a）、
  * li-2 → b）（stdList('list-1', 'alpha', ['li-1', ...], ['li-2', ...])，Resolver 不给列项编号）。
  */
 
 import { describe, expect, it } from 'vitest'
-import { fullFixture } from '../../../ir/__tests__/fixtures'
+import { fullRendererFixture } from '../../../ir/__tests__/fixtures'
 import { pmToIr } from '../../../ir/pmToIr'
 import { resolve } from '../../../ir/resolve'
 import { renderDocxTraced } from '../render'
@@ -20,8 +20,9 @@ const LIST_ITEM_EXPECTED = new Map<string, string>([
 ])
 
 function buildResult() {
-  const { doc } = pmToIr(fullFixture())
+  const { doc } = pmToIr(fullRendererFixture())
   const { labels, problems } = resolve(doc)
+  expect(problems.filter((problem) => problem.code === 'dangling-xref' || problem.code === 'dangling-typed-ref')).toEqual([])
   const { pkg, numbered } = renderDocxTraced(doc, labels, {
     formulaOmml: {},
     images: {},
