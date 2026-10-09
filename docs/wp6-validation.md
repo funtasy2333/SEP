@@ -310,3 +310,28 @@ Codex review `5453609687` 于北京时间 2026-10-08 16:07:19 审阅提交 `280e
 首次 client test/build 运行未通过，日志保留于 `/private/tmp/wp6-reference-initial-client-test.log` 和 `/private/tmp/wp6-reference-initial-client-build.log`。问题在测试边界：旧 footnote 测试把内部 ID 写死为 XML rid；后续改为解析实际 XML definition ID 并验证唯一绑定，新增测试的类型错误也已修正。之后主代理重跑 client test/build 均通过。此阶段 shared/server 源未改，三份 production source SHA 复核一致；不能将首次全套描述为一次通过。
 
 更早的 1,430 passed / 1 skipped 属于 9c1565b9 冻结工作树，是历史验收，不代表本轮结果，也不与本轮相加。本轮验收仅证明已列出的回归和构建通过，不表示 Codex 已批准或 PR 已合并，也不证明全仓库无缺陷。未在本轮执行真实浏览器 UI、Word 打开/排版、SQLite 冷重开、正式 GB/T 46687.2 XML 外部互操作或真实标准稿件验收；新国标双向 XML 属 WP8。
+
+## debcda72 术语内容顺序复审
+
+Codex review 5458048776 于北京时间 2026-10-08 22:20:19 审阅起点 debcda7255138f61934d1f8cede4bc06b4acce49，提出唯一 P2（[comment 4220111944](https://github.com/funtasy2333/SEP/pull/45#discussion_r4220111944)）：production termDef schema 接受合法 TBX 语言集与嵌套术语交错，但转换后数组分桶和 PM/IR/Resolver 固定类别顺序会重排，影响 descriptor/variant bibliography first-reference 顺序。工作日期为 2026-10-09；验收对象是该审阅起点之上的冻结修复工作树，与审阅起点不是同一状态，最终提交 hash 以 PR head 记录为准。
+
+### 修复和定向覆盖
+
+新增 IR tailOrder，只给包含 nestedEntries 或 languageSets 且尾序不同于 PM canonical 顺序的 PM→IR 术语记录完整作者序。顺序表示覆盖定义续段、source、note、example、nestedEntry、languageSet；definition index 0 指向 definition[1]，主定义固定为 prefix。IR→PM、Resolver 和输出边界共享严格校验；ID 重映射不把顺序元数据作为定义或引用。无 metadata 的原生 IR/旧术语保持原默认，plain native term 显式带 tailOrder 会被拒绝。输出边界按有效性和可打印子序列精确诊断：三类格式均诊断非法字段；HTML 与 DOCX 仅在 metadata 不能被各自固定顺序保留时额外诊断；XML 对合法 tailOrder 不额外报告顺序专属诊断；非法 metadata 仍精确诊断。nested/TBX 仍受原有非 JSON 扩展限制。
+
+shared 新增 packages/shared/src/ir/__tests__/termTailOrder.test.ts（11 tests），client 新增 packages/client/src/extensions/wp6TermDefOrder.test.ts（4 tests），并在既有 pmToIr.test.ts 确认旧 fixture 不产生 tailOrder。覆盖有效 production-schema 输入的 lang→nested、nested→lang、lang→nested→lang 及递归结构，六类尾项混排，不同 variant/descriptor 的 bibRef 首次引用顺序，两轮 production-schema PM JSON save/reload，源 IR/PM 不变、稳定 ID remap、shared renderJson 与 client exportSemanticJson 实际链路。client 校验 source PM bibRefs 与 shared Resolver 的 bibliography 顺序/标签；不声称 JSON renderer 存在 bibEntry.number，也不把 UI semantic export 描述为全量 PM→IR→native renderJson。非法用例涵盖重复/缺失/越界索引、未知 kind、额外 key、null、非数组、稀疏数组，以及不适用的 plain native metadata。
+
+### 六项冻结验收
+
+根代理在冻结代码上完整重跑后六项全部退出码 0：
+
+- shared：52 files / 1,022 tests passed；tsc --noEmit 通过。日志：/private/tmp/wp6-term-order-final-shared-test.log、/private/tmp/wp6-term-order-final-shared-types.log。
+- client：60 files 中 59 passed、1 skipped；423 tests 中 422 passed、1 个既有 opt-in API test skipped；vue-tsc 与 Vite build 通过，仅有既有 chunk-size warning。日志：/private/tmp/wp6-term-order-final-client-test.log、/private/tmp/wp6-term-order-final-client-build.log。
+- server：2 suites / 23 tests passed；Nest build 通过。日志：/private/tmp/wp6-term-order-final-server-test.log、/private/tmp/wp6-term-order-final-server-build.log。
+- 合计 1,467 tests passed，另 1 项既有测试 skipped。
+
+初次 suite tests 已以相同计数通过，但首次 shared tsc --noEmit 因 helper 在校验未知数组后未收窄为 typed tailOrder 而报 TS7053；首次 client build 也报该 helper 的 TS7053，并因新增测试的两个未使用 index 参数报 TS6133。实现改为逐索引 own-property/type guard 构造 typed validatedOrder，保留对稀疏空洞的诊断；测试删除未使用参数。根代理随后对重新冻结的代码完整重跑以上六项，均通过。没有改变业务顺序算法来解决这两项类型/编译问题。首次失败日志：/private/tmp/wp6-term-order-initial-shared-types.log、/private/tmp/wp6-term-order-initial-client-build.log。
+
+本轮共涉及 10 个代码/测试文件：7 个实现文件和 3 个测试文件。termTailOrder helper 冻结 SHA-256 为 549983b44b53f7e3b53a93bb9b53d02047432de1b9e964ced2bfd64f7662834e。锁定 fixture SHA-256 仍为 cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d，primary material SHA-256 仍为 8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8。JSON golden、manifest、HTML snapshots、production schema 和依赖/lockfile 未改变。
+
+本轮通过自动测试核验 Schema/JSON 路径，不代表 SQLite 冷重开。未在本轮执行真实浏览器 UI、Microsoft Word 打开/排版、正式 GB/T 46687.2 XML 外部互操作或真实标准稿件验收，也不表示 Codex 已批准此修复、PR 已合并或全仓库无缺陷。WP8 负责新国标 XML 双向映射。

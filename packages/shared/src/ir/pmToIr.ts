@@ -53,6 +53,7 @@ import type {
   IRTableRow,
   IRTermEntry,
   IRTermGroup,
+  IRTermTailOrderItem,
   IRTermLanguageSet,
   IRTermVariant,
   IRTitlePart,
@@ -62,6 +63,7 @@ import type {
   IRCodeBlock,
   NodeId,
 } from './types'
+import { canonicalTermTailOrder, sameTermTailOrder } from './termTailOrder'
 
 /** ProseMirror JSON 节点（纯对象形态） */
 export interface PMJsonNode {
@@ -956,7 +958,8 @@ function convertBlocks(content: PMJsonNode[] | undefined, ctx: Ctx, where: strin
 
 /**
  * termDef → IRTermEntry。
- * IRTermEntry 不支持嵌套术语，PM 中嵌套的 termDef 拍平为后续兄弟条目（追加进 out）。
+ * nestedEntries 与 languageSets 分别保留其关系；仅二者存在且生产尾项顺序偏离
+ * 既有 PM 投影顺序时，用 category+index 顺序元数据保存完整尾项次序。
  */
 function convertTermDef(node: PMJsonNode, ctx: Ctx, out: IRTermEntry[]): void {
   const id = ctx.id(node)
@@ -975,6 +978,7 @@ function convertTermDef(node: PMJsonNode, ctx: Ctx, out: IRTermEntry[]): void {
     if (inlines.length > 0) entry.termEn = inlines
   }
   const nested: IRTermEntry[] = []
+  const tailOrder: IRTermTailOrderItem[] = []
   let defSeq = 0
   for (const child of node.content ?? []) {
     switch (child.type) {
@@ -983,6 +987,7 @@ function convertTermDef(node: PMJsonNode, ctx: Ctx, out: IRTermEntry[]): void {
         break
       case 'tbxLangSet': {
         entry.languageSets ??= []
+        tailOrder.push({ kind: 'languageSet', index: entry.languageSets.length })
         entry.languageSets.push(convertTbxLangSet(child, ctx))
         break
       }
@@ -1000,6 +1005,7 @@ function convertTermDef(node: PMJsonNode, ctx: Ctx, out: IRTermEntry[]): void {
         if (entry.source !== undefined) {
           ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(child, `术语条目/${id}`), nodeType: child.type, reason: '一个术语条目包含多个来源字段，IR只允许一个' })
         } else {
+          tailOrder.push({ kind: 'source', index: 0 })
           entry.source = source
         }
         break
@@ -1011,28 +1017,40 @@ function convertTermDef(node: PMJsonNode, ctx: Ctx, out: IRTermEntry[]): void {
           if (entry.source !== undefined) {
             ctx.unsupportedContent.push({ nodeId: ctx.id(child), path: ctx.path(child, `术语条目/${id}`), nodeType: child.type, reason: '一个术语条目包含多个来源字段，IR只允许一个' })
           } else {
+            tailOrder.push({ kind: 'source', index: 0 })
             entry.source = inlines
           }
         } else {
+          tailOrder.push({ kind: 'definition', index: Math.max(0, entry.definition.length - 1) })
           entry.definition.push({ kind: 'paragraph', id: ctx.id(child), content: inlines })
         }
         break
       }
-      case 'note':
+      case 'note': {
+        tailOrder.push({ kind: 'note', index: entry.notes.length })
         entry.notes.push(convertNote(child, ctx))
         break
-      case 'example':
+      }
+      case 'example': {
+        tailOrder.push({ kind: 'example', index: entry.examples.length })
         entry.examples.push(convertExample(child, ctx))
         break
-      case 'termDef':
+      }
+      case 'termDef': {
+        tailOrder.push({ kind: 'nestedEntry', index: nested.length })
         convertTermDef(child, ctx, nested)
         break
+      }
       default:
         ctx.unknown(child.type, '术语条目', child)
     }
   }
   out.push(entry)
   if (nested.length > 0) entry.nestedEntries = nested
+  if ((entry.nestedEntries?.length ?? 0) > 0 || (entry.languageSets?.length ?? 0) > 0) {
+    const pmOrder = canonicalTermTailOrder(entry, 'pm')
+    if (!sameTermTailOrder(tailOrder, pmOrder)) entry.tailOrder = tailOrder
+  }
 }
 
 function convertTbxLangSet(node: PMJsonNode, ctx: Ctx): IRTermLanguageSet {

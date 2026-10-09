@@ -13,6 +13,7 @@ import type { PMJsonNode } from './pmToIr'
 import { hasSemanticExtensions } from './extensions'
 import { unsupportedFootnoteContent } from './footnotePayload'
 import { diagnoseInlineProjection, findCrossRefRunProjectionIssues } from './inlineProjectionDiagnostics'
+import { orderedTermTail } from './termTailOrder'
 
 export interface IRToPmDiagnostic {
   path: string
@@ -223,7 +224,7 @@ function termToPm(entry: IRTermEntry, path: string, errors: IRToPmDiagnostic[]):
     node('termName', undefined, inlinesToPm(entry.term)),
     ...(entry.termEn ? [node('termNameEn', undefined, inlinesToPm(entry.termEn))] : []),
   ]
-  const [mainDefinition, ...continuedDefinitions] = entry.definition
+  const [mainDefinition] = entry.definition
   if (!mainDefinition) {
     errors.push({ path: `${path}.definition`, nodeId: entry.id, reason: 'termDef schema 要求至少一个主定义段落' })
     content.push(node('termDefinition', withId(`${entry.id}.def0`), []))
@@ -233,37 +234,59 @@ function termToPm(entry: IRTermEntry, path: string, errors: IRToPmDiagnostic[]):
   } else {
     content.push(node('termDefinition', withId(mainDefinition.id), inlinesToPm(mainDefinition.content)))
   }
-  for (const [index, block] of continuedDefinitions.entries()) {
-    if (block.kind === 'paragraph') {
-      content.push(paragraph(block.id, block.content))
-    } else {
-      errors.push({ path: `${path}.definition[${index + 1}]`, nodeId: block.id, reason: 'termDef 后续定义只允许段落' })
-    }
-  }
-  if (entry.source !== undefined) content.push(node('termSource', undefined, inlinesToPm(entry.source)))
-  for (const note of entry.notes) {
-    const inlineContent = noteContent(note.id, note.content, `${path}.notes.${note.id}`, errors)
-    content.push(node('note', withId(note.id), inlineContent))
-  }
-  for (const example of entry.examples) {
-    const inlineContent = noteContent(example.id, example.content, `${path}.examples.${example.id}`, errors)
-    content.push(node('example', withId(example.id), inlineContent))
-  }
-  for (const child of entry.nestedEntries ?? []) content.push(termToPm(child, `${path}.nestedEntries.${child.id}`, errors))
-  for (const [setIndex, set] of (entry.languageSets ?? []).entries()) {
-    if (set.groups.length === 0) {
-      errors.push({ path: `${path}.languageSets[${setIndex}].groups`, nodeId: set.id, reason: '生产tbxLangSet节点至少需要一个术语组' })
-    }
-    const tigs = set.groups.map((group, groupIndex) => {
-      if (group.terms.length === 0) {
-        errors.push({ path: `${path}.languageSets[${setIndex}].groups[${groupIndex}].terms`, nodeId: group.id, reason: '生产tbxTig节点至少需要一个术语变体' })
+  const tail = orderedTermTail(entry, 'pm')
+  if (tail.issue) errors.push({
+    path: `${path}.tailOrder`,
+    nodeId: entry.id,
+    reason: `无法按 tailOrder 无损投影：${tail.issue}`,
+  })
+  for (const item of tail.items) {
+    switch (item.kind) {
+      case 'definition': {
+        const block = item.value
+        if (block.kind === 'paragraph') content.push(paragraph(block.id, block.content))
+        else errors.push({ path: `${path}.definition[${item.index + 1}]`, nodeId: block.id, reason: 'termDef 后续定义只允许段落' })
+        break
       }
-      return node('tbxTig', withId(group.id), group.terms.map(variant => node('tbxTermVariant', withId(variant.id), [
-        node('tbxTerm', undefined, inlinesToPm(variant.content)),
-        ...variant.descriptors.map(descriptor => node('tbxTermDescriptor', withId(descriptor.id, { type: descriptor.kind }), inlinesToPm(descriptor.value))),
-      ])))
-    })
-    content.push(node('tbxLangSet', withId(set.id, { lang: set.language }), tigs))
+      case 'source':
+        content.push(node('termSource', undefined, inlinesToPm(item.value)))
+        break
+      case 'note': {
+        const note = item.value
+        const inlineContent = noteContent(note.id, note.content, `${path}.notes.${note.id}`, errors)
+        content.push(node('note', withId(note.id), inlineContent))
+        break
+      }
+      case 'example': {
+        const example = item.value
+        const inlineContent = noteContent(example.id, example.content, `${path}.examples.${example.id}`, errors)
+        content.push(node('example', withId(example.id), inlineContent))
+        break
+      }
+      case 'nestedEntry': {
+        const child = item.value
+        content.push(termToPm(child, `${path}.nestedEntries.${child.id}`, errors))
+        break
+      }
+      case 'languageSet': {
+        const set = item.value
+        const setIndex = item.index
+        if (set.groups.length === 0) {
+          errors.push({ path: `${path}.languageSets[${setIndex}].groups`, nodeId: set.id, reason: '生产tbxLangSet节点至少需要一个术语组' })
+        }
+        const tigs = set.groups.map((group, groupIndex) => {
+          if (group.terms.length === 0) {
+            errors.push({ path: `${path}.languageSets[${setIndex}].groups[${groupIndex}].terms`, nodeId: group.id, reason: '生产tbxTig节点至少需要一个术语变体' })
+          }
+          return node('tbxTig', withId(group.id), group.terms.map(variant => node('tbxTermVariant', withId(variant.id), [
+            node('tbxTerm', undefined, inlinesToPm(variant.content)),
+            ...variant.descriptors.map(descriptor => node('tbxTermDescriptor', withId(descriptor.id, { type: descriptor.kind }), inlinesToPm(descriptor.value))),
+          ])))
+        })
+        content.push(node('tbxLangSet', withId(set.id, { lang: set.language }), tigs))
+        break
+      }
+    }
   }
   return node('termDef', withId(entry.id, { level: entry.level ?? 1 }), content)
 }

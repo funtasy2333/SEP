@@ -1,7 +1,7 @@
 /** Shared semantic-extension detector for WP6 PM↔IR compatibility versioning. */
 const semanticKeys = new Set([
   'titleParts', 'identifiers', 'languages', 'publishers', 'adoptions', 'replacedStandards',
-  'copyrights', 'languageSets', 'nestedEntries', 'mathml', 'formula', 'style', 'width',
+  'copyrights', 'languageSets', 'nestedEntries', 'tailOrder', 'mathml', 'formula', 'style', 'width',
   'columnWidths', 'cellType', 'unit', 'groups', 'descriptions', 'resourceId', 'resources',
   'index', 'fields', 'entryType', 'externalLink', 'proposer', 'technicalCommittee',
   'imageWidth', 'imageHeight', 'alt', 'targetKind',

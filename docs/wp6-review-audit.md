@@ -154,3 +154,15 @@ Codex review `5453609687` 于北京时间 2026-10-08 16:07:19 审阅提交 `280e
 - **snapshot 与锁定输入**：获准的 HTML snapshot 变更仅为 screen/print 各 8 个 note/example ID 属性。JSON golden、manifest 未修改；`fixtures.ts` SHA 为 `cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d`，primary material SHA 为 `8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8`，冻结核对未变。
 
 主代理冻结后的完整命令、测试数、日志和证据限制见[验收记录](wp6-validation.md#280e2e54-引用目标复审)。早先 1,430 项是 9c1565b9 验收历史值，不是本轮结果，且不能与本轮相加。验收对象为基于审阅起点 `280e2e54` 的冻结修复工作树；对应提交以 PR 最终 head 记录为准。本节不声称新 review 批准、PR 合并、全仓库无缺陷或 Word、SQLite 冷重开、浏览器 UI、正式 XML 互操作及真实标准稿件已验收。WP6/WP8 边界不变：本轮只收紧现有 legacy XML ID carrier，GB/T 46687.2 双向 XML 归 WP8，不新增旧 p/note/list 目标能力、不重建旧转换器或增加新格式映射。
+
+## debcda72 术语内容顺序复审
+
+Codex review 5458048776 于北京时间 2026-10-08 22:20:19 审阅 debcda7255138f61934d1f8cede4bc06b4acce49，提出唯一 P2：[合法 TBX 术语尾项在 PM→IR 分桶后被 IR→PM/Resolver 重排](https://github.com/funtasy2333/SEP/pull/45#discussion_r4220111944)。审阅起点是 debcda72；本轮冻结验收针对其修复工作树，最终修复提交以 PR head 记录为准。
+
+修复新增 IR typed tailOrder，仅由含 nestedEntries 或 languageSets、且 PM 实际顺序不同于既有 PM 规范序的 PM→IR 输入生成。完整顺序覆盖定义续段、source、note、example、nestedEntry、languageSet；definition 索引从主定义之后开始。IR→PM、Resolver 和 renderer output boundary 共享严格校验，避免重复、缺失、越界、稀疏数组、未知 kind 或错误对象形状被静默接受。纯旧术语/无 metadata 原生 IR 继续沿用已有默认遍历；plain native term 显式 tailOrder、无嵌套术语和语言集时精确拒绝。有效作者尾序供 Resolver 收集 bibliography first-reference；外部 ID remap 不重解释顺序项为 ID。
+
+outputBoundary 只在相应情况诊断：非法 metadata 在三种格式边界都会报告；有效 metadata 的可打印子序列与 HTML/DOCX 固定顺序相同时，不额外产生 tailOrder 诊断；顺序不同时，HTML/DOCX 报告无法保留作者顺序。没有 tailOrder 诊断不表示整体导出通过：nestedEntries 与 languageSets 仍受原有非 JSON 字段边界限制。XML 对合法 tailOrder 不额外报告顺序专属诊断，非法 metadata 仍精确诊断。此修复没有改变 schema，也没有扩展这些结构的打印或 XML 能力。
+
+主要覆盖：生产 Schema 合法交错顺序和三种 language/nested 交错；六类尾项及递归嵌套；variant 与 descriptor 独立 bibRef 的首次引用和标签顺序；两轮 production-schema PM JSON reload；IR/source 不变、外部 ID remap；shared native renderJson 与 client semantic export 链路；各类非法 metadata 与旧默认路径。测试不声称 UI exportSemanticJson 是全量 PM→IR→native renderJson，也不声称 JSON renderer 生成 bibEntry.number。冻结数字、日志、失败与重跑说明见[验收记录](wp6-validation.md#debcda72-术语内容顺序复审)。
+
+本轮不代表新 Codex review 已批准、PR 已合并或全仓库无缺陷；未执行浏览器 UI、Word 排版、SQLite 冷重开、正式 GB/T 46687.2 XML 外部互操作或真实标准稿件验收。

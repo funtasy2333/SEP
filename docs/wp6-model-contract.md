@@ -158,3 +158,19 @@ PM crossRef 的活动目标遵循 `targetId ?? refId`：canonical `targetId` 存
 legacy XML 的内部引用只映射到现有带 ID 的定义载体：`sec`、`term-sec`、`app`、`table-wrap`、`fig`、`disp-formula`、`ref` 和 `fn`。对这些载体，定义 `id` 与 `xref rid` 共用同一 Resolver 候选 ID；不为 paragraph、note、example、list 等无 ID 载体新增消费能力，无支持的目标继续精确拒绝。自动脚注引用及本轮覆盖的普通 crossRef 脚注目标都有实际定义 ID 对照；该范围不重建 legacy 转换器，也不新增 GB/T 46687.2 映射，后者属于 WP8。
 
 HTML 在同一实际渲染路径收集候选锚点。screen 输出只为唯一且实际输出的目标生成内部链接；隐藏、重复、空或未输出的目标不生成内部链接。有 resolved label 时保留其 `refText`（包括空值）及其他 marks；没有 label 时保留作者原文及其他 marks，均渲染为无内部链接的 span。print 输出不生成内部 href。Resolver 未为 list/item/row/cell/where 提供实际标签的场景仍不视为生产交叉引用支持；相应 renderer carrier 单测使用调用方提供的 labels，不改变 Resolver。
+
+## debcda72 术语内容顺序复审
+
+Codex review 5458048776 于北京时间 2026-10-08 22:20:19 审阅提交 debcda7255138f61934d1f8cede4bc06b4acce49，提出唯一 P2：[生产 TBX 术语内容顺序在 PM↔IR 与 Resolver 中被重排](https://github.com/funtasy2333/SEP/pull/45#discussion_r4220111944)。审阅起点是 debcda72；本节描述基于该起点的修复工作树，最终提交 hash 以 PR head 记录为准。
+
+生产 Schema 允许 termDef 中的定义续段、来源、注、例、嵌套 termDef 和 TBX 语言集合法交错。原 PM→IR 转换把这些子项归入多个数组，随后 IR→PM、Resolver 的固定类别顺序会改变其相对位置；不同 variant/descriptor 上的 bibRef 首次出现顺序也可能随之变化，导致书目收集及标签顺序偏离作者顺序。问题属于作者模型顺序保真，不是生产 Schema 拒绝合法文稿。
+
+IRTermEntry 增加可选的 typed tailOrder。每项由 kind 与对应尾数组的零基 index 表示，涵盖 definition、source、note、example、nestedEntry、languageSet 六类；definition 的 index 0 指向主定义之后的 definition[1]，首个主定义仍固定在尾序之前。该数组不引用节点 ID，外部 ID 重映射不把它当定义或引用。
+
+PM→IR 只在术语含嵌套术语或 TBX 语言集、且实际完整尾序不同于 PM 既有规范序时生成 tailOrder。转换会严格验证每类索引完整覆盖、无重复、无越界，并拒绝未知 kind、额外字段、空洞、错误形状及非法 index。IR→PM、Resolver 和输出边界使用同一校验；不合格输入产生定位诊断。无 metadata 的原生 IR 与不含嵌套术语/语言集的旧术语继续采用已有 PM、Resolver 和 HTML 默认顺序；普通 native IR 显式携带 tailOrder 会被拒绝，以免往返后静默丢失。
+
+Resolver 按有效作者尾序遍历定义续段、来源、注、例、嵌套术语及语言集中的 variant/descriptor，因此其 bibliography first-reference 收集遵循生产 PM 的可见顺序。IR/source 不被排序或改写；稳定 ID 重映射只改相应实体 ID 和 typed 引用。
+
+输出边界将 tailOrder 作为元数据校验，而不递归扫描其条目。非法 metadata 在 DOCX、HTML、XML 三类边界均精确诊断；合法 metadata 仅当其 definition/source/note/example 可打印子序列与对应格式固定顺序不同时，HTML 或 DOCX 才额外报告无法保留顺序。HTML 固定为定义→来源→注→例，DOCX 固定为定义→例→注→来源，所以合法 metadata 并非一律阻断。XML 对合法 tailOrder 不额外报告顺序专属诊断；非法 metadata 仍精确诊断。嵌套术语与 TBX 语言集仍受现有非 JSON 扩展字段边界限制，不因此增加 XML/TBX 能力。
+
+本轮不改生产 Schema、JSON golden、manifest 或 HTML snapshot，不增加标准技术语义、打印顺序支持或 XML 能力。

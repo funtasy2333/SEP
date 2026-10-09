@@ -241,6 +241,9 @@ describe('pmToIr / 术语条目', () => {
     expect(t1.notes.length).toBe(1)
     expect(t1.examples.length).toBe(1)
     expect(t1.source?.[0].text).toContain('[来源：GB/T 20000.1—2014')
+    // This old fixture has note→example→legacy source text and no nested/TBX
+    // structures; retain its established native IR/output contract byte-for-byte.
+    expect(t1.tailOrder).toBeUndefined()
   })
 
   it('嵌套 termDef 保留为术语子条目', () => {

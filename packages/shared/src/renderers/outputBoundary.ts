@@ -1,6 +1,8 @@
 import type { IRDoc } from '../ir/types'
 import { resolve } from '../ir/resolve'
 import { findCrossRefRunProjectionIssues } from '../ir/inlineProjectionDiagnostics'
+import { canonicalTermTailOrder, orderedTermTail, sameTermTailOrder } from '../ir/termTailOrder'
+import type { IRTermEntry, IRTermTailOrderItem } from '../ir/types'
 
 export interface OutputSupportProblem {
   code: 'unsupported-output'
@@ -30,7 +32,7 @@ const FIELDS: Record<string, ReadonlySet<string>> = Object.fromEntries(Object.en
   where: ['id', 'term', 'definition'],
   note: ['kind', 'id', 'content'],
   example: ['kind', 'id', 'content'],
-  termEntry: ['kind', 'id', 'level', 'term', 'termEn', 'definition', 'source', 'notes', 'examples'],
+  termEntry: ['kind', 'id', 'level', 'term', 'termEn', 'definition', 'source', 'notes', 'examples', 'tailOrder'],
   bibEntry: ['kind', 'id', 'content'],
   inline: ['text', 'marks', 'footnote'],
   footnote: ['id', 'content'],
@@ -101,6 +103,26 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
       code: 'unsupported-output', nodeId: id, path: `${path}.${field}`,
       message: `${format} 暂未支持此信息：${path}.${field}${id ? `（节点 ${id}）` : ''}。请保留 JSON 文档。`,
     })
+    if (kind === 'termEntry' && Object.prototype.hasOwnProperty.call(object, 'tailOrder') && object.tailOrder !== undefined) {
+      const entry = object as unknown as IRTermEntry
+      const tail = orderedTermTail(entry, format === 'HTML' ? 'html' : 'resolver')
+      if (tail.issue) {
+        problems.push({
+          code: 'unsupported-output', ...(id === undefined ? {} : { nodeId: id }), path: `${path}.tailOrder`,
+          message: `${format} 不能输出此术语尾项顺序：${tail.issue}。请保留 JSON 文档。`,
+        })
+      } else if (format === 'DOCX' || format === 'HTML') {
+        const printable = (item: IRTermTailOrderItem) => ['definition', 'source', 'note', 'example'].includes(item.kind)
+        const authoredOrder = tail.items.filter(printable).map(({ kind: itemKind, index }) => ({ kind: itemKind, index })) as IRTermTailOrderItem[]
+        const expectedOrder = canonicalTermTailOrder(entry, format === 'HTML' ? 'html' : 'resolver').filter(printable)
+        if (!sameTermTailOrder(authoredOrder, expectedOrder)) {
+          problems.push({
+            code: 'unsupported-output', ...(id === undefined ? {} : { nodeId: id }), path: `${path}.tailOrder`,
+            message: `${format} 不能保留此术语尾项作者顺序；当前格式固定为${format === 'DOCX' ? '定义→示例→注→来源' : '定义→来源→注→示例'}。请保留 JSON 文档。`,
+          })
+        }
+      }
+    }
     if (!allowed) { report('kind'); return }
     for (const [key, child] of Object.entries(object)) {
       if (kind === 'table' && key === 'headerRowCount' && format === 'XML'
@@ -118,6 +140,7 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
       }
       if (kind === 'mark' && key === 'type' && !MARKS.has(String(child))) { report(key); continue }
       if (key === 'unsupportedContent') continue
+      if (key === 'tailOrder') continue
       const childShape = key === 'meta' ? 'meta' : key === 'front' ? 'front'
         : key === 'marks' ? 'mark' : key === 'footnote' || key === 'footnotes' ? 'footnote'
         : key === 'rows' ? 'row' : key === 'cells' ? 'cell' : key === 'items' ? 'item'

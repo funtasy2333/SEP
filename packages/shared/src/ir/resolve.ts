@@ -26,6 +26,7 @@ import type {
 } from './types'
 import { MISSING_ID_PREFIX } from './pmToIr'
 import { gbT11Strategy } from './strategies'
+import { orderedTermTail } from './termTailOrder'
 
 // ---------- 内部上下文 ----------
 
@@ -330,31 +331,51 @@ function visitTermEntry(
   ctx.setLabel(entry.id, numberPath, `sec_${numberPath}`, numberPath)
   visitInlines(entry.term, entry.id, ctx)
   if (entry.termEn) visitInlines(entry.termEn, entry.id, ctx)
-  for (const block of entry.definition) visitBlock(block, entry.id, ctx)
-  for (const example of entry.examples) {
-    ctx.registerId(example.id)
-    for (const block of example.content) visitBlock(block, example.id, ctx)
-    ctx.scope(entry.id).examples.push({ id: example.id })
-  }
-  for (const note of entry.notes) {
-    visitNoteContent(note, ctx)
-    ctx.scope(entry.id).notes.push({ id: note.id })
-  }
-  if (entry.source) visitInlines(entry.source, entry.id, ctx)
-  for (const [index, child] of (entry.nestedEntries ?? []).entries()) {
-    visitTermEntry(child, `${numberPath}.${index + 1}`, ctx)
-  }
-  // TBX language sets follow the term entry's ordinary content in the PM model.
-  // Walk term variants and their descriptors at that point instead of leaving
-  // their references for the generic end-of-document extension scan.
-  for (const languageSet of entry.languageSets ?? []) {
-    for (const group of languageSet.groups) {
-      for (const variant of group.terms) {
-        visitInlines(variant.content, variant.id, ctx)
-        for (const descriptor of variant.descriptors) {
-          visitInlines(descriptor.value, descriptor.id, ctx)
-        }
+  if (entry.definition[0]) visitBlock(entry.definition[0], entry.id, ctx)
+  // Legacy native IR retains the published DOCX sequence example→note→source.
+  // PM-imported extended terms use explicit order so nested/TBX references follow
+  // the visible author sequence without changing that no-metadata contract.
+  const tail = orderedTermTail(entry, 'resolver')
+  if (tail.issue) ctx.problems.push({
+    code: 'unsupported-content',
+    nodeId: entry.id,
+    severity: 'error',
+    message: `术语条目 tailOrder 无效：${tail.issue}`,
+  })
+  for (const item of tail.items) {
+    switch (item.kind) {
+      case 'definition':
+        visitBlock(item.value, entry.id, ctx)
+        break
+      case 'example': {
+        const example = item.value
+        ctx.registerId(example.id)
+        for (const block of example.content) visitBlock(block, example.id, ctx)
+        ctx.scope(entry.id).examples.push({ id: example.id })
+        break
       }
+      case 'note': {
+        const note = item.value
+        visitNoteContent(note, ctx)
+        ctx.scope(entry.id).notes.push({ id: note.id })
+        break
+      }
+      case 'source':
+        visitInlines(item.value, entry.id, ctx)
+        break
+      case 'nestedEntry':
+        visitTermEntry(item.value, `${numberPath}.${item.index + 1}`, ctx)
+        break
+      case 'languageSet':
+        for (const group of item.value.groups) {
+          for (const variant of group.terms) {
+            visitInlines(variant.content, variant.id, ctx)
+            for (const descriptor of variant.descriptors) {
+              visitInlines(descriptor.value, descriptor.id, ctx)
+            }
+          }
+        }
+        break
     }
   }
   ctx.inTerm = previousTerm

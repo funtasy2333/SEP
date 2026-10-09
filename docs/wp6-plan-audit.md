@@ -104,3 +104,13 @@ Codex review `5453609687` 于北京时间 2026-10-08 16:07:19 针对审阅提交
 - HTML snapshot 仅 screen 与 print 两个变体各补 8 个 note/example ID 属性；JSON golden 和 manifest 未变。fixture `fixtures.ts` SHA 及 primary material SHA 经核对保持不变。
 
 冻结后的完整验证数字与限制见[本轮验收记录](wp6-validation.md#280e2e54-引用目标复审)。本轮未宣称 Codex 已批准或 PR 已合并；自动回归也不证明新国标 XML 互操作、Word 排版、浏览器 UI、SQLite 冷重开、真实标准稿件或全仓库无缺陷。新国标 XML 双向映射仍归 WP8，不重建 legacy 转换器。
+
+## debcda72 术语内容顺序复审
+
+Codex review 5458048776 于北京时间 2026-10-08 22:20:19 针对审阅起点 debcda7255138f61934d1f8cede4bc06b4acce49 提出一项 P2（[comment 4220111944](https://github.com/funtasy2333/SEP/pull/45#discussion_r4220111944)）：生产 Schema 接受合法的 TBX 语言集与嵌套术语交错顺序，但 PM→IR 分桶后，IR→PM 和 Resolver 的固定遍历类别会重排，可能改变可见内容顺序及参考文献首次引用编号。
+
+本轮在现有 IR 增加可选 typed tailOrder，记录六类尾项的 kind 与数组索引。PM→IR 仅对含 nestedEntries 或 languageSets、且实际尾序不等于 PM 规范顺序的术语生成它；固定主定义不进入 metadata。所有尾项必须完整、唯一且索引有效。Resolver 按作者顺序处理 nested term、TBX variant/descriptor 与其他尾项；标准 HTML/DOCX 顺序无法保留有效 metadata 的可打印子序列时，输出边界给出精确诊断。未带 tailOrder 的原生 IR、纯旧术语和既有 fullFixture 均保留缺省路径，显式但不适用或格式错误的 metadata 会被拒绝。
+
+该修复只补齐 WP6 JSON/IR 的顺序保真；生产 Schema 未变，TBX/嵌套术语的 HTML、DOCX、旧 XML 消费能力没有扩大，GB/T 46687.2-2026 双向 XML 仍归 WP8。JSON save/reload 测试不代表 SQLite 冷重开，也不代表正式 XML 互操作、Word 排版或真实标准稿件验收。
+
+冻结验收及首次 typecheck/build 失败的完整说明见[本轮验收记录](wp6-validation.md#debcda72-术语内容顺序复审)。本轮不表示 Codex 复审已批准或 PR 已合并。

@@ -335,7 +335,21 @@ export interface IRTermEntry {
   languageSets?: IRTermLanguageSet[]
   /** 旧生产schema允许术语嵌套；保留关系，避免转换时拍平。 */
   nestedEntries?: IRTermEntry[]
+  /**
+   * 仅含嵌套术语或TBX语言集的条目可记录生产 PM 主定义后的尾项作者顺序。
+   * index 是对应尾项数组的零基索引；definition index 0 指向 definition[1]，即主定义后的首个续段。
+   */
+  tailOrder?: IRTermTailOrderItem[]
 }
+
+/** 不引用节点 ID，避免顺序元数据参与外部 ID 定义/引用重映射。 */
+export type IRTermTailOrderItem =
+  | { kind: 'definition'; index: number }
+  | { kind: 'source'; index: 0 }
+  | { kind: 'note'; index: number }
+  | { kind: 'example'; index: number }
+  | { kind: 'nestedEntry'; index: number }
+  | { kind: 'languageSet'; index: number }
 
 export interface IRTermLanguageSet {
   id: NodeId
