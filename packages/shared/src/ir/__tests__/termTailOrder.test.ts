@@ -3,7 +3,9 @@ import { getOutputSupportProblems } from '../../renderers/outputBoundary'
 import { hasSemanticExtensions } from '../extensions'
 import { irToPm, IRToPmError } from '../irToPm'
 import { resolve } from '../resolve'
+import { pmToIr, type PMJsonNode } from '../pmToIr'
 import type { IRDoc, IRInline, IRTermEntry, IRTermTailOrderItem } from '../types'
+import * as fx from './fixtures'
 
 const paragraph = (id: string, content: IRInline[] = [{ text: id }]) => ({ kind: 'paragraph' as const, id, content })
 const reference = (id: string): IRInline[] => [{ text: `引用${id}`, marks: [{ type: 'bibRef', targetId: id }] }]
@@ -114,9 +116,94 @@ describe('术语尾项显式顺序校验', () => {
     const resolved = resolve(doc)
     expect(resolved.problems.filter(problem => problem.severity === 'error')).toEqual([])
     expect(resolved.bibliographyOrder).toEqual(['bib-example', 'bib-note', 'bib-source', 'bib-nested'])
-    expect(resolved.bibliographyOrder.map((id, index) => [id, resolved.labels[id]?.label]))
+    expect(resolved.bibliographyOrder.map(id => [id, resolved.labels[id]?.label]))
       .toEqual(resolved.bibliographyOrder.map((id, index) => [id, `[${index + 1}]`]))
     expect(term.tailOrder).toBeUndefined()
     expect(JSON.stringify(doc)).toBe(before)
+  })
+})
+
+function bibRefText(id: string): PMJsonNode {
+  return { type: 'text', text: '引用-' + id, marks: [{ type: 'bibRef', attrs: { targetId: id } }] }
+}
+
+function pmSource(id: string): PMJsonNode {
+  return { type: 'termSource', content: [bibRefText(id)] }
+}
+
+function pmNote(id: string): PMJsonNode {
+  return { type: 'note', attrs: { nodeId: 'note-' + id }, content: [bibRefText(id)] }
+}
+
+function pmExample(id: string): PMJsonNode {
+  return { type: 'example', attrs: { nodeId: 'example-' + id }, content: [bibRefText(id)] }
+}
+
+function pmTermWithNested(tail: PMJsonNode[], referenceIds: string[]): PMJsonNode {
+  const bibliographyEntries: [string, string][] = referenceIds.map(id => [id, '文献-' + id])
+  const term = fx.termDef('pm-tail-term', '术语', {
+    definition: '定义',
+    extra: [...tail, fx.termDef('pm-tail-nested', '子术语', { definition: '子定义' })],
+  })
+  return fx.standardDoc(
+    {},
+    fx.chapter('pm-tail-chapter', '术语和定义', term),
+    fx.bibliography(...bibliographyEntries),
+  )
+}
+
+const resolverDifferencePairs: Array<{
+  name: string
+  tail: PMJsonNode[]
+  order: IRTermTailOrderItem[]
+  referenceIds: string[]
+}> = [
+  {
+    name: 'source→note',
+    tail: [pmSource('bib-source-note-source'), pmNote('bib-source-note-note')],
+    order: [{ kind: 'source', index: 0 }, { kind: 'note', index: 0 }],
+    referenceIds: ['bib-source-note-source', 'bib-source-note-note'],
+  },
+  {
+    name: 'note→example',
+    tail: [pmNote('bib-note-example-note'), pmExample('bib-note-example-example')],
+    order: [{ kind: 'note', index: 0 }, { kind: 'example', index: 0 }],
+    referenceIds: ['bib-note-example-note', 'bib-note-example-example'],
+  },
+  {
+    name: 'source→example',
+    tail: [pmSource('bib-source-example-source'), pmExample('bib-source-example-example')],
+    order: [{ kind: 'source', index: 0 }, { kind: 'example', index: 0 }],
+    referenceIds: ['bib-source-example-source', 'bib-source-example-example'],
+  },
+]
+
+const singleResolverCategories: Array<{ name: string; tail: PMJsonNode[]; referenceId: string }> = [
+  { name: 'source', tail: [pmSource('bib-single-source')], referenceId: 'bib-single-source' },
+  { name: 'note', tail: [pmNote('bib-single-note')], referenceId: 'bib-single-note' },
+  { name: 'example', tail: [pmExample('bib-single-example')], referenceId: 'bib-single-example' },
+]
+
+describe('PM→IR canonical tail metadata for Resolver', () => {
+  it.each(resolverDifferencePairs)('retains authored $name order for citations with nested entries', ({ tail, order, referenceIds }) => {
+    const { doc } = pmToIr(pmTermWithNested(tail, referenceIds))
+    const term = doc.body[0]?.children[0]
+    if (!term || term.kind !== 'termEntry') throw new Error('Expected a term entry')
+
+    expect(term.tailOrder).toEqual([...order, { kind: 'nestedEntry', index: 0 }])
+    const resolved = resolve(doc)
+    expect(resolved.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(resolved.bibliographyOrder).toEqual(referenceIds)
+    expect(resolved.bibliographyOrder.map(id => [id, resolved.labels[id]?.label]))
+      .toEqual(referenceIds.map((id, index) => [id, '[' + (index + 1) + ']']))
+  })
+
+  it.each(singleResolverCategories)('does not add tailOrder when only $name is present beside a nested entry', ({ tail, referenceId }) => {
+    const { doc } = pmToIr(pmTermWithNested(tail, [referenceId]))
+    const term = doc.body[0]?.children[0]
+    if (!term || term.kind !== 'termEntry') throw new Error('Expected a term entry')
+
+    expect(term.tailOrder).toBeUndefined()
+    expect(resolve(doc).bibliographyOrder).toEqual([referenceId])
   })
 })

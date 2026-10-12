@@ -958,8 +958,8 @@ function convertBlocks(content: PMJsonNode[] | undefined, ctx: Ctx, where: strin
 
 /**
  * termDef → IRTermEntry。
- * nestedEntries 与 languageSets 分别保留其关系；仅二者存在且生产尾项顺序偏离
- * 既有 PM 投影顺序时，用 category+index 顺序元数据保存完整尾项次序。
+ * nestedEntries 与 languageSets 分别保留其关系；仅当二者至少一个存在且实际尾项顺序与 PM 投影或
+ * Resolver 默认尾序任一不同，才用 category+index 顺序元数据保存完整尾项次序。
  */
 function convertTermDef(node: PMJsonNode, ctx: Ctx, out: IRTermEntry[]): void {
   const id = ctx.id(node)
@@ -1049,7 +1049,10 @@ function convertTermDef(node: PMJsonNode, ctx: Ctx, out: IRTermEntry[]): void {
   if (nested.length > 0) entry.nestedEntries = nested
   if ((entry.nestedEntries?.length ?? 0) > 0 || (entry.languageSets?.length ?? 0) > 0) {
     const pmOrder = canonicalTermTailOrder(entry, 'pm')
-    if (!sameTermTailOrder(tailOrder, pmOrder)) entry.tailOrder = tailOrder
+    const resolverOrder = canonicalTermTailOrder(entry, 'resolver')
+    if (!sameTermTailOrder(tailOrder, pmOrder) || !sameTermTailOrder(tailOrder, resolverOrder)) {
+      entry.tailOrder = tailOrder
+    }
   }
 }
 

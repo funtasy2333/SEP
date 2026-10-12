@@ -198,6 +198,106 @@ describe('WP6 termDef production-schema ordered tail round trip', () => {
 
   it.each([
     {
+      name: 'TBX语言集',
+      category: 'languageSet' as const,
+      makeScope: (): PMJsonNode => languageSet(
+        'canonical-lang', 'en', 'canonical-variant', 'canonical-descriptor',
+        'bib-canonical-tbx-term', 'bib-canonical-tbx-descriptor',
+      ),
+      scopeRefs: ['bib-canonical-tbx-term', 'bib-canonical-tbx-descriptor'],
+    },
+    {
+      name: '嵌套术语',
+      category: 'nestedEntry' as const,
+      makeScope: (): PMJsonNode => nestedTerm('canonical-nested', '嵌套术语', 'bib-canonical-nested'),
+      scopeRefs: ['bib-canonical-nested'],
+    },
+  ])('preserves PM canonical source→note→example order with $name across two reloads', ({ category, makeScope, scopeRefs }) => {
+    const source = createWp6Fixture()
+    const term = findNode(source, 'termDef', 'term-main')
+    const name = term.content?.find(child => child.type === 'termName')!
+    const english = term.content?.find(child => child.type === 'termNameEn')!
+    const definition = term.content?.find(child => child.type === 'termDefinition')!
+    const sourceField = pm('termSource', undefined, [text('术语来源', 'bib-canonical-source')])
+    const note = pm('note', { nodeId: 'canonical-note' }, [text('术语注', 'bib-canonical-note')])
+    const example = pm('example', { nodeId: 'canonical-example' }, [text('术语示例', 'bib-canonical-example')])
+    term.content = [name, english, definition, sourceField, note, example, makeScope()]
+    const additionalRefs = [
+      'bib-canonical-source', 'bib-canonical-note', 'bib-canonical-example', ...scopeRefs,
+    ]
+    bibliographyIds(source, additionalRefs)
+
+    const sourceNode = schema.nodeFromJSON(source)
+    sourceNode.check()
+    const savedJson = JSON.parse(JSON.stringify(sourceNode.toJSON())) as PMJsonNode
+    const sourceBefore = JSON.stringify(savedJson)
+    const imported = pmToIr(savedJson).doc
+    const importedBefore = JSON.stringify(imported)
+    const importedTerm = imported.body[0]!.children
+      .flatMap(child => child.kind === 'clause' ? child.children : [child])
+      .find(child => child.kind === 'termEntry') as IRTermEntry
+    const expectedTail: NonNullable<IRTermEntry['tailOrder']> = [
+      { kind: 'source', index: 0 },
+      { kind: 'note', index: 0 },
+      { kind: 'example', index: 0 },
+      { kind: category, index: 0 },
+    ]
+    const expectedOrder = ['bib-entry', ...additionalRefs]
+    const importedResolution = resolve(imported)
+
+    expect(importedResolution.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(importedResolution.bibliographyOrder).toEqual(expectedOrder)
+    expect(importedResolution.bibliographyOrder.map(id => [id, importedResolution.labels[id]?.label]))
+      .toEqual(expectedOrder.map((id, index) => [id, '[' + (index + 1) + ']']))
+    expect(importedTerm.tailOrder).toEqual(expectedTail)
+
+    const firstProjection = schema.nodeFromJSON(irToPm(imported))
+    firstProjection.check()
+    const firstReopened = schema.nodeFromJSON(JSON.parse(JSON.stringify(firstProjection.toJSON())) as PMJsonNode)
+    firstReopened.check()
+    const firstJson = firstReopened.toJSON() as PMJsonNode
+    expect(tailNodes(findNode(firstJson, 'termDef', 'term-main')))
+      .toEqual(tailNodes(findNode(savedJson, 'termDef', 'term-main')))
+    const firstReimport = pmToIr(firstJson).doc
+    const firstReimportTerm = firstReimport.body[0]!.children
+      .flatMap(child => child.kind === 'clause' ? child.children : [child])
+      .find(child => child.kind === 'termEntry') as IRTermEntry
+    expect(firstReimportTerm.tailOrder).toEqual(expectedTail)
+    expect(resolve(firstReimport).bibliographyOrder).toEqual(expectedOrder)
+
+    const secondProjection = schema.nodeFromJSON(irToPm(firstReimport))
+    secondProjection.check()
+    const secondReopened = schema.nodeFromJSON(JSON.parse(JSON.stringify(secondProjection.toJSON())) as PMJsonNode)
+    secondReopened.check()
+    const secondJson = secondReopened.toJSON() as PMJsonNode
+    expect(tailNodes(findNode(secondJson, 'termDef', 'term-main')))
+      .toEqual(tailNodes(findNode(savedJson, 'termDef', 'term-main')))
+    const secondReimport = pmToIr(secondJson).doc
+    const secondReimportTerm = secondReimport.body[0]!.children
+      .flatMap(child => child.kind === 'clause' ? child.children : [child])
+      .find(child => child.kind === 'termEntry') as IRTermEntry
+    expect(secondReimportTerm.tailOrder).toEqual(expectedTail)
+    expect(resolve(secondReimport).bibliographyOrder).toEqual(expectedOrder)
+
+    const sharedJson = schema.nodeFromJSON(renderJson(imported, importedResolution.labels) as PMJsonNode)
+    sharedJson.check()
+    expect(tailNodes(findNode(sharedJson.toJSON() as PMJsonNode, 'termDef', 'term-main')))
+      .toEqual(tailNodes(findNode(savedJson, 'termDef', 'term-main')))
+
+    const clientJson = exportSemanticJson(sourceNode)
+    expect(tailNodes(findNode(clientJson, 'termDef', 'term-main')))
+      .toEqual(tailNodes(findNode(savedJson, 'termDef', 'term-main')))
+    const clientResolution = resolve(pmToIr(sourceNode.toJSON() as PMJsonNode).doc)
+    expect(clientResolution.bibliographyOrder).toEqual(expectedOrder)
+    expect(clientResolution.bibliographyOrder.map(id => [id, clientResolution.labels[id]?.label]))
+      .toEqual(expectedOrder.map((id, index) => [id, '[' + (index + 1) + ']']))
+
+    expect(JSON.stringify(savedJson)).toBe(sourceBefore)
+    expect(JSON.stringify(imported)).toBe(importedBefore)
+  })
+
+  it.each([
+    {
       name: 'lang→nested',
       first: 'languageSet' as const,
       expectedRefs: ['bib-pair-language', 'bib-pair-descriptor', 'bib-pair-nested'],

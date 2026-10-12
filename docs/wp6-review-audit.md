@@ -166,3 +166,15 @@ outputBoundary 只在相应情况诊断：非法 metadata 在三种格式边界�
 主要覆盖：生产 Schema 合法交错顺序和三种 language/nested 交错；六类尾项及递归嵌套；variant 与 descriptor 独立 bibRef 的首次引用和标签顺序；两轮 production-schema PM JSON reload；IR/source 不变、外部 ID remap；shared native renderJson 与 client semantic export 链路；各类非法 metadata 与旧默认路径。测试不声称 UI exportSemanticJson 是全量 PM→IR→native renderJson，也不声称 JSON renderer 生成 bibEntry.number。冻结数字、日志、失败与重跑说明见[验收记录](wp6-validation.md#debcda72-术语内容顺序复审)。
 
 本轮不代表新 Codex review 已批准、PR 已合并或全仓库无缺陷；未执行浏览器 UI、Word 排版、SQLite 冷重开、正式 GB/T 46687.2 XML 外部互操作或真实标准稿件验收。
+
+## 8dd9b3bf 规范术语顺序复审
+
+Codex review 5464603293 于北京时间 2026-10-09 09:02:49 审阅起点 8dd9b3bf0366a5ef14ba6e1214a1f8cbdc9c8f7a，提出唯一 P2（[comment 4225661148](https://github.com/funtasy2333/SEP/pull/45#discussion_r4225661148)）。标题中的 8dd9b3bf 是 review 起点，不是修复提交；最终修复提交以 PR #45 最终 head 为准。
+
+P2 指出适用术语在 PM→IR 时若实际顺序正好等于 PM canonical，旧条件会省略 tailOrder；Resolver 无 metadata 时仍采用例→注→来源，因此 PM canonical 的来源→注→例可能变成例→注→来源，并改变 bibliography first-reference order。修复只扩展现有条件：对于含 nestedEntries 或 languageSets 的术语，只要实际完整顺序与 PM 投影或 Resolver 默认尾序任一不同，就保存显式 tailOrder。两套默认与实际均一致时仍不生成 metadata；plain term、旧 native IR 与全局 Resolver fallback 不变。
+
+冻结后主代理独立复现来源 B、注 C、例 A 保持 bibliographyOrder B、C、A 及标签 B[1]、C[2]、A[3]，PM sourceUnchanged=true；证据保存在 output/wp6-canonical-order-2026-10-12/reproduction.json。测试包括共享三种类别组合与单类别兼容边界，以及真实 Schema 下的 TBX/nested 两种 canonical source→note→example、两轮重开、label 顺序、不可变性以及 shared `renderJson(IRDoc, labels)` 经 `irToPm` 投影原生 IR 的路径和 client `exportSemanticJson → renderSemanticJson` 接收原始 PM JSON 与 Resolver labels 的兼容路径。此前的 tailOrder 严格校验、旧 no-metadata native IR fallback 与 fullFixture 行为仍由原测试覆盖。
+
+定向测试先红后绿。最初以 pnpm package test -- <file> 形式尝试运行单文件，但实际启动整个 package suite：shared 有 3 项新断言失败、1025 项通过；client 有 2 项新断言失败、422 项通过、1 项既有 opt-in 测试跳过，非目标文件均通过。失败分别复现 tailOrder 未保存和 Resolver 引用顺序倒置。改条件后，shared 目标文件 17/17、client 目标文件 6/6 通过。完整冻结验证与首次并行 client 超时的准确记录见[验收记录](wp6-validation.md#8dd9b3bf-规范术语顺序复审)。
+
+本轮仅记录代码复审与本地自动验收，不表示 Codex review 已批准、PR 已合并或全仓库无缺陷；Word、浏览器/SQLite 冷重开和正式 XML 外部互操作不在本次范围。

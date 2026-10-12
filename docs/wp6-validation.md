@@ -335,3 +335,48 @@ shared 新增 packages/shared/src/ir/__tests__/termTailOrder.test.ts（11 tests�
 本轮共涉及 10 个代码/测试文件：7 个实现文件和 3 个测试文件。termTailOrder helper 冻结 SHA-256 为 549983b44b53f7e3b53a93bb9b53d02047432de1b9e964ced2bfd64f7662834e。锁定 fixture SHA-256 仍为 cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d，primary material SHA-256 仍为 8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8。JSON golden、manifest、HTML snapshots、production schema 和依赖/lockfile 未改变。
 
 本轮通过自动测试核验 Schema/JSON 路径，不代表 SQLite 冷重开。未在本轮执行真实浏览器 UI、Microsoft Word 打开/排版、正式 GB/T 46687.2 XML 外部互操作或真实标准稿件验收，也不表示 Codex 已批准此修复、PR 已合并或全仓库无缺陷。WP8 负责新国标 XML 双向映射。
+
+## 8dd9b3bf 规范术语顺序复审
+
+本轮工作日为 2026-10-12。Codex review 5464603293 于北京时间 2026-10-09 09:02:49 针对审阅起点 8dd9b3bf0366a5ef14ba6e1214a1f8cbdc9c8f7a 提出唯一 P2（[comment 4225661148](https://github.com/funtasy2333/SEP/pull/45#discussion_r4225661148)）。标题中的 8dd9b3bf 是审阅起点，不是修复提交；最终修复提交以 PR #45 最终 head 为准。
+
+上轮 debcda72 条款只在实际顺序偏离 PM canonical 时保存 tailOrder。此次发现：对含 nestedEntries 或 languageSets 的术语，来源→注→例虽符合 PM canonical，却不同于 Resolver legacy fallback 的例→注→来源。PM→IR 现在只在既有适用范围内比较两种默认尾序；实际顺序与 PM 投影或 Resolver 默认尾序任一不同即保存完整 tailOrder，两者都一致时继续省略。不会扩大到无嵌套术语/TBX 的普通术语，也不改 Resolver 全局 fallback、打印顺序或 XML 能力。
+
+冻结复现文件 output/wp6-canonical-order-2026-10-12/reproduction.json 记录 tailOrder 为 source→note→example→languageSet；引用次序 B、C、A 对应 labels B[1]、C[2]、A[3]，sourceUnchanged=true。
+
+### 定向红绿
+
+最初使用 pnpm --filter @ses/shared test -- <file> 和 client 对应命令尝试只运行目标文件，Vitest 实际执行了完整 package suite。shared 输出为 3 failed、1025 passed；client 为 2 failed、422 passed、1 skipped。失败都是新增预期行为断言，非目标文件均通过：适用术语的 tailOrder 为空，且 Resolver 将 PM 作者顺序 source→note→example 重排为 example→note→source。
+
+改条件后的目标命令和结果：
+
+- shared：pnpm --filter @ses/shared exec vitest run src/ir/__tests__/termTailOrder.test.ts，17/17 passed。
+- client：pnpm --filter @ses/client exec vitest run src/extensions/wp6TermDefOrder.test.ts，6/6 passed。
+
+shared 新增 source→note、note→example、source→example 三组合及 source/note/example 单类别兼容边界。client 通过真实 getSchema(createEditorExtensions()) 验证 source→note→example 分别与 TBX 语言集、nested term 组合，两轮 PM↔IR 冷重开、bibliographyOrder/labels、PM/IR 不变，以及 shared renderJson 和 client exportSemanticJson 路径。原有 no-metadata native IR fallback、旧 fullFixture、tailOrder 严格校验继续覆盖。
+
+### 六项冻结验收
+
+根代理对冻结代码执行六项自动验收；本轮自动验收六项最终均有退出0证据，形成方式为其余五项首轮并行检查通过、client 全量测试在一次复核后通过。因此不应写成六项在首次并行运行中一次全部通过。
+
+- shared：52 个测试文件、1028 项通过；tsc --noEmit 通过。
+- client：60 个测试文件，59 passed、1 skipped；425 tests 中 424 passed、1 个既有 opt-in API 测试 skipped；vue-tsc 与 Vite build 通过，仅有既有 chunk-size warning。
+- server：2 suites、23 项通过；Nest build 通过。
+- 合计 1475 tests passed，另有 1 项既有测试 skipped。
+
+首轮 client 全量并行运行中，src/views/wp6IntegrationAudit.test.ts:192 的“打开未带 nodeId 旧正文后立即持久化规范化 ID，重开稳定”超过 5000 ms，结果为 1 failed、423 passed、1 skipped，记录在 output/wp6-canonical-order-2026-10-12/initial-client-test.log。主代理使用与首轮完全相同的完整命令（包括原有 --maxWorkers=2；命令与测试配置均未变）重跑完整 client suite 后为 424 passed、1 skipped，exit 0，日志为 final-client-test.log。重跑期间没有改代码、测试或 timeout；这里仅记录首轮超时与复核结果，不推断超时根因。其余最终日志也在本地隔离 worktree 的 output 目录；这些是本地审计证据，不是 GitHub CI 报告，也不随 PR 源码发布：
+
+- output/wp6-canonical-order-2026-10-12/final-shared-test.log
+- output/wp6-canonical-order-2026-10-12/final-shared-types.log
+- output/wp6-canonical-order-2026-10-12/final-client-test.log
+- output/wp6-canonical-order-2026-10-12/final-client-build.log
+- output/wp6-canonical-order-2026-10-12/final-server-test.log
+- output/wp6-canonical-order-2026-10-12/final-server-build.log
+
+冻结源文件 SHA-256：pmToIr.ts 387221f8830778dd380b1817fe3d80e235c535e396e6695fcbdaff3da35ef839；shared termTailOrder.test.ts 8ff4ff9171ce04969dc39f66e7d1a4c23b3e6e875bd1aeb0ca15b7de7a452536；client wp6TermDefOrder.test.ts c6fecf875ae3d5df12a4cd6c381dac0ce1235927a4a6352956f9f38f3c02542a。fixture fixtures.ts SHA-256 仍为 cc6b19157952576cb3ec69dc15a124dfbc6851901c227605758425bb0aef531d。主工作区素材 docs/素材/终结线.jpg 只读核验 SHA-256 为 8134494f8e129a1880f44725c7f61bda39833149bbb30451e07834f2657809c8。
+
+### 范围与证据边界
+
+冻结代码只修改 packages/shared/src/ir/pmToIr.ts 一项生产文件和两份回归测试。没有改生产 Schema、数据库、服务进程、依赖/lockfile、JSON golden、manifest 或 HTML snapshot；这次自动核验也未扩展 XML、打印或 plain term tailOrder。共享 `renderJson(IRDoc, labels)` 经 `irToPm` 投影原生 IR；UI `exportSemanticJson → renderSemanticJson` 使用原始 PM JSON 与 Resolver labels，仍为不同的现有路径。
+
+本次自动测试与构建不代表 Codex review 已批准、PR 已合并、全仓库无缺陷、正式 GB/T 46687.2 XML 互操作、Word 排版、真实浏览器/SQLite 冷重开或真实标准稿件已验收。WP6 继续聚焦 JSON/IR 与作者模型；GB/T 46687.2 双向 XML 归 WP8。

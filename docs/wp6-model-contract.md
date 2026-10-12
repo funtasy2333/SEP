@@ -145,7 +145,7 @@ Tiptap `setContent` 仅替换子内容。生产加载、版本回滚与 XML 导�
 
 直接 native HTML/DOCX renderer 保留 run 的 host text（沿用转义、换行、普通 marks 与 crossRef 的原有处理），随后输出 body footnote atom 和全部 `tableFootnoteRef` atoms；普通 marks 只格式化 host text，不继承到独立 atom。含多个 crossRef 的同一 run、或带 crossRef 的换行文本，在 HTML/DOCX 输出边界精确拒绝；native IR 的 crossRef 换行另由 IR→PM 拒绝。DOCX 还会在同一实际输出文本同时带 sub 与 sup 时拒绝，实际输出文本包括非空 host text 或有非空 `refText` 的空文本 crossRef；单独 sub/sup、空 crossRef+sub 仍可用，HTML 继续保留该组合和 label。
 
-raw/semantic PM JSON 仍保留已有 PM 内容以供纠错；native `renderJson(IRDoc)` 经过 `irToPm`，因此不可投影的 native IR 会得到明确错误。UI 语义 JSON 仍由 `exportSemanticJson → renderSemanticJson` 消费原 PM 文档和 Resolver labels，本轮不把它描述成全量 PM→IR→`renderJson` 流水线。VersionPanel 的 JSON-only snapshot fallback 保持。
+raw/semantic PM JSON 仍保留已有 PM 内容以供纠错；native `renderJson(IRDoc, labels)` 经过 `irToPm`，因此不可投影的 native IR 会得到明确错误。UI 语义 JSON 仍由 `exportSemanticJson → renderSemanticJson` 消费原 PM 文档和 Resolver labels，本轮不把它描述成全量 PM→IR→`renderJson` 流水线。VersionPanel 的 JSON-only snapshot fallback 保持。
 
 以上是 WP6 JSON 与作者 IR 的双向投影/输出边界收紧，不新增 XML 或 MathML 打印能力。旧 XML 实现移除与新国标 XML 统一切换归 WP8，不重建旧转换器；不扩展标准技术语义或新增工具栏。
 
@@ -174,3 +174,13 @@ Resolver 按有效作者尾序遍历定义续段、来源、注、例、嵌套�
 输出边界将 tailOrder 作为元数据校验，而不递归扫描其条目。非法 metadata 在 DOCX、HTML、XML 三类边界均精确诊断；合法 metadata 仅当其 definition/source/note/example 可打印子序列与对应格式固定顺序不同时，HTML 或 DOCX 才额外报告无法保留顺序。HTML 固定为定义→来源→注→例，DOCX 固定为定义→例→注→来源，所以合法 metadata 并非一律阻断。XML 对合法 tailOrder 不额外报告顺序专属诊断；非法 metadata 仍精确诊断。嵌套术语与 TBX 语言集仍受现有非 JSON 扩展字段边界限制，不因此增加 XML/TBX 能力。
 
 本轮不改生产 Schema、JSON golden、manifest 或 HTML snapshot，不增加标准技术语义、打印顺序支持或 XML 能力。
+
+## 8dd9b3bf 规范术语顺序复审
+
+Codex review 5464603293 于北京时间 2026-10-09 09:02:49 针对审阅起点 8dd9b3bf0366a5ef14ba6e1214a1f8cbdc9c8f7a 提出一项 P2（[comment 4225661148](https://github.com/funtasy2333/SEP/pull/45#discussion_r4225661148)）。标题中的 8dd9b3bf 是审阅起点，不是修复提交；最终修复提交以 PR #45 最终 head 为准。
+
+本节取代 debcda72 术语顺序复审中“只在实际顺序偏离 PM canonical 时才保存 tailOrder”的规则。适用范围仍限于至少含一个 nestedEntries 或 languageSets 的术语：当实际尾序与 PM 投影默认顺序或 Resolver 默认顺序任一不同时，pmToIr 保存完整 tailOrder。若实际尾序与两个默认顺序都一致，就不生成 metadata。无 metadata 的原生 IR、纯旧术语及历史 fullFixture 的默认行为保持；不改全局 Resolver fallback，不扩大 plain term 的 metadata 适用范围。
+
+问题出在 PM canonical 为定义→来源→注→例→嵌套术语→TBX 语言集，而旧 Resolver fallback 为定义→例→注→来源→嵌套术语→TBX 语言集。含嵌套术语或 TBX 的作者内容若按 PM canonical 写成来源→注→例，旧条件会省略 tailOrder，Resolver 因而改变文献首次引用次序。冻结复现确认来源 B、注 C、例 A 得到 bibliographyOrder B、C、A，标签分别为 B[1]、C[2]、A[3]，且源 PM 未改变；证据为 output/wp6-canonical-order-2026-10-12/reproduction.json。
+
+本次只调整 PM→IR 的 metadata 生成条件及其测试，不改变 IR 字段形状、生产 Schema、Renderer 默认顺序或 HTML/DOCX/XML 输出能力。完整方案边界见[方案审计](wp6-plan-audit.md#8dd9b3bf-规范术语顺序复审)，冻结验收见[验收记录](wp6-validation.md#8dd9b3bf-规范术语顺序复审)。

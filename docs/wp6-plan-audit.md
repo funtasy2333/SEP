@@ -114,3 +114,21 @@ Codex review 5458048776 于北京时间 2026-10-08 22:20:19 针对审阅起点 d
 该修复只补齐 WP6 JSON/IR 的顺序保真；生产 Schema 未变，TBX/嵌套术语的 HTML、DOCX、旧 XML 消费能力没有扩大，GB/T 46687.2-2026 双向 XML 仍归 WP8。JSON save/reload 测试不代表 SQLite 冷重开，也不代表正式 XML 互操作、Word 排版或真实标准稿件验收。
 
 冻结验收及首次 typecheck/build 失败的完整说明见[本轮验收记录](wp6-validation.md#debcda72-术语内容顺序复审)。本轮不表示 Codex 复审已批准或 PR 已合并。
+
+## 8dd9b3bf 规范术语顺序复审
+
+Codex review 5464603293 于北京时间 2026-10-09 09:02:49 针对审阅起点 8dd9b3bf0366a5ef14ba6e1214a1f8cbdc9c8f7a 提出一项 P2（[comment 4225661148](https://github.com/funtasy2333/SEP/pull/45#discussion_r4225661148)）。标题中的 8dd9b3bf 是审阅起点，不是修复提交；最终修复提交以 PR #45 最终 head 为准。
+
+### 问题与规则更新
+
+生产 termDef 的主定义位置固定在尾项之前；主定义之后的定义续段与来源、注、例、嵌套 termDef、TBX 语言集可以合法交错。上轮 debcda72 修复只在实际尾序偏离 PM canonical 时记录 tailOrder；这漏掉了来源→注→例等恰与 PM canonical 相同、却不同于 Resolver legacy fallback 的顺序。Resolver 随后按例→注→来源遍历，造成文献首次引用和标签偏离作者顺序。
+
+本轮仅在既有适用范围内修正规则：术语至少有一个 nestedEntries 或 languageSets，且实际完整尾序与 PM 投影或 Resolver 默认尾序任一不同，pmToIr 才显式记录完整 tailOrder。实际顺序与两个默认均一致时继续省略 metadata。无 metadata 的原生 IR、纯旧术语、fullFixture、Resolver 的既有 fallback 都保持兼容；不向普通术语扩展 tailOrder，也不改打印、XML 或 Schema。
+
+### 变更和证据
+
+生产改动只在 packages/shared/src/ir/pmToIr.ts 的 convertTermDef 条件及说明注释。新增测试在 packages/shared/src/ir/__tests__/termTailOrder.test.ts 和 packages/client/src/extensions/wp6TermDefOrder.test.ts：shared 覆盖 source→note、note→example、source→example 三种组合以及 source/note/example 单类别不生成 metadata；client 使用真实 production schema 覆盖来源→注→例并分别带 TBX 语言集、嵌套术语，两轮 PM↔IR 冷重开、文献顺序与标签、source PM/IR 不可变，以及 shared `renderJson(IRDoc, labels)` 经 `irToPm` 投影原生 IR 的路径和 client `exportSemanticJson → renderSemanticJson` 接收原始 PM JSON 与 Resolver labels 的兼容路径。
+
+冻结复现 output/wp6-canonical-order-2026-10-12/reproduction.json 中，作者来源 B、注 C、例 A 保持 bibliographyOrder B、C、A，标签为 B[1]、C[2]、A[3]，sourceUnchanged 为 true。除一个生产文件和两个测试文件外，未改数据库、服务进程、schema、依赖/lockfile、JSON golden、manifest 或 HTML snapshot。UI semantic export 仍是原 PM 兼容投影；不得描述为全量 PM→IR→native renderJson 迁移。
+
+本轮属于 WP6 JSON/作者 IR 的尾序生成条件修正。WP8 继续负责 GB/T 46687.2 双向 XML；没有新增打印/XML能力、标准技术语义或面板功能。六项验收、首轮 client timeout 与重跑记录见[本轮验收记录](wp6-validation.md#8dd9b3bf-规范术语顺序复审)。本节不表示 Codex review 已批准、PR 已合并或全仓库不存在其他问题。
