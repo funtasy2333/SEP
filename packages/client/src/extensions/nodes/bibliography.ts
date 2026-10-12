@@ -107,6 +107,8 @@ export const BibEntry = Node.create({
     return {
       /** 引用序号，如 "1", "2" */
       index: { default: null },
+      /** 规范类型化文献类别；原有自由文本条目仍可用。 */
+      entryType: { default: null, parseHTML: (element) => element.getAttribute('entryType') },
     }
   },
 

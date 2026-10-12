@@ -1,3 +1,5 @@
 export * from './docx'
 export * from './html'
+export * from './json'
+export * from './outputBoundary'
 export * from './printCss'

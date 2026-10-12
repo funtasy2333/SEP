@@ -4,6 +4,8 @@
  */
 
 import { diffLines, type Change } from 'diff'
+import { semanticLabels } from './semanticLabels'
+import type { PMJsonNode } from '@ses/shared'
 
 /** 差异行类型 */
 export type DiffLineType = 'added' | 'removed' | 'unchanged'
@@ -40,7 +42,7 @@ export function docToText(doc: Record<string, unknown>): string {
   const content = doc.content as Array<Record<string, unknown>> | undefined
   if (!content) return ''
 
-  const ctx = { chapterNum: 0, appendixNum: 0, clauseCounters: [0, 0, 0, 0, 0] }
+  const ctx = semanticLabels(doc as unknown as PMJsonNode)
 
   for (const node of content) {
     nodeToText(node, lines, 0, ctx)
@@ -49,11 +51,7 @@ export function docToText(doc: Record<string, unknown>): string {
   return lines.join('\n')
 }
 
-interface NumberingContext {
-  chapterNum: number
-  appendixNum: number
-  clauseCounters: number[]
-}
+type NumberingContext = ReturnType<typeof semanticLabels>
 
 function nodeToText(
   node: Record<string, unknown>,
@@ -80,10 +78,8 @@ function nodeToText(
       break
 
     case 'chapter': {
-      ctx.chapterNum++
-      ctx.clauseCounters.fill(0)
       const title = extractTitle(content, 'chapterTitle')
-      lines.push(`${indent}${ctx.chapterNum} ${title}`)
+      lines.push(`${indent}${ctx.labelFor(node as unknown as PMJsonNode)} ${title}`)
       if (content) {
         for (const c of content) {
           if ((c.type as string) !== 'chapterTitle') {
@@ -96,10 +92,7 @@ function nodeToText(
     }
 
     case 'clause': {
-      const level = (attrs.level as number) || 1
-      ctx.clauseCounters[level - 1]++
-      for (let i = level; i < 5; i++) ctx.clauseCounters[i] = 0
-      const numStr = [ctx.chapterNum, ...ctx.clauseCounters.slice(0, level)].join('.')
+      const numStr = ctx.labelFor(node as unknown as PMJsonNode)
       const hasTitle = attrs.hasTitle !== false
       const title = extractTitle(content, 'clauseTitle')
       if (hasTitle) {
@@ -118,10 +111,7 @@ function nodeToText(
     }
 
     case 'termDef': {
-      const level = (attrs.level as number) || 1
-      ctx.clauseCounters[level - 1]++
-      for (let i = level; i < 5; i++) ctx.clauseCounters[i] = 0
-      const numStr = [ctx.chapterNum, ...ctx.clauseCounters.slice(0, level)].join('.')
+      const numStr = ctx.labelFor(node as unknown as PMJsonNode)
       const termName = extractTitle(content, 'termName')
       const termNameEn = extractTitle(content, 'termNameEn')
       const termDef = extractTitle(content, 'termDefinition')
@@ -140,12 +130,10 @@ function nodeToText(
     }
 
     case 'appendix': {
-      ctx.appendixNum++
-      ctx.clauseCounters.fill(0)
-      const letter = String.fromCharCode(64 + ctx.appendixNum)
+      const appendixLabel = ctx.labelFor(node as unknown as PMJsonNode)
       const normative = attrs.normative ? '（规范性）' : '（资料性）'
       const title = extractTitle(content, 'appendixTitle')
-      lines.push(`${indent}附录${letter}${normative}`)
+      lines.push(`${indent}${appendixLabel}${normative}`)
       lines.push(`${indent}${title}`)
       if (content) {
         for (const c of content) {
@@ -163,11 +151,9 @@ function nodeToText(
       const title = extractTitle(content, 'bibliographyTitle')
       lines.push(`${indent}[${title || '参考文献'}]`)
       if (content) {
-        let idx = 0
         for (const c of content) {
           if ((c.type as string) === 'bibEntry') {
-            idx++
-            lines.push(`${indent}  [${idx}] ${extractText(c)}`)
+            lines.push(`${indent}  ${ctx.labelFor(c as unknown as PMJsonNode)} ${extractText(c)}`)
           }
         }
       }

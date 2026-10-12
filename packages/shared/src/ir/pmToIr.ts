@@ -7,10 +7,14 @@
  */
 
 import { toIrStandardType } from './meta'
+import { hasSemanticExtensions } from './extensions'
+import { unsupportedFootnoteAtomMarks, unsupportedFootnoteContent } from './footnotePayload'
 import type {
+  IRAdoption,
   IRAppendix,
   IRBibEntry,
   IRBlock,
+  IRCopyright,
   IRChapter,
   IRChapterChild,
   IRClause,
@@ -18,18 +22,48 @@ import type {
   IRDoc,
   IRDocMeta,
   IRExample,
+  IRExternalLink,
+  IRFigureDescription,
+  IRFigureGroup,
   IRFigure,
   IRFormula,
+  IRFormulaNote,
+  IRIdentifier,
+  IRIdentifierPart,
+  IRIndex,
+  IRIndexEntry,
+  IRIndexGroup,
+  IRInlineFormula,
+  IRInlineStyle,
   IRInline,
+  IRReferenceTargetKind,
+  IRLanguage,
   IRList,
   IRMark,
+  IRMeasure,
   IRNote,
+  IROrganization,
   IRParagraph,
+  IRResource,
+  IRStandardReference,
+  IRTableStyle,
+  IRRowStyle,
+  IRCellStyle,
   IRTable,
   IRTableRow,
   IRTermEntry,
+  IRTermGroup,
+  IRTermTailOrderItem,
+  IRTermLanguageSet,
+  IRTermVariant,
+  IRTitlePart,
+  IRUnsupportedContent,
+  IRWarning,
+  IRQuote,
+  IRCodeBlock,
   NodeId,
 } from './types'
+import { canonicalTermTailOrder, sameTermTailOrder } from './termTailOrder'
 
 /** ProseMirror JSON 节点（纯对象形态） */
 export interface PMJsonNode {
@@ -56,6 +90,10 @@ export const MISSING_ID_PREFIX = '__missing-'
 
 class Ctx {
   warnings: string[] = []
+  unsupportedContent: IRUnsupportedContent[] = []
+  resources: IRResource[] = []
+  paths = new WeakMap<object, string>()
+  ownerIds = new WeakMap<object, string>()
   /** 原始 atom 与转换结果的关联，用于最终检查是否实际进入 IR 树。 */
   footnoteInlines = new WeakMap<PMJsonNode, IRInline>()
   /** 暂不支持的脚注负载保留为阻断诊断，避免导出时只写出部分内容。 */
@@ -72,26 +110,23 @@ class Ctx {
     return `${MISSING_ID_PREFIX}${this.missingSeq}`
   }
 
-  unknown(type: string, where: string): void {
-    if (this.warnedUnknown.has(`${where}:${type}`)) return
-    this.warnedUnknown.add(`${where}:${type}`)
-    this.warnings.push(`未知节点类型「${type}」（位于${where}），已跳过`)
+  unknown(type: string, where: string, node?: PMJsonNode): void {
+    if (!this.warnedUnknown.has(`${where}:${type}`)) {
+      this.warnedUnknown.add(`${where}:${type}`)
+      this.warnings.push(`未知节点类型「${type}」（位于${where}），已跳过`)
+    }
+    this.unsupportedContent.push({
+      nodeId: typeof node?.attrs?.nodeId === 'string' ? node.attrs.nodeId : node ? this.ownerIds.get(node) ?? null : null,
+      path: node ? this.paths.get(node) ?? where : where,
+      nodeType: type,
+      reason: '当前Authoring IR没有与该生产节点对应的类型化字段',
+    })
+  }
+
+  path(node: PMJsonNode | undefined, fallback: string): string {
+    return node ? this.paths.get(node) ?? fallback : fallback
   }
 }
-
-// ---------- 行内内容 ----------
-
-const MARK_MAP: Record<string, Exclude<IRMark, { targetId: string }>['type']> = {
-  bold: 'bold',
-  strong: 'bold',
-  italic: 'italic',
-  em: 'italic',
-  underline: 'underline',
-  subscript: 'sub',
-  superscript: 'sup',
-}
-
-const CANONICAL_FOOTNOTE_MARKS = new Set(['bold', 'italic', 'underline', 'subscript', 'superscript'])
 
 function isPmJsonNode(value: unknown): value is PMJsonNode {
   return value !== null
@@ -100,83 +135,67 @@ function isPmJsonNode(value: unknown): value is PMJsonNode {
     && typeof (value as { type?: unknown }).type === 'string'
 }
 
-/** 脚注负载只接受能由各导出器无损表示的 PM 行内形状。 */
-function unsupportedFootnoteAttrs(attrs: unknown): string | undefined {
-  if (attrs == null) return undefined
-  if (typeof attrs !== 'object' || Array.isArray(attrs)) return '无效的格式属性结构'
-  for (const [key, value] of Object.entries(attrs)) {
-    if (key === 'content' || key === 'text') return `属性字段「${key}」`
-    if (value !== null && typeof value === 'object') return `属性「${key}」包含暂不支持的嵌套数据`
+function indexPmPaths(root: PMJsonNode, ctx: Ctx): void {
+  const visit = (node: PMJsonNode, path: string, ownerId?: string): void => {
+    ctx.paths.set(node, path)
+    const nextOwnerId = typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : ownerId
+    if (nextOwnerId) ctx.ownerIds.set(node, nextOwnerId)
+    ;(node.content ?? []).forEach((child, index) => {
+      if (isPmJsonNode(child)) visit(child, `${path}.content[${index}]`, nextOwnerId)
+    })
+    if (node.type === 'footnoteRef' && Array.isArray(node.attrs?.content)) {
+      ;(node.attrs!.content as unknown[]).forEach((child, index) => {
+        if (isPmJsonNode(child)) visit(child, `${path}.attrs.content[${index}]`, nextOwnerId)
+      })
+    }
   }
-  return undefined
+  visit(root, root.type)
 }
 
-function unsupportedFootnoteMarks(marks: unknown): string | undefined {
-  if (marks == null) return undefined
-  if (!Array.isArray(marks)) return '无效的格式标记'
-  for (const value of marks) {
-    if (!value || typeof value !== 'object' || Array.isArray(value) || typeof value.type !== 'string') {
-      return '无效的格式标记'
-    }
-    const mark = value as Record<string, unknown> & { type: string }
-    const extraKey = Object.keys(mark).find(key => key !== 'type' && key !== 'attrs')
-    if (extraKey) return `格式标记包含不支持字段「${extraKey}」`
-    const attrsReason = unsupportedFootnoteAttrs(mark.attrs)
-    if (attrsReason) return `格式标记${attrsReason}`
-    if (CANONICAL_FOOTNOTE_MARKS.has(mark.type)) continue
-    if (mark.type === 'crossRef') {
-      const attrs = mark.attrs as Record<string, unknown> | undefined
-      if (typeof attrs?.refId === 'string' && attrs.refId.length > 0) {
-        if (Object.prototype.hasOwnProperty.call(attrs, 'refType') && typeof attrs.refType !== 'string') return '交叉引用类型无效'
-        if (Object.prototype.hasOwnProperty.call(attrs, 'refText') && attrs.refText !== null && typeof attrs.refText !== 'string') return '交叉引用文本无效'
-        continue
-      }
-      return '缺少目标的交叉引用'
-    }
-    return `格式「${mark.type}」`
-  }
-  return undefined
+// ---------- 行内内容 ----------
+
+const MARK_MAP: Record<string, Extract<IRMark, { type: 'bold' | 'italic' | 'underline' | 'sub' | 'sup' | 'strike' | 'code' }>['type']> = {
+  bold: 'bold',
+  strong: 'bold',
+  italic: 'italic',
+  em: 'italic',
+  underline: 'underline',
+  subscript: 'sub',
+  superscript: 'sup',
+  strike: 'strike',
+  code: 'code',
 }
 
-function unsupportedFootnoteAtomMarks(marks: unknown): string | undefined {
-  if (marks == null || (Array.isArray(marks) && marks.length === 0)) return undefined
-  return '上标格式标记（请先取消上标的附加格式）'
+interface ConvertedMarks {
+  marks: IRMark[]
+  style?: IRInlineStyle
 }
 
-function unsupportedFootnoteContent(content: unknown[]): string | undefined {
-  for (const value of content) {
-    if (!isPmJsonNode(value)) return '无效的行内节点'
-    const node = value as PMJsonNode & Record<string, unknown>
-    if (node.type === 'text') {
-      const extraKey = Object.keys(node).find(key => !['type', 'text', 'marks'].includes(key))
-      if (extraKey) return `文本节点包含不支持字段「${extraKey}」`
-      if (typeof node.text !== 'string') return '无效的文本内容'
-      const marksReason = unsupportedFootnoteMarks(node.marks)
-      if (marksReason) return marksReason
-      continue
-    }
-    if (node.type === 'hardBreak') {
-      const extraKey = Object.keys(node).find(key => !['type', 'marks'].includes(key))
-      if (extraKey) return `换行节点包含不支持字段「${extraKey}」`
-      if (node.marks != null && !(Array.isArray(node.marks) && node.marks.length === 0)) return '换行格式标记'
-      continue
-    }
-    if (node.type === 'tableFootnoteRef') return '表脚注引用不能嵌入脚注内容'
-    if (node.type === 'footnoteRef') {
-      const nested = Array.isArray(node.attrs?.content) ? node.attrs.content as PMJsonNode[] : []
-      const reason = unsupportedFootnoteContent(nested)
-      if (reason) return reason
-      continue
-    }
-    return `节点「${node.type}」`
+const REF_KIND_MAP: Record<string, NonNullable<Extract<IRMark, { type: 'crossRef' }>['targetKind']>> = {
+  chapter: 'chapter', clause: 'clause', appendix: 'appendix', figure: 'figure',
+  table: 'table', formula: 'formula', note: 'note', example: 'example',
+  bibEntry: 'bibliography', bibliography: 'bibliography', term: 'term',
+  paragraph: 'paragraph', index: 'index',
+}
+
+function styleFromAttrs(attrs: Record<string, unknown> | undefined): IRInlineStyle | undefined {
+  if (!attrs) return undefined
+  const out: IRInlineStyle = {}
+  const keys: (keyof IRInlineStyle)[] = [
+    'fontFamily', 'fontSize', 'color', 'backgroundColor', 'letterSpacing', 'baseline', 'textTransform',
+  ]
+  for (const key of keys) {
+    const value = attrs[key]
+    if (typeof value === 'string' && value.length > 0) out[key] = value
   }
-  return undefined
+  return Object.keys(out).length > 0 ? out : undefined
 }
 
 function convertMarks(
   marks: PMJsonNode['marks'],
   ctx: Ctx,
-): IRMark[] | undefined {
+  sourceNode?: PMJsonNode,
+): ConvertedMarks | undefined {
   if (marks == null) return undefined
   if (!Array.isArray(marks)) {
     ctx.warnings.push('行内格式标记结构无效，已跳过')
@@ -184,6 +203,7 @@ function convertMarks(
   }
   if (marks.length === 0) return undefined
   const out: IRMark[] = []
+  let style: IRInlineStyle | undefined
   for (const value of marks as unknown[]) {
     if (!value || typeof value !== 'object' || Array.isArray(value) || typeof (value as { type?: unknown }).type !== 'string') {
       ctx.warnings.push('行内格式标记结构无效，已跳过')
@@ -193,18 +213,64 @@ function convertMarks(
     const mapped = Object.prototype.hasOwnProperty.call(MARK_MAP, m.type) ? MARK_MAP[m.type] : undefined
     if (mapped) {
       out.push({ type: mapped })
-    } else if (m.type === 'crossRef') {
-      const refId = m.attrs?.refId
-      if (typeof refId === 'string' && refId.length > 0) {
-        out.push({ type: 'crossRef', targetId: refId })
+    } else if (m.type === 'textStyle') {
+      style = { ...style, ...styleFromAttrs(m.attrs) }
+    } else if (m.type === 'variable') {
+      out.push({
+        type: 'variable',
+        ...(typeof m.attrs?.kind === 'string' ? { kind: m.attrs.kind } : {}),
+        ...(typeof m.attrs?.name === 'string' ? { name: m.attrs.name } : {}),
+      })
+    } else if (m.type === 'externalLink' || m.type === 'link') {
+      const href = typeof m.attrs?.href === 'string' ? m.attrs.href : ''
+      const link: IRExternalLink = {
+        href,
+        ...(typeof m.attrs?.title === 'string' ? { title: m.attrs.title } : {}),
+        ...(typeof m.attrs?.target === 'string' ? { target: m.attrs.target } : {}),
+        ...(typeof m.attrs?.rel === 'string' ? { rel: m.attrs.rel } : {}),
+      }
+      out.push({ type: 'externalLink', ...link })
+    } else if (m.type === 'bibRef' || m.type === 'termRef') {
+      const targetId = m.attrs?.targetId
+      if (typeof targetId === 'string' && targetId.length > 0) {
+        out.push({ type: m.type, targetId })
       } else {
-        ctx.warnings.push('交叉引用缺少 refId，已按普通文本处理')
+        ctx.unknown(m.type, '行内标记', sourceNode ?? { type: m.type, attrs: m.attrs })
+      }
+    } else if (m.type === 'crossRef') {
+      const refId = m.attrs?.targetId ?? m.attrs?.refId
+      if (typeof refId === 'string' && refId.length > 0) {
+        const attrs = m.attrs && typeof m.attrs === 'object' ? m.attrs : undefined
+        const hasRefType = attrs !== undefined && Object.prototype.hasOwnProperty.call(attrs, 'refType')
+        const refTypeValue = attrs?.refType
+        const rawKind = typeof refTypeValue === 'string' ? refTypeValue : undefined
+        const targetKind = rawKind && Object.prototype.hasOwnProperty.call(REF_KIND_MAP, rawKind) ? REF_KIND_MAP[rawKind] : undefined
+        const ownerId = typeof sourceNode?.attrs?.nodeId === 'string'
+          ? sourceNode.attrs.nodeId
+          : sourceNode ? ctx.ownerIds.get(sourceNode) ?? null : null
+        if (hasRefType && typeof refTypeValue !== 'string') {
+          const actualType = refTypeValue === null ? 'null' : Array.isArray(refTypeValue) ? '数组' : typeof refTypeValue
+          ctx.unsupportedContent.push({
+            nodeId: ownerId,
+            path: ctx.path(sourceNode, '行内标记'),
+            nodeType: 'crossRef',
+            reason: `crossRef.refType必须为字符串，实际值类型为${actualType}`,
+          })
+          ctx.warnings.push(`crossRef.refType必须为字符串，实际值类型为${actualType}；已保留引用目标`)
+        }
+        if (rawKind && !targetKind) {
+          ctx.unsupportedContent.push({ nodeId: ownerId, path: ctx.path(sourceNode, '行内标记'), nodeType: 'crossRef', reason: `引用类型「${rawKind}」没有映射到IR目标类型` })
+          ctx.warnings.push(`交叉引用类型「${rawKind}」没有IR映射`)
+        }
+        out.push({ type: 'crossRef', targetId: refId, ...(targetKind ? { targetKind } : {}) })
+      } else {
+        ctx.unknown(m.type, '行内标记', sourceNode ?? { type: m.type, attrs: m.attrs })
       }
     } else {
-      ctx.unknown(m.type, '行内标记')
+      ctx.unknown(m.type, '行内标记', sourceNode ?? { type: m.type, attrs: m.attrs })
     }
   }
-  return out.length > 0 ? out : undefined
+  return out.length > 0 || style ? { marks: out, ...(style ? { style } : {}) } : undefined
 }
 
 /** 把 inline* 内容（text 节点序列）转为 IRInline[] */
@@ -224,11 +290,16 @@ function convertInlines(content: PMJsonNode[] | undefined, ctx: Ctx): IRInline[]
       }
       if (!child.text) continue
       const inline: IRInline = { text: child.text }
-      const marks = convertMarks(child.marks, ctx)
-      if (marks) inline.marks = marks
+      const converted = convertMarks(child.marks, ctx, child)
+      if (converted?.marks.length) inline.marks = converted.marks
+      if (converted?.style) inline.style = converted.style
       out.push(inline)
     } else if (child.type === 'hardBreak') {
-      out.push({ text: '\n' })
+      const inline: IRInline = { text: '\n' }
+      const converted = convertMarks(child.marks, ctx, child)
+      if (converted?.marks.length) inline.marks = converted.marks
+      if (converted?.style) inline.style = converted.style
+      out.push(inline)
     } else if (child.type === 'footnoteRef') {
       const raw = child.attrs?.content
       const content = Array.isArray(raw) ? raw as PMJsonNode[] : []
@@ -240,13 +311,25 @@ function convertInlines(content: PMJsonNode[] | undefined, ctx: Ctx): IRInline[]
       out.push(inline)
     } else if (child.type === 'tableFootnoteRef') {
       const targetId = typeof child.attrs?.targetId === 'string' ? child.attrs.targetId : ''
+      const id = ctx.id(child)
       const unsupported = unsupportedFootnoteAtomMarks(child.marks)
-      if (unsupported) ctx.invalidFootnotePayloads.push({ nodeId: targetId || ctx.id(child), reason: unsupported })
-      const inline: IRInline = { text: '', marks: [{ type: 'tableFootnoteRef', targetId }] }
+      if (unsupported) ctx.invalidFootnotePayloads.push({ nodeId: id || targetId, reason: unsupported })
+      const inline: IRInline = { text: '', marks: [{ type: 'tableFootnoteRef', targetId, id }] }
       ctx.footnoteInlines.set(child, inline)
       out.push(inline)
+    } else if (child.type === 'formulaInline') {
+      const id = ctx.id(child)
+      const formula: IRInlineFormula = { id }
+      if (typeof child.attrs?.mathml === 'string' && child.attrs.mathml.length > 0) formula.mathml = child.attrs.mathml
+      if (typeof child.attrs?.latex === 'string' && child.attrs.latex.length > 0) formula.latex = child.attrs.latex
+      if (typeof child.attrs?.source === 'string' && child.attrs.source.length > 0) formula.source = child.attrs.source
+      const inline: IRInline = { text: '', formula }
+      const converted = convertMarks(child.marks, ctx, child)
+      if (converted?.marks.length) inline.marks = converted.marks
+      if (converted?.style) inline.style = converted.style
+      out.push(inline)
     } else {
-      ctx.unknown(child.type, '行内内容')
+      ctx.unknown(child.type, '行内内容', child)
     }
   }
   return out
@@ -254,6 +337,75 @@ function convertInlines(content: PMJsonNode[] | undefined, ctx: Ctx): IRInline[]
 
 function plainText(inlines: IRInline[]): string {
   return inlines.map((r) => r.text).join('')
+}
+
+function measure(
+  attrs: Record<string, unknown> | undefined,
+  valueKey: string,
+  unitKey: string,
+  ctx?: Ctx,
+  node?: PMJsonNode,
+): IRMeasure | undefined {
+  const rawValue = attrs?.[valueKey]
+  if (rawValue === undefined || rawValue === null) return undefined
+  const rawUnit = attrs?.[unitKey]
+  if (typeof rawValue === 'number' && Number.isFinite(rawValue) && typeof rawUnit === 'string' && rawUnit.length > 0) {
+    return { value: rawValue, unit: rawUnit }
+  }
+  ctx?.unsupportedContent.push({
+    nodeId: typeof node?.attrs?.nodeId === 'string' ? node.attrs.nodeId : null,
+    path: node?.type ?? 'metadata',
+    nodeType: node?.type ?? 'measure',
+    reason: `度量「${valueKey}」缺少有效数值或单位「${unitKey}」`,
+  })
+  return undefined
+}
+
+function scalarStyle(attrs: Record<string, unknown> | undefined, keys: readonly string[]): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const key of keys) {
+    const value = attrs?.[key]
+    if (typeof value === 'string' && value.length > 0) out[key] = value
+  }
+  return out
+}
+
+function tableStyle(attrs: Record<string, unknown> | undefined, ctx: Ctx, node: PMJsonNode): IRTableStyle | undefined {
+  const style: IRTableStyle = scalarStyle(attrs, ['layout', 'borderModel', 'textAlign', 'verticalAlign', 'borderColor', 'backgroundColor'])
+  const borderWidth = measure(attrs, 'borderWidth', 'borderWidthUnit', ctx, node)
+  const cellPadding = measure(attrs, 'cellPadding', 'cellPaddingUnit', ctx, node)
+  if (borderWidth) style.borderWidth = borderWidth
+  if (cellPadding) style.cellPadding = cellPadding
+  return Object.keys(style).length > 0 ? style : undefined
+}
+
+function rowStyle(attrs: Record<string, unknown> | undefined, ctx: Ctx, node: PMJsonNode): IRRowStyle | undefined {
+  const style: IRRowStyle = scalarStyle(attrs, ['textAlign', 'verticalAlign', 'backgroundColor', 'borderColor'])
+  const measurements: [keyof IRRowStyle, string, string][] = [
+    ['borderWidth', 'borderWidth', 'borderWidthUnit'], ['height', 'height', 'heightUnit'],
+    ['borderTop', 'borderTop', 'borderTopUnit'], ['borderRight', 'borderRight', 'borderRightUnit'],
+    ['borderBottom', 'borderBottom', 'borderBottomUnit'], ['borderLeft', 'borderLeft', 'borderLeftUnit'],
+  ]
+  for (const [key, valueKey, unitKey] of measurements) {
+    const value = measure(attrs, valueKey, unitKey, ctx, node)
+    if (value) style[key] = value as never
+  }
+  return Object.keys(style).length > 0 ? style : undefined
+}
+
+function cellStyle(attrs: Record<string, unknown> | undefined, ctx: Ctx, node: PMJsonNode): IRCellStyle | undefined {
+  const style: IRCellStyle = scalarStyle(attrs, ['textAlign', 'verticalAlign', 'backgroundColor'])
+  const measurements: [keyof IRCellStyle, string, string][] = [
+    ['borderTop', 'borderTop', 'borderTopUnit'], ['borderRight', 'borderRight', 'borderRightUnit'],
+    ['borderBottom', 'borderBottom', 'borderBottomUnit'], ['borderLeft', 'borderLeft', 'borderLeftUnit'],
+    ['paddingTop', 'paddingTop', 'paddingTopUnit'], ['paddingRight', 'paddingRight', 'paddingRightUnit'],
+    ['paddingBottom', 'paddingBottom', 'paddingBottomUnit'], ['paddingLeft', 'paddingLeft', 'paddingLeftUnit'],
+  ]
+  for (const [key, valueKey, unitKey] of measurements) {
+    const value = measure(attrs, valueKey, unitKey, ctx, node)
+    if (value) style[key] = value as never
+  }
+  return Object.keys(style).length > 0 ? style : undefined
 }
 
 /** 在指定子节点类型中取第一个并返回其 inline 内容 */
@@ -293,7 +445,7 @@ function convertStdList(node: PMJsonNode, ctx: Ctx): IRList {
   const items: IRList['items'] = []
   for (const item of node.content ?? []) {
     if (item.type !== 'stdListItem') {
-      ctx.unknown(item.type, '标准列表')
+      ctx.unknown(item.type, '标准列表', item)
       continue
     }
     const itemId = ctx.id(item)
@@ -313,7 +465,7 @@ function convertStarterList(node: PMJsonNode, ctx: Ctx): IRList {
   const items: IRList['items'] = []
   for (const li of node.content ?? []) {
     if (li.type !== 'listItem') {
-      ctx.unknown(li.type, '列表')
+      ctx.unknown(li.type, '列表', li)
       continue
     }
     const itemId = ctx.id(li)
@@ -326,7 +478,7 @@ function convertStarterList(node: PMJsonNode, ctx: Ctx): IRList {
       } else if (child.type === 'stdList') {
         content.push(convertStdList(child, ctx))
       } else {
-        ctx.unknown(child.type, '列表项')
+        ctx.unknown(child.type, '列表项', child)
       }
     }
     items.push({ id: itemId, content })
@@ -354,7 +506,29 @@ const convertExample = (node: PMJsonNode, ctx: Ctx): IRExample => convertNoteLik
 
 function convertFigure(node: PMJsonNode, ctx: Ctx): IRFigure {
   const id = ctx.id(node)
-  const image = node.content?.find((c) => c.type === 'figureImage')
+  const images = node.content?.filter((c) => c.type === 'figureImage') ?? []
+  const image = images[0]
+  if (!image) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '图'), nodeType: node.type, reason: 'figure缺少必须的figureImage，无法完整还原图像内容' })
+  if (images.length > 1) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '图'), nodeType: node.type, reason: 'figure包含多个figureImage，但IR只支持一个主图像' })
+  const allowed = new Set(['figureImage', 'figureCaption', 'figureCaptionEn', 'figureUnit', 'figureDescription', 'figureGroup', 'figureResource'])
+  for (const child of node.content ?? []) if (!allowed.has(child.type)) ctx.unknown(child.type, '图', child)
+  for (const type of ['figureCaption', 'figureCaptionEn', 'figureUnit']) {
+    const matches = node.content?.filter(child => child.type === type) ?? []
+    if (matches.length > 1) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '图'), nodeType: type, reason: 'figure包含多个' + type + '，IR只允许一项' })
+  }
+  const imageMeasure = (key: 'width' | 'height'): IRMeasure | undefined => {
+    const value = image?.attrs?.[key]
+    if (value === undefined || value === null) return undefined
+    const unitKey = `${key}Unit`
+    const rawUnit = image?.attrs?.[unitKey]
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return { value, unit: typeof rawUnit === 'string' && rawUnit ? rawUnit : 'px' }
+    }
+    ctx.unsupportedContent.push({ nodeId: typeof image?.attrs?.nodeId === 'string' ? image.attrs.nodeId : id, path: ctx.path(image, '图/图片'), nodeType: 'figureImage', reason: `图片${key}尺寸必须是有限数值` })
+    return undefined
+  }
+  const width = imageMeasure('width')
+  const height = imageMeasure('height')
   const fig: IRFigure = {
     kind: 'figure',
     id,
@@ -362,10 +536,57 @@ function convertFigure(node: PMJsonNode, ctx: Ctx): IRFigure {
     orientation: node.attrs?.orientation === 'landscape' ? 'landscape' : 'portrait',
     src: typeof image?.attrs?.src === 'string' ? image.attrs.src : '',
     notes: [],
+    ...(typeof image?.attrs?.resourceId === 'string' ? { resourceId: image.attrs.resourceId } : {}),
+    ...(width ? { imageWidth: width } : {}),
+    ...(height ? { imageHeight: height } : {}),
+    ...(typeof image?.attrs?.alt === 'string' ? { alt: image.attrs.alt } : {}),
+    ...(typeof image?.attrs?.title === 'string' ? { title: image.attrs.title } : {}),
+    ...(typeof node.attrs?.unit === 'string' ? { unit: node.attrs.unit } : {}),
   }
   const captionEn = node.content?.find((c) => c.type === 'figureCaptionEn')
   if (captionEn) fig.captionEn = convertInlines(captionEn.content, ctx)
+  const unit = node.content?.find((c) => c.type === 'figureUnit')
+  if (unit && typeof unit.attrs?.value === 'string') {
+    if (fig.unit && fig.unit !== unit.attrs.value) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(unit, '图单位'), nodeType: unit.type, reason: 'figure.attrs.unit与figureUnit子节点不一致' })
+    fig.unit = unit.attrs.value
+  }
+  const descriptions: IRFigureDescription[] = []
+  for (const description of node.content?.filter((c) => c.type === 'figureDescription') ?? []) {
+    descriptions.push({ id: ctx.id(description), content: convertInlines(description.content, ctx) })
+  }
+  if (descriptions.length > 0) fig.descriptions = descriptions
+  const groups: IRFigureGroup[] = []
+  for (const groupNode of node.content?.filter((c) => c.type === 'figureGroup') ?? []) {
+    const group: IRFigureGroup = { id: ctx.id(groupNode), descriptions: [], resourceRefs: [] }
+    for (const child of groupNode.content ?? []) {
+      if (child.type === 'figureDescription') {
+        group.descriptions.push({ id: ctx.id(child), content: convertInlines(child.content, ctx) })
+      } else if (child.type === 'figureResourceRef') {
+        const targetId = typeof child.attrs?.targetId === 'string' ? child.attrs.targetId : ''
+        if (targetId) group.resourceRefs.push(targetId)
+        else ctx.unknown(child.type, '图组资源引用', child)
+      } else ctx.unknown(child.type, '图组', child)
+    }
+    groups.push(group)
+  }
+  if (groups.length > 0) fig.groups = groups
+  for (const resourceNode of node.content?.filter((c) => c.type === 'figureResource') ?? []) {
+    ctx.resources.push(convertFigureResource(resourceNode, ctx))
+  }
   return fig
+}
+
+function convertFigureResource(node: PMJsonNode, ctx: Ctx): IRResource {
+  const id = ctx.id(node)
+  const mediaType = typeof node.attrs?.mediaType === 'string' ? node.attrs.mediaType : undefined
+  const name = typeof node.attrs?.name === 'string' ? node.attrs.name : undefined
+  const rawEncoding = node.attrs?.encoding
+  const encoding = rawEncoding === 'base64' || rawEncoding === 'text' || rawEncoding === 'dataUrl' ? rawEncoding : 'dataUrl'
+  if (rawEncoding !== undefined && rawEncoding !== encoding) {
+    ctx.unsupportedContent.push({ nodeId: id, path: 'figureResource', nodeType: node.type, reason: `资源编码「${String(rawEncoding)}」不受IR支持` })
+  }
+  const data = typeof node.attrs?.data === 'string' ? node.attrs.data : ''
+  return { id, ...(mediaType ? { mediaType } : {}), ...(name ? { name } : {}), encoding, data }
 }
 
 // ----- 表格 -----
@@ -388,12 +609,11 @@ function convertTableCellBlocks(
       const id =
         typeof nodeId === 'string' && nodeId.length > 0 ? nodeId : `${cellId}.p${seq}`
       out.push({ kind: 'paragraph', id, content: convertInlines(child.content, ctx) })
-    } else if (child.type === 'bulletList' || child.type === 'orderedList') {
-      out.push(convertStarterList(child, ctx))
-    } else if (child.type === 'stdList') {
-      out.push(convertStdList(child, ctx))
+    } else if (child.type === 'table' || child.type === 'stdTable') {
+      ctx.unsupportedContent.push({ nodeId: typeof child.attrs?.nodeId === 'string' ? child.attrs.nodeId : null, path: ctx.path(child, '表格单元格'), nodeType: child.type, reason: '当前IR/新国标交换模型不支持嵌套表格' })
     } else {
-      ctx.unknown(child.type, '表格单元格')
+      const block = convertBlock(child, ctx, '表格单元格')
+      if (block) out.push(block)
     }
     seq += 1
   }
@@ -409,35 +629,60 @@ function convertStdTable(node: PMJsonNode, ctx: Ctx): IRTable {
   let rowSeq = 0
   for (const rowNode of tableNode?.content ?? []) {
     if (rowNode.type !== 'tableRow') {
-      ctx.unknown(rowNode.type, '表格')
+      ctx.unknown(rowNode.type, '表格', rowNode)
       continue
     }
-    // 表格行/单元格不携带 nodeId（WP2 决策：NodeView 不渲染 data-node-id），
-    // ID 由表 ID 确定性派生，满足 IR 字段完整与 JSON 往返
-    const rowId = `${id}.r${rowSeq}`
+    // 旧表格没有行 ID 时沿用既有派生值；新生产 schema 的 nodeId 原样保留。
+    const rowId = typeof rowNode.attrs?.nodeId === 'string' && rowNode.attrs.nodeId.length > 0
+      ? rowNode.attrs.nodeId : `${id}.r${rowSeq}`
     const cells: IRTableRow['cells'] = []
     let allHeader = true
     let cellSeq = 0
     for (const cellNode of rowNode.content ?? []) {
       if (cellNode.type !== 'tableCell' && cellNode.type !== 'tableHeader') {
-        ctx.unknown(cellNode.type, '表格行')
+        ctx.unknown(cellNode.type, '表格行', cellNode)
         continue
       }
       if (cellNode.type !== 'tableHeader') allHeader = false
-      const cellId = `${rowId}c${cellSeq}`
-      cells.push({
+      const cellId = typeof cellNode.attrs?.nodeId === 'string' && cellNode.attrs.nodeId.length > 0
+        ? cellNode.attrs.nodeId : `${rowId}c${cellSeq}`
+      const rawColwidth = cellNode.attrs?.colwidth
+      const columnWidths = Array.isArray(rawColwidth) && rawColwidth.every(value => typeof value === 'number' && Number.isFinite(value))
+        ? rawColwidth as number[] : undefined
+      if (rawColwidth !== undefined && rawColwidth !== null && !columnWidths) {
+        ctx.unsupportedContent.push({ nodeId: cellId, path: '表格/单元格', nodeType: cellNode.type, reason: '列宽colwidth必须为有限数值数组' })
+      }
+      const cellWidth = measure(cellNode.attrs, 'width', 'widthUnit', ctx, cellNode)
+      const style = cellStyle(cellNode.attrs, ctx, cellNode)
+      const cell = {
         id: cellId,
         colspan: intAttr(cellNode, 'colspan', 1),
         rowspan: intAttr(cellNode, 'rowspan', 1),
         header: cellNode.type === 'tableHeader',
         content: convertTableCellBlocks(cellNode, cellId, ctx),
-      })
+        ...(typeof cellNode.attrs?.cellType === 'string' ? { cellType: cellNode.attrs.cellType } : {}),
+        ...(typeof cellNode.attrs?.unit === 'string' ? { unit: cellNode.attrs.unit } : {}),
+        ...(cellWidth ? { width: cellWidth } : {}),
+        ...(style ? { style } : {}),
+        ...(columnWidths ? { columnWidths: [...columnWidths] } : {}),
+      }
+      cells.push(cell)
       cellSeq += 1
     }
     if (allHeader && cells.length > 0 && !headerEnded) headerRowCount += 1
     else headerEnded = true
-    rows.push({ id: rowId, cells })
+    const style = rowStyle(rowNode.attrs, ctx, rowNode)
+    rows.push({ id: rowId, cells, ...(style ? { style } : {}) })
     rowSeq += 1
+  }
+
+  const explicitHeaderCount = node.attrs?.headerRowCount
+  if (explicitHeaderCount !== undefined && explicitHeaderCount !== null) {
+    if (typeof explicitHeaderCount === 'number' && Number.isInteger(explicitHeaderCount) && explicitHeaderCount >= 0 && explicitHeaderCount <= rows.length) {
+      headerRowCount = explicitHeaderCount
+    } else {
+      ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '表格'), nodeType: node.type, reason: 'headerRowCount必须为不超过表格行数的非负整数' })
+    }
   }
 
   const table: IRTable = {
@@ -448,7 +693,12 @@ function convertStdTable(node: PMJsonNode, ctx: Ctx): IRTable {
     headerRowCount,
     rows,
     notes: [],
+    ...(typeof node.attrs?.unit === 'string' ? { unit: node.attrs.unit } : {}),
   }
+  const width = measure(node.attrs, 'width', 'widthUnit', ctx, node)
+  if (width) table.width = width
+  const style = tableStyle(node.attrs, ctx, node)
+  if (style) table.style = style
   const captionEn = node.content?.find((c) => c.type === 'tableCaptionEn')
   if (captionEn) table.captionEn = convertInlines(captionEn.content, ctx)
   const footnote = node.content?.find((c) => c.type === 'tableFootnote')
@@ -464,7 +714,7 @@ function convertStdTable(node: PMJsonNode, ctx: Ctx): IRTable {
     if (row.type === 'tableNoteRow') {
       for (const note of row.content ?? []) {
         if (note.type === 'note') table.notes.push(convertNoteLike('note', note, ctx))
-        else ctx.unknown(note.type, '表注行')
+        else ctx.unknown(note.type, '表注行', note)
       }
     }
     if (row.type === 'tableFootnoteRow') {
@@ -477,7 +727,7 @@ function convertStdTable(node: PMJsonNode, ctx: Ctx): IRTable {
           if (unsupported) ctx.invalidFootnotePayloads.push({ nodeId: id, reason: unsupported })
           table.footnotes.push({ id, content: convertInlines(content, ctx) })
         }
-        else ctx.unknown(entry.type, '表脚注行')
+        else ctx.unknown(entry.type, '表脚注行', entry)
       }
     }
   }
@@ -494,8 +744,8 @@ function splitInlines(inlines: IRInline[], separator: RegExp): IRInline[][] {
   const segments: IRInline[][] = []
   let current: IRInline[] = []
   for (const run of inlines) {
-    // 空文本的脚注 atom 仍是数据，保留到 Resolver 做位置校验。
-    if (run.footnote || run.marks?.some(mark => mark.type === 'tableFootnoteRef')) {
+    // 空文本的公式/脚注 atom 仍是数据，保留完整负载到 Resolver 做位置校验。
+    if (isInlineAtom(run)) {
       current.push(run)
       continue
     }
@@ -504,25 +754,34 @@ function splitInlines(inlines: IRInline[], separator: RegExp): IRInline[][] {
       const m = rest.match(separator)
       if (!m || m.index === undefined) break
       const before = rest.slice(0, m.index)
-      if (before) current.push(run.marks ? { text: before, marks: run.marks } : { text: before })
+      if (before) current.push({ ...run, text: before })
       segments.push(current)
       current = []
       rest = rest.slice(m.index + m[0].length)
     }
-    if (rest) current.push(run.marks ? { text: rest, marks: run.marks } : { text: rest })
+    if (rest) current.push({ ...run, text: rest })
   }
   segments.push(current)
   return segments
+}
+
+function isInlineAtom(run: IRInline): boolean {
+  return Boolean(
+    run.formula ||
+    run.footnote ||
+    run.marks?.some(mark => mark.type === 'tableFootnoteRef') ||
+    (!run.text && (run.style || run.marks?.length)),
+  )
 }
 
 /** 去除首尾空白与空运行：只在首尾边界克隆，单遍 + 边界收缩 */
 function trimInlines(inlines: IRInline[]): IRInline[] {
   const out: IRInline[] = []
   for (const run of inlines) {
-    if (run.text.length > 0 || run.footnote || run.marks?.some(mark => mark.type === 'tableFootnoteRef')) out.push(run)
+    if (run.text.length > 0 || isInlineAtom(run) || run.style || run.marks?.length) out.push(run)
   }
   while (out.length > 0) {
-    if (out[0].footnote || out[0].marks?.some(mark => mark.type === 'tableFootnoteRef')) break
+    if (isInlineAtom(out[0])) break
     const text = out[0].text.replace(/^\s+/, '')
     if (text) {
       if (text !== out[0].text) out[0] = { ...out[0], text }
@@ -532,7 +791,7 @@ function trimInlines(inlines: IRInline[]): IRInline[] {
   }
   while (out.length > 0) {
     const last = out[out.length - 1]
-    if (last.footnote || last.marks?.some(mark => mark.type === 'tableFootnoteRef')) break
+    if (isInlineAtom(last)) break
     const text = last.text.replace(/\s+$/, '')
     if (text) {
       if (text !== last.text) out[out.length - 1] = { ...last, text }
@@ -586,18 +845,58 @@ export function parseWhereList(
 
 function convertFormula(node: PMJsonNode, ctx: Ctx): IRFormula {
   const id = ctx.id(node)
-  const content = node.content?.find((c) => c.type === 'formulaContent')
+  const formulaContents = node.content?.filter((c) => c.type === 'formulaContent') ?? []
+  if (formulaContents.length !== 1) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '公式'), nodeType: node.type, reason: 'formulaContent数量为' + formulaContents.length + '，生产公式节点必须且只能有一个' })
+  const content = formulaContents[0]
   const sourceInlines = convertInlines(content?.content, ctx)
-  const latex = plainText(sourceInlines).trim()
-  const desc = node.content?.find((c) => c.type === 'formulaDescription')
+  const latexFromContent = plainText(sourceInlines).trim()
+  const latexAttr = typeof node.attrs?.latex === 'string' ? node.attrs.latex : undefined
+  // formulaContent is the editable source. An empty content node represents an
+  // intentionally cleared formula; attrs.latex is only a legacy fallback when
+  // the content node is absent (the missing-node diagnostic above still applies).
+  const latex = content !== undefined ? latexFromContent : latexAttr ?? latexFromContent
+  const mathml = typeof node.attrs?.mathml === 'string' && node.attrs.mathml.length > 0 ? node.attrs.mathml : undefined
+  const descriptions = node.content?.filter((c) => c.type === 'formulaDescription') ?? []
+  const whereLists = node.content?.filter((c) => c.type === 'whereList') ?? []
+  const desc = descriptions[0]
+  const typedWhere = whereLists[0]
+  if (descriptions.length > 1 || whereLists.length > 1) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '公式'), nodeType: node.type, reason: '公式存在重复的formulaDescription/whereList，无法按单一IR列表无损表达' })
+  if (typedWhere && desc && (desc.content ?? []).length > 0) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(desc, '公式说明'), nodeType: desc.type, reason: 'formula同时包含自由文本formulaDescription与类型化whereList，二者不能确定性合并' })
+  const allowed = new Set(['formulaContent', 'formulaDescription', 'formulaNote', 'whereList'])
+  for (const child of node.content ?? []) if (!allowed.has(child.type)) ctx.unknown(child.type, '公式', child)
+  const whereList: IRFormula['whereList'] = []
+  if (typedWhere) {
+    for (const item of typedWhere.content ?? []) {
+      if (item.type !== 'whereItem') {
+        ctx.unknown(item.type, '公式式中列表', item)
+        continue
+      }
+      const term = item.content?.find((child) => child.type === 'whereTerm')
+      const definition = item.content?.find((child) => child.type === 'whereDefinition')
+      whereList.push({
+        id: ctx.id(item),
+        term: convertInlines(term?.content, ctx),
+        definition: convertInlines(definition?.content, ctx),
+      })
+    }
+  } else if (desc) {
+    whereList.push(...parseWhereList(convertInlines(desc.content, ctx), id))
+  }
+  const notes: IRFormulaNote[] = []
+  for (const note of node.content?.filter((child) => child.type === 'formulaNote') ?? []) {
+    notes.push({ id: ctx.id(note), content: convertInlines(note.content, ctx) })
+  }
+  const preserveFormulaSource = sourceInlines.some(run => run.footnote || run.formula || run.style || (run.marks?.length ?? 0) > 0)
   return {
     kind: 'formula',
     id,
     latex,
     // 不能让 plainText 丢掉脚注 atom，所有出口必须仍能校验其位置。
-    ...(sourceInlines.some(run => run.footnote || run.marks?.some(mark => mark.type === 'tableFootnoteRef')) ? { sourceInlines } : {}),
-    numbered: true,
-    whereList: desc ? parseWhereList(convertInlines(desc.content, ctx), id) : [],
+    ...(preserveFormulaSource ? { sourceInlines } : {}),
+    ...(mathml ? { mathml } : {}),
+    numbered: node.attrs?.numbered !== false,
+    whereList,
+    ...(notes.length ? { notes } : {}),
   }
 }
 
@@ -623,25 +922,25 @@ function convertBlock(node: PMJsonNode, ctx: Ctx, where: string): IRBlock | null
       return convertNote(node, ctx)
     case 'example':
       return convertExample(node, ctx)
-    // 历史文档兼容：StarterKit 节点已在编辑器中禁用，存量内容降级为普通段落，不得静默丢失
-    case 'blockquote': {
+    case 'warning':
+      return { kind: 'warning', id: ctx.id(node), content: convertBlocks(node.content, ctx, '警告') } satisfies IRWarning
+    case 'quoteBlock':
+    case 'blockquote':
+      return { kind: 'quote', id: ctx.id(node), content: convertBlocks(node.content, ctx, '引文') } satisfies IRQuote
+    case 'codeBlock': {
       const id = ctx.id(node)
-      ctx.warnings.push('引用块（blockquote）已降级为普通段落')
-      const content: IRInline[] = []
-      for (const child of node.content ?? []) {
-        if (content.length > 0) content.push({ text: '\n' })
-        content.push(...convertInlines(child.content, ctx))
+      if ((node.content ?? []).some(child => child.type !== 'text' || (child.marks?.length ?? 0) > 0)) {
+        ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, where), nodeType: node.type, reason: 'codeBlock只支持无标记文本节点，存在其他子节点或格式标记' })
       }
-      return { kind: 'paragraph', id, content }
+      const text = (node.content ?? []).map(child => typeof child.text === 'string' ? child.text : '').join('')
+      return { kind: 'code', id, ...(typeof node.attrs?.language === 'string' ? { language: node.attrs.language } : {}), text } satisfies IRCodeBlock
     }
-    case 'codeBlock':
-      ctx.warnings.push('代码块（codeBlock）已降级为普通段落')
-      return { kind: 'paragraph', id: ctx.id(node), content: convertInlines(node.content, ctx) }
     case 'horizontalRule':
-      ctx.warnings.push('分隔线（horizontalRule）无对应 IR 表示，已跳过')
+      ctx.warnings.push('分隔线（horizontalRule）无对应 IR 表示')
+      ctx.unsupportedContent.push({ nodeId: typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : null, path: ctx.path(node, where), nodeType: node.type, reason: 'IR没有分隔线节点，不能无损输出' })
       return null
     default:
-      ctx.unknown(node.type, where)
+      ctx.unknown(node.type, where, node)
       return null
   }
 }
@@ -659,13 +958,15 @@ function convertBlocks(content: PMJsonNode[] | undefined, ctx: Ctx, where: strin
 
 /**
  * termDef → IRTermEntry。
- * IRTermEntry 不支持嵌套术语，PM 中嵌套的 termDef 拍平为后续兄弟条目（追加进 out）。
+ * nestedEntries 与 languageSets 分别保留其关系；仅当二者至少一个存在且实际尾项顺序与 PM 投影或
+ * Resolver 默认尾序任一不同，才用 category+index 顺序元数据保存完整尾项次序。
  */
 function convertTermDef(node: PMJsonNode, ctx: Ctx, out: IRTermEntry[]): void {
   const id = ctx.id(node)
   const entry: IRTermEntry = {
     kind: 'termEntry',
     id,
+    ...(typeof node.attrs?.level === 'number' ? { level: node.attrs.level } : {}),
     term: childInlines(node, 'termName', ctx),
     definition: [],
     notes: [],
@@ -676,45 +977,118 @@ function convertTermDef(node: PMJsonNode, ctx: Ctx, out: IRTermEntry[]): void {
     const inlines = convertInlines(termEn.content, ctx)
     if (inlines.length > 0) entry.termEn = inlines
   }
-  const nested: PMJsonNode[] = []
+  const nested: IRTermEntry[] = []
+  const tailOrder: IRTermTailOrderItem[] = []
   let defSeq = 0
   for (const child of node.content ?? []) {
     switch (child.type) {
       case 'termName':
       case 'termNameEn':
         break
-      case 'termDefinition':
-        entry.definition.push(wrapParagraph(id, `def${defSeq}`, convertInlines(child.content, ctx)))
+      case 'tbxLangSet': {
+        entry.languageSets ??= []
+        tailOrder.push({ kind: 'languageSet', index: entry.languageSets.length })
+        entry.languageSets.push(convertTbxLangSet(child, ctx))
+        break
+      }
+      case 'termDefinition': {
+        const rawDefinitionId = child.attrs?.nodeId
+        const definitionId = typeof rawDefinitionId === 'string' && rawDefinitionId.length > 0
+          ? rawDefinitionId
+          : rawDefinitionId == null ? `${id}.def${defSeq}` : ctx.id(child)
+        entry.definition.push({ kind: 'paragraph', id: definitionId, content: convertInlines(child.content, ctx) })
         defSeq += 1
         break
+      }
+      case 'termSource': {
+        const source = convertInlines(child.content, ctx)
+        if (entry.source !== undefined) {
+          ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(child, `术语条目/${id}`), nodeType: child.type, reason: '一个术语条目包含多个来源字段，IR只允许一个' })
+        } else {
+          tailOrder.push({ kind: 'source', index: 0 })
+          entry.source = source
+        }
+        break
+      }
       case 'stdParagraph': {
         const inlines = convertInlines(child.content, ctx)
         // 「[来源：……]」段按 IRTermEntry.source 处理（最多一个，后续重复并入定义）
-        if (!entry.source && /^\s*[[［]来源/.test(plainText(inlines))) {
-          entry.source = inlines
+        if (/^\s*[[［]来源/.test(plainText(inlines))) {
+          if (entry.source !== undefined) {
+            ctx.unsupportedContent.push({ nodeId: ctx.id(child), path: ctx.path(child, `术语条目/${id}`), nodeType: child.type, reason: '一个术语条目包含多个来源字段，IR只允许一个' })
+          } else {
+            tailOrder.push({ kind: 'source', index: 0 })
+            entry.source = inlines
+          }
         } else {
+          tailOrder.push({ kind: 'definition', index: Math.max(0, entry.definition.length - 1) })
           entry.definition.push({ kind: 'paragraph', id: ctx.id(child), content: inlines })
         }
         break
       }
-      case 'note':
+      case 'note': {
+        tailOrder.push({ kind: 'note', index: entry.notes.length })
         entry.notes.push(convertNote(child, ctx))
         break
-      case 'example':
+      }
+      case 'example': {
+        tailOrder.push({ kind: 'example', index: entry.examples.length })
         entry.examples.push(convertExample(child, ctx))
         break
-      case 'termDef':
-        nested.push(child)
+      }
+      case 'termDef': {
+        tailOrder.push({ kind: 'nestedEntry', index: nested.length })
+        convertTermDef(child, ctx, nested)
         break
+      }
       default:
-        ctx.unknown(child.type, '术语条目')
+        ctx.unknown(child.type, '术语条目', child)
     }
   }
   out.push(entry)
-  for (const n of nested) {
-    ctx.warnings.push('术语条目存在嵌套术语，已拍平为同级条目')
-    convertTermDef(n, ctx, out)
+  if (nested.length > 0) entry.nestedEntries = nested
+  if ((entry.nestedEntries?.length ?? 0) > 0 || (entry.languageSets?.length ?? 0) > 0) {
+    const pmOrder = canonicalTermTailOrder(entry, 'pm')
+    const resolverOrder = canonicalTermTailOrder(entry, 'resolver')
+    if (!sameTermTailOrder(tailOrder, pmOrder) || !sameTermTailOrder(tailOrder, resolverOrder)) {
+      entry.tailOrder = tailOrder
+    }
   }
+}
+
+function convertTbxLangSet(node: PMJsonNode, ctx: Ctx): IRTermLanguageSet {
+  const languageSet: IRTermLanguageSet = {
+    id: ctx.id(node),
+    language: typeof node.attrs?.lang === 'string' ? node.attrs.lang : '',
+    groups: [],
+  }
+  for (const tig of node.content ?? []) {
+    if (tig.type !== 'tbxTig') {
+      ctx.unknown(tig.type, 'TBX语言集', tig)
+      continue
+    }
+    const group: IRTermGroup = { id: ctx.id(tig), terms: [] }
+    for (const variantNode of tig.content ?? []) {
+      if (variantNode.type !== 'tbxTermVariant') {
+        ctx.unknown(variantNode.type, 'TBX术语组', variantNode)
+        continue
+      }
+      const variant: IRTermVariant = { id: ctx.id(variantNode), content: [], descriptors: [] }
+      for (const child of variantNode.content ?? []) {
+        if (child.type === 'tbxTerm') variant.content = convertInlines(child.content, ctx)
+        else if (child.type === 'tbxTermDescriptor') {
+          variant.descriptors.push({
+            id: ctx.id(child),
+            kind: typeof child.attrs?.type === 'string' ? child.attrs.type : '',
+            value: convertInlines(child.content, ctx),
+          })
+        } else ctx.unknown(child.type, 'TBX术语变体', child)
+      }
+      group.terms.push(variant)
+    }
+    languageSet.groups.push(group)
+  }
+  return languageSet
 }
 
 // ----- 章 / 条 / 附录 -----
@@ -751,12 +1125,21 @@ function convertClause(node: PMJsonNode, ctx: Ctx): IRClause {
   }
   if (level > 5) level = 5
   const titled = node.attrs?.hasTitle !== false
+  const title = childInlines(node, 'clauseTitle', ctx)
+  if (!titled && title.length > 0) {
+    ctx.unsupportedContent.push({
+      nodeId: ctx.id(node),
+      path: ctx.path(node, '条'),
+      nodeType: node.type,
+      reason: '无题条包含非空clauseTitle；IR要求titled=false时title为空，原内容不能安全投影',
+    })
+  }
   return {
     kind: 'clause',
     id: ctx.id(node),
     level: level as IRClause['level'],
     titled,
-    title: titled ? childInlines(node, 'clauseTitle', ctx) : [],
+    title: titled ? title : [],
     children: convertClauseChildren(node.content, ctx, '条', ['clauseTitle']),
   }
 }
@@ -770,8 +1153,16 @@ const CHAPTER_SEC_TYPES: { match: RegExp; secType: IRChapter['secType'] }[] = [
 function convertChapter(node: PMJsonNode, ctx: Ctx): IRChapter {
   const title = childInlines(node, 'chapterTitle', ctx)
   const titleText = plainText(title).trim()
-  const secType =
-    CHAPTER_SEC_TYPES.find((s) => s.match.test(titleText))?.secType ?? 'general'
+  const explicitSecType = node.attrs?.secType
+  const inferredSecType = CHAPTER_SEC_TYPES.find((s) => s.match.test(titleText))?.secType ?? 'general'
+  let secType = inferredSecType
+  if (explicitSecType !== undefined && explicitSecType !== null) {
+    if (typeof explicitSecType === 'string' && ['scope', 'norm-refs', 'terms', 'general'].includes(explicitSecType)) {
+      secType = explicitSecType as IRChapter['secType']
+    } else {
+      ctx.unsupportedContent.push({ nodeId: ctx.id(node), path: ctx.path(node, '章'), nodeType: node.type, reason: '章的secType不是受支持的文档角色' })
+    }
+  }
   return {
     kind: 'chapter',
     id: ctx.id(node),
@@ -797,12 +1188,70 @@ function convertBibliography(node: PMJsonNode, ctx: Ctx): IRBibEntry[] {
   for (const child of node.content ?? []) {
     if (child.type === 'bibliographyTitle') continue
     if (child.type !== 'bibEntry') {
-      ctx.unknown(child.type, '参考文献')
+      ctx.unknown(child.type, '参考文献', child)
       continue
     }
-    out.push({ kind: 'bibEntry', id: ctx.id(child), content: convertInlines(child.content, ctx) })
+    const entryInlineContent = child.content?.filter((item) => item.type !== 'bibStructured') ?? []
+    const entry: IRBibEntry = { kind: 'bibEntry', id: ctx.id(child), content: convertInlines(entryInlineContent, ctx) }
+    if (typeof child.attrs?.entryType === 'string') entry.entryType = child.attrs.entryType
+    const structuredNodes = child.content?.filter((item) => item.type === 'bibStructured') ?? []
+    if (structuredNodes.length > 0) {
+      for (const structured of structuredNodes) {
+      for (const fieldNode of structured.content ?? []) {
+        if (fieldNode.type === 'bibField') {
+          entry.fields ??= []
+          entry.fields.push({ id: ctx.id(fieldNode), name: typeof fieldNode.attrs?.name === 'string' ? fieldNode.attrs.name : '', value: convertInlines(fieldNode.content, ctx) })
+        } else if (fieldNode.type === 'bibIdentifier') {
+          entry.identifiers ??= []
+          entry.identifiers.push({ id: ctx.id(fieldNode), scheme: typeof fieldNode.attrs?.scheme === 'string' ? fieldNode.attrs.scheme : '', value: typeof fieldNode.attrs?.value === 'string' ? fieldNode.attrs.value : '' })
+        } else if (fieldNode.type === 'bibExternalLink') {
+          const href = typeof fieldNode.attrs?.href === 'string' ? fieldNode.attrs.href : ''
+          if (entry.externalLink) {
+            ctx.unsupportedContent.push({ nodeId: entry.id, path: ctx.path(child, `参考文献/${entry.id}`), nodeType: 'bibExternalLink', reason: '一个文献条目包含多个类型化外链，IR只允许一个' })
+          } else {
+            entry.externalLink = {
+              href,
+              ...(typeof fieldNode.attrs?.title === 'string' ? { title: fieldNode.attrs.title } : {}),
+              ...(typeof fieldNode.attrs?.target === 'string' ? { target: fieldNode.attrs.target } : {}),
+              ...(typeof fieldNode.attrs?.rel === 'string' ? { rel: fieldNode.attrs.rel } : {}),
+              ...(typeof fieldNode.attrs?.displayText === 'string' ? { displayText: fieldNode.attrs.displayText } : {}),
+            }
+          }
+        } else ctx.unknown(fieldNode.type, '类型化参考文献', fieldNode)
+      }
+      }
+    }
+    out.push(entry)
   }
   return out
+}
+
+function convertIndex(node: PMJsonNode, ctx: Ctx): IRIndex {
+  const index: IRIndex = { id: ctx.id(node), groups: [] }
+  if (typeof node.attrs?.title === 'string') index.title = [{ text: node.attrs.title }]
+  for (const groupNode of node.content ?? []) {
+    if (groupNode.type !== 'indexGroup') { ctx.unknown(groupNode.type, '索引', groupNode); continue }
+    const group: IRIndexGroup = { id: ctx.id(groupNode), entries: [] }
+    if (typeof groupNode.attrs?.label === 'string') group.label = [{ text: groupNode.attrs.label }]
+    for (const entryNode of groupNode.content ?? []) {
+      if (entryNode.type !== 'indexEntry') { ctx.unknown(entryNode.type, '索引分组', entryNode); continue }
+      const entry: IRIndexEntry = { id: ctx.id(entryNode), term: [], targets: [], seeAlso: [] }
+      let termSeen = false
+      for (const child of entryNode.content ?? []) {
+        if (child.type === 'indexTerm' && !termSeen) { entry.term = convertInlines(child.content, ctx); termSeen = true }
+        else if (child.type === 'indexTerm') ctx.unsupportedContent.push({ nodeId: entry.id, path: ctx.path(child, '索引条目'), nodeType: child.type, reason: '索引项包含多个indexTerm，IR只允许一个' })
+        else if (child.type === 'indexTarget' || child.type === 'indexSeeAlso') {
+          const targetId = typeof child.attrs?.targetId === 'string' ? child.attrs.targetId : ''
+          if (!targetId) ctx.unknown(child.type, '索引目标', child)
+          else if (child.type === 'indexTarget') entry.targets.push(targetId)
+          else entry.seeAlso.push(targetId)
+        } else ctx.unknown(child.type, '索引条目', child)
+      }
+      group.entries.push(entry)
+    }
+    index.groups.push(group)
+  }
+  return index
 }
 
 // ----- 元数据 -----
@@ -847,7 +1296,7 @@ function convertMeta(docNode: PMJsonNode, coverPage: PMJsonNode | undefined, ctx
     standardType = 'gb'
   }
   const meta: IRDocMeta = { standardType }
-  const set = (key: keyof Omit<IRDocMeta, 'standardType'>, value: string | undefined) => {
+  const set = <K extends keyof IRDocMeta>(key: K, value: IRDocMeta[K] | undefined) => {
     if (value !== undefined) meta[key] = value
   }
   set('title', legacyMetaAttr(attrs, coverPage?.attrs, 'titleCn'))
@@ -859,6 +1308,9 @@ function convertMeta(docNode: PMJsonNode, coverPage: PMJsonNode | undefined, ctx
   set('implementDate', legacyMetaAttr(attrs, coverPage?.attrs, 'implementDate'))
   // issuer 仅存在于 coverPage attrs（standardDoc 无此属性）
   set('issuer', strAttr(coverPage?.attrs, 'issuer'))
+  set('applicant', coverMetaAttr(attrs, coverPage?.attrs, 'applicant'))
+  set('proposer', coverMetaAttr(attrs, coverPage?.attrs, 'proposer'))
+  set('technicalCommittee', coverMetaAttr(attrs, coverPage?.attrs, 'technicalCommittee'))
   // WP7.5 新增封面字段：封面节点为主，旧根属性仅作兼容回退。
   set('replaces', coverMetaAttr(attrs, coverPage?.attrs, 'replaces'))
   set('consistency', coverMetaAttr(attrs, coverPage?.attrs, 'consistency'))
@@ -867,6 +1319,283 @@ function convertMeta(docNode: PMJsonNode, coverPage: PMJsonNode | undefined, ctx
   set('regionName', coverMetaAttr(attrs, coverPage?.attrs, 'regionName'))
   set('coverDesignation', coverMetaAttr(attrs, coverPage?.attrs, 'coverDesignation'))
   return meta
+}
+
+function plainRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown> : undefined
+}
+
+const IR_REFERENCE_TARGET_KINDS = [
+  'chapter', 'clause', 'appendix', 'figure', 'table', 'formula',
+  'note', 'example', 'bibliography', 'term', 'index', 'paragraph',
+] as const satisfies readonly IRReferenceTargetKind[]
+
+function isIRReferenceTargetKind(value: unknown): value is IRReferenceTargetKind {
+  return typeof value === 'string' && IR_REFERENCE_TARGET_KINDS.some(kind => kind === value)
+}
+
+function metadataInlineProblem(ctx: Ctx, path: string, reason: string): void {
+  ctx.unsupportedContent.push({ nodeId: null, path, nodeType: 'metadataInline', reason })
+}
+
+function storedInlines(value: unknown, ctx: Ctx, path: string): IRInline[] {
+  if (!Array.isArray(value)) {
+    if (value !== undefined && value !== null) {
+      metadataInlineProblem(ctx, path, 'inline数据必须为数组')
+    }
+    return []
+  }
+  const out: IRInline[] = []
+  for (const [index, item] of value.entries()) {
+    const itemPath = `${path}[${index}]`
+    const row = plainRecord(item)
+    if (!row || typeof row.text !== 'string') {
+      metadataInlineProblem(ctx, itemPath, 'inline项必须包含字符串text')
+      continue
+    }
+    const inline: IRInline = { text: row.text }
+    const style = styleFromAttrs(plainRecord(row.style))
+    if (style) inline.style = style
+    if (Array.isArray(row.marks)) {
+      inline.marks = []
+      for (const markValue of row.marks) {
+        const mark = plainRecord(markValue)
+        if (!mark || typeof mark.type !== 'string') {
+          metadataInlineProblem(ctx, itemPath, 'inline mark结构无效')
+          continue
+        }
+        if (mark.type === 'bold' || mark.type === 'italic' || mark.type === 'underline' || mark.type === 'sub' || mark.type === 'sup' || mark.type === 'strike' || mark.type === 'code') {
+          inline.marks.push({ type: mark.type })
+        } else if (mark.type === 'crossRef' && typeof mark.targetId === 'string') {
+          const crossRef: Extract<IRMark, { type: 'crossRef' }> = { type: 'crossRef', targetId: mark.targetId }
+          if (Object.prototype.hasOwnProperty.call(mark, 'targetKind')) {
+            if (isIRReferenceTargetKind(mark.targetKind)) crossRef.targetKind = mark.targetKind
+            else metadataInlineProblem(ctx, itemPath, 'crossRef引用目标类型无效')
+          }
+          inline.marks.push(crossRef)
+        } else if (mark.type === 'bibRef' && typeof mark.targetId === 'string') {
+          inline.marks.push({ type: 'bibRef', targetId: mark.targetId })
+        } else if (mark.type === 'termRef' && typeof mark.targetId === 'string') {
+          inline.marks.push({ type: 'termRef', targetId: mark.targetId })
+        } else if (mark.type === 'tableFootnoteRef' && typeof mark.targetId === 'string') {
+          const tableFootnoteRef: Extract<IRMark, { type: 'tableFootnoteRef' }> = { type: 'tableFootnoteRef', targetId: mark.targetId }
+          if (Object.prototype.hasOwnProperty.call(mark, 'id')) {
+            if (typeof mark.id === 'string') tableFootnoteRef.id = mark.id
+            else metadataInlineProblem(ctx, itemPath, 'tableFootnoteRef引用ID无效')
+          }
+          inline.marks.push(tableFootnoteRef)
+        } else if (mark.type === 'variable') {
+          inline.marks.push({ type: 'variable', ...(typeof mark.kind === 'string' ? { kind: mark.kind } : {}), ...(typeof mark.name === 'string' ? { name: mark.name } : {}) })
+        } else if (mark.type === 'externalLink' && typeof mark.href === 'string') {
+          inline.marks.push({ type: 'externalLink', href: mark.href, ...(typeof mark.title === 'string' ? { title: mark.title } : {}), ...(typeof mark.target === 'string' ? { target: mark.target } : {}), ...(typeof mark.rel === 'string' ? { rel: mark.rel } : {}) })
+        } else {
+          metadataInlineProblem(ctx, itemPath, `不支持inline mark ${mark.type}`)
+        }
+      }
+      if (inline.marks.length === 0) delete inline.marks
+    } else if (row.marks !== undefined && row.marks !== null) {
+      metadataInlineProblem(ctx, itemPath, 'inline mark必须为数组')
+    }
+    if (row.formula !== undefined && row.formula !== null) {
+      const formula = plainRecord(row.formula)
+      if (formula && typeof formula.id === 'string' && formula.id.length > 0) {
+        inline.formula = {
+          id: formula.id,
+          ...(typeof formula.mathml === 'string' ? { mathml: formula.mathml } : {}),
+          ...(typeof formula.latex === 'string' ? { latex: formula.latex } : {}),
+          ...(typeof formula.source === 'string' ? { source: formula.source } : {}),
+        }
+      } else metadataInlineProblem(ctx, itemPath, '行内公式必须具有稳定ID')
+    }
+    if (Object.prototype.hasOwnProperty.call(row, 'footnote')) {
+      const footnote = plainRecord(row.footnote)
+      if (!footnote || typeof footnote.id !== 'string' || footnote.id.length === 0 || !Array.isArray(footnote.content)) {
+        metadataInlineProblem(ctx, `${itemPath}.footnote`, '脚注必须具有非空ID和行内内容数组')
+      } else {
+        inline.footnote = {
+          id: footnote.id,
+          content: storedInlines(footnote.content, ctx, `${itemPath}.footnote.content`),
+        }
+      }
+    }
+    out.push(inline)
+  }
+  return out
+}
+
+function fallbackAttrs(pmDoc: PMJsonNode, coverPage: PMJsonNode | undefined, key: string): unknown {
+  const rootValue = pmDoc.attrs?.[key]
+  if (rootValue !== undefined && rootValue !== null) return rootValue
+  return coverPage?.attrs?.[key]
+}
+
+function storedId(value: Record<string, unknown>, ctx: Ctx, type: string, path: string): NodeId {
+  if (typeof value.id === 'string' && value.id.length > 0) return value.id
+  const id = ctx.id({ type, attrs: value })
+  ctx.unsupportedContent.push({ nodeId: id, path, nodeType: type, reason: '结构化fallback项缺少稳定ID，无法无损保持引用目标' })
+  return id
+}
+
+function readFallbackMetaArray<T>(
+  pmDoc: PMJsonNode,
+  coverPage: PMJsonNode | undefined,
+  key: string,
+  ctx: Ctx,
+  convert: (row: Record<string, unknown>, index: number) => T | undefined,
+): T[] | undefined {
+  const raw = fallbackAttrs(pmDoc, coverPage, key)
+  if (raw === undefined || raw === null) return undefined
+  if (!Array.isArray(raw)) {
+    ctx.unsupportedContent.push({ nodeId: null, path: `meta.${key}`, nodeType: key, reason: '结构化元数据fallback必须为数组' })
+    return undefined
+  }
+  const out: T[] = []
+  raw.forEach((value, index) => {
+    const row = plainRecord(value)
+    if (!row) {
+      ctx.unsupportedContent.push({ nodeId: null, path: `meta.${key}[${index}]`, nodeType: key, reason: '结构化元数据项必须为对象' })
+      return
+    }
+    const converted = convert(row, index)
+    if (converted !== undefined) out.push(converted)
+    else ctx.unsupportedContent.push({ nodeId: typeof row.id === 'string' ? row.id : null, path: `meta.${key}[${index}]`, nodeType: key, reason: '结构化元数据项缺少必需字段，不能静默丢弃' })
+  })
+  return out
+}
+
+function fallbackTitlePart(row: Record<string, unknown>, index: number, ctx: Ctx): IRTitlePart | undefined {
+  if (!Array.isArray(row.content)) return undefined
+  return { id: storedId(row, ctx, 'titlePart', `meta.titleParts[${index}]`), ...(typeof row.lang === 'string' ? { lang: row.lang } : {}), ...(typeof row.role === 'string' ? { role: row.role } : {}), content: storedInlines(row.content, ctx, `meta.titleParts[${index}].content`) }
+}
+
+function fallbackIdentifier(row: Record<string, unknown>, index: number, ctx: Ctx): IRIdentifier | undefined {
+  const parts: IRIdentifierPart[] = []
+  if (Array.isArray(row.parts)) row.parts.forEach((value, partIndex) => {
+    const part = plainRecord(value)
+    if (!part || typeof part.kind !== 'string' || !Array.isArray(part.content)) {
+      ctx.unsupportedContent.push({ nodeId: null, path: `meta.identifiers[${index}].parts[${partIndex}]`, nodeType: 'identifierPart', reason: '编号部件需包含kind和content' })
+      return
+    }
+    parts.push({ id: storedId(part, ctx, 'identifierPart', `meta.identifiers[${index}].parts[${partIndex}]`), kind: part.kind, ...(typeof part.position === 'number' ? { position: part.position } : {}), content: storedInlines(part.content, ctx, `meta.identifiers[${index}].parts[${partIndex}].content`) })
+  })
+  if (!Array.isArray(row.parts)) return undefined
+  return { id: storedId(row, ctx, 'standardIdentifier', `meta.identifiers[${index}]`), ...(typeof row.scheme === 'string' ? { scheme: row.scheme } : {}), ...(typeof row.value === 'string' ? { value: row.value } : {}), parts }
+}
+
+function fallbackLanguage(row: Record<string, unknown>, index: number, ctx: Ctx): IRLanguage | undefined {
+  if (typeof row.tag !== 'string' || !row.tag.trim()) return undefined
+  return { id: storedId(row, ctx, 'language', `meta.languages[${index}]`), tag: row.tag, ...(typeof row.usage === 'string' ? { usage: row.usage } : {}) }
+}
+
+function fallbackPublisher(row: Record<string, unknown>, index: number, ctx: Ctx): IROrganization | undefined {
+  if (!Array.isArray(row.name)) return undefined
+  return { id: storedId(row, ctx, 'publisher', `meta.publishers[${index}]`), name: storedInlines(row.name, ctx, `meta.publishers[${index}].name`), ...(typeof row.role === 'string' ? { role: row.role } : {}), ...(typeof row.identifier === 'string' ? { identifier: row.identifier } : {}) }
+}
+
+function fallbackAdoption(row: Record<string, unknown>, index: number, ctx: Ctx): IRAdoption | undefined {
+  if (typeof row.reference !== 'string' || !row.reference.trim()) return undefined
+  return { id: storedId(row, ctx, 'adoption', `meta.adoptions[${index}]`), reference: row.reference, ...(typeof row.degree === 'string' ? { degree: row.degree } : {}), ...(typeof row.language === 'string' ? { language: row.language } : {}) }
+}
+
+function fallbackReplacedStandard(row: Record<string, unknown>, index: number, ctx: Ctx): IRStandardReference | undefined {
+  if (typeof row.reference !== 'string' || !row.reference.trim()) return undefined
+  return { id: storedId(row, ctx, 'replacedStandard', `meta.replacedStandards[${index}]`), reference: row.reference, ...(typeof row.relation === 'string' ? { relation: row.relation } : {}) }
+}
+
+function fallbackCopyright(row: Record<string, unknown>, index: number, ctx: Ctx): IRCopyright | undefined {
+  if (!Array.isArray(row.statement)) return undefined
+  return { id: storedId(row, ctx, 'copyright', `meta.copyrights[${index}]`), ...(Array.isArray(row.holder) ? { holder: storedInlines(row.holder, ctx, `meta.copyrights[${index}].holder`) } : {}), ...(typeof row.year === 'string' ? { year: row.year } : {}), ...(typeof row.language === 'string' ? { language: row.language } : {}), statement: storedInlines(row.statement, ctx, `meta.copyrights[${index}].statement`) }
+}
+
+function readStructuredMetaAttrs(pmDoc: PMJsonNode, coverPage: PMJsonNode | undefined, meta: IRDocMeta, ctx: Ctx): void {
+  const titleParts = readFallbackMetaArray(pmDoc, coverPage, 'titleParts', ctx, (row, i) => fallbackTitlePart(row, i, ctx))
+  const identifiers = readFallbackMetaArray(pmDoc, coverPage, 'identifiers', ctx, (row, i) => fallbackIdentifier(row, i, ctx))
+  const languages = readFallbackMetaArray(pmDoc, coverPage, 'languages', ctx, (row, i) => fallbackLanguage(row, i, ctx))
+  const publishers = readFallbackMetaArray(pmDoc, coverPage, 'publishers', ctx, (row, i) => fallbackPublisher(row, i, ctx))
+  const adoptions = readFallbackMetaArray(pmDoc, coverPage, 'adoptions', ctx, (row, i) => fallbackAdoption(row, i, ctx))
+  const replacedStandards = readFallbackMetaArray(pmDoc, coverPage, 'replacedStandards', ctx, (row, i) => fallbackReplacedStandard(row, i, ctx))
+  const copyrights = readFallbackMetaArray(pmDoc, coverPage, 'copyrights', ctx, (row, i) => fallbackCopyright(row, i, ctx))
+  if (titleParts !== undefined) meta.titleParts = titleParts
+  if (identifiers !== undefined) meta.identifiers = identifiers
+  if (languages !== undefined) meta.languages = languages
+  if (publishers !== undefined) meta.publishers = publishers
+  if (adoptions !== undefined) meta.adoptions = adoptions
+  if (replacedStandards !== undefined) meta.replacedStandards = replacedStandards
+  if (copyrights !== undefined) meta.copyrights = copyrights
+}
+
+function convertMetadataBlock(node: PMJsonNode, meta: IRDocMeta, ctx: Ctx): void {
+  // A visible metadataBlock is authoritative, including omitted/empty categories.
+  delete meta.titleParts
+  delete meta.identifiers
+  delete meta.languages
+  delete meta.publishers
+  delete meta.adoptions
+  delete meta.replacedStandards
+  delete meta.copyrights
+  for (const child of node.content ?? []) {
+    switch (child.type) {
+      case 'titlePart': {
+        const item: IRTitlePart = { id: ctx.id(child), content: convertInlines(child.content, ctx) }
+        if (typeof child.attrs?.lang === 'string') item.lang = child.attrs.lang
+        if (typeof child.attrs?.role === 'string') item.role = child.attrs.role
+        meta.titleParts ??= []
+        meta.titleParts.push(item)
+        break
+      }
+      case 'standardIdentifier': {
+        const item: IRIdentifier = { id: ctx.id(child), parts: [] }
+        if (typeof child.attrs?.scheme === 'string') item.scheme = child.attrs.scheme
+        if (typeof child.attrs?.value === 'string') item.value = child.attrs.value
+        for (const partNode of child.content ?? []) {
+          if (partNode.type !== 'identifierPart') { ctx.unknown(partNode.type, '标准编号', partNode); continue }
+          const partId = ctx.id(partNode)
+          const kind = typeof partNode.attrs?.kind === 'string' ? partNode.attrs.kind : ''
+          if (!kind) ctx.unsupportedContent.push({ nodeId: partId, path: ctx.path(partNode, '标准编号组成'), nodeType: partNode.type, reason: 'identifierPart缺少必需的kind属性' })
+          item.parts.push({ id: partId, kind, ...(typeof partNode.attrs?.position === 'number' ? { position: partNode.attrs.position } : {}), content: convertInlines(partNode.content, ctx) })
+        }
+        if (!item.value && item.parts.length === 0) ctx.unsupportedContent.push({ nodeId: item.id, path: ctx.path(child, '标准编号'), nodeType: child.type, reason: 'standardIdentifier既无完整编号value也无组成部分' })
+        meta.identifiers ??= []
+        meta.identifiers.push(item)
+        break
+      }
+      case 'language': {
+        const id = ctx.id(child)
+        const tag = typeof child.attrs?.tag === 'string' ? child.attrs.tag : ''
+        if (!tag.trim()) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(child, '元数据语言'), nodeType: child.type, reason: 'language缺少必需的语言tag' })
+        meta.languages ??= []
+        meta.languages.push({ id, tag, ...(typeof child.attrs?.usage === 'string' ? { usage: child.attrs.usage } : {}) })
+        break
+      }
+      case 'publisher':
+        meta.publishers ??= []
+        meta.publishers.push({ id: ctx.id(child), name: convertInlines(child.content, ctx), ...(typeof child.attrs?.role === 'string' ? { role: child.attrs.role } : {}), ...(typeof child.attrs?.identifier === 'string' ? { identifier: child.attrs.identifier } : {}) })
+        break
+      case 'adoption': {
+        const id = ctx.id(child)
+        const reference = typeof child.attrs?.reference === 'string' ? child.attrs.reference : ''
+        if (!reference.trim()) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(child, '采用关系'), nodeType: child.type, reason: 'adoption缺少标准引用' })
+        meta.adoptions ??= []
+        meta.adoptions.push({ id, reference, ...(typeof child.attrs?.degree === 'string' ? { degree: child.attrs.degree } : {}), ...(typeof child.attrs?.language === 'string' ? { language: child.attrs.language } : {}) })
+        break
+      }
+      case 'replacedStandard': {
+        const id = ctx.id(child)
+        const reference = typeof child.attrs?.reference === 'string' ? child.attrs.reference : ''
+        if (!reference.trim()) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(child, '替代关系'), nodeType: child.type, reason: 'replacedStandard缺少标准引用' })
+        meta.replacedStandards ??= []
+        meta.replacedStandards.push({ id, reference, ...(typeof child.attrs?.relation === 'string' ? { relation: child.attrs.relation } : {}) })
+        break
+      }
+      case 'copyright':
+        meta.copyrights ??= []
+        meta.copyrights.push({ id: ctx.id(child), ...(typeof child.attrs?.holder === 'string' ? { holder: [{ text: child.attrs.holder }] } : {}), ...(typeof child.attrs?.year === 'string' ? { year: child.attrs.year } : {}), ...(typeof child.attrs?.language === 'string' ? { language: child.attrs.language } : {}), statement: convertInlines(child.content, ctx) })
+        break
+      default:
+        ctx.unknown(child.type, '结构化元数据', child)
+    }
+  }
 }
 
 /**
@@ -920,6 +1649,7 @@ function preserveUnmappedFootnotes(pmDoc: PMJsonNode, doc: IRDoc, ctx: Ctx): voi
  */
 export function pmToIr(pmDoc: PMJsonNode): PmToIrResult {
   const ctx = new Ctx()
+  indexPmPaths(pmDoc, ctx)
   const doc: IRDoc = {
     schemaVersion: 1,
     meta: { standardType: 'gb' },
@@ -933,19 +1663,51 @@ export function pmToIr(pmDoc: PMJsonNode): PmToIrResult {
     ctx.warnings.push(`根节点类型「${pmDoc.type}」不是 standardDoc，按 standardDoc 处理`)
   }
 
-  const coverPage = pmDoc.content?.find((c) => c.type === 'coverPage')
+  const coverPages = pmDoc.content?.filter((c) => c.type === 'coverPage') ?? []
+  const coverPage = coverPages[0]
+  for (const duplicate of coverPages.slice(1)) {
+    ctx.unsupportedContent.push({ nodeId: typeof duplicate.attrs?.nodeId === 'string' ? duplicate.attrs.nodeId : null, path: ctx.path(duplicate, '封面'), nodeType: duplicate.type, reason: 'IR只能表达一个coverPage；额外封面的元数据未合并且容器边界无法保留' })
+  }
   doc.meta = convertMeta(pmDoc, coverPage, ctx)
+  const rootVersion = pmDoc.attrs?.extensionVersion
+  if (rootVersion === 1) doc.extensionVersion = 1
+  else if (rootVersion !== undefined && rootVersion !== null) {
+    ctx.unsupportedContent.push({ nodeId: null, path: pmDoc.type, nodeType: 'extensionVersion', reason: `无法解释扩展版本 ${String(rootVersion)}` })
+  }
 
+  const metadataBlocks = pmDoc.content?.filter((c) => c.type === 'metadataBlock') ?? []
+  if (metadataBlocks.length > 0) {
+    convertMetadataBlock(metadataBlocks[0], doc.meta, ctx)
+    if (metadataBlocks.length > 1) {
+      metadataBlocks.slice(1).forEach((node) => ctx.unsupportedContent.push({ nodeId: typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : null, path: ctx.path(node, '元数据'), nodeType: node.type, reason: '文档只能有一个authoritative metadataBlock' }))
+    }
+  } else {
+    readStructuredMetaAttrs(pmDoc, coverPage, doc.meta, ctx)
+  }
+
+  let sawForeword = false
+  let sawIntroduction = false
+  let sawBibliography = false
   for (const node of pmDoc.content ?? []) {
     switch (node.type) {
       case 'coverPage':
         // 封面内容由元数据生成，不入 IR
         break
+      case 'metadataBlock':
+        break
       case 'foreword':
-        doc.front.foreword = convertBlocks(node.content, ctx, '前言')
+        if (sawForeword) {
+          ctx.unsupportedContent.push({ nodeId: typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : null, path: ctx.path(node, '前言'), nodeType: node.type, reason: '多个foreword容器合并后无法保留原容器边界' })
+          doc.front.foreword.push(...convertBlocks(node.content, ctx, '前言'))
+        } else doc.front.foreword = convertBlocks(node.content, ctx, '前言')
+        sawForeword = true
         break
       case 'introduction':
-        doc.front.introduction = convertBlocks(node.content, ctx, '引言')
+        if (sawIntroduction) {
+          ctx.unsupportedContent.push({ nodeId: typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : null, path: ctx.path(node, '引言'), nodeType: node.type, reason: '多个introduction容器合并后无法保留原容器边界' })
+          doc.front.introduction.push(...convertBlocks(node.content, ctx, '引言'))
+        } else doc.front.introduction = convertBlocks(node.content, ctx, '引言')
+        sawIntroduction = true
         break
       case 'chapter':
         doc.body.push(convertChapter(node, ctx))
@@ -954,12 +1716,29 @@ export function pmToIr(pmDoc: PMJsonNode): PmToIrResult {
         doc.appendices.push(convertAppendix(node, ctx))
         break
       case 'bibliography':
-        doc.bibliography = convertBibliography(node, ctx)
+        if (sawBibliography) {
+          ctx.unsupportedContent.push({ nodeId: typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : null, path: ctx.path(node, '参考文献'), nodeType: node.type, reason: 'IR仅支持一个bibliography容器；多容器被合并后无法保留容器边界' })
+          doc.bibliography.push(...convertBibliography(node, ctx))
+        } else doc.bibliography = convertBibliography(node, ctx)
+        sawBibliography = true
+        break
+      case 'indexBlock':
+        if (doc.index) ctx.unsupportedContent.push({ nodeId: typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : null, path: ctx.path(node, '索引'), nodeType: node.type, reason: 'IR仅支持一个indexBlock，额外索引块未合并' })
+        else doc.index = convertIndex(node, ctx)
+        break
+      case 'figureResource':
+        ctx.resources.push(convertFigureResource(node, ctx))
         break
       default:
-        ctx.unknown(node.type, '文档顶层')
+        // The editable ProseMirror doc root may carry an empty insertion-cursor paragraph.
+        if ((node.type === 'paragraph' || node.type === 'stdParagraph') && (node.content ?? []).length === 0) break
+        ctx.unknown(node.type, '文档顶层', node)
     }
   }
+
+  if (ctx.resources.length > 0) doc.resources = ctx.resources
+  if (ctx.unsupportedContent.length > 0) doc.unsupportedContent = ctx.unsupportedContent
+  if (!doc.extensionVersion && hasSemanticExtensions(doc)) doc.extensionVersion = 1
 
   preserveUnmappedFootnotes(pmDoc, doc, ctx)
   return { doc, warnings: ctx.warnings }

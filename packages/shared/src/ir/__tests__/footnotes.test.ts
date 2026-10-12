@@ -234,9 +234,14 @@ describe('转换遗漏的脚注必须保留为阻断诊断', () => {
       expect(pmToIr(structuredClone(pm))).toEqual(converted)
       expect(collectFootnotes(converted.doc)).toContainEqual({ id: 'unmapped-fn', content: [{ text: '脚注说明', marks: [{ type: 'bold' }] }] })
       const result = resolve(converted.doc)
-      expect(result.problems).toContainEqual(expect.objectContaining({ code: 'invalid-footnote', nodeId: 'unmapped-fn', severity: 'error' }))
-      expect(() => renderHtml(converted.doc, result.labels, { variant: 'print' })).toThrow('脚注关联无效')
-      expect(() => renderDocx(converted.doc, result.labels, { formulaOmml: {}, images: {}, stage: 'approval_draft', createdAt: '2026-10-03T00:00:00Z' })).toThrow('脚注关联无效')
+      if (scenario === 'overwritten-bibliography') {
+        // WP6 retains both entry sets; only the duplicate container boundary is unrepresentable.
+        expect(converted.doc.bibliography.map(entry => entry.id)).toEqual(['first', 'last'])
+        expect(result.problems).toContainEqual(expect.objectContaining({ code: 'unsupported-content', severity: 'error' }))
+      } else expect(result.problems).toContainEqual(expect.objectContaining({ code: 'invalid-footnote', nodeId: 'unmapped-fn', severity: 'error' }))
+      const error = scenario === 'overwritten-bibliography' ? '不能输出' : '脚注关联无效'
+      expect(() => renderHtml(converted.doc, result.labels, { variant: 'print' })).toThrow(error)
+      expect(() => renderDocx(converted.doc, result.labels, { formulaOmml: {}, images: {}, stage: 'approval_draft', createdAt: '2026-10-03T00:00:00Z' })).toThrow(error)
     },
   )
 })

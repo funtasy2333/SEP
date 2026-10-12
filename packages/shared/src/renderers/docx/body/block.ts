@@ -363,6 +363,10 @@ function renderBlockContent(ctx: RenderContext, block: IRBlock, bctx: BlockCtx):
       return renderNote(ctx, block, bctx)
     case 'example':
       return renderExample(ctx, block, bctx)
+    case 'warning':
+    case 'quote':
+    case 'code':
+      throw new Error(`DOCX 尚未支持 ${block.kind}（节点 ${block.id}）`)
   }
 }
 

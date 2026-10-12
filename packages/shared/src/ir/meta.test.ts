@@ -65,6 +65,8 @@ describe('irMetaFromDocumentMeta', () => {
       standardType: 'gb',
       issuer: '国家市场监督管理总局',
       applicant: '某申请单位',
+      proposer: '某提出单位',
+      technicalCommittee: '某归口单位',
       replaces: 'GB/T 0001—2010',
       consistency: '（ISO 1234:2020，MOD）',
       filingNo: '备案 123',
@@ -74,10 +76,10 @@ describe('irMetaFromDocumentMeta', () => {
     })
   })
 
-  it('proposer、technicalCommittee 不进 IR', () => {
+  it('WP6 保留提出及归口单位', () => {
     const out = irMetaFromDocumentMeta(full)
-    expect('proposer' in out).toBe(false)
-    expect('technicalCommittee' in out).toBe(false)
+    expect(out.proposer).toBe('某提出单位')
+    expect(out.technicalCommittee).toBe('某归口单位')
   })
 
   it('meta 为 undefined 时返回空对象', () => {

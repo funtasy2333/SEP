@@ -67,6 +67,18 @@ function textRunsXml(text: string, rprXml: string): string {
 /** 渲染一个 IRInline：crossRef 换成 refText，其余 marks 正常应用，\n 拆成 br */
 export function renderRun(run: IRInline, labels: Labels): string {
   const marks = run.marks ?? []
+  const textMarks = marks.filter((mark) => mark.type !== 'tableFootnoteRef')
+  const xref = textMarks.find((mark) => mark.type === 'crossRef')
+  let bodyText = run.text
+  if (xref && xref.type === 'crossRef') {
+    const resolved = labels[xref.targetId]
+    bodyText = resolved ? resolved.refText : run.text // target without a label falls back to the author's source text
+  }
+  const rprChildren = markRprChildren(textMarks)
+  const rprXml = rprChildren.length > 0 ? rPr(rprChildren) : ''
+  const body = textRunsXml(bodyText, rprXml)
+
+  let footnoteAtom = ''
   if (run.footnote) {
     const resolved = labels[run.footnote.id]
     if (!resolved) throw new Error(`renderRun: 条文脚注 "${run.footnote.id}" 在 labels 中没有编号`)
@@ -77,28 +89,24 @@ export function renderRun(run: IRInline, labels: Labels): string {
     }
     const markerRpr = rPr([['rStyle', '<w:rStyle w:val="FootnoteReference"/>']])
     const labelRpr = rPr([['vertAlign', '<w:vertAlign w:val="superscript"/>']])
-    return `<w:r>${markerRpr}<w:footnoteReference w:id="${id}" w:customMarkFollows="1"/></w:r>` +
+    footnoteAtom = `<w:r>${markerRpr}<w:footnoteReference w:id="${id}" w:customMarkFollows="1"/></w:r>` +
       textRunsXml(resolved.refText, labelRpr)
   }
-  const tableFootnote = marks.find((mark) => mark.type === 'tableFootnoteRef')
-  if (tableFootnote && tableFootnote.type === 'tableFootnoteRef') {
-    const resolved = labels[tableFootnote.targetId]
-    if (!resolved) throw new Error(`renderRun: 表脚注 "${tableFootnote.targetId}" 在 labels 中没有编号`)
-    const otherRpr = markRprChildren(marks.filter((mark) => mark.type !== 'tableFootnoteRef'))
-    if (!otherRpr.some(([name]) => name === 'vertAlign')) {
-      otherRpr.push(['vertAlign', '<w:vertAlign w:val="superscript"/>'])
-    }
-    return textRunsXml(resolved.refText, rPr(otherRpr))
+
+  const tableFootnoteRpr = rPr([['vertAlign', '<w:vertAlign w:val="superscript"/>']])
+  let tableFootnoteAtoms = ''
+  for (const mark of marks) {
+    if (mark.type !== 'tableFootnoteRef') continue
+    const resolved = labels[mark.targetId]
+    if (!resolved) throw new Error(`renderRun: 表脚注 "${mark.targetId}" 在 labels 中没有编号`)
+    // The table-footnote reference is a separate atom in IR→PM and therefore
+    // receives only its own superscript treatment, never the source text marks.
+    tableFootnoteAtoms += textRunsXml(resolved.refText, tableFootnoteRpr)
   }
-  const xref = marks.find((m) => m.type === 'crossRef')
-  let text = run.text
-  if (xref && xref.type === 'crossRef') {
-    const resolved = labels[xref.targetId]
-    text = resolved ? resolved.refText : run.text // 目标没有 label 时输出该 run 的原文（同 HTML 渲染器）
-  }
-  const rprChildren = markRprChildren(marks)
-  const rprXml = rprChildren.length > 0 ? rPr(rprChildren) : ''
-  return textRunsXml(text, rprXml)
+
+  // Keep the same order as irToPm: source body, body footnote atom, then all
+  // table-footnote reference atoms carried by this IR run.
+  return `${body}${footnoteAtom}${tableFootnoteAtoms}`
 }
 
 /** 渲染一组 IRInline；数组为空时返回空串（段落层再据此决定是否输出不含 run 的段落） */

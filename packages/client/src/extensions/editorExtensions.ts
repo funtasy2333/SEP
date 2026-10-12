@@ -2,30 +2,38 @@ import type { Extensions } from '@tiptap/core'
 import { Image } from '@tiptap/extension-image'
 import { Placeholder } from '@tiptap/extension-placeholder'
 import { Table } from '@tiptap/extension-table'
-import { TableCell } from '@tiptap/extension-table-cell'
-import { TableHeader } from '@tiptap/extension-table-header'
-import { TableRow } from '@tiptap/extension-table-row'
 import StarterKit from '@tiptap/starter-kit'
 import {
-  Appendix, AppendixLabel, AppendixTitle,
+  Adoption, Appendix, AppendixLabel, AppendixTitle,
   AutoUnitSpacing,
-  BibEntry, Bibliography, BibliographyTitle,
+  BibEntry, BibExternalLink, BibField, BibIdentifier, BibRef, BibStructured, Bibliography, BibliographyTitle,
   Chapter, ChapterTitle,
   Clause, ClauseTitle,
   CoverPage,
   CrossRef,
+  Copyright,
   Example,
+  ExternalLink,
   FootnoteLabels,
-  Figure, FigureCaption, FigureCaptionEn, FigureImage,
+  Figure, FigureCaption, FigureCaptionEn, FigureDescription, FigureGroup, FigureImage, FigureResource, FigureResourceRef,
   FootnoteRef,
+  FormulaInline, FormulaNote,
   Foreword, Formula, FormulaContent, FormulaDescription,
+  IdentifierPart, IndexBlock, IndexEntry, IndexGroup, IndexSeeAlso, IndexTarget, IndexTerm,
   Introduction,
-  NodeId, Note,
+  MetadataBlock, MetadataFields, MetadataLanguage, NodeId, Note,
+  Publisher, QuoteBlock,
+  ReplacedStandard,
+  SemanticCodeBlock,
   SlashCommand,
+  StandardIdentifier, StandardTableCell, StandardTableHeader, StandardTableRow,
   TableFootnoteOrder,
+  Subscript, Superscript,
+  TbxLangSet, TbxTerm, TbxTermDescriptor, TbxTermVariant, TbxTig, TermRef, TextStyle, TitlePart,
+  Variable, WarningBlock, WhereDefinition, WhereItem, WhereList, WhereTerm,
   StdList, StdListItem,
   StdParagraph, StdTable, TableCaption, TableCaptionEn, TableFootnote, TableFootnoteEntry, TableFootnoteRef, TableFootnoteRow, TableNoteRow,
-  TermDef, TermDefinition, TermName, TermNameEn,
+  TermDef, TermDefinition, TermName, TermNameEn, TermSource,
 } from '@/extensions'
 
 /** The exact extension list used by EditorView's useEditor call. */
@@ -34,14 +42,14 @@ export function createEditorExtensions(): Extensions {
     // GB/T 标准文档不需要 blockquote/codeBlock/horizontalRule，禁用以免产生 IR 无法表达的内容
     StarterKit.configure({ heading: false, blockquote: false, codeBlock: false, horizontalRule: false }),
     Table.configure({ resizable: true }),
-    TableRow, TableCell, TableHeader,
+    StandardTableRow, StandardTableCell, StandardTableHeader,
     Image,
     Placeholder.configure({ placeholder: '开始编写标准内容...' }),
     // 自定义节点
     Chapter, ChapterTitle,
     Clause, ClauseTitle,
     StdParagraph,
-    TermDef, TermName, TermNameEn, TermDefinition,
+    TermDef, TermName, TermNameEn, TermDefinition, TermSource,
     StdTable, TableCaption, TableCaptionEn, TableFootnote, TableNoteRow, TableFootnoteRow, TableFootnoteEntry,
     FootnoteRef, TableFootnoteRef,
     Figure, FigureImage, FigureCaption, FigureCaptionEn,
@@ -59,5 +67,15 @@ export function createEditorExtensions(): Extensions {
     TableFootnoteOrder,
     // Keep the existing extension order intact; add the persisted cover node at the end.
     CoverPage,
+    MetadataFields,
+    MetadataBlock, TitlePart, StandardIdentifier, IdentifierPart, MetadataLanguage,
+    Publisher, Adoption, ReplacedStandard, Copyright,
+    TbxLangSet, TbxTig, TbxTermVariant, TbxTerm, TbxTermDescriptor,
+    FormulaNote, WhereList, WhereItem, WhereTerm, WhereDefinition, FormulaInline,
+    FigureGroup, FigureDescription, FigureResource, FigureResourceRef,
+    BibStructured, BibField, BibIdentifier, BibExternalLink,
+    IndexBlock, IndexGroup, IndexEntry, IndexTerm, IndexTarget, IndexSeeAlso,
+    WarningBlock, QuoteBlock, SemanticCodeBlock,
+    TextStyle, Subscript, Superscript, Variable, ExternalLink, BibRef, TermRef,
   ]
 }

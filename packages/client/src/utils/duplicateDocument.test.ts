@@ -2,7 +2,7 @@
 import JSZip from 'jszip'
 import { getSchema } from '@tiptap/core'
 import { expect, it } from 'vitest'
-import type { DocumentMeta } from '@ses/shared'
+import { UnsupportedOutputError, type DocumentMeta } from '@ses/shared'
 import { createEditorExtensions } from '../extensions/editorExtensions'
 import { buildDocxBlob, prepareDocxInput } from '../serializer/docxExporter'
 import { parseXmlToEditorJson, serializeToXml } from '../serializer'
@@ -11,7 +11,7 @@ import { createDocumentDuplicate } from './duplicateDocument'
 
 const originalMeta: DocumentMeta = {
   titleCn: '原标准名称', standardNo: 'GB/T 12345—2026', standardType: 'national',
-  proposer: '原提出单位', technicalCommittee: '原归口单位', applicant: '原起草单位',
+  applicant: '原起草单位',
   replaces: 'GB/T 12345—2020', consistency: 'IDT',
 }
 const makeSource = () => ({ title: originalMeta.titleCn, meta: { ...originalMeta }, content: createDefaultDocumentContent(originalMeta) })
@@ -58,7 +58,10 @@ it('复制后库名/封面/XML/DOCX题名一致，正文保留且不修改源文
 
 it('旧正文没有封面节点时补元数据容器，保留原正文与根属性兼容', () => {
   const content = { type: 'doc', attrs: { titleCn: '旧根题名', standardNo: '旧根编号', issuer: '旧根发布机构', icsCode: '01.020', custom: '保留扩展' },
-    content: [{ type: 'paragraph', content: [{ type: 'text', text: '原有编辑正文' }] }] }
+    content: [{ type: 'chapter', attrs: { nodeId: 'legacy-chapter' }, content: [
+      { type: 'chapterTitle', content: [{ type: 'text', text: '范围' }] },
+      { type: 'stdParagraph', attrs: { nodeId: 'legacy-body' }, content: [{ type: 'text', text: '原有编辑正文' }] },
+    ] }] }
   const source = { title: '旧文档', meta: originalMeta, content }
   const duplicate = createDocumentDuplicate(source)
   const copied = duplicate.content as typeof content
@@ -113,4 +116,36 @@ it('库元数据缺省字段保留内嵌封面回退值，XML与DOCX仍一致', 
     issuer: '原封面发布机构', publishDate: '2026-10-01',
   })
   expect(JSON.parse(JSON.stringify(source))).toEqual(before)
+})
+
+
+it('非空根段落没有IR正文对应位置时明确阻断旧XML，不丢原JSON', () => {
+  const source = { title: '旧文档', meta: originalMeta, content: { type: 'doc', content: [{ type: 'paragraph', attrs: { nodeId: 'root-p' }, content: [{ type: 'text', text: '需要保留的根正文' }] }] } }
+  const duplicate = createDocumentDuplicate(source)
+  const schema = getSchema(createEditorExtensions())
+  const node = schema.nodeFromJSON(duplicate.content)
+  const before = node.toJSON()
+  expect(() => serializeToXml(node)).toThrow(/doc.content\[1\]/)
+  expect(node.toJSON()).toEqual(before)
+  expect(JSON.stringify(duplicate.content)).toContain('需要保留的根正文')
+})
+
+
+it('复制完整保留既有提出/归口元数据，DOCX保留而旧XML阻断', async () => {
+  const meta = { ...originalMeta, proposer: '原提出单位', technicalCommittee: '原归口单位' }
+  const source = { title: meta.titleCn, meta, content: createDefaultDocumentContent(meta) }
+  const before = JSON.parse(JSON.stringify(source))
+  const duplicate = createDocumentDuplicate(source)
+  expect(duplicate.meta).toMatchObject({ proposer: meta.proposer, technicalCommittee: meta.technicalCommittee })
+  const node = getSchema(createEditorExtensions()).nodeFromJSON(duplicate.content)
+  node.check()
+  expect(prepareDocxInput(node, duplicate.meta).doc.meta).toMatchObject({ proposer: meta.proposer, technicalCommittee: meta.technicalCommittee })
+  expect(() => serializeToXml(node)).toThrow(UnsupportedOutputError)
+  const zip = await JSZip.loadAsync(await (await buildDocxBlob({ pmDoc: node, documentMeta: duplicate.meta })).blob.arrayBuffer())
+  const properties = new DOMParser().parseFromString(await zip.file('docProps/custom.xml')!.async('string'), 'application/xml')
+  expect(properties.querySelector('[name="ses-proposer"]')?.textContent).toBe(meta.proposer)
+  expect(properties.querySelector('[name="ses-technicalCommittee"]')?.textContent).toBe(meta.technicalCommittee)
+  expect(JSON.stringify(node.toJSON())).toContain(meta.proposer)
+  expect(JSON.stringify(node.toJSON())).toContain(meta.technicalCommittee)
+  expect(source).toEqual(before)
 })

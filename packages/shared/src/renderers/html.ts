@@ -1,3 +1,4 @@
+import { assertOutputSupported } from './outputBoundary'
 /**
  * HTML 渲染器（Phase 5.5 / WP4）。
  *
@@ -71,13 +72,22 @@ class RenderCtx {
   out: string[] = []
   readonly labels: Labels
   readonly variant: HtmlVariant
-  constructor(labels: Labels, variant: HtmlVariant) {
+  readonly anchorCounts: Map<string, number>
+  readonly collectingAnchors: boolean
+  constructor(
+    labels: Labels,
+    variant: HtmlVariant,
+    anchorCounts: Map<string, number> = new Map(),
+    collectingAnchors = false,
+  ) {
     this.labels = labels
     this.variant = variant
+    this.anchorCounts = anchorCounts
+    this.collectingAnchors = collectingAnchors
   }
 
   push(line: string): void {
-    this.out.push(line)
+    if (!this.collectingAnchors) this.out.push(line)
   }
 
   label(id: NodeId): string {
@@ -86,6 +96,19 @@ class RenderCtx {
 
   xmlId(id: NodeId): string {
     return this.labels[id]?.xmlId ?? ''
+  }
+
+  anchorIdAttr(xmlId: string): string {
+    if (!xmlId) return ''
+    if (this.collectingAnchors) {
+      this.anchorCounts.set(xmlId, (this.anchorCounts.get(xmlId) ?? 0) + 1)
+      return ''
+    }
+    return this.hasUniqueAnchor(xmlId) ? ' id="' + escapeAttr(xmlId) + '"' : ''
+  }
+
+  hasUniqueAnchor(xmlId: string): boolean {
+    return !!xmlId && !this.collectingAnchors && this.anchorCounts.get(xmlId) === 1
   }
 
   /** 临时切换输出缓冲，捕获 fn 的渲染结果为字符串（用于注/示例的行内内容拼接） */
@@ -107,8 +130,7 @@ function idAttr(id: NodeId): string {
 
 /** 锚点 id 属性（用于交叉引用目标），取 labels.xmlId */
 function anchorAttr(ctx: RenderCtx, id: NodeId): string {
-  const xmlId = ctx.xmlId(id)
-  return xmlId ? ` id="${escapeAttr(xmlId)}"` : ''
+  return ctx.anchorIdAttr(ctx.xmlId(id))
 }
 
 // ---------- 行内 ----------
@@ -139,30 +161,12 @@ function applyTextMarks(text: string, marks: IRInline['marks']): string {
 
 function renderRun(run: IRInline, ctx: RenderCtx): string {
   const marks = run.marks ?? []
-  if (run.footnote) {
-    const resolved = ctx.labels[run.footnote.id]
-    if (!resolved || !/^fn_\d+$/.test(resolved.xmlId)) {
-      throw new Error(`renderHtml: 条文脚注 "${run.footnote.id}" 缺少有效的 resolver 编号`)
-    }
-    const content = renderInlines(run.footnote.content, ctx)
-    const attrs = `role="doc-footnote" id="${escapeAttr(resolved.xmlId)}" data-label="${escapeAttr(resolved.refText)}"`
-    if (ctx.variant === 'screen') {
-      return `<span class="ses-footnote" ${attrs}>${content}</span>`
-    }
-    return `<span class="ses-footnote" ${attrs}><span class="ses-footnote-marker"><sup>${escapeHtml(resolved.refText)}</sup></span><span class="ses-footnote-text">${content}</span></span>`
-  }
-  const tableFootnote = marks.find((mark) => mark.type === 'tableFootnoteRef')
-  if (tableFootnote && tableFootnote.type === 'tableFootnoteRef') {
-    const resolved = ctx.labels[tableFootnote.targetId]
-    if (!resolved || !resolved.xmlId.startsWith('tabfn_')) {
-      throw new Error(`renderHtml: 表脚注 "${tableFootnote.targetId}" 缺少有效的 resolver 编号`)
-    }
-    const marker = `<sup class="ses-table-footnote-call">${escapeHtml(resolved.refText)}</sup>`
-    return ctx.variant === 'screen'
-      ? `<a class="ses-table-footnote-ref" href="#${escapeAttr(resolved.xmlId)}">${marker}</a>`
-      : marker
-  }
+
+  // Keep the ordinary text/crossRef output on its existing path, then append
+  // the separate atom nodes in the same order as irToPm: body footnote, then
+  // each table-footnote reference. Atom marks never style the source text.
   const xref = marks.find((m) => m.type === 'crossRef')
+  let body = ''
   if (xref && xref.type === 'crossRef') {
     const target = xref.targetId
     const resolved = ctx.labels[target]
@@ -170,16 +174,51 @@ function renderRun(run: IRInline, ctx: RenderCtx): string {
     const refText = resolved ? resolved.refText : run.text
     const inner = applyTextMarks(
       escapeHtml(refText),
-      marks.filter((m) => m.type !== 'crossRef'),
+      marks.filter((m) => m.type !== 'crossRef' && m.type !== 'tableFootnoteRef'),
     )
     // print 变体不输出内部链接（WP0 结论 1）
-    if (ctx.variant === 'screen' && resolved) {
-      return `<a class="ses-xref" href="#${escapeAttr(resolved.xmlId)}" data-ref-target="${escapeAttr(target)}">${inner}</a>`
+    if (ctx.variant === 'screen' && resolved && ctx.hasUniqueAnchor(resolved.xmlId)) {
+      body = '<a class="ses-xref" href="#' + escapeAttr(resolved.xmlId) + '" data-ref-target="' + escapeAttr(target) + '">' + inner + '</a>'
+    } else {
+      body = `<span class="ses-xref" data-ref-target="${escapeAttr(target)}">${inner}</span>`
     }
-    return `<span class="ses-xref" data-ref-target="${escapeAttr(target)}">${inner}</span>`
+  } else if (run.text === '\n') {
+    body = '<br />'
+  } else {
+    const bodyMarks = marks.filter((mark) => mark.type !== 'tableFootnoteRef')
+    body = run.text.split('\n').map((part, index, parts) =>
+      `${part ? applyTextMarks(escapeHtml(part), bodyMarks) : ''}${index < parts.length - 1 ? '<br />' : ''}`,
+    ).join('')
   }
-  if (run.text === '\n') return '<br />'
-  return applyTextMarks(escapeHtml(run.text), marks)
+
+  let footnoteAtom = ''
+  if (run.footnote) {
+    const resolved = ctx.labels[run.footnote.id]
+    if (!resolved || !/^fn_\d+$/.test(resolved.xmlId)) {
+      throw new Error(`renderHtml: 条文脚注 "${run.footnote.id}" 缺少有效的 resolver 编号`)
+    }
+    const content = renderInlines(run.footnote.content, ctx)
+    const attrs = 'role="doc-footnote"' + ctx.anchorIdAttr(resolved.xmlId) + ' data-label="' + escapeAttr(resolved.refText) + '"'
+    if (ctx.variant === 'screen') {
+      footnoteAtom = `<span class="ses-footnote" ${attrs}>${content}</span>`
+    } else {
+      footnoteAtom = `<span class="ses-footnote" ${attrs}><span class="ses-footnote-marker"><sup>${escapeHtml(resolved.refText)}</sup></span><span class="ses-footnote-text">${content}</span></span>`
+    }
+  }
+
+  let tableFootnoteAtoms = ''
+  for (const mark of marks) {
+    if (mark.type !== 'tableFootnoteRef') continue
+    const resolved = ctx.labels[mark.targetId]
+    if (!resolved || !resolved.xmlId.startsWith('tabfn_')) {
+      throw new Error(`renderHtml: 表脚注 "${mark.targetId}" 缺少有效的 resolver 编号`)
+    }
+    const marker = `<sup class="ses-table-footnote-call">${escapeHtml(resolved.refText)}</sup>`
+    tableFootnoteAtoms += ctx.variant === 'screen' && ctx.hasUniqueAnchor(resolved.xmlId)
+      ? `<a class="ses-table-footnote-ref" href="#${escapeAttr(resolved.xmlId)}">${marker}</a>`
+      : marker
+  }
+  return `${body}${footnoteAtom}${tableFootnoteAtoms}`
 }
 
 function renderInlines(inlines: IRInline[], ctx: RenderCtx): string {
@@ -191,7 +230,11 @@ function renderBlocksInline(blocks: IRBlock[], ctx: RenderCtx): string {
   const parts: string[] = []
   for (const block of blocks) {
     if (block.kind === 'paragraph') {
-      parts.push(renderInlines(block.content, ctx))
+      const anchor = anchorAttr(ctx, block.id)
+      const content = renderInlines(block.content, ctx)
+      parts.push(anchor
+        ? '<span class="ses-paragraph-inline"' + idAttr(block.id) + anchor + '>' + content + '</span>'
+        : content)
     } else {
       parts.push(ctx.capture(() => renderBlock(block, ctx)))
     }
@@ -202,18 +245,18 @@ function renderBlocksInline(blocks: IRBlock[], ctx: RenderCtx): string {
 // ---------- 块级 ----------
 
 function renderParagraph(p: IRParagraph, ctx: RenderCtx): void {
-  ctx.push(`<p class="ses-paragraph" data-type="paragraph"${idAttr(p.id)}>${renderInlines(p.content, ctx)}</p>`)
+  ctx.push(`<p class="ses-paragraph" data-type="paragraph"${idAttr(p.id)}${anchorAttr(ctx, p.id)}>${renderInlines(p.content, ctx)}</p>`)
 }
 
 function renderList(list: IRList, ctx: RenderCtx): void {
   ctx.push(
-    `<div class="ses-list ses-list-${list.listType}" data-type="list" data-list-type="${list.listType}"${list.level === 2 ? ' data-level="2"' : ''}${idAttr(list.id)}>`,
+    `<div class="ses-list ses-list-${list.listType}" data-type="list" data-list-type="${list.listType}"${list.level === 2 ? ' data-level="2"' : ''}${idAttr(list.id)}${anchorAttr(ctx, list.id)}>`,
   )
   for (const item of list.items) {
-    ctx.push(`<div class="ses-list-item"${idAttr(item.id)}>`)
+    ctx.push(`<div class="ses-list-item"${idAttr(item.id)}${anchorAttr(ctx, item.id)}>`)
     for (const child of item.content) {
       if (child.kind === 'paragraph') {
-        ctx.push(`<span class="ses-list-item-text">${renderInlines(child.content, ctx)}</span>`)
+        ctx.push(`<span class="ses-list-item-text"${anchorAttr(ctx, child.id)}>${renderInlines(child.content, ctx)}</span>`)
       } else {
         renderList(child, ctx)
       }
@@ -225,7 +268,7 @@ function renderList(list: IRList, ctx: RenderCtx): void {
 
 function renderTableRows(rows: IRTableRow[], section: 'thead' | 'tbody', ctx: RenderCtx): void {
   for (const row of rows) {
-    ctx.push('<tr>')
+    ctx.push('<tr' + anchorAttr(ctx, row.id) + '>')
     for (const cell of row.cells) {
       const tag = cell.header ? 'th' : 'td'
       const attrs: string[] = []
@@ -235,7 +278,7 @@ function renderTableRows(rows: IRTableRow[], section: 'thead' | 'tbody', ctx: Re
       if (cell.header) attrs.push(`scope="${section === 'thead' ? 'col' : 'row'}"`)
       const attrStr = attrs.length > 0 ? ' ' + attrs.join(' ') : ''
       const content = renderBlocksInline(cell.content, ctx)
-      ctx.push(`<${tag}${attrStr}>${content}</${tag}>`)
+      ctx.push('<' + tag + attrStr + anchorAttr(ctx, cell.id) + '>' + content + '</' + tag + '>')
     }
     ctx.push('</tr>')
   }
@@ -281,7 +324,7 @@ function renderTable(table: IRTable, ctx: RenderCtx): void {
       const notes = sortedFootnotes.map((footnote) => {
         const resolved = ctx.labels[footnote.id]
         if (!resolved) throw new Error(`renderHtml: 表脚注 "${footnote.id}" 在 labels 中没有编号`)
-        return `<div class="ses-table-footnote" id="${escapeAttr(resolved.xmlId)}"><span class="ses-table-footnote-marker"><sup>${escapeHtml(resolved.refText)}</sup></span><span class="ses-table-footnote-text">${renderInlines(footnote.content, ctx)}</span></div>`
+        return `<div class="ses-table-footnote"${ctx.anchorIdAttr(resolved.xmlId)}><span class="ses-table-footnote-marker"><sup>${escapeHtml(resolved.refText)}</sup></span><span class="ses-table-footnote-text">${renderInlines(footnote.content, ctx)}</span></div>`
       }).join('')
       ctx.push(`<tr class="ses-table-footnotes"><td colspan="${colspan}">${notes}</td></tr>`)
     }
@@ -317,7 +360,7 @@ function renderFigure(fig: IRFigure, ctx: RenderCtx): void {
 function renderFormula(formula: IRFormula, ctx: RenderCtx): void {
   const numbered = formula.numbered && !!ctx.labels[formula.id]
   ctx.push(
-    `<div class="ses-formula-block" data-type="formula"${idAttr(formula.id)}${numbered ? anchorAttr(ctx, formula.id) : ''}>`,
+    `<div class="ses-formula-block" data-type="formula"${idAttr(formula.id)}${anchorAttr(ctx, formula.id)}>`,
   )
   // KaTeX 占位（消费端渲染）；data-latex 保留原文
   ctx.push(`<span class="ses-formula" data-latex="${escapeAttr(formula.latex)}"></span>`)
@@ -332,7 +375,7 @@ function renderFormula(formula: IRFormula, ctx: RenderCtx): void {
     ctx.push('<dl class="ses-where-list">')
     for (const item of formula.whereList) {
       ctx.push(
-        `<dt${idAttr(item.id)}>${renderInlines(item.term, ctx)}</dt><dd>${renderInlines(item.definition, ctx)}</dd>`,
+        `<dt${idAttr(item.id)}${anchorAttr(ctx, item.id)}>${renderInlines(item.term, ctx)}</dt><dd>${renderInlines(item.definition, ctx)}</dd>`,
       )
     }
     ctx.push('</dl>')
@@ -343,14 +386,14 @@ function renderFormula(formula: IRFormula, ctx: RenderCtx): void {
 function renderNote(note: IRNote, ctx: RenderCtx): void {
   const marker = ctx.label(note.id) || '注：'
   ctx.push(
-    `<div class="ses-note" data-type="note"${idAttr(note.id)}><span class="ses-note-marker">${escapeHtml(marker)}</span>${renderBlocksInline(note.content, ctx)}</div>`,
+    `<div class="ses-note" data-type="note"${idAttr(note.id)}${anchorAttr(ctx, note.id)}><span class="ses-note-marker">${escapeHtml(marker)}</span>${renderBlocksInline(note.content, ctx)}</div>`,
   )
 }
 
 function renderExample(example: IRExample, ctx: RenderCtx): void {
   const marker = ctx.label(example.id) || '示例：'
   ctx.push(
-    `<div class="ses-example" data-type="example"${idAttr(example.id)}><span class="ses-example-marker">${escapeHtml(marker)}</span>${renderBlocksInline(example.content, ctx)}</div>`,
+    `<div class="ses-example" data-type="example"${idAttr(example.id)}${anchorAttr(ctx, example.id)}><span class="ses-example-marker">${escapeHtml(marker)}</span>${renderBlocksInline(example.content, ctx)}</div>`,
   )
 }
 
@@ -395,7 +438,7 @@ function renderTermEntry(entry: IRTermEntry, ctx: RenderCtx): void {
   ctx.push(`<p class="ses-term-head">${termHtml}${enHtml}</p>`)
   for (const block of entry.definition) {
     if (block.kind === 'paragraph') {
-      ctx.push(`<p class="ses-term-def"${idAttr(block.id)}>${renderInlines(block.content, ctx)}</p>`)
+      ctx.push(`<p class="ses-term-def"${idAttr(block.id)}${anchorAttr(ctx, block.id)}>${renderInlines(block.content, ctx)}</p>`)
     } else {
       renderBlock(block, ctx)
     }
@@ -432,7 +475,7 @@ function renderClause(clause: IRClause, ctx: RenderCtx): void {
     const [first, ...rest] = clause.children
     if (first && first.kind === 'paragraph') {
       // 无题条首段：编号顶格起排、不缩进（.ses-clause-numbered-para text-indent:0），编号后空一字（num-only margin-right:1em）接条文
-      ctx.push(`<p class="ses-clause-numbered-para" data-type="paragraph"${idAttr(first.id)}>${numHtml}${renderInlines(first.content, ctx)}</p>`)
+      ctx.push(`<p class="ses-clause-numbered-para" data-type="paragraph"${idAttr(first.id)}${anchorAttr(ctx, first.id)}>${numHtml}${renderInlines(first.content, ctx)}</p>`)
       for (const child of rest) renderClauseChild(child, ctx)
     } else {
       ctx.push(numHtml)
@@ -478,7 +521,7 @@ function bibSeq(ctx: RenderCtx, id: NodeId): number {
 
 function renderBibliography(entries: IRBibEntry[], ctx: RenderCtx): void {
   if (entries.length === 0) return
-  ctx.push('<section class="ses-bibliography" data-type="bibliography" id="sec_bibliography" role="doc-bibliography">')
+  ctx.push('<section class="ses-bibliography" data-type="bibliography"' + ctx.anchorIdAttr('sec_bibliography') + ' role="doc-bibliography">')
   ctx.push('<h2 class="ses-bib-title">参考文献</h2>')
   const ordered = [...entries].sort((a, b) => bibSeq(ctx, a.id) - bibSeq(ctx, b.id))
   for (const entry of ordered) {
@@ -537,14 +580,16 @@ function collectToc(doc: IRDoc, ctx: RenderCtx): TocEntry[] {
 function renderToc(doc: IRDoc, ctx: RenderCtx): void {
   const entries = collectToc(doc, ctx)
   if (entries.length === 0) return
-  ctx.push('<nav class="ses-toc" data-type="toc" id="front_toc">')
+  ctx.push('<nav class="ses-toc" data-type="toc"' + ctx.anchorIdAttr('front_toc') + '>')
   // 前置标题两字间空一个全角字（图 E.8/E.9：目　次/前　言/引　言）；16pt 为字号非字距
   ctx.push('<h1 class="ses-front-heading">目　次</h1>')
   ctx.push('<ol class="ses-toc-list">')
   for (const entry of entries) {
     ctx.push(`<li class="ses-toc-item ses-toc-l${entry.level}">`)
-    if (ctx.variant === 'screen' && entry.anchor) {
+    if (ctx.variant === 'screen' && ctx.hasUniqueAnchor(entry.anchor)) {
       ctx.push(`<a class="ses-toc-text" href="#${escapeAttr(entry.anchor)}">${entry.text}</a>`)
+    } else if (ctx.variant === 'screen') {
+      ctx.push(`<span class="ses-toc-text">${entry.text}</span>`)
     } else {
       ctx.push(`<span class="ses-toc-text">${entry.text}</span>`)
       // 定宽页码占位（WP5 两遍构建注入纯文本数字；定宽保证两遍分页不漂移）
@@ -562,13 +607,13 @@ function renderFront(doc: IRDoc, ctx: RenderCtx): void {
   ctx.push('<div class="ses-front-matter">')
   renderToc(doc, ctx)
   if (doc.front.foreword.length > 0) {
-    ctx.push('<section class="ses-foreword" data-type="foreword" id="front_foreword" role="doc-foreword">')
+    ctx.push('<section class="ses-foreword" data-type="foreword"' + ctx.anchorIdAttr('front_foreword') + ' role="doc-foreword">')
     ctx.push('<h1 class="ses-front-heading">前　言</h1>')
     for (const block of doc.front.foreword) renderBlock(block, ctx)
     ctx.push('</section>')
   }
   if (doc.front.introduction.length > 0) {
-    ctx.push('<section class="ses-introduction" data-type="introduction" id="front_intro" role="doc-introduction">')
+    ctx.push('<section class="ses-introduction" data-type="introduction"' + ctx.anchorIdAttr('front_intro') + ' role="doc-introduction">')
     ctx.push('<h1 class="ses-front-heading">引　言</h1>')
     for (const block of doc.front.introduction) renderBlock(block, ctx)
     ctx.push('</section>')
@@ -738,8 +783,12 @@ function screenStyles(): string {
  */
 export function renderHtml(doc: IRDoc, labels: Labels, opts: RenderHtmlOptions = {}): string {
   assertFootnoteReferences(doc, labels)
+  assertOutputSupported(doc, 'HTML')
   const variant: HtmlVariant = opts.variant ?? 'screen'
-  const ctx = new RenderCtx(labels, variant)
+  const anchorCollector = new RenderCtx(labels, variant, new Map(), true)
+  renderFront(doc, anchorCollector)
+  renderBody(doc, anchorCollector)
+  const ctx = new RenderCtx(labels, variant, anchorCollector.anchorCounts)
 
   const css = variant === 'print' ? printCss({ standardNo: doc.meta.stdCode }) : screenStyles()
   const title = doc.meta.title ? escapeHtml(doc.meta.title) : '标准文件'
@@ -750,6 +799,10 @@ export function renderHtml(doc: IRDoc, labels: Labels, opts: RenderHtmlOptions =
   ctx.push('<meta charset="UTF-8" />')
   ctx.push('<meta name="viewport" content="width=device-width, initial-scale=1.0" />')
   ctx.push(`<title>${title}</title>`)
+  for (const field of ['applicant', 'proposer', 'technicalCommittee'] as const) {
+    const value = doc.meta[field]
+    if (value) ctx.push(`<meta name="ses-${field}" content="${escapeAttr(value).replace(/\r/g, '&#13;').replace(/\n/g, '&#10;').replace(/\t/g, '&#9;')}" />`)
+  }
   ctx.push(`<style>${css}</style>`)
   ctx.push('</head>')
   ctx.push('<body>')

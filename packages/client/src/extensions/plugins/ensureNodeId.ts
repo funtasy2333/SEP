@@ -1,11 +1,12 @@
 import { Extension } from '@tiptap/core'
-import type { Node as PMNode } from '@tiptap/pm/model'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { Fragment, Slice, type Node as PMNode } from '@tiptap/pm/model'
+import { EditorState, Plugin, PluginKey } from '@tiptap/pm/state'
+import type { EditorView } from '@tiptap/pm/view'
 import { generateNodeId } from '@ses/shared'
 
 /**
- * 携带 nodeId 属性的块级节点类型清单。
- * 含全部自定义块级节点 + StarterKit 中可出现在 block 内容里的节点；
+ * 携带 nodeId 属性的生产节点类型清单。
+ * 除块级实体外，也包括拥有稳定 IR ID 的行内 atom 和结构化文献实体；
  * 清单中未注册到 schema 的类型名会被 Tiptap 忽略，无副作用。
  */
 export const NODE_ID_TYPES = [
@@ -17,6 +18,8 @@ export const NODE_ID_TYPES = [
   'clause',
   'stdParagraph',
   'termDef',
+  // termDefinition itself maps to the first IR definition paragraph entity.
+  'termDefinition',
   'stdTable',
   'tableFootnoteEntry',
   'figure',
@@ -26,17 +29,51 @@ export const NODE_ID_TYPES = [
   'example',
   'appendix',
   'bibliography',
+  // Structured document metadata records (metadataBlock is a non-semantic container).
+  'titlePart',
+  'standardIdentifier',
+  'identifierPart',
+  'language',
+  'publisher',
+  'adoption',
+  'replacedStandard',
+  'copyright',
+  // TBX language sets, term groups, variants and descriptors.
+  'tbxLangSet',
+  'tbxTig',
+  'tbxTermVariant',
+  'tbxTermDescriptor',
+  // Formula semantic records (formulaInline is a referenceable inline atom).
+  'formulaInline',
+  'formulaNote',
+  'whereItem',
+  // Figure/resource and typed bibliography semantic records.
+  'figureGroup',
+  'figureDescription',
+  'figureResource',
+  'bibField',
+  'bibIdentifier',
+  // Index and prose-role blocks.
+  'indexBlock',
+  'indexGroup',
+  'indexEntry',
+  'warning',
+  'quoteBlock',
+  'codeBlock',
   // 块级容器内的可引用子节点（IR 类型中带 id，需稳定锚点供 WP3 pmToIr 使用）；
   // 表格行/单元格与公式 whereList 项的 ID 来源策略在 WP3 设计时确定
   'stdListItem',
   'bibEntry',
+  // Resolver assigns stable IDs to table rows/cells as well as their semantic table wrapper.
+  'tableRow',
+  'tableCell',
+  'tableHeader',
   // StarterKit 中可出现在 block 内容里的节点
   // （table 不在列表中：其 NodeView 不渲染 data-node-id，且语义节点是外层 stdTable）
   'paragraph',
   'blockquote',
   'bulletList',
   'orderedList',
-  'codeBlock',
   'horizontalRule',
   'listItem',
   // Inline footnote references have document-wide stable identities for labels and XML round trips.
@@ -52,9 +89,8 @@ export interface NodeIdFix {
 /**
  * 扫描文档，找出缺失或重复的 nodeId，返回待修复列表（pos → 新 ID）。
  * 重复时按文档顺序保留首个出现的 ID，后续重复者重新生成（同文档内唯一是硬约束）。
- * 已知限制：保留的是"文档顺序首个"而非"原节点"——粘贴位置在原节点之前时，
- * 副本继承原 ID、原节点被换新 ID。对唯一性无影响；若未来按 nodeId 锚定批注，
- * 需 diff 事务前后状态才能区分原件，本期不做。
+ * 普通剪贴板粘贴在 transformPasted 阶段会先按 slice 范围重映射冲突 ID，
+ * 避免把原件身份转移给副本；本函数仍作为其他事务（如程序化替换）的唯一性后备修复。
  * 纯函数，便于单测。
  */
 export function findNodeIdFixes(doc: PMNode): NodeIdFix[] {
@@ -73,6 +109,419 @@ export function findNodeIdFixes(doc: PMNode): NodeIdFix[] {
     fixes.push({ pos, nodeId: newId })
   })
   return fixes
+}
+
+/** Check whether a document needs ID repair without allocating throwaway IDs. */
+export function hasNodeIdIssues(doc: PMNode): boolean {
+  const seen = new Set<string>()
+  let hasIssues = false
+  doc.descendants((node) => {
+    if (!('nodeId' in node.attrs)) return
+    const id = node.attrs.nodeId
+    if (typeof id === 'string' && id.length > 0 && !seen.has(id)) {
+      seen.add(id)
+      return
+    }
+    hasIssues = true
+  })
+  return hasIssues
+}
+
+/** Normalize a detached candidate with the same ID policy used by the live plugin. */
+export function normalizeNodeIds(doc: PMNode): PMNode {
+  const fixes = findNodeIdFixes(doc)
+  if (fixes.length === 0) return doc
+  const transaction = EditorState.create({ doc }).tr
+  for (const { pos, nodeId } of fixes) transaction.setNodeAttribute(pos, 'nodeId', nodeId)
+  return transaction.doc
+}
+
+type JsonRecord = Record<string, unknown>
+type PastedIdRemaps = {
+  ids: ReadonlyMap<string, string>
+}
+
+function isRecord(value: unknown): value is JsonRecord {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function remapId(id: unknown, remaps: PastedIdRemaps): unknown {
+  if (typeof id !== 'string') return id
+  return remaps.ids.get(id) ?? id
+}
+
+function remapReferenceMark(mark: unknown, remaps: PastedIdRemaps): unknown {
+  if (!isRecord(mark) || typeof mark.type !== 'string') return mark
+  const markType = mark.type
+  if (!['crossRef', 'bibRef', 'termRef'].includes(markType)) return mark
+
+  const attrs = isRecord(mark.attrs) ? mark.attrs : null
+  const activeTarget = markType === 'crossRef'
+    ? (attrs?.targetId ?? mark.targetId ?? attrs?.refId ?? mark.refId)
+    : (attrs?.targetId ?? mark.targetId)
+  const mappedTarget = remapId(activeTarget, remaps)
+  if (mappedTarget === activeTarget) return mark
+  if (attrs) {
+    const nextAttrs = { ...attrs }
+    if (markType === 'crossRef' && attrs.targetId == null && attrs.refId != null) nextAttrs.refId = mappedTarget
+    else nextAttrs.targetId = mappedTarget
+    return { ...mark, attrs: nextAttrs }
+  }
+  const nextMark = { ...mark }
+  if (markType === 'crossRef' && mark.targetId == null && mark.refId != null) nextMark.refId = mappedTarget
+  else nextMark.targetId = mappedTarget
+  return nextMark
+}
+
+function remapTypedInlineMark(mark: unknown, remaps: PastedIdRemaps): unknown {
+  const reference = remapReferenceMark(mark, remaps)
+  if (reference !== mark) return reference
+  if (!isRecord(mark) || mark.type !== 'tableFootnoteRef') return mark
+  const attrs = isRecord(mark.attrs) ? mark.attrs : null
+  const nextAttrs = attrs ? { ...attrs } : null
+  const targetId = remapId(attrs?.targetId ?? mark.targetId, remaps)
+  const refId = remapId(attrs?.id ?? mark.id, remaps)
+  if (targetId === (attrs?.targetId ?? mark.targetId) && refId === (attrs?.id ?? mark.id)) return mark
+  if (nextAttrs) {
+    nextAttrs.targetId = targetId
+    nextAttrs.id = refId
+    return { ...mark, attrs: nextAttrs }
+  }
+  return { ...mark, targetId, id: refId }
+}
+
+/** Only visit the typed inline payload shape used by IR metadata and footnote content. */
+function remapTypedInlinePayload(value: unknown, remaps: PastedIdRemaps): unknown {
+  if (!Array.isArray(value)) return value
+  let changed = false
+  const next = value.map((item) => {
+    if (!isRecord(item)) return item
+    let itemChanged = false
+    const copy: JsonRecord = { ...item }
+    const originalMarks = item.marks
+    if (Array.isArray(originalMarks)) {
+      const marks = originalMarks.map((mark) => remapTypedInlineMark(mark, remaps))
+      if (marks.some((mark, index) => mark !== originalMarks[index])) {
+        copy.marks = marks
+        itemChanged = true
+      }
+    }
+    if (isRecord(item.footnote) && Array.isArray(item.footnote.content)) {
+      const mappedId = remapId(item.footnote.id, remaps)
+      const content = remapTypedInlinePayload(item.footnote.content, remaps)
+      if (mappedId !== item.footnote.id) {
+        copy.footnote = { ...item.footnote, id: mappedId, content }
+        itemChanged = true
+      }
+      if (content !== item.footnote.content) {
+        copy.footnote = { ...item.footnote, ...(mappedId !== item.footnote.id ? { id: mappedId } : {}), content }
+        itemChanged = true
+      }
+    }
+    if (isRecord(item.formula) && typeof item.formula.id === 'string') {
+      const id = remapId(item.formula.id, remaps)
+      if (id !== item.formula.id) {
+        copy.formula = { ...item.formula, id }
+        itemChanged = true
+      }
+    }
+    if (typeof item.type === 'string' && Array.isArray(item.content)) {
+      const content = remapTypedInlinePayload(item.content, remaps)
+      if (content !== item.content) {
+        copy.content = content
+        itemChanged = true
+      }
+    }
+    if (item.type === 'footnoteRef' && isRecord(item.attrs) && Array.isArray(item.attrs.content)) {
+      const content = remapTypedInlinePayload(item.attrs.content, remaps)
+      if (content !== item.attrs.content) {
+        copy.attrs = { ...item.attrs, content }
+        itemChanged = true
+      }
+    }
+    if (itemChanged) {
+      changed = true
+      return copy
+    }
+    return item
+  })
+  return changed ? next : value
+}
+
+function visitTypedInlinePayload(
+  value: unknown,
+  visitDefinition: (id: unknown) => void,
+  visitReference: (id: unknown) => void,
+): void {
+  if (!Array.isArray(value)) return
+  for (const item of value) {
+    if (!isRecord(item)) continue
+    if (isRecord(item.formula)) visitDefinition(item.formula.id)
+    if (isRecord(item.footnote)) {
+      visitDefinition(item.footnote.id)
+      visitTypedInlinePayload(item.footnote.content, visitDefinition, visitReference)
+    }
+    if (Array.isArray(item.marks)) {
+      for (const mark of item.marks) {
+        const reference = referencedId(mark)
+        if (reference) visitReference(reference)
+        if (isRecord(mark) && mark.type === 'tableFootnoteRef') visitDefinition(isRecord(mark.attrs) ? mark.attrs.id : mark.id)
+      }
+    }
+    if (typeof item.type === 'string' && Array.isArray(item.content)) {
+      visitTypedInlinePayload(item.content, visitDefinition, visitReference)
+    }
+    if (item.type === 'footnoteRef' && isRecord(item.attrs)) {
+      visitTypedInlinePayload(item.attrs.content, visitDefinition, visitReference)
+    }
+  }
+}
+
+const FALLBACK_METADATA_ARRAYS = [
+  'titleParts', 'identifiers', 'languages', 'publishers', 'adoptions', 'replacedStandards', 'copyrights',
+] as const
+
+function visitMetadataFallback(
+  attrs: JsonRecord,
+  visitDefinition: (id: unknown) => void,
+  visitReference: (id: unknown) => void,
+): void {
+  for (const field of FALLBACK_METADATA_ARRAYS) {
+    const rows = attrs[field]
+    if (!Array.isArray(rows)) continue
+    for (const row of rows) {
+      if (!isRecord(row)) continue
+      visitDefinition(row.id)
+      if (field === 'titleParts') visitTypedInlinePayload(row.content, visitDefinition, visitReference)
+      if (field === 'identifiers' && Array.isArray(row.parts)) {
+        for (const part of row.parts) {
+          if (!isRecord(part)) continue
+          visitDefinition(part.id)
+          visitTypedInlinePayload(part.content, visitDefinition, visitReference)
+        }
+      }
+      if (field === 'publishers') visitTypedInlinePayload(row.name, visitDefinition, visitReference)
+      if (field === 'copyrights') {
+        visitTypedInlinePayload(row.holder, visitDefinition, visitReference)
+        visitTypedInlinePayload(row.statement, visitDefinition, visitReference)
+      }
+    }
+  }
+}
+
+function addIdCount(counts: Map<string, number>, id: unknown): void {
+  if (typeof id === 'string' && id.length > 0) counts.set(id, (counts.get(id) ?? 0) + 1)
+}
+
+function collectSliceDefinitionCounts(slice: Slice): Map<string, number> {
+  const counts = new Map<string, number>()
+  slice.content.descendants((node) => {
+    addIdCount(counts, node.attrs.nodeId)
+    if (node.type.name === 'footnoteRef') {
+      visitTypedInlinePayload(node.attrs.content, id => addIdCount(counts, id), () => {})
+    }
+    if (node.type.name === 'coverPage') {
+      visitMetadataFallback(node.attrs, id => addIdCount(counts, id), () => {})
+    }
+  })
+  return counts
+}
+
+function collectDocDefinitionIds(doc: PMNode): Set<string> {
+  const ids = new Set<string>()
+  const add = (id: unknown) => { if (typeof id === 'string' && id.length > 0) ids.add(id) }
+  doc.descendants((node) => {
+    add(node.attrs.nodeId)
+    if (node.type.name === 'footnoteRef') visitTypedInlinePayload(node.attrs.content, add, () => {})
+    if (node.type.name === 'coverPage') visitMetadataFallback(node.attrs, add, () => {})
+  })
+  visitMetadataFallback(doc.attrs, add, () => {})
+  return ids
+}
+
+function collectSliceReferenceIds(slice: Slice): Set<string> {
+  const references = new Set<string>()
+  const addReference = (id: unknown) => { if (typeof id === 'string' && id.length > 0) references.add(id) }
+  slice.content.descendants((node) => {
+    for (const mark of node.marks) addReference(referencedId({ type: mark.type.name, attrs: mark.attrs }))
+    if (node.type.name === 'footnoteRef') visitTypedInlinePayload(node.attrs.content, () => {}, addReference)
+    if (node.type.name === 'coverPage') visitMetadataFallback(node.attrs, () => {}, addReference)
+    const targetFields: Record<string, string[]> = {
+      tableFootnoteRef: ['targetId'],
+      figureResourceRef: ['targetId'],
+      indexTarget: ['targetId'],
+      indexSeeAlso: ['targetId'],
+      figureImage: ['resourceId'],
+    }
+    for (const field of targetFields[node.type.name] ?? []) addReference(node.attrs[field])
+  })
+  return references
+}
+
+function referencedId(mark: unknown): string | null {
+  if (!isRecord(mark) || typeof mark.type !== 'string') return null
+  const attrs = isRecord(mark.attrs) ? mark.attrs : null
+  if (mark.type === 'tableFootnoteRef') {
+    const targetId = attrs?.targetId ?? mark.targetId
+    return typeof targetId === 'string' && targetId.length > 0 ? targetId : null
+  }
+  if (!['crossRef', 'bibRef', 'termRef'].includes(mark.type)) return null
+  const target = mark.type === 'crossRef'
+    ? (attrs?.targetId ?? mark.targetId ?? attrs?.refId ?? mark.refId)
+    : (attrs?.targetId ?? mark.targetId)
+  return typeof target === 'string' && target.length > 0 ? target : null
+}
+
+function getAmbiguousPastedReferencesMessage(slice: Slice, currentDoc: PMNode): string | null {
+  const counts = collectSliceDefinitionCounts(slice)
+  const references = collectSliceReferenceIds(slice)
+  const existingIds = collectDocDefinitionIds(currentDoc)
+  const ambiguousReferencedId = [...counts].some(([id, count]) => count > 1 && references.has(id))
+  if (ambiguousReferencedId) return '粘贴内容含重复引用目标，无法确定关联，请先修正源内容'
+  const conflictingId = [...counts].some(([id, count]) => count > 1 && existingIds.has(id))
+  if (conflictingId) return '粘贴内容含重复节点 ID，与当前文档冲突，无法保留原件及引用关系；请先修正源内容'
+  return null
+}
+
+/** Rewrite only documented typed metadata carrier fields on a copied cover page. */
+function remapCoverMetadataFallback(attrs: JsonRecord, remaps: PastedIdRemaps): JsonRecord {
+  let changed = false
+  const next: JsonRecord = { ...attrs }
+  const mapRows = (field: string, mapRow: (row: JsonRecord) => JsonRecord): void => {
+    const rows = attrs[field]
+    if (!Array.isArray(rows)) return
+    let rowsChanged = false
+    const mappedRows = rows.map((row) => {
+      if (!isRecord(row)) return row
+      const mapped = mapRow(row)
+      if (mapped !== row) rowsChanged = true
+      return mapped
+    })
+    if (rowsChanged) {
+      next[field] = mappedRows
+      changed = true
+    }
+  }
+  const mapId = (row: JsonRecord): JsonRecord => {
+    const id = remapId(row.id, remaps)
+    return id === row.id ? row : { ...row, id }
+  }
+  const mapInlineField = (row: JsonRecord, field: string): JsonRecord => {
+    const content = remapTypedInlinePayload(row[field], remaps)
+    return content === row[field] ? row : { ...row, [field]: content }
+  }
+
+  mapRows('titleParts', (row) => mapInlineField(mapId(row), 'content'))
+  mapRows('languages', mapId)
+  mapRows('adoptions', mapId)
+  mapRows('replacedStandards', mapId)
+  mapRows('publishers', (row) => mapInlineField(mapId(row), 'name'))
+  mapRows('copyrights', (row) => {
+    let mapped = mapInlineField(mapId(row), 'holder')
+    mapped = mapInlineField(mapped, 'statement')
+    return mapped
+  })
+  mapRows('identifiers', (row) => {
+    const mappedRow = mapId(row)
+    if (!Array.isArray(row.parts)) return mappedRow
+    let partsChanged = false
+    const parts = row.parts.map((part) => {
+      if (!isRecord(part)) return part
+      const mapped = mapInlineField(mapId(part), 'content')
+      if (mapped !== part) partsChanged = true
+      return mapped
+    })
+    return partsChanged ? { ...mappedRow, parts } : mappedRow
+  })
+  return changed ? next : attrs
+}
+
+function remapPastedNode(node: PMNode, remaps: PastedIdRemaps): PMNode {
+  const children = node.content.content.map((child) => remapPastedNode(child, remaps))
+  let attrs: Record<string, unknown> | null = null
+  const mappedNodeId = remapId(node.attrs.nodeId, remaps)
+  if (mappedNodeId !== node.attrs.nodeId) attrs = { ...node.attrs, nodeId: mappedNodeId }
+
+  const referenceFields: Record<string, string[]> = {
+    tableFootnoteRef: ['targetId'],
+    figureResourceRef: ['targetId'],
+    indexTarget: ['targetId'],
+    indexSeeAlso: ['targetId'],
+    figureImage: ['resourceId'],
+  }
+  for (const field of referenceFields[node.type.name] ?? []) {
+    const mapped = remapId(node.attrs[field], remaps)
+    if (mapped !== node.attrs[field]) attrs = { ...(attrs ?? node.attrs), [field]: mapped }
+  }
+  if (node.type.name === 'footnoteRef') {
+    const payload = remapTypedInlinePayload(node.attrs.content, remaps)
+    if (payload !== node.attrs.content) attrs = { ...(attrs ?? node.attrs), content: payload }
+  }
+  if (node.type.name === 'coverPage') {
+    const metadata = remapCoverMetadataFallback(node.attrs, remaps)
+    if (metadata !== node.attrs) attrs = { ...(attrs ?? node.attrs), ...metadata }
+  }
+  // A metadata fallback carrier may copy stale IR IDs verbatim; the owning PM nodeId
+  // remains the final source of identity for that cover container.
+  if (mappedNodeId !== node.attrs.nodeId) attrs = { ...(attrs ?? node.attrs), nodeId: mappedNodeId }
+
+  const marks = node.marks.map((mark) => {
+    const mapped = remapReferenceMark({ type: mark.type.name, attrs: mark.attrs }, remaps)
+    if (!isRecord(mapped) || !isRecord(mapped.attrs) || mapped.attrs === mark.attrs) return mark
+    return mark.type.create(mapped.attrs)
+  })
+  const marksChanged = marks.some((mark, index) => mark !== node.marks[index])
+
+  const contentChanged = children.some((child, index) => child !== node.child(index))
+  if (!attrs && !contentChanged && !marksChanged) return node
+  if (node.isText) return marksChanged ? node.mark(marks) : node
+  return node.type.create(attrs ?? node.attrs, children, marks)
+}
+
+function buildPastedIdRemaps(slice: Slice, currentDoc: PMNode): Map<string, string> {
+  const counts = collectSliceDefinitionCounts(slice)
+  const existingIds = collectDocDefinitionIds(currentDoc)
+  const reserved = new Set([...existingIds, ...counts.keys()])
+  const remaps = new Map<string, string>()
+  for (const [id, count] of counts) {
+    if (count !== 1 || !existingIds.has(id)) continue
+    let replacement = generateNodeId()
+    while (reserved.has(replacement)) replacement = generateNodeId()
+    reserved.add(replacement)
+    remaps.set(id, replacement)
+  }
+  return remaps
+}
+
+function applyPastedIdRemaps(slice: Slice, ids: ReadonlyMap<string, string>): Slice {
+  if (ids.size === 0) return slice
+  const context: PastedIdRemaps = { ids }
+  const content = slice.content.content.map((node) => remapPastedNode(node, context))
+  return new Slice(Fragment.fromArray(content), slice.openStart, slice.openEnd)
+}
+
+/**
+ * Remap colliding IDs only when the pasted slice defines that ID exactly once.
+ * Duplicate definitions remain untouched here so references are never guessed.
+ */
+export function remapPastedSliceIds(slice: Slice, currentDoc: PMNode): Slice {
+  return applyPastedIdRemaps(slice, buildPastedIdRemaps(slice, currentDoc))
+}
+
+function hasDroppedInternalPasteTarget(
+  sourceSlice: Slice,
+  candidateDoc: PMNode,
+  idRemaps: ReadonlyMap<string, string>,
+): boolean {
+  const definitions = collectSliceDefinitionCounts(sourceSlice)
+  const references = collectSliceReferenceIds(sourceSlice)
+  const candidateIds = collectDocDefinitionIds(candidateDoc)
+  for (const [id, count] of definitions) {
+    if (count !== 1 || !references.has(id)) continue
+    const expectedId = idRemaps.get(id) ?? id
+    if (!candidateIds.has(expectedId)) return true
+  }
+  return false
 }
 
 /**
@@ -133,6 +582,41 @@ export const ensureNodeIdPluginKey = new PluginKey('ensureNodeId')
 export function ensureNodeIdPlugin(): Plugin {
   return new Plugin({
     key: ensureNodeIdPluginKey,
+    props: {
+      handlePaste(view, _event, slice) {
+        const ambiguousMessage = getAmbiguousPastedReferencesMessage(slice, view.state.doc)
+        if (ambiguousMessage) {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('ses:paste-reference-error', {
+              detail: { message: ambiguousMessage },
+            }))
+          }
+          return true
+        }
+        const ids = buildPastedIdRemaps(slice, view.state.doc)
+        const candidateSlice = applyPastedIdRemaps(slice, ids)
+        // Match ProseMirror doPaste: a closed single-node slice uses replaceSelectionWith;
+        // every other rich paste uses replaceSelection. This preview is detached and never dispatches.
+        const preview = view.state.tr
+        if (candidateSlice.openStart === 0 && candidateSlice.openEnd === 0 && candidateSlice.content.childCount === 1) {
+          preview.replaceSelectionWith(candidateSlice.content.firstChild!, false)
+        } else {
+          preview.replaceSelection(candidateSlice)
+        }
+        if (hasDroppedInternalPasteTarget(slice, preview.doc, ids)) {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('ses:paste-reference-error', {
+              detail: { message: '此粘贴位置会合并引用目标所在段落，无法保留内部引用关系；请在结构边界粘贴或调整选区' },
+            }))
+          }
+          return true
+        }
+        return false
+      },
+      transformPasted(slice, view: EditorView) {
+        return remapPastedSliceIds(slice, view.state.doc)
+      },
+    },
     appendTransaction(transactions, _oldState, newState) {
       if (!transactions.some((tr) => tr.docChanged)) return null
       const fixes = findNodeIdFixes(newState.doc)

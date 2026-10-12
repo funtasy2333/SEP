@@ -3,14 +3,16 @@ import type { IRBlock, IRClauseChild, IRDoc, IRFootnote, IRInline } from './type
 /** 原位条文脚注按前言→引言→正文→附录→文献顺序收集，不混入表脚注。 */
 export function collectFootnotes(doc: IRDoc, bibliographyOrder?: string[]): IRFootnote[] {
   const out: IRFootnote[] = []
+  const represented = new WeakSet<IRInline>()
   const inlines = (runs: IRInline[]) => {
-    for (const run of runs) if (run.footnote) out.push(run.footnote)
+    for (const run of runs) { represented.add(run); if (run.footnote) out.push(run.footnote) }
   }
   const block = (node: IRBlock): void => {
     switch (node.kind) {
       case 'paragraph': inlines(node.content); break
       case 'list': for (const item of node.items) item.content.forEach(block); break
-      case 'note': case 'example': node.content.forEach(block); break
+      case 'note': case 'example': case 'warning': case 'quote': node.content.forEach(block); break
+      case 'code': break
       case 'table':
         inlines(node.caption); inlines(node.captionEn ?? [])
         for (const row of node.rows) for (const cell of row.cells) cell.content.forEach(block)
@@ -32,6 +34,16 @@ export function collectFootnotes(doc: IRDoc, bibliographyOrder?: string[]): IRFo
   doc.front.foreword.forEach(block); doc.front.introduction.forEach(block)
   for (const chapter of doc.body) { inlines(chapter.title); chapter.children.forEach(child) }
   for (const appendix of doc.appendices) { inlines(appendix.title); appendix.children.forEach(child) }
+  const extras = (value: unknown): void => {
+    if (!value || typeof value !== 'object') return
+    if (Array.isArray(value)) { value.forEach(extras); return }
+    const row = value as Record<string, unknown>
+    if (typeof row.text === 'string' && !row.kind && !represented.has(row as unknown as IRInline)) inlines([row as unknown as IRInline])
+    for (const [key, child] of Object.entries(row)) {
+      if (key !== 'footnote' && key !== 'unmappedFootnotes' && key !== 'unsupportedContent' && !(row.kind === 'bibEntry' && key === 'content')) extras(child)
+    }
+  }
+  extras(doc)
   for (const entry of bibliographyOrder ? bibliographyOrder.map(id => doc.bibliography.find(entry => entry.id === id)!).filter(Boolean) : doc.bibliography) inlines(entry.content)
   return out
 }

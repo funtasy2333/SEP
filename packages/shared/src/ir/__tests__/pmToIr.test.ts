@@ -7,9 +7,12 @@ import type {
   IRFormula,
   IRList,
   IRNote,
+  IRCodeBlock,
   IRParagraph,
   IRTable,
   IRTermEntry,
+  IRReferenceTargetKind,
+  IRTitlePart,
 } from '../types'
 import * as fx from './fixtures'
 
@@ -28,6 +31,58 @@ describe('pmToIr / 元数据', () => {
       issuer: '国家市场监督管理总局',
     })
     expect(warnings).toEqual([])
+  })
+
+  it.each(['root', 'cover'] as const)('structured metadata fallback keeps inline reference payloads from %s attrs', (location) => {
+    const targetKinds = [
+      'chapter', 'clause', 'appendix', 'figure', 'table', 'formula',
+      'note', 'example', 'bibliography', 'term', 'index', 'paragraph',
+    ] as const satisfies readonly IRReferenceTargetKind[]
+    const titleParts: IRTitlePart[] = targetKinds.map((targetKind, index) => ({
+      id: `title-ref-${index}`,
+      content: [{ text: `引用${index}`, marks: [{ type: 'crossRef', targetId: `target-${index}`, targetKind }] }],
+    }))
+    titleParts.push(
+      { id: 'title-ref-no-kind', content: [{ text: '兼容引用', marks: [{ type: 'crossRef', targetId: 'legacy-target' }] }] },
+      { id: 'title-ref-table-footnote', content: [{ text: '表注', marks: [{ type: 'tableFootnoteRef', targetId: 'table-note-target', id: 'table-note-ref' }] }] },
+      { id: 'title-ref-inline-footnote', content: [{ text: '脚注宿主', footnote: { id: 'inline-footnote', content: [{ text: '脚注内容', marks: [{ type: 'crossRef', targetId: 'note-target', targetKind: 'note' }] }] } }] },
+    )
+    const input = location === 'root'
+      ? { type: 'doc', attrs: { titleParts }, content: [] }
+      : { type: 'doc', content: [{ type: 'coverPage', attrs: { titleParts }, content: [] }] }
+    const originalBytes = JSON.stringify(input)
+
+    const { doc } = pmToIr(input)
+
+    expect(doc.meta.titleParts).toEqual(titleParts)
+    expect(JSON.stringify(input)).toBe(originalBytes)
+  })
+
+  it('structured metadata fallback diagnoses invalid reference kinds and footnote payloads', () => {
+    const input = {
+      type: 'doc',
+      attrs: {
+        titleParts: [{
+          id: 'invalid-metadata-inline',
+          content: [{
+            text: '兼容文本',
+            marks: [{ type: 'crossRef', targetId: 'target', targetKind: 'not-a-reference-kind' }],
+            footnote: { id: '', content: [{ text: '脚注内容' }] },
+          }],
+        }],
+      },
+      content: [],
+    }
+
+    const { doc } = pmToIr(input)
+    const inline = doc.meta.titleParts?.[0]?.content[0]
+
+    expect(inline?.marks).toEqual([{ type: 'crossRef', targetId: 'target' }])
+    expect(inline && 'footnote' in inline).toBe(false)
+    expect(doc.unsupportedContent).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'meta.titleParts[0].content[0]', nodeType: 'metadataInline', reason: expect.stringContaining('引用目标类型') }),
+      expect.objectContaining({ path: 'meta.titleParts[0].content[0].footnote', nodeType: 'metadataInline', reason: expect.stringContaining('脚注') }),
+    ]))
   })
 
   it('未知 standardType 回退为 gb 并产生警告', () => {
@@ -186,15 +241,21 @@ describe('pmToIr / 术语条目', () => {
     expect(t1.notes.length).toBe(1)
     expect(t1.examples.length).toBe(1)
     expect(t1.source?.[0].text).toContain('[来源：GB/T 20000.1—2014')
+    // This old fixture has note→example→legacy source text and no nested/TBX
+    // structures; retain its established native IR/output contract byte-for-byte.
+    expect(t1.tailOrder).toBeUndefined()
   })
 
-  it('嵌套 termDef 拍平为同级条目并警告', () => {
+  it('嵌套 termDef 保留为术语子条目', () => {
     const nested = fx.termDef('t-in', '内层', { definition: 'd2' })
-    const outer = fx.termDef('t-out', '外层', { definition: 'd1', extra: [nested] })
-    const { doc, warnings } = pmToIr(fx.standardDoc({}, fx.chapter('c', '术语和定义', outer)))
-    const ids = doc.body[0].children.map((c) => c.id)
-    expect(ids).toEqual(['t-out', 't-in'])
-    expect(warnings.some((w) => w.includes('嵌套术语'))).toBe(true)
+    const outerPm = fx.termDef('t-out', '外层', { definition: 'd1', extra: [nested] })
+    const { doc, warnings } = pmToIr(fx.standardDoc({}, fx.chapter('c', '术语和定义', outerPm)))
+    const outer = doc.body[0].children[0] as IRTermEntry
+    expect(doc.body[0].children).toHaveLength(1)
+    expect(outer.id).toBe('t-out')
+    expect(outer.nestedEntries?.map((entry) => entry.id)).toEqual(['t-in'])
+    expect(outer.nestedEntries?.[0].term).toEqual([{ text: '内层' }])
+    expect(warnings).toEqual([])
   })
 })
 
@@ -310,6 +371,151 @@ describe('pmToIr / 块级要素', () => {
     ])
   })
 
+  it('公式内容编辑后以 formulaContent 为准，并保留富载荷、脚注和原始 MathML', () => {
+    const nativeMathml = '<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>Ω</mi><mo>≤</mo></math>'
+    const pm = fx.standardDoc({}, fx.chapter('formula-chapter', 'X', {
+      type: 'formula',
+      attrs: { nodeId: 'formula-edited', latex: '旧公式', mathml: nativeMathml },
+      content: [{
+        type: 'formulaContent',
+        content: [
+          fx.text('x=2', [{ type: 'bold' }, { type: 'textStyle', attrs: { color: '#123456' } }]),
+          {
+            type: 'formulaInline',
+            attrs: { nodeId: 'source-inline-formula', latex: 'z', source: 'z' },
+            marks: [{ type: 'variable', attrs: { kind: 'symbol', name: 'z' } }],
+          },
+          { type: 'footnoteRef', attrs: { nodeId: 'source-footnote', content: [fx.text('脚注负载')] } },
+        ],
+      }],
+    }))
+    const before = JSON.stringify(pm)
+
+    const { doc } = pmToIr(pm)
+    const formula = doc.body[0]!.children[0] as IRFormula
+
+    expect(formula.latex).toBe('x=2')
+    expect(formula.mathml).toBe(nativeMathml)
+    expect(formula.sourceInlines).toEqual([
+      { text: 'x=2', marks: [{ type: 'bold' }], style: { color: '#123456' } },
+      {
+        text: '',
+        formula: { id: 'source-inline-formula', latex: 'z', source: 'z' },
+        marks: [{ type: 'variable', kind: 'symbol', name: 'z' }],
+      },
+      { text: '', footnote: { id: 'source-footnote', content: [{ text: '脚注负载' }] } },
+    ])
+    expect(doc.unsupportedContent).toBeUndefined()
+    expect(JSON.stringify(pm)).toBe(before)
+  })
+
+  it('formulaContent 清空后保留空 LaTeX，不恢复旧 attrs.latex', () => {
+    const pm = fx.standardDoc({}, fx.chapter('formula-chapter', 'X', {
+      type: 'formula',
+      attrs: { nodeId: 'formula-cleared', latex: '已删除公式' },
+      content: [{ type: 'formulaContent', content: [] }],
+    }))
+    const before = JSON.stringify(pm)
+
+    const { doc } = pmToIr(pm)
+    const formula = doc.body[0]!.children[0] as IRFormula
+
+    expect(formula.latex).toBe('')
+    expect(doc.unsupportedContent).toBeUndefined()
+    expect(JSON.stringify(pm)).toBe(before)
+  })
+
+  it('旧文档只有 formulaContent 时继续读取正文', () => {
+    const { doc } = pmToIr(fx.standardDoc({}, fx.chapter('formula-chapter', 'X', {
+      type: 'formula',
+      attrs: { nodeId: 'formula-legacy' },
+      content: [{ type: 'formulaContent', content: [fx.text('legacy = 1')] }],
+    })))
+
+    expect((doc.body[0]!.children[0] as IRFormula).latex).toBe('legacy = 1')
+  })
+
+  it('MathML-only 公式保留原文且 LaTeX 为空', () => {
+    const nativeMathml = '<math data-native="keep"><mi>λ</mi></math>'
+    const { doc } = pmToIr(fx.standardDoc({}, fx.chapter('formula-chapter', 'X', {
+      type: 'formula',
+      attrs: { nodeId: 'formula-mathml-only', mathml: nativeMathml },
+      content: [{ type: 'formulaContent', content: [] }],
+    })))
+    const formula = doc.body[0]!.children[0] as IRFormula
+
+    expect(formula.latex).toBe('')
+    expect(formula.mathml).toBe(nativeMathml)
+  })
+
+  it('仅在缺少 formulaContent 时回退 attrs.latex，并诊断缺少内容节点', () => {
+    const nativeMathml = '<math><mi>legacy</mi></math>'
+    const { doc } = pmToIr(fx.standardDoc({}, fx.chapter('formula-chapter', 'X', {
+      type: 'formula',
+      attrs: { nodeId: 'formula-no-content', latex: 'fallback = 1', mathml: nativeMathml },
+      content: [],
+    })))
+    const formula = doc.body[0]!.children[0] as IRFormula
+
+    expect(formula.latex).toBe('fallback = 1')
+    expect(formula.mathml).toBe(nativeMathml)
+    expect(doc.unsupportedContent).toEqual(expect.arrayContaining([
+      expect.objectContaining({ nodeId: 'formula-no-content', nodeType: 'formula', reason: expect.stringContaining('formulaContent数量为0') }),
+    ]))
+  })
+
+  it('formulaDescription 拆分/裁剪保留完整行内载荷且不修改 PM 输入', () => {
+    const pm = fx.standardDoc({}, fx.chapter('chapter', 'X', {
+      type: 'formula',
+      attrs: { nodeId: 'formula-payload', latex: 'x=1', numbered: true },
+      content: [
+        { type: 'formulaContent', content: [fx.text('x=1')] },
+        {
+          type: 'formulaDescription',
+          content: [
+            fx.text('式中：A——定义', [
+              { type: 'bold' },
+              { type: 'textStyle', attrs: { color: '#123456' } },
+            ]),
+            {
+              type: 'formulaInline',
+              attrs: { nodeId: 'where-formula-inline', latex: 'z', source: 'z' },
+              marks: [
+                { type: 'variable', attrs: { kind: 'symbol', name: 'z' } },
+                { type: 'textStyle', attrs: { color: '#abcdef' } },
+              ],
+            },
+            { type: 'footnoteRef', attrs: { nodeId: 'where-footnote', content: [fx.text('脚注内容')] } },
+            { type: 'tableFootnoteRef', attrs: { nodeId: 'where-table-footnote', targetId: 'table-note' } },
+            fx.text('；B——第二定义', [{ type: 'italic' }]),
+          ],
+        },
+      ],
+    }))
+    const before = JSON.stringify(pm)
+
+    const { doc } = pmToIr(pm)
+    const formula = doc.body[0]!.children[0] as IRFormula
+
+    expect(formula.whereList[0]!.term).toEqual([
+      { text: 'A', marks: [{ type: 'bold' }], style: { color: '#123456' } },
+    ])
+    expect(formula.whereList[0]!.definition).toEqual([
+      { text: '定义', marks: [{ type: 'bold' }], style: { color: '#123456' } },
+      {
+        text: '',
+        formula: { id: 'where-formula-inline', latex: 'z', source: 'z' },
+        marks: [{ type: 'variable', kind: 'symbol', name: 'z' }],
+        style: { color: '#abcdef' },
+      },
+      { text: '', footnote: { id: 'where-footnote', content: [{ text: '脚注内容' }] } },
+      { text: '', marks: [{ type: 'tableFootnoteRef', targetId: 'table-note', id: 'where-table-footnote' }] },
+    ])
+    expect(formula.whereList[1]!.term).toEqual([{ text: 'B', marks: [{ type: 'italic' }] }])
+    expect(formula.whereList[1]!.definition).toEqual([{ text: '第二定义', marks: [{ type: 'italic' }] }])
+    expect(JSON.stringify(pm)).toBe(before)
+  })
+
   it('note/example 行内内容包装为派生 ID 段落', () => {
     const { doc } = pmToIr(fx.fullFixture())
     const cl41 = doc.body[3].children[0] as IRClause
@@ -320,8 +526,8 @@ describe('pmToIr / 块级要素', () => {
   })
 })
 
-describe('pmToIr / StarterKit 节点降级（历史文档兼容）', () => {
-  it('blockquote 降级为普通段落，多段以换行连接，文本不丢', () => {
+describe('pmToIr / StarterKit 节点类型化保真（WP6）', () => {
+  it('blockquote 保留为引文块，分段、ID与行内标记不丢', () => {
     const pm = fx.standardDoc({}, fx.chapter('c', 'X', {
       type: 'blockquote',
       attrs: { nodeId: 'bq' },
@@ -331,25 +537,28 @@ describe('pmToIr / StarterKit 节点降级（历史文档兼容）', () => {
       ],
     }))
     const { doc, warnings } = pmToIr(pm)
-    const p = doc.body[0].children[0] as IRParagraph
-    expect(p).toEqual({
-      kind: 'paragraph',
+    const quote = doc.body[0].children[0]
+    expect(quote).toEqual({
+      kind: 'quote',
       id: 'bq',
-      content: [{ text: '第一段', marks: [{ type: 'bold' }] }, { text: '\n' }, { text: '第二段' }],
+      content: [
+        { kind: 'paragraph', id: 'bqp1', content: [{ text: '第一段', marks: [{ type: 'bold' }] }] },
+        { kind: 'paragraph', id: 'bqp2', content: [{ text: '第二段' }] },
+      ],
     })
-    expect(warnings.filter((w) => w.includes('blockquote')).length).toBe(1)
+    expect(warnings).toEqual([])
   })
 
-  it('codeBlock 降级为普通段落，文本不丢', () => {
+  it('codeBlock 保留为带语言属性的类型化代码块', () => {
     const pm = fx.standardDoc({}, fx.chapter('c', 'X', {
       type: 'codeBlock',
-      attrs: { nodeId: 'cb' },
+      attrs: { nodeId: 'cb', language: 'typescript' },
       content: [fx.text('const x = 1')],
     }))
     const { doc, warnings } = pmToIr(pm)
-    const p = doc.body[0].children[0] as IRParagraph
-    expect(p).toEqual({ kind: 'paragraph', id: 'cb', content: [{ text: 'const x = 1' }] })
-    expect(warnings.filter((w) => w.includes('codeBlock')).length).toBe(1)
+    const code = doc.body[0].children[0] as IRCodeBlock
+    expect(code).toEqual({ kind: 'code', id: 'cb', language: 'typescript', text: 'const x = 1' })
+    expect(warnings).toEqual([])
   })
 
   it('horizontalRule 跳过并警告', () => {
@@ -394,7 +603,7 @@ describe('pmToIr / 行内与健壮性', () => {
       [{ type: 'bold' }],
       [{ type: 'sub' }],
       [{ type: 'sup' }],
-      [{ type: 'crossRef', targetId: 'target-1' }],
+      [{ type: 'crossRef', targetId: 'target-1', targetKind: 'clause' }],
     ])
   })
 

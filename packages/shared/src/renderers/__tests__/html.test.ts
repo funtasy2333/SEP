@@ -8,12 +8,14 @@ import { pmToIr } from '../../ir/pmToIr'
 import { resolve } from '../../ir/resolve'
 import { renderHtml } from '../html'
 import { printCss } from '../printCss'
-import { fullFixture, landscapeFixture } from '../../ir/__tests__/fixtures'
+import { fullRendererFixture } from './fullRendererFixture'
+import { landscapeFixture } from '../../ir/__tests__/fixtures'
 import type { IRDoc, NodeId, ResolvedLabel } from '../../ir/types'
 
 function renderFixture(variant: 'screen' | 'print'): string {
-  const { doc } = pmToIr(fullFixture())
-  const { labels } = resolve(doc)
+  const { doc } = pmToIr(fullRendererFixture())
+  const { labels, problems } = resolve(doc)
+  expect(problems.filter((problem) => problem.code === 'dangling-xref' || problem.code === 'dangling-typed-ref')).toEqual([])
   return renderHtml(doc, labels, { variant })
 }
 

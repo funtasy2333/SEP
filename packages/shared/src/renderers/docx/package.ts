@@ -69,6 +69,8 @@ export interface DocxPackageInput {
   numberingXml?: string
   /** 页眉页脚、图片等关联部件（顺序即分配 ID 时的调用顺序） */
   relatedParts?: readonly DocxRelatedPart[]
+  /** Authoring metadata preserved as native package custom properties, without changing body layout. */
+  customProperties?: Readonly<Record<string, string>>
 }
 
 /** 用 Map 而不是 plain object：plain object 按外部扩展名字符串查找会命中 Object.prototype
@@ -208,6 +210,16 @@ function appPropsXml(): string {
   return `${XML_DECL}<Properties ${NS}><Application>SES</Application></Properties>`
 }
 
+function customPropsXml(properties: readonly [string, string][]): string {
+  const ns = 'xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties" ' +
+    'xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"'
+  const body = properties.map(([name, value], index) =>
+    `<property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="${index + 2}" name="${escapeXmlAttr(name)}">` +
+    `<vt:lpwstr>${escapeXmlText(value).replace(/\r/g, '&#13;')}</vt:lpwstr></property>`,
+  ).join('')
+  return `${XML_DECL}<Properties ${ns}>${body}</Properties>`
+}
+
 export function buildPackage(input: DocxPackageInput): DocxPackage {
   const parts: Record<string, string> = {}
   const binaries: Record<string, string> = {}
@@ -263,6 +275,8 @@ export function buildPackage(input: DocxPackageInput): DocxPackage {
   const createdAt = normalizeIsoSeconds(input.createdAt)
   parts['docProps/core.xml'] = corePropsXml(input.title, createdAt)
   parts['docProps/app.xml'] = appPropsXml()
+  const customProperties = Object.entries(input.customProperties ?? {}).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
+  if (customProperties.length) parts['docProps/custom.xml'] = customPropsXml(customProperties)
 
   // ---- 关系与内容类型 ----
   parts['word/_rels/document.xml.rels'] = relationshipsXml(docRels)
@@ -270,12 +284,14 @@ export function buildPackage(input: DocxPackageInput): DocxPackage {
     { id: 'rId1', type: `${REL}officeDocument`, target: 'word/document.xml' },
     { id: 'rId2', type: `${PKG_REL}metadata/core-properties`, target: 'docProps/core.xml' },
     { id: 'rId3', type: `${REL}extended-properties`, target: 'docProps/app.xml' },
+    ...(customProperties.length ? [{ id: 'rId4', type: `${REL}custom-properties`, target: 'docProps/custom.xml' }] : []),
   ])
   parts['[Content_Types].xml'] = contentTypesXml(binaryExtensions, [
     { partName: 'word/document.xml', contentType: `${WML}document.main+xml` },
     ...overrides,
     { partName: 'docProps/core.xml', contentType: 'application/vnd.openxmlformats-package.core-properties+xml' },
     { partName: 'docProps/app.xml', contentType: 'application/vnd.openxmlformats-officedocument.extended-properties+xml' },
+    ...(customProperties.length ? [{ partName: 'docProps/custom.xml', contentType: 'application/vnd.openxmlformats-officedocument.custom-properties+xml' }] : []),
   ])
 
   return { parts, binaries, warnings }

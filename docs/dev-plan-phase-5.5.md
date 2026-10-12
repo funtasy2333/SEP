@@ -508,6 +508,8 @@ Resolver 及消费这些数据的输出边界。需要改动既有接口时，�
 
 ### WP6：JSON 渲染迁移与新国标数据模型补齐（依赖 WP3）
 
+> 2026-10-05：实现与项目契约验收通过，待 PR 审阅及合并；结果、兼容差异和未支持出口见 [WP6 验收记录](wp6-validation.md)。新 XML 正式约定与互操作验收仍属于 WP8。
+
 - 用当前生产 JSON 导出器和全要素文档建立 JSON golden；迁移为
   `packages/shared/src/renderers/json.ts`，client 改薄壳，编号只消费 Resolver。
 - 按第2.6节补齐 IR、生产 Schema、PM→IR 及新增 `irToPm` 双向适配；记录字段、

@@ -34,7 +34,7 @@ export const DOCUMENT_SETTINGS_FIELDS = [
 
 /** Cover values are the editor/XML source of truth; legacy root attributes remain synchronized when present. */
 export const COVER_SETTINGS_KEYS = [
-  'standardType', 'standardNo', 'titleCn', 'titleEn', 'icsCode', 'ccsCode', 'issuer',
+  'standardType', 'standardNo', 'titleCn', 'titleEn', 'icsCode', 'ccsCode', 'issuer', 'applicant', 'proposer', 'technicalCommittee',
   'publishDate', 'implementDate', 'replaces', 'consistency', 'filingNo', 'industryName', 'regionName', 'coverDesignation',
 ] as const satisfies ReadonlyArray<keyof DocumentMeta>
 

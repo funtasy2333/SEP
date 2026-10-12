@@ -1,7 +1,7 @@
 import type { CreateDocumentDto, Document, DocumentMeta, PMJsonNode } from '@ses/shared'
 
 const COVER_META_KEYS = [
-  'standardType', 'standardNo', 'titleCn', 'titleEn', 'icsCode', 'ccsCode', 'issuer',
+  'standardType', 'standardNo', 'titleCn', 'titleEn', 'icsCode', 'ccsCode', 'issuer', 'applicant', 'proposer', 'technicalCommittee',
   'publishDate', 'implementDate', 'replaces', 'consistency', 'filingNo', 'industryName', 'regionName', 'coverDesignation',
 ] as const satisfies ReadonlyArray<keyof DocumentMeta>
 

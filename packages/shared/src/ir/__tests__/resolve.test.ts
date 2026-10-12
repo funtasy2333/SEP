@@ -4,6 +4,8 @@ import { resolve } from '../resolve'
 import { gbT11Strategy } from '../strategies'
 import type {
   IRBibEntry,
+  IRBlock,
+  IRReferenceTargetKind,
   IRChapter,
   IRDoc,
   IRExample,
@@ -210,9 +212,11 @@ describe('resolve / 遍历顺序（§4.7）：DOCX 输出顺序与 Resolver 遍�
 })
 
 describe('resolve / problems', () => {
-  it('全要素文档无任何 problems', () => {
+  it('旧黄金样本的默认 clause 类型与表/图/公式/文献目标不一致时明确报告', () => {
     const { problems } = resolveFull()
-    expect(problems).toEqual([])
+    expect(problems).toHaveLength(4)
+    expect(problems.every(problem => problem.code === 'dangling-typed-ref')).toBe(true)
+    expect(problems.map(problem => problem.nodeId)).toEqual(['p-411', 'p-4211', 'p-4211', 'p-4221'])
   })
 
   it('dangling-xref：引用目标不存在', () => {
@@ -225,13 +229,13 @@ describe('resolve / problems', () => {
     ])
   })
 
-  it('dangling-xref：目标存在但没有编号', () => {
+  it('无编号段落被声明为条引用时同时报告类型不匹配和缺少引用文本', () => {
     const pm = fx.standardDoc({}, fx.chapter('c1', 'X',
       fx.para('p1', fx.text('正文')),
       fx.para('p2', fx.xref('引段落', 'p1')),
     ))
     const { problems } = resolve(pmToIr(pm).doc)
-    expect(problems.map((p) => p.code)).toEqual(['dangling-xref'])
+    expect(problems.map((p) => p.code)).toEqual(['dangling-typed-ref', 'dangling-xref'])
   })
 
   it('duplicate-id：同一 ID 出现两次', () => {
@@ -336,5 +340,47 @@ describe('resolve / 纯函数性', () => {
   it('返回的 doc 即入参引用（不复制树）', () => {
     const ir = pmToIr(fx.fullFixture()).doc
     expect(resolve(ir).doc).toBe(ir)
+  })
+})
+
+
+describe('typed references to existing unnumbered targets', () => {
+  const targets: IRBlock[] = [
+    { kind: 'paragraph', id: 'target', content: [{ text: '目标段落' }] },
+    { kind: 'formula', id: 'target', latex: 'x', numbered: false, whereList: [] },
+  ]
+  function authored(target: IRBlock, order: 'wrong-first' | 'correct-first'): IRDoc {
+    const reference = (id: string, targetKind: IRReferenceTargetKind): IRParagraph => ({
+      kind: 'paragraph', id, content: [{ text: '引用', marks: [{ type: 'crossRef', targetId: target.id, targetKind }] }],
+    })
+    const wrong = reference('wrong', 'figure')
+    const correct = reference('correct', target.kind as IRReferenceTargetKind)
+    return {
+      schemaVersion: 1, meta: { standardType: 'gb' }, front: { foreword: [], introduction: [] },
+      body: [{ kind: 'chapter', id: 'chapter', secType: 'general', title: [{ text: '正文' }],
+        children: [target, ...(order === 'wrong-first' ? [wrong, correct] : [correct, wrong])],
+      }], appendices: [], bibliography: [],
+    }
+  }
+  for (const target of targets) {
+    it.each(['wrong-first', 'correct-first'] as const)(`reports mismatched figure reference to ${target.kind} with %s traversal`, order => {
+      const result = resolve(authored(target, order))
+      expect(result.problems.filter(problem => problem.severity === 'error')).toEqual([
+        expect.objectContaining({ code: 'dangling-typed-ref', nodeId: 'wrong', message: expect.stringContaining(target.kind) }),
+      ])
+      expect(result.labels.target.label).toBe('')
+    })
+    it(`allows a correctly typed reference to unnumbered ${target.kind}`, () => {
+      const input = authored(target, 'correct-first')
+      input.body[0].children.pop()
+      expect(resolve(input).problems.filter(problem => problem.severity === 'error')).toEqual([])
+    })
+  }
+  it('reports a missing cross-reference target once through dangling-xref', () => {
+    const input = authored(targets[0], 'wrong-first')
+    input.body[0].children = [input.body[0].children[1]]
+    expect(resolve(input).problems).toEqual([
+      expect.objectContaining({ code: 'dangling-xref', nodeId: 'wrong' }),
+    ])
   })
 })

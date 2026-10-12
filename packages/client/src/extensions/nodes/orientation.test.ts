@@ -11,6 +11,7 @@ import { FootnoteRef, TableFootnoteRef } from './footnotes'
 import { Note } from './note'
 import { ChapterTitle } from './chapter'
 import { serializeToXml } from '../../serializer/xmlSerializer'
+import { FigureDescription, FigureGroup, FigureResourceRef } from './semantic'
 
 const TestChapter = Node.create({
   name: 'chapter',
@@ -41,6 +42,9 @@ function createSchema() {
     FigureImage,
     FigureCaption,
     FigureCaptionEn,
+    FigureDescription,
+    FigureGroup,
+    FigureResourceRef,
   ])
 }
 

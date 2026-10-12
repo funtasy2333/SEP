@@ -44,7 +44,7 @@ export function toIrStandardType(t: string | undefined): IRStandardType | undefi
  * 数据库文档元数据 → IR 元数据覆盖项：titleCn→title、standardNo→stdCode，titleEn/icsCode/ccsCode/issuer/
  * applicant/publishDate/implementDate/replaces/consistency/filingNo/industryName/regionName/coverDesignation 同名复制，
  * standardType 经 toIrStandardType。只跳过 undefined，空字符串照常复制（与现行 EditorView 的 buildDocMeta 一致）。
- * proposer、technicalCommittee 不进 IR。
+ * WP6 起 proposer、technicalCommittee 也保留，避免文件设置在 IR 往返时丢失。
  */
 export function irMetaFromDocumentMeta(meta: DocumentMeta | undefined): Partial<IRDocMeta> {
   const out: Partial<IRDocMeta> = {}
@@ -59,6 +59,8 @@ export function irMetaFromDocumentMeta(meta: DocumentMeta | undefined): Partial<
   set('ccsCode', meta.ccsCode)
   set('issuer', meta.issuer)
   set('applicant', meta.applicant)
+  set('proposer', meta.proposer)
+  set('technicalCommittee', meta.technicalCommittee)
   set('replaces', meta.replaces)
   set('consistency', meta.consistency)
   set('filingNo', meta.filingNo)

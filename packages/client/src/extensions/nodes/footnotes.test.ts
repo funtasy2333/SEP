@@ -128,7 +128,9 @@ describe('脚注编辑 schema 与命令', () => {
     expect(editor.commands.insertTableFootnoteRef({ targetId: 'inner-a' })).toBe(true)
     const converted = pmToIr(editor.getJSON() as PMJsonNode)
     // 当前单元格转换不支持内嵌 stdTable；过去无错误是内表被跳过，不能作为合法导出的证明。
-    expect(converted.warnings).toContain('未知节点类型「stdTable」（位于表格单元格），已跳过')
+    expect(converted.doc.unsupportedContent).toEqual(expect.arrayContaining([expect.objectContaining({
+      nodeType: 'stdTable', reason: '当前IR/新国标交换模型不支持嵌套表格',
+    })]))
     expect(converted.doc.unmappedFootnotes?.some(source => source.content.some(run =>
       run.marks?.some(mark => mark.type === 'tableFootnoteRef' && mark.targetId.startsWith('inner-'))))).toBe(true)
     expect(resolve(converted.doc).problems.some(p => p.code === 'invalid-footnote')).toBe(true)

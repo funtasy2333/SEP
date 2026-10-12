@@ -5,6 +5,24 @@ import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { generateNodeId, type PMJsonNode } from '@ses/shared'
 import { normalizePageOrientation, readPageOrientation } from '../../utils/orientation'
 
+function stringAttribute(name: string, defaultValue: string | null = null) {
+  return { default: defaultValue, parseHTML: (element: HTMLElement) => element.getAttribute(name) ?? defaultValue }
+}
+
+function legacyTableFootnoteContentElement(element: HTMLElement): HTMLElement {
+  const content = element.ownerDocument.createElement('span')
+  for (const child of Array.from(element.childNodes)) {
+    const copy = child.cloneNode(true)
+    if (copy.nodeType === 1) {
+      const copyElement = copy as HTMLElement
+      if (copyElement.matches('[data-table-footnote-label]')) continue
+      copyElement.querySelectorAll('[data-table-footnote-label]').forEach(label => label.remove())
+    }
+    content.append(copy)
+  }
+  return content
+}
+
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     stdTable: {
@@ -51,6 +69,22 @@ export const StdTable = Node.create({
       id: { default: null },
       /** 自动编号 */
       number: { default: null },
+      unit: stringAttribute('unit'),
+      /** 重复表头行数独立于单元格类型；null 兼容旧表格的自动推断。 */
+      headerRowCount: { default: null },
+      /** 表格整体宽度与样式字段，均为JSON安全的标量。 */
+      width: { default: null },
+      widthUnit: stringAttribute('widthUnit'),
+      layout: stringAttribute('layout'),
+      borderModel: stringAttribute('borderModel'),
+      textAlign: stringAttribute('textAlign'),
+      verticalAlign: stringAttribute('verticalAlign'),
+      borderColor: stringAttribute('borderColor'),
+      borderWidth: { default: null },
+      borderWidthUnit: stringAttribute('borderWidthUnit'),
+      backgroundColor: stringAttribute('backgroundColor'),
+      cellPadding: { default: null },
+      cellPaddingUnit: stringAttribute('cellPaddingUnit'),
       orientation: {
         default: 'portrait',
         parseHTML: (element) => readPageOrientation(element),
@@ -399,7 +433,13 @@ export const TableFootnoteEntry = Node.create({
   defining: true,
 
   parseHTML() {
-    return [{ tag: 'p[data-type="table-footnote-entry"]' }]
+    return [{
+      tag: 'p[data-type="table-footnote-entry"]',
+      priority: 51,
+      contentElement: element =>
+        element.querySelector<HTMLElement>(':scope > .std-table-footnote-entry-content')
+          ?? legacyTableFootnoteContentElement(element),
+    }]
   },
 
   renderHTML({ HTMLAttributes }): DOMOutputSpec {
@@ -407,7 +447,7 @@ export const TableFootnoteEntry = Node.create({
       'p',
       mergeAttributes(HTMLAttributes, { 'data-type': 'table-footnote-entry', class: 'std-table-footnote-entry' }),
       ['sup', { 'data-table-footnote-label': '' }, ''],
-      0,
+      ['span', { class: 'std-table-footnote-entry-content' }, 0],
     ]
   },
 

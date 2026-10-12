@@ -26,6 +26,7 @@ import type {
 } from './types'
 import { MISSING_ID_PREFIX } from './pmToIr'
 import { gbT11Strategy } from './strategies'
+import { orderedTermTail } from './termTailOrder'
 
 // ---------- 内部上下文 ----------
 
@@ -35,14 +36,18 @@ interface NoteScope {
 }
 
 class ResolveCtx {
-  labels: Record<NodeId, ResolvedLabel> = {}
+  labels: Record<NodeId, ResolvedLabel> = Object.create(null) as Record<NodeId, ResolvedLabel>
   problems: IRProblem[] = []
   /** 文档内出现过的全部 nodeId（含派生子 ID），用于重复检测与 xref 解析 */
   seenIds = new Set<NodeId>()
   /** 交叉引用出现顺序：[targetId, 所在块 nodeId] */
-  xrefs: { targetId: NodeId; fromId: NodeId }[] = []
+  xrefs: { targetId: NodeId; fromId: NodeId; typed?: boolean }[] = []
   /** 注/示例按作用域分组（作用域 = 最近的条或章/附录/术语条目/前言/引言/表/图） */
   scopes = new Map<string, NoteScope>()
+  visitedInlines = new WeakSet<IRInline>()
+  kinds = new Map<NodeId, string>()
+  targetTexts = new Map<NodeId, string>()
+  typedRefs: { targetId: NodeId; fromId: NodeId; expectedKind: string; refKind: 'crossRef' | 'bibRef' | 'termRef' }[] = []
   /** note/example 的 xmlId 全局序号（按文档顺序，确定性） */
   noteSeq = 0
   exampleSeq = 0
@@ -64,7 +69,7 @@ class ResolveCtx {
   }
 
   registerId(id: NodeId): void {
-    if (id.startsWith(MISSING_ID_PREFIX)) {
+    if (typeof id !== 'string' || !id || id.startsWith(MISSING_ID_PREFIX)) {
       this.problems.push({
         code: 'missing-id',
         nodeId: id,
@@ -107,6 +112,12 @@ type ForbiddenFootnoteContainer = '标题' | '图' | '公式主体' | '公式说
 
 function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx, forbiddenContainer?: ForbiddenFootnoteContainer): void {
   for (const run of inlines) {
+    ctx.visitedInlines.add(run)
+    if (run.formula) {
+      ctx.registerId(run.formula.id)
+      ctx.kinds.set(run.formula.id, 'formula')
+      ctx.setLabel(run.formula.id, '', stableExtensionXmlId(run.formula.id), '行内公式')
+    }
     if (run.footnote) {
       const note = run.footnote
       if (ctx.seenIds.has(note.id) || note.id.startsWith(MISSING_ID_PREFIX)) ctx.problems.push({ code: 'invalid-footnote', nodeId: note.id, severity: 'error', message: '脚注必须具有文档内唯一的稳定 ID' })
@@ -125,6 +136,11 @@ function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx, forb
     for (const mark of run.marks ?? []) {
       if (mark.type === 'crossRef') {
         ctx.xrefs.push({ targetId: mark.targetId, fromId })
+        if (mark.targetKind) ctx.typedRefs.push({ targetId: mark.targetId, fromId, expectedKind: mark.targetKind, refKind: mark.type })
+      }
+      if (mark.type === 'bibRef' || mark.type === 'termRef') {
+        ctx.xrefs.push({ targetId: mark.targetId, fromId, typed: true })
+        ctx.typedRefs.push({ targetId: mark.targetId, fromId, expectedKind: mark.type === 'bibRef' ? 'bibliography' : 'term', refKind: mark.type })
       }
       if (mark.type === 'tableFootnoteRef') {
         const scope = ctx.tableFootnotes
@@ -159,6 +175,24 @@ function labelFigureOrTable(id: NodeId, kind: 'fig' | 'tab', ctx: ResolveCtx): v
 function visitNoteContent(note: IRNote, ctx: ResolveCtx, forbiddenContainer?: ForbiddenFootnoteContainer): void {
   ctx.registerId(note.id)
   for (const block of note.content) visitBlock(block, note.id, ctx, forbiddenContainer)
+}
+
+/** Metadata inline fields precede the body and are serialized in this order by irToPm. */
+function visitMetadataInlines(meta: IRDoc['meta'], ctx: ResolveCtx): void {
+  for (const titlePart of meta.titleParts ?? []) {
+    visitInlines(titlePart.content, titlePart.id, ctx, '标题')
+  }
+  for (const identifier of meta.identifiers ?? []) {
+    for (const part of identifier.parts) visitInlines(part.content, part.id, ctx)
+  }
+  for (const publisher of meta.publishers ?? []) {
+    visitInlines(publisher.name, publisher.id, ctx)
+  }
+  for (const copyright of meta.copyrights ?? []) {
+    // holder is projected into a plain-text attribute; PM rejects marks on it.
+    if (copyright.holder) visitInlines(copyright.holder, copyright.id, ctx)
+    visitInlines(copyright.statement, copyright.id, ctx)
+  }
 }
 
 /**
@@ -221,6 +255,16 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
       labelFigureOrTable(block.id, 'fig', ctx)
       visitInlines(block.caption, block.id, ctx, '图')
       if (block.captionEn) visitInlines(block.captionEn, block.id, ctx, '图')
+      // Extended descriptions are emitted directly after the captions. Visit their
+      // inline references here so bibliography order follows the figure's position.
+      for (const description of block.descriptions ?? []) {
+        visitInlines(description.content, description.id, ctx, '图')
+      }
+      for (const group of block.groups ?? []) {
+        for (const description of group.descriptions) {
+          visitInlines(description.content, description.id, ctx, '图')
+        }
+      }
       break
     }
     case 'formula': {
@@ -240,6 +284,12 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
           ctx.problems.push({ code: 'invalid-footnote', nodeId: block.id, severity: 'error', message: '公式主体中不能插入表脚注上标' })
         }
       }
+      for (const note of block.notes ?? []) {
+        // Formula notes have no `kind` discriminator in IRFormulaNote. The generic
+        // extension scan preserves a kind registered here instead of assigning `entity`.
+        ctx.kinds.set(note.id, 'note')
+        visitInlines(note.content, note.id, ctx, '公式说明')
+      }
       for (const item of block.whereList) {
         ctx.registerId(item.id)
         visitInlines(item.term, item.id, ctx, '公式说明')
@@ -247,6 +297,13 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
       }
       break
     }
+    case 'warning': case 'quote':
+      ctx.registerId(block.id)
+      for (const child of block.content) visitBlock(child, scopeKey, ctx, forbiddenContainer)
+      break
+    case 'code':
+      ctx.registerId(block.id)
+      break
     case 'note':
       visitNoteContent(block, ctx, forbiddenContainer)
       ctx.scope(scopeKey).notes.push({ id: block.id })
@@ -274,17 +331,53 @@ function visitTermEntry(
   ctx.setLabel(entry.id, numberPath, `sec_${numberPath}`, numberPath)
   visitInlines(entry.term, entry.id, ctx)
   if (entry.termEn) visitInlines(entry.termEn, entry.id, ctx)
-  for (const block of entry.definition) visitBlock(block, entry.id, ctx)
-  for (const example of entry.examples) {
-    ctx.registerId(example.id)
-    for (const block of example.content) visitBlock(block, example.id, ctx)
-    ctx.scope(entry.id).examples.push({ id: example.id })
+  if (entry.definition[0]) visitBlock(entry.definition[0], entry.id, ctx)
+  // Legacy native IR retains the published DOCX sequence example→note→source.
+  // PM-imported extended terms use explicit order so nested/TBX references follow
+  // the visible author sequence without changing that no-metadata contract.
+  const tail = orderedTermTail(entry, 'resolver')
+  if (tail.issue) ctx.problems.push({
+    code: 'unsupported-content',
+    nodeId: entry.id,
+    severity: 'error',
+    message: `术语条目 tailOrder 无效：${tail.issue}`,
+  })
+  for (const item of tail.items) {
+    switch (item.kind) {
+      case 'definition':
+        visitBlock(item.value, entry.id, ctx)
+        break
+      case 'example': {
+        const example = item.value
+        ctx.registerId(example.id)
+        for (const block of example.content) visitBlock(block, example.id, ctx)
+        ctx.scope(entry.id).examples.push({ id: example.id })
+        break
+      }
+      case 'note': {
+        const note = item.value
+        visitNoteContent(note, ctx)
+        ctx.scope(entry.id).notes.push({ id: note.id })
+        break
+      }
+      case 'source':
+        visitInlines(item.value, entry.id, ctx)
+        break
+      case 'nestedEntry':
+        visitTermEntry(item.value, `${numberPath}.${item.index + 1}`, ctx)
+        break
+      case 'languageSet':
+        for (const group of item.value.groups) {
+          for (const variant of group.terms) {
+            visitInlines(variant.content, variant.id, ctx)
+            for (const descriptor of variant.descriptors) {
+              visitInlines(descriptor.value, descriptor.id, ctx)
+            }
+          }
+        }
+        break
+    }
   }
-  for (const note of entry.notes) {
-    visitNoteContent(note, ctx)
-    ctx.scope(entry.id).notes.push({ id: note.id })
-  }
-  if (entry.source) visitInlines(entry.source, entry.id, ctx)
   ctx.inTerm = previousTerm
 }
 
@@ -408,7 +501,7 @@ function labelNotesAndExamples(ctx: ResolveCtx): void {
 
 function resolveBibliography(doc: IRDoc, ctx: ResolveCtx): NodeId[] {
   const bibIds = new Set(doc.bibliography.map((e) => e.id))
-  for (const entry of doc.bibliography) ctx.registerId(entry.id)
+  for (const entry of doc.bibliography) if (!ctx.seenIds.has(entry.id)) ctx.registerId(entry.id)
   // 按正文出现顺序：先被引用者按首次引用顺序，未被引用者按原顺序居后
   const order: NodeId[] = []
   const placed = new Set<NodeId>()
@@ -429,6 +522,7 @@ function resolveBibliography(doc: IRDoc, ctx: ResolveCtx): NodeId[] {
   for (const id of order) {
     const entry = doc.bibliography.find(entry => entry.id === id)!
     visitInlines(entry.content, entry.id, ctx)
+    for (const field of entry.fields ?? []) visitInlines(field.value, field.id, ctx)
   }
   return order
 }
@@ -436,7 +530,8 @@ function resolveBibliography(doc: IRDoc, ctx: ResolveCtx): NodeId[] {
 // ---------- 交叉引用校验 ----------
 
 function checkXrefs(ctx: ResolveCtx): void {
-  for (const { targetId, fromId } of ctx.xrefs) {
+  for (const { targetId, fromId, typed } of ctx.xrefs) {
+    if (typed && ctx.typedRefs.some(ref => ref.targetId === targetId && ctx.kinds.get(targetId) !== ref.expectedKind)) continue
     if (!ctx.seenIds.has(targetId)) {
       ctx.problems.push({
         code: 'dangling-xref',
@@ -452,6 +547,139 @@ function checkXrefs(ctx: ResolveCtx): void {
         message: `交叉引用的目标「${targetId}」没有编号，无法生成引用文本`,
       })
     }
+  }
+}
+
+// ---------- WP6 typed entities and targets ----------
+
+/** Project convention only; final external XML ID vocabulary belongs to WP8.1. */
+function stableExtensionXmlId(id: string): string {
+  return `ext_${Array.from(id).map(char => char.codePointAt(0)!.toString(16)).join('_')}`
+}
+
+function contentText(value: unknown): string {
+  if (!value || typeof value !== 'object') return ''
+  if (Array.isArray(value)) return value.map(contentText).join('')
+  const row = value as Record<string, unknown>
+  return typeof row.text === 'string' ? row.text : contentText(row.content)
+}
+
+/** Inline arrays emitted after the body are processed at their own output positions. */
+function collectDeferredInlineArrays(doc: IRDoc): WeakSet<object> {
+  const arrays = new WeakSet<object>()
+  const defer = (inlines: IRInline[] | undefined): void => {
+    if (inlines) arrays.add(inlines)
+  }
+  for (const entry of doc.bibliography) {
+    defer(entry.content)
+    for (const field of entry.fields ?? []) defer(field.value)
+  }
+  if (doc.index) {
+    defer(doc.index.title)
+    for (const group of doc.index.groups) {
+      defer(group.label)
+      for (const entry of group.entries) defer(entry.term)
+    }
+  }
+  return arrays
+}
+
+/** Inspect typed IDs/resources/index targets without consuming deferred inline arrays. */
+function registerExtendedData(
+  doc: IRDoc,
+  ctx: ResolveCtx,
+  deferredInlineArrays: WeakSet<object>,
+): { targetId: string; ownerId: string | null; path: string }[] {
+  const definitions = new Set<string>()
+  const resourceIds = new Set((doc.resources ?? []).map(resource => resource.id))
+  const resourceRefs: { targetId: string; ownerId: string | null; path: string }[] = []
+  const indexRefs: { targetId: string; ownerId: string | null; path: string }[] = []
+  const visit = (value: unknown, path: string, parentId: string | null, forbidden?: ForbiddenFootnoteContainer): void => {
+    if (!value || typeof value !== 'object') return
+    if (Array.isArray(value)) {
+      if (deferredInlineArrays.has(value)) return
+      value.forEach((item, index) => visit(item, `${path}[${index}]`, parentId, forbidden))
+      return
+    }
+    const row = value as Record<string, unknown>
+    const id = typeof row.id === 'string' ? row.id : null
+    const ownerId = id ?? parentId
+    const previousTerm = ctx.inTerm
+    if (row.kind === 'termEntry') ctx.inTerm = true
+    const location = row.kind === 'figure' ? '图' : row.kind === 'formula' ? '公式说明' : path.startsWith('doc.meta.titleParts[') ? '标题' : forbidden
+    if (id !== null) {
+      if (definitions.has(id) && !ctx.problems.some(problem => problem.code === 'duplicate-id' && problem.nodeId === id)) {
+        ctx.problems.push({ code: 'duplicate-id', nodeId: id, severity: 'error', message: `节点 ID「${id}」在文档中重复出现（${path}）` })
+      }
+      definitions.add(id)
+      const kind = row.kind === 'termEntry' ? 'term' : row.kind === 'bibEntry' ? 'bibliography'
+        : typeof row.kind === 'string' ? row.kind
+          : path === 'doc.index' ? 'index' : path.startsWith('doc.resources[') ? 'resource' : 'entity'
+      // Inline formula registration already supplied its specific kind.
+      if (!ctx.kinds.has(id) || kind !== 'entity') ctx.kinds.set(id, kind)
+      ctx.targetTexts.set(id, contentText(row.content ?? row.term ?? row.title ?? row.name ?? row.value).slice(0, 40) || id)
+      const alreadyRegistered = ctx.seenIds.has(id)
+      if (!alreadyRegistered) ctx.registerId(id)
+      if (!alreadyRegistered || (!ctx.labels[id] && ['warning', 'quote', 'code'].includes(kind))) {
+        ctx.setLabel(id, '', stableExtensionXmlId(id), ctx.targetTexts.get(id)!)
+      }
+    }
+    if (typeof row.text === 'string' && !row.kind && !ctx.visitedInlines.has(row as unknown as IRInline)) {
+      visitInlines([row as unknown as IRInline], ownerId ?? path, ctx, location)
+    }
+    for (const [key, child] of Object.entries(row)) {
+      const at = `${path}.${key}`
+      if (key === 'resourceId' && typeof child === 'string') resourceRefs.push({ targetId: child, ownerId, path: at })
+      if ((key === 'resourceRefs' || key === 'targets' || key === 'seeAlso') && Array.isArray(child)) {
+        for (const targetId of child) if (typeof targetId === 'string') {
+          (key === 'resourceRefs' ? resourceRefs : indexRefs).push({ targetId, ownerId, path: at })
+        }
+      }
+      if (key !== 'unsupportedContent' && key !== 'unmappedFootnotes' && !(row.kind === 'bibEntry' && key === 'content')) visit(child, at, ownerId, location)
+    }
+    ctx.inTerm = previousTerm
+  }
+  visit(doc, 'doc', null)
+  for (const ref of resourceRefs) if (!resourceIds.has(ref.targetId)) {
+    ctx.problems.push({ code: 'dangling-resource', nodeId: ref.ownerId, severity: 'error', message: `${ref.path} 的资源目标「${ref.targetId}」不存在` })
+  }
+  for (const issue of doc.unsupportedContent ?? []) {
+    ctx.problems.push({ code: 'unsupported-content', nodeId: issue.nodeId, severity: 'error', message: `${issue.path}（${issue.nodeType}）：${issue.reason}` })
+  }
+  return indexRefs
+}
+
+function checkTypedReferences(ctx: ResolveCtx): void {
+  for (const ref of ctx.typedRefs) {
+    const actualKind = ctx.kinds.get(ref.targetId)
+    // Missing crossRef targets are reported by checkXrefs; existing targets must
+    // still be type-checked even when no numbered label has been assigned.
+    if (ref.refKind === 'crossRef' && !ctx.seenIds.has(ref.targetId)) continue
+    if (actualKind !== ref.expectedKind) {
+      ctx.problems.push({ code: 'dangling-typed-ref', nodeId: ref.fromId, severity: 'error', message: `引用目标「${ref.targetId}」应为 ${ref.expectedKind}，实际为 ${actualKind ?? '不存在'}` })
+    } else if (!ctx.labels[ref.targetId]) {
+      // Explicit typed targets can reference entities without a numbered label.
+      ctx.setLabel(ref.targetId, '', stableExtensionXmlId(ref.targetId), ctx.targetTexts.get(ref.targetId) ?? ref.targetId)
+    }
+  }
+}
+
+/** Index content is serialized after the bibliography and must not affect its order. */
+function visitIndexInlines(index: IRDoc['index'], ctx: ResolveCtx): void {
+  if (!index) return
+  if (index.title) visitInlines(index.title, index.id, ctx)
+  for (const group of index.groups) {
+    if (group.label) visitInlines(group.label, group.id, ctx)
+    for (const entry of group.entries) visitInlines(entry.term, entry.id, ctx)
+  }
+}
+
+function checkIndexTargets(
+  refs: { targetId: string; ownerId: string | null; path: string }[],
+  ctx: ResolveCtx,
+): void {
+  for (const ref of refs) if (!ctx.seenIds.has(ref.targetId)) {
+    ctx.problems.push({ code: 'dangling-index-target', nodeId: ref.ownerId, severity: 'error', message: `${ref.path} 的索引目标「${ref.targetId}」不存在` })
   }
 }
 
@@ -475,6 +703,8 @@ export function resolve(doc: IRDoc, strategy: NumberingStrategy = gbT11Strategy)
     visitInlines(source.content, source.nodeId, ctx)
   }
 
+  visitMetadataInlines(doc.meta, ctx)
+
   // 前置部分（前言/引言）：注/示例作用域为各自部分；图表公式与正文共用计数器
   for (const block of doc.front.foreword) visitBlock(block, 'front.foreword', ctx)
   for (const block of doc.front.introduction) visitBlock(block, 'front.introduction', ctx)
@@ -482,7 +712,12 @@ export function resolve(doc: IRDoc, strategy: NumberingStrategy = gbT11Strategy)
   doc.body.forEach((chapter, i) => visitChapter(chapter, i + 1, ctx))
   doc.appendices.forEach((appendix, i) => visitAppendix(appendix, i + 1, ctx))
 
+  const deferredInlineArrays = collectDeferredInlineArrays(doc)
+  const indexTargets = registerExtendedData(doc, ctx, deferredInlineArrays)
   const bibliographyOrder = resolveBibliography(doc, ctx)
+  visitIndexInlines(doc.index, ctx)
+  checkIndexTargets(indexTargets, ctx)
+  checkTypedReferences(ctx)
   labelNotesAndExamples(ctx)
   checkXrefs(ctx)
 

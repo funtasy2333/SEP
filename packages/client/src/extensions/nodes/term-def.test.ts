@@ -3,7 +3,7 @@ import { Editor } from '@tiptap/core'
 import { TextSelection } from '@tiptap/pm/state'
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
-import { pmToIr, type PMJsonNode } from '@ses/shared'
+import { irToPm, pmToIr, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from '../editorExtensions'
 import { serializeToXml } from '../../serializer/xmlSerializer'
 import { buildDocxBlob } from '../../serializer/docxExporter'
@@ -22,6 +22,7 @@ type TermFields = {
 
 type JsonNode = {
   type: string
+  attrs?: Record<string, unknown>
   text?: string
   marks?: Array<{ type: string }>
   content?: JsonNode[]
@@ -278,6 +279,11 @@ describe('真实 Tiptap 术语编辑器的键盘行为', () => {
       const jsonTerm = termNode(editor)
       expect(jsonTerm?.content?.[2]?.type).toBe('stdParagraph')
       expect(jsonTerm?.content?.[2]?.content?.map((node) => node.text).join('')).toBe('续段后文')
+      const firstDefinitionId = jsonTerm?.content?.[1]?.attrs?.nodeId
+      const continuationId = jsonTerm?.content?.[2]?.attrs?.nodeId
+      expect(typeof firstDefinitionId).toBe('string')
+      expect(typeof continuationId).toBe('string')
+      expect(firstDefinitionId).not.toBe(continuationId)
 
       const editorJson = editor.getJSON()
       const pmDoc: PMJsonNode = {
@@ -295,6 +301,14 @@ describe('真实 Tiptap 术语编辑器的键盘行为', () => {
           return paragraph.content.map((inline) => inline.text).join('')
         }))
           .toEqual(['定义', '续段后文'])
+        expect(entry.definition.map(paragraph => paragraph.id)).toEqual([firstDefinitionId, continuationId])
+
+        const written = irToPm(ir)
+        const reopened = editor.schema.nodeFromJSON(written)
+        reopened.check()
+        const after = pmToIr(reopened.toJSON() as PMJsonNode).doc.body[0]?.children.find(child => child.kind === 'termEntry')
+        if (after?.kind !== 'termEntry') throw new Error('IR 回写后缺少术语条目')
+        expect(after.definition).toEqual(entry.definition)
       }
 
       const xml = serializeToXml(editor.state.doc)

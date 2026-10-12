@@ -1,0 +1,584 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "coverPage",
+      "attrs": {
+        "standardNo": "GB/T XXXXX—2024",
+        "standardType": "national",
+        "titleCn": "信息技术 标准编写系统 技术要求",
+        "titleEn": "Information technology — Standards editing system — Technical requirements",
+        "publishDate": "2024-12-01",
+        "implementDate": "2025-07-01",
+        "issuer": "国家市场监督管理总局",
+        "ccsCode": "L 67",
+        "icsCode": "35.240",
+        "replaces": "",
+        "consistency": "",
+        "filingNo": "",
+        "industryName": "",
+        "regionName": "",
+        "coverDesignation": ""
+      },
+      "content": [
+        {
+          "type": "paragraph"
+        }
+      ]
+    },
+    {
+      "type": "foreword",
+      "path": "前言",
+      "content": [
+        {
+          "type": "stdParagraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "本文件按照GB/T 1.1—2020《标准化工作导则 第1部分：标准化文件的结构和起草规则》的规定起草。"
+            }
+          ]
+        },
+        {
+          "type": "stdParagraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "请注意本文件的某些内容可能涉及专利。本文件的发布机构不承担识别专利的责任。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "introduction",
+      "path": "引言",
+      "content": [
+        {
+          "type": "stdParagraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "随着标准化工作的不断推进，标准文件的编写效率和规范性越来越受到重视。本文件旨在规定标准编写系统的技术要求，以提升标准文件的编写质量。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "chapter",
+      "attrs": {
+        "id": "sec_1"
+      },
+      "number": "1",
+      "path": "1",
+      "content": [
+        {
+          "type": "chapterTitle",
+          "content": [
+            {
+              "type": "text",
+              "text": "范围"
+            }
+          ]
+        },
+        {
+          "type": "stdParagraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "本文件规定了标准编写系统的功能要求、技术架构、数据格式、用户界面和性能指标。"
+            }
+          ]
+        },
+        {
+          "type": "stdParagraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "本文件适用于各类标准化文件编写系统的设计、开发和测试。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "chapter",
+      "attrs": {
+        "id": "sec_2"
+      },
+      "number": "2",
+      "path": "2",
+      "content": [
+        {
+          "type": "chapterTitle",
+          "content": [
+            {
+              "type": "text",
+              "text": "规范性引用文件"
+            }
+          ]
+        },
+        {
+          "type": "stdParagraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "下列文件中的内容通过文中的规范性引用而构成本文件必不可少的条款。"
+            }
+          ]
+        },
+        {
+          "type": "stdParagraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "GB/T 1.1—2020 标准化工作导则 第1部分：标准化文件的结构和起草规则"
+            }
+          ]
+        },
+        {
+          "type": "stdParagraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "GB/T 37967—2019 标准文献的XML标记"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "chapter",
+      "attrs": {
+        "id": "sec_3"
+      },
+      "number": "3",
+      "path": "3",
+      "content": [
+        {
+          "type": "chapterTitle",
+          "content": [
+            {
+              "type": "text",
+              "text": "术语和定义"
+            }
+          ]
+        },
+        {
+          "type": "termDef",
+          "attrs": {
+            "id": "term_3.1",
+            "level": 1
+          },
+          "number": "3.1",
+          "path": "3.1",
+          "content": [
+            {
+              "type": "termName",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "标准编写系统"
+                }
+              ]
+            },
+            {
+              "type": "termNameEn",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "standards editing system"
+                }
+              ]
+            },
+            {
+              "type": "termDefinition",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "用于编写、管理和输出标准化文件的计算机软件系统。"
+                }
+              ]
+            },
+            {
+              "type": "note",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "标准编写系统通常集成了文档编辑、版本管理和格式导出等功能。"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "termDef",
+          "attrs": {
+            "id": "term_3.2",
+            "level": 1
+          },
+          "number": "3.2",
+          "path": "3.2",
+          "content": [
+            {
+              "type": "termName",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "结构化标注"
+                }
+              ]
+            },
+            {
+              "type": "termNameEn",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "structured markup"
+                }
+              ]
+            },
+            {
+              "type": "termDefinition",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "使用预定义的标签和属性对文档内容进行语义化描述的方法。"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "chapter",
+      "attrs": {
+        "id": "sec_4"
+      },
+      "number": "4",
+      "path": "4",
+      "content": [
+        {
+          "type": "chapterTitle",
+          "content": [
+            {
+              "type": "text",
+              "text": "总体要求"
+            }
+          ]
+        },
+        {
+          "type": "clause",
+          "attrs": {
+            "id": "sec_4.1",
+            "level": 1,
+            "hasTitle": true
+          },
+          "number": "4.1",
+          "path": "4.1",
+          "content": [
+            {
+              "type": "clauseTitle",
+              "attrs": {
+                "level": 1
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "系统架构"
+                }
+              ]
+            },
+            {
+              "type": "stdParagraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "标准编写系统应采用前后端分离的架构设计，前端负责文档编辑和展示，后端负责数据存储和处理。"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "clause",
+          "attrs": {
+            "id": "sec_4.2",
+            "level": 1,
+            "hasTitle": true
+          },
+          "number": "4.2",
+          "path": "4.2",
+          "content": [
+            {
+              "type": "clauseTitle",
+              "attrs": {
+                "level": 1
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "编辑器要求"
+                }
+              ]
+            },
+            {
+              "type": "stdParagraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "系统应提供所见即所得（WYSIWYG）的编辑界面，支持标准文件的结构化编辑。"
+                }
+              ]
+            },
+            {
+              "type": "note",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "推荐使用基于ProseMirror的编辑器框架。"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "chapter",
+      "attrs": {
+        "id": "sec_5"
+      },
+      "number": "5",
+      "path": "5",
+      "content": [
+        {
+          "type": "chapterTitle",
+          "content": [
+            {
+              "type": "text",
+              "text": "功能要求"
+            }
+          ]
+        },
+        {
+          "type": "clause",
+          "attrs": {
+            "id": "sec_5.1",
+            "level": 1,
+            "hasTitle": true
+          },
+          "number": "5.1",
+          "path": "5.1",
+          "content": [
+            {
+              "type": "clauseTitle",
+              "attrs": {
+                "level": 1
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "文档结构管理"
+                }
+              ]
+            },
+            {
+              "type": "stdParagraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "系统应支持以下文档结构要素的编辑："
+                }
+              ]
+            },
+            {
+              "type": "stdList",
+              "attrs": {
+                "listType": "dash",
+                "level": 1
+              },
+              "content": [
+                {
+                  "type": "stdListItem",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "章和条（支持5级）"
+                    }
+                  ]
+                },
+                {
+                  "type": "stdListItem",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "术语和定义"
+                    }
+                  ]
+                },
+                {
+                  "type": "stdListItem",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "表格和图"
+                    }
+                  ]
+                },
+                {
+                  "type": "stdListItem",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "公式"
+                    }
+                  ]
+                },
+                {
+                  "type": "stdListItem",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "附录"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "clause",
+          "attrs": {
+            "id": "sec_5.2",
+            "level": 1,
+            "hasTitle": true
+          },
+          "number": "5.2",
+          "path": "5.2",
+          "content": [
+            {
+              "type": "clauseTitle",
+              "attrs": {
+                "level": 1
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "XML序列化"
+                }
+              ]
+            },
+            {
+              "type": "stdParagraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "系统应支持将文档内容序列化为符合GB/T 37967—2019的XML格式，并支持从XML格式反序列化为编辑器文档。"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "appendix",
+      "attrs": {
+        "id": "app_A",
+        "normative": true
+      },
+      "number": "A",
+      "path": "附录A",
+      "content": [
+        {
+          "type": "appendixLabel"
+        },
+        {
+          "type": "appendixTitle",
+          "content": [
+            {
+              "type": "text",
+              "text": "XML标签映射表"
+            }
+          ]
+        },
+        {
+          "type": "clause",
+          "attrs": {
+            "id": "sec_A.1",
+            "level": 1,
+            "hasTitle": true
+          },
+          "number": "A.1",
+          "path": "A.1",
+          "content": [
+            {
+              "type": "clauseTitle",
+              "attrs": {
+                "level": 1
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "节点映射"
+                }
+              ]
+            },
+            {
+              "type": "stdParagraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "本附录定义了编辑器节点与XML标签之间的对应关系。"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "bibliography",
+      "path": "参考文献",
+      "content": [
+        {
+          "type": "bibliographyTitle",
+          "content": [
+            {
+              "type": "text",
+              "text": "参考文献"
+            }
+          ]
+        },
+        {
+          "type": "bibEntry",
+          "attrs": {
+            "index": 1
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "GB/T 20000.1—2014 标准化工作指南 第1部分：标准化和相关活动的通用术语"
+            }
+          ]
+        },
+        {
+          "type": "bibEntry",
+          "attrs": {
+            "index": 2
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "ISO 36001:2022 Standardization management systems — Requirements"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

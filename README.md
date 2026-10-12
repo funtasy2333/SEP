@@ -28,7 +28,8 @@
 ### 内容与格式分离
 
 - 编辑器内容以语义化的 ProseMirror 文档结构存储
-- 支持 XML / JSON / HTML 多种结构化标注格式导出
+- 支持 XML / JSON / HTML 多种结构化标注格式导出；WP6 已将 JSON 渲染迁入 shared，补齐元数据、TBX、MathML、表图资源、文献及索引模型，见 [WP6 验收](docs/wp6-validation.md)
+- 新信息完整保存在 JSON；尚未支持这些信息的 DOCX/HTML/PDF/旧 XML 出口会明确拒绝，避免内容丢失
 - XML后续只提供GB/T 46687.2—2026导入、导出，完全切断37967及项目旧XML；当前仍为切换前实现，不能视为已通过新国标验收
 
 ### 文档导出
