@@ -41,7 +41,9 @@ DOCX/PDF 出件、`.ses.json` 导入导出作为配套能力保留。
 1. **存储**：文档与版本存于 SQLite（`packages/server/data/ses.db`，表 `documents`、`versions`）；图片以 dataURL 内嵌在正文 JSON，服务端没有独立文件存储。
 2. **整篇覆盖写入**：编辑器自动保存以 `PUT /api/documents/:id` 提交整份正文；`document.service.ts` `update` 直接 `Object.assign` 后保存，不检查版本。人和 AI 同时修改时，后写入者会静默覆盖先写入者。
 3. **编辑器不感知外部修改**：文档只在打开时加载，之后不会得知服务端内容已变。
-4. **服务端不使用 `@ses/shared`**：`pmToIr`、`resolve`、`renderDocx` 只在浏览器运行。shared 以 TS 源码作为包入口，server 用 `nest build`（tsc，CommonJS）编译，不能直接编译工作区 TS 源码包。
+4. **服务端不使用 `@ses/shared`**：`pmToIr`、`resolve`、`renderDocx` 只在浏览器运行。
+   - 原因一（有提交记录）：服务端只负责文档存取、版本与 HTML→PDF；WP5（#27）把 PDF 设计为「浏览器渲染 print HTML 后提交给服务端」，提交说明为「shared 零改动」。正文起始哨兵 `SESBODYSTARTANCHOR` 在 `server/src/convert/pdf/toc.ts` 中复制了一份，注释为「跨包字符串契约，二者必须同步修改」；`DocumentEntity.meta` 也是服务端自写的类型，未复用 shared 的 `DocumentMeta`。
+   - 原因二（2026-10-13 实验）：shared 的包入口直接指向 TS 源码（`./src/index.ts`），面向 Vite/vitest 这类会转译 TS 的工具。临时让 server 引用 shared 后，`nest build` 通过（TS 不为经 `node_modules` 解析到的文件产出 JS）、jest 通过（ts-jest 会转译），但 Node 运行编译产物时直接加载 shared 的 TS 源码，报 `ERR_UNSUPPORTED_DIR_IMPORT`（shared 内部使用打包器风格的无扩展名、目录导入）。即编译和测试都通过、启动时才失败。
 5. **生产 schema 在 client**：PM schema 由 `client/src/extensions/editorExtensions.ts` 的 Tiptap 扩展构建。实测 `getSchema(createEditorExtensions())` 可在纯 Node 环境构建（88 种节点，根节点 `doc`），但服务端如何引用尚需确定打包方式。
 6. **版本无来源信息**：`versions` 表只有 `versionNo/stage/content/xml/note`，无法区分人工修改与 AI 修改。
 7. **无用户与鉴权**：现有接口不区分调用者；CORS 只放行本机开发端口。
@@ -112,10 +114,12 @@ SES 编辑器（人）─────────── REST + 变更推送 ─�
 
 ### 6.6 服务端使用 shared 与 DOCX 出件
 
-需要先解决服务端引用工作区 TS 包的问题，候选方案：
+需要先解决服务端引用工作区 TS 包的问题（见 §4 第 4 项），候选方案：
 
-1. 给 `@ses/shared` 和共享出件包增加 CommonJS 构建产物，server 引用构建产物；
-2. server 改用打包式构建（如 esbuild），直接打入工作区源码。
+1. 给 `@ses/shared` 和共享出件包增加构建产物，server 引用构建产物。需要为 shared 内部导入补扩展名或另用打包器产出，且每次修改 shared 后都要重新构建；
+2. server 改用打包式构建，把工作区源码打入 `dist`。可选 Nest CLI 的 webpack 构建（ts-loader 保留 Nest 依赖注入所需的 `emitDecoratorMetadata`；需配置为把 `@ses/*` 打入产物，而不是当作外部依赖）。不能直接用 esbuild：它不支持 `emitDecoratorMetadata`。
+
+倾向方案 2：服务端还需要引用生产 schema（client 的 Tiptap 扩展）和 `@ses/io`，打包式构建不必为每个包分别产出构建结果。在 WP9.1 开头做技术验证后确定。
 
 DOCX 出件把 `client/src/serializer/` 中的公式 OMML、图片资源、DOCX 打包抽成共享包（`@ses/io`），client 与 server 共用；client 原导出名保留。生产 schema 的服务端引用方式与此一并确定。
 
