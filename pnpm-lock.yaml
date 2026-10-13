@@ -141,6 +141,9 @@ importers:
       '@nestjs/typeorm':
         specifier: ^11.0.0
         version: 11.0.0(@nestjs/common@11.1.17(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.17)(reflect-metadata@0.2.2)(rxjs@7.8.2)(typeorm@0.3.28(better-sqlite3@12.8.0)(ts-node@10.9.2(@types/node@22.19.15)(typescript@5.9.3)))
+      '@ses/io':
+        specifier: workspace:*
+        version: link:../io
       '@ses/shared':
         specifier: workspace:*
         version: link:../shared

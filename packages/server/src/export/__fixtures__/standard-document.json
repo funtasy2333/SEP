@@ -1,0 +1,630 @@
+{
+  "type": "doc",
+  "attrs": {
+    "titleParts": null,
+    "identifiers": null,
+    "languages": null,
+    "publishers": null,
+    "adoptions": null,
+    "replacedStandards": null,
+    "copyrights": null,
+    "extensionVersion": null
+  },
+  "content": [
+    {
+      "type": "coverPage",
+      "attrs": {
+        "nodeId": null,
+        "titleParts": null,
+        "identifiers": null,
+        "languages": null,
+        "publishers": null,
+        "adoptions": null,
+        "replacedStandards": null,
+        "copyrights": null,
+        "standardNo": "GB/T 00000—0000",
+        "standardType": "national",
+        "titleCn": "标准机器语言表达",
+        "titleEn": "Machine-readable representation of standards",
+        "publishDate": "",
+        "implementDate": "",
+        "issuer": "旧发布单位",
+        "ccsCode": "A 00",
+        "icsCode": "01.120",
+        "replaces": "",
+        "consistency": "",
+        "filingNo": "",
+        "industryName": "",
+        "regionName": "",
+        "coverDesignation": "",
+        "applicant": null,
+        "proposer": null,
+        "technicalCommittee": null
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "attrs": {
+            "nodeId": null
+          }
+        }
+      ]
+    },
+    {
+      "type": "foreword",
+      "attrs": {
+        "nodeId": null
+      },
+      "content": [
+        {
+          "type": "stdParagraph",
+          "attrs": {
+            "nodeId": "foreword-p"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "本文件按照标准化文件编写规则起草。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "chapter",
+      "attrs": {
+        "nodeId": "ch-scope",
+        "id": null,
+        "secType": "scope",
+        "number": null
+      },
+      "content": [
+        {
+          "type": "chapterTitle",
+          "content": [
+            {
+              "type": "text",
+              "text": "范围"
+            }
+          ]
+        },
+        {
+          "type": "stdParagraph",
+          "attrs": {
+            "nodeId": "scope-p"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "本文件规定了公式、图和表的导出要求"
+            },
+            {
+              "type": "footnoteRef",
+              "attrs": {
+                "nodeId": "fn-scope",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "脚注：本文件用于服务端与编辑器导出一致性核对。"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "text",
+              "text": "。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "chapter",
+      "attrs": {
+        "nodeId": "ch-req",
+        "id": null,
+        "secType": "general",
+        "number": null
+      },
+      "content": [
+        {
+          "type": "chapterTitle",
+          "content": [
+            {
+              "type": "text",
+              "text": "技术要求"
+            }
+          ]
+        },
+        {
+          "type": "clause",
+          "attrs": {
+            "nodeId": "cl-formula",
+            "id": null,
+            "level": 1,
+            "number": null,
+            "hasTitle": true
+          },
+          "content": [
+            {
+              "type": "clauseTitle",
+              "attrs": {
+                "level": 1
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "公式"
+                }
+              ]
+            },
+            {
+              "type": "stdParagraph",
+              "attrs": {
+                "nodeId": "cl-formula-p"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "分式、求和与矩阵公式见下。"
+                }
+              ]
+            },
+            {
+              "type": "formula",
+              "attrs": {
+                "nodeId": "f-frac",
+                "id": null,
+                "number": null,
+                "numbered": true,
+                "mathml": null,
+                "latex": "\\dfrac{a+b}{c}=\\frac{1}{2}"
+              },
+              "content": [
+                {
+                  "type": "formulaContent",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "\\dfrac{a+b}{c}=\\frac{1}{2}"
+                    }
+                  ]
+                },
+                {
+                  "type": "whereList",
+                  "content": [
+                    {
+                      "type": "whereItem",
+                      "attrs": {
+                        "nodeId": "f-frac-w1"
+                      },
+                      "content": [
+                        {
+                          "type": "whereTerm",
+                          "content": [
+                            {
+                              "type": "text",
+                              "text": "a"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "whereDefinition",
+                          "content": [
+                            {
+                              "type": "text",
+                              "text": "第一个量"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "whereItem",
+                      "attrs": {
+                        "nodeId": "f-frac-w2"
+                      },
+                      "content": [
+                        {
+                          "type": "whereTerm",
+                          "content": [
+                            {
+                              "type": "text",
+                              "text": "b"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "whereDefinition",
+                          "content": [
+                            {
+                              "type": "text",
+                              "text": "第二个量"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "formula",
+              "attrs": {
+                "nodeId": "f-sum",
+                "id": null,
+                "number": null,
+                "numbered": true,
+                "mathml": null,
+                "latex": "\\sum_{i=1}^{n}\\frac{x_i}{2}+\\sqrt{x^2+y^2}"
+              },
+              "content": [
+                {
+                  "type": "formulaContent",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "\\sum_{i=1}^{n}\\frac{x_i}{2}+\\sqrt{x^2+y^2}"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "formula",
+              "attrs": {
+                "nodeId": "f-mat",
+                "id": null,
+                "number": null,
+                "numbered": false,
+                "mathml": null,
+                "latex": "\\begin{pmatrix}x_1\\\\\\vdots\\\\x_n\\end{pmatrix}"
+              },
+              "content": [
+                {
+                  "type": "formulaContent",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "\\begin{pmatrix}x_1\\\\\\vdots\\\\x_n\\end{pmatrix}"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "clause",
+          "attrs": {
+            "nodeId": "cl-table",
+            "id": null,
+            "level": 1,
+            "number": null,
+            "hasTitle": true
+          },
+          "content": [
+            {
+              "type": "clauseTitle",
+              "attrs": {
+                "level": 1
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "图表"
+                }
+              ]
+            },
+            {
+              "type": "stdTable",
+              "attrs": {
+                "nodeId": "tbl-1",
+                "id": null,
+                "number": null,
+                "unit": null,
+                "headerRowCount": 1,
+                "width": null,
+                "widthUnit": null,
+                "layout": null,
+                "borderModel": null,
+                "textAlign": null,
+                "verticalAlign": null,
+                "borderColor": null,
+                "borderWidth": null,
+                "borderWidthUnit": null,
+                "backgroundColor": null,
+                "cellPadding": null,
+                "cellPaddingUnit": null,
+                "orientation": "portrait"
+              },
+              "content": [
+                {
+                  "type": "tableCaption",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "性能指标"
+                    }
+                  ]
+                },
+                {
+                  "type": "table",
+                  "content": [
+                    {
+                      "type": "tableRow",
+                      "attrs": {
+                        "nodeId": "r1",
+                        "textAlign": null,
+                        "verticalAlign": null,
+                        "height": null,
+                        "heightUnit": null,
+                        "borderColor": null,
+                        "borderWidth": null,
+                        "borderWidthUnit": null,
+                        "backgroundColor": null,
+                        "borderTop": null,
+                        "borderTopUnit": null,
+                        "borderRight": null,
+                        "borderRightUnit": null,
+                        "borderBottom": null,
+                        "borderBottomUnit": null,
+                        "borderLeft": null,
+                        "borderLeftUnit": null
+                      },
+                      "content": [
+                        {
+                          "type": "tableHeader",
+                          "attrs": {
+                            "nodeId": "r1c1",
+                            "colspan": 1,
+                            "rowspan": 1,
+                            "colwidth": null,
+                            "cellType": null,
+                            "unit": null,
+                            "width": null,
+                            "widthUnit": null,
+                            "textAlign": null,
+                            "verticalAlign": null,
+                            "backgroundColor": null,
+                            "borderTop": null,
+                            "borderTopUnit": null,
+                            "borderRight": null,
+                            "borderRightUnit": null,
+                            "borderBottom": null,
+                            "borderBottomUnit": null,
+                            "borderLeft": null,
+                            "borderLeftUnit": null,
+                            "paddingTop": null,
+                            "paddingTopUnit": null,
+                            "paddingRight": null,
+                            "paddingRightUnit": null,
+                            "paddingBottom": null,
+                            "paddingBottomUnit": null,
+                            "paddingLeft": null,
+                            "paddingLeftUnit": null
+                          },
+                          "content": [
+                            {
+                              "type": "stdParagraph",
+                              "attrs": {
+                                "nodeId": "r1c1p"
+                              },
+                              "content": [
+                                {
+                                  "type": "text",
+                                  "text": "项目"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "tableHeader",
+                          "attrs": {
+                            "nodeId": "r1c2",
+                            "colspan": 1,
+                            "rowspan": 1,
+                            "colwidth": null,
+                            "cellType": null,
+                            "unit": null,
+                            "width": null,
+                            "widthUnit": null,
+                            "textAlign": null,
+                            "verticalAlign": null,
+                            "backgroundColor": null,
+                            "borderTop": null,
+                            "borderTopUnit": null,
+                            "borderRight": null,
+                            "borderRightUnit": null,
+                            "borderBottom": null,
+                            "borderBottomUnit": null,
+                            "borderLeft": null,
+                            "borderLeftUnit": null,
+                            "paddingTop": null,
+                            "paddingTopUnit": null,
+                            "paddingRight": null,
+                            "paddingRightUnit": null,
+                            "paddingBottom": null,
+                            "paddingBottomUnit": null,
+                            "paddingLeft": null,
+                            "paddingLeftUnit": null
+                          },
+                          "content": [
+                            {
+                              "type": "stdParagraph",
+                              "attrs": {
+                                "nodeId": "r1c2p"
+                              },
+                              "content": [
+                                {
+                                  "type": "text",
+                                  "text": "指标"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "tableRow",
+                      "attrs": {
+                        "nodeId": "r2",
+                        "textAlign": null,
+                        "verticalAlign": null,
+                        "height": null,
+                        "heightUnit": null,
+                        "borderColor": null,
+                        "borderWidth": null,
+                        "borderWidthUnit": null,
+                        "backgroundColor": null,
+                        "borderTop": null,
+                        "borderTopUnit": null,
+                        "borderRight": null,
+                        "borderRightUnit": null,
+                        "borderBottom": null,
+                        "borderBottomUnit": null,
+                        "borderLeft": null,
+                        "borderLeftUnit": null
+                      },
+                      "content": [
+                        {
+                          "type": "tableCell",
+                          "attrs": {
+                            "nodeId": "r2c1",
+                            "colspan": 1,
+                            "rowspan": 1,
+                            "colwidth": null,
+                            "cellType": null,
+                            "unit": null,
+                            "width": null,
+                            "widthUnit": null,
+                            "textAlign": null,
+                            "verticalAlign": null,
+                            "backgroundColor": null,
+                            "borderTop": null,
+                            "borderTopUnit": null,
+                            "borderRight": null,
+                            "borderRightUnit": null,
+                            "borderBottom": null,
+                            "borderBottomUnit": null,
+                            "borderLeft": null,
+                            "borderLeftUnit": null,
+                            "paddingTop": null,
+                            "paddingTopUnit": null,
+                            "paddingRight": null,
+                            "paddingRightUnit": null,
+                            "paddingBottom": null,
+                            "paddingBottomUnit": null,
+                            "paddingLeft": null,
+                            "paddingLeftUnit": null
+                          },
+                          "content": [
+                            {
+                              "type": "stdParagraph",
+                              "attrs": {
+                                "nodeId": "r2c1p"
+                              },
+                              "content": [
+                                {
+                                  "type": "text",
+                                  "text": "精度"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "tableCell",
+                          "attrs": {
+                            "nodeId": "r2c2",
+                            "colspan": 1,
+                            "rowspan": 1,
+                            "colwidth": null,
+                            "cellType": null,
+                            "unit": null,
+                            "width": null,
+                            "widthUnit": null,
+                            "textAlign": null,
+                            "verticalAlign": null,
+                            "backgroundColor": null,
+                            "borderTop": null,
+                            "borderTopUnit": null,
+                            "borderRight": null,
+                            "borderRightUnit": null,
+                            "borderBottom": null,
+                            "borderBottomUnit": null,
+                            "borderLeft": null,
+                            "borderLeftUnit": null,
+                            "paddingTop": null,
+                            "paddingTopUnit": null,
+                            "paddingRight": null,
+                            "paddingRightUnit": null,
+                            "paddingBottom": null,
+                            "paddingBottomUnit": null,
+                            "paddingLeft": null,
+                            "paddingLeftUnit": null
+                          },
+                          "content": [
+                            {
+                              "type": "stdParagraph",
+                              "attrs": {
+                                "nodeId": "r2c2p"
+                              },
+                              "content": [
+                                {
+                                  "type": "text",
+                                  "text": "0.1"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "figure",
+              "attrs": {
+                "nodeId": "fig-1",
+                "id": null,
+                "number": null,
+                "orientation": "portrait",
+                "unit": null
+              },
+              "content": [
+                {
+                  "type": "figureImage",
+                  "attrs": {
+                    "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAa0lEQVR42u3QQQ0AAAgEoOsfzwRmMIEtnA82EpDq4UAUiBaNaNGiLYgWjWjRoi2IFo1o0aIRLRrRokUjWjSiRYtGtGhEixaNaNGIFi0a0aIRLRrRokUjWjSiRYtGtGhEixaNaNGiES0a0b8s0ipI1zvfEP8AAAAASUVORK5CYII=",
+                    "alt": "",
+                    "width": null,
+                    "height": null,
+                    "resourceId": null,
+                    "widthUnit": null,
+                    "heightUnit": null,
+                    "title": null
+                  }
+                },
+                {
+                  "type": "figureCaption",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "系统架构图"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
