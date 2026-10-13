@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { DocumentService } from './document.service';
 import { DocumentEntity } from './document.entity';
+import { parseDocumentUpdateRequest } from './document-update';
 
 @Controller('documents')
 export class DocumentController {
@@ -30,12 +31,17 @@ export class DocumentController {
     return this.documentService.create(data);
   }
 
+  /**
+   * PUT /api/documents/:id
+   * 请求体必须带 baseRevision：缺失 428、类型错误 400、与当前 revision 不一致 409。
+   */
   @Put(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() data: Partial<DocumentEntity>,
+    @Body() body: unknown,
   ): Promise<DocumentEntity> {
-    return this.documentService.update(id, data);
+    const { baseRevision, fields } = parseDocumentUpdateRequest(body);
+    return this.documentService.update(id, baseRevision, fields);
   }
 
   @Delete(':id')

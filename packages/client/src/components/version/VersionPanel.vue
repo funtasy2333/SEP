@@ -35,6 +35,17 @@
             <el-tag :type="stageTagType(version.stage)" size="small" effect="plain">
               {{ stageLabel(version.stage) }}
             </el-tag>
+            <el-tag
+              v-if="sourceLabel(version.source)"
+              class="version-source-tag"
+              :data-source="version.source"
+              :title="version.client ? `写入方：${version.client}` : undefined"
+              type="warning"
+              size="small"
+              effect="light"
+            >
+              {{ sourceLabel(version.source) }}
+            </el-tag>
           </div>
           <span class="version-time">{{ formatTime(version.createdAt) }}</span>
         </div>
@@ -98,6 +109,9 @@
     >
       <div class="preview-meta" v-if="previewVersionData">
         <span>阶段：{{ stageLabel(previewVersionData.stage) }}</span>
+        <span v-if="sourceLabel(previewVersionData.source)">
+          来源：{{ sourceLabel(previewVersionData.source) }}<template v-if="previewVersionData.client">（{{ previewVersionData.client }}）</template>
+        </span>
         <span>时间：{{ formatTime(previewVersionData.createdAt) }}</span>
         <span v-if="previewVersionData.note">备注：{{ previewVersionData.note }}</span>
       </div>
@@ -166,7 +180,8 @@ import { useDocumentStore } from '@/stores/document'
 import { serializeToXml } from '@/serializer'
 import { XmlFootnoteValidationError } from '@/serializer/xmlSerializer'
 import { diffDocuments, type DiffResult } from '@/utils/docDiff'
-import type { VersionData } from '@/api/version'
+import { isRevisionConflict } from '@/utils/documentConflict'
+import type { VersionData, VersionSource } from '@/api/version'
 
 const props = defineProps<{
   documentId: number
@@ -180,6 +195,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
+  /** 保存版本时发现文档已被他处修改（409），编辑器内容没有写入文档 */
+  conflict: []
 }>()
 
 const versionStore = useVersionStore()
@@ -220,6 +237,16 @@ const stageLabels: Record<string, string> = {
 
 function stageLabel(stage: string): string {
   return stageLabels[stage] || stage
+}
+
+/** 非人工来源才显示标签；旧数据没有 source 时按 human 处理 */
+const sourceLabels: Partial<Record<VersionSource, string>> = {
+  ai: 'AI',
+  import: '导入',
+}
+
+function sourceLabel(source?: VersionSource): string {
+  return source ? sourceLabels[source] ?? '' : ''
 }
 
 function stageTagType(stage: string): '' | 'success' | 'warning' | 'danger' | 'info' {
@@ -291,9 +318,21 @@ async function handleCreateVersion() {
       content,
       xml,
       note: createForm.note || undefined,
+      source: 'human',
     })
 
-    await documentStore.updateDocument(props.documentId, { content })
+    try {
+      await documentStore.updateDocument(props.documentId, { content })
+    } catch (error) {
+      if (!isRevisionConflict(error)) throw error
+      // 版本快照已保存，但文档在别处被改过，编辑器内容没有写入文档：交给编辑器的冲突处理。
+      showCreateDialog.value = false
+      createForm.versionNo = versionStore.getNextVersionNo()
+      createForm.note = ''
+      ElMessage.warning('版本已保存，但文档已在其他地方被修改，当前编辑内容未保存')
+      emit('conflict')
+      return
+    }
 
     showCreateDialog.value = false
     createForm.versionNo = versionStore.getNextVersionNo()
@@ -467,6 +506,10 @@ async function compareSelected() {
 .version-time {
   font-size: 12px;
   color: #999;
+}
+
+.version-source-tag {
+  font-weight: 600;
 }
 
 .version-note {

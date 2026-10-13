@@ -27,11 +27,12 @@
       </nav>
 
       <div class="nav-r">
-        <span class="ses-save-pill" :class="{ 'is-saving': saving }">
+        <span class="ses-save-pill" :class="{ 'is-saving': saving, 'is-conflict': saveConflict }">
           <span class="dot" />
           <template v-if="persistenceOperation === 'settings-save'">设置保存中…</template>
           <template v-else-if="persistenceOperation === 'xml-import'">导入中…</template>
           <template v-else-if="saving">保存中…</template>
+          <template v-else-if="saveConflict">存在冲突 · 未保存</template>
           <template v-else-if="settingsDirty">设置待保存</template>
           <template v-else-if="dirty">正文待保存</template>
           <template v-else-if="lastSaved">已保存 {{ lastSaved }}</template>
@@ -53,6 +54,13 @@
         </el-button>
       </div>
     </header>
+
+    <!-- 保存冲突：关闭对话框后仍保留，避免误以为已保存 -->
+    <div v-if="saveConflict" class="conflict-banner" role="alert" aria-label="保存冲突提示">
+      <el-icon class="conflict-banner-icon"><WarningFilled /></el-icon>
+      <span class="conflict-banner-text">文档已在其他地方被修改，当前内容未保存；自动保存已暂停。</span>
+      <el-button size="small" type="danger" plain @click="conflictDialogVisible = true">处理冲突</el-button>
+    </div>
 
     <!-- =====================  EDIT TAB  ===================== -->
     <template v-if="activeTab === 'edit'">
@@ -232,6 +240,7 @@
               :get-doc="getEditorDoc"
               :set-content="setEditorContent"
               @close="showVersionPanel = false"
+              @conflict="enterSaveConflict('version-save')"
             />
           </div>
         </transition>
@@ -350,6 +359,37 @@
       </div>
     </el-dialog>
 
+    <!-- =====================  SAVE CONFLICT DIALOG  ===================== -->
+    <el-dialog
+      v-model="conflictDialogVisible"
+      title="文档已在其他地方被修改"
+      width="520px"
+      class="ses-conflict-dlg"
+      append-to-body
+      :close-on-click-modal="false"
+    >
+      <p class="conflict-lead">当前内容未保存。在处理之前，自动保存与手动保存都已暂停，编辑器中的内容仍然保留。</p>
+      <p v-if="conflictDetail" class="conflict-detail">{{ conflictDetail }}</p>
+      <ul class="conflict-options">
+        <li><strong>重新加载</strong>：放弃本页尚未保存的修改，载入服务端的最新内容后继续编辑。</li>
+        <li><strong>另存为副本</strong>：把本页当前内容保存为一份新文档，原文档保持服务端现有内容不变。</li>
+      </ul>
+      <template #footer>
+        <el-button :disabled="resolvingConflict !== null" @click="conflictDialogVisible = false">稍后处理</el-button>
+        <el-button
+          :loading="resolvingConflict === 'copy'"
+          :disabled="resolvingConflict === 'reload'"
+          @click="handleConflictSaveAsCopy"
+        >另存为副本</el-button>
+        <el-button
+          type="danger"
+          :loading="resolvingConflict === 'reload'"
+          :disabled="resolvingConflict === 'copy'"
+          @click="handleConflictReload"
+        >重新加载</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog
       v-model="showFootnoteDialog"
       :title="footnoteDialogTitle"
@@ -419,11 +459,13 @@ import {
   type DocumentSettingsDraft,
 } from '@/utils/documentSettings'
 import { setClauseFormat, setParagraphFormat } from '@/utils/structureEditing'
+import { createDocumentDuplicate } from '@/utils/duplicateDocument'
+import { isRevisionConflict } from '@/utils/documentConflict'
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 // Underline is included in StarterKit (tiptap v3)
-import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon, Clock, Download } from '@element-plus/icons-vue'
+import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon, Clock, Download, WarningFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { documentApi } from '@/api/document'
 import { useDocumentStore } from '@/stores/document'
@@ -458,6 +500,21 @@ const saving = ref(false)
 const lastSaved = ref('')
 const activeTab = ref<'edit' | 'settings' | 'preview'>('edit')
 const persistenceOperation = ref<'body-save' | 'settings-save' | 'xml-import' | null>(null)
+/**
+ * 保存冲突：任一保存路径收到 409（文档在别处被修改）后非空。
+ * 与 persistenceOperation 相互独立——后者只描述正在进行的请求，冲突在请求失败后仍然存在，
+ * 直到用户选择「重新加载」或「另存为副本」。冲突期间不再安排自动保存，手动保存也不会发出请求。
+ */
+type SaveConflictSource = 'body-save' | 'settings-save' | 'xml-import' | 'version-save'
+const saveConflict = ref<{ source: SaveConflictSource } | null>(null)
+const conflictDialogVisible = ref(false)
+const resolvingConflict = ref<'reload' | 'copy' | null>(null)
+const conflictDetail = computed(() => ({
+  'body-save': '',
+  'settings-save': '文件设置的修改也尚未保存，草稿仍保留在「文件设置」中。',
+  'xml-import': '本次 XML 导入未生效，编辑器内容保持不变。',
+  'version-save': '版本快照已保存，但当前编辑内容没有写入文档。',
+}[saveConflict.value?.source ?? 'body-save']))
 const settingsDraft = ref<DocumentSettingsDraft | null>(null)
 const settingsBaseline = ref('')
 const settingsSaveError = ref(false)
@@ -513,8 +570,17 @@ function scheduleAutoSave() {
 }
 
 function queueAutoSave(delay = 3000) {
+  // 冲突未解决前不安排自动保存：再保存只会得到同样的 409。
+  if (saveConflict.value) return
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
   autoSaveTimer = setTimeout(() => { void handleSave() }, delay)
+}
+
+/** 进入冲突状态并弹出处理提示；已在冲突中时只重新弹出提示。 */
+function enterSaveConflict(source: SaveConflictSource) {
+  clearAutoSaveTimer()
+  if (!saveConflict.value) saveConflict.value = { source }
+  conflictDialogVisible.value = true
 }
 
 function activeOrientationNodeType(): 'figure' | 'stdTable' | undefined {
@@ -651,6 +717,10 @@ async function handleSettingsSave() {
   const draft = settingsDraft.value
   const currentEditor = editor.value
   if (!currentDocument?.id || !draft || !currentEditor) return
+  if (saveConflict.value) {
+    conflictDialogVisible.value = true
+    return
+  }
   if (persistenceOperation.value !== null) {
     if (dirty.value && persistenceOperation.value !== 'body-save') queueAutoSave()
     return
@@ -689,7 +759,9 @@ async function handleSettingsSave() {
     ElMessage.success('文件设置已保存')
   } catch (error) {
     settingsSaveError.value = true
-    ElMessage.error(`设置保存失败，草稿已保留${error instanceof Error ? `：${error.message}` : ''}`)
+    // 409：设置草稿与正文都保留，由冲突提示接管，不再弹出泛化的失败消息。
+    if (isRevisionConflict(error)) enterSaveConflict('settings-save')
+    else ElMessage.error(`设置保存失败，草稿已保留${error instanceof Error ? `：${error.message}` : ''}`)
   } finally {
     persistenceOperation.value = null
     saving.value = false
@@ -773,11 +845,21 @@ onBeforeUnmount(() => {
   window.removeEventListener('ses:paste-reference-error', handleAmbiguousPasteReference)
   window.removeEventListener('beforeunload', guardUnsavedSettings)
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
-  if (dirty.value && !importingXml && editor.value && store.currentDocument) {
+  // 冲突状态下内容已无法写回服务端（会得到同样的 409），离开前已由路由守卫确认放弃。
+  if (dirty.value && !importingXml && !saveConflict.value && editor.value && store.currentDocument) {
     const content = synchronizeCoverMetadata(editor.value.getJSON(), store.currentDocument.meta)
     const currentId = store.currentDocument.id
+    const baseRevision = store.currentDocument.revision
     if (currentId != null) {
-      void documentApi.update(currentId, { content })
+      // 离开时的兜底保存同样带 baseRevision。此时页面已无法再让用户选择，409 只能提示未保存。
+      void (async () => {
+        try {
+          await documentApi.update(currentId, { content, baseRevision })
+        } catch (error) {
+          if (isRevisionConflict(error)) ElMessage.warning('文档已在其他地方被修改，离开前的修改未保存')
+          else throw error
+        }
+      })()
     }
   }
   editor.value?.destroy()
@@ -797,6 +879,8 @@ function handleAmbiguousPasteReference(event: Event) {
 }
 
 onBeforeRouteLeave(async () => {
+  // 冲突状态下无法保存：只能让用户确认放弃，或留下来选择重新加载 / 另存为副本。
+  if (saveConflict.value) return await confirmLeaveWithSaveConflict()
   if (!await saveDirtyBodyBeforeRouteLeave()) return false
   if (!settingsDirty.value) return true
   try {
@@ -812,11 +896,25 @@ onBeforeRouteLeave(async () => {
   }
 })
 
+async function confirmLeaveWithSaveConflict(): Promise<boolean> {
+  try {
+    await ElMessageBox.confirm(
+      '文档已在其他地方被修改，当前编辑内容尚未保存，离开后这些修改将丢失。',
+      '离开并放弃修改？',
+      { confirmButtonText: '离开并放弃修改', cancelButtonText: '留在此页', type: 'warning' },
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function saveDirtyBodyBeforeRouteLeave(): Promise<boolean> {
   if (persistenceOperation.value === 'body-save') {
     const saved = await (bodySavePromise ?? Promise.resolve(false))
     if (!saved) {
-      ElMessage.warning('正文保存失败，请重试后再离开')
+      // 保存因 409 失败时，冲突提示已经弹出，不再叠加泛化的失败消息。
+      if (!saveConflict.value) ElMessage.warning('正文保存失败，请重试后再离开')
       return false
     }
   } else if (persistenceOperation.value !== null) {
@@ -826,7 +924,7 @@ async function saveDirtyBodyBeforeRouteLeave(): Promise<boolean> {
   if (!dirty.value) return true
   const saved = await handleSave()
   if (!saved || dirty.value) {
-    ElMessage.warning('正文尚未保存成功，请重试后再离开')
+    if (!saveConflict.value) ElMessage.warning('正文尚未保存成功，请重试后再离开')
     return false
   }
   return true
@@ -834,6 +932,11 @@ async function saveDirtyBodyBeforeRouteLeave(): Promise<boolean> {
 
 function handleSave(): Promise<boolean> {
   if (!editor.value || !store.currentDocument || importingXml) return Promise.resolve(false)
+  if (saveConflict.value) {
+    // 冲突未解决：再保存只会得到同样的 409，改为重新弹出冲突提示。
+    conflictDialogVisible.value = true
+    return Promise.resolve(false)
+  }
   if (persistenceOperation.value !== null) {
     if (persistenceOperation.value === 'body-save') return bodySavePromise ?? Promise.resolve(false)
     if (dirty.value) queueAutoSave()
@@ -862,8 +965,10 @@ function handleSave(): Promise<boolean> {
       if (bodyChangeVersion === changeVersionAtStart) dirty.value = false
       lastSaved.value = new Date().toLocaleTimeString('zh-CN')
       return true
-    } catch {
-      ElMessage.error('保存失败；正文仍保留在编辑器中')
+    } catch (error) {
+      // 409：编辑器内容基于过期的修订号，暂停自动保存并让用户选择如何处理；内容仍保留在编辑器中。
+      if (isRevisionConflict(error)) enterSaveConflict('body-save')
+      else ElMessage.error('保存失败；正文仍保留在编辑器中')
       return false
     } finally {
       persistenceOperation.value = null
@@ -876,6 +981,83 @@ function handleSave(): Promise<boolean> {
   bodySavePromise = promise
   void promise.finally(() => { if (bodySavePromise === promise) bodySavePromise = null })
   return promise
+}
+
+/** 冲突处理一：放弃本地未保存修改，载入服务端最新内容。 */
+async function handleConflictReload() {
+  const currentEditor = editor.value
+  const documentToReload = store.currentDocument
+  if (!currentEditor || !documentToReload?.id || resolvingConflict.value) return
+  try {
+    await ElMessageBox.confirm(
+      '重新加载将放弃本页尚未保存的修改（包括文件设置草稿），并载入服务端的最新内容。此操作不能撤销。',
+      '放弃本地修改并重新加载？',
+      { confirmButtonText: '放弃修改并重新加载', cancelButtonText: '取消', type: 'warning' },
+    )
+  } catch {
+    return
+  }
+
+  resolvingConflict.value = 'reload'
+  try {
+    await store.fetchDocument(documentToReload.id)
+    const latest = store.currentDocument
+    if (!latest) throw new Error('文档不可用')
+    const hasContent = Boolean(latest.content) && Object.keys(latest.content).length > 0
+    const content = hasContent ? latest.content : createDefaultDocumentContent(latest.meta)
+    // 先用生产 schema 校验，通过后才改动编辑器；失败时保持冲突状态与本地内容。
+    const candidate = currentEditor.schema.nodeFromJSON(content)
+    candidate.check()
+    const needsNodeIdPersistence = hasNodeIdIssues(candidate)
+    // 重载不进入撤销历史：否则 Ctrl+Z 会把旧内容带回并在下一次自动保存时覆盖最新版本。
+    replaceEditorDocument(currentEditor, content, false, false)
+    hydrateSettingsDraft(latest)
+    dirty.value = false
+    lastSaved.value = latest.updatedAt ? new Date(latest.updatedAt).toLocaleTimeString('zh-CN') : ''
+    saveConflict.value = null
+    conflictDialogVisible.value = false
+    ElMessage.success('已载入最新内容')
+    // 与首次打开一致：规范化补出的 nodeId 需要立即持久化，冲突已解除，自动保存恢复。
+    if (needsNodeIdPersistence) scheduleAutoSave()
+  } catch (error) {
+    ElMessage.error(`重新加载失败，本页内容保持不变${error instanceof Error ? `：${error.message}` : ''}`)
+  } finally {
+    resolvingConflict.value = null
+  }
+}
+
+/** 冲突处理二：把当前编辑器内容（及未保存的文件设置）存成新文档，原文档保持服务端版本不变。 */
+async function handleConflictSaveAsCopy() {
+  const currentEditor = editor.value
+  const sourceDocument = store.currentDocument
+  if (!currentEditor || !sourceDocument || resolvingConflict.value) return
+  resolvingConflict.value = 'copy'
+  try {
+    // 未保存的设置草稿（标题非空时）一并带入副本，避免冲突时丢失这部分修改。
+    const draft = settingsDraft.value
+    const draftMeta = draft && settingsDirty.value && draft.titleCn.trim()
+      ? documentMetaFromSettingsDraft(sourceDocument.meta, { ...draft, titleCn: draft.titleCn.trim() })
+      : null
+    const copyData = createDocumentDuplicate({
+      title: draftMeta ? draftMeta.titleCn : sourceDocument.title,
+      meta: draftMeta ?? sourceDocument.meta,
+      content: currentEditor.getJSON(),
+    })
+    const copy = await store.createDocument(copyData)
+    ElMessage.success('已另存为副本')
+    // 内容已保存在副本中：清除本页的冲突与未保存状态，避免离开时再被拦截或触发兜底保存。
+    saveConflict.value = null
+    conflictDialogVisible.value = false
+    dirty.value = false
+    clearAutoSaveTimer()
+    if (settingsDraft.value) settingsBaseline.value = JSON.stringify(settingsDraft.value)
+    // 进入副本的编辑器（App.vue 的 router-view 以路径为 key，会重建编辑器页面）。
+    void router.push({ name: 'editor', params: { id: copy.id! } })
+  } catch (error) {
+    ElMessage.error(`另存为副本失败，当前内容仍保留在编辑器中${error instanceof Error ? `：${error.message}` : ''}`)
+  } finally {
+    resolvingConflict.value = null
+  }
 }
 
 function goHome() {
@@ -1731,6 +1913,11 @@ function handleXmlFileImport(event: Event) {
   const currentEditor = editor.value
   const currentDocument = store.currentDocument
   if (!file || !currentEditor) return
+  if (saveConflict.value) {
+    input.value = ''
+    conflictDialogVisible.value = true
+    return
+  }
   if (persistenceOperation.value !== null || importingXml) {
     input.value = ''
     ElMessage.warning('文档正在保存或导入，请稍后再导入 XML')
@@ -1807,7 +1994,9 @@ function handleXmlFileImport(event: Event) {
       lastSaved.value = new Date().toLocaleTimeString('zh-CN')
       ElMessage.success('XML 文件导入成功')
     } catch (err) {
-      ElMessage.error(`XML 导入失败: ${err}`)
+      // 409：导入结果没有写入文档，编辑器内容保持不变；由冲突提示接管。
+      if (isRevisionConflict(err)) enterSaveConflict('xml-import')
+      else ElMessage.error(`XML 导入失败: ${err}`)
     } finally {
       finishImport()
     }
@@ -1890,6 +2079,24 @@ function handleXmlFileImport(event: Event) {
 }
 .tab-dirty-mark { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--ses-warn); box-shadow: 0 0 0 2px var(--ses-warn-soft); }
 .tab-dirty-mark.settings-mark { background: var(--ses-accent); box-shadow: 0 0 0 2px var(--ses-accent-soft); }
+
+/* === save conflict (409) === */
+.ses-save-pill.is-conflict { background: var(--ses-err-soft); color: oklch(0.4 0.18 25); font-weight: 600; }
+.ses-save-pill.is-conflict .dot { background: var(--ses-err); }
+.conflict-banner {
+  display: flex; align-items: center; gap: 10px;
+  flex-shrink: 0;
+  padding: 8px 16px;
+  background: var(--ses-err-soft);
+  border-bottom: 1px solid var(--ses-err);
+  color: oklch(0.4 0.18 25);
+  font-size: 13px;
+}
+.conflict-banner-icon { flex: 0 0 auto; font-size: 16px; color: var(--ses-err); }
+.conflict-banner-text { flex: 1; min-width: 0; }
+.conflict-lead { margin: 0 0 8px; line-height: 1.7; }
+.conflict-detail { margin: 0 0 8px; color: var(--ses-ink-2); line-height: 1.7; }
+.conflict-options { margin: 8px 0 0; padding-left: 18px; color: var(--ses-ink-2); font-size: 13px; line-height: 1.8; }
 
 /* === toolbar === */
 .ed-toolbar {

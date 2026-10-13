@@ -1,7 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { VersionEntity } from './version.entity';
+import { VERSION_SOURCES, VersionEntity } from './version.entity';
+
+const MAX_CLIENT_LENGTH = 200;
 
 @Injectable()
 export class VersionService {
@@ -24,6 +30,25 @@ export class VersionService {
   }
 
   async create(data: Partial<VersionEntity>): Promise<VersionEntity> {
+    // source 缺省为 human；给出时必须是已知取值。client 可空，仅作标识。
+    if (
+      data.source !== undefined &&
+      !(VERSION_SOURCES as readonly unknown[]).includes(data.source)
+    ) {
+      throw new BadRequestException(
+        `source 必须是 ${VERSION_SOURCES.join(' / ')} 之一`,
+      );
+    }
+    if (
+      data.client !== undefined &&
+      data.client !== null &&
+      (typeof data.client !== 'string' ||
+        data.client.length > MAX_CLIENT_LENGTH)
+    ) {
+      throw new BadRequestException(
+        `client 必须是不超过 ${MAX_CLIENT_LENGTH} 个字符的字符串`,
+      );
+    }
     const version = this.versionRepo.create(data);
     return this.versionRepo.save(version);
   }

@@ -1,5 +1,6 @@
 <template>
-  <router-view />
+  <!-- 以路径为 key：编辑器页面只在 onMounted 里按 :id 加载文档，从一份文档直接进入另一份（如冲突时「另存为副本」）必须重建页面 -->
+  <router-view :key="$route.path" />
 </template>
 
 <script setup lang="ts">
