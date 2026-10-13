@@ -43,3 +43,48 @@ export { buildPdfExportRequest, extractPdfTocTargets } from './pdfExport'
 export type { PdfExportRequest, PdfTocTarget } from './pdfExport'
 
 export { exportSemanticHtml, exportSemanticJson } from './semanticExport'
+
+export {
+  applyDocumentOperations,
+  buildOutline,
+  DOCUMENT_CONTAINERS,
+  DOCUMENT_OPERATION_NAMES,
+  parseDocumentOperations,
+  readContainer,
+  readNode,
+} from './documentOps'
+export type {
+  ApplyDocumentOperationsFailure,
+  ApplyDocumentOperationsOptions,
+  ApplyDocumentOperationsResult,
+  ApplyDocumentOperationsSuccess,
+  ContentValidationFailure,
+  ContentValidationResult,
+  ContentValidator,
+  DeleteOperation,
+  DocumentContainer,
+  DocumentOperation,
+  DocumentOperationIssue,
+  DocumentOperationIssueCode,
+  DocumentOperationName,
+  DocumentOperationWarning,
+  DocumentOutline,
+  DocumentProblem,
+  EngineIssueCode,
+  FrontMatterOutline,
+  InsertOperation,
+  InsertPosition,
+  MoveOperation,
+  NodeKind,
+  NotReplaceableReason,
+  OperationEffect,
+  OutlineItem,
+  OutlineKind,
+  ParentRef,
+  ParseDocumentOperationsResult,
+  ReadContainerInfo,
+  ReadContainerResult,
+  ReadNodeInfo,
+  ReadNodeResult,
+  ReplaceOperation,
+} from './documentOps'
