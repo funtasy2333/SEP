@@ -4,6 +4,7 @@ import {
   type EditorNode,
   type EditorSchema,
 } from '@client/editor-schema';
+import type { ContentValidator } from '@ses/io';
 import type { PMJsonNode } from '@ses/shared';
 import {
   EditorContentError,
@@ -70,13 +71,56 @@ export function validateContent(content: unknown): EditorNode {
   return doc;
 }
 
+/** {@link normalizeContentDetailed} 的结果。 */
+export interface NormalizedContent {
+  /** 规范化后的 PM JSON（编辑器 getJSON() 的形态，缺省属性已补齐）。 */
+  content: PMJsonNode;
+  /** 是否补齐或重新生成了 nodeId（缺失或重复）；为 false 时 nodeId 与入参完全一致。 */
+  nodeIdsRepaired: boolean;
+}
+
 /**
  * 校验后执行 nodeId 规范化（补齐缺失的 nodeId，重复的重新生成，与编辑器 NodeId 插件同一策略），
- * 返回 PM JSON（编辑器 getJSON() 的形态，缺省属性已补齐）。校验失败的行为同 {@link validateContent}。
+ * 并报告是否真的修复了 nodeId——与编辑器打开文档时的 `hasNodeIdIssues` 等价：编辑器据此决定要不要立即保存，
+ * 服务端据此决定读取前要不要持久化。校验失败的行为同 {@link validateContent}。
  */
-export function normalizeContent(content: unknown): PMJsonNode {
-  return normalizeNodeIds(validateContent(content)).toJSON() as PMJsonNode;
+export function normalizeContentDetailed(content: unknown): NormalizedContent {
+  const doc = validateContent(content);
+  const normalized = normalizeNodeIds(doc);
+  return {
+    content: normalized.toJSON() as PMJsonNode,
+    // normalizeNodeIds 在无需修复时返回原对象。
+    nodeIdsRepaired: normalized !== doc,
+  };
 }
+
+/** 校验并规范化 nodeId，返回 PM JSON。校验失败的行为同 {@link validateContent}。 */
+export function normalizeContent(content: unknown): PMJsonNode {
+  return normalizeContentDetailed(content).content;
+}
+
+/**
+ * 文档操作引擎要求宿主注入的内容校验器（`@ses/io` 的 `ContentValidator`）：生产 schema 校验加 nodeId 规范化。
+ * 按引擎约定用返回值表达「文档不合法」，不抛 {@link EditorContentError}；消息只含结构信息，不含正文。
+ * 其他（意外的）异常原样向上抛。
+ */
+export const editorContentValidator: ContentValidator = (content) => {
+  try {
+    return { ok: true, content: normalizeContent(content) };
+  } catch (error) {
+    if (!(error instanceof EditorContentError)) throw error;
+    const { problem } = error;
+    return {
+      ok: false,
+      message: problem.detail
+        ? `${problem.message}（${problem.detail}）`
+        : problem.message,
+      code: problem.code,
+      path: problem.path,
+      ...(problem.nodeId === undefined ? {} : { nodeId: problem.nodeId }),
+    };
+  }
+};
 
 type PathSegment = string | number;
 

@@ -2,9 +2,12 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import type { PMJsonNode } from '@ses/shared';
 import { EditorContentError } from './editor-content-error';
+import { applyDocumentOperations } from '@ses/io';
 import {
+  editorContentValidator,
   getEditorSchema,
   normalizeContent,
+  normalizeContentDetailed,
   validateContent,
 } from './editor-schema';
 
@@ -365,5 +368,110 @@ describe('normalizeContent', () => {
     expect(() => normalizeContent({ type: 'doc', content: [] })).toThrow(
       EditorContentError,
     );
+  });
+});
+
+describe('normalizeContentDetailed', () => {
+  it('报告是否修复了 nodeId：缺失或重复为 true，完整且唯一为 false（与编辑器的 hasNodeIdIssues 一致）', () => {
+    const missing = normalizeContentDetailed(
+      doc(chapter('c1', paragraph(null, '缺 id'))),
+    );
+    expect(missing.nodeIdsRepaired).toBe(true);
+
+    const duplicated = normalizeContentDetailed(
+      doc(chapter('c1', paragraph('dup', '甲'), paragraph('dup', '乙'))),
+    );
+    expect(duplicated.nodeIdsRepaired).toBe(true);
+
+    const clean = normalizeContentDetailed(
+      doc(chapter('c1', paragraph('p1', '甲'), paragraph('p2', '乙'))),
+    );
+    expect(clean.nodeIdsRepaired).toBe(false);
+    // 修复过的内容再检查就是完整的。
+    expect(normalizeContentDetailed(missing.content).nodeIdsRepaired).toBe(
+      false,
+    );
+    expect(normalizeContentDetailed(duplicated.content).nodeIdsRepaired).toBe(
+      false,
+    );
+  });
+
+  it('content 与 normalizeContent 一致；校验失败同样抛出 EditorContentError', () => {
+    const input = doc(chapter('c1', paragraph('p1', '正文')));
+    expect(normalizeContentDetailed(input).content).toEqual(
+      normalizeContent(input),
+    );
+    expect(() => normalizeContentDetailed({ type: 'doc' })).toThrow(
+      EditorContentError,
+    );
+  });
+});
+
+describe('editorContentValidator（注入文档操作引擎的 ContentValidator）', () => {
+  it('合法内容返回 ok 与规范化后的文档（补齐 nodeId），不抛异常', () => {
+    const input = doc(chapter('c1', paragraph(null, '正文')));
+    const result = editorContentValidator(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const ids = nodeIdAttrs(result.content!);
+    expect(ids.every((id) => typeof id === 'string' && id !== '')).toBe(true);
+  });
+
+  it('不合法内容用返回值表达（不抛异常）：message、code、path、nodeId；消息不含正文', () => {
+    const result = editorContentValidator(
+      doc({
+        type: 'chapter',
+        attrs: { nodeId: 'c1' },
+        content: [paragraph('p1', SECRET)],
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result).toMatchObject({
+      code: 'invalid-content',
+      path: '/content/0',
+      nodeId: 'c1',
+    });
+    expect(result.message).toContain('子节点不符合内容约束');
+    expect(JSON.stringify(result)).not.toContain(SECRET);
+
+    const unknown = editorContentValidator(
+      doc({ type: 'mystery', attrs: { nodeId: 'bad' } }),
+    );
+    expect(unknown).toMatchObject({
+      ok: false,
+      code: 'unknown-node-type',
+      path: '/content/0',
+      nodeId: 'bad',
+    });
+  });
+
+  it('接入引擎：操作后的文档不符合生产 schema 时，引擎返回 schema-invalid 问题（带 nodeId），而不是抛异常', () => {
+    // 引擎自己不认识生产 schema，只在最后调用注入的校验器。这里的起始文档本身不合法
+    //（章里没有 chapterTitle），任何操作之后校验器都会拒绝。
+    const invalid = doc(
+      {
+        type: 'chapter',
+        attrs: { nodeId: 'c1' },
+        content: [paragraph('p1', SECRET)],
+      },
+      chapter('c2', paragraph('p2', '乙')),
+    );
+    const result = applyDocumentOperations(
+      invalid,
+      [{ op: 'delete', nodeId: 'p2' }],
+      { validateContent: editorContentValidator },
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0]).toMatchObject({
+      code: 'schema-invalid',
+      path: 'document',
+      nodeId: 'c1',
+    });
+    expect(result.issues[0].reason).toContain('未通过编辑器 schema 校验');
+    expect(result.issues[0].reason).toContain('/content/0');
+    expect(JSON.stringify(result)).not.toContain(SECRET);
   });
 });

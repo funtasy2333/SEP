@@ -4,10 +4,36 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { VERSION_SOURCES, VersionEntity } from './version.entity';
 
-const MAX_CLIENT_LENGTH = 200;
+/** client（写入方标识）的最大长度；operations 接口的 client 字段沿用同一上限。 */
+export const MAX_CLIENT_LENGTH = 200;
+
+/**
+ * 下一个版本号，规则与 client 的 `getNextVersionNo`（stores/version.ts）一致：
+ * 取最新一条版本的 `major.minor`，minor 加 1；还没有版本时为 `1.0`。
+ * 修改这里时必须同步 client。
+ */
+export function nextVersionNo(latestVersionNo: string | undefined): string {
+  if (latestVersionNo === undefined) return '1.0';
+  const parts = latestVersionNo.split('.');
+  const major = parseInt(parts[0]) || 1;
+  const minor = (parseInt(parts[1]) || 0) + 1;
+  return `${major}.${minor}`;
+}
+
+/** 一次 AI 写入要记录的版本。stage、content 与 baseContent 的含义见 operations 接口。 */
+export interface AiVersionInput {
+  documentId: number;
+  stage: string;
+  /** 写入后的内容。 */
+  content: Record<string, unknown>;
+  /** 写入前的内容。 */
+  baseContent: Record<string, unknown>;
+  client: string | null;
+  note: string;
+}
 
 @Injectable()
 export class VersionService {
@@ -16,15 +42,24 @@ export class VersionService {
     private readonly versionRepo: Repository<VersionEntity>,
   ) {}
 
+  /**
+   * 版本列表（最新在前）。不含 baseContent（见 VersionEntity.baseContent）。
+   * createdAt 精度为秒，同一秒内的多条以 id 倒序为准，保证「最新一条」始终确定。
+   */
   async findByDocument(documentId: number): Promise<VersionEntity[]> {
     return this.versionRepo.find({
       where: { documentId },
-      order: { createdAt: 'DESC' },
+      order: { createdAt: 'DESC', id: 'DESC' },
     });
   }
 
+  /** 单个版本的详情，含 baseContent（列表接口不返回）。 */
   async findOne(id: number): Promise<VersionEntity> {
-    const version = await this.versionRepo.findOne({ where: { id } });
+    const version = await this.versionRepo
+      .createQueryBuilder('version')
+      .addSelect('version.baseContent')
+      .where('version.id = :id', { id })
+      .getOne();
     if (!version) throw new NotFoundException(`Version #${id} not found`);
     return version;
   }
@@ -49,7 +84,44 @@ export class VersionService {
         `client 必须是不超过 ${MAX_CLIENT_LENGTH} 个字符的字符串`,
       );
     }
+    if (
+      data.baseContent !== undefined &&
+      data.baseContent !== null &&
+      (typeof data.baseContent !== 'object' || Array.isArray(data.baseContent))
+    ) {
+      throw new BadRequestException('baseContent 必须是 JSON 对象');
+    }
     const version = this.versionRepo.create(data);
     return this.versionRepo.save(version);
+  }
+
+  /**
+   * 在调用方的事务里插入一条 AI 写入的版本记录（source = 'ai'，xml 为空）。
+   * 版本号在同一事务内按该文档最新一条版本计算，见 {@link nextVersionNo}。
+   * 调用方（DocumentService.transaction）保证同一时刻只有一个这样的事务，所以「读最新版本号 → 插入」之间
+   * 不会有别的 AI 写入插进来。
+   */
+  async createForAiWrite(
+    manager: EntityManager,
+    input: AiVersionInput,
+  ): Promise<VersionEntity> {
+    const repo = manager.getRepository(VersionEntity);
+    const latest = await repo.findOne({
+      where: { documentId: input.documentId },
+      order: { createdAt: 'DESC', id: 'DESC' },
+      select: { id: true, versionNo: true },
+    });
+    const version = repo.create({
+      documentId: input.documentId,
+      versionNo: nextVersionNo(latest?.versionNo),
+      stage: input.stage,
+      content: input.content,
+      baseContent: input.baseContent,
+      // xml 不赋值：列可空，AI 写入不生成 XML。
+      note: input.note,
+      source: 'ai',
+      client: input.client,
+    });
+    return repo.save(version);
   }
 }

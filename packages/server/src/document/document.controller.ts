@@ -34,6 +34,7 @@ export class DocumentController {
   /**
    * PUT /api/documents/:id
    * 请求体必须带 baseRevision：缺失 428、类型错误 400、与当前 revision 不一致 409。
+   * 成功后发布变更事件（来源 human：此接口是编辑器自动保存的入口）。
    */
   @Put(':id')
   update(
@@ -41,7 +42,9 @@ export class DocumentController {
     @Body() body: unknown,
   ): Promise<DocumentEntity> {
     const { baseRevision, fields } = parseDocumentUpdateRequest(body);
-    return this.documentService.update(id, baseRevision, fields);
+    return this.documentService.update(id, baseRevision, fields, {
+      source: 'human',
+    });
   }
 
   @Delete(':id')

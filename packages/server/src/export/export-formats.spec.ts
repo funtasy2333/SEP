@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import {
@@ -18,6 +18,7 @@ import request from 'supertest';
 import { ConvertService } from '../convert/convert.service';
 import { DocumentEntity } from '../document/document.entity';
 import { DocumentModule } from '../document/document.module';
+import { validateContent } from '../editor-schema/editor-schema';
 import { VersionEntity } from '../version/version.entity';
 import {
   CONTENT_DISPOSITION_MAX_LENGTH,
@@ -199,6 +200,12 @@ function chapterOnlyDoc(...children: PMJsonNode[]): Record<string, unknown> {
   };
 }
 
+/** 章里只有标题，再追加给定的顶层节点（用于构造不符合 schema 的文档）。 */
+function chapterOnlyDocWith(extra: PMJsonNode): Record<string, unknown> {
+  const doc = chapterOnlyDoc();
+  return { ...doc, content: [...(doc.content as PMJsonNode[]), extra] };
+}
+
 function figure(nodeId: string, src: string): PMJsonNode {
   return {
     type: 'figure',
@@ -231,6 +238,22 @@ const EXPORT_PATH = (id: number | string, format: Format) =>
 const disposition = (filename: string) =>
   `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`;
 const PDF_BYTES = Buffer.from('%PDF-1.7\n% 测试桩生成，不是真实 PDF\n', 'utf8');
+const SECRET = '机密正文-8f3a91';
+
+/** 捕获并静默 Nest Logger 的输出，返回捕获到的全部日志文本。 */
+function captureLogs() {
+  const spies = (['log', 'warn', 'error', 'debug', 'verbose'] as const).map(
+    (level) => jest.spyOn(Logger.prototype, level).mockImplementation(),
+  );
+  return {
+    text: () =>
+      spies
+        .flatMap((spy) => spy.mock.calls)
+        .map((args) => args.map(String).join(' '))
+        .join('\n'),
+    restore: () => spies.forEach((spy) => spy.mockRestore()),
+  };
+}
 
 describe('GET /api/documents/:id/export/{pdf,html,json}', () => {
   let app: INestApplication;
@@ -327,6 +350,13 @@ describe('GET /api/documents/:id/export/{pdf,html,json}', () => {
       meta as unknown as DocumentMeta,
     ) as unknown as PMJsonNode;
 
+  /**
+   * 编辑器交给导出函数的是 ProseMirror 文档（导出函数内部先调 toJSON()）：属性按生产 schema 补齐并排序。
+   * 接口对库内内容做同样的校验与 toJSON()，所以手写的、不是 getJSON() 形态的内容要用它计算期望值。
+   */
+  const editorForm = (content: Record<string, unknown>): PMJsonNode =>
+    validateContent(synchronized(content)).toJSON() as PMJsonNode;
+
   describe.each<Format>(['pdf', 'html', 'json'])('%s：错误响应', (format) => {
     it('文档不存在返回 404', async () => {
       expect((await download(EXPORT_PATH(987654, format))).status).toBe(404);
@@ -362,6 +392,93 @@ describe('GET /api/documents/:id/export/{pdf,html,json}', () => {
       expect(res.status).toBe(422);
       expect(errorBody(res).message).toContain('文档内容结构无法解析');
       expect(convertStub.convertHtmlToPdf).not.toHaveBeenCalled();
+    });
+
+    it('内容不符合生产 schema（未知节点类型）返回 422：source=schema、问题定位；日志不含节点类型', async () => {
+      const logs = captureLogs();
+      try {
+        const id = await createDoc({
+          content: chapterOnlyDocWith({
+            type: 'mystery',
+            attrs: { nodeId: 'bad-1' },
+          }),
+        });
+        const res = await download(EXPORT_PATH(id, format));
+        expect(res.status).toBe(422);
+        const body = errorBody(res);
+        expect(body.statusCode).toBe(422);
+        expect(body.source).toBe('schema');
+        expect(body.message).toContain('文档内容不符合编辑器文档结构');
+        expect(body.message).toContain(`无法导出 ${format.toUpperCase()}`);
+        expect(body.message).toContain('未知的节点类型「mystery」');
+        // 路径按封面同步之后的文档计算：库里没有封面，同步时在最前面插入了 coverPage，mystery 成为第 3 个顶层节点。
+        expect(body.problems).toEqual([
+          {
+            source: 'schema',
+            code: 'unknown-node-type',
+            message: '未知的节点类型「mystery」',
+            path: '/content/2',
+            nodeType: 'mystery',
+            nodeId: 'bad-1',
+          },
+        ]);
+        const logged = logs.text();
+        expect(logged).toContain(`文档 #${id} 内容不符合编辑器文档结构`);
+        expect(logged).toContain('unknown-node-type');
+        expect(logged).not.toContain('mystery');
+        expect(convertStub.convertHtmlToPdf).not.toHaveBeenCalled();
+      } finally {
+        logs.restore();
+      }
+    });
+
+    it('违反内容约束返回 422，给出内容表达式与实际子节点；响应与日志都不含正文', async () => {
+      const logs = captureLogs();
+      try {
+        const id = await createDoc({
+          content: {
+            type: 'doc',
+            content: [
+              {
+                type: 'chapter',
+                attrs: { nodeId: 'c1' },
+                // 章必须以 chapterTitle 开头；这里直接放了带正文的段落。
+                content: [paragraph('p1', SECRET)],
+              },
+            ],
+          },
+        });
+        const res = await download(EXPORT_PATH(id, format));
+        expect(res.status).toBe(422);
+        const body = errorBody(res);
+        expect(body.source).toBe('schema');
+        expect(body.problems?.[0]).toMatchObject({
+          source: 'schema',
+          code: 'invalid-content',
+          nodeType: 'chapter',
+          nodeId: 'c1',
+          actualChildren: ['stdParagraph'],
+        });
+        expect(res.bytes.toString('utf8')).not.toContain(SECRET);
+        expect(logs.text()).not.toContain(SECRET);
+        expect(convertStub.convertHtmlToPdf).not.toHaveBeenCalled();
+      } finally {
+        logs.restore();
+      }
+    });
+
+    it('旧版 standardDoc 根（不在生产 schema 中）返回 422 而不是导出', async () => {
+      const id = await createDoc({
+        content: { ...chapterOnlyDoc(), type: 'standardDoc' },
+      });
+      const res = await download(EXPORT_PATH(id, format));
+      expect(res.status).toBe(422);
+      expect(errorBody(res).problems?.[0]).toMatchObject({
+        source: 'schema',
+        code: 'unknown-node-type',
+        path: '',
+        nodeType: 'standardDoc',
+      });
     });
   });
 
@@ -499,7 +616,7 @@ describe('GET /api/documents/:id/export/{pdf,html,json}', () => {
         const res = await download(EXPORT_PATH(id, 'json'));
         expect(res.status).toBe(200);
         expect(res.bytes.toString('utf8')).toBe(
-          JSON.stringify(exportSemanticJson(synchronized(content)), null, 2),
+          JSON.stringify(exportSemanticJson(editorForm(content)), null, 2),
         );
       }
     });

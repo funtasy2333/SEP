@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { join } from 'path';
 import { DocumentModule } from './document/document.module';
+import { DocumentOpsModule } from './document-ops/document-ops.module';
 import { VersionModule } from './version/version.module';
 import { ConvertModule } from './convert/convert.module';
 import { ExportModule } from './export/export.module';
@@ -17,6 +18,7 @@ import { VersionEntity } from './version/version.entity';
       synchronize: true,
     }),
     DocumentModule,
+    DocumentOpsModule,
     VersionModule,
     ConvertModule,
     ExportModule,

@@ -345,7 +345,7 @@ describe('旧库升级', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it('synchronize 给旧表补上 revision / source / client，原有数据不丢失', async () => {
+  it('synchronize 给旧表补上 revision / source / client / baseContent，原有数据不丢失', async () => {
     const file = join(dir, 'legacy.db');
     const legacyMeta = {
       titleCn: '旧库文档',
@@ -413,6 +413,13 @@ describe('旧库升级', () => {
         source: 'human',
         client: null,
       });
+      // 列表不返回 baseContent；详情返回，旧版本为 null。
+      expect('baseContent' in (versions[0] as object)).toBe(false);
+      const detail = await reply<{ baseContent: unknown }>(
+        http.get('/api/versions/1'),
+        200,
+      );
+      expect(detail.baseContent).toBeNull();
 
       // 旧行可直接用 baseRevision=0 保存。
       const saved = await reply(

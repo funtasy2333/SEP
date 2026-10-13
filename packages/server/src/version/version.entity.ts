@@ -29,6 +29,16 @@ export class VersionEntity {
   @Column({ type: 'simple-json' })
   content: Record<string, unknown>;
 
+  /**
+   * 写入前的文档内容：仅 AI 写入的版本记录有（`source = 'ai'` 且由 operations 接口生成），其余为 null。
+   * `baseContent → content` 就是这一批 AI 修改，不混入其间人的编辑。
+   *
+   * select: false：版本列表不返回它（列表已经带着每个版本的完整 content，再带 baseContent 体积会翻倍），
+   * 只有单个版本的详情接口显式取出（VersionService.findOne）。
+   */
+  @Column({ type: 'simple-json', nullable: true, select: false })
+  baseContent: Record<string, unknown> | null;
+
   @Column({ type: 'text', nullable: true })
   xml: string;
 

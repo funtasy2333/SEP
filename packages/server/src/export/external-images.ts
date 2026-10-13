@@ -1,7 +1,10 @@
 import type { PMJsonNode } from '@ses/shared';
 import type { ExportWarning } from './export-http';
 
-/** 与 DOCX 导出拒绝抓取图片时的提示一致（见 export.service.ts 的 rejectAllFetcher）。 */
+/**
+ * 服务端导出拒绝访问网络资源时的提示，DOCX（export.service.ts 的 rejectAllFetcher 抛出的错误消息）
+ * 与 PDF（本文件的告警消息）共用这一个常量，两种格式的告警文本因此一致。
+ */
 export const EXTERNAL_IMAGE_REJECTED_MESSAGE =
   '服务端导出不访问网络资源，请使用内嵌（data URL）图片';
 
