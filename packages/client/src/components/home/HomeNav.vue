@@ -2,8 +2,8 @@
   <header class="home-nav">
     <div class="nav-l">
       <router-link to="/" class="ses-brand">
-        <div class="ses-brand-mark" />
-        <span>标准编辑器</span>
+        <SesLogo />
+        <span class="ses-brand-label">标准编辑器</span>
       </router-link>
       <div class="brand-sep" />
       <nav class="home-nav-tabs">
@@ -44,6 +44,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Search, Clock, Setting } from '@element-plus/icons-vue'
+import SesLogo from '@/components/SesLogo.vue'
 
 defineProps<{
   activeTab: string
@@ -93,4 +94,18 @@ const searchValue = ref('')
 .home-nav-tab.is-active .count { background: var(--ses-accent-soft); color: var(--ses-accent); }
 .nav-search { width: 260px; }
 .kbd-hint { font-size: 10px; color: var(--ses-ink-4); font-family: var(--ses-font-mono); }
+
+@media (max-width: 1100px) {
+  .nav-l, .nav-r { gap: 12px; }
+  .nav-search { width: 180px; }
+  .home-nav-tab { padding: 6px 8px; }
+}
+@media (max-width: 900px) {
+  .home-nav { height: auto; padding: 10px 16px; flex-wrap: wrap; gap: 10px; }
+  .nav-l, .nav-r { width: 100%; min-width: 0; }
+  .brand-sep { flex-shrink: 0; }
+  .home-nav-tabs { flex: 1; min-width: 0; overflow-x: auto; }
+  .home-nav-tab { flex-shrink: 0; white-space: nowrap; }
+  .nav-search { flex: 1; width: auto; }
+}
 </style>

@@ -18,7 +18,8 @@ This folder defines the design tokens and overrides that drive the new SES UI.
    **Must be imported AFTER** `element-plus/dist/index.css`.
 
 3. **`app.css`** — Shared helper classes used across views:
-   - `.ses-brand` / `.ses-brand-mark` — brand mark + wordmark
+   - `.ses-brand` / `.ses-brand-label` — brand link + responsive product label;
+     `SesLogo.vue` renders the shared transparent SES logo from `assets/ses-logo.png`
    - `.ses-stage` — stage pills (working_draft, comment_draft, …)
    - `.ses-type-chip` — standard-type chips (national, industry, …)
    - `.ses-stage-seg` — segmented stage picker used in new-doc dialog & settings
