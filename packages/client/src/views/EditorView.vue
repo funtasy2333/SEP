@@ -4,8 +4,8 @@
     <header class="ed-nav">
       <div class="nav-l">
         <a class="ses-brand" @click.prevent="goHome" href="#">
-          <div class="ses-brand-mark" />
-          <span>标准编辑器</span>
+          <SesLogo />
+          <span class="ses-brand-label">标准编辑器</span>
         </a>
         <div class="brand-sep" />
         <div class="doc-crumb" :title="store.currentDocument?.meta?.titleCn || store.currentDocument?.title">
@@ -428,6 +428,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { documentApi } from '@/api/document'
 import { useDocumentStore } from '@/stores/document'
 import SesEditorContent from '@/components/editor/EditorContent.vue'
+import SesLogo from '@/components/SesLogo.vue'
 import DocumentOutline from '@/components/editor/DocumentOutline.vue'
 import DocumentSettingsPanel from '@/components/editor/DocumentSettingsPanel.vue'
 import SlashMenu from '@/components/editor/SlashMenu.vue'

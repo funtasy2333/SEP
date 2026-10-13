@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="packages/client/src/assets/ses-logo.png" alt="SES Logo" width="360" />
+</p>
+
 # SES - 标准化文件编辑系统
 
 **Standards Editor System** — 面向标准化组织的在线文档编辑系统，实现标准文件的高效、规范化编写和管理。

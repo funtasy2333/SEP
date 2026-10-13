@@ -27,26 +27,14 @@ kbd {
 /* ============== Brand mark (used everywhere) ============== */
 .ses-brand {
   display: flex; align-items: center; gap: 10px;
+  flex-shrink: 0;
+  white-space: nowrap;
   font-weight: 600; font-size: 14px;
   text-decoration: none;
   color: var(--ses-ink);
 }
-.ses-brand-mark {
-  width: 26px; height: 26px;
-  background: linear-gradient(135deg, var(--ses-accent), oklch(0.45 0.2 290));
-  border-radius: 6px;
-  position: relative;
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.3), 0 4px 10px var(--ses-accent-ring);
-  flex-shrink: 0;
-}
-.ses-brand-mark::before, .ses-brand-mark::after {
-  content: ""; position: absolute; inset: 0;
-  border-radius: 6px;
-  border: 1.5px solid oklch(1 0 0 / 0.4);
-}
-.ses-brand-mark::after {
-  transform: translate(3px, 3px) scale(0.85);
-  border-color: oklch(1 0 0 / 0.25);
+@media (max-width: 620px) {
+  .ses-brand-label { display: none; }
 }
 
 /* ============== Avatars ============== */
