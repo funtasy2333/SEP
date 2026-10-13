@@ -1,5 +1,6 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
+import { formatTextBlock } from '../../utils/textBlockFormat'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -82,12 +83,11 @@ export const Note = Node.create({
     return {
       insertNote:
         () =>
-        ({ chain }) => {
-          return chain()
-            .insertContent({
-              type: 'note',
-            })
-            .run()
+        ({ state, tr, dispatch, chain }) => {
+          if (formatTextBlock(state, dispatch ? tr : state.tr, 'note')) return true
+          // Unsupported selections stay intact; empty cursors may still insert a new block.
+          if (!state.selection.empty || ['stdListItem', 'stdParagraph', 'paragraph', 'note', 'example'].includes(state.selection.$from.parent.type.name)) return false
+          return chain().insertContent({ type: 'note' }).run()
         },
     }
   },
@@ -125,12 +125,11 @@ export const Example = Node.create({
     return {
       insertExample:
         () =>
-        ({ chain }) => {
-          return chain()
-            .insertContent({
-              type: 'example',
-            })
-            .run()
+        ({ state, tr, dispatch, chain }) => {
+          if (formatTextBlock(state, dispatch ? tr : state.tr, 'example')) return true
+          // Unsupported selections stay intact; empty cursors may still insert a new block.
+          if (!state.selection.empty || ['stdListItem', 'stdParagraph', 'paragraph', 'note', 'example'].includes(state.selection.$from.parent.type.name)) return false
+          return chain().insertContent({ type: 'example' }).run()
         },
     }
   },

@@ -41,8 +41,9 @@ const FRAME_NATIONAL_ISSUERS = {
 } as const
 const SMALL_MARK_GAP_RPR = '<w:rPr><w:b w:val="0"/><w:bCs w:val="0"/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr>'
 
-const RELEASE_LABEL_RPR = buildCoverReleaseRunPr(false)
-const RELEASE_TEXT_RPR = buildCoverReleaseRunPr(true)
+const RELEASE_LABEL_RPR = buildCoverReleaseRunPr()
+const RELEASE_TEXT_RPR = buildCoverReleaseRunPr(87)
+const GROUP_RELEASE_TEXT_RPR = buildCoverReleaseRunPr(100)
 
 const IMAGE_NAMESPACES =
   'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" ' +
@@ -228,8 +229,8 @@ function renderLogo(ctx: RenderContext, meta: IRDocMeta): string {
   }
 }
 
-function issuerReleaseRuns(issuer: string): string {
-  return (issuer ? plainRun(issuer) + plainRun('　', RELEASE_LABEL_RPR) : '') + plainRun('发　布', RELEASE_TEXT_RPR)
+function issuerReleaseRuns(issuer: string, standardType: IRDocMeta['standardType']): string {
+  return (issuer ? plainRun(issuer) + plainRun('　', RELEASE_LABEL_RPR) : '') + plainRun('发　布', standardType === 'group' ? GROUP_RELEASE_TEXT_RPR : RELEASE_TEXT_RPR)
 }
 
 function renderIssuer(ctx: RenderContext, meta: IRDocMeta): string {
@@ -243,7 +244,7 @@ function renderIssuer(ctx: RenderContext, meta: IRDocMeta): string {
   if (!issuer) warn(ctx, 'cover-field-missing', 'meta.issuer 缺失，非国标发布机构名称留空')
   else warn(ctx, 'cover-asset-approximation', '非国标发布机构按用户模板用黑体四号可编辑文字排版，专用机构字形未核验')
   return emitParagraph(ctx, 'SesCoverIssuer', {
-    runsXml: issuerReleaseRuns(issuer),
+    runsXml: issuerReleaseRuns(issuer, meta.standardType),
     framePr: FRAME_ISSUER,
   })
 }

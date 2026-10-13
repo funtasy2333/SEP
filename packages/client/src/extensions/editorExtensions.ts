@@ -1,7 +1,7 @@
 import type { Extensions } from '@tiptap/core'
 import { Image } from '@tiptap/extension-image'
 import { Placeholder } from '@tiptap/extension-placeholder'
-import { Table } from '@tiptap/extension-table'
+import { EditorTable } from './nodes/editor-table'
 import StarterKit from '@tiptap/starter-kit'
 import {
   Adoption, Appendix, AppendixLabel, AppendixTitle,
@@ -40,8 +40,8 @@ import {
 export function createEditorExtensions(): Extensions {
   return [
     // GB/T 标准文档不需要 blockquote/codeBlock/horizontalRule，禁用以免产生 IR 无法表达的内容
-    StarterKit.configure({ heading: false, blockquote: false, codeBlock: false, horizontalRule: false }),
-    Table.configure({ resizable: true }),
+    StarterKit.configure({ heading: false, blockquote: false, codeBlock: false, horizontalRule: false, gapcursor: false }),
+    EditorTable.configure({ resizable: true, allowTableNodeSelection: true }),
     StandardTableRow, StandardTableCell, StandardTableHeader,
     Image,
     Placeholder.configure({ placeholder: '开始编写标准内容...' }),

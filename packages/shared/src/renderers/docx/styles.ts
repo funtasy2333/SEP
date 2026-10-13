@@ -397,13 +397,13 @@ export const OWNER_STYLE_IDS: ReadonlySet<string> = new Set(
 )
 
 /** §6.1 非国标发布机构与「发　布」均为四号黑体常规字。
- * 「发　布」字符缩放87%经Word墨迹校准；间隔run不缩放，保持约5mm。
+ * 行业、地方、企业模板「发　布」字符缩放87%；团体标准使用100%正常字宽。
  */
-export function buildCoverReleaseRunPr(compress: boolean): string {
+export function buildCoverReleaseRunPr(scale?: number): string {
   const children: XmlChild[] = [
     ['rFonts', HEI_RFONTS],
     ...szChildren(28),
   ]
-  if (compress) children.push(['w', '<w:w w:val="87"/>'])
+  if (scale !== undefined) children.push(['w', `<w:w w:val="${scale}"/>`])
   return rPr(children)
 }
