@@ -488,7 +488,8 @@ import {
   exportSemanticJson, exportSemanticHtml,
   buildPdfExportRequest, buildDocxBlob,
 } from '@/serializer'
-import { getOutputSupportProblems, irMetaFromDocumentMeta, pmToIr, resolve, type DocumentMeta, type IRDocMeta, type PMJsonNode } from '@ses/shared'
+import { irMetaFromDocumentMeta, pmToIr, resolve, type DocumentMeta, type IRDocMeta, type PMJsonNode } from '@ses/shared'
+import { checkExportGuard, getFootnoteExportError } from '@ses/io'
 
 const route = useRoute()
 const router = useRouter()
@@ -1709,32 +1710,12 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
   }
 
   const doc = getSynchronizedEditorDoc() || editor.value.state.doc
-  if (format !== 'json') {
-    const footnoteError = getFootnoteExportError(doc)
-    if (footnoteError) {
-      exportError.value = footnoteError
-      ElMessage.error(footnoteError)
-      return
-    }
-  }
-  if (format !== 'json') {
-    const outputFormat = format === 'docx' ? 'DOCX' : format === 'xml' ? 'XML' : 'HTML'
-    const problems = getOutputSupportProblems(pmToIr(doc.toJSON() as PMJsonNode).doc, outputFormat)
-    if (problems.length) {
-      const details = problems.map((problem) => {
-        const location = [
-          problem.nodeId ? `节点 ${problem.nodeId}` : '',
-          problem.path ? `位置 ${problem.path}` : '',
-        ].filter(Boolean).join('，')
-        return `${problem.message}${location ? `【${location}】` : ''}`
-      }).join('；')
-      exportError.value = `导出被阻止：${details}`
-      const firstProblem = problems[0]!
-      ElMessage.error(problems.length > 1
-        ? `导出被阻止：${firstProblem.message}（另有 ${problems.length - 1} 项，详见导出详情）`
-        : `导出被阻止：${firstProblem.message}`)
-      return
-    }
+  // 脚注校验与输出边界检查（json 不检查）；判定与提示文本见 @ses/io 的 exportGuard
+  const guardFailure = checkExportGuard(doc, format)
+  if (guardFailure) {
+    exportError.value = guardFailure.detail
+    ElMessage.error(guardFailure.message)
+    return
   }
   const meta = buildDocMeta()
   const docTitle = meta.title || store.currentDocument?.meta?.titleCn || '标准文件'
@@ -1889,17 +1870,6 @@ function downloadCodeContent() {
   }
   const titleCn = store.currentDocument?.meta?.titleCn || store.currentDocument?.title || '标准文件'
   downloadFile(codeViewContent.value, `${titleCn}.${info.ext}`, info.mime)
-}
-
-function getFootnoteExportError(doc: import('@tiptap/pm/model').Node): string {
-  const { doc: irDoc } = pmToIr(doc.toJSON() as PMJsonNode)
-  const errors = resolve(irDoc).problems.filter((problem) =>
-    problem.severity === 'error'
-    && ['dangling-footnote', 'unreferenced-footnote', 'invalid-footnote'].includes(problem.code),
-  )
-  if (!errors.length) return ''
-  const details = [...new Set(errors.map((problem) => problem.message))]
-  return `脚注校验未通过，暂不能导出：${details.join('；')}`
 }
 
 // === 导入 XML ===

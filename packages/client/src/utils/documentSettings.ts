@@ -32,11 +32,8 @@ export const DOCUMENT_SETTINGS_FIELDS = [
   'publishDate', 'implementDate', 'filingNo', 'industryName', 'regionName', 'coverDesignation',
 ] as const satisfies ReadonlyArray<keyof DocumentSettingsDraft>
 
-/** Cover values are the editor/XML source of truth; legacy root attributes remain synchronized when present. */
-export const COVER_SETTINGS_KEYS = [
-  'standardType', 'standardNo', 'titleCn', 'titleEn', 'icsCode', 'ccsCode', 'issuer', 'applicant', 'proposer', 'technicalCommittee',
-  'publishDate', 'implementDate', 'replaces', 'consistency', 'filingNo', 'industryName', 'regionName', 'coverDesignation',
-] as const satisfies ReadonlyArray<keyof DocumentMeta>
+/** 封面元数据同步已迁至 `@ses/io`（client 与服务端共用）；此处重新导出，现有调用方不变。 */
+export { COVER_SETTINGS_KEYS, synchronizeCoverMetadata } from '@ses/io'
 
 const IR_TO_DOCUMENT_TYPE = new Map<string, string>([
   ['gb', 'national'], ['industry', 'industry'], ['local', 'local'], ['group', 'group'], ['enterprise', 'enterprise'], ['guide', 'guidance'],
@@ -160,41 +157,4 @@ export function documentMetaFromSettingsDraft(
       ? designationName : draft.regionName.trim(),
     coverDesignation: normalizedDesignation,
   }
-}
-
-/** Make the cover and any legacy root attributes agree with the authoritative library metadata. */
-export function synchronizeCoverMetadata(
-  content: Record<string, unknown>,
-  meta: DocumentMeta,
-): Record<string, unknown> {
-  const cloned = JSON.parse(JSON.stringify(content || { type: 'doc', content: [] })) as Record<string, unknown>
-  const nodes = Array.isArray(cloned.content) ? cloned.content as PMJsonNode[] : []
-  const cover = nodes.find((node) => node.type === 'coverPage')
-  const rootAttrs = cloned.attrs && typeof cloned.attrs === 'object' && !Array.isArray(cloned.attrs)
-    ? cloned.attrs as Record<string, unknown> : undefined
-  const coverAttrs = cover?.attrs
-  const coverFirst = new Set(['replaces', 'consistency', 'filingNo', 'industryName', 'regionName', 'coverDesignation'])
-  const values: Record<string, string> = {}
-  for (const key of COVER_SETTINGS_KEYS) {
-    if (meta[key] !== undefined && meta[key] !== null) {
-      values[key] = asText(meta[key])
-      continue
-    }
-    const existing = coverFirst.has(key)
-      ? nonEmptyAttribute(coverAttrs, key) ?? nonEmptyAttribute(rootAttrs, key)
-      : nonEmptyAttribute(rootAttrs, key) ?? nonEmptyAttribute(coverAttrs, key)
-    values[key] = existing ?? ''
-  }
-
-  if (cover) cover.attrs = { ...cover.attrs, ...values }
-  else nodes.unshift({ type: 'coverPage', attrs: values, content: [{ type: 'paragraph' }] })
-  cloned.content = nodes
-
-  if (rootAttrs && typeof rootAttrs === 'object' && !Array.isArray(rootAttrs)) {
-    const attrs = rootAttrs as Record<string, unknown>
-    for (const key of COVER_SETTINGS_KEYS) {
-      if (Object.prototype.hasOwnProperty.call(attrs, key)) attrs[key] = values[key]
-    }
-  }
-  return cloned
 }

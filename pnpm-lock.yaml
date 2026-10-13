@@ -13,6 +13,9 @@ importers:
       '@element-plus/icons-vue':
         specifier: ^2.3.2
         version: 2.3.2(vue@3.5.31(typescript@5.9.3))
+      '@ses/io':
+        specifier: workspace:*
+        version: link:../io
       '@ses/shared':
         specifier: workspace:*
         version: link:../shared
@@ -67,9 +70,6 @@ importers:
       katex:
         specifier: ^0.16.44
         version: 0.16.44
-      mathml2omml:
-        specifier: 0.5.0
-        version: 0.5.0
       pinia:
         specifier: ^3.0.4
         version: 3.0.4(typescript@5.9.3)(vue@3.5.31(typescript@5.9.3))
@@ -104,6 +104,28 @@ importers:
       vue-tsc:
         specifier: ^3.2.5
         version: 3.2.6(typescript@5.9.3)
+
+  packages/io:
+    dependencies:
+      '@ses/shared':
+        specifier: workspace:*
+        version: link:../shared
+      jszip:
+        specifier: ^3.10.1
+        version: 3.10.1
+      katex:
+        specifier: ^0.16.44
+        version: 0.16.44
+      mathml2omml:
+        specifier: 0.5.0
+        version: 0.5.0
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@25.5.2)(happy-dom@20.14.5)(lightningcss@1.32.0)(terser@5.46.1)
 
   packages/server:
     dependencies:

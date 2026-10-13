@@ -1,7 +1,7 @@
 /**
  * 为 shared DOCX 渲染器准备 IR 图片资源。
  *
- * client 是资源边界：此模块可解析 data URL、fetch URL/blob URL，以及由宿主资源仓库解析的
+ * 宿主（client 或服务端）是资源边界：此模块可解析 data URL、fetch URL/blob URL，以及由宿主资源仓库解析的
  * resource key；shared 只接收 base64、MIME 与像素尺寸，不访问网络或浏览器 API。
  */
 

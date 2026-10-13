@@ -1,5 +1,5 @@
 /**
- * client 侧公式转换：KaTeX → MathML → OMML。
+ * 公式转换：KaTeX → MathML → OMML（平台无关，client 与服务端共用）。
  *
  * mathml2omml 按需动态导入，保持独立的异步构建 chunk（docs/wp7-docx-delivery.md §8.1、§8.5）。
  * shared 渲染器只接收已经生成的 OMML，不依赖 KaTeX、浏览器或转换库。
@@ -348,7 +348,7 @@ function visitChapter(chapter: IRChapter, visitFormula: (id: NodeId, latex: stri
 
 /**
  * 转换 IR 文档里的全部公式。失败项不写入公式资源表；shared 渲染器随后输出 LaTeX 文本。
- * client 导出器应将返回的 warnings 合并到 DocxPackage.warnings。
+ * 导出器应将返回的 warnings 合并到 DocxPackage.warnings。
  */
 export async function convertFormulasToOmml(doc: IRDoc): Promise<FormulaOmmlResult> {
   const formulaOmml: Record<NodeId, string> = {}
