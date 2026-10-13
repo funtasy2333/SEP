@@ -86,7 +86,7 @@ it('非人工来源的版本显示来源标签（AI / 导入），人工与旧�
     expect(items).toHaveLength(4)
     const tagOf = (item: HTMLElement) => item.querySelector('.version-source-tag')?.textContent?.trim() ?? null
     expect(tagOf(items[0]!)).toBe('导入')
-    expect(tagOf(items[1]!)).toBe('AI')
+    expect(tagOf(items[1]!)).toBe('AI 修改')
     expect(items[1]!.querySelector('.version-source-tag')!.getAttribute('title')).toBe('写入方：claude-code')
     expect(tagOf(items[2]!)).toBeNull()
     expect(tagOf(items[3]!)).toBeNull()

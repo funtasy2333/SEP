@@ -161,6 +161,112 @@ describe('文档 store 的 baseRevision', () => {
   })
 })
 
+describe('感知外部修改所需的 store 能力', () => {
+  it('readDocument 只读取最新文档，不改动 currentDocument', async () => {
+    const store = useDocumentStore()
+    api.get.mockResolvedValueOnce(ok(doc(3)))
+    await store.fetchDocument(7)
+
+    api.get.mockResolvedValueOnce(ok(doc(6, { title: '别处改的' })))
+    const latest = await store.readDocument(7)
+    expect(latest.revision).toBe(6)
+    expect(store.currentDocument?.revision).toBe(3)
+    expect(store.currentDocument?.title).toBe('测试')
+  })
+
+  it('adoptDocument 把已装入编辑器的最新文档安装为当前文档并同步列表；只前进不后退，也不接受别的文档', async () => {
+    const store = useDocumentStore()
+    api.list.mockResolvedValue(ok([doc(3)]))
+    api.get.mockResolvedValueOnce(ok(doc(3)))
+    await store.fetchDocuments()
+    await store.fetchDocument(7)
+
+    expect(store.adoptDocument(doc(6, { title: '别处改的' }))).toBe(true)
+    expect(store.currentDocument?.revision).toBe(6)
+    expect(store.documents[0].title).toBe('别处改的')
+
+    // 较早发出的读取晚到：不覆盖更新的记录
+    expect(store.adoptDocument(doc(5))).toBe(false)
+    expect(store.adoptDocument(doc(6))).toBe(false)
+    expect(store.currentDocument?.revision).toBe(6)
+    // 别的文档
+    expect(store.adoptDocument(doc(9, { id: 8 }))).toBe(false)
+    expect(store.currentDocument?.id).toBe(7)
+  })
+
+  it('adoptRevision 只前移 revision，内容不变；用于 system 写入', async () => {
+    const store = useDocumentStore()
+    api.list.mockResolvedValue(ok([doc(3)]))
+    api.get.mockResolvedValueOnce(ok(doc(3, { title: '本地内容' })))
+    await store.fetchDocuments()
+    await store.fetchDocument(7)
+
+    expect(store.adoptRevision(7, 4)).toBe(true)
+    expect(store.currentDocument?.revision).toBe(4)
+    expect(store.currentDocument?.title).toBe('本地内容')
+    expect(store.documents[0].revision).toBe(4)
+    expect(store.adoptRevision(7, 4)).toBe(false)
+    expect(store.adoptRevision(7, 2)).toBe(false)
+    expect(store.adoptRevision(8, 9)).toBe(false)
+    expect(store.currentDocument?.revision).toBe(4)
+
+    // 追上之后的保存使用新的 revision
+    api.update.mockResolvedValueOnce(ok(doc(5)))
+    await store.updateDocument(7, { title: 'y' })
+    expect(api.update).toHaveBeenCalledWith(7, { title: 'y', baseRevision: 4 })
+  })
+
+  it('waitForPendingUpdates 等到排队和进行中的写入都结束（无论成败），没有写入时立即返回', async () => {
+    const store = useDocumentStore()
+    api.get.mockResolvedValueOnce(ok(doc(3)))
+    await store.fetchDocument(7)
+    await store.waitForPendingUpdates(7)
+
+    const first = deferred<ReturnType<typeof ok>>()
+    api.update
+      .mockReturnValueOnce(first.promise as never)
+      .mockRejectedValueOnce(conflictError(9))
+    const a = store.updateDocument(7, { title: 'a' })
+    const b = store.updateDocument(7, { title: 'b' })
+    void b.catch(() => undefined)
+
+    let waited = false
+    const waiter = store.waitForPendingUpdates(7).then(() => { waited = true })
+    await Promise.resolve()
+    expect(waited).toBe(false)
+
+    first.resolve(ok(doc(4)))
+    await a
+    await waiter
+    expect(waited).toBe(true)
+    // 第二个写入（409）也已落定：等待者看到的是最终状态
+    expect(api.update).toHaveBeenCalledTimes(2)
+    expect(store.currentDocument?.revision).toBe(4)
+    await expect(b).rejects.toBeDefined()
+  })
+
+  it('等待期间又排进来的写入也会被等待', async () => {
+    const store = useDocumentStore()
+    api.get.mockResolvedValueOnce(ok(doc(3)))
+    await store.fetchDocument(7)
+
+    const first = deferred<ReturnType<typeof ok>>()
+    const second = deferred<ReturnType<typeof ok>>()
+    api.update.mockReturnValueOnce(first.promise as never).mockReturnValueOnce(second.promise as never)
+    void store.updateDocument(7, { title: 'a' })
+    let waited = false
+    const waiter = store.waitForPendingUpdates(7).then(() => { waited = true })
+    first.resolve(ok(doc(4)))
+    await Promise.resolve()
+    void store.updateDocument(7, { title: 'b' })
+    for (let i = 0; i < 10; i += 1) await Promise.resolve()
+    expect(waited).toBe(false)
+    second.resolve(ok(doc(5)))
+    await waiter
+    expect(store.currentDocument?.revision).toBe(5)
+  })
+})
+
 describe('isRevisionConflict', () => {
   it('只识别 HTTP 409', () => {
     expect(isRevisionConflict(conflictError(1))).toBe(true)

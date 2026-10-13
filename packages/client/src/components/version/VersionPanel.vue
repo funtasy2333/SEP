@@ -3,7 +3,7 @@
     <div class="version-panel-header">
       <h3>版本历史</h3>
       <div class="header-actions">
-        <el-button size="small" type="primary" @click="showCreateDialog = true">
+        <el-button size="small" type="primary" @click="openCreateDialog">
           保存版本
         </el-button>
         <el-button size="small" @click="$emit('close')">关闭</el-button>
@@ -20,7 +20,8 @@
         v-for="version in versionStore.sortedVersions"
         :key="version.id"
         class="version-item"
-        :class="{ selected: selectedVersionIds.includes(version.id!) }"
+        :class="{ selected: selectedVersionIds.includes(version.id!), 'is-ai': version.source === 'ai' }"
+        :data-source="version.source"
         @click="toggleSelect(version)"
       >
         <div class="version-item-header">
@@ -42,17 +43,23 @@
               :title="version.client ? `写入方：${version.client}` : undefined"
               type="warning"
               size="small"
-              effect="light"
+              :effect="version.source === 'ai' ? 'dark' : 'light'"
             >
               {{ sourceLabel(version.source) }}
             </el-tag>
           </div>
           <span class="version-time">{{ formatTime(version.createdAt) }}</span>
         </div>
+        <div v-if="version.client" class="version-client">写入方：{{ version.client }}</div>
         <div v-if="version.note" class="version-note">{{ version.note }}</div>
         <div class="version-actions">
           <el-button link size="small" @click.stop="previewVersion(version)">预览</el-button>
           <el-button link size="small" @click.stop="restoreVersion(version)">回滚</el-button>
+          <!-- 列表接口不返回 baseContent：探测到详情里有写入前内容的 AI 修改才提供这两个操作 -->
+          <template v-if="canInspectAiChange(version)">
+            <el-button link size="small" type="primary" data-action="view-ai-change" @click.stop="viewAiChange(version)">查看本次修改</el-button>
+            <el-button link size="small" type="warning" data-action="rollback-ai-change" @click.stop="rollbackAiChange(version)">回滚到修改前</el-button>
+          </template>
         </div>
       </div>
     </div>
@@ -121,11 +128,27 @@
     <!-- 差异比对对话框 -->
     <el-dialog
       v-model="showDiff"
-      title="版本差异比对"
+      :title="aiChangeVersion ? '本次 AI 修改' : '版本差异比对'"
       width="85%"
       append-to-body
       class="diff-dialog"
     >
+      <!-- 查看 AI 修改：baseContent（写入前）→ content（写入后），只含这一批修改 -->
+      <div class="diff-header" v-if="aiChangeVersion" data-testid="ai-change-header">
+        <div class="diff-version old">
+          <span class="diff-label">修改前</span>
+          AI 写入前的内容
+        </div>
+        <span class="diff-arrow">→</span>
+        <div class="diff-version new">
+          <span class="diff-label">修改后</span>
+          v{{ aiChangeVersion.versionNo }}
+          <el-tag size="small" type="warning" effect="dark">{{ sourceLabel(aiChangeVersion.source) }}</el-tag>
+          <span v-if="aiChangeVersion.client">{{ aiChangeVersion.client }}</span>
+          <span class="diff-time">{{ formatTime(aiChangeVersion.createdAt) }}</span>
+        </div>
+      </div>
+      <div class="diff-note" v-if="aiChangeVersion?.note">{{ aiChangeVersion.note }}</div>
       <div class="diff-header" v-if="diffVersions">
         <div class="diff-version old">
           <span class="diff-label">旧版本</span>
@@ -150,22 +173,26 @@
         <span class="stat-added">+{{ diffResult.stats.added }} 新增</span>
         <span class="stat-removed">-{{ diffResult.stats.removed }} 删除</span>
         <span class="stat-unchanged">{{ diffResult.stats.unchanged }} 未变</span>
+        <el-checkbox v-if="aiChangeVersion" v-model="collapseUnchanged" size="small">仅显示修改处及上下文</el-checkbox>
       </div>
 
       <div class="diff-content" v-if="diffResult">
-        <div
-          v-for="(line, idx) in diffResult.lines"
-          :key="idx"
-          class="diff-line"
-          :class="line.type"
-        >
-          <span class="line-no old-no">{{ line.oldLineNo ?? '' }}</span>
-          <span class="line-no new-no">{{ line.newLineNo ?? '' }}</span>
-          <span class="line-prefix">{{ linePrefixChar(line.type) }}</span>
-          <span class="line-text">{{ line.text }}</span>
-        </div>
+        <template v-for="(row, idx) in diffRows" :key="idx">
+          <div v-if="row.type === 'skipped'" class="diff-line skipped">
+            <span class="line-text">… 省略 {{ row.count }} 行未变内容 …</span>
+          </div>
+          <div v-else class="diff-line" :class="row.type">
+            <span class="line-no old-no">{{ row.oldLineNo ?? '' }}</span>
+            <span class="line-no new-no">{{ row.newLineNo ?? '' }}</span>
+            <span class="line-prefix">{{ linePrefixChar(row.type) }}</span>
+            <span class="line-text">{{ row.text }}</span>
+          </div>
+        </template>
         <div v-if="diffResult.lines.length === 0" class="diff-empty">
           两个版本完全相同，没有差异。
+        </div>
+        <div v-else-if="aiChangeVersion && diffResult.stats.added + diffResult.stats.removed === 0" class="diff-empty">
+          此次修改没有改变可比较的文本内容（可能只涉及结构或属性）。
         </div>
       </div>
     </el-dialog>
@@ -173,13 +200,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, nextTick } from 'vue'
+import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useVersionStore } from '@/stores/version'
 import { useDocumentStore } from '@/stores/document'
 import { serializeToXml } from '@/serializer'
 import { XmlFootnoteValidationError } from '@/serializer/xmlSerializer'
-import { diffDocuments, type DiffResult } from '@/utils/docDiff'
+import { diffDocuments, type DiffLine, type DiffResult } from '@/utils/docDiff'
 import { isRevisionConflict } from '@/utils/documentConflict'
 import type { VersionData, VersionSource } from '@/api/version'
 
@@ -212,6 +239,9 @@ const selectedVersionIds = ref<number[]>([])
 
 const diffVersions = ref<{ old: VersionData; new: VersionData } | null>(null)
 const diffResult = ref<DiffResult | null>(null)
+/** 非空表示差异对话框正在展示这一批 AI 修改（baseContent → content），而不是两个版本的比较 */
+const aiChangeVersion = ref<VersionData | null>(null)
+const collapseUnchanged = ref(true)
 
 const createForm = reactive({
   versionNo: '',
@@ -219,9 +249,92 @@ const createForm = reactive({
   note: '',
 })
 
+/** 最近一次自动建议的版本号：表单里仍是它，说明用户没有手动改过，可以随最新列表更新。 */
+let suggestedVersionNo = ''
+
+function suggestVersionNo() {
+  suggestedVersionNo = versionStore.getNextVersionNo()
+  createForm.versionNo = suggestedVersionNo
+}
+
+function openCreateDialog() {
+  // 面板打开期间列表可能被 AI 写入刷新过：没手动改过版本号时按最新列表重新建议。
+  if (createForm.versionNo === suggestedVersionNo) suggestVersionNo()
+  showCreateDialog.value = true
+}
+
 onMounted(async () => {
   await versionStore.fetchVersions(props.documentId)
-  createForm.versionNo = versionStore.getNextVersionNo()
+  suggestVersionNo()
+  void probeAiVersions()
+})
+
+// 列表被后台刷新（收到 AI 写入的推送）后，新出现的 AI 版本也要探测。
+watch(() => versionStore.sortedVersions, () => { void probeAiVersions() })
+
+/**
+ * 版本列表不返回 baseContent（体积），只有详情接口返回。AI 版本逐个拉取详情，
+ * 记下有没有写入前的内容：没有的（旧数据）不提供「查看本次修改」「回滚到修改前」。
+ * 同时最多 3 个请求；探测失败的下次列表变化时再试。
+ */
+const aiBaseAvailable = ref<Record<number, boolean>>({})
+const probingAiVersions = new Set<number>()
+
+function hasBaseContent(version?: VersionData | null): boolean {
+  return Boolean(version?.baseContent) && typeof version!.baseContent === 'object'
+}
+
+async function probeAiVersions() {
+  const queue = versionStore.sortedVersions
+    .filter((version) => version.source === 'ai' && version.id != null
+      && !hasBaseContent(version) && !(version.id in aiBaseAvailable.value) && !probingAiVersions.has(version.id))
+    .map((version) => version.id!)
+  queue.forEach((id) => probingAiVersions.add(id))
+  const worker = async () => {
+    for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
+      try {
+        aiBaseAvailable.value[id] = hasBaseContent(await versionStore.fetchVersion(id))
+      } catch {
+        // 探测失败：保持未知（不显示操作），下次列表变化时重试。
+      } finally {
+        probingAiVersions.delete(id)
+      }
+    }
+  }
+  await Promise.all([worker(), worker(), worker()])
+}
+
+function canInspectAiChange(version: VersionData): boolean {
+  return version.source === 'ai' && (hasBaseContent(version) || aiBaseAvailable.value[version.id!] === true)
+}
+
+type DiffRow = DiffLine | { type: 'skipped'; count: number }
+const DIFF_CONTEXT_LINES = 2
+
+/** 查看 AI 修改时默认折叠远离修改处的未变行；两版本比较保持原样全部显示。 */
+const diffRows = computed<DiffRow[]>(() => {
+  const lines = diffResult.value?.lines ?? []
+  if (!aiChangeVersion.value || !collapseUnchanged.value) return lines
+  const keep = lines.map(() => false)
+  lines.forEach((line, index) => {
+    if (line.type === 'unchanged') return
+    const from = Math.max(0, index - DIFF_CONTEXT_LINES)
+    const to = Math.min(lines.length - 1, index + DIFF_CONTEXT_LINES)
+    for (let i = from; i <= to; i += 1) keep[i] = true
+  })
+  const rows: DiffRow[] = []
+  let skipped = 0
+  lines.forEach((line, index) => {
+    if (keep[index]) {
+      if (skipped > 0) rows.push({ type: 'skipped', count: skipped })
+      skipped = 0
+      rows.push(line)
+    } else {
+      skipped += 1
+    }
+  })
+  if (skipped > 0) rows.push({ type: 'skipped', count: skipped })
+  return rows
 })
 
 /** 阶段显示标签 */
@@ -241,7 +354,7 @@ function stageLabel(stage: string): string {
 
 /** 非人工来源才显示标签；旧数据没有 source 时按 human 处理 */
 const sourceLabels: Partial<Record<VersionSource, string>> = {
-  ai: 'AI',
+  ai: 'AI 修改',
   import: '导入',
 }
 
@@ -327,7 +440,7 @@ async function handleCreateVersion() {
       if (!isRevisionConflict(error)) throw error
       // 版本快照已保存，但文档在别处被改过，编辑器内容没有写入文档：交给编辑器的冲突处理。
       showCreateDialog.value = false
-      createForm.versionNo = versionStore.getNextVersionNo()
+      suggestVersionNo()
       createForm.note = ''
       ElMessage.warning('版本已保存，但文档已在其他地方被修改，当前编辑内容未保存')
       emit('conflict')
@@ -335,7 +448,7 @@ async function handleCreateVersion() {
     }
 
     showCreateDialog.value = false
-    createForm.versionNo = versionStore.getNextVersionNo()
+    suggestVersionNo()
     createForm.note = ''
     ElMessage.success('版本保存成功')
   } catch (e) {
@@ -370,22 +483,72 @@ async function previewVersion(version: VersionData) {
   }
 }
 
-/** 回滚到指定版本 */
-async function restoreVersion(version: VersionData) {
+/** 回滚前的二次确认。用户取消返回 false；确认框本身出错要让用户看到。 */
+async function confirmRollback(message: string): Promise<boolean> {
   try {
     await ElMessageBox.confirm(
-      `确定要回滚到版本 v${version.versionNo} 吗？当前未保存的编辑内容将丢失。`,
+      message,
       '回滚确认',
       { type: 'warning', confirmButtonText: '确定回滚', cancelButtonText: '取消' },
     )
+    return true
   } catch (error) {
     // Element Plus rejects with "cancel" or "close" when the user declines.
     // Other confirmation failures are operational errors and should be visible.
     const reason = error instanceof Error ? error.message : String(error)
-    if (reason === 'cancel' || reason === 'close') return
-    ElMessage.error(`回滚失败: ${reason}`)
-    return
+    if (reason !== 'cancel' && reason !== 'close') ElMessage.error(`回滚失败: ${reason}`)
+    return false
   }
+}
+
+/** 读取 AI 版本详情（含写入前内容）；没有写入前内容时提示并不再提供相关操作。 */
+async function loadAiChange(version: VersionData): Promise<(VersionData & { baseContent: Record<string, unknown> }) | null> {
+  const detail = await versionStore.fetchVersion(version.id!)
+  if (!hasBaseContent(detail)) {
+    aiBaseAvailable.value[version.id!] = false
+    ElMessage.warning('该版本没有保存修改前的内容，无法查看或回滚本次修改')
+    return null
+  }
+  return detail as VersionData & { baseContent: Record<string, unknown> }
+}
+
+/** 查看本次 AI 修改：只比较 baseContent → content，不混入其间人的编辑。 */
+async function viewAiChange(version: VersionData) {
+  try {
+    const detail = await loadAiChange(version)
+    if (!detail) return
+    aiChangeVersion.value = detail
+    diffVersions.value = null
+    collapseUnchanged.value = true
+    diffResult.value = diffDocuments(detail.baseContent, detail.content)
+    showDiff.value = true
+  } catch (error) {
+    ElMessage.error(`加载本次修改失败: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+/** 回滚到这一批 AI 修改之前：把编辑器内容设为 baseContent，后续经自动保存写回。 */
+async function rollbackAiChange(version: VersionData) {
+  if (!await confirmRollback(
+    `确定要回滚到 AI 修改（v${version.versionNo}）之前的内容吗？`
+    + '编辑器内容将替换为修改前的版本，此后的所有修改（包括人工编辑）和当前未保存的内容都会丢失。',
+  )) return
+
+  try {
+    const detail = await loadAiChange(version)
+    if (!detail) return
+    props.setContent(detail.baseContent)
+    ElMessage.success(`已回滚到 AI 修改（v${version.versionNo}）之前`)
+    emit('close')
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    ElMessage.error(`回滚失败: ${reason}`)
+  }
+}
+
+/** 回滚到指定版本 */
+async function restoreVersion(version: VersionData) {
+  if (!await confirmRollback(`确定要回滚到版本 v${version.versionNo} 吗？当前未保存的编辑内容将丢失。`)) return
 
   try {
     const fullVersion = version.content
@@ -420,6 +583,7 @@ async function compareSelected() {
     const t2 = new Date(full2.createdAt || 0).getTime()
     const [oldVer, newVer] = t1 <= t2 ? [full1, full2] : [full2, full1]
 
+    aiChangeVersion.value = null
     diffVersions.value = { old: oldVer, new: newVer }
     diffResult.value = diffDocuments(oldVer.content, newVer.content)
     showDiff.value = true
@@ -510,6 +674,21 @@ async function compareSelected() {
 
 .version-source-tag {
   font-weight: 600;
+}
+
+.version-item.is-ai {
+  border-left: 3px solid var(--el-color-warning);
+}
+
+.version-client {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  padding-left: 28px;
+}
+
+.version-client + .version-note {
+  margin-top: 2px;
 }
 
 .version-note {
@@ -613,6 +792,19 @@ async function compareSelected() {
 
 .diff-line.unchanged {
   background: #fff;
+}
+
+.diff-line.skipped {
+  background: #f6f8fa;
+  color: #999;
+  justify-content: center;
+}
+
+.diff-note {
+  margin-bottom: 12px;
+  text-align: center;
+  font-size: 13px;
+  color: #666;
 }
 
 .line-no {

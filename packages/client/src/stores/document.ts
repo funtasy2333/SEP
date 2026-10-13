@@ -27,6 +27,42 @@ export const useDocumentStore = defineStore('document', () => {
     }
   }
 
+  /**
+   * 读取服务端最新的文档，但不改动 currentDocument。
+   * 感知到外部修改时先读取、校验，确认能载入编辑器后才用 {@link adoptDocument} 安装：
+   * 若直接 fetchDocument，读到的内容装不进编辑器时本地 revision 已前进，之后的保存会静默覆盖外部修改。
+   */
+  async function readDocument(id: number): Promise<DocumentData> {
+    const { data } = await documentApi.get(id)
+    return data
+  }
+
+  /**
+   * 把已读取（并已装入编辑器）的最新文档安装为当前文档。只前进不后退：
+   * revision 不大于本地记录时忽略，避免较早发出的读取覆盖了之后保存得到的更新。
+   */
+  function adoptDocument(doc: DocumentData): boolean {
+    const current = currentDocument.value
+    if (!current || doc.id !== current.id || doc.revision <= current.revision) return false
+    currentDocument.value = doc
+    const idx = documents.value.findIndex((d) => d.id === doc.id)
+    if (idx !== -1) documents.value[idx] = doc
+    return true
+  }
+
+  /**
+   * 只前移本地修订号，不改内容。用于确认「期间只有 system 写入（补齐 nodeId，语义不变）」的情形：
+   * 本地内容仍然有效，只是 baseRevision 需要追上，否则下一次保存会无谓地 409。
+   */
+  function adoptRevision(id: number, revision: number): boolean {
+    const current = currentDocument.value
+    if (!current || current.id !== id || revision <= current.revision) return false
+    current.revision = revision
+    const entry = documents.value.find((d) => d.id === id)
+    if (entry && entry.revision < revision) entry.revision = revision
+    return true
+  }
+
   async function createDocument(doc: Partial<DocumentData>) {
     const { data } = await documentApi.create(doc)
     documents.value.unshift(data)
@@ -62,6 +98,17 @@ export const useDocumentStore = defineStore('document', () => {
     return result
   }
 
+  /**
+   * 等待该文档所有已排队和进行中的写入结束（无论成功或失败）。
+   * 编辑器自己的保存会在响应返回前就从变更推送里收到对应事件，必须等写入落定、本地 revision 更新之后
+   * 再判断一个事件是不是「别人的修改」。
+   */
+  async function waitForPendingUpdates(id: number): Promise<void> {
+    for (let pending = pendingUpdates.get(id); pending; pending = pendingUpdates.get(id)) {
+      await pending
+    }
+  }
+
   async function deleteDocument(id: number) {
     await documentApi.delete(id)
     documents.value = documents.value.filter((d) => d.id !== id)
@@ -76,8 +123,12 @@ export const useDocumentStore = defineStore('document', () => {
     loading,
     fetchDocuments,
     fetchDocument,
+    readDocument,
+    adoptDocument,
+    adoptRevision,
     createDocument,
     updateDocument,
+    waitForPendingUpdates,
     deleteDocument,
   }
 })

@@ -58,7 +58,7 @@
     <!-- 保存冲突：关闭对话框后仍保留，避免误以为已保存 -->
     <div v-if="saveConflict" class="conflict-banner" role="alert" aria-label="保存冲突提示">
       <el-icon class="conflict-banner-icon"><WarningFilled /></el-icon>
-      <span class="conflict-banner-text">文档已在其他地方被修改，当前内容未保存；自动保存已暂停。</span>
+      <span class="conflict-banner-text">{{ externalConflictBanner(saveConflict.cause) }}</span>
       <el-button size="small" type="danger" plain @click="conflictDialogVisible = true">处理冲突</el-button>
     </div>
 
@@ -362,7 +362,7 @@
     <!-- =====================  SAVE CONFLICT DIALOG  ===================== -->
     <el-dialog
       v-model="conflictDialogVisible"
-      title="文档已在其他地方被修改"
+      :title="externalConflictTitle(saveConflict?.cause)"
       width="520px"
       class="ses-conflict-dlg"
       append-to-body
@@ -461,14 +461,24 @@ import {
 import { setClauseFormat, setParagraphFormat } from '@/utils/structureEditing'
 import { createDocumentDuplicate } from '@/utils/duplicateDocument'
 import { isRevisionConflict } from '@/utils/documentConflict'
+import { startDocumentChangeSync, type DocumentChangeSync, type ExternalChange } from '@/utils/documentChangeSync'
+import {
+  externalCauseOf,
+  externalConflictBanner,
+  externalConflictCauseSentence,
+  externalConflictTitle,
+  externalUpdateNotice,
+  type ExternalCause,
+} from '@/utils/externalChange'
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 // Underline is included in StarterKit (tiptap v3)
 import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon, Clock, Download, WarningFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { documentApi } from '@/api/document'
+import { documentApi, type DocumentData } from '@/api/document'
 import { useDocumentStore } from '@/stores/document'
+import { useVersionStore } from '@/stores/version'
 import SesEditorContent from '@/components/editor/EditorContent.vue'
 import SesLogo from '@/components/SesLogo.vue'
 import DocumentOutline from '@/components/editor/DocumentOutline.vue'
@@ -477,7 +487,7 @@ import SlashMenu from '@/components/editor/SlashMenu.vue'
 import VersionPanel from '@/components/version/VersionPanel.vue'
 
 import { useEditor } from '@tiptap/vue-3'
-import { replaceEditorDocument } from '@/utils/editorDocument'
+import { installRemoteDocument, replaceEditorDocument } from '@/utils/editorDocument'
 import { createEditorExtensions } from '@/extensions/editorExtensions'
 import { hasNodeIdIssues, normalizeNodeIds } from '@/extensions/plugins/ensureNodeId'
 import { canInsertBodyFootnote } from '@/extensions/nodes/footnotes'
@@ -506,16 +516,22 @@ const persistenceOperation = ref<'body-save' | 'settings-save' | 'xml-import' | 
  * 与 persistenceOperation 相互独立——后者只描述正在进行的请求，冲突在请求失败后仍然存在，
  * 直到用户选择「重新加载」或「另存为副本」。冲突期间不再安排自动保存，手动保存也不会发出请求。
  */
-type SaveConflictSource = 'body-save' | 'settings-save' | 'xml-import' | 'version-save'
-const saveConflict = ref<{ source: SaveConflictSource } | null>(null)
+type SaveConflictSource = 'body-save' | 'settings-save' | 'xml-import' | 'version-save' | 'external'
+const saveConflict = ref<{ source: SaveConflictSource; cause?: ExternalCause } | null>(null)
 const conflictDialogVisible = ref(false)
 const resolvingConflict = ref<'reload' | 'copy' | null>(null)
-const conflictDetail = computed(() => ({
-  'body-save': '',
-  'settings-save': '文件设置的修改也尚未保存，草稿仍保留在「文件设置」中。',
-  'xml-import': '本次 XML 导入未生效，编辑器内容保持不变。',
-  'version-save': '版本快照已保存，但当前编辑内容没有写入文档。',
-}[saveConflict.value?.source ?? 'body-save']))
+const conflictDetail = computed(() => {
+  const conflict = saveConflict.value
+  const bySource = {
+    'body-save': '',
+    'settings-save': '文件设置的修改也尚未保存，草稿仍保留在「文件设置」中。',
+    'xml-import': '本次 XML 导入未生效，编辑器内容保持不变。',
+    'version-save': '版本快照已保存，但当前编辑内容没有写入文档。',
+    // 变更推送先于任何保存发现外部修改：此时是否有设置草稿取决于当下状态。
+    external: settingsDirty.value ? '文件设置的修改也尚未保存，草稿仍保留在「文件设置」中。' : '',
+  }[conflict?.source ?? 'body-save']
+  return [externalConflictCauseSentence(conflict?.cause), bySource].filter(Boolean).join('')
+})
 const settingsDraft = ref<DocumentSettingsDraft | null>(null)
 const settingsBaseline = ref('')
 const settingsSaveError = ref(false)
@@ -577,10 +593,13 @@ function queueAutoSave(delay = 3000) {
   autoSaveTimer = setTimeout(() => { void handleSave() }, delay)
 }
 
-/** 进入冲突状态并弹出处理提示；已在冲突中时只重新弹出提示。 */
-function enterSaveConflict(source: SaveConflictSource) {
+/**
+ * 进入冲突状态并弹出处理提示；已在冲突中时只重新弹出提示。
+ * cause 为已知的外部修改原因（变更推送先于保存发现了修改），用于让提示说明是 AI 还是别处修改的。
+ */
+function enterSaveConflict(source: SaveConflictSource, cause?: ExternalCause) {
   clearAutoSaveTimer()
-  if (!saveConflict.value) saveConflict.value = { source }
+  if (!saveConflict.value) saveConflict.value = { source, ...(cause ? { cause } : {}) }
   conflictDialogVisible.value = true
 }
 
@@ -819,6 +838,9 @@ onMounted(async () => {
       }
     }
     contentReady.value = true
+    // 文档已载入、本地 revision 已确定：开始订阅变更。连接成功后会再读取一次 revision 与本地比较，
+    // 补上「读取文档」与「订阅生效」之间可能错过的修改。连接失败不影响编辑。
+    startChangeSync()
     if (needsNodeIdPersistence) {
       // The NodeId plugin has already normalized the live editor state. Persist
       // that exact document now so a cold reopen does not generate new anchors.
@@ -845,6 +867,10 @@ onBeforeUnmount(() => {
   window.removeEventListener('ses:edit-footnote', handleFootnoteEditEvent)
   window.removeEventListener('ses:paste-reference-error', handleAmbiguousPasteReference)
   window.removeEventListener('beforeunload', guardUnsavedSettings)
+  changeSyncStopped = true
+  changeSync?.stop()
+  changeSync = null
+  releaseIdleWaiters()
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
   // 冲突状态下内容已无法写回服务端（会得到同样的 409），离开前已由路由守卫确认放弃。
   if (dirty.value && !importingXml && !saveConflict.value && editor.value && store.currentDocument) {
@@ -1010,8 +1036,9 @@ async function handleConflictReload() {
     const candidate = currentEditor.schema.nodeFromJSON(content)
     candidate.check()
     const needsNodeIdPersistence = hasNodeIdIssues(candidate)
-    // 重载不进入撤销历史：否则 Ctrl+Z 会把旧内容带回并在下一次自动保存时覆盖最新版本。
-    replaceEditorDocument(currentEditor, content, false, false)
+    // 重载不进入撤销历史：否则 Ctrl+Z 会把旧内容带回并在下一次自动保存时覆盖最新版本；
+    // 此前的撤销记录也一并清空（与自动载入外部修改相同，见 installRemoteDocument）。
+    installRemoteDocument(currentEditor, content)
     hydrateSettingsDraft(latest)
     dirty.value = false
     lastSaved.value = latest.updatedAt ? new Date(latest.updatedAt).toLocaleTimeString('zh-CN') : ''
@@ -1059,6 +1086,137 @@ async function handleConflictSaveAsCopy() {
   } finally {
     resolvingConflict.value = null
   }
+}
+
+// === 变更推送：感知 AI 或其他地方对文档的修改（设计文档 §6.2） ===
+// 规则（订阅与 revision 比较在 utils/documentChangeSync.ts，这里只决定「怎么处理」）：
+// - revision 不大于本地已知值（含自己保存产生的事件）：忽略；保存进行中收到事件则等保存落定后再比较；
+// - system 事件（服务端只补齐 nodeId，语义不变）：静默追上 revision，不改内容、不提示；
+// - 已处于冲突状态：只补上原因文案，不再次弹窗；
+// - 有未保存的正文/设置草稿：直接进入冲突状态（暂停自动保存），提示是 AI 还是别处修改，不等下一次保存 409；
+// - 其余：读取最新内容，通过生产 schema 校验后载入编辑器（不进入撤销历史、保留光标位置），提示来源。
+let changeSync: DocumentChangeSync | null = null
+let changeSyncStopped = false
+const idleWaiters: Array<() => void> = []
+
+watch(persistenceOperation, (operation) => {
+  if (operation === null) releaseIdleWaiters()
+})
+
+function releaseIdleWaiters() {
+  idleWaiters.splice(0).forEach((resolve) => resolve())
+}
+
+/**
+ * 等到本页没有进行中或排队的写入：store 里排队的写入（正文、设置、导入、版本面板保存都经过它）
+ * 以及本页的保存/导入流程（persistenceOperation）都已结束，本地 revision 因此是最新的。
+ */
+async function waitForLocalWrites(): Promise<void> {
+  const id = documentId.value
+  while (!changeSyncStopped) {
+    await store.waitForPendingUpdates(id)
+    if (persistenceOperation.value === null) return
+    await new Promise<void>((resolve) => { idleWaiters.push(resolve) })
+  }
+}
+
+function hasUnsavedLocalChanges(): boolean {
+  return dirty.value || settingsDirty.value || persistenceOperation.value !== null || importingXml
+}
+
+function startChangeSync() {
+  // 页面在文档加载期间就被离开时，onBeforeUnmount 已经执行过，不能再建立连接。
+  if (changeSyncStopped) return
+  const id = documentId.value
+  changeSync = startDocumentChangeSync({
+    documentId: id,
+    getLocalRevision: () => (store.currentDocument?.id === id ? store.currentDocument.revision : undefined),
+    readRevision: async () => (await store.readDocument(id)).revision,
+    settle: waitForLocalWrites,
+    onExternalChange: handleExternalChange,
+    onEvent(event) {
+      // AI 写入会在同一事务里生成「AI 修改」版本记录；版本面板开着时立即刷新列表。
+      if (event.source !== 'ai' || !showVersionPanel.value) return
+      void useVersionStore().fetchVersions(id, { silent: true }).catch(() => undefined)
+    },
+  })
+}
+
+/** 返回 false 表示这次没有处理成功（读取或校验失败），同一 revision 之后还会再上报。 */
+async function handleExternalChange(change: ExternalChange): Promise<boolean> {
+  const currentEditor = editor.value
+  const current = store.currentDocument
+  if (changeSyncStopped || !currentEditor || currentEditor.isDestroyed || !current?.id || current.id !== documentId.value) return false
+  if (change.revision <= current.revision) return true
+  const cause = externalCauseOf(change)
+
+  if (saveConflict.value) {
+    // 已经在冲突里：本页内容反正要由用户选择如何处理，只把原因补进提示，不再弹窗。
+    // 原因只会变得更具体（没有 → 别处修改 → AI 修改），不会倒退。
+    const known = saveConflict.value.cause
+    if (change.source !== 'system' && (!known || (known.kind !== 'ai' && cause.kind === 'ai'))) {
+      saveConflict.value = { ...saveConflict.value, cause }
+    }
+    return true
+  }
+  if (change.source === 'system') {
+    store.adoptRevision(current.id, change.revision)
+    return true
+  }
+  if (hasUnsavedLocalChanges()) {
+    enterSaveConflict('external', cause)
+    return true
+  }
+  return await loadExternalRevision(cause)
+}
+
+async function loadExternalRevision(cause: ExternalCause): Promise<boolean> {
+  const currentEditor = editor.value
+  const id = store.currentDocument?.id
+  if (!currentEditor || !id) return false
+  let latest: DocumentData
+  try {
+    latest = await store.readDocument(id)
+  } catch {
+    ElMessage.warning({ message: '文档已在其他地方更新，但读取最新内容失败；稍后保存时会提示冲突', grouping: true })
+    return false
+  }
+
+  // 读取期间用户可能已经开始输入、开始保存，或页面已经离开：以读取完成这一刻的状态为准。
+  const current = store.currentDocument
+  if (changeSyncStopped || currentEditor.isDestroyed || current?.id !== id) return true
+  if (latest.revision <= current.revision) return true
+  if (saveConflict.value) return true
+  if (hasUnsavedLocalChanges()) {
+    enterSaveConflict('external', cause)
+    return true
+  }
+
+  const hasContent = Boolean(latest.content) && Object.keys(latest.content).length > 0
+  const content = hasContent ? latest.content : createDefaultDocumentContent(latest.meta)
+  let needsNodeIdPersistence: boolean
+  try {
+    // 先用生产 schema 校验，通过后才改动编辑器与本地 revision：装不进去时不能让 revision 前进，
+    // 否则之后的自动保存会带着新 revision 把外部修改静默覆盖。
+    const candidate = currentEditor.schema.nodeFromJSON(content)
+    candidate.check()
+    needsNodeIdPersistence = hasNodeIdIssues(candidate)
+  } catch (error) {
+    ElMessage.error({
+      message: `文档已被更新，但最新内容无法载入编辑器，本页内容保持不变${error instanceof Error ? `：${error.message}` : ''}`,
+      grouping: true,
+    })
+    return false
+  }
+  installRemoteDocument(currentEditor, content)
+  store.adoptDocument(latest)
+  hydrateSettingsDraft(latest)
+  dirty.value = false
+  lastSaved.value = latest.updatedAt ? new Date(latest.updatedAt).toLocaleTimeString('zh-CN') : ''
+  ElMessage.info({ message: externalUpdateNotice(cause), grouping: true })
+  // 与首次打开一致：规范化补出的 nodeId 需要持久化。
+  if (needsNodeIdPersistence) scheduleAutoSave()
+  return true
 }
 
 function goHome() {

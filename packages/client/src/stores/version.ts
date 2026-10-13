@@ -14,15 +14,18 @@ export const useVersionStore = defineStore('version', () => {
     })
   })
 
-  /** 获取文档的所有版本 */
-  async function fetchVersions(documentId: number) {
-    loading.value = true
+  /**
+   * 获取文档的所有版本。silent 用于后台刷新（如收到 AI 写入的推送）：不切换 loading，
+   * 列表不会闪出加载遮罩；切换到别的文档后才返回的旧响应也不会覆盖当前列表。
+   */
+  async function fetchVersions(documentId: number, options: { silent?: boolean } = {}) {
+    if (!options.silent) loading.value = true
     currentDocumentId.value = documentId
     try {
       const { data } = await versionApi.listByDocument(documentId)
-      versions.value = data
+      if (currentDocumentId.value === documentId) versions.value = data
     } finally {
-      loading.value = false
+      if (!options.silent) loading.value = false
     }
   }
 
