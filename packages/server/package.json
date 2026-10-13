@@ -74,8 +74,12 @@
       "ts"
     ],
     "rootDir": "src",
+    "moduleNameMapper": {
+      "^@client/editor-schema$": "<rootDir>/../../client/src/extensions/editorSchema.ts"
+    },
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
+      "^.+[/\\\\]packages[/\\\\]client[/\\\\]src[/\\\\].+\\.ts$": "<rootDir>/../jest.client-transform.js",
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [

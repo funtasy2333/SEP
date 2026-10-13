@@ -22,6 +22,8 @@ import {
 } from '@ses/shared';
 import { ConvertService } from '../convert/convert.service';
 import { DocumentService } from '../document/document.service';
+import { EditorContentError } from '../editor-schema/editor-content-error';
+import { validateContent } from '../editor-schema/editor-schema';
 import type { ExportWarning } from './export-http';
 import { blockExternalImages } from './external-images';
 
@@ -90,8 +92,14 @@ export class ExportService {
 
   /**
    * 按文档 id 导出 DOCX，路径与编辑器 EditorView.handleExportFormat('docx') 等价：
-   * 同步封面元数据 → 导出前检查（脚注、输出边界）→ buildDocx。
-   * 文档库里保存的 content 就是编辑器 getJSON() 的结果（保存前同样经过封面同步）。
+   * 同步封面元数据 → 按生产 schema 解析为 ProseMirror 文档（getSynchronizedEditorDoc 的 nodeFromJSON）
+   * → 导出前检查（脚注、输出边界）→ buildDocx。
+   * 文档库里保存的 content 就是编辑器 getJSON() 的结果（保存前同样经过封面同步）；
+   * 但库里的内容不一定出自编辑器（API 直接写入、AI 写入），所以这里额外 check()：
+   * 不符合 schema 的内容返回 422，而不是导出一份缺失或错乱的文件。
+   *
+   * 后续步骤使用 ProseMirror 文档的 toJSON()，与编辑器把 PMNode 交给 checkExportGuard / buildDocx
+   *（二者内部同样先调 toJSON()）等价：缺省属性已按 schema 补齐，字节与编辑器一致。
    *
    * 日志只记录文档 id、字节数与告警条数，不记录文档内容或告警消息（可能含正文片段）。
    *
@@ -108,13 +116,25 @@ export class ExportService {
     let pmDoc: PMJsonNode;
     let failure: ExportGuardFailure | null;
     try {
-      pmDoc = synchronizeCoverMetadata(
-        doc.content,
-        meta,
-      ) as unknown as PMJsonNode;
+      const synchronized = synchronizeCoverMetadata(doc.content, meta);
+      pmDoc = validateContent(synchronized).toJSON() as PMJsonNode;
       failure = checkExportGuard(pmDoc, 'docx');
     } catch (error) {
-      // 库里的 content 不是合法的编辑器文档结构；错误消息可能带正文片段，不写日志。
+      if (error instanceof EditorContentError) {
+        // 只记录问题类别与 JSON Pointer（下标与固定字段名），不记录节点类型、消息或正文。
+        this.logger.warn(
+          `文档 #${id} 内容不符合编辑器文档结构，DOCX 导出中止（${error.problem.code}，${error.problem.path || '根节点'}）`,
+        );
+        throw unprocessable(
+          `文档内容不符合编辑器文档结构，无法导出 DOCX：${error.message}`,
+          {
+            source: 'schema',
+            detail: error.message,
+            problems: [{ source: 'schema', ...error.problem }],
+          },
+        );
+      }
+      // 库里的 content 无法解析；错误消息可能带正文片段，不写日志。
       this.logger.warn(
         `文档 #${id} 内容无法解析，DOCX 导出中止（${(error as Error).name}）`,
       );

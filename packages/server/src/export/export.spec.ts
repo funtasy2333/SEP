@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import { createServer, type Server } from 'http';
 import type { AddressInfo } from 'net';
 import { join } from 'path';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { buildDocx, DOCX_MIME_TYPE, synchronizeCoverMetadata } from '@ses/io';
@@ -10,6 +10,7 @@ import type { DocumentMeta, PMJsonNode } from '@ses/shared';
 import request from 'supertest';
 import { DocumentEntity } from '../document/document.entity';
 import { DocumentModule } from '../document/document.module';
+import { getEditorSchema } from '../editor-schema/editor-schema';
 import { VersionEntity } from '../version/version.entity';
 import { readZipEntries } from './__fixtures__/read-zip';
 import {
@@ -55,6 +56,8 @@ const fixtureMeta = {
 };
 
 const CREATED_AT = '2026-01-01T00:00:00Z';
+/** 放进正文的标记串：用来证明错误响应与日志里没有文档正文。 */
+const SECRET = '机密正文-8f3a91';
 const EXPORT_PATH = (id: number | string) => `/api/documents/${id}/export/docx`;
 
 interface ErrorBody {
@@ -62,7 +65,16 @@ interface ErrorBody {
   message: string;
   detail?: string;
   source?: string;
-  problems?: { source: string; code: string; message: string }[];
+  problems?: {
+    source: string;
+    code: string;
+    message: string;
+    path?: string;
+    nodeType?: string;
+    nodeId?: string;
+    expectedContent?: string;
+    actualChildren?: string[];
+  }[];
 }
 
 interface Download {
@@ -167,11 +179,10 @@ const subSupParagraph = (): PMJsonNode => ({
   ],
 });
 
-/** 旧版 standardDoc 根，与 io 的 exportGuard.test 同形。 */
+/** 生产 schema 的 doc 根，章内容为 children（脚注、输出边界用例的载体）。 */
 function standardDoc(...children: PMJsonNode[]): Record<string, unknown> {
   return {
-    type: 'standardDoc',
-    attrs: { standardType: 'national' },
+    type: 'doc',
     content: [
       {
         type: 'chapter',
@@ -182,6 +193,21 @@ function standardDoc(...children: PMJsonNode[]): Record<string, unknown> {
         ],
       },
     ],
+  };
+}
+
+/** 捕获并静默 Nest Logger 的输出，返回捕获到的全部日志文本。 */
+function captureLogs() {
+  const spies = (['log', 'warn', 'error', 'debug', 'verbose'] as const).map(
+    (level) => jest.spyOn(Logger.prototype, level).mockImplementation(),
+  );
+  return {
+    text: () =>
+      spies
+        .flatMap((spy) => spy.mock.calls)
+        .map((args) => args.map(String).join(' '))
+        .join('\n'),
+    restore: () => spies.forEach((spy) => spy.mockRestore()),
   };
 }
 
@@ -299,6 +325,114 @@ describe('GET /api/documents/:id/export/docx', () => {
       const res = await download(EXPORT_PATH(id));
       expect(res.status).toBe(422);
       expect(errorBody(res).message).toContain('文档内容结构无法解析');
+    });
+
+    it('内容不符合生产 schema（未知节点类型）返回 422：中文说明、source=schema、问题定位', async () => {
+      const logs = captureLogs();
+      try {
+        const id = await createDoc({
+          content: {
+            type: 'doc',
+            content: [
+              {
+                type: 'chapter',
+                attrs: { nodeId: 'chapter-1' },
+                content: [{ type: 'chapterTitle', content: [text('范围')] }],
+              },
+              { type: 'mystery', attrs: { nodeId: 'bad-1' } },
+            ],
+          },
+        });
+        const res = await download(EXPORT_PATH(id));
+        expect(res.status).toBe(422);
+        const body = errorBody(res);
+        expect(body.statusCode).toBe(422);
+        expect(body.source).toBe('schema');
+        expect(body.message).toContain('文档内容不符合编辑器文档结构');
+        expect(body.message).toContain('未知的节点类型「mystery」');
+        expect(body.detail).toContain('/content/2');
+        // 路径按封面同步之后的文档计算：库里没有封面，同步时在最前面插入了 coverPage。
+        expect(body.problems).toEqual([
+          {
+            source: 'schema',
+            code: 'unknown-node-type',
+            message: '未知的节点类型「mystery」',
+            path: '/content/2',
+            nodeType: 'mystery',
+            nodeId: 'bad-1',
+          },
+        ]);
+        // 日志只有文档 id、问题类别与路径，没有节点类型名。
+        const logged = logs.text();
+        expect(logged).toContain(`文档 #${id} 内容不符合编辑器文档结构`);
+        expect(logged).toContain('unknown-node-type');
+        expect(logged).toContain('/content/2');
+        expect(logged).not.toContain('mystery');
+      } finally {
+        logs.restore();
+      }
+    });
+
+    it('违反内容约束返回 422，给出内容表达式与实际子节点；响应与日志都不含正文', async () => {
+      const logs = captureLogs();
+      try {
+        const id = await createDoc({
+          content: {
+            type: 'doc',
+            content: [
+              {
+                type: 'chapter',
+                attrs: { nodeId: 'c1' },
+                // 章必须以 chapterTitle 开头；这里直接放了带正文的段落。
+                content: [
+                  {
+                    type: 'stdParagraph',
+                    attrs: { nodeId: 'p1' },
+                    content: [text(SECRET)],
+                  },
+                ],
+              },
+            ],
+          },
+        });
+        const res = await download(EXPORT_PATH(id));
+        expect(res.status).toBe(422);
+        const body = errorBody(res);
+        expect(body.source).toBe('schema');
+        expect(body.problems).toHaveLength(1);
+        expect(body.problems?.[0]).toMatchObject({
+          source: 'schema',
+          code: 'invalid-content',
+          path: '/content/1',
+          nodeType: 'chapter',
+          nodeId: 'c1',
+          actualChildren: ['stdParagraph'],
+        });
+        expect(body.problems?.[0].expectedContent).toMatch(/^chapterTitle /);
+
+        expect(res.bytes.toString('utf8')).not.toContain(SECRET);
+        const logged = logs.text();
+        expect(logged).toContain('invalid-content');
+        expect(logged).not.toContain(SECRET);
+        expect(logged).not.toContain('chapter');
+      } finally {
+        logs.restore();
+      }
+    });
+
+    it('旧版 standardDoc 根（不在生产 schema 中）返回 422 而不是导出', async () => {
+      const id = await createDoc({
+        content: { ...standardDoc(), type: 'standardDoc' },
+      });
+      const res = await download(EXPORT_PATH(id));
+      expect(res.status).toBe(422);
+      const body = errorBody(res);
+      expect(body.source).toBe('schema');
+      expect(body.problems?.[0]).toMatchObject({
+        code: 'unknown-node-type',
+        path: '',
+        nodeType: 'standardDoc',
+      });
     });
 
     it('脚注校验未通过返回 422，含 message、detail、problems', async () => {
@@ -540,6 +674,34 @@ describe('GET /api/documents/:id/export/docx', () => {
         });
         expect(res.bytes.equals(Buffer.from(expected.bytes))).toBe(true);
         // 告警也与直接调用一致（条数不多，不会被截断）。
+        expect(warningsOf(res)).toEqual(expected.warnings);
+      }
+    });
+
+    it('与编辑器路径一致：封面同步 → schema.nodeFromJSON 得到 PMNode → buildDocx，字节相同', async () => {
+      // EditorView 的 getSynchronizedEditorDoc：synchronizeCoverMetadata(getJSON()) → schema.nodeFromJSON，
+      // 再把 PMNode 交给 checkExportGuard / buildDocx。服务端额外 check() 并改用 toJSON()，二者等价。
+      const schema = getEditorSchema();
+      for (const stage of ['working_draft', 'approval_draft']) {
+        const id = await createDoc({ stage });
+        const res = await download(
+          `${EXPORT_PATH(id)}?createdAt=${CREATED_AT}`,
+        );
+        expect(res.status).toBe(200);
+
+        const pmNode = schema.nodeFromJSON(
+          synchronizeCoverMetadata(
+            fixtureContent,
+            fixtureMeta as unknown as DocumentMeta,
+          ),
+        );
+        const expected = await buildDocx({
+          pmDoc: pmNode,
+          documentMeta: fixtureMeta as unknown as DocumentMeta,
+          stage,
+          createdAt: CREATED_AT,
+        });
+        expect(res.bytes.equals(Buffer.from(expected.bytes))).toBe(true);
         expect(warningsOf(res)).toEqual(expected.warnings);
       }
     });

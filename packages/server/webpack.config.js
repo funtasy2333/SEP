@@ -46,9 +46,32 @@ function externals({ context, request, getResolve }, callback) {
   })
 }
 
+// 编辑器的生产 ProseMirror schema 在 client 的 Tiptap 扩展里（见 src/editor-schema/）。服务端以别名
+// '@client/editor-schema' 引用 client 的 editorSchema.ts，webpack 把它的依赖链打入产物；jest 侧的同名映射在
+// package.json 的 jest.moduleNameMapper，类型声明在 src/editor-schema/client-editor-schema.d.ts。
+//
+// 不用相对路径或 workspace 依赖：二者都会让 server 的 TS 程序（fork-ts-checker）把 client 源码当作自己的
+// 源文件检查，而 client 是 ESM 包（"type": "module"），其无扩展名的相对导入在 nodenext 下报 TS2835，构建失败。
+// 别名加手写声明让 TS 不接触 client 源码；运行时的解析与打包则完全由别名完成。
+//
+// 依赖归属：client 链上的 @tiptap/*、prosemirror-* 等 server 未声明，webpack-node-externals 不会外置，
+// 按导入方（client）的 node_modules 解析并打入产物；katex 走上面 externals() 的版本分流（client 用 0.16.44，
+// 与 @ses/io 的同一份，不是 server 的 0.16.11），因此也被打入。client 里的 '@/' 别名不可用，需写相对路径。
+const clientEditorSchema = path.resolve(
+  serverDir,
+  '../client/src/extensions/editorSchema.ts',
+)
+
 module.exports = (options) => ({
   ...options,
   externals: [externals],
+  resolve: {
+    ...options.resolve,
+    alias: {
+      ...options.resolve?.alias,
+      '@client/editor-schema$': clientEditorSchema,
+    },
+  },
   // 保持 Node 原生的 __filename/__dirname（运行时为 dist/main.js 的真实路径）。
   // Nest 默认已如此；显式写出是因为 convert/pdf/build.ts 的 createRequire(__filename)
   // 依赖它来定位 @vivliostyle/cli 与 katex，不应受 Nest CLI 默认值变动影响。
