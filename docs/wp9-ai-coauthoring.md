@@ -119,7 +119,13 @@ SES 编辑器（人）─────────── REST + 变更推送 ─�
 1. 给 `@ses/shared` 和共享出件包增加构建产物，server 引用构建产物。需要为 shared 内部导入补扩展名或另用打包器产出，且每次修改 shared 后都要重新构建；
 2. server 改用打包式构建，把工作区源码打入 `dist`。可选 Nest CLI 的 webpack 构建（ts-loader 保留 Nest 依赖注入所需的 `emitDecoratorMetadata`；需配置为把 `@ses/*` 打入产物，而不是当作外部依赖）。不能直接用 esbuild：它不支持 `emitDecoratorMetadata`。
 
-倾向方案 2：服务端还需要引用生产 schema（client 的 Tiptap 扩展）和 `@ses/io`，打包式构建不必为每个包分别产出构建结果。在 WP9.1 开头做技术验证后确定。
+倾向方案 2：服务端还需要引用生产 schema（client 的 Tiptap 扩展）和 `@ses/io`，打包式构建不必为每个包分别产出构建结果。方案 2 只改 server 的构建配置，不改 shared 和 client 的代码与构建；方案 1 要改写 shared 全部内部导入。
+
+2026-10-13 方案 2 实验（已还原，未提交）：
+
+- `nest build --webpack` + 把 `@ses/*` 排除出外部依赖，产出单个 `dist/main.js`（约 0.5 MB）；服务端正常启动，文档接口可用；在服务端执行 `pmToIr` → `resolve` → `renderDocx` 得到 14 个 DOCX 部件、章编号正确；
+- 发现一处必须适配：webpack 会在构建时改写 `require.resolve`，`server/src/convert/pdf/build.ts` 定位 `@vivliostyle/cli` 与 KaTeX 样式失败，PDF 能力被误报为不可用。改用 `createRequire(__filename)`（3 行）后恢复，并经 `/api/convert/html-to-pdf` 实际产出含公式的 PDF；
+- 实验未改动 shared、client 任何文件。
 
 DOCX 出件把 `client/src/serializer/` 中的公式 OMML、图片资源、DOCX 打包抽成共享包（`@ses/io`），client 与 server 共用；client 原导出名保留。生产 schema 的服务端引用方式与此一并确定。
 
