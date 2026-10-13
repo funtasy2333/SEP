@@ -1,6 +1,6 @@
 # WP9 人机共写方案（MCP 接入）
 
-状态：WP9.1 已完成（2026-10-13，见 §10）；WP9.2 起待实施。对应 `ses-requirements.md` Phase 9「MCP / CLI 支持」，并为 Phase 10「AI 集成」、Phase 11「多人协作」预留同一套写入机制。
+状态：WP9.1、WP9.2 已完成（2026-10-13，见 §10、§11）；WP9.3（MCP）待实施。对应 `ses-requirements.md` Phase 9「MCP / CLI 支持」，并为 Phase 10「AI 集成」、Phase 11「多人协作」预留同一套写入机制。
 
 ## 1. 目标
 
@@ -43,7 +43,8 @@ DOCX/PDF 出件、`.ses.json` 导入导出作为配套能力保留。
 
 ## 4. 现状与差距（2026-10-13 核对代码）
 
-> WP9.1 之后：第 2 项已由修订号与乐观锁解决；第 4 项已解决（服务端打包引用 shared 与 `@ses/io`）；第 6 项已增加来源字段；第 8 项服务端已可出 DOCX。第 3、5、7 项仍待 WP9.2 及以后处理。
+> WP9.1 之后：第 2 项已由修订号与乐观锁解决；第 4 项已解决（服务端打包引用 shared 与 `@ses/io`）；第 6 项已增加来源字段；第 8 项服务端已可出 DOCX。
+> WP9.2 之后：第 3 项由 SSE 变更推送解决；第 5 项服务端已通过别名打包引用 client 的生产 schema（§11）；第 8 项服务端可出 PDF/HTML/JSON。第 7 项（用户与鉴权）留待 WP9.4。
 
 1. **存储**：文档与版本存于 SQLite（`packages/server/data/ses.db`，表 `documents`、`versions`）；图片以 dataURL 内嵌在正文 JSON，服务端没有独立文件存储。
 2. **整篇覆盖写入**：编辑器自动保存以 `PUT /api/documents/:id` 提交整份正文；`document.service.ts` `update` 直接 `Object.assign` 后保存，不检查版本。人和 AI 同时修改时，后写入者会静默覆盖先写入者。
@@ -135,7 +136,7 @@ SES 编辑器（人）─────────── REST + 变更推送 ─�
 - 发现一处必须适配：webpack 会在构建时改写 `require.resolve`，`server/src/convert/pdf/build.ts` 定位 `@vivliostyle/cli` 与 KaTeX 样式失败，PDF 能力被误报为不可用。改用 `createRequire(__filename)`（3 行）后恢复，并经 `/api/convert/html-to-pdf` 实际产出含公式的 PDF；
 - 实验未改动 shared、client 任何文件。
 
-DOCX 出件把 `client/src/serializer/` 中的公式 OMML、图片资源、DOCX 打包抽成共享包（`@ses/io`），client 与 server 共用；client 原导出名保留。生产 schema 的服务端引用方式留到 WP9.2 确定。
+DOCX 出件把 `client/src/serializer/` 中的公式 OMML、图片资源、DOCX 打包抽成共享包（`@ses/io`），client 与 server 共用；client 原导出名保留。生产 schema 的服务端引用方式见 §11（WP9.2a）。
 
 WP9.1 实施结果：
 
@@ -231,4 +232,31 @@ WP9.1 实施结果：
 5. CORS 未暴露 `X-SES-*` 与 `Content-Disposition` 响应头，跨域直连时前端读不到（经 Vite 代理同源不受影响）；
 6. `packages/server/test/app.e2e-spec.ts` 是过时的脚手架用例（期望 `GET /` 返回 Hello World），改动前后均失败，未纳入 `pnpm test`；
 7. 冲突后已打开的版本面板不会自动刷新列表。
+
+## 11. WP9.2 交付记录（2026-10-13）
+
+| 子任务 | 提交 | 内容 |
+|---|---|---|
+| 9.2e | `45075c1` | `GET /api/documents/:id/export/{pdf,html,json}`；PDF 请求构建迁入 `@ses/io`（目次提取不依赖 DOMParser）；服务端 PDF 导出前清空非 data URL 图片地址（防止排版用 Chromium 按文档内容发请求） |
+| 9.2a | `d832560` | 服务端以别名 `@client/editor-schema` 打包引用 client 的生产 schema（webpack 与 jest 各一处配置，类型手写声明）；`validateContent`/`normalizeContent`；client 守护测试保证扩展在无 DOM 环境可加载 |
+| 9.2b | `e9feea2` | shared：写作片段归一化 `normalizeAuthoringFragment` 与投影 `irFragmentToPm`；面向 AI 的写作说明 `docs/wp9-authoring-reference.md`（示例由测试执行） |
+| 9.2c1 | `799f0d0` | `@ses/io` 文档操作引擎：`buildOutline`、`readNode`、`readContainer`、`applyDocumentOperations`（insert/replace/delete/move，全有或全无；替换会丢失内容时默认拒绝，需 `acceptLoss`） |
+| 9.2c2 | `3dc49f0` | `GET outline/nodes/containers`、`POST operations`；文档更新与 AI 版本记录（`baseContent` 为写入前内容）同一事务；写入经进程内互斥串行；变更事件与 `GET /api/documents/:id/events`（SSE）；导出全部格式补齐 schema 校验 |
+| 9.2d | `85c74e8` | 编辑器订阅变更：无未保存修改时自动载入并提示来源，有未保存修改时进入冲突；版本面板标注「AI 修改」、查看本次修改、回滚到修改前；Vite 开发代理修复 SSE 静默失效 |
+
+验收结果：
+
+1. 测试：shared 1224、io 243、client 624（另 1 跳过）、server 205，全部通过；`pnpm -r run build` 通过；
+2. 打包产物端到端：读结构树（自动补齐缺失 nodeId 并持久化）→ AI 插入条（revision 递增，过期 baseRevision 409）→ 版本记录 `source=ai`、`client`、`note`、`baseContent`/`content` 恰为写入前后内容，列表不含 `baseContent` → SSE 收到 system 与 ai 事件 → 导出正常；
+3. 服务端导出的 HTML、JSON 与编辑器逐字节相同；PDF 页数与文本相同、目次页码已注入；DOCX 加入 schema 校验后仍与编辑器逐字节相同；
+4. 真实浏览器（Playwright + Chromium，经 Vite 代理）：AI 写入后编辑器约 50 ms 内自动显示并提示来源；本地有未保存输入时立即出现冲突提示且输入保留；版本面板「查看本次修改」只含该批 AI 修改，「回滚到修改前」后经自动保存写回；断线重连后补充比较并自动载入。
+
+遗留事项（在 §10 的基础上补充）：
+
+1. 浏览器端使用的 `POST /api/convert/html-to-pdf` 接受任意 HTML，排版用的 Chromium 会抓取其中的外部地址；云端部署前（WP9.4）需限制；
+2. 每批 AI 写入保存两份完整文档（`content` 与 `baseContent`），内嵌图片多时数据库增长快；单次 operations 的操作数没有上限；
+3. 变更事件只在单进程内有效，多实例部署需换实现；
+4. 服务端没有只读 revision 的轻量接口，编辑器每次（重）连都读取整篇文档；版本列表没有 `hasBaseContent` 字段，面板需逐个拉详情探测；
+5. 写作片段暂不支持行内脚注、行内公式、表格单元格内的表/图等，见写作说明；术语条目整体替换会把「来源/注/示例」按固定顺序重排（`irToPm` 既有行为）；
+6. 引擎每个操作都整篇重建索引，3000 块文档 40 个操作约 0.6 秒。
 
