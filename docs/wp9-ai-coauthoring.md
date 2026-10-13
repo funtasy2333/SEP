@@ -1,6 +1,6 @@
 # WP9 人机共写方案（MCP 接入）
 
-状态：方案待确认，尚未实施。对应 `ses-requirements.md` Phase 9「MCP / CLI 支持」，并为 Phase 10「AI 集成」、Phase 11「多人协作」预留同一套写入机制。
+状态：WP9.1 已完成（2026-10-13，见 §10）；WP9.2 起待实施。对应 `ses-requirements.md` Phase 9「MCP / CLI 支持」，并为 Phase 10「AI 集成」、Phase 11「多人协作」预留同一套写入机制。
 
 ## 1. 目标
 
@@ -21,6 +21,9 @@ DOCX/PDF 出件、`.ses.json` 导入导出作为配套能力保留。
 | 2026-10-13 | 导出逻辑抽成共享包，避免重复实现 | 生效，范围调整为「让服务端能使用 shared 与 DOCX 出件」 |
 | 2026-10-13 | 仅本地 `.ses.json` + SES 导入 | 被取代：`.ses.json` 只作为导入/导出/备份格式，不是编辑主路径 |
 | 2026-10-13 | CLI 本地生成 PDF | 被取代：出件在服务端完成，沿用现有 Vivliostyle 管线 |
+| 2026-10-13 | 服务端改用 webpack 打包式构建（§6.6 方案 2） | 生效，WP9.1 已实施 |
+| 2026-10-13 | 冲突时不预设默认处理，每次弹框由人选择「重新加载」或「另存为副本」 | 生效，WP9.1 已实施 |
+| 2026-10-13 | 「AI 写入前自动快照」移到 WP9.2，与 AI 写入入口一起实现；WP9.1 只增加版本来源字段 | 生效 |
 | 待定 | 部署方式（本地 / 云端 / 两者） | 见 §8 |
 
 ## 3. 参考项目经验
@@ -37,6 +40,8 @@ DOCX/PDF 出件、`.ses.json` 导入导出作为配套能力保留。
 | 机器可读输出、错误信息不混入数据 | excalidraw | 工具返回结构化结果，问题带路径、nodeId 与原因 |
 
 ## 4. 现状与差距（2026-10-13 核对代码）
+
+> WP9.1 之后：第 2 项已由修订号与乐观锁解决；第 4 项已解决（服务端打包引用 shared 与 `@ses/io`）；第 6 项已增加来源字段；第 8 项服务端已可出 DOCX。第 3、5、7 项仍待 WP9.2 及以后处理。
 
 1. **存储**：文档与版本存于 SQLite（`packages/server/data/ses.db`，表 `documents`、`versions`）；图片以 dataURL 内嵌在正文 JSON，服务端没有独立文件存储。
 2. **整篇覆盖写入**：编辑器自动保存以 `PUT /api/documents/:id` 提交整份正文；`document.service.ts` `update` 直接 `Object.assign` 后保存，不检查版本。人和 AI 同时修改时，后写入者会静默覆盖先写入者。
@@ -127,7 +132,14 @@ SES 编辑器（人）─────────── REST + 变更推送 ─�
 - 发现一处必须适配：webpack 会在构建时改写 `require.resolve`，`server/src/convert/pdf/build.ts` 定位 `@vivliostyle/cli` 与 KaTeX 样式失败，PDF 能力被误报为不可用。改用 `createRequire(__filename)`（3 行）后恢复，并经 `/api/convert/html-to-pdf` 实际产出含公式的 PDF；
 - 实验未改动 shared、client 任何文件。
 
-DOCX 出件把 `client/src/serializer/` 中的公式 OMML、图片资源、DOCX 打包抽成共享包（`@ses/io`），client 与 server 共用；client 原导出名保留。生产 schema 的服务端引用方式与此一并确定。
+DOCX 出件把 `client/src/serializer/` 中的公式 OMML、图片资源、DOCX 打包抽成共享包（`@ses/io`），client 与 server 共用；client 原导出名保留。生产 schema 的服务端引用方式留到 WP9.2 确定。
+
+WP9.1 实施结果：
+
+- `nest-cli.json` 指定 webpack builder，`packages/server/webpack.config.js` 把 `@ses/*` 打入产物；`build`、`start`、`dev`（watch 会跟踪 shared 源码变化）、`start:prod` 均可用；
+- 外部依赖规则补充一条：`@ses/*` 源码导入的第三方包若与 server 自己解析到的不是同一份（版本不同），改为打入产物。原因是 server 为 PDF 预渲染锁定 KaTeX 0.16.11，而 `@ses/io` 的 DOCX 公式转换用 0.16.44；若按包名外置，产物会静默改用 0.16.11（实测 `\vdots` 的 OMML 会不同）。现在产物中 DOCX 路径为 0.16.44，PDF 预渲染与 KaTeX 样式仍为 0.16.11；
+- mathml2omml 在产物中是独立 chunk（`dist/1.main.js`），部署时必须随 `dist/` 一起拷贝，缺失时公式降级为 LaTeX 文本并只在告警中体现；
+- server 的 jest 改为 `node --experimental-vm-modules` 运行，以加载 ESM-only 的 mathml2omml。
 
 ### 6.7 MCP 服务
 
@@ -160,8 +172,8 @@ DOCX 出件把 `client/src/serializer/` 中的公式 OMML、图片资源、DOCX 
 
 | 阶段 | 内容 | 是否依赖部署方式 |
 |---|---|---|
-| WP9.1 基础 | 服务端引用 shared 的构建方案；修订号与乐观锁、编辑器冲突处理；版本来源字段与 AI 写入前快照；`@ses/io` 抽取，服务端可出 DOCX | 否 |
-| WP9.2 文档操作层 | 结构树、节点读写、批量操作、校验、出件接口；服务端生产 schema 校验；SSE 推送与编辑器刷新 | 否 |
+| WP9.1 基础（已完成） | 服务端打包式构建并引用 shared；修订号与乐观锁、编辑器冲突处理；版本来源字段；`@ses/io` 抽取；服务端 DOCX 导出接口 | 否 |
+| WP9.2 文档操作层 | 结构树、节点读写、批量操作、校验、出件接口（PDF/HTML/JSON）；服务端生产 schema 校验；AI 写入前自动快照；SSE 推送与编辑器刷新 | 否 |
 | WP9.3 MCP（本地） | `/mcp` 端点与工具；写作参考；端到端：AI 建文档 → 人编辑 → AI 续写 → 导出 DOCX/PDF | 否 |
 | WP9.4 云端接入 | 用户与鉴权、OAuth、下载链接存储与清理 | 是（确定云端部署后） |
 | 后续 | 建议模式；实时共写（Tiptap Collaboration / Yjs，与 Phase 11 合并）；CLI 薄客户端；Markdown 写作输入 | — |
@@ -170,8 +182,7 @@ DOCX 出件把 `client/src/serializer/` 中的公式 OMML、图片资源、DOCX 
 
 1. 部署方式（本地 / 云端 / 两者）：影响 WP9.4 与 MCP 接入方式，不影响 WP9.1–9.3；
 2. AI 修改的生效方式：首期建议「直接生效 + 自动快照」，「建议模式」放后续；
-3. 编辑器遇到冲突时的默认处理：「重新加载」还是「另存为副本」；
-4. 新增运行时依赖 `@modelcontextprotocol/sdk`（server）的批准。
+3. 新增运行时依赖 `@modelcontextprotocol/sdk`（server）的批准。
 
 ## 9. 首期验收（WP9.1–9.3）
 
@@ -180,3 +191,31 @@ DOCX 出件把 `client/src/serializer/` 中的公式 OMML、图片资源、DOCX 
 3. AI 写入的内容通过生产 schema 校验；非法操作整批拒绝，返回路径与原因，不写入；
 4. 服务端导出的 DOCX 与编辑器导出的同一文档逐部件一致（固定 `createdAt`），PDF 沿用现有管线；
 5. 既有 shared / client / server 测试全部通过。
+
+## 10. WP9.1 交付记录（2026-10-13）
+
+| 子任务 | 提交 | 内容 |
+|---|---|---|
+| 9.1a | `da6cab2` | 服务端 webpack 打包构建，引用 `@ses/shared`；PDF 管线改用 `createRequire`；正文起始哨兵常量由 shared 导出 |
+| 9.1d | `49d9fcc` | `documents.revision` 与条件 UPDATE；PUT 必须带 `baseRevision`（缺失 428、非法 400、过期 409）；client 按文档串行写入，409 时暂停自动保存并提供「重新加载」「另存为副本」；`versions.source`/`client` |
+| 9.1b | `63edaa5` | 新包 `@ses/io`：公式 OMML、图片资源、DOCX 打包、导出前检查、封面同步；client 保留原导出名 |
+| 9.1c | `d71fac4` | `GET /api/documents/:id/export/docx`；拒绝抓取外部图片；KaTeX 版本分流 |
+
+验收结果：
+
+1. 测试：shared 1028、io 73、client 435（另 1 跳过）、server 67，全部通过；`pnpm -r run build` 通过；
+2. DOCX 一致性：打包后的服务端导出与 client 路径生成的同一文档（3 个公式、图片、表格、脚注、封面字段）逐字节相同；真实浏览器中编辑器导出与服务端导出的 18 个部件全部相同；
+3. PDF：打包产物上 `/api/convert/capabilities` 为可用，含公式的 HTML 与完整 print HTML 均能出件，目次页码正确；
+4. 冲突流程（真实浏览器）：外部修改后本地输入触发冲突提示，关闭后横幅保留、自动保存暂停、本地内容未写入服务端；「重新加载」后显示外部修改、横幅消失；页面无异常；「另存为副本」由实现方在浏览器中验证；
+5. SSRF：含 `http://` 图片的文档导出成功并产生 `image-resource-failed` 告警，本地监听端口未收到任何连接。
+
+遗留事项：
+
+1. Chromium（Vivliostyle 出 PDF 时）会尝试连接 `www.google.com` 等地址，本机代理拒绝后不影响出件；本地部署要求数据不出机器时，需评估关闭 Chromium 后台服务的启动参数；
+2. 打包产物无 source map，生产堆栈指向 `dist/main.js`；
+3. KaTeX 版本分流与 mathml2omml chunk 只在打包产物上手工验证，建议增加「构建 → 启动 → 与 client 比对」的自动化检查；
+4. 服务端导出未经生产 schema 校验（WP9.2 处理）；只含一个空段落的文档会导出为仅有封面的 DOCX；
+5. CORS 未暴露 `X-SES-*` 与 `Content-Disposition` 响应头，跨域直连时前端读不到（经 Vite 代理同源不受影响）；
+6. `packages/server/test/app.e2e-spec.ts` 是过时的脚手架用例（期望 `GET /` 返回 Hello World），改动前后均失败，未纳入 `pnpm test`；
+7. 冲突后已打开的版本面板不会自动刷新列表。
+
