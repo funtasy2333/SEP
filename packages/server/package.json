@@ -25,6 +25,7 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/typeorm": "^11.0.0",
+    "@ses/shared": "workspace:*",
     "@vivliostyle/cli": "11.0.1",
     "better-sqlite3": "^12.8.0",
     "class-transformer": "^0.5.1",
@@ -62,7 +63,8 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.20.0"
+    "typescript-eslint": "^8.20.0",
+    "webpack-node-externals": "3.0.0"
   },
   "jest": {
     "moduleFileExtensions": [

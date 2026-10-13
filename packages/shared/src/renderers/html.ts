@@ -53,6 +53,14 @@ export interface RenderHtmlOptions {
 
 type Labels = Record<NodeId, ResolvedLabel>
 
+/**
+ * print 变体在正文首页起始处注入的隐藏哨兵锚点文本（`.ses-body-anchor`）。
+ * 服务端 PDF 管线（packages/server/src/convert/pdf/toc.ts）据此在第一遍 PDF 的
+ * pdftotext 结果中定位正文起始物理页，并在第二遍前剥离。渲染器与服务端都从此处引用，
+ * 修改此值即同步两端，不再各存一份字符串。
+ */
+export const BODY_START_SENTINEL = 'SESBODYSTARTANCHOR'
+
 // ---------- 转义 ----------
 
 function escapeHtml(text: string): string {
@@ -658,10 +666,10 @@ function renderBody(doc: IRDoc, ctx: RenderCtx): void {
   ctx.push('<div class="ses-body-content">')
   // 正文首页隐藏哨兵锚点（仅 print）：供 PDF 出件管线两遍构建稳健定位正文起始物理页，
   // 不受文件名称文本在前言/引言中复现的影响。CSS 使其透明、零高度，不影响版式但可被
-  // pdftotext 提取。锚点文本须与服务端 packages/server/src/convert/pdf/toc.ts 的
-  // BODY_START_SENTINEL 严格一致（跨包字符串契约，二者必须同步修改）。
+  // pdftotext 提取。锚点文本取自本文件导出的 BODY_START_SENTINEL，服务端 toc.ts 从
+  // @ses/shared 引用同一常量，无需再手工保持两处字符串一致。
   if (ctx.variant === 'print') {
-    ctx.push('<span class="ses-body-anchor" aria-hidden="true">SESBODYSTARTANCHOR</span>')
+    ctx.push(`<span class="ses-body-anchor" aria-hidden="true">${BODY_START_SENTINEL}</span>`)
   }
   // 正文首页文件名称（三号黑体居中）
   if (doc.meta.title) {
