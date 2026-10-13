@@ -2,20 +2,46 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import {
   buildDocx,
+  buildPdfExportRequest,
   checkExportGuard,
+  exportSemanticHtml,
+  exportSemanticJson,
   synchronizeCoverMetadata,
   type ExportGuardFailure,
+  type ExportGuardFormat,
 } from '@ses/io';
-import type { DocumentMeta, PMJsonNode } from '@ses/shared';
+import {
+  irMetaFromDocumentMeta,
+  type DocumentMeta,
+  type PMJsonNode,
+} from '@ses/shared';
+import { ConvertService } from '../convert/convert.service';
 import { DocumentService } from '../document/document.service';
 import type { ExportWarning } from './export-http';
+import { blockExternalImages } from './external-images';
 
 export interface DocxExportResult {
   bytes: Uint8Array;
+  warnings: ExportWarning[];
+  /** 下载文件名（含扩展名）：meta.titleCn，为空时「标准文件」。 */
+  filename: string;
+}
+
+export interface TextExportResult {
+  /** HTML 或语义 JSON 文本（UTF-8）。 */
+  content: string;
+  /** 下载文件名（含扩展名）：meta.titleCn，为空时「标准文件」。 */
+  filename: string;
+}
+
+export interface PdfExportResult {
+  bytes: Buffer;
+  /** 被拒绝抓取的外部图片等，由接口放进 X-SES-Export-Warning* 响应头。 */
   warnings: ExportWarning[];
   /** 下载文件名（含扩展名）：meta.titleCn，为空时「标准文件」。 */
   filename: string;
@@ -57,7 +83,10 @@ function unprocessable(
 export class ExportService {
   private readonly logger = new Logger(ExportService.name);
 
-  constructor(private readonly documentService: DocumentService) {}
+  constructor(
+    private readonly documentService: DocumentService,
+    private readonly convertService: ConvertService,
+  ) {}
 
   /**
    * 按文档 id 导出 DOCX，路径与编辑器 EditorView.handleExportFormat('docx') 等价：
@@ -121,6 +150,142 @@ export class ExportService {
       );
       throw new InternalServerErrorException(
         `DOCX 导出失败：${(error as Error).message || error}`,
+      );
+    }
+  }
+
+  /**
+   * 按文档 id 取出库中内容并做编辑器导出前的同样处理（PDF / HTML / JSON 共用）：
+   * 内容为空 → 422；同步封面元数据；除 json 外做导出前检查（脚注、输出边界）→ 未通过 422。
+   * 结构无法解析同样 422（错误消息可能带正文片段，不写日志）。
+   */
+  private async prepareForExport(
+    id: number,
+    format: Extract<ExportGuardFormat, 'pdf' | 'html' | 'json'>,
+  ): Promise<{ meta: DocumentMeta; pmDoc: PMJsonNode; filenameBase: string }> {
+    const label = format.toUpperCase();
+    const doc = await this.documentService.findOne(id);
+    if (isEmptyContent(doc.content)) {
+      throw unprocessable(`文档内容为空，无法导出 ${label}`);
+    }
+    const meta = (doc.meta ?? {}) as unknown as DocumentMeta;
+
+    let pmDoc: PMJsonNode;
+    let failure: ExportGuardFailure | null;
+    try {
+      pmDoc = synchronizeCoverMetadata(
+        doc.content,
+        meta,
+      ) as unknown as PMJsonNode;
+      failure = checkExportGuard(pmDoc, format);
+    } catch (error) {
+      this.logger.warn(
+        `文档 #${id} 内容无法解析，${label} 导出中止（${(error as Error).name}）`,
+      );
+      throw unprocessable(`文档内容结构无法解析，无法导出 ${label}`);
+    }
+    if (failure) {
+      throw unprocessable(failure.message, {
+        source: failure.source,
+        detail: failure.detail,
+        problems: failure.problems,
+      });
+    }
+    return {
+      meta,
+      pmDoc,
+      filenameBase: meta.titleCn?.trim() || DEFAULT_FILE_TITLE,
+    };
+  }
+
+  /**
+   * 按文档 id 导出语义 HTML（screen 变体），与编辑器 handleExportFormat('html') 等价：
+   * 同步封面元数据 → 导出前检查 → exportSemanticHtml。
+   */
+  async exportHtml(id: number): Promise<TextExportResult> {
+    const { pmDoc, filenameBase } = await this.prepareForExport(id, 'html');
+    try {
+      const content = exportSemanticHtml(pmDoc);
+      this.logger.log(`文档 #${id} HTML 导出成功：${content.length} 字符`);
+      return { content, filename: `${filenameBase}.html` };
+    } catch (error) {
+      this.logger.error(
+        `文档 #${id} HTML 导出失败（${(error as Error).name}）`,
+      );
+      throw new InternalServerErrorException(
+        `HTML 导出失败：${(error as Error).message || error}`,
+      );
+    }
+  }
+
+  /**
+   * 按文档 id 导出语义 JSON，与编辑器 handleExportFormat('json') 等价：
+   * 同步封面元数据 → exportSemanticJson → `JSON.stringify(…, null, 2)`。
+   * json 不做导出前检查（与编辑器一致），因此导出阶段的任何失败都来自文档内容本身，一律 422。
+   */
+  async exportJson(id: number): Promise<TextExportResult> {
+    const { pmDoc, filenameBase } = await this.prepareForExport(id, 'json');
+    try {
+      const content = JSON.stringify(exportSemanticJson(pmDoc), null, 2);
+      this.logger.log(`文档 #${id} JSON 导出成功：${content.length} 字符`);
+      return { content, filename: `${filenameBase}.json` };
+    } catch (error) {
+      this.logger.warn(
+        `文档 #${id} 内容无法导出为语义 JSON（${(error as Error).name}）`,
+      );
+      throw unprocessable('文档内容结构无法解析，无法导出 JSON');
+    }
+  }
+
+  /**
+   * 按文档 id 导出 PDF，与编辑器 handleExportFormat('pdf') 等价：
+   * 同步封面元数据 → 导出前检查 → buildPdfExportRequest（print HTML + 目次目标，meta 取
+   * irMetaFromDocumentMeta(文档库 meta)）→ 现有 IR→HTML→PDF 两遍构建管线。
+   *
+   * 校验顺序：404 → 422（内容为空、导出前检查）→ 503（管线缺依赖，响应体列出缺少的依赖）→ 生成（失败 500）。
+   * 管线本身与 POST /api/convert/html-to-pdf 相同，不另设并发限制。
+   * 与 DOCX 一致，服务端不抓取外部图片（见 external-images.ts）：这是与编辑器路径唯一的有意差异，
+   * 只在文档含非 data URL 图片时出现；其余文档交给管线的 html、toc、docTitle 与编辑器路径逐字相同。
+   */
+  async exportPdf(id: number): Promise<PdfExportResult> {
+    const { meta, pmDoc, filenameBase } = await this.prepareForExport(
+      id,
+      'pdf',
+    );
+    if (!this.convertService.getCapabilities().htmlToPdf) {
+      const missing = this.convertService.getHtmlPdfMissingDependencies();
+      throw new ServiceUnavailableException({
+        statusCode: 503,
+        error: 'Service Unavailable',
+        message:
+          'PDF 导出不可用：服务端 IR→HTML→PDF 管线缺少依赖' +
+          (missing.length
+            ? `：${missing.join('、')}`
+            : '（@vivliostyle/cli 或 poppler）'),
+        missingDependencies: missing,
+      });
+    }
+
+    try {
+      // 不让渲染端按文档里的 URL 抓取图片（SSRF）；与 DOCX 一致，只留告警。
+      const warnings = blockExternalImages(pmDoc);
+      const request = buildPdfExportRequest(
+        pmDoc,
+        irMetaFromDocumentMeta(meta),
+      );
+      const bytes = await this.convertService.convertHtmlToPdf({
+        html: request.html,
+        toc: request.toc,
+        docTitle: request.docTitle,
+      });
+      this.logger.log(
+        `文档 #${id} PDF 导出成功：${bytes.length} 字节，${warnings.length} 条告警`,
+      );
+      return { bytes, warnings, filename: `${filenameBase}.pdf` };
+    } catch (error) {
+      this.logger.error(`文档 #${id} PDF 导出失败（${(error as Error).name}）`);
+      throw new InternalServerErrorException(
+        `PDF 导出失败：${(error as Error).message || error}`,
       );
     }
   }

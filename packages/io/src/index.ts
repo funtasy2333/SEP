@@ -38,3 +38,8 @@ export type {
 } from './exportGuard'
 
 export { COVER_SETTINGS_KEYS, synchronizeCoverMetadata } from './coverMetadata'
+
+export { buildPdfExportRequest, extractPdfTocTargets } from './pdfExport'
+export type { PdfExportRequest, PdfTocTarget } from './pdfExport'
+
+export { exportSemanticHtml, exportSemanticJson } from './semanticExport'

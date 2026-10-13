@@ -15,6 +15,8 @@ export interface ConvertCapabilities {
 export class ConvertService implements OnModuleInit {
   private readonly logger = new Logger(ConvertService.name);
   private htmlPdfReady = false;
+  /** 工具链探测发现缺失的依赖名（可用时为空）。 */
+  private htmlPdfMissing: string[] = [];
 
   async onModuleInit() {
     await this.detectHtmlPdfToolchain();
@@ -25,15 +27,13 @@ export class ConvertService implements OnModuleInit {
     const viv = isVivliostyleAvailable();
     const poppler = await isPopplerAvailable();
     this.htmlPdfReady = viv && poppler;
+    this.htmlPdfMissing = [
+      !viv ? '@vivliostyle/cli' : null,
+      !poppler ? 'poppler(pdftotext/pdfinfo)' : null,
+    ].filter((name): name is string => name !== null);
     if (!this.htmlPdfReady) {
-      const missing = [
-        !viv ? '@vivliostyle/cli' : null,
-        !poppler ? 'poppler(pdftotext/pdfinfo)' : null,
-      ]
-        .filter(Boolean)
-        .join('、');
       this.logger.warn(
-        `IR→HTML→PDF 管线不可用，缺少：${missing}。` +
+        `IR→HTML→PDF 管线不可用，缺少：${this.htmlPdfMissing.join('、')}。` +
           (!poppler
             ? '请安装 poppler（macOS: brew install poppler）。'
             : ''),
@@ -46,6 +46,11 @@ export class ConvertService implements OnModuleInit {
   /** 当前出件能力（客户端据此显隐导出卡片）。 */
   getCapabilities(): ConvertCapabilities {
     return { htmlToPdf: this.htmlPdfReady };
+  }
+
+  /** IR→HTML→PDF 管线缺少的依赖名；管线可用（或尚未探测）时为空数组。 */
+  getHtmlPdfMissingDependencies(): string[] {
+    return [...this.htmlPdfMissing];
   }
 
   /**
