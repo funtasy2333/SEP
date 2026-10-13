@@ -110,13 +110,62 @@ export function buildWarningHeaders(
 }
 
 /**
- * Content-Disposition（RFC 6266 / 5987 的 filename*）。encodeURIComponent 不转义 !'()*，
+ * Content-Disposition 整个头值（含 `attachment; filename*=UTF-8''` 前缀）的长度上限。
+ * 文件名来自 titleCn，创建/更新接口都不限长，而一个汉字百分号编码后占 9 个字符，
+ * 不设上限时几百字的标题就会让头超出代理/浏览器的头部缓冲区（取值依据同
+ * WARNINGS_HEADER_MAX_LENGTH：nginx 上游响应头缓冲区默认 4～8 KiB），导出成功却下载不了。
+ * 同一响应里告警头最多还有约 4 KiB，再加 Content-Type、Content-Length 等通用头，
+ * 所以这里只取 1 KiB（约 4 KiB 的 1/4）：满载时整个响应头约 5.5 KiB，仍在 8 KiB 之内；
+ * 1 KiB 扣掉前缀、扩展名与省略号后，还能放 109 个汉字，足够常见的标准名称。
+ */
+export const CONTENT_DISPOSITION_MAX_LENGTH = 1024;
+
+const DISPOSITION_PREFIX = "attachment; filename*=UTF-8''";
+/** 文件名被截短时接在保留部分之后（扩展名之前）的标记，占用长度预算。 */
+const TRUNCATION_MARK = '…';
+/** 截短时原样保留的扩展名：末尾的 `.` 加 1～10 位 ASCII 字母数字，如 `.docx`。 */
+const EXTENSION_PATTERN = /\.[A-Za-z0-9]{1,10}$/;
+
+/**
+ * filename* 的百分号编码。encodeURIComponent 不转义 !'()*，
  * 其中 `'` 是 filename* 的分隔符，一并转成百分号编码。
  */
-export function attachmentDisposition(filename: string): string {
-  const encoded = encodeURIComponent(filename).replace(
+function encodeFilename(text: string): string {
+  return encodeURIComponent(text).replace(
     /[!'()*]/g,
     (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
   );
-  return `attachment; filename*=UTF-8''${encoded}`;
+}
+
+/**
+ * 把文件名截短到编码后不超过 budget 个字符：保留扩展名，主体按码点逐个累加
+ * （代理对不会被劈开，百分号编码也不会被截成半截），截短处补省略号，省略号与扩展名都计入预算。
+ */
+function encodeClippedFilename(filename: string, budget: number): string {
+  const extension = EXTENSION_PATTERN.exec(filename)?.[0] ?? '';
+  const stem = filename.slice(0, filename.length - extension.length);
+  const mark = encodeFilename(TRUNCATION_MARK);
+
+  let remaining = budget - mark.length - extension.length;
+  let kept = '';
+  for (const char of stem) {
+    const encoded = encodeFilename(char);
+    if (encoded.length > remaining) break;
+    kept += encoded;
+    remaining -= encoded.length;
+  }
+  return `${kept}${mark}${extension}`;
+}
+
+/**
+ * Content-Disposition（RFC 6266 / 5987 的 filename*）。整个头值不超过
+ * CONTENT_DISPOSITION_MAX_LENGTH；超出时按上面的规则截短文件名，不超出的与原样编码逐字节相同。
+ */
+export function attachmentDisposition(filename: string): string {
+  const header = `${DISPOSITION_PREFIX}${encodeFilename(filename)}`;
+  if (header.length <= CONTENT_DISPOSITION_MAX_LENGTH) return header;
+  return `${DISPOSITION_PREFIX}${encodeClippedFilename(
+    filename,
+    CONTENT_DISPOSITION_MAX_LENGTH - DISPOSITION_PREFIX.length,
+  )}`;
 }

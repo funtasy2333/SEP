@@ -13,6 +13,7 @@ import { DocumentModule } from '../document/document.module';
 import { VersionEntity } from '../version/version.entity';
 import { readZipEntries } from './__fixtures__/read-zip';
 import {
+  CONTENT_DISPOSITION_MAX_LENGTH,
   WARNING_COUNT_HEADER,
   WARNINGS_HEADER,
   WARNINGS_TRUNCATED_HEADER,
@@ -487,6 +488,35 @@ describe('GET /api/documents/:id/export/docx', () => {
       expect(special.headers['content-disposition']).toBe(
         "attachment; filename*=UTF-8''A%281%29%27%2A%21%2F.docx",
       );
+    });
+
+    it('titleCn 极长（创建时不限长）：仍返回 200，Content-Disposition 有上界且可解码', async () => {
+      const titles = [
+        '标准机器语言表达'.repeat(250), // 2000 个汉字
+        '标准机器语言表达😀'.repeat(200), // 含 emoji（代理对）
+      ];
+      for (const titleCn of titles) {
+        const id = await createDoc({ meta: { ...fixtureMeta, titleCn } });
+        const res = await download(
+          `${EXPORT_PATH(id)}?createdAt=${CREATED_AT}`,
+        );
+        expect(res.status).toBe(200);
+        expect(res.bytes.subarray(0, 2).toString('latin1')).toBe('PK');
+
+        const disposition = res.headers['content-disposition'];
+        expect(disposition.length).toBeLessThanOrEqual(
+          CONTENT_DISPOSITION_MAX_LENGTH,
+        );
+        const prefix = "attachment; filename*=UTF-8''";
+        expect(disposition.startsWith(prefix)).toBe(true);
+        const filename = decodeURIComponent(disposition.slice(prefix.length));
+        // 保留标题的前缀，末尾是省略号与扩展名，没有被劈开的字符。
+        expect(filename.endsWith('….docx')).toBe(true);
+        const kept = filename.slice(0, -'….docx'.length);
+        expect(kept.length).toBeGreaterThan(0);
+        expect(titleCn.startsWith(kept)).toBe(true);
+        expect(() => encodeURIComponent(filename)).not.toThrow();
+      }
     });
   });
 
