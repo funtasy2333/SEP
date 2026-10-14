@@ -237,6 +237,7 @@
 
 .std-table-caption {
   text-align: center;
+  font-weight: normal;
   font-family: 'SimHei', 'Heiti SC', sans-serif;
   font-size: 14px;
   margin-bottom: 8px;

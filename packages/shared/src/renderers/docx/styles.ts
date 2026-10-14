@@ -42,7 +42,6 @@ const SPACING_ZERO = '<w:spacing w:before="0" w:after="0"/>'
 
 const IND_ZERO = '<w:ind w:left="0" w:firstLine="0"/>'
 const IND_FIRSTLINE_2CH = `<w:ind w:left="0" w:firstLine="${2 * CH}"/>`
-const IND_TABLETEXT = `<w:ind w:left="0" w:firstLine="${CH}"/>`
 const IND_LIST_CONT_L1 = '<w:ind w:left="840" w:firstLine="0"/>'
 const IND_LIST_CONT_L2 = '<w:ind w:left="1260" w:firstLine="0"/>'
 const IND_NOTE_CONT = '<w:ind w:left="780" w:firstLine="0"/>'
@@ -292,9 +291,9 @@ const STYLE_SPECS: readonly StyleSpec[] = [
   { id: 'SesAppTblCap', name: 'SES_附录表题', rFonts: 'hei', jc: 'center', keepNext: true, spacing: SPACING_HALF_LINE },
   { id: 'SesTblCapCont', name: 'SES_续表题', rFonts: 'hei', jc: 'center', keepNext: true, spacing: SPACING_HALF_LINE },
   { id: 'SesAppTblCapCont', name: 'SES_附录续表题', rFonts: 'hei', jc: 'center', keepNext: true, spacing: SPACING_HALF_LINE },
-  { id: 'SesTableText', name: 'SES_表格文字', sz: 18, ind: IND_TABLETEXT },
-  { id: 'SesTableCenter', name: 'SES_表格居中', sz: 18, jc: 'center', ind: IND_ZERO },
-  { id: 'SesTableNote', name: 'SES_表注', sz: 18 },
+  { id: 'SesTableText', name: 'SES_表格文字', sz: 18, ind: IND_ZERO, snapToGridOff: true },
+  { id: 'SesTableCenter', name: 'SES_表格居中', sz: 18, jc: 'center', ind: IND_ZERO, snapToGridOff: true },
+  { id: 'SesTableNote', name: 'SES_表注', sz: 18, snapToGridOff: true },
   { id: 'SesFootnoteText', name: 'SES_脚注内容', rFonts: 'songAll', sz: 18, ind: IND_FOOTNOTE, tabs: TABS_FOOTNOTE, snapToGridOff: true },
   { id: 'SesTableFootnote', name: 'SES_表脚注', rFonts: 'songAll', sz: 18, ind: IND_TABLE_FOOTNOTE, tabs: TABS_TABLE_FOOTNOTE, snapToGridOff: true },
   { id: 'SesFormula', name: 'SES_公式', tabs: TABS_FORMULA, spacing: SPACING_HALF_LINE, ind: IND_ZERO },

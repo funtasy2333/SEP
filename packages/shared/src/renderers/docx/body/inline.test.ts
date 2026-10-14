@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest'
 import type { NodeId, ResolvedLabel } from '../../../ir/types'
-import { breakRun, plainRun, renderInlines, renderRun, spacingRpr, tabRun } from './inline'
+import { breakRun, plainRun, renderInlines, renderRun, spacingRpr, tabRun, wrapTitleAtSeparator } from './inline'
 import { renderBodyTitle } from './front'
 import { createRenderContext } from './context'
 import { parseXml } from '../__tests__/helpers/xmlTree'
@@ -192,4 +192,20 @@ describe('正文首页名称的空格规则（§5.1）', () => {
     const xml = renderBodyTitle(ctx, '标准 系统')
     expect(xml).toContain('标准　系统')
   })
+})
+
+it('长名称按原有标点换行，避免末字成为孤行且保留完整名称', () => {
+  const title = '土壤中全氟和多氟烷基物质污染筛查、风险评估与分级管控技术指南'
+  const xml = renderBodyTitle(createRenderContext({}), title)
+  expect(xml).toContain('污染筛查、</w:t></w:r><w:r><w:br/></w:r>')
+  expect(xml).toContain('风险评估与分级管控技术指南</w:t>')
+})
+
+it.each([
+  ['短名称、续词', 18],
+  ['明确指定\n换行的名称、测试', 5],
+  ['没有可用语义分隔符的很长名称仍保持原文', 5],
+  ['分隔符前内容太长不适合两行、短尾', 8],
+])('名称已有换行或无合适切点时保留作者原文：%s', (title, width) => {
+  expect(wrapTitleAtSeparator(title, width)).toBe(title)
 })

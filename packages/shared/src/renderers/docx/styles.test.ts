@@ -278,8 +278,8 @@ describe('styles.ts：显式缩进值（不依赖编号级别的样式）', () =
     expect(indOf(styles.get('SesListCont2')!)?.attrs).toEqual({ 'w:left': '1260', 'w:firstLine': '0' })
   })
 
-  it('SesTableText：首行 1 字 = 210，左 0', () => {
-    expect(indOf(styles.get('SesTableText')!)?.attrs).toEqual({ 'w:left': '0', 'w:firstLine': '210' })
+  it('SesTableText：默认无首行缩进，左 0', () => {
+    expect(indOf(styles.get('SesTableText')!)?.attrs).toEqual({ 'w:left': '0', 'w:firstLine': '0' })
   })
 
   it('脚注按 9pt 汉字宽度设置悬挂缩进、正文制表位并关闭网格吸附', () => {
@@ -445,4 +445,12 @@ describe('styles.ts：docDefaults', () => {
     const root = parseXml(buildStylesXml())
     expect(findChild(root, 'w:latentStyles')).toBeUndefined()
   })
+})
+
+it('表格文字关闭正文网格，避免Word续表题在自动分页时丢失', () => {
+  const styles = styleMap()
+  for (const id of ['SesTableText', 'SesTableCenter', 'SesTableNote']) {
+    const pPr = findChild(styles.get(id)!, 'w:pPr')
+    expect(pPr && findChild(pPr, 'w:snapToGrid')?.attrs['w:val']).toBe('0')
+  }
 })

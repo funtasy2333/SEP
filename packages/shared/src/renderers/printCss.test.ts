@@ -15,3 +15,10 @@ describe('printCss 列项标记', () => {
     expect(printCss()).toContain('.ses-list .ses-list:not(.ses-list-number) > .ses-list-item::before { content: "·"; counter-increment: none; }')
   })
 })
+
+it('表题不叠加粗体，普通单元格段落默认顶格', () => {
+  const css = printCss()
+  const caption = /\.ses-table-caption \{([^}]+)\}/.exec(css)![1]!
+  expect(caption).toContain('font-weight: normal;')
+  expect(css).toContain('.ses-table-block td > .ses-paragraph, .ses-table-block th > .ses-paragraph { text-indent: 0; }')
+})

@@ -12,7 +12,7 @@ import { COVER_ASSETS } from './assets'
 import type { DocxRelatedPart } from './package'
 import { mmToEmu } from './units'
 import { emitParagraph, warn, type RenderContext } from './body/context'
-import { plainRun, tabRun } from './body/inline'
+import { plainRun, tabRun, wrapTitleAtSeparator } from './body/inline'
 import { escapeXmlAttr } from './xml'
 import { buildCoverReleaseRunPr } from './styles'
 
@@ -174,7 +174,7 @@ function localRegionCode(meta: IRDocMeta): string {
 
 function typeMarkCode(meta: IRDocMeta, type: 'T' | 'Q'): string {
   const code = normalizeCoverStdCode(meta.stdCode)
-  const match = /^([TQ])\/([^\s]+)\s+(?:\d+(?:\.\d+)*|XXXXX)(?:—(?:\d{4}|XXXX))?$/i.exec(code)
+  const match = /^([TQ])\/([^\s]+)\s+(?:\d+(?:\.\d+)*|X{4,5})(?:—(?:\d{4}|XXXX))?$/i.exec(code)
   return match?.[1]?.toUpperCase() === type ? match[2]! : ''
 }
 
@@ -285,7 +285,7 @@ export function renderCover(ctx: RenderContext, meta: IRDocMeta, stage: Document
   xml += emitParagraph(ctx, 'SesCoverRule', { framePr: FRAME_RULE })
 
   // 正文首页名称会为缺失的 meta.title 记录 cover-field-missing；封面保留空段但不重复告警。
-  xml += frameText(ctx, 'SesCoverName', meta.title ?? '', FRAME_TITLE_FLOW)
+  xml += frameText(ctx, 'SesCoverName', wrapTitleAtSeparator(meta.title ?? '', 18), FRAME_TITLE_FLOW)
   if (meta.titleEn && ['gb', 'guide', 'industry', 'group'].includes(meta.standardType)) {
     xml += frameText(ctx, 'SesCoverEnglish', meta.titleEn, FRAME_TITLE_FLOW)
   }

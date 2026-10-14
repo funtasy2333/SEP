@@ -304,7 +304,7 @@ const CONTENT = `
 .ses-table-caption {
   font-family: var(--ses-hei);
   font-size: var(--ses-fs-wu);
-  font-weight: bold;
+  font-weight: normal;
   text-align: center;
   margin: 8pt 0 3pt;
   break-after: avoid;
@@ -321,6 +321,7 @@ const CONTENT = `
 }
 .ses-table-block th { font-family: var(--ses-hei); font-weight: bold; text-align: center; }
 .ses-table-block td { text-align: left; }
+.ses-table-block td > .ses-paragraph, .ses-table-block th > .ses-paragraph { text-indent: 0; }
 .ses-table-block tr { break-inside: avoid; }
 .ses-table-notes td, .ses-table-footnotes td { border-left-width: 0.75pt; border-right-width: 0.75pt; }
 .ses-table-notes td { border-top-width: 0.75pt; }
