@@ -1014,18 +1014,25 @@ async function handleConflictReload() {
 
   resolvingConflict.value = 'reload'
   try {
-    await store.fetchDocument(documentToReload.id)
-    const latest = store.currentDocument
-    if (!latest) throw new Error('文档不可用')
+    // 只读取、不碰 store：fetchDocument 会立即把远端 revision 与 meta 装进 store.currentDocument，
+    // 内容随后若装不进编辑器，冲突期间仍可用的「保存版本」会带着旧内容和新 revision 写入，静默覆盖远端修改。
+    const latest = await store.readDocument(documentToReload.id)
+    // 读取期间页面已离开（或 store 已切到别的文档）：不再改动编辑器与 store。
+    if (changeSyncStopped || currentEditor.isDestroyed || store.currentDocument?.id !== latest.id) return
     const hasContent = Boolean(latest.content) && Object.keys(latest.content).length > 0
     const content = hasContent ? latest.content : createDefaultDocumentContent(latest.meta)
-    // 先用生产 schema 校验，通过后才改动编辑器；失败时保持冲突状态与本地内容。
+    // 先用生产 schema 校验，通过后才改动编辑器；失败时保持冲突状态、本地内容，store 的 revision 与 meta 也不变。
     const candidate = currentEditor.schema.nodeFromJSON(content)
     candidate.check()
     const needsNodeIdPersistence = hasNodeIdIssues(candidate)
     // 重载不进入撤销历史：否则 Ctrl+Z 会把旧内容带回并在下一次自动保存时覆盖最新版本；
     // 此前的撤销记录也一并清空（与自动载入外部修改相同，见 installRemoteDocument）。
     installRemoteDocument(currentEditor, content)
+    // 编辑器已换成服务端内容，store 必须同步成同一份。冲突时服务端 revision 正常都大于本地，adoptDocument 会前进；
+    // 它返回 false 只可能是 revision 相等（store 已是这份文档）或比本地更小（服务端回滚 / 从备份恢复）。
+    // 「重新加载」以服务端为准，后一种情形若保留较大的本地 revision，之后每次保存的 baseRevision 都对不上服务端，永远 409，
+    // 所以直接装入读到的文档（与原先 fetchDocument 的结果一致）。上面已确认仍是同一份文档，不会冲掉别的文档。
+    if (!store.adoptDocument(latest)) store.currentDocument = latest
     hydrateSettingsDraft(latest)
     dirty.value = false
     lastSaved.value = latest.updatedAt ? new Date(latest.updatedAt).toLocaleTimeString('zh-CN') : ''

@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   store: {
     currentDocument: null as any,
     fetchDocument: vi.fn(),
+    readDocument: vi.fn(),
+    adoptDocument: vi.fn(),
     updateDocument: vi.fn(),
     createDocument: vi.fn(),
   },
@@ -149,6 +151,12 @@ async function settle() {
 async function mountEditor() {
   mocks.store.currentDocument = createDocument()
   mocks.store.fetchDocument.mockReset().mockResolvedValue(undefined)
+  mocks.store.readDocument.mockReset()
+  // 与真实 store 一致：adoptDocument 把读到的文档装为当前文档（这里只模拟「revision 前进」的成功情形）。
+  mocks.store.adoptDocument.mockReset().mockImplementation((doc: any) => {
+    mocks.store.currentDocument = doc
+    return true
+  })
   mocks.store.updateDocument.mockReset()
   mocks.store.createDocument.mockReset()
   mocks.documentApiUpdate.mockReset().mockResolvedValue(undefined)
@@ -360,19 +368,21 @@ it('重新加载：二次确认后载入最新内容，刷新设置草稿，清�
     await flushMicrotasks()
     expect(confirm).toHaveBeenCalledTimes(1)
     expect(String(confirm.mock.calls[0]![0])).toContain('放弃')
-    expect(mocks.store.fetchDocument).not.toHaveBeenCalled()
+    expect(mocks.store.readDocument).not.toHaveBeenCalled()
     expect(banner(view)).not.toBeNull()
     expect(foreword(view.editor)).toContain('本地新增的正文')
 
-    // 确认后：拉取最新文档并替换编辑器内容
-    mocks.store.fetchDocument.mockImplementation(async () => {
-      mocks.store.currentDocument = createDocument(5, 'AI 刚写入的内容', '服务端最新题名')
-    })
+    // 确认后：读取最新文档、替换编辑器内容，再把读到的文档装进 store
+    const latest = createDocument(5, 'AI 刚写入的内容', '服务端最新题名')
+    mocks.store.readDocument.mockResolvedValue(latest)
     confirm.mockResolvedValueOnce(undefined as any)
     clickButton(conflictDialog()!, '重新加载')
     await flushMicrotasks()
 
-    expect(mocks.store.fetchDocument).toHaveBeenCalledWith(17)
+    expect(mocks.store.readDocument).toHaveBeenCalledWith(17)
+    // 不再用 fetchDocument（它会在校验之前就改写 store）
+    expect(mocks.store.fetchDocument).not.toHaveBeenCalled()
+    expect(mocks.store.adoptDocument).toHaveBeenCalledWith(latest)
     await settle()
     expect(foreword(view.editor)).toBe('AI 刚写入的内容')
     expect(view.root.querySelector<HTMLInputElement>('[data-testid="settings-title"]')!.value).toBe('服务端最新题名')
@@ -407,12 +417,15 @@ it('重新加载失败时保持冲突状态与本地内容', async () => {
     view.updateDocument.mockRejectedValueOnce(conflictError())
     await editBodyAndAutosave(view)
 
-    mocks.store.fetchDocument.mockRejectedValueOnce(new Error('network unavailable'))
+    const before = mocks.store.currentDocument
+    mocks.store.readDocument.mockRejectedValueOnce(new Error('network unavailable'))
     clickButton(conflictDialog()!, '重新加载')
     await flushMicrotasks()
 
     expect(confirm).toHaveBeenCalledOnce()
     expect(String(messageError.mock.calls[0]?.[0])).toContain('重新加载失败')
+    expect(mocks.store.adoptDocument).not.toHaveBeenCalled()
+    expect(mocks.store.currentDocument).toBe(before)
     expect(banner(view)).not.toBeNull()
     expect(foreword(view.editor)).toContain('本地新增的正文')
     expect(bodyDirtyMark(view)).not.toBeNull()
@@ -444,6 +457,7 @@ it('另存为副本：用当前编辑器内容和未保存的设置新建文档�
     expect(JSON.stringify(copy.content)).toContain('本地新增的正文')
     // 原文档：没有再被写入，也没有被重新拉取（保持服务端版本）
     expect(view.updateDocument).toHaveBeenCalledTimes(1)
+    expect(mocks.store.readDocument).not.toHaveBeenCalled()
     expect(mocks.store.fetchDocument).not.toHaveBeenCalled()
     // 进入副本的编辑器，本页的冲突/未保存状态已清除，离开不会再被拦截
     expect(mocks.routerPush).toHaveBeenCalledWith({ name: 'editor', params: { id: 99 } })
