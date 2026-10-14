@@ -1060,11 +1060,13 @@ async function handleConflictSaveAsCopy() {
     const draftMeta = draft && settingsDirty.value && draft.titleCn.trim()
       ? documentMetaFromSettingsDraft(sourceDocument.meta, { ...draft, titleCn: draft.titleCn.trim() })
       : null
-    const copyData = createDocumentDuplicate({
+    const duplicate = createDocumentDuplicate({
       title: draftMeta ? draftMeta.titleCn : sourceDocument.title,
       meta: draftMeta ?? sourceDocument.meta,
       content: currentEditor.getJSON(),
     })
+    // 阶段不在 meta 里，createDocumentDuplicate 固定为工作草案：带入设置草稿时阶段也用草稿的值。
+    const copyData = draftMeta && draft ? { ...duplicate, stage: draft.stage } : duplicate
     const copy = await store.createDocument(copyData)
     ElMessage.success('已另存为副本')
     // 内容已保存在副本中：清除本页的冲突与未保存状态，避免离开时再被拦截或触发兜底保存。

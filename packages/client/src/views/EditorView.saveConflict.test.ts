@@ -55,6 +55,11 @@ vi.mock('@/components/editor/DocumentSettingsPanel.vue', async () => {
             value: props.draft.titleCn,
             onInput: (event: Event) => { props.draft.titleCn = (event.target as HTMLInputElement).value },
           }),
+          vue.h('input', {
+            'data-testid': 'settings-stage',
+            value: props.draft.stage,
+            onInput: (event: Event) => { props.draft.stage = (event.target as HTMLInputElement).value },
+          }),
           vue.h('button', { 'data-testid': 'settings-save', onClick: () => emit('save') }, '保存设置'),
           vue.h('span', { 'data-testid': 'settings-error' }, props.saveError ? 'error' : ''),
         ])
@@ -443,6 +448,9 @@ it('另存为副本：用当前编辑器内容和未保存的设置新建文档�
     const titleInput = view.root.querySelector<HTMLInputElement>('[data-testid="settings-title"]')!
     titleInput.value = '带草稿的新题名'
     titleInput.dispatchEvent(new Event('input', { bubbles: true }))
+    const stageInput = view.root.querySelector<HTMLInputElement>('[data-testid="settings-stage"]')!
+    stageInput.value = 'committee_draft'
+    stageInput.dispatchEvent(new Event('input', { bubbles: true }))
     await flushMicrotasks()
 
     mocks.store.createDocument.mockImplementation(async (data: any) => ({ ...data, id: 99, revision: 0 }))
@@ -453,7 +461,8 @@ it('另存为副本：用当前编辑器内容和未保存的设置新建文档�
     const copy = mocks.store.createDocument.mock.calls[0]![0]
     expect(copy.title).toBe('带草稿的新题名（副本）')
     expect(copy.meta.titleCn).toBe('带草稿的新题名（副本）')
-    expect(copy.stage).toBe('working_draft')
+    // 未保存的阶段草稿同样带入副本
+    expect(copy.stage).toBe('committee_draft')
     expect(JSON.stringify(copy.content)).toContain('本地新增的正文')
     // 原文档：没有再被写入，也没有被重新拉取（保持服务端版本）
     expect(view.updateDocument).toHaveBeenCalledTimes(1)
