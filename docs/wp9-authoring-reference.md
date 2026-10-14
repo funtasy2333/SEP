@@ -57,6 +57,8 @@
 
 暂不支持：行内样式 `style`、行内公式 `formula`、脚注 `footnote`、表脚注引用 `tableFootnoteRef`。
 
+**出件限制**：DOCX、HTML、PDF 目前只能输出 `bold` `italic` `underline` `sub` `sup` `crossRef` 这几种标记。`strike`、`code`、`variable`、`externalLink`、`bibRef`、`termRef` 可以写入并保存（JSON 导出保留），但文档里只要有它们，导出 DOCX、HTML、PDF 就会被拒绝（`validate_document` 的 `exports` 会列出位置）。需要出件的文档不要使用这些标记：引用参考文献、术语时先写成普通文字。
+
 ```json ses-example context=chapter
 [
   {
@@ -243,7 +245,7 @@
 | `captionEn` | 否 | 无 | 英文图题 |
 | `orientation` | 否 | `portrait` | `portrait` 或 `landscape` |
 | `src` | 是 | | 只接受 PNG、JPEG、GIF 的 base64 data URL（`data:image/png;base64,……`）；**不会下载外链图片** |
-| `alt` | 否 | `""` | 替代文字 |
+| `alt` | 否 | `""` | 替代文字。DOCX、HTML、PDF 目前不能输出，非空时这三种导出会被拒绝；需要出件时省略 |
 | `notes` | 否 | `[]` | 必须为空或省略（编辑器的图没有图中注节点；要写说明请放进图题或图后的 `note`） |
 
 ```json ses-example context=chapter
@@ -452,7 +454,7 @@
 - 条分层不跳级；有子条的容器不要同时直接放正文段。
 - 列项：同一层级用同一种列项类型；一级用 `dash`/`alpha`，其下的二级用 `number`/`dot`。
 - 术语和定义章：先写引导语段落，再写术语条目；定义写成可以替换术语的名词性短语。这类行文细节由作者把握，系统不检查。
-- 引用其他章条、图表、公式时用 `crossRef`，引用参考文献用 `bibRef`，引用术语用 `termRef`；不要把「见5.2」之类编号写成死文本。
+- 引用其他章条、图表、公式时用 `crossRef`，不要把「见5.2」之类编号写成死文本。`bibRef`、`termRef` 目前导不出 DOCX、HTML、PDF（见 2.2 的出件限制），需要出件时引用文献和术语先写成普通文字。
 - 需要被引用的节点先创建（写显式 `id`），再创建引用它的内容；同一批片段里先后顺序不限，目标是否存在由文档校验检查。
 
 ## 7. 替换节点（replace）与丢失内容

@@ -74,7 +74,11 @@ export function toErrorBody(error: unknown): McpErrorBody {
   return {
     status,
     ...(typeof response.code === 'string' ? { code: response.code } : {}),
-    message: status === HTTP_CONFLICT ? `${message}；${REREAD_HINT}` : message,
+    // 只有 revision 冲突（响应体带当前 revision）才需要重新读取；文件已存在等其他 409 不加。
+    message:
+      status === HTTP_CONFLICT && typeof response.revision === 'number'
+        ? `${message}；${REREAD_HINT}`
+        : message,
     ...(typeof response.revision === 'number'
       ? { revision: response.revision }
       : {}),

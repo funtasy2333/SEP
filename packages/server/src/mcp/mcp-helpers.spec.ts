@@ -135,6 +135,21 @@ describe('toErrorBody', () => {
     expect(REREAD_HINT).toBe('请重新读取后再修改');
   });
 
+  it('409 但不是 revision 冲突（如文件已存在）：不追加重新读取的提示', () => {
+    const body = toErrorBody(
+      new ConflictException({
+        statusCode: 409,
+        message: '目标文件已存在：/x/a.docx',
+        code: 'file-exists',
+      }),
+    );
+    expect(body).toEqual({
+      status: 409,
+      code: 'file-exists',
+      message: '目标文件已存在：/x/a.docx',
+    });
+  });
+
   it('422：带 issues 与 problems', () => {
     const issues = [{ code: 'node-not-found', path: 'operations[0].nodeId' }];
     const problems = [{ source: 'schema', code: 'invalid-content' }];
