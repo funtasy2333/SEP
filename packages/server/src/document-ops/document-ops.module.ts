@@ -8,5 +8,6 @@ import { DocumentOpsService } from './document-ops.service';
   imports: [DocumentModule, VersionModule],
   controllers: [DocumentOpsController],
   providers: [DocumentOpsService],
+  exports: [DocumentOpsService],
 })
 export class DocumentOpsModule {}

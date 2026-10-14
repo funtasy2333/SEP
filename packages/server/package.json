@@ -21,6 +21,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.31.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
@@ -75,11 +76,14 @@
     ],
     "rootDir": "src",
     "moduleNameMapper": {
-      "^@client/editor-schema$": "<rootDir>/../../client/src/extensions/editorSchema.ts"
+      "^@client/editor-schema$": "<rootDir>/../../client/src/extensions/editorSchema.ts",
+      "^@client/new-document$": "<rootDir>/../../client/src/utils/newDocument.ts",
+      "^@docs/authoring-reference$": "<rootDir>/../../../docs/wp9-authoring-reference.md"
     },
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+[/\\\\]packages[/\\\\]client[/\\\\]src[/\\\\].+\\.ts$": "<rootDir>/../jest.client-transform.js",
+      "^.+\\.md$": "<rootDir>/../jest.text-transform.js",
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [

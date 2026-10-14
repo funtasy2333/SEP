@@ -62,14 +62,34 @@ const clientEditorSchema = path.resolve(
   '../client/src/extensions/editorSchema.ts',
 )
 
+// MCP 工具 create_document 复用编辑器首页「新建文档」的生成函数（client 的 utils/newDocument.ts），与上面同样的
+// 别名做法：'@client/new-document'（jest 映射与类型声明见 package.json 与 src/mcp/mcp-modules.d.ts）。该文件只依赖
+// @ses/shared 与同目录树下的 constants/standards.ts，没有浏览器 API（无 DOM、无 '@/' 别名）。client 若给它加了
+// 浏览器依赖，服务端的 create_document 测试会在 Node 下加载失败。
+const clientNewDocument = path.resolve(serverDir, '../client/src/utils/newDocument.ts')
+
+// MCP 工具 get_authoring_reference 返回的写作说明（docs/wp9-authoring-reference.md）以别名
+// '@docs/authoring-reference' 引用，并用 asset/source 规则把全文内联进 dist/main.js：部署时不依赖 docs 目录。
+// 只对这一个文件生效，不影响其他 .md。jest 侧用文本转换器（jest.text-transform.js）做等价处理。
+const authoringReference = path.resolve(serverDir, '../../docs/wp9-authoring-reference.md')
+
 module.exports = (options) => ({
   ...options,
   externals: [externals],
+  module: {
+    ...options.module,
+    rules: [
+      ...(options.module?.rules ?? []),
+      { test: authoringReference, type: 'asset/source' },
+    ],
+  },
   resolve: {
     ...options.resolve,
     alias: {
       ...options.resolve?.alias,
       '@client/editor-schema$': clientEditorSchema,
+      '@client/new-document$': clientNewDocument,
+      '@docs/authoring-reference$': authoringReference,
     },
   },
   // 保持 Node 原生的 __filename/__dirname（运行时为 dist/main.js 的真实路径）。

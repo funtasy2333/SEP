@@ -31,6 +31,12 @@ export function revisionConflict(
   });
 }
 
+/** 文档列表摘要：不含 meta 与 content。 */
+export type DocumentSummary = Pick<
+  DocumentEntity,
+  'id' | 'title' | 'stage' | 'revision' | 'updatedAt'
+>;
+
 @Injectable()
 export class DocumentService {
   /**
@@ -48,6 +54,23 @@ export class DocumentService {
 
   async findAll(): Promise<DocumentEntity[]> {
     return this.docRepo.find({ order: { updatedAt: 'DESC' } });
+  }
+
+  /**
+   * 文档列表的摘要（最近修改的在前）：只读取这几列，不读 meta 与正文——正文可能含大量内嵌图片。
+   * updatedAt 精度为秒，同一秒内以 id 倒序为准。
+   */
+  async findSummaries(): Promise<DocumentSummary[]> {
+    return this.docRepo.find({
+      select: {
+        id: true,
+        title: true,
+        stage: true,
+        revision: true,
+        updatedAt: true,
+      },
+      order: { updatedAt: 'DESC', id: 'DESC' },
+    });
   }
 
   async findOne(id: number): Promise<DocumentEntity> {

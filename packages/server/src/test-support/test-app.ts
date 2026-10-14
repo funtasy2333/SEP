@@ -1,8 +1,10 @@
 import { INestApplication } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
+import { configureApp } from '../app-setup';
 import { DOCUMENT_EVENTS_HEARTBEAT_MS } from '../document/document-events.controller';
 import { DocumentEventsService } from '../document/document-events.service';
 import { DocumentEntity } from '../document/document.entity';
@@ -10,6 +12,13 @@ import { DocumentModule } from '../document/document.module';
 import { DocumentService } from '../document/document.service';
 import { DocumentOpsModule } from '../document-ops/document-ops.module';
 import { DocumentOpsService } from '../document-ops/document-ops.service';
+import {
+  DEFAULT_MCP_SESSION_OPTIONS,
+  MCP_SESSION_OPTIONS,
+  McpSessionService,
+  type McpSessionOptions,
+} from '../mcp/mcp-sessions.service';
+import { McpModule } from '../mcp/mcp.module';
 import { VersionEntity } from '../version/version.entity';
 import { VersionModule } from '../version/version.module';
 import { VersionService } from '../version/version.service';
@@ -23,15 +32,21 @@ export interface TestApp {
   documents: DocumentService;
   versions: VersionService;
   ops: DocumentOpsService;
+  mcp: McpSessionService;
   dataSource: DataSource;
 }
 
 /**
- * 起完整的文档/版本/操作模块（内存 SQLite 或给定的临时文件，不触碰 data/ses.db）。
+ * 起完整的文档/版本/操作/MCP 模块（内存 SQLite 或给定的临时文件，不触碰 data/ses.db）。
  * 监听真实端口：并发用例与 SSE 都需要。
  */
 export async function createTestApp(
-  options: { database?: string; heartbeatMs?: number } = {},
+  options: {
+    database?: string;
+    heartbeatMs?: number;
+    /** 覆盖 MCP 会话管理的参数（空闲超时、会话上限、时钟）。 */
+    mcp?: Partial<McpSessionOptions>;
+  } = {},
 ): Promise<TestApp> {
   let builder = Test.createTestingModule({
     imports: [
@@ -44,6 +59,7 @@ export async function createTestApp(
       DocumentModule,
       VersionModule,
       DocumentOpsModule,
+      McpModule,
     ],
   });
   if (options.heartbeatMs !== undefined) {
@@ -51,9 +67,14 @@ export async function createTestApp(
       .overrideProvider(DOCUMENT_EVENTS_HEARTBEAT_MS)
       .useValue(options.heartbeatMs);
   }
+  if (options.mcp !== undefined) {
+    builder = builder
+      .overrideProvider(MCP_SESSION_OPTIONS)
+      .useValue({ ...DEFAULT_MCP_SESSION_OPTIONS, ...options.mcp });
+  }
   const moduleRef = await builder.compile();
-  const app = moduleRef.createNestApplication();
-  app.setGlobalPrefix('api');
+  const app = moduleRef.createNestApplication<NestExpressApplication>();
+  configureApp(app);
   await app.listen(0, '127.0.0.1');
   const url = await app.getUrl();
   return {
@@ -64,6 +85,7 @@ export async function createTestApp(
     documents: app.get(DocumentService),
     versions: app.get(VersionService),
     ops: app.get(DocumentOpsService),
+    mcp: app.get(McpSessionService),
     dataSource: app.get(DataSource),
   };
 }
