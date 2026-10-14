@@ -1,3 +1,5 @@
+import { tableColumnWidthIssues } from './docx/body/tableColumnWidths'
+import type { IRTable } from '../ir/types'
 import type { IRDoc } from '../ir/types'
 import { resolve } from '../ir/resolve'
 import { findCrossRefRunProjectionIssues } from '../ir/inlineProjectionDiagnostics'
@@ -123,6 +125,18 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
         }
       }
     }
+    if (format === 'DOCX' && kind === 'table' && (object.rows as IRTable['rows'] | undefined)?.some(row => row.cells.some(cell => present(cell.columnWidths)))) {
+      try {
+        for (const issue of tableColumnWidthIssues(object as unknown as IRTable)) problems.push({
+          code: 'unsupported-output', nodeId: issue.nodeId,
+          path: `${path}.rows[${issue.rowIndex}].cells[${issue.cellIndex}].columnWidths`,
+          message: `DOCX 不能保留此列宽：${issue.reason}。请保留 JSON 文档。`,
+        })
+      } catch (error) {
+        problems.push({code:'unsupported-output', nodeId:id, path:`${path}.columnWidths`,
+          message:`DOCX 不能映射表格列宽：${error instanceof Error ? error.message : String(error)}。请保留 JSON 文档。`})
+      }
+    }
     if (!allowed) { report('kind'); return }
     for (const [key, child] of Object.entries(object)) {
       if (kind === 'table' && key === 'headerRowCount' && format === 'XML'
@@ -134,7 +148,8 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
         report(key)
         continue
       }
-      if (!allowed.has(key) && !(kind === 'meta' && format !== 'XML' && PRINT_META_FIELDS.has(key))) {
+      if (!allowed.has(key) && !(kind === 'meta' && format !== 'XML' && PRINT_META_FIELDS.has(key))
+        && !(kind === 'cell' && format === 'DOCX' && key === 'columnWidths')) {
         if (present(child)) report(key)
         continue
       }
