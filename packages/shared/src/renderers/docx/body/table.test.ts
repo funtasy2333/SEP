@@ -239,3 +239,31 @@ describe('renderTableGrid', () => {
     expect(() => render(table({ rows: [{ id: 'bad', cells: [cell('too-long', 'x', { rowspan: 2 })] }] }))).toThrow(/末行/)
   })
 })
+
+describe('自定义列宽到Word网格', () => {
+  const gridWidths = (xml: string) => childrenNamed(findChild(findChild(root(xml), 'w:tbl')!, 'w:tblGrid')!, 'w:gridCol').map(c => Number(c.attrs['w:w']))
+  it('保留局部70px列宽，其余列平分剩余版心宽度', () => {
+    const ir = table({ rows: [{ id: 'r', cells: [cell('a', '序号', { columnWidths: [70] }), cell('b', '内容'), cell('c', '说明')] }] })
+    const before = JSON.stringify(ir), xml = render(ir).xml
+    expect(gridWidths(xml)).toEqual([1050, 4153, 4152])
+    expect(findChild(findChild(findChild(root(xml), 'w:tbl')!, 'w:tblPr')!, 'w:tblW')?.attrs).toEqual({ 'w:w': '9355', 'w:type': 'dxa' })
+    expect(JSON.stringify(ir)).toBe(before)
+  })
+  it('所有列已指定时保留总宽，并将合并格及纵向续格宽度设为覆盖列之和', () => {
+    const ir = table({ rows: [
+      { id: 'r1', cells: [cell('merge', '合并', { colspan: 2, rowspan: 2, columnWidths: [100, 200] }), cell('last', '末列', { columnWidths: [300] })] },
+      { id: 'r2', cells: [cell('last2', '续行', { columnWidths: [300] })] },
+    ] })
+    const xml = render(ir).xml
+    expect(gridWidths(xml)).toEqual([1500, 3000, 4500])
+    const el = findChild(root(xml), 'w:tbl')!
+    expect(findChild(findChild(el, 'w:tblPr')!, 'w:tblW')?.attrs).toEqual({ 'w:w': '9000', 'w:type': 'dxa' })
+    for (const row of childrenNamed(el, 'w:tr')) {
+      expect(findChild(findChild(childrenNamed(row, 'w:tc')[0]!, 'w:tcPr')!, 'w:tcW')?.attrs['w:w']).toBe('4500')
+    }
+  })
+  it('超出版心的完整列宽按比例适配横排，网格与表宽一致', () => {
+    const ir = table({ orientation: 'landscape', rows: [{ id: 'r', cells: [cell('a', '甲', { columnWidths: [400] }), cell('b', '乙', { columnWidths: [800] }), cell('c', '丙', { columnWidths: [1200] })] }] })
+    expect(gridWidths(render(ir).xml)).toEqual([2381, 4762, 7144])
+  })
+})

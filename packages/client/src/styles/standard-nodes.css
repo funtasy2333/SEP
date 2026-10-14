@@ -237,6 +237,7 @@
 
 .std-table-caption {
   text-align: center;
+  font-weight: normal;
   font-family: 'SimHei', 'Heiti SC', sans-serif;
   font-size: 14px;
   margin-bottom: 8px;
@@ -716,4 +717,30 @@
 
 .tiptap .std-chapter-title[data-resolved-label] > .std-chapter-number::before {
   content: none;
+}
+
+/* ProseMirror selects cells as a rectangle; native text selection is collapsed. */
+.ProseMirror td,
+.ProseMirror th {
+  position: relative;
+}
+.ProseMirror .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--ses-accent-ring, rgba(110, 86, 207, 0.18));
+  pointer-events: none;
+  z-index: 2;
+}
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: 0;
+  width: 4px;
+  background: var(--ses-accent, #6e56cf);
+  pointer-events: none;
+}
+.ProseMirror.resize-cursor {
+  cursor: col-resize;
 }

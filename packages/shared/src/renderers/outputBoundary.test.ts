@@ -410,3 +410,31 @@ it('rejects only DOCX when one text run combines sub and sup', () => {
   expect(() => renderDocx(emptyCrossRefWithBoth, emptyBothLabels, options)).toThrow(UnsupportedOutputError)
   expect(JSON.stringify(emptyCrossRefWithBoth)).toBe(emptyBothBefore)
 })
+
+it('DOCX消费列宽数据，尚未实现的HTML/XML仍保留拦截', () => {
+  const doc = base()
+  doc.body[0]!.children.push({kind:'table',id:'width-table',caption:[],orientation:'portrait',headerRowCount:0,notes:[],rows:[{id:'r',cells:[{id:'c',colspan:1,rowspan:1,header:false,columnWidths:[70],content:[]}]}]})
+  expect(getOutputSupportProblems(doc,'DOCX')).toEqual([])
+  expect(renderDocx(doc,resolve(doc).labels,options).parts['word/document.xml']).toContain('<w:gridCol w:w="1050"/>')
+  for(const format of ['HTML','XML'] as const) expect(getOutputSupportProblems(doc,format).map(p=>p.path)).toContain('doc.body[0].children[1].rows[0].cells[0].columnWidths')
+})
+
+it.each([{values:[-1]}, {values:[Infinity]}, {values:[10,20]}, {values:['70']}])('DOCX继续拒绝无效列宽$values并保留JSON', ({values}) => {
+  const doc=base()
+  doc.body[0]!.children.push({kind:'table',id:'bad-width',caption:[],orientation:'portrait',headerRowCount:0,notes:[],rows:[{id:'r',cells:[{id:'c',colspan:1,rowspan:1,header:false,columnWidths:values as number[],content:[]}]}]})
+  expect(getOutputSupportProblems(doc,'DOCX')).toContainEqual(expect.objectContaining({nodeId:'c',path:'doc.body[0].children[1].rows[0].cells[0].columnWidths'}))
+  expect(()=>renderDocx(doc,resolve(doc).labels,options)).toThrow(UnsupportedOutputError)
+})
+
+it('DOCX明确定位同列冲突宽度，零值仍视为自动列宽',()=>{
+  const doc=base()
+  const table={kind:'table' as const,id:'t',caption:[],orientation:'portrait' as const,headerRowCount:0,notes:[],rows:[
+    {id:'r1',cells:[{id:'c1',colspan:1,rowspan:1,header:false,columnWidths:[70],content:[]}]},
+    {id:'r2',cells:[{id:'c2',colspan:1,rowspan:1,header:false,columnWidths:[80],content:[]}]},
+  ]}
+  doc.body[0]!.children.push(table)
+  expect(getOutputSupportProblems(doc,'DOCX')).toContainEqual(expect.objectContaining({nodeId:'c2',message:expect.stringContaining('宽度不一致')}))
+  table.rows[1]!.cells[0]!.columnWidths=[0]
+  expect(getOutputSupportProblems(doc,'DOCX')).toEqual([])
+  expect(renderDocx(doc,resolve(doc).labels,options).parts['word/document.xml']).toContain('<w:gridCol w:w="1050"/>')
+})

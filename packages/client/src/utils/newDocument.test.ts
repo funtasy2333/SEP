@@ -44,7 +44,7 @@ it('新建时完整持久化前言和提出/归口元数据，DOCX保留而旧XM
   expect(foreword.type.name).toBe('foreword')
   expect(foreword.content.content.map((p) => p.textContent)).toEqual([
     '本文件按照GB/T 1.1-2020《标准化工作导则 第1部分：标准化文件的结构和起草规则》的规定起草。',
-    patent, '本文件由提出单位甲提出。', '本文件由归口单位乙归口。', '本文件起草单位：起草单位丙、起草单位丁。',
+    patent, '本文件由提出单位甲提出。', '本文件由归口单位乙归口。', '本文件起草单位：起草单位丙、起草单位丁。', '本文件主要起草人：',
   ])
   expect(prepareDocxInput(node, stored.meta).doc.meta).toMatchObject({ proposer: '提出单位甲', technicalCommittee: '归口单位乙' })
   expect(() => serializeToXml(node)).toThrow(UnsupportedOutputError)
@@ -82,7 +82,7 @@ it('不含新增作者元数据的旧文档仍能导出前言正文和封面信�
   const { blob, warnings } = await buildDocxBlob({ pmDoc: node, documentMeta: stored.meta, stage: stored.stage })
   const zip = await JSZip.loadAsync(await blob.arrayBuffer())
   const body = await zip.file('word/document.xml')!.async('string')
-  for (const text of [patent, '本文件由提出单位甲提出。', '本文件由归口单位乙归口。', '本文件起草单位：起草单位丙、起草单位丁。',
+  for (const text of [patent, '本文件由提出单位甲提出。', '本文件由归口单位乙归口。', '本文件起草单位：起草单位丙、起草单位丁。', '本文件主要起草人：',
     'GB/T XXXXX—XXXX', 'XXXX-XX-XX 发布', 'XXXX-XX-XX 实施', '代替 GB/T 1000—2020', '（ISO 1234:2020，MOD）']) expect(body).toContain(text)
   expect(body).toContain('w:val="SesCoverDates"')
   expect(stored.meta.publishDate).toBeUndefined()
@@ -118,7 +118,7 @@ it('新建内容初始化时保留可选封面完整称谓', () => {
 it('未填写单位时省略空责任语句，仍保留专利提示且每份默认正文独立', () => {
   const first = createDefaultDocumentContent()
   const second = createDefaultDocumentContent()
-  expect(first.content![0]!.content!.map((p) => p.content![0]!.text)).toHaveLength(2)
+  expect(first.content![0]!.content!.map((p) => p.content![0]!.text)).toHaveLength(3)
   expect(first.content![0]!.content![1]!.content![0]!.text).toBe(patent)
   first.content![0]!.content![1]!.content![0]!.text = '用户已修改'
   expect(second.content![0]!.content![1]!.content![0]!.text).toBe(patent)

@@ -750,11 +750,12 @@ function screenStyles(): string {
     .ses-list-roman > .ses-list-item::before, .ses-list-romanUpper > .ses-list-item::before { content: counter(ses-li) "） "; }
     .ses-list .ses-list:not(.ses-list-number) > .ses-list-item::before { content: "·"; counter-increment: none; }
     .ses-table-block { margin: 16px 0; }
-    .ses-table-caption { font-family: "SimHei", "黑体", sans-serif; font-weight: bold; text-align: center; margin: 8px 0 4px; }
+    .ses-table-caption { font-family: "SimHei", "黑体", sans-serif; font-weight: normal; text-align: center; margin: 8px 0 4px; }
     .ses-table-caption-en { text-align: center; font-style: italic; color: #555; }
     .ses-table-block table { border-collapse: collapse; width: 100%; }
     .ses-table-block th, .ses-table-block td { border: 1px solid #333; padding: 6px 8px; }
     .ses-table-block th { background: #f5f5f5; }
+    .ses-table-block td > .ses-paragraph, .ses-table-block th > .ses-paragraph { text-indent: 0; }
     .ses-figure-block { text-align: center; margin: 16px 0; }
     .ses-figure-image { max-width: 100%; }
     .ses-figure-caption { font-family: "SimHei", "黑体", sans-serif; font-weight: bold; margin-top: 8px; }

@@ -12,7 +12,7 @@ import { COVER_ASSETS } from './assets'
 import type { DocxRelatedPart } from './package'
 import { mmToEmu } from './units'
 import { emitParagraph, warn, type RenderContext } from './body/context'
-import { plainRun, tabRun } from './body/inline'
+import { plainRun, tabRun, wrapTitleAtSeparator } from './body/inline'
 import { escapeXmlAttr } from './xml'
 import { buildCoverReleaseRunPr } from './styles'
 
@@ -41,8 +41,9 @@ const FRAME_NATIONAL_ISSUERS = {
 } as const
 const SMALL_MARK_GAP_RPR = '<w:rPr><w:b w:val="0"/><w:bCs w:val="0"/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr>'
 
-const RELEASE_LABEL_RPR = buildCoverReleaseRunPr(false)
-const RELEASE_TEXT_RPR = buildCoverReleaseRunPr(true)
+const RELEASE_LABEL_RPR = buildCoverReleaseRunPr()
+const RELEASE_TEXT_RPR = buildCoverReleaseRunPr(87)
+const GROUP_RELEASE_TEXT_RPR = buildCoverReleaseRunPr(100)
 
 const IMAGE_NAMESPACES =
   'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" ' +
@@ -173,7 +174,7 @@ function localRegionCode(meta: IRDocMeta): string {
 
 function typeMarkCode(meta: IRDocMeta, type: 'T' | 'Q'): string {
   const code = normalizeCoverStdCode(meta.stdCode)
-  const match = /^([TQ])\/([^\s]+)\s+(?:\d+(?:\.\d+)*|XXXXX)(?:—(?:\d{4}|XXXX))?$/i.exec(code)
+  const match = /^([TQ])\/([^\s]+)\s+(?:\d+(?:\.\d+)*|X{4,5})(?:—(?:\d{4}|XXXX))?$/i.exec(code)
   return match?.[1]?.toUpperCase() === type ? match[2]! : ''
 }
 
@@ -228,8 +229,8 @@ function renderLogo(ctx: RenderContext, meta: IRDocMeta): string {
   }
 }
 
-function issuerReleaseRuns(issuer: string): string {
-  return (issuer ? plainRun(issuer) + plainRun('　', RELEASE_LABEL_RPR) : '') + plainRun('发　布', RELEASE_TEXT_RPR)
+function issuerReleaseRuns(issuer: string, standardType: IRDocMeta['standardType']): string {
+  return (issuer ? plainRun(issuer) + plainRun('　', RELEASE_LABEL_RPR) : '') + plainRun('发　布', standardType === 'group' ? GROUP_RELEASE_TEXT_RPR : RELEASE_TEXT_RPR)
 }
 
 function renderIssuer(ctx: RenderContext, meta: IRDocMeta): string {
@@ -243,7 +244,7 @@ function renderIssuer(ctx: RenderContext, meta: IRDocMeta): string {
   if (!issuer) warn(ctx, 'cover-field-missing', 'meta.issuer 缺失，非国标发布机构名称留空')
   else warn(ctx, 'cover-asset-approximation', '非国标发布机构按用户模板用黑体四号可编辑文字排版，专用机构字形未核验')
   return emitParagraph(ctx, 'SesCoverIssuer', {
-    runsXml: issuerReleaseRuns(issuer),
+    runsXml: issuerReleaseRuns(issuer, meta.standardType),
     framePr: FRAME_ISSUER,
   })
 }
@@ -284,7 +285,7 @@ export function renderCover(ctx: RenderContext, meta: IRDocMeta, stage: Document
   xml += emitParagraph(ctx, 'SesCoverRule', { framePr: FRAME_RULE })
 
   // 正文首页名称会为缺失的 meta.title 记录 cover-field-missing；封面保留空段但不重复告警。
-  xml += frameText(ctx, 'SesCoverName', meta.title ?? '', FRAME_TITLE_FLOW)
+  xml += frameText(ctx, 'SesCoverName', wrapTitleAtSeparator(meta.title ?? '', 18), FRAME_TITLE_FLOW)
   if (meta.titleEn && ['gb', 'guide', 'industry', 'group'].includes(meta.standardType)) {
     xml += frameText(ctx, 'SesCoverEnglish', meta.titleEn, FRAME_TITLE_FLOW)
   }

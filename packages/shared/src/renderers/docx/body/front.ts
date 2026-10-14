@@ -11,7 +11,7 @@ import type { IRBlock } from '../../../ir/types'
 import { renderBlocks } from './block'
 import { emitParagraph, warn, type RenderContext } from './context'
 import type { DocxBookmark } from '../types'
-import { plainRun, spacingRpr } from './inline'
+import { plainRun, spacingRpr, wrapTitleAtSeparator } from './inline'
 
 const SP = '　'
 const SPACING_640 = spacingRpr(640)
@@ -44,5 +44,5 @@ export function renderBodyTitle(ctx: RenderContext, title: string | undefined): 
     return emitParagraph(ctx, 'SesBodyTitle', {})
   }
   const normalized = title.trim().replace(/ +/g, SP)
-  return emitParagraph(ctx, 'SesBodyTitle', { runsXml: plainRun(normalized) })
+  return emitParagraph(ctx, 'SesBodyTitle', { runsXml: plainRun(wrapTitleAtSeparator(normalized, 28)) })
 }

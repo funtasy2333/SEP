@@ -5,6 +5,7 @@
  * 这里的高度是布局估计，用户继续编辑单元格内容后可能需要重新导出或手调分段。
  */
 import type { IRBlock, IRTable, IRTableRow } from '../../../ir/types'
+import { resolveTableColumnWidths, type TableColumnLayout } from './tableColumnWidths'
 
 export interface TablePagination {
   /** 每段仅列出数据行；表头由调用方在每段之前重放。 */
@@ -49,10 +50,12 @@ function blockLines(block: IRBlock, capacity: number): number {
   }
 }
 
-function rowHeightMm(row: IRTableRow, columnCount: number, landscape: boolean): number {
+function rowHeightMm(row: IRTableRow, columnCount: number, landscape: boolean, layout: TableColumnLayout): number {
   const fullWidthUnits = landscape ? 73 : 48
   const lines = Math.max(1, ...row.cells.map((cell) => {
-    const capacity = Math.max(4, fullWidthUnits * cell.colspan / columnCount)
+    const capacity = layout.custom
+      ? Math.max(1, fullWidthUnits * Math.max(1, (layout.cellWidths.get(cell.id) ?? 0) - 200) / layout.pageWidthTwips)
+      : Math.max(4, fullWidthUnits * cell.colspan / columnCount)
     return Math.max(1, cell.content.reduce((sum, block) => sum + blockLines(block, capacity), 0))
   }))
   // Word 9 pt 表格单行约 4.2 mm、两行约 8.2 mm；保留少量边框/取整余量。
@@ -88,23 +91,26 @@ export interface TablePaginationOptions {
 /** 切分时不穿过 rowspan，且每段以相同的表头行开头。 */
 export function paginateTable(table: IRTable, options: TablePaginationOptions = {}): TablePagination {
   const headerRowCount = Math.max(0, Math.min(Math.floor(table.headerRowCount), table.rows.length))
-  const columnCount = Math.max(1, ...table.rows.map((row) =>
+  const layout = resolveTableColumnWidths(table)
+  // 未编辑列宽的历史文档保持既有分页估算；自定义列宽按实际合并网格测量。
+  const columnCount = layout.custom ? layout.widths.length : Math.max(1, ...table.rows.map(row =>
     row.cells.reduce((sum, cell) => sum + cell.colspan, 0)))
+  const widthScale = layout.custom ? layout.widths.reduce((sum, value) => sum + value, 0) / layout.pageWidthTwips : 1
   const landscape = table.orientation === 'landscape'
   const headerHeight = table.rows.slice(0, headerRowCount)
-    .reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape), 0)
-  const noteCapacity = Math.max(8, (landscape ? 73 : 48) - 4)
+    .reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape, layout), 0)
+  const noteCapacity = Math.max(layout.custom ? 1 : 8, (landscape ? 73 : 48) * widthScale - 4)
   const noteHeight = table.notes.length > 0 ? 1.2 + table.notes.reduce((sum, note) => sum +
     note.content.reduce((height, block) => height + blockLines(block, noteCapacity) *
       (block.kind === 'paragraph' ? 4.2 : 5.5), 0), 0) : 0
-  const footnoteCapacity = Math.max(8, (landscape ? 73 : 48) - 4)
+  const footnoteCapacity = Math.max(layout.custom ? 1 : 8, (landscape ? 73 : 48) * widthScale - 4)
   const tableFootnoteHeight = (table.footnotes ?? []).reduce((sum, footnote) => {
     const lines = textLines(footnote.content.map((run) => run.text).join(''), footnoteCapacity)
     return sum + lines * 4.2
   }, 0)
   // 表注/脚注分别占一个合并单元格；边框余量按行框预留，不逐条额外加6mm。
   const footerHeight = noteHeight + tableFootnoteHeight + ((table.footnotes?.length ?? 0) > 0 ? 1.2 : 0)
-  const captionCapacity = landscape ? 68 : 44
+  const captionCapacity = Math.max(1, (landscape ? 68 : 44) * widthScale)
   const captionLines = textLines(table.caption.map(run => run.text).join('') + '表XX（续）', captionCapacity)
   const captionHeight = 8 + Math.max(0, captionLines - 1) * 5.5
   // A4 竖排样稿的可用版心约 234 mm，再预留 9 mm 给 Word 的布局浮动。
@@ -115,7 +121,7 @@ export function paginateTable(table: IRTable, options: TablePaginationOptions = 
   const finalDataBudget = Math.max(0, dataBudget - footerHeight)
   const groups = bodyGroups(table.rows, headerRowCount)
   const groupHeights = groups.map((group) =>
-    group.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape), 0))
+    group.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape, layout), 0))
   const totalHeight = captionHeight + headerHeight + footerHeight + groupHeights.reduce((sum, height) => sum + height, 0)
   const footerTooTall = captionHeight + headerHeight + footerHeight > pageBudget
   const oversizedGroup = groupHeights.some(height => height > dataBudget)
@@ -132,7 +138,7 @@ export function paginateTable(table: IRTable, options: TablePaginationOptions = 
   const result = (bodySegments: IRTableRow[][], startOnNewPage: boolean, oversizedGroup: boolean): TablePagination => ({
     bodySegments, startOnNewPage: options.forceStartOnNewPage || startOnNewPage, oversizedGroup, finalSegmentOverflow, footerTooTall,
     segmentHeightsMm: bodySegments.map((rows, index) => captionHeight + headerHeight +
-      rows.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape), 0) +
+      rows.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape, layout), 0) +
       (index === bodySegments.length - 1 ? footerHeight : 0)),
   })
   // A complete table that fits needs no first-group safety allowance. Preserve the

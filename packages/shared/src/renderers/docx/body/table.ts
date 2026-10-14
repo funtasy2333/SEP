@@ -8,7 +8,9 @@
 import type { IRTable, IRTableRow } from '../../../ir/types'
 import { emitParagraph, type RenderContext } from './context'
 import { plainRun } from './inline'
-import { mmToTwips } from '../units'
+import { buildTableGrid, type GridCell } from './tableGrid'
+import { resolveTableColumnWidths } from './tableColumnWidths'
+export { tableGridColumnCount } from './tableGrid'
 import { tcBorders, tcPr, tbl, tblBorders, tblPr, tr, trPr, type XmlChild } from '../xml'
 
 export type IRTableCell = IRTableRow['cells'][number]
@@ -28,33 +30,14 @@ export interface TableGridRenderOptions {
   keepTogether?: boolean
   /** 分段续表沿用原表的完整列数，避免不同片段列宽变化。 */
   columnCount?: number
+  /** 完整原表的列宽，所有续段沿用；单位为twips。 */
+  gridWidthsTwips?: readonly number[]
   /** 单元格内容由块分发器递归渲染，paragraphStyle 是其中普通段落的默认样式。 */
   renderCell: (cell: IRTableCell, paragraphStyle: TableCellParagraphStyle, meta: TableCellRenderMeta) => string
   /** 已按 SesTableNote 与 §5.7 编号输出的表注段落；独立合并行为表尾第一行。 */
   notesXml?: string | (() => string)
   /** 已按 SesTableFootnote 输出的表脚注；独立合并行为表尾末行。 */
   footnotesXml?: string | (() => string)
-}
-
-interface OriginCell {
-  kind: 'origin'
-  cell: IRTableCell
-  rowIndex: number
-  columnIndex: number
-  colspan: number
-  rowspan: number
-}
-
-interface GridCell {
-  kind: 'origin' | 'continuation' | 'filler'
-  origin?: OriginCell
-  columnIndex: number
-  colspan: number
-}
-
-interface TableGrid {
-  columnCount: number
-  rows: GridCell[][]
 }
 
 const NUMERIC_CELL_TEXT = /^[\d\s.,±%~—-]+$/
@@ -72,87 +55,6 @@ export function tableCellParagraphStyle(cell: IRTableCell, header = cell.header)
   return 'SesTableText'
 }
 
-function positiveSpan(value: number, axis: string, cellId: string): number {
-  if (!Number.isSafeInteger(value) || value < 1) {
-    throw new Error(`renderTableGrid: 单元格 "${cellId}" 的 ${axis} 必须为正整数，收到 ${String(value)}`)
-  }
-  return value
-}
-
-/** Expand the IR spans into an explicit, rectangular OOXML grid, including vertical merge cells. */
-function buildTableGrid(table: IRTable, minimumColumnCount = 1): TableGrid {
-  const rowCount = table.rows.length
-  const occupied: Array<Array<OriginCell | undefined>> = Array.from({ length: rowCount }, () => [])
-  let columnCount = 0
-
-  table.rows.forEach((row, rowIndex) => {
-    let cursor = 0
-    for (const cell of row.cells) {
-      const colspan = positiveSpan(cell.colspan, 'colspan', cell.id)
-      const rowspan = positiveSpan(cell.rowspan, 'rowspan', cell.id)
-      if (rowIndex + rowspan > rowCount) {
-        throw new Error(`renderTableGrid: 单元格 "${cell.id}" 的 rowspan 超出表格末行`)
-      }
-
-      let columnIndex = cursor
-      // A merged cell occupies every covered column in every later row. Find the next contiguous
-      // region where this cell can fit; final row expansion inserts continuation and empty cells.
-      while (true) {
-        let overlaps = false
-        for (let offset = 0; offset < colspan; offset += 1) {
-          if (occupied[rowIndex][columnIndex + offset]) {
-            overlaps = true
-            break
-          }
-        }
-        if (!overlaps) break
-        columnIndex += 1
-      }
-
-      const origin: OriginCell = { kind: 'origin', cell, rowIndex, columnIndex, colspan, rowspan }
-      for (let r = rowIndex; r < rowIndex + rowspan; r += 1) {
-        for (let c = columnIndex; c < columnIndex + colspan; c += 1) {
-          if (occupied[r][c]) throw new Error(`renderTableGrid: 单元格 "${cell.id}" 与已有合并区域重叠`)
-          occupied[r][c] = origin
-        }
-      }
-      columnCount = Math.max(columnCount, columnIndex + colspan)
-      cursor = columnIndex + colspan
-    }
-  })
-
-  // An empty table still needs one grid column to keep tblGrid and tblW structurally meaningful.
-  columnCount = Math.max(1, minimumColumnCount, columnCount)
-  const rows: GridCell[][] = table.rows.map((_row, rowIndex) => {
-    const cells: GridCell[] = []
-    let columnIndex = 0
-    while (columnIndex < columnCount) {
-      const origin = occupied[rowIndex][columnIndex]
-      if (!origin) {
-        cells.push({ kind: 'filler', columnIndex, colspan: 1 })
-        columnIndex += 1
-        continue
-      }
-      if (origin.rowIndex === rowIndex) {
-        cells.push({ kind: 'origin', origin, columnIndex, colspan: origin.colspan })
-      } else if (columnIndex === origin.columnIndex) {
-        cells.push({ kind: 'continuation', origin, columnIndex, colspan: origin.colspan })
-      } else {
-        // This is the interior of a colspan already emitted at origin.columnIndex.
-        columnIndex += 1
-        continue
-      }
-      columnIndex += origin.colspan
-    }
-    return cells
-  })
-  return { columnCount, rows }
-}
-
-export function tableGridColumnCount(table: IRTable): number {
-  return buildTableGrid(table).columnCount
-}
-
 function borderXml(size: number): string {
   const border = (side: string, thickness: number): XmlChild => [
     side,
@@ -166,14 +68,6 @@ function borderXml(size: number): string {
 
 function cellBorderXml(sides: Array<'top' | 'bottom'>, size: number): string {
   return tcBorders(sides.map((side) => [side, `<w:${side} w:val="single" w:sz="${size}" w:space="0" w:color="auto"/>`]))
-}
-
-function gridWidths(columnCount: number, table: IRTable): number[] {
-  // §2.1 fixes the portrait text width at 9355 twips; 252 mm rounds to 14287 twips.
-  const width = table.orientation === 'landscape' ? mmToTwips(252) : 9355
-  const base = Math.floor(width / columnCount)
-  const remainder = width - base * columnCount
-  return Array.from({ length: columnCount }, (_unused, index) => base + (index < remainder ? 1 : 0))
 }
 
 function cellWidth(widths: number[], columnIndex: number, colspan: number): number {
@@ -275,13 +169,18 @@ function keepRowWithNext(rowXml: string): string {
 /** Build one complete w:tbl; caption and note paragraph numbering remain with the caller. */
 export function renderTableGrid(ctx: RenderContext, table: IRTable, options: TableGridRenderOptions): string {
   const grid = buildTableGrid(table, options.columnCount)
-  const widths = gridWidths(grid.columnCount, table)
+  const resolvedWidths = resolveTableColumnWidths(table, grid.columnCount)
+  const widths = options.gridWidthsTwips ? [...options.gridWidthsTwips] : resolvedWidths.widths
+  if (widths.length !== grid.columnCount) throw new Error('续表列宽数量与网格列数不一致')
+  const hasCustomWidths = !!options.gridWidthsTwips || resolvedWidths.custom
   const requestedHeaderRowCount = Number.isFinite(table.headerRowCount) ? Math.floor(table.headerRowCount) : 0
   const headerRowCount = Math.max(0, Math.min(requestedHeaderRowCount, table.rows.length))
   const rows = grid.rows.length > 0 ? grid.rows : [[{ kind: 'filler' as const, columnIndex: 0, colspan: 1 }]]
   const gridXml = `<w:tblGrid>${widths.map((width) => `<w:gridCol w:w="${width}"/>`).join('')}</w:tblGrid>`
   const tblPrXml = tblPr([
-    ['tblW', '<w:tblW w:w="5000" w:type="pct"/>'],
+    ['tblW', hasCustomWidths
+      ? `<w:tblW w:w="${widths.reduce((sum, width) => sum + width, 0)}" w:type="dxa"/>`
+      : '<w:tblW w:w="5000" w:type="pct"/>'],
     ['jc', '<w:jc w:val="center"/>'],
     ['tblBorders', borderXml(6)],
     ['tblLayout', '<w:tblLayout w:type="fixed"/>'],

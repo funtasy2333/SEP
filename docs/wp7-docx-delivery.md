@@ -246,7 +246,7 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 | SesAppTblCap | SES_附录表题 | 黑 五 | `jc=center`；keepNext；段前段后各半行；缩进见 A6 | — | 段落级：每附录一个实例 | 9.6.3.1 |
 | SesTblCapCont | SES_续表题 | 黑 五 | `jc=center`；keepNext；段前段后各半行 | — | 续表字面量表号，不另计数 | 9.8.3、WP7.4 后续修订 |
 | SesAppTblCapCont | SES_附录续表题 | 黑 五 | `jc=center`；keepNext；段前段后各半行 | — | 续表字面量附录表号，不另计数 | 9.8.3、WP7.4 后续修订 |
-| SesTableText | SES_表格文字 | 宋 小五 | 首行 1 字（210），回行顶格 | — | — | 10.4.2.2、#40 注 a |
+| SesTableText | SES_表格文字 | 宋 小五 | 默认首行 0，回行顶格（用户指定版式） | — | — | 10.4.2.2、#40 注 a |
 | SesTableCenter | SES_表格居中 | 宋 小五 | `jc=center`，缩进 0 | — | — | 10.4.2.2（表头、数字） |
 | SesTableNote | SES_表注 | 宋 小五 | 缩进见 A7 / A8 | — | 段落级：单条指向 A7 固定实例（spike v10 T6），多条按 §4.3 分配 A8 实例（WP7.4） | 10.4.4.1 |
 | SesFormula | SES_公式 | 宋 五；编号 run 全字符宋体 | 制表位：居中 4677、右对齐 9355 点线；缩进 0；段前段后各半行 | — | Resolver 编号用中文圆括号 | 10.4.3 |
@@ -544,6 +544,9 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
   - 表题行及前 `headerRowCount` 个数据行 `trPr` 写 `<w:tblHeader/>`；表头最后一行的单元格下边框 sz=6，所有表格行写 `cantSplit`，在行边界分页；
   - 合并：`colspan` → `tcPr/gridSpan`；`rowspan` → 起始格 `vMerge val="restart"`，**被覆盖的后续行在同一网格位置补占位格** `<w:tc><w:tcPr><w:gridSpan w:val="N"/><w:vMerge/></w:tcPr><w:p/></w:tc>`，其中 N = 起始格的 `colspan`（为 1 时省略 `gridSpan`）。占位格缺 `gridSpan` 会只占一列，同行后面的格整体左移，网格错位（旧导出器连占位格都没有）；
   - 单元格段落：表头格与纯数字格（`/^[\d\s.,±%~—-]+$/`）用 SesTableCenter，其余用 SesTableText；空单元格写一字线「—」（10.4.2.2）。
+- DOCX支持编辑器`columnWidths`（CSS像素），96dpi下换算为15twips/px。局部列宽保留绝对值，自动列平分剩余版心；全部列指定时保留总宽，超出版心按比例适配。合并格宽度为所覆盖列之和；全部续表使用原表统一网格，分页按自定义列宽估算。0为自动列宽；负值、非有限数值、数组长度与colspan不符或同列宽度冲突时明确阻断。HTML/XML尚未实现该字段，继续保留输出检查。
+- 表题保留五号黑体，不叠加粗体；普通单元格段落按用户指定版式默认无首行缩进（GB/T 1.1—2020 10.4.2.2 的一字起排为“宜”）。
+- 表格文字、表头及表注关闭正文网格（`snapToGrid=0`），使9磅行高与续表分段估算一致，并保持 Word 自动跨页时重复表题。
 - 表注：表内底部加一行，单元格 `gridSpan` 跨满全宽，上边框 sz=6，内容按 §5.7 规则，用 SesTableNote。若有表脚注，表注行在表脚注行之前。
 - `orientation='landscape'` 的表按 §5.15 放进横排节（表题、表、表注都在该节内）。
 - WP7.4 后续修订：按用户要求将长表拆成独立的 Word 表段，续段另起页并写「表X　表题（续）」；每段重放列标题，切分点避开跨行合并区域，表注只在末段。Word 原生重复标题行不能只在续页改变文字，因此按 Word 样稿行高估算最少页数。WP7.6 分页修订按单/多行实际高度校准，并优先填满前页，表注/表脚注空间仅从末段扣除；见 `wp7.6-table-pagination-2026-10-03.md`。WP7.6 接排修订按段落样式、版心及脚注估算当前页余量，首段可放入完整行组时紧跟正文；余量不足或前文公式高度不可估时另起页，后者对小表同样强制新页并输出 `table-flow-estimate-unavailable`。数据预算使用真实非负余量，表题/重复表头/表尾组合放不下时明确warning；末段组合不足与数据行超高分开归因，实际导出界面显示持续可关闭的表格提醒（`wp7.6-table-flow-review2-2026-10-03.md`），见 `wp7.6-table-flow-review-2026-10-03.md`。该估算不替代 Word 实排，见 `wp7.6-table-flow-2026-10-03.md`。编辑后若行高变化，需重新导出并复核分页。单位陈述仍留给 V2。
