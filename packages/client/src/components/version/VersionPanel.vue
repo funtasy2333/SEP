@@ -402,50 +402,63 @@ function toggleSelect(version: VersionData) {
   }
 }
 
-/** 创建版本快照 */
+/**
+ * 创建版本快照。整个流程（取内容 → 保存版本 → 把同一份内容写回文档）登记为该文档的一次本地写入：
+ * 排在已有的自动保存之后执行，期间编辑器的 waitForPendingUpdates 不会返回，因此 AI 等外部写入到达时
+ * 不会在中途被自动载入、也不会把本地 revision 前移到「内容仍是旧的」状态。
+ * 外部写入发生在保存期间时，写回文档的 PUT 必然 409，走冲突分支，不会静默覆盖外部修改。
+ */
 async function handleCreateVersion() {
   if (!createForm.versionNo.trim()) {
     ElMessage.warning('请输入版本号')
     return
   }
 
+  // 表单取点击确定时的值：排队等待期间用户可能还在改表单，但保存的是点击时确认的那一份。
+  const { versionNo, stage, note } = createForm
   creating.value = true
   try {
-    const content = props.getContent()
-    let xml: string | undefined
-    try {
-      const doc = props.getDoc()
-      if (doc && typeof (doc as { toString: () => string }).toString === 'function') {
-        // 尝试使用 ProseMirror doc 序列化 XML
-        xml = serializeToXml(doc as Parameters<typeof serializeToXml>[0])
+    const saved = await documentStore.runDocumentWrite(props.documentId, async (put) => {
+      // 轮到这次写入时才读取编辑器内容：前面排队的自动保存已结束，拿到的是最新的本地内容。
+      const content = props.getContent()
+      let xml: string | undefined
+      try {
+        const doc = props.getDoc()
+        if (doc && typeof (doc as { toString: () => string }).toString === 'function') {
+          // 尝试使用 ProseMirror doc 序列化 XML
+          xml = serializeToXml(doc as Parameters<typeof serializeToXml>[0])
+        }
+      } catch (error) {
+        if (error instanceof XmlFootnoteValidationError) throw error
+        // Preserve legacy fallback for other XML failures; invalid footnote links block saving.
       }
-    } catch (error) {
-      if (error instanceof XmlFootnoteValidationError) throw error
-      // Preserve legacy fallback for other XML failures; invalid footnote links block saving.
-    }
 
-    await versionStore.createVersion({
-      documentId: props.documentId,
-      versionNo: createForm.versionNo,
-      stage: createForm.stage,
-      content,
-      xml,
-      note: createForm.note || undefined,
-      source: 'human',
+      await versionStore.createVersion({
+        documentId: props.documentId,
+        versionNo,
+        stage,
+        content,
+        xml,
+        note: note || undefined,
+        source: 'human',
+      })
+
+      try {
+        await put({ content })
+      } catch (error) {
+        if (!isRevisionConflict(error)) throw error
+        // 版本快照已保存，但文档在别处被改过，编辑器内容没有写入文档：交给编辑器的冲突处理。
+        // 在写入任务结束之前就通知编辑器，这样它等到本地写入落定后处理外部修改时，已经处于冲突状态。
+        showCreateDialog.value = false
+        suggestVersionNo()
+        createForm.note = ''
+        ElMessage.warning('版本已保存，但文档已在其他地方被修改，当前编辑内容未保存')
+        emit('conflict')
+        return false
+      }
+      return true
     })
-
-    try {
-      await documentStore.updateDocument(props.documentId, { content })
-    } catch (error) {
-      if (!isRevisionConflict(error)) throw error
-      // 版本快照已保存，但文档在别处被改过，编辑器内容没有写入文档：交给编辑器的冲突处理。
-      showCreateDialog.value = false
-      suggestVersionNo()
-      createForm.note = ''
-      ElMessage.warning('版本已保存，但文档已在其他地方被修改，当前编辑内容未保存')
-      emit('conflict')
-      return
-    }
+    if (!saved) return
 
     showCreateDialog.value = false
     suggestVersionNo()

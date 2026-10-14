@@ -14,9 +14,12 @@ const mocks = vi.hoisted(() => ({
     getNextVersionNo: vi.fn(() => '1.3'),
     createVersion: vi.fn(),
   },
+  getContent: vi.fn(),
   documentStore: {
     currentDocument: { stage: 'working_draft' },
     updateDocument: vi.fn(),
+    // 与真实 store 一致：task 通过传入的 put 写文档（这里 put 就是 updateDocument，方便断言写入内容）。
+    runDocumentWrite: vi.fn(),
   },
 }))
 
@@ -50,14 +53,19 @@ async function mountPanel(onConflict = vi.fn()) {
   mocks.versionStore.versions = [...mocks.versionStore.sortedVersions]
   mocks.versionStore.fetchVersions.mockReset().mockResolvedValue(undefined)
   mocks.versionStore.createVersion.mockReset().mockResolvedValue({})
+  mocks.getContent.mockReset().mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] })
   mocks.documentStore.updateDocument.mockReset()
+  mocks.documentStore.runDocumentWrite.mockReset().mockImplementation(
+    (id: number, task: (put: (doc: unknown) => unknown) => unknown) =>
+      task((doc) => mocks.documentStore.updateDocument(id, doc)),
+  )
 
   const root = document.createElement('div')
   document.body.append(root)
   const app = createApp({
     render: () => h(VersionPanel, {
       documentId: 17,
-      getContent: () => ({ type: 'doc', content: [{ type: 'paragraph' }] }),
+      getContent: mocks.getContent,
       getDoc: () => null,
       setContent: vi.fn(),
       onConflict,
@@ -142,6 +150,62 @@ it('版本已创建但写文档遇到 409：提示并通知编辑器进入冲突
     expect(onConflict).toHaveBeenCalledOnce()
     expect(String(warning.mock.calls[0]?.[0])).toContain('版本已保存')
     expect(error).not.toHaveBeenCalled()
+  } finally {
+    view.unmount()
+  }
+})
+
+function openCreateDialogAndConfirm(root: HTMLElement) {
+  root.querySelector<HTMLButtonElement>('.header-actions button')!.click()
+  return flushMicrotasks().then(() => {
+    const confirm = [...document.body.querySelectorAll<HTMLButtonElement>('.el-dialog__footer button')]
+      .find((button) => button.textContent?.replace(/\s/g, '') === '确定')!
+    confirm.click()
+    return flushMicrotasks()
+  })
+}
+
+it('保存版本整个流程登记为文档的一次写入：排到这次写入时才取编辑器内容，快照与写回文档的是同一份', async () => {
+  const view = await mountPanel()
+  vi.spyOn(ElMessage, 'success').mockImplementation(() => undefined as any)
+  try {
+    // 写入队列里前面还有别的写入：任务尚未开始
+    let startTask: () => unknown = () => undefined
+    mocks.documentStore.runDocumentWrite.mockImplementation(
+      (id: number, task: (put: (doc: unknown) => unknown) => unknown) =>
+        new Promise((resolve) => {
+          startTask = () => resolve(task((doc) => mocks.documentStore.updateDocument(id, doc)))
+        }),
+    )
+    mocks.documentStore.updateDocument.mockResolvedValue({})
+
+    await openCreateDialogAndConfirm(view.root)
+    expect(mocks.documentStore.runDocumentWrite).toHaveBeenCalledWith(17, expect.any(Function))
+    expect(mocks.getContent).not.toHaveBeenCalled()
+    expect(mocks.versionStore.createVersion).not.toHaveBeenCalled()
+
+    // 排队期间编辑器内容又变了：快照取的是轮到这次写入时的内容
+    const latest = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '最新输入' }] }] }
+    mocks.getContent.mockReturnValue(latest)
+    startTask()
+    await flushMicrotasks()
+
+    expect(mocks.getContent).toHaveBeenCalledOnce()
+    expect(mocks.versionStore.createVersion.mock.calls[0]![0].content).toBe(latest)
+    expect(mocks.documentStore.updateDocument).toHaveBeenCalledWith(17, { content: latest })
+  } finally {
+    view.unmount()
+  }
+})
+
+it('版本创建失败：不写文档，提示失败', async () => {
+  const view = await mountPanel()
+  const error = vi.spyOn(ElMessage, 'error').mockImplementation(() => undefined as any)
+  try {
+    mocks.versionStore.createVersion.mockRejectedValue(new Error('network unavailable'))
+    await openCreateDialogAndConfirm(view.root)
+    expect(mocks.documentStore.updateDocument).not.toHaveBeenCalled()
+    expect(String(error.mock.calls[0]?.[0])).toContain('版本保存失败')
   } finally {
     view.unmount()
   }

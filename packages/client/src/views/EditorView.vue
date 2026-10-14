@@ -1108,7 +1108,10 @@ async function waitForLocalWrites(): Promise<void> {
 }
 
 function hasUnsavedLocalChanges(): boolean {
+  // store 里排队或进行中的写入（如版本面板的保存）不经过 persistenceOperation。读取最新内容期间才开始的这类写入，
+  // 带的是读取之前的本地内容：此时再载入外部修改并前移 revision，它的 PUT 会静默覆盖外部修改，所以同样视为本地有未落定的修改。
   return dirty.value || settingsDirty.value || persistenceOperation.value !== null || importingXml
+    || store.hasPendingUpdates(documentId.value)
 }
 
 function startChangeSync() {

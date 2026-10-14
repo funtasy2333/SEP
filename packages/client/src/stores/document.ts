@@ -2,6 +2,9 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { documentApi, type DocumentData, type DocumentUpdateData } from '@/api/document'
 
+/** {@link useDocumentStore} 的 runDocumentWrite 交给 task 的写文档函数：此刻读取 revision 直接请求，不排队。 */
+export type DocumentPut = (doc: Omit<DocumentUpdateData, 'baseRevision'>) => Promise<DocumentData>
+
 export const useDocumentStore = defineStore('document', () => {
   const documents = ref<DocumentData[]>([])
   const currentDocument = ref<DocumentData | null>(null)
@@ -73,21 +76,42 @@ export const useDocumentStore = defineStore('document', () => {
   // 这样设置保存、正文自动保存、版本保存先后发生时总是带上上一次响应里的最新值，不会与自己冲突。
   const pendingUpdates = new Map<number, Promise<void>>()
 
+  /** 在写入队列里发出一次 PUT：此刻才读取 baseRevision，不再排队（只能在 {@link runDocumentWrite} 的 task 内使用）。 */
+  async function putDocument(id: number, doc: Omit<DocumentUpdateData, 'baseRevision'>): Promise<DocumentData> {
+    const baseRevision = currentDocument.value?.id === id ? currentDocument.value.revision : undefined
+    if (typeof baseRevision !== 'number') {
+      throw new Error('无法确定文档的修订号，请重新打开文档后再保存')
+    }
+    const { data } = await documentApi.update(id, { ...doc, baseRevision })
+    currentDocument.value = data
+    const idx = documents.value.findIndex((d) => d.id === id)
+    if (idx !== -1) documents.value[idx] = data
+    return data
+  }
+
   /**
-   * 更新文档。baseRevision 取本地已知的最新 revision（打开文档或上一次写入的响应），
-   * 服务端与当前 revision 不一致时返回 409，此时本地记录保持不变，由调用方处理冲突。
+   * 把一段包含多个步骤的本地写入登记为该文档的一次进行中的写入：排在已有写入之后执行，
+   * 期间 {@link waitForPendingUpdates} 不会返回，编辑器据此推迟处理外部修改，本地 revision 不会被中途前移。
+   *
+   * 适用于「先做别的异步操作（如保存版本快照），再写文档」的流程：需要写入的内容应在 task 里（轮到这次写入时）
+   * 才读取，保证拿到的是最新的本地内容；task 里用传入的 `put` 发出 PUT，它此刻读取 revision 并直接请求。
+   * 此时若别处已写入文档，PUT 会得到 409（本地记录保持不变），由 task 的调用方处理冲突。
+   *
+   * 注意：task 里不能再调用 updateDocument / runDocumentWrite（它们要排在 task 之后，会等待 task 自己而死锁），
+   * 只能通过 `put` 写文档；task 结束后 `put` 失效。task 抛错只让这一次失败，队列照常继续。
    */
-  function updateDocument(id: number, doc: Omit<DocumentUpdateData, 'baseRevision'>): Promise<DocumentData> {
+  function runDocumentWrite<T>(id: number, task: (put: DocumentPut) => Promise<T> | T): Promise<T> {
     const run = async () => {
-      const baseRevision = currentDocument.value?.id === id ? currentDocument.value.revision : undefined
-      if (typeof baseRevision !== 'number') {
-        throw new Error('无法确定文档的修订号，请重新打开文档后再保存')
+      let active = true
+      const put: DocumentPut = (doc) => {
+        if (!active) return Promise.reject(new Error('写入任务已结束，不能再通过它写文档'))
+        return putDocument(id, doc)
       }
-      const { data } = await documentApi.update(id, { ...doc, baseRevision })
-      currentDocument.value = data
-      const idx = documents.value.findIndex((d) => d.id === id)
-      if (idx !== -1) documents.value[idx] = data
-      return data
+      try {
+        return await task(put)
+      } finally {
+        active = false
+      }
     }
     const result = (pendingUpdates.get(id) ?? Promise.resolve()).then(run)
     const settled = result.then(() => undefined, () => undefined)
@@ -96,6 +120,19 @@ export const useDocumentStore = defineStore('document', () => {
       if (pendingUpdates.get(id) === settled) pendingUpdates.delete(id)
     })
     return result
+  }
+
+  /**
+   * 更新文档。baseRevision 取本地已知的最新 revision（打开文档或上一次写入的响应），
+   * 服务端与当前 revision 不一致时返回 409，此时本地记录保持不变，由调用方处理冲突。
+   */
+  function updateDocument(id: number, doc: Omit<DocumentUpdateData, 'baseRevision'>): Promise<DocumentData> {
+    return runDocumentWrite(id, (put) => put(doc))
+  }
+
+  /** 该文档是否有排队或进行中的写入（同步判断，用于在不能等待的地方识别「本地写入正在进行」）。 */
+  function hasPendingUpdates(id: number): boolean {
+    return pendingUpdates.has(id)
   }
 
   /**
@@ -128,6 +165,8 @@ export const useDocumentStore = defineStore('document', () => {
     adoptRevision,
     createDocument,
     updateDocument,
+    runDocumentWrite,
+    hasPendingUpdates,
     waitForPendingUpdates,
     deleteDocument,
   }
