@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository, type UpdateQueryBuilder } from 'typeorm';
-import { AsyncMutex } from '../common/async-mutex';
+import { WriteCoordinator } from '../common/write-coordinator';
 import { DocumentEntity } from './document.entity';
 import type { DocumentUpdateFields } from './document-update';
 import {
@@ -34,16 +34,16 @@ export function revisionConflict(
 @Injectable()
 export class DocumentService {
   /**
-   * 串行化需要数据库事务的写入（见 {@link transaction}）。
-   * PUT 的 {@link update} 也经过它：单条 UPDATE 本身是原子的，但 SQLite 只有一个共享连接，
+   * 本类所有写库操作（{@link create}、{@link update}、{@link remove}、{@link transaction}）都经过
+   * 全服务端共用的写锁，原因与「不可重入」的约定见 {@link WriteCoordinator}。
+   * 单条 INSERT / UPDATE / DELETE 本身是原子的，但 SQLite 只有一个共享连接：
    * 若恰好落在别人已开启、随后又回滚的事务里，会被一并回滚，而调用方已经收到了成功响应。
    */
-  private readonly writeLock = new AsyncMutex();
-
   constructor(
     @InjectRepository(DocumentEntity)
     private readonly docRepo: Repository<DocumentEntity>,
     private readonly events: DocumentEventsService,
+    private readonly writes: WriteCoordinator,
   ) {}
 
   async findAll(): Promise<DocumentEntity[]> {
@@ -63,7 +63,7 @@ export class DocumentService {
   async create(data: Partial<DocumentEntity>): Promise<DocumentEntity> {
     // 新文档的修订号固定从 0 开始，不接受客户端指定。
     const doc = this.docRepo.create({ ...data, revision: 0 });
-    return this.docRepo.save(doc);
+    return this.writes.run(() => this.docRepo.save(doc));
   }
 
   /**
@@ -81,7 +81,7 @@ export class DocumentService {
     data: DocumentUpdateFields,
     origin: DocumentChangeOrigin = { source: 'human' },
   ): Promise<DocumentEntity> {
-    const updated = await this.writeLock.runExclusive(() =>
+    const updated = await this.writes.run(() =>
       this.conditionalUpdate(this.docRepo, id, baseRevision, data),
     );
     this.publishChange(updated, origin);
@@ -92,6 +92,9 @@ export class DocumentService {
    * 在调用方开启的事务（{@link transaction}）里执行同一条条件 UPDATE。
    * 事务尚未提交，所以这里不发布事件：调用方在 `transaction()` 返回（已提交）之后再
    * 调用 {@link publishChange}。revision 不符时抛 409，由事务回滚。
+   *
+   * 只能在 {@link transaction} 的回调里调用，并且**不加锁**：事务本身已经持有写锁，锁不可重入，
+   * 再次加锁会死锁。写入必须走传入的 manager（同一事务），不要改用 docRepo。
    */
   updateWithin(
     manager: EntityManager,
@@ -110,17 +113,17 @@ export class DocumentService {
   /**
    * 在一个数据库事务里执行 `work`：正常返回则提交，抛异常则回滚。
    *
-   * 同一时刻只运行一个这样的事务（以及一个 {@link update}）：TypeORM 的 SQLite 驱动整个进程共用
-   * 一个连接，并发的 `transaction()` 不隔离——后开始的变成前者事务里的 SAVEPOINT，
-   * 任何一方回滚都可能连带撤销另一方已完成的写入。所以排队执行，而不是依赖事件循环的调度碰巧不交错。
+   * 事务持有全服务端的写锁，直到提交或回滚：同一时刻不会有别的写入（本类的 create / update / remove、
+   * 另一个事务、VersionService.create）开始。TypeORM 的 SQLite 驱动整个进程共用一个连接，事务期间
+   * 别的写入会落进这个事务里，随它一起回滚（或在回滚时让已完成的删除被撤销）。
+   * 所以排队执行，而不是依赖事件循环的调度碰巧不交错。
    *
-   * `work` 内只能用传入的 manager（以及 {@link updateWithin}），不能调用 {@link update} 或再次调用本方法：
-   * 锁不可重入，会死锁。
+   * `work` 内只能用传入的 manager（以及 {@link updateWithin}、`VersionService.createForAiWrite`
+   * 这类接收 manager 且不加锁的方法）；不能调用 {@link create} / {@link update} / {@link remove}、
+   * `VersionService.create` 或再次调用本方法：锁不可重入，会死锁。
    */
   transaction<T>(work: (manager: EntityManager) => Promise<T>): Promise<T> {
-    return this.writeLock.runExclusive(() =>
-      this.docRepo.manager.transaction(work),
-    );
+    return this.writes.run(() => this.docRepo.manager.transaction(work));
   }
 
   /** 发布一次已提交写入的变更事件。 */
@@ -137,9 +140,15 @@ export class DocumentService {
     });
   }
 
+  /**
+   * 删除文档（版本记录随外键级联删除）。「存在性检查 → 删除」在同一次持锁期间完成：
+   * 若某个事务正在进行，本调用排在它之后，事务回滚或提交都不会影响这次删除的结果。
+   */
   async remove(id: number): Promise<void> {
-    await this.findOne(id);
-    await this.docRepo.delete(id);
+    await this.writes.run(async () => {
+      await this.findOne(id);
+      await this.docRepo.delete(id);
+    });
   }
 
   private async findOneIn(

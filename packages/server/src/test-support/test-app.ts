@@ -12,6 +12,7 @@ import { DocumentOpsModule } from '../document-ops/document-ops.module';
 import { DocumentOpsService } from '../document-ops/document-ops.service';
 import { VersionEntity } from '../version/version.entity';
 import { VersionModule } from '../version/version.module';
+import { VersionService } from '../version/version.service';
 
 export interface TestApp {
   app: INestApplication;
@@ -20,6 +21,7 @@ export interface TestApp {
   url: string;
   events: DocumentEventsService;
   documents: DocumentService;
+  versions: VersionService;
   ops: DocumentOpsService;
   dataSource: DataSource;
 }
@@ -60,6 +62,7 @@ export async function createTestApp(
     url,
     events: app.get(DocumentEventsService),
     documents: app.get(DocumentService),
+    versions: app.get(VersionService),
     ops: app.get(DocumentOpsService),
     dataSource: app.get(DataSource),
   };

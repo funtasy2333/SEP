@@ -1,8 +1,9 @@
 /**
  * 进程内的异步互斥锁：同一时刻只运行一个 `runExclusive` 的任务，其余按调用顺序排队。
  *
- * 用途见 DocumentService.transaction：TypeORM 的 SQLite 驱动整个进程只有一个连接、一个 QueryRunner，
- * 并发的 `transaction()` 不会彼此隔离（后开始的会变成前者事务里的 SAVEPOINT），必须由应用层串行化。
+ * 用途见 {@link WriteCoordinator}：TypeORM 的 SQLite 驱动整个进程只有一个连接、一个 QueryRunner，
+ * 并发的写入（含 `transaction()`）不会彼此隔离，必须由应用层串行化。业务代码不要直接 new 它，
+ * 写库一律通过注入的 WriteCoordinator（全服务端共用同一把锁）。
  *
  * 不可重入：任务内部再对同一把锁调用 `runExclusive` 会永远等待自己。
  */

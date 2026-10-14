@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
+import { WriteCoordinator } from '../common/write-coordinator';
 import { VERSION_SOURCES, VersionEntity } from './version.entity';
 
 /** client（写入方标识）的最大长度；operations 接口的 client 字段沿用同一上限。 */
@@ -40,6 +41,7 @@ export class VersionService {
   constructor(
     @InjectRepository(VersionEntity)
     private readonly versionRepo: Repository<VersionEntity>,
+    private readonly writes: WriteCoordinator,
   ) {}
 
   /**
@@ -64,6 +66,13 @@ export class VersionService {
     return version;
   }
 
+  /**
+   * 创建版本（POST /api/versions）。写入经过全服务端共用的写锁（见 {@link WriteCoordinator}）：
+   * 否则它可能落进 operations 正在进行的事务，随事务回滚一起消失，而调用方已经收到了 201。
+   *
+   * 不可在 `DocumentService.transaction` 的回调里调用（锁不可重入，会死锁）：事务内请用
+   * {@link createForAiWrite}，它使用事务传入的 manager。
+   */
   async create(data: Partial<VersionEntity>): Promise<VersionEntity> {
     // source 缺省为 human；给出时必须是已知取值。client 可空，仅作标识。
     if (
@@ -92,7 +101,7 @@ export class VersionService {
       throw new BadRequestException('baseContent 必须是 JSON 对象');
     }
     const version = this.versionRepo.create(data);
-    return this.versionRepo.save(version);
+    return this.writes.run(() => this.versionRepo.save(version));
   }
 
   /**
@@ -100,6 +109,9 @@ export class VersionService {
    * 版本号在同一事务内按该文档最新一条版本计算，见 {@link nextVersionNo}。
    * 调用方（DocumentService.transaction）保证同一时刻只有一个这样的事务，所以「读最新版本号 → 插入」之间
    * 不会有别的 AI 写入插进来。
+   *
+   * 只能在 `DocumentService.transaction` 的回调里调用，并且**不加锁**：事务本身已经持有写锁，
+   * 锁不可重入，再次加锁会死锁。写入必须走传入的 manager（同一事务），不要改用 versionRepo。
    */
   async createForAiWrite(
     manager: EntityManager,

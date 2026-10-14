@@ -203,6 +203,8 @@ export class DocumentOpsService {
     }
 
     const content = result.doc as unknown as Record<string, unknown>;
+    // 事务持有全服务端写锁（WriteCoordinator，不可重入）：回调内只能用传入的 manager 及
+    // updateWithin / createForAiWrite 这类不加锁的方法，不能调用 documents.update 等会加锁的公开方法。
     const { updated, version } = await this.documents.transaction(
       async (manager) => {
         const updated = await this.documents.updateWithin(

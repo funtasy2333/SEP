@@ -2,6 +2,7 @@ import { ConflictException, Logger } from '@nestjs/common';
 import type { DocumentOutline, OutlineItem } from '@ses/io';
 import type { PMJsonNode } from '@ses/shared';
 import type request from 'supertest';
+import { WriteCoordinator } from '../common/write-coordinator';
 import type { DocumentChangeEvent } from '../document/document-events.service';
 import {
   canonical,
@@ -1434,6 +1435,268 @@ describe('文档操作层', () => {
       const savedB = await getDoc(b);
       expect(savedB.title).toBe('B 的新标题');
       expect(savedB.revision).toBe(1);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  /**
+   * 全服务端共用一把写锁（WriteCoordinator）：operations 的事务打开期间，其他写库操作
+   * （POST/DELETE 文档、POST 版本）必须排在事务之后，既不能落进事务里随它回滚，也不能让事务的失败撤销它们。
+   *
+   * 这些用例靠「在事务内真正让出事件循环」暴露问题：对 createForAiWrite 打桩，让它在 updateWithin 之后、
+   * 版本插入之前一直等到别的写入请求都到达服务层，再继续。没有写锁时，这些请求会在这段时间里直接
+   * 在事务所在的连接上执行。
+   */
+  describe('写入隔离（全服务端写锁）', () => {
+    const FAIL_TRIGGER = 'fail_ai_version_insert';
+    const aiBody = {
+      baseRevision: 0,
+      source: 'ai',
+      operations: [{ op: 'delete', nodeId: 'p-extra' }],
+    };
+
+    const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+    function deferred() {
+      let resolve!: () => void;
+      const promise = new Promise<void>((done) => (resolve = done));
+      return { promise, resolve };
+    }
+
+    /** supertest 的请求是惰性的：立即发出，并在稍后用 await 取结果。 */
+    const send = (test: request.Test) => test.then((res) => res);
+
+    const idsOf = (rows: unknown[]) =>
+      rows.map((row) => (row as { id: number }).id);
+
+    /**
+     * 让 operations 事务停在「updateWithin 之后、版本插入之前」，直到 `until` 完成并再让出一次事件循环。
+     * `entered` 在事务已打开、文档已更新时完成；`seen` 记录继续之前事务内能看到的行：
+     * 被写锁挡住的写入此刻不应该已经执行。
+     */
+    function pauseInsideTransaction(until: Promise<unknown>) {
+      const entered = deferred();
+      const seen: { documentIds: number[]; versionIds: number[] } = {
+        documentIds: [],
+        versionIds: [],
+      };
+      const original = boundMethod(t.versions, 'createForAiWrite');
+      jest
+        .spyOn(t.versions, 'createForAiWrite')
+        .mockImplementation(async (manager, input) => {
+          entered.resolve();
+          await until;
+          await tick();
+          seen.documentIds = idsOf(
+            await manager.query<unknown[]>('SELECT id FROM documents'),
+          );
+          seen.versionIds = idsOf(
+            await manager.query<unknown[]>('SELECT id FROM versions'),
+          );
+          return original(manager, input);
+        });
+      return { entered: entered.promise, seen };
+    }
+
+    it('operations 事务让出事件循环时到达的 DELETE 排在事务之后：operations 成功，文档随后被删除，不会复活，没有 500', async () => {
+      const id = await createDoc();
+      const events = collectEvents(id);
+      const deleteReached = deferred();
+      const originalRemove = boundMethod(t.documents, 'remove');
+      jest.spyOn(t.documents, 'remove').mockImplementation((docId) => {
+        deleteReached.resolve();
+        return originalRemove(docId);
+      });
+      const paused = pauseInsideTransaction(deleteReached.promise);
+
+      const ops = send(postOps(id, aiBody));
+      await paused.entered;
+      const del = send(t.http.delete(`/api/documents/${id}`));
+      const [opsRes, delRes] = await Promise.all([ops, del]);
+
+      // DELETE 已到达服务层，但没有在事务里执行：事务内文档仍在。
+      expect(paused.seen.documentIds).toEqual([id]);
+      // operations 的事务先提交（200、带版本号），DELETE 再执行。
+      expect(opsRes.status).toBe(200);
+      expect((opsRes.body as OpsBody).versionId).toBeDefined();
+      expect(delRes.status).toBe(200);
+      expect(events).toHaveLength(1);
+      // 文档确实被删除（没有因为事务回滚而复活），版本随外键级联删除。
+      await t.http.get(`/api/documents/${id}`).expect(404);
+      expect(await t.dataSource.query(`SELECT id FROM versions`)).toEqual([]);
+    });
+
+    it('operations 事务回滚期间并发的 POST /documents、POST /versions、DELETE 都不会被一起回滚', async () => {
+      const id = await createDoc();
+      const other = await createDoc();
+      const before = await getDoc(id);
+      const events = collectEvents(id);
+      // 真实的数据库错误：只让 AI 写入的版本插入失败，人工版本不受影响。
+      await t.dataSource.query(
+        `CREATE TRIGGER ${FAIL_TRIGGER} BEFORE INSERT ON versions WHEN NEW.source = 'ai' BEGIN SELECT RAISE(ABORT, '注入的版本插入失败'); END`,
+      );
+      const docCreateReached = deferred();
+      const versionCreateReached = deferred();
+      const deleteReached = deferred();
+      const originalCreate = boundMethod(t.documents, 'create');
+      jest.spyOn(t.documents, 'create').mockImplementation((data) => {
+        docCreateReached.resolve();
+        return originalCreate(data);
+      });
+      const originalVersionCreate = boundMethod(t.versions, 'create');
+      jest.spyOn(t.versions, 'create').mockImplementation((data) => {
+        versionCreateReached.resolve();
+        return originalVersionCreate(data);
+      });
+      const originalRemove = boundMethod(t.documents, 'remove');
+      jest.spyOn(t.documents, 'remove').mockImplementation((docId) => {
+        deleteReached.resolve();
+        return originalRemove(docId);
+      });
+      const paused = pauseInsideTransaction(
+        Promise.all([
+          docCreateReached.promise,
+          versionCreateReached.promise,
+          deleteReached.promise,
+        ]),
+      );
+      const logs = captureLogs();
+      try {
+        const ops = send(postOps(id, aiBody));
+        await paused.entered;
+        const createdDoc = send(
+          t.http.post('/api/documents').send({
+            title: '事务期间新建',
+            meta,
+            stage: 'working_draft',
+            content: null,
+          }),
+        );
+        const createdVersion = send(
+          t.http.post('/api/versions').send({
+            documentId: id,
+            versionNo: '7.0',
+            stage: 'working_draft',
+            content: { type: 'doc', content: [] },
+          }),
+        );
+        const deleted = send(t.http.delete(`/api/documents/${other}`));
+        const [opsRes, docRes, versionRes, deleteRes] = await Promise.all([
+          ops,
+          createdDoc,
+          createdVersion,
+          deleted,
+        ]);
+
+        // 被写锁挡住的三个写入在事务内还没有执行。
+        expect(paused.seen.documentIds).toEqual([id, other]);
+        expect(paused.seen.versionIds).toEqual([]);
+
+        // 事务因版本插入失败回滚：500，文档恢复原状，没有事件。
+        expect(opsRes.status).toBe(500);
+        const after = await getDoc(id);
+        expect(after.revision).toBe(0);
+        expect(after.content).toEqual(before.content);
+        expect(events).toEqual([]);
+
+        // 并发的写入都返回了成功，也都真实保留下来。
+        expect(docRes.status).toBe(201);
+        const created = await getDoc((docRes.body as DocBody).id);
+        expect(created.title).toBe('事务期间新建');
+        expect(versionRes.status).toBe(201);
+        const versions = await getVersions(id);
+        expect(versions.map((version) => version.id)).toEqual([
+          (versionRes.body as VersionBody).id,
+        ]);
+        expect(versions[0].versionNo).toBe('7.0');
+        expect(deleteRes.status).toBe(200);
+        await t.http.get(`/api/documents/${other}`).expect(404);
+
+        expect(t.dataSource.createQueryRunner().isTransactionActive).toBe(
+          false,
+        );
+      } finally {
+        logs.restore();
+      }
+    });
+
+    it('事务回调里使用传入的 manager 写入（updateWithin、createForAiWrite）不再加锁，不会死锁；事务结束后锁已释放', async () => {
+      const id = await createDoc();
+      const coordinator = t.app.get(WriteCoordinator);
+      const run = jest.spyOn(coordinator, 'run');
+      const withTimeout = async <T>(task: Promise<T>, label: string) => {
+        let timer: NodeJS.Timeout | undefined;
+        const timeout = new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error(`${label}：超时，疑似死锁`)),
+            2000,
+          );
+        });
+        try {
+          return await Promise.race([task, timeout]);
+        } finally {
+          clearTimeout(timer);
+        }
+      };
+
+      const result = await withTimeout(
+        t.documents.transaction(async (manager) => {
+          const updated = await t.documents.updateWithin(manager, id, 0, {
+            title: '事务内的修改',
+          });
+          const version = await t.versions.createForAiWrite(manager, {
+            documentId: id,
+            stage: updated.stage,
+            content: { type: 'doc', content: [] },
+            baseContent: { type: 'doc', content: [] },
+            client: null,
+            note: '事务内写入',
+          });
+          return { updated, version };
+        }),
+        '事务内写入',
+      );
+      expect(result.updated.revision).toBe(1);
+      expect(result.version.documentId).toBe(id);
+      // 整个事务只取得了一次写锁（transaction 自己）；回调里的写入没有再取。
+      expect(run).toHaveBeenCalledTimes(1);
+
+      // 事务结束后锁已释放：之后的写入照常完成。
+      const next = await withTimeout(
+        t.documents.update(id, 1, { title: '事务之后的修改' }),
+        '事务之后的写入',
+      );
+      expect(next.revision).toBe(2);
+      expect(run).toHaveBeenCalledTimes(2);
+    });
+
+    it('每一个写库入口都经过同一个 WriteCoordinator 实例（create、update、remove、transaction、POST /versions）', async () => {
+      const run = jest.spyOn(t.app.get(WriteCoordinator), 'run');
+      const created = await t.documents.create({
+        title: '写锁覆盖',
+        meta,
+        stage: 'working_draft',
+        content: null,
+      });
+      expect(run).toHaveBeenCalledTimes(1);
+      await t.documents.update(created.id, 0, { title: '写锁覆盖 2' });
+      expect(run).toHaveBeenCalledTimes(2);
+      await t.versions.create({
+        documentId: created.id,
+        versionNo: '1.0',
+        stage: 'working_draft',
+        content: { type: 'doc', content: [] },
+      });
+      expect(run).toHaveBeenCalledTimes(3);
+      await t.documents.transaction(() => Promise.resolve());
+      expect(run).toHaveBeenCalledTimes(4);
+      await t.documents.remove(created.id);
+      expect(run).toHaveBeenCalledTimes(5);
+      // 校验失败的请求不写库：校验在取锁之前完成，不占用写锁。
+      await expect(
+        t.versions.create({ source: '未知' as never }),
+      ).rejects.toThrow();
+      expect(run).toHaveBeenCalledTimes(5);
     });
   });
 

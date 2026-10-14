@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { WriteCoordinatorModule } from '../common/write-coordinator.module';
 import { DocumentEntity } from './document.entity';
 import { DocumentController } from './document.controller';
 import {
@@ -11,7 +12,7 @@ import { DocumentEventsService } from './document-events.service';
 import { DocumentService } from './document.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([DocumentEntity])],
+  imports: [TypeOrmModule.forFeature([DocumentEntity]), WriteCoordinatorModule],
   controllers: [DocumentController, DocumentEventsController],
   providers: [
     DocumentService,
