@@ -133,6 +133,24 @@ describe('attachmentDisposition', () => {
     expect(header).toMatch(/^attachment; filename\*=UTF-8''[A-Za-z0-9%._-]+$/);
   });
 
+  it('不成对的 UTF-16 代理项替换为 U+FFFD，不抛 URIError', () => {
+    const replacement = encodeURIComponent('�');
+    expect(attachmentDisposition('\ud800标准.docx')).toBe(
+      `attachment; filename*=UTF-8''${replacement}${encodeURIComponent('标准.docx')}`,
+    );
+    expect(attachmentDisposition('a\udc00.docx')).toBe(
+      `attachment; filename*=UTF-8''a${replacement}.docx`,
+    );
+    // 成对的代理项（如 emoji）保持原样
+    expect(attachmentDisposition('😀.docx')).toBe(
+      `attachment; filename*=UTF-8''${encodeURIComponent('😀.docx')}`,
+    );
+    // 截短路径同样不抛
+    expect(() =>
+      attachmentDisposition(`${'\ud800'.repeat(500)}.docx`),
+    ).not.toThrow();
+  });
+
   describe('长度上界', () => {
     const PREFIX = "attachment; filename*=UTF-8''";
     const MAX = CONTENT_DISPOSITION_MAX_LENGTH;

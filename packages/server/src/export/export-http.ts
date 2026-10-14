@@ -126,12 +126,18 @@ const TRUNCATION_MARK = '…';
 /** 截短时原样保留的扩展名：末尾的 `.` 加 1～10 位 ASCII 字母数字，如 `.docx`。 */
 const EXTENSION_PATTERN = /\.[A-Za-z0-9]{1,10}$/;
 
+/** 不成对的高位代理项或低位代理项。 */
+const LONE_SURROGATE =
+  /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
 /**
  * filename* 的百分号编码。encodeURIComponent 不转义 !'()*，
  * 其中 `'` 是 filename* 的分隔符，一并转成百分号编码。
  */
 function encodeFilename(text: string): string {
-  return encodeURIComponent(text).replace(
+  // 不成对的 UTF-16 代理项会让 encodeURIComponent 抛 URIError（标题经 REST 写入时可能出现），换成 U+FFFD。
+  const wellFormed = text.replace(LONE_SURROGATE, '�');
+  return encodeURIComponent(wellFormed).replace(
     /[!'()*]/g,
     (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
   );
