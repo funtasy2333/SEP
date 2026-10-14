@@ -1,6 +1,6 @@
 # WP9 人机共写方案（MCP 接入）
 
-状态：WP9.1、WP9.2 已完成（2026-10-13，见 §10、§11）；WP9.3（MCP）待实施。对应 `ses-requirements.md` Phase 9「MCP / CLI 支持」，并为 Phase 10「AI 集成」、Phase 11「多人协作」预留同一套写入机制。
+状态：WP9.1、WP9.2 已完成（2026-10-13，见 §10、§11）；WP9.3（MCP，本地部署）已完成（2026-10-14，见 §12）；WP9.4（云端接入）待部署方式确定。对应 `ses-requirements.md` Phase 9「MCP / CLI 支持」，并为 Phase 10「AI 集成」、Phase 11「多人协作」预留同一套写入机制。
 
 ## 1. 目标
 
@@ -25,7 +25,8 @@ DOCX/PDF 出件、`.ses.json` 导入导出作为配套能力保留。
 | 2026-10-13 | 冲突时不预设默认处理，每次弹框由人选择「重新加载」或「另存为副本」 | 生效，WP9.1 已实施 |
 | 2026-10-13 | 「AI 写入前自动快照」移到 WP9.2，与 AI 写入入口一起实现；WP9.1 只增加版本来源字段 | 生效 |
 | 2026-10-13 | AI 修改直接生效；每批 AI 写入在版本历史中留一条明确标注「AI 修改」的记录，可直接比较出该批修改的内容 | 生效（§6.5） |
-| 2026-10-13 | 批准新增运行时依赖 `@modelcontextprotocol/sdk`（server，WP9.3 使用） | 生效 |
+| 2026-10-13 | 批准新增运行时依赖 `@modelcontextprotocol/sdk`（server，WP9.3 使用） | 生效，锁定 1.31.0 |
+| 2026-10-14 | WP9.3 只做本地部署接入（Claude Code 等连接本机 SES 的 `/mcp`）；云端接入（claude.ai 连接器、用户与鉴权、OAuth）放到 WP9.4 | 生效 |
 | 待定 | 部署方式（本地 / 云端 / 两者） | 见 §8 |
 
 ## 3. 参考项目经验
@@ -160,6 +161,8 @@ WP9.1 实施结果：
 | `export_document` | 出件，返回下载链接（本地部署也可写入指定路径） |
 | `get_authoring_reference` | 写作说明（IR 片段格式、GB/T 1.1 结构约定） |
 
+WP9.3 实际实现的工具共 8 个：上表 7 项，其中「列出、创建」为 `list_documents`、`create_document` 两个工具；读取前言、引言、参考文献并入 `get_node` 的 `container` 参数。接入方法见 [本地接入 MCP](wp9-mcp-local-setup.md)。
+
 - 返回结果带 `revision`，AI 下一次写入以此为 `baseRevision`。
 
 ### 6.8 部署方式与接入
@@ -178,7 +181,7 @@ WP9.1 实施结果：
 |---|---|---|
 | WP9.1 基础（已完成） | 服务端打包式构建并引用 shared；修订号与乐观锁、编辑器冲突处理；版本来源字段；`@ses/io` 抽取；服务端 DOCX 导出接口 | 否 |
 | WP9.2 文档操作层 | 结构树、节点读写、批量操作、校验、出件接口（PDF/HTML/JSON）；服务端生产 schema 校验；AI 写入前自动快照；SSE 推送与编辑器刷新 | 否 |
-| WP9.3 MCP（本地） | `/mcp` 端点与工具；写作参考；端到端：AI 建文档 → 人编辑 → AI 续写 → 导出 DOCX/PDF | 否 |
+| WP9.3 MCP（本地，已完成） | `/mcp` 端点与工具；写作参考；端到端：AI 建文档 → 人编辑 → AI 续写 → 导出 DOCX/PDF | 否 |
 | WP9.4 云端接入 | 用户与鉴权、OAuth、下载链接存储与清理 | 是（确定云端部署后） |
 | 后续 | 建议模式；实时共写（Tiptap Collaboration / Yjs，与 Phase 11 合并）；CLI 薄客户端；Markdown 写作输入 | — |
 
@@ -261,3 +264,32 @@ WP9.1 实施结果：
 6. 引擎每个操作都整篇重建索引，3000 块文档 40 个操作约 0.6 秒。
 7. 写入已全部经 `WriteCoordinator` 串行（Codex 评审 P1 修复），但读不受锁约束：共享连接下，事务进行期间的读可能读到未提交数据。只有在事务回滚、且随后另一写入恰好把 revision 推到同一数值时，持有该「幽灵 revision」的写入才会通过检查造成丢失更新。可选修复：读也经协调者排队，或另开 WAL 只读连接。
 
+## 12. WP9.3 交付记录（2026-10-14）
+
+| 子任务 | 提交 | 内容 |
+|---|---|---|
+| 9.3a | `89186d9` | `/mcp` 端点（Streamable HTTP，有状态会话，JSON 响应，不带 `api` 前缀）；会话空闲 24 小时失效、上限 100、满时淘汰最久未用；只接受本机连接（对端回环地址 + Host + Origin 三项检查）；工具 `list_documents`、`create_document`（与编辑器首页新建一致，经别名复用 client 的 `createNewDocument`，保存前补齐 nodeId）、`get_outline`、`get_node`、`apply_operations`（来源固定 ai，client 取 `clientInfo.name`）、`get_authoring_reference`（写作说明打入产物） |
+| 9.3b | `d455f65` | `validate_document`（只读；Resolver 问题 + docx/pdf/html 导出前检查，与导出接口共用同一检查方法）；`export_document`（返回下载地址，可选 `outputPath` 写到本机：绝对路径、扩展名对应、默认不覆盖、覆盖时临时文件 + rename、`SES_MCP_ALLOW_FILE_WRITE=0` 关闭）；PDF 管线不可用时保留 503 与原因；端到端测试；[本地接入说明](wp9-mcp-local-setup.md) |
+
+验收结果：
+
+1. 测试：shared 1224、io 243、client 624（另 1 跳过）、server 619，全部通过；`pnpm -r run build` 通过；新增运行时依赖只有 `@modelcontextprotocol/sdk` 1.31.0；
+2. 打包产物（SDK Client）：8 个工具可用；create 后直接以返回的 revision 写入成功；过期 revision 返回 409 与当前 revision；伪造 Host、非本机 Origin 返回 403；docx/pdf/html/json 导出与 REST 一致；服务端日志不含正文、标题与输出路径；
+3. 真实 Claude Code（2.1.296，无界面模式）+ 真实浏览器（Playwright + Chromium，经 Vite 代理）人机接力：
+   - Claude Code 新建文档、读写作说明与结构、在「范围」写入一段，编辑器打开后显示该段；
+   - 人在编辑器里在该段末尾输入，自动保存（revision 2）；
+   - Claude Code 重新读取，看到人的修改并保留，在章末续写（revision 3）；编辑器在 AI 写入后 1 秒内自动载入并提示「AI（claude-code）已更新文档，已载入最新内容」，人的输入仍在；
+   - `validate_document` 无问题；`export_document` 把 DOCX（35822 字节）与 PDF（3 页）写到指定目录，两份文件都含人与 AI 的内容；
+   - 版本历史两条 `source=ai`、`client=claude-code`、note 为 AI 填写的修改说明；人的保存不生成版本；
+4. 服务端重启：Claude Code 在重启前后各调用一次工具，第二次照常成功（客户端收到 404 后自动重新建立会话）。
+
+遗留事项：
+
+1. `outputPath` 没有目录白名单，可写到服务端进程有权写的任何位置；`overwrite: true` 可替换同扩展名的已有文件（如 `.json`）。防线是默认不覆盖、客户端对 `export_document`（`destructiveHint`）的确认、以及环境变量开关（默认允许，只认 `0`/`false`）。云端部署必须关闭；本地是否需要目录白名单待定；
+2. REST 接口（`/api/...`）没有 `/mcp` 的 Host/Origin 检查。CORS 只能阻止其他网页读取响应，不能防 DNS 重绑定：恶意网页把自己的域名解析到 127.0.0.1 后，可与本机 SES 同源调用 REST 接口。本地部署需要时可把同样的 Host 检查扩展到全部接口；
+3. 访问守卫在 JSON 请求体解析之后执行：非本机连接仍会让服务端先读取请求体（最大 25 MB），与 `/api` 的暴露面相同；
+4. 会话只在内存，空闲 24 小时失效；Claude Code 能自动重建会话，其他客户端未验证；只支持 stdio 的客户端需要桥接，未验证任何桥接工具；
+5. `validate_document` 只读，对从未在编辑器打开过、经 REST 直接创建的文档会报告 `missing-id`（MCP 新建的文档已补齐 nodeId，不受影响）；
+6. 导出 PDF 需要两遍 Vivliostyle，实测约 9 秒；客户端工具调用超时过短时会先超时。server 测试含真实 PDF 管线，耗时由约 15 秒增到约 28 秒；
+7. 未知工具名返回 `isError` 结果（与 SDK `McpServer` 实际行为一致），而非 JSON-RPC -32602；
+8. `packages/server/src/document-ops/document-ops.spec.ts` 第 1679 行有一个既有的 TS 类型错误（`tsc --noEmit` 报告，jest 与构建不受影响）。
