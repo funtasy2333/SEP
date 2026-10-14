@@ -422,7 +422,7 @@ Phase 8：Markdown 语法支持（~1.5周）[P2]
 
 Phase 9：MCP / CLI 支持（~2周）[P2]
 目标：提供编程接口，支持 AI Agent 和自动化工具操作 SES 编辑标准
-*  SES CLI 工具（ses-cli）
+*  SES CLI 工具（ses-cli）（2026-10-14 推迟：AI 调用已由 MCP 覆盖，CLI 以后作为同一写入层的薄客户端实现）
     * 基于 Node.js 实现命令行工具，封装对后端 REST API 的调用
     * 核心命令：
         * `ses create` — 创建新标准文档
@@ -447,7 +447,7 @@ Phase 9：MCP / CLI 支持（~2周）[P2]
     * MCP Server 和 CLI 共享同一层 service 逻辑，避免重复实现
     * 支持 Claude Code 等 Agent 通过 MCP 直接操作 SES
 *  API 文档与示例
-    * 提供 OpenAPI/Swagger 文档
+    * 提供 OpenAPI/Swagger 文档（2026-10-14 推迟：MCP 工具自带参数说明，AI 不依赖它；等做 CLI 或对接外部系统时再做）
     * 提供 Agent 使用示例（Claude Code / 其他 LLM Agent）
 ———————————
 
