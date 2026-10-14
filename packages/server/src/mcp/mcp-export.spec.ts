@@ -11,7 +11,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, delimiter, dirname, join } from 'node:path';
 import { Logger } from '@nestjs/common';
 import type { PMJsonNode } from '@ses/shared';
 import request from 'supertest';
@@ -26,7 +26,11 @@ import {
   type McpTestClient,
 } from '../test-support/mcp-test-client';
 import { createTestApp, type TestApp } from '../test-support/test-app';
-import { FILE_WRITE_ENV } from './mcp-file-output';
+import {
+  DEFAULT_OUTPUT_DIR_NAME,
+  FILE_WRITE_ENV,
+  OUTPUT_DIRS_ENV,
+} from './mcp-file-output';
 import { downloadBaseUrl, McpToolsService } from './mcp-tools.service';
 
 /** 放进正文的标记串：用来证明错误响应与日志里没有文档正文。 */
@@ -204,6 +208,8 @@ describe('MCP 工具：validate_document 与 export_document', () => {
     t = await createTestApp();
     mcp = await connectMcp(t);
     dir = await mkdtemp(join(tmpdir(), 'ses-mcp-export-'));
+    // outputPath 只能写到允许目录：测试把临时目录设为允许目录（真实的主目录与 ~/SES-exports 不会被碰到）。
+    process.env[OUTPUT_DIRS_ENV] = dir;
     convert = t.app.get(ConvertService);
     // PDF 管线用桩替换：这里验证的是工具与导出接口的一致，不跑真实的 vivliostyle（端到端用例跑真实管线）。
     jest.spyOn(convert, 'getCapabilities').mockReturnValue({ htmlToPdf: true });
@@ -215,6 +221,7 @@ describe('MCP 工具：validate_document 与 export_document', () => {
     await rm(dir, { recursive: true, force: true });
     jest.restoreAllMocks();
     delete process.env[FILE_WRITE_ENV];
+    delete process.env[OUTPUT_DIRS_ENV];
     delete process.env.PORT;
   });
 
@@ -1022,7 +1029,16 @@ describe('MCP 工具：validate_document 与 export_document', () => {
   });
 
   // ---------------------------------------------------------------------------
-  describe('export_document 的 outputPath（本地部署：写到本机路径）', () => {
+  describe('export_document 的 outputPath（本地部署：写到本机的允许目录）', () => {
+    /** 允许目录（dir）之外的另一个目录。 */
+    let outside: string;
+    beforeEach(async () => {
+      outside = await mkdtemp(join(tmpdir(), 'ses-mcp-outside-'));
+    });
+    afterEach(async () => {
+      await rm(outside, { recursive: true, force: true });
+    });
+
     const exportTo = (
       id: number,
       format: string,
@@ -1073,8 +1089,7 @@ describe('MCP 工具：validate_document 与 export_document', () => {
 
     describe('路径不合规：400，不导出、不写文件', () => {
       it.each([
-        ['相对路径', () => 'result.docx', 'invalid-output-path'],
-        ['./ 开头的相对路径', () => './result.docx', 'invalid-output-path'],
+        ['路径含空字符', () => `${dir}/result\0.docx`, 'invalid-output-path'],
         [
           '扩展名与格式不符',
           () => join(dir, 'result.pdf'),
@@ -1116,6 +1131,193 @@ describe('MCP 工具：validate_document 与 export_document', () => {
           join(dir, 'missing', 'a.docx'),
         );
         expect(result.body.message).toContain(join(dir, 'missing'));
+      });
+    });
+
+    describe('只能写到允许目录（SES_MCP_OUTPUT_DIRS）', () => {
+      const NOT_ALLOWED = { status: 403, code: 'output-dir-not-allowed' };
+
+      it('只给文件名：保存到第一个允许目录，savedTo 是实际路径', async () => {
+        const id = await createDoc();
+        const result = await exportTo(id, 'docx', '规范.docx');
+        expect(result.isError).toBe(false);
+        expect(result.body.savedTo).toBe(join(dir, '规范.docx'));
+        const file = await readFile(join(dir, '规范.docx'));
+        expect(result.body.size).toBe(file.length);
+        expect(file.subarray(0, 2).toString('latin1')).toBe('PK');
+        expect(await readdir(dir)).toEqual(['规范.docx']);
+      });
+
+      it('相对路径含已存在的子目录；overwrite 同样适用', async () => {
+        const id = await createDoc();
+        await mkdir(join(dir, 'sub'));
+        const first = await exportTo(id, 'json', 'sub/./a.json');
+        expect(first.body.savedTo).toBe(join(dir, 'sub', 'a.json'));
+        const again = await exportTo(id, 'json', 'sub/a.json');
+        expect(again.body).toMatchObject({ status: 409, code: 'file-exists' });
+        const replaced = await exportTo(id, 'json', 'sub/a.json', true);
+        expect(replaced.isError).toBe(false);
+      });
+
+      it.each([
+        ['..', () => '../escape.json'],
+        ['多级 ..', () => 'sub/../../escape.json'],
+        ['绝对路径里的 ..', () => `${dir}/../escape.json`],
+        ['兄弟目录', () => `../${basename(outside)}/escape.json`],
+      ])('相对路径用 %s 逃逸 → 403，不导出、不写文件', async (_name, path) => {
+        const id = await createDoc();
+        await mkdir(join(dir, 'sub'));
+        const exportJson = jest.spyOn(t.app.get(ExportService), 'exportJson');
+        const result = await exportTo(id, 'json', path());
+        expect(result.isError).toBe(true);
+        expect(result.body).toMatchObject(NOT_ALLOWED);
+        expect(exportJson).not.toHaveBeenCalled();
+        expect(await readdir(outside)).toEqual([]);
+        await expect(stat(join(dirname(dir), 'escape.json'))).rejects.toThrow();
+        expect(await readdir(dir)).toEqual(['sub']);
+      });
+
+      it('绝对路径在允许目录之外 → 403：消息列出允许的目录并提示怎么办；不跑导出管线', async () => {
+        const id = await createDoc();
+        const convertHtmlToPdf = jest.spyOn(convert, 'convertHtmlToPdf');
+        const target = join(outside, 'a.pdf');
+        const result = await exportTo(id, 'pdf', target);
+        expect(result.isError).toBe(true);
+        expect(result.body).toMatchObject(NOT_ALLOWED);
+        expect(result.body.message).toContain(`允许的目录：${dir}`);
+        expect(result.body.message).toContain(`只给文件名即可保存到 ${dir}`);
+        expect(result.body.message).toContain(OUTPUT_DIRS_ENV);
+        expect(convertHtmlToPdf).not.toHaveBeenCalled();
+        expect(await readdir(outside)).toEqual([]);
+      });
+
+      it('多个允许目录：都可以写，相对路径落在第一个，其余目录里的绝对路径照常；不在其中的仍被拒绝', async () => {
+        process.env[OUTPUT_DIRS_ENV] = [dir, outside].join(delimiter);
+        const id = await createDoc();
+        const bare = await exportTo(id, 'json', 'a.json');
+        expect(bare.body.savedTo).toBe(join(dir, 'a.json'));
+        const second = await exportTo(id, 'json', join(outside, 'b.json'));
+        expect(second.body.savedTo).toBe(join(outside, 'b.json'));
+        expect(await readdir(outside)).toEqual(['b.json']);
+
+        const third = await mkdtemp(join(tmpdir(), 'ses-mcp-third-'));
+        try {
+          const rejected = await exportTo(id, 'json', join(third, 'c.json'));
+          expect(rejected.body).toMatchObject(NOT_ALLOWED);
+          expect(rejected.body.message).toContain(`${dir}、${outside}`);
+          expect(await readdir(third)).toEqual([]);
+        } finally {
+          await rm(third, { recursive: true, force: true });
+        }
+      });
+
+      it('运行中修改 SES_MCP_OUTPUT_DIRS 立即生效（每次调用重新读取）', async () => {
+        const id = await createDoc();
+        const target = join(outside, 'a.json');
+        expect((await exportTo(id, 'json', target)).body).toMatchObject(
+          NOT_ALLOWED,
+        );
+        process.env[OUTPUT_DIRS_ENV] = [dir, outside].join(delimiter);
+        expect((await exportTo(id, 'json', target)).isError).toBe(false);
+      });
+
+      it('无效配置项（相对路径、空项）被忽略', async () => {
+        process.env[OUTPUT_DIRS_ENV] = ['relative/dir', '', dir, ' '].join(
+          delimiter,
+        );
+        const id = await createDoc();
+        const result = await exportTo(id, 'json', 'a.json');
+        expect(result.body.savedTo).toBe(join(dir, 'a.json'));
+        const rejected = await exportTo(id, 'json', join(outside, 'a.json'));
+        expect(rejected.body).toMatchObject(NOT_ALLOWED);
+        expect(rejected.body.message).not.toContain('relative');
+      });
+
+      itPosix(
+        '允许目录内指向外部的符号链接目录 → 403，外部目录没有任何文件',
+        async () => {
+          const id = await createDoc();
+          await symlink(outside, join(dir, 'out'));
+          for (const path of [join(dir, 'out', 'a.json'), 'out/a.json']) {
+            const result = await exportTo(id, 'json', path);
+            expect(result.isError).toBe(true);
+            expect(result.body).toMatchObject(NOT_ALLOWED);
+            // overwrite 也不能绕过
+            const forced = await exportTo(id, 'json', path, true);
+            expect(forced.body).toMatchObject(NOT_ALLOWED);
+          }
+          expect(await readdir(outside)).toEqual([]);
+        },
+      );
+
+      describe('未配置：默认导出目录 <主目录>/SES-exports', () => {
+        let home: string;
+        let defaultDir: string;
+        beforeEach(async () => {
+          // 注入主目录：替换 os.homedir()，真实的 ~/SES-exports 不会被碰到。
+          home = await mkdtemp(join(tmpdir(), `ses-mcp-home-${DIR_TOKEN}-`));
+          defaultDir = join(home, DEFAULT_OUTPUT_DIR_NAME);
+          delete process.env[OUTPUT_DIRS_ENV];
+          jest
+            .spyOn(
+              jest.requireActual<typeof import('node:os')>('node:os'),
+              'homedir',
+            )
+            .mockReturnValue(home);
+        });
+        afterEach(async () => {
+          await rm(home, { recursive: true, force: true });
+        });
+
+        it('只给文件名：自动创建默认导出目录并写入，savedTo 是该目录里的路径', async () => {
+          const id = await createDoc();
+          await expect(stat(defaultDir)).rejects.toThrow();
+          const result = await exportTo(id, 'docx', '规范.docx');
+          expect(result.isError).toBe(false);
+          expect(result.body.savedTo).toBe(join(defaultDir, '规范.docx'));
+          expect((await stat(defaultDir)).isDirectory()).toBe(true);
+          if (process.platform !== 'win32') {
+            expect((await stat(defaultDir)).mode & 0o777).toBe(0o700);
+          }
+          const file = await readFile(join(defaultDir, '规范.docx'));
+          expect(result.body.size).toBe(file.length);
+          expect(readZipEntries(file).has('word/document.xml')).toBe(true);
+          expect(await readdir(home)).toEqual([DEFAULT_OUTPUT_DIR_NAME]);
+          // 临时目录（本来的允许目录）没有被写。
+          expect(await readdir(dir)).toEqual([]);
+        });
+
+        it('默认导出目录之外的绝对路径与 .. 逃逸 → 403，且不会为此创建目录', async () => {
+          const id = await createDoc();
+          for (const path of [join(dir, 'a.json'), '../a.json']) {
+            const result = await exportTo(id, 'json', path);
+            expect(result.body).toMatchObject(NOT_ALLOWED);
+            expect(result.body.message).toContain(defaultDir);
+          }
+          expect(await readdir(home)).toEqual([]);
+          expect(await readdir(dir)).toEqual([]);
+        });
+
+        it('不给 outputPath 时不创建任何目录', async () => {
+          const id = await createDoc();
+          const result = await mcp.call('export_document', {
+            documentId: id,
+            format: 'json',
+          });
+          expect(result.isError).toBe(false);
+          expect(await readdir(home)).toEqual([]);
+        });
+
+        it('日志不含默认导出目录的路径', async () => {
+          const logs = captureLogs();
+          const id = await createDoc();
+          const result = await exportTo(id, 'json', `${DIR_TOKEN}-文件.json`);
+          expect(result.isError).toBe(false);
+          const logged = logs.text();
+          expect(logged).toContain(`文档 #${id} 的 json 导出文件已写入本机`);
+          expect(logged).not.toContain(DIR_TOKEN);
+          expect(logged).not.toContain(home);
+        });
       });
     });
 
@@ -1291,7 +1493,7 @@ describe('MCP 工具：validate_document 与 export_document', () => {
         expect(logged).not.toContain(dir);
       });
 
-      it('各种失败（已存在、父目录不存在、扩展名不符、开关关闭）：响应带路径，日志不带', async () => {
+      it('各种失败（已存在、父目录不存在、扩展名不符、不在允许目录、开关关闭）：响应带路径，日志不带', async () => {
         const logs = captureLogs();
         const id = await createDoc();
         const target = join(secretDir, `${DIR_TOKEN}-文件.json`);
@@ -1300,17 +1502,25 @@ describe('MCP 工具：validate_document 与 export_document', () => {
           await exportTo(id, 'json', target), // 已存在
           await exportTo(id, 'json', join(dir, `${DIR_TOKEN}-缺失`, 'a.json')),
           await exportTo(id, 'json', join(secretDir, `${DIR_TOKEN}.txt`)),
-          await exportTo(id, 'json', `${DIR_TOKEN}-相对.json`),
+          await exportTo(id, 'json', join(outside, `${DIR_TOKEN}-外部.json`)), // 不在允许目录
+          await exportTo(id, 'json', `../${DIR_TOKEN}-逃逸.json`), // .. 逃逸
         ];
         process.env[FILE_WRITE_ENV] = '0';
         failures.push(await exportTo(id, 'json', target));
         expect(failures.every((f) => f.isError)).toBe(true);
+        expect(failures[3].body).toMatchObject({
+          status: 403,
+          code: 'output-dir-not-allowed',
+        });
+        expect(failures[4].body.code).toBe('output-dir-not-allowed');
         // 响应里有路径（这是返回给调用方本人的）。
         expect(failures[0].body.message).toContain(DIR_TOKEN);
         expect(failures[1].body.message).toContain(DIR_TOKEN);
+        expect(failures[3].body.message).toContain(DIR_TOKEN);
         // 日志里没有。
         expect(logs.text()).not.toContain(DIR_TOKEN);
         expect(logs.text()).not.toContain(dir);
+        expect(logs.text()).not.toContain(outside);
       });
 
       itPosix(

@@ -3,7 +3,7 @@
 import { get, type ClientRequest } from 'node:http';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { Logger } from '@nestjs/common';
 import type { PMJsonNode } from '@ses/shared';
 import { ConvertService } from '../convert/convert.service';
@@ -17,6 +17,7 @@ import {
   type McpTestClient,
 } from '../test-support/mcp-test-client';
 import { createTestApp, type TestApp } from '../test-support/test-app';
+import { OUTPUT_DIRS_ENV } from './mcp-file-output';
 
 /**
  * 端到端（WP9.3b）：经 SDK Client 走真实 HTTP，模拟人机接力——
@@ -114,12 +115,15 @@ describe('人机接力端到端（MCP + REST，真实 HTTP）', () => {
     t = await createTestApp();
     mcp = await connectMcp(t);
     dir = await mkdtemp(join(tmpdir(), 'ses-mcp-e2e-'));
+    // outputPath 只能写到允许目录：把临时目录设为唯一的允许目录（不会碰真实的 ~/SES-exports）。
+    process.env[OUTPUT_DIRS_ENV] = dir;
     pdfAvailable = t.app.get(ConvertService).getCapabilities().htmlToPdf;
   });
   afterAll(async () => {
     sse?.close();
     await mcp.close();
     await t.app.close();
+    delete process.env[OUTPUT_DIRS_ENV];
     await rm(dir, { recursive: true, force: true });
     jest.restoreAllMocks();
   });
@@ -295,7 +299,7 @@ describe('人机接力端到端（MCP + REST，真实 HTTP）', () => {
     expect(after.updatedAt).toEqual(before.updatedAt);
   });
 
-  /** 调用 export_document 写到临时目录，返回工具结果与文件内容。 */
+  /** 调用 export_document（只给文件名）保存到允许目录（临时目录），返回工具结果与文件内容。 */
   async function exportToFile(
     format: 'docx' | 'pdf' | 'html' | 'json',
   ): Promise<{
@@ -306,9 +310,10 @@ describe('人机接力端到端（MCP + REST，真实 HTTP）', () => {
     const result = await mcp.call('export_document', {
       documentId,
       format,
-      outputPath,
+      outputPath: `result.${format}`,
     });
     expect(result.isError).toBe(false);
+    // 只给文件名 → 保存到第一个允许目录，savedTo 是实际路径。
     expect(result.body.savedTo).toBe(outputPath);
     expect(result.body.format).toBe(format);
     expect(result.body.filename).toBe(`端到端测试标准.${format}`);
@@ -376,7 +381,7 @@ describe('人机接力端到端（MCP + REST，真实 HTTP）', () => {
       const result = await mcp.call('export_document', {
         documentId,
         format: 'pdf',
-        outputPath: join(dir, 'unavailable.pdf'),
+        outputPath: 'unavailable.pdf',
       });
       expect(result.isError).toBe(true);
       expect(result.body.status).toBe(503);
@@ -399,6 +404,34 @@ describe('人机接力端到端（MCP + REST，真实 HTTP）', () => {
     expect(pages).toBeGreaterThan(0);
     expect(pages).toBe(await pdfPageCount(restPath));
   }, 240_000);
+
+  it('5d. export_document：绝对路径在允许目录之外、或用 .. 逃出允许目录 → 403 output-dir-not-allowed，不写任何文件', async () => {
+    const outside = await mkdtemp(join(tmpdir(), 'ses-mcp-e2e-outside-'));
+    try {
+      for (const outputPath of [
+        join(outside, 'result.json'),
+        '../ses-mcp-e2e-escape.json',
+      ]) {
+        const result = await mcp.call('export_document', {
+          documentId,
+          format: 'json',
+          outputPath,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.body).toMatchObject({
+          status: 403,
+          code: 'output-dir-not-allowed',
+        });
+        expect(result.body.message).toContain(dir);
+      }
+      await expect(stat(join(outside, 'result.json'))).rejects.toThrow();
+      await expect(
+        stat(join(dirname(dir), 'ses-mcp-e2e-escape.json')),
+      ).rejects.toThrow();
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
 
   it('6. 版本记录与变更事件：两条 AI 版本（client 为测试客户端名），人的保存不产生版本；事件顺序 ai → human → ai', async () => {
     const versions = await t.versions.findByDocument(documentId);

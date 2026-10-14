@@ -99,11 +99,40 @@ describe('MCP 工具', () => {
         'validate_document',
         'export_document',
         'outputPath',
+        // outputPath 只能写到允许目录；只给文件名即可，savedTo 是实际路径。
+        '文件名',
+        'savedTo',
+        'output-dir-not-allowed',
+        'SES_MCP_OUTPUT_DIRS',
         'AI 修改',
         '回滚',
       ]) {
         expect(instructions).toContain(keyword);
       }
+    });
+
+    it('export_document 的描述与 outputPath 参数说明：只能写到允许目录、只给文件名即可、savedTo 是实际路径', async () => {
+      const { tools } = await mcp.client.listTools();
+      const tool = tools.find((item) => item.name === 'export_document')!;
+      for (const keyword of [
+        '只能写到服务端允许的目录',
+        '文件名',
+        'SES-exports',
+        'output-dir-not-allowed',
+        'SES_MCP_OUTPUT_DIRS',
+        'savedTo',
+        'file-exists',
+        'file-write-disabled',
+      ]) {
+        expect(tool.description).toContain(keyword);
+      }
+      // 不再要求「绝对路径」。
+      const outputPath = (
+        tool.inputSchema as { properties: Record<string, any> }
+      ).properties.outputPath;
+      expect(outputPath.description).toContain('文件名');
+      expect(outputPath.description).toContain('允许');
+      expect(outputPath.description).not.toContain('这个绝对路径');
     });
 
     it('listTools：恰好 8 个工具，名称不带前缀', async () => {

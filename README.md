@@ -45,7 +45,7 @@
 
 ### AI 共写（MCP）
 
-- 本地运行的服务端提供 MCP 端点（`http://localhost:3000/mcp`），Claude Code 等客户端可以新建文档、读取结构、写入内容、校验并导出，人在编辑器里同时修改同一份文档；接入方法与安全限制见 [本地接入 MCP](docs/wp9-mcp-local-setup.md)，设计见 [WP9 人机共写方案](docs/wp9-ai-coauthoring.md)
+- 本地运行的服务端提供 MCP 端点（`http://127.0.0.1:3000/mcp`），Claude Code 等客户端可以新建文档、读取结构、写入内容、校验并导出，人在编辑器里同时修改同一份文档；接入方法与安全限制见 [本地接入 MCP](docs/wp9-mcp-local-setup.md)，设计见 [WP9 人机共写方案](docs/wp9-ai-coauthoring.md)
 
 ### 版本管理
 
@@ -104,7 +104,7 @@ pnpm install
 pnpm dev
 ```
 
-启动后访问 http://localhost:5173 即可使用编辑器，后端 API 运行在 http://localhost:3000。
+启动后访问 http://localhost:5173 即可使用编辑器，后端 API 运行在 http://localhost:3000（默认只监听本机 127.0.0.1，局域网内的其他设备访问不到；如需开放，见 [本地接入 MCP](docs/wp9-mcp-local-setup.md) 的 `SES_LISTEN_HOST`）。
 
 也可以分别启动前端和后端：
 

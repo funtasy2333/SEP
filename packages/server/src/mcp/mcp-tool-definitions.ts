@@ -270,8 +270,12 @@ export const TOOL_DEFINITIONS: readonly (Tool & { name: McpToolName })[] = [
       '把文档导出为 docx、pdf、html 或 json，与编辑器及导出接口走同一条路径（同样会先做导出前检查）。文件内容不会放进结果。' +
       '返回 { format, filename, size, warnings, downloadUrl, savedTo? }：filename 是建议的文件名，size 是字节数，' +
       'warnings 是导出告警（如外部图片不会被抓取而留空，每项有 code、message，可能有 nodeId），downloadUrl 是本机上的下载地址，用户可以在浏览器中打开。' +
-      '不给 outputPath 时只返回 downloadUrl，不写任何文件。用户要得到文件时，把 outputPath 设为用户工作目录下的绝对路径（含文件名；扩展名必须与 format 对应；' +
-      '父目录必须已存在，不会自动创建），成功时 savedTo 是最终的绝对路径。' +
+      '不给 outputPath 时只返回 downloadUrl，不写任何文件。用户要得到文件时，把 outputPath 设为文件名（如「规范.docx」，扩展名必须与 format 对应），' +
+      '文件会保存到服务端的导出目录（未特别配置时是用户主目录下的 SES-exports，不存在时自动创建）；相对路径都相对于这个目录解析。' +
+      'outputPath 只能写到服务端允许的目录内：也可以给允许目录内的绝对路径，但其中的子目录必须已存在（不会自动创建），' +
+      '写到允许目录之外（含用 .. 或符号链接绕出去）返回 403（code 为 output-dir-not-allowed），消息会列出允许的目录；' +
+      '此时不要换路径绕过，请用户把目标目录加入服务端的环境变量 SES_MCP_OUTPUT_DIRS，或改用文件名。' +
+      '成功时 savedTo 是实际保存的绝对路径，请告诉用户。' +
       '目标文件已存在时默认失败（409，code 为 file-exists）；只有用户明确同意替换时才把 overwrite 设为 true，原文件会被替换且无法恢复。' +
       '写入本机文件可能被服务端禁用（403，code 为 file-write-disabled），此时去掉 outputPath，把 downloadUrl 交给用户。' +
       '导出前检查未通过时返回 422，先用 validate_document 查看原因并修正；pdf 的管线缺少依赖时返回 503，消息列出缺少的依赖，可改导出别的格式。',
@@ -288,7 +292,7 @@ export const TOOL_DEFINITIONS: readonly (Tool & { name: McpToolName })[] = [
         outputPath: {
           type: 'string',
           description:
-            '可选：把文件写到本机的这个绝对路径（含文件名，扩展名与 format 一致，父目录须已存在）；不给则只返回 downloadUrl',
+            '可选：保存到本机的文件名（如「规范.docx」，保存到服务端的导出目录）或允许目录内的绝对路径；扩展名与 format 一致；只能写到服务端允许的目录内；不给则只返回 downloadUrl',
         },
         overwrite: {
           type: 'boolean',

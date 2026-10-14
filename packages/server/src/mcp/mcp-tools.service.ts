@@ -295,8 +295,9 @@ export class McpToolsService {
    * 出件。调用与 REST 导出接口相同的 `ExportService.export*`（含导出前检查），不重复实现任何导出逻辑；
    * 文件内容不进入工具结果：只有下载地址，以及（给了 outputPath 时）写到本机的文件。
    *
-   * 顺序：先校验参数与 outputPath（开关、绝对路径、扩展名、父目录、已存在），再导出，最后写文件——
-   * 路径不对时不会白白跑一遍 PDF 管线。写文件的约束见 mcp-file-output.ts。
+   * 顺序：先校验参数与 outputPath（开关、解析路径、扩展名、父目录、允许目录、已存在），再导出，最后写文件——
+   * 路径不对时不会白白跑一遍 PDF 管线。outputPath 只能写到允许目录内（相对路径与只给文件名相对于第一个允许目录），
+   * 约束见 mcp-file-output.ts。
    * 日志只记录文档 id、格式、字节数与错误码，不记录路径。
    */
   private async exportDocument(
@@ -309,7 +310,7 @@ export class McpToolsService {
     const outputPath = optionalNonEmptyString(
       args,
       'outputPath',
-      '本机上的绝对路径',
+      '导出文件的文件名或路径',
     );
     const overwrite = optionalBoolean(args, 'overwrite') ?? false;
 
