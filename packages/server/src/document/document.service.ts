@@ -40,10 +40,20 @@ export type DocumentSummary = Pick<
 @Injectable()
 export class DocumentService {
   /**
-   * 本类所有写库操作（{@link create}、{@link update}、{@link remove}、{@link transaction}）都经过
-   * 全服务端共用的写锁，原因与「不可重入」的约定见 {@link WriteCoordinator}。
-   * 单条 INSERT / UPDATE / DELETE 本身是原子的，但 SQLite 只有一个共享连接：
-   * 若恰好落在别人已开启、随后又回滚的事务里，会被一并回滚，而调用方已经收到了成功响应。
+   * 本类所有公开的库访问都经过全服务端共用的写锁，原因与「不可重入」的约定见 {@link WriteCoordinator}：
+   * - 写（{@link create}、{@link update}、{@link remove}、{@link transaction}）：
+   *   单条 INSERT / UPDATE / DELETE 本身是原子的，但 SQLite 只有一个共享连接，
+   *   若恰好落在别人已开启、随后又回滚的事务里，会被一并回滚，而调用方已经收到了成功响应；
+   * - 读（{@link findAll}、{@link findSummaries}、{@link findOne}、{@link assertExists}）：
+   *   事务进行期间，共享连接上的读会看到事务内尚未提交的数据（包括递增后的 revision）；
+   *   事务若随后回滚，读方拿到的就是从未存在过的状态。所以读也排队，等事务结束后再读。
+   *
+   * 取舍：读和写因此串行，读与读之间也不并行。单连接的 SQLite 本来就不能并行执行语句，
+   * 代价只是读要等在途事务（一次文档更新加一条版本插入）结束，可以接受。
+   *
+   * 约定：以上公开方法都**不可在锁内调用**（`transaction` 的回调、`WriteCoordinator.run` 的任务里）：
+   * 锁不可重入，会死锁。锁内需要读取时使用传入的 manager / repository，
+   * 或本类不加锁的内部读取（{@link findOneIn}）。
    */
   constructor(
     @InjectRepository(DocumentEntity)
@@ -53,7 +63,9 @@ export class DocumentService {
   ) {}
 
   async findAll(): Promise<DocumentEntity[]> {
-    return this.docRepo.find({ order: { updatedAt: 'DESC' } });
+    return this.writes.run(() =>
+      this.docRepo.find({ order: { updatedAt: 'DESC' } }),
+    );
   }
 
   /**
@@ -61,25 +73,30 @@ export class DocumentService {
    * updatedAt 精度为秒，同一秒内以 id 倒序为准。
    */
   async findSummaries(): Promise<DocumentSummary[]> {
-    return this.docRepo.find({
-      select: {
-        id: true,
-        title: true,
-        stage: true,
-        revision: true,
-        updatedAt: true,
-      },
-      order: { updatedAt: 'DESC', id: 'DESC' },
-    });
+    return this.writes.run(() =>
+      this.docRepo.find({
+        select: {
+          id: true,
+          title: true,
+          stage: true,
+          revision: true,
+          updatedAt: true,
+        },
+        order: { updatedAt: 'DESC', id: 'DESC' },
+      }),
+    );
   }
 
+  /** 读取单个文档；不存在抛 404。排在在途事务之后，只会读到已提交的数据；不可在锁内调用，见类注释。 */
   async findOne(id: number): Promise<DocumentEntity> {
-    return this.findOneIn(this.docRepo, id);
+    return this.writes.run(() => this.findOneIn(this.docRepo, id));
   }
 
-  /** 只确认文档存在（不读取正文）；不存在抛 404。 */
+  /** 只确认文档存在（不读取正文）；不存在抛 404。同样排在在途事务之后；不可在锁内调用。 */
   async assertExists(id: number): Promise<void> {
-    const found = await this.docRepo.exists({ where: { id } });
+    const found = await this.writes.run(() =>
+      this.docRepo.exists({ where: { id } }),
+    );
     if (!found) throw new NotFoundException(`Document #${id} not found`);
   }
 
@@ -143,7 +160,9 @@ export class DocumentService {
    *
    * `work` 内只能用传入的 manager（以及 {@link updateWithin}、`VersionService.createForAiWrite`
    * 这类接收 manager 且不加锁的方法）；不能调用 {@link create} / {@link update} / {@link remove}、
-   * `VersionService.create` 或再次调用本方法：锁不可重入，会死锁。
+   * `VersionService.create` 或再次调用本方法，也不能调用公开的读取（{@link findAll} / {@link findSummaries} /
+   * {@link findOne} / {@link assertExists}、`VersionService.findByDocument` / `findOne`）：
+   * 锁不可重入，会死锁。事务内要读，用 manager 自己查（读到的正是本事务内的状态）。
    */
   transaction<T>(work: (manager: EntityManager) => Promise<T>): Promise<T> {
     return this.writes.run(() => this.docRepo.manager.transaction(work));
@@ -166,14 +185,19 @@ export class DocumentService {
   /**
    * 删除文档（版本记录随外键级联删除）。「存在性检查 → 删除」在同一次持锁期间完成：
    * 若某个事务正在进行，本调用排在它之后，事务回滚或提交都不会影响这次删除的结果。
+   * 持锁期间的存在性检查用不加锁的 {@link findOneIn}：{@link findOne} 自己要取锁，在这里调用会死锁。
    */
   async remove(id: number): Promise<void> {
     await this.writes.run(async () => {
-      await this.findOne(id);
+      await this.findOneIn(this.docRepo, id);
       await this.docRepo.delete(id);
     });
   }
 
+  /**
+   * 不加锁的单文档读取，供已经持锁的代码使用（{@link remove}、{@link conditionalUpdate}，以及传入事务 manager
+   * 的 repository）。公开读取 {@link findOne} 是它外面包一层锁。
+   */
   private async findOneIn(
     repo: Repository<DocumentEntity>,
     id: number,

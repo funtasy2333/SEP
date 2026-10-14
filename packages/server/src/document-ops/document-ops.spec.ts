@@ -1,3 +1,4 @@
+import { get as httpGet } from 'http';
 import { ConflictException, Logger } from '@nestjs/common';
 import type { DocumentOutline, OutlineItem } from '@ses/io';
 import type { PMJsonNode } from '@ses/shared';
@@ -12,6 +13,10 @@ import {
   para,
   sampleDocument,
 } from '../test-support/sample-documents';
+import {
+  connectMcp,
+  type McpTestClient,
+} from '../test-support/mcp-test-client';
 import { createTestApp, type TestApp } from '../test-support/test-app';
 import { MAX_NORMALIZE_ATTEMPTS } from './document-ops.service';
 import { MAX_NOTE_LENGTH } from './operations-request';
@@ -1697,6 +1702,533 @@ describe('文档操作层', () => {
         t.versions.create({ source: '未知' as never }),
       ).rejects.toThrow();
       expect(run).toHaveBeenCalledTimes(5);
+    });
+
+    // -------------------------------------------------------------------------
+    /**
+     * 读也经过写锁：事务进行期间，共享连接上的读会看到事务内尚未提交的数据（内容与递增后的 revision）。
+     * 事务随后回滚的话，读方拿到的是从未存在过的状态，从它打开的编辑器会持有一个不存在的 revision。
+     *
+     * 做法：让 operations 事务停在 updateWithin 之后、版本插入之前（版本记录的读取则停在版本已插入之后，
+     * 否则没有未提交的版本可读），此时发起各种读取，确认它们在事务结束前不返回；
+     * 事务结束后：回滚的读到原状，提交的读到新值。去掉任何一个读方法的加锁，对应用例失败。
+     */
+    describe('读取排在在途事务之后（只读到已提交的数据）', () => {
+      type Outcome = 'rollback' | 'commit';
+      interface ReadContext {
+        id: number;
+        /** 事务内已插入（未提交）的版本 id；只有 after-version-insert 的用例有。 */
+        versionId?: number;
+      }
+      interface ReadCase {
+        name: string;
+        /** 事务挂起的位置。 */
+        holdAt: 'before-version-insert' | 'after-version-insert';
+        start(ctx: ReadContext): Promise<unknown>;
+        check(result: unknown, outcome: Outcome, before: DocBody): void;
+      }
+      /** 抹掉结果类型，让不同形状的用例可以放进同一个数组。 */
+      const defineRead = <T>(def: {
+        name: string;
+        holdAt: ReadCase['holdAt'];
+        start(ctx: ReadContext): Promise<T>;
+        check(result: T, outcome: Outcome, before: DocBody): void;
+      }): ReadCase => def as unknown as ReadCase;
+
+      const sleep = (ms: number) =>
+        new Promise<void>((resolve) => setTimeout(resolve, ms));
+      // aiBody 删除的就是这一段：回滚后应该还在，提交后应该没有。
+      const hasExtra = (content: unknown) =>
+        JSON.stringify(content).includes('附加要求正文');
+      /** 回滚后读到写入前的 revision（0）与内容，提交后读到写入后的（1）。 */
+      const expectRevision = (outcome: Outcome, revision: number) =>
+        expect(revision).toBe(outcome === 'rollback' ? 0 : 1);
+      const expectExtra = (outcome: Outcome, content: unknown) =>
+        expect(hasExtra(content)).toBe(outcome === 'rollback');
+
+      let mcp: McpTestClient;
+      beforeEach(async () => {
+        mcp = await connectMcp(t);
+      });
+      afterEach(async () => {
+        await mcp.close();
+      });
+
+      /** 打开 SSE 连接，收到响应头（状态码）后立即断开。 */
+      const openEvents = (id: number) =>
+        new Promise<number | undefined>((resolve, reject) => {
+          const req = httpGet(`${t.url}/api/documents/${id}/events`, (res) => {
+            res.on('error', () => undefined);
+            resolve(res.statusCode);
+            res.destroy();
+          });
+          req.on('error', reject);
+        });
+
+      const readCases: ReadCase[] = [
+        defineRead({
+          name: 'GET /api/documents/:id（DocumentService.findOne）',
+          holdAt: 'before-version-insert',
+          start: ({ id }) => send(t.http.get(`/api/documents/${id}`)),
+          check: (res, outcome, before) => {
+            expect(res.status).toBe(200);
+            const body = res.body as DocBody;
+            expectRevision(outcome, body.revision);
+            expectExtra(outcome, body.content);
+            if (outcome === 'rollback') {
+              expect(body.content).toEqual(before.content);
+            }
+          },
+        }),
+        defineRead({
+          name: 'GET /api/documents（DocumentService.findAll）',
+          holdAt: 'before-version-insert',
+          start: () => send(t.http.get('/api/documents')),
+          check: (res, outcome) => {
+            expect(res.status).toBe(200);
+            const [entry] = res.body as DocBody[];
+            expectRevision(outcome, entry.revision);
+            expectExtra(outcome, entry.content);
+          },
+        }),
+        defineRead({
+          name: 'DocumentService.findSummaries',
+          holdAt: 'before-version-insert',
+          start: () => t.documents.findSummaries(),
+          check: (summaries, outcome) => {
+            expect(summaries).toHaveLength(1);
+            expectRevision(outcome, summaries[0].revision);
+          },
+        }),
+        defineRead({
+          name: 'DocumentService.assertExists',
+          holdAt: 'before-version-insert',
+          start: ({ id }) => t.documents.assertExists(id),
+          check: (result) => expect(result).toBeUndefined(),
+        }),
+        defineRead({
+          name: 'GET /api/documents/:id/events（SSE 首次读取，assertExists）',
+          holdAt: 'before-version-insert',
+          start: ({ id }) => openEvents(id),
+          check: (status) => expect(status).toBe(200),
+        }),
+        defineRead({
+          name: 'GET /api/documents/:id/outline（DocumentOpsService.prepare）',
+          holdAt: 'before-version-insert',
+          start: ({ id }) => send(t.http.get(`/api/documents/${id}/outline`)),
+          check: (res, outcome) => {
+            expect(res.status).toBe(200);
+            expectRevision(
+              outcome,
+              (res.body as { revision: number }).revision,
+            );
+          },
+        }),
+        defineRead({
+          name: 'MCP get_outline',
+          holdAt: 'before-version-insert',
+          start: ({ id }) => mcp.call('get_outline', { documentId: id }),
+          check: (result, outcome) => {
+            expect(result.isError).toBe(false);
+            expectRevision(
+              outcome,
+              (result.body as { revision: number }).revision,
+            );
+          },
+        }),
+        defineRead({
+          name: 'MCP list_documents（DocumentService.findSummaries）',
+          holdAt: 'before-version-insert',
+          start: () => mcp.call('list_documents'),
+          check: (result, outcome) => {
+            expect(result.isError).toBe(false);
+            const { documents } = result.body as {
+              documents: Array<{ revision: number }>;
+            };
+            expect(documents).toHaveLength(1);
+            expectRevision(outcome, documents[0].revision);
+          },
+        }),
+        defineRead({
+          name: 'MCP validate_document（ExportService.inspect）',
+          holdAt: 'before-version-insert',
+          start: ({ id }) => mcp.call('validate_document', { documentId: id }),
+          check: (result, outcome) => {
+            expect(result.isError).toBe(false);
+            expectRevision(
+              outcome,
+              (result.body as { revision: number }).revision,
+            );
+          },
+        }),
+        defineRead({
+          name: 'GET /api/documents/:id/export/json（ExportService.inspect）',
+          holdAt: 'before-version-insert',
+          start: ({ id }) =>
+            send(t.http.get(`/api/documents/${id}/export/json`)),
+          check: (res, outcome) => {
+            expect(res.status).toBe(200);
+            expectExtra(outcome, res.text);
+          },
+        }),
+        defineRead({
+          name: 'GET /api/versions/document/:id（VersionService.findByDocument）',
+          holdAt: 'after-version-insert',
+          start: ({ id }) => send(t.http.get(`/api/versions/document/${id}`)),
+          check: (res, outcome) => {
+            expect(res.status).toBe(200);
+            const versions = res.body as VersionBody[];
+            // 回滚后版本从未存在过；提交后恰有这一条 AI 版本。
+            expect(versions.map((version) => version.source)).toEqual(
+              outcome === 'rollback' ? [] : ['ai'],
+            );
+          },
+        }),
+        defineRead({
+          name: 'GET /api/versions/:id（VersionService.findOne）',
+          holdAt: 'after-version-insert',
+          start: ({ versionId }) =>
+            send(t.http.get(`/api/versions/${versionId}`)),
+          check: (res, outcome) => {
+            expect(res.status).toBe(outcome === 'rollback' ? 404 : 200);
+            if (outcome === 'commit') {
+              expect((res.body as VersionBody).baseContent).toBeTruthy();
+            }
+          },
+        }),
+      ];
+
+      /** 停在「版本已插入、尚未提交」；放行后：rollback 抛错让事务回滚，commit 正常返回。 */
+      function pauseAfterVersionInsert(
+        until: Promise<unknown>,
+        outcome: Outcome,
+      ) {
+        const entered = deferred();
+        const paused: { entered: Promise<void>; versionId?: number } = {
+          entered: entered.promise,
+        };
+        const original = boundMethod(t.versions, 'createForAiWrite');
+        jest
+          .spyOn(t.versions, 'createForAiWrite')
+          .mockImplementation(async (manager, input) => {
+            const version = await original(manager, input);
+            paused.versionId = version.id;
+            entered.resolve();
+            await until;
+            if (outcome === 'rollback') throw new Error('让事务回滚');
+            return version;
+          });
+        return paused;
+      }
+
+      /**
+       * 发起一次读取，等它排到写锁上（或已经返回），再让出足够多次事件循环：没有加锁的读会在这期间完成。
+       * 调用方随后断言 `isSettled()` 为 false。
+       */
+      async function startRead<T>(
+        lockCount: () => number,
+        read: () => Promise<T>,
+      ) {
+        const baseline = lockCount();
+        let settled = false;
+        const promise = read();
+        const markSettled = () => {
+          settled = true;
+        };
+        void promise.then(markSettled, markSettled);
+        const deadline = Date.now() + 3000;
+        while (lockCount() === baseline && !settled) {
+          if (Date.now() > deadline) throw new Error('读取没有到达写锁');
+          await tick();
+        }
+        for (let i = 0; i < 20; i++) await tick();
+        await sleep(30);
+        return { promise, isSettled: () => settled };
+      }
+
+      /** 挂起事务 → 发起读取 → 确认读取在等待 → 放行事务 → 检查读取结果与事务结果。 */
+      async function readDuringTransaction(
+        readCase: ReadCase,
+        outcome: Outcome,
+      ) {
+        const id = await createDoc();
+        const before = await getDoc(id);
+        const events = collectEvents(id);
+        const run = jest.spyOn(t.app.get(WriteCoordinator), 'run');
+        const release = deferred();
+        let paused: { entered: Promise<void>; versionId?: number };
+        if (readCase.holdAt === 'before-version-insert') {
+          // 回滚：版本插入真实失败（数据库触发器），与「事务」一节的注入方式相同；提交：不装触发器。
+          if (outcome === 'rollback') {
+            await t.dataSource.query(
+              `CREATE TRIGGER ${FAIL_TRIGGER} BEFORE INSERT ON versions WHEN NEW.source = 'ai' BEGIN SELECT RAISE(ABORT, '注入的版本插入失败'); END`,
+            );
+          }
+          paused = pauseInsideTransaction(release.promise);
+        } else {
+          paused = pauseAfterVersionInsert(release.promise, outcome);
+        }
+        const logs = captureLogs();
+        try {
+          const ops = send(postOps(id, aiBody));
+          await paused.entered;
+
+          const read = await startRead(
+            () => run.mock.calls.length,
+            () => readCase.start({ id, versionId: paused.versionId }),
+          );
+          // 事务还没有结束：读取不能已经返回（否则读到的就是未提交的状态）。
+          expect(read.isSettled()).toBe(false);
+
+          release.resolve();
+          const [opsRes, result] = await Promise.all([ops, read.promise]);
+          expect(opsRes.status).toBe(outcome === 'rollback' ? 500 : 200);
+          readCase.check(result, outcome, before);
+          expect(events).toHaveLength(outcome === 'rollback' ? 0 : 1);
+        } finally {
+          // 断言失败时也要放行事务，否则它永远挂起，app.close() 等不到在途请求结束。
+          release.resolve();
+          logs.restore();
+        }
+      }
+
+      it.each(readCases)(
+        '事务回滚：$name 在事务结束前不返回，之后读到回滚后的原状',
+        (readCase) => readDuringTransaction(readCase, 'rollback'),
+      );
+      it.each(readCases)(
+        '事务提交：$name 在事务结束前不返回，之后读到提交后的新值',
+        (readCase) => readDuringTransaction(readCase, 'commit'),
+      );
+    });
+
+    // -------------------------------------------------------------------------
+    /**
+     * 死锁回归：读也要取锁之后，任何「锁内再调用会取锁的方法」都会永远等待自己。
+     * 这里逐条走通各调用链，断言每条链取锁的次数固定（读 1 次，prepare 补 nodeId 读 + 写共 2 次，
+     * apply 读 + 事务共 2 次……）并且在超时内完成：多一次取锁就说明有人在锁内（或重复地）调用了公开方法。
+     */
+    describe('取锁次数与死锁回归', () => {
+      const withTimeout = async <T>(task: Promise<T>, label: string) => {
+        let timer: NodeJS.Timeout | undefined;
+        const timeout = new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error(`${label}：超时，疑似死锁`)),
+            2000,
+          );
+        });
+        try {
+          return await Promise.race([task, timeout]);
+        } finally {
+          clearTimeout(timer);
+        }
+      };
+
+      it('DocumentService / VersionService 的每个公开读取各取一次写锁；找不到时也释放锁', async () => {
+        const id = await createDoc();
+        const version = await t.versions.create({
+          documentId: id,
+          versionNo: '1.0',
+          stage: 'working_draft',
+          content: { type: 'doc', content: [] },
+        });
+        const run = jest.spyOn(t.app.get(WriteCoordinator), 'run');
+        const once = async (label: string, call: () => Promise<unknown>) => {
+          const before = run.mock.calls.length;
+          await withTimeout(call(), label);
+          expect(run.mock.calls.length - before).toBe(1);
+        };
+
+        await once('findAll', () => t.documents.findAll());
+        await once('findSummaries', () => t.documents.findSummaries());
+        await once('findOne', () => t.documents.findOne(id));
+        await once('assertExists', () => t.documents.assertExists(id));
+        await once('versions.findByDocument', () =>
+          t.versions.findByDocument(id),
+        );
+        await once('versions.findOne', () => t.versions.findOne(version.id));
+
+        // 找不到：抛 404，锁已释放，之后的读取照常完成。
+        await expect(
+          withTimeout(t.documents.findOne(9999), 'findOne 404'),
+        ).rejects.toThrow('Document #9999 not found');
+        await expect(
+          withTimeout(t.documents.assertExists(9999), 'assertExists 404'),
+        ).rejects.toThrow('Document #9999 not found');
+        await expect(
+          withTimeout(t.versions.findOne(9999), 'versions.findOne 404'),
+        ).rejects.toThrow('Version #9999 not found');
+        await once('找不到之后的 findOne', () => t.documents.findOne(id));
+      });
+
+      it('各调用链取锁次数固定且不死锁：读 1 次；补 nodeId 读 + 写 2 次；apply 读 + 事务 2 次；写 1 次；remove 只取 1 次', async () => {
+        const id = await createDoc();
+        const damagedId = await createDoc(
+          doc(
+            chapter(
+              'ch-1',
+              '范围',
+              para(null, '缺 id 的段落'),
+              para('dup', '甲'),
+              para('dup', '乙'),
+            ),
+          ) as unknown as Record<string, unknown>,
+        );
+        const mcp = await connectMcp(t);
+        const run = jest.spyOn(t.app.get(WriteCoordinator), 'run');
+        let versionId = 0;
+        const status = (test: request.Test) => test.then((res) => res.status);
+        const get = (path: string) => () => status(t.http.get(path));
+        const events = () =>
+          new Promise<void>((resolve, reject) => {
+            const req = httpGet(
+              `${t.url}/api/documents/${id}/events`,
+              (res) => {
+                res.on('error', () => undefined);
+                resolve();
+                res.destroy();
+              },
+            );
+            req.on('error', reject);
+          });
+
+        // [名称, 预期取锁次数, 调用]。顺序有意义：后面的写入依赖前面的 revision。
+        const chains: Array<[string, number, () => Promise<unknown>]> = [
+          // 读：各 1 次
+          ['GET /documents/:id', 1, get(`/api/documents/${id}`)],
+          ['GET /documents', 1, get('/api/documents')],
+          ['GET outline', 1, get(`/api/documents/${id}/outline`)],
+          ['GET node', 1, get(`/api/documents/${id}/nodes/p-extra`)],
+          ['GET container', 1, get(`/api/documents/${id}/containers/foreword`)],
+          ['GET export/json', 1, get(`/api/documents/${id}/export/json`)],
+          ['GET export/html', 1, get(`/api/documents/${id}/export/html`)],
+          ['GET export/docx', 1, get(`/api/documents/${id}/export/docx`)],
+          ['GET /events（SSE 首次读取）', 1, events],
+          ['MCP list_documents', 1, () => mcp.call('list_documents')],
+          [
+            'MCP get_outline',
+            1,
+            () => mcp.call('get_outline', { documentId: id }),
+          ],
+          [
+            'MCP get_node',
+            1,
+            () => mcp.call('get_node', { documentId: id, nodeId: 'p-extra' }),
+          ],
+          [
+            'MCP validate_document',
+            1,
+            () => mcp.call('validate_document', { documentId: id }),
+          ],
+          [
+            'MCP export_document(json)',
+            1,
+            () =>
+              mcp.call('export_document', { documentId: id, format: 'json' }),
+          ],
+          // 版本：创建、列表、详情各 1 次
+          [
+            'POST /versions',
+            1,
+            async () => {
+              const res = await t.http.post('/api/versions').send({
+                documentId: id,
+                versionNo: '1.0',
+                stage: 'working_draft',
+                content: { type: 'doc', content: [] },
+              });
+              versionId = (res.body as VersionBody).id;
+            },
+          ],
+          [
+            'GET /versions/document/:id',
+            1,
+            get(`/api/versions/document/${id}`),
+          ],
+          [
+            'GET /versions/:id',
+            1,
+            () => status(t.http.get(`/api/versions/${versionId}`)),
+          ],
+          // prepare 补 nodeId：读 + 条件 UPDATE 共 2 次；补齐之后再读只有 1 次
+          [
+            'GET outline（补 nodeId）',
+            2,
+            get(`/api/documents/${damagedId}/outline`),
+          ],
+          [
+            'GET outline（已补齐）',
+            1,
+            get(`/api/documents/${damagedId}/outline`),
+          ],
+          // 写：apply 是 prepare 的读 + 事务，共 2 次
+          ['POST operations（ai）', 2, () => status(postOps(id, aiBody))],
+          [
+            'MCP apply_operations',
+            2,
+            () =>
+              mcp.call('apply_operations', {
+                documentId: id,
+                baseRevision: 1,
+                operations: [
+                  {
+                    op: 'insert',
+                    parent: 'ch-extra',
+                    position: 'end',
+                    content: ['新增段落。'],
+                  },
+                ],
+              }),
+          ],
+          [
+            'PUT /documents/:id',
+            1,
+            () =>
+              status(
+                t.http
+                  .put(`/api/documents/${id}`)
+                  .send({ baseRevision: 2, title: '新标题' }),
+              ),
+          ],
+          [
+            'POST /documents',
+            1,
+            () =>
+              status(
+                t.http.post('/api/documents').send({
+                  title: '新文档',
+                  meta,
+                  stage: 'working_draft',
+                  content: null,
+                }),
+              ),
+          ],
+          // remove 在锁内做存在性检查：用不加锁的读，所以只取 1 次（用公开 findOne 会死锁）
+          [
+            'DELETE /documents/:id',
+            1,
+            () => status(t.http.delete(`/api/documents/${id}`)),
+          ],
+          [
+            'DELETE 不存在的文档',
+            1,
+            () => status(t.http.delete('/api/documents/9999')),
+          ],
+        ];
+
+        try {
+          for (const [label, locks, call] of chains) {
+            const before = run.mock.calls.length;
+            await withTimeout(call(), label);
+            expect([label, run.mock.calls.length - before]).toEqual([
+              label,
+              locks,
+            ]);
+          }
+        } finally {
+          await mcp.close();
+        }
+      });
     });
   });
 

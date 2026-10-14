@@ -205,6 +205,9 @@ export class ExportService {
    *
    * 只读：不写库、不补 nodeId。日志只记录文档 id、问题类别与 JSON Pointer（下标与固定字段名），
    * 不记录节点类型、消息或正文（错误消息可能带正文片段）。
+   *
+   * `documentService.findOne` 经过写锁：operations 事务进行期间，这里等它结束，读到的一定是已提交的内容与 revision。
+   * 锁只覆盖这次读取；校验、检查以及之后的导出构建（含耗时的 PDF 管线）都在锁外，不会阻塞写入。
    */
   private async inspect(
     id: number,

@@ -204,7 +204,8 @@ export class DocumentOpsService {
 
     const content = result.doc as unknown as Record<string, unknown>;
     // 事务持有全服务端写锁（WriteCoordinator，不可重入）：回调内只能用传入的 manager 及
-    // updateWithin / createForAiWrite 这类不加锁的方法，不能调用 documents.update 等会加锁的公开方法。
+    // updateWithin / createForAiWrite 这类不加锁的方法，不能调用 documents.update 等会加锁的公开写方法，
+    // 也不能调用 documents.findOne 等公开读方法（读同样经过写锁）。
     const { updated, version } = await this.documents.transaction(
       async (manager) => {
         const updated = await this.documents.updateWithin(
@@ -257,6 +258,10 @@ export class DocumentOpsService {
    * 持久化用条件 UPDATE（基于刚读到的 revision）。失败说明别人抢先写了：重新读取再判断，
    * 最多 {@link MAX_NORMALIZE_ATTEMPTS} 次，用尽后返回 409。
    * 不需要补 id 时只读，不写库、不改 revision。
+   *
+   * 本方法不在写锁内运行：`documents.findOne`（读，排在在途事务之后）与 `documents.update`（写）
+   * 各自取锁、用完即放，二者之间别人可以写入——这正是条件 UPDATE 与重试要处理的情况。
+   * `apply` 在 `prepare` 返回之后才开启事务，所以不会在锁内再调用它们。
    */
   private async prepare(
     id: number,

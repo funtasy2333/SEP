@@ -47,21 +47,30 @@ export class VersionService {
   /**
    * 版本列表（最新在前）。不含 baseContent（见 VersionEntity.baseContent）。
    * createdAt 精度为秒，同一秒内的多条以 id 倒序为准，保证「最新一条」始终确定。
+   *
+   * 读取经过全服务端共用的写锁（见 {@link WriteCoordinator}）：operations 的事务打开期间，共享连接上的读
+   * 会看到事务里尚未提交的版本；事务回滚后，这条版本就是从未存在过的。所以读排在在途事务之后
+   * （读与写因此串行，对单连接的 SQLite 可以接受）。不可在 `DocumentService.transaction` 的回调里调用
+   * （锁不可重入，会死锁）：事务内要读请用事务传入的 manager。
    */
   async findByDocument(documentId: number): Promise<VersionEntity[]> {
-    return this.versionRepo.find({
-      where: { documentId },
-      order: { createdAt: 'DESC', id: 'DESC' },
-    });
+    return this.writes.run(() =>
+      this.versionRepo.find({
+        where: { documentId },
+        order: { createdAt: 'DESC', id: 'DESC' },
+      }),
+    );
   }
 
-  /** 单个版本的详情，含 baseContent（列表接口不返回）。 */
+  /** 单个版本的详情，含 baseContent（列表接口不返回）。同样经过写锁，约定见 {@link findByDocument}。 */
   async findOne(id: number): Promise<VersionEntity> {
-    const version = await this.versionRepo
-      .createQueryBuilder('version')
-      .addSelect('version.baseContent')
-      .where('version.id = :id', { id })
-      .getOne();
+    const version = await this.writes.run(() =>
+      this.versionRepo
+        .createQueryBuilder('version')
+        .addSelect('version.baseContent')
+        .where('version.id = :id', { id })
+        .getOne(),
+    );
     if (!version) throw new NotFoundException(`Version #${id} not found`);
     return version;
   }

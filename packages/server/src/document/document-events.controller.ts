@@ -46,7 +46,8 @@ export class DocumentEventsController {
    * Server-Sent Events：该文档每次写入成功（PUT、operations、读接口触发的 nodeId 规范化）推送一条
    * `document-changed` 事件，`data` 为 `{ documentId, revision, source, client?, at }`，不含文档内容。
    * 另外每隔固定时间发送一行注释 `: heartbeat` 保持连接，防止代理因空闲断开。
-   * 文档不存在返回 404（普通 JSON 错误，此时尚未进入事件流）。
+   * 文档不存在返回 404（普通 JSON 错误，此时尚未进入事件流）。存在性检查经过写锁，
+   * 在途的 operations 事务结束后才返回；锁只覆盖这次检查，不覆盖之后长期保持的事件流。
    *
    * 不重放历史事件，也不推送连接建立时的当前 revision。客户端的正确顺序是：**先订阅，再读取文档**，
    * 并在每次（重新）连接成功后重新读取文档、与自己持有的 revision 比较；先读后订阅会漏掉两者之间发生的变更。
