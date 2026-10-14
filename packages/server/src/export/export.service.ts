@@ -16,7 +16,10 @@ import {
 } from '@ses/io';
 import {
   irMetaFromDocumentMeta,
+  pmToIr,
+  resolve,
   type DocumentMeta,
+  type IRProblem,
   type PMJsonNode,
 } from '@ses/shared';
 import { schemaProblemDetails, unprocessable } from '../common/http-errors';
@@ -72,6 +75,49 @@ interface PreparedExport {
   filenameBase: string;
 }
 
+/** 参与导出前检查的格式（json 与编辑器一致不检查）。 */
+type GuardedFormat = Extract<ExportGuardFormat, 'docx' | 'pdf' | 'html'>;
+/** 带 json：json 不做导出前检查，但同样要先校验结构。 */
+type ExportFormat = GuardedFormat | Extract<ExportGuardFormat, 'json'>;
+
+/** {@link ExportService.validateForExport} 逐一检查的格式。 */
+export const VALIDATED_EXPORT_FORMATS: readonly GuardedFormat[] = [
+  'docx',
+  'pdf',
+  'html',
+];
+
+/**
+ * 检查的用途，决定 422 与日志里的措辞：`action` 接在「无法」之后（导出 DOCX / 校验），
+ * `aborted` 接在「中止」之前（DOCX 导出 / 校验）。导出沿用原有措辞，不因共用检查而改变。
+ */
+interface CheckPurpose {
+  action: string;
+  aborted: string;
+}
+
+/** {@link ExportService.inspect} 的结果：{@link PreparedExport}、读到的 revision 与各格式的导出前检查结论。 */
+interface InspectedDocument extends PreparedExport {
+  revision: number;
+  /** 每个被检查的格式 → 未通过时的失败信息，通过为 null。 */
+  failures: ReadonlyMap<ExportFormat, ExportGuardFailure | null>;
+}
+
+/** {@link ExportService.validateForExport} 的结果。 */
+export interface ExportValidation {
+  /** 本次检查所基于的文档 revision。 */
+  revision: number;
+  /**
+   * 文档的 Resolver 问题，与 apply_operations 返回的 problems 同一来源（`resolve(pmToIr(文档).doc).problems`），
+   * 只是没有 `introduced`（没有「本批操作」可供对比）。
+   */
+  problems: IRProblem[];
+  /** 各格式的导出前检查结论：null 表示通过；否则与对应导出接口 422 响应体里的 source、message、problems 相同。 */
+  checks: Record<GuardedFormat, ExportGuardFailure | null>;
+  /** PDF 管线是否可用（与 GET /api/convert/capabilities 的 htmlToPdf 一致）。 */
+  pdfAvailable: boolean;
+}
+
 @Injectable()
 export class ExportService {
   private readonly logger = new Logger(ExportService.name);
@@ -122,51 +168,21 @@ export class ExportService {
   }
 
   /**
-   * 按文档 id 取出库中内容并做编辑器导出前的同样处理（DOCX / PDF / HTML / JSON 共用）：
+   * 按文档 id 取出库中内容并做编辑器导出前的同样处理（DOCX / PDF / HTML / JSON 导出共用）：
    * 内容为空 → 422；同步封面元数据；按生产 schema 校验并取 ProseMirror 文档的 toJSON()，不符合 → 422；
    * 除 json 外做导出前检查（脚注、输出边界）→ 未通过 422。json 与编辑器一致不做导出前检查，但同样校验结构。
-   *
-   * 文档库里保存的 content 就是编辑器 getJSON() 的结果（保存前同样经过封面同步）；
-   * 但库里的内容不一定出自编辑器（API 直接写入、AI 写入），所以这里额外校验：
-   * 不符合 schema 的内容返回 422，而不是导出一份缺失或错乱的文件。
-   *
-   * 结构无法解析同样 422。日志只记录文档 id、问题类别与 JSON Pointer（下标与固定字段名），
-   * 不记录节点类型、消息或正文（错误消息可能带正文片段）。
+   * 前几步与检查本身见 {@link inspect}，校验接口 {@link validateForExport} 走同一个方法。
    */
   private async prepareForExport(
     id: number,
-    format: Extract<ExportGuardFormat, 'docx' | 'pdf' | 'html' | 'json'>,
+    format: ExportFormat,
   ): Promise<PreparedExport> {
     const label = format.toUpperCase();
-    const doc = await this.documentService.findOne(id);
-    if (isEmptyContent(doc.content)) {
-      throw unprocessable(`文档内容为空，无法导出 ${label}`);
-    }
-    // 实体上的 meta 类型是 shared DocumentMeta 的子集（standardType 为 string），数据形状一致。
-    const meta = (doc.meta ?? {}) as unknown as DocumentMeta;
-
-    let pmDoc: PMJsonNode;
-    let failure: ExportGuardFailure | null;
-    try {
-      const synchronized = synchronizeCoverMetadata(doc.content, meta);
-      pmDoc = validateContent(synchronized).toJSON() as PMJsonNode;
-      failure = checkExportGuard(pmDoc, format);
-    } catch (error) {
-      if (error instanceof EditorContentError) {
-        this.logger.warn(
-          `文档 #${id} 内容不符合编辑器文档结构，${label} 导出中止（${error.problem.code}，${error.problem.path || '根节点'}）`,
-        );
-        throw unprocessable(
-          `文档内容不符合编辑器文档结构，无法导出 ${label}：${error.message}`,
-          schemaProblemDetails(error),
-        );
-      }
-      // 库里的 content 无法解析；错误消息可能带正文片段，不写日志。
-      this.logger.warn(
-        `文档 #${id} 内容无法解析，${label} 导出中止（${(error as Error).name}）`,
-      );
-      throw unprocessable(`文档内容结构无法解析，无法导出 ${label}`);
-    }
+    const { failures, ...prepared } = await this.inspect(id, [format], {
+      action: `导出 ${label}`,
+      aborted: `${label} 导出`,
+    });
+    const failure = failures.get(format);
     if (failure) {
       throw unprocessable(failure.message, {
         source: failure.source,
@@ -174,11 +190,102 @@ export class ExportService {
         problems: failure.problems,
       });
     }
+    return prepared;
+  }
+
+  /**
+   * 导出与校验共用的「读取 + 检查」：读取文档（不存在 404），内容为空 → 422，同步封面元数据，
+   * 按生产 schema 校验并取 toJSON()，再对 `formats` 里的每个格式做导出前检查（`checkExportGuard`：脚注，输出边界）。
+   * 检查结论放在返回值里（未通过不抛），由调用方决定是转成 422（导出）还是原样汇报（校验）；
+   * 内容为空、不符合 schema、结构无法解析则在这里直接抛 422。
+   *
+   * 文档库里保存的 content 就是编辑器 getJSON() 的结果（保存前同样经过封面同步）；
+   * 但库里的内容不一定出自编辑器（API 直接写入、AI 写入），所以这里额外校验：
+   * 不符合 schema 的内容返回 422，而不是导出一份缺失或错乱的文件。
+   *
+   * 只读：不写库、不补 nodeId。日志只记录文档 id、问题类别与 JSON Pointer（下标与固定字段名），
+   * 不记录节点类型、消息或正文（错误消息可能带正文片段）。
+   */
+  private async inspect(
+    id: number,
+    formats: readonly ExportFormat[],
+    purpose: CheckPurpose,
+  ): Promise<InspectedDocument> {
+    const doc = await this.documentService.findOne(id);
+    if (isEmptyContent(doc.content)) {
+      throw unprocessable(`文档内容为空，无法${purpose.action}`);
+    }
+    // 实体上的 meta 类型是 shared DocumentMeta 的子集（standardType 为 string），数据形状一致。
+    const meta = (doc.meta ?? {}) as unknown as DocumentMeta;
+
+    let pmDoc: PMJsonNode;
+    const failures = new Map<ExportFormat, ExportGuardFailure | null>();
+    try {
+      const synchronized = synchronizeCoverMetadata(doc.content, meta);
+      pmDoc = validateContent(synchronized).toJSON() as PMJsonNode;
+      for (const format of formats) {
+        failures.set(format, checkExportGuard(pmDoc, format));
+      }
+    } catch (error) {
+      if (error instanceof EditorContentError) {
+        this.logger.warn(
+          `文档 #${id} 内容不符合编辑器文档结构，${purpose.aborted}中止（${error.problem.code}，${error.problem.path || '根节点'}）`,
+        );
+        throw unprocessable(
+          `文档内容不符合编辑器文档结构，无法${purpose.action}：${error.message}`,
+          schemaProblemDetails(error),
+        );
+      }
+      // 库里的 content 无法解析；错误消息可能带正文片段，不写日志。
+      this.logger.warn(
+        `文档 #${id} 内容无法解析，${purpose.aborted}中止（${(error as Error).name}）`,
+      );
+      throw unprocessable(`文档内容结构无法解析，无法${purpose.action}`);
+    }
     return {
+      revision: doc.revision,
       meta,
       stage: doc.stage,
       pmDoc,
       filenameBase: meta.titleCn?.trim() || DEFAULT_FILE_TITLE,
+      failures,
+    };
+  }
+
+  /**
+   * 校验文档（MCP 的 validate_document 使用）：只读，不写库，不生成文件。
+   *
+   * - `checks`：docx / pdf / html 的导出前检查，与对应导出接口是同一套判断（同一个 {@link inspect}：
+   *   同步封面元数据 → 生产 schema 校验 → `checkExportGuard`），所以这里通过的格式，导出接口在检查这一步也一定通过；
+   * - `problems`：文档的 Resolver 问题。基于同一份已校验的文档，与 apply_operations 返回的 problems 同一来源；
+   * - `pdfAvailable`：PDF 管线是否可用。检查通过而管线不可用时，导出 PDF 仍会 503（顺序与导出接口一致：先 422 后 503）。
+   *
+   * 文档不存在 404；内容为空、不符合生产 schema、结构无法解析 → 422，与导出接口一致。json 不做导出前检查，不在其中。
+   */
+  async validateForExport(id: number): Promise<ExportValidation> {
+    const { revision, pmDoc, failures } = await this.inspect(
+      id,
+      VALIDATED_EXPORT_FORMATS,
+      { action: '校验', aborted: '校验' },
+    );
+    const checks = Object.fromEntries(
+      VALIDATED_EXPORT_FORMATS.map((format) => [
+        format,
+        failures.get(format) ?? null,
+      ]),
+    ) as ExportValidation['checks'];
+    const problems = resolve(pmToIr(pmDoc).doc).problems;
+    this.logger.log(
+      `文档 #${id} 校验完成：${problems.length} 个文档问题，` +
+        VALIDATED_EXPORT_FORMATS.map(
+          (format) => `${format} ${checks[format] ? '未通过' : '通过'}`,
+        ).join('、'),
+    );
+    return {
+      revision,
+      problems,
+      checks,
+      pdfAvailable: this.convertService.getCapabilities().htmlToPdf,
     };
   }
 

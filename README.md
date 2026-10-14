@@ -43,6 +43,10 @@
 - DOCX 中的目次页码由 Word 更新；增删章条后需重新导出以更新目次条目（见 docs/wp7-docx-delivery.md）
 - DOCX 真实文稿交付验收尚未完成，当前状态、补充样稿证据及素材限制见 [WP7.6 验收记录](docs/wp7.6-delivery-validation.md)
 
+### AI 共写（MCP）
+
+- 本地运行的服务端提供 MCP 端点（`http://localhost:3000/mcp`），Claude Code 等客户端可以新建文档、读取结构、写入内容、校验并导出，人在编辑器里同时修改同一份文档；接入方法与安全限制见 [本地接入 MCP](docs/wp9-mcp-local-setup.md)，设计见 [WP9 人机共写方案](docs/wp9-ai-coauthoring.md)
+
 ### 版本管理
 
 - 手动版本创建与快照保存

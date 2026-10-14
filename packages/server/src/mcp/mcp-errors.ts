@@ -18,6 +18,12 @@ export interface McpErrorBody {
 
 const HTTP_CONFLICT = 409;
 const HTTP_INTERNAL_ERROR = 500;
+/**
+ * 503 是唯一保留原状态码与消息的 5xx：PDF 管线缺依赖时 `exportPdf` 抛出，消息只列出缺少的依赖名，
+ * 对 AI 有用（可告诉用户安装什么，或改导出别的格式）且不含敏感信息。目前服务层没有别的 503 来源；
+ * 将来若新增，消息必须同样不含路径、堆栈等内部信息。
+ */
+const HTTP_SERVICE_UNAVAILABLE = 503;
 
 /** 非 HTTP 异常（含 5xx）统一返回的消息：不泄露堆栈、SQL 或文件路径。 */
 export const INTERNAL_ERROR_MESSAGE = '服务端内部错误';
@@ -48,12 +54,14 @@ function messageOf(
  * 把服务层抛出的异常映射为工具错误正文：
  * - `HttpException`（4xx）：沿用 REST 的状态码与响应体里的 `code`、`revision`、`issues`、`problems`；
  *   409 在消息后追加「请重新读取后再修改」；
- * - 其余（非 HTTP 异常、5xx）：通用的「服务端内部错误」，调用方据此记录日志，正文不含异常消息。
+ * - 503：同样保留状态码与消息（见 {@link HTTP_SERVICE_UNAVAILABLE}）；
+ * - 其余（非 HTTP 异常、其他 5xx）：通用的「服务端内部错误」，调用方据此记录日志，正文不含异常消息。
  */
 export function toErrorBody(error: unknown): McpErrorBody {
   if (
     !(error instanceof HttpException) ||
-    error.getStatus() >= HTTP_INTERNAL_ERROR
+    (error.getStatus() >= HTTP_INTERNAL_ERROR &&
+      error.getStatus() !== HTTP_SERVICE_UNAVAILABLE)
   ) {
     return {
       status: HTTP_INTERNAL_ERROR,

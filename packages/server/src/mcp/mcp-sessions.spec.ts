@@ -254,8 +254,8 @@ describe('MCP 会话', () => {
       const [a, b] = [await connect('a'), await connect('b')];
       expect(sessionIdOf(a)).not.toBe(sessionIdOf(b));
       expect(t.mcp.size).toBe(2);
-      expect((await a.client.listTools()).tools).toHaveLength(6);
-      expect((await b.client.listTools()).tools).toHaveLength(6);
+      expect((await a.client.listTools()).tools).toHaveLength(8);
+      expect((await b.client.listTools()).tools).toHaveLength(8);
     });
   });
 
@@ -344,7 +344,7 @@ describe('MCP 会话', () => {
 
       const again = await connect();
       expect(sessionIdOf(again)).not.toBe(oldId);
-      expect((await again.client.listTools()).tools).toHaveLength(6);
+      expect((await again.client.listTools()).tools).toHaveLength(8);
     });
 
     it('GET 与 DELETE 对已过期的会话同样是 404', async () => {

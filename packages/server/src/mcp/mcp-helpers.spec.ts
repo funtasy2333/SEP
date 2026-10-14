@@ -4,6 +4,7 @@ import {
   HttpException,
   InternalServerErrorException,
   NotFoundException,
+  ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { MAX_CLIENT_LENGTH } from '../version/version.service';
@@ -17,6 +18,7 @@ import {
 } from './mcp-errors';
 import {
   assertOnlyKeys,
+  optionalBoolean,
   optionalEnum,
   optionalNonEmptyString,
   optionalString,
@@ -191,12 +193,33 @@ describe('toErrorBody', () => {
       undefined,
       new InternalServerErrorException('带内部细节的 500'),
       new HttpException('网关错误 /etc/passwd', 502),
+      new HttpException('网关超时 /etc/passwd', 504),
+      new HttpException('未实现 /etc/passwd', 501),
     ]) {
       const body = toErrorBody(error);
       expect(body).toEqual({ status: 500, message: INTERNAL_ERROR_MESSAGE });
       expect(JSON.stringify(body)).not.toMatch(/SQLITE|passwd|内部细节|srv/);
     }
     expect(INTERNAL_ERROR_MESSAGE).toBe('服务端内部错误');
+  });
+
+  it('503 保留原状态码与消息（PDF 管线缺依赖，消息列出缺少的依赖）', () => {
+    const message =
+      'PDF 导出不可用：服务端 IR→HTML→PDF 管线缺少依赖：@vivliostyle/cli、poppler(pdftotext/pdfinfo)';
+    const body = toErrorBody(
+      new ServiceUnavailableException({
+        statusCode: 503,
+        error: 'Service Unavailable',
+        message,
+        missingDependencies: ['@vivliostyle/cli'],
+      }),
+    );
+    expect(body).toEqual({ status: 503, message });
+    // 字符串形式的 503 同样保留。
+    expect(toErrorBody(new ServiceUnavailableException('暂不可用'))).toEqual({
+      status: 503,
+      message: '暂不可用',
+    });
   });
 
   it('jsonResult / errorResult：内容是 JSON 文本，成功时同时给 structuredContent', () => {
@@ -281,6 +304,17 @@ describe('工具参数解析', () => {
       '缺少参数「k」',
     );
     expect(requiredNonEmptyString({ k: ' 题 ' }, 'k', '说明')).toBe(' 题 ');
+  });
+
+  it('布尔参数：只接受 true / false，字符串 "false" 与数字都拒绝', () => {
+    expect(optionalBoolean({}, 'k')).toBeUndefined();
+    expect(optionalBoolean({ k: true }, 'k')).toBe(true);
+    expect(optionalBoolean({ k: false }, 'k')).toBe(false);
+    for (const bad of ['true', 'false', 0, 1, null, {}, []]) {
+      expect(messageOf(() => optionalBoolean({ k: bad }, 'k'))).toContain(
+        '布尔值',
+      );
+    }
   });
 
   it('枚举参数', () => {

@@ -50,6 +50,17 @@ export function optionalString(
   return value;
 }
 
+/** 可选的布尔值：给出时必须是 true / false（字符串 "true"、数字 1 等一律拒绝，免得 "false" 被当作真值）。 */
+export function optionalBoolean(
+  args: ToolArgs,
+  key: string,
+): boolean | undefined {
+  const value = args[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== 'boolean') throw invalid(`参数「${key}」必须是布尔值`);
+  return value;
+}
+
 /** 可选的非空字符串：给出时类型不对，或（去掉首尾空白后）为空都拒绝。 */
 export function optionalNonEmptyString(
   args: ToolArgs,

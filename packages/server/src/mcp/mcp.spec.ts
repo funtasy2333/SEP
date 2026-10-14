@@ -85,7 +85,8 @@ describe('MCP 工具', () => {
       expect(mcp.client.getServerCapabilities()?.tools).toBeDefined();
       const instructions = mcp.client.getInstructions();
       expect(instructions).toBe(MCP_INSTRUCTIONS);
-      // 工作流要点：先读写作说明；结构树 → 节点；baseRevision 取最近一次返回的 revision；冲突重读；AI 修改可回滚。
+      // 工作流要点：先读写作说明；结构树 → 节点；baseRevision 取最近一次返回的 revision；冲突重读；
+      // 写完用 validate_document 检查、用 export_document 出件；AI 修改可回滚。
       for (const keyword of [
         'get_authoring_reference',
         'get_outline',
@@ -95,6 +96,9 @@ describe('MCP 工具', () => {
         'revision',
         '409',
         '重新读取',
+        'validate_document',
+        'export_document',
+        'outputPath',
         'AI 修改',
         '回滚',
       ]) {
@@ -102,7 +106,7 @@ describe('MCP 工具', () => {
       }
     });
 
-    it('listTools：恰好 6 个工具，名称不带前缀', async () => {
+    it('listTools：恰好 8 个工具，名称不带前缀', async () => {
       const { tools } = await mcp.client.listTools();
       expect(tools.map((tool) => tool.name)).toEqual([
         'list_documents',
@@ -110,12 +114,10 @@ describe('MCP 工具', () => {
         'get_outline',
         'get_node',
         'apply_operations',
+        'validate_document',
+        'export_document',
         'get_authoring_reference',
       ]);
-      // validate_document / export_document 属于 WP9.3b，本次不提供。
-      const names = tools.map((tool) => tool.name);
-      expect(names).not.toContain('validate_document');
-      expect(names).not.toContain('export_document');
     });
 
     it('listTools：描述是中文且写明用途；annotations 符合约定', async () => {
@@ -132,6 +134,7 @@ describe('MCP 工具', () => {
         'list_documents',
         'get_outline',
         'get_node',
+        'validate_document',
         'get_authoring_reference',
       ]) {
         expect(byName[name].annotations).toEqual({
@@ -145,6 +148,12 @@ describe('MCP 工具', () => {
         openWorldHint: false,
       });
       expect(byName.apply_operations.annotations).toEqual({
+        readOnlyHint: false,
+        destructiveHint: true,
+        openWorldHint: false,
+      });
+      // export_document 的 overwrite 可以替换用户机器上的文件。
+      expect(byName.export_document.annotations).toEqual({
         readOnlyHint: false,
         destructiveHint: true,
         openWorldHint: false,
@@ -235,10 +244,31 @@ describe('MCP 工具', () => {
         'delete',
         'move',
       ]);
+
+      const validate = schema('validate_document');
+      expect(validate.required).toEqual(['documentId']);
+      expect(Object.keys(validate.properties)).toEqual(['documentId']);
+
+      const exportSchema = schema('export_document');
+      expect(exportSchema.required).toEqual(['documentId', 'format']);
+      expect(Object.keys(exportSchema.properties)).toEqual([
+        'documentId',
+        'format',
+        'outputPath',
+        'overwrite',
+      ]);
+      expect(exportSchema.properties.format.enum).toEqual([
+        'docx',
+        'pdf',
+        'html',
+        'json',
+      ]);
+      expect(exportSchema.properties.outputPath.type).toBe('string');
+      expect(exportSchema.properties.overwrite.type).toBe('boolean');
     });
 
     it('未知工具名：isError 结果（与 SDK McpServer 的处理一致），不是协议错误', async () => {
-      for (const name of ['validate_document', 'export_document', 'nope']) {
+      for (const name of ['validate_doc', 'export_documents', 'nope']) {
         const result = await mcp.call(name, {});
         expect(result.isError).toBe(true);
         expect(result.body).toMatchObject({

@@ -16,12 +16,18 @@ export const STANDARD_TYPES: readonly StandardType[] =
 export const DOCUMENT_STAGES: readonly DocumentStage[] =
   Object.values(DocumentStage);
 
+/** export_document 支持的格式。 */
+export const EXPORT_FORMATS = ['docx', 'pdf', 'html', 'json'] as const;
+export type ExportFormat = (typeof EXPORT_FORMATS)[number];
+
 export const TOOL_NAMES = [
   'list_documents',
   'create_document',
   'get_outline',
   'get_node',
   'apply_operations',
+  'validate_document',
+  'export_document',
   'get_authoring_reference',
 ] as const;
 export type McpToolName = (typeof TOOL_NAMES)[number];
@@ -228,6 +234,69 @@ export const TOOL_DEFINITIONS: readonly (Tool & { name: McpToolName })[] = [
         },
       },
       required: ['documentId', 'baseRevision', 'operations'],
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: 'validate_document',
+    description:
+      '检查文档，不修改任何内容。返回 { revision, problems, exports }。' +
+      'problems 是文档的结构问题（悬空引用、标题跳级、空章节、脚注问题等），每项有 code、severity（error / warning）、nodeId、message；' +
+      '来源与 apply_operations 返回的 problems 相同，只是没有 introduced 字段（这里没有「本批操作」可供对比）。' +
+      'exports 是 docx、pdf、html 各自的导出前检查，与 export_document 在导出前做的检查完全相同：通过为 { ok: true }；' +
+      '未通过为 { ok: false, source, message, problems }，source 是 footnote（脚注校验）或 output-boundary（该格式无法无损输出的内容），' +
+      'message 与导出失败时（422）的 message 相同，problems 逐项列出原因和位置；未通过的格式 export_document 会失败。' +
+      'pdf 额外带 available：服务端的 PDF 管线是否可用，false 时导出 pdf 会返回 503 并列出缺少的依赖（检查通过而管线不可用，pdf 仍是 ok: true）。' +
+      'json 导出不做导出前检查，不在其中。' +
+      '文档内容为空或不符合编辑器文档结构时，整个工具返回错误（422，带 problems）。' +
+      '如果 problems 里出现 missing-id（节点还没有 nodeId，常见于只在首页新建、从未在编辑器里打开过的文档），先调用 get_outline 补齐后再校验。' +
+      '下一步：按 problems 用 apply_operations 修正；exports 全部 ok 后用 export_document 出件。',
+    inputSchema: {
+      type: 'object',
+      properties: { documentId },
+      required: ['documentId'],
+      additionalProperties: false,
+    },
+    annotations: readOnly,
+  },
+  {
+    name: 'export_document',
+    description:
+      '把文档导出为 docx、pdf、html 或 json，与编辑器及导出接口走同一条路径（同样会先做导出前检查）。文件内容不会放进结果。' +
+      '返回 { format, filename, size, warnings, downloadUrl, savedTo? }：filename 是建议的文件名，size 是字节数，' +
+      'warnings 是导出告警（如外部图片不会被抓取而留空，每项有 code、message，可能有 nodeId），downloadUrl 是本机上的下载地址，用户可以在浏览器中打开。' +
+      '不给 outputPath 时只返回 downloadUrl，不写任何文件。用户要得到文件时，把 outputPath 设为用户工作目录下的绝对路径（含文件名；扩展名必须与 format 对应；' +
+      '父目录必须已存在，不会自动创建），成功时 savedTo 是最终的绝对路径。' +
+      '目标文件已存在时默认失败（409，code 为 file-exists）；只有用户明确同意替换时才把 overwrite 设为 true，原文件会被替换且无法恢复。' +
+      '写入本机文件可能被服务端禁用（403，code 为 file-write-disabled），此时去掉 outputPath，把 downloadUrl 交给用户。' +
+      '导出前检查未通过时返回 422，先用 validate_document 查看原因并修正；pdf 的管线缺少依赖时返回 503，消息列出缺少的依赖，可改导出别的格式。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        documentId,
+        format: {
+          type: 'string',
+          enum: [...EXPORT_FORMATS],
+          description:
+            'docx（Word 文档）、pdf（版式预览）、html（语义 HTML）、json（语义 JSON）',
+        },
+        outputPath: {
+          type: 'string',
+          description:
+            '可选：把文件写到本机的这个绝对路径（含文件名，扩展名与 format 一致，父目录须已存在）；不给则只返回 downloadUrl',
+        },
+        overwrite: {
+          type: 'boolean',
+          description:
+            '仅与 outputPath 一起使用：目标已存在时是否替换；默认 false（已存在则失败）',
+        },
+      },
+      required: ['documentId', 'format'],
       additionalProperties: false,
     },
     annotations: {

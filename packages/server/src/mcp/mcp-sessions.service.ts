@@ -64,6 +64,19 @@ function sendRpcError(
     .json({ jsonrpc: '2.0', error: { code, message }, id: null });
 }
 
+/**
+ * 本次工具调用所在 HTTP 请求的 Host 头。SDK 把请求头放在 `extra.requestInfo` 里（键为小写）；
+ * 取不到（传输层没有提供），或出现多个 Host 头（值是数组，不可信）时为 undefined。
+ * 这里不校验取值：请求已经过 {@link McpAccessGuard}（Host 只可能是 localhost / 127.0.0.1 / [::1] 加端口），
+ * 使用方（下载地址）仍会再检查一次。
+ */
+function requestHost(extra: {
+  requestInfo?: { headers: Record<string, string | string[] | undefined> };
+}): string | undefined {
+  const host = extra.requestInfo?.headers.host;
+  return typeof host === 'string' ? host : undefined;
+}
+
 /** 请求体（单个消息或批）里是否有 initialize 请求。 */
 function containsInitializeRequest(body: unknown): boolean {
   return Array.isArray(body)
@@ -199,9 +212,10 @@ export class McpSessionService implements OnModuleInit, OnModuleDestroy {
     server.setRequestHandler(ListToolsRequestSchema, () => ({
       tools: [...TOOL_DEFINITIONS],
     }));
-    server.setRequestHandler(CallToolRequestSchema, (request) =>
+    server.setRequestHandler(CallToolRequestSchema, (request, extra) =>
       this.tools.call(request.params.name, request.params.arguments, {
         clientName: server.getClientVersion()?.name,
+        host: requestHost(extra),
       }),
     );
     server.oninitialized = () => {
