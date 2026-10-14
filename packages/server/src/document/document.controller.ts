@@ -10,7 +10,10 @@ import {
 } from '@nestjs/common';
 import { DocumentService } from './document.service';
 import { DocumentEntity } from './document.entity';
-import { parseDocumentUpdateRequest } from './document-update';
+import {
+  parseDocumentMeta,
+  parseDocumentUpdateRequest,
+} from './document-update';
 
 @Controller('documents')
 export class DocumentController {
@@ -26,8 +29,10 @@ export class DocumentController {
     return this.documentService.findOne(id);
   }
 
+  /** POST /api/documents。meta 的字段类型与 PUT 同样校验（不合法 400），其余字段沿用原行为。 */
   @Post()
   create(@Body() data: Partial<DocumentEntity>): Promise<DocumentEntity> {
+    if (data?.meta !== undefined) parseDocumentMeta(data.meta);
     return this.documentService.create(data);
   }
 

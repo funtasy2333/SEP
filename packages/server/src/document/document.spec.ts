@@ -104,6 +104,41 @@ describe('文档修订号与乐观锁', () => {
     expect(list[0].revision).toBe(0);
   });
 
+  it('meta 的已知字段不是字符串时 POST / PUT 返回 400 且不写入', async () => {
+    for (const bad of [123, { a: 1 }, ['x'], true]) {
+      const body = await reply<ErrorBody>(
+        http
+          .post('/api/documents')
+          .send({ title: 't', meta: { ...meta, titleCn: bad }, content }),
+        400,
+      );
+      expect(body.message).toBe('meta.titleCn 必须是字符串');
+    }
+    await reply<ErrorBody>(
+      http.post('/api/documents').send({ title: 't', meta: 'x', content }),
+      400,
+    );
+    expect(await reply<DocBody[]>(http.get('/api/documents'), 200)).toEqual([]);
+
+    const created = await createDoc();
+    const body = await reply<ErrorBody>(
+      http.put(`/api/documents/${created.id}`).send({
+        baseRevision: 0,
+        meta: { ...meta, standardNo: 1 },
+      }),
+      400,
+    );
+    expect(body.message).toBe('meta.standardNo 必须是字符串');
+    const after = await reply(http.get(`/api/documents/${created.id}`), 200);
+    expect(after.revision).toBe(0);
+    expect(after.meta).toEqual(meta);
+  });
+
+  it('meta 的未知字段不检查，原样保存', async () => {
+    const created = await createDoc({ meta: { ...meta, extra: { n: 1 } } });
+    expect(created.meta).toEqual({ ...meta, extra: { n: 1 } });
+  });
+
   it('POST 不接受客户端指定的 revision', async () => {
     const created = await createDoc({ revision: 7 });
     expect(created.revision).toBe(0);

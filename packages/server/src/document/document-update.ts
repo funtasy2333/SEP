@@ -18,6 +18,45 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * meta 中已知的字段（shared `DocumentMeta`），全部是字符串。导出（封面、文件名、DOCX/PDF 渲染器）按字符串使用它们，
+ * 写入了数字、对象等其他类型的值，文档之后的每次导出都会失败。未知字段不检查，原样保存。
+ */
+export const DOCUMENT_META_STRING_FIELDS = [
+  'standardNo',
+  'icsCode',
+  'ccsCode',
+  'titleCn',
+  'titleEn',
+  'publishDate',
+  'implementDate',
+  'standardType',
+  'issuer',
+  'applicant',
+  'replaces',
+  'consistency',
+  'filingNo',
+  'industryName',
+  'regionName',
+  'coverDesignation',
+  'proposer',
+  'technicalCommittee',
+] as const;
+
+/** 校验写入的 meta：必须是 JSON 对象，已知字段出现时必须是字符串，否则 400。POST 与 PUT 共用。 */
+export function parseDocumentMeta(value: unknown): DocumentEntity['meta'] {
+  if (!isPlainObject(value)) {
+    throw new BadRequestException('meta 必须是 JSON 对象');
+  }
+  for (const key of DOCUMENT_META_STRING_FIELDS) {
+    const field = value[key];
+    if (field !== undefined && typeof field !== 'string') {
+      throw new BadRequestException(`meta.${key} 必须是字符串`);
+    }
+  }
+  return value as unknown as DocumentEntity['meta'];
+}
+
 /** 缺失 → 428；不是非负整数 → 400。 */
 export function parseBaseRevision(value: unknown): number {
   if (value === undefined) {
@@ -54,10 +93,7 @@ export function parseDocumentUpdateRequest(
     fields.title = body.title;
   }
   if (body.meta !== undefined) {
-    if (!isPlainObject(body.meta)) {
-      throw new BadRequestException('meta 必须是 JSON 对象');
-    }
-    fields.meta = body.meta as unknown as DocumentEntity['meta'];
+    fields.meta = parseDocumentMeta(body.meta);
   }
   if (body.stage !== undefined) {
     if (typeof body.stage !== 'string') {
