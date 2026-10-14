@@ -419,7 +419,7 @@ it('DOCX消费列宽数据，尚未实现的HTML/XML仍保留拦截', () => {
   for(const format of ['HTML','XML'] as const) expect(getOutputSupportProblems(doc,format).map(p=>p.path)).toContain('doc.body[0].children[1].rows[0].cells[0].columnWidths')
 })
 
-it.each([[-1], [Infinity], [10,20], ['70']])('DOCX继续拒绝无效列宽%s并保留JSON', values => {
+it.each([{values:[-1]}, {values:[Infinity]}, {values:[10,20]}, {values:['70']}])('DOCX继续拒绝无效列宽$values并保留JSON', ({values}) => {
   const doc=base()
   doc.body[0]!.children.push({kind:'table',id:'bad-width',caption:[],orientation:'portrait',headerRowCount:0,notes:[],rows:[{id:'r',cells:[{id:'c',colspan:1,rowspan:1,header:false,columnWidths:values as number[],content:[]}]}]})
   expect(getOutputSupportProblems(doc,'DOCX')).toContainEqual(expect.objectContaining({nodeId:'c',path:'doc.body[0].children[1].rows[0].cells[0].columnWidths'}))
