@@ -355,9 +355,77 @@ describe('insert：拒绝', () => {
     ])
     expect(issues.map(item => [item.path, item.code])).toEqual([
       ['operations[0].content[0].id', 'id-conflict'],
-      ['operations[1].content[0].id', 'id-conflict'],
+      // 容器名是保留 id（归一化的 reservedIds），报 invalid-id 而不是「已存在于文档中」的 id-conflict
+      ['operations[1].content[0].id', 'invalid-id'],
       ['operations[2].content[1].id', 'duplicate-id'],
     ])
+  })
+
+  describe('保留 id：容器名不能用作写作片段里的节点 id', () => {
+    const containers = ['foreword', 'introduction', 'body', 'appendices', 'bibliography']
+
+    it('插入 id 为 body 的章：整批拒绝（同批里合法的操作也不生效），issues 带 invalid-id、路径与节点 id', () => {
+      const result = applyDocumentOperations(deepFreeze(clone(source)), [
+        { op: 'insert', parent: 'ch-refs', position: 'end', content: [{ kind: 'paragraph', id: 'fine', content: '合法的操作' }] },
+        { op: 'insert', parent: 'body', position: 'end', content: [{ kind: 'chapter', id: 'body', title: '新章', children: ['正文。'] }] },
+      ], { generateId: seqIds() })
+      expect(result.ok).toBe(false)
+      if (result.ok) return
+      expect(result.issues).toEqual([{
+        operationIndex: 1,
+        path: 'operations[1].content[0].id',
+        code: 'invalid-id',
+        reason: expect.stringContaining('「body」是保留的容器名，不能用作节点 id'),
+        nodeId: 'body',
+      }])
+    })
+
+    it('五个容器名都被拒绝；章、条、附录都不能用，嵌在片段深处的显式 id 同样检查', () => {
+      for (const name of containers) {
+        const chapterIssues = failure(source, [
+          { op: 'insert', parent: 'body', position: 'end', content: [{ kind: 'chapter', id: name, title: '章' }] },
+        ])
+        expect(chapterIssues.map(item => [item.path, item.code, item.nodeId])).toEqual([
+          ['operations[0].content[0].id', 'invalid-id', name],
+        ])
+        const appendixIssues = failure(source, [
+          { op: 'insert', parent: 'appendices', position: 'end', content: [{ kind: 'appendix', id: name, title: '附录' }] },
+        ])
+        expect(appendixIssues.map(item => [item.path, item.code])).toEqual([['operations[0].content[0].id', 'invalid-id']])
+        const nested = failure(source, [
+          { op: 'insert', parent: 'ch-refs', position: 'end', content: [{ kind: 'clause', title: '条', children: [{ kind: 'clause', id: name, title: '子条' }] }] },
+        ])
+        expect(nested.map(item => [item.path, item.code])).toEqual([['operations[0].content[0].children[0].id', 'invalid-id']])
+      }
+    })
+
+    it('replace 的新内容同样不能用容器名作 id；换成普通 id 即可', () => {
+      const issues = failure(source, [
+        { op: 'replace', nodeId: 'p-411', content: [{ kind: 'paragraph', id: 'introduction', content: '改写' }] },
+      ])
+      expect(issues.map(item => [item.operationIndex, item.path, item.code])).toEqual([[0, 'operations[0].content[0].id', 'invalid-id']])
+      const replaced = ok(source, [{ op: 'replace', nodeId: 'p-411', content: [{ kind: 'paragraph', id: 'p-411', content: '改写' }] }])
+      expect(replaced.operations[0]!.inserted).toContain('p-411')
+    })
+
+    it('省略 id 时自动生成的 id 不会是容器名（生成器先给出容器名则跳过）', () => {
+      const sequence = ['body', 'foreword', 'auto-1']
+      let next = 0
+      const result = ok(source, [
+        { op: 'insert', parent: 'ch-refs', position: 'end', content: [{ kind: 'paragraph', content: '自动 id' }] },
+      ], { generateId: () => sequence[next++] ?? `auto-${next}` })
+      expect(result.operations[0]!.inserted).toEqual(['auto-1'])
+      expect(byId(result.doc, 'body')).toBeUndefined()
+    })
+
+    it('普通 id 的章可以作为父节点；容器名仍指容器', () => {
+      const result = ok(source, [
+        { op: 'insert', parent: 'body', position: 'end', content: [{ kind: 'chapter', id: 'ch-new', title: '新章' }] },
+        { op: 'insert', parent: 'ch-new', position: 'end', content: [{ kind: 'paragraph', id: 'p-new', content: '放进新章' }] },
+      ])
+      expect(byId(result.doc, 'p-new')).toBeDefined()
+      expect(ids(byId(result.doc, 'ch-new')?.content)).toContain('p-new')
+    })
   })
 
   it('派生 id（如列项项的 .p0）也算已占用', () => {

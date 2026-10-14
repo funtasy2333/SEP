@@ -27,7 +27,7 @@ import {
   type PMJsonNode,
 } from '@ses/shared'
 import {
-  analyzeReplaceability, buildInspectEnv, idsOutsideSubtree, usedIdsOf,
+  analyzeReplaceability, buildInspectEnv, idsOutsideSubtree, RESERVED_IDS, usedIdsOf,
 } from './inspect'
 import {
   CONTAINER_LABELS, firstBodyIndex, findEnclosingAddressable, indexDocument, kindAllowedIn, KIND_LABELS,
@@ -56,6 +56,13 @@ const MAX_LEVEL = 5
 
 const isContainerName = (value: string): value is DocumentContainer =>
   (DOCUMENT_CONTAINERS as readonly string[]).includes(value)
+
+/**
+ * 写作片段里的节点 id 不得取容器名：`resolveTarget` 先按容器名解析 `parent`，
+ * id 为 `body` 等的章、条、附录因此永远无法作为 insert / move 的父节点。
+ * 只约束本批新写入的 id；文档里已有的这类 id（REST 直接写入）不在此列，`nodeId` 规范化也不处理。
+ */
+const RESERVED_ID_SET: ReadonlySet<string> = new Set(RESERVED_IDS)
 
 function issueOf(
   index: number, path: string, code: DocumentOperationIssueCode, reason: string, nodeId?: string,
@@ -280,7 +287,9 @@ function buildFragment(
   content: unknown, context: AuthoringContext, rootPath: string, existingIds: ReadonlySet<string>,
   generateId: () => string, opIndex: number,
 ): { ok: true; built: BuiltFragment } | { ok: false; issues: DocumentOperationIssue[] } {
-  const normalized = normalizeAuthoringFragment(content, context, { existingIds, generateId, rootPath })
+  const normalized = normalizeAuthoringFragment(content, context, {
+    existingIds, generateId, rootPath, reservedIds: RESERVED_ID_SET,
+  })
   if (!normalized.ok) {
     return {
       ok: false,

@@ -40,6 +40,19 @@ const documentId = {
 
 const readOnly = { readOnlyHint: true, openWorldHint: false };
 
+/**
+ * get_outline、get_node 的 annotations：不是只读。两者都经 `DocumentOpsService.prepare()` 取文档，
+ * 库内 nodeId 缺失或重复时（REST 直接写入的内容）会先规范化并保存——revision 加 1、发 system 事件。
+ * 标成 `readOnlyHint: true` 会让客户端把它们当作无副作用的调用（可能自动放行、并行或重试），与实际行为不符。
+ * 不具破坏性（只补齐或重新生成 nodeId，不增删内容）；幂等：第一次修复后 nodeId 完整，重复调用不再写库、结果相同。
+ */
+const readMayRepairIds = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+};
+
 const optionalText = (description: string) => ({ type: 'string', description });
 
 const POSITION_DESCRIPTION =
@@ -166,7 +179,7 @@ export const TOOL_DEFINITIONS: readonly (Tool & { name: McpToolName })[] = [
     description:
       '读取文档的结构树：前言、引言，以及正文各章、条、附录、表、图、公式的 nodeId、类型、编号、标题。' +
       '返回 { revision, outline }。revision 是之后 apply_operations 的 baseRevision；' +
-      '文档里缺少 nodeId 时会先补齐并保存，所以 revision 可能比此前看到的大 1。' +
+      '文档里的 nodeId 缺失或重复时（常见于经 REST 直接写入的内容），会先补齐（重复的重新生成）并保存，所以 revision 可能比此前看到的大 1；nodeId 完整时不写库。' +
       '下一步：用 get_node 读取具体节点的内容，或直接用 apply_operations 修改。',
     inputSchema: {
       type: 'object',
@@ -174,7 +187,7 @@ export const TOOL_DEFINITIONS: readonly (Tool & { name: McpToolName })[] = [
       required: ['documentId'],
       additionalProperties: false,
     },
-    annotations: readOnly,
+    annotations: readMayRepairIds,
   },
   {
     name: 'get_node',
@@ -182,6 +195,7 @@ export const TOOL_DEFINITIONS: readonly (Tool & { name: McpToolName })[] = [
       `读取一个节点或一个容器的内容。nodeId 与 container 必须恰好给一个：nodeId 取自 get_outline（章、条、附录、表、图、公式等）；` +
       `container 是 ${READABLE_CONTAINERS.join('、')} 之一（前言、引言、参考文献的内容与其中节点的 id 只能这样读取）。` +
       '返回 { revision, node } 或 { revision, container }：node 含写作片段形式的内容（ir）、编号、父节点与位置、以及能否原样替换（replaceable）。' +
+      '与 get_outline 相同：文档里的 nodeId 缺失或重复时会先补齐（重复的重新生成）并保存，revision 可能因此加 1，此时旧的 nodeId 可能已失效；nodeId 完整时不写库。' +
       '下一步：据此用 apply_operations 在其前后插入、替换或删除。',
     inputSchema: {
       type: 'object',
@@ -200,7 +214,7 @@ export const TOOL_DEFINITIONS: readonly (Tool & { name: McpToolName })[] = [
       required: ['documentId'],
       additionalProperties: false,
     },
-    annotations: readOnly,
+    annotations: readMayRepairIds,
   },
   {
     name: 'apply_operations',

@@ -41,14 +41,14 @@ Claude Code 对 MCP 工具默认逐次询问是否允许。`export_document` 可
 |---|---|---|
 | `list_documents` | 列出全部文档（id、标题、阶段、revision） | 是 |
 | `create_document` | 新建文档，与编辑器首页「新建文档」结果一致；返回 `editorUrl` | 否 |
-| `get_outline` | 结构树；缺少 nodeId 的文档会先补齐并保存（revision 可能加 1） | 是* |
-| `get_node` | 读取节点、前言、引言、参考文献的内容 | 是* |
+| `get_outline` | 结构树；nodeId 缺失或重复的文档会先补齐并保存（revision 可能加 1） | 否* |
+| `get_node` | 读取节点、前言、引言、参考文献的内容；同样会先补齐 nodeId | 否* |
 | `apply_operations` | 批量插入、替换、删除、移动，带 `baseRevision`，整批全有或全无；记为「AI 修改」，人可在版本面板回滚 | 否 |
 | `validate_document` | 只读检查：文档问题 `problems`，以及 docx / pdf / html 能否出件 `exports` | 是 |
 | `export_document` | 导出 docx / pdf / html / json；返回下载地址，可选保存到本机的允许目录 | 否 |
 | `get_authoring_reference` | 写作说明全文（写作片段格式、GB/T 1.1 约定） | 是 |
 
-\* 仅在文档缺少 nodeId 时才会写库，其余情况只读。
+\* 读取前会检查文档的 nodeId：缺失的补齐、重复的重新生成并保存（revision 加 1，发 system 事件，不生成版本记录），所以这两个工具在 MCP 的 annotations 里标为非只读（`readOnlyHint: false`，`destructiveHint: false`，`idempotentHint: true`）。nodeId 完整时不写库；补齐一次后重复调用结果相同。
 
 典型流程（`initialize` 返回的说明里也有同样的要点）：
 

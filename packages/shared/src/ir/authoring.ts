@@ -54,7 +54,7 @@ export type AuthoringNodeKind = typeof AUTHORING_NODE_KINDS[number]
  * - not-allowed-here：此种节点不能放在该上下文/容器中
  * - invalid-value：取值非法（枚举、格式、范围）
  * - empty-value：必须非空的内容为空
- * - invalid-id：id 不是非空字符串，或违反派生规则
+ * - invalid-id：id 不是非空字符串、违反派生规则，或是保留名（见 {@link AuthoringNormalizeOptions.reservedIds}）
  * - duplicate-id：片段内 id 重复
  * - id-conflict：与文档中已有 id 冲突
  * - level-mismatch：显式层级与插入位置推导的层级不一致
@@ -83,6 +83,17 @@ export interface AuthoringIssue {
 export interface AuthoringNormalizeOptions {
   /** 文档中已有的 nodeId（不含将被本次替换掉的子树）；片段内的 id 不得与之冲突，生成的 id 会避开它们。 */
   existingIds?: ReadonlySet<string>
+  /**
+   * 保留 id：显式 `id` 命中时报 `invalid-id`，自动生成的 id 也会避开它们。默认没有保留 id。
+   *
+   * 供宿主声明「这些名字另有所指，不能用作节点 id」。文档操作引擎（`@ses/io`）传入五个容器名
+   * （foreword / introduction / body / appendices / bibliography）：操作的 `parent` 先按容器名解析，
+   * id 为容器名的章、条、附录将永远无法作为 insert / move 的父节点，所以写入时就拒绝。
+   *
+   * 只约束本次片段里**新写入**的 id。文档里已有的保留名 id（例如经 REST 直接写入的内容）不在此列：
+   * 这里不会改写它们，`nodeId` 规范化也不处理保留名；replace 时若片段沿用这样的原 id，同样会被拒绝。
+   */
+  reservedIds?: ReadonlySet<string>
   /** 自定义 id 生成器（默认 {@link generateNodeId}）；供测试注入确定性序列。 */
   generateId?: () => string
   /** 问题路径的根名称，默认 `fragment`。 */
@@ -192,10 +203,12 @@ class Ctx {
   private readonly used = new Map<string, string>()
   private readonly declared: Set<string>
   private readonly existing: ReadonlySet<string>
+  private readonly reserved: ReadonlySet<string>
   private readonly generate: () => string
 
   constructor(input: unknown, options: AuthoringNormalizeOptions) {
     this.existing = options.existingIds ?? new Set<string>()
+    this.reserved = options.reservedIds ?? new Set<string>()
     this.generate = options.generateId ?? generateNodeId
     this.declared = collectDeclaredIds(input)
   }
@@ -217,12 +230,12 @@ class Ctx {
     return id
   }
 
-  /** 生成一个不与片段内、已有 id、以及片段中任何显式 id 冲突的新 id。 */
+  /** 生成一个不与片段内、已有 id、保留 id、以及片段中任何显式 id 冲突的新 id。 */
   fresh(): string {
     for (let attempt = 0; attempt < 100; attempt += 1) {
       const id = this.generate()
       if (typeof id === 'string' && id.length > 0
-        && !this.used.has(id) && !this.existing.has(id) && !this.declared.has(id)) {
+        && !this.used.has(id) && !this.existing.has(id) && !this.reserved.has(id) && !this.declared.has(id)) {
         this.used.set(id, '（自动生成）')
         return id
       }
@@ -236,6 +249,10 @@ class Ctx {
     if (raw === undefined) return this.fresh()
     if (typeof raw !== 'string' || raw.length === 0) {
       this.issue(`${path}.id`, 'invalid-id', 'id 必须是非空字符串；不需要指定时请省略该字段')
+      return this.fresh()
+    }
+    if (this.reserved.has(raw)) {
+      this.issue(`${path}.id`, 'invalid-id', `id「${raw}」是保留的容器名，不能用作节点 id；请换一个，或省略以自动生成`, raw)
       return this.fresh()
     }
     return this.claim(raw, `${path}.id`)

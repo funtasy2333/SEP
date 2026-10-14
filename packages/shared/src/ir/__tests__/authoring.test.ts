@@ -248,6 +248,93 @@ describe('normalizeAuthoringFragment / id', () => {
   it('生成器持续给出重复值时抛错（编程错误，不是输入问题）', () => {
     expect(() => normalizeAuthoringFragment(['甲', '乙'], CHAPTER, { generateId: () => 'same' })).toThrow('nodeId')
   })
+
+  describe('reservedIds：保留 id（io 引擎传入容器名）', () => {
+    const RESERVED: ReadonlySet<string> = new Set(['foreword', 'body'])
+    const BODY: AuthoringContext = { parent: 'body' }
+
+    it('未传 reservedIds 时行为不变：shared 不知道保留名，它们与其他显式 id 一样被接受', () => {
+      const nodes = normalizeOk([{ kind: 'chapter', id: 'body', title: '章' }], BODY)
+      expect(nodes[0]!.id).toBe('body')
+      expect(normalizeOk([{ kind: 'paragraph', id: 'foreword', content: '甲' }])[0]!.id).toBe('foreword')
+      // 空集合与不传等价
+      expect(normalizeOk([{ kind: 'chapter', id: 'body', title: '章' }], BODY, { reservedIds: new Set() })[0]!.id).toBe('body')
+    })
+
+    it('显式 id 命中保留名：invalid-id，路径指向该 id，reason 点明是保留的容器名，nodeId 带该 id', () => {
+      const issues = normalizeFail([{ kind: 'chapter', id: 'body', title: '章' }], BODY, { reservedIds: RESERVED })
+      expect(issues).toHaveLength(1)
+      const issue = expectIssue(issues, 'invalid-id', 'fragment[0].id')
+      expect(issue.reason).toContain('「body」')
+      expect(issue.reason).toContain('保留的容器名')
+      expect(issue.reason).toContain('不能用作节点 id')
+      expect(issue.nodeId).toBe('body')
+    })
+
+    it('嵌套节点、表行、单元格、列项项、式中项的显式 id 同样检查，每处各报一次', () => {
+      const issues = normalizeFail([
+        { kind: 'clause', id: 'body', title: '条', children: [{ kind: 'paragraph', id: 'foreword', content: '甲' }] },
+        { kind: 'table', caption: '', rows: [{ id: 'body', cells: [{ id: 'foreword', content: 'x' }] }] },
+        { kind: 'list', items: [{ id: 'body', content: 'x' }] },
+        { kind: 'formula', latex: 'x', whereList: [{ id: 'foreword', term: 'a', definition: 'b' }] },
+      ], CHAPTER, { reservedIds: RESERVED })
+      expect(issues.map(issue => [issue.path, issue.code])).toEqual([
+        ['fragment[0].id', 'invalid-id'],
+        ['fragment[0].children[0].id', 'invalid-id'],
+        ['fragment[1].rows[0].id', 'invalid-id'],
+        ['fragment[1].rows[0].cells[0].id', 'invalid-id'],
+        ['fragment[2].items[0].id', 'invalid-id'],
+        ['fragment[3].whereList[0].id', 'invalid-id'],
+      ])
+      seenCodes.add('invalid-id')
+    })
+
+    it('同一保留名出现多次：每处各报 invalid-id，不再额外报 duplicate-id；同时在已有 id 中时也报 invalid-id 而非 id-conflict', () => {
+      const issues = normalizeFail([
+        { kind: 'paragraph', id: 'body', content: '甲' },
+        { kind: 'paragraph', id: 'body', content: '乙' },
+      ], CHAPTER, { reservedIds: RESERVED, existingIds: new Set(['body']) })
+      expect(issues.map(issue => [issue.path, issue.code])).toEqual([
+        ['fragment[0].id', 'invalid-id'],
+        ['fragment[1].id', 'invalid-id'],
+      ])
+    })
+
+    it('只拦完全相同的 id：其他 id（含大小写不同、带前缀的名字）不受影响，也不影响片段其余问题的收集', () => {
+      const nodes = normalizeOk([
+        { kind: 'paragraph', id: 'Body', content: '甲' },
+        { kind: 'paragraph', id: 'body-1', content: '乙' },
+        { kind: 'paragraph', id: 'mine', content: '丙' },
+      ], CHAPTER, { reservedIds: RESERVED })
+      expect(nodes.map(node => node.id)).toEqual(['Body', 'body-1', 'mine'])
+
+      const issues = normalizeFail([
+        { kind: 'paragraph', id: 'body', content: '甲' },
+        { kind: 'paragraph', contnet: '字段名拼错' },
+      ], CHAPTER, { reservedIds: RESERVED })
+      expectIssue(issues, 'invalid-id', 'fragment[0].id')
+      expectIssue(issues, 'unknown-field', 'fragment[1].contnet')
+    })
+
+    it('生成器返回保留名时跳过，换下一个；省略 id 的节点不会拿到保留名', () => {
+      const sequence = ['body', 'foreword', 'ok-1', 'body', 'ok-2']
+      let next = 0
+      const nodes = normalizeOk(
+        [{ kind: 'paragraph', content: '甲' }, { kind: 'paragraph', content: '乙' }],
+        CHAPTER, { reservedIds: RESERVED, generateId: () => sequence[next++]! })
+      expect(nodes.map(node => node.id)).toEqual(['ok-1', 'ok-2'])
+      expect(next).toBe(5)
+    })
+
+    it('生成器只会给出保留名时抛错（编程错误），与重复值同样处理', () => {
+      expect(() => normalizeAuthoringFragment(['甲'], CHAPTER, { reservedIds: RESERVED, generateId: () => 'body' })).toThrow('nodeId')
+    })
+
+    it('派生的段落 id（x.p0）与保留名无关：所属节点的 id 合法即可', () => {
+      const nodes = normalizeOk([{ kind: 'note', id: 'n', content: '注' }], CHAPTER, { reservedIds: RESERVED })
+      expect(nodes[0]!.id).toBe('n')
+    })
+  })
 })
 
 describe('normalizeAuthoringFragment / 行内内容', () => {

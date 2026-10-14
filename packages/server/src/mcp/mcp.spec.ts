@@ -12,7 +12,13 @@ import {
   normalizeContent,
   normalizeContentDetailed,
 } from '../editor-schema/editor-schema';
-import { canonical, sampleDocument } from '../test-support/sample-documents';
+import {
+  canonical,
+  chapter,
+  doc,
+  para,
+  sampleDocument,
+} from '../test-support/sample-documents';
 import {
   connectMcp,
   TEST_CLIENT_INFO,
@@ -161,8 +167,6 @@ describe('MCP 工具', () => {
       }
       for (const name of [
         'list_documents',
-        'get_outline',
-        'get_node',
         'validate_document',
         'get_authoring_reference',
       ]) {
@@ -170,6 +174,20 @@ describe('MCP 工具', () => {
           readOnlyHint: true,
           openWorldHint: false,
         });
+      }
+      // get_outline、get_node 不是只读：它们经 DocumentOpsService.prepare() 取文档，库内 nodeId 缺失或重复时
+      // 会先补齐并保存（revision 加 1、发 system 事件），标成 readOnlyHint: true 会误导客户端把它们当作无副作用。
+      // 不具破坏性（只补 id）；幂等：第一次修复后 nodeId 完整，重复调用不再写库、结果相同。
+      for (const name of ['get_outline', 'get_node']) {
+        expect(byName[name].annotations).toEqual({
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        });
+        // 描述必须如实写明会写库，与 annotations 一致。
+        expect(byName[name].description).toContain('补齐');
+        expect(byName[name].description).toContain('并保存');
       }
       expect(byName.create_document.annotations).toEqual({
         readOnlyHint: false,
@@ -874,6 +892,50 @@ describe('MCP 工具', () => {
       }
     });
 
+    it('nodeId 缺失的文档：get_outline 首次读取补齐并保存（revision 加 1、发 system 事件、无版本记录），之后重复读取不再写库、结果相同', async () => {
+      // 这是 get_outline、get_node 不标 readOnlyHint 的原因（见 listTools 用例），也是 idempotentHint 的依据。
+      const bare = () =>
+        doc(chapter(null, '范围', para(null, '没有 nodeId 的段落。'))) as never;
+      const id = await createSampleDoc(bare());
+      const events = collectEvents(id);
+
+      const first = await mcp.call('get_outline', { documentId: id });
+      expect(first.isError).toBe(false);
+      expect(first.body.revision).toBe(1);
+      expect((await t.documents.findOne(id)).revision).toBe(1);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        documentId: id,
+        revision: 1,
+        source: 'system',
+      });
+      expect(await t.versions.findByDocument(id)).toEqual([]);
+      const nodeId = first.body.outline.body[0].nodeId as string;
+      expect(nodeId).toBeTruthy();
+
+      // 幂等：此后无论调用多少次、用哪个读取工具，都不再写库。
+      const update = jest.spyOn(t.documents, 'update');
+      const second = await mcp.call('get_outline', { documentId: id });
+      const node = await mcp.call('get_node', { documentId: id, nodeId });
+      expect(second.body).toEqual(first.body);
+      expect(node.body.revision).toBe(1);
+      expect(update).not.toHaveBeenCalled();
+      expect(events).toHaveLength(1);
+    });
+
+    it('nodeId 缺失的文档：get_node 首次读取同样补齐并保存（revision 加 1）', async () => {
+      const id = await createSampleDoc(
+        doc(chapter(null, '范围', para(null, '没有 nodeId 的段落。'))) as never,
+      );
+      const result = await mcp.call('get_node', {
+        documentId: id,
+        container: 'foreword',
+      });
+      expect(result.isError).toBe(false);
+      expect(result.body.revision).toBe(1);
+      expect((await t.documents.findOne(id)).revision).toBe(1);
+    });
+
     it('未知文档 404；documentId 缺失或不是正整数 400', async () => {
       for (const [tool, args] of [
         ['get_outline', {}],
@@ -1069,6 +1131,49 @@ describe('MCP 工具', () => {
 
       expect((await t.documents.findOne(id)).revision).toBe(0);
       expect(await t.versions.findByDocument(id)).toEqual([]);
+    });
+
+    it('写作片段的显式 id 不能是容器名：整批不写入，isError 带 invalid-id 与路径；换成普通 id 即可写入', async () => {
+      const id = await createSampleDoc();
+      const operations = (chapterId: string) => [
+        // 第一个操作本身合法，也不能写入
+        { op: 'delete', nodeId: 'p-extra' },
+        {
+          op: 'insert',
+          parent: 'body',
+          position: 'end',
+          content: [{ kind: 'chapter', id: chapterId, title: '新章' }],
+        },
+      ];
+
+      // id 为 body 的章永远无法作为 insert / move 的 parent（parent: "body" 指正文容器），所以拒绝。
+      const rejected = await mcp.call('apply_operations', {
+        documentId: id,
+        baseRevision: 0,
+        operations: operations('body'),
+      });
+      expect(rejected.isError).toBe(true);
+      expect(rejected.body.status).toBe(422);
+      expect(rejected.body.issues).toEqual([
+        expect.objectContaining({
+          operationIndex: 1,
+          path: 'operations[1].content[0].id',
+          code: 'invalid-id',
+          nodeId: 'body',
+          reason: expect.stringContaining('「body」是保留的容器名'),
+        }),
+      ]);
+      expect((await t.documents.findOne(id)).revision).toBe(0);
+      expect(await t.versions.findByDocument(id)).toEqual([]);
+
+      const accepted = await mcp.call('apply_operations', {
+        documentId: id,
+        baseRevision: 0,
+        operations: operations('ch-new'),
+      });
+      expect(accepted.isError).toBe(false);
+      expect(accepted.body.revision).toBe(1);
+      expect(accepted.body.operations[1].inserted).toContain('ch-new');
     });
 
     it.each([
