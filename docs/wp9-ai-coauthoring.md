@@ -301,3 +301,4 @@ WP9.3 实际实现的工具共 8 个：上表 7 项，其中「列出、创建�
 6. 导出 PDF 需要两遍 Vivliostyle，实测约 9 秒；客户端工具调用超时过短时会先超时。server 测试含真实 PDF 管线，耗时由约 15 秒增到约 28 秒；
 7. 未知工具名返回 `isError` 结果（与 SDK `McpServer` 实际行为一致），而非 JSON-RPC -32602；
 8. `packages/server/src/document-ops/document-ops.spec.ts` 第 1679 行有一个既有的 TS 类型错误（`tsc --noEmit` 报告，jest 与构建不受影响）。
+9. 文档里已有的、取容器名（foreword / introduction / body / appendices / bibliography）的 nodeId 不会被重新生成：这类节点不能作为 insert / move 的父节点。只有经 REST 直接写入手写 nodeId 才会出现（编辑器与操作引擎都不会生成，写作片段里显式写这些 id 会被 `invalid-id` 拒绝）；修复需要改编辑器也在用的 nodeId 规范化，暂不处理（Codex 评审，2026-10-14）。
