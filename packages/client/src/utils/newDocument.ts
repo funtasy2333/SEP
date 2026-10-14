@@ -34,8 +34,8 @@ const textParagraph = (text: string): PMJsonNode => ({
   type: 'paragraph', content: [{ type: 'text', text }],
 })
 
-/** 仅用于新建/空内容初始化；正文已有内容时不重新套用模板。 */
-export function createDefaultDocumentContent(meta?: DocumentMeta): PMJsonNode & Record<string, unknown> {
+/** 新建文档和手动添加前言使用同一默认文本。 */
+export function createDefaultForeword(meta?: DocumentMeta): PMJsonNode {
   const foreword = [
     textParagraph('本文件按照GB/T 1.1-2020《标准化工作导则 第1部分：标准化文件的结构和起草规则》的规定起草。'),
     textParagraph('请注意本文件的某些内容可能涉及专利。本文件的发布机构不承担识别这些专利的责任。'),
@@ -47,6 +47,12 @@ export function createDefaultDocumentContent(meta?: DocumentMeta): PMJsonNode & 
   if (committee) foreword.push(textParagraph(`本文件由${committee}归口。`))
   if (drafters) foreword.push(textParagraph(`本文件起草单位：${drafters}。`))
 
+  foreword.push(textParagraph('本文件主要起草人：'))
+  return { type: 'foreword', content: foreword }
+}
+
+/** 仅用于新建/空内容初始化；正文已有内容时不重新套用模板。 */
+export function createDefaultDocumentContent(meta?: DocumentMeta): PMJsonNode & Record<string, unknown> {
   const content: PMJsonNode[] = []
   if (meta) {
     // 保存到生产schema支持的封面属性，让XML/JSON和DOCX都能使用创建时的值。
@@ -57,7 +63,7 @@ export function createDefaultDocumentContent(meta?: DocumentMeta): PMJsonNode & 
     }
     content.push({ type: 'coverPage', attrs, content: [{ type: 'paragraph' }] })
   }
-  content.push({ type: 'foreword', content: foreword })
+  content.push(createDefaultForeword(meta))
   for (const [index, title] of ['范围', '规范性引用文件', '术语和定义'].entries()) {
     content.push({ type: 'chapter', attrs: { number: String(index + 1) }, content: [
       { type: 'chapterTitle', content: [{ type: 'text', text: title }] },

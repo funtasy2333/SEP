@@ -138,6 +138,13 @@ defineProps<{
   font-size: 13px;
 }
 
+/* 表格内普通段落不继承正文首行两字缩进。 */
+.editor-content :deep(.tiptap table td > p),
+.editor-content :deep(.tiptap table th > p),
+.editor-content :deep(.tiptap .std-table-cell-content > p) {
+  text-indent: 0;
+}
+
 .editor-content :deep(.tiptap table th) {
   background: var(--ses-surface-2);
   font-family: var(--ses-font-zh-hei);

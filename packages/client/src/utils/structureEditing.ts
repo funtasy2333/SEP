@@ -1,6 +1,7 @@
 import type { Editor } from '@tiptap/core'
 import { Fragment, type Node as PMNode } from '@tiptap/pm/model'
 import { TextSelection } from '@tiptap/pm/state'
+import { formatTextBlock } from './textBlockFormat'
 
 const paragraphs = new Set(['stdParagraph', 'paragraph'])
 
@@ -123,6 +124,13 @@ export function setClauseFormat(editor: Editor, level: number, hasTitle = true):
 /** Turn a title back into a paragraph without flattening or deleting its body. */
 export function setParagraphFormat(editor: Editor): boolean {
   const { state } = editor
+  if (['stdListItem', 'note', 'example'].includes(state.selection.$from.parent.type.name)) {
+    const tr = state.tr
+    if (!formatTextBlock(state, tr, 'stdParagraph')) return false
+    editor.view.dispatch(tr.scrollIntoView())
+    editor.view.focus()
+    return true
+  }
   const { $from, $to } = state.selection
   if (!$from.sameParent($to)) return false
   const leaf = $from.parent

@@ -12,7 +12,8 @@ import { ABSTRACT_NUM_ID, listAbstractNumId } from '../numbering'
 import { emitParagraph, warn, type RenderContext } from './context'
 import { plainRun, renderInlines, renderRun, superscriptRun, tabRun } from './inline'
 import { renderFigureImage } from './figure'
-import { renderTableGrid, tableGridColumnCount } from './table'
+import { renderTableGrid } from './table'
+import { resolveTableColumnWidths } from './tableColumnWidths'
 import { paginateTable } from './tablePagination'
 import { renderFormula } from './formula'
 import { orderTableFootnotes } from '../../footnotes'
@@ -286,7 +287,8 @@ function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, 
       return cell.rowspan > maxRepeatedRowspan ? { ...cell, rowspan: maxRepeatedRowspan } : cell
     }),
   }))
-  const columnCount = tableGridColumnCount(table)
+  const columnLayout = resolveTableColumnWidths(table)
+  const columnCount = columnLayout.widths.length
   const label = ctx.labels[table.id]?.label
   let out = ''
   bodySegments.forEach((bodyRows, index) => {
@@ -309,6 +311,7 @@ function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, 
       captionXml: segmentCaption,
       keepTogether: true,
       columnCount,
+      ...(columnLayout.custom ? { gridWidthsTwips: columnLayout.widths } : {}),
       notesXml: lastSegment
         ? () => table.notes.map((note) => renderNote(ctx, note, tableBctx, true)).join('')
         : undefined,

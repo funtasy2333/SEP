@@ -134,27 +134,12 @@
 
           <!-- 媒体 -->
           <div class="tbar-group">
-            <el-dropdown trigger="click" @command="handleTableCommand">
-              <button class="tbar-btn">表格 <el-icon><ArrowDownIcon /></el-icon></button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="insert">插入表格 (3×3)</el-dropdown-item>
-                  <el-dropdown-item divided command="addTableNote">添加表注行</el-dropdown-item>
-                  <el-dropdown-item command="addTableFootnote">添加表脚注行（插入上标）</el-dropdown-item>
-                  <el-dropdown-item command="referenceTableFootnote">引用已有表脚注</el-dropdown-item>
-                  <el-dropdown-item command="deleteTableFootnoteRef">删除当前上标引用</el-dropdown-item>
-                  <el-dropdown-item divided command="addRowBefore">上方插入行</el-dropdown-item>
-                  <el-dropdown-item command="addRowAfter">下方插入行</el-dropdown-item>
-                  <el-dropdown-item command="deleteRow">删除行</el-dropdown-item>
-                  <el-dropdown-item divided command="addColBefore">左侧插入列</el-dropdown-item>
-                  <el-dropdown-item command="addColAfter">右侧插入列</el-dropdown-item>
-                  <el-dropdown-item command="deleteCol">删除列</el-dropdown-item>
-                  <el-dropdown-item divided command="mergeCells">合并单元格</el-dropdown-item>
-                  <el-dropdown-item command="splitCell">拆分单元格</el-dropdown-item>
-                  <el-dropdown-item divided command="deleteTable">删除表格</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+            <TableMenu
+              :in-table="editor?.isActive('stdTable') || editor?.isActive('table') || false"
+              :in-cell="editor?.isActive('tableCell') || editor?.isActive('tableHeader') || false"
+              @open="rememberTableSelection"
+              @command="handleTableCommand"
+            />
             <button class="tbar-btn" @click="handleInsertFigure()">图片</button>
             <button class="tbar-btn" @click="insertStdParagraph()">段落</button>
           </div>
@@ -410,7 +395,7 @@
 
 <script setup lang="ts">
 import { getDocxExportFeedback } from '@/utils/docxExportFeedback'
-import { createDefaultDocumentContent } from '@/utils/newDocument'
+import { createDefaultDocumentContent, createDefaultForeword } from '@/utils/newDocument'
 import {
   COVER_SETTINGS_KEYS,
   documentMetaFromSettingsDraft,
@@ -420,7 +405,8 @@ import {
 } from '@/utils/documentSettings'
 import { setClauseFormat, setParagraphFormat } from '@/utils/structureEditing'
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { NodeSelection, TextSelection } from '@tiptap/pm/state'
+import { NodeSelection, TextSelection, type SelectionBookmark } from '@tiptap/pm/state'
+import type { Node as PMNode } from '@tiptap/pm/model'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 // Underline is included in StarterKit (tiptap v3)
 import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon, Clock, Download } from '@element-plus/icons-vue'
@@ -428,6 +414,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { documentApi } from '@/api/document'
 import { useDocumentStore } from '@/stores/document'
 import SesEditorContent from '@/components/editor/EditorContent.vue'
+import TableMenu from '@/components/editor/TableMenu.vue'
 import SesLogo from '@/components/SesLogo.vue'
 import DocumentOutline from '@/components/editor/DocumentOutline.vue'
 import DocumentSettingsPanel from '@/components/editor/DocumentSettingsPanel.vue'
@@ -928,11 +915,12 @@ function handleAddStructure(command: string) {
         ElMessage.warning('前言已存在')
         return
       }
-      // 前言插入到文档最前面
-      editor.value.chain().focus().insertContentAt(0, {
-        type: 'foreword',
-        content: [{ type: 'paragraph' }],
-      }).run()
+      // 隐藏封面保持最前；新前言与新建模板一致。
+      {
+        const cover = editor.value.state.doc.firstChild
+        const insertAt = cover?.type.name === 'coverPage' ? cover.nodeSize : 0
+        editor.value.chain().focus().insertContentAt(insertAt, createDefaultForeword(store.currentDocument?.meta)).run()
+      }
       break
     case 'introduction':
       if (pos.hasIntroduction) {
@@ -1029,8 +1017,18 @@ function handleInsertClauseNoTitle(level: string) {
 }
 
 // === 工具栏：表格 ===
+let tableSelection: { doc: PMNode; bookmark: SelectionBookmark } | null = null
+function rememberTableSelection() {
+  if (editor.value) tableSelection = { doc: editor.value.state.doc, bookmark: editor.value.state.selection.getBookmark() }
+}
 function handleTableCommand(command: string) {
   if (!editor.value) return
+  // Dropdown focus can turn a rectangular CellSelection into its native text range.
+  // Restore the selection captured before opening, only while the document is unchanged.
+  if (tableSelection && editor.value.state.doc.eq(tableSelection.doc)) {
+    editor.value.view.dispatch(editor.value.state.tr.setSelection(tableSelection.bookmark.resolve(editor.value.state.doc)))
+  }
+  tableSelection = null
   const chain = editor.value.chain().focus()
   switch (command) {
     case 'insert': {
@@ -1077,7 +1075,7 @@ function handleTableCommand(command: string) {
       chain.splitCell().run()
       break
     case 'deleteTable':
-      chain.deleteTable().run()
+      if (!chain.deleteTable().run()) ElMessage.warning('请将光标置于表格内或选中整张表格')
       break
     case 'addTableNote':
       if (!chain.addTableNote().run()) ElMessage.warning('请将光标置于标准表格的单元格内')
@@ -1102,7 +1100,9 @@ function handleInsertList(listType: string) {
 // === 工具栏：注 ===
 function handleInsertNote(command: string) {
   if (command === 'note') {
-    editor.value?.chain().focus().insertNote().run()
+    if (editor.value && !editor.value.chain().focus().insertNote().run()) {
+      ElMessage.warning('请在段落或列项中设置注；当前选区的原文已保留')
+    }
   } else if (command === 'footnote') {
     openBodyFootnoteDialog()
   }
@@ -1941,7 +1941,7 @@ function handleXmlFileImport(event: Event) {
   border-radius: 8px;
   flex-shrink: 0;
 }
-.tbar-btn {
+.tbar-group :deep(.tbar-btn) {
   display: inline-flex; align-items: center; gap: 5px;
   height: 26px;
   padding: 0 9px;
@@ -1956,7 +1956,7 @@ function handleXmlFileImport(event: Event) {
   white-space: nowrap;
   transition: all 0.1s ease;
 }
-.tbar-btn:hover {
+.tbar-group :deep(.tbar-btn:hover) {
   background: var(--ses-surface);
   color: var(--ses-ink);
   box-shadow: var(--ses-shadow-1);

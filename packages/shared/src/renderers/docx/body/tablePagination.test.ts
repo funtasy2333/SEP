@@ -380,3 +380,20 @@ describe('paginateTable', () => {
     expect(ctx.numbered.filter((item) => item.kind === 'table')).toEqual([{ nodeId: 'table', kind: 'table' }])
   })
 })
+
+it('窄自定义列的折行会减少每段数据行数，所有续表沿用原列宽', () => {
+  const ir = table(Array.from({length:40},(_,i)=>row(i+1,'长文字重复'.repeat(6))))
+  const equal=paginateTable(ir)
+  // 只有首个数据行带列宽；续段表头及其他行均不携带该数据。
+  ir.rows[1]!.cells[0]!.columnWidths=[400]
+  ir.rows[1]!.cells[1]!.columnWidths=[70]
+  const narrow=paginateTable(ir)
+  expect(narrow.bodySegments.length).toBeGreaterThan(equal.bodySegments.length)
+  expect(narrow.bodySegments.flat()).toEqual(ir.rows.slice(1))
+  const ctx=createRenderContext({table:{label:'表1',xmlId:'table_1',refText:'表1'}})
+  const xml=renderBlock(ctx,ir,{scopeKey:'chapter'})
+  const grids=[...xml.matchAll(/<w:tblGrid>([\s\S]*?)<\/w:tblGrid>/g)].map(m=>m[1])
+  expect(grids.length).toBeGreaterThan(1)
+  expect(new Set(grids).size).toBe(1)
+  expect(grids[0]).toBe('<w:gridCol w:w="6000"/><w:gridCol w:w="1050"/>')
+})

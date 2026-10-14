@@ -136,3 +136,21 @@ export function superscriptRun(text: string): string {
 export function breakRun(): string {
   return '<w:r><w:br/></w:r>'
 }
+
+/** 长名称优先在已有中文标点或元素间空格处折成两行，不拆词或改写元数据。 */
+export function wrapTitleAtSeparator(title: string, maxUnits: number): string {
+  if (title.includes('\n')) return title
+  const units = (value: string) => [...value].reduce((sum, char) => sum + (char.codePointAt(0)! < 128 ? 0.55 : 1), 0)
+  if (units(title) <= maxUnits) return title
+  let split = -1
+  let balance = Infinity
+  for (let index = 0; index < title.length - 1; index += 1) {
+    if (!/[、，；：　]/.test(title[index]!)) continue
+    const left = units(title.slice(0, index + 1)), right = units(title.slice(index + 1))
+    if (left <= maxUnits && right <= maxUnits && Math.abs(left - right) < balance) {
+      split = index + 1
+      balance = Math.abs(left - right)
+    }
+  }
+  return split < 0 ? title : title.slice(0, split) + '\n' + title.slice(split)
+}

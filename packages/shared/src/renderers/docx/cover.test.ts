@@ -630,3 +630,33 @@ describe('封面标准称谓自定义值', () => {
     expect(pkg.warnings.some((warning) => warning.code === 'cover-field-missing' && warning.message.includes(missingField))).toBe(false)
   })
 })
+
+
+describe('团体标准封面发布字宽', () => {
+  it.each([true, false])('发布机构%s时发布二字采用正常字宽且不改变其他类型模板', hasIssuer => {
+    for (const standardType of ['group', 'industry', 'local', 'enterprise'] as const) {
+      const pkg = renderCoverPackage({ ...BASE_META, standardType, stdCode: standardType === 'group' ? 'T/ABC 123—2026' : BASE_META.stdCode, issuer: hasIssuer ? '某协会' : '' })
+      const issuer = paragraphWithStyle(pkg, 'SesCoverIssuer')!
+      const release = descendants(issuer, 'w:r').find(run => editableText(run) === '发　布')!
+      expect(release).toBeDefined()
+      const properties = findChild(release, 'w:rPr')!
+      expect(findChild(properties, 'w:w')?.attrs['w:val']).toBe(standardType === 'group' ? '100' : '87')
+      expect(findChild(properties, 'w:sz')?.attrs['w:val']).toBe('28')
+      expect(findChild(properties, 'w:rFonts')?.attrs['w:eastAsia']).toBe('黑体')
+    }
+  })
+})
+
+it('原稿四位X的团体标准待定编号仍保留机构代号', () => {
+  const pkg = renderCoverPackage({ ...BASE_META, standardType: 'group', stdCode: 'T/ZSM XXXX—2026' })
+  expect(editableText(paragraphWithStyle(pkg, 'SesCoverGroupLogo')!)).toBe(' ZSM')
+  expect(docxOutline(pkg)).toContain('T/ZSM XXXX—2026')
+})
+
+it('封面长名称在原有标点换行，保留词语及名称全文', () => {
+  const title = '土壤中全氟和多氟烷基物质污染筛查、风险评估与分级管控技术指南'
+  const pkg = renderCoverPackage({ ...BASE_META, standardType: 'group', title })
+  const paragraph = paragraphWithStyle(pkg, 'SesCoverName')!
+  expect(editableText(paragraph)).toBe(title)
+  expect(descendants(paragraph, 'w:br')).toHaveLength(1)
+})
