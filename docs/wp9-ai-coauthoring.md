@@ -275,10 +275,11 @@ WP9.3 实际实现的工具共 8 个：上表 7 项，其中「列出、创建�
 |---|---|---|
 | 9.3a | `89186d9` | `/mcp` 端点（Streamable HTTP，有状态会话，JSON 响应，不带 `api` 前缀）；会话空闲 24 小时失效、上限 100、满时淘汰最久未用；只接受本机连接（对端回环地址 + Host + Origin 三项检查）；工具 `list_documents`、`create_document`（与编辑器首页新建一致，经别名复用 client 的 `createNewDocument`，保存前补齐 nodeId）、`get_outline`、`get_node`、`apply_operations`（来源固定 ai，client 取 `clientInfo.name`）、`get_authoring_reference`（写作说明打入产物） |
 | 9.3b | `d455f65` | `validate_document`（只读；Resolver 问题 + docx/pdf/html 导出前检查，与导出接口共用同一检查方法）；`export_document`（返回下载地址，可选 `outputPath` 写到本机：绝对路径、扩展名对应、默认不覆盖、覆盖时临时文件 + rename、`SES_MCP_ALLOW_FILE_WRITE=0` 关闭）；PDF 管线不可用时保留 503 与原因；端到端测试；[本地接入说明](wp9-mcp-local-setup.md) |
+| 9.3c | `3a2cce3` | `outputPath` 强制目录限制（`SES_MCP_OUTPUT_DIRS`，默认 `~/SES-exports`）；服务端默认只监听 127.0.0.1（`SES_LISTEN_HOST`）；接入地址改为 `http://127.0.0.1:3000/mcp` |
 
 验收结果：
 
-1. 测试：shared 1224、io 243、client 624（另 1 跳过）、server 619，全部通过；`pnpm -r run build` 通过；新增运行时依赖只有 `@modelcontextprotocol/sdk` 1.31.0；
+1. 测试：shared 1224、io 243、client 624（另 1 跳过）、server 619（9.3c 后 712），全部通过；`pnpm -r run build` 通过；新增运行时依赖只有 `@modelcontextprotocol/sdk` 1.31.0；
 2. 打包产物（SDK Client）：8 个工具可用；create 后直接以返回的 revision 写入成功；过期 revision 返回 409 与当前 revision；伪造 Host、非本机 Origin 返回 403；docx/pdf/html/json 导出与 REST 一致；服务端日志不含正文、标题与输出路径；
 3. 真实 Claude Code（2.1.296，无界面模式）+ 真实浏览器（Playwright + Chromium，经 Vite 代理）人机接力：
    - Claude Code 新建文档、读写作说明与结构、在「范围」写入一段，编辑器打开后显示该段；
@@ -287,12 +288,13 @@ WP9.3 实际实现的工具共 8 个：上表 7 项，其中「列出、创建�
    - `validate_document` 无问题；`export_document` 把 DOCX（35822 字节）与 PDF（3 页）写到指定目录，两份文件都含人与 AI 的内容；
    - 版本历史两条 `source=ai`、`client=claude-code`、note 为 AI 填写的修改说明；人的保存不生成版本；
 4. 服务端重启：Claude Code 在重启前后各调用一次工具，第二次照常成功（客户端收到 404 后自动重新建立会话）。
+5. 9.3c 复验（真实 Claude Code + 浏览器，服务端只监听 127.0.0.1，编辑器经 127.0.0.1 代理）：接力流程同第 3 条；让 AI 导出到允许目录之外时返回 403 `output-dir-not-allowed`，AI 按提示改为只给文件名，DOCX 与 PDF 存入默认导出目录（自动创建，权限 700），指定的目录之外没有生成文件。
 
 遗留事项：
 
-1. `outputPath` 没有目录白名单，可写到服务端进程有权写的任何位置；`overwrite: true` 可替换同扩展名的已有文件（如 `.json`）。防线是默认不覆盖、客户端对 `export_document`（`destructiveHint`）的确认、以及环境变量开关（默认允许，只认 `0`/`false`）。云端部署必须关闭；本地是否需要目录白名单待定；
-2. REST 接口（`/api/...`）没有 `/mcp` 的 Host/Origin 检查。CORS 只能阻止其他网页读取响应，不能防 DNS 重绑定：恶意网页把自己的域名解析到 127.0.0.1 后，可与本机 SES 同源调用 REST 接口。本地部署需要时可把同样的 Host 检查扩展到全部接口；
-3. 访问守卫在 JSON 请求体解析之后执行：非本机连接仍会让服务端先读取请求体（最大 25 MB），与 `/api` 的暴露面相同；
+1. ~~`outputPath` 没有目录白名单~~：已于 `3a2cce3` 改为强制目录限制（2026-10-14 决定）。只能写到 `SES_MCP_OUTPUT_DIRS` 列出的目录；未配置时只允许 `~/SES-exports`（首次写入时创建，权限 700）；只给文件名时存到第一个允许目录；包含关系按 realpath 判断，防符号链接逃逸。仍存在的限制：检查与写入之间有时间窗（本机有该目录写权限的进程可在其间把目录换成符号链接）；允许目录之外，目录不存在返回 400、存在返回 403，可据此区分；Windows 未实测；
+2. REST 接口（`/api/...`）没有 `/mcp` 的 Host/Origin 检查，不能防 DNS 重绑定（恶意网页把自己的域名解析到 127.0.0.1 后可与本机 SES 同源调用 REST 接口）。2026-10-14 决定：全部接口的鉴权与多端访问放到 Phase 11；本地部署先由下一条缩小暴露面；
+3. ~~服务端监听所有网卡~~：已于 `3a2cce3` 改为默认只监听 127.0.0.1，`SES_LISTEN_HOST` 可覆盖（非回环时启动日志警告），编辑器开发代理改连 127.0.0.1。`/mcp` 访问守卫保留；它在 JSON 请求体解析之后执行，只有显式监听非本机地址时，非本机连接才会让服务端先读取请求体（最大 25 MB）；
 4. 会话只在内存，空闲 24 小时失效；Claude Code 能自动重建会话，其他客户端未验证；只支持 stdio 的客户端需要桥接，未验证任何桥接工具；
 5. `validate_document` 只读，对从未在编辑器打开过、经 REST 直接创建的文档会报告 `missing-id`（MCP 新建的文档已补齐 nodeId，不受影响）；
 6. 导出 PDF 需要两遍 Vivliostyle，实测约 9 秒；客户端工具调用超时过短时会先超时。server 测试含真实 PDF 管线，耗时由约 15 秒增到约 28 秒；
