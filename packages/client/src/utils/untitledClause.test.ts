@@ -4,7 +4,7 @@ import type { JSONContent } from '@tiptap/core'
 import { pmToIr, type PMJsonNode } from '@ses/shared'
 import { createEditorSchema } from '../extensions/editorSchema'
 import { installRemoteDocument, replaceEditorDocument } from './editorDocument'
-import { setClauseFormat, setParagraphFormat } from './structureEditing'
+import { setClauseFormat, setParagraphFormat, structureFailureMessage } from './structureEditing'
 import { countLegacyUntitledClauses } from './untitledClause'
 import {
   appendixDoc, caretIn, chapterDoc, clause, destroyEditors, editor, irOf, item, list, makeEditor, nodeById, p, pressKey, select, snapshot, text, untitled,
@@ -121,7 +121,9 @@ describe('无题条统一为 IR 模型：clauseTitle 为空，条文在首个 st
 
 describe('Enter / Backspace 快捷键', () => {
   it('在无题条的 clauseTitle 中回车：新建带空 clauseTitle 与空 stdParagraph 的同级无题条，光标进正文段', () => {
-    const e = editor([clause('a', '一级条', [untitled('u', 'up', '无题条文', [], 2)])])
+    // 首块是 stdParagraph 时光标不会停在编号块；只有无正文块的无题条里光标才在 clauseTitle 内
+    const titleOnly: JSONContent = { type: 'clause', attrs: { nodeId: 'u', level: 2, hasTitle: false }, content: [{ type: 'clauseTitle', attrs: { level: 2 } }] }
+    const e = editor([clause('a', '一级条', [titleOnly])])
     e.commands.setTextSelection(nodeById(e, 'u').pos + 2)
     expect(e.state.selection.$from.parent.type.name).toBe('clauseTitle')
     pressKey(e, 'Enter')
@@ -155,17 +157,15 @@ describe('Enter / Backspace 快捷键', () => {
 })
 
 describe('appendTransaction 兜底：任何事务后无题条的 clauseTitle 内容移入正文段', () => {
-  it('往无题条标题里输入文字：文字落入首个空段，光标随之移动，撤销一步还原', () => {
+  // 光标不会停在编号块里（见上一组），这里用显式位置的事务把文字写进标题，模拟粘贴、外部写入等其他途径。
+  it('文字被写进无题条标题：落入首个空段，撤销一步还原', () => {
     const e = editor([untitled('u', 'up', '')])
     const original = snapshot(e)
-    e.commands.setTextSelection(nodeById(e, 'u').pos + 2)
-    e.view.dispatch(e.state.tr.insertText('误入'))
+    e.view.dispatch(e.state.tr.insertText('误入', nodeById(e, 'u').pos + 2))
     const target = nodeById(e, 'u').node
     expect(target.firstChild!.content.size).toBe(0)
     expect(target.child(1).textContent).toBe('误入')
     expect(target.child(1).attrs.nodeId).toBe('up')
-    expect(e.state.selection.$from.parent).toBe(target.child(1))
-    expect(e.state.selection.$from.parentOffset).toBe(2)
     expect(irOf(e).doc.unsupportedContent ?? []).toEqual([])
     expect(e.commands.undo()).toBe(true)
     expect(snapshot(e)).toEqual(original)
@@ -175,8 +175,7 @@ describe('appendTransaction 兜底：任何事务后无题条的 clauseTitle 内
 
   it('首段非空时新建段落承载标题文字，不与原有段落拼接', () => {
     const e = editor([untitled('u', 'up', '已有条文')])
-    e.commands.setTextSelection(nodeById(e, 'u').pos + 2)
-    e.view.dispatch(e.state.tr.insertText('新'))
+    e.view.dispatch(e.state.tr.insertText('新', nodeById(e, 'u').pos + 2))
     const target = nodeById(e, 'u').node
     expect(target.firstChild!.content.size).toBe(0)
     expect(target.childCount).toBe(3)
@@ -184,7 +183,6 @@ describe('appendTransaction 兜底：任何事务后无题条的 clauseTitle 内
     expect(target.child(1).attrs.nodeId).toEqual(expect.any(String))
     expect(target.child(2).textContent).toBe('已有条文')
     expect(target.child(2).attrs.nodeId).toBe('up')
-    expect(e.state.selection.$from.parent).toBe(target.child(1))
   })
 
   it('无任何正文块或首块不是 stdParagraph 时新建 stdParagraph', () => {
@@ -214,6 +212,133 @@ describe('appendTransaction 兜底：任何事务后无题条的 clauseTitle 内
     expect(nodeById(e, 'a').node.attrs.hasTitle).toBe(true)
     e.commands.undo()
     expect(snapshot(e)).toEqual(original)
+  })
+})
+
+describe('光标不落在无题条的编号块（空 clauseTitle）内', () => {
+  const titlePos = (e: ReturnType<typeof editor>, id: string) => nodeById(e, id).pos + 2
+
+  it('复现：点击编号（选区落入空 clauseTitle）后输入，文字进入首段起点，不在首段前新建段落', () => {
+    const e = editor([untitled('u', 'up', '已有条文')])
+    e.commands.setTextSelection(titlePos(e, 'u'))
+    // 选区被重定向到首段起点
+    expect(e.state.selection.$from.parent.type.name).toBe('stdParagraph')
+    expect(e.state.selection.$from.parent.attrs.nodeId).toBe('up')
+    expect(e.state.selection.$from.parentOffset).toBe(0)
+    e.view.dispatch(e.state.tr.insertText('X'))
+    const target = nodeById(e, 'u').node
+    expect(target.childCount).toBe(2)
+    expect(target.firstChild!.content.size).toBe(0)
+    expect(target.child(1).textContent).toBe('X已有条文')
+    expect(target.child(1).attrs.nodeId).toBe('up')
+    expect(irOf(e).doc.unsupportedContent ?? []).toEqual([])
+  })
+
+  it('选区范围的一端落在编号块时，该端移到首段起点，另一端不变', () => {
+    const e = editor([p('before', '前文'), untitled('u', 'up', '已有条文')])
+    caretIn(e, 'before', 1)
+    const from = e.state.selection.from
+    e.commands.setTextSelection({ from, to: titlePos(e, 'u') })
+    expect(e.state.selection.from).toBe(from)
+    expect(e.state.selection.$to.parent.attrs.nodeId).toBe('up')
+    expect(e.state.selection.$to.parentOffset).toBe(0)
+  })
+
+  it('首块不是 stdParagraph（列项、无正文块）时选区仍可落在编号块，输入由兜底移入新段落', () => {
+    const e = makeEditor(chapterDoc([{ type: 'clause', attrs: { nodeId: 'u', level: 1, hasTitle: false }, content: [
+      { type: 'clauseTitle', attrs: { level: 1 } }, list('l', 'dash', [item('i', '列项')]),
+    ] }]))
+    e.commands.setTextSelection(titlePos(e, 'u'))
+    expect(e.state.selection.$from.parent.type.name).toBe('clauseTitle')
+    e.view.dispatch(e.state.tr.insertText('先导'))
+    expect(nodeById(e, 'u').node.child(1).textContent).toBe('先导')
+    expect(e.state.selection.$from.parent).toBe(nodeById(e, 'u').node.child(1))
+  })
+
+  it('有题条的空标题不重定向', () => {
+    const e = editor([clause('a', '', [p('body', '正文')])])
+    e.commands.setTextSelection(titlePos(e, 'a'))
+    expect(e.state.selection.$from.parent.type.name).toBe('clauseTitle')
+  })
+
+  it.each(['ArrowLeft', 'ArrowUp'])('首段起点按 %s：跳到前一个块末尾，不卡在编号块', key => {
+    const e = editor([p('before', '前文段落'), untitled('u', 'up', '已有条文')])
+    caretIn(e, 'up', 0)
+    expect(pressKey(e, key)).toBe(true)
+    expect(e.state.selection.$from.parent.attrs.nodeId).toBe('before')
+    expect(e.state.selection.$from.parentOffset).toBe(4)
+    expect(e.state.selection.$from.parent.type.name).toBe('stdParagraph')
+    // 再往左就是普通的逐字移动（不由本插件接管）
+    expect(pressKey(e, key)).toBe(false)
+  })
+
+  it('首段起点按 ArrowLeft：前面没有正文块时跳到章标题末尾', () => {
+    const e = editor([untitled('u', 'up', '已有条文')])
+    caretIn(e, 'up', 0)
+    expect(pressKey(e, 'ArrowLeft')).toBe(true)
+    expect(e.state.selection.$from.parent.type.name).toBe('chapterTitle')
+    expect(e.state.selection.$from.parentOffset).toBe(4)
+  })
+
+  it('首段内部（非起点）、有题条与带修饰键的方向键不被接管', () => {
+    const e = editor([p('before', '前文段落'), untitled('u', 'up', '已有条文'), clause('c', '有题条', [p('cp', '正文')])])
+    caretIn(e, 'up', 2)
+    expect(pressKey(e, 'ArrowLeft')).toBe(false)
+    expect(e.state.selection.$from.parentOffset).toBe(2)
+    caretIn(e, 'cp', 0)
+    expect(pressKey(e, 'ArrowLeft')).toBe(false)
+    caretIn(e, 'up', 0)
+    const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', shiftKey: true, bubbles: true, cancelable: true })
+    expect(e.view.someProp('handleKeyDown', handler => handler(e.view, event)) ?? false).toBe(false)
+  })
+
+  it('首段起点按退格的既有行为保持：解除编号；整条为空时删除该条', () => {
+    const e = editor([p('before', '前文'), untitled('u', 'up', '已有条文')])
+    caretIn(e, 'up', 0)
+    pressKey(e, 'Backspace')
+    expect(nodeById(e, 'up').parent?.type.name).toBe('chapter')
+    expect(e.state.doc.child(0).childCount).toBe(3)
+  })
+})
+
+describe('被引用的无题条不能解除编号', () => {
+  const reference = (targetId: string, refType: string): JSONContent => ({
+    type: 'stdParagraph', attrs: { nodeId: 'ref' }, content: [text('见'), text('引用', [{ type: 'crossRef', attrs: { targetId, refType } }])],
+  })
+
+  it('复现：存在指向该无题条 nodeId 的引用时，setParagraphFormat 拒绝并返回 referenced-block，文档与选区不变', () => {
+    const e = editor([untitled('u', 'up', '被引用的无题条'), reference('u', 'clause')])
+    caretIn(e, 'up', 2)
+    const original = snapshot(e)
+    const selection = e.state.selection.toJSON()
+    expect(setParagraphFormat(e)).toEqual({ ok: false, reason: 'referenced-block' })
+    expect(snapshot(e)).toEqual(original)
+    expect(e.state.selection.toJSON()).toEqual(selection)
+  })
+
+  it('退格不会绕过：被引用的无题条首段起点按退格，文档保持不变', () => {
+    const e = editor([untitled('u', 'up', '被引用的无题条'), reference('u', 'clause')])
+    caretIn(e, 'up', 0)
+    const original = snapshot(e)
+    pressKey(e, 'Backspace')
+    expect(snapshot(e)).toEqual(original)
+  })
+
+  it('无人引用的无题条照常解除；只引用首段（paragraph 型）不阻止', () => {
+    const e = editor([untitled('u', 'up', '无引用的无题条')])
+    caretIn(e, 'up', 1)
+    expect(setParagraphFormat(e)).toEqual({ ok: true })
+
+    const paragraphRef = editor([untitled('u', 'up', '仅段落被引用'), reference('up', 'paragraph')])
+    caretIn(paragraphRef, 'up', 1)
+    expect(setParagraphFormat(paragraphRef)).toEqual({ ok: true })
+    expect(irOf(paragraphRef).problems.filter(item => ['dangling-xref', 'dangling-typed-ref'].includes(item.code))).toEqual([])
+  })
+
+  it('提示文案说明「该条被引用，请先删除或改指引用」', () => {
+    const message = structureFailureMessage('referenced-block', 'paragraph')
+    expect(message).toContain('被引用')
+    expect(message).toContain('删除或改指引用')
   })
 })
 

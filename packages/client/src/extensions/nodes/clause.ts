@@ -1,8 +1,8 @@
-import { Node, mergeAttributes } from '@tiptap/core'
-import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
+import { Node, mergeAttributes, type Editor } from '@tiptap/core'
+import { Plugin, PluginKey, Selection, TextSelection } from '@tiptap/pm/state'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
 import { setParagraphFormat } from '../../utils/structureEditing'
-import { normalizeUntitledClauses } from '../../utils/untitledClause'
+import { normalizeUntitledClauses, redirectUntitledNumberSelection } from '../../utils/untitledClause'
 
 const untitledClauseKey = new PluginKey('untitledClauseNormalize')
 
@@ -66,7 +66,23 @@ export const Clause = Node.create({
   },
 
   addKeyboardShortcuts() {
+    /**
+     * 无题条首段起点再往前（左/上）：光标跳到前一个块末尾。编号块不接收光标（见下方 appendTransaction 重定向），
+     * 若交给浏览器默认处理，光标会先进编号块又被拉回首段起点，卡在原地。
+     */
+    const leaveUntitledClause = ({ editor }: { editor: Editor }) => {
+      const { state } = editor
+      const { $from, empty } = state.selection
+      if (!empty || $from.parent.type.name !== 'stdParagraph' || $from.parentOffset !== 0 || $from.depth < 2) return false
+      const owner = $from.node($from.depth - 1)
+      if (owner.type.name !== 'clause' || owner.attrs.hasTitle !== false || $from.index($from.depth - 1) !== 1) return false
+      const before = Selection.findFrom(state.doc.resolve($from.before($from.depth - 1)), -1, true)
+      if (before) editor.view.dispatch(state.tr.setSelection(before).scrollIntoView())
+      return true
+    }
     return {
+      ArrowLeft: leaveUntitledClause,
+      ArrowUp: leaveUntitledClause,
       Enter: ({ editor }) => {
         const { $from } = editor.state.selection
         // 仅在无题条的 clauseTitle 中按回车时触发
@@ -160,10 +176,18 @@ export const Clause = Node.create({
       key: untitledClauseKey,
       // 兜底：任何事务（输入、粘贴、撤销、整篇载入）之后，无题条标题里的文字都移入正文段，
       // 保证 hasTitle=false 的条始终满足 IR 模型。追加事务不关闭撤销分组，撤销时与原事务一并还原。
+      // 光标也不停在无题条的编号块（空 clauseTitle）里：点击编号、方向键进入时都重定向到首段起点。
       appendTransaction(transactions, _oldState, newState) {
-        if (!transactions.some(transaction => transaction.docChanged)) return null
+        const docChanged = transactions.some(transaction => transaction.docChanged)
+        if (!docChanged && !transactions.some(transaction => transaction.selectionSet)) return null
         const tr = newState.tr
-        return normalizeUntitledClauses(tr) > 0 ? tr : null
+        let changed = docChanged && normalizeUntitledClauses(tr) > 0
+        const redirected = redirectUntitledNumberSelection(tr.doc, tr.selection)
+        if (redirected) {
+          tr.setSelection(redirected)
+          changed = true
+        }
+        return changed ? tr : null
       },
     })]
   },

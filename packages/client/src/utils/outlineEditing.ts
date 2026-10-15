@@ -1,7 +1,7 @@
 import { Fragment, type Node as PMNode, type ResolvedPos } from '@tiptap/pm/model'
 import { TextSelection, type Transaction } from '@tiptap/pm/state'
 import { generateNodeId } from '@ses/shared'
-import { retargetReferenceType } from './textBlockFormat'
+import { hasReferenceTo, retargetReferenceType } from './textBlockFormat'
 
 /**
  * 大纲式（Word 大纲视图式）条结构编辑核心。
@@ -26,6 +26,7 @@ export type OutlineFailureReason =
   | 'untitled-with-children' // 无题条不得再分条（GB/T 1.1 7.3.4）
   | 'invalid-location' // 不在章/附录的条与正文中（表格、术语、前言……）
   | 'out-of-range' // 条级别须为 1~5；术语条目平移后也须在 1~5
+  | 'referenced-block' // 无题条解除编号会让指向该条的引用失去目标
 
 export const MIN_CLAUSE_LEVEL = 1
 export const MAX_CLAUSE_LEVEL = 5
@@ -329,6 +330,8 @@ export function applyOutlineEdit(
       focus = { kind: 'block', node: paragraph, offsets: leaf === 'title' ? offsets : [0, 0] }
     } else {
       // 规范的无题条：clauseTitle 为空、条文已在首个正文段，去掉标题项即解除编号。
+      // 条本身（nodeId）随之消失，指向它的引用会失去目标：被引用时拒绝，由用户先删除或改指引用。
+      if (hasReferenceTo(tr.doc, item.node.attrs.nodeId)) return fail('referenced-block')
       items.splice(index, 1)
       const next = items[index]
       focus = next && next.kind === 'body' ? { kind: 'block', node: next.node, offsets: leaf === 'first-paragraph' ? offsets : [0, 0] } : null

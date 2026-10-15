@@ -66,7 +66,7 @@ function mapStoredAttrs(node: PMNode, rewrite: RewriteMark): JsonRecord {
   return next
 }
 
-function hasReferenceTo(doc: PMNode, id: unknown): boolean {
+export function hasReferenceTo(doc: PMNode, id: unknown): boolean {
   if (typeof id !== 'string' || !id) return false
   let found = false
   const visit: RewriteMark = mark => {

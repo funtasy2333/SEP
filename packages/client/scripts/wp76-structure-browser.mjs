@@ -166,12 +166,29 @@ try {
   const emptyMeasure = await measure('u3')
   assert.ok(Math.abs(emptyMeasure.title.top - emptyMeasure.paragraph.top) <= 1.5)
   pass('空无题条可输入，文字进入正文段')
-  // 点击编号位置（clauseTitle）后输入：兜底把文字移入正文段
+  // 点击编号位置（clauseTitle）：光标被重定向到首段起点，输入的文字进入首段开头，不在首段前新建段落
   await page.locator('.tiptap [data-node-id="u1"] > .std-clause-title').click({ position: { x: 4, y: 4 } })
+  // ProseMirror 在 Chrome 里把鼠标按下期间的 DOM 选区同步推迟到 mouseup 后的下一个宏任务；真人点击与按键之间远大于此，
+  // Playwright 的 click 与 type 背靠背，需等待一拍以模拟真人节奏。
+  await page.waitForTimeout(100)
   await page.keyboard.type('X')
   assert.equal((await page.locator('.tiptap [data-node-id="u1"] > .std-clause-title').innerText()).trim(), '')
-  assert.ok((await page.locator('.tiptap [data-node-id="u1"] .std-paragraph').allInnerTexts()).join('').includes('X'))
-  pass('在编号位置输入的文字被移入正文段')
+  assert.deepEqual(await page.locator('.tiptap [data-node-id="u1"] > .std-paragraph').allInnerTexts(), ['X短条文：编号与首段同行。【追加】'])
+  pass('点击编号位置输入：文字进入首段开头，不新建段落')
+  // 方向键：首段起点再往左/上，光标跳到前一个块末尾，不卡在编号块
+  // 点击编号即把光标放在首段起点（偏移 0）
+  await page.locator('.tiptap [data-node-id="u2"] > .std-clause-title').click({ position: { x: 4, y: 4 } })
+  await page.waitForTimeout(100)
+  await page.keyboard.press('ArrowLeft')
+  await page.keyboard.type('Y')
+  assert.ok((await page.locator('.tiptap [data-node-id="u1p"]').innerText()).endsWith('【追加】Y'), '左方向键应跳到前一个块末尾')
+  await page.locator('.tiptap [data-node-id="u3"] > .std-clause-title').click({ position: { x: 4, y: 4 } })
+  await page.waitForTimeout(100)
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.type('Z')
+  assert.ok((await page.locator('.tiptap [data-node-id="u2p"]').innerText()).endsWith('Z'), '上方向键应跳到前一个块末尾')
+  assert.equal((await page.locator('.tiptap [data-node-id="u2"] > .std-clause-title').innerText()).trim(), '')
+  pass('首段起点按 ← / ↑：光标跳到前一个块末尾，编号块始终为空')
   await page.screenshot({ path: join(output, '03-after-typing.png') })
 
   // ---- 3. 工具栏：段落 → 无题条，失败原因提示各不相同 ----

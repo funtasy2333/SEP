@@ -1,5 +1,5 @@
 import type { Node as PMNode } from '@tiptap/pm/model'
-import { TextSelection, type Transaction } from '@tiptap/pm/state'
+import { TextSelection, type Selection, type Transaction } from '@tiptap/pm/state'
 import { generateNodeId } from '@ses/shared'
 
 /**
@@ -26,6 +26,27 @@ function legacyClausePositions(doc: PMNode): number[] {
 
 export function countLegacyUntitledClauses(doc: PMNode): number {
   return legacyClausePositions(doc).length
+}
+
+/**
+ * 选区端点落在无题条的编号块（空 clauseTitle）内、且该条首块是 stdParagraph 时，返回把该端点移到首段起点的新选区；
+ * 不适用返回 null。无题条的条文在首段，编号块只用来显示编号，光标不应停在其中（点击编号、方向键进入都一样），
+ * 否则输入的文字要靠兜底在首段前另建段落。首块不是 stdParagraph（列项、无正文块）时无处可移，保持原样。
+ */
+export function redirectUntitledNumberSelection(doc: PMNode, selection: Selection): Selection | null {
+  if (!(selection instanceof TextSelection)) return null
+  let changed = false
+  const move = (pos: number): number => {
+    const $pos = doc.resolve(pos)
+    if ($pos.parent.type.name !== 'clauseTitle' || $pos.parent.content.size > 0 || $pos.depth < 1) return pos
+    const clause = $pos.node($pos.depth - 1)
+    if (clause.type.name !== 'clause' || clause.attrs.hasTitle !== false || clause.childCount < 2 || clause.child(1).type.name !== 'stdParagraph') return pos
+    changed = true
+    return $pos.after($pos.depth) + 1
+  }
+  const anchor = move(selection.anchor)
+  const head = move(selection.head)
+  return changed ? TextSelection.create(doc, anchor, head) : null
 }
 
 /**

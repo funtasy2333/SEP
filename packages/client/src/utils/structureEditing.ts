@@ -6,7 +6,7 @@ import {
 } from './outlineEditing'
 import { convertTextBlock, formatStdList } from './textBlockFormat'
 
-/** 结构格式命令失败的原因：前六项来自大纲核心，其余为选区本身不能转换。 */
+/** 结构格式命令失败的原因：来自大纲核心的原因码，加上选区本身不能转换（invalid-selection）、被引用的块不能转换（referenced-block）。 */
 export type StructureFailureReason = OutlineFailureReason | 'invalid-selection' | 'referenced-block'
 export type StructureResult = { ok: true } | { ok: false; reason: StructureFailureReason }
 
@@ -148,6 +148,7 @@ const paragraphMessages: Partial<Record<StructureFailureReason, string>> = {
   'missing-parent': '该条含有子条，改为段落后子条会缺少上级条；请先调整子条级别',
   'level-skip': '改为段落后其后的子条会跳级；请先调整子条级别',
   'hanging-paragraph': '改为段落会在含子条的章（条）里留下悬置段落；请先把正文并入某个条',
+  'referenced-block': '该条（或整个列表）被引用，转为段落会让引用失去目标；请先删除或改指引用',
 }
 
 const listMessages: Partial<Record<StructureFailureReason, string>> = {
