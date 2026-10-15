@@ -1,189 +1,162 @@
 import type { Editor } from '@tiptap/core'
-import { Fragment, type Node as PMNode } from '@tiptap/pm/model'
-import { TextSelection } from '@tiptap/pm/state'
-import { formatTextBlock } from './textBlockFormat'
+import { TextSelection, type Transaction } from '@tiptap/pm/state'
+import {
+  applyOutlineEdit, locateOutline, MAX_CLAUSE_LEVEL, MIN_CLAUSE_LEVEL,
+  type OutlineFailureReason, type OutlineLeaf, type OutlineLocation,
+} from './outlineEditing'
+import { convertTextBlock, formatStdList } from './textBlockFormat'
 
-const paragraphs = new Set(['stdParagraph', 'paragraph'])
+/** 结构格式命令失败的原因：前六项来自大纲核心，其余为选区本身不能转换。 */
+export type StructureFailureReason = OutlineFailureReason | 'invalid-selection' | 'referenced-block'
+export type StructureResult = { ok: true } | { ok: false; reason: StructureFailureReason }
 
-function isHeading(node: PMNode): boolean {
-  return node.type.name === 'clause' || node.type.name === 'termDef'
+const ok: StructureResult = { ok: true }
+const fail = (reason: StructureFailureReason): StructureResult => ({ ok: false, reason })
+const convertible = new Set(['stdListItem', 'note', 'example'])
+
+interface ClauseTarget {
+  /** clause：光标属于一个已有条（标题，或无题条的首个正文段）；block：光标在普通正文段落。 */
+  kind: 'clause' | 'block'
+  leaf: OutlineLeaf
+  location: OutlineLocation
+  offsets: [number, number]
 }
 
-function children(node: PMNode): PMNode[] {
-  const result: PMNode[] = []
-  node.forEach(child => result.push(child))
-  return result
-}
-
-/** Moving a suffix must not orphan deeper headings or introduce hanging blocks. */
-function hasValidNewBody(clause: PMNode, level: number): boolean {
-  const body = children(clause).slice(1)
-  if (body.some(node => isHeading(node) && node.attrs.level !== level + 1)) return false
-  return !(body.some(node => node.type.name === 'clause') && body.some(node => !isHeading(node)))
-}
-
-/** Leave the preceding content in its original clauses, lifting the suffix in order. */
-function splitBeforeTarget(node: PMNode, path: number[]): { before: PMNode; after: PMNode[] } {
-  const index = path[0]!
-  const nodes = children(node)
-  if (path.length === 1) {
-    return { before: node.copy(Fragment.fromArray(nodes.slice(0, index))), after: nodes.slice(index + 1) }
+/** 光标所在文本块对应的大纲目标；不是单个文本块或位置不允许时给出原因。 */
+function clauseTarget(tr: Transaction): ClauseTarget | { reason: StructureFailureReason } {
+  const { $from, $to } = tr.selection
+  if (!$from.sameParent($to) || !$from.parent.isTextblock) return { reason: 'invalid-selection' }
+  const depth = $from.depth
+  const leaf = $from.parent
+  const offsets: [number, number] = [$from.parentOffset, $to.parentOffset]
+  if (leaf.type.name === 'clauseTitle') {
+    if ($from.node(depth - 1).type.name !== 'clause') return { reason: 'invalid-location' }
+    const location = locateOutline($from, depth - 1)
+    return location ? { kind: 'clause', leaf: 'title', location, offsets } : { reason: 'invalid-location' }
   }
-  const split = splitBeforeTarget(nodes[index]!, path.slice(1))
-  return {
-    before: node.copy(Fragment.fromArray([...nodes.slice(0, index), split.before])),
-    after: [...split.after, ...nodes.slice(index + 1)],
+  if (leaf.type.name !== 'stdParagraph') return { reason: 'invalid-location' }
+  const parent = $from.node(depth - 1)
+  // 规范的无题条：条文在首个正文段（紧随空的 clauseTitle）；对它改级/切换有题无题，作用于所在的条。
+  if (parent.type.name === 'clause' && parent.attrs.hasTitle === false && $from.index(depth - 1) === 1) {
+    const location = locateOutline($from, depth - 1)
+    return location ? { kind: 'clause', leaf: 'first-paragraph', location, offsets } : { reason: 'invalid-location' }
   }
+  const location = locateOutline($from, depth)
+  return location ? { kind: 'block', leaf: 'paragraph', location, offsets } : { reason: 'invalid-location' }
+}
+
+function commit(editor: Editor, tr: Transaction): StructureResult {
+  editor.view.dispatch(tr.scrollIntoView())
+  editor.view.focus()
+  return ok
 }
 
 /**
- * Format the current paragraph (including a partial text selection) as a clause.
- * Existing clause titles change their own attributes instead of inserting another clause.
- * Inline marks/anchors and all following content survive; a peer clause is not nested in a peer.
+ * 将当前段落（含部分选中文字）、条标题、列项、注或示例设为 level 级条（hasTitle=false 为无题条）。
+ * 按大纲方式只改这一条的级别：正文顺序不变，其后更深的条按级别重新归属；通过校验才改文档。
+ * 无题条采用 IR 模型：clauseTitle 为空，条文在首个 stdParagraph。
+ * 列项/注/示例先在同一事务内像格式覆盖一样拆出段落，再走同一核心，失败则整体放弃。
  */
-export function setClauseFormat(editor: Editor, level: number, hasTitle = true): boolean {
-  if (!Number.isInteger(level) || level < 1 || level > 5) return false
+export function setClauseFormat(editor: Editor, level: number, hasTitle = true): StructureResult {
+  if (!Number.isInteger(level) || level < MIN_CLAUSE_LEVEL || level > MAX_CLAUSE_LEVEL) return fail('out-of-range')
   const { state } = editor
   const { $from, $to } = state.selection
-  if (!$from.sameParent($to)) return false
-  const leaf = $from.parent
-  let targetDepth: number
-  let clause: PMNode
-  if (paragraphs.has(leaf.type.name)) {
-    targetDepth = $from.depth
-    clause = state.schema.nodes.clause.create(
-      { nodeId: leaf.attrs.nodeId, level, hasTitle },
-      [state.schema.nodes.clauseTitle.create({ level }, leaf.content)],
-    )
-  } else if (leaf.type.name === 'clauseTitle' && $from.node($from.depth - 1).type.name === 'clause') {
-    targetDepth = $from.depth - 1
-    const target = $from.node(targetDepth)
-    if (level !== target.attrs.level && children(target).some(isHeading)) return false
-    clause = target.type.create({ ...target.attrs, level, hasTitle }, [
-      leaf.type.create({ ...leaf.attrs, level }, leaf.content, leaf.marks),
-      ...children(target).slice(1),
-    ], target.marks)
-  } else {
-    return false
-  }
-
-  let hostDepth = targetDepth - 1
-  for (; hostDepth > 0; hostDepth -= 1) {
-    const host = $from.node(hostDepth)
-    if (host.type.name === 'chapter' || host.type.name === 'appendix') break
-    if (host.type.name !== 'clause') return false
-    if (host.attrs.level < level) break
-  }
-  // Clauses belong to a chapter/appendix, never to a table, term, foreword or the root.
-  if (hostDepth === 0) return false
-  const host = $from.node(hostDepth)
-  const expectedLevel = host.type.name === 'clause' ? host.attrs.level + 1 : 1
-  // A lower ancestor alone is insufficient: missing intermediate levels yield
-  // heading-skip warnings and incomplete numbering in the exported document.
-  if (level !== expectedLevel) return false
-
+  if (!$from.sameParent($to)) return fail('invalid-selection')
   const tr = state.tr
-  let clausePos: number
-  if (hostDepth === targetDepth - 1) {
-    clausePos = $from.before(targetDepth)
-    let end = $from.after(targetDepth)
-    if (paragraphs.has(leaf.type.name)) {
-      const preceding = children(host).slice(0, $from.index(hostDepth))
-      // A paragraph-only section is valid, but introducing a numbered child
-      // after its direct body would leave that earlier text hanging. Keep it
-      // unchanged until the user formats the first paragraph or moves the body.
-      if (preceding.some(node => !isHeading(node) && !['chapterTitle', 'appendixLabel', 'appendixTitle', 'clauseTitle'].includes(node.type.name))) return false
-      const following = children(host).slice($from.index(hostDepth) + 1)
-      const peerIndex = following.findIndex(node => isHeading(node) && node.attrs.level <= level)
-      const body = following.slice(0, peerIndex < 0 ? following.length : peerIndex)
-      clause = clause.copy(clause.content.append(Fragment.fromArray(body)))
-      if (!hasValidNewBody(clause, level)) return false
-      end += body.reduce((size, node) => size + node.nodeSize, 0)
-    }
-    tr.replaceWith(clausePos, end, clause)
-  } else {
-    const ancestorDepth = hostDepth + 1
-    const ancestor = $from.node(ancestorDepth)
-    const path = Array.from({ length: targetDepth - ancestorDepth }, (_, i) => $from.index(ancestorDepth + i))
-    const split = splitBeforeTarget(ancestor, path)
-    // Paragraphs/subclauses after a new heading remain its body until the next peer heading.
-    const peerIndex = split.after.findIndex(node => isHeading(node) && node.attrs.level <= level)
-    const bodyEnd = peerIndex < 0 ? split.after.length : peerIndex
-    clause = clause.copy(clause.content.append(Fragment.fromArray(split.after.slice(0, bodyEnd))))
-    if (!hasValidNewBody(clause, level)) return false
-    const start = $from.before(ancestorDepth)
-    tr.replaceWith(start, $from.after(ancestorDepth), [split.before, clause, ...split.after.slice(bodyEnd)])
-    clausePos = start + split.before.nodeSize
+  if (convertible.has($from.parent.type.name)) {
+    const failure = convertTextBlock(state, tr, 'stdParagraph')
+    if (failure) return fail(failure === 'referenced-block' ? 'referenced-block' : 'invalid-selection')
   }
-  tr.setSelection(TextSelection.create(tr.doc, clausePos + 2 + $from.parentOffset, clausePos + 2 + $to.parentOffset))
-  editor.view.dispatch(tr.scrollIntoView())
-  editor.view.focus()
-  return true
+  const target = clauseTarget(tr)
+  if ('reason' in target) return fail(target.reason)
+  const outcome = applyOutlineEdit(
+    tr, target.location, { kind: target.kind === 'clause' ? 'set-clause' : 'make-clause', level, hasTitle }, target.leaf, target.offsets,
+  )
+  return outcome.ok ? commit(editor, tr) : outcome
 }
 
-/** Turn a title back into a paragraph without flattening or deleting its body. */
-export function setParagraphFormat(editor: Editor): boolean {
+/** 条 → 正文段落：标题项变为段落（保留 nodeId 与 marks），原子条按级别重新归属；列项/注/示例改为段落。 */
+export function setParagraphFormat(editor: Editor): StructureResult {
   const { state } = editor
-  if (['stdListItem', 'note', 'example'].includes(state.selection.$from.parent.type.name)) {
-    const tr = state.tr
-    if (!formatTextBlock(state, tr, 'stdParagraph')) return false
-    editor.view.dispatch(tr.scrollIntoView())
-    editor.view.focus()
-    return true
-  }
   const { $from, $to } = state.selection
-  if (!$from.sameParent($to)) return false
-  const leaf = $from.parent
   const tr = state.tr
-  let paragraphPos: number
-  if (leaf.type.name === 'stdParagraph') {
-    editor.view.focus()
-    return true
+  if (convertible.has($from.parent.type.name)) {
+    const failure = convertTextBlock(state, tr, 'stdParagraph')
+    return failure ? fail(failure === 'referenced-block' ? 'referenced-block' : 'invalid-selection') : commit(editor, tr)
   }
-  if (leaf.type.name === 'clauseTitle' && $from.node($from.depth - 1).type.name === 'clause') {
-    const depth = $from.depth - 1
-    const clause = $from.node(depth)
-    // Removing a heading is safe only if it has no numbered descendants.
-    // Keep their existing ancestry rather than silently promoting orphaned subclauses.
-    if (children(clause).some(isHeading)) return false
-    const parent = $from.node(depth - 1)
-    const index = $from.index(depth - 1)
-    const siblings = children(parent)
-    paragraphPos = $from.before(depth)
-    const body = [
-      state.schema.nodes.stdParagraph.create({ nodeId: clause.attrs.nodeId }, leaf.content),
-      ...children(clause).slice(1),
-    ]
-    if (siblings.some((node, i) => i !== index && node.type.name === 'clause')) {
-      const previous = siblings[index - 1]
-      // Following a leaf clause, the unnumbered text becomes that clause's body.
-      // Otherwise a direct paragraph alongside clauses would become hanging text.
-      if (!previous || previous.type.name !== 'clause' || children(previous).some(isHeading)) return false
-      const previousPos = paragraphPos - previous.nodeSize
-      paragraphPos -= 1 // The previous clause's closing token becomes the paragraph start.
-      tr.replaceWith(previousPos, $from.after(depth), previous.copy(previous.content.append(Fragment.fromArray(body))))
-    } else {
-      tr.replaceWith(paragraphPos, $from.after(depth), body)
+  if (!$from.sameParent($to)) return fail('invalid-selection')
+  const leaf = $from.parent
+  if (leaf.type.name === 'stdParagraph' || leaf.type.name === 'clauseTitle') {
+    const parent = $from.node($from.depth - 1)
+    // 正文段落（任何位置）本来就是段落；只有无题条的首个正文段需要解除该条编号。
+    if (leaf.type.name === 'stdParagraph' && !(parent.type.name === 'clause' && parent.attrs.hasTitle === false && $from.index($from.depth - 1) === 1)) {
+      editor.view.focus()
+      return ok
     }
-  } else if (['paragraph', 'note', 'example'].includes(leaf.type.name)) {
+    const target = clauseTarget(tr)
+    if ('reason' in target) return fail(target.reason)
+    const outcome = applyOutlineEdit(tr, target.location, { kind: 'make-paragraph' }, target.leaf, target.offsets)
+    return outcome.ok ? commit(editor, tr) : outcome
+  }
+  if (leaf.type.name === 'paragraph') {
     const parent = $from.node($from.depth - 1)
     const index = $from.index($from.depth - 1)
     // StarterKit list items require their first generic paragraph. Changing it
     // makes the replacement fitter invent an empty bullet before the real text.
-    if (leaf.type.name === 'paragraph' && parent.type.name === 'listItem') {
+    if (parent.type.name === 'listItem') {
       editor.view.focus()
-      return true
+      return ok
     }
-    if (!parent.canReplaceWith(index, index + 1, state.schema.nodes.stdParagraph)) return false
-    paragraphPos = $from.before($from.depth)
-    tr.replaceWith(paragraphPos, $from.after($from.depth), state.schema.nodes.stdParagraph.create(
+    if (!parent.canReplaceWith(index, index + 1, state.schema.nodes.stdParagraph!)) return fail('invalid-location')
+    const paragraphPos = $from.before($from.depth)
+    tr.replaceWith(paragraphPos, $from.after($from.depth), state.schema.nodes.stdParagraph!.create(
       { nodeId: leaf.attrs.nodeId }, leaf.content, leaf.marks,
     ))
-  } else {
-    return false
+    tr.setSelection(TextSelection.create(tr.doc, paragraphPos + 1 + $from.parentOffset, paragraphPos + 1 + $to.parentOffset))
+    return commit(editor, tr)
   }
-  tr.setSelection(TextSelection.create(tr.doc, paragraphPos + 1 + $from.parentOffset, paragraphPos + 1 + $to.parentOffset))
-  editor.view.dispatch(tr.scrollIntoView())
-  editor.view.focus()
-  return true
+  return fail('invalid-location')
+}
+
+/**
+ * 列项格式命令：选中的列项变成目标类型的列项（前后部分保留原类型），正文段落/注/示例转为目标类型列项；
+ * 空段落中保持原来的插入新列表行为。文字、marks、nodeId 与引用都保留。
+ */
+export function setListFormat(editor: Editor, listType: string): StructureResult {
+  const { state } = editor
+  const tr = state.tr
+  const failure = formatStdList(state, tr, listType)
+  if (failure === null) return commit(editor, tr)
+  if (failure === 'referenced-block') return fail('referenced-block')
+  if (failure === 'unsupported' && !state.selection.empty) return fail('invalid-selection')
+  return editor.chain().focus().insertStdList({ listType }).run() ? ok : fail('invalid-selection')
+}
+
+export type StructureAction = 'clause' | 'paragraph' | 'list'
+
+const clauseMessages: Record<StructureFailureReason, string> = {
+  'missing-parent': '缺少上级条：须先有上一级条（第一个条必须是一级条），才能设置该级别',
+  'level-skip': '会造成层级跳级：条的级别只能比前一条深一级，或与其后条的级别连续',
+  'hanging-paragraph': '会留下悬置段落：章（条）内有子条时，不能再有直属正文，请先把正文并入某个条',
+  'untitled-with-children': '无题条不能再分条（GB/T 1.1 的无题条不得再设子条）',
+  'invalid-location': '当前位置不允许设置条：条只能位于章或附录的正文中，不能用于表格、术语条目、前言等位置',
+  'out-of-range': '条的级别须为一至五级，术语条目平移后也不能超过五级',
+  'invalid-selection': '请将光标放在单个段落、条标题或列项内；跨段选区不能设置条',
+  'referenced-block': '该内容整体被交叉引用，转换后引用会失效；请先修改或删除引用',
+}
+const paragraphMessages: Partial<Record<StructureFailureReason, string>> = {
+  'missing-parent': '该条含有子条，改为段落后子条会缺少上级条；请先调整子条级别',
+  'level-skip': '改为段落后其后的子条会跳级；请先调整子条级别',
+  'hanging-paragraph': '改为段落会在含子条的章（条）里留下悬置段落；请先把正文并入某个条',
+}
+
+const listMessages: Partial<Record<StructureFailureReason, string>> = {
+  'invalid-selection': '请将光标放在正文段落、注、示例或列项内再设置列项；空段落中会插入新列表',
+  'referenced-block': '该注/示例被交叉引用，转为列项后引用会失效；请先修改或删除引用',
+}
+
+/** 把失败原因码转成面向用户的中文提示（不同原因给出不同提示）。 */
+export function structureFailureMessage(reason: StructureFailureReason, action: StructureAction = 'clause'): string {
+  const specific = action === 'paragraph' ? paragraphMessages[reason] : action === 'list' ? listMessages[reason] : undefined
+  return specific ?? clauseMessages[reason]
 }

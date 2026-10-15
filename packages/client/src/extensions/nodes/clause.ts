@@ -1,6 +1,10 @@
 import { Node, mergeAttributes } from '@tiptap/core'
-import { TextSelection } from '@tiptap/pm/state'
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
+import { setParagraphFormat } from '../../utils/structureEditing'
+import { normalizeUntitledClauses } from '../../utils/untitledClause'
+
+const untitledClauseKey = new PluginKey('untitledClauseNormalize')
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -80,21 +84,36 @@ export const Clause = Node.create({
         // 仅对无题条生效
         if (clauseNode.attrs.hasTitle !== false) return false
         const level = clauseNode.attrs.level
-        // 在当前 clause 之后插入同级无题条
+        // 在当前 clause 之后插入同级无题条。无题条采用 IR 模型：clauseTitle 为空，
+        // 条文在首个 stdParagraph，所以新条带一个空段落，光标进入该正文段。
         const insertPos = $from.after(clauseDepth)
         const schema = editor.state.schema
         const { tr } = editor.state
+        const title = schema.nodes.clauseTitle.create({ level }, [])
         const newClause = schema.nodes.clause.create(
           { level, hasTitle: false },
-          [schema.nodes.clauseTitle.create({ level }, [])],
+          [title, schema.nodes.stdParagraph.create()],
         )
         tr.insert(insertPos, newClause)
-        tr.setSelection(TextSelection.create(tr.doc, insertPos + 2))
+        tr.setSelection(TextSelection.create(tr.doc, insertPos + 1 + title.nodeSize + 1))
         editor.view.dispatch(tr)
         return true
       },
       Backspace: ({ editor }) => {
-        const { $from } = editor.state.selection
+        const { $from, empty } = editor.state.selection
+        // 无题条首个正文段的起点退格：解除编号变为段落，而不是把正文并入（空的）编号标题。
+        if (empty && $from.parent.type.name === 'stdParagraph' && $from.parentOffset === 0 && $from.depth >= 2) {
+          const owner = $from.node($from.depth - 1)
+          if (owner.type.name === 'clause' && owner.attrs.hasTitle === false && $from.index($from.depth - 1) === 1) {
+            if (owner.textContent.trim() === '' && owner.childCount === 2) {
+              const pos = $from.before($from.depth - 1)
+              editor.chain().deleteRange({ from: pos, to: pos + owner.nodeSize }).run()
+            } else {
+              setParagraphFormat(editor)
+            }
+            return true
+          }
+        }
         // 光标在 clauseTitle 开头时，检查整个 clause 是否为空
         if ($from.parent.type.name === 'clauseTitle' && $from.parentOffset === 0) {
           for (let d = $from.depth; d > 0; d--) {
@@ -134,6 +153,19 @@ export const Clause = Node.create({
         return false
       },
     }
+  },
+
+  addProseMirrorPlugins() {
+    return [new Plugin({
+      key: untitledClauseKey,
+      // 兜底：任何事务（输入、粘贴、撤销、整篇载入）之后，无题条标题里的文字都移入正文段，
+      // 保证 hasTitle=false 的条始终满足 IR 模型。追加事务不关闭撤销分组，撤销时与原事务一并还原。
+      appendTransaction(transactions, _oldState, newState) {
+        if (!transactions.some(transaction => transaction.docChanged)) return null
+        const tr = newState.tr
+        return normalizeUntitledClauses(tr) > 0 ? tr : null
+      },
+    })]
   },
 
   addCommands() {

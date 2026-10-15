@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { pmToIr, resolve, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from '../extensions/editorExtensions'
 import { setClauseFormat, setParagraphFormat } from './structureEditing'
+import { nodeById } from './__fixtures__/structureEditor'
 
 const editors: Editor[] = []
 const text = (value: string, marks?: JSONContent['marks']): JSONContent => ({ type: 'text', text: value, ...(marks ? { marks } : {}) })
@@ -51,12 +52,12 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     const original = e.getJSON()
     const selection = e.state.selection.toJSON()
     expectNoStructureWarnings(e)
-    expect(setClauseFormat(e, hostType === 'clause' ? 2 : 1)).toBe(false)
+    expect(setClauseFormat(e, hostType === 'clause' ? 2 : 1).ok).toBe(false)
     expect(e.getJSON()).toEqual(original)
     expect(e.state.selection.toJSON()).toEqual(selection)
     expectNoStructureWarnings(e)
     select(e, '前文段落')
-    expect(setClauseFormat(e, hostType === 'clause' ? 2 : 1)).toBe(true)
+    expect(setClauseFormat(e, hostType === 'clause' ? 2 : 1).ok).toBe(true)
     expect(clauseByTitle(e, '前文段落').node.childCount).toBe(3)
     expectNoStructureWarnings(e)
   })
@@ -67,10 +68,10 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     ] }] }])
     select(e, '列表项正文', 1, 2)
     const json = e.getJSON()
-    expect(setParagraphFormat(e)).toBe(true)
+    expect(setParagraphFormat(e).ok).toBe(true)
     expect(e.getJSON()).toEqual(json)
     select(e, '列表项续段')
-    expect(setParagraphFormat(e)).toBe(true)
+    expect(setParagraphFormat(e).ok).toBe(true)
     expect(e.getJSON()).toEqual(json)
     expect(e.view.dom.querySelectorAll('li p')).toHaveLength(2)
     expect(e.view.dom.querySelector('li p')?.textContent).toBe('列表项正文')
@@ -82,7 +83,7 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     const e = editor([source, p('following', '后续正文')])
     const original = e.state.doc.child(0).child(1)
     select(e, '总体原则三', 1, 2)
-    expect(setClauseFormat(e, 1)).toBe(true)
+    expect(setClauseFormat(e, 1).ok).toBe(true)
     const converted = clauseByTitle(e, '总体原则三及引用')
     expect(converted.node.attrs.nodeId).toBe('target')
     expect(converted.node.firstChild!.content.eq(original.content)).toBe(true)
@@ -95,8 +96,8 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
   it('仅点击段落即可转换；反复设置同一级不会新增空条', () => {
     const e = editor([p('target', '总体原则三')])
     select(e, '总体原则三')
-    expect(setClauseFormat(e, 1)).toBe(true)
-    expect(setClauseFormat(e, 1)).toBe(true)
+    expect(setClauseFormat(e, 1).ok).toBe(true)
+    expect(setClauseFormat(e, 1).ok).toBe(true)
     expect(e.state.doc.child(0).childCount).toBe(2)
     clauseByTitle(e, '总体原则三')
   })
@@ -107,7 +108,7 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     ])]), p('after', '章末正文')])
     const before = e.state.doc.textContent
     select(e, '总体原则三')
-    expect(setClauseFormat(e, 1)).toBe(true)
+    expect(setClauseFormat(e, 1).ok).toBe(true)
     const converted = clauseByTitle(e, '总体原则三')
     expect(converted.parent?.type.name).toBe('chapter')
     expect(converted.node.child(1).textContent).toBe('第三条正文')
@@ -122,7 +123,7 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
   it('二级条保留在所属一级条内，原段落不重复', () => {
     const e = editor([clause('a', '总体原则一', [p('target', '子条标题')])])
     select(e, '子条标题')
-    expect(setClauseFormat(e, 2)).toBe(true)
+    expect(setClauseFormat(e, 2).ok).toBe(true)
     const target = clauseByTitle(e, '子条标题')
     expect(target.parent?.attrs.nodeId).toBe('a')
     expect(target.node.attrs.level).toBe(2)
@@ -137,9 +138,9 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     ], 2)])])
     select(e, '第一个三级条')
     const original = e.getJSON()
-    expect(setClauseFormat(e, 1)).toBe(false)
+    expect(setClauseFormat(e, 1).ok).toBe(false)
     select(e, '三级条正文')
-    expect(setClauseFormat(e, 1)).toBe(false)
+    expect(setClauseFormat(e, 1).ok).toBe(false)
     expect(e.getJSON()).toEqual(original)
     expectNoStructureWarnings(e)
 
@@ -148,7 +149,7 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     ])])
     const textBefore = safe.state.doc.textContent
     select(safe, '待提升二级条')
-    expect(setClauseFormat(safe, 1)).toBe(true)
+    expect(setClauseFormat(safe, 1).ok).toBe(true)
     expect(clauseByTitle(safe, '后续二级条').parent?.attrs.nodeId).toBe('target')
     expect(safe.state.doc.textContent).toBe(textBefore)
     expectNoStructureWarnings(safe)
@@ -158,21 +159,34 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     ])])
     select(hanging, '有正文的二级条')
     const json = hanging.getJSON()
-    expect(setClauseFormat(hanging, 1)).toBe(false)
+    expect(setClauseFormat(hanging, 1).ok).toBe(false)
     expect(hanging.getJSON()).toEqual(json)
     expectNoStructureWarnings(hanging)
   })
 
-  it('已有条标题切换有题/无题格式，保留正文、子条与稳定锚点', () => {
-    const e = editor([clause('a', '总体原则一', [p('body', '正文'), clause('nested', '子条', [], 2)])])
+  // 改动说明（WP76 A3）：无题条统一为 IR 模型（clauseTitle 为空、条文在首个正文段），且无题条不得再分条。
+  // 原断言要求「含子条的条切换为无题后 content 与原来完全相同」——即标题文字留在 clauseTitle，与 IR 模型冲突
+  // （导出被 unsupportedContent 阻断），且含子条的条转无题违反 GB/T 1.1 7.3.4，故改为：
+  // 无子条的条切换时标题文字移为新建首段，含子条的条被拒绝（untitled-with-children）。
+  it('已有条标题切换有题/无题格式，标题文字移入首段，保留正文与稳定锚点；含子条的条不能转无题', () => {
+    const e = editor([clause('a', '总体原则一', [p('body', '正文')])])
     const source = clauseByTitle(e, '总体原则一').node
     select(e, '总体原则一', 1, 2)
-    expect(setClauseFormat(e, 1, false)).toBe(true)
-    const target = clauseByTitle(e, '总体原则一').node
+    expect(setClauseFormat(e, 1, false).ok).toBe(true)
+    const target = nodeById(e, 'a').node
     expect(target.attrs).toMatchObject({ nodeId: 'a', hasTitle: false })
-    expect(target.content.eq(source.content)).toBe(true)
-    expect(setClauseFormat(e, 1, true)).toBe(true)
-    expect(clauseByTitle(e, '总体原则一').node.attrs.hasTitle).toBe(true)
+    expect(target.firstChild!.content.size).toBe(0)
+    expect(target.child(1).textContent).toBe('总体原则一')
+    expect(target.child(1).content.eq(source.firstChild!.content)).toBe(true)
+    expect(target.child(2).eq(source.child(1))).toBe(true)
+    expect(setClauseFormat(e, 1, true).ok).toBe(true)
+    expect(nodeById(e, 'a').node.attrs.hasTitle).toBe(true)
+
+    const withChild = editor([clause('a', '总体原则一', [p('body', '正文'), clause('nested', '子条', [], 2)])])
+    select(withChild, '总体原则一', 1, 2)
+    const json = withChild.getJSON()
+    expect(setClauseFormat(withChild, 1, false)).toEqual({ ok: false, reason: 'untitled-with-children' })
+    expect(withChild.getJSON()).toEqual(json)
   })
 
   it('单个叶子条转段落不拼接或丢弃正文；已是段落时不新增空行', () => {
@@ -180,12 +194,12 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     const before = e.state.doc.textContent
     const body = clauseByTitle(e, '总体原则一').node.child(1)
     select(e, '总体原则一')
-    expect(setParagraphFormat(e)).toBe(true)
+    expect(setParagraphFormat(e).ok).toBe(true)
     expect(e.state.doc.child(0).child(1).attrs.nodeId).toBe('a')
     expect(e.state.doc.child(0).child(2).eq(body)).toBe(true)
     expect(e.state.doc.textContent).toBe(before)
     const json = e.getJSON()
-    expect(setParagraphFormat(e)).toBe(true)
+    expect(setParagraphFormat(e).ok).toBe(true)
     expect(e.getJSON()).toEqual(json)
     e.state.doc.check()
     expectNoStructureWarnings(e)
@@ -195,7 +209,7 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     const e = editor([p('target', '新条'), p('a', '后续正文一'), p('b', '后续正文二'), clause('peer', '下一条', [p('peer-body', '下一条正文')])])
     const before = e.state.doc.textContent
     select(e, '新条')
-    expect(setClauseFormat(e, 1)).toBe(true)
+    expect(setClauseFormat(e, 1).ok).toBe(true)
     expect(clauseByTitle(e, '新条').node.childCount).toBe(3)
     expect(clauseByTitle(e, '下一条').parent?.type.name).toBe('chapter')
     expect(e.state.doc.textContent).toBe(before)
@@ -207,7 +221,7 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
       p('ap', '附录新条'), p('ap-body', '附录正文'), clause('ap-peer', '附录下一条'),
     ] }] })
     select(e, '附录新条')
-    expect(setClauseFormat(e, 1)).toBe(true)
+    expect(setClauseFormat(e, 1).ok).toBe(true)
     expect(clauseByTitle(e, '附录新条').node.lastChild?.attrs.nodeId).toBe('ap-body')
     expectNoStructureWarnings(e)
 
@@ -216,7 +230,7 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
       clause('parent', '一级条', [p('nested', '新二级条'), p('nested-body', '二级条正文'), clause('peer2', '下一二级条', [], 2)]),
     ] }] })
     select(e, '新二级条')
-    expect(setClauseFormat(e, 2)).toBe(true)
+    expect(setClauseFormat(e, 2).ok).toBe(true)
     expect(clauseByTitle(e, '新二级条').node.lastChild?.attrs.nodeId).toBe('nested-body')
     expectNoStructureWarnings(e)
   })
@@ -225,7 +239,7 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     const e = editor([clause('a', '有子条', [clause('nested', '子条', [p('body', '子条正文')], 2)])])
     select(e, '有子条')
     const original = e.getJSON()
-    expect(setParagraphFormat(e)).toBe(false)
+    expect(setParagraphFormat(e).ok).toBe(false)
     expect(e.getJSON()).toEqual(original)
     expectNoStructureWarnings(e)
 
@@ -234,7 +248,7 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     ] }] })
     select(e, '第一条')
     const siblings = e.getJSON()
-    expect(setParagraphFormat(e)).toBe(false)
+    expect(setParagraphFormat(e).ok).toBe(false)
     expect(e.getJSON()).toEqual(siblings)
     expectNoStructureWarnings(e)
 
@@ -244,9 +258,12 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     ] }] })
     select(e, '带子条的二级条')
     const ancestry = e.getJSON()
-    expect(setClauseFormat(e, 1)).toBe(false)
+    expect(setClauseFormat(e, 1).ok).toBe(false)
     expect(e.getJSON()).toEqual(ancestry)
-    expect(setClauseFormat(e, 2, false)).toBe(true)
+    // 改动说明（WP76 A3）：原断言期望含子条的条可转无题（true）；无题条不得再分条，现拒绝并保持原文档。
+    expect(setClauseFormat(e, 2, false)).toEqual({ ok: false, reason: 'untitled-with-children' })
+    expect(e.getJSON()).toEqual(ancestry)
+    expect(setClauseFormat(e, 2, true).ok).toBe(true)
     expectNoStructureWarnings(e)
   })
 
@@ -256,7 +273,7 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     select(e, '转段标题', 1, 2)
     e.commands.setMark('bold')
     const title = clauseByTitle(e, '转段标题').node.firstChild!
-    expect(setParagraphFormat(e)).toBe(true)
+    expect(setParagraphFormat(e).ok).toBe(true)
     const target = clauseByTitle(e, '前条').node
     expect(e.state.doc.firstChild?.childCount).toBe(2)
     expect(target.child(2).attrs.nodeId).toBe('b')
@@ -274,7 +291,7 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
   it('一次格式转换可撤销和重做，不产生第二条或丢失文字', () => {
     const e = editor([p('target', '总体原则三')])
     select(e, '总体原则三')
-    expect(setClauseFormat(e, 1)).toBe(true)
+    expect(setClauseFormat(e, 1).ok).toBe(true)
     expect(e.commands.undo()).toBe(true)
     expect(e.state.doc.child(0).child(1).type.name).toBe('stdParagraph')
     expect(e.state.doc.child(0).child(1).textContent).toBe('总体原则三')
@@ -285,7 +302,7 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
   it('空段转为空条后可直接输入，不保留第二个空段', () => {
     const e = editor([p('empty')])
     e.commands.setTextSelection(e.state.doc.firstChild!.firstChild!.nodeSize + 2)
-    expect(setClauseFormat(e, 1)).toBe(true)
+    expect(setClauseFormat(e, 1).ok).toBe(true)
     expect(e.state.selection.$from.parent.type.name).toBe('clauseTitle')
     e.commands.insertContent('新条标题')
     expect(e.state.doc.firstChild?.childCount).toBe(2)
@@ -297,13 +314,13 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     const e = editor([p('direct', '章下段落'), clause('first', '已有一级条', [p('nested', '条内段落')])])
     select(e, '章下段落')
     const original = e.getJSON()
-    for (const level of [2, 3, 4, 5]) expect(setClauseFormat(e, level)).toBe(false)
+    for (const level of [2, 3, 4, 5]) expect(setClauseFormat(e, level).ok).toBe(false)
     select(e, '已有一级条')
-    expect(setClauseFormat(e, 4)).toBe(false)
+    expect(setClauseFormat(e, 4).ok).toBe(false)
     select(e, '条内段落')
-    for (const level of [3, 4, 5]) expect(setClauseFormat(e, level)).toBe(false)
+    for (const level of [3, 4, 5]) expect(setClauseFormat(e, level).ok).toBe(false)
     expect(e.getJSON()).toEqual(original)
-    expect(setClauseFormat(e, 2)).toBe(true)
+    expect(setClauseFormat(e, 2).ok).toBe(true)
     expect(clauseByTitle(e, '条内段落').parent?.attrs.level).toBe(1)
     e.state.doc.check()
   })
@@ -316,7 +333,7 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
       p('ap', '附录段落'),
     ] }] })
     select(e, '附录段落')
-    expect(setClauseFormat(e, 1)).toBe(true)
+    expect(setClauseFormat(e, 1).ok).toBe(true)
     expect(clauseByTitle(e, '附录段落').parent?.type.name).toBe('appendix')
     e.commands.setContent({ type: 'doc', content: [{ type: 'chapter', content: [
       { type: 'chapterTitle', content: [text('表格章')] },
@@ -324,7 +341,7 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     ] }] })
     select(e, '单元格正文')
     const json = e.getJSON()
-    expect(setClauseFormat(e, 1)).toBe(false)
+    expect(setClauseFormat(e, 1).ok).toBe(false)
     expect(e.getJSON()).toEqual(json)
     e.state.doc.check()
   })
@@ -335,16 +352,16 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     ] }])
     select(e, '第一段')
     const json = e.getJSON()
-    expect(setClauseFormat(e, 0)).toBe(false)
-    expect(setClauseFormat(e, 6)).toBe(false)
+    expect(setClauseFormat(e, 0).ok).toBe(false)
+    expect(setClauseFormat(e, 6).ok).toBe(false)
     const from = e.state.selection.from
     select(e, '第二段', 2)
     e.commands.setTextSelection({ from, to: e.state.selection.to })
-    expect(setClauseFormat(e, 1)).toBe(false)
+    expect(setClauseFormat(e, 1).ok).toBe(false)
     select(e, '总体原则')
-    expect(setClauseFormat(e, 1)).toBe(false)
+    expect(setClauseFormat(e, 1).ok).toBe(false)
     select(e, '定义')
-    expect(setClauseFormat(e, 1)).toBe(false)
+    expect(setClauseFormat(e, 1).ok).toBe(false)
     expect(e.getJSON()).toEqual(json)
   })
 })

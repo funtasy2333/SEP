@@ -35,7 +35,7 @@ describe('用户反馈：列项转换保留内容', () => {
     const e = editor([list()]); const before = e.state.doc.textContent
     const value = ['甲项目', '乙项目', '丙项目'][index]!
     e.commands.setTextSelection({ from: pos(e, value) + 1, to: pos(e, value) + 3 })
-    expect(setParagraphFormat(e)).toBe(true)
+    expect(setParagraphFormat(e).ok).toBe(true)
     const nodes = body(e)
     expect(nodes.map(n => n.type.name)).toEqual(index === 0 ? ['stdParagraph', 'stdList'] : index === 1 ? ['stdList', 'stdParagraph', 'stdList'] : ['stdList', 'stdParagraph'])
     const paragraph = nodes.find(n => n.type.name === 'stdParagraph')!
@@ -52,7 +52,7 @@ describe('用户反馈：列项转换保留内容', () => {
   })
   it('跨两项的选区转换为两个独立段落，未选中的项仍为列项', () => {
     const e = editor([list()]); e.commands.setTextSelection({ from: pos(e, '乙项目') + 1, to: pos(e, '丙项目') + 2 })
-    expect(setParagraphFormat(e)).toBe(true)
+    expect(setParagraphFormat(e).ok).toBe(true)
     expect(body(e).map(n => [n.type.name, n.textContent])).toEqual([['stdList', '甲项目'], ['stdParagraph', '乙项目'], ['stdParagraph', '丙项目']])
     e.state.doc.check()
   })
@@ -136,7 +136,7 @@ describe('格式转换保留已有交叉引用的语义目标', () => {
     const e = editor([list(), reference])
     e.commands.setTextSelection(pos(e, '乙项目'))
     expect(resolve(pmToIr(e.getJSON() as PMJsonNode).doc).problems.filter(p => p.code.startsWith('dangling'))).toEqual([])
-    expect(setParagraphFormat(e)).toBe(true)
+    expect(setParagraphFormat(e).ok).toBe(true)
     expect(resolve(pmToIr(e.getJSON() as PMJsonNode).doc).problems.filter(p => p.code.startsWith('dangling'))).toEqual([])
     expect(body(e).at(-1)!.firstChild!.marks[0]!.attrs.targetId).toBe('item-1')
   })

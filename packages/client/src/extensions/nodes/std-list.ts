@@ -1,5 +1,6 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
+import { formatStdList } from '../../utils/textBlockFormat'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -79,7 +80,13 @@ export const StdList = Node.create({
     return {
       insertStdList:
         (attrs) =>
-        ({ chain }) => {
+        ({ state, tr, dispatch, chain }) => {
+          // 选中列项或正文块时是「格式命令」：转换所选内容，而不是用新列表替换选区（会吞掉文字）。
+          // 空段落或无法转换的选区仍保持原来的插入行为。
+          const failure = formatStdList(state, dispatch ? tr : state.tr, attrs?.listType || 'dash')
+          if (failure === null) return true
+          // 被引用的块、非空选区都不能被新列表覆盖，原文保持不变（与 insertNote 一致）。
+          if (failure === 'referenced-block' || (failure === 'unsupported' && !state.selection.empty)) return false
           return chain()
             .insertContent({
               type: 'stdList',
