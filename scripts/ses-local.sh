@@ -44,9 +44,30 @@ wait_ready() {
   return 1
 }
 
+require_runtime() {
+  local tool="$1" name="$2" minimum="$3" detected i
+  local -a actual required
+  command -v "$tool" >/dev/null || {
+    echo "请先安装 ${name}（>=${minimum}）。"
+    return 1
+  }
+  detected="$("$tool" --version 2>/dev/null)" || detected="无法读取"
+  if [[ "$detected" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    actual=("${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}")
+    IFS=. read -r -a required <<< "$minimum"
+    for i in 0 1 2; do
+      if (( 10#${actual[$i]} > 10#${required[$i]} )); then return 0; fi
+      if (( 10#${actual[$i]} < 10#${required[$i]} )); then break; fi
+      if [ "$i" = 2 ]; then return 0; fi
+    done
+  fi
+  echo "${name} 版本不符合要求（检测到：${detected}；需要 >=${minimum}）。请安装符合要求的正式版本后重试。"
+  return 1
+}
+
 start() {
-  command -v node >/dev/null || { echo "请先安装 Node.js（>=20.19.0）。"; return 1; }
-  command -v pnpm >/dev/null || { echo "请先安装 pnpm（>=9）。"; return 1; }
+  require_runtime node Node.js 20.19.0
+  require_runtime pnpm pnpm 9.0.0
   check_port 3000 server
   check_port 5173 client
   mkdir -p "$RUN"
