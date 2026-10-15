@@ -119,12 +119,11 @@
   font-size: 14px;
 }
 
-/* 无题条：编号黑体，正文宋体 */
+/* 无题条：clauseTitle 只显示编号（黑体，不缩进）；条文在首个正文段（宋体） */
 .std-clause[data-has-title="false"] > .std-clause-title {
-  font-family: 'SimSun', 'Songti SC', serif;
-  font-weight: normal;
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+  font-weight: bold;
   font-size: 14px;
-  text-indent: 2em;
   line-height: 1.8;
 }
 
@@ -132,6 +131,32 @@
 .std-clause[data-has-title="false"] > .std-clause-title::before {
   font-family: 'SimHei', 'Heiti SC', sans-serif;
   font-weight: bold;
+}
+
+/*
+ * 无题条采用 IR 模型：clauseTitle 为空（只显示编号），条文在紧随其后的首个正文段。
+ * 与导出的 DOCX/HTML 一致，编号与首段排在同一行：clauseTitle 左浮动，首段不缩进（编号顶格，
+ * 编号后的空格由 ::before 末尾的 \2003 提供）。附录内无题条与 data-resolved-label 编号共用同一元素，同样生效；
+ * 首块不是正文段（如列项、表格）时不浮动，编号仍单独成行。
+ */
+.std-clause[data-has-title="false"] > .std-clause-title:has(+ .std-paragraph) {
+  float: left;
+  margin: 0; /* 浮动元素不与相邻外边距折叠：与首段首行同一顶边 */
+  font-size: inherit;
+  line-height: 1.8; /* 与 .std-paragraph 同行高，编号与首行基线对齐 */
+  height: 1.8em; /* 恰好一行高：不挤占首段第二行（空标题的 <br> 与字体差异可能撑高行盒） */
+  text-indent: 0;
+}
+
+.std-clause[data-has-title="false"] > .std-clause-title + .std-paragraph {
+  text-indent: 0;
+}
+
+/* 浮动编号不应溢出到条之外（极短的首段、空段） */
+.std-clause[data-has-title="false"]::after {
+  content: '';
+  display: table;
+  clear: both;
 }
 
 /* 标准正文段落 */

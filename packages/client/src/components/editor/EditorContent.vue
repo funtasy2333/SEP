@@ -103,13 +103,10 @@ defineProps<{
   font-family: var(--ses-font-zh-hei);
 }
 
-/* 无题条：编号黑体，正文宋体 */
+/* 无题条：clauseTitle 只显示编号（黑体）；条文在首个正文段（宋体）。编号与首段同行的布局见 styles/standard-nodes.css */
 .editor-content :deep(.tiptap .std-clause[data-has-title="false"] > .std-clause-title) {
-  font-family: var(--ses-font-zh-song);
-  font-weight: normal;
-  font-size: 14px;
-  text-indent: 2em;
-  line-height: 1.8;
+  font-family: var(--ses-font-zh-hei);
+  font-weight: 700;
 }
 
 .editor-content :deep(.tiptap .std-clause[data-has-title="false"] > .std-clause-title::before) {
