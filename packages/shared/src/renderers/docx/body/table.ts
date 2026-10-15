@@ -28,6 +28,13 @@ export interface TableGridRenderOptions {
   captionXml?: string
   /** 小表/每个分段按整段保留；放不下时 Word 将整段移至下一页。 */
   keepTogether?: boolean
+  /**
+   * Word 自然分页的长表：只保护表头不与首个数据行分离、跨行合并组不被拆开、
+   * 末个数据行不与表注/表脚注分离，其余行可在任意行边界跨页（表头行逐页重复）。
+   */
+  keepEdges?: boolean
+  /** 没有表题行时仍给首行写粗上边框，使重复表头与有表题行时的外框一致。 */
+  strongTopBorder?: boolean
   /** 分段续表沿用原表的完整列数，避免不同片段列宽变化。 */
   columnCount?: number
   /** 完整原表的列宽，所有续段沿用；单位为twips。 */
@@ -92,7 +99,7 @@ function cellXml(
   else if (gridCell.kind === 'origin' && gridCell.origin!.rowspan > 1) tcPrChildren.push(['vMerge', '<w:vMerge w:val="restart"/>'])
 
   const strongBorders: Array<'top' | 'bottom'> = []
-  if (options.captionXml && rowIndex === 0) strongBorders.push('top')
+  if ((options.captionXml || options.strongTopBorder) && rowIndex === 0) strongBorders.push('top')
   if (headerRowCount > 0 && rowIndex === headerRowCount - 1) strongBorders.push('bottom')
   if (strongBorders.length > 0) tcPrChildren.push(['tcBorders', cellBorderXml(strongBorders, 6)])
 
@@ -202,9 +209,22 @@ export function renderTableGrid(ctx: RenderContext, table: IRTable, options: Tab
   const captionRow = options.captionXml ? captionRowXml(widths, grid.columnCount, options.captionXml) : ''
   const allRows = [...(captionRow ? [captionRow] : []), ...rowsXml,
     ...(tableNotesRow ? [tableNotesRow] : []), ...(tableFootnotesRow ? [tableFootnotesRow] : [])]
-  const renderedRows = options.keepTogether
-    ? allRows.map((row, index) => index < allRows.length - 1 ? keepRowWithNext(row) : row)
-    : allRows
+  // keepEdges（自然分页）逐行决定是否与下一行同页：表头行、被合并单元格贯穿的行必须与下一行相连；
+  // 数据末行与表注行、表注行与表脚注行相连。其余行不加 keepNext，让 Word 在任意行边界跨页。
+  const keepFlags: boolean[] = options.keepEdges ? [
+    ...(captionRow ? [true] : []),
+    ...rows.map((_cells, rowIndex) => rowIndex < headerRowCount ||
+      (rows[rowIndex + 1]?.some((cell) => cell.kind === 'continuation') ?? false)),
+    ...(tableNotesRow ? [tableFootnotesRow !== ''] : []),
+    ...(tableFootnotesRow ? [false] : []),
+  ] : []
+  if (options.keepEdges && (tableNotesRow || tableFootnotesRow)) {
+    keepFlags[(captionRow ? 1 : 0) + rows.length - 1] = true
+  }
+  const renderedRows = allRows.map((row, index) => {
+    const keep = options.keepTogether ? true : options.keepEdges ? keepFlags[index] === true : false
+    return keep && index < allRows.length - 1 ? keepRowWithNext(row) : row
+  })
 
   return tbl([
     ['tblPr', tblPrXml],
