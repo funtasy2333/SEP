@@ -537,7 +537,7 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
 
 ### 5.9 表
 
-- 表题位于表格首个无边框、跨满全宽的标题行：P(SesTblCap / SesAppTblCap, caption)，不输出 `captionEn`。该行与列标题行均为重复标题行。
+- 表题位于表格首个无边框、跨满全宽的标题行：P(SesTblCap / SesAppTblCap, caption)，不输出 `captionEn`。该行与列标题行均为重复标题行。（自然分页排法下表题移到表外，见下文 2026-10-15 条目。）
 - `w:tbl`：
   - `tblPr`：`tblW` 5000 pct；`jc=center`；`tblLayout fixed`；边框外框 sz=6，`insideH/insideV` sz=2；
   - `tblGrid`：按最大列数平均分配版心宽（必须写，否则不符合 schema）；
@@ -549,11 +549,40 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
 - 表格文字、表头及表注关闭正文网格（`snapToGrid=0`），使9磅行高与续表分段估算一致，并保持 Word 自动跨页时重复表题。
 - 表注：表内底部加一行，单元格 `gridSpan` 跨满全宽，上边框 sz=6，内容按 §5.7 规则，用 SesTableNote。若有表脚注，表注行在表脚注行之前。
 - `orientation='landscape'` 的表按 §5.15 放进横排节（表题、表、表注都在该节内）。
-- WP7.4 后续修订：按用户要求将长表拆成独立的 Word 表段，续段另起页并写「表X　表题（续）」；每段重放列标题，切分点避开跨行合并区域，表注只在末段。Word 原生重复标题行不能只在续页改变文字，因此按 Word 样稿行高估算最少页数。WP7.6 分页修订按单/多行实际高度校准，并优先填满前页，表注/表脚注空间仅从末段扣除；见 `wp7.6-table-pagination-2026-10-03.md`。WP7.6 接排修订按段落样式、版心及脚注估算当前页余量，首段可放入完整行组时紧跟正文；余量不足或前文公式高度不可估时另起页，后者对小表同样强制新页并输出 `table-flow-estimate-unavailable`。数据预算使用真实非负余量，表题/重复表头/表尾组合放不下时明确warning；末段组合不足与数据行超高分开归因，实际导出界面显示持续可关闭的表格提醒（`wp7.6-table-flow-review2-2026-10-03.md`），见 `wp7.6-table-flow-review-2026-10-03.md`。该估算不替代 Word 实排，见 `wp7.6-table-flow-2026-10-03.md`。编辑后若行高变化，需重新导出并复核分页。单位陈述仍留给 V2。
+- WP7.4 后续修订：按用户要求将长表拆成独立的 Word 表段，续段另起页并写「表X　表题（续）」；每段重放列标题，切分点避开跨行合并区域，表注只在末段。Word 原生重复标题行不能只在续页改变文字，因此按 Word 样稿行高估算最少页数。WP7.6 分页修订按单/多行实际高度校准，并优先填满前页，表注/表脚注空间仅从末段扣除；见 `wp7.6-table-pagination-2026-10-03.md`。WP7.6 接排修订按段落样式、版心及脚注估算当前页余量，首段可放入完整行组时紧跟正文；余量不足或前文公式高度不可估时另起页，后者对小表同样强制新页并输出 `table-flow-estimate-unavailable`（**2026-10-15 起取消，不再写强制分页，见下「续表方式与去掉保守换页」；此处保留历史**）。数据预算使用真实非负余量，表题/重复表头/表尾组合放不下时明确warning；末段组合不足与数据行超高分开归因，实际导出界面显示持续可关闭的表格提醒（`wp7.6-table-flow-review2-2026-10-03.md`），见 `wp7.6-table-flow-review-2026-10-03.md`。该估算不替代 Word 实排，见 `wp7.6-table-flow-2026-10-03.md`。编辑后若行高变化，需重新导出并复核分页。单位陈述仍留给 V2。
 
 2026-10-02 脚注补齐：新增独立表脚注行，跨满表宽，位于表注行之后。内容小五宋体，表脚注标识为上标小写字母，每张表独立、按首次引用顺序编号；重复引用只输出一条定义。长表只在末段输出表注和脚注定义，分页估算包含脚注行高。旧 `tableFootnote` 编辑节点继续代表表注，不能改换旧稿语义。
 
 条文脚注使用原位 `w:footnoteReference` 及 `word/footnotes.xml`，补齐关系和 Content Type；由 Word 排在引用所在页底。标识使用 Resolver 的连续 `1)`、`2)` 等，不跟正文分页或分节重启。分隔线左对齐、目标长度为竖排版心的1/4；内容按10.4.4缩进、小五宋体。HTML 用相同 labels 输出 Vivliostyle 页底脚注及表内 `tfoot` 注/脚注两行。非法脚注关联在 UI 和两个渲染器入口均阻断。规则图像、操作说明及本轮验证结果见 [脚注验收记录](footnotes-table-notes-validation.md)；样稿验证不代替真实稿件验收，也不等于全部 OOXML 或 STS schema 认证。
+
+2026-10-15 续表方式与去掉保守换页（用户决策：去掉“页位置未知则强制新页”，并增加导出选项）。以下取代上文 WP7.6 接排修订中的强制分页；其余分页估算、续段硬分页与「（续）」规则不变。
+
+- **不再写任何表前强制分页。** 渲染器不再输出表题或待定标题链首的 `w:pageBreakBefore`；延迟分页标记（`deferParagraphBreak`/`resolveParagraphBreaks`/`breakBeforePendingChain`）与 `table-flow-estimate-unavailable` 一并删除。续段之间仍用 `<w:br w:type="page"/>` 空段硬分页并写「表X　表题（续）」（页位置已知的表）。
+  - **页位置已知、首段放不下**：首段整段（表题行、表头、数据行，除最后一行外都带 keepNext）交给 Word 自然推移；页流记账仍按“新页起排”。
+  - **“待定同页链含可拆分成员且超出旧页余量”分支**：原先在链首强制换页，现取消。首段按“整链连同首段落在新页”保守估算（首段预算已扣除整链高度，不会溢出页），实际移页由 keepNext 完成。没有保留任何显式分页：同一组 45 份扫描稿（表前正文 12–40 行，分普通段落/条标题/12 行长标题三类各 15 份）旧版分别有 5/2/11 份在表题或链首写了 `pageBreakBefore`，现为 0/0/0。代价：多行标题直接接表且首段需移页时，Word 可能把标题前几行留在旧页、最后一行随表移到新页（keepNext 不含 keepLines）。若实排确认这是问题，后续应对链内可拆分成员加 `keepLines`，而不是恢复 `pageBreakBefore`（写在表题会打断前置标题的 keepNext，见 review4；写在链首会留大段空白，见 review9）。
+  - **页位置未知**（`known=false`：公式、未知样式、可拆 keepNext 链溢出，待定链高不小于一页，以及前面已有自然分页表）：该表整体退回自然排法（下），不拆分、不换页；估算高度大于 50 mm（小表整体保留、不会跨页，与 split 无差别，故不告警）的表记 `table-flow-natural-fallback`，消息和 `warnings[].label` 都带 Resolver 的表号（「表3」「表A.1」），渲染器不自行编号。
+  - **位置未知会向后传播**：自然分页表的终点不可推断，又没有任何强制分页能重新锚定，因此同一节内此后的长表都退回自然排法并各自告警，直到下一个节（附录、参考文献）或横竖切换（横排表/图）从页首重新开始。这是取消强制换页的直接后果。旧版靠强制换页重新锚定，代价就是用户稿件中的大块空白。
+  - 嵌套在单元格内的表不再拆段（原先会在单元格内写 `w:br page`），按自然排法整表输出，不告警、不推进外层页流。
+- **导出选项 `DocxRenderOptions.tableContinuation`**：`'split'`（缺省，“自动续表（定稿）”）或 `'natural'`（“Word 自然分页（编辑稿）”）。io `BuildDocxOptions` 透传；client 导出对话框「续表方式」选择，本机 localStorage 记忆（读写均 try/catch，失败回退 split）。
+  - **natural 的排法**（也是 split 模式下位置未知时的退回排法）：整表一个 `w:tbl`，不拆分，不写 `w:br`/`pageBreakBefore`；**表题移到表外**，作为表前独立段落，沿用 `SesTblCap`/`SesAppTblCap`（样式自带 keepNext，仍与首个表头行相连、编号实例不变），因此 `tblHeader` 从第 1 行起连续，逐页重复列标题；表题只在表首页出现，**续页没有「表X（续）」**。小表（估算 ≤ 50 mm）所有行 keepNext，整体保留；长表只保护表头行不与首个数据行分离、跨行合并组不被拆开、最后数据行不与表注/表脚注分离，其余行可在任意行边界跨页（`cantSplit` 仍在）。表注/表脚注只在表末。首行单元格显式写粗上边框，使重复表头的外框与带表题行时一致。
+  - 相邻顶层表之间由下一张表的表题段隔开，不会出现 `</w:tbl><w:tbl>`（Word 会把它们合并，见 `wp7.6-acceptance-2026-10-03.md`）；横排表连同表题仍整体位于横排节之内；附录表使用 `SesAppTblCap` 与原有附录实例。
+  - `table-continuation-natural`（仅 natural 模式、估算 > 50 mm 的表，带表号）提示该表若跨页，续页只有重复列标题而没有「表X（续）」，定稿前需人工处理。
+  - **不支持/受限的极端情形**：表头单元格的 `rowspan` 跨入数据行时，续页重复的只有前 `headerRowCount` 行，被合并单元格会被截断，输出 `table-header-rowspan-pagination`（带表号），仍按自然排法输出；超出单页高度的跨行合并组/数据行沿用 `table-row-too-tall`。其余情形没有拒绝输出的路径。
+- **警告列出表号**：`DocxPackage.warnings[]` 新增可选 `label`；表格类告警（`table-flow-natural-fallback`、`table-continuation-natural`、`table-row-too-tall`、`table-footer-too-tall`、`table-final-segment-too-tall`、`table-header-rowspan-pagination`）都带。client 的 `docxExportFeedback.ts` 把同类告警合并为一句并列出「表3、表A.1」（无编号时退回“部分表格”），natural 模式提示续页没有「表X（续）」、定稿前需人工处理。服务端 `ExportWarning` 类型未加 `label`，运行时会随 JSON 透传。
+- **样稿与统计**（`node packages/client/scripts/wp76-table-flow-samples.mjs <绝对输出目录> [--sweep]`，生产 schema → 真实 `buildDocxBlob`；功能 fixture，DOCX 不入库）：
+
+  | 样稿 | 模式 | pageBreakBefore | `w:br` 分页 | 表数 | 续表题 | 表格类告警 |
+  | --- | --- | ---: | ---: | ---: | ---: | --- |
+  | 标题后接长表 | split / natural | 0 / 0 | 1 / 0 | 2 / 1 | 1 / 0 | — / 表1自然分页 |
+  | 公式后接长表 | split / natural | 0 / 0 | 0 / 0 | 1 / 1 | 0 / 0 | 表1回退 / 表1自然分页 |
+  | 短表 | split / natural | 0 / 0 | 0 / 0 | 1 / 1 | 0 / 0 | — / — |
+  | 横排长表 | split / natural | 0 / 0 | 2 / 0 | 3 / 1 | 2 / 0 | — / 表1自然分页 |
+  | 两张相邻长表 | split / natural | 0 / 0 | 2 / 0 | 4 / 2 | 2 / 0 | — / 表1、表2 |
+  | 综合稿（含公式后表） | split / natural | 0 / 0 | 5 / 0 | 11 / 6 | 5 / 0 | 表2、表3回退 / 表1、2、3、5、6 |
+
+  旧版（本次修改前）同一批样稿的 `pageBreakBefore` 数：公式后接长表 1、综合稿 1，其余 0；综合稿的 `w:br` 分页 7、表 13（公式后两张长表仍被拆段并强制换页）。
+
+- **需要 Word 实排确认的点**（本次没有 Word，仅用 LibreOffice 粗看：natural 的重复表头与表外表题显示正常，split/natural 页数相同；LibreOffice 不是验收依据）：① 无 `pageBreakBefore` 时，Word 是否如估算把放不下的首段整段推到下一页（含标题链在前的情形，是否出现标题被拆开）；② natural 的表外表题（keepNext）与第 1 行 `tblHeader` 的连用，以及“表头行 keepNext + 首个数据行”的保护；③ 跨行合并组、末行与表注的 keepNext 是否按预期阻止拆开；④ 横排节内 natural 长表及相邻表的间距（表题段 before/after 取代原空段）；⑤ 位置未知传播后同节后续表的实际观感与告警数量是否可接受；⑥ natural 下 Word 用户手动调版后再次导出会覆盖手改，仍需按需重新导出。
 
 ### 5.10 公式（10.4.3）
 

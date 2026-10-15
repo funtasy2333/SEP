@@ -78,19 +78,57 @@ describe('paginateTable', () => {
     expect(paginateTable(multiline).bodySegments.length).toBeGreaterThan(1)
   })
 
-  it('公式使估算失效后小表也显式另起页，且回退后恢复后续余量估算', () => {
+  it('公式使页位置未知后，短表整体保留且不写强制分页、不告警；位置继续未知', () => {
     const ir = table([row(1), row(2)])
     const ctx = createRenderContext({ table: { label: '表1', xmlId: 'table_1', refText: '表1' } })
     ctx.pageFlow.startSection()
     ctx.pageFlow.recordParagraph('SesFormula', '<m:oMath/>', false)
     const xml = renderBlock(ctx, ir, { scopeKey: 'chapter' })
-    expect(xml).toContain('<w:pageBreakBefore/>')
-    expect(ctx.warnings.some(warning => warning.code === 'table-flow-estimate-unavailable')).toBe(true)
-    expect(ctx.pageFlow.availableMm).toBeGreaterThan(200)
-    expect(ctx.pageFlow.estimateUnavailable).toBe(false)
+    expect(xml).not.toContain('pageBreakBefore')
+    expect(xml).not.toContain('w:type="page"')
+    expect(xml.match(/<w:tbl>/g)).toHaveLength(1)
+    expect(ctx.warnings.filter(warning => warning.code.startsWith('table-'))).toEqual([])
+    // 没有任何强制分页能重新锚定页位置：直到下一节或横竖切换前都保持未知。
+    expect(ctx.pageFlow.availableMm).toBeUndefined()
+    expect(ctx.pageFlow.estimateUnavailable).toBe(true)
     const known = createRenderContext({ table: { label: '表1', xmlId: 'table_1', refText: '表1' } })
     known.pageFlow.startSection()
     expect(renderBlock(known, ir, { scopeKey: 'chapter' })).not.toContain('<w:pageBreakBefore/>')
+  })
+
+  it('公式使页位置未知后，长表整表退回自然分页：单表、无硬分页、无续表题，并带表号告警', () => {
+    const labels = {
+      table: { label: '表1', xmlId: 'table_1', refText: '表1' },
+      'second-table': { label: '表2', xmlId: 'table_2', refText: '表2' },
+    }
+    const rows = Array.from({ length: 70 }, (_, i) => row(i + 1, '短记录'))
+    const ctx = createRenderContext(labels)
+    ctx.pageFlow.startSection()
+    ctx.pageFlow.recordParagraph('SesFormula', '<m:oMath/>', false)
+    const xml = renderBlock(ctx, table(rows), { scopeKey: 'chapter' })
+    expect(xml.match(/<w:tbl>/g)).toHaveLength(1)
+    expect(xml).not.toContain('pageBreakBefore')
+    expect(xml).not.toContain('w:type="page"')
+    expect(xml).not.toContain('SesTblCapCont')
+    expect(xml).not.toContain('（续）')
+    expect(xml.match(/项目 \d+/g)).toHaveLength(70)
+    expect(ctx.warnings.filter(warning => warning.code === 'table-flow-natural-fallback')).toEqual([
+      expect.objectContaining({ nodeId: 'table', label: '表1', message: expect.stringContaining('表1') }),
+    ])
+    expect(ctx.warnings.map(warning => warning.code)).not.toContain('table-flow-estimate-unavailable')
+    // 位置继续未知：同节后续长表同样退回自然分页，各自带自己的表号。
+    const second = { ...table(rows), id: 'second-table' }
+    const secondXml = renderBlock(ctx, second, { scopeKey: 'chapter' })
+    expect(secondXml.match(/<w:tbl>/g)).toHaveLength(1)
+    expect(ctx.warnings.filter(warning => warning.code === 'table-flow-natural-fallback').map(warning => warning.label))
+      .toEqual(['表1', '表2'])
+    // 位置已知的同一张长表仍按估算拆分并写“（续）”。
+    const known = createRenderContext(labels)
+    known.pageFlow.startSection()
+    const knownXml = renderBlock(known, table(rows), { scopeKey: 'chapter' })
+    expect(knownXml.match(/<w:tbl>/g)!.length).toBeGreaterThan(1)
+    expect(knownXml).toContain('（续）')
+    expect(known.warnings.map(warning => warning.code)).not.toContain('table-flow-natural-fallback')
   })
 
   it('完整短表能放入旧页时，不因首行额外10mm余量将标题链移页', () => {
@@ -117,7 +155,7 @@ describe('paginateTable', () => {
     const long = table(Array.from({ length: 93 }, (_, i) => row(i + 1, '短记录')))
     expect(paginateTable(long, nextBudget).bodySegments).toHaveLength(2)
   })
-  it('允许跨页的脚注正文位置未知时，后续长表真实新页回退并恢复估算', () => {
+  it('允许跨页的脚注正文位置未知时，后续长表退回自然分页而不写强制分页', () => {
     const ctx = createRenderContext({ table: { label: '表1', xmlId: 'table_1', refText: '表1' } })
     ctx.pageFlow.startSection(); ctx.pageFlow.setFootnoteHeights(new Map([[1, 12]]))
     ctx.pageFlow.placeTable([200], false)
@@ -129,13 +167,17 @@ describe('paginateTable', () => {
     expect(ctx.pageFlow.availableMm).toBeUndefined()
     const ir = table(Array.from({ length: 70 }, (_, i) => row(i+1, '短记录')))
     const xml = renderBlock(ctx, ir, { scopeKey: 'chapter' })
-    expect(xml).toContain('<w:pageBreakBefore/>')
-    expect(ctx.warnings.map(w => w.code)).toContain('table-flow-estimate-unavailable')
+    expect(xml).not.toContain('pageBreakBefore')
+    expect(xml).not.toContain('w:type="page"')
+    expect(xml.match(/<w:tbl>/g)).toHaveLength(1)
+    expect(ctx.warnings.map(w => w.code)).toContain('table-flow-natural-fallback')
+    expect(ctx.warnings.map(w => w.code)).not.toContain('table-flow-estimate-unavailable')
     expect(xml.match(/项目 \d+/g)).toHaveLength(70)
-    expect(ctx.pageFlow.availableMm).toBeDefined()
-    expect(ctx.pageFlow.estimateUnavailable).toBe(false)
+    // 没有强制分页重新锚定，页位置继续未知。
+    expect(ctx.pageFlow.availableMm).toBeUndefined()
+    expect(ctx.pageFlow.estimateUnavailable).toBe(true)
   })
-  it('标题与可跨页长正文后的表格使用真实新页回退而非猜测旧页余量', () => {
+  it('标题与可跨页长正文后的表格退回自然分页，不猜测旧页余量也不写强制分页', () => {
     const ctx = createRenderContext({ table: { label: '表1', xmlId: 'table_1', refText: '表1' } })
     ctx.pageFlow.startSection(); ctx.pageFlow.placeTable([180], false)
     emitParagraph(ctx, 'SesChapter', { runsXml: '<w:r><w:t>章标题</w:t></w:r>', numbered: { nodeId: 'chapter', kind: 'chapter' } })
@@ -145,12 +187,13 @@ describe('paginateTable', () => {
     expect(paragraph).not.toContain('<w:keepLines')
     expect(paragraph).not.toContain('<w:pageBreakBefore')
     const xml = renderBlock(ctx, table(Array.from({ length: 70 }, (_, i) => row(i + 1, '短记录'))), { scopeKey: 'chapter' })
-    expect(xml).toContain('<w:pageBreakBefore/>')
-    expect(ctx.warnings.map(w => w.code)).toContain('table-flow-estimate-unavailable')
+    expect(xml).not.toContain('pageBreakBefore')
+    expect(xml.match(/<w:tbl>/g)).toHaveLength(1)
+    expect(ctx.warnings.map(w => w.code)).toContain('table-flow-natural-fallback')
     expect(xml.match(/项目 \d+/g)).toHaveLength(70)
-    expect(ctx.pageFlow.availableMm).toBeDefined()
+    expect(ctx.pageFlow.availableMm).toBeUndefined()
   })
-  it.each([12, 2])('直接接表的%s行可拆分标题在首段移页时显式从链首换页', count => {
+  it.each([12, 2])('直接接表的%s行可拆分标题在首段移页时不写任何强制分页，由 keepNext 让 Word 自然推移', count => {
     const ctx = createRenderContext({ table: { label: '表1', xmlId: 'table_1', refText: '表1' } })
     ctx.pageFlow.startSection(); ctx.pageFlow.placeTable([count === 12 ? 180 : 200], false)
     const heading = emitParagraph(ctx, 'SesChapter', {
@@ -158,16 +201,15 @@ describe('paginateTable', () => {
       numbered: { nodeId: 'long-chapter', kind: 'chapter' },
     })
     const ir = table(Array.from({ length: count === 12 ? 70 : 2 }, (_, i) => row(i + 1, '短记录')))
-    const xml = ctx.resolveParagraphBreaks(heading + renderBlock(ctx, ir, { scopeKey: 'chapter' }))
-    const firstParagraph = xml.slice(0, xml.indexOf('</w:p>'))
-    expect(firstParagraph).toContain('<w:pageBreakBefore/>')
-    const caption = xml.slice(xml.indexOf('<w:pStyle w:val="SesTblCap"'), xml.indexOf('</w:p>', xml.indexOf('<w:pStyle w:val="SesTblCap"')))
-    expect(caption).not.toContain('<w:pageBreakBefore/>')
-    expect(xml).not.toContain('<!--ses-page-break:')
+    const xml = heading + renderBlock(ctx, ir, { scopeKey: 'chapter' })
+    // 链首与表题都不写 pageBreakBefore；链仍是 keepNext（标题、表题、表格行），页位置保持已知。
+    expect(xml).not.toContain('pageBreakBefore')
+    expect(xml).not.toContain('<!--ses-')
     expect(xml.match(/项目 \d+/g)).toHaveLength(count === 12 ? 70 : 2)
+    expect(ctx.warnings.map(w => w.code)).not.toContain('table-flow-natural-fallback')
     expect(ctx.pageFlow.availableMm).toBeDefined()
   })
-  it('嵌套表格的分段不触发外层待定标题链的分页符', () => {
+  it('嵌套表格不参与外层页流：整表输出、不拆分，也不影响外层待定标题链', () => {
     const ctx = createRenderContext({ table: { label: '表1', xmlId: 'table_1', refText: '表1' } })
     ctx.pageFlow.startSection()
     const heading = emitParagraph(ctx, 'SesChapter', {
@@ -175,8 +217,12 @@ describe('paginateTable', () => {
       numbered: { nodeId: 'chapter', kind: 'chapter' },
     })
     const remaining = ctx.pageFlow.availableMm
-    ctx.pageFlow.suspend(() => renderBlock(ctx, table(Array.from({ length: 70 }, (_, i) => row(i + 1, '短记录'))), { scopeKey: 'cell' }))
-    expect(ctx.resolveParagraphBreaks(heading)).not.toContain('<w:pageBreakBefore/>')
+    const nested = ctx.pageFlow.suspend(() => renderBlock(ctx, table(Array.from({ length: 70 }, (_, i) => row(i + 1, '短记录'))), { scopeKey: 'cell' }))
+    expect(heading).not.toContain('pageBreakBefore')
+    // 单元格内不能出现整页硬分页：嵌套的长表保持一个 w:tbl。
+    expect(nested.match(/<w:tbl>/g)).toHaveLength(1)
+    expect(nested).not.toContain('w:type="page"')
+    expect(nested).not.toContain('pageBreakBefore')
     expect(ctx.pageFlow.availableMm).toBe(remaining)
   })
   it('标题与短表一起移页后，后续余量包含标题高度', () => {

@@ -157,7 +157,10 @@ describe('表头跨行合并的分页与页流使用同一份计划', () => {
     ir.notes = [{ kind: 'note', id: 'note', content: [
       { kind: 'paragraph', id: 'note-p', content: [{ text: '合并表最终表注' }] },
     ] }]
-    const ctx = createRenderContext({ 'table-rowspan': { label: '表1', xmlId: 'table_1', refText: '表1' } })
+    const ctx = createRenderContext({
+      'table-rowspan': { label: '表1', xmlId: 'table_1', refText: '表1' },
+      'following-table': { label: '表2', xmlId: 'table_2', refText: '表2' },
+    })
     ctx.pageFlow.startSection()
     const plan = paginateTable(ir, ctx.pageFlow.beforeTable())
     expect(plan.bodySegments[0]!.length).toBeGreaterThanOrEqual(covered)
@@ -186,15 +189,22 @@ describe('表头跨行合并的分页与页流使用同一份计划', () => {
     const following = tableWithHeaderRowspan(2, 70, false)
     following.id = 'following-table'
     const nextOptions = ctx.pageFlow.beforeTable()
-    expect(nextOptions.forceStartOnNewPage).toBe(naturallyOverflowingFinal)
-    const nextPlan = paginateTable(following, nextOptions)
-    const nextXml = renderBlock(ctx, following, { scopeKey: 'chapter-1' })
-    expect(nextXml.match(/<w:tbl>/g)).toHaveLength(nextPlan.bodySegments.length)
-    expect(ctx.pageFlow.availableMm).toBeCloseTo(238 - nextPlan.segmentHeightsMm.at(-1)!)
-    expect(ctx.pageFlow.estimateUnavailable).toBe(false)
+    expect(nextOptions.positionUnknown).toBe(naturallyOverflowingFinal)
     if (naturallyOverflowingFinal) {
-      expect(nextXml).toContain('<w:pageBreakBefore/>')
-      expect(ctx.warnings.some(w => w.code === 'table-flow-estimate-unavailable')).toBe(true)
+      // 页位置未知：后表整表退回自然分页（单表、无硬分页），并带 Resolver 表号告警；位置继续未知。
+      const nextXml = renderBlock(ctx, following, { scopeKey: 'chapter-1' })
+      expect(nextXml.match(/<w:tbl>/g)).toHaveLength(1)
+      expect(nextXml).not.toContain('pageBreakBefore')
+      expect(nextXml).not.toContain('w:type="page"')
+      expect(ctx.warnings.find(w => w.code === 'table-flow-natural-fallback'))
+        .toMatchObject({ nodeId: 'following-table', label: '表2' })
+      expect(ctx.pageFlow.estimateUnavailable).toBe(true)
+    } else {
+      const nextPlan = paginateTable(following, nextOptions)
+      const nextXml = renderBlock(ctx, following, { scopeKey: 'chapter-1' })
+      expect(nextXml.match(/<w:tbl>/g)).toHaveLength(nextPlan.bodySegments.length)
+      expect(ctx.pageFlow.availableMm).toBeCloseTo(238 - nextPlan.segmentHeightsMm.at(-1)!)
+      expect(ctx.pageFlow.estimateUnavailable).toBe(false)
     }
   })
 })

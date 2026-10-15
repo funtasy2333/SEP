@@ -306,6 +306,17 @@
         DOCX 目次：增删章条后需重新导出以更新目次条目；页码由 Word 更新。续表与长脚注分页请用 Word 校对；横排页条文脚注分隔线的长度仍待完善。
         真实标准文稿的整体验收尚未完成；部分封面素材来源或清晰度有限，正式交付前请核对。
       </p>
+      <div class="export-option" data-testid="docx-table-continuation">
+        <span class="export-option-label">DOCX 续表方式</span>
+        <el-radio-group v-model="tableContinuation" size="small" :disabled="exportingFormat !== null">
+          <el-radio-button
+            v-for="option in TABLE_CONTINUATION_OPTIONS"
+            :key="option.value"
+            :value="option.value"
+          >{{ option.label }}</el-radio-button>
+        </el-radio-group>
+        <p class="export-option-hint">{{ tableContinuationHint }}</p>
+      </div>
       <div class="export-grid">
         <button
           class="export-card primary"
@@ -435,6 +446,9 @@
 
 <script setup lang="ts">
 import { getDocxExportFeedback } from '@/utils/docxExportFeedback'
+import {
+  TABLE_CONTINUATION_OPTIONS, loadTableContinuation, saveTableContinuation, type TableContinuation,
+} from '@/utils/docxExportPrefs'
 import { createDefaultDocumentContent, createDefaultForeword } from '@/utils/newDocument'
 import {
   COVER_SETTINGS_KEYS,
@@ -535,6 +549,11 @@ const showVersionPanel = ref(false)
 const documentId = computed(() => Number(route.params.id))
 const exportingFormat = ref<'docx' | 'pdf' | null>(null)
 const exportError = ref('')
+// DOCX「续表方式」：本机偏好存 localStorage（读写失败时回退默认的自动续表）。
+const tableContinuation = ref<TableContinuation>(loadTableContinuation())
+watch(tableContinuation, (value) => saveTableContinuation(value))
+const tableContinuationHint = computed(() =>
+  TABLE_CONTINUATION_OPTIONS.find(option => option.value === tableContinuation.value)?.hint ?? '')
 type FootnoteDialogMode = 'body-new' | 'body-edit' | 'table-new' | 'table-edit' | 'table-reference' | null
 const showFootnoteDialog = ref(false)
 const footnoteDialogMode = ref<FootnoteDialogMode>(null)
@@ -1915,10 +1934,11 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
         pmDoc: doc,
         documentMeta: store.currentDocument?.meta,
         stage: store.currentDocument?.stage,
+        tableContinuation: tableContinuation.value,
       })
 
       downloadBlob(blob, `${docTitle}.docx`)
-      ElMessage(getDocxExportFeedback(warnings))
+      ElMessage(getDocxExportFeedback(warnings, { tableContinuation: tableContinuation.value }))
       showExport.value = false
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
@@ -2408,6 +2428,27 @@ function handleXmlFileImport(event: Event) {
   letter-spacing: 0.04em;
   color: var(--ses-ink-2);
   margin-bottom: 10px;
+}
+.export-option {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--ses-line);
+  border-radius: var(--ses-r-md);
+  background: var(--ses-surface);
+}
+.export-option-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ses-ink-2);
+}
+.export-option-hint {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ses-ink-3);
 }
 .export-grid {
   display: grid;

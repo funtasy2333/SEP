@@ -32,8 +32,6 @@ function lines(text: string, capacity: number, firstCapacity: number): number {
 export interface ParagraphFlowOptions {
   numberingIndent?: string
   indent?: { left: number; hanging: number }
-  pageBreakBefore?: boolean
-  forcePageBreakBefore?: () => void
 }
 
 interface ParagraphMeasure {
@@ -43,7 +41,11 @@ interface ParagraphMeasure {
   after: number
   atomic: boolean
   ids: number[]
-  forcePageBreakBefore?: () => void
+}
+
+/** 表前预算。`positionUnknown` 时调用方不得再按估算拆表，应整表交给 Word 自然分页（不写强制分页）。 */
+export interface TableFlowBudget extends TablePaginationOptions {
+  positionUnknown: boolean
 }
 
 export interface PageFlow {
@@ -56,9 +58,10 @@ export interface PageFlow {
   suspend<T>(render: () => T): T
   /** Returns true only while this paragraph is retained in a pending keepNext chain. */
   recordParagraph(styleId: string, runsXml: string, numbered: boolean, options?: ParagraphFlowOptions): boolean
-  beforeTable(): TablePaginationOptions
-  breakBeforePendingChain(onlyIfSplittable?: boolean): boolean
+  beforeTable(): TableFlowBudget
   placeTable(heightsMm: readonly number[], startOnNewPage: boolean): void
+  /** 整表交给 Word 自然分页：高度与终止位置都不可推断，此后页位置未知，直到换节/换向。 */
+  placeNaturalTable(): void
   setFootnoteHeights(heights: ReadonlyMap<number, number>): void
 }
 
@@ -159,7 +162,7 @@ export function createPageFlow(): PageFlow {
     ;({used, previousAfter, footnoteHeight, footnotes, known, lastWasTable, pending} = saved)
     return result
   }
-  function tableOptions(): TablePaginationOptions {
+  function tableOptions(): TableFlowBudget {
     const chainHeight = (previous: number) => {
       let height = 0
       for (const paragraph of pending) {
@@ -175,14 +178,17 @@ export function createPageFlow(): PageFlow {
         (added.length > 0 && (fresh || footnotes.size === 0) ? 6 : 0)
     }
     const firstPageReservedMm = chainHeight(0) + reserve(true)
-    // A pending multi-line heading can wrap before a directly following table.
-    // Request a real break before the chain rather than assume it relocates intact.
+    // 页位置未知（known=false：公式、未知样式、可拆 keepNext 链溢出、前面有自然分页表……，
+    // 或待定链高不小于一页）时不再推断旧页余量，也不再写任何强制分页：调用方整表退回 Word 自然分页。
+    const positionUnknown = active && (!known || firstPageReservedMm >= capacity())
+    // 待定的多行标题链已超出旧页余量时，首段不能从旧页起排：按整链连同首段落在新页保守估算，
+    // 实际移页交给 keepNext（链首可拆行可能留在旧页，但新页预算已扣除整链，不会溢出）。
     const pendingOverflow = pending.some(canSplit) && chainHeight(previousAfter) + reserve(false) > remaining()
-    const unavailable = active && (!known || firstPageReservedMm >= capacity() || pendingOverflow)
     return {
-      firstPageHeightMm: active && !unavailable ? Math.max(0, remaining() - chainHeight(previousAfter) - reserve(false)) : undefined,
+      firstPageHeightMm: active && !positionUnknown && !pendingOverflow
+        ? Math.max(0, remaining() - chainHeight(previousAfter) - reserve(false)) : undefined,
       firstPageReservedMm,
-      forceStartOnNewPage: unavailable,
+      positionUnknown,
     }
   }
   return {
@@ -204,10 +210,9 @@ export function createPageFlow(): PageFlow {
     recordParagraph(styleId, runsXml, numbered, options = {}) {
       if (!active || paused > 0) return false
       if (elementDepth === 0) setOrientation(false)
-      if (options.pageBreakBefore) { flushPending(); nextPage() }
       lastWasTable = false
       // OMML's physical height depends on its layout. Do not turn an unknown formula into
-      // a made-up page position; the next table will use the existing fresh-page fallback.
+      // a made-up page position; the next table falls back to Word's natural pagination.
       if (styleId === 'SesFormula' || runsXml.includes('<m:oMath')) { flushPending(); known = false; return false }
       const spec = specs.get(styleId)
       if (!spec) { flushPending(); known = false; return false }
@@ -236,23 +241,24 @@ export function createPageFlow(): PageFlow {
       pending.push({
         contentHeight: imageHeight > 0 ? imageHeight + 3 : count * lineHeight,
         lineCount: count,
-        before, after, ids, forcePageBreakBefore: options.forcePageBreakBefore,
+        before, after, ids,
         atomic: spec.keepLines === true || imageHeight > 0,
       })
       if (!spec.keepNext) { flushPending(); return false }
       return true
     },
     beforeTable() {
-      if (active && lastWasTable) advance(GRID_LINE_MM, false)
+      // 位置未知时不能再用 advance 记账：它跨页会 nextPage()，把未知误当成新页起点而恢复“已知”。
+      if (active && lastWasTable && known) advance(GRID_LINE_MM, false)
       lastWasTable = false
       return tableOptions()
     },
-    breakBeforePendingChain(onlyIfSplittable = false) {
-      if (onlyIfSplittable && !pending.some(canSplit)) return false
-      const force = pending[0]?.forcePageBreakBefore
-      if (!force) return false
-      force()
-      return true
+    placeNaturalTable() {
+      if (!active) return
+      flushPending()
+      known = false
+      previousAfter = 0
+      lastWasTable = true
     },
     placeTable(heights, startOnNewPage) {
       if (!active) return
