@@ -14,17 +14,20 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
-    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "test:cov": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
+    "test:debug": "node --inspect-brk --experimental-vm-modules -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.31.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/typeorm": "^11.0.0",
+    "@ses/io": "workspace:*",
+    "@ses/shared": "workspace:*",
     "@vivliostyle/cli": "11.0.1",
     "better-sqlite3": "^12.8.0",
     "class-transformer": "^0.5.1",
@@ -62,7 +65,8 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.20.0"
+    "typescript-eslint": "^8.20.0",
+    "webpack-node-externals": "3.0.0"
   },
   "jest": {
     "moduleFileExtensions": [
@@ -71,8 +75,15 @@
       "ts"
     ],
     "rootDir": "src",
+    "moduleNameMapper": {
+      "^@client/editor-schema$": "<rootDir>/../../client/src/extensions/editorSchema.ts",
+      "^@client/new-document$": "<rootDir>/../../client/src/utils/newDocument.ts",
+      "^@docs/authoring-reference$": "<rootDir>/../../../docs/wp9-authoring-reference.md"
+    },
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
+      "^.+[/\\\\]packages[/\\\\]client[/\\\\]src[/\\\\].+\\.ts$": "<rootDir>/../jest.client-transform.js",
+      "^.+\\.md$": "<rootDir>/../jest.text-transform.js",
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [

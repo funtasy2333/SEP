@@ -34,7 +34,7 @@ import {
   StdList, StdListItem,
   StdParagraph, StdTable, TableCaption, TableCaptionEn, TableFootnote, TableFootnoteEntry, TableFootnoteRef, TableFootnoteRow, TableNoteRow,
   TermDef, TermDefinition, TermName, TermNameEn, TermSource,
-} from '@/extensions'
+} from './index' // 相对路径：服务端打包也会加载本文件，不认识 '@/' 别名（见 editorSchema.ts）
 
 /** The exact extension list used by EditorView's useEditor call. */
 export function createEditorExtensions(): Extensions {

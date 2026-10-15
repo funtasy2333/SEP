@@ -13,6 +13,10 @@ import type { PMJsonNode } from './pmToIr'
 import { hasSemanticExtensions } from './extensions'
 import { unsupportedFootnoteContent } from './footnotePayload'
 import { diagnoseInlineProjection, findCrossRefRunProjectionIssues } from './inlineProjectionDiagnostics'
+import {
+  describeAuthoringContext, fragmentContextRules, validateAuthoringContext,
+  type AuthoringContext, type FragmentContextRules, type IRFragmentNode,
+} from './fragmentContext'
 import { orderedTermTail } from './termTailOrder'
 
 export interface IRToPmDiagnostic {
@@ -126,7 +130,7 @@ function diagnoseFootnotePayload(content: IRInline[], path: string, id: string |
 }
 
 /** Walk the source IR so diagnostics keep the exact owner path before PM projection. */
-function diagnoseFootnotePayloads(doc: IRDoc, errors: IRToPmDiagnostic[]): void {
+function diagnoseFootnotePayloads(doc: unknown, errors: IRToPmDiagnostic[], rootPath = 'doc'): void {
   const active = new Set<object>()
   const visit = (value: unknown, path: string): void => {
     if (Array.isArray(value)) {
@@ -158,7 +162,7 @@ function diagnoseFootnotePayloads(doc: IRDoc, errors: IRToPmDiagnostic[]): void 
     for (const [key, child] of Object.entries(value)) visit(child, `${path}.${key}`)
     active.delete(value)
   }
-  visit(doc, 'doc')
+  visit(doc, rootPath)
 }
 
 function measureAttrs(attrs: PmAttrs, key: string, value?: IRMeasure): void {
@@ -667,4 +671,118 @@ export function irToPm(doc: IRDoc, options: IRToPmOptions = {}): PMJsonNode {
     return node('standardDoc', standardDocAttrs, content)
   }
   return node('doc', attrs, content)
+}
+
+// ---------- 写作片段（WP9.2b） ----------
+
+export interface IRFragmentToPmOptions {
+  /** 诊断路径的根名称，默认 `fragment`（节点为 `fragment[0]`、`fragment[1]` …）。 */
+  rootPath?: string
+}
+
+const FRAGMENT_BLOCK_KINDS = new Set<string>([
+  'paragraph', 'list', 'table', 'figure', 'formula', 'note', 'example', 'warning', 'quote', 'code',
+])
+
+function fragmentKindAllowed(kind: string, rules: FragmentContextRules): boolean {
+  if (FRAGMENT_BLOCK_KINDS.has(kind)) return rules.blocks
+  switch (kind) {
+    case 'chapter': return rules.chapter
+    case 'appendix': return rules.appendix
+    case 'clause': return rules.clause
+    case 'termEntry': return rules.termEntry
+    case 'bibEntry': return rules.bibEntry
+    default: return false
+  }
+}
+
+/**
+ * 片段里的表脚注引用必须自带 ID：整篇文档投影会为缺 ID 的引用补确定性 ID，
+ * 但补 ID 需要文档级的已用 ID 集合，片段层面没有，宁可报错也不写出空 nodeId。
+ */
+function diagnoseTableFootnoteRefIds(value: unknown, path: string, errors: IRToPmDiagnostic[]): void {
+  if (Array.isArray(value)) {
+    value.forEach((child, index) => diagnoseTableFootnoteRefIds(child, `${path}[${index}]`, errors))
+    return
+  }
+  if (!isRecord(value)) return
+  if (Array.isArray(value.marks)) {
+    value.marks.forEach((mark, index) => {
+      if (!isRecord(mark) || mark.type !== 'tableFootnoteRef') return
+      if (typeof mark.id === 'string' && mark.id.length > 0) return
+      errors.push({ path: `${path}.marks[${index}]`, reason: '片段中的表脚注引用必须带有非空 id' })
+    })
+  }
+  for (const [key, child] of Object.entries(value)) {
+    if (key === 'marks') continue
+    diagnoseTableFootnoteRefIds(child, `${path}.${key}`, errors)
+  }
+}
+
+/**
+ * 把「插入到某个位置」的 IR 片段投影为该位置可放入的生产 PM JSON 节点列表。
+ *
+ * 与 {@link irToPm} 共用同一套节点转换函数，因此片段内每个节点的 PM 形态与整篇文档中完全一致；
+ * 区别只在入口：片段没有文档级内容（封面、元数据、索引、资源），也不要求片段本身自成合法文档。
+ * 返回的是 `context.parent` 的子节点列表，不含父节点本身（父节点由调用方在 PM 文档中已有）。
+ *
+ * 诊断沿用 {@link IRToPmError}：不可表示的内容、片段内容与上下文不符（如在前言里放章）、
+ * 行内标记组合无法保留等，路径以 `rootPath`（默认 `fragment`）开头。
+ *
+ * 不计算任何编号；不检查 ID 唯一性（写作片段由 authoring.ts 的归一化保证，Resolver 兜底）。
+ */
+export function irFragmentToPm(
+  nodes: readonly IRFragmentNode[],
+  context: AuthoringContext,
+  options: IRFragmentToPmOptions = {},
+): PMJsonNode[] {
+  const root = options.rootPath ?? 'fragment'
+  const contextProblem = validateAuthoringContext(context)
+  if (contextProblem) throw new IRToPmError([{ path: 'context', reason: contextProblem }])
+  if (!Array.isArray(nodes)) throw new IRToPmError([{ path: root, reason: '片段必须是节点数组' }])
+
+  const rules = fragmentContextRules(context)
+  const errors: IRToPmDiagnostic[] = []
+  diagnoseReferenceRunsWithoutCarrier(nodes, root, undefined, errors)
+  diagnoseInlineProjection(nodes, root, undefined, errors)
+  for (const issue of findCrossRefRunProjectionIssues(nodes, root)) {
+    if (issue.kind !== 'crossref-newline') continue
+    errors.push({
+      path: issue.path,
+      ...(issue.nodeId === undefined ? {} : { nodeId: issue.nodeId }),
+      reason: issue.reason,
+    })
+  }
+  diagnoseFootnotePayloads(nodes, errors, root)
+  diagnoseTableFootnoteRefIds(nodes, root, errors)
+
+  const out: PMJsonNode[] = []
+  nodes.forEach((node, index) => {
+    const path = `${root}[${index}]`
+    const kind = isRecord(node) && typeof node.kind === 'string' ? node.kind : undefined
+    if (kind === undefined || !fragmentKindAllowed(kind, rules)) {
+      errors.push({
+        path,
+        ...(isRecord(node) && typeof node.id === 'string' ? { nodeId: node.id } : {}),
+        reason: kind === undefined
+          ? '片段节点缺少 kind'
+          : `「${kind}」不能放在「${describeAuthoringContext(context)}」中`,
+      })
+      return
+    }
+    switch (node.kind) {
+      case 'chapter': out.push(chapterToPm(node, path, errors)); break
+      case 'appendix': out.push(appendixToPm(node, path, errors)); break
+      case 'clause': out.push(clauseToPm(node, path, errors)); break
+      case 'termEntry': out.push(termToPm(node, path, errors)); break
+      case 'bibEntry': out.push(bibEntryToPm(node)); break
+      default: {
+        const pm = blockToPm(node, path, errors)
+        if (pm) out.push(pm)
+      }
+    }
+  })
+
+  if (errors.length) throw new IRToPmError(errors)
+  return out
 }

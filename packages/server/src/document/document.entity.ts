@@ -34,6 +34,13 @@ export class DocumentEntity {
   @Column({ type: 'simple-json', nullable: true })
   content: Record<string, unknown>;
 
+  /**
+   * 修订号（乐观锁）：每次成功写入加 1，新文档与旧库已有文档均为 0。
+   * 只能由 DocumentService.update 的条件 UPDATE 递增，客户端不能直接写入。
+   */
+  @Column({ type: 'integer', default: 0 })
+  revision: number;
+
   @CreateDateColumn()
   createdAt: Date;
 

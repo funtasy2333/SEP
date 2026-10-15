@@ -1,78 +1,30 @@
 /**
- * DOCX client 薄壳：ProseMirror → IR → Resolver → shared DOCX renderer → JSZip。
- * 图片由 client 解析为字节，公式由 KaTeX/MathML 转为 OMML 后交给 shared 渲染器。
+ * DOCX client 薄壳：出件逻辑位于 `@ses/io`（ProseMirror → IR → Resolver → shared DOCX renderer → JSZip），
+ * 此处只把字节结果包装为浏览器下载用的 Blob，并保留原有导出名。
  */
 
-import JSZip from 'jszip'
-import type { Node as PMNode } from '@tiptap/pm/model'
 import {
-  DocumentStage,
-  irMetaFromDocumentMeta,
-  pmToIr,
-  renderDocx,
-  resolve,
-  type DocxPackage,
-  type DocumentMeta,
-  type DocumentStage as DocumentStageType,
-  type IRDoc,
-  type PMJsonNode,
-} from '@ses/shared'
-import { collectImageResources, type ImageResourceOptions } from './imageResources'
-import { convertFormulasToOmml } from './formulaOmml'
+  DOCX_MIME_TYPE,
+  buildDocx,
+  packageDocxBytes,
+  prepareDocxInput,
+  resolveDocumentStage,
+  type BuildDocxOptions,
+  type PreparedDocxInput,
+} from '@ses/io'
+import type { DocxPackage } from '@ses/shared'
 
-export const DOCX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-const ZIP_DATE = new Date(Date.UTC(1980, 0, 1))
+export { DOCX_MIME_TYPE, prepareDocxInput, resolveDocumentStage }
+export type { BuildDocxOptions, PreparedDocxInput }
 
-export interface PreparedDocxInput {
-  doc: IRDoc
-  labels: ReturnType<typeof resolve>['labels']
-  warnings: string[]
-}
-
-export interface BuildDocxOptions {
-  pmDoc: PMNode | PMJsonNode
-  documentMeta?: DocumentMeta
-  stage?: string
-  createdAt?: string
-  imageResources?: ImageResourceOptions
-}
-
-/** 文档库元数据中所有非 undefined 字段都覆盖 pmToIr 结果，空字符串也保留。 */
-export function prepareDocxInput(
-  pmDoc: PMNode | PMJsonNode,
-  documentMeta?: DocumentMeta,
-): PreparedDocxInput {
-  const node = pmDoc as PMNode
-  const pmJson = typeof node.toJSON === 'function' ? node.toJSON() as PMJsonNode : pmDoc as PMJsonNode
-  const { doc, warnings } = pmToIr(pmJson)
-  Object.assign(doc.meta, irMetaFromDocumentMeta(documentMeta))
-  const { labels } = resolve(doc)
-  return { doc, labels, warnings }
-}
-
-/** 无有效阶段值时按新建文档的工作草案阶段处理。 */
-export function resolveDocumentStage(stage: string | undefined): DocumentStageType {
-  const stages = Object.values(DocumentStage) as DocumentStageType[]
-  return stage && stages.includes(stage as DocumentStageType)
-    ? stage as DocumentStageType
-    : DocumentStage.WORKING_DRAFT
+/** JSZip 的 uint8array 输出由普通 ArrayBuffer 支撑；类型上默认是 ArrayBufferLike，需收窄后才能作为 BlobPart。 */
+function toDocxBlob(bytes: Uint8Array): Blob {
+  return new Blob([bytes as Uint8Array<ArrayBuffer>], { type: DOCX_MIME_TYPE })
 }
 
 /** 将 shared 返回的 XML 部件与 base64 二进制部件完整写入 DOCX Blob。 */
 export async function packageDocx(docxPackage: DocxPackage): Promise<Blob> {
-  const zip = new JSZip()
-  // JSZip 默认把当前时间写入每个条目，还可能生成隐式目录；固定这两项，令同一
-  // DocxPackage 的字节结果可复现。Content Types 放首项，与 pack.py 一致。
-  const partPaths = Object.keys(docxPackage.parts).sort((a, b) =>
-    a === '[Content_Types].xml' ? -1 : b === '[Content_Types].xml' ? 1 : a < b ? -1 : a > b ? 1 : 0,
-  )
-  for (const path of partPaths) {
-    zip.file(path, docxPackage.parts[path]!, { date: ZIP_DATE, createFolders: false })
-  }
-  for (const path of Object.keys(docxPackage.binaries).sort()) {
-    zip.file(path, docxPackage.binaries[path]!, { base64: true, date: ZIP_DATE, createFolders: false })
-  }
-  return zip.generateAsync({ type: 'blob', mimeType: DOCX_MIME_TYPE, compression: 'DEFLATE' })
+  return toDocxBlob(await packageDocxBytes(docxPackage))
 }
 
 /** 生成 DOCX Blob；createdAt 默认取调用时刻，便于与 shared 输出保持一致。 */
@@ -80,23 +32,6 @@ export async function buildDocxBlob(options: BuildDocxOptions): Promise<{
   blob: Blob
   warnings: DocxPackage['warnings']
 }> {
-  const { doc, labels } = prepareDocxInput(options.pmDoc, options.documentMeta)
-  const [imageResult, formulaResult] = await Promise.all([
-    collectImageResources(doc, options.imageResources),
-    convertFormulasToOmml(doc),
-  ])
-  const docxPackage = renderDocx(doc, labels, {
-    images: imageResult.images,
-    formulaOmml: formulaResult.formulaOmml,
-    stage: resolveDocumentStage(options.stage),
-    createdAt: options.createdAt ?? new Date().toISOString(),
-  })
-  return {
-    blob: await packageDocx(docxPackage),
-    warnings: [
-      ...formulaResult.warnings,
-      ...imageResult.diagnostics.map(({ nodeId, message }) => ({ code: 'image-resource-failed', nodeId, message })),
-      ...docxPackage.warnings,
-    ],
-  }
+  const { bytes, warnings } = await buildDocx(options)
+  return { blob: toDocxBlob(bytes), warnings }
 }

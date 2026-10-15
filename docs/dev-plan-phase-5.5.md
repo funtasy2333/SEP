@@ -575,4 +575,4 @@ Resolver 及消费这些数据的输出边界。需要改动既有接口时，�
 - Phase 6 持续质检直接消费 `ResolveResult.problems`，新增规则只在 Resolver/规则层扩展；
 - Phase 9 CLI/MCP 复用 shared 渲染器 + vivliostyle-cli，无需新导出代码；
 - Phase 10 AI 导入以 Authoring IR 为 LLM 输出契约（届时为 types.ts 补 JSON Schema 导出）;
-- Phase 11 PR 协作依赖本阶段的 nodeId 与版本 diff。
+- Phase 11 实时协同（建议模式、批注锚定、可选的 PR 式协作）依赖本阶段的 nodeId 与版本 diff。

@@ -4,6 +4,9 @@ const api = axios.create({
   baseURL: '/api',
 })
 
+/** 版本来源：人工保存 / AI 写入 / 导入 */
+export type VersionSource = 'human' | 'ai' | 'import'
+
 export interface VersionData {
   id?: number
   documentId: number
@@ -12,6 +15,15 @@ export interface VersionData {
   content: Record<string, unknown>
   xml?: string
   note?: string
+  /** 版本来源；旧数据由服务端补为 human */
+  source?: VersionSource
+  /** 写入方标识（如 MCP 客户端名称），人工保存时为空 */
+  client?: string | null
+  /**
+   * AI 写入前的文档内容：`baseContent → content` 就是这一批 AI 修改。
+   * 只有版本详情接口返回，列表接口不含；非 AI 写入的版本为 null。
+   */
+  baseContent?: Record<string, unknown> | null
   createdAt?: string
 }
 
@@ -22,6 +34,8 @@ export interface CreateVersionData {
   content: Record<string, unknown>
   xml?: string
   note?: string
+  source?: VersionSource
+  client?: string | null
 }
 
 export const versionApi = {

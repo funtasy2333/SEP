@@ -17,6 +17,8 @@
  * （目次文本中 U+3000 之后的部分），标题文本在 pdftotext 中通常仍连续。
  */
 
+import { BODY_START_SENTINEL } from '@ses/shared'
+
 export type TocDivision = 'front' | 'body'
 
 export interface TocTarget {
@@ -85,11 +87,12 @@ export function toUpperRoman(n: number): string {
 }
 
 /**
- * 正文首页隐藏哨兵锚点文本（与 @ses/shared renderers/html.ts print 变体注入的
- * `.ses-body-anchor` 文本严格一致——跨包字符串契约，二者必须同步修改）。
+ * 正文首页隐藏哨兵锚点文本。常量定义在 @ses/shared（renderers/html.ts），渲染器 print
+ * 变体用它注入 `.ses-body-anchor`，本文件引用同一常量，两端不再各存一份字符串。
  * 渲染器把它透明、零高度地排在正文首页起始，pdftotext 可提取、肉眼不可见、不影响版式。
+ * 此处转出以保留原有导出名，toc.spec 等调用方无需改动。
  */
-export const BODY_START_SENTINEL = 'SESBODYSTARTANCHOR'
+export { BODY_START_SENTINEL }
 
 /**
  * 定位正文起始物理页（0 基）。

@@ -11,11 +11,22 @@
  */
 
 import { execFile } from 'child_process'
+import { createRequire } from 'module'
 import { promisify } from 'util'
 import { copyFile, cp, readFile, writeFile, access } from 'fs/promises'
 import { join, dirname } from 'path'
 
 const execFileAsync = promisify(execFile)
+
+/**
+ * 运行时模块定位专用 require。服务端经 webpack 打包（nest-cli.json + webpack.config.js），
+ * 直接写 require.resolve / require(...) 会被 webpack 在构建期改写为打包内部引用，定位不到
+ * 磁盘上的 @vivliostyle/cli 与 katex 文件；createRequire 返回的是 Node 原生 require，不受改写。
+ * __filename 依赖 webpack.config.js 中 node.__filename:false（保持 Node 原生值，
+ * 运行时为 dist/main.js 的真实路径）；tsc 编译与 jest 下则是源文件自身路径，均可向上解析到
+ * packages/server/node_modules。
+ */
+const nodeRequire = createRequire(__filename)
 
 const VIVLIOSTYLE_TIMEOUT = 120_000
 const POPPLER_TIMEOUT = 60_000
@@ -39,9 +50,9 @@ async function resolvePoppler(bin: string): Promise<string> {
 
 /** 定位 @vivliostyle/cli 的 CLI 入口（从 server 包可解析）。失败抛错。 */
 export function resolveVivliostyleCli(): string {
-  const pkgPath = require.resolve('@vivliostyle/cli/package.json')
+  const pkgPath = nodeRequire.resolve('@vivliostyle/cli/package.json')
 
-  const pkg = require('@vivliostyle/cli/package.json') as {
+  const pkg = nodeRequire('@vivliostyle/cli/package.json') as {
     bin: Record<string, string>
   }
   const rel = pkg.bin.vivliostyle ?? pkg.bin.vs
@@ -129,7 +140,7 @@ async function isPopplerBinAvailable(bin: string): Promise<boolean> {
  * CSS 以相对路径引用 fonts/，故字体目录须与 katex.min.css 同级落盘。
  */
 export async function prepareKatexAssets(tmpDir: string): Promise<string> {
-  const cssSrc = require.resolve('katex/dist/katex.min.css')
+  const cssSrc = nodeRequire.resolve('katex/dist/katex.min.css')
   const fontsSrc = join(dirname(cssSrc), 'fonts')
   await copyFile(cssSrc, join(tmpDir, 'katex.min.css'))
   await cp(fontsSrc, join(tmpDir, 'fonts'), { recursive: true })

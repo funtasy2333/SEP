@@ -14,7 +14,7 @@ import { exportSemanticJson } from '../serializer/jsonExporter'
 const baseUrl = process.env.WP6_API_URL
 const evidenceFile = process.env.WP6_EVIDENCE_FILE
 const schema = getSchema(createEditorExtensions())
-interface StoredDocument { id: number; title: string; meta: DocumentMeta; content: PMJsonNode }
+interface StoredDocument { id: number; title: string; meta: DocumentMeta; content: PMJsonNode; revision: number }
 interface Evidence { document: StoredDocument; duplicate: StoredDocument; version: { id: number; content: PMJsonNode } }
 async function request<T>(path: string, body?: unknown, method = body ? 'POST' : 'GET'): Promise<T> {
   return new Promise((accept, reject) => {
@@ -96,7 +96,10 @@ describe.runIf(Boolean(baseUrl && evidenceFile))('WP6 real API/SQLite acceptance
     }
     visit(edited)
     const synchronized = synchronizeCoverMetadata(edited as unknown as Record<string, unknown>, meta) as unknown as PMJsonNode
-    const document = await request<StoredDocument>(`/documents/${created.id}`, { content: synchronized }, 'PUT')
+    // PUT 必须带 baseRevision（创建响应里的 revision），否则服务端返回 428。
+    expect(created.revision).toBe(0)
+    const document = await request<StoredDocument>(`/documents/${created.id}`, { baseRevision: created.revision, content: synchronized }, 'PUT')
+    expect(document.revision).toBe(created.revision + 1)
     const after = assertProductionContent(document.content)
     expect(after.meta).toMatchObject({ proposer: '提出单位', technicalCommittee: '归口单位', applicant: '起草单位' })
     expect(after.resources).toEqual(before.resources)

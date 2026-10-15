@@ -1,6 +1,12 @@
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import { configureApp } from './app-setup';
+import {
+  formatListenUrl,
+  NON_LOOPBACK_WARNING,
+  resolveListenAddress,
+} from './listen-host';
 import { mkdirSync, readFileSync } from 'fs';
 import { join, resolve } from 'path';
 
@@ -35,8 +41,8 @@ async function bootstrap() {
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // 提高 JSON body 上限：IR→HTML→PDF 端点接收完整 print HTML，可能远超默认 100kb
-  app.useBodyParser('json', { limit: '25mb' });
+  // JSON 请求体上限与路由前缀（/api；MCP 端点 /mcp 不带前缀）：与测试应用共用同一份配置
+  configureApp(app);
 
   // 启用 CORS 允许前端访问
   app.enableCors({
@@ -44,11 +50,11 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // API 路径前缀
-  app.setGlobalPrefix('api');
-
+  // 默认只监听本机（127.0.0.1）：REST 接口没有鉴权。SES_LISTEN_HOST 可覆盖，见 listen-host.ts。
   const port = process.env.PORT ?? 3000;
-  await app.listen(port);
-  console.log(`SES Server running on http://localhost:${port}`);
+  const { host, loopback } = resolveListenAddress();
+  await app.listen(port, host);
+  console.log(`SES Server running on ${formatListenUrl(host, port)}`);
+  if (!loopback) console.warn(`警告：${NON_LOOPBACK_WARNING}`);
 }
 bootstrap();
