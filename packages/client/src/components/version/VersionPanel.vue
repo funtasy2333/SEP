@@ -3,7 +3,7 @@
     <div class="version-panel-header">
       <h3>版本历史</h3>
       <div class="header-actions">
-        <el-button size="small" type="primary" @click="openCreateDialog">
+        <el-button size="small" type="primary" :disabled="readOnly" @click="openCreateDialog">
           保存版本
         </el-button>
         <el-button size="small" @click="$emit('close')">关闭</el-button>
@@ -54,11 +54,11 @@
         <div v-if="version.note" class="version-note">{{ version.note }}</div>
         <div class="version-actions">
           <el-button link size="small" @click.stop="previewVersion(version)">预览</el-button>
-          <el-button link size="small" @click.stop="restoreVersion(version)">回滚</el-button>
+          <el-button link size="small" :disabled="readOnly" @click.stop="restoreVersion(version)">回滚</el-button>
           <!-- 列表接口不返回 baseContent：探测到详情里有写入前内容的 AI 修改才提供这两个操作 -->
           <template v-if="canInspectAiChange(version)">
             <el-button link size="small" type="primary" data-action="view-ai-change" @click.stop="viewAiChange(version)">查看本次修改</el-button>
-            <el-button link size="small" type="warning" data-action="rollback-ai-change" @click.stop="rollbackAiChange(version)">回滚到修改前</el-button>
+            <el-button link size="small" type="warning" data-action="rollback-ai-change" :disabled="readOnly" @click.stop="rollbackAiChange(version)">回滚到修改前</el-button>
           </template>
         </div>
       </div>
@@ -102,7 +102,7 @@
       </el-form>
       <template #footer>
         <el-button @click="showCreateDialog = false">取消</el-button>
-        <el-button type="primary" @click="handleCreateVersion" :loading="creating">确定</el-button>
+        <el-button type="primary" @click="handleCreateVersion" :loading="creating" :disabled="readOnly">确定</el-button>
       </template>
     </el-dialog>
 
@@ -218,6 +218,8 @@ const props = defineProps<{
   getDoc: () => unknown | null
   /** 设置编辑器内容的回调 */
   setContent: (content: Record<string, unknown>) => void
+  /** 当前页面对应文档已删除或恢复：保留版本查看能力，但禁止保存和回滚。 */
+  readOnly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -258,6 +260,7 @@ function suggestVersionNo() {
 }
 
 function openCreateDialog() {
+  if (props.readOnly) return
   // 面板打开期间列表可能被 AI 写入刷新过：没手动改过版本号时按最新列表重新建议。
   if (createForm.versionNo === suggestedVersionNo) suggestVersionNo()
   showCreateDialog.value = true
@@ -409,6 +412,7 @@ function toggleSelect(version: VersionData) {
  * 外部写入发生在保存期间时，写回文档的 PUT 必然 409，走冲突分支，不会静默覆盖外部修改。
  */
 async function handleCreateVersion() {
+  if (props.readOnly) return
   if (!createForm.versionNo.trim()) {
     ElMessage.warning('请输入版本号')
     return
@@ -542,14 +546,17 @@ async function viewAiChange(version: VersionData) {
 
 /** 回滚到这一批 AI 修改之前：把编辑器内容设为 baseContent，后续经自动保存写回。 */
 async function rollbackAiChange(version: VersionData) {
+  if (props.readOnly) return
   if (!await confirmRollback(
     `确定要回滚到 AI 修改（v${version.versionNo}）之前的内容吗？`
     + '编辑器内容将替换为修改前的版本，此后的所有修改（包括人工编辑）和当前未保存的内容都会丢失。',
   )) return
+  if (props.readOnly) return
 
   try {
     const detail = await loadAiChange(version)
     if (!detail) return
+    if (props.readOnly) return
     props.setContent(detail.baseContent)
     ElMessage.success(`已回滚到 AI 修改（v${version.versionNo}）之前`)
     emit('close')
@@ -561,13 +568,16 @@ async function rollbackAiChange(version: VersionData) {
 
 /** 回滚到指定版本 */
 async function restoreVersion(version: VersionData) {
+  if (props.readOnly) return
   if (!await confirmRollback(`确定要回滚到版本 v${version.versionNo} 吗？当前未保存的编辑内容将丢失。`)) return
+  if (props.readOnly) return
 
   try {
     const fullVersion = version.content
       ? version
       : await versionStore.fetchVersion(version.id!)
 
+    if (props.readOnly) return
     if (!fullVersion.content) throw new Error('版本正文为空')
     props.setContent(fullVersion.content)
     ElMessage.success(`已回滚到版本 v${version.versionNo}`)

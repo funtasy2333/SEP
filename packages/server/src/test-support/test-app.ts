@@ -12,6 +12,7 @@ import { DocumentModule } from '../document/document.module';
 import { DocumentService } from '../document/document.service';
 import { DocumentOpsModule } from '../document-ops/document-ops.module';
 import { DocumentOpsService } from '../document-ops/document-ops.service';
+import { ExportModule } from '../export/export.module';
 import {
   DEFAULT_MCP_SESSION_OPTIONS,
   MCP_SESSION_OPTIONS,
@@ -59,6 +60,7 @@ export async function createTestApp(
       DocumentModule,
       VersionModule,
       DocumentOpsModule,
+      ExportModule,
       McpModule,
     ],
   });

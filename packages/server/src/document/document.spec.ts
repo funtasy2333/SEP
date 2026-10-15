@@ -437,6 +437,11 @@ describe('旧库升级', () => {
       });
       expect(doc.createdAt).toBe('2026-10-13T04:17:06.000Z');
 
+      const migratedRows: Array<{ deletedAt: string | null }> = await app
+        .get(DataSource)
+        .query('SELECT deletedAt FROM documents WHERE id = 1');
+      expect(migratedRows).toEqual([{ deletedAt: null }]);
+
       const versions = await reply<unknown[]>(
         http.get('/api/versions/document/1'),
         200,
