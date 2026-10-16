@@ -6,7 +6,7 @@ const warning = (code: string, label?: string) => ({
 })
 
 describe('DOCX 导出后的用户提示', () => {
-  it.each(['table-flow-natural-fallback', 'table-continuation-natural', 'table-row-too-tall', 'table-footer-too-tall',
+  it.each(['table-flow-natural-fallback', 'table-row-too-tall', 'table-footer-too-tall',
     'table-final-segment-too-tall', 'table-header-rowspan-pagination'])('%s 应呈现需要 Word 复核的持续警告', code => {
     const result = getDocxExportFeedback([warning(code)])
     expect(result.type).toBe('warning')
@@ -34,25 +34,6 @@ describe('DOCX 导出后的用户提示', () => {
     expect(result.message).toContain('自然分页')
     expect(result.message).toContain('表X（续）')
     expect(result.message).not.toContain('从新页')
-  })
-
-  it('natural 模式列出可能跨页的表，提示续页没有“表X（续）”，定稿前需人工处理', () => {
-    const result = getDocxExportFeedback(
-      [warning('table-continuation-natural', '表3'), warning('table-continuation-natural', '表A.1')],
-      { tableContinuation: 'natural' },
-    )
-    expect(result.type).toBe('warning')
-    expect(result.message).toContain('Word 自然分页')
-    expect(result.message).toContain('表3、表A.1')
-    expect(result.message).toContain('没有“表X（续）”')
-    expect(result.message).toContain('定稿前需人工处理')
-    expect(result.duration).toBe(0)
-    expect(result.showClose).toBe(true)
-  })
-
-  it('natural 模式下没有表可能跨页时保持成功提示，并标明导出方式', () => {
-    expect(getDocxExportFeedback([], { tableContinuation: 'natural' }))
-      .toMatchObject({ type: 'success', message: 'DOCX 文件已导出（Word 自然分页）' })
   })
 
   it('组合风险与原有封面/脚注提示同时保留，同类多个表格只提示一次', () => {

@@ -16,7 +16,6 @@ import {
   type DocumentStage as DocumentStageType,
   type IRDoc,
   type PMJsonNode,
-  type TableContinuation,
 } from '@ses/shared'
 import { collectImageResources, type ImageResourceOptions } from './imageResources'
 import { convertFormulasToOmml } from './formulaOmml'
@@ -41,8 +40,6 @@ export interface BuildDocxOptions {
   stage?: string
   createdAt?: string
   imageResources?: ImageResourceOptions
-  /** 长表续页方式；缺省 `split`（自动续表，定稿用），`natural` 为 Word 自然分页（编辑稿）。 */
-  tableContinuation?: TableContinuation
 }
 
 /** 文档库元数据中所有非 undefined 字段都覆盖 pmToIr 结果，空字符串也保留。 */
@@ -98,7 +95,6 @@ export async function buildDocx(options: BuildDocxOptions): Promise<{
     formulaOmml: formulaResult.formulaOmml,
     stage: resolveDocumentStage(options.stage),
     createdAt: options.createdAt ?? new Date().toISOString(),
-    ...(options.tableContinuation ? { tableContinuation: options.tableContinuation } : {}),
   })
   return {
     bytes: await packageDocxBytes(docxPackage),

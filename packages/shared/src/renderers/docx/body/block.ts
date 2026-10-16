@@ -279,9 +279,8 @@ function tableGridContent(
 }
 
 function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, nested: boolean): string {
-  // 嵌套表不参与外层页流；「自然」选项下所有表都不拆分。两者都不查询页余量。
+  // 嵌套表不参与外层页流，不查询页余量，整表按自然排法输出。
   if (nested) return renderNaturalTable(ctx, table, bctx, 'nested')
-  if (ctx.tableContinuation === 'natural') return renderNaturalTable(ctx, table, bctx, 'option')
   const budget = ctx.pageFlow.beforeTable()
   // 页位置无法可靠估算时不再猜测、也不写强制分页：整表退回 Word 自然分页。
   if (budget.positionUnknown) return renderNaturalTable(ctx, table, bctx, 'unknown-position')
@@ -354,10 +353,11 @@ function renderSplitTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx, bu
   return out
 }
 
-type NaturalReason = 'option' | 'unknown-position' | 'nested'
+type NaturalReason = 'unknown-position' | 'nested'
 
 /**
  * Word 自然分页：整张表一个 w:tbl，不拆分、不写 w:br/pageBreakBefore。
+ * 仅用于页位置未知时的兜底与嵌套表；页位置已知的顶层表走 renderSplitTable。
  * 表题移到表外，作为 keepNext 的独立段落，使表头行能从第 1 行起连续设 tblHeader 并逐页重复。
  * 跨页时续页只有重复的列标题，没有「表X（续）」。
  */
@@ -367,17 +367,12 @@ function renderNaturalTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx, 
   const label = ctx.labels[table.id]?.label
   const ref = tableRef(ctx, table)
   const continuationName = label ? `「${label}（续）」表题` : '续表表题'
-  // 小表整体保留（keepNext），不会跨页，续表方式对它们没有区别，也不必提醒。
+  // 小表整体保留（keepNext），不会跨页，与拆分排法没有区别，也不必提醒。
   const mayBreak = plan.totalHeightMm > SMALL_TABLE_MM
   if (mayBreak && reason === 'unknown-position') {
     warn(ctx, 'table-flow-natural-fallback',
       `${ref} 之前的页位置无法可靠估算（公式高度、可拆分标题链或前面的自然分页表等），` +
       `已改为 Word 自然分页：整表输出、表头逐页重复，续页没有${continuationName}，请在 Word 中复核分页并按需补写`,
-      table.id, label)
-  }
-  if (mayBreak && reason === 'option') {
-    warn(ctx, 'table-continuation-natural',
-      `${ref} 按 Word 自然分页导出：若跨页，续页只重复列标题，没有${continuationName}，定稿前需人工处理`,
       table.id, label)
   }
   if (plan.oversizedGroup) {

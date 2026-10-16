@@ -557,6 +557,8 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
 
 2026-10-15 续表方式与去掉保守换页（用户决策：去掉“页位置未知则强制新页”，并增加导出选项）。以下取代上文 WP7.6 接排修订中的强制分页；其余分页估算、续段硬分页与「（续）」规则不变。
 
+> **2026-10-16 更新**：导出选项「续表方式」（`DocxRenderOptions.tableContinuation`、io `BuildDocxOptions.tableContinuation`、client 导出对话框与本机偏好 `docxExportPrefs`）已于 2026-10-16 撤回（续页无「表X（续）」，不符合 GB/T，用户评估用处不大）；自然排法仅用于位置未知兜底与嵌套表，`table-continuation-natural` 告警随之删除，`table-flow-natural-fallback`（带表号）与嵌套表的行为不变，导出始终为自动续表。样稿脚本 `wp76-table-flow-samples.mjs` 现只生成 split 一种输出。下文是该选项存在期间的记录，保留作历史，其中的 `tableContinuation`、`natural` 模式与对应样稿数字不再适用。
+
 - **不再写任何表前强制分页。** 渲染器不再输出表题或待定标题链首的 `w:pageBreakBefore`；延迟分页标记（`deferParagraphBreak`/`resolveParagraphBreaks`/`breakBeforePendingChain`）与 `table-flow-estimate-unavailable` 一并删除。续段之间仍用 `<w:br w:type="page"/>` 空段硬分页并写「表X　表题（续）」（页位置已知的表）。
   - **页位置已知、首段放不下**：首段整段（表题行、表头、数据行，除最后一行外都带 keepNext）交给 Word 自然推移；页流记账仍按“新页起排”。
   - **“待定同页链含可拆分成员且超出旧页余量”分支**：原先在链首强制换页，现取消。首段按“整链连同首段落在新页”保守估算（首段预算已扣除整链高度，不会溢出页），实际移页由 keepNext 完成。没有保留任何显式分页：同一组 45 份扫描稿（表前正文 12–40 行，分普通段落/条标题/12 行长标题三类各 15 份）旧版分别有 5/2/11 份在表题或链首写了 `pageBreakBefore`，现为 0/0/0。代价：多行标题直接接表且首段需移页时，Word 可能把标题前几行留在旧页、最后一行随表移到新页（keepNext 不含 keepLines）。若实排确认这是问题，后续应对链内可拆分成员加 `keepLines`，而不是恢复 `pageBreakBefore`（写在表题会打断前置标题的 keepNext，见 review4；写在链首会留大段空白，见 review9）。

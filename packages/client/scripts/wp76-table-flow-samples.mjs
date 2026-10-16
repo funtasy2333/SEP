@@ -1,8 +1,8 @@
-/** 续表方式样稿：同一份生产 schema 文档分别以 split / natural 经真实 buildDocxBlob 导出并统计分页标记。
- * node packages/client/scripts/wp76-table-flow-samples.mjs <absolute output directory>
- * 输出 <name>.<mode>.docx 与 stats.json，并在 stdout 打印统计表。
+/** 续表样稿：生产 schema 文档经真实 buildDocxBlob 导出（自动续表；页位置未知的表退回自然分页）并统计分页标记。
+ * node packages/client/scripts/wp76-table-flow-samples.mjs <absolute output directory> [--sweep]
+ * 输出 <name>.docx 与 stats.json，并在 stdout 打印统计表。
  * 所有材料均为功能 fixture，不代替真实标准文稿；LibreOffice 等非 Word 渲染不是验收依据。
- * 同一脚本可在修改前后的源码上运行（旧版忽略 tableContinuation 选项），用于对照 pageBreakBefore 数。 */
+ * 同一脚本可在修改前后的源码上运行，用于对照 pageBreakBefore 数。 */
 import { createRequire } from 'node:module'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -38,7 +38,7 @@ const cell = (value, header = false) => ({
   content: [{ type: 'paragraph', content: [t(value)] }],
 })
 const meta = {
-  titleCn: '续表方式样稿', titleEn: 'Table continuation samples', standardType: 'national',
+  titleCn: '续表样稿', titleEn: 'Table continuation samples', standardType: 'national',
   standardNo: 'GB/T XXXXX—XXXX', icsCode: '01.120', ccsCode: 'A 00',
 }
 const brokenLines = (count, text) => Array.from({ length: count }, (_, i) =>
@@ -156,37 +156,34 @@ try {
   for (const [name, source] of [...samples, ...sweep]) {
     const node = normalize(source)
     assert.deepEqual(normalize(JSON.parse(JSON.stringify(node.toJSON()))).toJSON(), node.toJSON())
-    for (const mode of ['split', 'natural']) {
-      const { blob, warnings } = await buildDocxBlob({
-        pmDoc: node, documentMeta: meta, stage: 'working_draft', createdAt: '2026-10-15T00:00:00Z',
-        tableContinuation: mode,
-      })
-      const bytes = new Uint8Array(await blob.arrayBuffer())
-      if (!name.startsWith('sweep-')) await writeFile(resolve(output, `${name}.${mode}.docx`), bytes)
-      const xml = await (await JSZip.loadAsync(bytes)).file('word/document.xml').async('string')
-      stats.push({
-        sample: name, mode,
-        pageBreakBefore: count(xml, /<w:pageBreakBefore\/>/g),
-        pageBreakRuns: count(xml, /<w:br w:type="page"\/>/g),
-        tables: count(xml, /<w:tbl>/g),
-        continuationCaptions: count(xml, /w:val="(?:SesTblCapCont|SesAppTblCapCont)"/g),
-        landscapeSections: count(xml, /w:orient="landscape"/g),
-        // 同类告警合并为「code:表1/表2」，表号来自 Resolver labels。
-        warnings: Object.entries(warnings.filter(w => w.code.startsWith('table-')).reduce((groups, w) => {
-          ;(groups[w.code] ??= []).push(w.label ?? '?')
-          return groups
-        }, {})).map(([code, labels]) => `${code}:${labels.join('/')}`),
-        bytes: bytes.length,
-      })
-    }
+    const { blob, warnings } = await buildDocxBlob({
+      pmDoc: node, documentMeta: meta, stage: 'working_draft', createdAt: '2026-10-15T00:00:00Z',
+    })
+    const bytes = new Uint8Array(await blob.arrayBuffer())
+    if (!name.startsWith('sweep-')) await writeFile(resolve(output, `${name}.docx`), bytes)
+    const xml = await (await JSZip.loadAsync(bytes)).file('word/document.xml').async('string')
+    stats.push({
+      sample: name,
+      pageBreakBefore: count(xml, /<w:pageBreakBefore\/>/g),
+      pageBreakRuns: count(xml, /<w:br w:type="page"\/>/g),
+      tables: count(xml, /<w:tbl>/g),
+      continuationCaptions: count(xml, /w:val="(?:SesTblCapCont|SesAppTblCapCont)"/g),
+      landscapeSections: count(xml, /w:orient="landscape"/g),
+      // 同类告警合并为「code:表1/表2」，表号来自 Resolver labels。
+      warnings: Object.entries(warnings.filter(w => w.code.startsWith('table-')).reduce((groups, w) => {
+        ;(groups[w.code] ??= []).push(w.label ?? '?')
+        return groups
+      }, {})).map(([code, labels]) => `${code}:${labels.join('/')}`),
+      bytes: bytes.length,
+    })
   }
   await writeFile(resolve(output, 'stats.json'), JSON.stringify(stats, null, 2))
-  console.log('| 样稿 | 模式 | pageBreakBefore | w:br page | w:tbl | 续表题 | 横排节 | 表格类告警 |')
-  console.log('| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |')
+  console.log('| 样稿 | pageBreakBefore | w:br page | w:tbl | 续表题 | 横排节 | 表格类告警 |')
+  console.log('| --- | ---: | ---: | ---: | ---: | ---: | --- |')
   for (const s of stats.filter(item => !item.sample.startsWith('sweep-'))) {
-    console.log(`| ${s.sample} | ${s.mode} | ${s.pageBreakBefore} | ${s.pageBreakRuns} | ${s.tables} | ${s.continuationCaptions} | ${s.landscapeSections} | ${s.warnings.join('、') || '—'} |`)
+    console.log(`| ${s.sample} | ${s.pageBreakBefore} | ${s.pageBreakRuns} | ${s.tables} | ${s.continuationCaptions} | ${s.landscapeSections} | ${s.warnings.join('、') || '—'} |`)
   }
-  const swept = stats.filter(item => item.sample.startsWith('sweep-') && item.mode === 'split')
+  const swept = stats.filter(item => item.sample.startsWith('sweep-'))
   if (swept.length > 0) {
     for (const kind of ['plain', 'heading', 'longheading']) {
       const group = swept.filter(item => item.sample.startsWith(`sweep-${kind}-`))

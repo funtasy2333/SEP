@@ -146,7 +146,7 @@ describe('不可测公式后的标题同页链', () => {
     expect(caption).not.toContain('<w:pageBreakBefore/>')
     expect(pkg.parts['word/document.xml']).not.toContain('pageBreakBefore')
     expect(pkg.parts['word/document.xml']).not.toContain('<!--ses-')
-    // 短表不会跨页，续表方式对它没有区别：既无旧的 table-flow-estimate-unavailable，也无自然分页告警。
+    // 短表不会跨页：既无旧的 table-flow-estimate-unavailable，也无自然分页告警。
     expect(pkg.warnings.filter(w => w.code.startsWith('table-'))).toEqual([])
     expect(() => assertChildOrder(pkg)).not.toThrow()
     expect(() => assertWellFormed(pkg)).not.toThrow()

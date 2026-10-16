@@ -98,47 +98,6 @@ describe('@ses/io DOCX 出件', () => {
     expect((await buildDocx(options)).bytes).toEqual((await buildDocx(options)).bytes)
   })
 
-  it('tableContinuation 透传到 shared：缺省拆分并写续表题，natural 整表输出且告警带表号', async () => {
-    const cell = (text: string, header = false) => ({
-      type: header ? 'tableHeader' : 'tableCell', attrs: { colspan: 1, rowspan: 1 },
-      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
-    })
-    const longTableDoc: PMJsonNode = {
-      type: 'standardDoc', attrs: { standardType: 'national', titleCn: '长表样稿', standardNo: 'GB/T 12345—2026' },
-      content: [{
-        type: 'chapter', attrs: { nodeId: 'ch1' }, content: [
-          { type: 'chapterTitle', content: [{ type: 'text', text: '记录' }] },
-          { type: 'stdTable', attrs: { nodeId: 'long-table', orientation: 'portrait' }, content: [
-            { type: 'tableCaption', content: [{ type: 'text', text: '长记录表' }] },
-            { type: 'table', content: [
-              { type: 'tableRow', content: [cell('编号', true), cell('说明', true)] },
-              ...Array.from({ length: 90 }, (_, i) => ({ type: 'tableRow', content: [cell(`记录${i + 1}`), cell('短说明')] })),
-            ] },
-          ] },
-        ],
-      }],
-    }
-    const documentOf = async (tableContinuation?: 'split' | 'natural') => {
-      const { bytes, warnings } = await buildDocx({
-        pmDoc: longTableDoc, createdAt: '2026-10-15T00:00:00Z', ...(tableContinuation ? { tableContinuation } : {}),
-      })
-      const zip = await JSZip.loadAsync(bytes)
-      return { xml: await zip.file('word/document.xml')!.async('string'), warnings }
-    }
-    const omitted = await documentOf()
-    const split = await documentOf('split')
-    const natural = await documentOf('natural')
-    expect(split.xml).toBe(omitted.xml)
-    expect((split.xml.match(/<w:tbl>/g) ?? []).length).toBeGreaterThan(1)
-    expect(split.xml).toContain('（续）')
-    expect(natural.xml.match(/<w:tbl>/g)).toHaveLength(1)
-    expect(natural.xml).not.toContain('（续）')
-    expect(natural.xml).not.toContain('pageBreakBefore')
-    expect(natural.xml).not.toContain('w:type="page"')
-    expect(natural.warnings.find(warning => warning.code === 'table-continuation-natural'))
-      .toMatchObject({ nodeId: 'long-table', label: '表1' })
-  })
-
   it('将图片字节和 OMML 公式接入真实导出包', async () => {
     const imageData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6oJ8AAAAASUVORK5CYII='
     const richDoc: PMJsonNode = {

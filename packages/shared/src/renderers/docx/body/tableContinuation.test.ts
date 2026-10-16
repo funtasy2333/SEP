@@ -1,6 +1,7 @@
 /**
- * 续表方式（DocxRenderOptions.tableContinuation）与 B1「位置未知不再强制换页」的回归。
- * 设计见 docs/wp7-docx-delivery.md §5.9「续表方式」。
+ * 长表续页的回归：页位置已知时自动续表（拆段）；页位置未知（前置公式等）与嵌套表退回自然排法，
+ * 即 B1「位置未知不再强制换页」。设计见 docs/wp7-docx-delivery.md §5.9。
+ * 导出选项「续表方式」已于 2026-10-16 撤回，自然排法不再有任何选项入口。
  */
 import { describe, expect, it } from 'vitest'
 import type { IRDoc, IRTable, IRTableRow } from '../../../ir/types'
@@ -11,7 +12,6 @@ import { assertNumberingConsistency } from '../__tests__/helpers/consistency'
 import { findChild, parseXml, type XmlElement } from '../__tests__/helpers/xmlTree'
 import { renderDocxTraced } from '../render'
 import { styleSpecs } from '../styles'
-import type { TableContinuation } from '../types'
 import { LANDSCAPE_END, LANDSCAPE_START, renderBlock, renderBlocks } from './block'
 import { createRenderContext } from './context'
 import { SMALL_TABLE_MM } from './tablePagination'
@@ -57,11 +57,16 @@ const withNote = (ir: IRTable): IRTable => ({
   notes: [{ kind: 'note', id: 'table-note', content: [{ kind: 'paragraph', id: 'table-note-p', content: [{ text: '表注仅在表末。' }] }] }],
 })
 
-function context(tableContinuation?: TableContinuation) {
-  const ctx = createRenderContext(LABELS, new Map(), {
-    images: {}, formulaOmml: {}, ...(tableContinuation ? { tableContinuation } : {}),
-  })
+function context() {
+  const ctx = createRenderContext(LABELS, new Map(), { images: {}, formulaOmml: {} })
   ctx.pageFlow.startSection()
+  return ctx
+}
+
+/** 页位置未知的上下文：OMML 公式的物理高度不可估算，其后的表退回自然排法（且位置未知向后传播）。 */
+function unknownPositionContext() {
+  const ctx = context()
+  ctx.pageFlow.recordParagraph('SesFormula', '<m:oMath/>', false)
   return ctx
 }
 
@@ -72,9 +77,9 @@ const hasKeepNext = (rowElement: XmlElement): boolean =>
   JSON.stringify(rowElement).includes('"name":"w:keepNext"')
 const rowText = (rowElement: XmlElement): string => JSON.stringify(rowElement)
 
-describe('tableContinuation = natural', () => {
+describe('页位置未知：自然排法（table-flow-natural-fallback）', () => {
   it('长表整表输出：单个 w:tbl，无硬分页、无续表题，表题在表外并带 keepNext', () => {
-    const ctx = context('natural')
+    const ctx = unknownPositionContext()
     const xml = renderBlock(ctx, withNote(table(longRows())), { scopeKey: 'chapter' })
     expect(xml.match(/<w:tbl>/g)).toHaveLength(1)
     expect(xml).not.toContain('w:type="page"')
@@ -96,7 +101,7 @@ describe('tableContinuation = natural', () => {
   it('表头行从第 1 行起连续设置 tblHeader；表题不在表内，表注只在末行', () => {
     const ir = table(longRows(), { headerRowCount: 2 })
     ir.rows.splice(1, 0, { ...ir.rows[0]!, id: 'header-b' })
-    const xml = renderBlock(context('natural'), withNote(ir), { scopeKey: 'chapter' })
+    const xml = renderBlock(unknownPositionContext(), withNote(ir), { scopeKey: 'chapter' })
     const rows = elements(findChild(parse(xml), 'w:tbl')!, 'w:tr')
     const headerFlags = rows.map((tr) => findChild(findChild(tr, 'w:trPr')!, 'w:tblHeader') !== undefined)
     expect(headerFlags.slice(0, 3)).toEqual([true, true, false])
@@ -112,7 +117,7 @@ describe('tableContinuation = natural', () => {
     rows[9]!.cells[0]!.rowspan = 3
     rows[10]!.cells.splice(0, 1)
     rows[11]!.cells.splice(0, 1)
-    const xml = renderBlock(context('natural'), withNote(table(rows)), { scopeKey: 'chapter' })
+    const xml = renderBlock(unknownPositionContext(), withNote(table(rows)), { scopeKey: 'chapter' })
     const trs = elements(findChild(parse(xml), 'w:tbl')!, 'w:tr')
     expect(hasKeepNext(trs[0]!)).toBe(true) // 表头行与首个数据行相连
     expect(hasKeepNext(trs[1]!)).toBe(false) // 首个数据行可与第二行分页
@@ -125,44 +130,52 @@ describe('tableContinuation = natural', () => {
     expect(trs).toHaveLength(72)
   })
 
-  it('小表整体保留（keepNext 连到末行），且不产生续表告警', () => {
-    const ctx = context('natural')
+  it(`小表（不高于 ${SMALL_TABLE_MM} mm）整体保留：keepNext 连到末行，整表一个 w:tbl，不告警`, () => {
+    const ctx = unknownPositionContext()
     const xml = renderBlock(ctx, table([row(1), row(2)]), { scopeKey: 'chapter' })
+    expect(xml.match(/<w:tbl>/g)).toHaveLength(1)
     const trs = elements(findChild(parse(xml), 'w:tbl')!, 'w:tr')
     expect(trs.map(hasKeepNext)).toEqual([true, true, false])
-    expect(ctx.warnings.filter((w) => w.code.startsWith('table-'))).toEqual([])
+    expect(ctx.warnings).toEqual([])
   })
 
-  it('每张可能跨页的表给出带 Resolver 表号的告警；小表不告警', () => {
-    const ctx = context('natural')
+  it('每张可能跨页的表给出带 Resolver 表号的 table-flow-natural-fallback；小表不告警', () => {
+    const ctx = unknownPositionContext()
     renderBlock(ctx, table(longRows()), { scopeKey: 'chapter' })
     renderBlock(ctx, { ...table([row(1)]), id: 'second' }, { scopeKey: 'chapter' })
     expect(ctx.warnings).toEqual([expect.objectContaining({
-      code: 'table-continuation-natural', nodeId: 'table', label: '表3', message: expect.stringContaining('表3'),
+      code: 'table-flow-natural-fallback', nodeId: 'table', label: '表3', message: expect.stringContaining('表3'),
     })])
     expect(ctx.warnings[0]!.message).toContain('「表3（续）」')
   })
 
-  it('不受页位置影响：公式之后也不产生 table-flow-natural-fallback', () => {
-    const ctx = context('natural')
-    ctx.pageFlow.recordParagraph('SesFormula', '<m:oMath/>', false)
+  it('位置未知向后传播：前一张自然分页表之后的长表同样不拆分，各自告警', () => {
+    const ctx = unknownPositionContext()
     renderBlock(ctx, table(longRows()), { scopeKey: 'chapter' })
-    expect(ctx.warnings.map((w) => w.code)).toEqual(['table-continuation-natural'])
+    const xml = renderBlock(ctx, { ...table(longRows()), id: 'second' }, { scopeKey: 'chapter' })
+    expect(xml.match(/<w:tbl>/g)).toHaveLength(1)
+    expect(xml).not.toContain('w:type="page"')
+    expect(ctx.warnings.map((w) => [w.code, w.nodeId, w.label])).toEqual([
+      ['table-flow-natural-fallback', 'table', '表3'],
+      ['table-flow-natural-fallback', 'second', '表4'],
+    ])
   })
 
   it('附录表使用附录表题样式与附录实例，编号属主只出现一次', () => {
-    const ctx = context('natural')
+    const ctx = unknownPositionContext()
     const xml = renderBlock(ctx, { ...table(longRows()), id: 'appendix-table' },
       { scopeKey: 'appendix', appendix: { id: 'appendix', letter: 'A' } })
     expect(xml).toContain('w:val="SesAppTblCap"')
     expect(xml).not.toContain('SesAppTblCapCont')
     expect(xml.indexOf('w:val="SesAppTblCap"')).toBeLessThan(xml.indexOf('<w:tbl>'))
     expect(ctx.numbered.filter((item) => item.kind === 'table')).toEqual([{ nodeId: 'appendix-table', kind: 'table' }])
-    expect(ctx.warnings[0]).toMatchObject({ code: 'table-continuation-natural', label: '表A.1' })
+    expect(ctx.warnings[0]).toMatchObject({ code: 'table-flow-natural-fallback', label: '表A.1' })
   })
 
   it('横排长表：表题与整张表都位于横排节标记之内，不拆分', () => {
-    const ctx = context('natural')
+    const ctx = context()
+    // 横排元素从新页开始、页位置重新已知；先在横排节内放一个公式使位置未知，其后的横排长表即退回自然排法。
+    ctx.pageFlow.withElement(true, () => ctx.pageFlow.recordParagraph('SesFormula', '<m:oMath/>', false))
     const xml = renderBlock(ctx, table(longRows(), { orientation: 'landscape' }), { scopeKey: 'chapter' })
     expect(xml.startsWith(LANDSCAPE_START)).toBe(true)
     expect(xml.endsWith(LANDSCAPE_END)).toBe(true)
@@ -172,10 +185,11 @@ describe('tableContinuation = natural', () => {
     expect(inner.match(/<w:tbl>/g)).toHaveLength(1)
     expect(inner).not.toContain('w:type="page"')
     expect(inner).not.toContain('pageBreakBefore')
+    expect(ctx.warnings).toEqual([expect.objectContaining({ code: 'table-flow-natural-fallback', label: '表3' })])
   })
 
   it('相邻顶层表之间由表题段隔开，不会出现 </w:tbl><w:tbl>，也不会被 Word 合并', () => {
-    const ctx = context('natural')
+    const ctx = unknownPositionContext()
     const xml = renderBlocks(ctx, [table(longRows()), { ...table(longRows()), id: 'second' }], { scopeKey: 'chapter' })
     expect(xml.match(/<w:tbl>/g)).toHaveLength(2)
     expect(xml).not.toContain('</w:tbl><w:tbl>')
@@ -187,7 +201,7 @@ describe('tableContinuation = natural', () => {
     ir.rows[0]!.cells[0]!.rowspan = 3
     ir.rows[1]!.cells.splice(0, 1)
     ir.rows[2]!.cells.splice(0, 1)
-    const ctx = context('natural')
+    const ctx = unknownPositionContext()
     const xml = renderBlock(ctx, ir, { scopeKey: 'chapter' })
     expect(xml.match(/<w:tbl>/g)).toHaveLength(1)
     expect(ctx.warnings.find((w) => w.code === 'table-header-rowspan-pagination'))
@@ -195,33 +209,30 @@ describe('tableContinuation = natural', () => {
   })
 
   it('嵌套表格同样整表输出，且不推进外层页流', () => {
-    const ctx = context('split')
+    const ctx = context()
     const before = ctx.pageFlow.availableMm
     const xml = ctx.pageFlow.suspend(() => renderBlock(ctx, table(longRows()), { scopeKey: 'cell' }))
     expect(xml.match(/<w:tbl>/g)).toHaveLength(1)
     expect(xml).not.toContain('w:type="page"')
     expect(ctx.pageFlow.availableMm).toBe(before)
-    expect(ctx.warnings.filter((w) => w.code.startsWith('table-flow') || w.code === 'table-continuation-natural')).toEqual([])
+    expect(ctx.warnings.filter((w) => w.code.startsWith('table-flow'))).toEqual([])
   })
 })
 
-describe('tableContinuation 缺省与显式 split', () => {
-  it('不传选项与显式 split 输出完全相同，且与 natural 不同', () => {
-    const ir = withNote(table(longRows()))
-    const omitted = renderBlock(context(), ir, { scopeKey: 'chapter' })
-    const split = renderBlock(context('split'), ir, { scopeKey: 'chapter' })
-    const natural = renderBlock(context('natural'), ir, { scopeKey: 'chapter' })
-    expect(split).toBe(omitted)
-    expect(natural).not.toBe(split)
-    expect((split.match(/<w:tbl>/g) ?? []).length).toBeGreaterThan(1)
-    expect(split).toContain('SesTblCapCont')
-    expect(split).toContain('w:type="page"')
+describe('页位置已知：自动续表', () => {
+  it('长表拆成多个 w:tbl，续段之间硬分页并写续表题', () => {
+    const xml = renderBlock(context(), withNote(table(longRows())), { scopeKey: 'chapter' })
+    expect((xml.match(/<w:tbl>/g) ?? []).length).toBeGreaterThan(1)
+    expect(xml).toContain('SesTblCapCont')
+    expect(xml).toContain('（续）')
+    expect(xml).toContain('w:type="page"')
+    expect(xml.match(/表注仅在表末/g)).toHaveLength(1)
   })
 })
 
 describe('B1：位置已知时不写强制分页', () => {
   it('旧页余量放不下首段：首段整段 keepNext 让 Word 推移，表题不写 pageBreakBefore，页流仍记为新页起排', () => {
-    const ctx = context('split')
+    const ctx = context()
     ctx.pageFlow.placeTable([225], false) // 旧页只剩约 13 mm
     const xml = renderBlock(ctx, withNote(table(longRows())), { scopeKey: 'chapter' })
     const tables = elements(parse(xml), 'w:tbl')
@@ -236,7 +247,7 @@ describe('B1：位置已知时不写强制分页', () => {
   })
 
   it('页流记账与输出一致：末段高度之后的余量与拆段数', () => {
-    const ctx = context('split')
+    const ctx = context()
     const budget = ctx.pageFlow.beforeTable()
     expect(budget.positionUnknown).toBe(false)
     const xml = renderBlock(ctx, table(longRows()), { scopeKey: 'chapter' })
@@ -247,7 +258,7 @@ describe('B1：位置已知时不写强制分页', () => {
 
   it('分页风险告警带 Resolver 表号', () => {
     const huge = table([row(1, '多行内容。'.repeat(1000)), row(2)])
-    const ctx = context('split')
+    const ctx = context()
     renderBlock(ctx, huge, { scopeKey: 'chapter' })
     expect(ctx.warnings.find((w) => w.code === 'table-row-too-tall'))
       .toMatchObject({ nodeId: 'table', label: '表3', message: expect.stringContaining('表3') })
@@ -262,17 +273,9 @@ describe('B1：位置已知时不写强制分页', () => {
     expect(fallback.label).toBeUndefined()
     expect(fallback.message).toContain('表格 "table"')
   })
-
-  it(`位置未知的小表（不高于 ${SMALL_TABLE_MM} mm）按自然排法整体保留，不告警`, () => {
-    const ctx = context('split')
-    ctx.pageFlow.recordParagraph('SesFormula', '<m:oMath/>', false)
-    const xml = renderBlock(ctx, table([row(1), row(2), row(3)]), { scopeKey: 'chapter' })
-    expect(xml.match(/<w:tbl>/g)).toHaveLength(1)
-    expect(ctx.warnings).toEqual([])
-  })
 })
 
-describe('整份文档：natural 与 split', () => {
+describe('整份文档：自动续表与位置未知回退', () => {
   const OPTIONS = { formulaOmml: {}, images: {}, stage: 'approval_draft' as const, createdAt: '2026-10-15T00:00:00.000Z' }
 
   /** 同一份行结构复用时给所有节点 id 加前缀，保持文档内 id 唯一。 */
@@ -309,27 +312,40 @@ describe('整份文档：natural 与 split', () => {
     }
   }
 
-  it('natural：整份文档没有任何 pageBreakBefore 与 w:br 分页，表数量等于 IR 表数量，且文件合法、编号与 Resolver 一致', () => {
+  /** 在正文章与附录的首张表之前各放一个公式：公式高度不可估算，其后的竖排表都退回自然排法。 */
+  function documentWithUnknownPositions(): IRDoc {
     const doc = document()
+    const formula = (id: string): IRDoc['body'][number]['children'][number] =>
+      ({ kind: 'formula', id, latex: 'x=1', numbered: false, whereList: [] })
+    doc.body[0]!.children.splice(1, 0, formula('formula-body'))
+    doc.appendices[0]!.children.splice(0, 0, formula('formula-appendix'))
+    return doc
+  }
+
+  it('位置未知：竖排表整份文档不写强制分页、整表输出，告警带 Resolver 表号；横排节重新拆分；文件合法、编号与 Resolver 一致', () => {
+    const doc = documentWithUnknownPositions()
     const { labels } = resolve(doc)
-    const { pkg, numbered } = renderDocxTraced(doc, labels, { ...OPTIONS, tableContinuation: 'natural' })
+    const { pkg, numbered } = renderDocxTraced(doc, labels, OPTIONS)
     const xml = pkg.parts['word/document.xml']!
     expect(xml).not.toContain('pageBreakBefore')
-    expect(xml).not.toContain('w:type="page"')
-    expect(xml).not.toContain('SesTblCapCont')
     expect(xml).not.toContain('SesAppTblCapCont')
     expect(xml).not.toContain('<!--ses-')
-    expect(xml.match(/<w:tbl>/g)).toHaveLength(5)
     expect(xml).not.toContain('</w:tbl><w:tbl>')
+    // 唯一的拆段来自横排长表（横排节从新页起排，页位置重新已知）：每个续段一个续表题、一次硬分页。
+    const continuations = xml.match(/SesTblCapCont/g)?.length ?? 0
+    expect(continuations).toBeGreaterThan(0)
+    expect(xml.match(/w:type="page"/g)).toHaveLength(continuations)
+    // 竖排四张表（含短表与附录表）各一个 w:tbl，横排长表为 continuations + 1 个。
+    expect(xml.match(/<w:tbl>/g)).toHaveLength(4 + continuations + 1)
     expect(() => assertWellFormed(pkg)).not.toThrow()
     expect(() => assertChildOrder(pkg)).not.toThrow()
     expect(() => assertNumberingIntegrity(pkg)).not.toThrow()
     expect(() => assertNumberingConsistency(pkg, numbered, labels, new Map())).not.toThrow()
-    const natural = pkg.warnings.filter((w) => w.code === 'table-continuation-natural')
-    expect(natural.map((w) => w.nodeId)).toEqual(['table-a', 'table-b', 'landscape-table', 'table-app'])
-    expect(natural.map((w) => w.label)).toEqual(
-      ['table-a', 'table-b', 'landscape-table', 'table-app'].map((id) => labels[id]!.label))
-    expect(natural.every((w) => /^表[0-9A-Z.]+$/.test(w.label!))).toBe(true)
+    const fallback = pkg.warnings.filter((w) => w.code === 'table-flow-natural-fallback')
+    expect(fallback.map((w) => w.nodeId)).toEqual(['table-a', 'table-b', 'table-app'])
+    expect(fallback.map((w) => w.label)).toEqual(
+      ['table-a', 'table-b', 'table-app'].map((id) => labels[id]!.label))
+    expect(fallback.every((w) => /^表[0-9A-Z.]+$/.test(w.label!))).toBe(true)
   })
 
   it('split（缺省）：同一份文档按估算拆分并写续表题，已知位置的表没有自然分页告警', () => {
@@ -342,15 +358,17 @@ describe('整份文档：natural 与 split', () => {
     expect(xml).toContain('SesAppTblCapCont')
     expect(xml.match(/w:type="page"/g)!.length).toBeGreaterThanOrEqual(3)
     expect(pkg.warnings.map((w) => w.code)).not.toContain('table-flow-natural-fallback')
-    expect(pkg.warnings.map((w) => w.code)).not.toContain('table-continuation-natural')
     expect(() => assertNumberingConsistency(pkg, numbered, labels, new Map())).not.toThrow()
   })
 
-  it('natural：表脚注与表注只在表末输出一次，不被拆分', () => {
+  it('位置未知：自然排法下表脚注与表注只在表末输出一次，不被拆分', () => {
     const doc = footnoteFixture()
+    doc.body[0]!.children.unshift({ kind: 'formula', id: 'formula-1', latex: 'x=1', numbered: false, whereList: [] })
     const { labels } = resolve(doc)
-    const { pkg } = renderDocxTraced(doc, labels, { ...OPTIONS, tableContinuation: 'natural' })
+    const { pkg } = renderDocxTraced(doc, labels, OPTIONS)
     const xml = pkg.parts['word/document.xml']!
+    // 自然排法的表题在 w:tbl 之外（拆分排法放在表内首行）。
+    expect(xml.indexOf('w:val="SesTblCap"')).toBeLessThan(xml.indexOf('<w:tbl>'))
     expect(xml.match(/表注内容/g)).toHaveLength(1)
     expect(xml.match(/<w:t[^>]*>定义A<\/w:t>/g)).toHaveLength(1)
     expect(xml.match(/<w:t[^>]*>定义B<\/w:t>/g)).toHaveLength(1)

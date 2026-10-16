@@ -12,7 +12,7 @@
 import type { NodeId, ResolvedLabel } from '../../../ir/types'
 import { createNumberingAllocator, type NumberingAllocator } from '../numbering'
 import { OWNER_STYLE_IDS, styleSpecs } from '../styles'
-import type { DocxBookmark, DocxPackage, DocxRenderOptions, TableContinuation } from '../types'
+import type { DocxBookmark, DocxPackage, DocxRenderOptions } from '../types'
 import type { DocxRelatedPart } from '../package'
 import { escapeXmlAttr, numPr as numPrXml, pPr, type XmlChild } from '../xml'
 import { mmToTwips } from '../units'
@@ -34,8 +34,6 @@ export interface RenderContext {
   readonly numbered: NumberedParagraphTrace[]
   readonly bookmarksByNodeId: ReadonlyMap<NodeId, DocxBookmark>
   readonly resources: Pick<DocxRenderOptions, 'images' | 'formulaOmml'>
-  /** 长表续页方式（缺省 split）；natural 时所有表整表输出、不写强制分页。 */
-  readonly tableContinuation: TableContinuation
   readonly pageFlow: PageFlow
   readonly relatedParts: DocxRelatedPart[]
   allocateImage(): { relationshipId: string; mediaIndex: number }
@@ -44,13 +42,13 @@ export interface RenderContext {
 export function createRenderContext(
   labels: Record<NodeId, ResolvedLabel>,
   bookmarksByNodeId: ReadonlyMap<NodeId, DocxBookmark> = new Map(),
-  resources: Pick<DocxRenderOptions, 'images' | 'formulaOmml' | 'tableContinuation'> = { images: {}, formulaOmml: {} },
+  resources: Pick<DocxRenderOptions, 'images' | 'formulaOmml'> = { images: {}, formulaOmml: {} },
   allocateRelId: () => string = () => { throw new Error('DOCX 图片关系 ID 分配器尚未配置') },
 ): RenderContext {
   let mediaIndex = 0
   return {
     labels, numbering: createNumberingAllocator(), warnings: [], numbered: [], bookmarksByNodeId,
-    resources, tableContinuation: resources.tableContinuation ?? 'split', relatedParts: [], pageFlow: createPageFlow(),
+    resources, relatedParts: [], pageFlow: createPageFlow(),
     allocateImage() { return { relationshipId: allocateRelId(), mediaIndex: ++mediaIndex } },
   }
 }

@@ -10,15 +10,6 @@
 import type { NodeId } from '../../ir/types'
 import type { DocumentStage } from '../../types/document'
 
-/**
- * 长表的续页方式（docs/wp7-docx-delivery.md §5.9）。
- * - `split`（默认，定稿）：页位置可估算的长表拆成多个 Word 表段，续段前硬分页并写「表X　表题（续）」；
- *   页位置无法可靠估算的表自动退回 `natural` 排法并产生 `table-flow-natural-fallback`。
- * - `natural`（编辑稿）：所有表整表输出，不拆分、不写任何强制分页，由 Word 自然分页并逐页重复表头；
- *   续页没有「表X（续）」。
- */
-export type TableContinuation = 'split' | 'natural'
-
 export interface DocxRenderOptions {
   /** 公式 OMML：key = IRFormula.id，值以 <m:oMath 开头。缺失时降级为 LaTeX 源码文本并记 warning */
   formulaOmml: Record<NodeId, string>
@@ -37,8 +28,6 @@ export interface DocxRenderOptions {
   stage: DocumentStage
   /** 写入 docProps/core.xml 的时间（ISO），由宿主传入以保证字节级确定性 */
   createdAt: string
-  /** 长表续页方式；缺省 `split`。 */
-  tableContinuation?: TableContinuation
 }
 
 export interface DocxPackage {

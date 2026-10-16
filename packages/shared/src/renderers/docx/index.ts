@@ -9,9 +9,9 @@
 
 import type { IRDoc, NodeId, ResolvedLabel } from '../../ir/types'
 import { renderDocxTraced } from './render'
-import type { DocxPackage, DocxRenderOptions, TableContinuation } from './types'
+import type { DocxPackage, DocxRenderOptions } from './types'
 
-export type { DocxPackage, DocxRenderOptions, TableContinuation }
+export type { DocxPackage, DocxRenderOptions }
 
 /** `renderDocx` = `renderDocxTraced(...).pkg`（§1.2） */
 export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, opts: DocxRenderOptions): DocxPackage {
