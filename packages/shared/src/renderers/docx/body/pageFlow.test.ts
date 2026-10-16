@@ -40,8 +40,10 @@ describe('正文页余量估算', () => {
     expect(flow.availableMm).toBe(available)
     flow.placeTable([100, 80], false)
     expect(flow.availableMm).toBe(158)
-    flow.beforeTable()
-    expect(flow.availableMm!).toBeLessThan(153)
+    // 相邻顶层表之间没有分隔空段（表题段把两表隔开，其高度已计入下一张表的段高）：
+    // 查询下一张表的预算不再额外扣除一个空行。
+    expect(flow.beforeTable().firstPageHeightMm).toBe(158)
+    expect(flow.availableMm).toBe(158)
   })
 
   it('连续横排块共享页余量，切回竖排后从新节开始', () => {

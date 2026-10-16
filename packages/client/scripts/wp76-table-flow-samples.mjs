@@ -2,7 +2,10 @@
  * node packages/client/scripts/wp76-table-flow-samples.mjs <absolute output directory> [--sweep]
  * 输出 <name>.docx 与 stats.json，并在 stdout 打印统计表。
  * 所有材料均为功能 fixture，不代替真实标准文稿；LibreOffice 等非 Word 渲染不是验收依据。
- * 同一脚本可在修改前后的源码上运行，用于对照 pageBreakBefore 数。 */
+ * 同一脚本可在修改前后的源码上运行，用于对照分页标记数。
+ * 表题/续表题都是表外段落：续表题段自带 pageBreakBefore（所以 pageBreakBefore 数 = 续表题数、w:br page 数 = 0），
+ * 首段表题之前不写任何 pageBreakBefore（“非续表题段上的 pageBreakBefore”应恒为 0）；
+ * tblHeader 只在表格前 headerRowCount 行上，没有表题行；`</w:tbl><w:tbl>` 恒为 0（表题段隔开相邻表）。 */
 import { createRequire } from 'node:module'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -165,6 +168,10 @@ try {
     stats.push({
       sample: name,
       pageBreakBefore: count(xml, /<w:pageBreakBefore\/>/g),
+      pageBreakBeforeElsewhere: count(xml, /<w:pageBreakBefore\/>/g) -
+        count(xml, /w:val="(?:SesTblCapCont|SesAppTblCapCont)"\/><w:pageBreakBefore\/>/g),
+      tblHeaderRows: count(xml, /<w:tblHeader\/>/g),
+      adjacentTables: count(xml, /<\/w:tbl><w:tbl>/g),
       pageBreakRuns: count(xml, /<w:br w:type="page"\/>/g),
       tables: count(xml, /<w:tbl>/g),
       continuationCaptions: count(xml, /w:val="(?:SesTblCapCont|SesAppTblCapCont)"/g),
@@ -178,17 +185,17 @@ try {
     })
   }
   await writeFile(resolve(output, 'stats.json'), JSON.stringify(stats, null, 2))
-  console.log('| 样稿 | pageBreakBefore | w:br page | w:tbl | 续表题 | 横排节 | 表格类告警 |')
-  console.log('| --- | ---: | ---: | ---: | ---: | ---: | --- |')
+  console.log('| 样稿 | pageBreakBefore | 其中非续表题段 | w:br page | w:tbl | 续表题 | tblHeader 行 | 相邻 tbl | 横排节 | 表格类告警 |')
+  console.log('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |')
   for (const s of stats.filter(item => !item.sample.startsWith('sweep-'))) {
-    console.log(`| ${s.sample} | ${s.pageBreakBefore} | ${s.pageBreakRuns} | ${s.tables} | ${s.continuationCaptions} | ${s.landscapeSections} | ${s.warnings.join('、') || '—'} |`)
+    console.log(`| ${s.sample} | ${s.pageBreakBefore} | ${s.pageBreakBeforeElsewhere} | ${s.pageBreakRuns} | ${s.tables} | ${s.continuationCaptions} | ${s.tblHeaderRows} | ${s.adjacentTables} | ${s.landscapeSections} | ${s.warnings.join('、') || '—'} |`)
   }
   const swept = stats.filter(item => item.sample.startsWith('sweep-'))
   if (swept.length > 0) {
     for (const kind of ['plain', 'heading', 'longheading']) {
       const group = swept.filter(item => item.sample.startsWith(`sweep-${kind}-`))
-      console.log(`sweep ${kind}: ${group.length} 份，写 pageBreakBefore 的 ${group.filter(item => item.pageBreakBefore > 0).length} 份，` +
-        `pageBreakBefore 总数 ${group.reduce((sum, item) => sum + item.pageBreakBefore, 0)}，` +
+      console.log(`sweep ${kind}: ${group.length} 份，在续表题段之外写 pageBreakBefore 的 ${group.filter(item => item.pageBreakBeforeElsewhere > 0).length} 份，` +
+        `其总数 ${group.reduce((sum, item) => sum + item.pageBreakBeforeElsewhere, 0)}，` +
         `自然分页回退告警 ${group.filter(item => item.warnings.some(w => w.startsWith('table-flow-natural-fallback'))).length} 份`)
     }
   }

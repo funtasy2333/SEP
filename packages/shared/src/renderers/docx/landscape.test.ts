@@ -83,7 +83,10 @@ describe('WP7.4 横排分节', () => {
     const pkg = render(docWith([first, second]))
     const xml = pkg.parts['word/document.xml']!
     expect(xml).not.toContain('</w:tbl><w:tbl>')
-    expect(xml).toMatch(/<\/w:tbl><w:p><w:pPr><w:pStyle w:val="SesNormal"\/><\/w:pPr><\/w:p><w:tbl>/)
+    // 两表之间只有后一张表的表题段，不再有普通空段。
+    expect(xml).toMatch(/<\/w:tbl><w:p><w:pPr><w:pStyle w:val="SesTblCap"\/><\/w:pPr><w:r><w:t xml:space="preserve">table-2<\/w:t><\/w:r><\/w:p><w:tbl>/)
+    expect(xml).not.toMatch(/<\/w:tbl><w:p><w:pPr><w:pStyle w:val="SesNormal"\/><\/w:pPr><\/w:p>/)
+    expect(xml.match(/<w:tbl>/g)).toHaveLength(2)
     assertWellFormed(pkg)
     assertChildOrder(pkg)
     const sections = docxOutline(pkg).split('\n').filter(line => line.startsWith('§'))

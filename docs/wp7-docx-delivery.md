@@ -537,11 +537,11 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
 
 ### 5.9 表
 
-- 表题位于表格首个无边框、跨满全宽的标题行：P(SesTblCap / SesAppTblCap, caption)，不输出 `captionEn`。该行与列标题行均为重复标题行。（自然分页排法下表题移到表外，见下文 2026-10-15 条目。）
+- 表题位于表格首个无边框、跨满全宽的标题行：P(SesTblCap / SesAppTblCap, caption)，不输出 `captionEn`。该行与列标题行均为重复标题行。（自然分页排法下表题移到表外，见下文 2026-10-15 条目。**2026-10-16 起所有排法的表题与续表题都是表外独立段落，表内不再有表题行，见下文 2026-10-16 条目；本条与下一组 `w:tbl` 条目中的「表题行」为历史描述。**）
 - `w:tbl`：
   - `tblPr`：`tblW` 5000 pct；`jc=center`；`tblLayout fixed`；边框外框 sz=6，`insideH/insideV` sz=2；
   - `tblGrid`：按最大列数平均分配版心宽（必须写，否则不符合 schema）；
-  - 表题行及前 `headerRowCount` 个数据行 `trPr` 写 `<w:tblHeader/>`；表头最后一行的单元格下边框 sz=6，所有表格行写 `cantSplit`，在行边界分页；
+  - 表题行及前 `headerRowCount` 个数据行 `trPr` 写 `<w:tblHeader/>`（2026-10-16 起没有表题行，只有前 `headerRowCount` 个表头行写 `tblHeader`）；表头最后一行的单元格下边框 sz=6，所有表格行写 `cantSplit`，在行边界分页；
   - 合并：`colspan` → `tcPr/gridSpan`；`rowspan` → 起始格 `vMerge val="restart"`，**被覆盖的后续行在同一网格位置补占位格** `<w:tc><w:tcPr><w:gridSpan w:val="N"/><w:vMerge/></w:tcPr><w:p/></w:tc>`，其中 N = 起始格的 `colspan`（为 1 时省略 `gridSpan`）。占位格缺 `gridSpan` 会只占一列，同行后面的格整体左移，网格错位（旧导出器连占位格都没有）；
   - 单元格段落：表头格与纯数字格（`/^[\d\s.,±%~—-]+$/`）用 SesTableCenter，其余用 SesTableText；空单元格写一字线「—」（10.4.2.2）。
 - DOCX支持编辑器`columnWidths`（CSS像素），96dpi下换算为15twips/px。局部列宽保留绝对值，自动列平分剩余版心；全部列指定时保留总宽，超出版心按比例适配。合并格宽度为所覆盖列之和；全部续表使用原表统一网格，分页按自定义列宽估算。0为自动列宽；负值、非有限数值、数组长度与colspan不符或同列宽度冲突时明确阻断。HTML/XML尚未实现该字段，继续保留输出检查。
@@ -585,6 +585,28 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
   旧版（本次修改前）同一批样稿的 `pageBreakBefore` 数：公式后接长表 1、综合稿 1，其余 0；综合稿的 `w:br` 分页 7、表 13（公式后两张长表仍被拆段并强制换页）。
 
 - **需要 Word 实排确认的点**（本次没有 Word，仅用 LibreOffice 粗看：natural 的重复表头与表外表题显示正常，split/natural 页数相同；LibreOffice 不是验收依据）：① 无 `pageBreakBefore` 时，Word 是否如估算把放不下的首段整段推到下一页（含标题链在前的情形，是否出现标题被拆开）；② natural 的表外表题（keepNext）与第 1 行 `tblHeader` 的连用，以及“表头行 keepNext + 首个数据行”的保护；③ 跨行合并组、末行与表注的 keepNext 是否按预期阻止拆开；④ 横排节内 natural 长表及相邻表的间距（表题段 before/after 取代原空段）；⑤ 位置未知传播后同节后续表的实际观感与告警数量是否可接受；⑥ natural 下 Word 用户手动调版后再次导出会覆盖手改，仍需按需重新导出。
+
+2026-10-16 表题、续表题改为表外独立段落（用户决策：沿用 SET2020 Word 加载项的做法，表题是表格上方的独立段落；用户已在 Word 中实测，删除两段表之间的段落即可把续表合并为一张表）。以下取代上文「表题位于表格首个无边框、跨满全宽的标题行」及续段之间 `w:br page` 空段的写法，历史文字保留。
+
+- **表题段在表外。** split 的各段、natural、附录表、横排表与嵌套表一律是：P(SesTblCap / SesAppTblCap, caption) 紧接其后的 `w:tbl`；表格内没有表题行。`SesTblCap`、`SesAppTblCap`、`SesTblCapCont`、`SesAppTblCapCont` 四个样式自带 `keepNext`（`styles.ts` 未改），表题段、首个表头行与整段表格行连成同页链；附录表题的 `numPr` 实例分配、`ctx.numbered` 追踪顺序与此前完全一致（golden 中的 numId 不变）。
+- **`tblHeader` 只在前 `headerRowCount` 个表头行上**，从表格第 1 行起连续（`headerRowCount=0` 时一个都不写）；表题行不再占一个重复标题行。表格首行（首个表头行）的单元格显式写粗上边框 sz=6（`renderTableGrid` 的 `strongTopBorder`，split 与 natural 都传入），使跨页重复的表头保留外框。`TableGridRenderOptions.captionXml` 与表题行生成函数已删除。
+- **续表题用段前分页替代分页符空段。** 续段之前不再输出只含 `<w:br w:type="page"/>` 的空 SesNormal 段；续表题段（`SesTblCapCont` / `SesAppTblCapCont`，文字「表X　表题（续）」）的 `pPr` 写 `<w:pageBreakBefore/>`，紧接续段表格，续段表格第 1 行就是重复的表头行（`tblHeader`）。`pPr` 子元素顺序依附录 B：`pStyle`、`pageBreakBefore`……（由 `xml.ts` 的 `pPr()` 排序并经 `assertChildOrder` 校验）。`emitParagraph` 为此新增 `pageBreakBefore` 选项，只用于续表题段（它在已 `suspend` 的表格渲染内，页流不记账、不进入待定 keepNext 链）。**首段的表题之前仍不写任何 `pageBreakBefore`**（B1 不变），整份文档里 `pageBreakBefore` 的数量等于续表题段的数量。
+- **相邻顶层表不再需要空段。** `render.ts` 原先把 `</w:tbl><w:tbl>` 替换成「表 + 普通空段 + 表」，以免 Word 把相邻两表合并（`wp7.6-acceptance-2026-10-03.md`「独立相邻表被 Word 合并」）。现在每张表、每个续段之前都有自己的表题/续表题段，两个 `w:tbl` 在结构上不会相邻，该后处理已删除，也不会多出空行。逐类核对：表注在表内末行，表注之后紧接的是下一张表的表题段；题注为空的表仍输出只含编号的 SesTblCap 段（Resolver 仍给它编号）；split 的续段之间隔着续表题段；横排表连同表题、续表题、表注都在横排节标记之内，相邻横排表共用一节；单元格内相邻的嵌套表同样各带表题段。测试同时断言整份文档不出现 `</w:tbl><w:tbl>`，也不出现表后紧跟空 SesNormal 段。相邻表之间的间距由下一张表题段的段前半行提供。
+- **页流估算。** 表题/续表题仍按 `tablePagination` 的每段 8 mm（题注每多一行 +5.5 mm）起算，作为表外段落计入各段高度（`segmentHeightsMm`、首段预算的 `- 10` 余量均未改），因此既有测试里的分段结果不变。唯一的估算修正在 `pageFlow.ts`：`beforeTable()` 原先在紧接上一张表时额外扣一个网格行高（5.5 mm），对应的正是被删除的相邻表空段；空段不存在后同步删除（`lastWasTable` 一并删除），页流测试里钉住这一扣减的两条断言随之改为「不再扣减」。直接后果：两张相邻长表样稿中后表首段多放 1 行（第 1–12 条 → 1–13 条），其余样稿的分段（每段起止记录）逐一核对不变。
+- **在 Word 中合并续表**：删除续表题段落（「表X　表题（续）」整段，其 `pageBreakBefore` 随段落消失），两段表格即在 Word 中合为一张表；再选中续段位置上重复的表头行（续段第 1 行起的 `headerRowCount` 行），右键「删除行」。表注/表脚注只在末段表内，合并后仍在最后一行。
+- **golden 与样稿的变化**（`__tests__/__golden__/{full,numbering}`）：每张表的第 1 行（无边框、跨满全宽、`tblHeader`、内含表题段的行）整行消失，表题段移到 `<w:tbl>` 之前（段内不再有显式 `<w:keepNext/>`，由样式提供）；`tblHeader` 数 full 4→2、numbering 8→4（每张表少一个）；其余部件、numId、表格内容不变。样稿（`wp76-table-flow-samples.mjs`，功能 fixture，DOCX 不入库）前后对比：
+
+  | 样稿 | pageBreakBefore（前→后） | `w:br` 分页 | 表数 | 续表题 | `tblHeader`（前→后） | 表后空段 |
+  | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+  | 标题后接长表 | 0→1 | 1→0 | 2 | 1 | 4→2 | 0→0 |
+  | 公式后接长表 | 0→0 | 0→0 | 1 | 0 | 1→1 | 0→0 |
+  | 短表 | 0→0 | 0→0 | 1 | 0 | 2→1 | 0→0 |
+  | 横排长表 | 0→2 | 2→0 | 3 | 2 | 6→3 | 0→0 |
+  | 两张相邻长表 | 0→2 | 2→0 | 4 | 2 | 8→4 | 1→0 |
+  | 综合稿 | 0→5 | 5→0 | 11 | 5 | 19→11 | 0→0 |
+
+  新旧 `pageBreakBefore` 都只在续表题段上（非续表题段上为 0；`--sweep` 的 45 份扫描稿同样为 0），`w:br` 分页恒为 0，相邻 `</w:tbl><w:tbl>` 恒为 0。表格类告警与此前一致（公式后的表回退自然分页等）。
+- **需要 Word 实排确认的点**（本次没有 Word，仅用 LibreOffice 粗看：表外表题、续段重复表头、续表题段落在新页顶显示正常，页数与旧版相同；LibreOffice 不是验收依据）：① 续表题段的 `pageBreakBefore` 与 `keepNext` 并用时，Word 是否把续表题段与续段首行一起放在新页；② 删除续表题段落后 Word 是否确实合并为一张表，并且重复表头行按上述方法删除后无残留；③ 独立表题段的实际高度（段前后各半行加一行，理论约 11 mm）与估算 8 mm 相差约 3 mm，是否仍在 `pageBudget` 预留的 9 mm 与首段 10 mm 余量之内（若不足，应调大 `captionHeight`，那会改变分段，需另行评估）；④ 相邻表之间只剩表题段的段前半行，间距是否可接受。
 
 ### 5.10 公式（10.4.3）
 

@@ -3,6 +3,7 @@
  *
  * 本模块负责 Word 表格结构、网格宽度、合并单元格、重复表头和表注行。调用方负责递归渲染
  * IR 单元格内容及表注，以便注/示例继续使用 block.ts 的既有编号和追踪路径。
+ * 表题/续表题是表外的独立段落，由调用方（block.ts）在 w:tbl 之前输出，本模块不再生成表题行。
  */
 
 import type { IRTable, IRTableRow } from '../../../ir/types'
@@ -24,8 +25,6 @@ export interface TableCellRenderMeta {
 }
 
 export interface TableGridRenderOptions {
-  /** 表题放在第一个重复标题行，Word 自动跨页时与列标题一起复现。 */
-  captionXml?: string
   /** 小表/每个分段按整段保留；放不下时 Word 将整段移至下一页。 */
   keepTogether?: boolean
   /**
@@ -33,7 +32,7 @@ export interface TableGridRenderOptions {
    * 末个数据行不与表注/表脚注分离，其余行可在任意行边界跨页（表头行逐页重复）。
    */
   keepEdges?: boolean
-  /** 没有表题行时仍给首行写粗上边框，使重复表头与有表题行时的外框一致。 */
+  /** 首行（表头第 1 行）单元格显式写粗上边框，使跨页重复的表头保留外框；表题在表外，表格首行即首个表头行。 */
   strongTopBorder?: boolean
   /** 分段续表沿用原表的完整列数，避免不同片段列宽变化。 */
   columnCount?: number
@@ -99,7 +98,7 @@ function cellXml(
   else if (gridCell.kind === 'origin' && gridCell.origin!.rowspan > 1) tcPrChildren.push(['vMerge', '<w:vMerge w:val="restart"/>'])
 
   const strongBorders: Array<'top' | 'bottom'> = []
-  if ((options.captionXml || options.strongTopBorder) && rowIndex === 0) strongBorders.push('top')
+  if (options.strongTopBorder && rowIndex === 0) strongBorders.push('top')
   if (headerRowCount > 0 && rowIndex === headerRowCount - 1) strongBorders.push('bottom')
   if (strongBorders.length > 0) tcPrChildren.push(['tcBorders', cellBorderXml(strongBorders, 6)])
 
@@ -143,23 +142,6 @@ function noteRowXml(widths: number[], columnCount: number, notesXml: string, kin
   ])
 }
 
-function captionRowXml(widths: number[], columnCount: number, captionXml: string): string {
-  const width = widths.reduce((sum, value) => sum + value, 0)
-  const nilBorder = (side: 'top' | 'left' | 'bottom' | 'right'): XmlChild =>
-    [side, `<w:${side} w:val="nil"/>`]
-  const captionCellPr = tcPr([
-    ['tcW', `<w:tcW w:w="${width}" w:type="dxa"/>`],
-    ...(columnCount > 1 ? [['gridSpan', `<w:gridSpan w:val="${columnCount}"/>`] as const] : []),
-    ['tcBorders', tcBorders([
-      nilBorder('top'), nilBorder('left'), nilBorder('bottom'), nilBorder('right'),
-    ])],
-  ])
-  return tr([
-    ['trPr', trPr([['cantSplit', '<w:cantSplit/>'], ['tblHeader', '<w:tblHeader/>']])],
-    ['tc', `<w:tc>${captionCellPr}${captionXml}</w:tc>`],
-  ])
-}
-
 function keepRowWithNext(rowXml: string): string {
   return rowXml.replace(/<w:p>([\s\S]*?)<\/w:p>|<w:p\/>/g, (paragraph) => {
     if (paragraph === '<w:p/>') return '<w:p><w:pPr><w:keepNext/></w:pPr></w:p>'
@@ -173,7 +155,7 @@ function keepRowWithNext(rowXml: string): string {
   })
 }
 
-/** Build one complete w:tbl; caption and note paragraph numbering remain with the caller. */
+/** Build one complete w:tbl; caption paragraph (outside the table) and note numbering remain with the caller. */
 export function renderTableGrid(ctx: RenderContext, table: IRTable, options: TableGridRenderOptions): string {
   const grid = buildTableGrid(table, options.columnCount)
   const resolvedWidths = resolveTableColumnWidths(table, grid.columnCount)
@@ -206,20 +188,18 @@ export function renderTableGrid(ctx: RenderContext, table: IRTable, options: Tab
   const footnotes = (typeof options.footnotesXml === 'function' ? options.footnotesXml() : options.footnotesXml)?.trim() ?? ''
   const tableNotesRow = notes.length > 0 ? noteRowXml(widths, grid.columnCount, notes, 'notes', 6) : ''
   const tableFootnotesRow = footnotes.length > 0 ? noteRowXml(widths, grid.columnCount, footnotes, 'footnotes', tableNotesRow ? 2 : 6) : ''
-  const captionRow = options.captionXml ? captionRowXml(widths, grid.columnCount, options.captionXml) : ''
-  const allRows = [...(captionRow ? [captionRow] : []), ...rowsXml,
+  const allRows = [...rowsXml,
     ...(tableNotesRow ? [tableNotesRow] : []), ...(tableFootnotesRow ? [tableFootnotesRow] : [])]
   // keepEdges（自然分页）逐行决定是否与下一行同页：表头行、被合并单元格贯穿的行必须与下一行相连；
   // 数据末行与表注行、表注行与表脚注行相连。其余行不加 keepNext，让 Word 在任意行边界跨页。
   const keepFlags: boolean[] = options.keepEdges ? [
-    ...(captionRow ? [true] : []),
     ...rows.map((_cells, rowIndex) => rowIndex < headerRowCount ||
       (rows[rowIndex + 1]?.some((cell) => cell.kind === 'continuation') ?? false)),
     ...(tableNotesRow ? [tableFootnotesRow !== ''] : []),
     ...(tableFootnotesRow ? [false] : []),
   ] : []
   if (options.keepEdges && (tableNotesRow || tableFootnotesRow)) {
-    keepFlags[(captionRow ? 1 : 0) + rows.length - 1] = true
+    keepFlags[rows.length - 1] = true
   }
   const renderedRows = allRows.map((row, index) => {
     const keep = options.keepTogether ? true : options.keepEdges ? keepFlags[index] === true : false

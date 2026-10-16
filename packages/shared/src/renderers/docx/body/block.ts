@@ -239,7 +239,7 @@ function tableRef(ctx: RenderContext, table: IRTable): string {
   return ctx.labels[table.id]?.label ?? `表格 "${table.id}"`
 }
 
-/** 表题段落（§4.7 编号追踪、附录实例）。split 时放入表格第一行；natural 时位于表外。 */
+/** 表题段落（§4.7 编号追踪、附录实例）。split/natural 一律作为 w:tbl 之前的独立段落，不进表格。 */
 function emitTableCaption(ctx: RenderContext, table: IRTable, bctx: BlockCtx, captionRuns: string): string {
   const numbered = { nodeId: table.id, kind: 'table' as const }
   if (bctx.appendix) {
@@ -288,8 +288,11 @@ function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, 
 }
 
 /**
- * 页位置已知：按估算拆成多个 Word 表段，续段之间用 `w:br page` 硬分页并写「表X　表题（续）」。
- * 首段是否落在新页只用于页流记账：不写任何 pageBreakBefore，整段 keepNext 让 Word 自然推移。
+ * 页位置已知：按估算拆成多个 Word 表段。表题是首段之前的独立段落（SesTblCap/SesAppTblCap，keepNext）；
+ * 每个续段前是一个独立的续表题段「表X　表题（续）」（SesTblCapCont/SesAppTblCapCont），自带 `pageBreakBefore`
+ * 另起一页，紧接续段表格（首行为重复的表头行）。不再输出含 `w:br page` 的空分隔段：续表题段本身就隔开了
+ * 相邻的两个 w:tbl，在 Word 里合并续表只需删除续表题段和重复的表头行。
+ * 首段是否落在新页只用于页流记账：首段之前不写任何 pageBreakBefore，整段 keepNext 让 Word 自然推移。
  */
 function renderSplitTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx, budget: TableFlowBudget): string {
   const captionRuns = renderInlines(table.caption, ctx.labels)
@@ -324,18 +327,16 @@ function renderSplitTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx, bu
   }))
   const columnLayout = resolveTableColumnWidths(table)
   const content = tableGridContent(ctx, table, tableBctx, columnLayout)
-  let out = ''
+  let out = captionXml
   bodySegments.forEach((bodyRows, index) => {
     const lastSegment = index === bodySegments.length - 1
-    let segmentCaption = captionXml
     if (index > 0) {
-      // 相邻 w:tbl 会被 Word 合并为同一张表；段落级换页同时隔开两个独立片段。
-      out += emitParagraph(ctx, 'SesNormal', { runsXml: '<w:r><w:br w:type="page"/></w:r>' })
+      // 续表题段独立于表格：段前分页另起一页，同时隔开相邻的两个 w:tbl（否则 Word 会把它们合并为一张表）。
       if (!label) warn(ctx, 'label-missing', `续表 "${table.id}" 缺少表编号`, table.id)
-      segmentCaption = emitParagraph(ctx,
-        bctx.appendix ? 'SesAppTblCapCont' : 'SesTblCapCont', {
-          runsXml: plainRun(label ? `${label}　` : '表　') + captionRuns + plainRun('（续）'),
-        })
+      out += emitParagraph(ctx, bctx.appendix ? 'SesAppTblCapCont' : 'SesTblCapCont', {
+        pageBreakBefore: true,
+        runsXml: plainRun(label ? `${label}　` : '表　') + captionRuns + plainRun('（续）'),
+      })
     }
     out += renderTableGrid(ctx, {
       ...table,
@@ -343,7 +344,7 @@ function renderSplitTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx, bu
       notes: lastSegment ? table.notes : [],
     }, {
       ...content,
-      captionXml: segmentCaption,
+      strongTopBorder: true,
       keepTogether: true,
       notesXml: lastSegment ? content.notesXml : undefined,
       footnotesXml: lastSegment ? content.footnotesXml : undefined,
@@ -358,7 +359,7 @@ type NaturalReason = 'unknown-position' | 'nested'
 /**
  * Word 自然分页：整张表一个 w:tbl，不拆分、不写 w:br/pageBreakBefore。
  * 仅用于页位置未知时的兜底与嵌套表；页位置已知的顶层表走 renderSplitTable。
- * 表题移到表外，作为 keepNext 的独立段落，使表头行能从第 1 行起连续设 tblHeader 并逐页重复。
+ * 表题与 split 一样是表外 keepNext 的独立段落，表头行从第 1 行起连续设 tblHeader 并逐页重复。
  * 跨页时续页只有重复的列标题，没有「表X（续）」。
  */
 function renderNaturalTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx, reason: NaturalReason): string {

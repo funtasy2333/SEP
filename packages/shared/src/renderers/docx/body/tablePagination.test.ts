@@ -149,9 +149,10 @@ describe('paginateTable', () => {
     near.pageFlow.recordParagraph('SesClause1', '<w:r><w:t>表前条标题</w:t></w:r>', true)
     renderBlock(near, table([row(1), row(2)]), { scopeKey: 'chapter' })
     expect(near.pageFlow.availableMm).toBeCloseTo(24 - 21.2)
-    // The separating grid line crosses the page end; no heading/table is charged to the next page.
+    // 相邻表之间没有分隔空段（下一张表前面就是它自己的表题段，其高度计入表段高度），所以后表的首段预算
+    // 就是旧页真实余量；标题和短表不会被记到下一页，余量既不缩水也不虚增。
     const nextBudget = near.pageFlow.beforeTable()
-    expect(nextBudget.firstPageHeightMm).toBeCloseTo(238 - (15.6 * 25.4 / 72 - 2.8))
+    expect(nextBudget.firstPageHeightMm).toBeCloseTo(24 - 21.2)
     const long = table(Array.from({ length: 93 }, (_, i) => row(i + 1, '短记录')))
     expect(paginateTable(long, nextBudget).bodySegments).toHaveLength(2)
   })
@@ -202,8 +203,9 @@ describe('paginateTable', () => {
     })
     const ir = table(Array.from({ length: count === 12 ? 70 : 2 }, (_, i) => row(i + 1, '短记录')))
     const xml = heading + renderBlock(ctx, ir, { scopeKey: 'chapter' })
-    // 链首与表题都不写 pageBreakBefore；链仍是 keepNext（标题、表题、表格行），页位置保持已知。
-    expect(xml).not.toContain('pageBreakBefore')
+    // 链首与表题都不写 pageBreakBefore（只有长表的续表题段换页）；链仍是 keepNext（标题、表题、表格行），页位置保持已知。
+    expect(xml.slice(0, xml.indexOf('<w:tbl>'))).not.toContain('pageBreakBefore')
+    expect(xml.match(/<w:pageBreakBefore\/>/g)?.length ?? 0).toBe(xml.match(/w:pStyle w:val="SesTblCapCont"/g)?.length ?? 0)
     expect(xml).not.toContain('<!--ses-')
     expect(xml.match(/项目 \d+/g)).toHaveLength(count === 12 ? 70 : 2)
     expect(ctx.warnings.map(w => w.code)).not.toContain('table-flow-natural-fallback')
@@ -245,7 +247,9 @@ describe('paginateTable', () => {
     ctx.pageFlow.recordParagraph('SesChapter','<w:r><w:t>章标题</w:t></w:r>',true)
     ctx.pageFlow.recordParagraph('SesClause1','<w:r><w:t>条标题</w:t></w:r>',true)
     const xml=renderBlock(ctx,table(Array.from({length:110},(_,i)=>row(i+1,'短记录'))),{scopeKey:'chapter'})
-    expect(xml).not.toContain('<w:pageBreakBefore/>')
+    // 首段之前（表题段）不写 pageBreakBefore；每个续表题段各一个。
+    expect(xml.slice(0, xml.indexOf('<w:tbl>'))).not.toContain('<w:pageBreakBefore/>')
+    expect(xml.match(/<w:pageBreakBefore\/>/g)?.length ?? 0).toBe((xml.match(/<w:tbl>/g)?.length ?? 0) - 1)
     const counts=[...xml.matchAll(/<w:tbl>([\s\S]*?)<\/w:tbl>/g)].map(m=>(m[1]!.match(/<w:t(?:[^>]*)>项目 \d+<\/w:t>/g)??[]).length)
     expect(counts[0]).toBeLessThan(counts[1]!)
     expect(counts.reduce((a,b)=>a+b,0)).toBe(110)
@@ -422,7 +426,11 @@ describe('paginateTable', () => {
     expect((xml.match(/w:pStyle w:val="SesTblCapCont"/g) ?? [])).toHaveLength(segments - 1)
     expect((xml.match(/表3　/g) ?? [])).toHaveLength(segments - 1)
     expect((xml.match(/（续）/g) ?? [])).toHaveLength(segments - 1)
-    expect((xml.match(/<w:br w:type="page"\/>/g) ?? [])).toHaveLength(segments - 1)
+    // 续段另起页由续表题段的 pageBreakBefore 实现，不再有 w:br page 的空分隔段。
+    expect((xml.match(/<w:pStyle w:val="SesTblCapCont"\/><w:pageBreakBefore\/>/g) ?? [])).toHaveLength(segments - 1)
+    expect((xml.match(/<w:pageBreakBefore\/>/g) ?? [])).toHaveLength(segments - 1)
+    expect(xml).not.toContain('w:type="page"')
+    expect(xml).not.toContain('SesNormal')
     expect(ctx.numbered.filter((item) => item.kind === 'table')).toEqual([{ nodeId: 'table', kind: 'table' }])
   })
 })

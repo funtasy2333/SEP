@@ -129,18 +129,19 @@ describe('renderTable：表头 rowspan 跨越 headerRowCount', () => {
 
     expect(tables.length).toBeGreaterThan(1)
 
+    // 表题是表外段落：表格第 1 行就是表头行（tblHeader 从第 1 行起），其后是被合并覆盖的两个数据行。
     const firstTableRows = childElements(tables[0]!, 'w:tr')
-    expect(firstTableRows.length).toBeGreaterThanOrEqual(4) // caption, header, and both covered data rows
-    const firstHeaderCells = childElements(firstTableRows[1]!, 'w:tc')
+    expect(firstTableRows.length).toBeGreaterThanOrEqual(3) // header and both covered data rows
+    const firstHeaderCells = childElements(firstTableRows[0]!, 'w:tc')
     expect(findChild(findChild(firstHeaderCells[0]!, 'w:tcPr')!, 'w:vMerge')?.attrs).toEqual({ 'w:val': 'restart' })
-    for (const row of firstTableRows.slice(2, 4)) {
+    for (const row of firstTableRows.slice(1, 3)) {
       expect(findChild(findChild(childElements(row, 'w:tc')[0]!, 'w:tcPr')!, 'w:vMerge')?.attrs).toEqual({})
     }
 
     const continuationRows = childElements(tables[1]!, 'w:tr')
-    const continuationHeaderCells = childElements(continuationRows[1]!, 'w:tc')
+    const continuationHeaderCells = childElements(continuationRows[0]!, 'w:tc')
     expect(findChild(findChild(continuationHeaderCells[0]!, 'w:tcPr')!, 'w:vMerge')).toBeUndefined()
-    const firstContinuationDataCells = childElements(continuationRows[2]!, 'w:tc')
+    const firstContinuationDataCells = childElements(continuationRows[1]!, 'w:tc')
     expect(firstContinuationDataCells).toHaveLength(3)
     expect(textContent(firstContinuationDataCells[0]!)).toMatch(/^分类-/)
   })

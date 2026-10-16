@@ -1,6 +1,7 @@
 /**
  * 续表采用独立的 Word 表格片段。Word 的 tblHeader 只会逐页复制同一行，无法只在续页
  * 改写为“（续）”；因此按单页高度预算切分，优先填满前页，续段另起页并重放列标题。
+ * 每段前是表外独立的表题/续表题段落（续表题段带 pageBreakBefore），其高度记入各段高度。
  *
  * 这里的高度是布局估计，用户继续编辑单元格内容后可能需要重新导出或手调分段。
  */
@@ -115,6 +116,9 @@ export function paginateTable(table: IRTable, options: TablePaginationOptions = 
   }, 0)
   // 表注/脚注分别占一个合并单元格；边框余量按行框预留，不逐条额外加6mm。
   const footerHeight = noteHeight + tableFootnoteHeight + ((table.footnotes?.length ?? 0) > 0 ? 1.2 : 0)
+  // 表题/续表题是表外的独立段落（含段前后各半行），不再占表内一行；高度仍按每段 8 mm 起算（与改前
+  // 表内表题行相同，使分段结果不变），每多一行 +5.5 mm。独立段落的实际高度理论上略大（约 11 mm，未经 Word
+  // 实排确认），差值预期落在 pageBudget 预留的 9 mm 与首段的 10 mm 余量之内。
   const captionCapacity = Math.max(1, (landscape ? 68 : 44) * widthScale)
   const captionLines = textLines(table.caption.map(run => run.text).join('') + '表XX（续）', captionCapacity)
   const captionHeight = 8 + Math.max(0, captionLines - 1) * 5.5

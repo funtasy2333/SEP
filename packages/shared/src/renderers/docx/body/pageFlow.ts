@@ -78,7 +78,6 @@ export function createPageFlow(): PageFlow {
   let previousAfter = 0
   let paused = 0
   let elementDepth = 0
-  let lastWasTable = false
   let footnoteHeight = 0
   let footnotes = new Set<number>()
   let definitionHeights: ReadonlyMap<number, number> = new Map()
@@ -86,7 +85,6 @@ export function createPageFlow(): PageFlow {
   const remaining = () => Math.max(0, capacity() - used - footnoteHeight)
   const nextPage = () => {
     used = 0
-    lastWasTable = false
     previousAfter = 0
     footnoteHeight = 0
     footnotes = new Set()
@@ -155,11 +153,11 @@ export function createPageFlow(): PageFlow {
   }
   function projectedRemaining(): number | undefined {
     if (!active || !known) return undefined
-    const saved = {used, previousAfter, footnoteHeight, footnotes, known, lastWasTable, pending}
+    const saved = {used, previousAfter, footnoteHeight, footnotes, known, pending}
     footnotes = new Set(footnotes)
     flushPending()
     const result = known ? remaining() : undefined
-    ;({used, previousAfter, footnoteHeight, footnotes, known, lastWasTable, pending} = saved)
+    ;({used, previousAfter, footnoteHeight, footnotes, known, pending} = saved)
     return result
   }
   function tableOptions(): TableFlowBudget {
@@ -210,7 +208,6 @@ export function createPageFlow(): PageFlow {
     recordParagraph(styleId, runsXml, numbered, options = {}) {
       if (!active || paused > 0) return false
       if (elementDepth === 0) setOrientation(false)
-      lastWasTable = false
       // OMML's physical height depends on its layout. Do not turn an unknown formula into
       // a made-up page position; the next table falls back to Word's natural pagination.
       if (styleId === 'SesFormula' || runsXml.includes('<m:oMath')) { flushPending(); known = false; return false }
@@ -248,9 +245,8 @@ export function createPageFlow(): PageFlow {
       return true
     },
     beforeTable() {
-      // 位置未知时不能再用 advance 记账：它跨页会 nextPage()，把未知误当成新页起点而恢复“已知”。
-      if (active && lastWasTable && known) advance(GRID_LINE_MM, false)
-      lastWasTable = false
+      // 相邻顶层表之间不再有空段：每张表前都是自己的表题段（或续表题段）把两个 w:tbl 隔开，
+      // 其高度已计入表段高度（tablePagination 的 captionHeight），这里不再为分隔空行记账。
       return tableOptions()
     },
     placeNaturalTable() {
@@ -258,7 +254,6 @@ export function createPageFlow(): PageFlow {
       flushPending()
       known = false
       previousAfter = 0
-      lastWasTable = true
     },
     placeTable(heights, startOnNewPage) {
       if (!active) return
@@ -277,7 +272,6 @@ export function createPageFlow(): PageFlow {
         if (index === 0 && !startOnNewPage && !wasKnown) known = false
       })
       previousAfter = 0
-      lastWasTable = true
     },
   }
 }

@@ -68,6 +68,11 @@ export interface EmitParagraphOptions {
   numPr?: { numId: number; ilvl: number }
   /** 覆盖编号定义的缩进，例如独立的二级数字列项。 */
   indent?: { left: number; hanging: number }
+  /**
+   * 段前分页（`w:pageBreakBefore`）。目前只用于续表题段（§5.9）：它位于已 suspend 的表格渲染内，
+   * 页流不记账，也不会进入待定 keepNext 链；其他位置不要使用（表前不写强制分页）。
+   */
+  pageBreakBefore?: boolean
   /** 封面定位图文框（页面坐标，mm；见 §6.1）。 */
   framePr?: { xMm: number; yMm: number; widthMm: number }
   /** 段落内容（一串 `<w:r>…</w:r>`），省略/空串 = 空段落（只有编号的段） */
@@ -106,6 +111,7 @@ export function emitParagraph(ctx: RenderContext, styleId: string, opts: EmitPar
   })
 
   const pprChildren: XmlChild[] = [['pStyle', `<w:pStyle w:val="${styleId}"/>`]]
+  if (opts.pageBreakBefore) pprChildren.push(['pageBreakBefore', '<w:pageBreakBefore/>'])
   if (opts.framePr) pprChildren.push(['framePr', framePrXml(opts.framePr)])
   if (opts.numPr) pprChildren.push(['numPr', numPrXml([
     ['ilvl', `<w:ilvl w:val="${opts.numPr.ilvl}"/>`],

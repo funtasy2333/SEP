@@ -242,9 +242,9 @@ export function renderDocxTraced(
     finalContentLandscape = rendered.endsLandscape
   }
 
-  // Word merges adjacent tbl elements, including their repeated header rows. A normal
-  // empty paragraph separates distinct tables without changing section or numbering rules.
-  body = body.replace(/<\/w:tbl><w:tbl>/g, '</w:tbl>' + emitParagraph(ctx, 'SesNormal') + '<w:tbl>')
+  // Word merges adjacent w:tbl elements, including their repeated header rows. Every table (and every
+  // continuation segment) is now preceded by its own caption / continuation-caption paragraph, so two
+  // w:tbl never touch and no separator paragraph is inserted here (tests assert `</w:tbl><w:tbl>` never occurs).
   body = keepLastContentWithEndMark(body)
   body += emitParagraph(ctx, finalContentLandscape ? 'SesEndMarkLandscape' : 'SesEndMark')
   body += sectionManager.finalSectPr()

@@ -85,9 +85,9 @@ describe('DOCX 原生脚注与表脚注', () => {
     const { labels } = resolve(doc)
     const { pkg } = renderDocxTraced(doc, labels, OPTIONS)
     const cells = pkg.parts['word/document.xml']!.match(/<w:tc>[\s\S]*?<\/w:tc>/g)!
-    // Caption is the first cell; the source-empty data cell is second.
-    expect(cells[1]).toContain(`<w:t xml:space="preserve">${validTarget ? labels['chapter-1']!.refText : '—'}</w:t>`)
-    if (validTarget) expect(cells[1]).not.toContain('>—</w:t>')
+    // 表题是表外段落，不在任何单元格内；第一个单元格就是源文字为空的数据格。
+    expect(cells[0]).toContain(`<w:t xml:space="preserve">${validTarget ? labels['chapter-1']!.refText : '—'}</w:t>`)
+    if (validTarget) expect(cells[0]).not.toContain('>—</w:t>')
     assertWellFormed(pkg)
     assertChildOrder(pkg)
   })
