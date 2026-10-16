@@ -34,6 +34,58 @@ export interface ParagraphFlowOptions {
   indent?: { left: number; hanging: number }
 }
 
+interface TextMeasure {
+  lineCount: number
+  contentHeight: number
+  before: number
+  after: number
+}
+
+/**
+ * 按样式（字号、缩进、行距/网格、段前段后）与版心宽度估算一段纯文本的高度。
+ * recordParagraph 与表题高度估算（paragraphHeightMm）共用，不另设常数。
+ */
+function measureText(
+  spec: ReturnType<typeof styleSpecs>[number], text: string, numbered: boolean, landscape: boolean,
+  options: ParagraphFlowOptions = {},
+): TextMeasure {
+  const fontMm = ((spec.sz ?? 21) / 2) * MM_PER_POINT
+  const effective = (name: string) => {
+    const source = options.numberingIndent?.includes(`w:${name}=`) ? options.numberingIndent : spec.ind
+    return attr(source, name)
+  }
+  const left = options.indent?.left ?? effective('left')
+  const right = effective('right')
+  const firstIndent = (options.indent ? 0 : effective('firstLine')) / 20 * MM_PER_POINT
+  // Hanging indentation locates the marker; Word's body text and every wrapped line
+  // begin at the left indent. Keep the conservative marker deduction on the first line.
+  const width = (landscape ? 252 : 165) - (left + right) / 20 * MM_PER_POINT
+  const capacityUnits = Math.max(4, width / fontMm)
+  const firstUnits = Math.max(4, (width - firstIndent) / fontMm - (numbered ? 5 : 0))
+  const lineCount = lines(text, capacityUnits, firstUnits)
+  const exactLine = attr(spec.spacing, 'line') / 20 * MM_PER_POINT
+  const lineHeight = exactLine || (spec.snapToGridOff ? fontMm * 1.25 : GRID_LINE_MM)
+  return {
+    lineCount,
+    contentHeight: lineCount * lineHeight,
+    before: attr(spec.spacing, 'before') / 20 * MM_PER_POINT,
+    after: attr(spec.spacing, 'after') / 20 * MM_PER_POINT,
+  }
+}
+
+/**
+ * 一个独立段落（如表外的表题/续表题段）的完整高度，单位 mm：段前 + 行高 × 折行数 + 段后，
+ * 不与相邻段落的间距折叠（取保守的上界）。`landscape` 选横排版心宽度；样式未知时抛错，不退回猜测常数。
+ */
+export function paragraphHeightMm(
+  styleId: string, text: string, options: ParagraphFlowOptions & { landscape?: boolean; numbered?: boolean } = {},
+): number {
+  const spec = specs.get(styleId)
+  if (!spec) throw new Error(`paragraphHeightMm: 未知样式 "${styleId}"`)
+  const measured = measureText(spec, text, options.numbered ?? false, options.landscape ?? false, options)
+  return measured.before + measured.contentHeight + measured.after
+}
+
 interface ParagraphMeasure {
   contentHeight: number
   lineCount: number
@@ -213,31 +265,14 @@ export function createPageFlow(): PageFlow {
       if (styleId === 'SesFormula' || runsXml.includes('<m:oMath')) { flushPending(); known = false; return false }
       const spec = specs.get(styleId)
       if (!spec) { flushPending(); known = false; return false }
-      const fontMm = ((spec.sz ?? 21) / 2) * MM_PER_POINT
       const text = [...runsXml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:br\b[^>]*\/>|<w:tab\/>/g)]
         .map(match => match[0].startsWith('<w:br') ? '\n' : match[0] === '<w:tab/>' ? '　' : decode(match[1] ?? '')).join('')
-      const effective = (name: string) => {
-        const source = options.numberingIndent?.includes(`w:${name}=`) ? options.numberingIndent : spec.ind
-        return attr(source, name)
-      }
-      const left = options.indent?.left ?? effective('left')
-      const right = effective('right')
-      const firstIndent = (options.indent ? 0 : effective('firstLine')) / 20 * MM_PER_POINT
-      // Hanging indentation locates the marker; Word's body text and every wrapped line
-      // begin at the left indent. Keep the conservative marker deduction on the first line.
-      const width = (landscape ? 252 : 165) - (left + right) / 20 * MM_PER_POINT
-      const capacityUnits = Math.max(4, width / fontMm)
-      const firstUnits = Math.max(4, (width - firstIndent) / fontMm - (numbered ? 5 : 0))
-      const count = lines(text, capacityUnits, firstUnits)
-      const exactLine = attr(spec.spacing, 'line') / 20 * MM_PER_POINT
-      const lineHeight = exactLine || (spec.snapToGridOff ? fontMm * 1.25 : GRID_LINE_MM)
-      const before = attr(spec.spacing, 'before') / 20 * MM_PER_POINT
-      const after = attr(spec.spacing, 'after') / 20 * MM_PER_POINT
+      const { lineCount, contentHeight, before, after } = measureText(spec, text, numbered, landscape, options)
       const imageHeight = Number(/<wp:extent\b[^>]*\bcy="([0-9]+)"/.exec(runsXml)?.[1] ?? 0) / 36000
       const ids = [...runsXml.matchAll(/<w:footnoteReference\b[^>]*w:id="([0-9]+)"/g)].map(match => Number(match[1]))
       pending.push({
-        contentHeight: imageHeight > 0 ? imageHeight + 3 : count * lineHeight,
-        lineCount: count,
+        contentHeight: imageHeight > 0 ? imageHeight + 3 : contentHeight,
+        lineCount,
         before, after, ids,
         atomic: spec.keepLines === true || imageHeight > 0,
       })

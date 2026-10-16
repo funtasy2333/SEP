@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { IRTable, IRTableRow } from '../../../ir/types'
 import { renderBlock } from './block'
 import { createRenderContext, emitParagraph } from './context'
+import { paragraphHeightMm } from './pageFlow'
 import { paginateTable } from './tablePagination'
+import { styleSpecs } from '../styles'
 
 function row(index: number, description = '用于检查跨页表题与标题行重复。'): IRTableRow {
   return {
@@ -133,8 +135,9 @@ describe('paginateTable', () => {
 
   it('完整短表能放入旧页时，不因首行额外10mm余量将标题链移页', () => {
     const ir = table([row(1), row(2)])
-    const result = paginateTable(ir, { firstPageHeightMm: 24, firstPageReservedMm: 11 })
-    expect(result.segmentHeightsMm[0]).toBeCloseTo(21.2)
+    // 表题按段落样式计 11.0 mm（原按表内行 8 mm），短表共 24.2 mm；旧页余量相应由 24 改为 27，仍是“放得下且余 2.8 mm”。
+    const result = paginateTable(ir, { firstPageHeightMm: 27, firstPageReservedMm: 11 })
+    expect(result.segmentHeightsMm[0]).toBeCloseTo(24.2067, 3)
     expect(result.startOnNewPage).toBe(false)
     expect(result.bodySegments).toEqual([ir.rows.slice(1)])
   })
@@ -143,16 +146,17 @@ describe('paginateTable', () => {
     ctx.pageFlow.startSection()
     ctx.pageFlow.recordParagraph('SesClause1', '<w:r><w:t>表前条标题</w:t></w:r>', true)
     const reserved = ctx.pageFlow.beforeTable().firstPageReservedMm!
-    // Arrange exactly 24mm after the heading on the current page.
+    // Arrange exactly 27mm after the heading on the current page（短表连表题段共 24.2 mm，余 2.8 mm）。
+    const shortHeight = paginateTable(table([row(1), row(2)])).segmentHeightsMm[0]!
     const near = createRenderContext(ctx.labels); near.pageFlow.startSection()
-    near.pageFlow.placeTable([238 - reserved - 24], false)
+    near.pageFlow.placeTable([238 - reserved - 27], false)
     near.pageFlow.recordParagraph('SesClause1', '<w:r><w:t>表前条标题</w:t></w:r>', true)
     renderBlock(near, table([row(1), row(2)]), { scopeKey: 'chapter' })
-    expect(near.pageFlow.availableMm).toBeCloseTo(24 - 21.2)
+    expect(near.pageFlow.availableMm).toBeCloseTo(27 - shortHeight)
     // 相邻表之间没有分隔空段（下一张表前面就是它自己的表题段，其高度计入表段高度），所以后表的首段预算
     // 就是旧页真实余量；标题和短表不会被记到下一页，余量既不缩水也不虚增。
     const nextBudget = near.pageFlow.beforeTable()
-    expect(nextBudget.firstPageHeightMm).toBeCloseTo(24 - 21.2)
+    expect(nextBudget.firstPageHeightMm).toBeCloseTo(27 - shortHeight)
     const long = table(Array.from({ length: 93 }, (_, i) => row(i + 1, '短记录')))
     expect(paginateTable(long, nextBudget).bodySegments).toHaveLength(2)
   })
@@ -278,7 +282,8 @@ describe('paginateTable', () => {
   it('普通末行只因表尾占用而放不下时，独立提示末段组合风险，不归咎于行过高', () => {
     const ir = table([row(1)])
     ir.notes = [{ kind: 'note', id: 'note', content: [{ kind: 'paragraph', id: 'p', content: [
-      { text: Array.from({ length: 50 }, () => '表注').join('\n') },
+      // 表题段按样式计 11 mm（原 8 mm）后，50 行表注使表尾本身超过一页；改为 49 行，仍是“表尾放得下、末段再容不下一个数据行”。
+      { text: Array.from({ length: 49 }, () => '表注').join('\n') },
     ] }] }]
     const result = paginateTable(ir)
     expect(result.footerTooTall).toBe(false)
@@ -450,4 +455,51 @@ it('窄自定义列的折行会减少每段数据行数，所有续表沿用原�
   expect(grids.length).toBeGreaterThan(1)
   expect(new Set(grids).size).toBe(1)
   expect(grids[0]).toBe('<w:gridCol w:w="6000"/><w:gridCol w:w="1050"/>')
+})
+
+
+describe('表题段高度按样式估算（表题在表外，宽度为整个版心）', () => {
+  // 五号黑体，SPACING_HALF_LINE：段前后各 156 twips；段落未关闭文档网格，行高取一格 15.6 pt。
+  const MM = 25.4 / 72
+  const oneLine = 2 * (156 / 20) * MM + 15.6 * MM
+
+  it('一行表题 = 段前 + 一格行高 + 段后 ≈ 11 mm，每多折一行 +一格行高；四个表题样式同高', () => {
+    expect(oneLine).toBeCloseTo(11.007, 3)
+    expect(paragraphHeightMm('SesTblCapCont', '短题')).toBeCloseTo(oneLine)
+    expect(paragraphHeightMm('SesTblCapCont', '表题'.repeat(30))).toBeCloseTo(oneLine + 15.6 * MM) // 60 个汉字超过一行（版心约 44 字）
+    expect(paragraphHeightMm('SesTblCapCont', '第一行\n第二行')).toBeCloseTo(oneLine + 15.6 * MM) // 显式换行
+    expect(paragraphHeightMm('SesTblCapCont', '表题'.repeat(30), { landscape: true })).toBeCloseTo(oneLine) // 横排版心 252 mm 一行放得下
+    const heights = ['SesTblCap', 'SesAppTblCap', 'SesTblCapCont', 'SesAppTblCapCont']
+      .map((id) => paragraphHeightMm(id, '同一题注'))
+    expect(new Set(heights.map((height) => height.toFixed(6))).size).toBe(1)
+    // 同样的字号、关闭/启用网格与段前后设置：一个样式的估算可代表四个样式。
+    const specs = ['SesTblCap', 'SesAppTblCap', 'SesTblCapCont', 'SesAppTblCapCont']
+      .map((id) => styleSpecs().find((spec) => spec.id === id)!)
+    expect(new Set(specs.map((spec) => JSON.stringify([spec.sz, spec.spacing, spec.snapToGridOff, spec.keepNext, spec.jc]))).size).toBe(1)
+    expect(() => paragraphHeightMm('NoSuchStyle', 'x')).toThrow(/未知样式/)
+  })
+
+  it('分页使用样式估算的表题高度：单行 11 mm（不再是 8 mm），长表题按版心折行，横排按横排版心', () => {
+    const base = table([row(1)])
+    // 整表单段高度 = 表题段 + 表头行 + 一个数据行（各一行 4.4 mm），扣除后即表题段高度。
+    const heightOf = (ir: IRTable) => paginateTable(ir).segmentHeightsMm[0]! - 2 * 4.4
+    expect(heightOf(base)).toBeCloseTo(oneLine)
+    expect(heightOf({ ...base, caption: [{ text: '长表题'.repeat(40) }] })).toBeGreaterThan(oneLine + 15.6 * MM)
+    expect(heightOf({ ...base, orientation: 'landscape', caption: [{ text: '表题'.repeat(30) }] })).toBeCloseTo(oneLine)
+  })
+
+  it('表题是表外段落，换行不受表宽影响：自定义窄列宽的表与等宽表的表题高度相同', () => {
+    const caption = [{ text: '三十个汉字的表题'.repeat(3) + '加六字表题' }] // 约 30 个汉字：整个版心一行放得下，窄表宽的 3/4 放不下
+    const equal = table([row(1), row(2)])
+    equal.caption = caption
+    const narrow = table([row(1), row(2)])
+    narrow.caption = caption
+    narrow.rows[1]!.cells[0]!.columnWidths = [400]
+    narrow.rows[1]!.cells[1]!.columnWidths = [70]
+    const withoutCaption = (ir: IRTable) => ({ ...ir, caption: [{ text: '' }] })
+    const delta = (ir: IRTable) => paginateTable(ir).segmentHeightsMm[0]! - paginateTable(withoutCaption(ir)).segmentHeightsMm[0]!
+    // 两张表的题注都只占一行：差值只来自 '表XX（续）' 的字数，不随表宽变化。
+    expect(delta(narrow)).toBeCloseTo(delta(equal), 5)
+    expect(delta(narrow)).toBeLessThan(2 * 15.6 * MM) // 绝不会因窄表宽多折一行
+  })
 })

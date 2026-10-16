@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createPageFlow } from './pageFlow'
+import { createPageFlow, paragraphHeightMm } from './pageFlow'
 import { createRenderContext, emitParagraph } from './context'
 import { ABSTRACT_NUM_ID } from '../numbering'
 
@@ -44,6 +44,17 @@ describe('正文页余量估算', () => {
     // 查询下一张表的预算不再额外扣除一个空行。
     expect(flow.beforeTable().firstPageHeightMm).toBe(158)
     expect(flow.availableMm).toBe(158)
+  })
+
+  it('表外表题段的高度估算与 recordParagraph 记账同源：段前 + 折行 × 行高 + 段后', () => {
+    for (const text of ['短题', '长题注'.repeat(30), '第一行\n第二行']) {
+      for (const styleId of ['SesTblCap', 'SesAppTblCap', 'SesTblCapCont', 'SesAppTblCapCont']) {
+        const flow = createPageFlow(); flow.startSection()
+        flow.recordParagraph(styleId, run(text.replace('\n', '</w:t><w:br/><w:t>')), false)
+        // 页首起排：前一段后距为 0，整段高度（含段前）计入余量；keepNext 的待定链按预测值扣除。
+        expect(238 - flow.availableMm!).toBeCloseTo(paragraphHeightMm(styleId, text), 6)
+      }
+    }
   })
 
   it('连续横排块共享页余量，切回竖排后从新节开始', () => {

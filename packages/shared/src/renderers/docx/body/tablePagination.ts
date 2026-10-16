@@ -6,6 +6,7 @@
  * 这里的高度是布局估计，用户继续编辑单元格内容后可能需要重新导出或手调分段。
  */
 import type { IRBlock, IRTable, IRTableRow } from '../../../ir/types'
+import { paragraphHeightMm } from './pageFlow'
 import { resolveTableColumnWidths, type TableColumnLayout } from './tableColumnWidths'
 
 export interface TablePagination {
@@ -116,12 +117,11 @@ export function paginateTable(table: IRTable, options: TablePaginationOptions = 
   }, 0)
   // 表注/脚注分别占一个合并单元格；边框余量按行框预留，不逐条额外加6mm。
   const footerHeight = noteHeight + tableFootnoteHeight + ((table.footnotes?.length ?? 0) > 0 ? 1.2 : 0)
-  // 表题/续表题是表外的独立段落（含段前后各半行），不再占表内一行；高度仍按每段 8 mm 起算（与改前
-  // 表内表题行相同，使分段结果不变），每多一行 +5.5 mm。独立段落的实际高度理论上略大（约 11 mm，未经 Word
-  // 实排确认），差值预期落在 pageBudget 预留的 9 mm 与首段的 10 mm 余量之内。
-  const captionCapacity = Math.max(1, (landscape ? 68 : 44) * widthScale)
-  const captionLines = textLines(table.caption.map(run => run.text).join('') + '表XX（续）', captionCapacity)
-  const captionHeight = 8 + Math.max(0, captionLines - 1) * 5.5
+  // 表题/续表题是表格之外的独立段落，宽度是整个版心而不是表宽（自定义窄列宽的表也一样），按其样式估算：
+  // 段前 + 行高 × 折行数 + 段后（pageFlow 的段落估算，复用同一份 styleSpecs）。四个表题样式
+  // （SesTblCap/SesAppTblCap/SesTblCapCont/SesAppTblCapCont）的字号、行距网格、段前后相同，每段都取最长的
+  // 续表题文字（题注 +「表XX（续）」）作保守值。五号黑体一行 = 段前 2.75 + 一格 5.5 + 段后 2.75 = 11 mm。
+  const captionHeight = paragraphHeightMm('SesTblCapCont', table.caption.map(run => run.text).join('') + '表XX（续）', { landscape })
   // A4 竖排样稿的可用版心约 234 mm，再预留 9 mm 给 Word 的布局浮动。
   const pageBudget = landscape ? 135 : 225
   // 表注与表脚注只在末段出现，前页不能逐页重复扣除这份空间。
