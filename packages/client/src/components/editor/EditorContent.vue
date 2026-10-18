@@ -89,14 +89,15 @@ defineProps<{
   font-family: var(--ses-font-zh-hei);
 }
 
-.editor-content :deep(.tiptap h3) {
+/* h3/h4 的通用标题样式不作用于条标题：条标题（h3–h6，按级别渲染）统一由 styles/standard-nodes.css 的 .std-clause-title 按类名定义 */
+.editor-content :deep(.tiptap h3:not(.std-clause-title)) {
   font-size: 15px;
   font-weight: 700;
   margin: 16px 0 8px;
   font-family: var(--ses-font-zh-hei);
 }
 
-.editor-content :deep(.tiptap h4) {
+.editor-content :deep(.tiptap h4:not(.std-clause-title)) {
   font-size: 14px;
   font-weight: 700;
   margin: 12px 0 6px;
