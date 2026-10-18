@@ -6,10 +6,24 @@ import {
   Delete,
   Param,
   Body,
+  HttpCode,
+  HttpStatus,
   ParseIntPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { DocumentService } from './document.service';
 import { DocumentEntity } from './document.entity';
+import {
+  parseEmptyTrashRequest,
+  parsePermanentDeleteRequest,
+} from './trash-request';
+
+function requirePositiveId(id: number): number {
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    throw new BadRequestException('文档 id 必须是正整数');
+  }
+  return id;
+}
 import {
   parseDocumentMeta,
   parseDocumentUpdateRequest,
@@ -22,6 +36,38 @@ export class DocumentController {
   @Get()
   findAll(): Promise<DocumentEntity[]> {
     return this.documentService.findAll();
+  }
+
+  /** GET /api/documents/trash。必须在 `:id` 路由之前声明。 */
+  @Get('trash')
+  findTrash() {
+    return this.documentService.findTrash();
+  }
+
+  /** POST /api/documents/trash/empty：只清理请求中携带的确认快照。 */
+  @Post('trash/empty')
+  @HttpCode(HttpStatus.OK)
+  async emptyTrash(@Body() body: unknown): Promise<void> {
+    await this.documentService.emptyTrash(parseEmptyTrashRequest(body));
+  }
+
+  /** POST /api/documents/:id/restore：恢复同一文档并递增 revision。 */
+  @Post(':id/restore')
+  @HttpCode(HttpStatus.OK)
+  restore(@Param('id', ParseIntPipe) id: number): Promise<DocumentEntity> {
+    return this.documentService.restore(requirePositiveId(id));
+  }
+
+  /** DELETE /api/documents/:id/permanent：必须携带当前回收站条目的 baseRevision。 */
+  @Delete(':id/permanent')
+  permanentDelete(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: unknown,
+  ): Promise<void> {
+    return this.documentService.permanentDelete(
+      requirePositiveId(id),
+      parsePermanentDeleteRequest(body),
+    );
   }
 
   @Get(':id')

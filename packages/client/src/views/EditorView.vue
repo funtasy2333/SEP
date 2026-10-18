@@ -62,10 +62,16 @@
       <el-button size="small" type="danger" plain @click="conflictDialogVisible = true">处理冲突</el-button>
     </div>
 
+    <div v-if="documentUnavailable" class="unavailable-banner" role="alert" aria-label="文档已不可用">
+      <el-icon class="conflict-banner-icon"><WarningFilled /></el-icon>
+      <span class="conflict-banner-text">{{ unavailableMessage }} 本页未保存内容仍保留；返回标准库并重新打开后才能继续编辑。</span>
+      <el-button size="small" type="danger" plain @click="goHome">返回标准库</el-button>
+    </div>
+
     <!-- =====================  EDIT TAB  ===================== -->
     <template v-if="activeTab === 'edit'">
       <!-- Toolbar -->
-      <div class="ed-toolbar">
+      <div class="ed-toolbar" :inert="documentUnavailable">
         <div class="tbar-outline-head">
           <span>文档结构</span>
           <el-dropdown trigger="click" @command="handleAddStructure">
@@ -213,7 +219,9 @@
 
       <!-- Editor body: outline + canvas + (optional) version sidebar -->
       <div class="ed-body ses-scroll">
-        <DocumentOutline :editor="editor" />
+        <div :inert="documentUnavailable">
+          <DocumentOutline :editor="editor" />
+        </div>
         <div class="ed-main">
           <SesEditorContent :editor="editor" />
         </div>
@@ -224,6 +232,7 @@
               :get-content="getEditorContent"
               :get-doc="getEditorDoc"
               :set-content="setEditorContent"
+              :read-only="documentUnavailable"
               @close="showVersionPanel = false"
               @conflict="enterSaveConflict('version-save')"
             />
@@ -232,11 +241,11 @@
       </div>
 
       <!-- Slash command (mounted globally) -->
-      <SlashMenu @execute="handleSlashCommand" />
+      <SlashMenu v-if="!documentUnavailable" @execute="handleSlashCommand" />
     </template>
 
     <!-- Keep the independent settings draft mounted while switching tabs. -->
-    <div v-show="activeTab === 'settings'" class="settings-host">
+    <div v-show="activeTab === 'settings'" class="settings-host" :inert="documentUnavailable">
       <DocumentSettingsPanel
         v-if="settingsDraft"
         :draft="settingsDraft"
@@ -382,10 +391,11 @@
       destroy-on-close
       @closed="clearFootnoteDialog"
     >
+      <div :inert="documentUnavailable">
       <template v-if="footnoteDialogMode === 'table-reference'">
         <el-form label-width="92px">
           <el-form-item label="表脚注">
-            <el-select v-model="selectedTableFootnoteId" placeholder="选择本表已有脚注" style="width: 100%">
+          <el-select v-model="selectedTableFootnoteId" :disabled="documentUnavailable" placeholder="选择本表已有脚注" style="width: 100%">
               <el-option
                 v-for="item in tableFootnoteOptions"
                 :key="item.id"
@@ -399,6 +409,7 @@
       <template v-else>
         <el-input
           v-model="footnoteText"
+          :disabled="documentUnavailable"
           type="textarea"
           :rows="6"
           :placeholder="footnoteDialogMode === 'body-new' ? '输入脚注正文' : '输入表脚注正文'"
@@ -412,21 +423,24 @@
           表脚注可包含要求型条款；同一表脚注可多次引用（GB/T 1.1—2020 9.12.2）。编号按本表首次引用顺序生成。
         </p>
       </template>
+      </div>
       <template #footer>
         <el-button @click="showFootnoteDialog = false">取消</el-button>
         <el-button
           v-if="footnoteDialogMode === 'table-edit'"
           type="danger"
           plain
+          :disabled="documentUnavailable"
           @click="deleteTableFootnoteDefinition"
         >删除表脚注定义</el-button>
         <el-button
           v-if="footnoteDialogMode === 'body-edit'"
           type="danger"
           plain
+          :disabled="documentUnavailable"
           @click="deleteBodyFootnote"
         >删除脚注</el-button>
-        <el-button type="primary" @click="saveFootnoteDialog">确定</el-button>
+        <el-button type="primary" :disabled="documentUnavailable" @click="saveFootnoteDialog">确定</el-button>
       </template>
     </el-dialog>
   </div>
@@ -533,6 +547,8 @@ const codeViewFormat = ref<'xml' | 'json' | 'html' | 'raw'>('xml')
 const xmlFileInput = ref<HTMLInputElement | null>(null)
 const showVersionPanel = ref(false)
 const documentId = computed(() => Number(route.params.id))
+const documentUnavailable = computed(() => store.isDocumentUnavailable(documentId.value))
+const unavailableMessage = ref('文档已移入回收站或当前页面已失效。')
 const exportingFormat = ref<'docx' | 'pdf' | null>(null)
 const exportError = ref('')
 type FootnoteDialogMode = 'body-new' | 'body-edit' | 'table-new' | 'table-edit' | 'table-reference' | null
@@ -576,7 +592,7 @@ function scheduleAutoSave() {
 
 function queueAutoSave(delay = 3000) {
   // 冲突未解决前不安排自动保存：再保存只会得到同样的 409。
-  if (saveConflict.value) return
+  if (saveConflict.value || documentUnavailable.value) return
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
   autoSaveTimer = setTimeout(() => { void handleSave() }, delay)
 }
@@ -721,6 +737,7 @@ function clearAutoSaveTimer() {
 }
 
 async function handleSettingsSave() {
+  if (documentUnavailable.value) return
   const currentDocument = store.currentDocument
   const draft = settingsDraft.value
   const currentEditor = editor.value
@@ -865,7 +882,7 @@ onBeforeUnmount(() => {
   releaseIdleWaiters()
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
   // 冲突状态下内容已无法写回服务端（会得到同样的 409），离开前已由路由守卫确认放弃。
-  if (dirty.value && !importingXml && !saveConflict.value && editor.value && store.currentDocument) {
+  if (dirty.value && !importingXml && !saveConflict.value && !documentUnavailable.value && editor.value && store.currentDocument) {
     const content = synchronizeCoverMetadata(editor.value.getJSON(), store.currentDocument.meta)
     const currentId = store.currentDocument.id
     const baseRevision = store.currentDocument.revision
@@ -898,6 +915,19 @@ function handleAmbiguousPasteReference(event: Event) {
 }
 
 onBeforeRouteLeave(async () => {
+  if (documentUnavailable.value) {
+    if (!dirty.value && !settingsDirty.value) return true
+    try {
+      await ElMessageBox.confirm(
+        '文档已不可用，本页尚未保存的正文和文件设置将在离开后丢失。',
+        '离开不可用文档？',
+        { confirmButtonText: '离开并放弃修改', cancelButtonText: '继续查看', type: 'warning' },
+      )
+      return true
+    } catch {
+      return false
+    }
+  }
   // 冲突状态下无法保存：只能让用户确认放弃，或留下来选择重新加载 / 另存为副本。
   if (saveConflict.value) return await confirmLeaveWithSaveConflict()
   if (!await saveDirtyBodyBeforeRouteLeave()) return false
@@ -950,7 +980,7 @@ async function saveDirtyBodyBeforeRouteLeave(): Promise<boolean> {
 }
 
 function handleSave(): Promise<boolean> {
-  if (!editor.value || !store.currentDocument || importingXml) return Promise.resolve(false)
+  if (!editor.value || !store.currentDocument || importingXml || documentUnavailable.value) return Promise.resolve(false)
   if (saveConflict.value) {
     // 冲突未解决：再保存只会得到同样的 409，改为重新弹出冲突提示。
     conflictDialogVisible.value = true
@@ -1153,6 +1183,10 @@ async function handleExternalChange(change: ExternalChange): Promise<boolean> {
   const currentEditor = editor.value
   const current = store.currentDocument
   if (changeSyncStopped || !currentEditor || currentEditor.isDestroyed || !current?.id || current.id !== documentId.value) return false
+  if (change.lifecycle === 'deleted' || change.lifecycle === 'restored') {
+    markDocumentUnavailable(change.lifecycle)
+    return true
+  }
   if (change.revision <= current.revision) return true
   const cause = externalCauseOf(change)
 
@@ -1183,7 +1217,11 @@ async function loadExternalRevision(cause: ExternalCause): Promise<boolean> {
   let latest: DocumentData
   try {
     latest = await store.readDocument(id)
-  } catch {
+  } catch (error) {
+    if (isNotFoundError(error)) {
+      markDocumentUnavailable()
+      return true
+    }
     ElMessage.warning({ message: '文档已在其他地方更新，但读取最新内容失败；稍后保存时会提示冲突', grouping: true })
     return false
   }
@@ -1227,6 +1265,37 @@ async function loadExternalRevision(cause: ExternalCause): Promise<boolean> {
   noteLegacyUntitledClauses(legacyUntitledClauses)
   return true
 }
+
+function isNotFoundError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false
+  const response = (error as { response?: unknown }).response
+  if (typeof response !== 'object' || response === null) return false
+  return (response as { status?: unknown }).status === 404
+}
+
+function markDocumentUnavailable(lifecycle?: 'deleted' | 'restored') {
+  unavailableMessage.value = lifecycle === 'restored'
+    ? '文档已恢复，但本页仍是删除前的旧版本。'
+    : '文档已移入回收站或当前页面已失效。'
+  store.markDocumentUnavailable(documentId.value)
+  clearAutoSaveTimer()
+  if (editor.value && !editor.value.isDestroyed) editor.value.setEditable(false, false)
+  stopChangeSync()
+}
+
+function stopChangeSync() {
+  changeSyncStopped = true
+  changeSync?.stop()
+  changeSync = null
+  releaseIdleWaiters()
+}
+
+watch(documentUnavailable, (unavailable) => {
+  if (!unavailable) return
+  clearAutoSaveTimer()
+  if (editor.value && !editor.value.isDestroyed) editor.value.setEditable(false, false)
+  stopChangeSync()
+})
 
 function goHome() {
   router.push('/')
@@ -1540,6 +1609,7 @@ function collectTableFootnotes(): Array<{ id: string; label: string; text: strin
 }
 
 function openBodyFootnoteDialog() {
+  if (documentUnavailable.value) return
   const currentEditor = editor.value
   if (!currentEditor) return
   const selection = currentEditor.state.selection
@@ -1567,6 +1637,7 @@ function openBodyFootnoteDialog() {
 }
 
 function openTableFootnoteDialog(mode: 'table-new' | 'table-reference') {
+  if (documentUnavailable.value) return
   if (!editor.value || !selectionIsInTableCell()) {
     ElMessage.warning('请将光标置于标准表格的单元格内')
     return
@@ -1586,6 +1657,7 @@ function openTableFootnoteDialog(mode: 'table-new' | 'table-reference') {
 }
 
 function openFootnoteById(nodeId: string, table: boolean) {
+  if (documentUnavailable.value) return
   if (!editor.value) return
   const found: { target: import('@tiptap/pm/model').Node | null } = { target: null }
   editor.value.state.doc.descendants((node) => {
@@ -1623,6 +1695,7 @@ function clearFootnoteDialog() {
 }
 
 function saveFootnoteDialog() {
+  if (documentUnavailable.value) return
   const currentEditor = editor.value
   const mode = footnoteDialogMode.value
   if (!currentEditor || !mode) return
@@ -1679,6 +1752,7 @@ function replaceTableFootnoteContent(nodeId: string, content: PMJsonNode[]): boo
 }
 
 async function deleteBodyFootnote() {
+  if (documentUnavailable.value) return
   const currentEditor = editor.value
   if (!currentEditor || !footnoteNodeId.value) return
   const deleted = currentEditor.commands.deleteFootnoteRef({ nodeId: footnoteNodeId.value })
@@ -1691,6 +1765,7 @@ async function deleteBodyFootnote() {
 }
 
 async function deleteTableFootnoteDefinition() {
+  if (documentUnavailable.value) return
   const currentEditor = editor.value
   if (!currentEditor || !footnoteNodeId.value) return
   const deleted = currentEditor.commands.deleteTableFootnoteEntry({ nodeId: footnoteNodeId.value })
@@ -2070,6 +2145,11 @@ function handleXmlFileImport(event: Event) {
   const currentEditor = editor.value
   const currentDocument = store.currentDocument
   if (!file || !currentEditor) return
+  if (documentUnavailable.value) {
+    input.value = ''
+    ElMessage.warning('文档已不可用，不能导入 XML')
+    return
+  }
   if (saveConflict.value) {
     input.value = ''
     conflictDialogVisible.value = true
@@ -2106,12 +2186,12 @@ function handleXmlFileImport(event: Event) {
 
   let persisted = false
   const finishImport = () => {
-    if (!currentEditor.isDestroyed) currentEditor.setEditable(wasEditable)
+    if (!currentEditor.isDestroyed && !documentUnavailable.value) currentEditor.setEditable(wasEditable)
     importingXml = false
     persistenceOperation.value = null
     saving.value = false
     input.value = ''
-    if (!persisted && wasDirty && !currentEditor.isDestroyed) scheduleAutoSave()
+    if (!persisted && wasDirty && !currentEditor.isDestroyed && !documentUnavailable.value) scheduleAutoSave()
   }
 
   const reader = new FileReader()
@@ -2240,7 +2320,8 @@ function handleXmlFileImport(event: Event) {
 /* === save conflict (409) === */
 .ses-save-pill.is-conflict { background: var(--ses-err-soft); color: oklch(0.4 0.18 25); font-weight: 600; }
 .ses-save-pill.is-conflict .dot { background: var(--ses-err); }
-.conflict-banner {
+.conflict-banner,
+.unavailable-banner {
   display: flex; align-items: center; gap: 10px;
   flex-shrink: 0;
   padding: 8px 16px;
@@ -2249,6 +2330,12 @@ function handleXmlFileImport(event: Event) {
   color: oklch(0.4 0.18 25);
   font-size: 13px;
 }
+.unavailable-banner {
+  background: var(--ses-warn-soft);
+  border-bottom-color: var(--ses-warn);
+  color: var(--ses-ink);
+}
+.unavailable-banner .conflict-banner-icon { color: var(--ses-warn); }
 .conflict-banner-icon { flex: 0 0 auto; font-size: 16px; color: var(--ses-err); }
 .conflict-banner-text { flex: 1; min-width: 0; }
 .conflict-lead { margin: 0 0 8px; line-height: 1.7; }

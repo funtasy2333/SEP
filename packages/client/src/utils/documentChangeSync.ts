@@ -24,6 +24,7 @@ export interface DocumentChangeEventData {
   source: ChangeSource
   client?: string
   at?: string
+  lifecycle?: 'deleted' | 'restored'
 }
 
 /** 交给调用方的外部修改。`system` 仅在「本地 revision 之后的每一次写入都是 system 写入」时出现。 */
@@ -34,6 +35,8 @@ export interface ExternalChange {
   source: ChangeSource | 'unknown'
   /** ai / human 事件携带的写入方标识。 */
   client?: string
+  /** 文档移入回收站或恢复；编辑器收到后必须保持当前页面只读。 */
+  lifecycle?: 'deleted' | 'restored'
 }
 
 /** 测试可替换的 EventSource 最小接口。 */
@@ -78,6 +81,7 @@ const SSE_CLOSED = 2
 const DEFAULT_RECONNECT_DELAYS_MS = [3_000, 6_000, 12_000, 30_000]
 const DEFAULT_MIN_RECHECK_INTERVAL_MS = 10_000
 const VALID_SOURCES: readonly string[] = ['human', 'ai', 'system']
+const VALID_LIFECYCLES: readonly string[] = ['deleted', 'restored']
 
 export function documentEventsUrl(documentId: number): string {
   return `/api/documents/${documentId}/events`
@@ -97,12 +101,14 @@ export function parseChangeEvent(raw: unknown, documentId: number): DocumentChan
   if (event.documentId !== documentId) return null
   if (typeof event.revision !== 'number' || !Number.isInteger(event.revision) || event.revision < 0) return null
   if (typeof event.source !== 'string' || !VALID_SOURCES.includes(event.source)) return null
+  if (event.lifecycle !== undefined && (typeof event.lifecycle !== 'string' || !VALID_LIFECYCLES.includes(event.lifecycle))) return null
   return {
     documentId,
     revision: event.revision,
     source: event.source as ChangeSource,
     ...(typeof event.client === 'string' && event.client ? { client: event.client } : {}),
     ...(typeof event.at === 'string' ? { at: event.at } : {}),
+    ...(event.lifecycle === undefined ? {} : { lifecycle: event.lifecycle as 'deleted' | 'restored' }),
   }
 }
 
@@ -110,6 +116,7 @@ interface PendingChange {
   revision: number
   source: ChangeSource | 'unknown'
   client?: string
+  lifecycle?: 'deleted' | 'restored'
 }
 
 /**
@@ -123,6 +130,16 @@ function summarize(changes: PendingChange[], floor: number): ExternalChange {
     .find((change) => change.source === source && change.client)?.client
   const withClient = (source: ExternalChange['source'], client?: string): ExternalChange =>
     ({ revision, source, ...(client ? { client } : {}) })
+
+  const latestLifecycle = [...changes].reverse().find((change) => change.lifecycle)
+  if (latestLifecycle?.lifecycle) {
+    return {
+      revision,
+      source: latestLifecycle.source,
+      ...(latestLifecycle.client ? { client: latestLifecycle.client } : {}),
+      lifecycle: latestLifecycle.lifecycle,
+    }
+  }
 
   if (changes.some((change) => change.source === 'ai')) return withClient('ai', latestWithClient('ai'))
   if (changes.some((change) => change.source === 'human')) return withClient('human', latestWithClient('human'))
@@ -258,7 +275,12 @@ export function startDocumentChangeSync(options: DocumentChangeSyncOptions): Doc
       const event = parseChangeEvent(message.data, documentId)
       if (!event) return
       onEvent?.(event)
-      report({ revision: event.revision, source: event.source, ...(event.client ? { client: event.client } : {}) })
+      report({
+        revision: event.revision,
+        source: event.source,
+        ...(event.client ? { client: event.client } : {}),
+        ...(event.lifecycle ? { lifecycle: event.lifecycle } : {}),
+      })
     })
     current.addEventListener('error', () => {
       if (stopped || source !== current) return

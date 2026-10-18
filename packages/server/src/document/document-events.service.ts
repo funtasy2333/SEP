@@ -13,6 +13,8 @@ export type DocumentChangeSource = 'human' | 'ai' | 'system';
 export interface DocumentChangeOrigin {
   source: DocumentChangeSource;
   client?: string;
+  /** 只标记生命周期变化；常规编辑事件省略该字段。 */
+  lifecycle?: 'deleted' | 'restored';
 }
 
 /**
