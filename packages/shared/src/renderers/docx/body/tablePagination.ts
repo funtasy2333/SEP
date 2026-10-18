@@ -1,24 +1,32 @@
 /**
  * 续表采用独立的 Word 表格片段。Word 的 tblHeader 只会逐页复制同一行，无法只在续页
  * 改写为“（续）”；因此按单页高度预算切分，优先填满前页，续段另起页并重放列标题。
+ * 每段前是表外独立的表题/续表题段落（续表题段带 pageBreakBefore），其高度记入各段高度。
  *
  * 这里的高度是布局估计，用户继续编辑单元格内容后可能需要重新导出或手调分段。
  */
 import type { IRBlock, IRTable, IRTableRow } from '../../../ir/types'
+import { paragraphHeightMm } from './pageFlow'
 import { resolveTableColumnWidths, type TableColumnLayout } from './tableColumnWidths'
 
 export interface TablePagination {
   /** 每段仅列出数据行；表头由调用方在每段之前重放。 */
   bodySegments: IRTableRow[][]
+  /** 首段预计落在新页；只用于页流记账，输出不再写强制分页，由首段整段 keepNext 让 Word 自然推移。 */
   startOnNewPage: boolean
   /** 包含表题、表头和末段表尾的估算高度，用于后续正文/表格接排。 */
   segmentHeightsMm: number[]
+  /** 整表（表题、表头、全部数据行、表尾）不拆分时的估算总高度。 */
+  totalHeightMm: number
   oversizedGroup: boolean
   /** 固定表题/表头/表尾能放入一页，但末段余量容不下普通的最后数据组。 */
   finalSegmentOverflow: boolean
   /** 表题、重复表头与表尾合计超过估算的单页版心高度。 */
   footerTooTall: boolean
 }
+
+/** 不高于此估算高度的小表整体保留（不拆分、不跨页），其余表按余量切分或交给 Word 自然分页。 */
+export const SMALL_TABLE_MM = 50
 
 function textUnits(value: string): number {
   return [...value].reduce((sum, character) => sum + (character.charCodeAt(0) < 128 ? 0.55 : 1), 0)
@@ -83,7 +91,6 @@ function bodyGroups(rows: IRTableRow[], headerRowCount: number): IRTableRow[][] 
 
 export interface TablePaginationOptions {
   firstPageHeightMm?: number
-  forceStartOnNewPage?: boolean
   /** 表前待定同页链移到新页后，首段仍须预留的高度（含脚注）。 */
   firstPageReservedMm?: number
 }
@@ -110,9 +117,11 @@ export function paginateTable(table: IRTable, options: TablePaginationOptions = 
   }, 0)
   // 表注/脚注分别占一个合并单元格；边框余量按行框预留，不逐条额外加6mm。
   const footerHeight = noteHeight + tableFootnoteHeight + ((table.footnotes?.length ?? 0) > 0 ? 1.2 : 0)
-  const captionCapacity = Math.max(1, (landscape ? 68 : 44) * widthScale)
-  const captionLines = textLines(table.caption.map(run => run.text).join('') + '表XX（续）', captionCapacity)
-  const captionHeight = 8 + Math.max(0, captionLines - 1) * 5.5
+  // 表题/续表题是表格之外的独立段落，宽度是整个版心而不是表宽（自定义窄列宽的表也一样），按其样式估算：
+  // 段前 + 行高 × 折行数 + 段后（pageFlow 的段落估算，复用同一份 styleSpecs）。四个表题样式
+  // （SesTblCap/SesAppTblCap/SesTblCapCont/SesAppTblCapCont）的字号、行距网格、段前后相同，每段都取最长的
+  // 续表题文字（题注 +「表XX（续）」）作保守值。五号黑体一行 = 段前 2.75 + 一格 5.5 + 段后 2.75 = 11 mm。
+  const captionHeight = paragraphHeightMm('SesTblCapCont', table.caption.map(run => run.text).join('') + '表XX（续）', { landscape })
   // A4 竖排样稿的可用版心约 234 mm，再预留 9 mm 给 Word 的布局浮动。
   const pageBudget = landscape ? 135 : 225
   // 表注与表脚注只在末段出现，前页不能逐页重复扣除这份空间。
@@ -130,13 +139,13 @@ export function paginateTable(table: IRTable, options: TablePaginationOptions = 
     lastGroupHeight > finalDataBudget && lastGroupHeight <= dataBudget
 
 
-  let firstPageHeight = !options.forceStartOnNewPage && Number.isFinite(options.firstPageHeightMm)
+  let firstPageHeight = Number.isFinite(options.firstPageHeightMm)
     ? Math.max(0, Math.min(pageBudget, options.firstPageHeightMm!)) : undefined
   const reserved = Math.max(0, options.firstPageReservedMm ?? 0)
   const freshFirstPageHeight = Math.max(0, pageBudget - reserved)
-  let firstStartsOnNewPage = options.forceStartOnNewPage === true || firstPageHeight === undefined
+  let firstStartsOnNewPage = firstPageHeight === undefined
   const result = (bodySegments: IRTableRow[][], startOnNewPage: boolean, oversizedGroup: boolean): TablePagination => ({
-    bodySegments, startOnNewPage: options.forceStartOnNewPage || startOnNewPage, oversizedGroup, finalSegmentOverflow, footerTooTall,
+    bodySegments, startOnNewPage, totalHeightMm: totalHeight, oversizedGroup, finalSegmentOverflow, footerTooTall,
     segmentHeightsMm: bodySegments.map((rows, index) => captionHeight + headerHeight +
       rows.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape, layout), 0) +
       (index === bodySegments.length - 1 ? footerHeight : 0)),
@@ -157,13 +166,13 @@ export function paginateTable(table: IRTable, options: TablePaginationOptions = 
     if (firstPageHeight !== undefined && totalHeight <= firstPageHeight) {
       return result([table.rows.slice(headerRowCount)], firstStartsOnNewPage, false)
     }
-    if (totalHeight <= 50 && totalHeight <= freshFirstPageHeight) {
+    if (totalHeight <= SMALL_TABLE_MM && totalHeight <= freshFirstPageHeight) {
       return result([table.rows.slice(headerRowCount)], true, false)
     }
   }
   // 小表仍整体保留，由 Word 在余量不足时自然移到下一页。其余表按首段余量切分。
-  if (reserved === 0 && totalHeight <= pageBudget && (totalHeight <= 50 || firstPageHeight === undefined || totalHeight <= firstPageHeight)) {
-    return result([table.rows.slice(headerRowCount)], firstPageHeight === undefined && totalHeight > 50, false)
+  if (reserved === 0 && totalHeight <= pageBudget && (totalHeight <= SMALL_TABLE_MM || firstPageHeight === undefined || totalHeight <= firstPageHeight)) {
+    return result([table.rows.slice(headerRowCount)], firstPageHeight === undefined && totalHeight > SMALL_TABLE_MM, false)
   }
 
   // 末页采用含脚注的预算；其余页采用完整数据预算。切点选最靠后的合法组，

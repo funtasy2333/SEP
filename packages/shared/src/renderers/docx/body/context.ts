@@ -12,8 +12,7 @@
 import type { NodeId, ResolvedLabel } from '../../../ir/types'
 import { createNumberingAllocator, type NumberingAllocator } from '../numbering'
 import { OWNER_STYLE_IDS, styleSpecs } from '../styles'
-import type { DocxBookmark, DocxPackage } from '../types'
-import type { DocxRenderOptions } from '../types'
+import type { DocxBookmark, DocxPackage, DocxRenderOptions } from '../types'
 import type { DocxRelatedPart } from '../package'
 import { escapeXmlAttr, numPr as numPrXml, pPr, type XmlChild } from '../xml'
 import { mmToTwips } from '../units'
@@ -38,9 +37,6 @@ export interface RenderContext {
   readonly pageFlow: PageFlow
   readonly relatedParts: DocxRelatedPart[]
   allocateImage(): { relationshipId: string; mediaIndex: number }
-  /** Deferred paragraph properties let a later table request a break before an earlier keepNext chain. */
-  deferParagraphBreak(): { marker: string; force: () => void }
-  resolveParagraphBreaks(xml: string): string
 }
 
 export function createRenderContext(
@@ -50,24 +46,21 @@ export function createRenderContext(
   allocateRelId: () => string = () => { throw new Error('DOCX 图片关系 ID 分配器尚未配置') },
 ): RenderContext {
   let mediaIndex = 0
-  const paragraphBreaks: boolean[] = []
   return {
     labels, numbering: createNumberingAllocator(), warnings: [], numbered: [], bookmarksByNodeId,
     resources, relatedParts: [], pageFlow: createPageFlow(),
     allocateImage() { return { relationshipId: allocateRelId(), mediaIndex: ++mediaIndex } },
-    deferParagraphBreak() {
-      const index = paragraphBreaks.push(false) - 1
-      return { marker: `<!--ses-page-break:${index}-->`, force: () => { paragraphBreaks[index] = true } }
-    },
-    resolveParagraphBreaks(xml) {
-      return xml.replace(/<!--ses-page-break:(\d+)-->/g, (_, index: string) =>
-        paragraphBreaks[Number(index)] ? '<w:pageBreakBefore/>' : '')
-    },
   }
 }
 
-export function warn(ctx: RenderContext, code: string, message: string, nodeId?: NodeId): void {
-  ctx.warnings.push(nodeId !== undefined ? { code, nodeId, message } : { code, message })
+/** `label` 必须来自 Resolver 的 labels（如「表3」），渲染器不得自行编号。 */
+export function warn(ctx: RenderContext, code: string, message: string, nodeId?: NodeId, label?: string): void {
+  ctx.warnings.push({
+    code,
+    ...(nodeId !== undefined ? { nodeId } : {}),
+    ...(label !== undefined ? { label } : {}),
+    message,
+  })
 }
 
 export interface EmitParagraphOptions {
@@ -75,7 +68,10 @@ export interface EmitParagraphOptions {
   numPr?: { numId: number; ilvl: number }
   /** 覆盖编号定义的缩进，例如独立的二级数字列项。 */
   indent?: { left: number; hanging: number }
-  /** 首段余量不足时显式另起页；续段仍从新页起排。 */
+  /**
+   * 段前分页（`w:pageBreakBefore`）。目前只用于续表题段（§5.9）：它位于已 suspend 的表格渲染内，
+   * 页流不记账，也不会进入待定 keepNext 链；其他位置不要使用（表前不写强制分页）。
+   */
   pageBreakBefore?: boolean
   /** 封面定位图文框（页面坐标，mm；见 §6.1）。 */
   framePr?: { xMm: number; yMm: number; widthMm: number }
@@ -108,17 +104,14 @@ export function emitParagraph(ctx: RenderContext, styleId: string, opts: EmitPar
   }
   if (opts.numbered) ctx.numbered.push(opts.numbered)
 
-  const deferredBreak = styles.get(styleId)?.keepNext && !opts.pageBreakBefore && !ctx.pageFlow.isSuspended
-    ? ctx.deferParagraphBreak() : undefined
   const numbering = opts.numPr ?? styles.get(styleId)?.numPr
-  const pending = ctx.pageFlow.recordParagraph(styleId, opts.runsXml ?? '', numbering !== undefined, {
+  ctx.pageFlow.recordParagraph(styleId, opts.runsXml ?? '', numbering !== undefined, {
     numberingIndent: numbering ? ctx.numbering.getIndent(numbering.numId, numbering.ilvl) : undefined,
-    indent: opts.indent, pageBreakBefore: opts.pageBreakBefore, forcePageBreakBefore: deferredBreak?.force,
+    indent: opts.indent,
   })
 
   const pprChildren: XmlChild[] = [['pStyle', `<w:pStyle w:val="${styleId}"/>`]]
   if (opts.pageBreakBefore) pprChildren.push(['pageBreakBefore', '<w:pageBreakBefore/>'])
-  else if (pending && deferredBreak) pprChildren.push(['pageBreakBefore', deferredBreak.marker])
   if (opts.framePr) pprChildren.push(['framePr', framePrXml(opts.framePr)])
   if (opts.numPr) pprChildren.push(['numPr', numPrXml([
     ['ilvl', `<w:ilvl w:val="${opts.numPr.ilvl}"/>`],

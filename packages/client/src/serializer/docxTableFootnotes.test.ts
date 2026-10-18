@@ -74,7 +74,8 @@ describe('仅含表脚注上标的单元格完整导出', () => {
       const dom = new DOMParser().parseFromString(documentXml, 'application/xml')
       expect(dom.getElementsByTagName('parsererror')).toHaveLength(0)
       const rows = Array.from(dom.getElementsByTagName('w:tbl')[0]!.getElementsByTagName('w:tr'))
-      const cells = rows[1]!.getElementsByTagName('w:tc')
+      // 表题是 w:tbl 之外的独立段落，表格第 1 行即首个数据/表头行。
+      const cells = rows[0]!.getElementsByTagName('w:tc')
       expect(texts(cells[0]!).filter(t => t.trim())).toEqual(expectedCalls)
       if (scenario === 'whitespace') expect(texts(cells[0]!)[0]).toBe(' \t ')
       const markers = Array.from(cells[0]!.getElementsByTagName('w:r')).filter(r => texts(r).some(t => /^[ab]$/.test(t)))
@@ -86,7 +87,7 @@ describe('仅含表脚注上标的单元格完整导出', () => {
       if (scenario === 'colspan') expect(cells[0]!.getElementsByTagName('w:gridSpan')[0]!.getAttribute('w:val')).toBe('2')
       if (scenario === 'rowspan') {
         expect(cells[0]!.getElementsByTagName('w:vMerge')[0]!.getAttribute('w:val')).toBe('restart')
-        expect(texts(rows[2]!.getElementsByTagName('w:tc')[0]!)).toEqual([])
+        expect(texts(rows[1]!.getElementsByTagName('w:tc')[0]!)).toEqual([])
       }
     }
   })

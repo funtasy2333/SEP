@@ -1,16 +1,26 @@
 import type { DocxPackage } from '@ses/shared'
 
+type DocxWarning = DocxPackage['warnings'][number]
+
+/** 同类告警涉及的表编号（Resolver labels，如“表3”“表A.1”），按文档顺序去重。 */
+function affectedTables(warnings: DocxPackage['warnings'], code: string): string {
+  const labels = warnings.filter(warning => warning.code === code && warning.label).map(warning => warning.label!)
+  return labels.length ? [...new Set(labels)].join('、') : '部分表格'
+}
+
 /** 供实际导出按钮和回归共同使用的导出结果提示。 */
 export function getDocxExportFeedback(warnings: DocxPackage['warnings']) {
-  const codes = new Set(warnings.map(warning => warning.code))
-  const tableNotes: Record<string, string> = {
-    'table-flow-estimate-unavailable': '部分表格前的内容无法可靠确定页位置，已从新页排起，请在 Word 中复核表前余量。',
-    'table-row-too-tall': '部分表格的数据行或跨行合并组超出单页空间，请在 Word 中调整分页。',
-    'table-footer-too-tall': '部分表格的表题、重复表头与表注/表脚注合计超出一页，请在 Word 中调整分页。',
-    'table-final-segment-too-tall': '部分表格的末段余量不足以同时容纳数据行与表注/表脚注，请在 Word 中调整分页。',
-    'table-header-rowspan-pagination': '部分表格的表头合并跨入数据行，首段可能超高，请在 Word 中核对分页。',
-  }
-  const tableIssues = Object.entries(tableNotes).filter(([code]) => codes.has(code)).map(([, message]) => message)
+  const codes = new Set(warnings.map((warning: DocxWarning) => warning.code))
+  const tables = (code: string) => affectedTables(warnings, code)
+  const tableNotes: Array<[string, () => string]> = [
+    ['table-flow-natural-fallback', () => `${tables('table-flow-natural-fallback')}前的页位置无法可靠确定，` +
+      '已改按 Word 自然分页排版（整表输出、表头逐页重复），续页没有“表X（续）”，请在 Word 中复核分页并按需补写。'],
+    ['table-row-too-tall', () => `${tables('table-row-too-tall')}的数据行或跨行合并组超出单页空间，请在 Word 中调整分页。`],
+    ['table-footer-too-tall', () => `${tables('table-footer-too-tall')}的表题、重复表头与表注/表脚注合计超出一页，请在 Word 中调整分页。`],
+    ['table-final-segment-too-tall', () => `${tables('table-final-segment-too-tall')}的末段余量不足以同时容纳数据行与表注/表脚注，请在 Word 中调整分页。`],
+    ['table-header-rowspan-pagination', () => `${tables('table-header-rowspan-pagination')}的表头合并跨入数据行，续页重复的表头可能被截断，请在 Word 中核对分页。`],
+  ]
+  const tableIssues = tableNotes.filter(([code]) => codes.has(code)).map(([, message]) => message())
   const notes = [
     ...tableIssues,
     ...warnings.filter(warning => warning.code === 'footnote-landscape-separator').map(warning => warning.message),

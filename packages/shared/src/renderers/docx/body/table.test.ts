@@ -32,13 +32,13 @@ function table(overrides: Partial<IRTable> = {}): IRTable {
   }
 }
 
-function render(tableIr: IRTable, notesXml?: string, captionXml?: string, footnotesXml?: string): { xml: string; rendered: Array<{ cell: IRTableCell; style: string; row: number; col: number; header: boolean }> } {
+function render(tableIr: IRTable, notesXml?: string, footnotesXml?: string, strongTopBorder?: boolean): { xml: string; rendered: Array<{ cell: IRTableCell; style: string; row: number; col: number; header: boolean }> } {
   const rendered: Array<{ cell: IRTableCell; style: string; row: number; col: number; header: boolean }> = []
   const ctx = createRenderContext({})
   const xml = renderTableGrid(ctx, tableIr, {
     notesXml,
-    captionXml,
     footnotesXml,
+    strongTopBorder,
     renderCell: (cellArg, style, meta) => {
       rendered.push({ cell: cellArg, style, row: meta.rowIndex, col: meta.columnIndex, header: meta.header })
       if (cellArg.content.length === 0) return ''
@@ -113,19 +113,32 @@ describe('renderTableGrid', () => {
     expect(findChild(findChild(childrenNamed(rows[1]!, 'w:tc')[0]!, 'w:tcPr')!, 'w:tcBorders')).toBeDefined()
   })
 
-  it('把表题设为首个重复行，后接列标题，表格逐行跨页', () => {
-    const caption = '<w:p><w:pPr><w:pStyle w:val="SesTblCap"/></w:pPr><w:r><w:t>跨页表题</w:t></w:r></w:p>'
-    const xml = render(table(), undefined, caption).xml
+  it('表格内没有表题行：第 1 行即首个表头行，tblHeader 只设在前 headerRowCount 行，逐行跨页', () => {
+    const xml = render(table()).xml
     const rows = childrenNamed(findChild(root(xml), 'w:tbl')!, 'w:tr')
-    expect(rows).toHaveLength(3)
-    expect(rows.map((row) => findChild(findChild(row, 'w:trPr')!, 'w:tblHeader') !== undefined))
-      .toEqual([true, true, false])
+    expect(rows).toHaveLength(2) // 表头行 + 一个数据行；没有跨满全宽的表题行
+    expect(rows.map((row) => findChild(findChild(row, 'w:trPr')!, 'w:tblHeader') !== undefined)).toEqual([true, false])
     expect(rows.every((row) => findChild(findChild(row, 'w:trPr')!, 'w:cantSplit') !== undefined)).toBe(true)
-    const captionCells = childrenNamed(rows[0]!, 'w:tc')
-    expect(captionCells).toHaveLength(1)
-    expect(findChild(findChild(captionCells[0]!, 'w:tcPr')!, 'w:gridSpan')?.attrs).toEqual({ 'w:val': '3' })
-    expect(xml).toContain('跨页表题')
-    expect(findChild(findChild(childrenNamed(rows[1]!, 'w:tc')[0]!, 'w:tcPr')!, 'w:tcBorders')).toBeDefined()
+    // 第 1 行的单元格是正常表头格，而不是 gridSpan 跨满全表的无边框表题格。
+    expect(childrenNamed(rows[0]!, 'w:tc')).toHaveLength(2)
+    expect(xml).not.toContain('w:val="nil"')
+    expect(xml).not.toContain('SesTblCap')
+  })
+
+  it('strongTopBorder 给第 1 行（首个表头行）写粗上边框，使跨页重复的表头保留外框；缺省不写', () => {
+    const topBorder = (xml: string) => {
+      const rows = childrenNamed(findChild(root(xml), 'w:tbl')!, 'w:tr')
+      return childrenNamed(rows[0]!, 'w:tc').map((tc) => {
+        const borders = findChild(findChild(tc, 'w:tcPr')!, 'w:tcBorders')
+        return borders ? findChild(borders, 'w:top')?.attrs : undefined
+      })
+    }
+    const strong = topBorder(render(table(), undefined, undefined, true).xml)
+    expect(strong).toHaveLength(2)
+    expect(strong.every((attrs) => attrs?.['w:sz'] === '6' && attrs['w:val'] === 'single')).toBe(true)
+    // 缺省时首行没有上边框覆盖（沿用 tblBorders 外框）。
+    const plain = topBorder(render(table(), undefined, undefined, false).xml)
+    expect(plain.every((attrs) => attrs === undefined)).toBe(true)
   })
 
   it('给表头末行加粗下边框，并把表注附加为跨满全表且带粗上边框的末行', () => {
@@ -151,7 +164,7 @@ describe('renderTableGrid', () => {
   it('表脚注在表注之后另成全宽末行，左单元格边距为零以便 9pt 缩进对齐表框', () => {
     const note = '<w:p><w:pPr><w:pStyle w:val="SesTableNote"/></w:pPr><w:r><w:t>表注</w:t></w:r></w:p>'
     const footnote = '<w:p><w:pPr><w:pStyle w:val="SesTableFootnote"/></w:pPr><w:r><w:t>a</w:t></w:r><w:r><w:tab/></w:r><w:r><w:t>表脚注内容</w:t></w:r></w:p>'
-    const xml = render(table(), note, undefined, footnote).xml
+    const xml = render(table(), note, footnote).xml
     const rows = childrenNamed(findChild(root(xml), 'w:tbl')!, 'w:tr')
     expect(rows).toHaveLength(4)
     const noteCell = childrenNamed(rows[2]!, 'w:tc')[0]!

@@ -35,8 +35,11 @@ export interface DocxPackage {
   parts: Record<string, string>
   /** 包内路径 → base64（word/media/*） */
   binaries: Record<string, string>
-  /** 降级与告警：formula-missing-omml / image-missing / cover-field-missing / list-format-fallback … */
-  warnings: { code: string; nodeId?: NodeId; message: string }[]
+  /**
+   * 降级与告警：formula-missing-omml / image-missing / cover-field-missing / list-format-fallback …
+   * `label` 是受影响要素在 Resolver labels 中的编号（如「表3」「表A.1」），供宿主汇总提示；渲染器不自行编号。
+   */
+  warnings: { code: string; nodeId?: NodeId; label?: string; message: string }[]
 }
 
 /** DOCX 书签目标；ID 与名称由文档遍历顺序确定。 */

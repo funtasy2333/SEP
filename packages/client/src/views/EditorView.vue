@@ -457,7 +457,8 @@ import {
   synchronizeCoverMetadata,
   type DocumentSettingsDraft,
 } from '@/utils/documentSettings'
-import { setClauseFormat, setParagraphFormat } from '@/utils/structureEditing'
+import { setClauseFormat, setListFormat, setParagraphFormat, structureFailureMessage, type StructureAction, type StructureResult } from '@/utils/structureEditing'
+import { countLegacyUntitledClauses } from '@/utils/untitledClause'
 import { createDocumentDuplicate } from '@/utils/duplicateDocument'
 import { isRevisionConflict } from '@/utils/documentConflict'
 import { startDocumentChangeSync, type DocumentChangeSync, type ExternalChange } from '@/utils/documentChangeSync'
@@ -824,11 +825,14 @@ onMounted(async () => {
     lastSaved.value = updatedAt ? new Date(updatedAt).toLocaleTimeString('zh-CN') : ''
     hydrateSettingsDraft()
     let needsNodeIdPersistence = false
+    // 旧稿的无题条（条文在 clauseTitle）：载入事务里由编辑器规范化，数量在载入前统计，用于提示与保存。
+    let legacyUntitledClauses = 0
     if (store.currentDocument?.content && Object.keys(store.currentDocument.content).length > 0) {
       if (editor.value) {
         const candidate = editor.value.schema.nodeFromJSON(store.currentDocument.content)
         candidate.check()
         needsNodeIdPersistence = hasNodeIdIssues(candidate)
+        legacyUntitledClauses = countLegacyUntitledClauses(candidate)
         replaceEditorDocument(editor.value, store.currentDocument.content)
       }
     } else {
@@ -845,6 +849,7 @@ onMounted(async () => {
     // 文档已载入、本地 revision 已确定：开始订阅变更。连接成功后会再读取一次 revision 与本地比较，
     // 补上「读取文档」与「订阅生效」之间可能错过的修改。连接失败不影响编辑。
     startChangeSync()
+    noteLegacyUntitledClauses(legacyUntitledClauses)
     if (needsNodeIdPersistence) {
       // The NodeId plugin has already normalized the live editor state. Persist
       // that exact document now so a cold reopen does not generate new anchors.
@@ -1055,6 +1060,7 @@ async function handleConflictReload() {
     const candidate = currentEditor.schema.nodeFromJSON(content)
     candidate.check()
     const needsNodeIdPersistence = hasNodeIdIssues(candidate)
+    const legacyUntitledClauses = countLegacyUntitledClauses(candidate)
     // 重载不进入撤销历史：否则 Ctrl+Z 会把旧内容带回并在下一次自动保存时覆盖最新版本；
     // 此前的撤销记录也一并清空（与自动载入外部修改相同，见 installRemoteDocument）。
     installRemoteDocument(currentEditor, content)
@@ -1071,6 +1077,7 @@ async function handleConflictReload() {
     ElMessage.success('已载入最新内容')
     // 与首次打开一致：规范化补出的 nodeId 需要立即持久化，冲突已解除，自动保存恢复。
     if (needsNodeIdPersistence) scheduleAutoSave()
+    noteLegacyUntitledClauses(legacyUntitledClauses)
   } catch (error) {
     ElMessage.error(`重新加载失败，本页内容保持不变${error instanceof Error ? `：${error.message}` : ''}`)
   } finally {
@@ -1232,12 +1239,14 @@ async function loadExternalRevision(cause: ExternalCause): Promise<boolean> {
   const hasContent = Boolean(latest.content) && Object.keys(latest.content).length > 0
   const content = hasContent ? latest.content : createDefaultDocumentContent(latest.meta)
   let needsNodeIdPersistence: boolean
+  let legacyUntitledClauses: number
   try {
     // 先用生产 schema 校验，通过后才改动编辑器与本地 revision：装不进去时不能让 revision 前进，
     // 否则之后的自动保存会带着新 revision 把外部修改静默覆盖。
     const candidate = currentEditor.schema.nodeFromJSON(content)
     candidate.check()
     needsNodeIdPersistence = hasNodeIdIssues(candidate)
+    legacyUntitledClauses = countLegacyUntitledClauses(candidate)
   } catch (error) {
     ElMessage.error({
       message: `文档已被更新，但最新内容无法载入编辑器，本页内容保持不变${error instanceof Error ? `：${error.message}` : ''}`,
@@ -1253,6 +1262,7 @@ async function loadExternalRevision(cause: ExternalCause): Promise<boolean> {
   ElMessage.info({ message: externalUpdateNotice(cause), grouping: true })
   // 与首次打开一致：规范化补出的 nodeId 需要持久化。
   if (needsNodeIdPersistence) scheduleAutoSave()
+  noteLegacyUntitledClauses(legacyUntitledClauses)
   return true
 }
 
@@ -1426,16 +1436,24 @@ function getInsertRange(): { from: number; to: number } | null {
 }
 
 // === 工具栏：条 ===
+/** 结构格式命令失败时按原因码给出不同提示（缺少上级、跳级、悬置段落、无题条分条、位置不允许……）。 */
+function warnStructureFailure(result: StructureResult, action: StructureAction = 'clause') {
+  if (!result.ok) ElMessage.warning(structureFailureMessage(result.reason, action))
+}
+
 function handleInsertClause(level: string) {
-  if (editor.value && !setClauseFormat(editor.value, Number(level))) {
-    ElMessage.warning('当前结构不能设置该级别：须有对应上级；含子条或会破坏后续条结构时，请先调整条结构')
-  }
+  if (editor.value) warnStructureFailure(setClauseFormat(editor.value, Number(level)))
 }
 
 function handleInsertClauseNoTitle(level: string) {
-  if (editor.value && !setClauseFormat(editor.value, Number(level), false)) {
-    ElMessage.warning('当前结构不能设置该级别：须有对应上级；含子条或会破坏后续条结构时，请先调整条结构')
-  }
+  if (editor.value) warnStructureFailure(setClauseFormat(editor.value, Number(level), false))
+}
+
+/** 旧稿的无题条（条文放在 clauseTitle）已由编辑器规范化为 IR 模型：需要持久化，并告知用户。 */
+function noteLegacyUntitledClauses(count: number) {
+  if (count <= 0) return
+  scheduleAutoSave()
+  ElMessage.info(`已将 ${count} 处无题条的条文移入正文段`)
 }
 
 // === 工具栏：表格 ===
@@ -1515,8 +1533,9 @@ function handleTableCommand(command: string) {
 }
 
 // === 工具栏：列项 ===
+// 列项是格式命令：选中的列项/段落转为目标类型，空段落处保持插入新列表。
 function handleInsertList(listType: string) {
-  editor.value?.chain().focus().insertStdList({ listType }).run()
+  if (editor.value) warnStructureFailure(setListFormat(editor.value, listType), 'list')
 }
 
 // === 工具栏：注 ===
@@ -1809,9 +1828,7 @@ function getInsertAfterCurrentBlock(): number | null {
 
 // === 段落：格式覆盖保留条正文，已是段落时不新增空段 ===
 function insertStdParagraph() {
-  if (editor.value && !setParagraphFormat(editor.value)) {
-    ElMessage.warning('当前位置不能直接改为段落；请先调整子条或同级条结构，原文与结构已保留')
-  }
+  if (editor.value) warnStructureFailure(setParagraphFormat(editor.value), 'paragraph')
 }
 
 // === 公式 ===

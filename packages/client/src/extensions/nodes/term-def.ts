@@ -2,6 +2,7 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import type { Editor } from '@tiptap/core'
 import type { DOMOutputSpec, Node as PMNode, ResolvedPos } from '@tiptap/pm/model'
 import { TextSelection } from '@tiptap/pm/state'
+import { hasReferenceWithin } from '../../utils/textBlockFormat'
 
 type TermFieldName = 'termName' | 'termNameEn' | 'termDefinition'
 
@@ -209,6 +210,8 @@ export const TermDef = Node.create({
             if (node.type.name === 'termDef') {
               // 仅在内容全部为空时删除
               if (node.textContent.trim() === '') {
+                // 术语条目（或其后代）被交叉引用、术语引用时不删除：删除会让引用失去目标（悬空引用，导出校验失败）；吞掉按键，文档与选区不变
+                if (hasReferenceWithin(editor.state.doc, node)) return true
                 const pos = $from.before(d)
                 editor.chain()
                   .deleteRange({ from: pos, to: pos + node.nodeSize })

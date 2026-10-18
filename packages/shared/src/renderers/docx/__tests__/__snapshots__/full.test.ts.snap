@@ -69,7 +69,7 @@ SesExText │ — │ 第二个示例。
 SesClause1 │ 4.2 │ 详细要求
 SesNoTitle2 │ 4.2.1 │ 无题条内容，见图1、公式(1)。
 SesClause2 │ 4.2.2 │ 性能
-┆SesTblCap │ 表1 │ 性能指标
+SesTblCap │ 表1 │ 性能指标
 ┆SesTableCenter │ — │ 项目
 ┆SesTableCenter │ — │ 指标
 ┆SesTableCenter │ — │ 精度
@@ -93,7 +93,7 @@ SesPara │ — │ 附录正文。
 SesAppClause1 │ A.2 │ 附录图表
 SesFigure │ — │ 〔图片缺失〕
 SesAppFigCap │ 图A.1 │ 附录图
-┆SesAppTblCap │ 表A.1 │ 附录表
+SesAppTblCap │ 表A.1 │ 附录表
 ┆SesTableCenter │ — │ 列
 ┆SesTableText │ — │ 值
 SesFormula │ — │ ⇥x = y⇥（A.1）
