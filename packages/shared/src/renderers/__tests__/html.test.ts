@@ -206,9 +206,16 @@ describe('公式：KaTeX 占位 + 式中键值列表', () => {
   it('输出 ses-formula 占位且不渲染 KaTeX', () => {
     expect(html).toContain('class="ses-formula" data-latex="E = mc^2"')
   })
-  it('式中列表解析为 dt/dd', () => {
-    expect(html).toContain('<dl class="ses-where-list">')
-    expect(html).toMatch(/<dt[^>]*>E<\/dt><dd>能量，单位为焦耳（J）<\/dd>/)
+  it.each(['screen', 'print'] as const)('%s：式中列表解析为 dt/dd，释义前以「——」连接（GB/T 1.1 10.4.3）', variant => {
+    const out = renderFixture(variant)
+    expect(out).toContain('<dl class="ses-where-list">')
+    expect(out).toMatch(/<dt[^>]*>E<\/dt><dd><span class="ses-where-dash">——<\/span><span class="ses-where-text">能量，单位为焦耳（J）<\/span><\/dd>/)
+  })
+  it('破折号定宽、释义回行与释义起点对齐（打印与屏幕样式）', () => {
+    for (const css of [printCss(), html]) {
+      expect(css).toMatch(/\.ses-where-list dd\s*\{[^}]*display:\s*flex/)
+      expect(css).toMatch(/\.ses-where-dash\s*\{[^}]*flex:\s*none/)
+    }
   })
 })
 

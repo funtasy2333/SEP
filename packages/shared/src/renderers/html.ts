@@ -390,7 +390,8 @@ function renderFormula(formula: IRFormula, ctx: RenderCtx): void {
     ctx.push('<dl class="ses-where-list">')
     for (const item of formula.whereList) {
       ctx.push(
-        `<dt${idAttr(item.id)}${anchorAttr(ctx, item.id)}>${renderInlines(item.term, ctx)}</dt><dd>${renderInlines(item.definition, ctx)}</dd>`,
+        // GB/T 1.1 10.4.3：释义用破折号连接、各行破折号对齐；破折号写成文字，复制与 PDF 取文都能得到（与 DOCX 一致）。
+        `<dt${idAttr(item.id)}${anchorAttr(ctx, item.id)}>${renderInlines(item.term, ctx)}</dt><dd><span class="ses-where-dash">——</span><span class="ses-where-text">${renderInlines(item.definition, ctx)}</span></dd>`,
       )
     }
     ctx.push('</dl>')
@@ -771,9 +772,10 @@ function screenStyles(): string {
     .ses-formula { flex: 1; text-align: center; }
     .ses-formula-num { width: 5em; text-align: right; }
     .ses-where { margin: 0 0 12px 3em; }
-    .ses-where-list { display: grid; grid-template-columns: min-content 1fr; column-gap: 0.8em; }
+    .ses-where-list { display: grid; grid-template-columns: min-content 1fr; column-gap: 1em; }
     .ses-where-list dt { font-style: italic; }
-    .ses-where-list dd { margin: 0; }
+    .ses-where-list dd { margin: 0; display: flex; }
+    .ses-where-dash { flex: none; }
     .ses-note, .ses-example { padding-left: 2em; font-size: 13px; color: #333; margin: 8px 0; }
     .ses-note-marker, .ses-example-marker { font-family: "SimHei", "黑体", sans-serif; }
     .ses-footnote { font-size: 0.85em; }

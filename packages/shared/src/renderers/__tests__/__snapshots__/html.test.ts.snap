@@ -371,9 +371,11 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 .ses-formula-num::before { content: leader(dotted); }
 .ses-where { margin: 0 0 10pt 3em; }
 .ses-where-intro { margin: 0 0 2pt; }
-.ses-where-list { display: grid; grid-template-columns: min-content 1fr; column-gap: 0.8em; row-gap: 1pt; margin: 0; }
+/* 符号列按本组最长符号定宽，后空 1 字接「——」（与 DOCX §5.10 的制表位一致），破折号各行对齐；释义回行与释义起点对齐 */
+.ses-where-list { display: grid; grid-template-columns: min-content 1fr; column-gap: 1em; row-gap: 1pt; margin: 0; }
 .ses-where-list dt { font-style: italic; white-space: nowrap; margin: 0; }
-.ses-where-list dd { margin: 0; }
+.ses-where-list dd { margin: 0; display: flex; }
+.ses-where-dash { flex: none; }
 
 /* —— 注 / 示例：标识黑体小五，内容宋体小五 —— */
 .ses-note, .ses-example { font-size: var(--ses-fs-xiaowu); margin: 4pt 0 4pt 2em; }
@@ -543,9 +545,9 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 <div class="ses-where">
 <p class="ses-where-intro">式中：</p>
 <dl class="ses-where-list">
-<dt data-node-id="f-1.w0">E</dt><dd>能量，单位为焦耳（J）</dd>
-<dt data-node-id="f-1.w1">m</dt><dd>质量</dd>
-<dt data-node-id="f-1.w2">c</dt><dd>光速。</dd>
+<dt data-node-id="f-1.w0">E</dt><dd><span class="ses-where-dash">——</span><span class="ses-where-text">能量，单位为焦耳（J）</span></dd>
+<dt data-node-id="f-1.w1">m</dt><dd><span class="ses-where-dash">——</span><span class="ses-where-text">质量</span></dd>
+<dt data-node-id="f-1.w2">c</dt><dd><span class="ses-where-dash">——</span><span class="ses-where-text">光速。</span></dd>
 </dl>
 </div>
 <p class="ses-paragraph" data-type="paragraph" data-node-id="p-4221">引用文献<span class="ses-xref" data-ref-target="bib-2">[1]</span>。</p>
@@ -662,9 +664,10 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
     .ses-formula { flex: 1; text-align: center; }
     .ses-formula-num { width: 5em; text-align: right; }
     .ses-where { margin: 0 0 12px 3em; }
-    .ses-where-list { display: grid; grid-template-columns: min-content 1fr; column-gap: 0.8em; }
+    .ses-where-list { display: grid; grid-template-columns: min-content 1fr; column-gap: 1em; }
     .ses-where-list dt { font-style: italic; }
-    .ses-where-list dd { margin: 0; }
+    .ses-where-list dd { margin: 0; display: flex; }
+    .ses-where-dash { flex: none; }
     .ses-note, .ses-example { padding-left: 2em; font-size: 13px; color: #333; margin: 8px 0; }
     .ses-note-marker, .ses-example-marker { font-family: "SimHei", "黑体", sans-serif; }
     .ses-footnote { font-size: 0.85em; }
@@ -821,9 +824,9 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 <div class="ses-where">
 <p class="ses-where-intro">式中：</p>
 <dl class="ses-where-list">
-<dt data-node-id="f-1.w0">E</dt><dd>能量，单位为焦耳（J）</dd>
-<dt data-node-id="f-1.w1">m</dt><dd>质量</dd>
-<dt data-node-id="f-1.w2">c</dt><dd>光速。</dd>
+<dt data-node-id="f-1.w0">E</dt><dd><span class="ses-where-dash">——</span><span class="ses-where-text">能量，单位为焦耳（J）</span></dd>
+<dt data-node-id="f-1.w1">m</dt><dd><span class="ses-where-dash">——</span><span class="ses-where-text">质量</span></dd>
+<dt data-node-id="f-1.w2">c</dt><dd><span class="ses-where-dash">——</span><span class="ses-where-text">光速。</span></dd>
 </dl>
 </div>
 <p class="ses-paragraph" data-type="paragraph" data-node-id="p-4221">引用文献<a class="ses-xref" href="#bib_1" data-ref-target="bib-2">[1]</a>。</p>

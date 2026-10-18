@@ -385,9 +385,11 @@ const CONTENT = `
 .ses-formula-num::before { content: leader(dotted); }
 .ses-where { margin: 0 0 10pt 3em; }
 .ses-where-intro { margin: 0 0 2pt; }
-.ses-where-list { display: grid; grid-template-columns: min-content 1fr; column-gap: 0.8em; row-gap: 1pt; margin: 0; }
+/* 符号列按本组最长符号定宽，后空 1 字接「——」（与 DOCX §5.10 的制表位一致），破折号各行对齐；释义回行与释义起点对齐 */
+.ses-where-list { display: grid; grid-template-columns: min-content 1fr; column-gap: 1em; row-gap: 1pt; margin: 0; }
 .ses-where-list dt { font-style: italic; white-space: nowrap; margin: 0; }
-.ses-where-list dd { margin: 0; }
+.ses-where-list dd { margin: 0; display: flex; }
+.ses-where-dash { flex: none; }
 
 /* —— 注 / 示例：标识黑体小五，内容宋体小五 —— */
 .ses-note, .ses-example { font-size: var(--ses-fs-xiaowu); margin: 4pt 0 4pt 2em; }
