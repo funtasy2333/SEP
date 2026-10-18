@@ -1,10 +1,21 @@
 import { Node, mergeAttributes, type Editor } from '@tiptap/core'
 import { Plugin, PluginKey, Selection, TextSelection } from '@tiptap/pm/state'
-import type { DOMOutputSpec } from '@tiptap/pm/model'
+import type { DOMOutputSpec, Node as PMNode } from '@tiptap/pm/model'
 import { setParagraphFormat } from '../../utils/structureEditing'
+import { hasReferenceWithin } from '../../utils/textBlockFormat'
 import { normalizeUntitledClauses, redirectUntitledNumberSelection, untitledClauseEnter } from '../../utils/untitledClause'
 
 const untitledClauseKey = new PluginKey('untitledClauseNormalize')
+
+/**
+ * 删除空条（Backspace / Delete 共用）。条或其子树里任何节点（条、正文段、子条……）被交叉引用时不删除——
+ * 删除会让引用失去目标（悬空的类型化引用，导出校验失败）；与 setParagraphFormat、Enter 的检查一致，
+ * 调用方吞掉按键，文档与选区不变。
+ */
+function deleteEmptyClause(editor: Editor, from: number, clause: PMNode) {
+  if (hasReferenceWithin(editor.state.doc, clause)) return
+  editor.chain().deleteRange({ from, to: from + clause.nodeSize }).run()
+}
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -129,8 +140,7 @@ export const Clause = Node.create({
           const owner = $from.node($from.depth - 1)
           if (owner.type.name === 'clause' && owner.attrs.hasTitle === false && $from.index($from.depth - 1) === 1) {
             if (owner.textContent.trim() === '' && owner.childCount === 2) {
-              const pos = $from.before($from.depth - 1)
-              editor.chain().deleteRange({ from: pos, to: pos + owner.nodeSize }).run()
+              deleteEmptyClause(editor, $from.before($from.depth - 1), owner)
             } else {
               setParagraphFormat(editor)
             }
@@ -144,10 +154,7 @@ export const Clause = Node.create({
             if (node.type.name === 'clause') {
               // 仅在内容全部为空时删除整个 clause
               if (node.textContent.trim() === '') {
-                const pos = $from.before(d)
-                editor.chain()
-                  .deleteRange({ from: pos, to: pos + node.nodeSize })
-                  .run()
+                deleteEmptyClause(editor, $from.before(d), node)
                 return true
               }
               break
@@ -163,10 +170,7 @@ export const Clause = Node.create({
             const node = $from.node(d)
             if (node.type.name === 'clause') {
               if (node.textContent.trim() === '') {
-                const pos = $from.before(d)
-                editor.chain()
-                  .deleteRange({ from: pos, to: pos + node.nodeSize })
-                  .run()
+                deleteEmptyClause(editor, $from.before(d), node)
                 return true
               }
               break

@@ -82,6 +82,20 @@ export function hasReferenceTo(doc: PMNode, id: unknown): boolean {
   return found
 }
 
+/**
+ * node 及其全部后代里是否有任何节点被交叉引用。整棵子树被删除时，这些引用会失去目标
+ * （类型化引用悬空，导出校验失败），所以删除空条一类的操作要先问这个。
+ */
+export function hasReferenceWithin(doc: PMNode, node: PMNode): boolean {
+  let found = hasReferenceTo(doc, node.attrs.nodeId)
+  node.descendants(child => {
+    if (found) return false
+    found = hasReferenceTo(doc, child.attrs.nodeId)
+    return !found
+  })
+  return found
+}
+
 type RewriteAttrs = (attrs: JsonRecord, kindField: 'refType' | 'targetKind') => JsonRecord
 
 /** Apply an attribute rewrite to every typed reference payload and crossRef mark of the transaction document. */
