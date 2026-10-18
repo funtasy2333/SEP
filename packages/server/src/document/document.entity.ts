@@ -41,6 +41,10 @@ export class DocumentEntity {
   @Column({ type: 'integer', default: 0 })
   revision: number;
 
+  /** 软删除时间；仅由 DocumentService 的回收站生命周期接口管理。 */
+  @Column({ type: 'datetime', nullable: true })
+  deletedAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

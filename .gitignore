@@ -6,6 +6,7 @@ dist/
 *.sqlite
 .DS_Store
 *.log
+.ses-run/
 
 # Binary artifacts in example/
 example/$PLUGINSDIR/

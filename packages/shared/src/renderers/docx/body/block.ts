@@ -12,9 +12,10 @@ import { ABSTRACT_NUM_ID, listAbstractNumId } from '../numbering'
 import { emitParagraph, warn, type RenderContext } from './context'
 import { plainRun, renderInlines, renderRun, superscriptRun, tabRun } from './inline'
 import { renderFigureImage } from './figure'
-import { renderTableGrid } from './table'
+import { renderTableGrid, type TableGridRenderOptions } from './table'
 import { resolveTableColumnWidths } from './tableColumnWidths'
-import { paginateTable } from './tablePagination'
+import type { TableFlowBudget } from './pageFlow'
+import { paginateTable, SMALL_TABLE_MM } from './tablePagination'
 import { renderFormula } from './formula'
 import { orderTableFootnotes } from '../../footnotes'
 
@@ -233,47 +234,84 @@ function renderTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx): string
   return ctx.pageFlow.suspend(() => renderTableContent(ctx, table, bctx, nested))
 }
 
-function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, nested: boolean): string {
-  const captionRuns = renderInlines(table.caption, ctx.labels)
+/** 警告里的表称谓：编号只取自 Resolver labels，缺失时退回节点 id，绝不自行编号。 */
+function tableRef(ctx: RenderContext, table: IRTable): string {
+  return ctx.labels[table.id]?.label ?? `表格 "${table.id}"`
+}
+
+/** 表题段落（§4.7 编号追踪、附录实例）。split/natural 一律作为 w:tbl 之前的独立段落，不进表格。 */
+function emitTableCaption(ctx: RenderContext, table: IRTable, bctx: BlockCtx, captionRuns: string): string {
   const numbered = { nodeId: table.id, kind: 'table' as const }
-  const flowOptions = nested ? {} : ctx.pageFlow.beforeTable()
-  const pagination = paginateTable(table, flowOptions)
-  if (!nested && flowOptions.forceStartOnNewPage) {
-    warn(ctx, 'table-flow-estimate-unavailable',
-      `表格 "${table.id}" 前的内容无法可靠确定页位置，首段改从新页排起，请在 Word 中复核表前余量`, table.id)
+  if (bctx.appendix) {
+    const numId = ctx.numbering.allocAppendixTableInstance(bctx.appendix.id, bctx.appendix.letter)
+    return emitParagraph(ctx, 'SesAppTblCap', { numPr: { numId, ilvl: 0 }, runsXml: captionRuns, numbered })
   }
+  return emitParagraph(ctx, 'SesTblCap', { runsXml: captionRuns, numbered })
+}
+
+type TableGridContent = Pick<TableGridRenderOptions,
+  'columnCount' | 'gridWidthsTwips' | 'notesXml' | 'footnotesXml' | 'renderCell'>
+
+/** split 与 natural 共用：列宽、单元格内容、表注与表脚注。 */
+function tableGridContent(
+  ctx: RenderContext, table: IRTable, tableBctx: BlockCtx, columnLayout: ReturnType<typeof resolveTableColumnWidths>,
+): TableGridContent {
+  return {
+    columnCount: columnLayout.widths.length,
+    ...(columnLayout.custom ? { gridWidthsTwips: columnLayout.widths } : {}),
+    notesXml: () => table.notes.map((note) => renderNote(ctx, note, tableBctx, true)).join(''),
+    footnotesXml: () => orderTableFootnotes(table.footnotes ?? [], ctx.labels).map((footnote) => {
+      const resolved = ctx.labels[footnote.id]
+      if (!resolved) throw new Error(`renderTable: 表脚注 "${footnote.id}" 在 labels 中没有编号`)
+      return emitParagraph(ctx, 'SesTableFootnote', {
+        runsXml: superscriptRun(resolved.refText) + tabRun() + renderInlines(footnote.content, ctx.labels),
+      })
+    }).join(''),
+    renderCell(cell, styleId) {
+      if (cell.content.length === 0 || cell.content.every((block) => block.kind === 'paragraph' &&
+        // Empty source text may still render a footnote or a resolved cross-reference.
+        block.content.every((run) => renderRun({ ...run, text: run.text.trim() }, ctx.labels) === ''))) return ''
+      return cell.content.map((block) => block.kind === 'paragraph'
+        ? emitParagraph(ctx, styleId, { runsXml: renderInlines(block.content, ctx.labels) })
+        : renderBlock(ctx, block, tableBctx)).join('')
+    },
+  }
+}
+
+function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, nested: boolean): string {
+  // 嵌套表不参与外层页流，不查询页余量，整表按自然排法输出。
+  if (nested) return renderNaturalTable(ctx, table, bctx, 'nested')
+  const budget = ctx.pageFlow.beforeTable()
+  // 页位置无法可靠估算时不再猜测、也不写强制分页：整表退回 Word 自然分页。
+  if (budget.positionUnknown) return renderNaturalTable(ctx, table, bctx, 'unknown-position')
+  return renderSplitTable(ctx, table, bctx, budget)
+}
+
+/**
+ * 页位置已知：按估算拆成多个 Word 表段。表题是首段之前的独立段落（SesTblCap/SesAppTblCap，keepNext）；
+ * 每个续段前是一个独立的续表题段「表X　表题（续）」（SesTblCapCont/SesAppTblCapCont），自带 `pageBreakBefore`
+ * 另起一页，紧接续段表格（首行为重复的表头行）。不再输出含 `w:br page` 的空分隔段：续表题段本身就隔开了
+ * 相邻的两个 w:tbl，在 Word 里合并续表只需删除续表题段和重复的表头行。
+ * 首段是否落在新页只用于页流记账：首段之前不写任何 pageBreakBefore，整段 keepNext 让 Word 自然推移。
+ */
+function renderSplitTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx, budget: TableFlowBudget): string {
+  const captionRuns = renderInlines(table.caption, ctx.labels)
+  const pagination = paginateTable(table, budget)
+  const label = ctx.labels[table.id]?.label
+  const ref = tableRef(ctx, table)
   if (pagination.oversizedGroup) {
     warn(ctx, 'table-row-too-tall',
-      `表格 "${table.id}" 存在超出单页高度预算的跨行合并组，续表分页可能需要人工调整`, table.id)
+      `${ref} 存在超出单页高度预算的跨行合并组，续表分页可能需要人工调整`, table.id, label)
   }
   if (pagination.footerTooTall) {
     warn(ctx, 'table-footer-too-tall',
-      `表格 "${table.id}" 的表题、重复表头与表尾组合超过单页高度预算，可能需要人工分页调整`, table.id)
+      `${ref} 的表题、重复表头与表尾组合超过单页高度预算，可能需要人工分页调整`, table.id, label)
   }
   if (pagination.finalSegmentOverflow) {
     warn(ctx, 'table-final-segment-too-tall',
-      `表格 "${table.id}" 的末段余量不足以同时容纳最后数据组和表注/表脚注，可能需要人工分页调整`, table.id)
+      `${ref} 的末段余量不足以同时容纳最后数据组和表注/表脚注，可能需要人工分页调整`, table.id, label)
   }
-  // An explicit break on the caption overrides the preceding keepNext chain in Word.
-  // Single-line chains can relocate naturally. A chain containing a splittable
-  // paragraph may instead start on the old page, so moving its first table segment
-  // needs a real chain-start break too. Resolve it without splitting at the caption.
-  const forcedChainBreak = !nested && pagination.startOnNewPage &&
-    ctx.pageFlow.breakBeforePendingChain(!flowOptions.forceStartOnNewPage)
-  const pageBreakBefore = pagination.startOnNewPage && !forcedChainBreak &&
-    (flowOptions.forceStartOnNewPage || !((flowOptions.firstPageReservedMm ?? 0) > 0))
-  let captionXml: string
-  if (bctx.appendix) {
-    const numId = ctx.numbering.allocAppendixTableInstance(bctx.appendix.id, bctx.appendix.letter)
-    captionXml = emitParagraph(ctx, 'SesAppTblCap', {
-      numPr: { numId, ilvl: 0 }, runsXml: captionRuns, numbered,
-      pageBreakBefore,
-    })
-  } else {
-    captionXml = emitParagraph(ctx, 'SesTblCap', {
-      runsXml: captionRuns, numbered, pageBreakBefore,
-    })
-  }
+  const captionXml = emitTableCaption(ctx, table, bctx, captionRuns)
   const tableBctx = { ...withScope(bctx, table.id), suppressLandscape: true }
   const headerRowCount = Math.max(0, Math.min(Math.floor(table.headerRowCount), table.rows.length))
   const headerRows = table.rows.slice(0, headerRowCount)
@@ -288,53 +326,77 @@ function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, 
     }),
   }))
   const columnLayout = resolveTableColumnWidths(table)
-  const columnCount = columnLayout.widths.length
-  const label = ctx.labels[table.id]?.label
-  let out = ''
+  const content = tableGridContent(ctx, table, tableBctx, columnLayout)
+  let out = captionXml
   bodySegments.forEach((bodyRows, index) => {
     const lastSegment = index === bodySegments.length - 1
-    let segmentCaption = captionXml
     if (index > 0) {
-      // 相邻 w:tbl 会被 Word 合并为同一张表；段落级换页同时隔开两个独立片段。
-      out += emitParagraph(ctx, 'SesNormal', { runsXml: '<w:r><w:br w:type="page"/></w:r>' })
+      // 续表题段独立于表格：段前分页另起一页，同时隔开相邻的两个 w:tbl（否则 Word 会把它们合并为一张表）。
       if (!label) warn(ctx, 'label-missing', `续表 "${table.id}" 缺少表编号`, table.id)
-      segmentCaption = emitParagraph(ctx,
-        bctx.appendix ? 'SesAppTblCapCont' : 'SesTblCapCont', {
-          runsXml: plainRun(label ? `${label}　` : '表　') + captionRuns + plainRun('（续）'),
-        })
+      out += emitParagraph(ctx, bctx.appendix ? 'SesAppTblCapCont' : 'SesTblCapCont', {
+        pageBreakBefore: true,
+        runsXml: plainRun(label ? `${label}　` : '表　') + captionRuns + plainRun('（续）'),
+      })
     }
     out += renderTableGrid(ctx, {
       ...table,
       rows: [...(index === 0 ? headerRows : continuationHeaderRows), ...bodyRows],
       notes: lastSegment ? table.notes : [],
     }, {
-      captionXml: segmentCaption,
+      ...content,
+      strongTopBorder: true,
       keepTogether: true,
-      columnCount,
-      ...(columnLayout.custom ? { gridWidthsTwips: columnLayout.widths } : {}),
-      notesXml: lastSegment
-        ? () => table.notes.map((note) => renderNote(ctx, note, tableBctx, true)).join('')
-        : undefined,
-      footnotesXml: lastSegment
-        ? () => orderTableFootnotes(table.footnotes ?? [], ctx.labels).map((footnote) => {
-            const resolved = ctx.labels[footnote.id]
-            if (!resolved) throw new Error(`renderTable: 表脚注 "${footnote.id}" 在 labels 中没有编号`)
-            return emitParagraph(ctx, 'SesTableFootnote', {
-              runsXml: superscriptRun(resolved.refText) + tabRun() + renderInlines(footnote.content, ctx.labels),
-            })
-          }).join('')
-        : undefined,
-      renderCell(cell, styleId) {
-        if (cell.content.length === 0 || cell.content.every((block) => block.kind === 'paragraph' &&
-          // Empty source text may still render a footnote or a resolved cross-reference.
-          block.content.every((run) => renderRun({ ...run, text: run.text.trim() }, ctx.labels) === ''))) return ''
-        return cell.content.map((block) => block.kind === 'paragraph'
-          ? emitParagraph(ctx, styleId, { runsXml: renderInlines(block.content, ctx.labels) })
-          : renderBlock(ctx, block, tableBctx)).join('')
-      },
+      notesXml: lastSegment ? content.notesXml : undefined,
+      footnotesXml: lastSegment ? content.footnotesXml : undefined,
     })
   })
-  if (!nested) ctx.pageFlow.placeTable(pagination.segmentHeightsMm, pagination.startOnNewPage)
+  ctx.pageFlow.placeTable(pagination.segmentHeightsMm, pagination.startOnNewPage)
+  return out
+}
+
+type NaturalReason = 'unknown-position' | 'nested'
+
+/**
+ * Word 自然分页：整张表一个 w:tbl，不拆分、不写 w:br/pageBreakBefore。
+ * 仅用于页位置未知时的兜底与嵌套表；页位置已知的顶层表走 renderSplitTable。
+ * 表题与 split 一样是表外 keepNext 的独立段落，表头行从第 1 行起连续设 tblHeader 并逐页重复。
+ * 跨页时续页只有重复的列标题，没有「表X（续）」。
+ */
+function renderNaturalTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx, reason: NaturalReason): string {
+  // 只借用估算：判断是否可能跨页、有没有超高合并组；不使用其分段。
+  const plan = paginateTable(table)
+  const label = ctx.labels[table.id]?.label
+  const ref = tableRef(ctx, table)
+  const continuationName = label ? `「${label}（续）」表题` : '续表表题'
+  // 小表整体保留（keepNext），不会跨页，与拆分排法没有区别，也不必提醒。
+  const mayBreak = plan.totalHeightMm > SMALL_TABLE_MM
+  if (mayBreak && reason === 'unknown-position') {
+    warn(ctx, 'table-flow-natural-fallback',
+      `${ref} 之前的页位置无法可靠估算（公式高度、可拆分标题链或前面的自然分页表等），` +
+      `已改为 Word 自然分页：整表输出、表头逐页重复，续页没有${continuationName}，请在 Word 中复核分页并按需补写`,
+      table.id, label)
+  }
+  if (plan.oversizedGroup) {
+    warn(ctx, 'table-row-too-tall',
+      `${ref} 存在超出单页高度预算的跨行合并组，分页可能需要人工调整`, table.id, label)
+  }
+  const headerRowCount = Math.max(0, Math.min(Math.floor(table.headerRowCount), table.rows.length))
+  if (mayBreak && table.rows.slice(0, headerRowCount).some((row, rowIndex) =>
+      row.cells.some((cell) => cell.rowspan > headerRowCount - rowIndex))) {
+    warn(ctx, 'table-header-rowspan-pagination',
+      `${ref} 的表头单元格合并跨入数据行；自然分页时续页只重复前 ${headerRowCount} 个表头行，被合并的单元格会被截断，请在 Word 中核对`,
+      table.id, label)
+  }
+  const captionXml = emitTableCaption(ctx, table, bctx, renderInlines(table.caption, ctx.labels))
+  const tableBctx = { ...withScope(bctx, table.id), suppressLandscape: true }
+  const content = tableGridContent(ctx, table, tableBctx, resolveTableColumnWidths(table))
+  const out = captionXml + renderTableGrid(ctx, table, {
+    ...content,
+    keepTogether: !mayBreak,
+    keepEdges: mayBreak,
+    strongTopBorder: true,
+  })
+  if (reason !== 'nested') ctx.pageFlow.placeNaturalTable()
   return out
 }
 

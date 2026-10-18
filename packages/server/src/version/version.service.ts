@@ -4,8 +4,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, IsNull, Repository } from 'typeorm';
 import { WriteCoordinator } from '../common/write-coordinator';
+import { DocumentEntity } from '../document/document.entity';
 import { VERSION_SOURCES, VersionEntity } from './version.entity';
 
 /** client（写入方标识）的最大长度；operations 接口的 client 字段沿用同一上限。 */
@@ -41,6 +42,8 @@ export class VersionService {
   constructor(
     @InjectRepository(VersionEntity)
     private readonly versionRepo: Repository<VersionEntity>,
+    @InjectRepository(DocumentEntity)
+    private readonly documentRepo: Repository<DocumentEntity>,
     private readonly writes: WriteCoordinator,
   ) {}
 
@@ -54,12 +57,16 @@ export class VersionService {
    * （锁不可重入，会死锁）：事务内要读请用事务传入的 manager。
    */
   async findByDocument(documentId: number): Promise<VersionEntity[]> {
-    return this.writes.run(() =>
-      this.versionRepo.find({
+    return this.writes.run(async () => {
+      const active = await this.documentRepo.exist({
+        where: { id: documentId, deletedAt: IsNull() },
+      });
+      if (!active) throw new NotFoundException(`Document #${documentId} not found`);
+      return this.versionRepo.find({
         where: { documentId },
         order: { createdAt: 'DESC', id: 'DESC' },
-      }),
-    );
+      });
+    });
   }
 
   /** 单个版本的详情，含 baseContent（列表接口不返回）。同样经过写锁，约定见 {@link findByDocument}。 */
@@ -67,8 +74,10 @@ export class VersionService {
     const version = await this.writes.run(() =>
       this.versionRepo
         .createQueryBuilder('version')
+        .innerJoin('version.document', 'document')
         .addSelect('version.baseContent')
         .where('version.id = :id', { id })
+        .andWhere('document.deletedAt IS NULL')
         .getOne(),
     );
     if (!version) throw new NotFoundException(`Version #${id} not found`);
@@ -83,6 +92,13 @@ export class VersionService {
    * {@link createForAiWrite}，它使用事务传入的 manager。
    */
   async create(data: Partial<VersionEntity>): Promise<VersionEntity> {
+    if (
+      typeof data.documentId !== 'number' ||
+      !Number.isSafeInteger(data.documentId) ||
+      data.documentId <= 0
+    ) {
+      throw new BadRequestException('documentId 必须是正整数');
+    }
     // source 缺省为 human；给出时必须是已知取值。client 可空，仅作标识。
     if (
       data.source !== undefined &&
@@ -109,8 +125,25 @@ export class VersionService {
     ) {
       throw new BadRequestException('baseContent 必须是 JSON 对象');
     }
-    const version = this.versionRepo.create(data);
-    return this.writes.run(() => this.versionRepo.save(version));
+    // 仅复制 API 允许的字段，尤其忽略 id/createdAt/document，避免客户端显式 id 触发 upsert。
+    const version = this.versionRepo.create({
+      documentId: data.documentId,
+      versionNo: data.versionNo,
+      stage: data.stage,
+      content: data.content,
+      xml: data.xml,
+      note: data.note,
+      source: data.source,
+      client: data.client,
+      baseContent: data.baseContent,
+    });
+    return this.writes.run(async () => {
+      const active = await this.documentRepo.exist({
+        where: { id: data.documentId, deletedAt: IsNull() },
+      });
+      if (!active) throw new NotFoundException(`Document #${data.documentId} not found`);
+      return this.versionRepo.save(version);
+    });
   }
 
   /**

@@ -99,39 +99,57 @@
   counter-reset: std-example;
 }
 
+/*
+ * 条标题：一至五级（章内、附录内、带 data-resolved-label 编号的）统一字体、字重、字号与外边距。
+ * 必须按类名而不是 h3–h6 标签：clauseTitle 按级别渲染成 h3–h6，按标签写的规则只会作用到其中几级，
+ * 其余级别落到这里就会和一、二级不同（字体/字重/外边距不一致）。字体与编辑器其它黑体同用 --ses-font-zh-hei；
+ * 14px = 五号，与 DOCX 导出一致（SES_一至五级条标题同为黑体五号，GB/T 1.1—2020）。编号 ::before 继承标题，不再单独设字体。
+ */
 .std-clause-title {
-  font-family: 'SimHei', 'Heiti SC', sans-serif;
-  font-weight: bold;
-  margin: 0;
-}
-
-.std-clause-title-1 {
-  font-size: 15px;
-}
-
-.std-clause-title-2 {
+  font-family: var(--ses-font-zh-hei);
+  font-weight: 700;
   font-size: 14px;
+  margin: 12px 0 6px;
 }
 
-.std-clause-title-3,
-.std-clause-title-4,
-.std-clause-title-5 {
-  font-size: 14px;
-}
-
-/* 无题条：编号黑体，正文宋体 */
+/* 无题条：clauseTitle 只显示编号（黑体，不缩进）；条文在首个正文段（宋体） */
 .std-clause[data-has-title="false"] > .std-clause-title {
-  font-family: 'SimSun', 'Songti SC', serif;
-  font-weight: normal;
+  font-family: var(--ses-font-zh-hei);
+  font-weight: 700;
   font-size: 14px;
-  text-indent: 2em;
   line-height: 1.8;
 }
 
 /* 无题条编号（::before）保持黑体 */
 .std-clause[data-has-title="false"] > .std-clause-title::before {
-  font-family: 'SimHei', 'Heiti SC', sans-serif;
-  font-weight: bold;
+  font-family: var(--ses-font-zh-hei);
+  font-weight: 700;
+}
+
+/*
+ * 无题条采用 IR 模型：clauseTitle 为空（只显示编号），条文在紧随其后的首个正文段。
+ * 与导出的 DOCX/HTML 一致，编号与首段排在同一行：clauseTitle 左浮动，首段不缩进（编号顶格，
+ * 编号后的空格由 ::before 末尾的 \2003 提供）。附录内无题条与 data-resolved-label 编号共用同一元素，同样生效；
+ * 首块不是正文段（如列项、表格）时不浮动，编号仍单独成行。
+ */
+.std-clause[data-has-title="false"] > .std-clause-title:has(+ .std-paragraph) {
+  float: left;
+  margin: 0; /* 浮动元素不与相邻外边距折叠：与首段首行同一顶边 */
+  font-size: inherit;
+  line-height: 1.8; /* 与 .std-paragraph 同行高，编号与首行基线对齐 */
+  height: 1.8em; /* 恰好一行高：不挤占首段第二行（空标题的 <br> 与字体差异可能撑高行盒） */
+  text-indent: 0;
+}
+
+.std-clause[data-has-title="false"] > .std-clause-title + .std-paragraph {
+  text-indent: 0;
+}
+
+/* 浮动编号不应溢出到条之外（极短的首段、空段） */
+.std-clause[data-has-title="false"]::after {
+  content: '';
+  display: table;
+  clear: both;
 }
 
 /* 标准正文段落 */

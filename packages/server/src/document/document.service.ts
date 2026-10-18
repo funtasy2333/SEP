@@ -4,7 +4,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository, type UpdateQueryBuilder } from 'typeorm';
+import {
+  EntityManager,
+  IsNull,
+  In,
+  Not,
+  Repository,
+  type UpdateQueryBuilder,
+} from 'typeorm';
 import { WriteCoordinator } from '../common/write-coordinator';
 import { DocumentEntity } from './document.entity';
 import type { DocumentUpdateFields } from './document-update';
@@ -37,6 +44,17 @@ export type DocumentSummary = Pick<
   'id' | 'title' | 'stage' | 'revision' | 'updatedAt'
 >;
 
+/** 回收站只返回识别与恢复所需字段，不加载正文或版本。 */
+export type TrashDocumentSummary = Pick<
+  DocumentEntity,
+  'id' | 'title' | 'meta' | 'stage' | 'revision' | 'deletedAt'
+>;
+
+export interface TrashSnapshotEntry {
+  id: number;
+  revision: number;
+}
+
 @Injectable()
 export class DocumentService {
   /**
@@ -64,7 +82,10 @@ export class DocumentService {
 
   async findAll(): Promise<DocumentEntity[]> {
     return this.writes.run(() =>
-      this.docRepo.find({ order: { updatedAt: 'DESC' } }),
+      this.docRepo.find({
+        where: { deletedAt: IsNull() },
+        order: { updatedAt: 'DESC' },
+      }),
     );
   }
 
@@ -82,6 +103,7 @@ export class DocumentService {
           revision: true,
           updatedAt: true,
         },
+        where: { deletedAt: IsNull() },
         order: { updatedAt: 'DESC', id: 'DESC' },
       }),
     );
@@ -92,17 +114,41 @@ export class DocumentService {
     return this.writes.run(() => this.findOneIn(this.docRepo, id));
   }
 
+  /** 回收站摘要只包含删除态文档；未选择 content 与 versions，避免读取大正文。 */
+  async findTrash(): Promise<TrashDocumentSummary[]> {
+    return this.writes.run(() =>
+      this.docRepo.find({
+        select: {
+          id: true,
+          title: true,
+          meta: true,
+          stage: true,
+          revision: true,
+          deletedAt: true,
+        },
+        where: { deletedAt: Not(IsNull()) },
+        order: { deletedAt: 'DESC', id: 'DESC' },
+      }),
+    );
+  }
+
   /** 只确认文档存在（不读取正文）；不存在抛 404。同样排在在途事务之后；不可在锁内调用。 */
   async assertExists(id: number): Promise<void> {
     const found = await this.writes.run(() =>
-      this.docRepo.exists({ where: { id } }),
+      this.docRepo.exists({ where: { id, deletedAt: IsNull() } }),
     );
     if (!found) throw new NotFoundException(`Document #${id} not found`);
   }
 
   async create(data: Partial<DocumentEntity>): Promise<DocumentEntity> {
-    // 新文档的修订号固定从 0 开始，不接受客户端指定。
-    const doc = this.docRepo.create({ ...data, revision: 0 });
+    // 只接收文档内容字段：忽略 id / deletedAt / revision / timestamps / relations，避免 upsert 或复活旧行。
+    const doc = this.docRepo.create({
+      title: data.title,
+      meta: data.meta,
+      stage: data.stage,
+      content: data.content,
+      revision: 0,
+    });
     return this.writes.run(() => this.docRepo.save(doc));
   }
 
@@ -178,20 +224,102 @@ export class DocumentService {
       revision: doc.revision,
       source: origin.source,
       ...(origin.client === undefined ? {} : { client: origin.client }),
+      ...(origin.lifecycle === undefined ? {} : { lifecycle: origin.lifecycle }),
       at: new Date().toISOString(),
     });
   }
 
-  /**
-   * 删除文档（版本记录随外键级联删除）。「存在性检查 → 删除」在同一次持锁期间完成：
-   * 若某个事务正在进行，本调用排在它之后，事务回滚或提交都不会影响这次删除的结果。
-   * 持锁期间的存在性检查用不加锁的 {@link findOneIn}：{@link findOne} 自己要取锁，在这里调用会死锁。
-   */
+  /** 将活动文档移入回收站；正文与版本均保留，deletedAt/revision 在同一持锁操作中更新。 */
   async remove(id: number): Promise<void> {
-    await this.writes.run(async () => {
-      await this.findOneIn(this.docRepo, id);
-      await this.docRepo.delete(id);
+    const deleted = await this.writes.run(async () => {
+      const current = await this.findOneIn(this.docRepo, id);
+      const deletedAt = new Date();
+      const result = await this.docRepo
+        .createQueryBuilder()
+        .update(DocumentEntity)
+        .set({ deletedAt, revision: () => 'revision + 1' } as DocumentSetValues)
+        .where('id = :id AND revision = :revision AND deletedAt IS NULL', {
+          id,
+          revision: current.revision,
+        })
+        .execute();
+      if (result.affected !== 1) throw new NotFoundException(`Document #${id} not found`);
+      return { id, revision: current.revision + 1 };
     });
+    this.publishChange(deleted, { source: 'human', lifecycle: 'deleted' });
+  }
+
+  /** 恢复原文档，不重建正文或版本；revision 增加，令删除前页面的保存请求失效。 */
+  async restore(id: number): Promise<DocumentEntity> {
+    const restored = await this.writes.run(async () => {
+      const current = await this.findStoredOneIn(this.docRepo, id);
+      if (current.deletedAt === null) {
+        throw new ConflictException(`Document #${id} is not in the trash`);
+      }
+      const result = await this.docRepo
+        .createQueryBuilder()
+        .update(DocumentEntity)
+        .set({ deletedAt: null, revision: () => 'revision + 1' } as DocumentSetValues)
+        .where('id = :id AND revision = :revision AND deletedAt IS NOT NULL', {
+          id,
+          revision: current.revision,
+        })
+        .execute();
+      if (result.affected !== 1) throw new ConflictException(`Document #${id} changed while restoring`);
+      return this.findOneIn(this.docRepo, id);
+    });
+    this.publishChange(restored, { source: 'human', lifecycle: 'restored' });
+    return restored;
+  }
+
+  /** 仅永久删除仍在回收站且 revision 与确认时一致的文档。 */
+  async permanentDelete(id: number, baseRevision: number): Promise<void> {
+    await this.writes.run(() =>
+      this.docRepo.manager.transaction(async (manager) => {
+        const repo = manager.getRepository(DocumentEntity);
+        const current = await this.findStoredOneIn(repo, id);
+        if (current.deletedAt === null) {
+          throw new ConflictException(`Document #${id} is not in the trash`);
+        }
+        if (current.revision !== baseRevision) {
+          throw new ConflictException({
+            statusCode: 409,
+            error: 'Conflict',
+            message: `Document #${id} changed after trash confirmation`,
+            revision: current.revision,
+          });
+        }
+        await repo.delete(id);
+      }),
+    );
+  }
+
+  /**
+   * 原子地清空用户确认时的快照：先在同一写锁与事务里校验整批状态，再删除快照内所有文档。
+   * 快照之后新移入回收站的文档不在 ids 中，不会被清理。
+   */
+  async emptyTrash(snapshot: TrashSnapshotEntry[]): Promise<void> {
+    if (snapshot.length === 0) return;
+    await this.writes.run(() =>
+      this.docRepo.manager.transaction(async (manager) => {
+        const repo = manager.getRepository(DocumentEntity);
+        const ids = snapshot.map((entry) => entry.id);
+        const current = await repo.find({
+          select: { id: true, revision: true, deletedAt: true },
+          where: { id: In(ids) },
+        });
+        const byId = new Map(current.map((doc) => [doc.id, doc]));
+        for (const entry of snapshot) {
+          const doc = byId.get(entry.id);
+          if (!doc || doc.deletedAt === null || doc.revision !== entry.revision) {
+            throw new ConflictException(
+              `Trash snapshot is stale for document #${entry.id}`,
+            );
+          }
+        }
+        await repo.delete(ids);
+      }),
+    );
   }
 
   /**
@@ -202,7 +330,20 @@ export class DocumentService {
     repo: Repository<DocumentEntity>,
     id: number,
   ): Promise<DocumentEntity> {
-    const doc = await repo.findOne({ where: { id } });
+    const doc = await repo.findOne({ where: { id, deletedAt: IsNull() } });
+    if (!doc) throw new NotFoundException(`Document #${id} not found`);
+    return doc;
+  }
+
+  /** 回收站生命周期操作所用的内部查询；允许取到已删除行，且不另加写锁。 */
+  private async findStoredOneIn(
+    repo: Repository<DocumentEntity>,
+    id: number,
+  ): Promise<DocumentEntity> {
+    const doc = await repo.findOne({
+      select: { id: true, revision: true, deletedAt: true },
+      where: { id },
+    });
     if (!doc) throw new NotFoundException(`Document #${id} not found`);
     return doc;
   }
@@ -217,13 +358,16 @@ export class DocumentService {
       .createQueryBuilder()
       .update(DocumentEntity)
       .set({ ...data, revision: () => 'revision + 1' } as DocumentSetValues)
-      .where('id = :id AND revision = :baseRevision', { id, baseRevision })
+      .where('id = :id AND revision = :baseRevision AND deletedAt IS NULL', {
+        id,
+        baseRevision,
+      })
       .execute();
     if (result.affected === 1) return this.findOneIn(repo, id);
 
     // 没有匹配到行：区分「文档不存在」与「revision 已变化」。
     const current = await repo.findOne({
-      where: { id },
+      where: { id, deletedAt: IsNull() },
       select: { id: true, revision: true },
     });
     if (!current) throw new NotFoundException(`Document #${id} not found`);

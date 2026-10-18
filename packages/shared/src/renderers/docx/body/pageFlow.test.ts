@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createPageFlow } from './pageFlow'
+import { createPageFlow, paragraphHeightMm } from './pageFlow'
 import { createRenderContext, emitParagraph } from './context'
 import { ABSTRACT_NUM_ID } from '../numbering'
 
@@ -40,8 +40,21 @@ describe('正文页余量估算', () => {
     expect(flow.availableMm).toBe(available)
     flow.placeTable([100, 80], false)
     expect(flow.availableMm).toBe(158)
-    flow.beforeTable()
-    expect(flow.availableMm!).toBeLessThan(153)
+    // 相邻顶层表之间没有分隔空段（表题段把两表隔开，其高度已计入下一张表的段高）：
+    // 查询下一张表的预算不再额外扣除一个空行。
+    expect(flow.beforeTable().firstPageHeightMm).toBe(158)
+    expect(flow.availableMm).toBe(158)
+  })
+
+  it('表外表题段的高度估算与 recordParagraph 记账同源：段前 + 折行 × 行高 + 段后', () => {
+    for (const text of ['短题', '长题注'.repeat(30), '第一行\n第二行']) {
+      for (const styleId of ['SesTblCap', 'SesAppTblCap', 'SesTblCapCont', 'SesAppTblCapCont']) {
+        const flow = createPageFlow(); flow.startSection()
+        flow.recordParagraph(styleId, run(text.replace('\n', '</w:t><w:br/><w:t>')), false)
+        // 页首起排：前一段后距为 0，整段高度（含段前）计入余量；keepNext 的待定链按预测值扣除。
+        expect(238 - flow.availableMm!).toBeCloseTo(paragraphHeightMm(styleId, text), 6)
+      }
+    }
   })
 
   it('连续横排块共享页余量，切回竖排后从新节开始', () => {
@@ -84,7 +97,7 @@ describe('正文页余量估算', () => {
     flow.recordParagraph('SesPara', content, false)
     expect(flow.availableMm).toBeUndefined()
     expect(flow.estimateUnavailable).toBe(true)
-    expect(flow.beforeTable().forceStartOnNewPage).toBe(true)
+    expect(flow.beforeTable().positionUnknown).toBe(true)
     flow.recordParagraph('SesPara', run('后续普通文字'), false)
     expect(flow.availableMm).toBeUndefined()
     flow.placeTable([80], true)
@@ -97,7 +110,7 @@ describe('正文页余量估算', () => {
     const content = Array.from({ length: 4 }, (_, i) => run(`正文第${i+1}行`)).join('<w:r><w:br/></w:r>')
     flow.recordParagraph('SesPara', content + '<w:r><w:footnoteReference w:id="1"/></w:r>', false)
     expect(flow.availableMm).toBeUndefined()
-    expect(flow.beforeTable().forceStartOnNewPage).toBe(true)
+    expect(flow.beforeTable().positionUnknown).toBe(true)
   })
   it('DrawingML的真实高度参与后续余量，不将图片当一行空文字', () => {
     const flow = createPageFlow(); flow.startSection()
@@ -139,7 +152,7 @@ describe('复审：同页链与有效列项缩进', () => {
         ? '<w:r><w:footnoteReference w:id="1"/></w:r>' : '')).join('<w:r><w:br/></w:r>')
     flow.recordParagraph('SesPara', content, false)
     expect(flow.availableMm).toBeUndefined()
-    expect(flow.beforeTable().forceStartOnNewPage).toBe(true)
+    expect(flow.beforeTable().positionUnknown).toBe(true)
     flow.recordParagraph('SesPara', run('继续正文'), false)
     expect(flow.availableMm).toBeUndefined()
     flow.placeTable([80], true)
@@ -159,7 +172,7 @@ describe('复审：同页链与有效列项缩进', () => {
     flow.recordParagraph('SesChapter', run('章标题'), true)
     flow.recordParagraph('SesPara', run('第一行') + '<w:r><w:br/></w:r>' + run('第二行'), false)
     expect(flow.availableMm).toBeDefined()
-    expect(flow.beforeTable().forceStartOnNewPage).toBe(false)
+    expect(flow.beforeTable().positionUnknown).toBe(false)
   })
   it.each(['first', 'middle', 'wrapping-footnote'])('溢出链中%s位置的可拆分长标题使最终落页未知', position => {
     const flow = createPageFlow(); flow.startSection(); flow.setFootnoteHeights(new Map([[1, 12]]))
@@ -171,7 +184,7 @@ describe('复审：同页链与有效列项缩进', () => {
     flow.recordParagraph(position === 'middle' ? 'SesClause1' : 'SesChapter', long, true)
     flow.recordParagraph('SesPara', run('单行后续正文'), false)
     expect(flow.availableMm).toBeUndefined()
-    expect(flow.beforeTable().forceStartOnNewPage).toBe(true)
+    expect(flow.beforeTable().positionUnknown).toBe(true)
     flow.placeTable([80], true)
     expect(flow.availableMm).toBe(158)
   })
@@ -180,13 +193,38 @@ describe('复审：同页链与有效列项缩进', () => {
     flow.recordParagraph('SesChapter', run('第一行') + '<w:r><w:br/></w:r>' + run('第二行'), true)
     flow.recordParagraph('SesPara', run('单行正文'), false)
     expect(flow.availableMm).toBeDefined()
-    expect(flow.beforeTable().forceStartOnNewPage).toBe(false)
+    expect(flow.beforeTable().positionUnknown).toBe(false)
   })
-  it('直接接表的待定长标题已超过旧页余量时，要求真实新页起排', () => {
+  it('直接接表的待定长标题已超过旧页余量时，首段按整链落新页保守估算，不再要求位置未知或强制分页', () => {
     const flow = createPageFlow(); flow.startSection(); flow.placeTable([180], false)
     flow.recordParagraph('SesChapter', Array.from({ length: 12 }, (_, i) => run(`长标题第${i + 1}行`)).join('<w:r><w:br/></w:r>'), true)
-    expect(flow.beforeTable().firstPageHeightMm).toBeUndefined()
-    expect(flow.beforeTable().forceStartOnNewPage).toBe(true)
+    const budget = flow.beforeTable()
+    expect(budget.firstPageHeightMm).toBeUndefined()
+    expect(budget.firstPageReservedMm).toBeGreaterThan(0)
+    expect(budget.positionUnknown).toBe(false)
+  })
+  it('placeNaturalTable 之后页位置保持未知，直到新节或横竖切换才恢复', () => {
+    const flow = createPageFlow(); flow.startSection()
+    flow.recordParagraph('SesChapter', run('章标题'), true)
+    flow.placeNaturalTable()
+    expect(flow.availableMm).toBeUndefined()
+    flow.recordParagraph('SesPara', run('自然分页表后的正文'), false)
+    expect(flow.beforeTable().positionUnknown).toBe(true)
+    flow.withElement(true, () => expect(flow.beforeTable().positionUnknown).toBe(false))
+    flow.startSection()
+    expect(flow.beforeTable().positionUnknown).toBe(false)
+    expect(flow.availableMm).toBe(238)
+  })
+  it('位置未知的页流在紧邻下一张表前不会因表间空行跨页而被误当成新页起点', () => {
+    const flow = createPageFlow(); flow.startSection()
+    flow.placeTable([236], false) // 旧页几乎写满：5.5 mm 的表间空行本会跨页并 nextPage()
+    flow.placeNaturalTable()
+    expect(flow.beforeTable().positionUnknown).toBe(true)
+    expect(flow.estimateUnavailable).toBe(true)
+  })
+  it('页流未启用（封面、目次）时不视为位置未知', () => {
+    const flow = createPageFlow()
+    expect(flow.beforeTable().positionUnknown).toBe(false)
   })
   it('中途读取余量不截断同页链，移页后脚注只预留一次', () => {
     const near = createPageFlow(); near.setFootnoteHeights(new Map([[1, 12]])); near.startSection(); near.placeTable([178], false)

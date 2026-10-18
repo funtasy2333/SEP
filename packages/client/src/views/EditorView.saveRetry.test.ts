@@ -8,6 +8,8 @@ import { createWp6Fixture } from '../extensions/__fixtures__/wp6'
 const mocks = vi.hoisted(() => ({
   store: {
     currentDocument: null as any,
+    isDocumentUnavailable: vi.fn(),
+    markDocumentUnavailable: vi.fn(),
     fetchDocument: vi.fn(),
     updateDocument: vi.fn(),
   },
@@ -93,6 +95,8 @@ async function flushMicrotasks() {
 
 async function mountEditor() {
   mocks.store.currentDocument = createDocument()
+  mocks.store.isDocumentUnavailable.mockReset().mockReturnValue(false)
+  mocks.store.markDocumentUnavailable.mockReset()
   mocks.store.fetchDocument.mockReset().mockResolvedValue(undefined)
   mocks.store.updateDocument.mockReset()
   mocks.documentApiUpdate.mockReset().mockResolvedValue(undefined)

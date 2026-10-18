@@ -7,6 +7,8 @@ import EditorView from './EditorView.vue'
 const mocks = vi.hoisted(() => ({
   store: {
     currentDocument: null as any,
+    isDocumentUnavailable: vi.fn(),
+    markDocumentUnavailable: vi.fn(),
     fetchDocument: vi.fn(),
     readDocument: vi.fn(),
     adoptDocument: vi.fn(),
@@ -155,6 +157,8 @@ async function settle() {
 
 async function mountEditor() {
   mocks.store.currentDocument = createDocument()
+  mocks.store.isDocumentUnavailable.mockReset().mockReturnValue(false)
+  mocks.store.markDocumentUnavailable.mockReset()
   mocks.store.fetchDocument.mockReset().mockResolvedValue(undefined)
   mocks.store.readDocument.mockReset()
   // 与真实 store 一致：adoptDocument 把读到的文档装为当前文档（这里只模拟「revision 前进」的成功情形）。

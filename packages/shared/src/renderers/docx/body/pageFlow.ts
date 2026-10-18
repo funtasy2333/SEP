@@ -32,8 +32,58 @@ function lines(text: string, capacity: number, firstCapacity: number): number {
 export interface ParagraphFlowOptions {
   numberingIndent?: string
   indent?: { left: number; hanging: number }
-  pageBreakBefore?: boolean
-  forcePageBreakBefore?: () => void
+}
+
+interface TextMeasure {
+  lineCount: number
+  contentHeight: number
+  before: number
+  after: number
+}
+
+/**
+ * 按样式（字号、缩进、行距/网格、段前段后）与版心宽度估算一段纯文本的高度。
+ * recordParagraph 与表题高度估算（paragraphHeightMm）共用，不另设常数。
+ */
+function measureText(
+  spec: ReturnType<typeof styleSpecs>[number], text: string, numbered: boolean, landscape: boolean,
+  options: ParagraphFlowOptions = {},
+): TextMeasure {
+  const fontMm = ((spec.sz ?? 21) / 2) * MM_PER_POINT
+  const effective = (name: string) => {
+    const source = options.numberingIndent?.includes(`w:${name}=`) ? options.numberingIndent : spec.ind
+    return attr(source, name)
+  }
+  const left = options.indent?.left ?? effective('left')
+  const right = effective('right')
+  const firstIndent = (options.indent ? 0 : effective('firstLine')) / 20 * MM_PER_POINT
+  // Hanging indentation locates the marker; Word's body text and every wrapped line
+  // begin at the left indent. Keep the conservative marker deduction on the first line.
+  const width = (landscape ? 252 : 165) - (left + right) / 20 * MM_PER_POINT
+  const capacityUnits = Math.max(4, width / fontMm)
+  const firstUnits = Math.max(4, (width - firstIndent) / fontMm - (numbered ? 5 : 0))
+  const lineCount = lines(text, capacityUnits, firstUnits)
+  const exactLine = attr(spec.spacing, 'line') / 20 * MM_PER_POINT
+  const lineHeight = exactLine || (spec.snapToGridOff ? fontMm * 1.25 : GRID_LINE_MM)
+  return {
+    lineCount,
+    contentHeight: lineCount * lineHeight,
+    before: attr(spec.spacing, 'before') / 20 * MM_PER_POINT,
+    after: attr(spec.spacing, 'after') / 20 * MM_PER_POINT,
+  }
+}
+
+/**
+ * 一个独立段落（如表外的表题/续表题段）的完整高度，单位 mm：段前 + 行高 × 折行数 + 段后，
+ * 不与相邻段落的间距折叠（取保守的上界）。`landscape` 选横排版心宽度；样式未知时抛错，不退回猜测常数。
+ */
+export function paragraphHeightMm(
+  styleId: string, text: string, options: ParagraphFlowOptions & { landscape?: boolean; numbered?: boolean } = {},
+): number {
+  const spec = specs.get(styleId)
+  if (!spec) throw new Error(`paragraphHeightMm: 未知样式 "${styleId}"`)
+  const measured = measureText(spec, text, options.numbered ?? false, options.landscape ?? false, options)
+  return measured.before + measured.contentHeight + measured.after
 }
 
 interface ParagraphMeasure {
@@ -43,7 +93,11 @@ interface ParagraphMeasure {
   after: number
   atomic: boolean
   ids: number[]
-  forcePageBreakBefore?: () => void
+}
+
+/** 表前预算。`positionUnknown` 时调用方不得再按估算拆表，应整表交给 Word 自然分页（不写强制分页）。 */
+export interface TableFlowBudget extends TablePaginationOptions {
+  positionUnknown: boolean
 }
 
 export interface PageFlow {
@@ -56,9 +110,10 @@ export interface PageFlow {
   suspend<T>(render: () => T): T
   /** Returns true only while this paragraph is retained in a pending keepNext chain. */
   recordParagraph(styleId: string, runsXml: string, numbered: boolean, options?: ParagraphFlowOptions): boolean
-  beforeTable(): TablePaginationOptions
-  breakBeforePendingChain(onlyIfSplittable?: boolean): boolean
+  beforeTable(): TableFlowBudget
   placeTable(heightsMm: readonly number[], startOnNewPage: boolean): void
+  /** 整表交给 Word 自然分页：高度与终止位置都不可推断，此后页位置未知，直到换节/换向。 */
+  placeNaturalTable(): void
   setFootnoteHeights(heights: ReadonlyMap<number, number>): void
 }
 
@@ -75,7 +130,6 @@ export function createPageFlow(): PageFlow {
   let previousAfter = 0
   let paused = 0
   let elementDepth = 0
-  let lastWasTable = false
   let footnoteHeight = 0
   let footnotes = new Set<number>()
   let definitionHeights: ReadonlyMap<number, number> = new Map()
@@ -83,7 +137,6 @@ export function createPageFlow(): PageFlow {
   const remaining = () => Math.max(0, capacity() - used - footnoteHeight)
   const nextPage = () => {
     used = 0
-    lastWasTable = false
     previousAfter = 0
     footnoteHeight = 0
     footnotes = new Set()
@@ -152,14 +205,14 @@ export function createPageFlow(): PageFlow {
   }
   function projectedRemaining(): number | undefined {
     if (!active || !known) return undefined
-    const saved = {used, previousAfter, footnoteHeight, footnotes, known, lastWasTable, pending}
+    const saved = {used, previousAfter, footnoteHeight, footnotes, known, pending}
     footnotes = new Set(footnotes)
     flushPending()
     const result = known ? remaining() : undefined
-    ;({used, previousAfter, footnoteHeight, footnotes, known, lastWasTable, pending} = saved)
+    ;({used, previousAfter, footnoteHeight, footnotes, known, pending} = saved)
     return result
   }
-  function tableOptions(): TablePaginationOptions {
+  function tableOptions(): TableFlowBudget {
     const chainHeight = (previous: number) => {
       let height = 0
       for (const paragraph of pending) {
@@ -175,14 +228,17 @@ export function createPageFlow(): PageFlow {
         (added.length > 0 && (fresh || footnotes.size === 0) ? 6 : 0)
     }
     const firstPageReservedMm = chainHeight(0) + reserve(true)
-    // A pending multi-line heading can wrap before a directly following table.
-    // Request a real break before the chain rather than assume it relocates intact.
+    // 页位置未知（known=false：公式、未知样式、可拆 keepNext 链溢出、前面有自然分页表……，
+    // 或待定链高不小于一页）时不再推断旧页余量，也不再写任何强制分页：调用方整表退回 Word 自然分页。
+    const positionUnknown = active && (!known || firstPageReservedMm >= capacity())
+    // 待定的多行标题链已超出旧页余量时，首段不能从旧页起排：按整链连同首段落在新页保守估算，
+    // 实际移页交给 keepNext（链首可拆行可能留在旧页，但新页预算已扣除整链，不会溢出）。
     const pendingOverflow = pending.some(canSplit) && chainHeight(previousAfter) + reserve(false) > remaining()
-    const unavailable = active && (!known || firstPageReservedMm >= capacity() || pendingOverflow)
     return {
-      firstPageHeightMm: active && !unavailable ? Math.max(0, remaining() - chainHeight(previousAfter) - reserve(false)) : undefined,
+      firstPageHeightMm: active && !positionUnknown && !pendingOverflow
+        ? Math.max(0, remaining() - chainHeight(previousAfter) - reserve(false)) : undefined,
       firstPageReservedMm,
-      forceStartOnNewPage: unavailable,
+      positionUnknown,
     }
   }
   return {
@@ -204,55 +260,35 @@ export function createPageFlow(): PageFlow {
     recordParagraph(styleId, runsXml, numbered, options = {}) {
       if (!active || paused > 0) return false
       if (elementDepth === 0) setOrientation(false)
-      if (options.pageBreakBefore) { flushPending(); nextPage() }
-      lastWasTable = false
       // OMML's physical height depends on its layout. Do not turn an unknown formula into
-      // a made-up page position; the next table will use the existing fresh-page fallback.
+      // a made-up page position; the next table falls back to Word's natural pagination.
       if (styleId === 'SesFormula' || runsXml.includes('<m:oMath')) { flushPending(); known = false; return false }
       const spec = specs.get(styleId)
       if (!spec) { flushPending(); known = false; return false }
-      const fontMm = ((spec.sz ?? 21) / 2) * MM_PER_POINT
       const text = [...runsXml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:br\b[^>]*\/>|<w:tab\/>/g)]
         .map(match => match[0].startsWith('<w:br') ? '\n' : match[0] === '<w:tab/>' ? '　' : decode(match[1] ?? '')).join('')
-      const effective = (name: string) => {
-        const source = options.numberingIndent?.includes(`w:${name}=`) ? options.numberingIndent : spec.ind
-        return attr(source, name)
-      }
-      const left = options.indent?.left ?? effective('left')
-      const right = effective('right')
-      const firstIndent = (options.indent ? 0 : effective('firstLine')) / 20 * MM_PER_POINT
-      // Hanging indentation locates the marker; Word's body text and every wrapped line
-      // begin at the left indent. Keep the conservative marker deduction on the first line.
-      const width = (landscape ? 252 : 165) - (left + right) / 20 * MM_PER_POINT
-      const capacityUnits = Math.max(4, width / fontMm)
-      const firstUnits = Math.max(4, (width - firstIndent) / fontMm - (numbered ? 5 : 0))
-      const count = lines(text, capacityUnits, firstUnits)
-      const exactLine = attr(spec.spacing, 'line') / 20 * MM_PER_POINT
-      const lineHeight = exactLine || (spec.snapToGridOff ? fontMm * 1.25 : GRID_LINE_MM)
-      const before = attr(spec.spacing, 'before') / 20 * MM_PER_POINT
-      const after = attr(spec.spacing, 'after') / 20 * MM_PER_POINT
+      const { lineCount, contentHeight, before, after } = measureText(spec, text, numbered, landscape, options)
       const imageHeight = Number(/<wp:extent\b[^>]*\bcy="([0-9]+)"/.exec(runsXml)?.[1] ?? 0) / 36000
       const ids = [...runsXml.matchAll(/<w:footnoteReference\b[^>]*w:id="([0-9]+)"/g)].map(match => Number(match[1]))
       pending.push({
-        contentHeight: imageHeight > 0 ? imageHeight + 3 : count * lineHeight,
-        lineCount: count,
-        before, after, ids, forcePageBreakBefore: options.forcePageBreakBefore,
+        contentHeight: imageHeight > 0 ? imageHeight + 3 : contentHeight,
+        lineCount,
+        before, after, ids,
         atomic: spec.keepLines === true || imageHeight > 0,
       })
       if (!spec.keepNext) { flushPending(); return false }
       return true
     },
     beforeTable() {
-      if (active && lastWasTable) advance(GRID_LINE_MM, false)
-      lastWasTable = false
+      // 相邻顶层表之间不再有空段：每张表前都是自己的表题段（或续表题段）把两个 w:tbl 隔开，
+      // 其高度已计入表段高度（tablePagination 的 captionHeight），这里不再为分隔空行记账。
       return tableOptions()
     },
-    breakBeforePendingChain(onlyIfSplittable = false) {
-      if (onlyIfSplittable && !pending.some(canSplit)) return false
-      const force = pending[0]?.forcePageBreakBefore
-      if (!force) return false
-      force()
-      return true
+    placeNaturalTable() {
+      if (!active) return
+      flushPending()
+      known = false
+      previousAfter = 0
     },
     placeTable(heights, startOnNewPage) {
       if (!active) return
@@ -271,7 +307,6 @@ export function createPageFlow(): PageFlow {
         if (index === 0 && !startOnNewPage && !wasKnown) known = false
       })
       previousAfter = 0
-      lastWasTable = true
     },
   }
 }

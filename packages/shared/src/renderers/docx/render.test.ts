@@ -117,7 +117,7 @@ describe('空文档（无章、无附录、无参考文献、无前言引言）'
 
 
 describe('不可测公式后的标题同页链', () => {
-  it('强制分页写在第一条标题前，表题不截断两条标题的同页链', () => {
+  it('不写任何强制分页：两条标题与表题的 keepNext 链完整保留，短表整体保留且不告警', () => {
     const table: IRTable = { kind: 'table', id: 'forced-table', orientation: 'portrait',
       caption: [{ text: '公式后短表' }], headerRowCount: 0, notes: [], rows: [{ id: 'row', cells: [
         { id: 'cell', colspan: 1, rowspan: 1, header: false, content: [
@@ -141,11 +141,13 @@ describe('不可测公式后的标题同页链', () => {
     const first = sameTitles[1]!
     const second = paragraphs.find(p => p.includes('SesClause2') && p.includes('第二条标题'))!
     const caption = paragraphs.find(p => p.includes('SesTblCap'))!
-    expect(first).toContain('<w:pageBreakBefore/>')
+    expect(first).not.toContain('<w:pageBreakBefore/>')
     expect(second).not.toContain('<w:pageBreakBefore/>')
     expect(caption).not.toContain('<w:pageBreakBefore/>')
+    expect(pkg.parts['word/document.xml']).not.toContain('pageBreakBefore')
     expect(pkg.parts['word/document.xml']).not.toContain('<!--ses-')
-    expect(pkg.warnings.filter(w => w.code === 'table-flow-estimate-unavailable')).toHaveLength(1)
+    // 短表不会跨页：既无旧的 table-flow-estimate-unavailable，也无自然分页告警。
+    expect(pkg.warnings.filter(w => w.code.startsWith('table-'))).toEqual([])
     expect(() => assertChildOrder(pkg)).not.toThrow()
     expect(() => assertWellFormed(pkg)).not.toThrow()
   })

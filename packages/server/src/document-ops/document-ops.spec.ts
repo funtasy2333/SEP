@@ -227,7 +227,9 @@ describe('文档操作层', () => {
       });
 
       expect((await getDoc(id)).revision).toBe(0);
-      expect(await getVersions(id)).toEqual([]);
+      expect(
+        await t.dataSource.query('SELECT id FROM versions WHERE documentId = ?', [id]),
+      ).toEqual([]);
       expect(events).toEqual([]);
     });
 
@@ -1390,6 +1392,41 @@ describe('文档操作层', () => {
       }
     });
 
+    it('operations prepare 后文档移入回收站时，事务条件更新拒绝旧快照且不写 AI 版本', async () => {
+      const id = await createDoc();
+      const internals = t.ops as unknown as {
+        prepare: (docId: number, action: string) => Promise<{
+          revision: number;
+          content: Record<string, unknown>;
+          stage: string;
+        }>;
+      };
+      const originalPrepare = internals.prepare.bind(t.ops);
+      jest.spyOn(internals, 'prepare').mockImplementationOnce(async (docId, action) => {
+        const prepared = await originalPrepare(docId, action);
+        // 精确模拟 prepare 返回之后、operations 开启事务之前发生的 DELETE。
+        await t.documents.remove(docId);
+        return prepared;
+      });
+
+      await postOps(id, {
+        baseRevision: 0,
+        source: 'ai',
+        operations: [{ op: 'delete', nodeId: 'p-extra' }],
+      }).expect(404);
+
+      await t.http.get(`/api/versions/document/${id}`).expect(404);
+      expect(
+        await t.dataSource.query('SELECT id FROM versions WHERE documentId = ?', [id]),
+      ).toEqual([]);
+      const rows: Array<{ deletedAt: string | null }> = await t.dataSource.query(
+        'SELECT deletedAt FROM documents WHERE id = ?',
+        [id],
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.deletedAt).toEqual(expect.any(String));
+    });
+
     it('版本记录先于文档更新失败也不留下部分结果（反向：文档更新抛 409 时不写版本）', async () => {
       const id = await createDoc();
       const events = collectEvents(id);
@@ -1503,7 +1540,7 @@ describe('文档操作层', () => {
       return { entered: entered.promise, seen };
     }
 
-    it('operations 事务让出事件循环时到达的 DELETE 排在事务之后：operations 成功，文档随后被删除，不会复活，没有 500', async () => {
+    it('operations 事务让出事件循环时到达的 DELETE 排在事务之后：operations 成功，文档随后移入回收站，没有 500', async () => {
       const id = await createDoc();
       const events = collectEvents(id);
       const deleteReached = deferred();
@@ -1525,10 +1562,18 @@ describe('文档操作层', () => {
       expect(opsRes.status).toBe(200);
       expect((opsRes.body as OpsBody).versionId).toBeDefined();
       expect(delRes.status).toBe(200);
-      expect(events).toHaveLength(1);
-      // 文档确实被删除（没有因为事务回滚而复活），版本随外键级联删除。
+      expect(events).toHaveLength(2);
+      expect(events[0]).toMatchObject({ source: 'ai', revision: 1 });
+      expect(events[1]).toMatchObject({
+        source: 'human',
+        lifecycle: 'deleted',
+        revision: 2,
+      });
+      // 文档确实进入回收站（没有因为事务回滚而复活），AI 版本随它保留。
       await t.http.get(`/api/documents/${id}`).expect(404);
-      expect(await t.dataSource.query(`SELECT id FROM versions`)).toEqual([]);
+      expect(
+        await t.dataSource.query('SELECT id, documentId FROM versions WHERE documentId = ?', [id]),
+      ).toHaveLength(1);
     });
 
     it('operations 事务回滚期间并发的 POST /documents、POST /versions、DELETE 都不会被一起回滚', async () => {

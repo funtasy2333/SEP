@@ -101,9 +101,9 @@ class FakeEventSource {
     this.readyState = 1
     this.emit('open')
   }
-  push(revision: number, source: 'human' | 'ai' | 'system', client?: string) {
+  push(revision: number, source: 'human' | 'ai' | 'system', client?: string, lifecycle?: 'deleted' | 'restored') {
     this.emit('document-changed', {
-      data: JSON.stringify({ documentId: 17, revision, source, ...(client ? { client } : {}), at: '2026-10-13T00:00:00.000Z' }),
+      data: JSON.stringify({ documentId: 17, revision, source, ...(client ? { client } : {}), ...(lifecycle ? { lifecycle } : {}), at: '2026-10-13T00:00:00.000Z' }),
     })
   }
 }
@@ -271,6 +271,75 @@ afterEach(() => {
 })
 
 describe('无未保存修改：自动载入', () => {
+  it('删除事件冻结干净编辑器时不把程序性冻结标成正文修改', async () => {
+    const view = await mountEditor()
+    const confirm = vi.spyOn(ElMessageBox, 'confirm')
+    try {
+      const localRevision = view.store.currentDocument!.revision
+      view.source.push(localRevision + 1, 'human', undefined, 'deleted')
+      await settle()
+
+      expect(view.editor.isEditable).toBe(false)
+      expect(view.store.currentDocument?.revision).toBe(localRevision)
+      expect(bodyDirtyMark(view)).toBeNull()
+      expect(await mocks.routeGuard?.()).toBe(true)
+      expect(confirm).not.toHaveBeenCalled()
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('删除事件保留本地正文草稿、冻结编辑器并停止后续自动保存与卸载兜底写入', async () => {
+    const view = await mountEditor()
+    try {
+      vi.useFakeTimers()
+      view.editor.commands.insertContent('未保存草稿')
+      const localRevision = view.store.currentDocument!.revision
+      view.source.push(localRevision + 1, 'human', undefined, 'deleted')
+      await settle()
+
+      expect(view.root.querySelector('[aria-label="文档已不可用"]')?.textContent).toContain('已移入回收站')
+      expect(foreword(view.editor)).toContain('未保存草稿')
+      expect(view.editor.isEditable).toBe(false)
+      expect(view.root.querySelector('.ed-toolbar')?.hasAttribute('inert')).toBe(true)
+      expect(view.root.querySelector('.settings-host')?.hasAttribute('inert')).toBe(true)
+      expect(view.store.currentDocument?.revision).toBe(localRevision)
+
+      // An already-open asynchronous menu can still dispatch a command. Keep that new local text dirty,
+      // but do not schedule a write while the document is unavailable.
+      view.editor.commands.insertContent('异步菜单草稿')
+      await flushMicrotasks()
+      expect(foreword(view.editor)).toContain('异步菜单草稿')
+      expect(bodyDirtyMark(view)).not.toBeNull()
+
+      await vi.advanceTimersByTimeAsync(30_000)
+      const shortcut = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true })
+      view.editor.view.dom.dispatchEvent(shortcut)
+      await flushMicrotasks()
+      expect(mocks.api.update).not.toHaveBeenCalled()
+      view.unmount()
+      expect(mocks.api.update).not.toHaveBeenCalled()
+    } finally {
+      if (view.root.isConnected) view.unmount()
+    }
+  })
+
+  it('变更读取返回 404 时进入不可用状态，不前移 revision', async () => {
+    const view = await mountEditor()
+    try {
+      const notFound = Object.assign(new Error('missing'), { response: { status: 404 } })
+      mocks.api.get.mockRejectedValueOnce(notFound)
+      view.source.push(5, 'human')
+      await settle()
+      expect(view.root.querySelector('[aria-label="文档已不可用"]')?.textContent).toContain('已移入回收站')
+      expect(view.store.currentDocument?.revision).toBe(4)
+      expect(foreword(view.editor)).toBe('服务端原文')
+      expect(view.source.closeCalls).toBeGreaterThan(0)
+    } finally {
+      view.unmount()
+    }
+  })
+
   it('AI 写入：无需刷新就载入最新内容与设置，提示来源，不进入撤销历史，也不触发保存', async () => {
     const view = await mountEditor()
     const info = vi.spyOn(ElMessage, 'info')

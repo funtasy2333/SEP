@@ -103,6 +103,8 @@ describe('parseChangeEvent', () => {
       .toEqual({ documentId: 17, revision: 5, source: 'ai', client: 'claude-code', at: 't' })
     expect(parseChangeEvent(JSON.stringify({ documentId: 17, revision: 5, source: 'human', client: '' }), 17))
       .toEqual({ documentId: 17, revision: 5, source: 'human' })
+    expect(parseChangeEvent(JSON.stringify({ documentId: 17, revision: 6, source: 'human', lifecycle: 'deleted' }), 17))
+      .toEqual({ documentId: 17, revision: 6, source: 'human', lifecycle: 'deleted' })
   })
 
   it.each([
@@ -115,12 +117,21 @@ describe('parseChangeEvent', () => {
     ['revision 为负', JSON.stringify({ documentId: 17, revision: -1, source: 'ai' })],
     ['revision 缺失', JSON.stringify({ documentId: 17, source: 'ai' })],
     ['来源未知', JSON.stringify({ documentId: 17, revision: 5, source: 'robot' })],
+    ['生命周期未知', JSON.stringify({ documentId: 17, revision: 5, source: 'human', lifecycle: 'purged' })],
   ])('拒绝不合法的事件：%s', (_name, raw) => {
     expect(parseChangeEvent(raw, 17)).toBeNull()
   })
 })
 
 describe('订阅与清理', () => {
+  it('生命周期事件透传给外部修改处理器', async () => {
+    const { sync, changes } = setup()
+    latest().change({ revision: 5, source: 'human', lifecycle: 'deleted' })
+    await settleAll()
+    expect(changes).toEqual([{ revision: 5, source: 'human', lifecycle: 'deleted' }])
+    sync.stop()
+  })
+
   it('订阅该文档的事件流；stop 关闭连接，之后的事件与重连都不再生效', async () => {
     vi.useFakeTimers()
     const { sync, changes } = setup()
