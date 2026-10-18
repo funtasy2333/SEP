@@ -22,7 +22,7 @@ import { renderAppendix } from './body/appendix'
 import { renderBibliography } from './body/bibliography'
 import { LANDSCAPE_END, LANDSCAPE_START } from './body/block'
 import { renderChapter } from './body/clause'
-import { createRenderContext, emitParagraph, type NumberedParagraphTrace, type RenderContext } from './body/context'
+import { createRenderContext, emitParagraph, formulaSink, type NumberedParagraphTrace, type RenderContext } from './body/context'
 import { renderBodyTitle, renderForeword, renderIntroduction, renderTocTitle } from './body/front'
 import { normalizeCoverStdCode, renderCover } from './cover'
 import { buildStaticToc } from './toc'
@@ -31,7 +31,7 @@ import { buildHeaderFooterParts, createSectionManager, type HeaderFooterRelIds, 
 import { buildStylesXml } from './styles'
 import type { DocxPackage, DocxRenderOptions } from './types'
 import { assertFootnoteReferences, documentHasFootnotes } from '../footnotes'
-import { renderInlines, superscriptRun, tabRun } from './body/inline'
+import { renderInlines, superscriptRun, tabRun, type InlineFormulaSink } from './body/inline'
 
 export type { NumberedParagraphTrace }
 
@@ -145,13 +145,14 @@ function separatorFootnote(id: -1 | 0, kind: 'separator' | 'continuationSeparato
 function footnotesXml(
   footnotes: IRFootnote[],
   labels: Record<NodeId, ResolvedLabel>,
+  formulas: InlineFormulaSink,
 ): string {
   const definitions = footnotes.map((footnote) => {
     const resolved = labels[footnote.id]
     const id = noteNumber(footnote.id, labels)
     if (!resolved) throw new Error(`renderDocx: 条文脚注 "${footnote.id}" 在 labels 中没有编号`)
     const marker = superscriptRun(resolved.refText)
-    const body = renderInlines(footnote.content, labels)
+    const body = renderInlines(footnote.content, labels, formulas)
     return `<w:footnote w:id="${id}"><w:p><w:pPr><w:pStyle w:val="SesFootnoteText"/></w:pPr>` +
       marker + tabRun() + body + '</w:p></w:footnote>'
   }).join('')
@@ -264,7 +265,7 @@ export function renderDocxTraced(
       id: footnotesRelId,
       target: 'word/footnotes.xml',
       relationshipType: `${REL}footnotes`,
-      content: footnotesXml(bodyFootnotes, labels),
+      content: footnotesXml(bodyFootnotes, labels, formulaSink(ctx)),
       contentType: `${WML}footnotes+xml`,
     }] : []),
     ...ctx.relatedParts,

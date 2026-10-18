@@ -71,4 +71,13 @@ describe('prerenderFormulas', () => {
     expect(failures).toBe(1);
     expect(out).toBe('<span class="ses-formula-inline">a &lt; \\bad</span>');
   });
+
+  it('正文、单元格、脚注中的行内占位同样按行内模式渲染', () => {
+    const html = '<p>当<span class="ses-formula-inline" data-latex="x_{i}"></span>时</p><td><span class="ses-formula-inline" data-latex="\\lambda"></span></td><span class="ses-footnote">注<span class="ses-formula-inline" data-latex="y"></span></span>';
+    const modes: boolean[] = [];
+    const { html: out, failures } = prerenderFormulas(html, (_latex, display) => { modes.push(display); return 'R'; });
+    expect(failures).toBe(0);
+    expect(modes).toEqual([false, false, false]);
+    expect(out).toBe('<p>当<span class="ses-formula-inline">R</span>时</p><td><span class="ses-formula-inline">R</span></td><span class="ses-footnote">注<span class="ses-formula-inline">R</span></span>');
+  });
 });

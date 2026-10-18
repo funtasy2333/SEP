@@ -45,8 +45,12 @@ const FIELDS: Record<string, ReadonlySet<string>> = Object.fromEntries(Object.en
 }).map(([key, values]) => [key, new Set(values)]))
 const PRINT_META_FIELDS = new Set(['proposer', 'technicalCommittee'])
 const MARKS = new Set(['bold', 'italic', 'underline', 'sub', 'sup', 'crossRef', 'tableFootnoteRef'])
-/** 本期行内公式只开放给式中符号（whereList[i].term），其余位置留待后续工作包。 */
-const WHERE_TERM_RUN_PATH = /\.whereList\[\d+\]\.term\[\d+\]$/
+/**
+ * 行内公式只开放给正文类位置（docs/phase7-inline-formula.md）：段落内容（注、示例、单元格、列项、术语定义
+ * 里的段落都在此列）、式中符号与释义、条文脚注与表脚注内容。标题、图表题、术语名、参考文献会进入目次、
+ * 书签和引用文字，暂不放开。值为「行内数组所属容器」：父对象的 kind（无 kind 时为 shape）与字段名。
+ */
+const INLINE_FORMULA_CONTAINERS = new Set(['paragraph.content', 'where.term', 'where.definition', 'footnote.content'])
 
 function present(value: unknown): boolean {
   return value !== undefined && value !== null && value !== ''
@@ -82,7 +86,7 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
     message: `${format} 不能输出 ${issue.path}（${issue.nodeType}）：${issue.reason}。请保留 JSON 文档。`,
   }))
   const resolution = resolve(doc)
-  const visit = (value: unknown, shape: string, path: string, parentId?: string): void => {
+  const visit = (value: unknown, shape: string, path: string, parentId?: string, container?: string): void => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return
     const object = value as Record<string, unknown>
     const id = typeof object.id === 'string' ? object.id : parentId
@@ -160,10 +164,10 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
       if (kind === 'mark' && key === 'type' && !MARKS.has(String(child))) { report(key); continue }
       if (shape === 'inline' && key === 'formula' && present(child)) {
         if (format === 'XML') { report(key); continue }
-        if (!WHERE_TERM_RUN_PATH.test(path)) {
+        if (container === undefined || !INLINE_FORMULA_CONTAINERS.has(container)) {
           problems.push({
             code: 'unsupported-output', nodeId: id, path: `${path}.${key}`,
-            message: `${format} 暂未支持此位置的行内公式：${path}.${key}${id ? `（节点 ${id}）` : ''}；本期只支持式中符号使用行内公式。请保留 JSON 文档。`,
+            message: `${format} 暂未支持此位置的行内公式：${path}.${key}${id ? `（节点 ${id}）` : ''}；标题、图表题、术语名、参考文献中暂不支持行内公式。请保留 JSON 文档。`,
           })
           continue
         }
@@ -180,8 +184,9 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
         : key === 'whereList' ? 'where' : key === 'unmappedFootnotes' ? 'unmappedFootnote'
         : key === 'formula' && shape === 'inline' ? 'inlineFormula'
         : 'inline'
-      if (Array.isArray(child)) child.forEach((entry, index) => visit(entry, childShape, `${path}.${key}[${index}]`, id))
-      else if (child && typeof child === 'object') visit(child, childShape, `${path}.${key}`, id)
+      const childContainer = `${kind}.${key}`
+      if (Array.isArray(child)) child.forEach((entry, index) => visit(entry, childShape, `${path}.${key}[${index}]`, id, childContainer))
+      else if (child && typeof child === 'object') visit(child, childShape, `${path}.${key}`, id, childContainer)
     }
   }
   visit(doc, 'doc', 'doc')

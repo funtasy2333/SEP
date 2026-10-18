@@ -7,8 +7,8 @@
 import type { IRFormula, NodeId } from '../../../ir/types'
 import { RPR_SONG } from '../numbering'
 import { pPr } from '../xml'
-import { emitParagraph, warn, type RenderContext } from './context'
-import { plainRun, renderInlines, renderRun, tabRun } from './inline'
+import { emitParagraph, formulaSink, warn, type RenderContext } from './context'
+import { plainRun, renderInlines, tabRun } from './inline'
 
 const TWIPS_PER_CHAR = 210
 const HANGING_INDENT_TWIPS = 420
@@ -53,24 +53,6 @@ function symbolWidth(ctx: RenderContext, inlines: IRFormula['whereList'][number]
   return width
 }
 
-/** 式中符号：文字 run 照常输出，行内公式输出宿主注入的 OMML，缺失时回退为 LaTeX 源码。 */
-function renderWhereTerm(ctx: RenderContext, term: IRFormula['whereList'][number]['term']): string {
-  let out = ''
-  for (const run of term) {
-    if (!run.formula?.latex) { out += renderRun(run, ctx.labels); continue }
-    // 与 irToPm 一致：同一 run 的文字在前、公式在后；公式 run 不带 marks/脚注（导出边界已拒绝）。
-    if (run.text) out += plainRun(run.text)
-    const omml = ctx.resources.formulaOmml[run.formula.id]
-    if (omml) {
-      out += omml
-    } else {
-      out += plainRun(run.formula.latex)
-      warn(ctx, 'formula-missing-omml', `式中符号 "${run.formula.id}" 缺少 OMML，已回退为 LaTeX 源码文本`, run.formula.id)
-    }
-  }
-  return out
-}
-
 function whereItemParagraph(
   ctx: RenderContext,
   item: IRFormula['whereList'][number],
@@ -82,7 +64,7 @@ function whereItemParagraph(
     ['tabs', `<w:tabs><w:tab w:val="left" w:pos="${tabPosition}"/></w:tabs>`],
     ['ind', `<w:ind w:left="${leftIndent}" w:hanging="${tabPosition}"/>`],
   ])
-  return `<w:p>${ppr}${renderWhereTerm(ctx, item.term)}${tabRun()}${plainRun('——')}${renderInlines(item.definition, ctx.labels)}</w:p>`
+  return `<w:p>${ppr}${renderInlines(item.term, ctx.labels, formulaSink(ctx))}${tabRun()}${plainRun('——')}${renderInlines(item.definition, ctx.labels, formulaSink(ctx))}</w:p>`
 }
 
 /**

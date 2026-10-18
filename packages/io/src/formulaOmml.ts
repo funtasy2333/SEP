@@ -357,13 +357,28 @@ export function estimateFormulaWidth(latex: string): number {
 
 type FormulaVisitor = (id: NodeId, latex: string, display: boolean) => void
 
+/**
+ * 行内公式可以出现在任何正文类位置（段落、单元格、注、脚注、表脚注、式中……，见 docs/phase7-inline-formula.md），
+ * 是否允许由导出边界决定；这里对整篇 IR 通用遍历，收集所有带 LaTeX 的行内公式片段。
+ */
+function collectInlineFormulas(value: unknown, visitFormula: FormulaVisitor): void {
+  if (Array.isArray(value)) {
+    for (const item of value) collectInlineFormulas(item, visitFormula)
+    return
+  }
+  if (value === null || typeof value !== 'object') return
+  const record = value as Record<string, unknown>
+  const formula = record.formula as { id?: unknown; latex?: unknown } | undefined
+  if (typeof record.text === 'string' && formula && typeof formula.id === 'string' && typeof formula.latex === 'string') {
+    visitFormula(formula.id, formula.latex, false)
+  }
+  for (const child of Object.values(record)) collectInlineFormulas(child, visitFormula)
+}
+
 function visitBlock(block: IRBlock, visitFormula: FormulaVisitor): void {
   switch (block.kind) {
     case 'formula':
       visitFormula(block.id, block.latex, true)
-      for (const item of block.whereList) {
-        for (const run of item.term) if (run.formula?.latex) visitFormula(run.formula.id, run.formula.latex, false)
-      }
       break
     case 'list':
       for (const item of block.items) {
@@ -443,6 +458,7 @@ export async function convertFormulasToOmml(doc: IRDoc): Promise<FormulaOmmlResu
   for (const appendix of doc.appendices) {
     for (const child of appendix.children) visitStructuredChild(child, collect)
   }
+  collectInlineFormulas(doc, collect)
   for (const formula of formulas) await convert(formula.id, formula.latex, formula.display)
 
   return { formulaOmml, formulaWidths, warnings }

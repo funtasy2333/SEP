@@ -72,3 +72,51 @@ describe('DOCX 出件：式中符号端到端', () => {
     expect(items[0]).toContain(`w:pos="${420 + Math.ceil(widest * 210) + 210}"`)
   })
 })
+
+describe('正文类位置的行内公式 → OMML（Phase 7）', () => {
+  it('整篇收集：前言、段落、单元格、表脚注、条文脚注、附录、式中', async () => {
+    const s = (id: string): IRInline => symbol(id, 'x_{i}')
+    const p = (id: string, content: IRInline[]) => ({ kind: 'paragraph' as const, id, content })
+    const full = {
+      schemaVersion: 1, meta: { standardType: 'gb' },
+      front: { foreword: [p('fw', [s('s-fw')])], introduction: [] },
+      body: [{ kind: 'chapter', id: 'ch', secType: 'general', title: [{ text: '要求' }], children: [
+        p('p1', [{ text: '当' }, s('s-p1')]),
+        { kind: 'table', id: 't1', caption: [], orientation: 'portrait', headerRowCount: 0,
+          rows: [{ id: 'r1', cells: [{ id: 'c1', colspan: 1, rowspan: 1, header: false, content: [p('cp', [s('s-cell')])] }] }],
+          notes: [], footnotes: [{ id: 'tf1', content: [s('s-tfn')] }] },
+        p('p2', [{ text: '正文', footnote: { id: 'fn1', content: [s('s-fn')] } }]),
+        { kind: 'formula', id: 'f1', latex: 'y', numbered: true, whereList: [{ id: 'w', term: [s('s-term')], definition: [s('s-wdef')] }] },
+      ] }],
+      appendices: [{ kind: 'appendix', id: 'app', normative: false, title: [], children: [p('ap', [s('s-app')])] }],
+      bibliography: [],
+    } as unknown as IRDoc
+    const result = await convertFormulasToOmml(full)
+    expect(result.warnings).toEqual([])
+    expect(Object.keys(result.formulaOmml).sort()).toEqual(['f1', 's-app', 's-cell', 's-fn', 's-fw', 's-p1', 's-term', 's-tfn', 's-wdef'])
+    expect(result.formulaOmml['s-p1']).not.toContain('oMathPara')
+  })
+})
+
+describe('DOCX 出件：正文类位置端到端（Phase 7）', () => {
+  it('PM 文档的段落、注、表格单元格中的 formulaInline 写为 OMML', async () => {
+    const t = (text: string) => ({ type: 'text', text })
+    const f = (latex: string) => ({ type: 'formulaInline', attrs: { latex } })
+    const pmDoc = { type: 'doc', content: [{ type: 'chapter', content: [
+      { type: 'chapterTitle', content: [t('要求')] },
+      { type: 'stdParagraph', content: [t('当'), f('q_{V}'), t('大于 1 时')] },
+      { type: 'note', content: [t('注文'), f('\\rho_{\\mathrm{w}}')] },
+      { type: 'stdTable', content: [
+        { type: 'tableCaption', content: [t('参数')] },
+        { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph', content: [f('\\lambda')] }] }] }] },
+      ] },
+    ] }] }
+    const { bytes, warnings } = await buildDocx({ pmDoc, createdAt: '2026-10-18T00:00:00Z' })
+    expect(warnings.filter(warning => warning.code === 'formula-missing-omml' || warning.code === 'formula-conversion-failed')).toEqual([])
+    const xml = await (await JSZip.loadAsync(bytes)).file('word/document.xml')!.async('string')
+    const paragraphs = (style: string) => Array.from(xml.matchAll(new RegExp(`<w:p><w:pPr><w:pStyle w:val="${style}"/>[\\s\\S]*?</w:p>`, 'g')), match => match[0])
+    expect(paragraphs('SesPara').some(p => /当<\/w:t><\/w:r><m:oMath[\s\S]*<\/m:oMath><w:r><w:t xml:space="preserve">大于 1 时/.test(p))).toBe(true)
+    expect(paragraphs('SesNote').some(p => p.includes('<m:oMath'))).toBe(true)
+    expect(xml).toMatch(/<w:tc>[\s\S]*?<m:oMath[\s\S]*?<\/w:tc>/)
+  })
+})
