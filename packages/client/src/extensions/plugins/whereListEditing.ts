@@ -211,7 +211,7 @@ export const WhereListEditing = Extension.create({
           const decorations: Decoration[] = []
           state.doc.descendants((node, pos) => {
             if (node.type.name === 'whereTerm') {
-              if (node.content.size === 0) decorations.push(Decoration.node(pos, pos + node.nodeSize, { class: 'is-empty' }))
+              if (node.content.size === 0) decorations.push(Decoration.node(pos, pos + node.nodeSize, { class: 'where-term-empty' }))
               return false
             }
             return true

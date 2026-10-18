@@ -211,7 +211,7 @@ describe('结构化式中：显示', () => {
   it('空符号格带占位标记，点击请求插入符号', () => {
     const editor = createEditor(formulaDoc([{ type: 'whereList', content: [item([], '体积流量')] }]))
     const term = editor.view.dom.querySelector('[data-type="where-term"]') as HTMLElement
-    expect(term.classList.contains('is-empty')).toBe(true)
+    expect(term.classList.contains('where-term-empty')).toBe(true)
     let termPos = -1
     editor.state.doc.descendants((node, nodePos) => { if (node.type.name === 'whereTerm') termPos = nodePos })
     const events: unknown[] = []

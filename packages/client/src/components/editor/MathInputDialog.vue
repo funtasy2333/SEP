@@ -27,6 +27,7 @@
           class="math-dlg-key"
           :title="item.title"
           :disabled="!mathfieldReady"
+          @mousedown.prevent
           @click="insertShortcut(item.latex)"
         >{{ item.label }}</button>
       </div>
@@ -67,7 +68,7 @@ import { loadMathLive, validateWhereSymbolLatex, WHERE_SYMBOL_SHORTCUTS, type Ma
 interface MathfieldLike extends HTMLElement {
   value: string
   getValue(format: 'latex-expanded'): string
-  executeCommand(command: [string, string]): boolean
+  insert(latex: string, options: { selectionMode: 'placeholder'; focus: boolean }): boolean
 }
 
 const props = withDefaults(defineProps<{
@@ -150,8 +151,8 @@ function handleModeChange(next: string | number | boolean | undefined): void {
 function insertShortcut(latex: string): void {
   const field = mathfieldRef.value
   if (!field) return
-  field.executeCommand(['insert', latex])
-  field.focus()
+  // 选中插入内容里的第一个占位（如下标位置），按钮不抢焦点（mousedown.prevent），可直接接着输入。
+  field.insert(latex, { selectionMode: 'placeholder', focus: true })
   handleVisualInput()
 }
 
