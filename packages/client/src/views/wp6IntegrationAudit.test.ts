@@ -14,6 +14,8 @@ import type { DocumentMeta } from '@ses/shared'
 const mocks = vi.hoisted(() => ({
   store: {
     currentDocument: null as any,
+    isDocumentUnavailable: vi.fn(),
+    markDocumentUnavailable: vi.fn(),
     fetchDocument: vi.fn(),
     updateDocument: vi.fn(),
   },
@@ -139,6 +141,8 @@ async function mountEditor(
   updateHandler?: (id: number, update: any) => Promise<unknown>,
 ) {
   mocks.store.currentDocument = createDocument(content)
+  mocks.store.isDocumentUnavailable.mockReset().mockReturnValue(false)
+  mocks.store.markDocumentUnavailable.mockReset()
   mocks.store.fetchDocument.mockReset().mockResolvedValue(undefined)
   mocks.store.updateDocument.mockReset().mockImplementation(updateHandler ?? (async (_id: number, update: any) => {
     const updated = { ...mocks.store.currentDocument, ...update }

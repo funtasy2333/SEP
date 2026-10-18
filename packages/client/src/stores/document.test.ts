@@ -1,6 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { documentApi, type DocumentData } from '@/api/document'
+import { documentApi, type DocumentData, type TrashDocumentData } from '@/api/document'
 import { isRevisionConflict } from '@/utils/documentConflict'
 import { useDocumentStore } from './document'
 
@@ -11,10 +11,29 @@ vi.mock('@/api/document', () => ({
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
+    listTrash: vi.fn(),
+    restore: vi.fn(),
+    permanentDelete: vi.fn(),
+    emptyTrash: vi.fn(),
   },
 }))
 
 const api = vi.mocked(documentApi)
+const trashApi = api as unknown as Record<string, ReturnType<typeof vi.fn>>
+
+interface TrashStoreHarness {
+  trashDocuments: TrashDocumentData[]
+  trashLoading: boolean
+  isDocumentUnavailable(id: number): boolean
+  fetchTrash(): Promise<void>
+  restoreDocument(id: number): Promise<DocumentData>
+  permanentlyDeleteDocument(id: number, revision: number): Promise<void>
+  emptyTrash(snapshot?: Array<{ id: number; revision: number }>): Promise<void>
+}
+
+function trashStore(): TrashStoreHarness {
+  return useDocumentStore() as unknown as TrashStoreHarness
+}
 
 function doc(revision: number, extra: Partial<DocumentData> = {}): DocumentData {
   return {
@@ -473,6 +492,126 @@ describe('runDocumentWrite：把多步流程登记为一次本地写入', () => 
     await store.waitForPendingUpdates(7)
     gate.resolve()
     await slow
+  })
+})
+
+describe('回收站 store', () => {
+  const deleted = (id: number, revision = 3) => ({
+    ...doc(revision, { title: `文档 ${id}` }),
+    id,
+    deletedAt: '2026-10-15T00:00:00.000Z',
+  })
+
+  it('加载回收站摘要并忽略较旧的迟到列表响应', async () => {
+    const store = trashStore()
+    const older = deferred<ReturnType<typeof ok>>()
+    trashApi.listTrash.mockReturnValueOnce(older.promise)
+    trashApi.listTrash.mockResolvedValueOnce(ok([deleted(9)]))
+
+    const first = store.fetchTrash()
+    const second = store.fetchTrash()
+    await second
+    older.resolve(ok([deleted(8)]))
+    await first
+
+    expect(store.trashDocuments.map((entry) => entry.id)).toEqual([9])
+    expect(store.trashLoading).toBe(false)
+  })
+
+  it('恢复成功后加入活动列表；失败时保留回收站项目', async () => {
+    const store = trashStore()
+    const item = deleted(12)
+    store.trashDocuments = [item]
+    trashApi.restore.mockResolvedValueOnce(ok(doc(4, { id: 12 })))
+
+    await store.restoreDocument(12)
+
+    expect(trashApi.restore).toHaveBeenCalledWith(12)
+    expect(store.trashDocuments).toEqual([])
+    expect(useDocumentStore().documents[0]?.id).toBe(12)
+    expect(store.isDocumentUnavailable(12)).toBe(false)
+
+    store.trashDocuments = [item]
+    trashApi.restore.mockRejectedValueOnce(new Error('offline'))
+    await expect(store.restoreDocument(12)).rejects.toThrow('offline')
+    expect(store.trashDocuments).toEqual([item])
+  })
+
+  it('永久删除和清空仅在请求成功后移除匹配的本地快照项', async () => {
+    const store = trashStore()
+    store.trashDocuments = [deleted(20, 2), deleted(21, 5)]
+    trashApi.permanentDelete.mockRejectedValueOnce(new Error('conflict'))
+    await expect(store.permanentlyDeleteDocument(20, 2)).rejects.toThrow('conflict')
+    expect(store.trashDocuments.map((entry) => entry.id)).toEqual([20, 21])
+
+    trashApi.permanentDelete.mockResolvedValueOnce(ok(undefined))
+    await store.permanentlyDeleteDocument(20, 2)
+    expect(trashApi.permanentDelete).toHaveBeenCalledWith(20, 2)
+    expect(store.trashDocuments.map((entry) => entry.id)).toEqual([21])
+
+    const snapshot = [{ id: 21, revision: 5 }]
+    trashApi.emptyTrash.mockResolvedValueOnce(ok(undefined))
+    await store.emptyTrash(snapshot)
+    expect(trashApi.emptyTrash).toHaveBeenCalledWith(snapshot)
+    expect(store.trashDocuments).toEqual([])
+  })
+
+  it('软删除后将已打开文档标记为不可用，且恢复不替旧页面续用新 revision', async () => {
+    const store = useDocumentStore()
+    const documentStore = useDocumentStore()
+    api.get.mockResolvedValueOnce(ok(doc(7)))
+    await documentStore.fetchDocument(7)
+    documentStore.documents = [doc(7)]
+
+    api.delete.mockResolvedValueOnce(ok(undefined))
+    await documentStore.deleteDocument(7)
+    expect(documentStore.isDocumentUnavailable(7)).toBe(true)
+    expect(documentStore.currentDocument?.revision).toBe(7)
+    expect(documentStore.documents).toEqual([])
+
+    store.trashDocuments = [deleted(7, 8)]
+    trashApi.restore.mockResolvedValueOnce(ok(doc(9)))
+    await store.restoreDocument(7)
+    expect(store.isDocumentUnavailable(7)).toBe(true)
+    expect(store.currentDocument?.revision).toBe(7)
+    expect(store.documents[0]?.revision).toBe(9)
+    await expect(store.updateDocument(7, { title: '旧页覆盖' })).rejects.toThrow('不可用')
+    expect(api.update).not.toHaveBeenCalled()
+  })
+
+  it('软删除使已登记但尚未运行的写入队列停止发出 PUT', async () => {
+    const store = useDocumentStore()
+    api.get.mockResolvedValueOnce(ok(doc(2)))
+    await store.fetchDocument(7)
+    const gate = deferred<void>()
+    const write = store.runDocumentWrite(7, async (put) => {
+      await gate.promise
+      return await put({ title: '不应落库' })
+    })
+    const queued = store.updateDocument(7, { title: '队列中的旧写入' })
+    for (let index = 0; index < 5; index += 1) await Promise.resolve()
+
+    api.delete.mockResolvedValueOnce(ok(undefined))
+    await store.deleteDocument(7)
+    gate.resolve()
+    await expect(write).rejects.toThrow('不可用')
+    await expect(queued).rejects.toThrow('不可用')
+    expect(api.update).not.toHaveBeenCalled()
+  })
+
+  it('软删除或彻底清除成功后，迟到的回收站读取不能复活旧摘要', async () => {
+    const store = trashStore()
+    store.trashDocuments = [deleted(30, 4)]
+    const lateRead = deferred<ReturnType<typeof ok>>()
+    trashApi.listTrash.mockReturnValueOnce(lateRead.promise)
+    const pendingFetch = store.fetchTrash()
+
+    trashApi.permanentDelete.mockResolvedValueOnce(ok(undefined))
+    await store.permanentlyDeleteDocument(30, 4)
+    lateRead.resolve(ok([deleted(30, 4)]))
+    await pendingFetch
+
+    expect(store.trashDocuments).toEqual([])
   })
 })
 

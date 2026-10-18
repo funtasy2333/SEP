@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { documentApi, type DocumentData, type DocumentUpdateData } from '@/api/document'
+import { documentApi, type DocumentData, type DocumentUpdateData, type TrashDocumentData } from '@/api/document'
 
 /** {@link useDocumentStore} 的 runDocumentWrite 交给 task 的写文档函数：此刻读取 revision 直接请求，不排队。 */
 export type DocumentPut = (doc: Omit<DocumentUpdateData, 'baseRevision'>) => Promise<DocumentData>
@@ -9,22 +9,41 @@ export const useDocumentStore = defineStore('document', () => {
   const documents = ref<DocumentData[]>([])
   const currentDocument = ref<DocumentData | null>(null)
   const loading = ref(false)
+  const trashDocuments = ref<TrashDocumentData[]>([])
+  const trashLoading = ref(false)
+  const unavailableDocuments = ref(new Set<number>())
+
+  // In-flight list reads must not replace state after a newer read or local mutation.
+  let documentListGeneration = 0
+  let documentListEpoch = 0
+  let trashListGeneration = 0
+  let trashListEpoch = 0
+  const documentAvailabilityGeneration = new Map<number, number>()
 
   async function fetchDocuments() {
+    const generation = ++documentListGeneration
+    const epoch = documentListEpoch
     loading.value = true
     try {
       const { data } = await documentApi.list()
-      documents.value = data
+      if (generation === documentListGeneration && epoch === documentListEpoch) documents.value = data
     } finally {
-      loading.value = false
+      if (generation === documentListGeneration) loading.value = false
     }
   }
 
   async function fetchDocument(id: number) {
+    const availabilityGeneration = documentAvailabilityGeneration.get(id) ?? 0
     loading.value = true
     try {
       const { data } = await documentApi.get(id)
+      // A read started before a delete/404 must not revive a stale editor when it resolves late.
+      if ((documentAvailabilityGeneration.get(id) ?? 0) !== availabilityGeneration) return
       currentDocument.value = data
+      unavailableDocuments.value.delete(id)
+      const index = documents.value.findIndex((entry) => entry.id === id)
+      if (index < 0) documents.value.unshift(data)
+      else documents.value[index] = data
     } finally {
       loading.value = false
     }
@@ -36,8 +55,13 @@ export const useDocumentStore = defineStore('document', () => {
    * 若直接 fetchDocument，读到的内容装不进编辑器时本地 revision 已前进，之后的保存会静默覆盖外部修改。
    */
   async function readDocument(id: number): Promise<DocumentData> {
-    const { data } = await documentApi.get(id)
-    return data
+    try {
+      const { data } = await documentApi.get(id)
+      return data
+    } catch (error) {
+      if (isNotFoundError(error)) markDocumentUnavailable(id)
+      throw error
+    }
   }
 
   /**
@@ -68,8 +92,37 @@ export const useDocumentStore = defineStore('document', () => {
 
   async function createDocument(doc: Partial<DocumentData>) {
     const { data } = await documentApi.create(doc)
+    documentListEpoch += 1
     documents.value.unshift(data)
     return data
+  }
+
+  async function fetchTrash() {
+    const generation = ++trashListGeneration
+    const epoch = trashListEpoch
+    trashLoading.value = true
+    try {
+      const { data } = await documentApi.listTrash()
+      if (generation === trashListGeneration && epoch === trashListEpoch) trashDocuments.value = data
+    } finally {
+      if (generation === trashListGeneration) trashLoading.value = false
+    }
+  }
+
+  function isDocumentUnavailable(id: number): boolean {
+    return unavailableDocuments.value.has(id)
+  }
+
+  function markDocumentUnavailable(id: number): void {
+    documentAvailabilityGeneration.set(id, (documentAvailabilityGeneration.get(id) ?? 0) + 1)
+    unavailableDocuments.value.add(id)
+  }
+
+  function isNotFoundError(error: unknown): boolean {
+    if (typeof error !== 'object' || error === null) return false
+    const response = (error as { response?: unknown }).response
+    if (typeof response !== 'object' || response === null) return false
+    return (response as { status?: unknown }).status === 404
   }
 
   // 同一文档的写入排队执行：后一个请求等前一个结束后才读取 revision，
@@ -78,12 +131,22 @@ export const useDocumentStore = defineStore('document', () => {
 
   /** 在写入队列里发出一次 PUT：此刻才读取 baseRevision，不再排队（只能在 {@link runDocumentWrite} 的 task 内使用）。 */
   async function putDocument(id: number, doc: Omit<DocumentUpdateData, 'baseRevision'>): Promise<DocumentData> {
+    if (isDocumentUnavailable(id)) {
+      throw new Error('文档已不可用，请返回标准库并在恢复后重新打开')
+    }
     const baseRevision = currentDocument.value?.id === id ? currentDocument.value.revision : undefined
     if (typeof baseRevision !== 'number') {
       throw new Error('无法确定文档的修订号，请重新打开文档后再保存')
     }
-    const { data } = await documentApi.update(id, { ...doc, baseRevision })
+    let data: DocumentData
+    try {
+      ({ data } = await documentApi.update(id, { ...doc, baseRevision }))
+    } catch (error) {
+      if (isNotFoundError(error)) markDocumentUnavailable(id)
+      throw error
+    }
     currentDocument.value = data
+    documentListEpoch += 1
     const idx = documents.value.findIndex((d) => d.id === id)
     if (idx !== -1) documents.value[idx] = data
     return data
@@ -102,6 +165,9 @@ export const useDocumentStore = defineStore('document', () => {
    */
   function runDocumentWrite<T>(id: number, task: (put: DocumentPut) => Promise<T> | T): Promise<T> {
     const run = async () => {
+      if (isDocumentUnavailable(id)) {
+        throw new Error('文档已不可用，请返回标准库并在恢复后重新打开')
+      }
       let active = true
       const put: DocumentPut = (doc) => {
         if (!active) return Promise.reject(new Error('写入任务已结束，不能再通过它写文档'))
@@ -148,26 +214,69 @@ export const useDocumentStore = defineStore('document', () => {
 
   async function deleteDocument(id: number) {
     await documentApi.delete(id)
+    markDocumentUnavailable(id)
+    documentListEpoch += 1
+    trashListEpoch += 1
     documents.value = documents.value.filter((d) => d.id !== id)
-    if (currentDocument.value?.id === id) {
-      currentDocument.value = null
-    }
+    // Keep the current snapshot available to an open editor so it can preserve unsaved text,
+    // while the unavailable marker prevents every queued or future write from using it.
+  }
+
+  async function restoreDocument(id: number): Promise<DocumentData> {
+    const { data } = await documentApi.restore(id)
+    trashListEpoch += 1
+    trashDocuments.value = trashDocuments.value.filter((entry) => entry.id !== id)
+    documentListEpoch += 1
+    const index = documents.value.findIndex((entry) => entry.id === id)
+    if (index < 0) documents.value.unshift(data)
+    else documents.value[index] = data
+    // Do not revive an old editor here. A deliberate fetchDocument on a reopened page
+    // is the only operation that clears its unavailable marker and adopts the new revision.
+    return data
+  }
+
+  async function permanentlyDeleteDocument(id: number, revision: number): Promise<void> {
+    await documentApi.permanentDelete(id, revision)
+    trashListEpoch += 1
+    trashDocuments.value = trashDocuments.value.filter(
+      (entry) => entry.id !== id || entry.revision !== revision,
+    )
+  }
+
+  async function emptyTrash(snapshot: Array<{ id: number; revision: number }> = trashDocuments.value.map(
+    ({ id, revision }) => ({ id, revision }),
+  )): Promise<void> {
+    const confirmed = snapshot.map((entry) => ({ ...entry }))
+    await documentApi.emptyTrash(confirmed)
+    trashListEpoch += 1
+    const revisions = new Map(confirmed.map(({ id, revision }) => [id, revision]))
+    trashDocuments.value = trashDocuments.value.filter(
+      (entry) => revisions.get(entry.id) !== entry.revision,
+    )
   }
 
   return {
     documents,
     currentDocument,
     loading,
+    trashDocuments,
+    trashLoading,
     fetchDocuments,
     fetchDocument,
+    fetchTrash,
     readDocument,
     adoptDocument,
     adoptRevision,
     createDocument,
+    isDocumentUnavailable,
+    markDocumentUnavailable,
     updateDocument,
     runDocumentWrite,
     hasPendingUpdates,
     waitForPendingUpdates,
     deleteDocument,
+    restoreDocument,
+    permanentlyDeleteDocument,
+    emptyTrash,
   }
 })
