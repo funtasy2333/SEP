@@ -16,8 +16,8 @@ export type {
   ImageResourceValue,
 } from './imageResources'
 
-export { convertFormulaToOmml, convertFormulasToOmml } from './formulaOmml'
-export type { FormulaConversionWarning, FormulaOmmlResult } from './formulaOmml'
+export { convertFormulaToOmml, convertFormulasToOmml, estimateFormulaWidth } from './formulaOmml'
+export type { FormulaConversionOptions, FormulaConversionWarning, FormulaOmmlResult } from './formulaOmml'
 
 export {
   checkExportGuard,

@@ -45,4 +45,30 @@ describe('prerenderFormulas', () => {
       '<span class="ses-formula">[x]</span><span class="ses-formula">[y]</span>',
     );
   });
+
+  it('式中符号的行内占位按 KaTeX 行内模式渲染，保留 ses-formula-inline 包裹', () => {
+    const html = '<dt>2<span class="ses-formula-inline" data-latex="q_{V} &lt; 1"></span></dt><span class="ses-formula" data-latex="x"></span>';
+    const calls: Array<[string, boolean]> = [];
+    const { html: out, failures } = prerenderFormulas(html, (latex, display) => {
+      calls.push([latex, display]);
+      return display ? 'D' : 'I';
+    });
+    expect(failures).toBe(0);
+    expect(calls).toEqual([['q_{V} < 1', false], ['x', true]]);
+    expect(out).toBe('<dt>2<span class="ses-formula-inline">I</span></dt><span class="ses-formula">D</span>');
+  });
+
+  it('行内公式默认渲染不使用 display 布局', () => {
+    const { html: out } = prerenderFormulas('<span class="ses-formula-inline" data-latex="q_{V}"></span>');
+    expect(out).toContain('class="katex"');
+    expect(out).not.toContain('katex-display');
+  });
+
+  it('行内公式渲染失败时降级为转义后的源码并计数', () => {
+    const { html: out, failures } = prerenderFormulas('<span class="ses-formula-inline" data-latex="a &lt; \\bad"></span>', () => {
+      throw new Error('boom');
+    });
+    expect(failures).toBe(1);
+    expect(out).toBe('<span class="ses-formula-inline">a &lt; \\bad</span>');
+  });
 });

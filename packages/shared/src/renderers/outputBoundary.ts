@@ -36,13 +36,17 @@ const FIELDS: Record<string, ReadonlySet<string>> = Object.fromEntries(Object.en
   example: ['kind', 'id', 'content'],
   termEntry: ['kind', 'id', 'level', 'term', 'termEn', 'definition', 'source', 'notes', 'examples', 'tailOrder'],
   bibEntry: ['kind', 'id', 'content'],
-  inline: ['text', 'marks', 'footnote'],
+  inline: ['text', 'marks', 'footnote', 'formula'],
+  // 式中符号行内公式：渲染器只消费 LaTeX（KaTeX / OMML），MathML 与外部源无法如实输出。
+  inlineFormula: ['id', 'latex'],
   footnote: ['id', 'content'],
   mark: ['type', 'id', 'targetId', 'targetKind'],
   unmappedFootnote: ['container', 'nodeId', 'content', 'reason'],
 }).map(([key, values]) => [key, new Set(values)]))
 const PRINT_META_FIELDS = new Set(['proposer', 'technicalCommittee'])
 const MARKS = new Set(['bold', 'italic', 'underline', 'sub', 'sup', 'crossRef', 'tableFootnoteRef'])
+/** 本期行内公式只开放给式中符号（whereList[i].term），其余位置留待后续工作包。 */
+const WHERE_TERM_RUN_PATH = /\.whereList\[\d+\]\.term\[\d+\]$/
 
 function present(value: unknown): boolean {
   return value !== undefined && value !== null && value !== ''
@@ -154,12 +158,27 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
         continue
       }
       if (kind === 'mark' && key === 'type' && !MARKS.has(String(child))) { report(key); continue }
+      if (shape === 'inline' && key === 'formula' && present(child)) {
+        if (format === 'XML') { report(key); continue }
+        if (!WHERE_TERM_RUN_PATH.test(path)) {
+          problems.push({
+            code: 'unsupported-output', nodeId: id, path: `${path}.${key}`,
+            message: `${format} 暂未支持此位置的行内公式：${path}.${key}${id ? `（节点 ${id}）` : ''}；本期只支持式中符号使用行内公式。请保留 JSON 文档。`,
+          })
+          continue
+        }
+        if (present(object.marks)) report('marks')
+        if (present(object.footnote)) report('footnote')
+        const formula = child as Record<string, unknown>
+        if (typeof formula.latex !== 'string' || formula.latex.trim() === '') report(`${key}.latex`)
+      }
       if (key === 'unsupportedContent') continue
       if (key === 'tailOrder') continue
       const childShape = key === 'meta' ? 'meta' : key === 'front' ? 'front'
         : key === 'marks' ? 'mark' : key === 'footnote' || key === 'footnotes' ? 'footnote'
         : key === 'rows' ? 'row' : key === 'cells' ? 'cell' : key === 'items' ? 'item'
         : key === 'whereList' ? 'where' : key === 'unmappedFootnotes' ? 'unmappedFootnote'
+        : key === 'formula' && shape === 'inline' ? 'inlineFormula'
         : 'inline'
       if (Array.isArray(child)) child.forEach((entry, index) => visit(entry, childShape, `${path}.${key}[${index}]`, id))
       else if (child && typeof child === 'object') visit(child, childShape, `${path}.${key}`, id)

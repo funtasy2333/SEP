@@ -68,7 +68,7 @@ function formulaDoc(latex: string[]): IRDoc {
 
 describe('公式 MathML → OMML', () => {
   it('转换方案中的 14 类公式，OMML 均为完整 XML 且 n-ary 主体非空', async () => {
-    const converted = await Promise.all(FORMULAS.map(convertFormulaToOmml))
+    const converted = await Promise.all(FORMULAS.map(latex => convertFormulaToOmml(latex)))
     expect(converted).toHaveLength(14)
     for (const omml of converted) {
       expect(omml).toMatch(/^<m:oMath\b/)

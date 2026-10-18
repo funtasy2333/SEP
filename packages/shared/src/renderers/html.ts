@@ -12,7 +12,8 @@ import { assertOutputSupported } from './outputBoundary'
  *   交叉引用输出纯文本（labels.refText），目次页码列为定宽占位（WP5 两遍构建注入数字）。
  *
  * 公式不在此渲染 KaTeX（KaTeX 依赖 DOM 字体度量不可靠，WP0 结论 6）：
- * 输出 <span class="ses-formula" data-latex="..."> 占位，由消费端（client 预览 / WP5 管线）渲染。
+ * 输出 <span class="ses-formula" data-latex="..."> 占位，由消费端（client 预览 / WP5 管线）渲染；
+ * 式中符号的行内公式输出 <span class="ses-formula-inline" data-latex="...">，按 KaTeX 行内模式渲染。
  *
  * 同构纯 TypeScript：不引用任何浏览器/Node API。
  */
@@ -199,6 +200,12 @@ function renderRun(run: IRInline, ctx: RenderCtx): string {
     ).join('')
   }
 
+  // 行内公式与块级公式同一占位约定，由消费端（client 预览 / PDF 管线）用 KaTeX 行内模式渲染。
+  // 公式片段不带 marks（导出边界已拒绝），按 irToPm 顺序排在文字之后。
+  const formulaAtom = run.formula?.latex
+    ? `<span class="ses-formula-inline" data-latex="${escapeAttr(run.formula.latex)}"></span>`
+    : ''
+
   let footnoteAtom = ''
   if (run.footnote) {
     const resolved = ctx.labels[run.footnote.id]
@@ -226,7 +233,7 @@ function renderRun(run: IRInline, ctx: RenderCtx): string {
       ? `<a class="ses-table-footnote-ref" href="#${escapeAttr(resolved.xmlId)}">${marker}</a>`
       : marker
   }
-  return `${body}${footnoteAtom}${tableFootnoteAtoms}`
+  return `${body}${formulaAtom}${footnoteAtom}${tableFootnoteAtoms}`
 }
 
 function renderInlines(inlines: IRInline[], ctx: RenderCtx): string {

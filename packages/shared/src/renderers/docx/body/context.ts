@@ -34,7 +34,7 @@ export interface RenderContext {
   readonly warnings: DocxPackage['warnings']
   readonly numbered: NumberedParagraphTrace[]
   readonly bookmarksByNodeId: ReadonlyMap<NodeId, DocxBookmark>
-  readonly resources: Pick<DocxRenderOptions, 'images' | 'formulaOmml'>
+  readonly resources: Pick<DocxRenderOptions, 'images' | 'formulaOmml' | 'formulaWidths'>
   readonly pageFlow: PageFlow
   readonly relatedParts: DocxRelatedPart[]
   allocateImage(): { relationshipId: string; mediaIndex: number }
@@ -46,7 +46,7 @@ export interface RenderContext {
 export function createRenderContext(
   labels: Record<NodeId, ResolvedLabel>,
   bookmarksByNodeId: ReadonlyMap<NodeId, DocxBookmark> = new Map(),
-  resources: Pick<DocxRenderOptions, 'images' | 'formulaOmml'> = { images: {}, formulaOmml: {} },
+  resources: Pick<DocxRenderOptions, 'images' | 'formulaOmml' | 'formulaWidths'> = { images: {}, formulaOmml: {} },
   allocateRelId: () => string = () => { throw new Error('DOCX 图片关系 ID 分配器尚未配置') },
 ): RenderContext {
   let mediaIndex = 0

@@ -13,6 +13,8 @@ import type { DocumentStage } from '../../types/document'
 export interface DocxRenderOptions {
   /** 公式 OMML：key = IRFormula.id，值以 <m:oMath 开头。缺失时降级为 LaTeX 源码文本并记 warning */
   formulaOmml: Record<NodeId, string>
+  /** 式中符号行内公式的估算宽度（汉字宽），key = 行内公式 id；缺失时按 LaTeX 源码保守估算（§5.10） */
+  formulaWidths?: Record<NodeId, number>
   /** 图片：key = IRFigure.id。宿主负责把 src（dataURL 或资源 key）解析成字节 */
   images: Record<
     NodeId,
