@@ -11,7 +11,7 @@ declare module '@tiptap/core' {
       /** 在当前符号格的光标处插入式中符号（行内公式）；只允许在 whereTerm 内。 */
       insertWhereSymbol: (options: { latex: string }) => ReturnType
       /** 替换 pos 处行内公式的 LaTeX，并清空不再一致的 MathML 与外部源。 */
-      updateFormulaInline: (options: { pos: number; latex: string }) => ReturnType
+      updateFormulaInline: (options: { pos: number; latex: string; nodeId?: string }) => ReturnType
     }
   }
 }
@@ -25,6 +25,8 @@ export interface WhereSymbolRequest {
   mode: 'edit' | 'insert'
   pos: number
   latex: string
+  /** edit 时被编辑符号的 nodeId；写回前核对，避免位置因远端修改而指向另一个符号。 */
+  nodeId?: string
 }
 
 export const WHERE_SYMBOL_EVENT = 'ses:edit-where-symbol'
@@ -174,9 +176,10 @@ export const WhereListEditing = Extension.create({
         return true
       },
 
-      updateFormulaInline: ({ pos, latex }) => ({ state, dispatch }) => {
+      updateFormulaInline: ({ pos, latex, nodeId }) => ({ state, dispatch }) => {
         const node = state.doc.nodeAt(pos)
         if (!node || node.type.name !== 'formulaInline' || !latex.trim()) return false
+        if (nodeId !== undefined && node.attrs.nodeId !== nodeId) return false
         if (dispatch) dispatch(state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, latex, mathml: null, source: null }))
         return true
       },
@@ -190,7 +193,10 @@ export const WhereListEditing = Extension.create({
       Enter: ({ editor }) => {
         const { selection } = editor.state
         if (selection instanceof NodeSelection && selection.node.type.name === 'formulaInline') {
-          dispatchWhereSymbolRequest({ mode: 'edit', pos: selection.from, latex: String(selection.node.attrs.latex ?? '') })
+          dispatchWhereSymbolRequest({
+            mode: 'edit', pos: selection.from, latex: String(selection.node.attrs.latex ?? ''),
+            ...(selection.node.attrs.nodeId ? { nodeId: String(selection.node.attrs.nodeId) } : {}),
+          })
           return true
         }
         if (inCell(editor, 'whereTerm')) return moveToCell(editor, 'definition')

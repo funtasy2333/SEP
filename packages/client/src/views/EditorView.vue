@@ -1848,7 +1848,7 @@ function handleMathConfirm(latex: string) {
   if (!ed || !request) return
   let applied = false
   if (request.mode === 'edit') {
-    applied = ed.chain().focus().updateFormulaInline({ pos: request.pos, latex }).run()
+    applied = ed.chain().focus().updateFormulaInline({ pos: request.pos, latex, nodeId: request.nodeId }).run()
   } else if (request.pos <= ed.state.doc.content.size) {
     // 打开弹窗期间文档可能被远端修改；位置不再落在符号格内时由命令拒绝。
     applied = ed.chain().focus().setTextSelection(request.pos).insertWhereSymbol({ latex }).run()

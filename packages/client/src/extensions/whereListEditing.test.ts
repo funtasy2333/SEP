@@ -125,6 +125,17 @@ describe('结构化式中：命令', () => {
     expect(editor.state.doc.nodeAt(pos)!.attrs).toEqual(expect.objectContaining({ latex: 'q_{m}', mathml: null, source: null }))
     expect(editor.commands.updateFormulaInline({ pos: 1, latex: 'x' })).toBe(false)
   })
+
+  it('更新时核对节点 ID：位置上已是另一个符号（如远端修改后）则拒绝', () => {
+    const editor = createEditor(formulaDoc([{ type: 'whereList', content: [item([
+      { type: 'formulaInline', attrs: { nodeId: 'sym-a', latex: 'a' } },
+    ], '甲')] }]))
+    let pos = -1
+    editor.state.doc.descendants((node, nodePos) => { if (node.type.name === 'formulaInline') pos = nodePos })
+    expect(editor.commands.updateFormulaInline({ pos, latex: 'b', nodeId: 'sym-other' })).toBe(false)
+    expect(editor.state.doc.nodeAt(pos)!.attrs.latex).toBe('a')
+    expect(editor.commands.updateFormulaInline({ pos, latex: 'b', nodeId: 'sym-a' })).toBe(true)
+  })
 })
 
 describe('结构化式中：键盘', () => {
@@ -183,13 +194,15 @@ describe('结构化式中：键盘', () => {
     window.addEventListener('ses:edit-where-symbol', listener)
     press(editor, 'Enter')
     window.removeEventListener('ses:edit-where-symbol', listener)
-    expect(events).toEqual([{ mode: 'edit', pos, latex: 'q_{V}' }])
+    expect(events).toEqual([{ mode: 'edit', pos, latex: 'q_{V}', nodeId: expect.any(String) }])
   })
 })
 
 describe('结构化式中：显示', () => {
   it('行内公式以 KaTeX 行内模式显示，点击请求编辑', () => {
     const editor = createEditor(formulaDoc([{ type: 'whereList', content: [item([symbolNode('q_{V}')], '体积流量')] }]))
+    // 与真实编辑器载入后一致：任一事务触发 ensureNodeId 补齐 ID。
+    editor.view.dispatch(editor.state.tr)
     const dom = editor.view.dom.querySelector('.std-formula-inline') as HTMLElement
     expect(dom.querySelector('.katex')).not.toBeNull()
     expect(dom.querySelector('.katex-display')).toBeNull()
@@ -198,7 +211,7 @@ describe('结构化式中：显示', () => {
     window.addEventListener('ses:edit-where-symbol', listener)
     dom.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
     window.removeEventListener('ses:edit-where-symbol', listener)
-    expect(events).toEqual([expect.objectContaining({ mode: 'edit', latex: 'q_{V}' })])
+    expect(events).toEqual([expect.objectContaining({ mode: 'edit', latex: 'q_{V}', nodeId: expect.any(String) })])
   })
 
   it('无法解析的 LaTeX 显示为源码并标记错误', () => {

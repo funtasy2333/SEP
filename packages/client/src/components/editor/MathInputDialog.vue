@@ -107,6 +107,8 @@ function escapeHtml(text: string): string {
 
 watch(() => props.modelValue, (open) => {
   if (!open) return
+  // destroy-on-close 每次打开都会新建 <math-field>，就绪前确认按源码取值。
+  mathfieldReady.value = false
   source.value = props.initialLatex
   error.value = ''
   mode.value = loadFailed.value ? 'source' : 'visual'

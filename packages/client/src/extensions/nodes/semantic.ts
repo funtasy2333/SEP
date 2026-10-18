@@ -548,7 +548,10 @@ export const FormulaInline = Node.create({
         event.stopPropagation()
         const pos = typeof getPos === 'function' ? getPos() : undefined
         if (typeof pos !== 'number') return
-        dispatchWhereSymbolRequest({ mode: 'edit', pos, latex: String(current.attrs.latex ?? '') })
+        dispatchWhereSymbolRequest({
+          mode: 'edit', pos, latex: String(current.attrs.latex ?? ''),
+          ...(current.attrs.nodeId ? { nodeId: String(current.attrs.nodeId) } : {}),
+        })
       })
       return {
         dom,
