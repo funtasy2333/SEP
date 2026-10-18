@@ -10,6 +10,9 @@ type JsonRecord = Record<string, unknown>
 const record = (value: unknown): value is JsonRecord => typeof value === 'object' && value !== null && !Array.isArray(value)
 type RewriteMark = (mark: JsonRecord) => JsonRecord
 
+/** A cross reference without a type: `''` in the PM mark (IR round trip), a missing key in stored payloads (null is invalid input but still a reference). */
+const untyped = (kind: unknown) => kind === undefined || kind === null || kind === ''
+
 /** Marks that point at another node by id. Only crossRef is ever rewritten; term and bibliography references just have to be seen. */
 const REFERENCE_MARKS = new Set(['crossRef', 'bibRef', 'termRef'])
 
@@ -83,6 +86,31 @@ export function hasReferenceTo(doc: PMNode, id: unknown): boolean {
     mapStoredAttrs(node, visit)
   })
   return found
+}
+
+/**
+ * 有编号的块（条、注、示例）就地变成无编号的 stdParagraph 后，指向它（同一个 id）的交叉引用是否会失效。
+ * 段落没有编号：无类型引用没有可引用的编号，会变成 dangling-xref；有类型引用里只有原类型 `from`（随转换改为 paragraph）
+ * 和已经是 paragraph 的仍成立，其余类型与段落不再兼容。覆盖 targetId/旧稿 refId、脚注负载与元数据里的存储标记。
+ */
+export function hasReferenceLostAsParagraph(doc: PMNode, id: unknown, from: 'clause' | 'note' | 'example'): boolean {
+  if (typeof id !== 'string' || !id) return false
+  let lost = false
+  const visit: RewriteMark = mark => {
+    if (mark.type !== 'crossRef') return mark
+    const typed = record(mark.attrs)
+    const attrs = typed ? mark.attrs as JsonRecord : mark
+    if ((attrs.targetId ?? attrs.refId) !== id) return mark
+    const kind = attrs[typed ? 'refType' : 'targetKind']
+    if (untyped(kind) || (kind !== from && kind !== 'paragraph')) lost = true
+    return mark
+  }
+  mapStoredAttrs(doc, visit)
+  doc.descendants(node => {
+    for (const mark of node.marks) visit({ type: mark.type.name, attrs: mark.attrs })
+    mapStoredAttrs(node, visit)
+  })
+  return lost
 }
 
 /**
@@ -163,9 +191,6 @@ function retargetReferences(tr: Transaction, converted: ConvertedTarget[], targe
 export function retargetReferenceType(tr: Transaction, id: unknown, from: string, to: string) {
   retargetReference(tr, id, id, from, to)
 }
-
-/** A cross reference without a type: `''` in the PM mark (IR round trip), a missing key in stored payloads (null is invalid input but still a reference). */
-const untyped = (kind: unknown) => kind === undefined || kind === null || kind === ''
 
 /**
  * References of type `from` to `id` now point at `toId` as type `to`: the target block is gone and its content lives on in

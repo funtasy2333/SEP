@@ -151,7 +151,7 @@ describe('附录、多章与引用', () => {
       return found
     }
 
-    it('段落→有题条→段落：无类型引用始终指向原 nodeId 且仍无类型，有类型引用来回换类型；条有编号，转换后无悬空引用', () => {
+    it('段落→有题条：无类型引用留在原 nodeId 且仍无类型，有类型引用改为条类型；条有编号，转换后无悬空引用。转回段落时无类型引用会失去目标，拒绝', () => {
       const e = editor([p('target', '目标段落'), reference('r1', { targetId: 'target', refType: '' }), reference('r2', { targetId: 'target', refType: 'paragraph' })])
       select(e, '目标段落')
       expect(setClauseFormat(e, 1)).toEqual({ ok: true })
@@ -160,12 +160,11 @@ describe('附录、多章与引用', () => {
         expect.objectContaining({ targetId: 'target', refType: 'clause' }),
       ])
       expect(irOf(e).problems.filter(item => item.code.startsWith('dangling'))).toEqual([])
-      // 已知限制：转回段落后，无类型引用所指的段落没有编号，无法再作无类型目标；nodeId 没变，没有可改指的地方，引用保持不动。
-      expect(setParagraphFormat(e)).toEqual({ ok: true })
-      expect(marksOf(e)).toEqual([
-        expect.objectContaining({ targetId: 'target', refType: '' }),
-        expect.objectContaining({ targetId: 'target', refType: 'paragraph' }),
-      ])
+      // 转回段落：段落没有编号，无类型引用无处可指（nodeId 没变，没有可改指的地方），所以拒绝而不是留下 dangling-xref。
+      const original = snapshot(e)
+      expect(setParagraphFormat(e)).toEqual({ ok: false, reason: 'referenced-block' })
+      expect(snapshot(e)).toEqual(original)
+      expect(irOf(e).problems.filter(item => item.code.startsWith('dangling'))).toEqual([])
     })
 
     it('retargetReferenceType / retargetReference 在 id 不变时不碰无类型引用；id 变化时才带着无类型引用走', () => {

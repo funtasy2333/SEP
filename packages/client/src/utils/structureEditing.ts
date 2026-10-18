@@ -4,7 +4,8 @@ import {
   applyOutlineEdit, locateOutline, MAX_CLAUSE_LEVEL, MIN_CLAUSE_LEVEL,
   type OutlineFailureReason, type OutlineLeaf, type OutlineLocation,
 } from './outlineEditing'
-import { convertTextBlock, formatStdList } from './textBlockFormat'
+import type { Node as PMNode } from '@tiptap/pm/model'
+import { convertTextBlock, formatStdList, hasReferenceLostAsParagraph } from './textBlockFormat'
 
 /** 结构格式命令失败的原因：来自大纲核心的原因码，加上选区本身不能转换（invalid-selection）、被引用的块不能转换（referenced-block）。 */
 export type StructureFailureReason = OutlineFailureReason | 'invalid-selection' | 'referenced-block'
@@ -13,6 +14,25 @@ export type StructureResult = { ok: true } | { ok: false; reason: StructureFailu
 const ok: StructureResult = { ok: true }
 const fail = (reason: StructureFailureReason): StructureResult => ({ ok: false, reason })
 const convertible = new Set(['stdListItem', 'note', 'example'])
+
+/**
+ * 注/示例有编号，可被无类型引用指向；转成 stdParagraph 后没有编号。指向它的引用里，同类型（改为 paragraph）的仍成立，
+ * 无类型或类型不再兼容的会失去目标。列项本来就没有编号（指向其正文的 paragraph 引用由 convertTextBlock 改指），不受此限。
+ */
+const losesNumbering = (doc: PMNode, block: PMNode) =>
+  (block.type.name === 'note' || block.type.name === 'example') && hasReferenceLostAsParagraph(doc, block.attrs.nodeId, block.type.name)
+
+/** 事务结果里这个 nodeId 是否仍是无编号的 stdParagraph（没有变成条、没有被吸收进标题）。 */
+function remainsParagraph(doc: PMNode, id: unknown): boolean {
+  if (typeof id !== 'string' || !id) return false
+  let found = false
+  doc.descendants(node => {
+    if (found) return false
+    if (node.type.name === 'stdParagraph' && node.attrs.nodeId === id) found = true
+    return !found
+  })
+  return found
+}
 
 interface ClauseTarget {
   /** clause：光标属于一个已有条（标题，或无题条的首个正文段）；block：光标在普通正文段落。 */
@@ -65,7 +85,8 @@ export function setClauseFormat(editor: Editor, level: number, hasTitle = true):
   const { $from, $to } = state.selection
   if (!$from.sameParent($to)) return fail('invalid-selection')
   const tr = state.tr
-  if (convertible.has($from.parent.type.name)) {
+  const source = convertible.has($from.parent.type.name) ? $from.parent : null
+  if (source) {
     const failure = convertTextBlock(state, tr, 'stdParagraph')
     if (failure) return fail(failure === 'referenced-block' ? 'referenced-block' : 'invalid-selection')
   }
@@ -74,7 +95,10 @@ export function setClauseFormat(editor: Editor, level: number, hasTitle = true):
   const outcome = applyOutlineEdit(
     tr, target.location, { kind: target.kind === 'clause' ? 'set-clause' : 'make-clause', level, hasTitle }, target.leaf, target.offsets,
   )
-  return outcome.ok ? commit(editor, tr) : outcome
+  if (!outcome.ok) return outcome
+  // 注/示例转成有题条（自身成为条）或被吸收进标题时仍有编号可指；最终留作无编号段落（无题条的正文）时，被引用就拒绝，事务不提交。
+  if (source && losesNumbering(state.doc, source) && remainsParagraph(tr.doc, source.attrs.nodeId)) return fail('referenced-block')
+  return commit(editor, tr)
 }
 
 /** 条 → 正文段落：标题项变为段落（保留 nodeId 与 marks），原子条按级别重新归属；列项/注/示例改为段落。 */
@@ -84,7 +108,9 @@ export function setParagraphFormat(editor: Editor): StructureResult {
   const tr = state.tr
   if (convertible.has($from.parent.type.name)) {
     const failure = convertTextBlock(state, tr, 'stdParagraph')
-    return failure ? fail(failure === 'referenced-block' ? 'referenced-block' : 'invalid-selection') : commit(editor, tr)
+    if (failure) return fail(failure === 'referenced-block' ? 'referenced-block' : 'invalid-selection')
+    // 注/示例变成无编号段落后，无类型（及类型不再成立）的引用会失去目标：拒绝，事务不提交。
+    return losesNumbering(state.doc, $from.parent) ? fail('referenced-block') : commit(editor, tr)
   }
   if (!$from.sameParent($to)) return fail('invalid-selection')
   const leaf = $from.parent
@@ -152,7 +178,7 @@ const paragraphMessages: Partial<Record<StructureFailureReason, string>> = {
   'missing-parent': '该条含有子条，改为段落后子条会缺少上级条；请先调整子条级别',
   'level-skip': '改为段落后其后的子条会跳级；请先调整子条级别',
   'hanging-paragraph': '改为段落会在含子条的章（条）里留下悬置段落；请先把正文并入某个条',
-  'referenced-block': '该条（或整个列表）被引用，转为段落会让引用失去目标；请先删除或改指引用',
+  'referenced-block': '该条、注、示例（或整个列表）被引用，转为段落会让引用失去目标；请先删除或改指引用',
 }
 
 const listMessages: Partial<Record<StructureFailureReason, string>> = {

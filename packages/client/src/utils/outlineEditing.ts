@@ -1,7 +1,7 @@
 import { Fragment, type Node as PMNode, type ResolvedPos } from '@tiptap/pm/model'
 import { TextSelection, type Transaction } from '@tiptap/pm/state'
 import { generateNodeId } from '@ses/shared'
-import { hasReferenceTo, retargetReference } from './textBlockFormat'
+import { hasReferenceLostAsParagraph, hasReferenceTo, retargetReference } from './textBlockFormat'
 
 /**
  * 大纲式（Word 大纲视图式）条结构编辑核心。
@@ -26,7 +26,7 @@ export type OutlineFailureReason =
   | 'untitled-with-children' // 无题条不得再分条（GB/T 1.1 7.3.4）
   | 'invalid-location' // 不在章/附录的条与正文中（表格、术语、前言……）
   | 'out-of-range' // 条级别须为 1~5；术语条目平移后也须在 1~5
-  | 'referenced-block' // 无题条解除编号会让指向该条的引用失去目标
+  | 'referenced-block' // 无题条解除编号，或有题条变成无编号段落，会让指向该条的引用失去目标
 
 export const MIN_CLAUSE_LEVEL = 1
 export const MAX_CLAUSE_LEVEL = 5
@@ -337,6 +337,8 @@ export function applyOutlineEdit(
     const item = items[index] as TitleItem
     if (item.hasTitle || item.title.content.size > 0) {
       // 标题项变为正文段落：取走条的 nodeId 与标题文字，随后按大纲语义归入最近的上一个标题项。
+      // 段落没有编号：条类型的引用改为 paragraph 仍成立，无类型（以及其它类型）的引用会失去目标，拒绝，由用户先改指引用。
+      if (hasReferenceLostAsParagraph(tr.doc, item.node.attrs.nodeId, 'clause')) return fail('referenced-block')
       const paragraph = paragraphType.create({ nodeId: item.node.attrs.nodeId }, item.title.content)
       items.splice(index, 1, { kind: 'body', node: paragraph, owner: null, ownerLevel: 0, path: `new:${item.key}` })
       reference = { id: item.node.attrs.nodeId, from: 'clause', to: 'paragraph' }
