@@ -225,6 +225,8 @@ export function formatTextBlock(state: EditorState, tr: Transaction, targetName:
 
 const listTypes = new Set(['dash', 'alpha', 'numeric', 'dot', 'boxedNumeric'])
 const listableBlocks = new Set(['stdParagraph', 'note', 'example'])
+/** Body containers where an empty generic paragraph is as good as an empty stdParagraph: a list simply takes its place. */
+const listBodyContainers = new Set(['chapter', 'clause', 'appendix', 'foreword', 'introduction'])
 
 /**
  * Turn the selection into list items of `listType` (a format command, not an insertion):
@@ -232,8 +234,11 @@ const listableBlocks = new Set(['stdParagraph', 'note', 'example'])
  *   after keep their type. A fully selected list only changes type/level and keeps its stable anchor;
  * - paragraphs, notes and examples (a range of adjacent blocks is allowed): each becomes one item of a single list.
  * Item ids and inline content survive, and a new list never duplicates the original list's anchor.
- * An empty paragraph answers 'nothing-to-convert' and any other selection 'unsupported', so the caller keeps
- * the plain insertion behaviour there; blocks that are referenced by kind answer 'referenced-block'.
+ * A lone empty paragraph (an empty stdParagraph, or an empty generic paragraph in a body container) where a list may sit
+ * answers 'nothing-to-convert': that is the only case where the caller inserts a fresh list in its place.
+ * Every other selection, a caret in a title, term, table cell and so on included, answers 'unsupported' and must be
+ * refused as invalid: inserting there would split the surrounding defining node. Blocks that are referenced by kind
+ * answer 'referenced-block'. On any non-null answer the transaction has not been touched.
  */
 export function formatStdList(state: EditorState, tr: Transaction, listType: string): TextBlockFailure | 'nothing-to-convert' | null {
   if (!listTypes.has(listType)) return 'unsupported'
@@ -269,13 +274,18 @@ export function formatStdList(state: EditorState, tr: Transaction, listType: str
   }
 
   if ($from.depth !== $to.depth || $from.depth < 1 || $from.node($from.depth - 1) !== $to.node($to.depth - 1)) return 'unsupported'
-  if (!listableBlocks.has($from.parent.type.name) || !listableBlocks.has($to.parent.type.name)) return 'unsupported'
   const parent = $from.node($from.depth - 1)
   const first = $from.index($from.depth - 1), last = $to.index($to.depth - 1)
+  // A lone empty paragraph has nothing to convert: the caller inserts a fresh list in its place, but only where one may sit.
+  if (first === last && $from.parent.isTextblock && $from.parent.content.size === 0 && (
+    $from.parent.type.name === 'stdParagraph' || ($from.parent.type.name === 'paragraph' && listBodyContainers.has(parent.type.name))
+  )) {
+    const empty = stdList.create({ listType, level }, stdListItem.create())
+    return parent.canReplace(first, last + 1, Fragment.from(empty)) ? 'nothing-to-convert' : 'unsupported'
+  }
+  if (!listableBlocks.has($from.parent.type.name) || !listableBlocks.has($to.parent.type.name)) return 'unsupported'
   const blocks = children(parent).slice(first, last + 1)
   if (!blocks.every(block => listableBlocks.has(block.type.name))) return 'unsupported'
-  // A lone empty paragraph has nothing to convert: the toolbar inserts a fresh list there instead.
-  if (blocks.length === 1 && blocks[0]!.type.name === 'stdParagraph' && blocks[0]!.content.size === 0) return 'nothing-to-convert'
   // Note/example references are typed by kind and have no list-item equivalent: refuse rather than dangle them.
   if (blocks.some(block => block.type.name !== 'stdParagraph' && hasReferenceTo(state.doc, block.attrs.nodeId))) return 'referenced-block'
   const items = blocks.map(block => stdListItem.create({ nodeId: block.attrs.nodeId }, block.content, block.marks))

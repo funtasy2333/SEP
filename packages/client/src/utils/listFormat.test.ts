@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest'
 import type { JSONContent } from '@tiptap/core'
-import { setClauseFormat, setListFormat } from './structureEditing'
+import { setClauseFormat, setListFormat, structureFailureMessage } from './structureEditing'
 import {
-  caretIn, destroyEditors, editor, irOf, item, list, nodeById, note, p, select, snapshot, text,
+  caretIn, clause, destroyEditors, editor, irOf, item, list, nodeById, note, p, select, snapshot, term, text, untitled,
 } from './__fixtures__/structureEditor'
 
 afterEach(destroyEditors)
@@ -238,5 +238,201 @@ describe('列项/注/示例一步转为条或无题条', () => {
     expect(converted.attrs.hasTitle).toBe(false)
     expect(converted.child(1).textContent).toBe('示例转无题条')
     expect(irOf(example).doc.unsupportedContent ?? []).toEqual([])
+  })
+})
+
+describe('列项命令：不支持的位置一律拒绝（不论空光标还是选区），不改文档、不改选区', () => {
+  const structuralCodes = ['unsupported-content', 'heading-skip', 'hanging-paragraph', 'dangling-xref', 'dangling-typed-ref']
+  const cell = (content: JSONContent[]): JSONContent => ({ type: 'stdTable', attrs: { nodeId: 'tbl' }, content: [
+    { type: 'tableCaption', content: [text('表题')] },
+    { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content }] }] },
+  ] })
+  /** 把光标放进第一个满足条件的文本块（offset 为块内偏移）。 */
+  const caretAt = (e: ReturnType<typeof editor>, match: (node: ReturnType<typeof nodeById>['node'], parent: ReturnType<typeof nodeById>['node'] | null) => boolean, offset = 0) => {
+    let pos = -1
+    e.state.doc.descendants((node, at, parent) => { if (pos < 0 && node.isTextblock && match(node, parent)) pos = at })
+    if (pos < 0) throw new Error('找不到目标文本块')
+    e.commands.setTextSelection(pos + 1 + offset)
+  }
+  const selectionOf = (e: ReturnType<typeof editor>) => [e.state.selection.from, e.state.selection.to]
+
+  /** 列项命令（工具栏/斜杠命令走的 setListFormat 与 insertStdList 命令）都必须失败且什么都不动。 */
+  function expectRejected(e: ReturnType<typeof editor>, listType = 'dash') {
+    const before = snapshot(e), selection = selectionOf(e)
+    const baseline = irOf(e).problems.map(problem => problem.code)
+    expect(e.can().insertStdList({ listType })).toBe(false)
+    expect(setListFormat(e, listType)).toEqual({ ok: false, reason: 'invalid-selection' })
+    expect(snapshot(e)).toEqual(before)
+    expect(selectionOf(e)).toEqual(selection)
+    expect(e.chain().focus().insertStdList({ listType }).run()).toBe(false)
+    expect(snapshot(e)).toEqual(before)
+    expect(selectionOf(e)).toEqual(selection)
+    const ir = irOf(e)
+    expect(ir.doc.unsupportedContent ?? []).toEqual([])
+    expect(ir.problems.map(problem => problem.code)).toEqual(baseline)
+    expect(ir.problems.filter(problem => structuralCodes.includes(problem.code))).toEqual([])
+    e.state.doc.check()
+  }
+
+  it('复现：光标在非空条标题中间点列项，不再把标题后半与正文拆进新生成的条', () => {
+    const e = editor([clause('c', '条标题文字', [p('b', '条下正文')])])
+    select(e, '条标题文字', 2)
+    expectRejected(e)
+    expect(listsOf(e)).toEqual([])
+    expect(e.state.doc.child(0).childCount).toBe(2)
+  })
+
+  it('光标在章标题中间：拒绝，章不被拆成两章', () => {
+    const e = editor([p('a', '正文')])
+    select(e, '总体原则', 2)
+    expectRejected(e)
+    expect(e.state.doc.childCount).toBeLessThanOrEqual(2)
+    expect(e.state.doc.child(0).firstChild!.textContent).toBe('总体原则')
+  })
+
+  it('光标在术语名中间、术语定义中间：拒绝，术语条目不被拆开', () => {
+    const e = editor([term('t', 1, '术语名')])
+    select(e, '术语名', 1)
+    expectRejected(e)
+    select(e, '术语名的定义', 2)
+    expectRejected(e)
+  })
+
+  it('光标在术语条目内的非空正文段：该处放不下列表，拒绝而不是把术语条目拆成两个', () => {
+    const e = editor([{ type: 'termDef', attrs: { nodeId: 't2', level: 1 }, content: [
+      { type: 'termName', content: [text('术语')] }, { type: 'termDefinition', content: [text('定义')] }, p('tp', '术语内的段落'),
+    ] }])
+    select(e, '术语内的段落', 3)
+    expectRejected(e)
+    let termDefs = 0
+    e.state.doc.descendants(node => { if (node.type.name === 'termDef') termDefs++ })
+    expect(termDefs).toBe(1)
+  })
+
+  it('光标在表格单元格（有字/空段落）与表题里：拒绝，单元格不嵌入列表', () => {
+    const filled = editor([cell([{ type: 'paragraph', content: [text('格子文字')] }])])
+    select(filled, '格子文字', 2)
+    expectRejected(filled)
+    caretAt(filled, node => node.type.name === 'tableCaption', 1)
+    expectRejected(filled)
+
+    const empty = editor([cell([{ type: 'paragraph' }])])
+    caretAt(empty, (node, parent) => node.type.name === 'paragraph' && parent?.type.name === 'tableCell')
+    expectRejected(empty)
+  })
+
+  it('光标在附录标题、非空通用段落（粘贴来的 paragraph）与文档末尾的补位段落：拒绝', () => {
+    const appendix = editor([])
+    appendix.commands.setContent({ type: 'doc', content: [{ type: 'appendix', attrs: { nodeId: 'ap' }, content: [
+      { type: 'appendixLabel', content: [text('（规范性）')] }, { type: 'appendixTitle', content: [text('附录标题')] }, p('apb', '附录正文'),
+    ] }] })
+    select(appendix, '附录标题', 2)
+    expectRejected(appendix)
+
+    const generic = editor([p('a', '前'), { type: 'paragraph', content: [text('通用段落')] }])
+    select(generic, '通用段落', 2)
+    expectRejected(generic)
+
+    const trailing = editor([p('a', '前')])
+    trailing.commands.setTextSelection(3)
+    caretAt(trailing, (node, parent) => node.type.name === 'paragraph' && parent?.type.name === 'doc')
+    expectRejected(trailing)
+  })
+
+  it('不认识的列项类型：拒绝，哪怕光标在可以插入的空段落里', () => {
+    const e = editor([p('empty')])
+    caretIn(e, 'empty')
+    expectRejected(e, 'bogus')
+    expect(listsOf(e)).toEqual([])
+  })
+
+  it('非空选区仍然拒绝，原因不变（跨标题与正文的选区）', () => {
+    const e = editor([clause('c', '条标题', [p('b', '条下正文')])])
+    select(e, '条标题', 0, 2)
+    expectRejected(e)
+    const from = nodeById(e, 'c').pos + 2
+    e.commands.setTextSelection({ from, to: nodeById(e, 'b').pos + 3 })
+    expectRejected(e)
+  })
+
+  it('空 stdParagraph 仍插入列表：夹在段落中间时邻居不动，光标进入新列项，IR 无异常', () => {
+    const e = editor([p('a', '前一段'), p('empty'), p('b', '后一段')])
+    caretIn(e, 'empty')
+    expect(setListFormat(e, 'alpha')).toEqual({ ok: true })
+    const body = e.state.doc.child(0)
+    expect([...Array(body.childCount).keys()].slice(1).map(index => body.child(index).type.name)).toEqual(['stdParagraph', 'stdList', 'stdParagraph'])
+    expect(listsOf(e).map(entry => [entry.type, entry.level, entry.texts])).toEqual([['alpha', 1, ['']]])
+    expect(body.child(1).textContent).toBe('前一段')
+    expect(body.child(3).textContent).toBe('后一段')
+    expect(e.state.selection.empty).toBe(true)
+    expect(e.state.selection.$from.parent.type.name).toBe('stdListItem')
+    const ir = irOf(e)
+    expect(ir.doc.unsupportedContent ?? []).toEqual([])
+    expect(ir.problems.filter(problem => structuralCodes.includes(problem.code))).toEqual([])
+    e.state.doc.check()
+    expect(e.commands.undo()).toBe(true)
+    expect(listsOf(e)).toEqual([])
+  })
+
+  it('空 stdParagraph 经 insertStdList 命令（斜杠命令同源）也插入列表；条下的空段落与无题条的空首段同样可以', () => {
+    const e = editor([clause('c', '条标题', [p('empty')])])
+    caretIn(e, 'empty')
+    expect(e.chain().focus().insertStdList({ listType: 'numeric' }).run()).toBe(true)
+    expect(listsOf(e).map(entry => [entry.type, entry.level])).toEqual([['numeric', 2]])
+    expect(nodeById(e, 'c').node.lastChild!.type.name).toBe('stdList')
+    expect(irOf(e).doc.unsupportedContent ?? []).toEqual([])
+
+    const bare = editor([untitled('u', 'up', '')])
+    caretIn(bare, 'up')
+    expect(setListFormat(bare, 'dash')).toEqual({ ok: true })
+    expect(listsOf(bare)).toHaveLength(1)
+    expect(irOf(bare).doc.unsupportedContent ?? []).toEqual([])
+  })
+
+  it('章（条）正文里的空通用 paragraph 同样算空段落：仍插入列表', () => {
+    const e = editor([p('a', '前'), { type: 'paragraph' }])
+    caretAt(e, (node, parent) => node.type.name === 'paragraph' && parent?.type.name === 'chapter')
+    expect(setListFormat(e, 'dash')).toEqual({ ok: true })
+    expect(listsOf(e).map(entry => [entry.type, entry.texts])).toEqual([['dash', ['']]])
+    expect(e.state.doc.child(0).lastChild!.type.name).toBe('stdList')
+    expect(e.state.selection.$from.parent.type.name).toBe('stdListItem')
+    expect(irOf(e).doc.unsupportedContent ?? []).toEqual([])
+    e.state.doc.check()
+  })
+
+  it('术语条目内的空段落放不下列表：拒绝，术语条目不被拆分或改动', () => {
+    const e = editor([{ type: 'termDef', attrs: { nodeId: 't3', level: 1 }, content: [
+      { type: 'termName', content: [text('术语')] }, { type: 'termDefinition', content: [text('定义')] }, p('mid'), note('tn', '术语注'),
+    ] }])
+    caretIn(e, 'mid')
+    expectRejected(e)
+  })
+
+  it('列项失败提示点明哪些位置不支持，且不再套用「设置条」的文案', () => {
+    const message = structureFailureMessage('invalid-selection', 'list')
+    expect(message).toContain('列项')
+    expect(message).toContain('标题')
+    expect(message).toContain('表格')
+    expect(message).toContain('空段落中会插入新列表')
+    expect(message).not.toBe(structureFailureMessage('invalid-selection'))
+  })
+
+  it('已有内容的转换不受影响：光标在非空段落、注、列项里仍整块转换并保留光标', () => {
+    const paragraph = editor([p('a', '中间文字')])
+    caretIn(paragraph, 'a', 2)
+    expect(setListFormat(paragraph, 'dash')).toEqual({ ok: true })
+    expect(listsOf(paragraph).map(entry => [entry.type, entry.ids, entry.texts])).toEqual([['dash', ['a'], ['中间文字']]])
+    expect(paragraph.state.selection.$from.parentOffset).toBe(2)
+
+    const noted = editor([note('n', '注文字')])
+    caretIn(noted, 'n', 1)
+    expect(setListFormat(noted, 'alpha')).toEqual({ ok: true })
+    expect(listsOf(noted).map(entry => [entry.type, entry.ids])).toEqual([['alpha', ['n']]])
+
+    const items = editor([dash()])
+    caretIn(items, 'i2', 1)
+    expect(setListFormat(items, 'dot')).toEqual({ ok: true })
+    expect(listsOf(items).map(entry => [entry.type, entry.texts])).toEqual([['dash', ['甲']], ['dot', ['乙']], ['dash', ['丙']]])
+    expect(irOf(items).doc.unsupportedContent ?? []).toEqual([])
   })
 })

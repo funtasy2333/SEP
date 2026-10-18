@@ -122,7 +122,9 @@ export function setParagraphFormat(editor: Editor): StructureResult {
 
 /**
  * 列项格式命令：选中的列项变成目标类型的列项（前后部分保留原类型），正文段落/注/示例转为目标类型列项；
- * 空段落中保持原来的插入新列表行为。文字、marks、nodeId 与引用都保留。
+ * 只有空段落（无文字可转换）保持原来的插入新列表行为。文字、marks、nodeId 与引用都保留。
+ * 其余不支持的位置或选区（不论空光标还是选区，例如条标题、章标题、术语名、表格单元格里）一律失败，
+ * 文档与选区都不动：在那里插入列表会拆开 defining 的条/章/术语条目。
  */
 export function setListFormat(editor: Editor, listType: string): StructureResult {
   const { state } = editor
@@ -130,7 +132,7 @@ export function setListFormat(editor: Editor, listType: string): StructureResult
   const failure = formatStdList(state, tr, listType)
   if (failure === null) return commit(editor, tr)
   if (failure === 'referenced-block') return fail('referenced-block')
-  if (failure === 'unsupported' && !state.selection.empty) return fail('invalid-selection')
+  if (failure === 'unsupported') return fail('invalid-selection')
   return editor.chain().focus().insertStdList({ listType }).run() ? ok : fail('invalid-selection')
 }
 
@@ -154,7 +156,7 @@ const paragraphMessages: Partial<Record<StructureFailureReason, string>> = {
 }
 
 const listMessages: Partial<Record<StructureFailureReason, string>> = {
-  'invalid-selection': '请将光标放在正文段落、注、示例或列项内再设置列项；空段落中会插入新列表',
+  'invalid-selection': '当前位置不能设置列项：请将光标放在正文段落、注、示例或列项内（标题、术语、表格单元格等位置不支持，选区也不能跨类型）；空段落中会插入新列表',
   'referenced-block': '该注/示例被交叉引用，转为列项后引用会失效；请先修改或删除引用',
 }
 
