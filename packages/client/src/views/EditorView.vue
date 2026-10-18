@@ -436,6 +436,12 @@
       </template>
     </el-dialog>
 
+    <WhereConversionDialog
+      v-model="showWhereConversion"
+      :rows="whereConversion?.rows ?? []"
+      @confirm="applyWhereConversion"
+    />
+
     <MathInputDialog
       v-model="showMathDialog"
       :initial-latex="mathDialogLatex"
@@ -485,6 +491,8 @@ import DocumentOutline from '@/components/editor/DocumentOutline.vue'
 import DocumentSettingsPanel from '@/components/editor/DocumentSettingsPanel.vue'
 import SlashMenu from '@/components/editor/SlashMenu.vue'
 import MathInputDialog from '@/components/editor/MathInputDialog.vue'
+import WhereConversionDialog from '@/components/editor/WhereConversionDialog.vue'
+import { convertLegacyWhereDescription, type WhereConversionRow } from '@/utils/whereListConversion'
 import VersionPanel from '@/components/version/VersionPanel.vue'
 
 import { useEditor } from '@tiptap/vue-3'
@@ -1803,8 +1811,34 @@ function handleAddWhereItem() {
   openMathDialog({ mode: 'insert', pos: ed.state.selection.from, latex: '' })
 }
 
-function openWhereConversion(_formulaPos: number) {
-  ElMessage.info('该公式已有文字形式的式中说明，请先删除或转换后再添加')
+const showWhereConversion = ref(false)
+const whereConversion = ref<{ pos: number; source: string; formula: PMJsonNode; rows: WhereConversionRow[] } | null>(null)
+
+function openWhereConversion(formulaPos: number) {
+  const node = editor.value?.state.doc.nodeAt(formulaPos)
+  if (!node || node.type.name !== 'formula') return
+  const source = node.toJSON() as PMJsonNode
+  const { formula, rows } = convertLegacyWhereDescription(source)
+  if (!rows.length) return
+  whereConversion.value = { pos: formulaPos, source: JSON.stringify(source), formula, rows }
+  showWhereConversion.value = true
+}
+
+function applyWhereConversion() {
+  const ed = editor.value
+  const pending = whereConversion.value
+  whereConversion.value = null
+  if (!ed || !pending) return
+  const node = ed.state.doc.nodeAt(pending.pos)
+  // 弹窗期间公式被修改（含远端同步）时不覆盖，避免丢失新内容。
+  if (!node || JSON.stringify(node.toJSON()) !== pending.source) {
+    ElMessage.warning('公式已被修改，请重新转换')
+    return
+  }
+  const replacement = ed.schema.nodeFromJSON(pending.formula)
+  ed.view.dispatch(ed.state.tr.replaceWith(pending.pos, pending.pos + node.nodeSize, replacement).scrollIntoView())
+  ed.commands.focus()
+  ElMessage.success('已转换为结构化式中')
 }
 
 function handleMathConfirm(latex: string) {

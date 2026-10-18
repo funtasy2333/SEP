@@ -237,3 +237,25 @@ describe('结构化式中：往返与导出', () => {
     expect(xml).toMatch(/SesWhereItem[\s\S]*?<m:oMath[\s\S]*?<\/m:oMath><w:r><w:tab\/><\/w:r>/)
   })
 })
+
+describe('结构化式中：旧式中转换写回编辑器', () => {
+  it('替换后条目与符号由 ensureNodeId 分配新 ID，可撤销', async () => {
+    const { convertLegacyWhereDescription } = await import('../utils/whereListConversion')
+    const editor = createEditor(formulaDoc([{ type: 'formulaDescription', content: [text('式中：A——面积；v——流速。')] }]))
+    let pos = -1
+    editor.state.doc.descendants((node, nodePos) => { if (node.type.name === 'formula') pos = nodePos })
+    const node = editor.state.doc.nodeAt(pos)!
+    const { formula } = convertLegacyWhereDescription(node.toJSON() as Json)
+    editor.view.dispatch(editor.state.tr.replaceWith(pos, pos + node.nodeSize, editor.schema.nodeFromJSON(formula)))
+    const ids: string[] = []
+    editor.state.doc.descendants(child => {
+      if (child.type.name === 'whereItem' || child.type.name === 'formulaInline') ids.push(String(child.attrs.nodeId ?? ''))
+    })
+    expect(ids).toHaveLength(4)
+    expect(ids.every(id => id.length > 0)).toBe(true)
+    expect(new Set(ids).size).toBe(4)
+    expect(pmToIr(editor.getJSON() as Json).doc.unsupportedContent).toBeUndefined()
+    editor.commands.undo()
+    expect(childTypes(formulaJson(editor))).toEqual(['formulaContent', 'formulaDescription'])
+  })
+})
