@@ -430,6 +430,67 @@
   font-family: 'SimSun', 'Songti SC', serif;
 }
 
+/* 结构化式中：符号 | 释义两列；「式中：」与「——」只是显示，导出时由渲染器生成 */
+.std-where-list {
+  width: 100%;
+  margin: 4px 0 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: baseline;
+  font-size: 13px;
+  line-height: 1.8;
+  text-indent: 0;
+}
+
+.std-where-list::before {
+  content: '式中：';
+  grid-column: 1 / -1;
+  padding-left: 2em;
+  font-family: 'SimSun', 'Songti SC', serif;
+}
+
+.std-where-item {
+  display: contents;
+}
+
+.std-where-item > dt {
+  margin: 0;
+  padding-left: 4em;
+  white-space: nowrap;
+  min-width: 2em;
+}
+
+.std-where-item > dt.is-empty::after {
+  content: '点击插入符号';
+  color: #aaa;
+  cursor: pointer;
+}
+
+.std-where-item > dd {
+  margin: 0;
+}
+
+.std-where-item > dd::before {
+  content: '——';
+  font-family: 'SimSun', 'Songti SC', serif;
+}
+
+.std-formula-inline {
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.std-formula-inline:hover,
+.std-formula-inline.ProseMirror-selectednode {
+  background: #e8f0fe;
+}
+
+.std-formula-inline.is-invalid {
+  color: #c0392b;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+}
+
 /* 注 */
 .std-note {
   margin: 8px 0;

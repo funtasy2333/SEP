@@ -26,6 +26,7 @@ const ALL_ITEMS: SlashMenuItem[] = [
   { label: '段落', description: '插入标准段落', command: 'paragraph', group: '内容' },
   { label: '表格', description: '插入3×3表格', command: 'table', group: '内容' },
   { label: '公式', description: '插入LaTeX公式', command: 'formula', group: '内容' },
+  { label: '式中', description: '为当前公式添加一条式中符号说明', command: 'whereItem', group: '内容', allowedIn: ['formula'] },
   { label: '图片', description: '插入图片', command: 'figure', group: '内容' },
   { label: '注', description: '插入注释', command: 'note', group: '内容' },
   { label: '脚注', description: '在正文、列项、注、示例或文献中插入脚注引用', command: 'footnote', group: '内容', allowedIn: ['stdParagraph', 'paragraph', 'stdListItem', 'bibEntry', 'note', 'example'] },
