@@ -10,6 +10,9 @@ type JsonRecord = Record<string, unknown>
 const record = (value: unknown): value is JsonRecord => typeof value === 'object' && value !== null && !Array.isArray(value)
 type RewriteMark = (mark: JsonRecord) => JsonRecord
 
+/** Marks that point at another node by id. Only crossRef is ever rewritten; term and bibliography references just have to be seen. */
+const REFERENCE_MARKS = new Set(['crossRef', 'bibRef', 'termRef'])
+
 function mapArray(value: unknown, map: (item: JsonRecord) => JsonRecord): unknown {
   if (!Array.isArray(value)) return value
   const mapped = value.map(item => record(item) ? map(item) : item)
@@ -23,7 +26,7 @@ function mapInlines(value: unknown, rewrite: RewriteMark): unknown {
     const set = (field: string, mapped: unknown) => {
       if (mapped !== item[field]) next = { ...next, [field]: mapped }
     }
-    set('marks', mapArray(item.marks, mark => mark.type === 'crossRef' ? rewrite(mark) : mark))
+    set('marks', mapArray(item.marks, mark => typeof mark.type === 'string' && REFERENCE_MARKS.has(mark.type) ? rewrite(mark) : mark))
     if (typeof item.type === 'string') set('content', mapInlines(item.content, rewrite))
     if (record(item.footnote)) {
       const content = mapInlines(item.footnote.content, rewrite)
@@ -76,7 +79,7 @@ export function hasReferenceTo(doc: PMNode, id: unknown): boolean {
   }
   mapStoredAttrs(doc, visit)
   doc.descendants(node => {
-    for (const mark of node.marks) if (mark.type.name === 'crossRef') visit({ type: 'crossRef', attrs: mark.attrs })
+    for (const mark of node.marks) if (REFERENCE_MARKS.has(mark.type.name)) visit({ type: mark.type.name, attrs: mark.attrs })
     mapStoredAttrs(node, visit)
   })
   return found
@@ -101,6 +104,7 @@ type RewriteAttrs = (attrs: JsonRecord, kindField: 'refType' | 'targetKind') => 
 /** Apply an attribute rewrite to every typed reference payload and crossRef mark of the transaction document. */
 function rewriteReferences(tr: Transaction, rewriteAttrs: RewriteAttrs) {
   const rewrite: RewriteMark = mark => {
+    if (mark.type !== 'crossRef') return mark
     if (record(mark.attrs)) {
       const attrs = rewriteAttrs(mark.attrs, 'refType')
       return attrs !== mark.attrs ? { ...mark, attrs } : mark
