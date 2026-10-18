@@ -55,7 +55,7 @@
 
 交叉引用的显示文字由系统按编号生成（如「表1」「5.2」），你写的 `text` 会在导出时被替换，建议写成与编号一致的文字便于阅读。`targetId` 必须是目标节点的显式 id；目标不存在时这里**不会**报错，由后续的文档校验报告悬空引用。建议总是同时写 `targetKind`：写了之后，目标的类型与之不符也会在文档校验中报告。`crossRef` 的文字里不能含换行。
 
-暂不支持：行内样式 `style`、行内公式 `formula`、脚注 `footnote`、表脚注引用 `tableFootnoteRef`。
+暂不支持：行内样式 `style`、脚注 `footnote`、表脚注引用 `tableFootnoteRef`。行内公式 `formula` 本期只能用在公式的式中符号里（见 4.5），写在其他位置会被拒绝。
 
 **出件限制**：DOCX、HTML、PDF 目前只能输出 `bold` `italic` `underline` `sub` `sup` `crossRef` 这几种标记。`strike`、`code`、`variable`、`externalLink`、`bibRef`、`termRef` 可以写入并保存（JSON 导出保留），但文档里只要有它们，导出 DOCX、HTML、PDF 就会被拒绝（`validate_document` 的 `exports` 会列出位置）。需要出件的文档不要使用这些标记：引用参考文献、术语时先写成普通文字。
 
@@ -274,6 +274,22 @@
     "whereList": [
       { "term": "E", "definition": "能量，单位为焦耳（J）" },
       { "term": "m", "definition": "质量，单位为千克（kg）" }
+    ]
+  }
+]
+```
+
+带上下标的符号写成行内公式，导出时与主公式同一引擎排版（DOCX 为 Word 公式，PDF 为 KaTeX），避免文字上下标与公式中的字形不一致：`term` 的数组元素写 `{ "formula": { "latex": "…" } }`，可选 `id`。公式片段不能同时带 `text` 或 `marks`；`latex` 不能为空，且必须能被 KaTeX 解析（否则写入时报 `invalid-value`）。读出节点时，这类符号以 `{ "text": "", "formula": { "id": …, "latex": … } }` 的形态出现，可原样回传。
+
+```json ses-example context=chapter
+[
+  {
+    "kind": "formula",
+    "latex": "q_{V} = A v",
+    "whereList": [
+      { "term": [{ "formula": { "latex": "q_{V}" } }], "definition": "体积流量，单位为立方米每秒（m³/s）" },
+      { "term": "A", "definition": "管道截面积，单位为平方米（m²）" },
+      { "term": [{ "formula": { "latex": "\\rho_{\\mathrm{w}}" } }], "definition": "水的密度，单位为千克每立方米（kg/m³）" }
     ]
   }
 ]
