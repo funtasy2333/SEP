@@ -405,13 +405,13 @@ function parseMark(value: unknown, path: string, ctx: Ctx): IRMark | undefined {
 }
 
 /**
- * 行内公式片段 `{"formula": {"latex": …, "id"?: …}}`：本期只开放给式中符号（whereList[i].term），
- * 与导出边界一致（docs/where-symbol-formula.md）。文字与标记不能附在公式片段上。
+ * 行内公式片段 `{"formula": {"latex": …, "id"?: …}}`：只开放给正文类位置（段落、注、示例、列项、单元格、
+ * 术语定义、式中符号与释义），与导出边界一致（docs/phase7-inline-formula.md）。文字与标记不能附在公式片段上。
  */
 function parseFormulaRun(value: Obj, rawFormula: unknown, path: string, ctx: Ctx, allowFormula: boolean): IRInline | undefined {
   if (!allowFormula) {
     ctx.issue(`${path}.formula`, 'unsupported-field',
-      '这里暂不支持行内公式：本期只支持式中符号（whereList[i].term）使用行内公式；请改用文字')
+      '这里暂不支持行内公式：标题、图表题、术语名、参考文献中暂不支持行内公式；请改用文字')
     return undefined
   }
   const before = ctx.issues.length
@@ -632,7 +632,7 @@ const paragraphOf = (id: string, content: IRInline[]): IRParagraph => ({ kind: '
 function parseParagraphObject(obj: Obj, path: string, ctx: Ctx): IRParagraph {
   checkKeys(obj, path, 'paragraph', ctx)
   const id = ctx.idOf(obj, path)
-  return paragraphOf(id, inlineField(obj, 'content', path, ctx))
+  return paragraphOf(id, inlineField(obj, 'content', path, ctx, { allowFormula: true }))
 }
 
 /**
@@ -649,7 +649,7 @@ function parseSingleParagraph(value: unknown, path: string, ownerId: string, wha
       ctx.issue(path, 'invalid-type', `${what}的内容不能混用块对象与行内片段`)
       return []
     }
-    const inlines = parseInlines(value, path, ctx)
+    const inlines = parseInlines(value, path, ctx, true)
     ctx.claim(derivedId, path)
     return [paragraphOf(derivedId, inlines ?? [])]
   }
@@ -668,7 +668,7 @@ function parseSingleParagraph(value: unknown, path: string, ownerId: string, wha
     ctx.issue(`${path}[0].id`, 'invalid-id', `${what}内段落的 id 由所属节点派生，必须省略或等于「${derivedId}」`)
   }
   ctx.claim(derivedId, `${path}[0]`)
-  return [paragraphOf(derivedId, inlineField(first, 'content', `${path}[0]`, ctx))]
+  return [paragraphOf(derivedId, inlineField(first, 'content', `${path}[0]`, ctx, { allowFormula: true }))]
 }
 
 type BlockKind = typeof AUTHORING_BLOCK_KINDS[number]
@@ -687,7 +687,7 @@ function parseBlocks(
     return []
   }
   if (value.length > 0 && value.every(item => isObj(item) && !has(item, 'kind'))) {
-    const inlines = parseInlines(value, path, ctx)
+    const inlines = parseInlines(value, path, ctx, true)
     return [paragraphOf(ctx.fresh(), inlines ?? [])]
   }
   const out: IRBlock[] = []
@@ -1003,7 +1003,7 @@ function parseFormula(obj: Obj, path: string, ctx: Ctx): IRFormula {
     return {
       id: itemId,
       term: inlineField(raw, 'term', at, ctx, { nonBlank: true, what: '式中项的符号', allowFormula: true }),
-      definition: inlineField(raw, 'definition', at, ctx, { nonBlank: true, what: '式中项的说明' }),
+      definition: inlineField(raw, 'definition', at, ctx, { nonBlank: true, what: '式中项的说明', allowFormula: true }),
     }
   })
   return { kind: 'formula', id, latex, numbered, whereList }

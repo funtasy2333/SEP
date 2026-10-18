@@ -55,13 +55,34 @@ describe('写作片段：式中符号行内公式', () => {
     ])
   })
 
+  const f = { formula: { latex: 'x_{i}' } }
   it.each([
-    ['释义', formula('q', [{ formula: { latex: 'v' } }]), 'fragment[0].whereList[0].definition[0].formula'],
-    ['段落', [{ kind: 'paragraph', content: [{ formula: { latex: 'x' } }] }], 'fragment[0].content[0].formula'],
-  ])('其他位置（%s）拒绝行内公式，并说明本期范围', (_name, input, path) => {
-    const issue = issuesOf(input).find(item => item.path === path)
+    ['式中释义', formula('q', ['单位为', f])],
+    ['段落', [{ kind: 'paragraph', content: ['当', f, '大于 1 时'] }]],
+    ['注', [{ kind: 'note', content: ['注文', f] }]],
+    ['示例', [{ kind: 'example', content: [f] }]],
+    ['列项', [{ kind: 'list', listType: 'dash', items: [{ content: [f] }] }]],
+    ['表格单元格', [{ kind: 'table', caption: '参数', rows: [{ cells: [{ content: [f] }] }] }]],
+    ['术语定义', [{ kind: 'termEntry', term: '流量', definition: ['单位时间通过的体积', { kind: 'paragraph', content: [f] }] }]],
+  ])('正文类位置（%s）接受行内公式', (_name, input) => {
+    const result = normalizeAuthoringFragment(input, CHAPTER, { generateId: seqIds() })
+    if (!result.ok) throw new Error(JSON.stringify(result.issues, null, 2))
+    expect(JSON.stringify(result.nodes)).toContain('"latex":"x_{i}"')
+  })
+
+  it.each([
+    ['章标题', { parent: 'body' }, [{ kind: 'chapter', title: ['要求', f], children: [] }], 'fragment[0].title[1].formula'],
+    ['条标题', CHAPTER, [{ kind: 'clause', title: ['条', f], children: ['正文'] }], 'fragment[0].title[1].formula'],
+    ['表题', CHAPTER, [{ kind: 'table', caption: ['参数', f], rows: [{ cells: ['值'] }] }], 'fragment[0].caption[1].formula'],
+    ['术语名', CHAPTER, [{ kind: 'termEntry', term: ['流量', f], definition: '定义' }], 'fragment[0].term[1].formula'],
+    ['术语来源', CHAPTER, [{ kind: 'termEntry', term: '流量', definition: '定义', source: ['GB/T 1', f] }], 'fragment[0].source[1].formula'],
+    ['参考文献', { parent: 'bibliography' }, [{ kind: 'bibEntry', content: ['GB/T 1', f] }], 'fragment[0].content[1].formula'],
+  ] as const)('标题、图表题、术语名、参考文献（%s）拒绝行内公式', (_name, context, input, path) => {
+    const result = normalizeAuthoringFragment(input, context as AuthoringContext, { generateId: seqIds() })
+    expect(result.ok).toBe(false)
+    const issue = result.ok ? undefined : result.issues.find(item => item.path === path)
     expect(issue).toEqual(expect.objectContaining({ code: 'unsupported-field' }))
-    expect(issue!.reason).toContain('本期只支持式中符号')
+    expect(issue!.reason).toContain('标题、图表题、术语名、参考文献')
   })
 
   it.each([

@@ -63,3 +63,28 @@ describe('文档操作：式中符号行内公式', () => {
     expect(result.issues[0]!.reason).toContain('KaTeX')
   })
 })
+
+describe('文档操作：正文类位置的行内公式（Phase 7）', () => {
+  it('插入含行内公式的段落与表格，读出后可原样替换', () => {
+    const result = apply([{ op: 'insert', parent: 'ch-1', position: 'end', content: [
+      { kind: 'paragraph', id: 'p-new', content: ['当', { formula: { latex: 'q_{V}' } }, '大于 1 时'] },
+      { kind: 'table', id: 't-new', caption: '参数', rows: [{ cells: [{ content: [{ formula: { latex: String.raw`\lambda` } }] }] }] },
+    ] }])
+    if (!result.ok) throw new Error(JSON.stringify(result.issues))
+    for (const id of ['p-new', 't-new']) {
+      const read = readNode(result.doc, id)
+      if (!read.ok) throw new Error(read.reason)
+      expect(read.node.replaceable).toBe(true)
+      expect(JSON.stringify(read.node.ir)).toContain('"formula":')
+    }
+  })
+
+  it('段落中 KaTeX 无法解析的公式写入前拒绝', () => {
+    const result = apply([{ op: 'insert', parent: 'ch-1', position: 'end', content: [
+      { kind: 'paragraph', content: ['坏', { formula: { latex: String.raw`\frac{` } }] },
+    ] }])
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.issues).toEqual([expect.objectContaining({ code: 'invalid-value', path: 'operations[0].content[0].content[1].formula.latex' })])
+  })
+})
