@@ -4,7 +4,7 @@ import { TableCell } from '@tiptap/extension-table-cell'
 import { TableHeader } from '@tiptap/extension-table-header'
 import { TableRow } from '@tiptap/extension-table-row'
 import katex from 'katex'
-import { dispatchWhereSymbolRequest } from '../plugins/whereListEditing'
+import { dispatchInlineFormulaRequest } from '../plugins/inlineFormulaEditing'
 
 function safeExternalHref(value: unknown): string | null {
   if (typeof value !== 'string') return null
@@ -548,7 +548,7 @@ export const FormulaInline = Node.create({
         event.stopPropagation()
         const pos = typeof getPos === 'function' ? getPos() : undefined
         if (typeof pos !== 'number') return
-        dispatchWhereSymbolRequest({
+        dispatchInlineFormulaRequest({
           mode: 'edit', pos, latex: String(current.attrs.latex ?? ''),
           ...(current.attrs.nodeId ? { nodeId: String(current.attrs.nodeId) } : {}),
         })

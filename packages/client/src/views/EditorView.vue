@@ -150,6 +150,12 @@
               title="为光标所在公式添加一条式中符号说明"
               @click="handleAddWhereItem()"
             >式中</button>
+            <button
+              class="tbar-btn"
+              :disabled="!cursorAllowsInlineFormula"
+              title="插入行内公式；选中带上下标的文字时转为公式（Ctrl/Cmd+Shift+M）"
+              @click="handleInlineFormula()"
+            >行内公式</button>
           </div>
 
           <!-- 媒体 -->
@@ -303,6 +309,7 @@
         <h4>文档结构</h4>
         <p>使用左上角"+"按钮添加章节结构（前言、引言、章、附录、参考文献）。点击正文段落或选中其中的文字后，使用“条”“无题条”设置整段格式；新条之后的正文归入该条，直到下一个同级条。一级条置于章或附录内，其他级别置于上一级条内。含子条时保留原层级，可切换有题/无题；先调整子条结构再改层级或段落。需要新条时，先回车建立空段再设置格式。</p>
         <p>术语中英文名称同列显示：Tab 从中文名进入英文名，Enter 进入定义；在定义中 Enter 新建续段，末尾空续段再次 Enter 退出术语。使用工具栏插入列项、注、示例、公式、表格、图片等内容要素。选中图或表后，可切换纵向或横向版面。</p>
+        <p>行内公式：在正文、列项、注、示例、表格单元格、术语定义中按 Ctrl/Cmd+Shift+M（或工具栏「行内公式」）插入；先选中 q<sub>V</sub> 这类带上下标的文字再按，可把它转为公式。点击公式可重新编辑。</p>
       </div>
     </el-dialog>
 
@@ -459,7 +466,7 @@
     <MathInputDialog
       v-model="showMathDialog"
       :initial-latex="mathDialogLatex"
-      :title="mathDialogRequest?.mode === 'edit' ? '编辑式中符号' : '插入式中符号'"
+      :title="mathDialogTitle"
       @confirm="handleMathConfirm"
     />
   </div>
@@ -516,8 +523,11 @@ import { createEditorExtensions } from '@/extensions/editorExtensions'
 import { hasNodeIdIssues, normalizeNodeIds } from '@/extensions/plugins/ensureNodeId'
 import { canInsertBodyFootnote } from '@/extensions/nodes/footnotes'
 import {
-  formulaHasLegacyDescription, selectedFormula, WHERE_SYMBOL_EVENT, type WhereSymbolRequest,
+  formulaHasLegacyDescription, selectedFormula,
 } from '@/extensions/plugins/whereListEditing'
+import {
+  canInsertInlineFormula, INLINE_FORMULA_EVENT, type InlineFormulaRequest,
+} from '@/extensions/plugins/inlineFormulaEditing'
 import { getTableFootnoteEntries } from '@/extensions/nodes/std-table'
 import {
   serializeToXml, parseXmlToEditorJson,
@@ -839,7 +849,7 @@ const codeViewContent = computed(() => codeViewResult.value.error || codeViewRes
 
 onMounted(async () => {
   window.addEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
-  window.addEventListener(WHERE_SYMBOL_EVENT, handleWhereSymbolEvent)
+  window.addEventListener(INLINE_FORMULA_EVENT, handleInlineFormulaEvent)
   window.addEventListener('ses:edit-footnote', handleFootnoteEditEvent)
   window.addEventListener('ses:paste-reference-error', handleAmbiguousPasteReference)
   window.addEventListener('beforeunload', guardUnsavedSettings)
@@ -899,7 +909,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
-  window.removeEventListener(WHERE_SYMBOL_EVENT, handleWhereSymbolEvent)
+  window.removeEventListener(INLINE_FORMULA_EVENT, handleInlineFormulaEvent)
   window.removeEventListener('ses:edit-footnote', handleFootnoteEditEvent)
   window.removeEventListener('ses:paste-reference-error', handleAmbiguousPasteReference)
   window.removeEventListener('beforeunload', guardUnsavedSettings)
@@ -1870,21 +1880,37 @@ function handleInsertFormula() {
   }).run()
 }
 
-// === 式中符号 ===
+// === 行内公式与式中符号（docs/phase7-inline-formula.md）===
 const showMathDialog = ref(false)
 const mathDialogLatex = ref('')
-const mathDialogRequest = ref<WhereSymbolRequest | null>(null)
+const mathDialogRequest = ref<InlineFormulaRequest | null>(null)
 const cursorInFormula = computed(() => !!editor.value && selectedFormula(editor.value.state) !== null)
+const cursorAllowsInlineFormula = computed(() => !!editor.value && canInsertInlineFormula(editor.value.state))
+const mathDialogTitle = computed(() => {
+  const request = mathDialogRequest.value
+  const inWhereTerm = editor.value?.state.doc.resolve(Math.min(request?.pos ?? 0, editor.value.state.doc.content.size)).parent.type.name === 'whereTerm'
+  const noun = inWhereTerm ? '式中符号' : '行内公式'
+  return request?.mode === 'edit' ? `编辑${noun}` : request?.mode === 'replace' ? `转为${noun}` : `插入${noun}`
+})
 
-function openMathDialog(request: WhereSymbolRequest) {
+function openMathDialog(request: InlineFormulaRequest) {
   mathDialogRequest.value = request
   mathDialogLatex.value = request.latex
   showMathDialog.value = true
 }
 
-function handleWhereSymbolEvent(event: Event) {
-  const detail = (event as CustomEvent<WhereSymbolRequest>).detail
+function handleInlineFormulaEvent(event: Event) {
+  const detail = (event as CustomEvent<InlineFormulaRequest>).detail
   if (detail) openMathDialog(detail)
+}
+
+/** 工具栏「行内公式」：与 Ctrl/Cmd+Shift+M 相同，无选区时插入，选中文字时转为公式。 */
+function handleInlineFormula() {
+  const ed = editor.value
+  if (!ed) return
+  if (!ed.commands.requestInlineFormula()) {
+    ElMessage.info('行内公式只能放在正文、列项、注、示例、表格单元格、术语定义等位置；选中文字转公式时，选区不能跨段或包含其他公式、脚注')
+  }
 }
 
 function handleAddWhereItem() {
@@ -1941,11 +1967,15 @@ function handleMathConfirm(latex: string) {
   let applied = false
   if (request.mode === 'edit') {
     applied = ed.chain().focus().updateFormulaInline({ pos: request.pos, latex, nodeId: request.nodeId }).run()
+  } else if (request.mode === 'replace') {
+    applied = ed.chain().focus().replaceSelectionWithFormula({
+      from: request.pos, to: request.to ?? request.pos, text: request.text ?? '', latex,
+    }).run()
   } else if (request.pos <= ed.state.doc.content.size) {
-    // 打开弹窗期间文档可能被远端修改；位置不再落在符号格内时由命令拒绝。
-    applied = ed.chain().focus().setTextSelection(request.pos).insertWhereSymbol({ latex }).run()
+    // 打开弹窗期间文档可能被远端修改；位置不再落在允许的文本块内时由命令拒绝。
+    applied = ed.chain().focus().setTextSelection(request.pos).insertInlineFormula({ latex }).run()
   }
-  if (!applied) ElMessage.warning('文档已变化，未能写入符号，请重新点击符号位置')
+  if (!applied) ElMessage.warning('文档已变化，未能写入公式，请重新选择位置')
 }
 
 // === 图片 ===

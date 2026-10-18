@@ -105,12 +105,12 @@ describe('结构化式中：命令', () => {
     expect(editor.commands.addWhereItem()).toBe(false)
   })
 
-  it('在符号格插入行内公式；其他位置拒绝', () => {
+  it('在符号格插入行内公式；公式源码内拒绝', () => {
     const editor = createEditor(formulaDoc([{ type: 'whereList', content: [item([], '体积流量')] }]))
-    placeCursor(editor, 'whereDefinition')
-    expect(editor.commands.insertWhereSymbol({ latex: 'q_{V}' })).toBe(false)
+    placeCursor(editor, 'formulaContent')
+    expect(editor.commands.insertInlineFormula({ latex: 'q_{V}' })).toBe(false)
     placeCursor(editor, 'whereTerm')
-    expect(editor.commands.insertWhereSymbol({ latex: 'q_{V}' })).toBe(true)
+    expect(editor.commands.insertInlineFormula({ latex: 'q_{V}' })).toBe(true)
     const term = whereItems(editor)[0]!.content![0]!
     expect(term.content).toEqual([expect.objectContaining({ type: 'formulaInline', attrs: expect.objectContaining({ latex: 'q_{V}' }) })])
   })
@@ -191,9 +191,9 @@ describe('结构化式中：键盘', () => {
     editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, pos)))
     const events: unknown[] = []
     const listener = (event: Event) => events.push((event as CustomEvent).detail)
-    window.addEventListener('ses:edit-where-symbol', listener)
+    window.addEventListener('ses:edit-inline-formula', listener)
     press(editor, 'Enter')
-    window.removeEventListener('ses:edit-where-symbol', listener)
+    window.removeEventListener('ses:edit-inline-formula', listener)
     expect(events).toEqual([{ mode: 'edit', pos, latex: 'q_{V}', nodeId: expect.any(String) }])
   })
 })
@@ -208,9 +208,9 @@ describe('结构化式中：显示', () => {
     expect(dom.querySelector('.katex-display')).toBeNull()
     const events: Array<{ mode: string; latex: string }> = []
     const listener = (event: Event) => events.push((event as CustomEvent).detail)
-    window.addEventListener('ses:edit-where-symbol', listener)
+    window.addEventListener('ses:edit-inline-formula', listener)
     dom.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
-    window.removeEventListener('ses:edit-where-symbol', listener)
+    window.removeEventListener('ses:edit-inline-formula', listener)
     expect(events).toEqual([expect.objectContaining({ mode: 'edit', latex: 'q_{V}', nodeId: expect.any(String) })])
   })
 
@@ -229,11 +229,11 @@ describe('结构化式中：显示', () => {
     editor.state.doc.descendants((node, nodePos) => { if (node.type.name === 'whereTerm') termPos = nodePos })
     const events: unknown[] = []
     const listener = (event: Event) => events.push((event as CustomEvent).detail)
-    window.addEventListener('ses:edit-where-symbol', listener)
+    window.addEventListener('ses:edit-inline-formula', listener)
     const handled = editor.view.someProp('handleClickOn', handler => handler(
       editor.view, termPos + 1, editor.state.doc.nodeAt(termPos)!, termPos, new MouseEvent('click'), true,
     ))
-    window.removeEventListener('ses:edit-where-symbol', listener)
+    window.removeEventListener('ses:edit-inline-formula', listener)
     expect(handled).toBe(true)
     expect(events).toEqual([{ mode: 'insert', pos: termPos + 1, latex: '' }])
   })

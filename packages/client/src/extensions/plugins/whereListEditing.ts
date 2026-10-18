@@ -1,39 +1,16 @@
 import { Extension, type Editor } from '@tiptap/core'
 import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model'
-import { NodeSelection, Plugin, PluginKey, TextSelection, type EditorState } from '@tiptap/pm/state'
+import { Plugin, PluginKey, TextSelection, type EditorState } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { dispatchInlineFormulaRequest } from './inlineFormulaEditing'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     whereList: {
       /** 光标在公式内时追加一条式中；公式已有非空自由文本式中时返回 false（先走一键转换）。 */
       addWhereItem: () => ReturnType
-      /** 在当前符号格的光标处插入式中符号（行内公式）；只允许在 whereTerm 内。 */
-      insertWhereSymbol: (options: { latex: string }) => ReturnType
-      /** 替换 pos 处行内公式的 LaTeX，并清空不再一致的 MathML 与外部源。 */
-      updateFormulaInline: (options: { pos: number; latex: string; nodeId?: string }) => ReturnType
     }
   }
-}
-
-/**
- * 式中符号编辑请求（window 事件 `ses:edit-where-symbol`）：
- * - edit：编辑 pos 处已有的行内公式；
- * - insert：在 pos（符号格内的光标位置）插入新符号。
- */
-export interface WhereSymbolRequest {
-  mode: 'edit' | 'insert'
-  pos: number
-  latex: string
-  /** edit 时被编辑符号的 nodeId；写回前核对，避免位置因远端修改而指向另一个符号。 */
-  nodeId?: string
-}
-
-export const WHERE_SYMBOL_EVENT = 'ses:edit-where-symbol'
-
-export function dispatchWhereSymbolRequest(detail: WhereSymbolRequest): void {
-  if (typeof window === 'undefined') return
-  window.dispatchEvent(new CustomEvent<WhereSymbolRequest>(WHERE_SYMBOL_EVENT, { detail }))
 }
 
 function ancestorDepth($pos: ResolvedPos, name: string): number {
@@ -164,25 +141,6 @@ export const WhereListEditing = Extension.create({
         dispatch(tr.scrollIntoView())
         return true
       },
-
-      insertWhereSymbol: ({ latex }) => ({ state, dispatch }) => {
-        const { $from } = state.selection
-        if ($from.parent.type.name !== 'whereTerm' || !state.selection.$to.sameParent($from) || !latex.trim()) return false
-        if (dispatch) {
-          const node = state.schema.nodes.formulaInline!.create({ latex })
-          const tr = state.tr.replaceSelectionWith(node, false)
-          dispatch(tr.scrollIntoView())
-        }
-        return true
-      },
-
-      updateFormulaInline: ({ pos, latex, nodeId }) => ({ state, dispatch }) => {
-        const node = state.doc.nodeAt(pos)
-        if (!node || node.type.name !== 'formulaInline' || !latex.trim()) return false
-        if (nodeId !== undefined && node.attrs.nodeId !== nodeId) return false
-        if (dispatch) dispatch(state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, latex, mathml: null, source: null }))
-        return true
-      },
     }
   },
 
@@ -191,14 +149,6 @@ export const WhereListEditing = Extension.create({
       editor.state.selection.$from.parent.type.name === name
     return {
       Enter: ({ editor }) => {
-        const { selection } = editor.state
-        if (selection instanceof NodeSelection && selection.node.type.name === 'formulaInline') {
-          dispatchWhereSymbolRequest({
-            mode: 'edit', pos: selection.from, latex: String(selection.node.attrs.latex ?? ''),
-            ...(selection.node.attrs.nodeId ? { nodeId: String(selection.node.attrs.nodeId) } : {}),
-          })
-          return true
-        }
         if (inCell(editor, 'whereTerm')) return moveToCell(editor, 'definition')
         if (inCell(editor, 'whereDefinition')) return insertItemAfter(editor)
         return false
@@ -226,7 +176,7 @@ export const WhereListEditing = Extension.create({
         },
         handleClickOn(_view, _pos, node, nodePos, _event, direct) {
           if (!direct || node.type.name !== 'whereTerm' || node.content.size > 0) return false
-          dispatchWhereSymbolRequest({ mode: 'insert', pos: nodePos + 1, latex: '' })
+          dispatchInlineFormulaRequest({ mode: 'insert', pos: nodePos + 1, latex: '' })
           return true
         },
       },

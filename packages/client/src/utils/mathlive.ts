@@ -24,6 +24,16 @@ export function validateWhereSymbolLatex(input: string): WhereSymbolValidation {
   return { ok: true, latex }
 }
 
+const COMPLEX_INLINE = /\\(?:[dt]?frac|over\b|sum|prod|coprod|int|iint|iiint|oint|sqrt|lim|begin|binom|stackrel|overset|underset)/
+
+/**
+ * 行内公式是否「较高」：分式、求和、积分、根式、矩阵等会撑高所在行（Word 正文对齐文档网格，会占两格行高）。
+ * 只用于弹窗提示，不阻止保存。
+ */
+export function isComplexInlineLatex(latex: string): boolean {
+  return COMPLEX_INLINE.test(latex)
+}
+
 /** MathfieldElement 上本模块会改写的静态配置。 */
 export interface MathfieldStatics {
   fontsDirectory: string | null

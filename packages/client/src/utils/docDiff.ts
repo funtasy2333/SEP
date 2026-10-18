@@ -240,6 +240,11 @@ function extractTitle(
 /** 从节点中递归提取纯文本 */
 function extractText(node: Record<string, unknown>): string {
   if (node.text) return node.text as string
+  // 行内公式没有文字，按 LaTeX 源码输出，否则版本对比看不到公式改动。
+  if (node.type === 'formulaInline') {
+    const latex = (node.attrs as Record<string, unknown> | undefined)?.latex
+    return typeof latex === 'string' && latex ? `$${latex}$` : ''
+  }
   const content = node.content as Array<Record<string, unknown>> | undefined
   if (!content) return ''
   return content.map(c => extractText(c)).join('')

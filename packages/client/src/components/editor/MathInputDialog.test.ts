@@ -63,3 +63,18 @@ it('无法解析的 LaTeX 显示错误，不回传', async () => {
   expect(document.querySelector('.math-dlg-error')?.textContent).toContain('KaTeX 无法解析')
   app.unmount()
 })
+
+it('复杂公式显示行高提示，但仍可保存', async () => {
+  const { confirmed, app } = await mountDialog(String.raw`\frac{a}{b}`)
+  expect(document.querySelector('.math-dlg-complex')?.textContent).toContain('撑高所在行')
+  ;(document.querySelector('.math-dlg-confirm') as HTMLButtonElement).click()
+  await settle()
+  expect(confirmed).toEqual([String.raw`\frac{a}{b}`])
+  app.unmount()
+})
+
+it('简单符号不显示提示', async () => {
+  const { app } = await mountDialog('q_{V}')
+  expect(document.querySelector('.math-dlg-complex')).toBeNull()
+  app.unmount()
+})

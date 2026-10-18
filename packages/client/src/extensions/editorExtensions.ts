@@ -30,6 +30,7 @@ import {
   TableFootnoteOrder,
   Subscript, Superscript,
   TbxLangSet, TbxTerm, TbxTermDescriptor, TbxTermVariant, TbxTig, TermRef, TextStyle, TitlePart,
+  InlineFormulaEditing,
   Variable, WarningBlock, WhereDefinition, WhereItem, WhereList, WhereListEditing, WhereTerm,
   StdList, StdListItem,
   StdParagraph, StdTable, TableCaption, TableCaptionEn, TableFootnote, TableFootnoteEntry, TableFootnoteRef, TableFootnoteRow, TableNoteRow,
@@ -77,6 +78,6 @@ export function createEditorExtensions(): Extensions {
     IndexBlock, IndexGroup, IndexEntry, IndexTerm, IndexTarget, IndexSeeAlso,
     WarningBlock, QuoteBlock, SemanticCodeBlock,
     TextStyle, Subscript, Superscript, Variable, ExternalLink, BibRef, TermRef,
-    WhereListEditing,
+    WhereListEditing, InlineFormulaEditing,
   ]
 }

@@ -49,6 +49,7 @@
       <span class="math-dlg-preview-label">预览：</span>
       <span class="math-dlg-preview-body" v-html="previewHtml" />
     </div>
+    <p v-if="complexHint" class="math-dlg-complex">该公式较高（分式、求和、根式等），放在行内会撑高所在行；复杂公式建议单独成行。</p>
     <p v-if="error" class="math-dlg-error" role="alert">{{ error }}</p>
 
     <template #footer>
@@ -62,7 +63,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
-import { loadMathLive, validateWhereSymbolLatex, WHERE_SYMBOL_SHORTCUTS, type MathfieldStatics } from '@/utils/mathlive'
+import { isComplexInlineLatex, loadMathLive, validateWhereSymbolLatex, WHERE_SYMBOL_SHORTCUTS, type MathfieldStatics } from '@/utils/mathlive'
 
 /** MathLive `<math-field>` 元素在本组件内用到的接口。 */
 interface MathfieldLike extends HTMLElement {
@@ -90,6 +91,8 @@ const loading = ref(false)
 const loadFailed = ref(false)
 const mathfieldReady = ref(false)
 const mathfieldRef = ref<MathfieldLike | null>(null)
+
+const complexHint = computed(() => isComplexInlineLatex(source.value))
 
 const previewHtml = computed(() => {
   const latex = source.value.trim()
@@ -224,6 +227,12 @@ function handleConfirm(): void {
 
 .math-dlg-preview-label {
   color: #888;
+  font-size: 13px;
+}
+
+.math-dlg-complex {
+  margin: 8px 0 0;
+  color: #b88230;
   font-size: 13px;
 }
 

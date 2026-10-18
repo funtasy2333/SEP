@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from 'vitest'
-import { configureMathfieldElement, loadMathLive, validateWhereSymbolLatex } from './mathlive'
+import { configureMathfieldElement, isComplexInlineLatex, loadMathLive, validateWhereSymbolLatex } from './mathlive'
 
 describe('式中符号 LaTeX 校验', () => {
   it.each([
@@ -37,5 +37,16 @@ describe('MathLive 加载', () => {
     expect(await loadMathLive(importer)).toBeNull()
     expect(await loadMathLive(importer)).not.toBeNull()
     expect(importer).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('复杂行内公式提示', () => {
+  it.each([
+    [String.raw`\frac{a}{b}`, true], [String.raw`\dfrac{a}{b}`, true], [String.raw`\sum_{i=1}^{n} x_i`, true],
+    [String.raw`\int_0^1 f`, true], [String.raw`\sqrt{2}`, true], [String.raw`\begin{matrix}a\end{matrix}`, true],
+    [String.raw`\prod_i p_i`, true], [String.raw`\lim_{x\to 0}`, true], ['a \\over b', true],
+    ['q_{V}', false], [String.raw`\rho_{\mathrm{w}}`, false], ['x_{i}^{2}', false], [String.raw`\Delta p_{\max}`, false],
+  ])('%s → %s', (latex, complex) => {
+    expect(isComplexInlineLatex(latex)).toBe(complex)
   })
 })
