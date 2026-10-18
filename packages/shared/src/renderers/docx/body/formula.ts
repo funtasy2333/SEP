@@ -7,17 +7,12 @@
 import type { IRFormula, NodeId } from '../../../ir/types'
 import { RPR_SONG } from '../numbering'
 import { pPr } from '../xml'
+import { fullWidthFormulaLabel } from '../../formulaLabel'
 import { emitParagraph, formulaSink, warn, type RenderContext } from './context'
 import { plainRun, renderInlines, tabRun } from './inline'
 
 const TWIPS_PER_CHAR = 210
 const HANGING_INDENT_TWIPS = 420
-
-function fullWidthFormulaLabel(label: string): string {
-  const wrapped = /^(?:\((.*)\)|（(.*)）)$/.exec(label)
-  const inner = wrapped ? (wrapped[1] ?? wrapped[2]) : label
-  return `（${inner}）`
-}
 
 /** ASCII 字符按半个汉字估算，其余 Unicode 码点按一个汉字估算（§5.10）。 */
 function textWidth(text: string): number {

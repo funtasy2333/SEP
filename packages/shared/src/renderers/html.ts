@@ -1,4 +1,5 @@
 import { assertOutputSupported } from './outputBoundary'
+import { fullWidthFormulaLabel } from './formulaLabel'
 /**
  * HTML 渲染器（Phase 5.5 / WP4）。
  *
@@ -380,7 +381,8 @@ function renderFormula(formula: IRFormula, ctx: RenderCtx): void {
   // KaTeX 占位（消费端渲染）；data-latex 保留原文
   ctx.push(`<span class="ses-formula" data-latex="${escapeAttr(formula.latex)}"></span>`)
   if (numbered) {
-    ctx.push(`<span class="ses-formula-num">${escapeHtml(ctx.label(formula.id))}</span>`)
+    // 打印样式在 ses-formula-leader 上铺点线（结构与目次条目相同：点线 span + 编号 span），屏幕样式隐藏它。
+    ctx.push(`<span class="ses-formula-tail"><span class="ses-formula-leader"></span><span class="ses-formula-num">${escapeHtml(fullWidthFormulaLabel(ctx.label(formula.id)))}</span></span>`)
   }
   ctx.push('</div>')
 
@@ -770,7 +772,8 @@ function screenStyles(): string {
     .ses-figure-caption-en { font-style: italic; color: #555; }
     .ses-formula-block { display: flex; align-items: center; margin: 16px 0 6px; }
     .ses-formula { flex: 1; text-align: center; }
-    .ses-formula-num { width: 5em; text-align: right; }
+    .ses-formula-tail { width: 5em; text-align: right; }
+    .ses-formula-leader { display: none; }
     .ses-where { margin: 0 0 12px 3em; }
     .ses-where-list { display: grid; grid-template-columns: min-content 1fr; column-gap: 1em; }
     .ses-where-list dt { font-style: italic; }
