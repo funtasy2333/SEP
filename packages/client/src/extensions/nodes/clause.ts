@@ -2,7 +2,7 @@ import { Node, mergeAttributes, type Editor } from '@tiptap/core'
 import { Plugin, PluginKey, Selection, TextSelection } from '@tiptap/pm/state'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
 import { setParagraphFormat } from '../../utils/structureEditing'
-import { normalizeUntitledClauses, redirectUntitledNumberSelection } from '../../utils/untitledClause'
+import { normalizeUntitledClauses, redirectUntitledNumberSelection, untitledClauseEnter } from '../../utils/untitledClause'
 
 const untitledClauseKey = new PluginKey('untitledClauseNormalize')
 
@@ -84,8 +84,15 @@ export const Clause = Node.create({
       ArrowLeft: leaveUntitledClause,
       ArrowUp: leaveUntitledClause,
       Enter: ({ editor }) => {
+        // 无题条正文（规范模型下光标都在这里）：类似编号列表，新建同级无题条，或在空条上退回上一条另起一段
+        const untitledEnter = untitledClauseEnter(editor.state)
+        if (untitledEnter === 'swallow') return true
+        if (untitledEnter) {
+          editor.view.dispatch(untitledEnter.scrollIntoView())
+          return true
+        }
         const { $from } = editor.state.selection
-        // 仅在无题条的 clauseTitle 中按回车时触发
+        // 其余仅在无题条的 clauseTitle（无正文块的异常无题条）中按回车时触发
         if ($from.parent.type.name !== 'clauseTitle') return false
         // 找到所属的 clause 节点
         let clauseDepth = -1

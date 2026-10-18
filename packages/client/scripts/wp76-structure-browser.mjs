@@ -189,6 +189,70 @@ try {
   assert.ok((await page.locator('.tiptap [data-node-id="u2p"]').innerText()).endsWith('Z'), '上方向键应跳到前一个块末尾')
   assert.equal((await page.locator('.tiptap [data-node-id="u2"] > .std-clause-title').innerText()).trim(), '')
   pass('首段起点按 ← / ↑：光标跳到前一个块末尾，编号块始终为空')
+
+  // 无题条正文里按 Enter（真实键盘）：类似编号列表。c1 下原有无题条 u1~u4。
+  const c1Untitled = () => page.evaluate(() => [...document.querySelectorAll('.tiptap [data-node-id="c1"] > .std-clause[data-has-title="false"]')].map(el => ({
+    id: el.dataset.nodeId,
+    label: getComputedStyle(el.querySelector(':scope > .std-clause-title'), '::before').content,
+    title: el.querySelector(':scope > .std-clause-title').innerText.trim(),
+    paragraphs: [...el.querySelectorAll(':scope > .std-paragraph')].map(paragraph => paragraph.innerText.trim()),
+  })))
+  assert.equal((await c1Untitled()).length, 4)
+  // 键间留一拍：ProseMirror 要等 selectionchange 之后才把 DOM 选区同步进状态，背靠背的按键会读到旧选区
+  const key = async name => { await page.keyboard.press(name); await page.waitForTimeout(100) }
+  // 段末 Enter：在当前条之后新建同级无题条，光标进入新条正文段，输入落在新条
+  await page.locator('.tiptap [data-node-id="u3p"]').click()
+  await page.waitForTimeout(100)
+  await key('End')
+  await key('Enter')
+  let untitledList = await c1Untitled()
+  assert.equal(untitledList.length, 5, JSON.stringify(untitledList))
+  assert.deepEqual(untitledList.slice(0, 3).map(item => item.id), ['u1', 'u2', 'u3'], JSON.stringify(untitledList))
+  assert.deepEqual(untitledList[3].paragraphs, [''])
+  assert.equal(untitledList[3].title, '')
+  assert.equal(untitledList[4].id, 'u4')
+  assert.equal(new Set(untitledList.map(item => item.label)).size, untitledList.length, '每个无题条编号各不相同')
+  await page.keyboard.type('新条')
+  await page.waitForTimeout(100)
+  untitledList = await c1Untitled()
+  assert.deepEqual(untitledList[3].paragraphs, ['新条'])
+  assert.equal(untitledList[2].paragraphs[0], '空无题条里输入')
+  pass('无题条段末 Enter：新建同级无题条（空编号块），光标进入新条正文段')
+  // 段中 Enter：光标后的文字移入新条
+  await key('ArrowLeft')
+  await key('Enter')
+  untitledList = await c1Untitled()
+  assert.equal(untitledList.length, 6, JSON.stringify(untitledList))
+  assert.deepEqual([untitledList[3].paragraphs, untitledList[4].paragraphs], [['新'], ['条']], JSON.stringify(untitledList))
+  pass('无题条段中 Enter：光标后的文字移入新条，不丢字')
+  // 末尾 Enter 新建空条，再在空条里 Enter：退回上一条另起一段（多段条文），随后输入落在该条第二段
+  await key('End')
+  await key('Enter')
+  assert.equal((await c1Untitled()).length, 7)
+  await key('Enter')
+  untitledList = await c1Untitled()
+  assert.equal(untitledList.length, 6, JSON.stringify(untitledList))
+  assert.deepEqual(untitledList[4].paragraphs, ['条', ''], JSON.stringify(untitledList))
+  await page.keyboard.type('续段')
+  await page.waitForTimeout(100)
+  untitledList = await c1Untitled()
+  assert.deepEqual(untitledList[4].paragraphs, ['条', '续段'], JSON.stringify(untitledList))
+  pass('空无题条 Enter：回到上一条末尾另起一段，条数减一，输入落在第二段')
+  // Shift+Enter 仍是换行，不新建条
+  await key('Shift+Enter')
+  assert.equal((await c1Untitled()).length, 6)
+  assert.equal(await page.locator('.tiptap [data-node-id="c1"] > .std-clause[data-has-title="false"] > .std-paragraph br:not(.ProseMirror-trailingBreak)').count(), 1)
+  pass('无题条里 Shift+Enter 仍为换行')
+  // 撤销一步还原新建的条（等待超过撤销分组间隔，使 Enter 单独成为一步）
+  await page.waitForTimeout(700)
+  await key('End')
+  await key('Enter')
+  assert.equal((await c1Untitled()).length, 7)
+  await page.waitForTimeout(700)
+  await key('Control+z')
+  assert.equal((await c1Untitled()).length, 6)
+  pass('无题条 Enter 新建的条可一步撤销')
+  await shot('.tiptap [data-node-id="c1"]', '03a-untitled-enter.png')
   await page.screenshot({ path: join(output, '03-after-typing.png') })
 
   // ---- 3. 工具栏：段落 → 无题条，失败原因提示各不相同 ----

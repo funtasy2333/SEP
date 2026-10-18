@@ -59,8 +59,8 @@ export function destroyEditors(): void {
  * 向视图派发真实的 keydown（走 ProseMirror 的 handleKeyDown / keymap 链）。
  * 不用 editor.commands.keyboardShortcut：它会捕获快捷键事务并只重放步骤，选区等信息会丢失。
  */
-export function pressKey(e: Editor, key: string): boolean {
-  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+export function pressKey(e: Editor, key: string, modifiers: KeyboardEventInit = {}): boolean {
+  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers })
   return e.view.someProp('handleKeyDown', handler => handler(e.view, event)) ?? false
 }
 

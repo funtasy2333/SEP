@@ -1,6 +1,7 @@
 import type { Node as PMNode } from '@tiptap/pm/model'
-import { TextSelection, type Selection, type Transaction } from '@tiptap/pm/state'
+import { TextSelection, type EditorState, type Selection, type Transaction } from '@tiptap/pm/state'
 import { generateNodeId } from '@ses/shared'
+import { hasReferenceTo } from './textBlockFormat'
 
 /**
  * 无题条的 IR 模型：hasTitle=false 时 clauseTitle 必须为空，条文在首个 stdParagraph。
@@ -91,4 +92,68 @@ export function normalizeUntitledClauses(tr: Transaction): number {
     tr.setSelection(TextSelection.create(tr.doc, map.map(anchor.from), map.map(anchor.to)))
   }
   return positions.length
+}
+
+/**
+ * 无题条正文里按 Enter 的处理结果：
+ * - Transaction：已规划好的单一事务，调用方派发即可（一步撤销）；
+ * - 'swallow'：该位置的默认 Enter 会制造悬置段或空壳无题条，吞掉按键、文档不变；
+ * - null：不适用，交给默认行为（拆段、Shift+Enter 换行等）。
+ */
+export type UntitledClauseEnter = Transaction | 'swallow' | null
+
+/**
+ * 无题条的 Enter，类似编号列表。仅在空选区、光标位于「无题条最后一个直属块且该块是 stdParagraph」时接管：
+ * 1. 段落非空：在当前条之后插入同级无题条（空 clauseTitle + 一个 stdParagraph），光标之后的内容
+ *    （marks、行内节点与其 nodeId 原样搬走，不丢字）移入新段，光标进入新段开头。新条的 nodeId 由 NodeId 插件补齐。
+ * 2. 整条为空（clauseTitle 空且唯一正文段为空）：若紧邻前一个同级条是无题条，删除这个空条，
+ *    在前一条末尾追加空段并把光标放进去（退出连续编号，在上一条里另起一段，用于多段条文）；
+ *    否则默认的 Enter 会把空段抬出条外成为悬置段、留下无正文的空壳条，所以吞掉按键。
+ *    被交叉引用的空条删除会让引用失去目标，同样吞掉。
+ * 条的最后一个直属块不是段落（列项、注等）、非最后的正文段、有选区范围时都不接管。
+ * 只在条后插入同级条或在上一条追加段落，从不制造子条（无题条不能有子条，GB/T 7.3.4）。
+ */
+export function untitledClauseEnter(state: EditorState): UntitledClauseEnter {
+  const { selection } = state
+  if (!(selection instanceof TextSelection) || !selection.empty) return null
+  const { $from } = selection
+  const paragraph = $from.parent
+  if (paragraph.type.name !== 'stdParagraph' || $from.depth < 2) return null
+  const clauseDepth = $from.depth - 1
+  const clause = $from.node(clauseDepth)
+  if (clause.type.name !== 'clause' || clause.attrs.hasTitle !== false) return null
+  if ($from.index(clauseDepth) !== clause.childCount - 1) return null
+
+  const { nodes } = state.schema
+  const clauseTitleType = nodes.clauseTitle
+  const paragraphType = nodes.stdParagraph
+  if (!clauseTitleType || !paragraphType) return null
+  const level = clause.attrs.level
+
+  if (paragraph.content.size > 0) {
+    const tail = paragraph.content.cut($from.parentOffset)
+    const title = clauseTitleType.create({ level })
+    const created = clause.type.create({ level, hasTitle: false }, [title, paragraphType.create(null, tail)])
+    const tr = state.tr
+    tr.delete($from.pos, $from.end())
+    const insertPos = $from.after(clauseDepth) - tail.size
+    tr.insert(insertPos, created)
+    tr.setSelection(TextSelection.create(tr.doc, insertPos + 1 + title.nodeSize + 1))
+    return tr
+  }
+
+  if (clause.childCount !== 2 || clause.firstChild!.content.size > 0) return null
+  const siblings = $from.node(clauseDepth - 1)
+  const index = $from.index(clauseDepth - 1)
+  const previous = index > 0 ? siblings.child(index - 1) : null
+  const mergeable = previous !== null
+    && previous.type === clause.type && previous.attrs.hasTitle === false && previous.attrs.level === level
+    && previous.lastChild?.type !== clause.type
+  if (!mergeable || hasReferenceTo(state.doc, clause.attrs.nodeId) || hasReferenceTo(state.doc, paragraph.attrs.nodeId)) return 'swallow'
+  const clausePos = $from.before(clauseDepth)
+  const tr = state.tr
+  tr.delete(clausePos, clausePos + clause.nodeSize)
+  tr.insert(clausePos - 1, paragraphType.create())
+  tr.setSelection(TextSelection.create(tr.doc, clausePos))
+  return tr
 }
