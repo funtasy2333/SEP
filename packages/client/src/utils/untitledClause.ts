@@ -1,4 +1,4 @@
-import type { Node as PMNode } from '@tiptap/pm/model'
+import { Fragment, type Node as PMNode } from '@tiptap/pm/model'
 import { TextSelection, type EditorState, type Selection, type Transaction } from '@tiptap/pm/state'
 import { generateNodeId } from '@ses/shared'
 import { hasReferenceTo } from './textBlockFormat'
@@ -104,14 +104,19 @@ export type UntitledClauseEnter = Transaction | 'swallow' | null
 
 /**
  * 无题条的 Enter，类似编号列表。仅在空选区、光标位于「无题条最后一个直属块且该块是 stdParagraph」时接管：
- * 1. 段落非空：在当前条之后插入同级无题条（空 clauseTitle + 一个 stdParagraph），光标之后的内容
+ * 1. 段落非空、光标在段中或段末：在当前条之后插入同级无题条（空 clauseTitle + 一个 stdParagraph），光标之后的内容
  *    （marks、行内节点与其 nodeId 原样搬走，不丢字）移入新段，光标进入新段开头。新条的 nodeId 由 NodeId 插件补齐。
- * 2. 整条为空（clauseTitle 空且唯一正文段为空）：若紧邻前一个同级条是无题条，删除这个空条，
+ * 2. 段落非空、光标在首个正文段的段首：在当前条之前插入同级空无题条，原条、文字与 nodeId 都不动，光标留在原条正文开头
+ *    （像编号列表在条目开头按 Enter）。当前条总有标题块等在前，插入位置合法；容器不允许时不接管。
+ *    多段条文中非首段的段首不接管，交给默认拆段（在条内该段前留一个空段）。
+ * 3. 空段、整条为空（clauseTitle 空且唯一正文段为空）：若紧邻前一个同级条是无题条，删除这个空条，
  *    在前一条末尾追加空段并把光标放进去（退出连续编号，在上一条里另起一段，用于多段条文）；
  *    否则默认的 Enter 会把空段抬出条外成为悬置段、留下无正文的空壳条，所以吞掉按键。
  *    被交叉引用的空条删除会让引用失去目标，同样吞掉。
+ * 4. 空段、条内还有别的块（多段条文的空尾段）：删除这个空尾段，在当前条之后新建同级无题条，光标进入新条
+ *    （与 3 互逆，连续编号里来回切换；默认的 liftEmptyBlock 会把空段抬出条外成为悬置段）。空尾段被引用时吞掉。
  * 条的最后一个直属块不是段落（列项、注等）、非最后的正文段、有选区范围时都不接管。
- * 只在条后插入同级条或在上一条追加段落，从不制造子条（无题条不能有子条，GB/T 7.3.4）。
+ * 只在条的前后插入同级条或在上一条追加段落，从不制造子条（无题条不能有子条，GB/T 7.3.4）。
  */
 export function untitledClauseEnter(state: EditorState): UntitledClauseEnter {
   const { selection } = state
@@ -129,22 +134,44 @@ export function untitledClauseEnter(state: EditorState): UntitledClauseEnter {
   const paragraphType = nodes.stdParagraph
   if (!clauseTitleType || !paragraphType) return null
   const level = clause.attrs.level
+  const title = clauseTitleType.create({ level })
+  const siblings = $from.node(clauseDepth - 1)
+  const index = $from.index(clauseDepth - 1)
+  const newClause = (content: Fragment) => clause.type.create({ level, hasTitle: false }, [title, paragraphType.create(null, content)])
+  /** 新条正文段内的光标位置（新条位于 clausePos）。 */
+  const insideNew = (clausePos: number) => clausePos + 1 + title.nodeSize + 1
 
   if (paragraph.content.size > 0) {
+    if ($from.parentOffset === 0) {
+      // 段首：只有首个正文段才在条前插入空条；多段条文里非首段的段首交给默认拆段。
+      if ($from.index(clauseDepth) !== 1 || !siblings.canReplaceWith(index, index, clause.type)) return null
+      const clausePos = $from.before(clauseDepth)
+      const created = newClause(Fragment.empty)
+      const tr = state.tr.insert(clausePos, created)
+      tr.setSelection(TextSelection.create(tr.doc, $from.pos + created.nodeSize))
+      return tr
+    }
     const tail = paragraph.content.cut($from.parentOffset)
-    const title = clauseTitleType.create({ level })
-    const created = clause.type.create({ level, hasTitle: false }, [title, paragraphType.create(null, tail)])
     const tr = state.tr
     tr.delete($from.pos, $from.end())
     const insertPos = $from.after(clauseDepth) - tail.size
-    tr.insert(insertPos, created)
-    tr.setSelection(TextSelection.create(tr.doc, insertPos + 1 + title.nodeSize + 1))
+    tr.insert(insertPos, newClause(tail))
+    tr.setSelection(TextSelection.create(tr.doc, insideNew(insertPos)))
     return tr
   }
 
-  if (clause.childCount !== 2 || clause.firstChild!.content.size > 0) return null
-  const siblings = $from.node(clauseDepth - 1)
-  const index = $from.index(clauseDepth - 1)
+  if (clause.childCount > 2) {
+    // 多段条文的空尾段：删除它，在当前条之后新建同级无题条（与下面「空条合回上一条」互逆）。
+    if (hasReferenceTo(state.doc, paragraph.attrs.nodeId)) return 'swallow'
+    const tr = state.tr
+    tr.delete($from.before($from.depth), $from.after($from.depth))
+    const insertPos = $from.after(clauseDepth) - paragraph.nodeSize
+    tr.insert(insertPos, newClause(Fragment.empty))
+    tr.setSelection(TextSelection.create(tr.doc, insideNew(insertPos)))
+    return tr
+  }
+
+  if (clause.firstChild!.content.size > 0) return null
   const previous = index > 0 ? siblings.child(index - 1) : null
   const mergeable = previous !== null
     && previous.type === clause.type && previous.attrs.hasTitle === false && previous.attrs.level === level

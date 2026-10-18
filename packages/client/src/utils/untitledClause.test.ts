@@ -267,16 +267,107 @@ describe('无题条正文的 Enter：类似编号列表', () => {
     expect(snapshot(e)).toEqual(original)
   })
 
-  it('段首 Enter（非空段）：整段文字移入新条，原条留下空段并保留原 nodeId', () => {
-    const e = editor([untitled('u', 'up', '全文')])
+  it('段首 Enter（非空段）：在当前条之前插入同级空无题条，原条、文字、nodeId 不动，光标留在原条正文开头；撤销一步还原', () => {
+    // 原条是章下第一个子块（前面只有章标题）
+    const e = editor([untitled('u', 'up', '全文'), untitled('v', 'vp', '后条')])
+    const original = snapshot(e)
     caretIn(e, 'up', 0)
+    const undoableBefore = e.can().undo()
     expect(pressKey(e, 'Enter')).toBe(true)
-    const first = nodeById(e, 'u').node
-    expect(first.child(1).content.size).toBe(0)
-    expect(first.child(1).attrs.nodeId).toBe('up')
-    const created = e.state.doc.child(0).child(2)
-    expect(created.child(1).textContent).toBe('全文')
-    expect(e.state.selection.$from.parent).toBe(created.child(1))
+    const chapter = e.state.doc.child(0)
+    expect(chapter.childCount).toBe(4)
+    const created = chapter.child(1)
+    expect(created.attrs).toMatchObject({ level: 1, hasTitle: false })
+    expect(created.attrs.nodeId).toEqual(expect.any(String))
+    expect(['u', 'v']).not.toContain(created.attrs.nodeId)
+    expect(created.childCount).toBe(2)
+    expect(created.firstChild!.content.size).toBe(0)
+    expect(created.child(1).type.name).toBe('stdParagraph')
+    expect(created.child(1).content.size).toBe(0)
+    expect(created.child(1).attrs.nodeId).toEqual(expect.any(String))
+    expect(['up', 'vp']).not.toContain(created.child(1).attrs.nodeId)
+    // 原条整体不动
+    const kept = chapter.child(2)
+    expect(kept.attrs.nodeId).toBe('u')
+    expect(kept.childCount).toBe(2)
+    expect(kept.child(1).attrs.nodeId).toBe('up')
+    expect(kept.child(1).textContent).toBe('全文')
+    // 光标仍在原条正文开头
+    expect(e.state.selection.empty).toBe(true)
+    expect(e.state.selection.$from.parent).toBe(kept.child(1))
+    expect(e.state.selection.$from.parentOffset).toBe(0)
+    expectValid(e)
+    const { labels } = irOf(e)
+    expect([labels[created.attrs.nodeId as string]?.label, labels.u?.label, labels.v?.label]).toEqual(['1.1', '1.2', '1.3'])
+    expect(e.commands.undo()).toBe(true)
+    expect(snapshot(e)).toEqual(original)
+    expect(e.can().undo()).toBe(undoableBefore)
+    expect(e.commands.redo()).toBe(true)
+    expect(e.state.doc.child(0).childCount).toBe(4)
+  })
+
+  it('段首 Enter：原条是父条、附录下的第一个子块或前面有兄弟条时，插入的空条同样合法', () => {
+    // 二级无题条是一级条的第一个子块（前面只有一级条标题）
+    const nested = editor([clause('a', '一级条', [untitled('u', 'up', '二级无题条文', [], 2)])])
+    caretIn(nested, 'up', 0)
+    expect(pressKey(nested, 'Enter')).toBe(true)
+    const parent = nodeById(nested, 'a').node
+    expect(parent.childCount).toBe(3)
+    expect(parent.child(1).attrs).toMatchObject({ level: 2, hasTitle: false })
+    expect(parent.child(1).firstChild!.attrs.level).toBe(2)
+    expect(parent.child(2).attrs.nodeId).toBe('u')
+    expect(nested.state.selection.$from.parent.attrs.nodeId).toBe('up')
+    expect(nested.state.selection.$from.parentOffset).toBe(0)
+    expect([irOf(nested).labels[parent.child(1).attrs.nodeId as string]?.label, irOf(nested).labels.u?.label]).toEqual(['1.1.1', '1.1.2'])
+    expectValid(nested)
+
+    // 附录下的第一个子块（前面是附录标签与标题）
+    const appendix = makeEditor(appendixDoc([untitled('au', 'aup', '附录条文')]))
+    caretIn(appendix, 'aup', 0)
+    expect(pressKey(appendix, 'Enter')).toBe(true)
+    const appendixNode = appendix.state.doc.child(0)
+    expect(appendixNode.childCount).toBe(4)
+    expect(appendixNode.child(2).attrs).toMatchObject({ level: 1, hasTitle: false })
+    expect(appendixNode.child(3).attrs.nodeId).toBe('au')
+    expect([irOf(appendix).labels[appendixNode.child(2).attrs.nodeId as string]?.label, irOf(appendix).labels.au?.label]).toEqual(['A.1', 'A.2'])
+    expectValid(appendix)
+
+    // 前面已有兄弟条（有题条）：新空条落在两者之间，不改变前一条
+    const sibling = editor([clause('c', '前一条', [p('cp', '前一条正文')]), untitled('u', 'up', '全文')])
+    caretIn(sibling, 'up', 0)
+    expect(pressKey(sibling, 'Enter')).toBe(true)
+    const chapter = sibling.state.doc.child(0)
+    expect(chapter.childCount).toBe(4)
+    expect(chapter.child(1).attrs.nodeId).toBe('c')
+    expect(chapter.child(2).attrs.hasTitle).toBe(false)
+    expect(chapter.child(3).attrs.nodeId).toBe('u')
+    expectValid(sibling)
+  })
+
+  it('段首 Enter 保持原条身份：指向该条与其段落的交叉引用不失效', () => {
+    const referencing = editor([
+      { type: 'clause', attrs: { nodeId: 'r', level: 1, hasTitle: false }, content: [
+        { type: 'clauseTitle', attrs: { level: 1 } },
+        { type: 'stdParagraph', attrs: { nodeId: 'rp' }, content: [text('见条'), text('甲', crossRef('u')), text('及段'), text('乙', [{ type: 'crossRef', attrs: { targetId: 'up', refType: 'paragraph' } }])] },
+      ] },
+      untitled('u', 'up', '被引用的条'),
+    ])
+    caretIn(referencing, 'up', 0)
+    expect(pressKey(referencing, 'Enter')).toBe(true)
+    expect(nodeById(referencing, 'u').node.child(1).attrs.nodeId).toBe('up')
+    expect(nodeById(referencing, 'u').node.child(1).textContent).toBe('被引用的条')
+    expectValid(referencing)
+  })
+
+  it('多段无题条非首段的段首 Enter 保持默认拆段：条内该段前留一个空段，不新建条', () => {
+    const e = editor([untitled('u', 'up', '首段', [p('second', '第二段')])])
+    caretIn(e, 'second', 0)
+    expect(pressKey(e, 'Enter')).toBe(true)
+    expect(allClauses(e).length).toBe(1)
+    const target = nodeById(e, 'u').node
+    expect(target.childCount).toBe(4)
+    expect([target.child(1).textContent, target.child(2).textContent, target.child(3).textContent]).toEqual(['首段', '', '第二段'])
+    expect(e.state.selection.$from.parent).toBe(target.child(3))
     expect(e.state.selection.$from.parentOffset).toBe(0)
     expectValid(e)
   })
@@ -476,13 +567,94 @@ describe('无题条正文的 Enter：类似编号列表', () => {
     expect(irOf(e).problems.filter(item => item.code === 'dangling-xref')).toEqual([])
   })
 
-  it('空段在非整条为空的无题条里（多段条文的空尾段）Enter 保持默认行为', () => {
-    const e = editor([untitled('u', 'up', '首段', [p('tail', '')])])
+  it('多段无题条的空尾段 Enter：删除空尾段，在当前条之后新建同级无题条，光标进入新条；撤销一步还原', () => {
+    const e = editor([untitled('u', 'up', '首段', [p('tail', '')]), untitled('v', 'vp', '后条')])
+    const original = snapshot(e)
+    // 对照：默认的 liftEmptyBlock 会把空尾段抬出条外成为悬置段
+    const control = editor([untitled('u', 'up', '首段', [p('tail', '')]), untitled('v', 'vp', '后条')])
+    caretIn(control, 'tail', 0)
+    expect(liftEmptyBlock(control.state, transaction => control.view.dispatch(transaction))).toBe(true)
+    expect(irOf(control).problems.map(item => item.code)).toContain('hanging-paragraph')
+
+    caretIn(e, 'tail', 0)
+    const undoableBefore = e.can().undo()
+    expect(pressKey(e, 'Enter')).toBe(true)
+    const chapter = e.state.doc.child(0)
+    expect(chapter.childCount).toBe(4)
+    // 原条去掉空尾段，其余不动
+    const kept = chapter.child(1)
+    expect(kept.attrs.nodeId).toBe('u')
+    expect(kept.childCount).toBe(2)
+    expect(kept.child(1).attrs.nodeId).toBe('up')
+    expect(kept.child(1).textContent).toBe('首段')
+    const created = chapter.child(2)
+    expect(created.attrs).toMatchObject({ level: 1, hasTitle: false })
+    expect(['u', 'v']).not.toContain(created.attrs.nodeId)
+    expect(created.childCount).toBe(2)
+    expect(created.firstChild!.content.size).toBe(0)
+    expect(created.child(1).content.size).toBe(0)
+    expect(['up', 'tail', 'vp']).not.toContain(created.child(1).attrs.nodeId)
+    expect(chapter.child(3).attrs.nodeId).toBe('v')
+    expect(e.state.selection.empty).toBe(true)
+    expect(e.state.selection.$from.parent).toBe(created.child(1))
+    expect(e.state.selection.$from.parentOffset).toBe(0)
+    expectValid(e)
+    const { labels } = irOf(e)
+    expect([labels.u?.label, labels[created.attrs.nodeId as string]?.label, labels.v?.label]).toEqual(['1.1', '1.2', '1.3'])
+    expect(e.commands.undo()).toBe(true)
+    expect(snapshot(e)).toEqual(original)
+    expect(e.can().undo()).toBe(undoableBefore)
+  })
+
+  it('空尾段前面是列项（条内还有别的块）、条内有多个段：同样删尾段并新建同级条', () => {
+    const withList = editor([untitled('u', 'up', '先导', [list('l', 'dash', [item('i', '列项')]), p('tail', '')])])
+    caretIn(withList, 'tail', 0)
+    expect(pressKey(withList, 'Enter')).toBe(true)
+    expect(allClauses(withList).length).toBe(2)
+    const kept = nodeById(withList, 'u').node
+    expect(kept.childCount).toBe(3)
+    expect(kept.lastChild!.type.name).toBe('stdList')
+    expect(withList.state.selection.$from.parent).toBe(withList.state.doc.child(0).child(2).child(1))
+    expectValid(withList)
+
+    const manyParagraphs = editor([untitled('u', 'up', '一', [p('p2', '二'), p('tail', '')])])
+    caretIn(manyParagraphs, 'tail', 0)
+    expect(pressKey(manyParagraphs, 'Enter')).toBe(true)
+    expect(allClauses(manyParagraphs).length).toBe(2)
+    expect(nodeById(manyParagraphs, 'u').node.childCount).toBe(3)
+    expect(nodeById(manyParagraphs, 'u').node.lastChild!.textContent).toBe('二')
+    expectValid(manyParagraphs)
+  })
+
+  it('空尾段被交叉引用时 Enter 吞掉，文档不变（删除会让引用失去目标）', () => {
+    const referencing: JSONContent = {
+      type: 'stdParagraph', attrs: { nodeId: 'ref' }, content: [text('见'), text('尾段', [{ type: 'crossRef', attrs: { targetId: 'tail', refType: 'paragraph' } }])],
+    }
+    const e = editor([
+      { type: 'clause', attrs: { nodeId: 'r', level: 1, hasTitle: false }, content: [{ type: 'clauseTitle', attrs: { level: 1 } }, referencing] },
+      untitled('u', 'up', '首段', [p('tail', '')]),
+    ])
+    const original = snapshot(e)
     caretIn(e, 'tail', 0)
     expect(pressKey(e, 'Enter')).toBe(true)
-    // 默认 liftEmptyBlock 的行为不由无题条接管：不新建条也不合并
+    expect(snapshot(e)).toEqual(original)
+  })
+
+  it('空条 ⇄ 空尾段来回切换：空条 Enter 退回上一条另起一段，再 Enter 又新建条，与连续编号一致', () => {
+    const e = editor([untitled('u', 'up', '第一段')])
+    caretIn(e, 'up', 3)
+    pressKey(e, 'Enter') // 新建条
+    expect(allClauses(e).length).toBe(2)
+    pressKey(e, 'Enter') // 空条 → 退回上一条，另起一段
     expect(allClauses(e).length).toBe(1)
-    expect(nodeById(e, 'u').node.child(1).textContent).toBe('首段')
+    expect(nodeById(e, 'u').node.childCount).toBe(3)
+    pressKey(e, 'Enter') // 空尾段 → 删除，新建条
+    expect(allClauses(e).length).toBe(2)
+    expect(nodeById(e, 'u').node.childCount).toBe(2)
+    pressKey(e, 'Enter')
+    expect(allClauses(e).length).toBe(1)
+    expect(nodeById(e, 'u').node.childCount).toBe(3)
+    expectValid(e)
   })
 })
 
