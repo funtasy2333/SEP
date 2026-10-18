@@ -3,7 +3,10 @@ import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue({
+    // MathLive 的 <math-field> 是 Web Component（式中符号输入弹窗），不按 Vue 组件解析。
+    template: { compilerOptions: { isCustomElement: tag => tag === 'math-field' } },
+  })],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),

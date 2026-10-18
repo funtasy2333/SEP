@@ -138,6 +138,12 @@
               </template>
             </el-dropdown>
             <button class="tbar-btn" @click="handleInsertFormula()">公式</button>
+            <button
+              class="tbar-btn"
+              :disabled="!cursorInFormula"
+              title="为光标所在公式添加一条式中符号说明"
+              @click="handleAddWhereItem()"
+            >式中</button>
           </div>
 
           <!-- 媒体 -->
@@ -429,6 +435,13 @@
         <el-button type="primary" @click="saveFootnoteDialog">确定</el-button>
       </template>
     </el-dialog>
+
+    <MathInputDialog
+      v-model="showMathDialog"
+      :initial-latex="mathDialogLatex"
+      :title="mathDialogRequest?.mode === 'edit' ? '编辑式中符号' : '插入式中符号'"
+      @confirm="handleMathConfirm"
+    />
   </div>
 </template>
 
@@ -471,6 +484,7 @@ import SesLogo from '@/components/SesLogo.vue'
 import DocumentOutline from '@/components/editor/DocumentOutline.vue'
 import DocumentSettingsPanel from '@/components/editor/DocumentSettingsPanel.vue'
 import SlashMenu from '@/components/editor/SlashMenu.vue'
+import MathInputDialog from '@/components/editor/MathInputDialog.vue'
 import VersionPanel from '@/components/version/VersionPanel.vue'
 
 import { useEditor } from '@tiptap/vue-3'
@@ -478,6 +492,9 @@ import { installRemoteDocument, replaceEditorDocument } from '@/utils/editorDocu
 import { createEditorExtensions } from '@/extensions/editorExtensions'
 import { hasNodeIdIssues, normalizeNodeIds } from '@/extensions/plugins/ensureNodeId'
 import { canInsertBodyFootnote } from '@/extensions/nodes/footnotes'
+import {
+  formulaHasLegacyDescription, selectedFormula, WHERE_SYMBOL_EVENT, type WhereSymbolRequest,
+} from '@/extensions/plugins/whereListEditing'
 import { getTableFootnoteEntries } from '@/extensions/nodes/std-table'
 import {
   serializeToXml, parseXmlToEditorJson,
@@ -796,6 +813,7 @@ const codeViewContent = computed(() => codeViewResult.value.error || codeViewRes
 
 onMounted(async () => {
   window.addEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
+  window.addEventListener(WHERE_SYMBOL_EVENT, handleWhereSymbolEvent)
   window.addEventListener('ses:edit-footnote', handleFootnoteEditEvent)
   window.addEventListener('ses:paste-reference-error', handleAmbiguousPasteReference)
   window.addEventListener('beforeunload', guardUnsavedSettings)
@@ -851,6 +869,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
+  window.removeEventListener(WHERE_SYMBOL_EVENT, handleWhereSymbolEvent)
   window.removeEventListener('ses:edit-footnote', handleFootnoteEditEvent)
   window.removeEventListener('ses:paste-reference-error', handleAmbiguousPasteReference)
   window.removeEventListener('beforeunload', guardUnsavedSettings)
@@ -1751,6 +1770,58 @@ function handleInsertFormula() {
   }).run()
 }
 
+// === 式中符号 ===
+const showMathDialog = ref(false)
+const mathDialogLatex = ref('')
+const mathDialogRequest = ref<WhereSymbolRequest | null>(null)
+const cursorInFormula = computed(() => !!editor.value && selectedFormula(editor.value.state) !== null)
+
+function openMathDialog(request: WhereSymbolRequest) {
+  mathDialogRequest.value = request
+  mathDialogLatex.value = request.latex
+  showMathDialog.value = true
+}
+
+function handleWhereSymbolEvent(event: Event) {
+  const detail = (event as CustomEvent<WhereSymbolRequest>).detail
+  if (detail) openMathDialog(detail)
+}
+
+function handleAddWhereItem() {
+  const ed = editor.value
+  if (!ed) return
+  const formula = selectedFormula(ed.state)
+  if (!formula) {
+    ElMessage.info('请先把光标放在公式内')
+    return
+  }
+  if (formulaHasLegacyDescription(formula.node)) {
+    openWhereConversion(formula.pos)
+    return
+  }
+  if (!ed.chain().focus().addWhereItem().run()) return
+  openMathDialog({ mode: 'insert', pos: ed.state.selection.from, latex: '' })
+}
+
+function openWhereConversion(_formulaPos: number) {
+  ElMessage.info('该公式已有文字形式的式中说明，请先删除或转换后再添加')
+}
+
+function handleMathConfirm(latex: string) {
+  const ed = editor.value
+  const request = mathDialogRequest.value
+  mathDialogRequest.value = null
+  if (!ed || !request) return
+  let applied = false
+  if (request.mode === 'edit') {
+    applied = ed.chain().focus().updateFormulaInline({ pos: request.pos, latex }).run()
+  } else if (request.pos <= ed.state.doc.content.size) {
+    // 打开弹窗期间文档可能被远端修改；位置不再落在符号格内时由命令拒绝。
+    applied = ed.chain().focus().setTextSelection(request.pos).insertWhereSymbol({ latex }).run()
+  }
+  if (!applied) ElMessage.warning('文档已变化，未能写入符号，请重新点击符号位置')
+}
+
 // === 图片 ===
 function handleInsertFigure() {
   const pos = getInsertAfterCurrentBlock()
@@ -1791,6 +1862,7 @@ function handleSlashCommand(command: string) {
       case 'paragraph': insertStdParagraph(); break
       case 'table': handleTableCommand('insert'); break
       case 'formula': handleInsertFormula(); break
+      case 'whereItem': handleAddWhereItem(); break
       case 'figure': handleInsertFigure(); break
       case 'note': handleInsertNote('note'); break
       case 'footnote': handleInsertNote('footnote'); break

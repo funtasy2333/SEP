@@ -30,6 +30,7 @@
     "element-plus": "^2.13.6",
     "jszip": "^3.10.1",
     "katex": "^0.16.44",
+    "mathlive": "0.110.0",
     "pinia": "^3.0.4",
     "vue": "^3.5.30",
     "vue-router": "^4.6.4"
