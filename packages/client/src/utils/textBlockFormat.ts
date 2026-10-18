@@ -158,21 +158,28 @@ function retargetReferences(tr: Transaction, converted: ConvertedTarget[], targe
 /**
  * One stable id changes entity kind when a paragraph becomes a clause title (or back): typed references
  * must follow it, otherwise the Resolver reports them as dangling typed references.
+ * The id stays, so untyped references stay exactly where they are.
  */
 export function retargetReferenceType(tr: Transaction, id: unknown, from: string, to: string) {
   retargetReference(tr, id, id, from, to)
 }
 
+/** A cross reference without a type: `''` in the PM mark (IR round trip), a missing key in stored payloads (null is invalid input but still a reference). */
+const untyped = (kind: unknown) => kind === undefined || kind === null || kind === ''
+
 /**
  * References of type `from` to `id` now point at `toId` as type `to`: the target block is gone and its content lives on in
  * another one (a paragraph whose text moved into a clause title is referenced as that clause). Both ids must be real ids.
+ * Untyped references to `id` follow the move when the id really changes (`toId !== id`) and stay untyped: the old id no longer
+ * exists, so they would dangle. When only the entity kind changes (`toId === id`) they are left alone.
  */
 export function retargetReference(tr: Transaction, id: unknown, toId: unknown, from: string, to: string) {
   if (typeof id !== 'string' || !id || typeof toId !== 'string' || !toId) return
   rewriteReferences(tr, (attrs, kindField) => {
-    if ((attrs.targetId ?? attrs.refId) !== id || attrs[kindField] !== from) return attrs
+    if ((attrs.targetId ?? attrs.refId) !== id) return attrs
     const field = attrs.targetId !== null && attrs.targetId !== undefined ? 'targetId' : 'refId'
-    return { ...attrs, [field]: toId, [kindField]: to }
+    if (attrs[kindField] === from) return { ...attrs, [field]: toId, [kindField]: to }
+    return toId !== id && untyped(attrs[kindField]) ? { ...attrs, [field]: toId } : attrs
   })
 }
 

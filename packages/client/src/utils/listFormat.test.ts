@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest'
 import type { JSONContent } from '@tiptap/core'
-import { setClauseFormat, setListFormat, structureFailureMessage } from './structureEditing'
+import { setClauseFormat, setListFormat, setParagraphFormat, structureFailureMessage } from './structureEditing'
 import {
   caretIn, clause, destroyEditors, editor, irOf, item, list, nodeById, note, p, select, snapshot, term, text, untitled,
 } from './__fixtures__/structureEditor'
@@ -434,5 +434,83 @@ describe('列项命令：不支持的位置一律拒绝（不论空光标还是�
     expect(setListFormat(items, 'dot')).toEqual({ ok: true })
     expect(listsOf(items).map(entry => [entry.type, entry.texts])).toEqual([['dash', ['甲']], ['dot', ['乙']], ['dash', ['丙']]])
     expect(irOf(items).doc.unsupportedContent ?? []).toEqual([])
+  })
+})
+
+describe('文本块格式转换对无类型引用的处理（审查 P2：只有 id 真的变了才改指）', () => {
+  const ref = (id: string, attrs: Record<string, unknown>): JSONContent => ({
+    type: 'stdParagraph', attrs: { nodeId: id }, content: [text('见'), text('引用', [{ type: 'crossRef', attrs }])],
+  })
+  const crossRefAttrs = (e: ReturnType<typeof editor>) => {
+    const found: Array<Record<string, unknown>> = []
+    e.state.doc.descendants(node => { for (const mark of node.marks) if (mark.type.name === 'crossRef') found.push(mark.attrs) })
+    return found
+  }
+  const dangling = (e: ReturnType<typeof editor>) => irOf(e).problems.filter(entry => entry.code.startsWith('dangling'))
+
+  it('段落改注：nodeId 不变，无类型引用留在原 id（注有编号，可作无类型目标；派生的 .p0 没有编号），paragraph 引用改指向 .p0', () => {
+    const e = editor([p('x', '被引用段落'), ref('r1', { targetId: 'x', refType: '' }), ref('r2', { targetId: 'x', refType: 'paragraph' })])
+    caretIn(e, 'x', 1)
+    expect(e.commands.insertNote()).toBe(true)
+    expect(nodeById(e, 'x').node.type.name).toBe('note')
+    expect(crossRefAttrs(e)).toEqual([
+      expect.objectContaining({ targetId: 'x', refType: '' }),
+      expect.objectContaining({ targetId: 'x.p0', refType: 'paragraph' }),
+    ])
+    expect(dangling(e)).toEqual([])
+    expect(e.commands.undo()).toBe(true)
+    expect(crossRefAttrs(e)).toEqual([
+      expect.objectContaining({ targetId: 'x', refType: '' }),
+      expect.objectContaining({ targetId: 'x', refType: 'paragraph' }),
+    ])
+  })
+
+  it('段落改列项：nodeId 不变，无类型引用不动，paragraph 引用改指向 .p0', () => {
+    const e = editor([p('x', '被引用段落'), ref('r1', { targetId: 'x', refType: '' }), ref('r2', { refId: 'x', refType: 'paragraph' })])
+    caretIn(e, 'x', 1)
+    expect(setListFormat(e, 'dash')).toEqual({ ok: true })
+    expect(crossRefAttrs(e)).toEqual([
+      expect.objectContaining({ targetId: 'x', refType: '' }),
+      expect.objectContaining({ refId: 'x.p0', refType: 'paragraph' }),
+    ])
+  })
+
+  it('列项改段落：列项正文的派生锚点 .p0 消失，无类型引用（targetId 或旧稿 refId）与有类型引用一样改指向段落 id，保持各自的类型', () => {
+    const e = editor([
+      list('l', 'dash', [item('i1', '甲'), item('i2', '乙')]),
+      ref('r1', { targetId: 'i1.p0', refType: '' }), ref('r2', { refId: 'i1.p0', refType: '' }), ref('r3', { targetId: 'i1.p0', refType: 'paragraph' }),
+      ref('r4', { targetId: 'i2.p0', refType: '' }),
+    ])
+    caretIn(e, 'i1', 1)
+    expect(setParagraphFormat(e)).toEqual({ ok: true })
+    expect(nodeById(e, 'i1').node.type.name).toBe('stdParagraph')
+    expect(crossRefAttrs(e)).toEqual([
+      expect.objectContaining({ targetId: 'i1', refType: '' }),
+      expect.objectContaining({ refId: 'i1', refType: '' }),
+      expect.objectContaining({ targetId: 'i1', refType: 'paragraph' }),
+      expect.objectContaining({ targetId: 'i2.p0', refType: '' }),
+    ])
+  })
+
+  it('列项改注：.p0 仍是注正文的锚点，无类型与有类型引用都不动', () => {
+    const e = editor([
+      list('l', 'dash', [item('i1', '甲'), item('i2', '乙')]),
+      ref('r1', { targetId: 'i1.p0', refType: '' }), ref('r2', { targetId: 'i1.p0', refType: 'paragraph' }),
+    ])
+    caretIn(e, 'i1', 1)
+    expect(e.commands.insertNote()).toBe(true)
+    expect(nodeById(e, 'i1').node.type.name).toBe('note')
+    expect(crossRefAttrs(e)).toEqual([
+      expect.objectContaining({ targetId: 'i1.p0', refType: '' }),
+      expect.objectContaining({ targetId: 'i1.p0', refType: 'paragraph' }),
+    ])
+  })
+
+  it('被无类型引用指向的注：改列项被拒绝（与有类型引用一致），文档不变', () => {
+    const e = editor([note('n', '被引用的注'), ref('r1', { targetId: 'n', refType: '' })])
+    caretIn(e, 'n', 1)
+    const original = snapshot(e)
+    expect(setListFormat(e, 'dash')).toEqual({ ok: false, reason: 'referenced-block' })
+    expect(snapshot(e)).toEqual(original)
   })
 })

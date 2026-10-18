@@ -267,7 +267,7 @@ export function applyOutlineEdit(
 
   const items: Item[] = baseItems.map(item => ({ ...item }))
   let focus: Focus = null
-  /** 引用类型随块改变；toId 给出时引用同时改指向另一个节点（目标块被并入别处）。 */
+  /** 引用类型随块改变；toId 给出时引用同时改指向另一个节点（目标块被并入别处），此时无类型引用也跟着改指向（仍无类型）。 */
   let reference: { id: unknown; from: string; to: string; toId?: unknown } | null = null
   const withLevel = (title: PMNode, level: number): PMNode =>
     (title.attrs.level === level ? title : title.type.create({ ...title.attrs, level }, title.content, title.marks))

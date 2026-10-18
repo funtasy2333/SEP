@@ -263,3 +263,113 @@ describe('无题条→有题条：首个正文段变成标题（与「段落→�
     })
   })
 })
+
+describe('无题条→有题条：无类型引用也随被吸收的段落改指向条（审查 P2）', () => {
+  /** 引用写在一个有题条里（不制造悬置段），目标是无题条 u 的首段 up；u 另有第二段，改为有题后条下仍有正文。 */
+  const target = () => untitled('u', 'up', '条文正文', [p('second', '第二段')])
+  const host = (...refs: JSONContent[]): JSONContent => clause('host', '引用所在条', refs)
+  const refParagraph = (id: string, marks: NonNullable<JSONContent['marks']>): JSONContent => ({
+    type: 'stdParagraph', attrs: { nodeId: id }, content: [text('见'), text('引用', marks)],
+  })
+  const unsupported = (e: TestEditor) => irOf(e).doc.unsupportedContent ?? []
+  const dangling = (e: TestEditor) => irOf(e).problems.filter(item => item.code.startsWith('dangling'))
+  const footnotes = (e: TestEditor) => {
+    const found: Array<Array<{ marks: Array<{ attrs: Record<string, unknown> }> }>> = []
+    e.state.doc.descendants(node => { if (node.type.name === 'footnoteRef') found.push(node.attrs.content) })
+    return found
+  }
+
+  it('无类型引用（refType 为空串）改指向条且保持无类型，paragraph 引用同时改为 clause；无 problem、无 unsupportedContent；撤销还原', () => {
+    const e = editor([
+      host(
+        refParagraph('r1', [{ type: 'crossRef', attrs: { targetId: 'up', refType: '' } }]),
+        refParagraph('r2', [{ type: 'crossRef', attrs: { targetId: 'up', refType: 'paragraph' } }]),
+      ),
+      target(),
+    ])
+    const original = snapshot(e)
+    caretIn(e, 'up', 1)
+    expect(setClauseFormat(e, 1, true)).toEqual({ ok: true })
+    expect(crossRefAttrs(e)).toEqual([
+      expect.objectContaining({ targetId: 'u', refId: null, refType: '' }),
+      expect.objectContaining({ targetId: 'u', refId: null, refType: 'clause' }),
+    ])
+    expect(() => nodeById(e, 'up')).toThrow()
+    expect(irOf(e).problems).toEqual([])
+    expect(unsupported(e)).toEqual([])
+    expect(e.commands.undo()).toBe(true)
+    expect(snapshot(e)).toEqual(original)
+    expect(crossRefAttrs(e)[0]).toMatchObject({ targetId: 'up', refType: '' })
+  })
+
+  it('旧稿 refId 字段的无类型引用同样改指向条，仍留在 refId、仍无类型', () => {
+    const e = editor([
+      host(refParagraph('r1', [{ type: 'crossRef', attrs: { refId: 'up', refType: '' } }])),
+      target(),
+    ])
+    caretIn(e, 'up', 0)
+    expect(setClauseFormat(e, 1, true)).toEqual({ ok: true })
+    expect(crossRefAttrs(e)).toEqual([expect.objectContaining({ refId: 'u', targetId: null, refType: '' })])
+    expect(dangling(e)).toEqual([])
+    expect(unsupported(e)).toEqual([])
+  })
+
+  it('脚注负载与元数据 inline 里的存储标记：无类型（不带 refType/targetKind 键）改指向条且不被补上类型，有类型的同时改类型；撤销还原', () => {
+    const e = editor([
+      host({
+        type: 'stdParagraph', attrs: { nodeId: 'r1' }, content: [text('正文'), {
+          type: 'footnoteRef', attrs: { nodeId: 'fn', content: [
+            { type: 'text', text: '无类型', marks: [{ type: 'crossRef', attrs: { targetId: 'up' } }] },
+            { type: 'text', text: '空串', marks: [{ type: 'crossRef', attrs: { refId: 'up', refType: '' } }] },
+            { type: 'text', text: '有类型', marks: [{ type: 'crossRef', attrs: { targetId: 'up', refType: 'paragraph' } }] },
+          ] },
+        }],
+      }),
+      target(),
+    ])
+    e.view.dispatch(e.state.tr.setDocAttribute('titleParts', [{ id: 'title-part', role: 'main', content: [
+      { text: '无类型', marks: [{ type: 'crossRef', targetId: 'up' }] },
+      { text: '有类型', marks: [{ type: 'crossRef', targetId: 'up', targetKind: 'paragraph' }] },
+    ] }]).setMeta('addToHistory', false))
+    const original = snapshot(e)
+    caretIn(e, 'up', 1)
+    expect(setClauseFormat(e, 1, true)).toEqual({ ok: true })
+    const [content] = footnotes(e)
+    expect(content!.map(run => run.marks[0]!.attrs)).toEqual([{ targetId: 'u' }, { refId: 'u', refType: '' }, { targetId: 'u', refType: 'clause' }])
+    expect((e.state.doc.attrs.titleParts as Array<{ content: unknown }>)[0]!.content).toEqual([
+      { text: '无类型', marks: [{ type: 'crossRef', targetId: 'u' }] },
+      { text: '有类型', marks: [{ type: 'crossRef', targetId: 'u', targetKind: 'clause' }] },
+    ])
+    expect(dangling(e)).toEqual([])
+    expect(unsupported(e)).toEqual([])
+    expect(e.commands.undo()).toBe(true)
+    expect(snapshot(e)).toEqual(original)
+  })
+
+  it('指向条本身的无类型引用、指向其它节点的引用都不动', () => {
+    const e = editor([
+      host(
+        refParagraph('r1', [{ type: 'crossRef', attrs: { targetId: 'u', refType: '' } }]),
+        refParagraph('r2', [{ type: 'crossRef', attrs: { targetId: 'second', refType: '' } }]),
+        refParagraph('r3', [{ type: 'crossRef', attrs: { targetId: 'host', refType: 'clause' } }]),
+      ),
+      target(),
+    ])
+    caretIn(e, 'up', 1)
+    expect(setClauseFormat(e, 1, true)).toEqual({ ok: true })
+    expect(crossRefAttrs(e).map(attrs => [attrs.targetId, attrs.refType])).toEqual([['u', ''], ['second', ''], ['host', 'clause']])
+  })
+
+  it('经「注先转段落」进入同一路径：无题条首块是注时，指向注的无类型引用也改指向条', () => {
+    const e = editor([
+      host(refParagraph('r1', [{ type: 'crossRef', attrs: { targetId: 'n', refType: '' } }])),
+      { type: 'clause', attrs: { nodeId: 'u', level: 1, hasTitle: false }, content: [{ type: 'clauseTitle', attrs: { level: 1 } }, note('n', '注内容'), p('second', '第二段')] },
+    ])
+    expect(dangling(e)).toEqual([])
+    caretIn(e, 'n', 1)
+    expect(setClauseFormat(e, 1, true)).toEqual({ ok: true })
+    expect(nodeById(e, 'u').node.firstChild!.textContent).toBe('注内容')
+    expect(crossRefAttrs(e)).toEqual([expect.objectContaining({ targetId: 'u', refType: '' })])
+    expect(dangling(e)).toEqual([])
+  })
+})

@@ -2,8 +2,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { JSONContent } from '@tiptap/core'
 import { setClauseFormat, setParagraphFormat, structureFailureMessage, type StructureFailureReason } from './structureEditing'
+import { retargetReference, retargetReferenceType } from './textBlockFormat'
 import {
-  caretIn, clause, clauseByTitle, destroyEditors, editor, irOf, makeEditor, nodeById, p, select, snapshot, structureProblems, term, text,
+  caretIn, clause, clauseByTitle, destroyEditors, editor, irOf, makeEditor, nodeById, p, select, snapshot, structureProblems, term, text, untitled,
 } from './__fixtures__/structureEditor'
 
 afterEach(destroyEditors)
@@ -140,6 +141,72 @@ describe('附录、多章与引用', () => {
     expect(setParagraphFormat(e)).toEqual({ ok: true })
     expect(marks()).toEqual([expect.objectContaining({ targetId: 'target', refType: 'paragraph' })])
     expect(irOf(e).problems.filter(item => ['dangling-xref', 'dangling-typed-ref'].includes(item.code))).toEqual([])
+  })
+
+  describe('无类型引用（审查 P2）：段落↔有题条只换实体类型、nodeId 不变，无类型引用保持不动', () => {
+    const reference = (id: string, attrs: Record<string, unknown>): JSONContent => ({ type: 'stdParagraph', attrs: { nodeId: id }, content: [text('见'), text('目标', [{ type: 'crossRef', attrs }])] })
+    const marksOf = (e: ReturnType<typeof editor>) => {
+      const found: Array<Record<string, unknown>> = []
+      e.state.doc.descendants(node => { for (const mark of node.marks) if (mark.type.name === 'crossRef') found.push(mark.attrs) })
+      return found
+    }
+
+    it('段落→有题条→段落：无类型引用始终指向原 nodeId 且仍无类型，有类型引用来回换类型；条有编号，转换后无悬空引用', () => {
+      const e = editor([p('target', '目标段落'), reference('r1', { targetId: 'target', refType: '' }), reference('r2', { targetId: 'target', refType: 'paragraph' })])
+      select(e, '目标段落')
+      expect(setClauseFormat(e, 1)).toEqual({ ok: true })
+      expect(marksOf(e)).toEqual([
+        expect.objectContaining({ targetId: 'target', refType: '' }),
+        expect.objectContaining({ targetId: 'target', refType: 'clause' }),
+      ])
+      expect(irOf(e).problems.filter(item => item.code.startsWith('dangling'))).toEqual([])
+      // 已知限制：转回段落后，无类型引用所指的段落没有编号，无法再作无类型目标；nodeId 没变，没有可改指的地方，引用保持不动。
+      expect(setParagraphFormat(e)).toEqual({ ok: true })
+      expect(marksOf(e)).toEqual([
+        expect.objectContaining({ targetId: 'target', refType: '' }),
+        expect.objectContaining({ targetId: 'target', refType: 'paragraph' }),
+      ])
+    })
+
+    it('retargetReferenceType / retargetReference 在 id 不变时不碰无类型引用；id 变化时才带着无类型引用走', () => {
+      const e = editor([
+        p('x', '甲'), reference('r1', { targetId: 'x', refType: '' }), reference('r2', { targetId: 'x', refType: 'paragraph' }),
+        reference('r3', { refId: 'x', refType: '' }), reference('r4', { targetId: 'other', refType: '' }),
+      ])
+      const typeOnly = e.state.tr
+      retargetReferenceType(typeOnly, 'x', 'paragraph', 'clause')
+      e.view.dispatch(typeOnly)
+      expect(marksOf(e).map(attrs => [attrs.targetId ?? attrs.refId, attrs.refType])).toEqual([['x', ''], ['x', 'clause'], ['x', ''], ['other', '']])
+      const moved = e.state.tr
+      retargetReference(moved, 'x', 'y', 'clause', 'paragraph')
+      e.view.dispatch(moved)
+      expect(marksOf(e).map(attrs => [attrs.targetId ?? attrs.refId, attrs.refType])).toEqual([['y', ''], ['y', 'paragraph'], ['y', ''], ['other', '']])
+      expect(marksOf(e)[2]).toMatchObject({ refId: 'y', targetId: null })
+    })
+
+    it('空无题条→段落：条的 nodeId 随之消失，被无类型引用（含脚注负载里的存储标记）指向时同样拒绝，文档不变', () => {
+      const withUntyped = editor([
+        untitled('u', 'up', '无题条文'),
+        { type: 'clause', attrs: { nodeId: 'host', level: 1 }, content: [{ type: 'clauseTitle', attrs: { level: 1 }, content: [text('引用所在条')] }, reference('r1', { targetId: 'u', refType: '' })] },
+      ])
+      caretIn(withUntyped, 'up', 1)
+      const original = snapshot(withUntyped)
+      expect(setParagraphFormat(withUntyped)).toEqual({ ok: false, reason: 'referenced-block' })
+      expect(snapshot(withUntyped)).toEqual(original)
+
+      const inFootnote = editor([
+        untitled('u', 'up', '无题条文'),
+        { type: 'clause', attrs: { nodeId: 'host', level: 1 }, content: [{ type: 'clauseTitle', attrs: { level: 1 }, content: [text('引用所在条')] }, {
+          type: 'stdParagraph', attrs: { nodeId: 'r1' }, content: [text('正文'), {
+            type: 'footnoteRef', attrs: { nodeId: 'fn', content: [{ type: 'text', text: '脚注', marks: [{ type: 'crossRef', attrs: { targetId: 'u' } }] }] },
+          }],
+        }] },
+      ])
+      caretIn(inFootnote, 'up', 1)
+      const footnoteOriginal = snapshot(inFootnote)
+      expect(setParagraphFormat(inFootnote)).toEqual({ ok: false, reason: 'referenced-block' })
+      expect(snapshot(inFootnote)).toEqual(footnoteOriginal)
+    })
   })
 
   it('一次改级只派发一个事务', () => {
