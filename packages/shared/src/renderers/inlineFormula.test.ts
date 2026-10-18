@@ -8,7 +8,7 @@ import type { DocxRenderOptions } from './docx/types'
 import { resolve } from '../ir/resolve'
 import type { IRDoc, IRFormula, IRInline } from '../ir/types'
 
-/** 式中符号使用行内公式（docs/where-symbol-formula.md）。 */
+/** 式中符号使用行内公式（docs/phase7-inline-formula.md）。 */
 const symbol = (id: string, latex: string): IRInline => ({ text: '', formula: { id, latex } })
 
 export const whereFormulaDoc = (term: IRInline[] = [symbol('sym-q', 'q_{V}')]): IRDoc => ({
