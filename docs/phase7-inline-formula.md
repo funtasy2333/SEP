@@ -36,7 +36,7 @@
   - `mover/munder` 取基线与标记的较大者；
   - 最后加 0.25 余量；
   - 未传入时按 LaTeX 源码保守估算。
-- **HTML/PDF**：输出 `<span class="ses-formula-inline" data-latex="…">`；PDF 预渲染时按 KaTeX 行内模式替换。行内 KaTeX 与块级公式同为 KaTeX 默认缩放。PDF 截图中，含简单符号的正文行距均匀；含分式的行会略高。
+- **HTML/PDF**：输出 `<span class="ses-formula-inline" data-latex="…">`；PDF 预渲染时按 KaTeX 行内模式替换。编辑器预览、DOCX（OMML 转换）与 PDF 预渲染使用同一个 KaTeX：2026-10-18 起 server、io、client 统一锁定 0.16.44（此前 server 为 0.16.11）。行内 KaTeX 与块级公式同为 KaTeX 默认缩放。PDF 截图中，含简单符号的正文行距均匀；含分式的行会略高。
 - **HTML/PDF 式中破折号**：每条释义前输出文字「——」（不是 CSS 伪元素，复制和 PDF 取文都能得到），符号列按本组最长符号定宽、后空 1 字，各行破折号对齐，释义回行与释义起点对齐（GB/T 1.1 10.4.3，与 DOCX §5.10 一致）。此前 WP4 的打印样式只排两列、漏了破折号，2026-10-18 补上。
 
 ## 4. 编辑器
@@ -102,5 +102,4 @@ client `vue-tsc`、client 生产构建（主 chunk 大小不变）与 server 生
 - 标题、图表题、术语名、参考文献中暂不支持行内公式。编辑器的插入入口不会放在这些位置，但复制粘贴仍可能带进去（schema 允许行内节点）；这种情况下导出 DOCX/PDF 时会明确报出位置，不会静默丢失。
 - 公式注（`formulaNote`）现有出件整体不支持，因此其中也不能放行内公式。
 - 编辑器的查找功能不匹配公式内容。
-- server 的 KaTeX 仍锁定 0.16.11（WP5 决定），client/io 为 0.16.44；编辑器预览与 PDF 可能有细小字形差异。
 - 结构化式中在旧 XML 出口被拒绝。
