@@ -181,6 +181,8 @@ describe('结构格式覆盖（生产Tiptap schema）', () => {
     expect(target.child(2).eq(source.child(1))).toBe(true)
     expect(setClauseFormat(e, 1, true).ok).toBe(true)
     expect(nodeById(e, 'a').node.attrs.hasTitle).toBe(true)
+    // 无题→有题是有题→无题的逆操作：首段文字移回标题，往返后条与原稿完全相同
+    expect(nodeById(e, 'a').node.eq(source)).toBe(true)
 
     const withChild = editor([clause('a', '总体原则一', [p('body', '正文'), clause('nested', '子条', [], 2)])])
     select(withChild, '总体原则一', 1, 2)

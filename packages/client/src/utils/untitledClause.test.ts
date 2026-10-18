@@ -63,13 +63,18 @@ describe('无题条统一为 IR 模型：clauseTitle 为空，条文在首个 st
     expect(e.state.selection.$from.parent).toBe(first)
     expect(e.state.selection.$from.parentOffset).toBe(3)
     expect(irOf(e).doc.unsupportedContent ?? []).toEqual([])
-    // 再切回有题：只切换属性，标题保持为空，光标放到标题
+    // 改动说明（WP76 无题→有题）：原断言要求再切回有题时「只切换属性、标题保持为空、首段仍在」，即用户看到「编号＋空标题」
+    // 下面挂着原条文。现在无题→有题是有题→无题的逆操作：首段的行内内容（含 marks）移回标题，该段删除，光标进标题的对应偏移。
     expect(setClauseFormat(e, 1, true)).toEqual({ ok: true })
     const titled = nodeById(e, 'a').node
     expect(titled.attrs.hasTitle).toBe(true)
-    expect(titled.firstChild!.content.size).toBe(0)
-    expect(titled.child(1)).toBe(first)
+    expect(titled.firstChild!.textContent).toBe('加粗普通')
+    expect(titled.firstChild!.firstChild!.marks.map(mark => mark.type.name)).toEqual(['bold'])
+    expect(titled.childCount).toBe(2)
+    expect(titled.child(1).attrs.nodeId).toBe('body')
+    expect(() => nodeById(e, first.attrs.nodeId as string)).toThrow()
     expect(e.state.selection.$from.parent).toBe(titled.firstChild)
+    expect(e.state.selection.$from.parentOffset).toBe(3)
   })
 
   it('有题无题切换对空标题只切属性，不制造空段', () => {
@@ -902,6 +907,9 @@ describe('旧稿载入：无题条的条文移入正文段', () => {
     expect(irOf(e).labels[created.attrs.nodeId as string]?.label).toBe('A.1')
     expect(setClauseFormat(e, 1, true)).toEqual({ ok: true })
     expect(e.state.doc.child(0).child(2).attrs.hasTitle).toBe(true)
+    // 无题→有题：条文变成标题（原段落 lead 并入标题，不再留在条下）
+    expect(e.state.doc.child(0).child(2).firstChild!.textContent).toBe('附录条文')
+    expect(e.state.doc.child(0).child(2).childCount).toBe(1)
   })
 
   it('无题条转换一次事务完成，撤销还原为转换前的段落', () => {

@@ -55,6 +55,8 @@ function commit(editor: Editor, tr: Transaction): StructureResult {
  * 将当前段落（含部分选中文字）、条标题、列项、注或示例设为 level 级条（hasTitle=false 为无题条）。
  * 按大纲方式只改这一条的级别：正文顺序不变，其后更深的条按级别重新归属；通过校验才改文档。
  * 无题条采用 IR 模型：clauseTitle 为空，条文在首个 stdParagraph。
+ * 无题条切换为有题条是有题→无题的逆操作：首个直属块是 stdParagraph 时，其行内内容移入标题、该段删除、引用改指向条；
+ * 首块不是段落（列项、注、无正文块）或内容放不进标题时只切换属性。
  * 列项/注/示例先在同一事务内像格式覆盖一样拆出段落，再走同一核心，失败则整体放弃。
  */
 export function setClauseFormat(editor: Editor, level: number, hasTitle = true): StructureResult {

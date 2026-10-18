@@ -156,10 +156,19 @@ function retargetReferences(tr: Transaction, converted: ConvertedTarget[], targe
  * must follow it, otherwise the Resolver reports them as dangling typed references.
  */
 export function retargetReferenceType(tr: Transaction, id: unknown, from: string, to: string) {
-  if (typeof id !== 'string' || !id) return
+  retargetReference(tr, id, id, from, to)
+}
+
+/**
+ * References of type `from` to `id` now point at `toId` as type `to`: the target block is gone and its content lives on in
+ * another one (a paragraph whose text moved into a clause title is referenced as that clause). Both ids must be real ids.
+ */
+export function retargetReference(tr: Transaction, id: unknown, toId: unknown, from: string, to: string) {
+  if (typeof id !== 'string' || !id || typeof toId !== 'string' || !toId) return
   rewriteReferences(tr, (attrs, kindField) => {
     if ((attrs.targetId ?? attrs.refId) !== id || attrs[kindField] !== from) return attrs
-    return { ...attrs, [kindField]: to }
+    const field = attrs.targetId !== null && attrs.targetId !== undefined ? 'targetId' : 'refId'
+    return { ...attrs, [field]: toId, [kindField]: to }
   })
 }
 

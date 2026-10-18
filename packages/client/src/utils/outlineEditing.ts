@@ -1,7 +1,7 @@
 import { Fragment, type Node as PMNode, type ResolvedPos } from '@tiptap/pm/model'
 import { TextSelection, type Transaction } from '@tiptap/pm/state'
 import { generateNodeId } from '@ses/shared'
-import { hasReferenceTo, retargetReferenceType } from './textBlockFormat'
+import { hasReferenceTo, retargetReference } from './textBlockFormat'
 
 /**
  * 大纲式（Word 大纲视图式）条结构编辑核心。
@@ -267,7 +267,8 @@ export function applyOutlineEdit(
 
   const items: Item[] = baseItems.map(item => ({ ...item }))
   let focus: Focus = null
-  let reference: { id: unknown; from: string; to: string } | null = null
+  /** 引用类型随块改变；toId 给出时引用同时改指向另一个节点（目标块被并入别处）。 */
+  let reference: { id: unknown; from: string; to: string; toId?: unknown } | null = null
   const withLevel = (title: PMNode, level: number): PMNode =>
     (title.attrs.level === level ? title : title.type.create({ ...title.attrs, level }, title.content, title.marks))
 
@@ -281,12 +282,24 @@ export function applyOutlineEdit(
     item.level = level
     item.hasTitle = hasTitle
     item.title = withLevel(item.title, level)
+    // 无题 → 有题（有题 → 无题的逆操作，与「段落 → 条」一致）：条文变成标题。首个直属块是 stdParagraph 且内容放得进
+    // clauseTitle 时，其行内内容（marks、行内节点）整体移入标题，该段删除；放不进（首块是列项/注、无正文块、schema 不容许）
+    // 则保持原行为，只切换属性。指向该段的引用改指向条；段落被引用而条没有 nodeId 可指时也不搬移。
+    const first = items[index + 1]
+    const absorbed = hasTitle && !target.hasTitle && text.size === 0 && first?.kind === 'body' && first.owner === item.key
+      && first.node.type === paragraphType && item.title.canReplace(0, item.title.childCount, first.node.content)
+      && (typeof item.node.attrs.nodeId === 'string' && item.node.attrs.nodeId !== '' || !hasReferenceTo(tr.doc, first.node.attrs.nodeId))
     if (!hasTitle && target.hasTitle && text.size > 0) {
       // 有题 → 无题：原标题文字移为新建的首段（新 nodeId），clauseTitle 清空。
       const moved = paragraphType.create({ nodeId: generateNodeId() }, text)
       item.title = item.title.type.create(item.title.attrs, null, item.title.marks)
       items.splice(index + 1, 0, { kind: 'body', node: moved, owner: item.key, ownerLevel: target.level, path: `new:${item.key}` })
       focus = { kind: 'block', node: moved, offsets }
+    } else if (absorbed && first?.kind === 'body') {
+      item.title = item.title.type.create(item.title.attrs, first.node.content, item.title.marks)
+      items.splice(index + 1, 1)
+      reference = { id: first.node.attrs.nodeId, from: 'paragraph', to: 'clause', toId: item.node.attrs.nodeId }
+      focus = { kind: 'title', item, offsets: leaf === 'first-paragraph' ? offsets : [0, 0] }
     } else if (hasTitle) {
       focus = { kind: 'title', item, offsets: leaf === 'title' ? offsets : [0, 0] }
     } else {
@@ -359,7 +372,7 @@ export function applyOutlineEdit(
     if (start < newEnd) tr.replaceWith(from, to, newChildren.slice(start, newEnd))
     else tr.delete(from, to)
   }
-  if (reference) retargetReferenceType(tr, reference.id, reference.from, reference.to)
+  if (reference) retargetReference(tr, reference.id, reference.toId ?? reference.id, reference.from, reference.to)
   if (focus) placeSelection(tr, containerPos, edited, focus)
   return { ok: true }
 }

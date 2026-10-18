@@ -1,5 +1,5 @@
 /**
- * WP76 结构编辑浏览器验收：无题条编号与首段同行、大纲式改级、失败原因提示、列项格式命令。
+ * WP76 结构编辑浏览器验收：无题条编号与首段同行、无题条⇄有题条互换（条文⇄标题）、大纲式改级、失败原因提示、列项格式命令。
  * 真实 UI → 隔离 SQLite API。只允许本机空文档库：
  *   1. 在独立工作树启动服务端（packages/server/dist/main.js，PORT=3000）与 Vite（默认 5173，/api 代理到 3000）；
  *   2. PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers node packages/client/scripts/wp76-structure-browser.mjs <output-dir>
@@ -306,6 +306,30 @@ try {
   assert.ok(convertedMeasure.dy < 12, '新转换的无题条同行')
   pass('工具栏：段落转二级无题条，clauseTitle 为空、条文在首段、同行显示')
   await page.screenshot({ path: join(output, '04-toolbar-untitled.png') })
+
+  // 无题条 → 有题条：条文变成标题（首段并入 clauseTitle、原段落删除），光标进标题；再切回无题条文字不丢
+  await page.locator('.tiptap [data-node-id="c2"] > .std-clause > .std-paragraph').click()
+  await toolbar('条', '二级条')
+  await page.waitForFunction(() => document.querySelector('.tiptap [data-node-id="c2"] > .std-clause')?.dataset.hasTitle === 'true')
+  const retitled = await page.evaluate(() => {
+    const clauseEl = document.querySelector('.tiptap [data-node-id="c2"] > .std-clause')
+    const title = clauseEl.querySelector(':scope > .std-clause-title')
+    return {
+      hasTitle: clauseEl.dataset.hasTitle, title: title.innerText.trim(), paragraphs: clauseEl.querySelectorAll(':scope > .std-paragraph').length,
+      caretInTitle: title.contains(window.getSelection().anchorNode),
+    }
+  })
+  assert.deepEqual(retitled, { hasTitle: 'true', title: '待转换的段落', paragraphs: 0, caretInTitle: true })
+  pass('工具栏：无题条改为二级有题条，条文变成标题（原段落并入标题，不再留在标题下），光标进标题')
+  await shot('.tiptap [data-node-id="c2"]', '04a-untitled-to-titled.png')
+  await toolbar('无题条', '二级无题条')
+  await page.waitForFunction(() => document.querySelector('.tiptap [data-node-id="c2"] > .std-clause')?.dataset.hasTitle === 'false')
+  const restored = await page.evaluate(() => {
+    const clauseEl = document.querySelector('.tiptap [data-node-id="c2"] > .std-clause')
+    return { title: clauseEl.querySelector(':scope > .std-clause-title').innerText.trim(), text: clauseEl.querySelector(':scope > .std-paragraph').innerText }
+  })
+  assert.deepEqual(restored, { title: '', text: '待转换的段落' })
+  pass('有题条再改回无题条：标题文字移回首段，往返后文字不丢')
 
   const expectWarning = async (action, pattern, name) => {
     await action()
