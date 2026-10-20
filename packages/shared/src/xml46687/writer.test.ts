@@ -259,7 +259,7 @@ describe('writeXml 缩进', () => {
     expect(() => write(xmlElement('a'), { namespaces: {}, indent: '\n' })).toThrow(XmlWriteError)
   })
 
-  it('混合内容不被改变：含非空白文本的元素内部原样串联，其后代也不缩进', () => {
+  it('混合内容不被改变：含文本节点的元素内部原样串联，其后代也不缩进', () => {
     const root = xmlElement('body', [], [
       xmlElement('p', [], [
         '开头', xmlElement('b', [], [xmlElement('i', [], ['粗斜']), xmlElement('u')]), ' 中间 ', xmlComment('c'), xmlElement('x'), '结尾',
@@ -276,14 +276,30 @@ describe('writeXml 缩进', () => {
     ].join('\n'))
   })
 
-  it('任一非空白文本即视为混合内容，即使它位于元素之后；NBSP 不算空白', () => {
+  it('任一非空文本节点即视为混合内容，即使它位于元素之后或是 NBSP', () => {
     expect(body(xmlElement('p', [], [xmlElement('a'), xmlElement('b'), 'z']))).toBe('<p><a/><b/>z</p>')
-    expect(body(xmlElement('p', [], [xmlElement('a'), ' ', xmlElement('b')]))).toBe('<p><a/> <b/></p>')
+    expect(body(xmlElement('p', [], [xmlElement('a'), '\u00A0', xmlElement('b')]))).toBe('<p><a/>\u00A0<b/></p>')
   })
 
-  it('纯元素内容中丢弃仅空白文本节点（空格、制表、换行、回车）', () => {
-    const root = xmlElement('a', [], ['\n  ', xmlElement('b'), ' \t', xmlElement('c', [], ['\r\n', xmlElement('d'), '']), '\n'])
-    expect(body(root)).toBe('<a>\n  <b/>\n  <c>\n    <d/>\n  </c>\n</a>')
+  it('行内元素之间的仅空白文本是内容：缩进模式下原样保留，不丢失也不被换行替代', () => {
+    const root = xmlElement('body', [], [xmlElement('p', [], [xmlElement('b', [], ['a']), ' ', xmlElement('i', [], ['b'])])])
+    expect(body(root)).toBe('<body>\n  <p><b>a</b> <i>b</i></p>\n</body>')
+    // 制表、换行、回车同样保留（CR 以字符引用写出）
+    expect(body(xmlElement('p', [], [xmlElement('b'), ' \t\r\n', xmlElement('i')]))).toBe('<p><b/> \t&#13;\n<i/></p>')
+  })
+
+  it('含仅空白文本的元素整体原样串联，其后代不缩进；不含文本节点的祖先仍缩进', () => {
+    const root = xmlElement('root', [], [
+      xmlElement('a', [], ['\n  ', xmlElement('b'), ' \t', xmlElement('c', [], [xmlElement('d'), xmlElement('e')]), '\n']),
+      xmlElement('f', [], [xmlElement('g')]),
+    ])
+    expect(body(root)).toBe('<root>\n  <a>\n  <b/> \t<c><d/><e/></c>\n</a>\n  <f>\n    <g/>\n  </f>\n</root>')
+  })
+
+  it('已排版的树（如解析自缩进过的源文件）写出后保持原样，不改动其中的空白', () => {
+    const root = xmlElement('a', [], ['\n  ', xmlElement('b', [], ['\n    ', xmlElement('c'), '\n  ']), '\n'])
+    expect(body(root)).toBe('<a>\n  <b>\n    <c/>\n  </b>\n</a>')
+    expect(body(root, { namespaces: {}, indent: null })).toBe('<a>\n  <b>\n    <c/>\n  </b>\n</a>')
   })
 
   it('只含文本的元素（包括仅空白文本）不做布局，文本原样保留', () => {
@@ -292,11 +308,11 @@ describe('writeXml 缩进', () => {
     )
   })
 
-  it('preserveSpace 返回 true 的元素及其后代不缩进、不丢空白，自身仍按父级布局缩进', () => {
+  it('preserveSpace 返回 true 的元素及其后代即使不含文本也不缩进，自身仍按父级布局缩进', () => {
     const calls: string[] = []
     const root = xmlElement('a', [], [
-      xmlElement('pre', [], [' ', xmlElement('b', [], [xmlElement('c'), ' ']), '\n']),
-      xmlElement('other', [], [xmlElement('pre', [], [xmlElement('x'), ' ', xmlElement('y')]), xmlElement('z')]),
+      xmlElement('pre', [], [xmlElement('b', [], [xmlElement('c'), xmlElement('d')])]),
+      xmlElement('other', [], [xmlElement('pre', [], [xmlElement('x'), xmlElement('y')]), xmlElement('z')]),
     ])
     const out = body(root, {
       namespaces: {},
@@ -304,9 +320,9 @@ describe('writeXml 缩进', () => {
     })
     expect(out).toBe([
       '<a>',
-      '  <pre> <b><c/> </b>\n</pre>',
+      '  <pre><b><c/><d/></b></pre>',
       '  <other>',
-      '    <pre><x/> <y/></pre>',
+      '    <pre><x/><y/></pre>',
       '    <z/>',
       '  </other>',
       '</a>',

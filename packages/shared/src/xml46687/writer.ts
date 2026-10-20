@@ -21,7 +21,7 @@ export interface XmlWriteOptions {
    */
   indent?: string | null
   /**
-   * 返回 true 的元素及其全部后代原样串联：不缩进、不丢弃空白文本。
+   * 返回 true 的元素及其全部后代原样串联：即使不含文本节点也不缩进、不换行。
    * 仅对仍处于可缩进上下文的元素调用（先序）。xml:space 不会被自动识别，需由本函数表达。
    */
   preserveSpace?: (element: XmlElement) => boolean
@@ -53,7 +53,6 @@ const NAME_CHAR = `${NAME_START}\\-.0-9\\u00B7\\u0300-\\u036F\\u203F-\\u2040`
 const NCNAME = new RegExp(`^[${NAME_START}][${NAME_CHAR}]*$`, 'u')
 const XML_NAME = new RegExp(`^[:${NAME_START}][:${NAME_CHAR}]*$`, 'u')
 const PUBID_LITERAL = /^[ \r\na-zA-Z0-9\-'()+,./:=?;!*#@$_%]*$/
-const XML_SPACE_ONLY = /^[ \t\r\n]*$/
 const INDENT_UNIT = /^[ \t]*$/
 
 interface Context {
@@ -268,9 +267,10 @@ function writeElement(context: Context, element: XmlElement, path: string, depth
   const entries = childEntries(context, element, path).filter(({ node }) => node.type !== 'text' || node.value !== '')
   if (entries.length === 0) return `${open}/>`
 
-  const hasStructure = entries.some(({ node }) => node.type !== 'text')
-  const mixed = entries.some(({ node }) => node.type === 'text' && !XML_SPACE_ONLY.test(node.value))
-  const verbatim = raw || !context.pretty || preserved || !hasStructure || mixed
+  // 任意非空文本节点（含仅空白文本）都是内容而不是排版：此类元素按混合内容原样串联，
+  // 不缩进、不丢弃任何文本。写出器自己生成的排版空白只出现在完全不含文本节点的元素里。
+  const hasText = entries.some(({ node }) => node.type === 'text')
+  const verbatim = raw || !context.pretty || preserved || hasText
 
   const writeChild = (entry: Entry, childDepth: number, childRaw: boolean): string => entry.node.type === 'element'
     ? writeElement(context, entry.node, entry.path, childDepth, childRaw, false)
@@ -281,10 +281,8 @@ function writeElement(context: Context, element: XmlElement, path: string, depth
     const inner = entries.map(entry => writeChild(entry, depth + 1, true)).join('')
     return `${open}>${inner}</${tag}>`
   }
-  // 纯元素内容：仅空白文本是排版空白，丢弃；其余节点各占一行。
-  const lines = entries
-    .filter(({ node }) => node.type !== 'text')
-    .map(entry => `${context.unit.repeat(depth + 1)}${writeChild(entry, depth + 1, false)}`)
+  // 纯元素内容（只有元素/注释/处理指令）：每个子节点各占一行。
+  const lines = entries.map(entry => `${context.unit.repeat(depth + 1)}${writeChild(entry, depth + 1, false)}`)
   return `${open}>\n${lines.join('\n')}\n${context.unit.repeat(depth)}</${tag}>`
 }
 
@@ -312,9 +310,10 @@ function writeDoctype(doctype: XmlDoctype): string {
 /**
  * 写出 XML 文本。纯函数：不修改入参，同样的输入逐字节产出同样的输出。
  *
- * 缩进规则：含非空白文本的元素是混合内容，其内部原样串联；只含元素/注释/处理指令（和仅空白文本）
- * 的元素是纯元素内容，仅空白文本被丢弃，其余子节点各占一行；只含文本的元素文本原样保留。
- * 子节点的 position 仅供诊断，不影响输出。
+ * 缩进规则：子节点中只要有任意非空字符串的文本节点（包括仅空白文本），该元素就按混合内容原样串联，
+ * 其内部（含后代）不缩进、不丢弃任何文本；只有完全不含文本节点的元素（只有元素/注释/处理指令）才缩进，
+ * 每个子节点各占一行。空字符串文本视为不存在。因此调用方构造树时不要插入排版空白，导入后的树
+ * （含解析出的空白文本）再写出也保持原样。节点的 position 仅供诊断，不影响输出。
  */
 export function writeXml(doc: XmlDocument, options: XmlWriteOptions): string {
   const context = buildContext(options)
