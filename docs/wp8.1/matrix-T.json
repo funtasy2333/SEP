@@ -1541,7 +1541,7 @@
     "notes": "p30 示例写作 <mtext>,或</mtext>，缺 mml: 前缀（笔误）；导出一律带前缀，导入遇无前缀 MathML 元素报 error。"
   },
   {
-    "id": "M-4.1-01",
+    "id": "M-4.1-T01",
     "domain": "formula",
     "path": "standard/@xmlns:mml",
     "element": "standard",
@@ -1568,7 +1568,7 @@
     "notes": "根元素声明 xmlns:mml=\"http://www.w3.org/1998/Math/MathML\"（p2，放大核实）；非 IR 数据，属导出模板。由 S 的根元素条目统一管理。"
   },
   {
-    "id": "M-4.3.2-01",
+    "id": "M-4.3.2-T01",
     "domain": "formula",
     "path": "processing-meta/@mathml-version,@math-representation",
     "element": "processing-meta",
@@ -3368,7 +3368,7 @@
     "notes": "附录 C 第 99 行，@target，指向其他章条/表/图/文献；正文用 xref 实现，无用例；导入报 unsupported（D-T-08）。"
   },
   {
-    "id": "M-4.1-02",
+    "id": "M-4.1-T02",
     "domain": "term",
     "path": "standard/@xmlns:tbx",
     "element": "standard",
@@ -3395,7 +3395,7 @@
     "notes": "xmlns:tbx=\"urn:iso:std:iso:30042:ed-1\"（p2，放大核实）；导出模板；导入按 URI 解析，接受任意前缀。"
   },
   {
-    "id": "M-4.3.2-02",
+    "id": "M-4.3.2-T02",
     "domain": "term",
     "path": "processing-meta/@terminology-model",
     "element": "processing-meta",
