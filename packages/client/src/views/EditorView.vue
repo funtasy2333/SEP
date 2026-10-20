@@ -526,7 +526,7 @@ import {
   formulaHasLegacyDescription, selectedFormula,
 } from '@/extensions/plugins/whereListEditing'
 import {
-  canInsertInlineFormula, INLINE_FORMULA_EVENT, type InlineFormulaRequest,
+  canInsertInlineFormula, INLINE_FORMULA_EVENT, sameInlineLocation, type InlineFormulaRequest,
 } from '@/extensions/plugins/inlineFormulaEditing'
 import { getTableFootnoteEntries } from '@/extensions/nodes/std-table'
 import {
@@ -1884,6 +1884,8 @@ function handleInsertFormula() {
 const showMathDialog = ref(false)
 const mathDialogLatex = ref('')
 const mathDialogRequest = ref<InlineFormulaRequest | null>(null)
+// 打开弹窗时的文档（不放进响应式：确认时要按对象身份判断文档是否被替换过）。
+let mathDialogDoc: PMNode | null = null
 const cursorInFormula = computed(() => !!editor.value && selectedFormula(editor.value.state) !== null)
 const cursorAllowsInlineFormula = computed(() => !!editor.value && canInsertInlineFormula(editor.value.state))
 const mathDialogTitle = computed(() => {
@@ -1895,6 +1897,7 @@ const mathDialogTitle = computed(() => {
 
 function openMathDialog(request: InlineFormulaRequest) {
   mathDialogRequest.value = request
+  mathDialogDoc = editor.value?.state.doc ?? null
   mathDialogLatex.value = request.latex
   showMathDialog.value = true
 }
@@ -1962,17 +1965,20 @@ function applyWhereConversion() {
 function handleMathConfirm(latex: string) {
   const ed = editor.value
   const request = mathDialogRequest.value
+  const openedDoc = mathDialogDoc
   mathDialogRequest.value = null
+  mathDialogDoc = null
   if (!ed || !request) return
+  // 弹窗期间可能载入了外部修订（整篇替换文档）：插入与替换只认原来那一处，位置之前有增删时拒绝。
+  const located = (pos: number) => !!openedDoc && sameInlineLocation(openedDoc, ed.state.doc, pos)
   let applied = false
   if (request.mode === 'edit') {
     applied = ed.chain().focus().updateFormulaInline({ pos: request.pos, latex, nodeId: request.nodeId }).run()
   } else if (request.mode === 'replace') {
-    applied = ed.chain().focus().replaceSelectionWithFormula({
+    applied = located(request.pos) && located(request.to ?? request.pos) && ed.chain().focus().replaceSelectionWithFormula({
       from: request.pos, to: request.to ?? request.pos, text: request.text ?? '', latex,
     }).run()
-  } else if (request.pos <= ed.state.doc.content.size) {
-    // 打开弹窗期间文档可能被远端修改；位置不再落在允许的文本块内时由命令拒绝。
+  } else if (located(request.pos)) {
     applied = ed.chain().focus().setTextSelection(request.pos).insertInlineFormula({ latex }).run()
   }
   if (!applied) ElMessage.warning('文档已变化，未能写入公式，请重新选择位置')

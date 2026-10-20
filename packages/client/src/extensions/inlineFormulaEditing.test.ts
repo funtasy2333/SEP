@@ -4,7 +4,7 @@ import { TextSelection } from '@tiptap/pm/state'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from './editorExtensions'
-import { INLINE_FORMULA_EVENT, type InlineFormulaRequest } from './plugins/inlineFormulaEditing'
+import { INLINE_FORMULA_EVENT, INLINE_FORMULA_PARENTS, sameInlineLocation, type InlineFormulaRequest } from './plugins/inlineFormulaEditing'
 
 type Json = PMJsonNode
 const text = (value: string, ...marks: string[]): Json => ({ type: 'text', text: value, ...(marks.length ? { marks: marks.map(type => ({ type })) } : {}) })
@@ -138,5 +138,45 @@ describe('行内公式：请求与选区转换', () => {
     })))
     expect(events).toHaveLength(1)
     expect(events[0]!.mode).toBe('insert')
+  })
+})
+
+describe('行内公式：弹窗期间文档被替换后的位置核对', () => {
+  /** 模拟载入外部修订：按 JSON 重建整篇文档（与 installRemoteDocument 一样，没有可用的 Mapping）。 */
+  function remote(editor: Editor, edit: (chapter: Json[]) => void) {
+    const json = bodyDoc()
+    edit(json.content![0]!.content!)
+    return editor.schema.nodeFromJSON(json)
+  }
+
+  it('文档未变时放行', () => {
+    const editor = createEditor()
+    expect(sameInlineLocation(editor.state.doc, editor.state.doc, nodeStart(editor, 'note') + 1)).toBe(true)
+  })
+
+  it('修改只在该位置之后时放行', () => {
+    const editor = createEditor()
+    const after = remote(editor, chapter => { chapter[3]!.content![1]!.content = [text('改过的定义')] })
+    expect(sameInlineLocation(editor.state.doc, after, nodeStart(editor, 'note') + 1)).toBe(true)
+  })
+
+  it('位置之前插入一段时拒绝，即使旧位置仍落在允许行内公式的文本块内', () => {
+    const editor = createEditor()
+    const pos = nodeStart(editor, 'note') + 1
+    const after = remote(editor, chapter => { chapter.splice(1, 0, { type: 'stdParagraph', content: [text('前插')] }) })
+    expect(INLINE_FORMULA_PARENTS.has(after.resolve(pos).parent.type.name)).toBe(true)
+    expect(sameInlineLocation(editor.state.doc, after, pos)).toBe(false)
+  })
+
+  it('所在段落被改动时拒绝', () => {
+    const editor = createEditor()
+    const after = remote(editor, chapter => { chapter[2]!.content = [text('另一条注文')] })
+    expect(sameInlineLocation(editor.state.doc, after, nodeStart(editor, 'note') + 1)).toBe(false)
+  })
+
+  it('位置超出新文档时拒绝', () => {
+    const editor = createEditor()
+    const after = remote(editor, chapter => { chapter.splice(1) })
+    expect(sameInlineLocation(editor.state.doc, after, nodeStart(editor, 'note') + 1)).toBe(false)
   })
 })

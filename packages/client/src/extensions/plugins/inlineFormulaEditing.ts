@@ -52,6 +52,24 @@ export function dispatchInlineFormulaRequest(detail: InlineFormulaRequest): void
   window.dispatchEvent(new CustomEvent<InlineFormulaRequest>(INLINE_FORMULA_EVENT, { detail }))
 }
 
+/**
+ * 公式弹窗打开期间文档被替换（载入外部修订会整篇替换，无法用 Mapping 映射旧位置）后，
+ * pos 是否仍指向同一处：树路径（各层序号与节点类型）、所在文本块（内容与属性）、块内偏移都不变才算。
+ * 修改只发生在该位置之后时仍然放行；位置之前有增删时一律拒绝，避免公式被写到别处。
+ */
+export function sameInlineLocation(before: PMNode, after: PMNode, pos: number): boolean {
+  if (before === after) return true
+  if (pos < 0 || pos > before.content.size || pos > after.content.size) return false
+  const $before = before.resolve(pos)
+  const $after = after.resolve(pos)
+  if ($before.depth !== $after.depth || $before.parentOffset !== $after.parentOffset) return false
+  for (let depth = 0; depth < $before.depth; depth++) {
+    if ($before.index(depth) !== $after.index(depth)) return false
+    if ($before.node(depth + 1).type !== $after.node(depth + 1).type) return false
+  }
+  return $before.parent.eq($after.parent)
+}
+
 /** 选区是否落在同一个允许行内公式的文本块内。 */
 export function canInsertInlineFormula(state: EditorState): boolean {
   const { $from, $to } = state.selection

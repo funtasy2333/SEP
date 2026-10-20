@@ -45,6 +45,7 @@
 - **行内公式**（`InlineFormulaEditing`）：
   - 可插入的文本块为 `stdParagraph`、`paragraph`（单元格内）、`stdListItem`、`note`、`example`、`termDefinition`、`tableFootnote`、`tableFootnoteEntry`、`whereTerm`、`whereDefinition`、`formulaDescription`。
   - 工具栏「行内公式」或 `Ctrl/Cmd+Shift+M`：无选区时插入；选中文字时按旧符号规则预填 LaTeX，确认后替换。若弹窗期间文字被改动，则拒绝替换。
+  - 弹窗期间若载入了外部修订（整篇替换文档，无法映射旧位置），插入与替换都要核对原位置：树路径与所在段落都不变才写入。改动只在该位置之后时照常写入；位置之前有增删时拒绝写入并提示，避免公式被写到别处。
   - 光标在标题等位置时，按钮禁用，快捷键也不响应。
 - **式中**：工具栏或斜杠菜单「式中」为光标所在公式追加条目，并打开符号输入。键盘行为：
   - 符号格按 Enter 或 Tab 跳到释义，释义按 Shift-Tab 回到符号；
