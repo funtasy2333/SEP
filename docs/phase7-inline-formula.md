@@ -34,6 +34,7 @@
   - 基线字符汉字计 1、其余计 0.5；
   - 上下标乘 0.7；
   - `mover/munder` 取基线与标记的较大者；
+  - 空白命令（`\quad`、`\hspace` 等，KaTeX 输出为 `mspace`）按 em 计，1em 计 1，负宽度计 0；`\phantom` 不显示但占位，按内容计；
   - 最后加 0.25 余量；
   - 未传入时按 LaTeX 源码保守估算。
 - **HTML/PDF**：输出 `<span class="ses-formula-inline" data-latex="…">`；PDF 预渲染时按 KaTeX 行内模式替换。编辑器预览、DOCX（OMML 转换）与 PDF 预渲染使用同一个 KaTeX：2026-10-18 起 server、io、client 统一锁定 0.16.44（此前 server 为 0.16.11）。行内 KaTeX 与块级公式同为 KaTeX 默认缩放。PDF 截图中，含简单符号的正文行距均匀；含分式的行会略高。
@@ -53,7 +54,7 @@
   - 在空条目开头按 Backspace 删除该条。
 
   公式还有文字式中时，会先弹出转换对照表。
-- **显示与编辑**：公式以 KaTeX 行内模式显示；点击、或选中后按 Enter 打开编辑弹窗，写回时核对 nodeId。版本对比中，行内公式显示为 `$latex$`。
+- **显示与编辑**：公式以 KaTeX 行内模式显示；点击、或选中后按 Enter 打开编辑弹窗，写回时核对 nodeId。版本对比中，行内公式显示为 `$latex$`；公式下的式中（每条「符号——释义」）、自由文本式中与公式注也列入对比。
 - **公式输入弹窗**（`MathInputDialog.vue`）：
   - MathLive 0.110.0 按需加载为独立 chunk（808 kB，gzip 221 kB），主 chunk 大小不变；不加载外部字体与音效。
   - 写回前校验：不能有未填写的占位，KaTeX 必须能解析；MathLive 加载失败时退回 LaTeX 源码输入。

@@ -54,6 +54,18 @@ describe('式中符号宽度估算（单位：汉字宽）', () => {
     expect(estimateFormulaWidth(latex)).toBeCloseTo(expected, 5)
   })
 
+  it('空白命令（mspace）按 em 计入宽度，负宽度按 0 计', () => {
+    const base = estimateFormulaWidth('qV')
+    expect(estimateFormulaWidth(String.raw`q\qquad V`)).toBeCloseTo(base + 2, 5)
+    expect(estimateFormulaWidth(String.raw`q\hspace{1cm}V`)).toBeCloseTo(base + 2.8453, 5)
+    expect(estimateFormulaWidth(String.raw`q\hspace{-1em}V`)).toBeCloseTo(base, 5)
+  })
+
+  it('幻影（\\phantom、\\hphantom）不显示但占位，按内容计入宽度', () => {
+    expect(estimateFormulaWidth(String.raw`q\phantom{MMMM}V`)).toBeCloseTo(estimateFormulaWidth('qMMMMV'), 5)
+    expect(estimateFormulaWidth(String.raw`q\hphantom{MM}V`)).toBeCloseTo(estimateFormulaWidth('qMMV'), 5)
+  })
+
   it('CJK 字符按一个汉字宽计', () => {
     expect(estimateFormulaWidth(String.raw`\text{长}`)).toBeCloseTo(1 + 0.25, 5)
   })

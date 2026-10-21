@@ -339,9 +339,14 @@ function mathWidth(node: MathMlNode, scale: number): number {
       return node.children.reduce((sum, child) => sum + mathWidth(child, scale), 0) + 0.5 * scale
     case 'mroot':
       return width(children[0]) + width(children[1], scale * SCRIPT_SCALE) + 0.5 * scale
-    case 'mspace':
+    case 'mspace': {
+      // KaTeX 把 \quad、\hspace{…}、\kern 等统一换算成 em；1em 按一个汉字宽计。负宽度按 0 计（宁可估大）。
+      const em = /\bwidth="(-?\d*\.?\d+)em"/.exec(node.attrs)
+      return em ? Math.max(0, Number(em[1])) * scale : 0
+    }
     case 'mphantom':
-      return 0
+      // 幻影不显示但占位（\phantom、\hphantom），按内容测量。
+      return node.children.reduce((sum, child) => sum + mathWidth(child, scale), 0)
     default:
       return node.children.reduce((sum, child) => sum + mathWidth(child, scale), 0)
   }
@@ -349,7 +354,7 @@ function mathWidth(node: MathMlNode, scale: number): number {
 
 /**
  * 估算行内公式的排版宽度（汉字宽）。Word 不测量 OMML，制表位只能事先估算：
- * 基线字符按汉字 1、其余 0.5，脚标乘 0.7，最后加 0.25 余量（docs/wp7-docx-delivery.md §5.10）。
+ * 基线字符按汉字 1、其余 0.5，脚标乘 0.7，空白按 em 计、幻影按内容计，最后加 0.25 余量（docs/wp7-docx-delivery.md §5.10）。
  */
 export function estimateFormulaWidth(latex: string): number {
   return mathWidth(latexToMathMl(latex, false), 1) + WIDTH_MARGIN

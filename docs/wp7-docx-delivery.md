@@ -622,7 +622,7 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
 - 公式段：P(SesFormula, `<w:r><w:tab/></w:r>` + OMML + `<w:r><w:tab/></w:r>` + 编号文字)。编号沿用 Resolver 的数字/字母内容，把外层半角圆括号统一写为中文圆括号「（…）」，整段编号 run 的四类 `rFonts` 均指定宋体，避免英文字母和数字回退为 Times New Roman。`numbered=false` 时只有第一个制表符和 OMML。
 - `formulaOmml` 缺该公式：写 LaTeX 源码文字，记 `formula-missing-omml` warning。
 - 式中：`whereList` 非空时，先 P(SesWhereLabel, 「式中：」)，再每项一段 SesWhereItem：首行起于 420；符号后接一个制表位跳到破折号位置 `d`；「——」后接释义；回行对齐释义起点。`d` = 420 + 本组最长符号宽度 + 210（符号宽按汉字 1 字、ASCII 0.5 字估算）；段落 `tabs` 写 `d`，左缩进 = d + 420（「——」宽 2 字），悬挂 = 左缩进 − 420。
-  - 式中符号可以是行内公式（`IRInline.formula`，见 docs/phase7-inline-formula.md）：符号位置直接输出宿主注入的 `<m:oMath>`（`formulaOmml[行内公式 id]`，KaTeX `displayMode:false` 转换），不包 `oMathPara`；缺失时回退为 LaTeX 源码文本并记 `formula-missing-omml`。Word 不测量 OMML，符号宽度由宿主估算并经 `formulaWidths` 传入：基线字符汉字 1、其余 0.5，上下标乘 0.7，`mover/munder` 取基线与标记的较大者，最后加 0.25 余量；未传入时按 LaTeX 源码保守估算（每个非格式命令计 1 个字符，脚标按全宽）。
+  - 式中符号可以是行内公式（`IRInline.formula`，见 docs/phase7-inline-formula.md）：符号位置直接输出宿主注入的 `<m:oMath>`（`formulaOmml[行内公式 id]`，KaTeX `displayMode:false` 转换），不包 `oMathPara`；缺失时回退为 LaTeX 源码文本并记 `formula-missing-omml`。Word 不测量 OMML，符号宽度由宿主估算并经 `formulaWidths` 传入：基线字符汉字 1、其余 0.5，上下标乘 0.7，`mover/munder` 取基线与标记的较大者，空白（`mspace`）按 em 计（1em 计 1、负宽度计 0），幻影（`mphantom`）按内容计，最后加 0.25 余量；未传入时按 LaTeX 源码保守估算（每个非格式命令计 1 个字符，脚标按全宽）。
 - 正文类位置的行内公式（段落、列项、注、示例、单元格、术语定义、表注、条文脚注、表脚注）同样直接输出 `formulaOmml[行内公式 id]`，位于文字之后、脚注引用之前（与 irToPm 顺序一致）；缺失时回退为 LaTeX 源码并记 `formula-missing-omml`。标题、图表题、术语名、参考文献中的行内公式在导出边界拒绝。
 
 ### 5.11 附录
