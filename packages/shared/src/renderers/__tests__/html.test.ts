@@ -49,7 +49,9 @@ describe('编号一致性（编号全部取自 labels，渲染器无计数器）
     ['术语条目编号', '3.1'],
     ['图编号', '图1'],
     ['表编号', '表1'],
-    ['公式编号', '<span class="ses-formula-num">(1)</span>'],
+    // GB/T 1.1 9.9.2 示例：编号用中文（全角）圆括号，与 DOCX 一致；正文引用文字「公式(1)」不受影响。
+    ['公式编号', '<span class="ses-formula-num">（1）</span>'],
+    ['附录公式编号', '<span class="ses-formula-num">（A.1）</span>'],
     ['附录编号', '附录A'],
     ['附录字母前缀图', '图A.1'],
     ['附录字母前缀表', '表A.1'],
@@ -206,9 +208,30 @@ describe('公式：KaTeX 占位 + 式中键值列表', () => {
   it('输出 ses-formula 占位且不渲染 KaTeX', () => {
     expect(html).toContain('class="ses-formula" data-latex="E = mc^2"')
   })
-  it('式中列表解析为 dt/dd', () => {
-    expect(html).toContain('<dl class="ses-where-list">')
-    expect(html).toMatch(/<dt[^>]*>E<\/dt><dd>能量，单位为焦耳（J）<\/dd>/)
+  it.each(['screen', 'print'] as const)('%s：式中列表解析为 dt/dd，释义前以「——」连接（GB/T 1.1 10.4.3）', variant => {
+    const out = renderFixture(variant)
+    expect(out).toContain('<dl class="ses-where-list">')
+    expect(out).toMatch(/<dt[^>]*>E<\/dt><dd><span class="ses-where-dash">——<\/span><span class="ses-where-text">能量，单位为焦耳（J）<\/span><\/dd>/)
+  })
+  it.each(['screen', 'print'] as const)('%s：公式编号为中文括号，引用文字不变', variant => {
+    const out = renderFixture(variant)
+    expect(out).toContain('<span class="ses-formula-num">（1）</span>')
+    expect(out).not.toContain('ses-formula-num">(1)')
+  })
+  it('打印样式：公式居中，编号区占公式右端到版心右缘，点线铺满（GB/T 1.1 10.4.3）', () => {
+    const css = printCss()
+    expect(css).toMatch(/\.ses-formula-block\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*1fr auto 1fr/)
+    expect(css).toMatch(/\.ses-formula\s*\{[^}]*grid-column:\s*2/)
+    expect(css).toMatch(/\.ses-formula-tail\s*\{[^}]*grid-column:\s*3;[^}]*display:\s*flex/)
+    expect(css).toContain('.ses-formula-leader { flex: 1; }')
+    expect(css).toContain('.ses-formula-leader::after { content: leader(dotted); }')
+    expect(renderFixture('print')).toContain('<span class="ses-formula-tail"><span class="ses-formula-leader"></span><span class="ses-formula-num">（1）</span></span>')
+  })
+  it('破折号定宽、释义回行与释义起点对齐（打印与屏幕样式）', () => {
+    for (const css of [printCss(), html]) {
+      expect(css).toMatch(/\.ses-where-list dd\s*\{[^}]*display:\s*flex/)
+      expect(css).toMatch(/\.ses-where-dash\s*\{[^}]*flex:\s*none/)
+    }
   })
 })
 

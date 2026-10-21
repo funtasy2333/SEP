@@ -7,23 +7,43 @@
 import type { IRFormula, NodeId } from '../../../ir/types'
 import { RPR_SONG } from '../numbering'
 import { pPr } from '../xml'
-import { emitParagraph, warn, type RenderContext } from './context'
+import { fullWidthFormulaLabel } from '../../formulaLabel'
+import { emitParagraph, formulaSink, warn, type RenderContext } from './context'
 import { plainRun, renderInlines, tabRun } from './inline'
 
 const TWIPS_PER_CHAR = 210
 const HANGING_INDENT_TWIPS = 420
 
-function fullWidthFormulaLabel(label: string): string {
-  const wrapped = /^(?:\((.*)\)|（(.*)）)$/.exec(label)
-  const inner = wrapped ? (wrapped[1] ?? wrapped[2]) : label
-  return `（${inner}）`
+/** ASCII 字符按半个汉字估算，其余 Unicode 码点按一个汉字估算（§5.10）。 */
+function textWidth(text: string): number {
+  let width = 0
+  for (const char of text) width += /^[\x00-\x7f]$/.test(char) ? 0.5 : 1
+  return width
 }
 
-/** ASCII 字符按半个汉字估算，其余 Unicode 码点按一个汉字估算（§5.10）。 */
-function symbolWidth(inlines: IRFormula['whereList'][number]['term']): number {
+/** 只改变字形、不占宽度的 LaTeX 命令；其余命令（希腊字母、\max 等）按一个字符计。 */
+const LATEX_STYLE_COMMANDS = new Set([
+  'mathrm', 'mathit', 'mathbf', 'mathsf', 'mathtt', 'mathcal', 'mathbb', 'boldsymbol', 'text', 'textrm', 'textit',
+  'operatorname', 'bar', 'hat', 'tilde', 'dot', 'ddot', 'vec', 'overline', 'underline', 'left', 'right',
+])
+
+/**
+ * 宿主未提供 OMML 宽度时的保守估算（汉字宽）：脚标按全宽计，宁宽勿窄，
+ * 避免制表符跳到下一个默认制表位（§5.10）。
+ */
+export function latexWidthFallback(latex: string): number {
+  const text = latex
+    .replace(/\\([A-Za-z]+)/g, (_match, name: string) => LATEX_STYLE_COMMANDS.has(name) ? '' : 'x')
+    .replace(/\\./g, '')
+    .replace(/[{}_^\s]/g, '')
+  return textWidth(text)
+}
+
+function symbolWidth(ctx: RenderContext, inlines: IRFormula['whereList'][number]['term']): number {
   let width = 0
   for (const run of inlines) {
-    for (const char of run.text) width += /^[\x00-\x7f]$/.test(char) ? 0.5 : 1
+    width += textWidth(run.text)
+    if (run.formula?.latex) width += ctx.resources.formulaWidths?.[run.formula.id] ?? latexWidthFallback(run.formula.latex)
   }
   return width
 }
@@ -39,7 +59,7 @@ function whereItemParagraph(
     ['tabs', `<w:tabs><w:tab w:val="left" w:pos="${tabPosition}"/></w:tabs>`],
     ['ind', `<w:ind w:left="${leftIndent}" w:hanging="${tabPosition}"/>`],
   ])
-  return `<w:p>${ppr}${renderInlines(item.term, ctx.labels)}${tabRun()}${plainRun('——')}${renderInlines(item.definition, ctx.labels)}</w:p>`
+  return `<w:p>${ppr}${renderInlines(item.term, ctx.labels, formulaSink(ctx))}${tabRun()}${plainRun('——')}${renderInlines(item.definition, ctx.labels, formulaSink(ctx))}</w:p>`
 }
 
 /**
@@ -71,7 +91,7 @@ export function renderFormula(
   let out = emitParagraph(ctx, 'SesFormula', { runsXml: runs })
   if (formula.whereList.length > 0) {
     out += emitParagraph(ctx, 'SesWhereLabel', { runsXml: plainRun('式中：') })
-    const maxSymbolWidth = Math.max(...formula.whereList.map((item) => symbolWidth(item.term)), 0)
+    const maxSymbolWidth = Math.max(...formula.whereList.map((item) => symbolWidth(ctx, item.term)), 0)
     const tabPosition = HANGING_INDENT_TWIPS + Math.ceil(maxSymbolWidth * TWIPS_PER_CHAR) + TWIPS_PER_CHAR
     for (const item of formula.whereList) out += whereItemParagraph(ctx, item, tabPosition)
   }

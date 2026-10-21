@@ -93,6 +93,7 @@ export async function buildDocx(options: BuildDocxOptions): Promise<{
   const docxPackage = renderDocx(doc, labels, {
     images: imageResult.images,
     formulaOmml: formulaResult.formulaOmml,
+    formulaWidths: formulaResult.formulaWidths,
     stage: resolveDocumentStage(options.stage),
     createdAt: options.createdAt ?? new Date().toISOString(),
   })

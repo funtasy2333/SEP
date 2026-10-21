@@ -142,7 +142,8 @@ const FIELDS = {
   chapter: ['kind', 'id', 'secType', 'title', 'children'],
   appendix: ['kind', 'id', 'normative', 'title', 'children'],
   bibEntry: ['kind', 'id', 'content'],
-  run: ['text', 'marks'],
+  run: ['text', 'marks', 'formula'],
+  inlineFormula: ['id', 'latex'],
 } as const
 
 /**
@@ -161,11 +162,13 @@ const OWNER_LABELS: Record<FieldOwner, string> = {
   paragraph: '段落', list: '列项', listItem: '列项项', table: '表', row: '表行', cell: '单元格',
   figure: '图', formula: '公式', whereItem: '式中项', note: '注', example: '示例', clause: '条',
   termEntry: '术语条目', chapter: '章', appendix: '附录', bibEntry: '参考文献条目', run: '行内片段',
+  inlineFormula: '行内公式',
 }
 
 /** IR 里有、但写作片段暂不支持的字段：给出专门的提示，而不是笼统的「未知字段」。 */
 const IR_ONLY_FIELDS: Partial<Record<FieldOwner, readonly string[]>> = {
-  run: ['style', 'formula', 'footnote'],
+  run: ['style', 'footnote'],
+  inlineFormula: ['mathml', 'source'],
   table: ['width', 'style', 'unit', 'footnotes'],
   figure: ['title', 'unit', 'resourceId', 'imageWidth', 'imageHeight', 'descriptions', 'groups'],
   formula: ['mathml', 'sourceInlines', 'notes'],
@@ -401,14 +404,54 @@ function parseMark(value: unknown, path: string, ctx: Ctx): IRMark | undefined {
   }
 }
 
+/**
+ * 行内公式片段 `{"formula": {"latex": …, "id"?: …}}`：只开放给正文类位置（段落、注、示例、列项、单元格、
+ * 术语定义、式中符号与释义），与导出边界一致（docs/phase7-inline-formula.md）。文字与标记不能附在公式片段上。
+ */
+function parseFormulaRun(value: Obj, rawFormula: unknown, path: string, ctx: Ctx, allowFormula: boolean): IRInline | undefined {
+  if (!allowFormula) {
+    ctx.issue(`${path}.formula`, 'unsupported-field',
+      '这里暂不支持行内公式：标题、图表题、术语名、参考文献中暂不支持行内公式；请改用文字')
+    return undefined
+  }
+  const before = ctx.issues.length
+  const text = own(value, 'text')
+  if (text !== undefined && text !== '') {
+    ctx.issue(`${path}.text`, 'invalid-value', '公式片段不能同时带文字：请把文字拆成单独的片段')
+  }
+  const marks = own(value, 'marks')
+  if (marks !== undefined && !(Array.isArray(marks) && marks.length === 0)) {
+    ctx.issue(`${path}.marks`, 'invalid-value', '公式片段不能带行内标记：公式的字形由 LaTeX 决定')
+  }
+  if (!isObj(rawFormula)) {
+    ctx.issue(`${path}.formula`, 'invalid-type', 'formula 应为 {"latex": "…"} 对象')
+    return undefined
+  }
+  checkKeys(rawFormula, `${path}.formula`, 'inlineFormula', ctx)
+  const rawLatex = own(rawFormula, 'latex')
+  let latex = ''
+  if (rawLatex === undefined) {
+    ctx.issue(`${path}.formula.latex`, 'missing-field', '行内公式缺少 latex')
+  } else if (typeof rawLatex !== 'string') {
+    ctx.issue(`${path}.formula.latex`, 'invalid-type', 'latex 必须是字符串')
+  } else {
+    latex = rawLatex.trim()
+    if (latex === '') ctx.issue(`${path}.formula.latex`, 'empty-value', 'latex 不能为空')
+  }
+  const id = ctx.idOf(rawFormula, `${path}.formula`)
+  return ctx.issues.length > before ? undefined : { text: '', formula: { id, latex } }
+}
+
 /** 解析一个行内片段；空文本且无标记返回 null（丢弃），无效返回 undefined。 */
-function parseRun(value: unknown, path: string, ctx: Ctx): IRInline | null | undefined {
+function parseRun(value: unknown, path: string, ctx: Ctx, allowFormula = false): IRInline | null | undefined {
   if (typeof value === 'string') return value === '' ? null : { text: value }
   if (!isObj(value)) {
     ctx.issue(path, 'invalid-type', '行内片段应为字符串或 {"text": …, "marks": […]} 对象')
     return undefined
   }
   checkKeys(value, path, 'run', ctx)
+  const rawFormula = own(value, 'formula')
+  if (rawFormula !== undefined) return parseFormulaRun(value, rawFormula, path, ctx, allowFormula)
   const before = ctx.issues.length
   const text = own(value, 'text')
   if (typeof text !== 'string') {
@@ -473,7 +516,7 @@ function mergeAdjacentRuns(runs: IRInline[]): IRInline[] {
   const out: IRInline[] = []
   for (const run of runs) {
     const previous = out[out.length - 1]
-    if (previous && previous.text !== '\n' && run.text !== '\n'
+    if (previous && previous.text !== '\n' && run.text !== '\n' && !previous.formula && !run.formula
       && JSON.stringify(previous.marks ?? []) === JSON.stringify(run.marks ?? [])) {
       out[out.length - 1] = { ...previous, text: previous.text + run.text }
     } else {
@@ -484,7 +527,7 @@ function mergeAdjacentRuns(runs: IRInline[]): IRInline[] {
 }
 
 /** 行内内容：字符串，或由字符串与 `{text, marks}` 对象组成的数组。无效返回 undefined。 */
-function parseInlines(value: unknown, path: string, ctx: Ctx): IRInline[] | undefined {
+function parseInlines(value: unknown, path: string, ctx: Ctx, allowFormula = false): IRInline[] | undefined {
   const before = ctx.issues.length
   const out: IRInline[] = []
   if (typeof value === 'string') {
@@ -496,23 +539,23 @@ function parseInlines(value: unknown, path: string, ctx: Ctx): IRInline[] | unde
     return undefined
   }
   value.forEach((item, index) => {
-    const run = parseRun(item, `${path}[${index}]`, ctx)
+    const run = parseRun(item, `${path}[${index}]`, ctx, allowFormula)
     if (run) out.push(...splitNewlines(run))
   })
   return ctx.issues.length > before ? undefined : mergeAdjacentRuns(out)
 }
 
 const plainText = (inlines: IRInline[]): string => inlines.map(run => run.text).join('')
-const isBlank = (inlines: IRInline[]): boolean => plainText(inlines).trim() === ''
+const isBlank = (inlines: IRInline[]): boolean => !inlines.some(run => run.formula) && plainText(inlines).trim() === ''
 
 /** 必填的行内字段；缺失或无效返回空数组（问题已记录）。 */
-function inlineField(obj: Obj, key: string, path: string, ctx: Ctx, options: { nonBlank?: boolean; what?: string } = {}): IRInline[] {
+function inlineField(obj: Obj, key: string, path: string, ctx: Ctx, options: { nonBlank?: boolean; what?: string; allowFormula?: boolean } = {}): IRInline[] {
   const value = own(obj, key)
   if (value === undefined) {
     ctx.issue(`${path}.${key}`, 'missing-field', `缺少「${key}」`)
     return []
   }
-  const inlines = parseInlines(value, `${path}.${key}`, ctx)
+  const inlines = parseInlines(value, `${path}.${key}`, ctx, options.allowFormula)
   if (inlines === undefined) return []
   if (options.nonBlank && isBlank(inlines)) {
     ctx.issue(`${path}.${key}`, 'empty-value', `${options.what ?? key}不能为空`)
@@ -589,7 +632,7 @@ const paragraphOf = (id: string, content: IRInline[]): IRParagraph => ({ kind: '
 function parseParagraphObject(obj: Obj, path: string, ctx: Ctx): IRParagraph {
   checkKeys(obj, path, 'paragraph', ctx)
   const id = ctx.idOf(obj, path)
-  return paragraphOf(id, inlineField(obj, 'content', path, ctx))
+  return paragraphOf(id, inlineField(obj, 'content', path, ctx, { allowFormula: true }))
 }
 
 /**
@@ -606,7 +649,7 @@ function parseSingleParagraph(value: unknown, path: string, ownerId: string, wha
       ctx.issue(path, 'invalid-type', `${what}的内容不能混用块对象与行内片段`)
       return []
     }
-    const inlines = parseInlines(value, path, ctx)
+    const inlines = parseInlines(value, path, ctx, true)
     ctx.claim(derivedId, path)
     return [paragraphOf(derivedId, inlines ?? [])]
   }
@@ -625,7 +668,7 @@ function parseSingleParagraph(value: unknown, path: string, ownerId: string, wha
     ctx.issue(`${path}[0].id`, 'invalid-id', `${what}内段落的 id 由所属节点派生，必须省略或等于「${derivedId}」`)
   }
   ctx.claim(derivedId, `${path}[0]`)
-  return [paragraphOf(derivedId, inlineField(first, 'content', `${path}[0]`, ctx))]
+  return [paragraphOf(derivedId, inlineField(first, 'content', `${path}[0]`, ctx, { allowFormula: true }))]
 }
 
 type BlockKind = typeof AUTHORING_BLOCK_KINDS[number]
@@ -644,7 +687,7 @@ function parseBlocks(
     return []
   }
   if (value.length > 0 && value.every(item => isObj(item) && !has(item, 'kind'))) {
-    const inlines = parseInlines(value, path, ctx)
+    const inlines = parseInlines(value, path, ctx, true)
     return [paragraphOf(ctx.fresh(), inlines ?? [])]
   }
   const out: IRBlock[] = []
@@ -959,8 +1002,8 @@ function parseFormula(obj: Obj, path: string, ctx: Ctx): IRFormula {
     const itemId = ctx.idOf(raw, at)
     return {
       id: itemId,
-      term: inlineField(raw, 'term', at, ctx, { nonBlank: true, what: '式中项的符号' }),
-      definition: inlineField(raw, 'definition', at, ctx, { nonBlank: true, what: '式中项的说明' }),
+      term: inlineField(raw, 'term', at, ctx, { nonBlank: true, what: '式中项的符号', allowFormula: true }),
+      definition: inlineField(raw, 'definition', at, ctx, { nonBlank: true, what: '式中项的说明', allowFormula: true }),
     }
   })
   return { kind: 'formula', id, latex, numbered, whereList }

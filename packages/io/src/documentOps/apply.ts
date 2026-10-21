@@ -10,6 +10,7 @@
  * nodeId 生成器可注入。
  */
 
+import katex from 'katex'
 import {
   describeAuthoringContext,
   fragmentContextRules,
@@ -283,6 +284,39 @@ function syncClauseTitles(node: PMJsonNode): PMJsonNode {
   }
 }
 
+/**
+ * 行内公式（式中符号）的 LaTeX 必须能被 KaTeX 解析：导出端的 PDF 预渲染与 DOCX OMML 转换都基于 KaTeX，
+ * 写入时拦截，避免坏符号进入文档后才在出件时降级。
+ */
+function inlineFormulaLatexIssues(nodes: unknown, rootPath: string): { path: string; reason: string; nodeId?: string }[] {
+  const issues: { path: string; reason: string; nodeId?: string }[] = []
+  const visit = (value: unknown, path: string): void => {
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => visit(item, `${path}[${index}]`))
+      return
+    }
+    if (value === null || typeof value !== 'object') return
+    const record = value as Record<string, unknown>
+    const formula = record.formula as { id?: unknown; latex?: unknown } | undefined
+    if (typeof record.text === 'string' && formula && typeof formula === 'object' && typeof formula.latex === 'string') {
+      try {
+        katex.renderToString(formula.latex, { displayMode: false, throwOnError: true, strict: 'ignore' })
+      } catch (error) {
+        const detail = error instanceof Error ? error.message.replace(/^KaTeX parse error:\s*/, '') : String(error)
+        issues.push({
+          path: `${path}.formula.latex`,
+          reason: `行内公式的 LaTeX 无法被 KaTeX 解析：${detail}`,
+          ...(typeof formula.id === 'string' ? { nodeId: formula.id } : {}),
+        })
+      }
+      return
+    }
+    for (const [key, child] of Object.entries(record)) visit(child, `${path}.${key}`)
+  }
+  visit(nodes, rootPath)
+  return issues
+}
+
 function buildFragment(
   content: unknown, context: AuthoringContext, rootPath: string, existingIds: ReadonlySet<string>,
   generateId: () => string, opIndex: number,
@@ -296,6 +330,9 @@ function buildFragment(
       issues: normalized.issues.map(item => issueOf(opIndex, item.path, item.code, item.reason, item.nodeId)),
     }
   }
+  const formulaIssues = inlineFormulaLatexIssues(normalized.nodes, rootPath)
+    .map(item => issueOf(opIndex, item.path, 'invalid-value', item.reason, item.nodeId))
+  if (formulaIssues.length) return { ok: false, issues: formulaIssues }
   try {
     const pm = irFragmentToPm(normalized.nodes, context, { rootPath }).map(syncClauseTitles)
     return { ok: true, built: { ir: normalized.nodes, pm, ids: addressableIds(normalized.nodes) } }

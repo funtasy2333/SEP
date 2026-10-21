@@ -3,6 +3,8 @@ import type { DOMOutputSpec } from '@tiptap/pm/model'
 import { TableCell } from '@tiptap/extension-table-cell'
 import { TableHeader } from '@tiptap/extension-table-header'
 import { TableRow } from '@tiptap/extension-table-row'
+import katex from 'katex'
+import { dispatchInlineFormulaRequest } from '../plugins/inlineFormulaEditing'
 
 function safeExternalHref(value: unknown): string | null {
   if (typeof value !== 'string') return null
@@ -517,6 +519,51 @@ export const FormulaInline = Node.create({
       class: 'std-formula-inline',
       contenteditable: 'false',
     }), String(label)]
+  },
+
+  /** 编辑器内与导出同一引擎：KaTeX 行内模式；点击请求式中符号编辑弹窗。 */
+  addNodeView() {
+    return ({ node, getPos }) => {
+      const dom = document.createElement('span')
+      dom.className = 'std-formula-inline'
+      dom.dataset.type = 'formula-inline'
+      dom.contentEditable = 'false'
+      let current = node
+      const render = () => {
+        const latex = typeof current.attrs.latex === 'string' ? current.attrs.latex : ''
+        dom.dataset.latex = latex
+        dom.title = latex ? `LaTeX：${latex}（点击编辑）` : '点击编辑符号'
+        try {
+          if (!latex) throw new Error('empty')
+          dom.innerHTML = katex.renderToString(latex, { displayMode: false, throwOnError: true, output: 'html' })
+          dom.classList.remove('is-invalid')
+        } catch {
+          dom.textContent = latex || String(current.attrs.mathml ? '［MathML公式源］' : '［行内公式］')
+          dom.classList.add('is-invalid')
+        }
+      }
+      render()
+      dom.addEventListener('click', (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        const pos = typeof getPos === 'function' ? getPos() : undefined
+        if (typeof pos !== 'number') return
+        dispatchInlineFormulaRequest({
+          mode: 'edit', pos, latex: String(current.attrs.latex ?? ''),
+          ...(current.attrs.nodeId ? { nodeId: String(current.attrs.nodeId) } : {}),
+        })
+      })
+      return {
+        dom,
+        update(updated) {
+          if (updated.type !== node.type) return false
+          current = updated
+          render()
+          return true
+        },
+        ignoreMutation: () => true,
+      }
+    }
   },
 })
 

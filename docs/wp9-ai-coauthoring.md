@@ -147,7 +147,7 @@ DOCX 出件把 `client/src/serializer/` 中的公式 OMML、图片资源、DOCX 
 WP9.1 实施结果：
 
 - `nest-cli.json` 指定 webpack builder，`packages/server/webpack.config.js` 把 `@ses/*` 打入产物；`build`、`start`、`dev`（watch 会跟踪 shared 源码变化）、`start:prod` 均可用；
-- 外部依赖规则补充一条：`@ses/*` 源码导入的第三方包若与 server 自己解析到的不是同一份（版本不同），改为打入产物。原因是 server 为 PDF 预渲染锁定 KaTeX 0.16.11，而 `@ses/io` 的 DOCX 公式转换用 0.16.44；若按包名外置，产物会静默改用 0.16.11（实测 `\vdots` 的 OMML 会不同）。现在产物中 DOCX 路径为 0.16.44，PDF 预渲染与 KaTeX 样式仍为 0.16.11；
+- 外部依赖规则补充一条：`@ses/*` 源码导入的第三方包若与 server 自己解析到的不是同一份（版本不同），改为打入产物。原因是 server 为 PDF 预渲染锁定 KaTeX 0.16.11，而 `@ses/io` 的 DOCX 公式转换用 0.16.44；若按包名外置，产物会静默改用 0.16.11（实测 `\vdots` 的 OMML 会不同）。当时产物中 DOCX 路径为 0.16.44，PDF 预渲染与 KaTeX 样式仍为 0.16.11（2026-10-18 起 server、io、client 统一锁定 0.16.44，见 docs/phase7-inline-formula.md）；
 - mathml2omml 在产物中是独立 chunk（`dist/1.main.js`），部署时必须随 `dist/` 一起拷贝，缺失时公式降级为 LaTeX 文本并只在告警中体现；
 - server 的 jest 改为 `node --experimental-vm-modules` 运行，以加载 ESM-only 的 mathml2omml。
 

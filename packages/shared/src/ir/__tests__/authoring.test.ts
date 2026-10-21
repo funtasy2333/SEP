@@ -403,7 +403,8 @@ describe('normalizeAuthoringFragment / 行内内容', () => {
     expectIssue(at([{ text: 3 }]), 'invalid-type', 'fragment[0].content[0].text')
     expectIssue(at([{ text: 'x', txt: 'y' }]), 'unknown-field', 'fragment[0].content[0].txt')
     expectIssue(at([{ text: 'x', style: { color: 'red' } }]), 'unsupported-field', 'fragment[0].content[0].style')
-    expectIssue(at([{ text: '', formula: { id: 'f', latex: 'x' } }]), 'unsupported-field', 'fragment[0].content[0].formula')
+    // 段落可写行内公式（docs/phase7-inline-formula.md），但 MathML 原文仍是 IR 独有字段。
+    expectIssue(at([{ text: '', formula: { id: 'f', latex: 'x', mathml: '<math/>' } }]), 'unsupported-field', 'fragment[0].content[0].formula.mathml')
     expectIssue(at([{ text: '', footnote: { id: 'f', content: [] } }]), 'unsupported-field', 'fragment[0].content[0].footnote')
     expectIssue(at([{ text: 'x', marks: 'bold' }]), 'invalid-type', 'fragment[0].content[0].marks')
   })

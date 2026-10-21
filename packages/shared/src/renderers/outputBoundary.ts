@@ -36,13 +36,21 @@ const FIELDS: Record<string, ReadonlySet<string>> = Object.fromEntries(Object.en
   example: ['kind', 'id', 'content'],
   termEntry: ['kind', 'id', 'level', 'term', 'termEn', 'definition', 'source', 'notes', 'examples', 'tailOrder'],
   bibEntry: ['kind', 'id', 'content'],
-  inline: ['text', 'marks', 'footnote'],
+  inline: ['text', 'marks', 'footnote', 'formula'],
+  // 式中符号行内公式：渲染器只消费 LaTeX（KaTeX / OMML），MathML 与外部源无法如实输出。
+  inlineFormula: ['id', 'latex'],
   footnote: ['id', 'content'],
   mark: ['type', 'id', 'targetId', 'targetKind'],
   unmappedFootnote: ['container', 'nodeId', 'content', 'reason'],
 }).map(([key, values]) => [key, new Set(values)]))
 const PRINT_META_FIELDS = new Set(['proposer', 'technicalCommittee'])
 const MARKS = new Set(['bold', 'italic', 'underline', 'sub', 'sup', 'crossRef', 'tableFootnoteRef'])
+/**
+ * 行内公式只开放给正文类位置（docs/phase7-inline-formula.md）：段落内容（注、示例、单元格、列项、术语定义
+ * 里的段落都在此列）、式中符号与释义、条文脚注与表脚注内容。标题、图表题、术语名、参考文献会进入目次、
+ * 书签和引用文字，暂不放开。值为「行内数组所属容器」：父对象的 kind（无 kind 时为 shape）与字段名。
+ */
+const INLINE_FORMULA_CONTAINERS = new Set(['paragraph.content', 'where.term', 'where.definition', 'footnote.content'])
 
 function present(value: unknown): boolean {
   return value !== undefined && value !== null && value !== ''
@@ -78,7 +86,7 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
     message: `${format} 不能输出 ${issue.path}（${issue.nodeType}）：${issue.reason}。请保留 JSON 文档。`,
   }))
   const resolution = resolve(doc)
-  const visit = (value: unknown, shape: string, path: string, parentId?: string): void => {
+  const visit = (value: unknown, shape: string, path: string, parentId?: string, container?: string): void => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return
     const object = value as Record<string, unknown>
     const id = typeof object.id === 'string' ? object.id : parentId
@@ -154,15 +162,31 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
         continue
       }
       if (kind === 'mark' && key === 'type' && !MARKS.has(String(child))) { report(key); continue }
+      if (shape === 'inline' && key === 'formula' && present(child)) {
+        if (format === 'XML') { report(key); continue }
+        if (container === undefined || !INLINE_FORMULA_CONTAINERS.has(container)) {
+          problems.push({
+            code: 'unsupported-output', nodeId: id, path: `${path}.${key}`,
+            message: `${format} 暂未支持此位置的行内公式：${path}.${key}${id ? `（节点 ${id}）` : ''}；标题、图表题、术语名、参考文献中暂不支持行内公式。请保留 JSON 文档。`,
+          })
+          continue
+        }
+        if (present(object.marks)) report('marks')
+        if (present(object.footnote)) report('footnote')
+        const formula = child as Record<string, unknown>
+        if (typeof formula.latex !== 'string' || formula.latex.trim() === '') report(`${key}.latex`)
+      }
       if (key === 'unsupportedContent') continue
       if (key === 'tailOrder') continue
       const childShape = key === 'meta' ? 'meta' : key === 'front' ? 'front'
         : key === 'marks' ? 'mark' : key === 'footnote' || key === 'footnotes' ? 'footnote'
         : key === 'rows' ? 'row' : key === 'cells' ? 'cell' : key === 'items' ? 'item'
         : key === 'whereList' ? 'where' : key === 'unmappedFootnotes' ? 'unmappedFootnote'
+        : key === 'formula' && shape === 'inline' ? 'inlineFormula'
         : 'inline'
-      if (Array.isArray(child)) child.forEach((entry, index) => visit(entry, childShape, `${path}.${key}[${index}]`, id))
-      else if (child && typeof child === 'object') visit(child, childShape, `${path}.${key}`, id)
+      const childContainer = `${kind}.${key}`
+      if (Array.isArray(child)) child.forEach((entry, index) => visit(entry, childShape, `${path}.${key}[${index}]`, id, childContainer))
+      else if (child && typeof child === 'object') visit(child, childShape, `${path}.${key}`, id, childContainer)
     }
   }
   visit(doc, 'doc', 'doc')

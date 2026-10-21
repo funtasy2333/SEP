@@ -14,6 +14,7 @@ import { createNumberingAllocator, type NumberingAllocator } from '../numbering'
 import { OWNER_STYLE_IDS, styleSpecs } from '../styles'
 import type { DocxBookmark, DocxPackage, DocxRenderOptions } from '../types'
 import type { DocxRelatedPart } from '../package'
+import type { InlineFormulaSink } from './inline'
 import { escapeXmlAttr, numPr as numPrXml, pPr, type XmlChild } from '../xml'
 import { mmToTwips } from '../units'
 import { createPageFlow, type PageFlow } from './pageFlow'
@@ -33,7 +34,7 @@ export interface RenderContext {
   readonly warnings: DocxPackage['warnings']
   readonly numbered: NumberedParagraphTrace[]
   readonly bookmarksByNodeId: ReadonlyMap<NodeId, DocxBookmark>
-  readonly resources: Pick<DocxRenderOptions, 'images' | 'formulaOmml'>
+  readonly resources: Pick<DocxRenderOptions, 'images' | 'formulaOmml' | 'formulaWidths'>
   readonly pageFlow: PageFlow
   readonly relatedParts: DocxRelatedPart[]
   allocateImage(): { relationshipId: string; mediaIndex: number }
@@ -42,7 +43,7 @@ export interface RenderContext {
 export function createRenderContext(
   labels: Record<NodeId, ResolvedLabel>,
   bookmarksByNodeId: ReadonlyMap<NodeId, DocxBookmark> = new Map(),
-  resources: Pick<DocxRenderOptions, 'images' | 'formulaOmml'> = { images: {}, formulaOmml: {} },
+  resources: Pick<DocxRenderOptions, 'images' | 'formulaOmml' | 'formulaWidths'> = { images: {}, formulaOmml: {} },
   allocateRelId: () => string = () => { throw new Error('DOCX 图片关系 ID 分配器尚未配置') },
 ): RenderContext {
   let mediaIndex = 0
@@ -54,6 +55,14 @@ export function createRenderContext(
 }
 
 /** `label` 必须来自 Resolver 的 labels（如「表3」），渲染器不得自行编号。 */
+/** 正文类位置的行内公式来源：OMML 取自宿主注入的资源表，缺失时记 `formula-missing-omml`。 */
+export function formulaSink(ctx: RenderContext): InlineFormulaSink {
+  return {
+    omml: ctx.resources.formulaOmml,
+    missing: (id, latex) => warn(ctx, 'formula-missing-omml', `行内公式 "${id}" 缺少 OMML，已回退为 LaTeX 源码文本：${latex}`, id),
+  }
+}
+
 export function warn(ctx: RenderContext, code: string, message: string, nodeId?: NodeId, label?: string): void {
   ctx.warnings.push({
     code,

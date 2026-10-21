@@ -448,6 +448,68 @@
   font-family: 'SimSun', 'Songti SC', serif;
 }
 
+/* 结构化式中：每条一行「符号 ——释义」；「式中：」与「——」只是显示，导出时由渲染器生成 */
+.std-where-list {
+  width: 100%;
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.8;
+  text-indent: 0;
+}
+
+.std-where-list::before {
+  content: '式中：';
+  display: block;
+  padding-left: 2em;
+  font-family: 'SimSun', 'Songti SC', serif;
+}
+
+.std-where-item {
+  display: flex;
+  align-items: baseline;
+  padding-left: 4em;
+}
+
+.std-where-item > dt {
+  flex: 0 0 auto;
+  min-width: 2.5em;
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* 空段落末尾有 ProseMirror 的 trailing <br>，占位须用 ::before 才能留在同一行 */
+.std-where-item > dt.where-term-empty::before {
+  content: '点击插入符号';
+  color: #aaa;
+  cursor: pointer;
+}
+
+.std-where-item > dd {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.std-where-item > dd::before {
+  content: '——';
+  font-family: 'SimSun', 'Songti SC', serif;
+}
+
+.std-formula-inline {
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.std-formula-inline:hover,
+.std-formula-inline.ProseMirror-selectednode {
+  background: #e8f0fe;
+}
+
+.std-formula-inline.is-invalid {
+  color: #c0392b;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+}
+
 /* 注 */
 .std-note {
   margin: 8px 0;

@@ -373,21 +373,28 @@ const CONTENT = `
 .ses-figure-image text { font-size: var(--ses-fs-liu); }
 
 /* —— 公式：编号右端对齐 + 点线引导；式中键值列表 —— */
-.ses-formula-block { display: flex; align-items: center; margin: 10pt 0 4pt; }
-.ses-formula { flex: 1; text-align: center; }
-.ses-formula-num {
-  width: 6em;
-  text-align: right;
-  font-family: var(--ses-song);
-  white-space: nowrap;
-  flex-shrink: 0;
+/* 公式另行居中；编号右端对齐，公式与编号之间由点线连接（GB/T 1.1 10.4.3、9.9.2 示例）。
+ * 三列网格：公式在中间列居中，编号区占第三列整列（公式右端到版心右缘）。
+ * 编号区与目次条目同构：点线 span（::after leader）+ 编号 span，vivliostyle 的 leader 才会铺满；
+ * 点线 span 占编号区剩余宽度（flex 项是该 span，不是 ::after），编号保持内容宽度靠右。 */
+.ses-formula-block { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin: 10pt 0 4pt; }
+.ses-formula { grid-column: 2; text-align: center; }
+.ses-formula-tail {
+  grid-column: 3;
+  display: flex;
+  align-items: baseline;
+  padding-left: 0.5em;
 }
-.ses-formula-num::before { content: leader(dotted); }
+.ses-formula-leader { flex: 1; }
+.ses-formula-leader::after { content: leader(dotted); }
+.ses-formula-num { font-family: var(--ses-song); white-space: nowrap; }
 .ses-where { margin: 0 0 10pt 3em; }
 .ses-where-intro { margin: 0 0 2pt; }
-.ses-where-list { display: grid; grid-template-columns: min-content 1fr; column-gap: 0.8em; row-gap: 1pt; margin: 0; }
+/* 符号列按本组最长符号定宽，后空 1 字接「——」（与 DOCX §5.10 的制表位一致），破折号各行对齐；释义回行与释义起点对齐 */
+.ses-where-list { display: grid; grid-template-columns: min-content 1fr; column-gap: 1em; row-gap: 1pt; margin: 0; }
 .ses-where-list dt { font-style: italic; white-space: nowrap; margin: 0; }
-.ses-where-list dd { margin: 0; }
+.ses-where-list dd { margin: 0; display: flex; }
+.ses-where-dash { flex: none; }
 
 /* —— 注 / 示例：标识黑体小五，内容宋体小五 —— */
 .ses-note, .ses-example { font-size: var(--ses-fs-xiaowu); margin: 4pt 0 4pt 2em; }
