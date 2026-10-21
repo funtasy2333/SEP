@@ -28,6 +28,7 @@
 | `../../scripts/xml46687/validate.py` | 校验工具（语法 + RELAX NG 双实现 + 语义规则） |
 | `../../scripts/xml46687/test_validate.py` | unittest 回归测试 |
 | `../../scripts/xml46687/matrix_coverage.py` | 矩阵 → schema 覆盖检查 |
+| `../../scripts/xml46687/gen_invalid_samples.py` | 由基底文档单点改动重新生成 `samples/invalid/`（测试确认仓库里的负例与生成结果一致） |
 
 ## 2. 设计依据
 

@@ -247,6 +247,21 @@ for _name, _spec in EXPECTED_INVALID.items():
     setattr(TestInvalidSamples, "test_" + _slug(Path(_name)), _make_invalid_test(_name, _spec))
 
 
+class TestGeneratedSamplesUpToDate(unittest.TestCase):
+    """samples/invalid 下的负例由 gen_invalid_samples.py 生成；仓库里的文件不得偏离生成结果。"""
+
+    def test_committed_negative_samples_match_generator(self):
+        gen = _load("ses_gen_invalid_samples", HERE / "gen_invalid_samples.py")
+        with tempfile.TemporaryDirectory() as tmp:
+            n = gen.generate(tmp)
+            generated = {p.name: p.read_bytes() for p in Path(tmp).glob("*.xml")}
+        committed = {p.name: p.read_bytes() for p in INVALID_DIR.glob("*.xml")}
+        self.assertEqual(n, len(generated))
+        self.assertEqual(set(generated), set(committed))
+        for name in sorted(generated):
+            self.assertEqual(generated[name], committed[name], "%s 与生成结果不一致，请重新运行 gen_invalid_samples.py" % name)
+
+
 class TestEngineConsistency(unittest.TestCase):
     def test_lxml_and_xmllint_agree_on_every_sample(self):
         xmllint = shutil.which("xmllint")

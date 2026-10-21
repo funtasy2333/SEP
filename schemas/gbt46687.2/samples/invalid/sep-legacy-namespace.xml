@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- 负例：默认命名空间 urn:csbts:std:xml:1.0 的 SEP 早期自定义格式（LEGACY：旧格式，本版本不再支持）。 除此之外与基底文档一致。 -->
+<!-- 负例：默认命名空间 urn:csbts:std:xml:1.0 的 SEP 早期自定义格式（LEGACY：旧格式，本版本不再支持）。 -->
 <standard xmlns="urn:csbts:std:xml:1.0">
   <front>
     <std-meta>

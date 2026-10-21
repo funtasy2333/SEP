@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- 负例：采用 GB/T 37967 的顶层结构 standard/content/basic_info（LEGACY：旧格式，本版本不再支持）。 除此之外与基底文档一致。 -->
+<!-- 负例：采用 GB/T 37967 的顶层结构 standard/content/basic_info（LEGACY：旧格式，本版本不再支持）。 -->
 <standard>
   <content>
     <basic_info>
