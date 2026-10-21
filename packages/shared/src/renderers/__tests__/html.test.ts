@@ -223,7 +223,8 @@ describe('公式：KaTeX 占位 + 式中键值列表', () => {
     expect(css).toMatch(/\.ses-formula-block\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*1fr auto 1fr/)
     expect(css).toMatch(/\.ses-formula\s*\{[^}]*grid-column:\s*2/)
     expect(css).toMatch(/\.ses-formula-tail\s*\{[^}]*grid-column:\s*3;[^}]*display:\s*flex/)
-    expect(css).toContain('.ses-formula-leader::after { content: leader(dotted); flex: 1; }')
+    expect(css).toContain('.ses-formula-leader { flex: 1; }')
+    expect(css).toContain('.ses-formula-leader::after { content: leader(dotted); }')
     expect(renderFixture('print')).toContain('<span class="ses-formula-tail"><span class="ses-formula-leader"></span><span class="ses-formula-num">（1）</span></span>')
   })
   it('破折号定宽、释义回行与释义起点对齐（打印与屏幕样式）', () => {
