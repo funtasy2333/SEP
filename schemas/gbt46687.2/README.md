@@ -152,7 +152,7 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 |---|---|---|---|
 | SYN-1 | 语法 | 格式良好（禁止 DTD 加载、外部实体、联网：`resolve_entities=False, load_dtd=False, no_network=True`） | C-S-02、C-S-34 |
 | SYN-2 | 语法 | XML 声明编码必须是 UTF-8 | C-S-02 |
-| SYN-3 | 语法 | DOCTYPE 含内部子集/实体声明 → 拒绝；外部 DOCTYPE 只告警（export 档为错误）；实体引用节点 → 拒绝 | C-S-02、C-S-34 |
+| SYN-3 | 语法 | DOCTYPE 含内部子集/实体声明 → 拒绝；外部 DOCTYPE 只告警（export 档为错误）；实体引用节点 → 拒绝。**按 XML 规则扫描序言来判断真实声明**（跳过注释与处理指令，进入 DOCTYPE 后跳过引号字面量与内部子集里的注释，数出真正的 `<!ENTITY`），所以注释、CDATA、处理指令或转义文本里写着的 `<!DOCTYPE`、`<!ENTITY` 字样不会误报，系统标识符里的 `[` 也不会被当成内部子集；序言扫描只认 ASCII 兼容编码，UTF-16 等由解析器的 `docinfo` 兜底。外部实体与外部 DTD 仍不被加载 | C-S-02、C-S-34 |
 | ROOT | 骨架 | 根元素必须是无命名空间的 standard | C-S-01、C-S-03 |
 | LEGACY | 旧格式 | GB/T 37967 与 SEP 早期自定义格式的判别特征，命中即拒绝并列出特征与位置，不尝试转换 | conventions-S 第 6 节 |
 | RNG | 结构 | lxml RELAX NG 校验（同时调用 xmllint，二者不一致报 CONSISTENCY） | 本 schema |

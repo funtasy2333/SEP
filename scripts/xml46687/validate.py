@@ -8,6 +8,7 @@
 
 校验层次（对应 docs/wp8.1/conventions-S.md 第 3.5 节）：
   1. 语法    格式良好；禁止 DTD 加载、外部实体与网络访问；UTF-8；DOCTYPE 不得带内部子集（SYN-1～SYN-3）
+             （SYN-3 用 XML 感知的序言扫描判断真实 DOCTYPE，不被注释/CDATA/处理指令里的字样误导）
   2. 旧格式  GB/T 37967 与 SEP 早期自定义格式的判别特征（LEGACY），命中即拒绝，不尝试转换
   3. 结构    项目自写 schema：lxml（RELAX NG）与 xmllint 两个实现同时校验，结果不一致即报告（RNG / CONSISTENCY）
   4. 拒绝项  支持矩阵中 import 为 reject 的元素（tex-math、嵌套表、tfoot 等），给出矩阵行与约定编号（REJECT）
@@ -111,6 +112,7 @@ class Report:
         self.warnings: list[dict] = []
         self.engines: dict = {}
         self.consistent = True
+        self.doctype_reported = False
 
     def add(self, severity: str, rule: str, message: str, el=None, line: int | None = None, path: str | None = None):
         item = {"rule": rule, "message": message}
@@ -168,13 +170,96 @@ def secure_parser() -> "etree.XMLParser":
 
 
 _XMLDECL_RE = re.compile(rb"^\s*<\?xml\s+[^>]*?encoding\s*=\s*[\"']([^\"']+)[\"']", re.S)
-_DOCTYPE_RE = re.compile(rb"<!DOCTYPE\b", re.I)
-_DOCTYPE_INTERNAL_RE = re.compile(rb"<!DOCTYPE\b[^>\[]*\[", re.I | re.S)
-_ENTITY_DECL_RE = re.compile(rb"<!ENTITY\b", re.I)
+
+_QUOTES = (0x22, 0x27)  # " '
+
+
+def _skip_literal(raw: bytes, i: int) -> int:
+    """raw[i] 是引号：返回闭合引号之后的位置（找不到则返回末尾）。"""
+    j = raw.find(raw[i:i + 1], i + 1)
+    return len(raw) if j < 0 else j + 1
+
+
+def scan_prolog_doctype(raw: bytes):
+    """XML 感知地扫描序言（根元素之前），找出真实的 DOCTYPE 声明。
+
+    DOCTYPE 只可能出现在序言里，而序言只含 XML 声明、注释、处理指令、空白和至多一个 DOCTYPE。逐个跳过注释与处理指令即可，
+    因此注释、CDATA、处理指令或正文里写着的 "<!DOCTYPE"、"<!ENTITY" 字样不会被当成声明（旧实现按字节搜索，会误报）。
+    进入 DOCTYPE 后按 XML 规则跳过引号字面量、内部子集里的注释/处理指令/各类声明，数出真正的 <!ENTITY 声明。
+    返回 None = 序言里没有 DOCTYPE；否则返回 {"internal_subset": bool, "entities": int, "line": int}。
+    只检查 ASCII 兼容的编码（UTF-8 等）；UTF-16 之类由解析器的 docinfo 兜底（见 parse_secure）。
+    """
+    n = len(raw)
+    i = 3 if raw.startswith(b"\xef\xbb\xbf") else 0
+    while i < n:
+        if raw[i] in b" \t\r\n":
+            i += 1
+        elif raw.startswith(b"<?", i):
+            j = raw.find(b"?>", i + 2)
+            if j < 0:
+                return None
+            i = j + 2
+        elif raw.startswith(b"<!--", i):
+            j = raw.find(b"-->", i + 4)
+            if j < 0:
+                return None
+            i = j + 3
+        elif raw.startswith(b"<!DOCTYPE", i):
+            return _scan_doctype(raw, i)
+        else:
+            return None  # 根元素（或其他非序言内容）：之后不可能再出现 DOCTYPE
+    return None
+
+
+def _scan_doctype(raw: bytes, start: int) -> dict:
+    n = len(raw)
+    info = {"internal_subset": False, "entities": 0, "line": raw.count(b"\n", 0, start) + 1}
+    i = start + len(b"<!DOCTYPE")
+    while i < n:
+        b = raw[i]
+        if b in _QUOTES:
+            i = _skip_literal(raw, i)
+        elif b == 0x3E:  # >
+            break
+        elif b == 0x5B:  # [ 内部子集
+            info["internal_subset"] = True
+            i += 1
+            while i < n:
+                if raw.startswith(b"<!--", i):
+                    j = raw.find(b"-->", i + 4)
+                    i = n if j < 0 else j + 3
+                elif raw.startswith(b"<?", i):
+                    j = raw.find(b"?>", i + 2)
+                    i = n if j < 0 else j + 2
+                elif raw.startswith(b"<!", i):
+                    if raw.startswith(b"<!ENTITY", i):
+                        info["entities"] += 1
+                    i += 2
+                    while i < n and raw[i] != 0x3E:
+                        i = _skip_literal(raw, i) if raw[i] in _QUOTES else i + 1
+                    i += 1
+                elif raw[i] == 0x5D:  # ]
+                    i += 1
+                    break
+                else:
+                    i += 1
+        else:
+            i += 1
+    return info
+
+
+def _report_doctype(rep: Report, rejected: bool, detail: str = "") -> None:
+    rep.doctype_reported = True
+    if rejected:
+        rep.error("SYN-3", "DOCTYPE 含内部子集或实体声明%s，拒绝（C-S-02、C-S-34：不展开实体、不加载 DTD）" % detail)
+    elif rep.profile == "export":
+        rep.error("SYN-3", "导出文件不得写 DOCTYPE（D-S-03、C-S-02）")
+    else:
+        rep.warn("SYN-3", "存在 DOCTYPE 声明：只记录，不读取外部子集；本格式导出不写 DOCTYPE（C-S-02）")
 
 
 def check_syntax_raw(raw: bytes, rep: Report, profile: str) -> None:
-    """XML 声明编码与 DOCTYPE 检查（在解析前按字节检查，避免依赖解析器行为）。"""
+    """XML 声明编码与 DOCTYPE 检查（在解析前检查，不依赖解析器行为；DOCTYPE 用 XML 感知的序言扫描，见 scan_prolog_doctype）。"""
     if raw.startswith(b"\xff\xfe") or raw.startswith(b"\xfe\xff"):
         rep.error("SYN-2", "文件是 UTF-16 编码；GB/T 46687.2 示例只用 UTF-8（C-S-02），本版本只接受 UTF-8")
     m = _XMLDECL_RE.match(raw[:400].lstrip(b"\xef\xbb\xbf"))
@@ -182,13 +267,10 @@ def check_syntax_raw(raw: bytes, rep: Report, profile: str) -> None:
         enc = m.group(1).decode("ascii", "replace")
         if enc.replace("_", "-").lower() not in ("utf-8", "utf8"):
             rep.error("SYN-2", "XML 声明的编码为 %r，只接受 UTF-8（C-S-02；GB2312 是 GB/T 37967 旧格式特征）" % enc)
-    if _DOCTYPE_RE.search(raw):
-        if _DOCTYPE_INTERNAL_RE.search(raw) or _ENTITY_DECL_RE.search(raw):
-            rep.error("SYN-3", "DOCTYPE 含内部子集或实体声明，拒绝（C-S-02、C-S-34：不展开实体、不加载 DTD）")
-        elif profile == "export":
-            rep.error("SYN-3", "导出文件不得写 DOCTYPE（D-S-03、C-S-02）")
-        else:
-            rep.warn("SYN-3", "存在 DOCTYPE 声明：只记录，不读取外部子集；本格式导出不写 DOCTYPE（C-S-02）")
+    dt = scan_prolog_doctype(raw)
+    if dt is not None:
+        detail = "（行 %d%s）" % (dt["line"], "，含 %d 个 <!ENTITY 声明" % dt["entities"] if dt["entities"] else "")
+        _report_doctype(rep, dt["internal_subset"] or dt["entities"] > 0, detail)
 
 
 def parse_secure(raw: bytes, rep: Report):
@@ -209,6 +291,13 @@ def parse_secure(raw: bytes, rep: Report):
     except Exception as exc:  # pragma: no cover
         rep.error("SYN-1", "无法解析：%s" % exc)
         return None
+    # 兜底：序言扫描只认 ASCII 兼容的编码；解析器看到了 DOCTYPE 而扫描器没看到（如 UTF-16 编码的文件）时，用 docinfo 补报。
+    # 外部子集不会被加载（load_dtd=False）；internalDTD 里声明的实体按“含实体声明”拒绝。
+    if not rep.doctype_reported:
+        info = tree.docinfo
+        if info.doctype or info.internalDTD is not None:
+            ents = list(info.internalDTD.entities()) if info.internalDTD is not None else []
+            _report_doctype(rep, bool(ents), "（解析器报告 %d 个实体声明）" % len(ents) if ents else "")
     # 解析器不展开实体；若树里仍有实体引用节点，说明文档依赖 DTD 中的实体，一律拒绝。
     for node in tree.getroot().iter(etree.Entity):
         rep.error("SYN-3", "使用了实体引用 &%s;（只接受 XML 预定义实体与数字字符引用，C-S-34）" % node.name,

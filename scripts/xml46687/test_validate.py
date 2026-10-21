@@ -1114,5 +1114,124 @@ class TestSecurity(unittest.TestCase):
             self.assertFalse(rep_export.valid)
 
 
+class TestDoctypeDetection(unittest.TestCase):
+    """SYN-3：DOCTYPE/实体声明按 XML 规则扫描序言判断，注释、CDATA、处理指令里的字样不算声明；真实声明仍被拒绝。"""
+
+    DECL = '<?xml version="1.0" encoding="UTF-8"?>\n'
+
+    @staticmethod
+    def _std(extra_in_sec=""):
+        body = '<sec id="sec_1" sec-type="scope"><label>1</label><title>范围</title><p>x</p>%s</sec>' % extra_in_sec
+        return _doc(body=body).split("?>", 1)[1].lstrip("\n")
+
+    def _run(self, prolog, validator, extra_in_sec="", encoding="utf-8", decl=None):
+        text = (self.DECL if decl is None else decl) + prolog + self._std(extra_in_sec)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case.xml"
+            path.write_bytes(text.encode(encoding))
+            return validator.validate_file(path)
+
+    @staticmethod
+    def _syn3(rep):
+        return [i for i in rep.errors + rep.warnings if i["rule"] == "SYN-3"]
+
+    def test_declarations_inside_comments_cdata_and_pis_are_not_reported(self):
+        cases = {
+            "序言注释里的 DOCTYPE 与 ENTITY": ('<!-- 不要写 <!DOCTYPE standard> 也不要 <!ENTITY x "y"> -->\n', ""),
+            "序言处理指令里的 DOCTYPE": ('<?note <!DOCTYPE standard [ <!ENTITY x "y"> ]> ?>\n', ""),
+            "正文注释里的 DOCTYPE 与 ENTITY": ("", '<!-- <!DOCTYPE standard [ <!ENTITY x "y"> ]> -->'),
+            "正文 CDATA 里的 DOCTYPE 与 ENTITY": ("", '<p><![CDATA[<!DOCTYPE standard [<!ENTITY x "y">]>]]></p>'),
+            "正文处理指令里的 DOCTYPE": ("", '<?note <!DOCTYPE standard> <!ENTITY x "y"> ?>'),
+            "转义后的文本": ("", "<p>&lt;!DOCTYPE standard&gt; &lt;!ENTITY x 'y'&gt;</p>"),
+            "大小写不同的注释内容": ('<!-- <!doctype standard> <!entity x "y"> -->\n', ""),
+        }
+        for why, (prolog, extra) in cases.items():
+            for validator in (VALIDATOR_IMPORT, VALIDATOR_EXPORT):
+                with self.subTest(why=why, profile=validator.profile):
+                    rep = self._run(prolog, validator, extra)
+                    self.assertEqual(self._syn3(rep), [], validate.format_human(rep))
+                    self.assertTrue(rep.consistent)
+            rep = self._run(prolog, VALIDATOR_IMPORT, extra)
+            self.assertTrue(rep.valid, why + "\n" + validate.format_human(rep))
+
+    def test_real_internal_subset_is_rejected(self):
+        cases = {
+            "含实体声明": '<!DOCTYPE standard [<!ENTITY a "b">]>\n',
+            "含元素声明": "<!DOCTYPE standard [<!ELEMENT standard ANY>]>\n",
+            "空的内部子集": "<!DOCTYPE standard [ ]>\n",
+            "前面有提到别的 DOCTYPE 的注释": '<!-- <!DOCTYPE other> -->\n<!DOCTYPE standard [ ]>\n',
+            "内部子集里的注释含 ] 与 >": '<!DOCTYPE standard [ <!-- ] > --> <!ENTITY real "a]>b"> ]>\n',
+            "外部子集加内部子集": '<!DOCTYPE standard SYSTEM "a.dtd" [<!ENTITY a "b">]>\n',
+        }
+        for why, prolog in cases.items():
+            for validator in (VALIDATOR_IMPORT, VALIDATOR_EXPORT):
+                with self.subTest(why=why, profile=validator.profile):
+                    rep = self._run(prolog, validator)
+                    errors = [e for e in rep.errors if e["rule"] == "SYN-3"]
+                    self.assertTrue(errors, validate.format_human(rep))
+                    self.assertIn("内部子集或实体声明", errors[0]["message"])
+                    self.assertFalse(rep.valid)
+
+    def test_entity_declaration_count_ignores_comments_and_literals(self):
+        info = validate.scan_prolog_doctype(
+            b'<!DOCTYPE s [ <!-- <!ENTITY fake "x"> ] --> <!ENTITY real "a]>b <!ENTITY inner 1>"> <!ENTITY two "2"> ]><s/>')
+        self.assertEqual(info["entities"], 2)
+        self.assertTrue(info["internal_subset"])
+
+    def test_external_only_doctype_is_a_warning_on_import_and_an_error_on_export(self):
+        cases = {
+            "SYSTEM": '<!DOCTYPE standard SYSTEM "http://127.0.0.1:9/x.dtd">\n',
+            "PUBLIC": '<!DOCTYPE standard PUBLIC "-//X//Y" "x.dtd">\n',
+            "系统标识符里有方括号（旧的按字节搜索会误判为内部子集）": '<!DOCTYPE standard SYSTEM "a[b.dtd">\n',
+            "前面有注释": '<!-- c -->\n<!DOCTYPE standard SYSTEM "x.dtd">\n',
+        }
+        for why, prolog in cases.items():
+            with self.subTest(why=why):
+                rep = self._run(prolog, VALIDATOR_IMPORT)
+                self.assertTrue(rep.valid, validate.format_human(rep))
+                self.assertEqual([i["rule"] for i in rep.warnings if i["rule"] == "SYN-3"], ["SYN-3"])
+                rep = self._run(prolog, VALIDATOR_EXPORT)
+                self.assertFalse(rep.valid)
+                self.assertEqual([e["rule"] for e in rep.errors], ["SYN-3"])
+                self.assertIn("导出文件不得写 DOCTYPE", _messages(rep))
+
+    def test_scanner_unit_cases(self):
+        scan = validate.scan_prolog_doctype
+        self.assertIsNone(scan(b"<standard/>"))
+        self.assertIsNone(scan(b'<?xml version="1.0"?><!-- <!DOCTYPE a> --><standard/>'))
+        self.assertIsNone(scan(b'<?xml version="1.0"?><standard><!-- <!DOCTYPE a> --></standard>'))
+        self.assertIsNone(scan(b"<standard><![CDATA[<!DOCTYPE a>]]></standard>"))
+        self.assertIsNone(scan(b"<!-- unclosed comment <!DOCTYPE a>"))
+        self.assertIsNone(scan(b""))
+        self.assertEqual(scan(b"\xef\xbb\xbf<!DOCTYPE a><a/>"), {"internal_subset": False, "entities": 0, "line": 1})
+        self.assertEqual(scan(b"<?xml version='1.0'?>\n\n<!DOCTYPE a [ ]><a/>")["line"], 3)
+
+    def test_doctype_in_a_utf16_file_is_still_reported(self):
+        # 序言扫描只认 ASCII 兼容的编码；UTF-16 文件由解析器的 docinfo 兜底
+        decl = '<?xml version="1.0" encoding="UTF-16"?>\n'
+        text = decl + '<!DOCTYPE standard [<!ENTITY a "b">]>\n' + self._std()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "u16.xml"
+            path.write_bytes(text.encode("utf-16"))
+            rep = VALIDATOR_IMPORT.validate_file(path)
+        self.assertFalse(rep.valid)
+        self.assertIn("SYN-2", _rules(rep))
+        self.assertTrue([e for e in rep.errors if e["rule"] == "SYN-3" and "实体声明" in e["message"]], validate.format_human(rep))
+
+    def test_entities_are_still_never_expanded_or_loaded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            secret = Path(tmp) / "secret.txt"
+            secret.write_text("TOP-SECRET-CONTENT-67890", encoding="utf-8")
+            # 注释里写着无害的 DOCTYPE，真实的 DOCTYPE 带外部实体：仍被拒绝，内容不外泄
+            prolog = '<!-- <!DOCTYPE standard> -->\n<!DOCTYPE standard [<!ENTITY xxe SYSTEM "file://%s">]>\n' % secret
+            text = self.DECL + prolog + self._std("<p>&xxe;</p>")
+            doc = Path(tmp) / "xxe.xml"
+            doc.write_text(text, encoding="utf-8")
+            rep = VALIDATOR_IMPORT.validate_file(doc)
+            self.assertFalse(rep.valid)
+            self.assertNotIn("TOP-SECRET-CONTENT-67890", json.dumps(rep.to_dict(), ensure_ascii=False))
+            self.assertIn("SYN-3", _rules(rep))
+
+
 if __name__ == "__main__":
     unittest.main()
