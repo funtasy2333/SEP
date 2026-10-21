@@ -203,6 +203,21 @@ function nodeToText(
     case 'formula': {
       const formulaContent = extractTitle(content, 'formulaContent')
       lines.push(`${indent}[公式] ${formulaContent}`)
+      // 式中（结构化与自由文本）和公式注也要进入对比文本，否则只改这些内容的版本看起来相同。
+      for (const c of content ?? []) {
+        if (c.type === 'formulaDescription') {
+          const text = extractText(c)
+          if (text) lines.push(`${indent}  ${text}`)
+        } else if (c.type === 'formulaNote') {
+          lines.push(`${indent}  注：${extractText(c)}`)
+        } else if (c.type === 'whereList') {
+          lines.push(`${indent}  式中：`)
+          for (const item of (c.content as Array<Record<string, unknown>> | undefined) ?? []) {
+            const cells = item.content as Array<Record<string, unknown>> | undefined
+            lines.push(`${indent}    ${extractTitle(cells, 'whereTerm')}——${extractTitle(cells, 'whereDefinition')}`)
+          }
+        }
+      }
       break
     }
 
