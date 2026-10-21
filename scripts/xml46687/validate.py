@@ -1083,7 +1083,11 @@ class Validator:
         # 结构：两个实现
         lx_ok, lx_msgs = (False, [])
         if tree is not None:
-            lx_ok, lx_msgs = run_lxml_relaxng(self.rng, tree)
+            try:
+                lx_ok, lx_msgs = run_lxml_relaxng(self.rng, tree)
+            except etree.LxmlError as exc:  # 引擎自身出错：不得当作“通过”，也不能让异常把整批文件的报告吞掉
+                lx_ok, lx_msgs = False, [{"message": "lxml RELAX NG 校验器出错：%s" % exc}]
+                rep.error("ENGINE", "lxml 的 RELAX NG 校验器出错，无法给出结论：%s" % exc)
         else:
             lx_msgs = [{"message": "文件不是格式良好的 XML，未进入 RELAX NG 校验"}]
         rep.engines["lxml"] = {
@@ -1100,9 +1104,13 @@ class Validator:
             else:
                 if self._xmllint_version is None:
                     self._xmllint_version = xmllint_version(self.xmllint_exe)
-                xl_ok, xl_msgs = run_xmllint(self.xmllint_exe, self.schema_path, path)
+                try:
+                    xl_ok, xl_msgs = run_xmllint(self.xmllint_exe, self.schema_path, path)
+                except (OSError, subprocess.SubprocessError) as exc:  # 不可执行、被杀、超时
+                    xl_ok, xl_msgs = None, [{"message": "无法运行 xmllint：%s" % exc}]
+                    rep.error("ENGINE", "无法运行 xmllint（%s），第二实现未能给出结论：%s（--no-xmllint 可显式跳过）" % (self.xmllint_exe, exc))
                 rep.engines["xmllint"] = {"implementation": self._xmllint_version, "valid": xl_ok, "messages": xl_msgs}
-                if xl_ok != lx_ok:
+                if xl_ok is not None and xl_ok != lx_ok:
                     rep.consistent = False
                     rep.error("CONSISTENCY",
                               "两个实现结论不一致：lxml=%s，xmllint=%s（schema 或实现版本问题，必须查明）"

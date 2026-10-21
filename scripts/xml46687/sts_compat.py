@@ -342,8 +342,42 @@ def _normalize_msg(msg: str) -> str:
     return re.sub(r", got \(.*\)\s*$", "", msg.strip())
 
 
+_DOC_FAIL_RE = re.compile(r"^Document .+ does not validate against ")
+
+
+def _classify_xmllint_output(returncode: int, stderr: str):
+    """判断一次 xmllint --dtdvalid 的结果是否可信。返回 (validity_error_lines, problem)。
+
+    可信 = 退出码 0 且 stderr 无任何内容（或只有 “… validates”），或者退出码 3（校验未通过）且 stderr 每一行都是
+    已识别的格式（validity error 行、结尾的 “Document … does not validate against …”）并且至少有一行 validity error。
+    其他一律视为引擎失败（problem 非空）：DTD 读不到/解析失败（退出码 2，“Could not parse DTD”）、I/O 错误、
+    退出码异常、有看不懂的输出行。不能把这些当成“没有偏差”。"""
+    lines = [ln.rstrip() for ln in stderr.splitlines() if ln.strip()]
+    errs, unknown = [], []
+    for ln in lines:
+        if _ERR_RE.match(ln):
+            errs.append(ln)
+        elif ln.endswith(" validates") or _DOC_FAIL_RE.match(ln):
+            continue
+        else:
+            unknown.append(ln)
+    head = "；".join(unknown[:3] or lines[:3])
+    if returncode == 0:
+        if unknown or errs:
+            return [], "xmllint 退出码 0，但 stderr 有无法解释的输出：%s" % head
+        return [], None
+    if returncode == 3:
+        if unknown:
+            return [], "xmllint 退出码 3（校验未通过），但输出里有无法解析的行：%s" % head
+        if not errs:
+            return [], "xmllint 退出码 3（校验未通过），但没有任何可解析的 validity error 行：%s" % (head or "（stderr 为空）")
+        return errs, None
+    return [], "xmllint 退出码 %d（不是 0 或 3），DTD 可能读不到或不是合法的 DTD：%s" % (returncode, head or "（stderr 为空）")
+
+
 def _dtd_validate(root, dtd: Path, xmllint: str):
-    """序列化 root 的当前状态并用 xmllint 校验。返回 (issues, line_map)；issues 的行号已映射回原文档行号。"""
+    """序列化 root 的当前状态并用 xmllint 校验。返回 (issues, problem)：issues 的行号已映射回原文档行号；
+    problem 非空表示引擎失败或输出不可信（见 _classify_xmllint_output），此时 issues 无意义。"""
     P = [e for e in root.iter() if _is_el(e)]
     orig_lines = []
     for e in P:
@@ -358,18 +392,22 @@ def _dtd_validate(root, dtd: Path, xmllint: str):
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp) / "doc.xml"
         p.write_bytes(data)
-        proc = subprocess.run([xmllint, "--noout", "--nonet", "--nocatalogs", "--dtdvalid", str(dtd), str(p)],
-                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300)
+        try:
+            proc = subprocess.run([xmllint, "--noout", "--nonet", "--nocatalogs", "--dtdvalid", str(dtd), str(p)],
+                                  capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300)
+        except (OSError, subprocess.SubprocessError) as exc:
+            return [], "无法运行 xmllint（%s）：%s" % (xmllint, exc)
+        err_lines, problem = _classify_xmllint_output(proc.returncode, proc.stderr)
+        if problem:
+            return [], problem
         reparsed = etree.parse(str(p), etree.XMLParser(resolve_entities=False, load_dtd=False, no_network=True))
     Q = [e for e in reparsed.getroot().iter() if _is_el(e)]
     by_line: dict[int, list[int]] = {}
     for i, e in enumerate(Q):
         by_line.setdefault(e.sourceline, []).append(i)
     issues = []
-    for line in proc.stderr.splitlines():
-        m = _ERR_RE.match(line.rstrip())
-        if not m:
-            continue
+    for line in err_lines:
+        m = _ERR_RE.match(line)
         tline = int(m.group("line"))
         name = m.group("el")
         idx = None
@@ -382,27 +420,39 @@ def _dtd_validate(root, dtd: Path, xmllint: str):
         oline = orig_lines[idx] if idx is not None and idx < len(orig_lines) else tline
         issues.append({"line": oline, "element": name, "message": m.group("msg"),
                        "key": (name, oline, _normalize_msg(m.group("msg")))})
-    return issues, proc.returncode
+    return issues, None
+
+
+ENGINE = "ENGINE"
+
+
+def _engine_failure(result: dict, reasons: list) -> dict:
+    """引擎失败（找不到 xmllint/DTD、DTD 解析失败、xmllint 异常退出或输出无法解析）：报“未解释偏差：ENGINE”。
+    此时任何“0 个偏差”的结论都不可信，所以不给出已知偏差，退出码非 0。"""
+    result["engine_error"] = True
+    result["known"] = []
+    result["unexplained"] = [{"line": None, "element": ENGINE, "message": "DTD 校验引擎失败（%s）：%s" % (where, why)}
+                             for where, why in reasons]
+    return result
 
 
 def check_file(path, dtd: Path = DEFAULT_DTD, xmllint: str | None = None) -> dict:
     path = Path(path)
-    result = {"file": str(path), "known": [], "unexplained": [], "applied": [], "wellformed": True, "note": None}
-    xmllint = xmllint or shutil.which("xmllint")
-    if not xmllint:
-        result.update(wellformed=False, note="找不到 xmllint")
-        return result
-    if not dtd.is_file():
-        result.update(wellformed=False, note="找不到 DTD：%s" % dtd)
-        return result
+    result = {"file": str(path), "known": [], "unexplained": [], "applied": [], "wellformed": True, "note": None,
+              "engine_error": False}
     try:
         tree = _secure_parse(path)
     except (etree.XMLSyntaxError, OSError) as exc:
         result.update(wellformed=False, note="不是格式良好的 XML：%s" % exc)
         return result
+    xmllint = xmllint or shutil.which("xmllint")
+    if not xmllint:
+        return _engine_failure(result, [("环境", "找不到 xmllint")])
+    if not dtd.is_file():
+        return _engine_failure(result, [("环境", "找不到 DTD 文件：%s" % dtd)])
 
     # 1. 原文档（序列化副本，无 DOCTYPE）上的全部报错
-    raw, _ = _dtd_validate(tree.getroot(), dtd, xmllint)
+    raw, raw_problem = _dtd_validate(tree.getroot(), dtd, xmllint)
 
     # 2. 按白名单规范化后的副本
     import copy
@@ -417,7 +467,11 @@ def check_file(path, dtd: Path = DEFAULT_DTD, xmllint: str | None = None) -> dic
             result["applied"].append({"id": entry["id"], "category": entry["category"], "what": entry["what"],
                                       "basis": entry["basis"], "count": len(touched),
                                       "lines": sorted(lines)})
-    remain, _ = _dtd_validate(work, dtd, xmllint)
+    remain, remain_problem = _dtd_validate(work, dtd, xmllint)
+    # 两遍校验（原文档、归一化副本）任何一遍引擎失败或输出不可信，整个结论作废
+    problems = [(where, why) for where, why in (("原文档", raw_problem), ("归一化副本", remain_problem)) if why]
+    if problems:
+        return _engine_failure(result, problems)
     remain_keys = {r["key"] for r in remain}
 
     for r in raw:
@@ -440,6 +494,11 @@ def format_human(res: dict) -> str:
     out = ["=== %s" % res["file"]]
     if not res["wellformed"]:
         out.append("无法检查：%s" % res["note"])
+        return "\n".join(out)
+    if res.get("engine_error"):
+        out.append("引擎失败，无法给出结论（未解释偏差 %d 个）" % len(res["unexplained"]))
+        for u in res["unexplained"]:
+            out.append("  未解释 <%s>：%s" % (u["element"], u["message"]))
         return "\n".join(out)
     out.append("已知偏差 %d 个（%d 条白名单生效），未解释偏差 %d 个" % (len(res["known"]), len(res["applied"]), len(res["unexplained"])))
     for a in res["applied"]:

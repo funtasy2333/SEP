@@ -893,6 +893,186 @@ class TestContextRejectsUseAncestors(unittest.TestCase):
         self.assertEqual(rep.errors, [])
 
 
+_FAKE_VALIDITY = ("x.xml:1: element standard: validity error : No declaration for element standard\n"
+                  "Document x.xml does not validate against y.dtd\n")
+
+
+def _fake_xmllint(dir_path: Path, body: str, name="xmllint") -> str:
+    """写一个假的 xmllint 脚本（sh），返回路径。"""
+    path = Path(dir_path) / name
+    path.write_text("#!/bin/sh\n" + body, encoding="utf-8")
+    path.chmod(0o755)
+    return str(path)
+
+
+@unittest.skipUnless(sys.platform != "win32", "用 sh 脚本模拟 xmllint")
+class TestEngineFailuresPropagate(unittest.TestCase):
+    """引擎失败（DTD 坏/不存在、xmllint 不可执行或输出无法解析）必须报错并使退出码非 0，不得当成“0 个偏差”。"""
+
+    SAMPLE = VALID_DIR / "01-minimal.xml"
+
+    def _assert_engine_failure(self, res, where=None):
+        self.assertTrue(res["engine_error"], sts.format_human(res))
+        self.assertTrue(res["unexplained"])
+        self.assertEqual({u["element"] for u in res["unexplained"]}, {"ENGINE"})
+        self.assertEqual(res["known"], [])
+        self.assertTrue(res["wellformed"])
+        if where:
+            self.assertIn(where, "".join(u["message"] for u in res["unexplained"]))
+
+    def test_classifier_table(self):
+        c = sts._classify_xmllint_output
+        self.assertEqual(c(0, ""), ([], None))
+        self.assertEqual(c(0, "x.xml validates\n"), ([], None))
+        ok_errs, problem = c(3, _FAKE_VALIDITY)
+        self.assertIsNone(problem)
+        self.assertEqual(len(ok_errs), 1)
+        bad = {
+            "退出码 0 却有输出": c(0, "warning: failed to load external entity\n"),
+            "退出码 0 却有 validity error": c(0, _FAKE_VALIDITY),
+            "退出码 3 但没有可解析的行": c(3, ""),
+            "退出码 3 但只有看不懂的行": c(3, "something odd\n"),
+            "退出码 3 夹杂 I/O 错误": c(3, "I/O error : Is a directory\n" + _FAKE_VALIDITY),
+            "DTD 解析失败（退出码 2）": c(2, "broken.dtd:2: parser error : x\nCould not parse DTD broken.dtd\n"),
+            "找不到 DTD（退出码 2）": c(2, 'warning: failed to load external entity "missing.dtd"\nCould not parse DTD missing.dtd\n'),
+            "退出码 1": c(1, ""),
+            "被信号杀死": c(-11, ""),
+        }
+        for why, (errs, problem) in bad.items():
+            with self.subTest(why=why):
+                self.assertEqual(errs, [])
+                self.assertTrue(problem, why)
+
+    def test_broken_dtd_is_an_engine_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dtd = Path(tmp) / "broken.dtd"
+            dtd.write_text("<!ELEMENT standard (front\n<!ELEMENT front EMPTY>\n", encoding="utf-8")
+            res = sts.check_file(self.SAMPLE, dtd=dtd)
+            self._assert_engine_failure(res, "原文档")
+            self.assertIn("归一化副本", "".join(u["message"] for u in res["unexplained"]))  # 两遍都失败，分别报告
+
+    def test_missing_dtd_and_directory_dtd_are_engine_failures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._assert_engine_failure(sts.check_file(self.SAMPLE, dtd=Path(tmp) / "nope.dtd"), "找不到 DTD")
+            self._assert_engine_failure(sts.check_file(self.SAMPLE, dtd=Path(tmp)), "找不到 DTD")
+
+    def test_unusable_xmllint_is_an_engine_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._assert_engine_failure(sts.check_file(self.SAMPLE, xmllint=str(Path(tmp) / "no-such-xmllint")), "无法运行 xmllint")
+            plain = Path(tmp) / "not-executable"
+            plain.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            plain.chmod(0o644)
+            self._assert_engine_failure(sts.check_file(self.SAMPLE, xmllint=str(plain)), "无法运行 xmllint")
+
+    def test_xmllint_not_on_path_is_an_engine_failure(self):
+        from unittest import mock
+        with mock.patch.object(sts.shutil, "which", return_value=None):
+            self._assert_engine_failure(sts.check_file(self.SAMPLE), "找不到 xmllint")
+
+    def test_garbled_or_crashing_xmllint_is_an_engine_failure(self):
+        scripts = {
+            "退出码 3 但没有任何诊断": "exit 3\n",
+            "退出码 2": "echo 'Could not parse DTD' >&2\nexit 2\n",
+            "退出码 0 却输出看不懂的东西": "echo 'garbage' >&2\nexit 0\n",
+            "崩溃": "kill -SEGV $$\n",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            for why, body in scripts.items():
+                with self.subTest(why=why):
+                    self._assert_engine_failure(sts.check_file(self.SAMPLE, xmllint=_fake_xmllint(tmp, body)))
+
+    def test_failure_in_only_the_normalized_pass_is_reported(self):
+        # 08 号样例用到白名单，归一化副本才会被校验一遍；第一遍“正常”、第二遍失败时整个结论仍然作废
+        sample = VALID_DIR / "08-original-forms-vs-sts.xml"
+        with tempfile.TemporaryDirectory() as tmp:
+            mark = Path(tmp) / "mark"
+            body = ('if [ -e "%s" ]; then echo oops >&2; exit 2; fi\ntouch "%s"\ncat >&2 <<\'EOF\'\n%sEOF\nexit 3\n'
+                    % (mark, mark, _FAKE_VALIDITY))
+            res = sts.check_file(sample, xmllint=_fake_xmllint(tmp, body))
+            self._assert_engine_failure(res, "归一化副本")
+            self.assertNotIn("原文档", "".join(u["message"] for u in res["unexplained"]))
+
+    def test_silent_success_is_still_clean(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            res = sts.check_file(self.SAMPLE, xmllint=_fake_xmllint(tmp, "exit 0\n"))
+        self.assertFalse(res["engine_error"])
+        self.assertEqual((res["known"], res["unexplained"]), ([], []))
+
+    def test_cli_exits_nonzero_on_engine_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for dtd in (Path(tmp) / "nope.dtd", Path(tmp) / "broken.dtd"):
+                if dtd.name == "broken.dtd":
+                    dtd.write_text("<!ELEMENT a (b\n", encoding="utf-8")
+                proc = subprocess.run([sys.executable, "-I", str(HERE / "sts_compat.py"), "--dtd", str(dtd), str(self.SAMPLE)],
+                                      capture_output=True, text=True, encoding="utf-8")
+                self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+                self.assertIn("ENGINE", proc.stdout)
+                proc = subprocess.run([sys.executable, "-I", str(HERE / "sts_compat.py"), "--json", "--dtd", str(dtd), str(self.SAMPLE)],
+                                      capture_output=True, text=True, encoding="utf-8")
+                data = json.loads(proc.stdout)
+                self.assertEqual(proc.returncode, 1)
+                self.assertFalse(data["ok"])
+                self.assertEqual(data["results"][0]["unexplained"][0]["element"], "ENGINE")
+
+    def test_malformed_input_is_still_reported_as_such(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = Path(tmp) / "bad.xml"
+            bad.write_text("<standard>", encoding="utf-8")
+            res = sts.check_file(bad, dtd=Path(tmp) / "nope.dtd")
+            self.assertFalse(res["wellformed"])
+
+
+@unittest.skipUnless(sys.platform != "win32", "用 sh 脚本模拟 xmllint")
+class TestValidateEngineFailuresPropagate(unittest.TestCase):
+    """validate.py 的两个 RELAX NG 实现：任何一个失败都不能让文件“通过”。"""
+
+    SAMPLE = VALID_DIR / "01-minimal.xml"
+
+    def test_xmllint_that_cannot_run_is_an_engine_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plain = Path(tmp) / "not-executable"
+            plain.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            plain.chmod(0o644)
+            for exe in (str(Path(tmp) / "no-such-xmllint"), str(plain)):
+                with self.subTest(exe=Path(exe).name):
+                    rep = validate.Validator(SCHEMA, xmllint_exe=exe).validate_file(self.SAMPLE)
+                    self.assertFalse(rep.valid)
+                    self.assertIn("ENGINE", _rules(rep))
+                    self.assertIsNone(rep.engines["xmllint"]["valid"])
+
+    def test_xmllint_that_fails_on_a_valid_file_is_a_consistency_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for why, body in (("退出码 2", "echo 'Relax-NG parser error' >&2\nexit 2\n"), ("崩溃", "kill -SEGV $$\n"),
+                              ("退出码 1 无输出", "exit 1\n")):
+                with self.subTest(why=why):
+                    rep = validate.Validator(SCHEMA, xmllint_exe=_fake_xmllint(tmp, body)).validate_file(self.SAMPLE)
+                    self.assertFalse(rep.valid)
+                    self.assertIn("CONSISTENCY", _rules(rep))
+                    self.assertFalse(rep.consistent)
+
+    def test_broken_lxml_engine_is_an_engine_error(self):
+        from unittest import mock
+        with mock.patch.object(validate, "run_lxml_relaxng", side_effect=validate.etree.LxmlError("boom")):
+            rep = VALIDATOR_IMPORT.validate_file(self.SAMPLE)
+        self.assertFalse(rep.valid)
+        self.assertIn("ENGINE", _rules(rep))
+
+    def test_cli_exits_nonzero_for_unusable_schema(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            broken = Path(tmp) / "broken.rng"
+            broken.write_text("<grammar xmlns='http://relaxng.org/ns/structure/1.0'><start><ref name='nope'/></start></grammar>", encoding="utf-8")
+            for schema in (broken, Path(tmp) / "missing.rng"):
+                proc = subprocess.run([sys.executable, "-I", str(HERE / "validate.py"), "--schema", str(schema), str(self.SAMPLE)],
+                                      capture_output=True, text=True, encoding="utf-8")
+                self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+                self.assertIn("无法加载 RELAX NG schema", proc.stderr)
+
+    def test_cli_exits_nonzero_when_the_file_is_unreadable(self):
+        proc = subprocess.run([sys.executable, "-I", str(HERE / "validate.py"), "/no/such/file.xml"],
+                              capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(proc.returncode, 1)
+
+
 class TestWarnings(unittest.TestCase):
     """约定表写“告警后保留/忽略”的情形：文档通过，但给出对应告警（不阻断）。"""
 

@@ -205,6 +205,23 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 实现上先按白名单对文档副本做规范化（删除国标扩展元素、把异写改成 STS 写法、调整位置），再校验副本：副本上仍存在的报错 = 未解释偏差；
 原文档上有、副本上消失的报错 = 已知偏差。行号已映射回原文档。MathML 内容也在此被 DTD 校验。
 
+**引擎失败一律作为错误传播，不会被当成“0 个偏差”**（PR#55 审查后全量排查，列表见下）。`sts_compat.py` 对每一遍 `xmllint --dtdvalid`
+（原文档、归一化副本两遍）都核对退出码与输出：只有“退出码 0 且无输出”或“退出码 3 且每一行都是可解析的 validity error、末行是
+`Document … does not validate against …`”才可信；DTD 读不到或解析失败（退出码 2）、I/O 错误、退出码异常（含被信号杀死）、
+退出码 3 却没有可解析的诊断、看不懂的输出行，都报**未解释偏差 `ENGINE`**（结果里 `engine_error: true`，不给已知偏差），退出码 1。
+找不到 xmllint、找不到 DTD 文件、xmllint 不可执行（`OSError`）、超时同样是 `ENGINE`。
+
+| 外部进程/引擎调用 | 失败时 |
+|---|---|
+| `sts_compat.py`：`xmllint --dtdvalid`（两遍） | `ENGINE` 未解释偏差，退出码 1（本次修复；原来 `proc.returncode` 被丢弃，DTD 损坏时输出 0 个偏差并成功退出） |
+| `sts_compat.py`：找不到 xmllint / DTD 文件 | `ENGINE`（原来是 `wellformed=False` 的误导性状态），退出码 1 |
+| `validate.py`：`xmllint --relaxng` | 退出码非 0 即“不通过”；与 lxml 结论不同报 `CONSISTENCY`；不可执行/超时报 `ENGINE`（原来会抛异常） |
+| `validate.py`：lxml `RelaxNG` 校验器出错 | `ENGINE` 错误（原来会抛异常） |
+| `validate.py`：加载 schema（lxml） | `main()` 报“无法加载 RELAX NG schema”，退出码 1；作为库使用时异常向上传播 |
+| `validate.py`：找不到 xmllint | `ENGINE` 错误（`--no-xmllint` 才能显式跳过） |
+| `validate.py`：`xmllint --version` | 只用于显示版本号，失败显示 `unknown`，不影响结论 |
+| `matrix_coverage.py`、`gen_invalid_samples.py` | 不调用外部进程 |
+
 ## 6. 样例
 
 `samples/valid/`（手写，没有逐字复制原文示例——原文示例有已知笔误，见 conventions-S 3.4）：
