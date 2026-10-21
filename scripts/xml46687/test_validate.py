@@ -46,6 +46,7 @@ def _load(name: str, path: Path):
 
 
 validate = _load("ses_validate", HERE / "validate.py")
+sts = _load("ses_sts_compat", HERE / "sts_compat.py")
 coverage = _load("ses_matrix_coverage", HERE / "matrix_coverage.py")
 
 VALIDATOR_IMPORT = None
@@ -74,7 +75,6 @@ EXPECTED_INVALID = {
     "alternatives.xml": ("REJECT", {"REJECT", "RNG"}, "alternatives"),
     "nested-table.xml": ("REJECT", {"REJECT", "RNG"}, "嵌套表"),
     "tfoot.xml": ("REJECT", {"REJECT", "RNG"}, "tfoot"),
-    "array.xml": ("REJECT", {"REJECT", "RNG"}, "array"),
     "issue-agencies.xml": ("REJECT", {"REJECT", "RNG"}, "issue-agencies"),
     "mathml-unprefixed.xml": ("REJECT", {"REJECT", "RNG"}, "mtext"),
     "std-in-tbx-source.xml": ("REJECT", {"REJECT", "RNG"}, "tbx:source"),
@@ -119,9 +119,21 @@ EXPECTED_INVALID = {
     "mixed-cell-content.xml": ("RNG", {"RNG"}, "td"),
     "tbx-langset-no-lang.xml": ("RNG", {"RNG"}, "langSet"),
     "unknown-element.xml": ("RNG", {"RNG"}, "blink"),
+    # 2026-10-21：术语异写元素名只保留 tbx:normativeAuthentication，其余四个疑为原文笔误，REJECT
+    "tbx-term-entry-alias.xml": ("REJECT", {"REJECT", "RNG"}, "笔误"),
+    "tbx-definition-alias.xml": ("REJECT", {"REJECT", "RNG"}, "Definition"),
+    "tbx-normative-authorization-alias.xml": ("REJECT", {"REJECT", "RNG"}, "normative-Authorization"),
+    "tbx-grammatical-number-alias.xml": ("REJECT", {"REJECT", "RNG"}, "grammatical-Number"),
+    # 按 NISO STS 1.2 收紧后（2026-10-21）
+    "std-meta-wrong-order.xml": ("RNG", {"RNG"}, "content-language"),
+    "sec-block-after-subsec.xml": ("RNG", {"RNG"}, "sec"),
+    "bad-part-of-speech.xml": ("RNG", {"RNG"}, "partOfSpeech"),
+    "named-content-without-type.xml": ("RNG", {"RNG"}, "front"),
+    "empty-table-wrap-foot.xml": ("RNG", {"RNG"}, "table-wrap-foot"),
 }
 
-# 矩阵中 import: reject 的“语境拒绝”行 → 对应的负例（None：由 schema 接受或只告警，见说明）
+# 矩阵中 import: reject 的行（rejectKind 见 docs/wp8.1/matrix-*.json）：
+# format 类中的“语境拒绝”行（元素本身接受，只在特定位置/取值/个数上拒绝）→ 对应的负例
 CONTEXT_REJECT_SAMPLES = {
     "M-6.1-06": "nested-table.xml",
     "M-6.2.1-06": "caption-two-titles.xml",
@@ -131,10 +143,23 @@ CONTEXT_REJECT_SAMPLES = {
     "M-9.2.3-06": "admn-sts-value.xml",
     "M-9.2.8-02": "std-in-tbx-source.xml",
     "M-C.1-08": "definition-target.xml",
-    "M-6.1-05": None,    # 电子文件（.xlsx/.xls）没有任何 XML 标记方式
-    "M-10.1.8-04": None,  # 同一 fn 多次引用：schema 接受，validate.py 只告警 W-FN-MULTIREF（IR 限制）
-    "M-4.3.4-02": None,   # 引言中的条：schema 接受（正例 03），导入器因 IR 缺口 gap-ir 暂拒
-    "M-4.3.4-03": None,
+}
+# implementation 类（格式本身接受，导入暂拒）→ 产生的告警规则与对应正例
+IMPLEMENTATION_REJECT_ROWS = {
+    "M-4.3.4-02": ("W-IMPL-REJECT", "09-import-pending.xml"),
+    "M-4.3.4-03": ("W-IMPL-REJECT", "09-import-pending.xml"),
+    "M-5.8-01": ("W-IMPL-REJECT", "09-import-pending.xml"),
+    "M-C.1-04": ("W-IMPL-REJECT", "09-import-pending.xml"),
+    "M-C.1-05": ("W-IMPL-REJECT", "09-import-pending.xml"),
+    "M-10.1.8-04": ("W-FN-MULTIREF", "09-import-pending.xml"),
+}
+# format 类中整体不收的元素（不得出现在 schema 中）；该集合固定在这里，防止矩阵自相矛盾时悄悄改变
+WHOLESALE_FORMAT_REJECTS = {
+    "alternatives", "col-group", "fn-group", "issue-agencies", "mtext", "std-doc-meta", "target", "term-display",
+    "tex-math", "tfoot",
+    "{urn:iso:std:iso:30042:ed-1}see", "{urn:iso:std:iso:30042:ed-1}term-entry",
+    "{urn:iso:std:iso:30042:ed-1}Definition", "{urn:iso:std:iso:30042:ed-1}normative-Authorization",
+    "{urn:iso:std:iso:30042:ed-1}grammatical-Number",
 }
 
 
@@ -195,9 +220,12 @@ def _make_valid_export_test(path: Path):
     return test
 
 
+# 07 汇总“仅导入接受”的异写（export 档不通过）；09 汇总“导入暂拒”的写法（告警 W-IMPL-REJECT 等，不是 export 干净样例）
+EXPORT_CLEAN_PREFIXES = ("01-", "02-", "03-", "04-", "05-", "06-", "08-")
+
 for _p in sorted(VALID_DIR.glob("*.xml")):
     setattr(TestValidSamples, "test_import_" + _slug(_p), _make_valid_test(_p))
-    if not _p.name.startswith("07-"):
+    if _p.name.startswith(EXPORT_CLEAN_PREFIXES):
         setattr(TestValidSamples, "test_export_" + _slug(_p), _make_valid_export_test(_p))
 
 
@@ -217,7 +245,7 @@ class TestImportVariantsSample(unittest.TestCase):
         self.assertFalse(rep.valid)
         self.assertEqual(_rules(rep), {"IMPORT-ONLY"})
         text = _messages(rep)
-        for token in ("norm_refs", "inform_annex", "bibr", "date-type", "term-entry", "Definition",
+        for token in ("norm_refs", "inform_annex", "bibr", "date-type",
                       "normativeAuthentication", "monospace", "other", "chem", "position", "center"):
             self.assertIn(token, text)
 
@@ -342,6 +370,24 @@ class TestSchemaConstraints(unittest.TestCase):
             "disp-formula 含两个 mml:math": _doc(body='<sec id="sec_1"><title>t</title><disp-formula><mml:math><mml:mi>a</mml:mi></mml:math><mml:math><mml:mi>b</mml:mi></mml:math></disp-formula></sec>'),
             "mml:math 内出现非 MathML 命名空间元素": _doc(body='<sec id="sec_1"><title>t</title><p><inline-formula><mml:math><foo/></mml:math></inline-formula></p></sec>'),
             "inline-formula 含两个 mml:math": _doc(body='<sec id="sec_1"><title>t</title><p><inline-formula><mml:math/><mml:math/></inline-formula></p></sec>'),
+            "std-meta 子元素顺序不符 STS 1.2（content-language 在 std-org-group 之前）": _doc(meta=_META + '<content-language>zh</content-language><std-org-group><std-org/></std-org-group>'),
+            "std-xref 空元素": _doc(meta=_META + '<std-xref type="revises"/>'),
+            "ics 在 comm-ref 之前": _doc(meta=_META + '<ics>1.2</ics><comm-ref>c</comm-ref>'),
+            "tig 内 normativeAuthorization 在 partOfSpeech 之前": _doc(body='<sec id="sec_1"><title>t</title><term-sec><tbx:termEntry><tbx:langSet xml:lang="zh"><tbx:tig><tbx:term>a</tbx:term><tbx:normativeAuthorization value="preferredTerm"/><tbx:partOfSpeech value="noun"/></tbx:tig></tbx:langSet></tbx:termEntry></term-sec></sec>'),
+            "tbx:partOfSpeech 取值不在 noun/verb/adj/adv 内": _doc(body='<sec id="sec_1"><title>t</title><term-sec><tbx:termEntry><tbx:langSet xml:lang="zh"><tbx:tig><tbx:term>a</tbx:term><tbx:partOfSpeech value="pron"/></tbx:tig></tbx:langSet></tbx:termEntry></term-sec></sec>'),
+            "tbx:grammaticalNumber 取值不在 singular/plural 内": _doc(body='<sec id="sec_1"><title>t</title><term-sec><tbx:termEntry><tbx:langSet xml:lang="zh"><tbx:tig><tbx:term>a</tbx:term><tbx:grammaticalNumber value="dual"/></tbx:tig></tbx:langSet></tbx:termEntry></term-sec></sec>'),
+            "named-content 缺 content-type": _doc(body='<sec id="sec_1"><title>t</title><p><named-content>x</named-content></p></sec>'),
+            "含子条的条在子条之后再放段落": _doc(body='<sec id="sec_1"><title>t</title><sec id="sec_1_1"><label>1.1</label><p>y</p></sec><p>悬置</p></sec>'),
+            "sec 既无 label 也无 title": _doc(body='<sec id="sec_1"><title>t</title><sec id="sec_1_1"><p>y</p></sec></sec>'),
+            "fig 内 caption 在 label 之前": _doc(body='<sec id="sec_1"><title>t</title><fig><caption><title>c</title></caption><label>图1</label><graphic xlink:href="a"/></fig></sec>'),
+            "fig-group 内 legend 在分图之后": _doc(body='<sec id="sec_1"><title>t</title><fig-group><fig><caption><title>c</title></caption><graphic xlink:href="a"/></fig><legend><title>l</title></legend></fig-group></sec>'),
+            "空的 table-wrap-foot": _doc(body='<sec id="sec_1"><title>t</title><table-wrap><table><tbody><tr><td>a</td></tr></tbody></table><table-wrap-foot/></table-wrap></sec>'),
+            "table-wrap/@position 不在枚举内": _doc(body='<sec id="sec_1"><title>t</title><table-wrap position="top"><table><tbody><tr><td>a</td></tr></tbody></table></table-wrap></sec>'),
+            "disp-quote 内 permissions 在 p 之前": _doc(body='<sec id="sec_1"><title>t</title><disp-quote><permissions/><p>x</p></disp-quote></sec>'),
+            "index 为空": _doc(back='<back><index/></back>'),
+            "bold 内含 break": _doc(body='<sec id="sec_1"><title>t</title><p><bold>a<break/>b</bold></p></sec>'),
+            "xref 内含 xref": _doc(body='<sec id="sec_1"><title>t</title><p><xref ref-type="sec" rid="sec_1"><xref ref-type="sec" rid="sec_1">x</xref></xref></p></sec>'),
+            "originator 内含 bold": _doc(meta=_META + '<std-ident><originator><bold>x</bold></originator></std-ident>'),
             "只有 thead 的表": _doc(body='<sec id="sec_1"><title>t</title><table-wrap><caption><title>c</title></caption><table><thead><tr><th>a</th></tr></thead></table></table-wrap></sec>'),
             "td 内 p 与文本混排": _doc(body='<sec id="sec_1"><title>t</title><table-wrap><table><tbody><tr><td><p>a</p>b</td></tr></tbody></table></table-wrap></sec>'),
             "td/@colspan 为 0": _doc(body='<sec id="sec_1"><title>t</title><table-wrap><table><tbody><tr><td colspan="0">a</td></tr></tbody></table></table-wrap></sec>'),
@@ -366,7 +412,11 @@ class TestSchemaConstraints(unittest.TestCase):
 
     def test_lenient_forms_are_accepted(self):
         cases = {
-            "std-meta 子元素顺序不限": _doc(meta='<release-date>2026-04-30</release-date>' + _META + "<content-language>zh</content-language><ics>1.2</ics>"),
+            "std-meta 按 STS 1.2 顺序（含国标扩展元素的约定位置）": _doc(
+                meta='<std-type>t</std-type>' + _META + '<std-ident/><std-org-group><std-org/></std-org-group><content-language>zh</content-language>'
+                     '<release-date>2026-04-30</release-date><implementation-date>2026-11-01</implementation-date><equivalence>MOD</equivalence>'
+                     '<comm-ref>c</comm-ref><ics>1.2</ics><ccs>L 72</ccs><std-supersedes>x</std-supersedes>'
+                     '<std-xref type="revises"><std-ref>GB/T 1</std-ref></std-xref><permissions/><custom-meta-group><custom-meta><meta-name>n</meta-name><meta-value>v</meta-value></custom-meta></custom-meta-group>'),
             "未知 sec-type 取值（表 D.1 行 13）": _doc(body='<sec id="sec_1"><title>t</title><sec id="sec_1_1" sec-type="custom-role"><title>u</title></sec></sec>'),
             "std-meta 里没有 std-org-group 等 SES 必填项": _doc(),
             "单元格为空": _doc(body='<sec id="sec_1"><title>t</title><table-wrap><table><tbody><tr><td/></tr></tbody></table></table-wrap></sec>'),
@@ -376,7 +426,13 @@ class TestSchemaConstraints(unittest.TestCase):
             "fn 作为行内元素与块": _doc(body='<sec id="sec_1"><title>t</title><p>x<fn id="f1"><label>1)</label><p>y</p></fn></p><fn id="f2"><p>z</p></fn></sec>'),
             "std 与 mixed-citation 出现在正文": _doc(body='<sec id="sec_1"><title>t</title><p><std><std-ref>GB/T 1</std-ref></std><mixed-citation>m</mixed-citation></p></sec>'),
             "无前缀公式替代图作为兄弟元素": _doc(body='<sec id="sec_1"><title>t</title><disp-formula><mml:math/></disp-formula><graphic content-type="disp-formula" xlink:href="formula_40_5"/></sec>'),
-            "std-xref 空元素与嵌套 std-ref": _doc(meta=_META + '<std-xref type="revises"/><std-xref type="revises"><std-ref>GB/T 1</std-ref></std-xref>'),
+            "std-xref 内嵌 std-ref": _doc(meta=_META + '<std-xref type="revises"><std-ref>GB/T 1</std-ref></std-xref>'),
+            "一个 std-org 内多个 std-org-name（4.1 示例，偏差表）": _doc(meta=_META + '<std-org-group><std-org><std-org-name>甲</std-org-name><std-org-name>乙</std-org-name><std-org-abbrev>GB</std-org-abbrev></std-org></std-org-group>'),
+            "tbx:langSet 内 note 在 tig 之后（9.2.3 示例 2，偏差表）": _doc(body='<sec id="sec_1"><title>t</title><term-sec><tbx:termEntry><tbx:langSet xml:lang="zh"><tbx:definition>d</tbx:definition><tbx:tig><tbx:term>a</tbx:term></tbx:tig><tbx:note>n</tbx:note></tbx:langSet></tbx:termEntry></term-sec></sec>'),
+            "table-wrap 内 graphic 在 table-wrap-foot 之后（6.2.3 示例，偏差表）": _doc(body='<sec id="sec_1"><title>t</title><table-wrap><table><tbody><tr><td>a</td></tr></tbody></table><table-wrap-foot><p>n</p></table-wrap-foot><graphic content-type="disp_table" xlink:href="t"/></table-wrap></sec>'),
+            "xref 内的 label（10.1.8 示例，偏差表）": _doc(body='<sec id="sec_1"><title>t</title><p><xref ref-type="fn" rid="f1"><label><sup>1)</sup></label></xref><fn id="f1"><p>x</p></fn></p></sec>'),
+            "含子条的条：块在前，子条在后，其后再放注与清单": _doc(body='<sec id="sec_1"><title>t</title><p>x</p><sec id="sec_1_1"><label>1.1</label><p>y</p></sec><non-normative-note><p>n</p></non-normative-note></sec>'),
+            "fig：label caption legend 之后的 graphic 与 p 任意排列": _doc(body='<sec id="sec_1"><title>t</title><fig><label>图1</label><caption><title>c</title></caption><legend><title>l</title></legend><p>p</p><graphic xlink:href="a"/><non-normative-note><p>n</p></non-normative-note></fig></sec>'),
         }
         for why, text in cases.items():
             with self.subTest(why=why):
@@ -397,8 +453,6 @@ class TestWarnings(unittest.TestCase):
     def test_warning_cases(self):
         sec = '<sec id="sec_1"><title>t</title>%s</sec>'
         cases = [
-            ("W-POS-VALUE", _doc(body=sec % '<term-sec><tbx:termEntry><tbx:langSet xml:lang="zh"><tbx:definition>d</tbx:definition>'
-                                           '<tbx:tig><tbx:term>a</tbx:term><tbx:partOfSpeech value="pron"/></tbx:tig></tbx:langSet></tbx:termEntry></term-sec>')),
             ("W-NAMED-CONTENT", _doc(body=sec % '<p><named-content content-type="foo">x</named-content></p>')),
             ("W-GRAPHIC-TYPE", _doc(body=sec % '<fig><caption><title>c</title></caption><graphic xlink:href="a" content-type="photo"/></fig>')),
             ("W-EXTLINK-TYPE", _doc(body=sec % '<p><ext-link ext-link-type="doi" xlink:href="https://example.org/">x</ext-link></p>')),
@@ -416,6 +470,111 @@ class TestWarnings(unittest.TestCase):
                 self._check(text, rule)
 
 
+class TestStsCompat(unittest.TestCase):
+    """官方 NISO STS 1.2 DTD 兼容性检查（sts_compat.py）：正例没有未解释偏差，白名单逐条有依据并被样例覆盖。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.dtd = sts.DEFAULT_DTD
+        cls.results = {p.name: sts.check_file(p) for p in sorted(VALID_DIR.glob("*.xml"))}
+
+    def test_dtd_is_in_the_repo(self):
+        self.assertTrue(self.dtd.is_file(), self.dtd)
+
+    def test_valid_samples_have_no_unexplained_deviations(self):
+        for name, res in self.results.items():
+            with self.subTest(sample=name):
+                self.assertTrue(res["wellformed"], res["note"])
+                self.assertEqual(res["unexplained"], [], sts.format_human(res))
+
+    def test_clean_samples_have_no_deviation_at_all(self):
+        for name in ("01-minimal.xml", "03-structure.xml", "04-tables.xml", "05-formulas-figures.xml",
+                     "06-terms-references.xml", "09-import-pending.xml"):
+            self.assertEqual(self.results[name]["known"], [], name)
+            self.assertEqual(self.results[name]["applied"], [], name)
+
+    def test_every_whitelist_entry_is_exercised_and_documented(self):
+        applied = {a["id"] for res in self.results.values() for a in res["applied"]}
+        self.assertEqual(applied, {e["id"] for e in sts.WHITELIST})
+        for e in sts.WHITELIST:
+            self.assertIn(e["category"], (sts.EXT, sts.CONFLICT, sts.PENDING), e["id"])
+            self.assertTrue(e["basis"].strip(), e["id"])
+            self.assertTrue("印刷页" in e["basis"] or "D-T-10" in e["basis"], "%s 的依据要写明原文页码" % e["id"])
+
+    def test_china_specific_extensions_cite_table_c1(self):
+        by_id = {e["id"]: e for e in sts.WHITELIST}
+        for eid in ("EXT-ccs", "EXT-implementation-date", "EXT-equivalence"):
+            self.assertIn("中国标准特有", by_id[eid]["basis"], eid)
+            self.assertIn("表 C.1", by_id[eid]["basis"], eid)
+
+    def test_known_deviations_are_attributed_to_whitelist_entries(self):
+        res = self.results["08-original-forms-vs-sts.xml"]
+        self.assertGreaterEqual(len(res["known"]), 10)
+        for k in res["known"]:
+            self.assertTrue(k["whitelist"], k)
+
+    def _check_text(self, text):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "case.xml"
+            p.write_text(text, encoding="utf-8")
+            return sts.check_file(p)
+
+    def test_dtd_violation_that_is_not_a_known_extension_is_unexplained(self):
+        # bold 内含 break：STS 1.2 不允许，原文也没有这样写（本 schema 同样拒绝，这里只验证 sts_compat 的分类）
+        res = self._check_text(_doc(body='<sec id="sec_1"><title>t</title><p><bold>a<break/>b</bold></p></sec>'))
+        self.assertTrue(res["unexplained"])
+        self.assertIn("bold", {u["element"] for u in res["unexplained"]})
+
+    def test_known_extension_alone_is_not_unexplained(self):
+        res = self._check_text(_doc(meta=_META + "<ccs>L 72</ccs>"))
+        self.assertEqual(res["unexplained"], [])
+        self.assertTrue(res["known"])
+        self.assertEqual({w for k in res["known"] for w in k["whitelist"]}, {"EXT-ccs"})
+
+    def test_real_error_next_to_a_known_extension_is_still_unexplained(self):
+        # ccs 是已知扩展，但 std-ident 在 title-wrap 之前违反 STS 1.2 的顺序，且原文没有这样写
+        res = self._check_text(_doc(meta="<std-ident/>" + _META + "<ccs>L 72</ccs>"))
+        self.assertTrue(res["known"])
+        self.assertIn("std-meta", {u["element"] for u in res["unexplained"]})
+
+    def test_unwrapped_deviations_report_original_line_numbers(self):
+        res = self.results["08-original-forms-vs-sts.xml"]
+        text = (VALID_DIR / "08-original-forms-vs-sts.xml").read_text(encoding="utf-8").splitlines()
+        for k in res["known"]:
+            if k["element"] == "ccs":
+                self.assertIn("<ccs>", text[k["line"] - 1])
+
+    def test_not_wellformed_is_reported(self):
+        res = self._check_text("<standard>")
+        self.assertFalse(res["wellformed"])
+
+    def _run(self, *args):
+        return subprocess.run([sys.executable, "-I", str(HERE / "sts_compat.py")] + list(args),
+                              capture_output=True, text=True, encoding="utf-8")
+
+    def test_cli_exit_codes_and_json(self):
+        ok = self._run("--json", str(VALID_DIR / "08-original-forms-vs-sts.xml"))
+        self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
+        data = json.loads(ok.stdout)
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["results"][0]["unexplained"], [])
+        self.assertTrue(data["results"][0]["known"])
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = Path(tmp) / "bad.xml"
+            bad.write_text(_doc(body='<sec id="sec_1"><title>t</title><p><bold>a<break/>b</bold></p></sec>'), encoding="utf-8")
+            proc = self._run(str(bad))
+            self.assertEqual(proc.returncode, 1)
+            self.assertIn("未解释", proc.stdout)
+            proc = self._run("--json", str(bad))
+            self.assertFalse(json.loads(proc.stdout)["ok"])
+
+    def test_list_whitelist(self):
+        proc = self._run("--list-whitelist")
+        self.assertEqual(proc.returncode, 0)
+        for e in sts.WHITELIST:
+            self.assertIn(e["id"], proc.stdout)
+
+
 class TestSchemaCoverage(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -431,9 +590,12 @@ class TestSchemaCoverage(unittest.TestCase):
 
     def test_rejected_elements_are_not_in_schema(self):
         self.assertEqual(self.res["reject_elements_in_schema"], {})
-        self.assertIn("tex-math", self.res["reject_elements"])
-        self.assertIn("alternatives", self.res["reject_elements"])
-        self.assertIn("tfoot", self.res["reject_elements"])
+        self.assertEqual(set(self.res["reject_elements"]), WHOLESALE_FORMAT_REJECTS)
+
+    def test_reject_kind_is_filled_in_for_every_reject_row(self):
+        self.assertEqual(self.res["reject_kind_problems"], [])
+        self.assertEqual(len(self.res["reject_rows_format"]) + len(self.res["reject_rows_implementation"]), 30)
+        self.assertEqual(set(self.res["reject_rows_implementation"]), set(IMPLEMENTATION_REJECT_ROWS))
 
     def test_validate_py_knows_every_wholesale_rejected_element(self):
         known = {k for k in validate.REJECT_ELEMENTS}
@@ -442,12 +604,32 @@ class TestSchemaCoverage(unittest.TestCase):
             plain = e.split("}")[-1] if e.startswith("{") else e
             self.assertTrue(e in known or plain in known, "validate.py 的 REJECT 规则缺少 %s" % e)
 
-    def test_context_reject_rows_are_all_accounted_for(self):
+    def test_format_context_reject_rows_are_all_accounted_for(self):
         self.assertEqual(set(self.res["context_reject_rows"]), set(CONTEXT_REJECT_SAMPLES))
 
-    def test_matrix_conflicts_are_the_known_three(self):
-        found = {(c["row"], c["element"]) for c in self.res["matrix_conflicts"]}
-        self.assertEqual(found, {("M-F-17", "std-doc-meta"), ("M-C-05", "issue-agencies"), ("M-C-05", "col-group")})
+    def test_implementation_reject_rows_are_accepted_by_schema_and_warn(self):
+        for row, (rule, sample) in IMPLEMENTATION_REJECT_ROWS.items():
+            rep = VALIDATOR_IMPORT.validate_file(VALID_DIR / sample)
+            self.assertTrue(rep.valid, (row, validate.format_human(rep)))
+            self.assertIn(rule, {w["rule"] for w in rep.warnings}, row)
+
+    def test_matrix_has_no_known_contradictions_any_more(self):
+        rows = {}
+        for f in coverage.MATRICES:
+            for r in json.loads(Path(f).read_text(encoding="utf-8")):
+                rows[r["id"]] = r
+        self.assertEqual(len(rows), 391)
+        for forbidden in ("issue-agencies", "col-group"):
+            self.assertNotIn(forbidden, rows["M-C-05"]["element"])
+        self.assertNotIn("std-doc-meta", rows["M-F-17"]["element"])
+        self.assertEqual(rows["M-F-23"]["element"].split("（")[0], "permissions")
+        self.assertEqual(rows["M-F-25"]["element"].split("（")[0], "std-ident")
+        self.assertEqual((rows["M-6.2.1-04"]["export"], rows["M-6.2.1-04"]["import"]), ("optional", "accept"))
+        self.assertEqual(rows["M-D-02"]["element"], "ref-list")
+        self.assertEqual(rows["M-D-02"]["attributes"][0]["values"], ["bibl"])
+        for rid in ("M-9.2.1-08", "M-9.2.1-09", "M-C.1-06", "M-C.1-07"):
+            self.assertEqual((rows[rid]["import"], rows[rid]["rejectKind"]), ("reject", "format"), rid)
+        self.assertEqual(rows["M-9.2.3-07"]["import"], "accept")   # 只保留 tbx:normativeAuthentication
 
 
 class TestHelpers(unittest.TestCase):
