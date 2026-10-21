@@ -800,6 +800,21 @@ def semantic_checks(tree, rep: Report) -> None:
         if cnt > 1:
             rep.warn("W-FN-MULTIREF", "脚注 %r 被 %d 处 xref 引用：IR 是原位脚注，导入时会拒绝（M-10.1.8-04，G-T-19）" % (fid, cnt))
 
+    # 脚注“被定义但未被引用”：以全部 fn（含没有 id 的，按位置报告）与全部 xref 的 rid 比对（C-T-55：无引用的 fn 报告警）。
+    # 任何 ref-type 的 xref 都算引用——引用类型用错另由 V-8 报错，这里不再重复提示“未被引用”。
+    referenced = {t for x in xrefs for t in (x.get("rid") or "").split()}
+    for el in elems:
+        if not _plain(el, "fn"):
+            continue
+        fid = el.get("id") if el.get("id") is not None else el.get(_clark(NS_XML, "id"))
+        if fid is not None and fid in referenced:
+            continue
+        table_fn = is_table_footnote(el)
+        what = "表脚注" if table_fn else "正文脚注"
+        how = "xref[ref-type=table-fn]（6.2.3、C-T-06）" if table_fn else "xref[ref-type=fn]（10.1.8、C-T-55）"
+        who = "id=%r" % fid if fid is not None else "没有 id，无法被引用"
+        rep.warn("W-FN-UNREFERENCED", "%s %s 没有被任何 xref 引用：脚注应通过 %s 引用" % (what, who, how), el=el)
+
     # ---------------- V-2 sec-type 与位置 ----------------
     for el in elems:
         if nsuri(el) is not None or local(el) != "sec":

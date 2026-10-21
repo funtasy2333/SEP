@@ -172,7 +172,23 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | V-13 | 必备 id | `REQUIRED-ID`：矩阵（id 属性 obligation=shall）与附录 E（印刷页 67）要求导出必写 id 的元素缺 id；`--profile export` 为错误，`--profile import` 为告警；RELAX NG 里 id 一律可选。清单与依据见下表 | 附录 E、M-E-*、M-9.2.1-0x、M-4.5.3.1-01、M-6.2.3-07、C-S-37 |
 | IMPORT-ONLY | 档位 | 仅导入接受的异写（见第 3 节第 6 点）：import 档告警，export 档错误 | 各 C- 行 |
 | W-IMPL-REJECT 等 | 告警 | rejectKind=implementation：格式合法、导入暂拒（引言中的条、array、disp-formula-group），同一 fn 多引用为 W-FN-MULTIREF | 各 M- 行 |
-| W-* | 告警 | 不阻断：未知 sec-type、named-content/graphic/ext-link 的非常规取值、`size:T` 用于行内图、有序列项缺 label、annex-type 与 content-type 矛盾、发布日期晚于实施日期、多 rid… | 各 C- 行 |
+| W-* | 告警 | 不阻断：未知 sec-type、named-content/graphic/ext-link 的非常规取值、`size:T` 用于行内图、有序列项缺 label、annex-type 与 content-type 矛盾、发布日期晚于实施日期、多 rid、**脚注未被引用（`W-FN-UNREFERENCED`，正文脚注与表脚注都查，无 id 的 fn 按位置报告）**… | 各 C- 行 |
+
+### “定义了但没引用 / 引用了但没定义”的配对检查
+
+PR#55 审查后逐类核对，两个方向都要有结论：
+
+| 配对 | 引用了但没定义 | 定义了但没引用 | 依据 |
+|---|---|---|---|
+| 正文脚注 `fn` ↔ `xref[fn]` | V-1 悬空（`rid` 不存在）；V-8（目标类型不对） | **`W-FN-UNREFERENCED` 告警（本次新增）**：全部正文 `fn` 与全部 xref 的 `rid` 比对，没有 id 的 fn 同样告警；同一脚注多次引用 `W-FN-MULTIREF` | C-T-55 |
+| 表脚注 `fn` ↔ `xref[table-fn]` | V-1；V-8（须指向同一 `table-wrap` 的表脚注） | **`W-FN-UNREFERENCED` 告警（本次新增）**；同一表脚注在多个单元格引用是正常的，不告警 | 6.2.3、C-T-06 |
+| 参考文献 `ref` ↔ `xref[bibr]` | V-1；V-8 | 不告警：原文与约定没有“参考文献必须被引用”的要求 | C-T-53 |
+| 术语条目 `tbx:termEntry` ↔ `tbx:entailedTerm`、`xref[custom term-entry]` | V-1；V-8 | 不告警：术语条目不必被引用 | C-T-45、9.2.6 |
+| 注/示例 ↔ `xref[custom note/example]` | V-1；V-8 | 不告警：只有被引用的注/示例才写 id | C-T-50 |
+| 缩略语 `def-item` ↔ `xref[abbreviation]` | V-1；V-8 | 不告警：缩略语 id 是可选的 | C-T-51 |
+| 列项 `list-item` ↔ `xref[list]` | V-1；V-8 | 不告警：只有被引用的列项才写 id | C-T-52 |
+| 图/表/公式/章/附录 ↔ `xref[fig/table/disp-formula/sec/app]` | V-1；V-8 | 不告警：原文没有“图表必须在条文中被引用”的格式要求 | 10.1.2 |
+| 索引 `see-entry` | 纯文本编号，无 `rid` | — | 4.5.4、C-S-28 |
 
 ### xref 的目标集合（V-8，conventions-T 表 6-A）
 

@@ -1303,6 +1303,92 @@ class TestXrefTargets(unittest.TestCase):
         self.assertEqual([e for e in rep.errors if e["rule"] == "V-8"], [], validate.format_human(rep))
 
 
+class TestFootnotePairing(unittest.TestCase):
+    """脚注的配对检查是双向的：xref 引用了不存在的脚注（V-1/V-8），或脚注没有被引用（W-FN-UNREFERENCED，C-T-55）。"""
+
+    TABLE = ('<table-wrap id="tab_1"><label>表1</label><table><tbody><tr><td>c%s</td></tr></tbody></table>'
+             '<table-wrap-foot>%s</table-wrap-foot></table-wrap>')
+
+    def _run(self, inner, validator=None):
+        body = '<sec id="sec_1" sec-type="scope"><label>1</label><title>范围</title>%s</sec>' % inner
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case.xml"
+            path.write_text(_doc(body=body), encoding="utf-8")
+            return (validator or VALIDATOR_IMPORT).validate_file(path)
+
+    @staticmethod
+    def _unref(rep):
+        return [w for w in rep.warnings if w["rule"] == "W-FN-UNREFERENCED"]
+
+    def test_unreferenced_body_footnote_warns(self):
+        for validator in (VALIDATOR_IMPORT, VALIDATOR_EXPORT):
+            with self.subTest(profile=validator.profile):
+                rep = self._run('<p>正文<fn id="fn_1"><label>1)</label><p>y</p></fn></p>', validator)
+                found = self._unref(rep)
+                self.assertEqual(len(found), 1, validate.format_human(rep))
+                self.assertIn("正文脚注", found[0]["message"])
+                self.assertIn("fn_1", found[0]["message"])
+                self.assertEqual(rep.errors, [], "只是告警")
+
+    def test_footnote_without_id_is_reported_by_position(self):
+        rep = self._run('<p>正文<fn><label>1)</label><p>y</p></fn></p>')
+        found = self._unref(rep)
+        self.assertEqual(len(found), 1)
+        self.assertIn("没有 id", found[0]["message"])
+        self.assertTrue(found[0].get("line"))
+        self.assertIn("/fn", found[0].get("path", ""))
+
+    def test_block_level_footnote_is_checked_too(self):
+        rep = self._run('<fn id="fn_9"><p>块级脚注。</p></fn>')
+        self.assertEqual(len(self._unref(rep)), 1)
+
+    def test_referenced_body_footnote_is_quiet(self):
+        rep = self._run('<p>正文<xref ref-type="fn" rid="fn_1">1)</xref><fn id="fn_1"><label>1)</label><p>y</p></fn></p>')
+        self.assertEqual(self._unref(rep), [])
+
+    def test_each_footnote_is_matched_separately(self):
+        rep = self._run('<p>a<xref ref-type="fn" rid="fn_1">1)</xref><fn id="fn_1"><p>y</p></fn><fn id="fn_2"><p>z</p></fn><fn id="fn_3"><p>w</p></fn></p>')
+        self.assertEqual(sorted(w["message"].split("id=")[1].split(" ")[0] for w in self._unref(rep)), ["'fn_2'", "'fn_3'"])
+
+    def test_unreferenced_table_footnote_warns(self):
+        foot = '<fn id="table-fn_1.1"><label>a</label><p>表脚注。</p></fn>'
+        rep = self._run(self.TABLE % ("", foot))
+        found = self._unref(rep)
+        self.assertEqual(len(found), 1, validate.format_human(rep))
+        self.assertIn("表脚注", found[0]["message"])
+        self.assertIn("table-fn", found[0]["message"])
+
+    def test_table_footnote_nested_in_a_paragraph_is_a_table_footnote(self):
+        rep = self._run(self.TABLE % ("", '<p>说明<fn id="table-fn_1.1"><p>嵌在段落里。</p></fn></p>'))
+        found = self._unref(rep)
+        self.assertEqual(len(found), 1)
+        self.assertIn("表脚注", found[0]["message"])
+
+    def test_table_footnote_referenced_from_cells_is_quiet_even_when_referenced_twice(self):
+        ref = '<xref ref-type="table-fn" rid="table-fn_1.1">a</xref>'
+        rep = self._run(self.TABLE % (ref + ref, '<fn id="table-fn_1.1"><label>a</label><p>表脚注。</p></fn>'))
+        self.assertEqual(self._unref(rep), [])
+        self.assertNotIn("W-FN-MULTIREF", {w["rule"] for w in rep.warnings})
+
+    def test_footnote_referenced_with_the_wrong_ref_type_is_a_v8_error_not_an_unreferenced_warning(self):
+        rep = self._run('<p>x<xref ref-type="table-fn" rid="fn_1">1)</xref><fn id="fn_1"><p>y</p></fn></p>')
+        self.assertIn("V-8", _rules(rep))
+        self.assertEqual(self._unref(rep), [])
+
+    def test_the_other_direction_dangling_references_are_errors(self):
+        rep = self._run('<p>x<xref ref-type="fn" rid="fn_404">1)</xref></p>')
+        self.assertIn("V-1", _rules(rep))
+        self.assertIn("悬空", _messages(rep))
+        rep = self._run('<p>x<tbx:entailedTerm xmlns:tbx="urn:iso:std:iso:30042:ed-1" target="term_404">t</tbx:entailedTerm></p>')
+        self.assertIn("V-1", _rules(rep))
+
+    def test_no_sample_has_an_unreferenced_footnote(self):
+        for path in sorted(VALID_DIR.glob("*.xml")):
+            with self.subTest(sample=path.name):
+                rep = VALIDATOR_IMPORT.validate_file(path)
+                self.assertEqual(self._unref(rep), [])
+
+
 class TestWarnings(unittest.TestCase):
     """约定表写“告警后保留/忽略”的情形：文档通过，但给出对应告警（不阻断）。"""
 
