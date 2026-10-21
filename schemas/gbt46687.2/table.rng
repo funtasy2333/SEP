@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ses-gbt46687-2 / table.rng  —  表（第 6 章，XHTML 表格模型）
+  版本 0.1.0  ·  项目实现约定，非官方（见 ses-gbt46687-2.rng 文件头）
+
+  依据：6.1～6.6、附录 C（表标签）、附录 D（属性：align/colspan/frame/rowspan/rules/style/valign/width/orientation）。
+  约定：C-T-01～C-T-16。矩阵行：M-6.x、M-C.1-01/02/03。
+
+  拒绝项（矩阵 import: reject，不在 schema 中）：嵌套表（td/th 内不得出现 table 或 table-wrap，6.1，M-6.1-06）、
+  tfoot（M-C.1-03，6.2.2 要求表注放 table-wrap-foot，C-T-02）、array（5.8）、表题英文（caption 内多个 title）。
+  表模型：XHTML 1.1（processing-meta/@table-model="xhtml"），采用 thead/tbody，不使用 tfoot。
+-->
+<grammar xmlns="http://relaxng.org/ns/structure/1.0"
+         ns=""
+         datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+
+  <!--
+    table-wrap：6.2.1。子元素顺序 label、caption、table、table-wrap-foot、graphic（C-T-01，顺序取自 6.2 示例，项目实现约定）。
+    @position：表 C.1 列出，正文无说明（M-C.1-01，[仅导入接受]，取 token）。
+    graphic：表的替代图（content-type="disp_table"，6.1），SES 不生成，导入接受（G-T-04）。
+  -->
+  <define name="el.table-wrap">
+    <element name="table-wrap">
+      <ref name="attr.id"/>
+      <optional><attribute name="orientation"><ref name="dt.orientation"/></attribute></optional>
+      <optional><attribute name="position"><data type="token"/></attribute></optional>
+      <optional><ref name="el.label"/></optional>
+      <ref name="el.caption"/>
+      <ref name="el.table"/>
+      <optional><ref name="el.table-wrap-foot"/></optional>
+      <zeroOrMore><ref name="el.graphic"/></zeroOrMore>
+    </element>
+  </define>
+
+  <!--
+    caption：表题、图题。title 恰有一个（表题英文 / 图题英文原文无规定，M-6.2.1-06、M-8.2-07 为 reject）；
+    图中单位说明为 caption 内 p[@content-type="dimension"]（8.6）。表的单位放 table-wrap-foot（6.2.5）。
+    @style：表 D.1 行 15（M-D.1-03，导入接受）。
+  -->
+  <define name="el.caption">
+    <element name="caption">
+      <optional><attribute name="style"><data type="string"/></attribute></optional>
+      <ref name="el.title"/>
+      <zeroOrMore><ref name="el.p"/></zeroOrMore>
+    </element>
+  </define>
+
+  <!--
+    table：6.1、6.3、附录 C 行 87、附录 D。
+    width：6.1 给 33%/66%/100%，附录 D 行 19 给“数字”；取宽松形式（数字，可带 %）[未核实全集]。
+    border/frame/rules/cellspacing/cellpadding：附录 C 行 87、附录 D 行 4/12，SES 不导出（导入接受，G-T-06）。
+    子元素：col（或 colgroup）、thead、tbody；tfoot 为 reject。
+    tbody 至少一个：XHTML 内容模型要求 tbody+（thead 单独成表在 XHTML 中不合法）。
+  -->
+  <define name="el.table">
+    <element name="table">
+      <optional>
+        <attribute name="width">
+          <data type="string"><param name="pattern">[0-9]+(\.[0-9]+)?%?</param></data>
+        </attribute>
+      </optional>
+      <optional><attribute name="border"><data type="nonNegativeInteger"/></attribute></optional>
+      <optional>
+        <attribute name="frame">
+          <choice>
+            <value>above</value><value>below</value><value>border</value><value>box</value>
+            <value>hsides</value><value>lhs</value><value>rhs</value><value>void</value><value>vsides</value>
+          </choice>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="rules">
+          <choice>
+            <value>all</value><value>cols</value><value>groups</value><value>none</value><value>rows</value>
+          </choice>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="cellspacing"><data type="string"><param name="pattern">[0-9]+%?</param></data></attribute>
+      </optional>
+      <optional>
+        <attribute name="cellpadding"><data type="string"><param name="pattern">[0-9]+%?</param></data></attribute>
+      </optional>
+      <optional><attribute name="style"><data type="string"/></attribute></optional>
+      <optional>
+        <choice>
+          <oneOrMore><ref name="el.col"/></oneOrMore>
+          <oneOrMore><ref name="el.colgroup"/></oneOrMore>
+        </choice>
+      </optional>
+      <optional><ref name="el.thead"/></optional>
+      <oneOrMore><ref name="el.tbody"/></oneOrMore>
+    </element>
+  </define>
+
+  <!--
+    col / colgroup：6.1（列宽放 col 的 @width）、附录 C 行 12/13、附录 D。
+    col 直接置于 table 内 thead 之前，不使用 colgroup（C-T-01）；colgroup 仅附录 C 列名，导入接受（M-C.1-02，G-T-03）。
+    5.8 示例的 col-group / colwidth 属于 array，为 reject，不收。
+  -->
+  <define name="cm.col-attrs">
+    <optional><attribute name="width"><data type="string"><param name="pattern">[0-9]+(\.[0-9]+)?%?</param></data></attribute></optional>
+    <optional><attribute name="align"><ref name="dt.align"/></attribute></optional>
+    <optional><attribute name="valign"><ref name="dt.valign"/></attribute></optional>
+    <optional><attribute name="style"><data type="string"/></attribute></optional>
+  </define>
+  <define name="el.col">
+    <element name="col">
+      <ref name="cm.col-attrs"/>
+      <empty/>
+    </element>
+  </define>
+  <define name="el.colgroup">
+    <element name="colgroup">
+      <ref name="cm.col-attrs"/>
+      <zeroOrMore><ref name="el.col"/></zeroOrMore>
+    </element>
+  </define>
+
+  <!-- thead / tbody：6.2.2。附录 D 把 align/valign/style 列为二者的可选属性（M-D.1-03）。 -->
+  <define name="cm.row-group-attrs">
+    <optional><attribute name="align"><ref name="dt.align"/></attribute></optional>
+    <optional><attribute name="valign"><ref name="dt.valign"/></attribute></optional>
+    <optional><attribute name="style"><data type="string"/></attribute></optional>
+  </define>
+  <define name="el.thead">
+    <element name="thead">
+      <ref name="cm.row-group-attrs"/>
+      <oneOrMore><ref name="el.tr"/></oneOrMore>
+    </element>
+  </define>
+  <define name="el.tbody">
+    <element name="tbody">
+      <ref name="cm.row-group-attrs"/>
+      <oneOrMore><ref name="el.tr"/></oneOrMore>
+    </element>
+  </define>
+
+  <!-- tr：6.2.2（M-6.2.2-02）。行内单元格 th/td 可混用（thead 中遇 td 导入时按 header 标志处理并告警，C-T-16）。 -->
+  <define name="el.tr">
+    <element name="tr">
+      <ref name="cm.row-group-attrs"/>
+      <oneOrMore>
+        <choice>
+          <ref name="el.th"/>
+          <ref name="el.td"/>
+        </choice>
+      </oneOrMore>
+    </element>
+  </define>
+
+  <!--
+    th / td：6.3、6.4。align/valign（6.3.2）、colspan/rowspan（6.4，计数数字，默认 1）、style（6.3.3、6.3.4）。
+    style 的语法（border-left/top/right/bottom: solid|dashed|dotted <n>px; background-color: …）
+    在示例中冒号/等号混用（F-T-03），schema 只要求字符串，不检查内部语法 [宽松]。
+    td@scope="row"：仅 6.4 示例一例，导入接受并忽略（C-T-07，M-6.4-04）。
+    内容（C-T-11）：仅行内内容，或仅 p/list 块；行内与 p 混排不接受。单位放 th 内第二个 p（6.2.4）。
+  -->
+  <define name="cm.cell-attrs">
+    <optional><attribute name="align"><ref name="dt.align"/></attribute></optional>
+    <optional><attribute name="valign"><ref name="dt.valign"/></attribute></optional>
+    <optional><attribute name="colspan"><data type="positiveInteger"/></attribute></optional>
+    <optional><attribute name="rowspan"><data type="positiveInteger"/></attribute></optional>
+    <optional><attribute name="style"><data type="string"/></attribute></optional>
+  </define>
+  <define name="cm.cell-content">
+    <choice>
+      <ref name="cm.inline"/>
+      <oneOrMore>
+        <choice>
+          <ref name="el.p"/>
+          <ref name="el.list"/>
+        </choice>
+      </oneOrMore>
+    </choice>
+  </define>
+  <define name="el.th">
+    <element name="th">
+      <ref name="cm.cell-attrs"/>
+      <ref name="cm.cell-content"/>
+    </element>
+  </define>
+  <define name="el.td">
+    <element name="td">
+      <ref name="cm.cell-attrs"/>
+      <optional><attribute name="scope"><value>row</value></attribute></optional>
+      <ref name="cm.cell-content"/>
+    </element>
+  </define>
+
+  <!--
+    table-wrap-foot：6.2.3、6.2.5。表注（non-normative-note）、表脚注（fn）、通用单位（p[@content-type="dimension"]）
+    均放在此处，顺序任意（C-T-02：导出顺序为 dimension、note*、fn*，导入顺序不限）。
+    表脚注引用：单元格内 xref[@ref-type="table-fn"]，必须指向同一 table-wrap 内的 fn（validate.py V-8）。
+  -->
+  <define name="el.table-wrap-foot">
+    <element name="table-wrap-foot">
+      <zeroOrMore>
+        <choice>
+          <ref name="el.p"/>
+          <ref name="el.non-normative-note"/>
+          <ref name="el.fn"/>
+        </choice>
+      </zeroOrMore>
+    </element>
+  </define>
+
+</grammar>

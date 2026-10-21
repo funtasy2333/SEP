@@ -1,0 +1,360 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ses-gbt46687-2 / body.rng  —  文档骨架、章条、附录、索引，以及条文块（列项、注、示例、摘录、代码）
+  版本 0.1.0  ·  项目实现约定，非官方（见 ses-gbt46687-2.rng 文件头）
+
+  依据：第 4 章（4.1～4.5）、第 5 章（5.2、5.3、5.6、5.7、5.9、5.10）、附录 E、表 1。
+  约定：C-S-01、C-S-06～C-S-10、C-S-23～C-S-28、C-S-31～C-S-33、C-S-35。
+  矩阵行：M-4.1-0x、M-4.2-0x、M-4.3.x、M-4.4.x、M-4.5.x、M-5.x、M-E-xx。
+
+  sec-type 的位置约束（V-2 的结构部分）在此处用不同的 define 表达：
+    front 内：foreword / intro；body 顶层（章）：scope / norm-refs / terms；其下的条：numbered-paragraph 或无。
+  “numbered-paragraph 的 sec 不含 title”这一条跨元素，留给 validate.py V-2。
+-->
+<grammar xmlns="http://relaxng.org/ns/structure/1.0"
+         ns=""
+         datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+
+  <!-- ===== 骨架 ===== -->
+
+  <!--
+    standard：根元素，无命名空间（C-S-03）。子元素顺序 processing-meta?、front、body、back?（C-S-01、C-S-04）。
+    processing-meta 的位置“直接置于 standard 下”出自 4.3.2；“第一个子元素”出自 ISO 源指南旁证，属项目实现约定。
+    命名空间声明（xlink/mml/tbx）不是属性，RELAX NG 不约束；由 validate.py 检查前缀绑定。
+  -->
+  <define name="el.standard">
+    <element name="standard">
+      <optional><ref name="el.processing-meta"/></optional>
+      <ref name="el.front"/>
+      <ref name="el.body"/>
+      <optional><ref name="el.back"/></optional>
+    </element>
+  </define>
+
+  <!-- front：std-meta → 前言 → 引言（C-S-01）。前言、引言可缺。 -->
+  <define name="el.front">
+    <element name="front">
+      <ref name="el.std-meta"/>
+      <optional><ref name="el.sec.foreword"/></optional>
+      <optional><ref name="el.sec.intro"/></optional>
+    </element>
+  </define>
+
+  <!-- body：至少一个章（生产 Schema 的 chapter+，C-S-01）。 -->
+  <define name="el.body">
+    <element name="body">
+      <oneOrMore><ref name="el.sec.chapter"/></oneOrMore>
+    </element>
+  </define>
+
+  <!-- back：app-group → ref-list → index（C-S-01）。“ref-list 通常最后”与“index 在 ref-list 之后”矛盾，取后者（原文各一处）。 -->
+  <define name="el.back">
+    <element name="back">
+      <optional><ref name="el.app-group"/></optional>
+      <optional><ref name="el.ref-list"/></optional>
+      <optional><ref name="el.index"/></optional>
+    </element>
+  </define>
+
+  <!-- ===== 章与条 ===== -->
+
+  <!-- 前言：4.3.3。固定 id=sec_foreword，无 label。 -->
+  <define name="el.sec.foreword">
+    <element name="sec">
+      <ref name="attr.id"/>
+      <attribute name="sec-type"><value>foreword</value></attribute>
+      <ref name="el.title"/>
+      <ref name="cm.sec-content"/>
+    </element>
+  </define>
+
+  <!--
+    引言：4.3.4。无子条 id=sec_intro；有子条 id=sec_0，子条为 sec_0.<n>（子条用普通 el.sec.nested，含 label）。
+  -->
+  <define name="el.sec.intro">
+    <element name="sec">
+      <ref name="attr.id"/>
+      <attribute name="sec-type"><value>intro</value></attribute>
+      <ref name="el.title"/>
+      <ref name="cm.sec-content"/>
+    </element>
+  </define>
+
+  <!--
+    章（body 顶层 sec）：4.2、表 1、4.4.2.1～4.4.2.5。
+    sec-type：scope / norm-refs / terms；[仅导入接受] norm_refs（4.4.2.3.2 示例）。
+    其他取值：表 D.1 行 13 称 sec-type“可以采用任何值”，C-S-06 约定“按 general 处理并告警”，
+    故此处接受其他 token，validate.py V-2 对其告警；但 foreword/intro/numbered-paragraph 不得出现在章上。
+    章的 title 必备（无标题只适用于条，4.4.2.5）。
+  -->
+  <define name="el.sec.chapter">
+    <element name="sec">
+      <ref name="attr.id"/>
+      <optional>
+        <attribute name="sec-type">
+          <choice>
+            <value>scope</value>
+            <value>norm-refs</value>
+            <value>terms</value>
+            <!-- [仅导入接受] -->
+            <value>norm_refs</value>
+            <ref name="dt.sec-type.other"/>
+          </choice>
+        </attribute>
+      </optional>
+      <optional><ref name="el.label"/></optional>
+      <ref name="el.title"/>
+      <ref name="cm.sec-content"/>
+    </element>
+  </define>
+
+  <!--
+    条（章以下各层 sec，含附录中的条、引言中的条）：4.4.2.1、4.4.2.5。
+    无标题条：sec-type="numbered-paragraph" 且不含 title（V-2）；4.4.2.1 示例中无标题条没有 sec-type（两种写法均接受）。
+    title 因此为可选。
+  -->
+  <define name="el.sec.nested">
+    <element name="sec">
+      <ref name="attr.id"/>
+      <optional>
+        <attribute name="sec-type">
+          <choice>
+            <value>numbered-paragraph</value>
+            <ref name="dt.sec-type.other"/>
+          </choice>
+        </attribute>
+      </optional>
+      <optional><ref name="el.label"/></optional>
+      <optional><ref name="el.title"/></optional>
+      <ref name="cm.sec-content"/>
+    </element>
+  </define>
+
+  <!-- 其他 sec-type 值：不得是已有角色名。 -->
+  <define name="dt.sec-type.other">
+    <data type="token">
+      <except>
+        <choice>
+          <value>foreword</value><value>intro</value><value>scope</value><value>norm-refs</value>
+          <value>norm_refs</value><value>terms</value><value>numbered-paragraph</value>
+        </choice>
+      </except>
+    </data>
+  </define>
+
+  <!-- sec 的内容：块、子条、术语条（term-sec）、清单（规范性引用文件章内的 ref-list）。 -->
+  <define name="cm.sec-content">
+    <zeroOrMore>
+      <choice>
+        <ref name="block.any"/>
+        <ref name="el.sec.nested"/>
+        <ref name="el.term-sec"/>
+        <ref name="el.ref-list"/>
+      </choice>
+    </zeroOrMore>
+  </define>
+
+  <!--
+    条文块（出现在 sec/app 内的各种块级元素）。
+    fn 作为块：正文脚注定义位置原文没有规定（D-T-10），暂允许，待决定 [未核实]。
+    graphic 作为块：7.4 示例中公式图片是 disp-formula 的兄弟元素（M-7.4-13 的 path 却写作 disp-formula/graphic，已两种都容纳）。
+    array（5.8）、disp-formula-group、fn-group 在矩阵中为 import: reject，不在 schema 中。
+  -->
+  <define name="block.any">
+    <choice>
+      <ref name="el.p"/>
+      <ref name="el.list"/>
+      <ref name="el.non-normative-note"/>
+      <ref name="el.non-normative-example"/>
+      <ref name="el.disp-quote"/>
+      <ref name="el.code"/>
+      <ref name="el.table-wrap"/>
+      <ref name="el.fig"/>
+      <ref name="el.fig-group"/>
+      <ref name="el.disp-formula"/>
+      <ref name="el.graphic"/>
+      <ref name="el.def-list"/>
+      <ref name="el.fn"/>
+    </choice>
+  </define>
+
+  <!--
+    term-sec：术语条（9.2.1）。内含恰好一个 tbx:termEntry（嵌套 term-sec / 多个 termEntry 在 SES 中 unsupported，C-T-47）。
+    sec-type 属性：表 D.1 行 13 允许，正文无用例（M-9.1 term-sec），取 token。
+  -->
+  <define name="el.term-sec">
+    <element name="term-sec">
+      <ref name="attr.id"/>
+      <optional><attribute name="sec-type"><data type="token"/></attribute></optional>
+      <optional><ref name="el.label"/></optional>
+      <ref name="el.tbx-termEntry"/>
+    </element>
+  </define>
+
+  <!-- ===== 附录 ===== -->
+
+  <!-- app-group / app：4.5.2。label（“附录 A”）、annex-type（“（资料性）”）、title、条。 -->
+  <define name="el.app-group">
+    <element name="app-group">
+      <oneOrMore><ref name="el.app"/></oneOrMore>
+    </element>
+  </define>
+
+  <!--
+    app：content-type 取 informative / normative（4.2、表 1、4.5.2.1）。
+    [仅导入接受] inform-annex（4.1 骨架）、inform_annex（4.5.2.2 示例）：规范化为 informative；规范性附录的异写原文未出现，不接受。
+    annex-type 文本与 content-type 不一致时以 content-type 为准并告警（validate.py）。
+  -->
+  <define name="el.app">
+    <element name="app">
+      <ref name="attr.id"/>
+      <attribute name="content-type">
+        <choice>
+          <value>informative</value>
+          <value>normative</value>
+          <!-- [仅导入接受] -->
+          <value>inform-annex</value>
+          <value>inform_annex</value>
+        </choice>
+      </attribute>
+      <optional><ref name="el.label"/></optional>
+      <optional><element name="annex-type"><ref name="cm.inline"/></element></optional>
+      <ref name="el.title"/>
+      <zeroOrMore>
+        <choice>
+          <ref name="block.any"/>
+          <ref name="el.sec.nested"/>
+          <ref name="el.ref-list"/>
+        </choice>
+      </zeroOrMore>
+    </element>
+  </define>
+
+  <!-- ===== 索引（4.5.4） ===== -->
+
+  <!--
+    index：位置在参考文献之后（4.5.4）。表 C.1 只列 index，index-title-group / index-div / index-entry / see-entry 不在表中（M-C-05）。
+    see-entry 内是纯文本编号（无 rid）。索引词 term 与 def-item 内的 term 同名异义，均为行内内容。
+    index-div 允许嵌套的写法原文没有，仅按示例（index → index-div → index-entry）[未核实]。
+  -->
+  <define name="el.index">
+    <element name="index">
+      <ref name="attr.id"/>
+      <optional><ref name="el.index-title-group"/></optional>
+      <zeroOrMore>
+        <choice>
+          <ref name="el.index-div"/>
+          <ref name="el.index-entry"/>
+        </choice>
+      </zeroOrMore>
+    </element>
+  </define>
+  <define name="el.index-title-group">
+    <element name="index-title-group"><ref name="el.title"/></element>
+  </define>
+  <define name="el.index-div">
+    <element name="index-div">
+      <optional><ref name="el.index-title-group"/></optional>
+      <zeroOrMore><ref name="el.index-entry"/></zeroOrMore>
+    </element>
+  </define>
+  <define name="el.index-entry">
+    <element name="index-entry">
+      <ref name="attr.id"/>
+      <element name="term"><ref name="cm.inline"/></element>
+      <zeroOrMore><element name="see-entry"><ref name="cm.inline"/></element></zeroOrMore>
+    </element>
+  </define>
+
+  <!-- ===== 条文块 ===== -->
+
+  <!--
+    list / list-item：5.7。
+    list-type：有序 alpha-lower / arabic / roman-lower，无序 dash / bullet（5.7.1～3；C-S-32）。
+    表 D.1 行 7 另列 simple、symbol，SES 不接受（IR 无法无歧义表达）。
+    list-item：有序项含 label（a)、1)…），无序项不写 label（V-5）；文本在 p 中，嵌套列表在 p 之后。
+    list/@id、list-item/@id：附录 E 称无 id，示例中有（判为示例）；被 xref[@ref-type="list"] 引用的 list-item 才有 id（C-T-52）。
+  -->
+  <define name="el.list">
+    <element name="list">
+      <ref name="attr.id"/>
+      <attribute name="list-type">
+        <choice>
+          <value>alpha-lower</value>
+          <value>arabic</value>
+          <value>roman-lower</value>
+          <value>dash</value>
+          <value>bullet</value>
+        </choice>
+      </attribute>
+      <oneOrMore><ref name="el.list-item"/></oneOrMore>
+    </element>
+  </define>
+  <define name="el.list-item">
+    <element name="list-item">
+      <ref name="attr.id"/>
+      <optional><ref name="el.label"/></optional>
+      <oneOrMore>
+        <choice>
+          <ref name="el.p"/>
+          <ref name="el.list"/>
+        </choice>
+      </oneOrMore>
+    </element>
+  </define>
+
+  <!--
+    non-normative-note / non-normative-example：5.6。不编号；label 含“注：”“注1：”“示例：”等。
+    警告：content-type="warning" 的 non-normative-note（元素名按 5.6 措辞与 ISO 源指南取，项目实现约定）。
+    内容“使用 sec 中的标签，例如 p、list 等”：取 p、list、code、disp-formula [未核实全集]。
+    id：附录 E 称无 id，只有被 xref 引用者才有（D-S-09）。
+  -->
+  <define name="el.non-normative-note">
+    <element name="non-normative-note">
+      <ref name="attr.id"/>
+      <optional><attribute name="content-type"><value>warning</value></attribute></optional>
+      <optional><ref name="el.label"/></optional>
+      <zeroOrMore><ref name="cm.note-block"/></zeroOrMore>
+    </element>
+  </define>
+  <define name="el.non-normative-example">
+    <element name="non-normative-example">
+      <ref name="attr.id"/>
+      <optional><ref name="el.label"/></optional>
+      <zeroOrMore><ref name="cm.note-block"/></zeroOrMore>
+    </element>
+  </define>
+  <define name="cm.note-block">
+    <choice>
+      <ref name="el.p"/>
+      <ref name="el.list"/>
+      <ref name="el.code"/>
+      <ref name="el.disp-formula"/>
+    </choice>
+  </define>
+
+  <!--
+    disp-quote：5.9。内含 p；来源 attrib（specific-use="source"）、权限 permissions 可有（M-5.9-03，导入接受）。
+    示例把属性写作 <attrib @specific-use="source">（带 @，排印错误）。
+  -->
+  <define name="el.disp-quote">
+    <element name="disp-quote">
+      <interleave>
+        <oneOrMore><ref name="el.p"/></oneOrMore>
+        <optional>
+          <element name="attrib">
+            <optional><attribute name="specific-use"><value>source</value></attribute></optional>
+            <ref name="cm.inline"/>
+          </element>
+        </optional>
+        <optional><ref name="el.permissions"/></optional>
+      </interleave>
+    </element>
+  </define>
+
+  <!-- code：5.10 代码块，内容纯文本，空白保留。行内代码是 inline-code（common.rng）。 -->
+  <define name="el.code">
+    <element name="code"><text/></element>
+  </define>
+
+</grammar>

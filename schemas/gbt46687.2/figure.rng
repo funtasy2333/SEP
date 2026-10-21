@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ses-gbt46687-2 / figure.rng  —  图（第 8 章）、图例与定义列表（8.5、7.3、10.1.4）
+  版本 0.1.0  ·  项目实现约定，非官方（见 ses-gbt46687-2.rng 文件头）
+
+  依据：8.1～8.6、7.3、10.1.4、附录 C（fig/graphic/inline-graphic/legend/def-list）、附录 D 行 6/7/8/20。
+  约定：C-T-26～C-T-35、C-T-22、C-T-51。矩阵行：M-8.x、M-7.3-0x、M-10.1.4-0x。
+  gap 项（当前 IR/PM 无法保存：legend、inline-graphic、fig-group、多 graphic、图注、缩略语）在此全部收入，
+  因为 schema 描述的是标准，不是当前实现能力。
+
+  拒绝项（矩阵 import: reject，不在 schema 中）：fig 内的 fn（M-8.6-02）、图题英文（caption 内多个 title）。
+-->
+<grammar xmlns="http://relaxng.org/ns/structure/1.0"
+         ns=""
+         datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+
+  <!--
+    fig：8.2。子元素顺序 label、caption、legend、graphic、p*、non-normative-note*（C-T-26，顺序取自示例，原文未规定 legend 与 p 的相对位置），
+    导入接受任意相对顺序，故用 interleave。graphic 一个或多个（8.4 a：同一 fig 内多个独立 graphic，M-8.4-01）。
+    non-normative-example：8.4 提到图中示例须在分图层级（M-8.4-03）。
+  -->
+  <define name="el.fig">
+    <element name="fig">
+      <ref name="attr.id"/>
+      <optional><attribute name="orientation"><ref name="dt.orientation"/></attribute></optional>
+      <interleave>
+        <optional><ref name="el.label"/></optional>
+        <ref name="el.caption"/>
+        <optional><ref name="el.legend"/></optional>
+        <oneOrMore><ref name="el.graphic"/></oneOrMore>
+        <zeroOrMore><ref name="el.p"/></zeroOrMore>
+        <zeroOrMore><ref name="el.non-normative-note"/></zeroOrMore>
+        <zeroOrMore><ref name="el.non-normative-example"/></zeroOrMore>
+      </interleave>
+    </element>
+  </define>
+
+  <!--
+    fig-group：8.4 b）。内含多个 fig（分图）；组合图层级至多一个 legend；图注、示例在分图层级，不在 fig-group 层级。
+    fig-group 自身的 id/label/caption 原文未规定，且表 C.1 没有 fig-group（F-T-22）[未核实]：取 id、label、caption 可选。
+  -->
+  <define name="el.fig-group">
+    <element name="fig-group">
+      <ref name="attr.id"/>
+      <interleave>
+        <optional><ref name="el.label"/></optional>
+        <optional><ref name="el.caption"/></optional>
+        <optional><ref name="el.legend"/></optional>
+        <oneOrMore><ref name="el.fig"/></oneOrMore>
+      </interleave>
+    </element>
+  </define>
+
+  <!--
+    graphic：6.1、7.4、8.2。xlink:href 必备（附录 D 行 20）：SES 约定取所属 fig 的导出 id，无文件夹与扩展名（C-T-27）；
+    导入接受 asset/picture2、/graphics/xxx.png 等，按基名匹配资源清单（由导入器处理，schema 只要求非空）。
+    content-type：image（图）、disp_table（表替代图）、disp-formula（公式替代图）；其他值告警后忽略（C-T-28），故取 token。
+    specific-use：size:T/S/M/L（8.3 表 2，可选）。
+  -->
+  <define name="el.graphic">
+    <element name="graphic">
+      <ref name="attr.xlink-href.req"/>
+      <ref name="attr.xlink-type"/>
+      <optional><attribute name="content-type"><data type="token"/></attribute></optional>
+      <optional><attribute name="specific-use"><ref name="dt.size-token"/></attribute></optional>
+      <empty/>
+    </element>
+  </define>
+
+  <!-- inline-graphic：8.3。size:T 仅限 graphic；用于 inline-graphic 时 validate.py 告警（C-T-28）。 -->
+  <define name="el.inline-graphic">
+    <element name="inline-graphic">
+      <ref name="attr.xlink-href.req"/>
+      <ref name="attr.xlink-type"/>
+      <optional><attribute name="specific-use"><ref name="dt.size-token"/></attribute></optional>
+      <empty/>
+    </element>
+  </define>
+  <define name="dt.size-token">
+    <choice>
+      <value>size:T</value><value>size:S</value><value>size:M</value><value>size:L</value>
+    </choice>
+  </define>
+
+  <!--
+    legend：图例（8.5）与公式“式中”（7.3）。标题 title，其后 def-list（每个 def-item 一对 term/def）。
+    legend 上的 id 示例中有（判为工具生成物），导入接受并忽略（C-T-31）。
+    p：legend 内除 def-list 外原文没有规定，容许 p [未核实]。
+  -->
+  <define name="el.legend">
+    <element name="legend">
+      <ref name="attr.id"/>
+      <optional><ref name="el.title"/></optional>
+      <zeroOrMore>
+        <choice>
+          <ref name="el.def-list"/>
+          <ref name="el.p"/>
+        </choice>
+      </zeroOrMore>
+    </element>
+  </define>
+
+  <!--
+    def-list / def-item / term / def：7.3（式中）、8.5（图例）、10.1.4（缩略语）。
+    list-content：formula / figure / abbreviation（附录 D 行 6）。
+    list-type：附录 D 行 7 的 simple/bullet/dash/symbol（M-D.1-05，导入接受；SES 不写）。
+    def 内的 p：7.3 写“每个 def-item 只标记一个字母符号及其含义”，def 内多个 p 导入时拼接并告警（C-T-22、M-7.3-08）。
+    def-item@id：缩略语用于交叉引用（10.1.4 示例 abb-adc 等）；公式、图例中不写 id。
+  -->
+  <define name="el.def-list">
+    <element name="def-list">
+      <ref name="attr.id"/>
+      <optional>
+        <attribute name="list-content">
+          <choice><value>formula</value><value>figure</value><value>abbreviation</value></choice>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="list-type">
+          <choice><value>simple</value><value>bullet</value><value>dash</value><value>symbol</value></choice>
+        </attribute>
+      </optional>
+      <optional><ref name="el.title"/></optional>
+      <oneOrMore><ref name="el.def-item"/></oneOrMore>
+    </element>
+  </define>
+  <define name="el.def-item">
+    <element name="def-item">
+      <ref name="attr.id"/>
+      <element name="term"><ref name="cm.inline"/></element>
+      <element name="def"><oneOrMore><ref name="el.p"/></oneOrMore></element>
+    </element>
+  </define>
+
+</grammar>
