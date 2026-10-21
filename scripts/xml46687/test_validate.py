@@ -154,6 +154,9 @@ EXPORT_ONLY_INVALID = {
     "missing-ref-id.xml": ("V-13", "ref"),
     # xref[ref-type=custom] 缺 custom-type：导入告警（导入器按目标推断）、导出错误
     "custom-xref-no-type.xml": ("V-8", "custom-type"),
+    # mml:math 的 id 与 display（矩阵 M-7.4-02、M-7.1-05、M-7.4-03）：导入告警、导出错误
+    "mathml-id-missing.xml": ("V-14", "缺少 id"),
+    "mathml-display-inline-in-disp-formula.xml": ("V-15", "display"),
 }
 
 # 矩阵中 import: reject 的行（rejectKind 见 docs/wp8.1/matrix-*.json）：
@@ -1589,6 +1592,107 @@ class TestEncodingDetection(unittest.TestCase):
             self.assertTrue(self._syn2(self._run(raw, validator)), validator.profile)
 
 
+class TestMathmlIdAndDisplay(unittest.TestCase):
+    """V-14 MML-ID / V-15 MML-DISPLAY：矩阵 export required（M-7.4-02、M-7.1-05、M-7.4-03），导出错误、导入告警。"""
+
+    NS = ('xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:mml="http://www.w3.org/1998/Math/MathML" '
+          'xmlns:tbx="urn:iso:std:iso:30042:ed-1"')
+
+    def _check(self, fragment, profile):
+        text = "<standard %s><body><sec id=\"s\"><title>t</title>%s</sec></body></standard>" % (self.NS, fragment)
+        tree = validate.etree.ElementTree(validate.etree.fromstring(text.encode("utf-8"), validate.secure_parser()))
+        rep = validate.Report("case.xml", profile)
+        validate.check_mml_math([e for e in tree.getroot().iter() if validate.is_element(e)], rep)
+        return rep
+
+    @staticmethod
+    def _inline(attrs=""):
+        return '<p><inline-formula><mml:math%s><mml:mi>x</mml:mi></mml:math></inline-formula></p>' % attrs
+
+    @staticmethod
+    def _disp(attrs=""):
+        return '<disp-formula id="f"><label>(1)</label><mml:math%s><mml:mi>x</mml:mi></mml:math></disp-formula>' % attrs
+
+    def _both(self, fragment):
+        return self._check(fragment, "import"), self._check(fragment, "export")
+
+    def test_correct_ids_and_display_are_clean(self):
+        frag = self._inline(' id="mml_m1"') + self._disp(' display="block" id="mml_m2"') + self._inline(' id="mml_m3"') \
+            + '<disp-formula-group><disp-formula id="g1"><mml:math display="block" id="mml_m4"><mml:mi>y</mml:mi></mml:math></disp-formula></disp-formula-group>'
+        for rep in self._both(frag):
+            self.assertEqual((rep.errors, rep.warnings), ([], []))
+
+    def test_missing_or_malformed_id_is_an_error_on_export_and_a_warning_on_import(self):
+        cases = {
+            "缺 id": self._inline(),
+            "示例的 m1 写法": self._inline(' id="m1"'),
+            "前缀 mml_m 后不是数字": self._inline(' id="mml_mx"'),
+            "mml_m0（不是正整数）": self._inline(' id="mml_m0"'),
+            "前导零 mml_m01": self._inline(' id="mml_m01"'),
+            "大小写不对 MML_M1": self._inline(' id="MML_M1"'),
+        }
+        for why, frag in cases.items():
+            with self.subTest(why=why):
+                imp, exp = self._both(frag)
+                self.assertEqual(imp.errors, [])
+                self.assertEqual([w["rule"] for w in imp.warnings], ["V-14"])
+                self.assertIn("导入接受", imp.warnings[0]["message"])
+                self.assertEqual(exp.warnings, [])
+                self.assertEqual([e["rule"] for e in exp.errors], ["V-14"])
+                self.assertIn("导出必须写 id", exp.errors[0]["message"])
+                self.assertRegex(exp.errors[0]["message"], r"M-7\.4-02")
+
+    def test_k_must_equal_the_occurrence_number_counting_inline_and_display_together(self):
+        frag = self._inline(' id="mml_m1"') + self._disp(' display="block" id="mml_m1"')  # 第二个应为 mml_m2
+        imp, exp = self._both(frag)
+        self.assertEqual([e["rule"] for e in exp.errors], ["V-14"])
+        self.assertIn("出现序号 2", exp.errors[0]["message"])
+        self.assertEqual([w["rule"] for w in imp.warnings], ["V-14"])
+        # 行间与行内合并计数：先行间后行内
+        imp, exp = self._both(self._disp(' display="block" id="mml_m1"') + self._inline(' id="mml_m2"'))
+        self.assertEqual((exp.errors, exp.warnings, imp.warnings), ([], [], []))
+
+    def test_nested_mathml_math_is_not_counted(self):
+        frag = ('<p><inline-formula><mml:math id="mml_m1"><mml:semantics><mml:mi>x</mml:mi>'
+                '<mml:annotation-xml encoding="MathML-Content"><mml:math><mml:mi>x</mml:mi></mml:math></mml:annotation-xml></mml:semantics></mml:math></inline-formula></p>')
+        for rep in self._both(frag):
+            self.assertEqual((rep.errors, rep.warnings), ([], []))
+
+    def test_display_follows_the_enclosing_formula_element(self):
+        # 行间公式：export 必须 display="block"；缺省在导入时不告警（原文 7.1、7.3 的示例没有 display），反向值告警
+        imp, exp = self._both(self._disp(' id="mml_m1"'))
+        self.assertEqual((imp.errors, imp.warnings), ([], []))
+        self.assertEqual([e["rule"] for e in exp.errors], ["V-15"])
+        self.assertIn("缺少 display", exp.errors[0]["message"])
+        imp, exp = self._both(self._disp(' display="inline" id="mml_m1"'))
+        self.assertEqual([w["rule"] for w in imp.warnings], ["V-15"])
+        self.assertEqual([e["rule"] for e in exp.errors], ["V-15"])
+        # 行内公式：export 不得带 display（block 或 inline 都不行）；导入告警
+        for value in ("block", "inline"):
+            imp, exp = self._both(self._inline(' display="%s" id="mml_m1"' % value))
+            self.assertEqual([w["rule"] for w in imp.warnings], ["V-15"], value)
+            self.assertEqual([e["rule"] for e in exp.errors], ["V-15"], value)
+            self.assertIn("inline-formula", exp.errors[0]["message"])
+
+    def test_the_schema_still_accepts_both_values_in_both_contexts(self):
+        # 这是语义规则而不是拆分 schema：导入必须接受第三方的反向值，所以结构层两个上下文都允许 block/inline
+        for frag in (self._disp(' display="inline" id="mml_m1"'), self._inline(' display="block" id="mml_m1"'), self._inline(), self._disp()):
+            text = _doc(body='<sec id="sec_1" sec-type="scope"><label>1</label><title>范围</title>%s</sec>' % frag)
+            with tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "case.xml"
+                path.write_text(text, encoding="utf-8")
+                rep = VALIDATOR_IMPORT.validate_file(path)
+            self.assertTrue(rep.valid, validate.format_human(rep))
+            self.assertIs(rep.engines["lxml"]["valid"], True)
+            self.assertIs(rep.engines["xmllint"]["valid"], True)
+
+    def test_every_math_in_export_clean_samples_is_compliant(self):
+        for path in sorted(VALID_DIR.glob("*.xml")):
+            if path.name.startswith(EXPORT_CLEAN_PREFIXES):
+                rep = VALIDATOR_EXPORT.validate_file(path)
+                self.assertEqual([i for i in rep.errors + rep.warnings if i["rule"] in ("V-14", "V-15")], [], path.name)
+
+
 class TestWarnings(unittest.TestCase):
     """约定表写“告警后保留/忽略”的情形：文档通过，但给出对应告警（不阻断）。"""
 
@@ -1613,7 +1717,7 @@ class TestWarnings(unittest.TestCase):
             ("W-FN-MULTIREF", _doc(body=sec % '<p><xref ref-type="fn" rid="fn_1">1</xref><xref ref-type="fn" rid="fn_1">1</xref></p><fn id="fn_1"><p>x</p></fn>')),
             ("W-ANNEX-TYPE", _doc(back='<back><app-group><app content-type="normative" id="sec_A"><annex-type>（资料性）</annex-type><title>t</title></app></app-group></back>')),
             ("W-DATE-ORDER", _doc(meta=_META + "<release-date>2026-11-01</release-date><implementation-date>2026-04-30</implementation-date>")),
-            ("W-MML-ID", _doc(body=sec % '<p><inline-formula><mml:math id="m1"><mml:mi>a</mml:mi></mml:math></inline-formula></p>')),
+            ("V-14", _doc(body=sec % '<p><inline-formula><mml:math id="m1"><mml:mi>a</mml:mi></mml:math></inline-formula></p>')),
         ]
         for rule, text in cases:
             with self.subTest(rule=rule):

@@ -16,7 +16,8 @@
              V-6 processing-meta 与 title-wrap；V-7 遗留 id 形式；
              附加：V-8 xref 的 ref-type 与目标一致；V-9 术语条目定义个数；V-10 MathML 安全；V-11 外链协议；
              V-12 std-meta 子元素次序（STD-META-ORDER：导出为错误，导入为告警；结构层不限次序）；
-             V-13 必备 id（REQUIRED-ID：导出为错误，导入为告警；结构层 id 一律可选）
+             V-13 必备 id（REQUIRED-ID：导出为错误，导入为告警；结构层 id 一律可选）；
+             V-14 mml:math 的 id（MML-ID）；V-15 mml:math 的 display 按上下文（MML-DISPLAY）：均为导出错误、导入告警
 
 说明：lxml 与 xmllint 都基于 libxml2 的 RELAX NG 实现（版本不同、构建独立），不是两个互相独立的算法；
 它们能发现构建/版本差异，但不能替代 jing 之类独立实现（本机没有）。
@@ -800,6 +801,55 @@ def check_required_ids(elems, rep: Report) -> None:
             break
 
 
+def strict_on_export(rep: Report, rule: str, msg: str, el, export_note: str, import_note: str) -> None:
+    """“导出严格、导入宽容”：export 档报错误，import 档报告警（V-12～V-15 共用）。"""
+    if rep.profile == "export":
+        rep.error(rule, msg + "（" + export_note + "）", el=el)
+    else:
+        rep.warn(rule, msg + "（" + import_note + "）", el=el)
+
+
+# V-14 MML-ID / V-15 MML-DISPLAY：mml:math 根元素（不在另一个 mml:math 之内）。
+# 矩阵 M-7.4-02、M-7.1-05（export required，obligation=should）：id=mml_m<k>，k 为全文 mml:math 的出现序号（行间与行内合并计数，从 1 起，C-T-18）；
+# C-T-19、C-T-17、C-T-21、M-7.4-03：行间公式（disp-formula 内）的 mml:math 带 display="block"，行内公式（inline-formula 内）不带 display。
+# 第三方文件常见写法（m1、缺 id、display 缺省或取反）导入时只告警：导入器去掉根上的 id、按所在公式元素决定行间/行内（C-T-18、C-T-19）。
+MML_ID_RE = re.compile(r"mml_m([1-9][0-9]*)")
+
+
+def check_mml_math(elems, rep: Report) -> None:
+    math_key = _clark(NS_MML, "math")
+    roots = [e for e in elems if nsuri(e) == NS_MML and local(e) == "math" and not has_ancestor(e, math_key)]
+    for n, el in enumerate(roots, 1):
+        ex_id = "导出必须写 id=\"mml_m%d\"" % n
+        im_id = "导入接受：导入器去掉 mml:math 根上的 id 并重新生成；导出须写 mml_m<k>"
+        mid = el.get("id")
+        if mid is None:
+            strict_on_export(rep, "V-14", "MML-ID：第 %d 个 mml:math 缺少 id（7.4 印刷页 28；矩阵 M-7.4-02、M-7.1-05 export required；C-T-18）" % n,
+                             el, ex_id, im_id)
+        else:
+            m = MML_ID_RE.fullmatch(mid)
+            if m is None:
+                strict_on_export(rep, "V-14", "MML-ID：mml:math 的 id=%r 不符合 mml_m<k>（k 为正整数；7.4 印刷页 28；矩阵 M-7.4-02、M-7.1-05；C-T-18；"
+                                 "7.1 示例的 m1 违反前缀，不采用）" % mid, el, ex_id, im_id)
+            elif int(m.group(1)) != n:
+                strict_on_export(rep, "V-14", "MML-ID：id=%r 的 k=%s 与该 mml:math 在全文中的出现序号 %d 不符（行间与行内合并计数，从 1 起；C-T-18）"
+                                 % (mid, m.group(1), n), el, ex_id, im_id)
+        parent = el.getparent()
+        in_inline = parent is not None and is_element(parent) and nsuri(parent) is None and local(parent) == "inline-formula"
+        disp = el.get("display")
+        if in_inline:
+            if disp is not None:
+                strict_on_export(rep, "V-15", "MML-DISPLAY：inline-formula 内的 mml:math 不应带 display（现为 display=%r；7.1、C-T-19、C-T-21、M-7.1-05）" % disp,
+                                 el, "行内公式导出不得写 display", "导入接受：按所在的 inline-formula 当作行内公式")
+        elif disp != "block":
+            if disp is None:
+                if rep.profile == "export":  # 原文 7.1、7.3 的行间公式示例没有 display，所以导入对缺省不告警
+                    rep.error("V-15", "MML-DISPLAY：disp-formula 内的 mml:math 缺少 display=\"block\"（7.4 印刷页 29、C-T-19、M-7.4-03；导出必须写）", el=el)
+            else:
+                strict_on_export(rep, "V-15", "MML-DISPLAY：disp-formula 内的 mml:math 取 display=%r，行间公式应为 display=\"block\"（C-T-19、C-T-17、M-7.4-03）" % disp,
+                                 el, "导出必须写 block", "导入接受：按所在的 disp-formula 当作行间公式")
+
+
 def semantic_checks(tree, rep: Report) -> None:
     root = tree.getroot()
     elems = [e for e in root.iter() if is_element(e)]
@@ -1024,6 +1074,9 @@ def semantic_checks(tree, rep: Report) -> None:
     # ---------------- V-13 必备 id（导出严格、导入告警） ----------------
     check_required_ids(elems, rep)
 
+    # ---------------- V-14 / V-15 mml:math 的 id 与 display ----------------
+    check_mml_math(elems, rep)
+
     # ---------------- V-7 遗留 id 形式 ----------------
     for el in elems:
         for attr in ("id", _clark(NS_XML, "id")):
@@ -1101,8 +1154,6 @@ def semantic_checks(tree, rep: Report) -> None:
             plain = etree.QName(aname).localname.lower()
             if plain.startswith("on"):
                 rep.error("V-10", "MathML 元素 <%s> 带事件属性 %s（C-T-19：不含脚本/事件属性）" % (label(el), aname), el=el)
-        if local(el) == "math" and el.get("id") and not re.fullmatch(r"mml_m\d+", el.get("id")):
-            rep.warn("W-MML-ID", "mml:math/@id=%r 不符合 mml_m<k> 形式（7.4、X-22；导出时由渲染器重写）" % el.get("id"), el=el)
 
     # ---------------- V-11 URL 取值（统一检查：见 url_value_problem） ----------------
     # 覆盖：任何元素上本地名为 href / src / altimg 的属性（xlink:href 在 ext-link、graphic、inline-graphic、MathML 上……）、uri 元素的文本。

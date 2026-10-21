@@ -267,6 +267,10 @@ case('ext-link-newline-in-url.xml', 'ext-link 的 URL 里含换行（&#x0A;，V-
      [('xlink:href="https://example.org/"', 'xlink:href="https://example.org/&#x0A;x"')])
 case('mathml-href-control-char.xml', 'mml:math 的 href 里含 tab（V-10：与 ext-link 同一套 URL 检查）。',
      [('<mml:math display="block" id="mml_m1">', '<mml:math display="block" id="mml_m1" href="java&#x9;script:alert(1)">')])
+case('mathml-id-missing.xml', 'mml:math 缺 id（矩阵 M-7.4-02、M-7.1-05：export required 的 mml_m<k>，C-T-18）。结构层 id 可选：import 档通过并告警 V-14 MML-ID，export 档为错误（仅 export 档的负例）。',
+     [('<mml:math display="block" id="mml_m1">', '<mml:math display="block">')])
+case('mathml-display-inline-in-disp-formula.xml', 'disp-formula 内的 mml:math 取 display="inline"（行间公式应为 block，C-T-19、M-7.4-03）。import 档通过并告警 V-15 MML-DISPLAY，export 档为错误（仅 export 档的负例）。',
+     [('<mml:math display="block" id="mml_m1">', '<mml:math display="inline" id="mml_m1">')])
 case('encoding-declared-after-400-bytes.xml', 'XML 声明里 version 与 encoding 之间塞了 450 个空格，encoding="ISO-8859-1" 排在第 400 字节之后（SYN-2：声明要看完整，不能只看开头 400 字节）。',
      [('<?xml version="1.0" encoding="UTF-8"?>', '<?xml version="1.0"' + ' ' * 450 + 'encoding="ISO-8859-1"?>')])
 # ---- 仅结构（RNG）----
