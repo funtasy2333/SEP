@@ -99,6 +99,29 @@ describe('结构化式中：命令', () => {
     expect(JSON.stringify(editor.getJSON())).toBe(before)
   })
 
+  it('指定公式位置与符号：光标不在公式内也能添加，条目与符号同一步写入、一次撤销整体撤回', () => {
+    const editor = createEditor(formulaDoc([{ type: 'formulaDescription' }]))
+    placeCursor(editor, 'chapterTitle')
+    const before = JSON.stringify(editor.getJSON())
+    let formulaPos = -1
+    editor.state.doc.descendants((node, pos) => { if (node.type.name === 'formula') formulaPos = pos })
+    expect(editor.commands.addWhereItem({ pos: formulaPos, latex: 'q_{V}' })).toBe(true)
+    expect(childTypes(formulaJson(editor))).toEqual(['formulaContent', 'whereList'])
+    const [term] = whereItems(editor)[0]!.content!
+    expect(term!.content).toEqual([expect.objectContaining({ type: 'formulaInline', attrs: expect.objectContaining({ latex: 'q_{V}' }) })])
+    // 光标停在符号格的公式之后，按 Tab 进入释义。
+    expect(parentName(editor)).toBe('whereTerm')
+    expect(editor.state.selection.$from.parentOffset).toBe(1)
+    editor.commands.undo()
+    expect(JSON.stringify(editor.getJSON())).toBe(before)
+  })
+
+  it('指定位置不是公式时拒绝', () => {
+    const editor = createEditor(formulaDoc())
+    expect(editor.commands.addWhereItem({ pos: 0, latex: 'x' })).toBe(false)
+    expect(editor.commands.addWhereItem({ pos: 10_000, latex: 'x' })).toBe(false)
+  })
+
   it('公式以外的位置不能添加式中', () => {
     const editor = createEditor(formulaDoc())
     placeCursor(editor, 'chapterTitle')

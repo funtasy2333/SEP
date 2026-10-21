@@ -7,8 +7,12 @@ import { dispatchInlineFormulaRequest } from './inlineFormulaEditing'
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     whereList: {
-      /** 光标在公式内时追加一条式中；公式已有非空自由文本式中时返回 false（先走一键转换）。 */
-      addWhereItem: () => ReturnType
+      /**
+       * 为公式追加一条式中：默认取光标所在公式，给出 pos 时取该位置的公式节点。
+       * 给出 latex 时符号格直接放入该行内公式，与新增条目同属一个事务（一次撤销整体撤回），光标停在公式之后。
+       * 公式已有非空自由文本式中时返回 false（先走一键转换）。
+       */
+      addWhereItem: (options?: { pos?: number; latex?: string }) => ReturnType
     }
   }
 }
@@ -18,9 +22,10 @@ function ancestorDepth($pos: ResolvedPos, name: string): number {
   return -1
 }
 
-function emptyWhereItem(state: EditorState): PMNode {
-  const { whereItem, whereTerm, whereDefinition } = state.schema.nodes
-  return whereItem!.create(null, [whereTerm!.create(), whereDefinition!.create()])
+function newWhereItem(state: EditorState, latex?: string): PMNode {
+  const { whereItem, whereTerm, whereDefinition, formulaInline } = state.schema.nodes
+  const term = latex === undefined ? whereTerm!.create() : whereTerm!.create(null, formulaInline!.create({ latex }))
+  return whereItem!.create(null, [term, whereDefinition!.create()])
 }
 
 /** 自由文本式中有内容时不能与结构化式中并存（pmToIr 会报 unsupported）。 */
@@ -35,6 +40,11 @@ export function selectedFormula(state: EditorState): { node: PMNode; pos: number
   const depth = ancestorDepth(state.selection.$from, 'formula')
   if (depth < 0) return null
   return { node: state.selection.$from.node(depth), pos: state.selection.$from.before(depth) }
+}
+
+function formulaAt(doc: PMNode, pos: number): { node: PMNode; pos: number } | null {
+  const node = pos >= 0 && pos < doc.content.size ? doc.nodeAt(pos) : null
+  return node?.type.name === 'formula' ? { node, pos } : null
 }
 
 /** 光标放进 itemPos 处 whereItem 的符号格（offset 0）或释义格（end）。 */
@@ -65,7 +75,7 @@ function insertItemAfter(editor: Editor): boolean {
   const itemDepth = ancestorDepth($from, 'whereItem')
   if (itemDepth < 0) return false
   const after = $from.after(itemDepth)
-  const tr = editor.state.tr.insert(after, emptyWhereItem(editor.state))
+  const tr = editor.state.tr.insert(after, newWhereItem(editor.state))
   tr.setSelection(cursorInItem(tr.doc, after, 'term'))
   editor.view.dispatch(tr.scrollIntoView())
   return true
@@ -109,8 +119,8 @@ export const WhereListEditing = Extension.create({
 
   addCommands() {
     return {
-      addWhereItem: () => ({ state, dispatch }) => {
-        const formula = selectedFormula(state)
+      addWhereItem: ({ pos, latex } = {}) => ({ state, dispatch }) => {
+        const formula = pos === undefined ? selectedFormula(state) : formulaAt(state.doc, pos)
         if (!formula || formulaHasLegacyDescription(formula.node)) return false
         if (!dispatch) return true
         const tr = state.tr
@@ -125,11 +135,11 @@ export const WhereListEditing = Extension.create({
         if (listPos >= 0) {
           const list = state.doc.nodeAt(listPos)!
           itemPos = listPos + list.nodeSize - 1
-          tr.insert(itemPos, emptyWhereItem(state))
+          tr.insert(itemPos, newWhereItem(state, latex))
         } else {
           // whereList 是公式的最后一个子节点（formulaContent formulaDescription? formulaNote* whereList?）。
           const end = formula.pos + formula.node.nodeSize - 1
-          tr.insert(end, state.schema.nodes.whereList!.create(null, emptyWhereItem(state)))
+          tr.insert(end, state.schema.nodes.whereList!.create(null, newWhereItem(state, latex)))
           itemPos = end + 1
         }
         if (descriptionPos >= 0) {
@@ -137,7 +147,8 @@ export const WhereListEditing = Extension.create({
           tr.delete(descriptionPos, descriptionPos + description.nodeSize)
           itemPos -= description.nodeSize
         }
-        tr.setSelection(cursorInItem(tr.doc, itemPos, 'term'))
+        const term = tr.doc.nodeAt(itemPos)!.child(0)
+        tr.setSelection(TextSelection.create(tr.doc, itemPos + 2 + term.content.size))
         dispatch(tr.scrollIntoView())
         return true
       },

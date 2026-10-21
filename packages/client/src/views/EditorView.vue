@@ -1890,7 +1890,7 @@ const cursorInFormula = computed(() => !!editor.value && selectedFormula(editor.
 const cursorAllowsInlineFormula = computed(() => !!editor.value && canInsertInlineFormula(editor.value.state))
 const mathDialogTitle = computed(() => {
   const request = mathDialogRequest.value
-  const inWhereTerm = editor.value?.state.doc.resolve(Math.min(request?.pos ?? 0, editor.value.state.doc.content.size)).parent.type.name === 'whereTerm'
+  const inWhereTerm = request?.mode === 'where' || editor.value?.state.doc.resolve(Math.min(request?.pos ?? 0, editor.value.state.doc.content.size)).parent.type.name === 'whereTerm'
   const noun = inWhereTerm ? '式中符号' : '行内公式'
   return request?.mode === 'edit' ? `编辑${noun}` : request?.mode === 'replace' ? `转为${noun}` : `插入${noun}`
 })
@@ -1928,8 +1928,9 @@ function handleAddWhereItem() {
     openWhereConversion(formula.pos)
     return
   }
-  if (!ed.chain().focus().addWhereItem().run()) return
-  openMathDialog({ mode: 'insert', pos: ed.state.selection.from, latex: '' })
+  // 条目在确认时才写入（handleMathConfirm 的 where 分支），取消输入不会留下空条目。
+  if (!ed.can().addWhereItem({ pos: formula.pos })) return
+  openMathDialog({ mode: 'where', pos: formula.pos, nodeId: formula.node.attrs.nodeId ?? undefined, latex: '' })
 }
 
 const showWhereConversion = ref(false)
@@ -1972,7 +1973,12 @@ function handleMathConfirm(latex: string) {
   // 弹窗期间可能载入了外部修订（整篇替换文档）：插入与替换只认原来那一处，位置之前有增删时拒绝。
   const located = (pos: number) => !!openedDoc && sameInlineLocation(openedDoc, ed.state.doc, pos)
   let applied = false
-  if (request.mode === 'edit') {
+  if (request.mode === 'where') {
+    // 弹窗期间公式可能被远端修订挪走或删除：只认原来那个公式。
+    const node = ed.state.doc.nodeAt(request.pos)
+    applied = node?.type.name === 'formula' && (node.attrs.nodeId ?? undefined) === request.nodeId
+      && ed.chain().focus().addWhereItem({ pos: request.pos, latex }).run()
+  } else if (request.mode === 'edit') {
     applied = ed.chain().focus().updateFormulaInline({ pos: request.pos, latex, nodeId: request.nodeId }).run()
   } else if (request.mode === 'replace') {
     applied = located(request.pos) && located(request.to ?? request.pos) && ed.chain().focus().replaceSelectionWithFormula({

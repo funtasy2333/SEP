@@ -34,10 +34,11 @@ export const INLINE_FORMULA_PARENTS: ReadonlySet<string> = new Set([
  * 行内公式编辑请求（window 事件 `ses:edit-inline-formula`）：
  * - edit：编辑 pos 处已有的行内公式（nodeId 用于写回前核对）；
  * - insert：在 pos 处插入；
- * - replace：把 pos–to 的文字（快照 text）替换为公式，latex 为预填值。
+ * - replace：把 pos–to 的文字（快照 text）替换为公式，latex 为预填值；
+ * - where：为 pos 处的公式（nodeId 为公式的 nodeId）新增一条式中，确认后才写入条目，取消时文档不变。
  */
 export interface InlineFormulaRequest {
-  mode: 'edit' | 'insert' | 'replace'
+  mode: 'edit' | 'insert' | 'replace' | 'where'
   pos: number
   latex: string
   nodeId?: string
