@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- 负例：出现 array（5.8，M-5.8-01，C-S-36：SES 不支持无框对齐文本）。 除此之外与基底文档一致。 -->
+<!-- 负例：std-meta 子元素顺序不符（release-date 排在 content-language 之前）。顺序按 NISO STS 1.2（2026-10-21 主导人决定，不再 interleave）。 除此之外与基底文档一致。 -->
 <standard xmlns:xlink="http://www.w3.org/1999/xlink"
           xmlns:mml="http://www.w3.org/1998/Math/MathML"
           xmlns:tbx="urn:iso:std:iso:30042:ed-1">
@@ -15,8 +15,8 @@
           <std-org-name>国家标准化管理委员会</std-org-name>
         </std-org>
       </std-org-group>
-      <content-language>zh</content-language>
       <release-date>2026-04-30</release-date>
+      <content-language>zh</content-language>
       <implementation-date>2026-11-01</implementation-date>
     </std-meta>
     <sec id="sec_foreword" sec-type="foreword">
@@ -51,35 +51,6 @@
     <sec id="sec_5">
       <label>5</label>
       <title>技术要求</title>
-      <sec id="sec_5.1">
-        <label>5.1</label>
-        <title>列项</title>
-        <list list-type="dash">
-          <list-item>
-            <p>项一。</p>
-          </list-item>
-        </list>
-        <list list-type="arabic">
-          <list-item>
-            <label>1)</label>
-            <p>项二。</p>
-          </list-item>
-        </list>
-      </sec>
-      <array>
-        <table>
-          <tbody>
-            <tr>
-              <td>甲</td>
-              <td>乙</td>
-            </tr>
-          </tbody>
-        </table>
-      </array>
-      <sec id="sec_5.2" sec-type="numbered-paragraph">
-        <label>5.2</label>
-        <p>无标题条。</p>
-      </sec>
       <table-wrap id="tab_1">
         <label>表1</label>
         <caption>
@@ -111,6 +82,25 @@
           <mml:mi>x</mml:mi>
         </mml:math>
       </disp-formula>
+      <sec id="sec_5.1">
+        <label>5.1</label>
+        <title>列项</title>
+        <list list-type="dash">
+          <list-item>
+            <p>项一。</p>
+          </list-item>
+        </list>
+        <list list-type="arabic">
+          <list-item>
+            <label>1)</label>
+            <p>项二。</p>
+          </list-item>
+        </list>
+      </sec>
+      <sec id="sec_5.2" sec-type="numbered-paragraph">
+        <label>5.2</label>
+        <p>无标题条。</p>
+      </sec>
     </sec>
   </body>
   <back>

@@ -102,6 +102,15 @@
         <graphic content-type="image" xlink:href="fig_2_b" specific-use="size:M"/>
       </fig>
       <fig-group>
+        <legend>
+          <title>标引序号说明：</title>
+          <def-list list-content="figure">
+            <def-item>
+              <term>1</term>
+              <def><p>组合图的共用说明。</p></def>
+            </def-item>
+          </def-list>
+        </legend>
         <fig id="fig_3">
           <label>图3</label>
           <caption>
@@ -116,15 +125,6 @@
           </caption>
           <graphic content-type="image" xlink:href="fig_4"/>
         </fig>
-        <legend>
-          <title>标引序号说明：</title>
-          <def-list list-content="figure">
-            <def-item>
-              <term>1</term>
-              <def><p>组合图的共用说明。</p></def>
-            </def-item>
-          </def-list>
-        </legend>
       </fig-group>
     </sec>
   </body>

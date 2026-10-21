@@ -15,39 +15,41 @@
          datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
 
   <!--
-    fig：8.2。子元素顺序 label、caption、legend、graphic、p*、non-normative-note*（C-T-26，顺序取自示例，原文未规定 legend 与 p 的相对位置），
-    导入接受任意相对顺序，故用 interleave。graphic 一个或多个（8.4 a：同一 fig 内多个独立 graphic，M-8.4-01）。
+    fig：8.2。子元素顺序 label、caption、legend，然后是 graphic、p、non-normative-note、non-normative-example 的任意排列
+    （STS 1.2 的内容模型：label? caption? legend* 之后为块的任意混排；46687.2 示例 p31/p32 与之一致，8.2 只规定“图注在 graphic 后面”，
+    原文没有与之冲突的写法，故取 STS 顺序，不再用 interleave）。graphic 至少一个（8.4 a：同一 fig 内多个独立 graphic，M-8.4-01）。
     non-normative-example：8.4 提到图中示例须在分图层级（M-8.4-03）。
   -->
   <define name="el.fig">
     <element name="fig">
       <ref name="attr.id"/>
       <optional><attribute name="orientation"><ref name="dt.orientation"/></attribute></optional>
-      <interleave>
-        <optional><ref name="el.label"/></optional>
-        <ref name="el.caption"/>
-        <optional><ref name="el.legend"/></optional>
-        <oneOrMore><ref name="el.graphic"/></oneOrMore>
-        <zeroOrMore><ref name="el.p"/></zeroOrMore>
-        <zeroOrMore><ref name="el.non-normative-note"/></zeroOrMore>
-        <zeroOrMore><ref name="el.non-normative-example"/></zeroOrMore>
-      </interleave>
+      <optional><ref name="el.label"/></optional>
+      <ref name="el.caption"/>
+      <optional><ref name="el.legend"/></optional>
+      <oneOrMore>
+        <choice>
+          <ref name="el.graphic"/>
+          <ref name="el.p"/>
+          <ref name="el.non-normative-note"/>
+          <ref name="el.non-normative-example"/>
+        </choice>
+      </oneOrMore>
     </element>
   </define>
 
   <!--
     fig-group：8.4 b）。内含多个 fig（分图）；组合图层级至多一个 legend；图注、示例在分图层级，不在 fig-group 层级。
-    fig-group 自身的 id/label/caption 原文未规定，且表 C.1 没有 fig-group（F-T-22）[未核实]：取 id、label、caption 可选。
+    fig-group 自身的 id/label/caption 原文未规定，且表 C.1 没有 fig-group（F-T-22）：按 STS 1.2 的内容模型
+    label? caption? legend* (fig)+，其中 legend 在分图之前（原文只规定组合图层级至多一个 legend）。
   -->
   <define name="el.fig-group">
     <element name="fig-group">
       <ref name="attr.id"/>
-      <interleave>
-        <optional><ref name="el.label"/></optional>
-        <optional><ref name="el.caption"/></optional>
-        <optional><ref name="el.legend"/></optional>
-        <oneOrMore><ref name="el.fig"/></oneOrMore>
-      </interleave>
+      <optional><ref name="el.label"/></optional>
+      <optional><ref name="el.caption"/></optional>
+      <optional><ref name="el.legend"/></optional>
+      <oneOrMore><ref name="el.fig"/></oneOrMore>
     </element>
   </define>
 
@@ -96,7 +98,7 @@
   <!--
     legend：图例（8.5）与公式“式中”（7.3）。标题 title，其后 def-list（每个 def-item 一对 term/def）。
     legend 上的 id 示例中有（判为工具生成物），导入接受并忽略（C-T-31）。
-    p：legend 内除 def-list 外原文没有规定，容许 p [未核实]。
+    p：legend 内除 def-list 外原文没有规定；STS 1.2 的 legend 允许含 p，故收。
   -->
   <define name="el.legend">
     <element name="legend">
@@ -138,7 +140,7 @@
   <define name="el.def-item">
     <element name="def-item">
       <ref name="attr.id"/>
-      <element name="term"><ref name="cm.inline"/></element>
+      <element name="term"><ref name="cm.term"/></element>
       <element name="def"><oneOrMore><ref name="el.p"/></oneOrMore></element>
     </element>
   </define>

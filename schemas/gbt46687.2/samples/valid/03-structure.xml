@@ -14,14 +14,9 @@
       <title>前言</title>
       <p>本文件用于演示章、条、无标题条、附录、参考文献和索引的标记。</p>
     </sec>
-    <sec id="sec_0" sec-type="intro">
+    <sec id="sec_intro" sec-type="intro">
       <title>引言</title>
-      <p>引言可以直接含段落，也可以含条。</p>
-      <sec id="sec_0.1">
-        <label>0.1</label>
-        <title>综述</title>
-        <p>引言中的有标题条。</p>
-      </sec>
+      <p>引言可以只含段落。</p>
     </sec>
   </front>
   <body>

@@ -20,13 +20,16 @@
   与 NISO STS 1.2 的关系
               原文声明采用 NISO STS 1.2 interchange 标签集（processing-meta：base-tagset="interchange"、tagset-family="sts"）、
               MathML 3.0、XHTML 表格、TBX。元素名一律沿用原文规定的 STS 标签。
-              本环境没有取得官方 DTD（无外网，原文也未给下载地址），本 schema 没有复刻任何官方 DTD/XSD 内容，
-              所有内容模型都从原文示例、条文与支持矩阵推导；推导不出的内容模型取宽松形式并在注释中标注“[未核实]”。
-              取得官方 DTD 后须另做兼容性检查，偏差记为国标特有扩展（ccs、implementation-date、equivalence 等，见 README）。
+              本 schema 先于官方 DTD 独立写成：所有内容模型最初都从原文示例、条文与支持矩阵推导，没有复刻任何官方 DTD/XSD 内容；
+              推导不出的内容模型取宽松形式。官方 DTD（schemas/niso-sts-1.2，2026-10-21 收录）到手后做了兼容性检查
+              （scripts/xml46687/sts_compat.py）：DTD 能给出确定内容模型而原文没有另行规定的地方，已按 DTD 收紧（元素顺序、
+              内容集合、取值枚举等）；原文明确的写法与 STS 冲突的，以原文为准并登记为“46687.2 相对 STS 1.2 的偏差”（README）；
+              国标特有元素（ccs、implementation-date、equivalence、std-type、std-supersedes）登记为已知扩展。
 
   覆盖范围    矩阵中 export 为 required/optional 或 import 为 required/accept 的元素与属性（含 status 为 gap 的行：
-              schema 描述的是标准，不是当前实现能力）。import 为 reject 的元素（tex-math、alternatives、tfoot、array、
-              fn-group、issue-agencies、std-doc-meta、tbx:see 等）不出现在 schema 中。
+              schema 描述的是标准，不是当前实现能力）。import 为 reject 的行按 rejectKind 区分：format（格式层面不收：
+              tex-math、alternatives、tfoot、fn-group、issue-agencies、std-doc-meta、tbx:see 等）不出现在 schema 中；
+              implementation（实现暂拒：array、disp-formula-group、引言中的条、同一 fn 多次引用）格式本身接受，收入 schema。
 
   命名空间    STS 元素：无命名空间
               xlink：http://www.w3.org/1999/xlink          （xlink:href、xlink:type）

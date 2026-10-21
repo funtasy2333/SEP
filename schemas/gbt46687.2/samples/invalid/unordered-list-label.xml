@@ -51,26 +51,6 @@
     <sec id="sec_5">
       <label>5</label>
       <title>技术要求</title>
-      <sec id="sec_5.1">
-        <label>5.1</label>
-        <title>列项</title>
-        <list list-type="dash">
-          <list-item>
-            <label>—</label>
-            <p>项一。</p>
-          </list-item>
-        </list>
-        <list list-type="arabic">
-          <list-item>
-            <label>1)</label>
-            <p>项二。</p>
-          </list-item>
-        </list>
-      </sec>
-      <sec id="sec_5.2" sec-type="numbered-paragraph">
-        <label>5.2</label>
-        <p>无标题条。</p>
-      </sec>
       <table-wrap id="tab_1">
         <label>表1</label>
         <caption>
@@ -102,6 +82,26 @@
           <mml:mi>x</mml:mi>
         </mml:math>
       </disp-formula>
+      <sec id="sec_5.1">
+        <label>5.1</label>
+        <title>列项</title>
+        <list list-type="dash">
+          <list-item>
+            <label>—</label>
+            <p>项一。</p>
+          </list-item>
+        </list>
+        <list list-type="arabic">
+          <list-item>
+            <label>1)</label>
+            <p>项二。</p>
+          </list-item>
+        </list>
+      </sec>
+      <sec id="sec_5.2" sec-type="numbered-paragraph">
+        <label>5.2</label>
+        <p>无标题条。</p>
+      </sec>
     </sec>
   </body>
   <back>

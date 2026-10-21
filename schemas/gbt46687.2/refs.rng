@@ -18,7 +18,8 @@
       other                                                                （10.1.4 示例，[仅导入接受]：按目标类型归类）
     custom-type 仅与 ref-type="custom" 共现：term-entry（9.2.6）、note / example（10.1.3）。
     rid：附录 D 行 10 允许一个或多个标识符；导入只接受单个（G-T-15），validate.py 对多个 rid 告警。
-    内容：Resolver 的 refText（纯文本）；示例中还出现 bold（9.2.6）、label>sup（10.1.8），取宽松形式。
+    内容：Resolver 的 refText（纯文本）；示例中还出现 bold（9.2.6）、label>sup（10.1.8）。
+    内容模型取 STS 1.2 的 xref：文本 + 格式 + 变量/代码 + 行内图（cm.phrase 一类）；另收 label（10.1.8 示例，STS 没有，列入偏差表）。
   -->
   <define name="el.xref">
     <element name="xref">
@@ -56,8 +57,9 @@
       <zeroOrMore>
         <choice>
           <text/>
-          <ref name="inline.any"/>
-          <ref name="el.label"/>
+          <ref name="inline.phrase"/>
+          <!-- 10.1.8 示例：<xref><label><sup>1)</sup></label></xref>（label 不在 DTD 的 xref 内容中，见 README 偏差表） -->
+          <element name="label"><ref name="cm.phrase"/></element>
         </choice>
       </zeroOrMore>
     </element>
@@ -76,7 +78,7 @@
       </optional>
       <ref name="attr.xlink-href.req"/>
       <ref name="attr.xlink-type"/>
-      <ref name="cm.inline"/>
+      <ref name="cm.phrase"/>
     </element>
   </define>
 
@@ -90,8 +92,9 @@
 
   <!--
     fn：脚注（10.1.8、6.2.3）。内含 label（可含 sup）与 p。
-    表脚注放 table-wrap-foot 内（C-T-02）；正文脚注的定义位置原文没有规定（D-T-10），
-    此处允许 fn 作为行内元素出现在 p 内、也允许作为块（见 body.rng 的 block.any）[未核实]。
+    表脚注放 table-wrap-foot 内（C-T-02）；正文脚注的定义位置原文没有规定（D-T-10，待 WP8.M 决定），
+    此处两种都收：作为行内元素出现在 p 内（STS 1.2 允许），也作为块（见 body.rng 的 block.any；STS 1.2 的 sec 内容不含 fn，
+    属 46687.2 范围内的待决扩展，见 README 偏差表）。
     注：fn-group 在支持矩阵中为 import: reject（M-10.1.8-05），不在 schema 中。
   -->
   <define name="el.fn">
@@ -146,13 +149,7 @@
     <element name="mixed-citation">
       <ref name="attr.id"/>
       <ref name="attr.xlink-type"/>
-      <zeroOrMore>
-        <choice>
-          <text/>
-          <ref name="inline.any"/>
-          <ref name="el.uri"/>
-        </choice>
-      </zeroOrMore>
+      <ref name="cm.citation"/>
     </element>
   </define>
 

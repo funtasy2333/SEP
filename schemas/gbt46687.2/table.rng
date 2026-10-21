@@ -6,8 +6,9 @@
   依据：6.1～6.6、附录 C（表标签）、附录 D（属性：align/colspan/frame/rowspan/rules/style/valign/width/orientation）。
   约定：C-T-01～C-T-16。矩阵行：M-6.x、M-C.1-01/02/03。
 
-  拒绝项（矩阵 import: reject，不在 schema 中）：嵌套表（td/th 内不得出现 table 或 table-wrap，6.1，M-6.1-06）、
-  tfoot（M-C.1-03，6.2.2 要求表注放 table-wrap-foot，C-T-02）、array（5.8）、表题英文（caption 内多个 title）。
+  拒绝项（矩阵 import: reject 且 rejectKind=format，不在 schema 中）：嵌套表（td/th 内不得出现 table 或 table-wrap，6.1，M-6.1-06）、
+  tfoot（M-C.1-03，6.2.2 要求表注放 table-wrap-foot，C-T-02）、表题英文（caption 内多个 title）、5.8 示例的 col-group（M-5.8-02）。
+  array（5.8，M-5.8-01）为 rejectKind=implementation，格式本身接受，见 body.rng。
   表模型：XHTML 1.1（processing-meta/@table-model="xhtml"），采用 thead/tbody，不使用 tfoot。
 -->
 <grammar xmlns="http://relaxng.org/ns/structure/1.0"
@@ -16,8 +17,10 @@
 
   <!--
     table-wrap：6.2.1。子元素顺序 label、caption、table、table-wrap-foot、graphic（C-T-01，顺序取自 6.2 示例，项目实现约定）。
-    @position：表 C.1 列出，正文无说明（M-C.1-01，[仅导入接受]，取 token）。
+    @position：表 C.1 列出，正文无说明（M-C.1-01，[仅导入接受]）；取 STS 1.2 的枚举 anchor/background/float/margin。
     graphic：表的替代图（content-type="disp_table"，6.1），SES 不生成，导入接受（G-T-04）。
+      STS 1.2 要求 graphic 在 table-wrap-foot 之前；而 6.2.3 示例（印刷页 21）把 graphic 写在 table-wrap-foot 之后，
+      原文明确写法与 STS 冲突，以原文为准，两种位置都收（46687.2 相对 STS 1.2 的偏差，见 README 偏差表）。
     caption 在 schema 中可选：附录 E 行“无标题”的表（id=tab_r，M-E-11）说明原文允许没有表题的表；
     SES 导出的表总是带 label 与 caption（M-6.2.1-04），该“必填”由导出器保证，不写进格式 schema。
   -->
@@ -25,12 +28,22 @@
     <element name="table-wrap">
       <ref name="attr.id"/>
       <optional><attribute name="orientation"><ref name="dt.orientation"/></attribute></optional>
-      <optional><attribute name="position"><data type="token"/></attribute></optional>
+      <optional>
+        <attribute name="position">
+          <choice><value>anchor</value><value>background</value><value>float</value><value>margin</value></choice>
+        </attribute>
+      </optional>
       <optional><ref name="el.label"/></optional>
       <optional><ref name="el.caption"/></optional>
       <ref name="el.table"/>
-      <optional><ref name="el.table-wrap-foot"/></optional>
       <zeroOrMore><ref name="el.graphic"/></zeroOrMore>
+      <optional>
+        <group>
+          <ref name="el.table-wrap-foot"/>
+          <!-- 6.2.3 示例的位置（STS 1.2 不允许），见上 -->
+          <zeroOrMore><ref name="el.graphic"/></zeroOrMore>
+        </group>
+      </optional>
     </element>
   </define>
 
@@ -49,7 +62,7 @@
 
   <!--
     table：6.1、6.3、附录 C 行 87、附录 D。
-    width：6.1 给 33%/66%/100%，附录 D 行 19 给“数字”；取宽松形式（数字，可带 %）[未核实全集]。
+    width：6.1 给 33%/66%/100%，附录 D 行 19 给“数字”；STS 1.2 声明为 cdata（不限格式），本 schema 取“数字，可带 %”。
     border/frame/rules/cellspacing/cellpadding：附录 C 行 87、附录 D 行 4/12，SES 不导出（导入接受，G-T-06）。
     子元素：col（或 colgroup）、thead、tbody；tfoot 为 reject。
     tbody 至少一个：XHTML 内容模型要求 tbody+（thead 单独成表在 XHTML 中不合法）。
@@ -98,7 +111,7 @@
   <!--
     col / colgroup：6.1（列宽放 col 的 @width）、附录 C 行 12/13、附录 D。
     col 直接置于 table 内 thead 之前，不使用 colgroup（C-T-01）；colgroup 仅附录 C 列名，导入接受（M-C.1-02，G-T-03）。
-    5.8 示例的 col-group / colwidth 属于 array，为 reject，不收。
+    5.8 示例的 col-group / colwidth 是排印错误（表 C.1 为 colgroup，附录 D 为 width），不收（M-5.8-02，rejectKind=format）。
   -->
   <define name="cm.col-attrs">
     <optional><attribute name="width"><data type="string"><param name="pattern">[0-9]+(\.[0-9]+)?%?</param></data></attribute></optional>
@@ -154,7 +167,7 @@
   <!--
     th / td：6.3、6.4。align/valign（6.3.2）、colspan/rowspan（6.4，计数数字，默认 1）、style（6.3.3、6.3.4）。
     style 的语法（border-left/top/right/bottom: solid|dashed|dotted <n>px; background-color: …）
-    在示例中冒号/等号混用（F-T-03），schema 只要求字符串，不检查内部语法 [宽松]。
+    在示例中冒号/等号混用（F-T-03）；STS 1.2 声明为 cdata，schema 只要求字符串，不检查内部语法。
     td@scope="row"：仅 6.4 示例一例，导入接受并忽略（C-T-07，M-6.4-04）。
     内容（C-T-11）：仅行内内容，或仅 p/list 块；行内与 p 混排不接受。单位放 th 内第二个 p（6.2.4）。
   -->
@@ -194,16 +207,17 @@
     table-wrap-foot：6.2.3、6.2.5。表注（non-normative-note）、表脚注（fn）、通用单位（p[@content-type="dimension"]）
     均放在此处，顺序任意（C-T-02：导出顺序为 dimension、note*、fn*，导入顺序不限）。
     表脚注引用：单元格内 xref[@ref-type="table-fn"]，必须指向同一 table-wrap 内的 fn（validate.py V-8）。
+    至少含一个子元素（STS 1.2）；没有表注/脚注/单位时省略整个 table-wrap-foot。
   -->
   <define name="el.table-wrap-foot">
     <element name="table-wrap-foot">
-      <zeroOrMore>
+      <oneOrMore>
         <choice>
           <ref name="el.p"/>
           <ref name="el.non-normative-note"/>
           <ref name="el.fn"/>
         </choice>
-      </zeroOrMore>
+      </oneOrMore>
     </element>
   </define>
 

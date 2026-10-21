@@ -111,7 +111,7 @@
   <!--
     条（章以下各层 sec，含附录中的条、引言中的条）：4.4.2.1、4.4.2.5。
     无标题条：sec-type="numbered-paragraph" 且不含 title（V-2）；4.4.2.1 示例中无标题条没有 sec-type（两种写法均接受）。
-    title 因此为可选。
+    title 因此为可选；但 label 与 title 至少要有一个（STS 1.2：(label, title?) | title）。
   -->
   <define name="el.sec.nested">
     <element name="sec">
@@ -124,8 +124,13 @@
           </choice>
         </attribute>
       </optional>
-      <optional><ref name="el.label"/></optional>
-      <optional><ref name="el.title"/></optional>
+      <choice>
+        <group>
+          <ref name="el.label"/>
+          <optional><ref name="el.title"/></optional>
+        </group>
+        <ref name="el.title"/>
+      </choice>
       <ref name="cm.sec-content"/>
     </element>
   </define>
@@ -142,23 +147,39 @@
     </data>
   </define>
 
-  <!-- sec 的内容：块、子条、术语条（term-sec）、清单（规范性引用文件章内的 ref-list）。 -->
+  <!--
+    sec/app 的内容：块 * ，然后（子条或术语条）+ 及其后的尾部注/清单（STS 1.2 的内容模型；46687.2 原文没有规定块与子条的先后，
+    原文示例也没有与之冲突的写法）。含子条的条在子条之前才可放段落、表、图等块，子条之后只能再放注、示例和清单。
+  -->
   <define name="cm.sec-content">
-    <zeroOrMore>
-      <choice>
-        <ref name="block.any"/>
-        <ref name="el.sec.nested"/>
-        <ref name="el.term-sec"/>
-        <ref name="el.ref-list"/>
-      </choice>
-    </zeroOrMore>
+    <zeroOrMore><ref name="block.any"/></zeroOrMore>
+    <optional>
+      <group>
+        <oneOrMore>
+          <choice>
+            <ref name="el.sec.nested"/>
+            <ref name="el.term-sec"/>
+          </choice>
+        </oneOrMore>
+        <zeroOrMore><ref name="block.trailing"/></zeroOrMore>
+      </group>
+    </optional>
+  </define>
+  <define name="block.trailing">
+    <choice>
+      <ref name="el.non-normative-note"/>
+      <ref name="el.non-normative-example"/>
+      <ref name="el.ref-list"/>
+    </choice>
   </define>
 
   <!--
     条文块（出现在 sec/app 内的各种块级元素）。
-    fn 作为块：正文脚注定义位置原文没有规定（D-T-10），暂允许，待决定 [未核实]。
+    fn 作为块：正文脚注定义位置原文没有规定（D-T-10，待 WP8.M 决定），暂与行内的 fn 并收；STS 1.2 的 sec 内容不含 fn，
+    属 46687.2 范围内的待决扩展（README 偏差表）。ref-list 作为块：规范性引用文件章内的清单（4.4.2.3.1）。
     graphic 作为块：7.4 示例中公式图片是 disp-formula 的兄弟元素（M-7.4-13 的 path 却写作 disp-formula/graphic，已两种都容纳）。
-    array（5.8）、disp-formula-group、fn-group 在矩阵中为 import: reject，不在 schema 中。
+    array（5.8）、disp-formula-group：矩阵 import 为 reject，但 rejectKind 为 implementation（IR 暂时无法保存，格式本身接受），
+    故收入 schema，由导入器暂拒；fn-group 为 format 类 reject（原文无此标签用法），不在 schema 中。
   -->
   <define name="block.any">
     <choice>
@@ -169,12 +190,15 @@
       <ref name="el.disp-quote"/>
       <ref name="el.code"/>
       <ref name="el.table-wrap"/>
+      <ref name="el.array"/>
       <ref name="el.fig"/>
       <ref name="el.fig-group"/>
       <ref name="el.disp-formula"/>
+      <ref name="el.disp-formula-group"/>
       <ref name="el.graphic"/>
       <ref name="el.def-list"/>
       <ref name="el.fn"/>
+      <ref name="el.ref-list"/>
     </choice>
   </define>
 
@@ -218,15 +242,9 @@
         </choice>
       </attribute>
       <optional><ref name="el.label"/></optional>
-      <optional><element name="annex-type"><ref name="cm.inline"/></element></optional>
+      <optional><element name="annex-type"><text/></element></optional>
       <ref name="el.title"/>
-      <zeroOrMore>
-        <choice>
-          <ref name="block.any"/>
-          <ref name="el.sec.nested"/>
-          <ref name="el.ref-list"/>
-        </choice>
-      </zeroOrMore>
+      <ref name="cm.sec-content"/>
     </element>
   </define>
 
@@ -235,20 +253,18 @@
   <!--
     index：位置在参考文献之后（4.5.4）。表 C.1 只列 index，index-title-group / index-div / index-entry / see-entry 不在表中（M-C-05）。
     see-entry 内是纯文本编号（无 rid）。索引词 term 与 def-item 内的 term 同名异义，均为行内内容。
-    index-div 允许嵌套的写法原文没有，仅按示例（index → index-div → index-entry）[未核实]。
-    content-type="index"：表 D.1 行 3 的取值（bibl、index）；4.5.4 示例没有该属性，故可选 [仅导入接受，未核实]。
+    index-div 可嵌套的写法原文没有，按 STS 1.2：index/index-div 至少含一个 (index-entry | index-div)；index-entry 不收子条目。
   -->
   <define name="el.index">
     <element name="index">
       <ref name="attr.id"/>
-      <optional><attribute name="content-type"><value>index</value></attribute></optional>
       <optional><ref name="el.index-title-group"/></optional>
-      <zeroOrMore>
+      <oneOrMore>
         <choice>
           <ref name="el.index-div"/>
           <ref name="el.index-entry"/>
         </choice>
-      </zeroOrMore>
+      </oneOrMore>
     </element>
   </define>
   <define name="el.index-title-group">
@@ -257,14 +273,19 @@
   <define name="el.index-div">
     <element name="index-div">
       <optional><ref name="el.index-title-group"/></optional>
-      <zeroOrMore><ref name="el.index-entry"/></zeroOrMore>
+      <oneOrMore>
+        <choice>
+          <ref name="el.index-entry"/>
+          <ref name="el.index-div"/>
+        </choice>
+      </oneOrMore>
     </element>
   </define>
   <define name="el.index-entry">
     <element name="index-entry">
       <ref name="attr.id"/>
-      <element name="term"><ref name="cm.inline"/></element>
-      <zeroOrMore><element name="see-entry"><ref name="cm.inline"/></element></zeroOrMore>
+      <element name="term"><ref name="cm.term"/></element>
+      <zeroOrMore><element name="see-entry"><ref name="cm.term"/></element></zeroOrMore>
     </element>
   </define>
 
@@ -308,7 +329,8 @@
   <!--
     non-normative-note / non-normative-example：5.6。不编号；label 含“注：”“注1：”“示例：”等。
     警告：content-type="warning" 的 non-normative-note（元素名按 5.6 措辞与 ISO 源指南取，项目实现约定）。
-    内容“使用 sec 中的标签，例如 p、list 等”：取 p、list、code、disp-formula [未核实全集]。
+    内容“使用 sec 中的标签，例如 p、list 等”：取 p、list、code、disp-formula 四类（STS 1.2 允许更多块，SES 暂只收这四类，
+    注/示例里出现表、图、公式导出时另行报告）。
     id：附录 E 称无 id，只有被 xref 引用者才有（D-S-09）。
   -->
   <define name="el.non-normative-note">
@@ -336,21 +358,35 @@
   </define>
 
   <!--
-    disp-quote：5.9。内含 p；来源 attrib（specific-use="source"）、权限 permissions 可有（M-5.9-03，导入接受）。
+    disp-quote：5.9。内含 p；来源 attrib（specific-use="source"）、权限 permissions 可有（M-5.9-03，导入接受），
+    二者在 p 之后，彼此顺序不限（STS 1.2：块* 之后 (attrib | permissions)*）。
     示例把属性写作 <attrib @specific-use="source">（带 @，排印错误）。
   -->
   <define name="el.disp-quote">
     <element name="disp-quote">
-      <interleave>
-        <oneOrMore><ref name="el.p"/></oneOrMore>
-        <optional>
+      <oneOrMore><ref name="el.p"/></oneOrMore>
+      <zeroOrMore>
+        <choice>
           <element name="attrib">
             <optional><attribute name="specific-use"><value>source</value></attribute></optional>
-            <ref name="cm.inline"/>
+            <ref name="cm.mark"/>
           </element>
-        </optional>
-        <optional><ref name="el.permissions"/></optional>
-      </interleave>
+          <ref name="el.permissions"/>
+        </choice>
+      </zeroOrMore>
+    </element>
+  </define>
+
+  <!--
+    array：5.8 按列对齐且没有列或行边框的文本，“包含一个 table”，没有 table-wrap、caption、title、label。
+    矩阵 M-5.8-01 / M-C.1-04：import 为 reject，rejectKind=implementation（IR/PM 的表总有编号与题名，暂无法保存），故 schema 接受。
+    5.8 示例写的 col-group、colwidth 属于排印错误（表 C.1 为 colgroup，附录 D 为 width），不收（M-5.8-02，format 类 reject）。
+  -->
+  <define name="el.array">
+    <element name="array">
+      <ref name="attr.id"/>
+      <optional><attribute name="orientation"><ref name="dt.orientation"/></attribute></optional>
+      <ref name="el.table"/>
     </element>
   </define>
 

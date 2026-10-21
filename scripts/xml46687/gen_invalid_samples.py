@@ -69,25 +69,6 @@ BASE = '''<?xml version="1.0" encoding="UTF-8"?>
     <sec id="sec_5">
       <label>5</label>
       <title>技术要求</title>
-      <sec id="sec_5.1">
-        <label>5.1</label>
-        <title>列项</title>
-        <list list-type="dash">
-          <list-item>
-            <p>项一。</p>
-          </list-item>
-        </list>
-        <list list-type="arabic">
-          <list-item>
-            <label>1)</label>
-            <p>项二。</p>
-          </list-item>
-        </list>
-      </sec>
-      <sec id="sec_5.2" sec-type="numbered-paragraph">
-        <label>5.2</label>
-        <p>无标题条。</p>
-      </sec>
       <table-wrap id="tab_1">
         <label>表1</label>
         <caption>
@@ -119,6 +100,25 @@ BASE = '''<?xml version="1.0" encoding="UTF-8"?>
           <mml:mi>x</mml:mi>
         </mml:math>
       </disp-formula>
+      <sec id="sec_5.1">
+        <label>5.1</label>
+        <title>列项</title>
+        <list list-type="dash">
+          <list-item>
+            <p>项一。</p>
+          </list-item>
+        </list>
+        <list list-type="arabic">
+          <list-item>
+            <label>1)</label>
+            <p>项二。</p>
+          </list-item>
+        </list>
+      </sec>
+      <sec id="sec_5.2" sec-type="numbered-paragraph">
+        <label>5.2</label>
+        <p>无标题条。</p>
+      </sec>
     </sec>
   </body>
   <back>
@@ -188,9 +188,6 @@ case('nested-table.xml', '单元格内嵌套 table-wrap（6.1 不使用嵌套表
               </td>''')])
 case('tfoot.xml', '表内出现 tfoot（M-C.1-03，C-T-02：表注放 table-wrap-foot）。',
      [('          </tbody>\n        </table>', '          </tbody>\n          <tfoot>\n            <tr>\n              <td>注</td>\n            </tr>\n          </tfoot>\n        </table>')])
-case('array.xml', '出现 array（5.8，M-5.8-01，C-S-36：SES 不支持无框对齐文本）。',
-     [('      <sec id="sec_5.2" sec-type="numbered-paragraph">',
-       '      <array>\n        <table>\n          <tbody>\n            <tr>\n              <td>甲</td>\n              <td>乙</td>\n            </tr>\n          </tbody>\n        </table>\n      </array>\n      <sec id="sec_5.2" sec-type="numbered-paragraph">')])
 case('issue-agencies.xml', 'std-meta 内出现 issue-agencies（M-4.3.2-12，C-S-15）。',
      [('      <content-language>zh</content-language>', '      <issue-agencies>国家标准化管理委员会</issue-agencies>\n      <content-language>zh</content-language>')])
 case('mathml-unprefixed.xml', 'mml:math 内的 MathML 元素缺少 mml: 前缀（7.4 示例 <mtext> 笔误，M-7.4-12）。',
@@ -266,6 +263,25 @@ case('tbx-langset-no-lang.xml', 'tbx:langSet 缺少 xml:lang（C-T-43）。',
      [('<tbx:langSet xml:lang="zh">', '<tbx:langSet>')])
 case('wrong-root.xml', '根元素不是 standard（C-S-01）。',
      [('<standard xmlns:xlink', '<document xmlns:xlink'), ('</standard>', '</document>')])
+
+case('tbx-term-entry-alias.xml', 'tbx:termEntry 写成 tbx:term-entry（M-9.2.1-09：只在 9.2.1 引导句出现，疑为原文笔误，2026-10-21 起 REJECT）。',
+     [('<tbx:termEntry id="term_3.1">', '<tbx:term-entry id="term_3.1">'), ('</tbx:termEntry>', '</tbx:term-entry>')])
+case('tbx-definition-alias.xml', 'tbx:definition 写成 tbx:Definition（M-9.2.1-08：只在 9.2.1 说明文字出现，疑为原文笔误，2026-10-21 起 REJECT）。',
+     [('<tbx:definition>术语的定义。</tbx:definition>', '<tbx:Definition>术语的定义。</tbx:Definition>')])
+case('tbx-normative-authorization-alias.xml', 'tbx:normativeAuthorization 写成 tbx:normative-Authorization（M-C.1-06：附录 C 断行写法，疑为原文笔误，2026-10-21 起 REJECT）。',
+     [('<tbx:normativeAuthorization value="preferredTerm"/>', '<tbx:normative-Authorization value="preferredTerm"/>')])
+case('tbx-grammatical-number-alias.xml', 'tbx:grammaticalNumber 写成 tbx:grammatical-Number（M-C.1-07：附录 C 断行写法，疑为原文笔误，2026-10-21 起 REJECT）。',
+     [('              <tbx:partOfSpeech value="noun"/>\n', '              <tbx:partOfSpeech value="noun"/>\n              <tbx:grammatical-Number value="singular"/>\n')])
+case('std-meta-wrong-order.xml', 'std-meta 子元素顺序不符（release-date 排在 content-language 之前）。顺序按 NISO STS 1.2（2026-10-21 主导人决定，不再 interleave）。',
+     [('      <content-language>zh</content-language>\n      <release-date>2026-04-30</release-date>', '      <release-date>2026-04-30</release-date>\n      <content-language>zh</content-language>')])
+case('sec-block-after-subsec.xml', '含子条的条在子条之后又放了段落（STS 1.2 的 sec 内容模型：块在前，子条在后，其后只能是注、示例、清单）。',
+     [('        <p>无标题条。</p>\n      </sec>\n    </sec>\n  </body>', '        <p>无标题条。</p>\n      </sec>\n      <p>悬置段落。</p>\n    </sec>\n  </body>')])
+case('bad-part-of-speech.xml', 'tbx:partOfSpeech 取值 pron（只收 noun/verb/adj/adv，STS 1.2 的枚举）。',
+     [('<tbx:partOfSpeech value="noun"/>', '<tbx:partOfSpeech value="pron"/>')])
+case('named-content-without-type.xml', 'named-content 缺必备属性 content-type（表 D.1 行 3，STS 1.2 同为必备）。',
+     [('<p>前言内容。</p>', '<p>前言<named-content>x</named-content>内容。</p>')])
+case('empty-table-wrap-foot.xml', '空的 table-wrap-foot（STS 1.2 要求至少一个子元素；没有表注时应省略整个元素）。',
+     [('        </table>\n      </table-wrap>', '        </table>\n        <table-wrap-foot/>\n      </table-wrap>')])
 
 
 case('caption-two-titles.xml', '表的 caption 内有第二个 title（英文表题，M-6.2.1-06，D-T-03：原文只有单个 title）。',

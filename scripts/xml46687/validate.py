@@ -366,16 +366,25 @@ def run_xmllint(exe: str, schema_path: Path, file_path: str) -> tuple[bool, list
 REJECT_ELEMENTS = {
     "issue-agencies": ("M-4.3.2-12", "C-S-15", "4.3.2 列出但定义缺失，与 std-org-group 语义重复"),
     "std-doc-meta": ("M-C-04", "C-S-20", "附录 B：功能与 std-meta 重叠，仅保留 std-meta"),
-    "array": ("M-5.8-01", "C-S-36", "5.8 的无框对齐文本，SES 不支持（不降级为带编号的表）"),
-    "col-group": ("M-5.8-02", "C-S-36", "属于 5.8 的 array，SES 不支持"),
+    "col-group": ("M-5.8-02", "C-S-36", "5.8 示例的排印错误（表 C.1 为 colgroup，附录 D 为 width），不收"),
     "tfoot": ("M-C.1-03", "C-T-02", "6.2.2 要求表注放 table-wrap-foot，tfoot 无内容模型"),
-    "disp-formula-group": ("M-C.1-05", "C-T-17", "原文没有 disp-formula-group 的用法"),
     "tex-math": ("M-7.4-14", "C-T-20", "原文全文没有 tex-math；公式只用 mml:math"),
     "alternatives": ("M-7.4-15", "C-T-20", "原文全文没有 alternatives；公式只用 mml:math"),
     "fn-group": ("M-10.1.8-05", "C-T-55", "原文没有 fn-group"),
     "target": ("M-D.1-04", "D 行 5/17", "target 元素不在 SES 支持范围内"),
     "term-display": ("M-B.1-01", "C-T-37", "term-display 不在 SES 支持范围内"),
     _clark(NS_TBX, "see"): ("M-C.1-09", "C-T-46", "正文以 xref 引用，tbx:see 不使用（D-T-08）"),
+    # 主导人 2026-10-21 决定：下列四个异写元素名只在说明文字或附录 C 断行处出现，示例代码从未使用，疑为原文笔误，
+    # 导入时 REJECT（只保留 tbx:normativeAuthentication，印刷页 37 三处真实出现）。
+    _clark(NS_TBX, "term-entry"): ("M-9.2.1-09", "C-T-38", "疑为原文笔误：9.2.1 说明文字写作 tbx:term-entry，示例代码一律为 tbx:termEntry"),
+    _clark(NS_TBX, "Definition"): ("M-9.2.1-08", "C-T-38", "疑为原文笔误：9.2.1 说明文字写作 tbx:Definition，示例代码一律为 tbx:definition"),
+    _clark(NS_TBX, "normative-Authorization"): ("M-C.1-06", "C-T-39", "疑为原文笔误：附录 C 断行处的写法，正式名为 tbx:normativeAuthorization"),
+    _clark(NS_TBX, "grammatical-Number"): ("M-C.1-07", "C-T-38", "疑为原文笔误：附录 C 断行处的写法，正式名为 tbx:grammaticalNumber"),
+}
+# rejectKind=implementation 的矩阵行：格式本身接受（schema 收入），只是导入器暂时无法保存，因此只告警，不算格式错误
+IMPL_REJECT_ELEMENTS = {
+    "array": ("M-5.8-01、M-C.1-04", "C-S-36", "5.8 无框对齐文本：IR/PM 的表总有编号与题名，暂无法保存，导入器会拒绝"),
+    "disp-formula-group": ("M-C.1-05", "C-T-17", "IR 无公式组，暂无法保存，导入器会拒绝"),
 }
 # 无前缀的 MathML 元素名（7.4 示例 <mtext> 笔误，M-7.4-12）
 _UNPREFIXED_MATHML = {
@@ -393,9 +402,15 @@ def check_rejects(tree, rep: Report) -> None:
         name = label(el)
         parent = el.getparent()
         pkey = _clark(nsuri(parent), local(parent)) if parent is not None and is_element(parent) else None
+        if nsuri(el) is None and local(el) in IMPL_REJECT_ELEMENTS:
+            mid, conv, why = IMPL_REJECT_ELEMENTS[local(el)]
+            rep.warn("W-IMPL-REJECT", "<%s> 格式上合法，但导入暂拒（%s，%s，rejectKind=implementation）：%s" % (name, mid, conv, why), el=el)
+        if key == "sec" and parent is not None and local(parent) == "sec" and nsuri(parent) is None \
+                and parent.get("sec-type") == "intro" and parent.getparent() is not None and local(parent.getparent()) == "front":
+            rep.warn("W-IMPL-REJECT", "引言中的条：格式上合法（4.3.4），但导入暂拒（M-4.3.4-02/03，rejectKind=implementation，IR 缺口）", el=el)
         if key in REJECT_ELEMENTS:
             mid, conv, why = REJECT_ELEMENTS[key]
-            rep.error("REJECT", "<%s> 在支持矩阵中为 import: reject（%s，%s）：%s" % (name, mid, conv, why), el=el)
+            rep.error("REJECT", "<%s> 在支持矩阵中为 import: reject（rejectKind=format；%s，%s）：%s" % (name, mid, conv, why), el=el)
         elif nsuri(el) is None and local(el) in _UNPREFIXED_MATHML:
             rep.error("REJECT", "无前缀的 MathML 元素 <%s>（M-7.4-12，C-T-19：MathML 元素必须带 mml: 前缀并绑定到 %s）"
                       % (name, NS_MML), el=el)
@@ -407,16 +422,14 @@ def check_rejects(tree, rep: Report) -> None:
             rep.error("REJECT", "tbx:source 内的标准不加 std（9.2.8，M-9.2.8-02）", el=el)
         if key == "fn" and pkey == "fig":
             rep.error("REJECT", "fig 内的 fn（图脚注）原文没有规定标记（M-8.6-02，C-T-32）", el=el)
-        if key in (_clark(NS_TBX, "termEntry"), _clark(NS_TBX, "term-entry")) and any(
-            is_element(a) and _clark(nsuri(a), local(a)) in (_clark(NS_TBX, "termEntry"), _clark(NS_TBX, "term-entry"))
+        if key == _clark(NS_TBX, "termEntry") and any(
+            is_element(a) and _clark(nsuri(a), local(a)) == _clark(NS_TBX, "termEntry")
             for a in el.iterancestors()
         ):
             rep.error("REJECT", "嵌套的 tbx:termEntry（M-9.1-03，C-T-47：术语分组用嵌套 sec，不用嵌套条目）", el=el)
-        if key in (_clark(NS_TBX, "definition"), _clark(NS_TBX, "Definition")) and el.get("target") is not None:
+        if key == _clark(NS_TBX, "definition") and el.get("target") is not None:
             rep.error("REJECT", "tbx:definition/@target 仅附录 C 列出，无解释（M-C.1-08，C-T-46）", el=el)
-        if key == _clark(NS_TBX, "normativeAuthorization") or key in (
-            _clark(NS_TBX, "normativeAuthentication"), _clark(NS_TBX, "normative-Authorization")
-        ):
+        if key in (_clark(NS_TBX, "normativeAuthorization"), _clark(NS_TBX, "normativeAuthentication")):
             v = el.get("value") or ""
             if v.endswith("-admn-sts"):
                 rep.error("REJECT", "采用级别取值 %r：全文没有 *-admn-sts 取值，仅 preferredTerm/admittedTerm/deprecatedTerm"
@@ -475,7 +488,7 @@ _XREF_TARGETS = {
     "chem": None,
 }
 _CUSTOM_TARGETS = {
-    "term-entry": {_clark(NS_TBX, "termEntry"), _clark(NS_TBX, "term-entry")},
+    "term-entry": {_clark(NS_TBX, "termEntry")},
     "note": {"non-normative-note", _clark(NS_TBX, "note")},
     "example": {"non-normative-example", _clark(NS_TBX, "example")},
 }
@@ -727,22 +740,16 @@ def semantic_checks(tree, rep: Report) -> None:
 
     # ---------------- V-9 术语条目 ----------------
     for el in elems:
-        if nsuri(el) != NS_TBX or local(el) not in ("termEntry", "term-entry"):
+        if nsuri(el) != NS_TBX or local(el) != "termEntry":
             continue
-        defs = [d for d in el.iter() if is_element(d) and nsuri(d) == NS_TBX and local(d) in ("definition", "Definition")]
+        defs = [d for d in el.iter() if is_element(d) and nsuri(d) == NS_TBX and local(d) == "definition"]
         if len(defs) > 1:
             rep.error("V-9", "术语条目含 %d 个 tbx:definition：“每个术语条目必须有且仅有一个定义”（附录 C 行 92）" % len(defs), el=el)
         elif not defs:
             rep.warn("W-TERM-NODEF", "术语条目没有 tbx:definition（附录 C 行 92 要求有且仅有一个）", el=el)
     for el in elems:
-        if nsuri(el) == NS_TBX and local(el) == "partOfSpeech":
-            v = el.get("value")
-            if v not in ("noun", "verb", "adj", "adv"):
-                rep.warn("W-POS-VALUE", "tbx:partOfSpeech/@value=%r 不在 noun/verb/adj/adv 内（9.2.3 用“包括”，保留原文）" % v, el=el)
-        if nsuri(el) == NS_TBX and local(el) in (
-            "Definition", "term-entry", "normativeAuthentication", "normative-Authorization", "grammatical-Number"
-        ):
-            _import_only(rep, "元素 <%s> 是 9.2/附录 C 说明文字中的异写（正式名见 tbx.rng，D-T-06）" % label(el), el)
+        if nsuri(el) == NS_TBX and local(el) == "normativeAuthentication":
+            _import_only(rep, "元素 <tbx:normativeAuthentication> 是 9.2.3 印刷页 37 说明文字中的异写（正式名 tbx:normativeAuthorization，D-T-06）", el)
 
     # ---------------- V-10 MathML 安全 ----------------
     for el in elems:
@@ -781,8 +788,6 @@ def semantic_checks(tree, rep: Report) -> None:
                 _import_only(rep, "xref/@ref-type=%r（附录 D / 10.1.4 示例的写法，无类型语义，C-T-48）" % el.get("ref-type"), el)
             elif name == "named-content" and el.get("content-type") not in (None, "variable"):
                 rep.warn("W-NAMED-CONTENT", "named-content/@content-type=%r：只有 variable 有定义，导入时去掉标记（C-S-30）" % el.get("content-type"), el=el)
-            elif name == "index" and el.get("content-type") is not None:
-                _import_only(rep, "index/@content-type（表 D.1 行 3 的取值，4.5.4 示例没有该属性）", el)
             elif name == "table-wrap" and el.get("position") is not None:
                 _import_only(rep, "table-wrap/@position（附录 C 列出，正文无说明）", el)
             elif name == "std-ref" and any(is_element(c) and local(c) == "edition" for c in el):
@@ -859,8 +864,15 @@ class Validator:
                     rep.error("CONSISTENCY",
                               "两个实现结论不一致：lxml=%s，xmllint=%s（schema 或实现版本问题，必须查明）"
                               % ("通过" if lx_ok else "不通过", "通过" if xl_ok else "不通过"))
-        for m in (lx_msgs if (tree is not None and not lx_ok) else []):
-            rep.error("RNG", "RELAX NG（lxml）：%s" % m["message"], line=m.get("line"))
+        if tree is not None and not lx_ok:
+            at_line: dict[int, object] = {}
+            for e in tree.getroot().iter():
+                if is_element(e) and e.sourceline:
+                    at_line.setdefault(e.sourceline, e)
+            for m in lx_msgs:
+                where = at_line.get(m.get("line"))
+                suffix = "（出错位置：行 %s 的 <%s>）" % (m.get("line"), label(where)) if where is not None else ""
+                rep.error("RNG", "RELAX NG（lxml）：%s%s" % (m["message"], suffix), line=m.get("line"))
         if self.use_xmllint and tree is None and rep.engines.get("xmllint", {}).get("valid") is False:
             pass  # 格式错误已由 SYN-1 报告
 

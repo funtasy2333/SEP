@@ -17,8 +17,6 @@
   </processing-meta>
   <front>
     <std-meta>
-      <ics>35.240.30</ics>
-      <ccs>L 72</ccs>
       <title-wrap xml:lang="zh">
         <main>网络设备安全要求</main>
         <compl>第1部分：总则</compl>
@@ -52,6 +50,8 @@
       <release-date>2026-04-30</release-date>
       <implementation-date>2026-11-01</implementation-date>
       <comm-ref>SAC/TC 28</comm-ref>
+      <ics>35.240.30</ics>
+      <ccs>L 72</ccs>
       <permissions>
         <copyright-statement>版权专有 侵权必究</copyright-statement>
         <copyright-year>2026</copyright-year>

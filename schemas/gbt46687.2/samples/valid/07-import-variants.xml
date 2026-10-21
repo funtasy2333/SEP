@@ -44,16 +44,16 @@
       </sec>
       <term-sec id="sec_3.1">
         <label>3.1</label>
-        <tbx:term-entry id="term_3.1">
+        <tbx:termEntry id="term_3.1">
           <tbx:langSet xml:lang="zh">
-            <tbx:Definition>说明文字写法的 Definition 元素。</tbx:Definition>
+            <tbx:definition>术语的定义。</tbx:definition>
             <tbx:tig>
               <tbx:term>术语</tbx:term>
               <tbx:partOfSpeech value="noun"/>
               <tbx:normativeAuthentication value="preferredTerm"/>
             </tbx:tig>
           </tbx:langSet>
-        </tbx:term-entry>
+        </tbx:termEntry>
       </term-sec>
     </sec>
     <sec id="sec_5">
