@@ -20,9 +20,6 @@
   <define name="attr.id">
     <optional><attribute name="id"><data type="NCName"/></attribute></optional>
   </define>
-  <define name="attr.id.req">
-    <attribute name="id"><data type="NCName"/></attribute>
-  </define>
 
   <!-- xlink:type="simple"（4.5.3.3 示例，mixed-citation 与 uri 上；导出不写，导入忽略） -->
   <define name="attr.xlink-type">
@@ -120,7 +117,14 @@
   -->
   <define name="el.named-content">
     <element name="named-content">
-      <optional><attribute name="content-type"><data type="token"/></attribute></optional>
+      <optional>
+        <attribute name="content-type">
+          <choice>
+            <value>variable</value>
+            <data type="token"><except><value>variable</value></except></data>
+          </choice>
+        </attribute>
+      </optional>
       <ref name="cm.inline"/>
     </element>
   </define>

@@ -460,12 +460,13 @@ _LEGACY_ID_V7 = [
 
 # xref/@ref-type → 允许的目标元素（Clark 名）。None 表示不限。
 _XREF_TARGETS = {
-    "sec": {"sec", "term-sec"},
+    # sec_bibl、sec_index 是参考文献清单与索引的固定 id（附录 E），引用它们按“章”处理
+    "sec": {"sec", "term-sec", "ref-list", "index"},
     "app": {"app"},
     "fig": {"fig", "fig-group"},
     "table": {"table-wrap"},
     "disp-formula": {"disp-formula"},
-    "bibr": {"ref"},
+    "bibr": {"ref", "mixed-citation"},
     "fn": {"fn"},
     "table-fn": {"fn"},
     "list": {"list-item", "list"},

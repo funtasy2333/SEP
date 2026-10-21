@@ -368,6 +368,39 @@ class TestSchemaConstraints(unittest.TestCase):
                 self.assertAccepted(text, why)
 
 
+class TestWarnings(unittest.TestCase):
+    """约定表写“告警后保留/忽略”的情形：文档通过，但给出对应告警（不阻断）。"""
+
+    def _check(self, text: str, expected_warning: str):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "case.xml"
+            p.write_text(text, encoding="utf-8")
+            rep = VALIDATOR_IMPORT.validate_file(p)
+        self.assertEqual(rep.errors, [], validate.format_human(rep))
+        self.assertIn(expected_warning, {w["rule"] for w in rep.warnings}, validate.format_human(rep))
+
+    def test_warning_cases(self):
+        sec = '<sec id="sec_1"><title>t</title>%s</sec>'
+        cases = [
+            ("W-POS-VALUE", _doc(body=sec % '<term-sec><tbx:termEntry><tbx:langSet xml:lang="zh"><tbx:definition>d</tbx:definition>'
+                                           '<tbx:tig><tbx:term>a</tbx:term><tbx:partOfSpeech value="pron"/></tbx:tig></tbx:langSet></tbx:termEntry></term-sec>')),
+            ("W-NAMED-CONTENT", _doc(body=sec % '<p><named-content content-type="foo">x</named-content></p>')),
+            ("W-GRAPHIC-TYPE", _doc(body=sec % '<fig><caption><title>c</title></caption><graphic xlink:href="a" content-type="photo"/></fig>')),
+            ("W-EXTLINK-TYPE", _doc(body=sec % '<p><ext-link ext-link-type="doi" xlink:href="https://example.org/">x</ext-link></p>')),
+            ("W-SECTYPE", _doc(body=sec % '<sec id="sec_1_1" sec-type="custom-role"><title>u</title></sec>')),
+            ("W-SIZE-T", _doc(body=sec % '<p><inline-graphic xlink:href="a" specific-use="size:T"/></p>')),
+            ("W-LIST-LABEL", _doc(body=sec % '<list list-type="arabic"><list-item><p>x</p></list-item></list>')),
+            ("W-RID-MULTI", _doc(body=sec % '<p><xref ref-type="sec" rid="sec_1 sec_1">x</xref></p>')),
+            ("W-FN-MULTIREF", _doc(body=sec % '<p><xref ref-type="fn" rid="fn_1">1</xref><xref ref-type="fn" rid="fn_1">1</xref></p><fn id="fn_1"><p>x</p></fn>')),
+            ("W-ANNEX-TYPE", _doc(back='<back><app-group><app content-type="normative" id="sec_A"><annex-type>（资料性）</annex-type><title>t</title></app></app-group></back>')),
+            ("W-DATE-ORDER", _doc(meta=_META + "<release-date>2026-11-01</release-date><implementation-date>2026-04-30</implementation-date>")),
+            ("W-MML-ID", _doc(body=sec % '<p><inline-formula><mml:math id="m1"><mml:mi>a</mml:mi></mml:math></inline-formula></p>')),
+        ]
+        for rule, text in cases:
+            with self.subTest(rule=rule):
+                self._check(text, rule)
+
+
 class TestSchemaCoverage(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

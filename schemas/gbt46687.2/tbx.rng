@@ -149,7 +149,14 @@
   -->
   <define name="el.tbx-partOfSpeech">
     <element name="partOfSpeech" ns="urn:iso:std:iso:30042:ed-1">
-      <attribute name="value"><data type="token"/></attribute>
+      <attribute name="value">
+        <choice>
+          <value>noun</value><value>verb</value><value>adj</value><value>adv</value>
+          <data type="token">
+            <except><choice><value>noun</value><value>verb</value><value>adj</value><value>adv</value></choice></except>
+          </data>
+        </choice>
+      </attribute>
       <empty/>
     </element>
   </define>

@@ -61,7 +61,18 @@
     <element name="graphic">
       <ref name="attr.xlink-href.req"/>
       <ref name="attr.xlink-type"/>
-      <optional><attribute name="content-type"><data type="token"/></attribute></optional>
+      <optional>
+        <attribute name="content-type">
+          <choice>
+            <value>image</value>
+            <value>disp_table</value>
+            <value>disp-formula</value>
+            <data type="token">
+              <except><choice><value>image</value><value>disp_table</value><value>disp-formula</value></choice></except>
+            </data>
+          </choice>
+        </attribute>
+      </optional>
       <optional><attribute name="specific-use"><ref name="dt.size-token"/></attribute></optional>
       <empty/>
     </element>

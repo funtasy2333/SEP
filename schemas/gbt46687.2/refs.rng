@@ -66,7 +66,14 @@
   <!-- ext-link：10.1.9。ext-link-type="uri"；示例缺该属性（笔误），导入接受缺省；其他取值告警（C-T-56）。 -->
   <define name="el.ext-link">
     <element name="ext-link">
-      <optional><attribute name="ext-link-type"><data type="token"/></attribute></optional>
+      <optional>
+        <attribute name="ext-link-type">
+          <choice>
+            <value>uri</value>
+            <data type="token"><except><value>uri</value></except></data>
+          </choice>
+        </attribute>
+      </optional>
       <ref name="attr.xlink-href.req"/>
       <ref name="attr.xlink-type"/>
       <ref name="cm.inline"/>
