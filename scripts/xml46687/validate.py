@@ -631,6 +631,26 @@ def _infer_custom_type(tkey: str) -> str | None:
 
 _ALLOWED_LINK_SCHEMES = {"http", "https", "mailto", "ftp"}
 _SCHEME_RE = re.compile(r"^([A-Za-z][A-Za-z0-9+.\-]*):")
+_C0_CONTROL_RE = re.compile("[\x00-\x1f\x7f]")
+# 带 URL 的属性（按本地名，不论元素与命名空间）：xlink:href、href、src、altimg
+_URL_ATTR_LOCALNAMES = {"href", "src", "altimg"}
+
+
+def url_value_problem(value: str):
+    """所有 URL/URI 取值统一走这个检查。返回 None（通过）或问题说明。
+
+    1. 含任何 C0 控制字符（含 tab、换行、回车）或 DEL 一律拒绝：浏览器解析 URL 时会先删掉 tab/换行/回车再识别协议，
+       `java&#x9;script:` 解析后是 `java\tscript:`，按字面匹配协议白名单会被绕过（WHATWG URL 规范）；
+    2. 去掉首尾空格后若以 `scheme:` 开头，协议（不分大小写）必须在白名单 http / https / mailto / ftp 内；
+       相对地址（没有协议）不限（C-T-56）。
+    """
+    m = _C0_CONTROL_RE.search(value)
+    if m:
+        return "含控制字符 U+%04X（URL 里不得有 tab、换行等控制字符：它们会被浏览器删掉，从而绕过协议白名单）" % ord(m.group(0))
+    m = _SCHEME_RE.match(value.strip())
+    if m and m.group(1).lower() not in _ALLOWED_LINK_SCHEMES:
+        return "使用了不允许的协议 %r（只接受 %s）" % (m.group(1), "、".join(sorted(_ALLOWED_LINK_SCHEMES)))
+    return None
 
 IMPORT_ONLY_RULE = "IMPORT-ONLY"
 
@@ -1057,21 +1077,26 @@ def semantic_checks(tree, rep: Report) -> None:
             plain = etree.QName(aname).localname.lower()
             if plain.startswith("on"):
                 rep.error("V-10", "MathML 元素 <%s> 带事件属性 %s（C-T-19：不含脚本/事件属性）" % (label(el), aname), el=el)
-            m = _SCHEME_RE.match(aval.strip())
-            if plain in ("href", "altimg", "src") and m and m.group(1).lower() not in _ALLOWED_LINK_SCHEMES:
-                rep.error("V-10", "MathML 元素 <%s> 的 %s 使用了不允许的协议 %r" % (label(el), aname, m.group(1)), el=el)
         if local(el) == "math" and el.get("id") and not re.fullmatch(r"mml_m\d+", el.get("id")):
             rep.warn("W-MML-ID", "mml:math/@id=%r 不符合 mml_m<k> 形式（7.4、X-22；导出时由渲染器重写）" % el.get("id"), el=el)
 
-    # ---------------- V-11 外链协议 ----------------
+    # ---------------- V-11 URL 取值（统一检查：见 url_value_problem） ----------------
+    # 覆盖：任何元素上本地名为 href / src / altimg 的属性（xlink:href 在 ext-link、graphic、inline-graphic、MathML 上……）、uri 元素的文本。
+    for el in elems:
+        rule = "V-10" if nsuri(el) == NS_MML else "V-11"
+        for aname, aval in el.attrib.items():
+            q = etree.QName(aname)
+            if q.localname.lower() in _URL_ATTR_LOCALNAMES:  # 不论元素与命名空间；schema 之外的 href/src 也查（纵深防御）
+                problem = url_value_problem(aval)
+                if problem:
+                    shown = "xlink:href" if q.namespace == NS_XLINK else q.localname
+                    rep.error(rule, "<%s> 的 %s %s（%s）" % (label(el), shown, problem, "C-T-19" if rule == "V-10" else "C-T-56"), el=el)
+        if nsuri(el) is None and local(el) == "uri":
+            problem = url_value_problem(text_of(el))
+            if problem:
+                rep.error("V-11", "<uri> 的内容 %s（C-T-56）" % problem, el=el)
     for el in elems:
         if nsuri(el) is None and local(el) == "ext-link":
-            href = el.get(_clark(NS_XLINK, "href"))
-            if href:
-                m = _SCHEME_RE.match(href.strip())
-                if m and m.group(1).lower() not in _ALLOWED_LINK_SCHEMES:
-                    rep.error("V-11", "ext-link 的 xlink:href 使用了不允许的协议 %r（只接受 %s，C-T-56）"
-                              % (m.group(1), "、".join(sorted(_ALLOWED_LINK_SCHEMES))), el=el)
             ltype = el.get("ext-link-type")
             if ltype not in (None, "uri"):
                 rep.warn("W-EXTLINK-TYPE", "ext-link/@ext-link-type=%r：10.1.9 要求 uri，其他取值导入时告警（C-T-56）" % ltype, el=el)

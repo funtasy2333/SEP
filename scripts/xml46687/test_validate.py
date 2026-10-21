@@ -117,6 +117,9 @@ EXPECTED_INVALID = {
     "term-two-definitions.xml": ("V-9", {"V-9"}, "有且仅有一个"),
     "mathml-onclick.xml": ("V-10", {"V-10"}, "onclick"),
     "js-ext-link.xml": ("V-11", {"V-11"}, "javascript"),
+    "ext-link-tab-in-scheme.xml": ("V-11", {"V-11"}, "控制字符"),
+    "ext-link-newline-in-url.xml": ("V-11", {"V-11"}, "控制字符"),
+    "mathml-href-control-char.xml": ("V-10", {"V-10"}, "控制字符"),
     # 仅 RELAX NG
     "mixed-cell-content.xml": ("RNG", {"RNG"}, "td"),
     "tbx-langset-no-lang.xml": ("RNG", {"RNG"}, "langSet"),
@@ -1387,6 +1390,100 @@ class TestFootnotePairing(unittest.TestCase):
             with self.subTest(sample=path.name):
                 rep = VALIDATOR_IMPORT.validate_file(path)
                 self.assertEqual(self._unref(rep), [])
+
+
+class TestUrlValues(unittest.TestCase):
+    """所有 URL/URI 取值统一走 url_value_problem：含控制字符（tab、换行、回车）一律拒绝；协议不分大小写，只接受 http/https/mailto/ftp。"""
+
+    BAD = {
+        "tab 打断协议": "java&#x9;script:alert(1)",
+        "换行打断协议": "java&#x0A;script:alert(1)",
+        "回车打断协议": "java&#x0D;script:alert(1)",
+        "前导 tab": "&#x9;javascript:alert(1)",
+        "尾随换行": "https://example.org/&#x0A;",
+        "冒号前换行": "javascript&#x0A;:alert(1)",
+        "前导空格": " javascript:alert(1)",
+        "混合大小写": "JaVaScRiPt:alert(1)",
+        "全大写": "JAVASCRIPT:alert(1)",
+        "data": "data:text/html;base64,AAAA",
+        "vbscript": "vbscript:msgbox(1)",
+        "file": "file:///etc/passwd",
+        "带控制字符的合法协议": "https://exa&#x9;mple.org/",
+    }
+    GOOD = {
+        "https": "https://example.org/a?b=c#d",
+        "大写 HTTP": "HTTP://EXAMPLE.ORG/",
+        "mailto": "mailto:a@example.org",
+        "ftp": "ftp://example.org/x",
+        "相对路径": "../a/b.png",
+        "资源名": "fig_1",
+        "锚点": "#anchor",
+        "协议相对": "//cdn.example.org/x",
+        "前导空格的 https": " https://example.org/",
+    }
+    NS = ('xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:mml="http://www.w3.org/1998/Math/MathML" '
+          'xmlns:tbx="urn:iso:std:iso:30042:ed-1"')
+
+    # 带 URL 的位置：(名称, 带 {V} 的片段, 应报的规则)
+    POINTS = [
+        ("ext-link/xlink:href", '<p><ext-link xlink:href="{V}">x</ext-link></p>', "V-11"),
+        ("graphic/xlink:href", '<fig id="f"><caption><title>c</title></caption><graphic xlink:href="{V}"/></fig>', "V-11"),
+        ("inline-graphic/xlink:href", '<p><inline-graphic xlink:href="{V}"/></p>', "V-11"),
+        ("uri 的文本", '<p><uri xlink:type="simple">{V}</uri></p>', "V-11"),
+        ("mml:math/href", '<p><inline-formula><mml:math href="{V}"><mml:mi>x</mml:mi></mml:math></inline-formula></p>', "V-10"),
+        ("mml:mi/xlink:href", '<p><inline-formula><mml:math><mml:mi xlink:href="{V}">x</mml:mi></mml:math></inline-formula></p>', "V-10"),
+        ("mml:math/altimg", '<p><inline-formula><mml:math altimg="{V}"><mml:mi>x</mml:mi></mml:math></inline-formula></p>', "V-10"),
+        ("mml:mi/src", '<p><inline-formula><mml:math><mml:mi src="{V}">x</mml:mi></mml:math></inline-formula></p>', "V-10"),
+    ]
+
+    def _semantic(self, fragment):
+        text = "<standard %s><body><sec id=\"s\"><title>t</title>%s</sec></body></standard>" % (self.NS, fragment)
+        tree = validate.etree.ElementTree(validate.etree.fromstring(text.encode("utf-8"), validate.secure_parser()))
+        rep = validate.Report("case.xml", "import")
+        validate.semantic_checks(tree, rep)
+        return rep
+
+    def test_value_checker_table(self):
+        for why, v in self.BAD.items():
+            value = validate.etree.fromstring(("<a v=\"%s\"/>" % v).encode()).get("v")
+            with self.subTest(bad=why):
+                self.assertTrue(validate.url_value_problem(value), repr(value))
+        for why, v in self.GOOD.items():
+            value = validate.etree.fromstring(("<a v=\"%s\"/>" % v).encode()).get("v")
+            with self.subTest(good=why):
+                self.assertIsNone(validate.url_value_problem(value), repr(value))
+
+    def test_every_url_bearing_position_uses_the_same_check(self):
+        for point, tpl, rule in self.POINTS:
+            for why, v in self.BAD.items():
+                if point.startswith("uri") and why == "尾随换行":
+                    continue  # 元素文本首尾的空白是排版缩进，不属于 URL
+                with self.subTest(point=point, bad=why):
+                    rep = self._semantic(tpl.replace("{V}", v))
+                    self.assertIn(rule, {e["rule"] for e in rep.errors}, "%s: %s" % (point, why))
+            for why, v in self.GOOD.items():
+                with self.subTest(point=point, good=why):
+                    rep = self._semantic(tpl.replace("{V}", v))
+                    self.assertEqual([e for e in rep.errors if e["rule"] in ("V-10", "V-11")], [], "%s: %s" % (point, why))
+
+    def test_control_characters_are_named_in_the_message(self):
+        rep = self._semantic('<p><ext-link xlink:href="java&#x9;script:alert(1)">x</ext-link></p>')
+        self.assertIn("U+0009", rep.errors[0]["message"])
+        rep = self._semantic('<p><ext-link xlink:href="a&#x0A;b">x</ext-link></p>')
+        self.assertIn("U+000A", rep.errors[0]["message"])
+
+    def test_end_to_end_through_the_full_validator(self):
+        for v in ("java&#x9;script:alert(1)", "java&#x0A;script:alert(1)", "&#x0D;javascript:alert(1)", " javascript:alert(1)", "JaVaScRiPt:alert(1)"):
+            text = _doc(body='<sec id="sec_1" sec-type="scope"><label>1</label><title>范围</title><p><ext-link ext-link-type="uri" xlink:href="%s">x</ext-link></p></sec>' % v)
+            for validator in (VALIDATOR_IMPORT, VALIDATOR_EXPORT):
+                with self.subTest(value=v, profile=validator.profile):
+                    with tempfile.TemporaryDirectory() as tmp:
+                        path = Path(tmp) / "case.xml"
+                        path.write_text(text, encoding="utf-8")
+                        rep = validator.validate_file(path)
+                    self.assertFalse(rep.valid)
+                    self.assertIn("V-11", _rules(rep))
+                    self.assertTrue(rep.consistent)
 
 
 class TestWarnings(unittest.TestCase):

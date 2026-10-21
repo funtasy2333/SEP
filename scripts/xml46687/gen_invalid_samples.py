@@ -261,6 +261,12 @@ case('mathml-onclick.xml', 'mml:math 带事件属性 onclick（V-10：MathML 不
      [('<mml:math display="block" id="mml_m1">', '<mml:math display="block" id="mml_m1" onclick="alert(1)">')])
 case('js-ext-link.xml', 'ext-link 使用 javascript: 协议（V-11）。',
      [('xlink:href="https://example.org/"', 'xlink:href="javascript:alert(1)"')])
+case('ext-link-tab-in-scheme.xml', 'ext-link 的协议被 tab 打断：java&#x9;script:（V-11：浏览器会先删掉 tab 再识别协议，所以 URL 里含任何控制字符都拒绝）。',
+     [('xlink:href="https://example.org/"', 'xlink:href="java&#x9;script:alert(1)"')])
+case('ext-link-newline-in-url.xml', 'ext-link 的 URL 里含换行（&#x0A;，V-11：URL 里不得有控制字符）。',
+     [('xlink:href="https://example.org/"', 'xlink:href="https://example.org/&#x0A;x"')])
+case('mathml-href-control-char.xml', 'mml:math 的 href 里含 tab（V-10：与 ext-link 同一套 URL 检查）。',
+     [('<mml:math display="block" id="mml_m1">', '<mml:math display="block" id="mml_m1" href="java&#x9;script:alert(1)">')])
 # ---- 仅结构（RNG）----
 case('mixed-cell-content.xml', '单元格内 p 与文本混排（C-T-11：仅行内，或仅 p/list）。',
      [('<td>单元格</td>', '<td><p>段落</p>散落文本</td>')])
