@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<standard xmlns:xlink="http://www.w3.org/1999/xlink"
+          xmlns:mml="http://www.w3.org/1998/Math/MathML"
+          xmlns:tbx="urn:iso:std:iso:30042:ed-1">
+  <front>
+    <std-meta>
+      <title-wrap xml:lang="zh">
+        <full>公式与图示例</full>
+      </title-wrap>
+    </std-meta>
+  </front>
+  <body>
+    <sec id="sec_1" sec-type="scope">
+      <label>1</label>
+      <title>范围</title>
+      <p>本文件演示公式与图的标记，见<xref ref-type="disp-formula" rid="formula_1">(1)</xref>、<xref ref-type="fig" rid="fig_1">图1</xref>。</p>
+    </sec>
+    <sec id="sec_5">
+      <label>5</label>
+      <title>公式</title>
+      <p>当<inline-formula><mml:math id="mml_m1"><mml:mi>x</mml:mi><mml:mo>&#x2264;</mml:mo><mml:mn>1.5</mml:mn></mml:math></inline-formula>时，系统传递率应不超过限值，图标<inline-graphic xlink:href="icon_1" specific-use="size:S"/>表示该状态。</p>
+      <disp-formula id="formula_1">
+        <label>(1)</label>
+        <mml:math display="block" id="mml_m2">
+          <mml:mrow>
+            <mml:mi>E</mml:mi>
+            <mml:mo>=</mml:mo>
+            <mml:mfrac>
+              <mml:mrow>
+                <mml:mi>m</mml:mi>
+                <mml:msup><mml:mi>v</mml:mi><mml:mn>2</mml:mn></mml:msup>
+              </mml:mrow>
+              <mml:mn>2</mml:mn>
+            </mml:mfrac>
+            <mml:mspace width="1em"/>
+            <mml:msub><mml:mi>E</mml:mi><mml:mn>0</mml:mn></mml:msub>
+          </mml:mrow>
+        </mml:math>
+        <non-normative-note>
+          <label>注：</label>
+          <p>公式注紧跟在公式之后。</p>
+        </non-normative-note>
+        <legend>
+          <title>式中：</title>
+          <def-list list-content="formula">
+            <def-item>
+              <term><italic>E</italic></term>
+              <def><p>能量，单位为焦耳（J）；</p></def>
+            </def-item>
+            <def-item>
+              <term><italic>m</italic></term>
+              <def><p>质量，单位为千克（kg）；</p></def>
+            </def-item>
+            <def-item>
+              <term><italic>v</italic></term>
+              <def><p>速度，单位为米每秒（m/s）。</p></def>
+            </def-item>
+          </def-list>
+        </legend>
+      </disp-formula>
+      <disp-formula>
+        <mml:math display="block" id="mml_m3">
+          <mml:mi>a</mml:mi><mml:mo>+</mml:mo><mml:mi>b</mml:mi>
+        </mml:math>
+      </disp-formula>
+    </sec>
+    <sec id="sec_6">
+      <label>6</label>
+      <title>图</title>
+      <fig id="fig_1">
+        <label>图1</label>
+        <caption>
+          <title>系统结构示意</title>
+          <p content-type="dimension">单位为毫米</p>
+        </caption>
+        <legend>
+          <title>标引序号说明：</title>
+          <def-list list-content="figure">
+            <def-item>
+              <term>1</term>
+              <def><p>驱动及控制模块；</p></def>
+            </def-item>
+            <def-item>
+              <term>2</term>
+              <def><p>传感模块。</p></def>
+            </def-item>
+          </def-list>
+        </legend>
+        <graphic content-type="image" xlink:href="fig_1"/>
+        <non-normative-note>
+          <label>注：</label>
+          <p>图注位于图形之后。</p>
+        </non-normative-note>
+      </fig>
+      <fig id="fig_2" orientation="landscape">
+        <label>图2</label>
+        <caption>
+          <title>含说明段落和多个图形的图</title>
+        </caption>
+        <p>图形与图题之间的说明段落。</p>
+        <graphic content-type="image" xlink:href="fig_2"/>
+        <graphic content-type="image" xlink:href="fig_2_b" specific-use="size:M"/>
+      </fig>
+      <fig-group>
+        <fig id="fig_3">
+          <label>图3</label>
+          <caption>
+            <title>分图一</title>
+          </caption>
+          <graphic content-type="image" xlink:href="fig_3"/>
+        </fig>
+        <fig id="fig_4">
+          <label>图4</label>
+          <caption>
+            <title>分图二</title>
+          </caption>
+          <graphic content-type="image" xlink:href="fig_4"/>
+        </fig>
+        <legend>
+          <title>标引序号说明：</title>
+          <def-list list-content="figure">
+            <def-item>
+              <term>1</term>
+              <def><p>组合图的共用说明。</p></def>
+            </def-item>
+          </def-list>
+        </legend>
+      </fig-group>
+    </sec>
+  </body>
+</standard>

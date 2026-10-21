@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<standard xmlns:xlink="http://www.w3.org/1999/xlink"
+          xmlns:mml="http://www.w3.org/1998/Math/MathML"
+          xmlns:tbx="urn:iso:std:iso:30042:ed-1">
+  <processing-meta base-tagset="interchange" mathml-version="3.0" table-model="xhtml"
+                   terminology-model="tbx" math-representation="mathml" tagset-family="sts"/>
+  <front>
+    <std-meta>
+      <title-wrap xml:lang="zh">
+        <full>结构示例</full>
+      </title-wrap>
+    </std-meta>
+    <sec id="sec_foreword" sec-type="foreword">
+      <title>前言</title>
+      <p>本文件用于演示章、条、无标题条、附录、参考文献和索引的标记。</p>
+    </sec>
+    <sec id="sec_0" sec-type="intro">
+      <title>引言</title>
+      <p>引言可以直接含段落，也可以含条。</p>
+      <sec id="sec_0.1">
+        <label>0.1</label>
+        <title>综述</title>
+        <p>引言中的有标题条。</p>
+      </sec>
+    </sec>
+  </front>
+  <body>
+    <sec id="sec_1" sec-type="scope">
+      <label>1</label>
+      <title>范围</title>
+      <p>本文件给出一组用于验证结构的样例文字，参见<xref ref-type="app" rid="sec_A">附录 A</xref>。</p>
+    </sec>
+    <sec id="sec_2" sec-type="norm-refs">
+      <label>2</label>
+      <title>规范性引用文件</title>
+      <p>下列文件中的内容通过文中的规范性引用而构成本文件必不可少的条款。</p>
+      <ref-list content-type="norm-refs">
+        <ref>
+          <std>
+            <std-ref>GB/T 1.1—2020</std-ref>
+            <title>标准化工作导则 第1部分：标准化文件的结构和起草规则</title>
+          </std>
+        </ref>
+        <ref>
+          <mixed-citation>Example Corp. Interface specification, version 3 [EB/OL].</mixed-citation>
+        </ref>
+      </ref-list>
+    </sec>
+    <sec id="sec_3" sec-type="terms">
+      <label>3</label>
+      <title>术语和定义</title>
+      <p>本文件没有需要界定的术语和定义。</p>
+    </sec>
+    <sec id="sec_5">
+      <label>5</label>
+      <title>技术要求</title>
+      <sec id="sec_5.1">
+        <label>5.1</label>
+        <title>总体要求</title>
+        <p>各项要求应符合<xref ref-type="sec" rid="sec_5.2">5.2</xref>的规定。参见<xref ref-type="bibr" rid="biblref_1">[1]</xref>，
+        并注意<xref ref-type="custom" custom-type="note" rid="note_1">注</xref>。设变量<named-content content-type="variable">x<sub>1</sub></named-content>、
+        <named-content content-type="variable">y</named-content><sup>2</sup>，调用<inline-code>init(&amp;ctx)</inline-code>，
+        格式有<bold>粗体</bold>、<italic>斜体</italic>、<underline>下划线</underline>和<strike>删除线</strike>，
+        访问<ext-link ext-link-type="uri" xlink:href="https://example.org/">示例网站</ext-link>。</p>
+        <sec id="sec_5.1.1" sec-type="numbered-paragraph">
+          <label>5.1.1</label>
+          <p>这是一个无标题条，没有 title，带 numbered-paragraph 属性。</p>
+        </sec>
+        <sec id="sec_5.1.2">
+          <label>5.1.2</label>
+          <p>这是另一个无标题条，不带 sec-type 属性（4.4.2.1 的写法）。</p>
+        </sec>
+        <non-normative-note id="note_1">
+          <label>注：</label>
+          <p>被引用的注才带 id。</p>
+        </non-normative-note>
+        <non-normative-note>
+          <label>注：</label>
+          <p>没有被引用的注不带 id。</p>
+        </non-normative-note>
+        <non-normative-example>
+          <label>示例：</label>
+          <p>示例不编号。</p>
+        </non-normative-example>
+        <non-normative-note content-type="warning">
+          <label>警告：</label>
+          <p>警告是带有警告标签的注。</p>
+        </non-normative-note>
+      </sec>
+      <sec id="sec_5.2">
+        <label>5.2</label>
+        <title>列项与摘录</title>
+        <p>列项分为有序和无序两类：</p>
+        <list list-type="alpha-lower">
+          <list-item>
+            <label>a)</label>
+            <p>第一项；</p>
+          </list-item>
+          <list-item>
+            <label>b)</label>
+            <p>第二项，含嵌套无序列项：</p>
+            <list list-type="dash">
+              <list-item>
+                <p>嵌套项一；</p>
+              </list-item>
+              <list-item>
+                <p>嵌套项二。</p>
+              </list-item>
+            </list>
+          </list-item>
+        </list>
+        <list list-type="arabic">
+          <list-item>
+            <label>1)</label>
+            <p>数字列项；</p>
+          </list-item>
+          <list-item>
+            <label>2)</label>
+            <p>数字列项。</p>
+          </list-item>
+        </list>
+        <list list-type="roman-lower">
+          <list-item>
+            <label>i)</label>
+            <p>罗马数字列项。</p>
+          </list-item>
+        </list>
+        <list list-type="bullet">
+          <list-item>
+            <p>圆点列项。</p>
+          </list-item>
+        </list>
+        <disp-quote>
+          <p>被缩进的单段引文。</p>
+        </disp-quote>
+        <code>for (i = 0; i &lt; n; i++) {
+    total += a[i];
+}</code>
+      </sec>
+    </sec>
+  </body>
+  <back>
+    <app-group>
+      <app id="sec_A" content-type="informative">
+        <label>附录 A</label>
+        <annex-type>（资料性）</annex-type>
+        <title>资料性附录示例</title>
+        <sec id="sec_A.1">
+          <label>A.1</label>
+          <title>附录中的条</title>
+          <p>附录中的条沿用附录字母作编号前缀。</p>
+        </sec>
+      </app>
+      <app id="sec_B" content-type="normative">
+        <label>附录 B</label>
+        <annex-type>（规范性）</annex-type>
+        <title>规范性附录示例</title>
+        <p>规范性附录的正文。</p>
+      </app>
+    </app-group>
+    <ref-list content-type="bibl" id="sec_bibl">
+      <title>参考文献</title>
+      <ref id="biblref_1">
+        <label>[1]</label>
+        <std>
+          <std-ref>GB/T 20000.1—2014</std-ref>
+          <title>标准化工作指南 第1部分：标准化和相关活动的通用术语</title>
+        </std>
+      </ref>
+      <ref id="biblref_2">
+        <label>[2]</label>
+        <mixed-citation>李四.标准数字化概论[M].北京:示例出版社,2024.<break/><uri>https://example.org/book</uri></mixed-citation>
+      </ref>
+    </ref-list>
+    <index id="sec_index">
+      <index-title-group>
+        <title>索引</title>
+      </index-title-group>
+      <index-div>
+        <index-title-group>
+          <title>B</title>
+        </index-title-group>
+        <index-entry id="df_1">
+          <term>必备要素</term>
+          <see-entry>5.1</see-entry>
+          <see-entry>5.2</see-entry>
+        </index-entry>
+        <index-entry id="df_2">
+          <term>变量</term>
+          <see-entry>5.1</see-entry>
+        </index-entry>
+      </index-div>
+    </index>
+  </back>
+</standard>

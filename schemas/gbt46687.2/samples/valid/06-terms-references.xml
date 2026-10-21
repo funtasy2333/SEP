@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<standard xmlns:xlink="http://www.w3.org/1999/xlink"
+          xmlns:mml="http://www.w3.org/1998/Math/MathML"
+          xmlns:tbx="urn:iso:std:iso:30042:ed-1">
+  <processing-meta base-tagset="interchange" mathml-version="3.0" table-model="xhtml"
+                   terminology-model="tbx" math-representation="mathml" tagset-family="sts"/>
+  <front>
+    <std-meta>
+      <title-wrap xml:lang="zh">
+        <full>术语与引用示例</full>
+      </title-wrap>
+    </std-meta>
+  </front>
+  <body>
+    <sec id="sec_1" sec-type="scope">
+      <label>1</label>
+      <title>范围</title>
+      <p>本文件演示术语条目与各类引用的标记。引用标准<std><std-ref>GB/T 1.1</std-ref></std>和
+      文献<mixed-citation>Example Corp. Interface specification [EB/OL].</mixed-citation>的方式见第 5 章。</p>
+    </sec>
+    <sec id="sec_3" sec-type="terms">
+      <label>3</label>
+      <title>术语和定义</title>
+      <p>下列术语和定义适用于本文件。</p>
+      <sec id="sec_3.1">
+        <label>3.1</label>
+        <title>文件</title>
+        <term-sec id="sec_3.1.1">
+          <label>3.1.1</label>
+          <tbx:termEntry id="term_3.1.1">
+            <tbx:langSet xml:lang="zh">
+              <tbx:subjectField>标准化</tbx:subjectField>
+              <tbx:definition>规定了<tbx:entailedTerm target="term_3.1.2">要求</tbx:entailedTerm>的文件，
+              其内容见<xref ref-type="sec" rid="sec_5">第 5 章</xref>。</tbx:definition>
+              <tbx:example>电子文件和纸质文件。</tbx:example>
+              <tbx:note id="nte_3.1.1-1">必要时可附图。参见<xref ref-type="app" rid="sec_A">附录</xref>。</tbx:note>
+              <tbx:note>该注不被引用，因此不带 id。</tbx:note>
+              <tbx:source>GB/T 20000.1—2014,5.2</tbx:source>
+              <tbx:tig>
+                <tbx:term>标准化文件</tbx:term>
+                <tbx:partOfSpeech value="noun"/>
+                <tbx:normativeAuthorization value="preferredTerm"/>
+                <tbx:termType value="fullForm"/>
+              </tbx:tig>
+              <tbx:tig>
+                <tbx:term>规范文件</tbx:term>
+                <tbx:partOfSpeech value="noun"/>
+                <tbx:normativeAuthorization value="admittedTerm"/>
+              </tbx:tig>
+              <tbx:tig>
+                <tbx:term>规格书</tbx:term>
+                <tbx:normativeAuthorization value="deprecatedTerm"/>
+                <tbx:termType value="fullForm"/>
+              </tbx:tig>
+            </tbx:langSet>
+            <tbx:langSet xml:lang="en">
+              <tbx:tig>
+                <tbx:term>normative document</tbx:term>
+                <tbx:partOfSpeech value="noun"/>
+                <tbx:grammaticalNumber value="singular"/>
+                <tbx:normativeAuthorization value="preferredTerm"/>
+              </tbx:tig>
+              <tbx:tig>
+                <tbx:term>NDoc</tbx:term>
+                <tbx:termType value="abbreviation"/>
+              </tbx:tig>
+            </tbx:langSet>
+          </tbx:termEntry>
+        </term-sec>
+        <term-sec id="sec_3.1.2">
+          <label>3.1.2</label>
+          <tbx:termEntry id="term_3.1.2">
+            <tbx:langSet xml:lang="zh">
+              <tbx:definition>需要满足的条件，参见<xref ref-type="custom" custom-type="term-entry" rid="term_3.1.1">文件 (3.1.1)</xref>。</tbx:definition>
+              <tbx:tig>
+                <tbx:term>要求</tbx:term>
+                <tbx:partOfSpeech value="noun"/>
+                <tbx:normativeAuthorization value="preferredTerm"/>
+              </tbx:tig>
+            </tbx:langSet>
+          </tbx:termEntry>
+        </term-sec>
+      </sec>
+      <sec id="sec_3.2">
+        <label>3.2</label>
+        <title>缩略语</title>
+        <p>下列缩略语适用于本文件。</p>
+        <def-list list-content="abbreviation">
+          <def-item id="abb-adc">
+            <term>ADC</term>
+            <def><p>模数转换器（Analog-to-Digital Converter）</p></def>
+          </def-item>
+          <def-item id="abb-ct">
+            <term>CT</term>
+            <def><p>计算机断层扫描（Computed Tomography）</p></def>
+          </def-item>
+        </def-list>
+      </sec>
+    </sec>
+    <sec id="sec_5">
+      <label>5</label>
+      <title>引用</title>
+      <p>引用其他章条：<xref ref-type="sec" rid="sec_1">第 1 章</xref>；引用术语：<xref ref-type="custom" custom-type="term-entry" rid="term_3.1.2">要求 (3.1.2)</xref>；
+      引用缩略语：<xref ref-type="abbreviation" rid="abb-ct">CT</xref>；引用术语条内的注：<xref ref-type="custom" custom-type="note" rid="nte_3.1.1-1">注 1</xref>。</p>
+      <p>引用表：<xref ref-type="table" rid="tab_1">表1</xref>；引用图：<xref ref-type="fig" rid="fig_1">图1</xref>；
+      引用公式：<xref ref-type="disp-formula" rid="formula_1">(1)</xref>；引用示例：<xref ref-type="custom" custom-type="example" rid="example_1">示例</xref>；
+      引用列项：<xref ref-type="list" rid="lis_5.1">列项 b)</xref>；引用参考文献：<xref ref-type="bibr" rid="biblref_1">[1]</xref>。</p>
+      <p>正文脚注的引用：<xref ref-type="fn" rid="fn_1">1)</xref>。</p>
+      <!-- 正文脚注 fn 的定义位置原文没有规定（待决 D-T-10）。此处只演示 schema 容许 fn 作为块跟在引用段之后。 -->
+      <fn id="fn_1">
+        <label>1)</label>
+        <p>脚注的内容。</p>
+      </fn>
+      <non-normative-example id="example_1">
+        <label>示例：</label>
+        <p>被引用的示例带 id。</p>
+      </non-normative-example>
+      <list list-type="alpha-lower">
+        <list-item>
+          <label>a)</label>
+          <p>第一项；</p>
+        </list-item>
+        <list-item id="lis_5.1">
+          <label>b)</label>
+          <p>被引用的列项条目带 id。</p>
+        </list-item>
+      </list>
+      <table-wrap id="tab_1">
+        <label>表1</label>
+        <caption>
+          <title>引用目标表</title>
+        </caption>
+        <table>
+          <thead>
+            <tr>
+              <th>名称</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>值</td>
+            </tr>
+          </tbody>
+        </table>
+      </table-wrap>
+      <fig id="fig_1">
+        <label>图1</label>
+        <caption>
+          <title>引用目标图</title>
+        </caption>
+        <graphic content-type="image" xlink:href="fig_1"/>
+      </fig>
+      <disp-formula id="formula_1">
+        <label>(1)</label>
+        <mml:math display="block" id="mml_m1">
+          <mml:mi>y</mml:mi><mml:mo>=</mml:mo><mml:mn>1</mml:mn>
+        </mml:math>
+      </disp-formula>
+    </sec>
+  </body>
+  <back>
+    <app-group>
+      <app id="sec_A" content-type="informative">
+        <label>附录 A</label>
+        <annex-type>（资料性）</annex-type>
+        <title>示例附录</title>
+        <p>附录正文。</p>
+      </app>
+    </app-group>
+    <ref-list content-type="bibl" id="sec_bibl">
+      <title>参考文献</title>
+      <ref id="biblref_1">
+        <label>[1]</label>
+        <std>
+          <std-ref>GB/T 15657—2021</std-ref>
+          <title>中医病证分类与代码</title>
+        </std>
+      </ref>
+    </ref-list>
+  </back>
+</standard>

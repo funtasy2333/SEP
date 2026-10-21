@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<standard xmlns:xlink="http://www.w3.org/1999/xlink"
+          xmlns:mml="http://www.w3.org/1998/Math/MathML"
+          xmlns:tbx="urn:iso:std:iso:30042:ed-1">
+  <front>
+    <std-meta>
+      <title-wrap xml:lang="zh">
+        <full>最小文档示例</full>
+      </title-wrap>
+    </std-meta>
+  </front>
+  <body>
+    <sec id="sec_1" sec-type="scope">
+      <label>1</label>
+      <title>范围</title>
+      <p>本文件给出一个只含必需结构的最小文档。</p>
+    </sec>
+  </body>
+</standard>

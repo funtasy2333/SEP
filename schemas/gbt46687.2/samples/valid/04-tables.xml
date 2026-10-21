@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<standard xmlns:xlink="http://www.w3.org/1999/xlink"
+          xmlns:mml="http://www.w3.org/1998/Math/MathML"
+          xmlns:tbx="urn:iso:std:iso:30042:ed-1">
+  <front>
+    <std-meta>
+      <title-wrap xml:lang="zh">
+        <full>表示例</full>
+      </title-wrap>
+    </std-meta>
+  </front>
+  <body>
+    <sec id="sec_1" sec-type="scope">
+      <label>1</label>
+      <title>范围</title>
+      <p>本文件演示表的标记，见<xref ref-type="table" rid="tab_1">表1</xref>和<xref ref-type="table" rid="tab_2">表2</xref>。</p>
+    </sec>
+    <sec id="sec_4">
+      <label>4</label>
+      <title>表</title>
+      <table-wrap id="tab_1">
+        <label>表1</label>
+        <caption>
+          <title>带表头、合并单元格、表注与表脚注的表</title>
+        </caption>
+        <table width="100%">
+          <col width="30%" align="left"/>
+          <col width="35%" align="center" valign="middle"/>
+          <col width="35%" align="right"/>
+          <thead>
+            <tr>
+              <th rowspan="2" valign="middle"><p>项目</p></th>
+              <th colspan="2" align="center"><p>测量结果</p></th>
+            </tr>
+            <tr>
+              <th><p>公称厚度(e)</p><p>mm</p></th>
+              <th><p>平均偏差</p><p>%</p></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td align="left">样品 A</td>
+              <td align="center" style="border-left: solid 2px; border-top: solid 2px; border-right: solid 1px; border-bottom: solid 1px">1.5<xref ref-type="table-fn" rid="table-fn_1.1">a</xref></td>
+              <td align="right" style="background-color: #EFEFEF">0.3</td>
+            </tr>
+            <tr>
+              <td align="left">样品 B</td>
+              <td align="center" colspan="2">x<sub>b</sub> = 2.0<xref ref-type="table-fn" rid="table-fn_1.2">b</xref><break/>（见注）</td>
+            </tr>
+            <tr>
+              <td valign="top"><p>多段单元格</p><list list-type="dash"><list-item><p>项一</p></list-item><list-item><p>项二</p></list-item></list></td>
+              <td><italic>斜体</italic></td>
+              <td>—</td>
+            </tr>
+          </tbody>
+        </table>
+        <table-wrap-foot>
+          <p content-type="dimension">单位为毫米</p>
+          <non-normative-note>
+            <label>注：</label>
+            <p>表中数值为示例。</p>
+          </non-normative-note>
+          <fn id="table-fn_1.1">
+            <label><sup>a</sup></label>
+            <p>第一个表脚注。</p>
+          </fn>
+          <fn id="table-fn_1.2">
+            <label><sup>b</sup></label>
+            <p>第二个表脚注。</p>
+          </fn>
+        </table-wrap-foot>
+      </table-wrap>
+      <table-wrap id="tab_2" orientation="landscape">
+        <label>表2</label>
+        <caption>
+          <title>横向表</title>
+        </caption>
+        <table>
+          <thead>
+            <tr>
+              <th>列 1</th>
+              <th>列 2</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>a</td>
+              <td>b</td>
+            </tr>
+          </tbody>
+        </table>
+      </table-wrap>
+    </sec>
+  </body>
+</standard>
