@@ -42,6 +42,11 @@ function textToLatex(text: string, upright: boolean): string | null {
   return out
 }
 
+/** 拼接两段 LaTeX：前段以命令结尾（\Delta）、后段以字母开头时补一个空格，避免并成 \Deltap。 */
+function appendLatex(left: string, right: string): string {
+  return /\\[A-Za-z]+$/.test(left) && /^[A-Za-z]/.test(right) ? `${left} ${right}` : left + right
+}
+
 /** 旧式中符号 → LaTeX；不能可靠转换时返回 null（保留为文字）。 */
 export function termToLatex(term: IRInline[]): string | null {
   let out = ''
@@ -65,14 +70,14 @@ export function termToLatex(term: IRInline[]): string | null {
       if (!hasBase) return null
       const latex = textToLatex(run.text, !marks.includes('italic'))
       if (latex === null) return null
-      if (isSub) sub += latex
-      else sup += latex
+      if (isSub) sub = appendLatex(sub, latex)
+      else sup = appendLatex(sup, latex)
       continue
     }
     flushScripts()
     const latex = textToLatex(run.text, false)
     if (latex === null) return null
-    out += latex
+    out = appendLatex(out, latex)
     hasBase = true
   }
   flushScripts()

@@ -1,3 +1,4 @@
+import katex from 'katex'
 import { describe, expect, it } from 'vitest'
 import { getSchema } from '@tiptap/core'
 import { pmToIr, type IRFormula, type IRInline, type PMJsonNode } from '@ses/shared'
@@ -33,8 +34,12 @@ describe('旧式中符号转 LaTeX', () => {
     ['上标', [run('x'), run('2', 'sup')], 'x^{2}'],
     ['上下标', [run('x'), run('i', 'italic', 'sub'), run('2', 'sup')], 'x_{i}^{2}'],
     ['撇号', [run('t′')], "t'"],
+    ['希腊字母与后一片段的字母之间保留命令边界', [run('Δ', 'italic'), run('p')], String.raw`\Delta p`],
+    ['脚标跨片段时同样保留命令边界', [run('ρ'), run('α', 'italic', 'sub'), run('x', 'italic', 'sub')], String.raw`\rho_{\alpha x}`],
   ])('%s', (_name, term, latex) => {
     expect(termToLatex(term)).toBe(latex)
+    // 转换结果直接写入文档，必须能被导出端的 KaTeX 解析。
+    expect(() => katex.renderToString(latex, { throwOnError: true })).not.toThrow()
   })
 
   it.each<[string, IRInline[]]>([
