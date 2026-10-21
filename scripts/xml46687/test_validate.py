@@ -81,6 +81,8 @@ EXPECTED_INVALID = {
     "admn-sts-value.xml": ("REJECT", {"REJECT", "RNG"}, "admn-sts"),
     "caption-two-titles.xml": ("REJECT", {"REJECT", "RNG"}, "title"),
     "fig-footnote.xml": ("REJECT", {"REJECT", "RNG"}, "fn"),
+    # 结构层允许（fn 在 caption 的段落里），只有上下文拒绝规则（按祖先判断）能拒绝
+    "fig-footnote-in-caption.xml": ("REJECT", {"REJECT"}, "图内"),
     "nested-term-entry.xml": ("REJECT", {"REJECT", "RNG"}, "termEntry"),
     "definition-target.xml": ("REJECT", {"REJECT", "RNG"}, "target"),
     # V-1
@@ -814,6 +816,81 @@ class TestCustomXref(unittest.TestCase):
         rep = self._run(self._x("term_3.1", "glossary"), VALIDATOR_IMPORT)
         self.assertIs(rep.engines["lxml"]["valid"], False)
         self.assertIs(rep.engines["xmllint"]["valid"], False)
+
+
+class TestContextRejectsUseAncestors(unittest.TestCase):
+    """“X 内不得有 Y”的上下文拒绝按任意祖先判断，不只看直接父元素（PR#55 审查：fn 藏进 caption/p 就能绕过）。"""
+
+    NS = ('xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:mml="http://www.w3.org/1998/Math/MathML" '
+          'xmlns:tbx="urn:iso:std:iso:30042:ed-1"')
+
+    def _rejects(self, fragment):
+        text = "<standard %s>%s</standard>" % (self.NS, fragment)
+        tree = validate.etree.ElementTree(validate.etree.fromstring(text.encode("utf-8"), validate.secure_parser()))
+        rep = validate.Report("case.xml", "import")
+        validate.check_rejects(tree, rep)
+        return rep
+
+    FN = '<fn id="f1"><p>n</p></fn>'
+
+    def test_fn_anywhere_inside_a_figure_is_rejected(self):
+        fn = self.FN
+        cases = {
+            "fig 的直接子元素": '<fig><caption><title>c</title></caption>%s</fig>' % fn,
+            "caption 的段落里": '<fig><caption><title>c</title><p>u%s</p></caption></fig>' % fn,
+            "fig 的说明段里": '<fig><caption><title>c</title></caption><p>x%s</p></fig>' % fn,
+            "图注里": '<fig><caption><title>c</title></caption><non-normative-note><p>x%s</p></non-normative-note></fig>' % fn,
+            "图例的定义列表里": '<fig><caption><title>c</title></caption><legend><def-list><def-item><term>a</term><def><p>x%s</p></def></def-item></def-list></legend></fig>' % fn,
+            "组合图（fig-group）的图题里": '<fig-group><caption><title>c</title><p>x%s</p></caption><fig><caption><title>d</title></caption></fig></fig-group>' % fn,
+            "分图里": '<fig-group><caption><title>c</title></caption><fig><caption><title>d</title><p>x%s</p></caption></fig></fig-group>' % fn,
+        }
+        for why, frag in cases.items():
+            with self.subTest(why=why):
+                rep = self._rejects('<body><sec><title>t</title>%s</sec></body>' % frag)
+                found = [e for e in rep.errors if e["rule"] == "REJECT" and "图脚注" in e["message"]]
+                self.assertEqual(len(found), 1, why)
+
+    def test_fn_outside_figures_is_not_rejected(self):
+        fn = self.FN
+        cases = {
+            "正文段落": '<p>x%s</p>' % fn,
+            "表脚注": '<table-wrap><table><tbody><tr><td>a</td></tr></tbody></table><table-wrap-foot>%s</table-wrap-foot></table-wrap>' % fn,
+            "图后面的段落": '<fig><caption><title>c</title></caption></fig><p>x%s</p>' % fn,
+        }
+        for why, frag in cases.items():
+            with self.subTest(why=why):
+                rep = self._rejects('<body><sec><title>t</title>%s</sec></body>' % frag)
+                self.assertEqual(rep.errors, [], why)
+
+    def test_std_anywhere_inside_tbx_source_is_rejected(self):
+        for why, inner in (("直接子元素", "<std><std-ref>GB/T 1</std-ref></std>"),
+                           ("嵌在 bold 里", "<bold><std><std-ref>GB/T 1</std-ref></std></bold>")):
+            with self.subTest(why=why):
+                rep = self._rejects('<body><sec><title>t</title><term-sec><tbx:termEntry><tbx:langSet xml:lang="zh">'
+                                    '<tbx:source>[来源：%s]</tbx:source></tbx:langSet></tbx:termEntry></term-sec></sec></body>' % inner)
+                self.assertEqual([e["rule"] for e in rep.errors], ["REJECT"], why)
+                self.assertIn("tbx:source", rep.errors[0]["message"])
+
+    def test_std_outside_tbx_source_is_not_rejected(self):
+        rep = self._rejects('<body><sec><title>t</title><p><std><std-ref>GB/T 1</std-ref></std></p></sec></body>')
+        self.assertEqual(rep.errors, [])
+
+    def test_nested_table_and_term_entry_at_any_depth(self):
+        rep = self._rejects('<body><sec><title>t</title><table-wrap><table><tbody><tr><td><p>x</p><list list-type="dash"><list-item><p>'
+                            '<table-wrap><table><tbody><tr><td>a</td></tr></tbody></table></table-wrap></p></list-item></list></td></tr></tbody></table></table-wrap></sec></body>')
+        self.assertIn("嵌套表", _messages(rep))
+        rep = self._rejects('<body><sec><title>t</title><term-sec><tbx:termEntry><tbx:langSet xml:lang="zh"><tbx:definition>d'
+                            '<tbx:termEntry/></tbx:definition></tbx:langSet></tbx:termEntry></term-sec></sec></body>')
+        self.assertIn("嵌套的 tbx:termEntry", _messages(rep))
+
+    def test_sections_inside_the_introduction_warn_at_every_depth(self):
+        frag = ('<front><sec sec-type="intro"><title>引言</title><sec><label>0.1</label><title>a</title>'
+                '<sec><label>0.1.1</label><title>b</title><sec><label>0.1.1.1</label><title>c</title></sec></sec></sec></sec></front>'
+                '<body><sec sec-type="scope"><label>1</label><title>范围</title><sec><label>1.1</label><title>d</title></sec></sec></body>')
+        rep = self._rejects(frag)
+        warned = [w for w in rep.warnings if w["rule"] == "W-IMPL-REJECT" and "引言中的条" in w["message"]]
+        self.assertEqual(len(warned), 3)  # 0.1、0.1.1、0.1.1.1；正文里的条和引言本身不报
+        self.assertEqual(rep.errors, [])
 
 
 class TestWarnings(unittest.TestCase):

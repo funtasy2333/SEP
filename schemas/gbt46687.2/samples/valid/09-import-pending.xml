@@ -21,6 +21,11 @@
         <label>0.1</label>
         <title>综述</title>
         <p>引言中的有标题条。</p>
+        <sec id="sec_0.1.1">
+          <label>0.1.1</label>
+          <title>更深一层</title>
+          <p>引言中的条可以再分条（M-4.3.4-03 的 sec_0.1.1）。</p>
+        </sec>
       </sec>
     </sec>
   </front>

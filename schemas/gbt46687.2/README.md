@@ -22,7 +22,7 @@
 | `math.rng` | disp-formula、disp-formula-group、inline-formula、mml:math（MathML 3 宽松子 schema） |
 | `tbx.rng` | tbx:termEntry/langSet/tig/term/definition/note/example/source/subjectField/entailedTerm/partOfSpeech/… |
 | `samples/valid/` | 9 个手写正例：01～06 选用形式；07 “仅导入接受”的异写汇总（含按原文 4.1 示例次序写的 std-meta）；08 原文明确写法与 STS 1.2 不一致的情形（国标扩展、示例冲突）；09 格式合法但导入暂拒的写法 |
-| `samples/invalid/` | 60 个负例，每个由同一基底文档单点改动生成，文件开头的注释写明违反项 |
+| `samples/invalid/` | 61 个负例，每个由同一基底文档单点改动生成，文件开头的注释写明违反项 |
 | `../../scripts/xml46687/validate.py` | 校验工具（语法 + RELAX NG 双实现 + 语义规则） |
 | `../../scripts/xml46687/sts_compat.py` | 官方 NISO STS 1.2 DTD 兼容性检查（已知国标扩展白名单 + 未解释偏差） |
 | `../../scripts/xml46687/test_validate.py` | unittest 回归测试 |
@@ -174,6 +174,24 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | W-IMPL-REJECT 等 | 告警 | rejectKind=implementation：格式合法、导入暂拒（引言中的条、array、disp-formula-group），同一 fn 多引用为 W-FN-MULTIREF | 各 M- 行 |
 | W-* | 告警 | 不阻断：未知 sec-type、named-content/graphic/ext-link 的非常规取值、`size:T` 用于行内图、有序列项缺 label、annex-type 与 content-type 矛盾、发布日期晚于实施日期、多 rid… | 各 C- 行 |
 
+### 上下文规则：按任意祖先还是直接父元素
+
+“X 内不得有 Y”这类拒绝规则按**任意祖先**判断（Y 藏在 X 的段落、注、列表里也算在 X 内）；只有本身就是“位置”的规则才看直接父元素。
+`validate.py` 的 `has_ancestor()` 是前者的统一入口。逐条清单（PR#55 审查后全量排查）：
+
+| 规则 | 判断方式 | 依据 |
+|---|---|---|
+| REJECT 嵌套表：`td`/`th` 内的 `table`、`table-wrap` | 任意祖先 | 6.1“不使用嵌套表”；M-6.1-06（原来就是祖先） |
+| REJECT 嵌套 `tbx:termEntry` | 任意祖先 | M-9.1-03（原来就是祖先） |
+| REJECT 图内的 `fn`（`fig`、`fig-group`） | **任意祖先**（原来只看直接父元素，fn 放进 `caption/p` 就绕过） | M-8.6-02、C-T-32；图题、说明段、图注、图例里的 fn 都是图脚注 |
+| REJECT `tbx:source` 内的 `std` | **任意祖先**（原来只看直接父元素） | M-9.2.8-02 |
+| W-IMPL-REJECT 引言中的条 | **任意祖先** `sec[@sec-type=intro]`（原来只认第一层，`sec_0.1.1` 不告警） | M-4.3.4-02/03 |
+| 旧格式判别：`foreword`/`intro` 作为 `body`/`front`/`standard` 的子元素 | 直接父元素（有意） | 位置特征，用来识别 SEP 早期格式 |
+| V-2 `sec-type` 位置（front 内只能 foreword/intro，body 顶层只能 scope/norm-refs/terms…） | 直接父元素（有意） | 规则本身就是“位置”，C-S-06 |
+| V-3 `norm-refs` 清单必须在 `sec-type=norm-refs` 的章内 | 直接父元素（有意） | 4.4.2.3.1：章内先引导语再 `ref-list` |
+| V-13 `ref` 的“在 bibl 参考文献表内” | 直接父元素（有意） | `ref` 只能是 `ref-list` 的直接子元素 |
+| 标题数、`list-item` 的 `label` 等针对自身子元素的规则 | 自身子元素 | 内容模型本身 |
+
 **两个“实现”并不独立**：lxml（libxml2 2.14.6）与 xmllint（libxml 2.9.14）是同一套 libxml2 RELAX NG 代码的两个版本，二者一致能排除构建/版本差异，
 不能替代 jing 之类独立实现（本机没有 jing，也不得新增依赖）。libxml2 的 RELAX NG 报错粗糙（遇到第一处失败即停，信息含元素名但不一定含属性名），
 `validate.py` 因此给每条 RNG 报错补上“出错位置”的元素名；语义规则与 `REJECT` 规则同时承担“说明原因”的责任。
@@ -201,10 +219,10 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | `06-terms-references.xml` | term-sec + tbx:termEntry（多 langSet、多 tig、描述符、subjectField、note/example、entailedTerm）、缩略语、各类 xref、行内 fn、std、mixed-citation |
 | `07-import-variants.xml` | 仅导入接受的异写汇总，以及按原文 4.1 示例次序写的 `std-meta`（`ics`、`ccs` 在 `title-wrap` 之前）：import 档通过并告警（`IMPORT-ONLY`、V-12），export 档不通过 |
 | `08-original-forms-vs-sts.xml` | 原文明确写法与 STS 1.2 不一致的情形（5 个国标扩展元素、std-org 多名、xref 内 label、langSet 内 note 在 tig 之后、graphic 在 table-wrap-foot 之后、块级 fn）；两个档位都通过，`sts_compat.py` 列为已知偏差 |
-| `09-import-pending.xml` | 格式合法但导入暂拒（rejectKind=implementation）：引言中的条、array、disp-formula-group、同一脚注多次引用；只告警 |
+| `09-import-pending.xml` | 格式合法但导入暂拒（rejectKind=implementation）：引言中的条（含 `sec_0.1.1` 两层）、array、disp-formula-group、同一脚注多次引用；只告警 |
 
-`samples/invalid/` 的 60 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
-语法 3、旧格式/根 3、矩阵 format 类 reject 16（含 4 个术语异写元素名）、V-1 3、V-2 3、V-3 2、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 6（含 2 个 custom 型 xref 的目标错误）、仅 RELAX NG 7
+`samples/invalid/` 的 61 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
+语法 3、旧格式/根 3、矩阵 format 类 reject 17（含 4 个术语异写元素名、1 个 fn 藏在 caption 段落里的图脚注）、V-1 3、V-2 3、V-3 2、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 6（含 2 个 custom 型 xref 的目标错误）、仅 RELAX NG 7
 （含按 STS 1.2 收紧后新增的含子条的条再放段落、partOfSpeech 取值、named-content 缺 content-type、空 table-wrap-foot）、
 **仅 export 档失败 5（`std-meta-wrong-order.xml`：结构层通过，import 档告警 V-12，export 档错误 V-12；`missing-term-entry-id.xml`、`missing-app-id.xml`、`missing-ref-id.xml`：缺必备 id，import 档告警 V-13，export 档错误 V-13；`custom-xref-no-type.xml`：custom 型 xref 缺 custom-type，import 档告警 V-8 CUSTOM-TYPE，export 档错误；预期见 `EXPORT_ONLY_INVALID`）**。
 

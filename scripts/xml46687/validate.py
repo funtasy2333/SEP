@@ -484,6 +484,11 @@ _UNPREFIXED_MATHML = {
 }
 
 
+def has_ancestor(el, *keys) -> bool:
+    """el 的任一祖先（不含自身）的 Clark 名在 keys 中。上下文拒绝按“内”判断（任意深度），不只看直接父元素。"""
+    return any(is_element(a) and _clark(nsuri(a), local(a)) in keys for a in el.iterancestors())
+
+
 def check_rejects(tree, rep: Report) -> None:
     root = tree.getroot()
     for el in root.iter():
@@ -491,13 +496,14 @@ def check_rejects(tree, rep: Report) -> None:
             continue
         key = _clark(nsuri(el), local(el))
         name = label(el)
-        parent = el.getparent()
-        pkey = _clark(nsuri(parent), local(parent)) if parent is not None and is_element(parent) else None
         if nsuri(el) is None and local(el) in IMPL_REJECT_ELEMENTS:
             mid, conv, why = IMPL_REJECT_ELEMENTS[local(el)]
             rep.warn("W-IMPL-REJECT", "<%s> 格式上合法，但导入暂拒（%s，%s，rejectKind=implementation）：%s" % (name, mid, conv, why), el=el)
-        if key == "sec" and parent is not None and local(parent) == "sec" and nsuri(parent) is None \
-                and parent.get("sec-type") == "intro" and parent.getparent() is not None and local(parent.getparent()) == "front":
+        if key == "sec" and any(
+            is_element(a) and nsuri(a) is None and local(a) == "sec" and a.get("sec-type") == "intro"
+            and a.getparent() is not None and nsuri(a.getparent()) is None and local(a.getparent()) == "front"
+            for a in el.iterancestors()
+        ):  # 引言中的条，任意深度（sec_0.1、sec_0.1.1 …）
             rep.warn("W-IMPL-REJECT", "引言中的条：格式上合法（4.3.4），但导入暂拒（M-4.3.4-02/03，rejectKind=implementation，IR 缺口）", el=el)
         if key in REJECT_ELEMENTS:
             mid, conv, why = REJECT_ELEMENTS[key]
@@ -505,18 +511,13 @@ def check_rejects(tree, rep: Report) -> None:
         elif nsuri(el) is None and local(el) in _UNPREFIXED_MATHML:
             rep.error("REJECT", "无前缀的 MathML 元素 <%s>（M-7.4-12，C-T-19：MathML 元素必须带 mml: 前缀并绑定到 %s）"
                       % (name, NS_MML), el=el)
-        if key in ("table", "table-wrap") and any(
-            is_element(a) and local(a) in ("td", "th") and nsuri(a) is None for a in el.iterancestors()
-        ):
+        if key in ("table", "table-wrap") and has_ancestor(el, "td", "th"):
             rep.error("REJECT", "单元格内出现 <%s>：6.1 规定不使用嵌套表（M-6.1-06，C-T-13）" % name, el=el)
-        if key == "std" and pkey == _clark(NS_TBX, "source"):
+        if key == "std" and has_ancestor(el, _clark(NS_TBX, "source")):
             rep.error("REJECT", "tbx:source 内的标准不加 std（9.2.8，M-9.2.8-02）", el=el)
-        if key == "fn" and pkey == "fig":
-            rep.error("REJECT", "fig 内的 fn（图脚注）原文没有规定标记（M-8.6-02，C-T-32）", el=el)
-        if key == _clark(NS_TBX, "termEntry") and any(
-            is_element(a) and _clark(nsuri(a), local(a)) == _clark(NS_TBX, "termEntry")
-            for a in el.iterancestors()
-        ):
+        if key == "fn" and has_ancestor(el, "fig", "fig-group"):
+            rep.error("REJECT", "fig 内的 fn（图脚注）原文没有规定标记（M-8.6-02，C-T-32）；fn 在图题、说明段、图注、图例等任何位置都算图内", el=el)
+        if key == _clark(NS_TBX, "termEntry") and has_ancestor(el, _clark(NS_TBX, "termEntry")):
             rep.error("REJECT", "嵌套的 tbx:termEntry（M-9.1-03，C-T-47：术语分组用嵌套 sec，不用嵌套条目）", el=el)
         if key == _clark(NS_TBX, "definition") and el.get("target") is not None:
             rep.error("REJECT", "tbx:definition/@target 仅附录 C 列出，无解释（M-C.1-08，C-T-46）", el=el)

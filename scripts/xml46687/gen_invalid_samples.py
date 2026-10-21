@@ -302,6 +302,8 @@ case('caption-two-titles.xml', '表的 caption 内有第二个 title（英文表
      [('<title>示例表</title>', '<title>示例表</title>\n          <title>Example table</title>')])
 case('fig-footnote.xml', 'fig 内出现 fn（图脚注，M-8.6-02，C-T-32：原文未规定标记）。',
      [('        <graphic content-type="image" xlink:href="fig_1"/>', '        <graphic content-type="image" xlink:href="fig_1"/>\n        <fn id="fn_1">\n          <label>a</label>\n          <p>图脚注。</p>\n        </fn>')])
+case('fig-footnote-in-caption.xml', 'fig 的 caption 内的段落里有 fn（图脚注，M-8.6-02，C-T-32：fn 在图内任何位置都算，不只是 fig 的直接子元素）。结构层允许，只有 REJECT 规则拒绝。',
+     [('          <title>示例图</title>\n        </caption>', '          <title>示例图</title>\n          <p>单位说明<fn id="fn_1"><label>a</label><p>图脚注。</p></fn></p>\n        </caption>')])
 case('nested-term-entry.xml', 'tbx:termEntry 内嵌套另一个 tbx:termEntry（M-9.1-03，C-T-47）。',
      [('            <tbx:definition>术语的定义。</tbx:definition>', '            <tbx:definition>术语的定义。</tbx:definition>\n            <tbx:termEntry id="term_3.2">\n              <tbx:langSet xml:lang="zh">\n                <tbx:tig>\n                  <tbx:term>子条目</tbx:term>\n                </tbx:tig>\n              </tbx:langSet>\n            </tbx:termEntry>')])
 case('definition-target.xml', 'tbx:definition 带 target 属性（M-C.1-08：仅附录 C 列出，无解释）。',
