@@ -17,6 +17,8 @@
       chem list                                                            （附录 D 行 9）
       other                                                                （10.1.4 示例，[仅导入接受]：按目标类型归类）
     custom-type 仅与 ref-type="custom" 共现：term-entry（9.2.6）、note / example（10.1.3）。
+    custom-type 在结构层保持可选（10.1.1 称“可选”，第三方文件缺它仍应可导入）；validate.py V-8 对 custom 一律检查目标
+    （术语条目、注、示例之一，有 custom-type 时须一致），缺 custom-type 时 export 档错误、import 档告警（导入器按 rid 目标推断）。
     rid：附录 D 行 10 允许一个或多个标识符；导入只接受单个（G-T-15），validate.py 对多个 rid 告警。
     内容：Resolver 的 refText（纯文本）；示例中还出现 bold（9.2.6）、label>sup（10.1.8）。
     内容模型取 STS 1.2 的 xref：文本 + 格式 + 变量/代码 + 行内图（cm.phrase 一类）；另收 label（10.1.8 示例，STS 没有，列入偏差表）。

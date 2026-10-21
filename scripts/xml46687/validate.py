@@ -489,11 +489,28 @@ _XREF_TARGETS = {
     "other": None,
     "chem": None,
 }
+# xref[ref-type=custom] 的目标：custom-type 取 term-entry（9.2.6）、note、example（10.1.3，C-T-48、C-T-50）。
+# 术语条目既可以指向 tbx:termEntry，也可以指向包着它的 term-sec；注、示例既有正文的 non-normative-*，也有术语条目内的 tbx:note/tbx:example。
 _CUSTOM_TARGETS = {
-    "term-entry": {_clark(NS_TBX, "termEntry")},
+    "term-entry": {_clark(NS_TBX, "termEntry"), "term-sec"},
     "note": {"non-normative-note", _clark(NS_TBX, "note")},
     "example": {"non-normative-example", _clark(NS_TBX, "example")},
 }
+_CUSTOM_ANY_TARGETS = set().union(*_CUSTOM_TARGETS.values())
+# tbx:entailedTerm/@target 只能指向 tbx:termEntry（C-T-45）
+_ENTAILED_TARGETS = {_clark(NS_TBX, "termEntry")}
+
+
+def _key_label(key: str) -> str:
+    """Clark 名 → 可读名（tbx 元素带前缀）。"""
+    return key.replace("{%s}" % NS_TBX, "tbx:")
+
+
+def _infer_custom_type(tkey: str) -> str | None:
+    for ct, keys in _CUSTOM_TARGETS.items():
+        if tkey in keys:
+            return ct
+    return None
 
 _ALLOWED_LINK_SCHEMES = {"http", "https", "mailto", "ftp"}
 _SCHEME_RE = re.compile(r"^([A-Za-z][A-Za-z0-9+.\-]*):")
@@ -836,6 +853,7 @@ def semantic_checks(tree, rep: Report) -> None:
         rt = el.get("ref-type")
         if not rid or rt is None:
             continue
+        custom_type_reported = False
         for t in rid.split():
             target = id_map.get(t)
             if target is None:
@@ -843,15 +861,26 @@ def semantic_checks(tree, rep: Report) -> None:
             tkey = _clark(nsuri(target), local(target))
             if rt == "custom":
                 ct = el.get("custom-type")
-                allowed = _CUSTOM_TARGETS.get(ct)
-                if allowed is not None and tkey not in allowed:
-                    rep.error("V-8", "xref[ref-type=custom custom-type=%s] 指向 <%s>（%r），应指向 %s（C-T-48、C-T-50）"
-                              % (ct, label(target), t, "、".join(sorted(allowed))), el=el)
+                allowed = _CUSTOM_TARGETS.get(ct) if ct is not None else None
+                if allowed is None:
+                    # 缺 custom-type（或取值未知，已由 RELAX NG 报告）：目标至少须是术语条目、注或示例之一
+                    allowed = _CUSTOM_ANY_TARGETS
+                if tkey not in allowed:
+                    rep.error("V-8", "xref[ref-type=custom%s] 指向 <%s>（%r），应指向 %s（C-T-48、C-T-50）"
+                              % (" custom-type=%s" % ct if ct is not None else "", label(target), t, "、".join(sorted(_key_label(k) for k in allowed))), el=el)
+                elif ct is None and not custom_type_reported:
+                    custom_type_reported = True
+                    inferred = _infer_custom_type(tkey)
+                    base = ("CUSTOM-TYPE：xref[ref-type=custom] 缺少 custom-type（10.1.1：term-entry、note、example 三选一；C-T-48、C-T-50）")
+                    if rep.profile == "export":
+                        rep.error("V-8", base + "（导出必须写 custom-type=%s）" % inferred, el=el)
+                    else:
+                        rep.warn("V-8", base + "（导入接受：导入器按 rid 目标元素 <%s> 推断为 custom-type=%s；导出须写出）" % (label(target), inferred), el=el)
                 continue
             allowed = _XREF_TARGETS.get(rt)
             if allowed is not None and tkey not in allowed:
                 rep.error("V-8", "xref[ref-type=%s] 指向 <%s>（%r），应指向 %s（C-T-48）"
-                          % (rt, label(target), t, "、".join(sorted(allowed))), el=el)
+                          % (rt, label(target), t, "、".join(sorted(_key_label(k) for k in allowed))), el=el)
             elif rt == "table-fn":
                 wrap = target.getparent().getparent() if target.getparent() is not None else None
                 if wrap is None or local(wrap) != "table-wrap" or wrap not in list(el.iterancestors()):
@@ -859,7 +888,7 @@ def semantic_checks(tree, rep: Report) -> None:
     for el in entailed:
         t = el.get("target")
         target = id_map.get(t) if t else None
-        if target is not None and _clark(nsuri(target), local(target)) not in _CUSTOM_TARGETS["term-entry"]:
+        if target is not None and _clark(nsuri(target), local(target)) not in _ENTAILED_TARGETS:
             rep.error("V-8", "tbx:entailedTerm 的 target=%r 指向 <%s>，应指向 tbx:termEntry（C-T-45）" % (t, label(target)), el=el)
 
     # ---------------- V-9 术语条目 ----------------

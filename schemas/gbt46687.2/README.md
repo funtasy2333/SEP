@@ -22,7 +22,7 @@
 | `math.rng` | disp-formula、disp-formula-group、inline-formula、mml:math（MathML 3 宽松子 schema） |
 | `tbx.rng` | tbx:termEntry/langSet/tig/term/definition/note/example/source/subjectField/entailedTerm/partOfSpeech/… |
 | `samples/valid/` | 9 个手写正例：01～06 选用形式；07 “仅导入接受”的异写汇总（含按原文 4.1 示例次序写的 std-meta）；08 原文明确写法与 STS 1.2 不一致的情形（国标扩展、示例冲突）；09 格式合法但导入暂拒的写法 |
-| `samples/invalid/` | 57 个负例，每个由同一基底文档单点改动生成，文件开头的注释写明违反项 |
+| `samples/invalid/` | 60 个负例，每个由同一基底文档单点改动生成，文件开头的注释写明违反项 |
 | `../../scripts/xml46687/validate.py` | 校验工具（语法 + RELAX NG 双实现 + 语义规则） |
 | `../../scripts/xml46687/sts_compat.py` | 官方 NISO STS 1.2 DTD 兼容性检查（已知国标扩展白名单 + 未解释偏差） |
 | `../../scripts/xml46687/test_validate.py` | unittest 回归测试 |
@@ -164,7 +164,7 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | V-5 | 语义 | `list-type` 取值；无序列项不带 label | C-S-32 |
 | V-6 | 语义 | `processing-meta` 六个固定属性值；`title-wrap` 带 `xml:lang` | C-S-04、C-S-13 |
 | V-7 | 语义 | 不得出现 `ext_`、`Formula…`、`id-<uuid>`、`p-<数字>` 形式的 id | 2.3、R-5 |
-| V-8 | 附加 | `xref/@ref-type`（及 `custom-type`、`table-fn` 须同表）与目标元素类型一致；`entailedTerm` 指向 termEntry | C-T-48、C-T-50 |
+| V-8 | 附加 | `xref/@ref-type`（及 `custom-type`、`table-fn` 须同表）与目标元素类型一致；`entailedTerm` 指向 termEntry。`ref-type="custom"` 一律校验目标：`rid` 必须指向术语条目（`tbx:termEntry` 或 `term-sec`）、注（`non-normative-note`、`tbx:note`）或示例（`non-normative-example`、`tbx:example`）之一，有 `custom-type` 时还须与目标一致（两档都是错误）；**缺 `custom-type`：export 档错误、import 档告警 `CUSTOM-TYPE`**（10.1.1 称“可选”，schema 保持可选；导入器按 `rid` 目标推断类型） | C-T-48、C-T-50 |
 | V-9 | 附加 | 每个术语条目有且仅有一个定义（跨 langSet；0 个告警） | 附录 C 行 92 |
 | V-10 | 附加 | MathML 元素不得带事件属性、`javascript:` 等协议 | C-T-19 |
 | V-11 | 附加 | `ext-link` 的 `xlink:href` 协议白名单（http、https、mailto、ftp；相对地址不限） | C-T-56 |
@@ -203,10 +203,10 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | `08-original-forms-vs-sts.xml` | 原文明确写法与 STS 1.2 不一致的情形（5 个国标扩展元素、std-org 多名、xref 内 label、langSet 内 note 在 tig 之后、graphic 在 table-wrap-foot 之后、块级 fn）；两个档位都通过，`sts_compat.py` 列为已知偏差 |
 | `09-import-pending.xml` | 格式合法但导入暂拒（rejectKind=implementation）：引言中的条、array、disp-formula-group、同一脚注多次引用；只告警 |
 
-`samples/invalid/` 的 57 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
-语法 3、旧格式/根 3、矩阵 format 类 reject 16（含 4 个术语异写元素名）、V-1 3、V-2 3、V-3 2、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 4、仅 RELAX NG 7
+`samples/invalid/` 的 60 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
+语法 3、旧格式/根 3、矩阵 format 类 reject 16（含 4 个术语异写元素名）、V-1 3、V-2 3、V-3 2、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 6（含 2 个 custom 型 xref 的目标错误）、仅 RELAX NG 7
 （含按 STS 1.2 收紧后新增的含子条的条再放段落、partOfSpeech 取值、named-content 缺 content-type、空 table-wrap-foot）、
-**仅 export 档失败 4（`std-meta-wrong-order.xml`：结构层通过，import 档告警 V-12，export 档错误 V-12；`missing-term-entry-id.xml`、`missing-app-id.xml`、`missing-ref-id.xml`：缺必备 id，import 档告警 V-13，export 档错误 V-13；预期见 `EXPORT_ONLY_INVALID`）**。
+**仅 export 档失败 5（`std-meta-wrong-order.xml`：结构层通过，import 档告警 V-12，export 档错误 V-12；`missing-term-entry-id.xml`、`missing-app-id.xml`、`missing-ref-id.xml`：缺必备 id，import 档告警 V-13，export 档错误 V-13；`custom-xref-no-type.xml`：custom 型 xref 缺 custom-type，import 档告警 V-8 CUSTOM-TYPE，export 档错误；预期见 `EXPORT_ONLY_INVALID`）**。
 
 ## 7. 官方 DTD 对照后：`[未核实]` 清单的复核结论（2026-10-21）
 

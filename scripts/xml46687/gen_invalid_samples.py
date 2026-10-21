@@ -281,6 +281,13 @@ case('missing-app-id.xml', 'app 缺 id（附录 E 印刷页 67，M-E-04）。imp
      [('<app id="sec_A" content-type="informative">', '<app content-type="informative">')])
 case('missing-ref-id.xml', '参考文献的 ref 缺 id（4.5.3.1 印刷页 12，shall）。import 档通过并告警 V-13，export 档为错误（仅 export 档的负例）。',
      [('<ref id="biblref_1">', '<ref>')])
+# xref[ref-type=custom]：缺 custom-type 导入告警、导出错误；目标不是术语条目/注/示例，或与 custom-type 不一致，两档都是错误（V-8）
+case('custom-xref-no-type.xml', 'xref[ref-type=custom] 缺 custom-type（10.1.1：term-entry、note、example 三选一）。import 档通过并告警 V-8 CUSTOM-TYPE（导入器按 rid 目标推断），export 档为错误（仅 export 档的负例）。',
+     [('<p>前言内容。</p>', '<p>前言<xref ref-type="custom" rid="term_3.1">术语</xref>内容。</p>')])
+case('custom-xref-wrong-target.xml', 'xref[ref-type=custom custom-type=note] 指向术语条目（custom-type 与目标不一致，V-8，C-T-50）。',
+     [('<p>前言内容。</p>', '<p>前言<xref ref-type="custom" custom-type="note" rid="term_3.1">术语</xref>内容。</p>')])
+case('custom-xref-to-section.xml', 'xref[ref-type=custom] 没有 custom-type，且指向章（custom 的目标只能是术语条目、注或示例，V-8，C-T-48）。',
+     [('<p>前言内容。</p>', '<p>前言<xref ref-type="custom" rid="sec_1">范围</xref>内容。</p>')])
 case('sec-block-after-subsec.xml', '含子条的条在子条之后又放了段落（STS 1.2 的 sec 内容模型：块在前，子条在后，其后只能是注、示例、清单）。',
      [('        <p>无标题条。</p>\n      </sec>\n    </sec>\n  </body>', '        <p>无标题条。</p>\n      </sec>\n      <p>悬置段落。</p>\n    </sec>\n  </body>')])
 case('bad-part-of-speech.xml', 'tbx:partOfSpeech 取值 pron（只收 noun/verb/adj/adv，STS 1.2 的枚举）。',

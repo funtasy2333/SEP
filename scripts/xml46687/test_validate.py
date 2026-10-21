@@ -126,6 +126,8 @@ EXPECTED_INVALID = {
     "tbx-grammatical-number-alias.xml": ("REJECT", {"REJECT", "RNG"}, "grammatical-Number"),
     # 按 NISO STS 1.2 收紧后（2026-10-21）
     "sec-block-after-subsec.xml": ("RNG", {"RNG"}, "sec"),
+    "custom-xref-wrong-target.xml": ("V-8", {"V-8"}, "custom-type=note"),
+    "custom-xref-to-section.xml": ("V-8", {"V-8"}, "term-sec"),
     "bad-part-of-speech.xml": ("RNG", {"RNG"}, "partOfSpeech"),
     "named-content-without-type.xml": ("RNG", {"RNG"}, "front"),
     "empty-table-wrap-foot.xml": ("RNG", {"RNG"}, "table-wrap-foot"),
@@ -139,6 +141,8 @@ EXPORT_ONLY_INVALID = {
     "missing-term-entry-id.xml": ("V-13", "tbx:termEntry"),
     "missing-app-id.xml": ("V-13", "app"),
     "missing-ref-id.xml": ("V-13", "ref"),
+    # xref[ref-type=custom] 缺 custom-type：导入告警（导入器按目标推断）、导出错误
+    "custom-xref-no-type.xml": ("V-8", "custom-type"),
 }
 
 # 矩阵中 import: reject 的行（rejectKind 见 docs/wp8.1/matrix-*.json）：
@@ -722,6 +726,94 @@ class TestRequiredId(unittest.TestCase):
         self.assertFalse(rep.valid)
         self.assertEqual({e["rule"] for e in rep.errors}, {"V-1"})
         self.assertEqual([w["rule"] for w in rep.warnings if w["rule"] == "V-13"], ["V-13"])
+
+
+class TestCustomXref(unittest.TestCase):
+    """xref[ref-type=custom]：目标一律检查（术语条目、注、示例之一，有 custom-type 时须一致）；缺 custom-type 导出错误、导入告警。"""
+
+    @staticmethod
+    def _doc_with(xref: str):
+        body = (
+            '<sec id="sec_1" sec-type="scope"><label>1</label><title>范围</title><p>见%s。</p>'
+            '<non-normative-note id="note_1"><label>注</label><p>n</p></non-normative-note>'
+            '<non-normative-example id="ex_1"><label>示例</label><p>e</p></non-normative-example></sec>'
+            '<sec id="sec_3" sec-type="terms"><label>3</label><title>术语</title>'
+            '<term-sec id="sec_3.1"><label>3.1</label><tbx:termEntry id="term_3.1"><tbx:langSet xml:lang="zh">'
+            '<tbx:definition>d</tbx:definition><tbx:tig><tbx:term>a</tbx:term></tbx:tig></tbx:langSet></tbx:termEntry></term-sec></sec>'
+        ) % xref
+        return _doc(body=body)
+
+    def _run(self, xref, validator):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case.xml"
+            path.write_text(self._doc_with(xref), encoding="utf-8")
+            return validator.validate_file(path)
+
+    @staticmethod
+    def _x(rid, ct=None):
+        return '<xref ref-type="custom"%s rid="%s">x</xref>' % (' custom-type="%s"' % ct if ct else "", rid)
+
+    def test_matching_custom_type_and_target_is_clean(self):
+        cases = [("term-entry", "term_3.1"), ("term-entry", "sec_3.1"), ("note", "note_1"), ("example", "ex_1")]
+        for ct, rid in cases:
+            for validator in (VALIDATOR_IMPORT, VALIDATOR_EXPORT):
+                with self.subTest(custom_type=ct, rid=rid, profile=validator.profile):
+                    rep = self._run(self._x(rid, ct), validator)
+                    self.assertEqual(rep.errors, [], validate.format_human(rep))
+                    self.assertEqual([w for w in rep.warnings if w["rule"] == "V-8"], [])
+                    self.assertTrue(rep.consistent)
+
+    def test_missing_custom_type_warns_on_import_with_inferred_type(self):
+        for rid, inferred in (("term_3.1", "term-entry"), ("sec_3.1", "term-entry"), ("note_1", "note"), ("ex_1", "example")):
+            with self.subTest(rid=rid):
+                rep = self._run(self._x(rid), VALIDATOR_IMPORT)
+                self.assertEqual(rep.errors, [], validate.format_human(rep))
+                self.assertTrue(rep.valid)
+                found = [w for w in rep.warnings if w["rule"] == "V-8"]
+                self.assertEqual(len(found), 1, validate.format_human(rep))
+                self.assertIn("CUSTOM-TYPE", found[0]["message"])
+                self.assertIn("推断为 custom-type=%s" % inferred, found[0]["message"])
+                self.assertIs(rep.engines["lxml"]["valid"], True)
+                self.assertIs(rep.engines["xmllint"]["valid"], True)
+
+    def test_missing_custom_type_is_an_error_on_export(self):
+        for rid in ("term_3.1", "note_1", "ex_1"):
+            with self.subTest(rid=rid):
+                rep = self._run(self._x(rid), VALIDATOR_EXPORT)
+                self.assertFalse(rep.valid)
+                self.assertEqual({e["rule"] for e in rep.errors}, {"V-8"}, validate.format_human(rep))
+                self.assertIn("导出必须写 custom-type", _messages(rep))
+
+    def test_wrong_targets_are_errors_in_both_profiles(self):
+        cases = {
+            "缺 custom-type 且指向章": self._x("sec_1"),
+            "缺 custom-type 且指向术语章": self._x("sec_3"),
+            "custom-type=note 指向术语条目": self._x("term_3.1", "note"),
+            "custom-type=term-entry 指向注": self._x("note_1", "term-entry"),
+            "custom-type=example 指向注": self._x("note_1", "example"),
+            "custom-type=note 指向示例": self._x("ex_1", "note"),
+        }
+        for why, xref in cases.items():
+            for validator in (VALIDATOR_IMPORT, VALIDATOR_EXPORT):
+                with self.subTest(why=why, profile=validator.profile):
+                    rep = self._run(xref, validator)
+                    self.assertFalse(rep.valid, why)
+                    self.assertEqual({e["rule"] for e in rep.errors}, {"V-8"}, validate.format_human(rep))
+                    self.assertNotIn("CUSTOM-TYPE", _messages(rep), "目标不对时不再提示推断")
+
+    def test_unresolved_rid_is_only_a_v1_error(self):
+        rep = self._run(self._x("nowhere"), VALIDATOR_IMPORT)
+        self.assertEqual({e["rule"] for e in rep.errors}, {"V-1"})
+
+    def test_schema_keeps_custom_type_optional(self):
+        # 结构层不要求 custom-type（10.1.1“可选”）；缺失由 V-8 按档位处理
+        rep = self._run(self._x("term_3.1"), VALIDATOR_IMPORT)
+        self.assertIs(rep.engines["lxml"]["valid"], True)
+        self.assertIs(rep.engines["xmllint"]["valid"], True)
+        # 取值仍受枚举限制
+        rep = self._run(self._x("term_3.1", "glossary"), VALIDATOR_IMPORT)
+        self.assertIs(rep.engines["lxml"]["valid"], False)
+        self.assertIs(rep.engines["xmllint"]["valid"], False)
 
 
 class TestWarnings(unittest.TestCase):
