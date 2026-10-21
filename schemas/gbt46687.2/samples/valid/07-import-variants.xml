@@ -36,9 +36,9 @@
         <label>3.2</label>
         <title>缩略语</title>
         <def-list list-content="abbreviation">
-          <def-item id="abb-ct">
-            <term>CT</term>
-            <def><p>计算机断层扫描</p></def>
+          <def-item id="abb-gps">
+            <term>GPS</term>
+            <def><p>全球定位系统</p></def>
           </def-item>
         </def-list>
       </sec>
@@ -59,7 +59,7 @@
     <sec id="sec_5">
       <label>5</label>
       <title>技术要求</title>
-      <p>等宽字体<monospace>fixed</monospace>；缩略语引用<xref ref-type="other" rid="abb-ct">CT</xref>；
+      <p>等宽字体<monospace>fixed</monospace>；缩略语引用<xref ref-type="other" rid="abb-gps">GPS</xref>；
       化学类引用<xref ref-type="chem" rid="sec_5">5</xref>。</p>
       <table-wrap id="tab_1" position="float">
         <label>表1</label>

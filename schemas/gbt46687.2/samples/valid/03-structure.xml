@@ -163,8 +163,8 @@
       <ref id="biblref_1">
         <label>[1]</label>
         <std>
-          <std-ref>GB/T 20000.1—2014</std-ref>
-          <title>标准化工作指南 第1部分：标准化和相关活动的通用术语</title>
+          <std-ref>GB/T 7714—2015</std-ref>
+          <title>信息与文献 参考文献著录规则</title>
         </std>
       </ref>
       <ref id="biblref_2">
@@ -181,7 +181,7 @@
           <title>B</title>
         </index-title-group>
         <index-entry id="df_1">
-          <term>必备要素</term>
+          <term>无标题条</term>
           <see-entry>5.1</see-entry>
           <see-entry>5.2</see-entry>
         </index-entry>

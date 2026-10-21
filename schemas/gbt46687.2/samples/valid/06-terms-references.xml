@@ -35,7 +35,7 @@
               <tbx:example>电子文件和纸质文件。</tbx:example>
               <tbx:note id="nte_3.1.1-1">必要时可附图。参见<xref ref-type="app" rid="sec_A">附录</xref>。</tbx:note>
               <tbx:note>该注不被引用，因此不带 id。</tbx:note>
-              <tbx:source>GB/T 20000.1—2014,5.2</tbx:source>
+              <tbx:source>GB/T 1.1—2020,3.1.2</tbx:source>
               <tbx:tig>
                 <tbx:term>标准化文件</tbx:term>
                 <tbx:partOfSpeech value="noun"/>
@@ -86,13 +86,13 @@
         <title>缩略语</title>
         <p>下列缩略语适用于本文件。</p>
         <def-list list-content="abbreviation">
-          <def-item id="abb-adc">
-            <term>ADC</term>
-            <def><p>模数转换器（Analog-to-Digital Converter）</p></def>
+          <def-item id="abb-cpu">
+            <term>CPU</term>
+            <def><p>中央处理器（Central Processing Unit）</p></def>
           </def-item>
-          <def-item id="abb-ct">
-            <term>CT</term>
-            <def><p>计算机断层扫描（Computed Tomography）</p></def>
+          <def-item id="abb-gps">
+            <term>GPS</term>
+            <def><p>全球定位系统（Global Positioning System）</p></def>
           </def-item>
         </def-list>
       </sec>
@@ -101,7 +101,7 @@
       <label>5</label>
       <title>引用</title>
       <p>引用其他章条：<xref ref-type="sec" rid="sec_1">第 1 章</xref>；引用术语：<xref ref-type="custom" custom-type="term-entry" rid="term_3.1.2">要求 (3.1.2)</xref>；
-      引用缩略语：<xref ref-type="abbreviation" rid="abb-ct">CT</xref>；引用术语条内的注：<xref ref-type="custom" custom-type="note" rid="nte_3.1.1-1">注 1</xref>。</p>
+      引用缩略语：<xref ref-type="abbreviation" rid="abb-gps">GPS</xref>；引用术语条内的注：<xref ref-type="custom" custom-type="note" rid="nte_3.1.1-1">注 1</xref>。</p>
       <p>引用表：<xref ref-type="table" rid="tab_1">表1</xref>；引用图：<xref ref-type="fig" rid="fig_1">图1</xref>；
       引用公式：<xref ref-type="disp-formula" rid="formula_1">(1)</xref>；引用示例：<xref ref-type="custom" custom-type="example" rid="example_1">示例</xref>；
       引用列项：<xref ref-type="list" rid="lis_5.1">列项 b)</xref>；引用参考文献：<xref ref-type="bibr" rid="biblref_1">[1]</xref>。</p>
@@ -172,8 +172,8 @@
       <ref id="biblref_1">
         <label>[1]</label>
         <std>
-          <std-ref>GB/T 15657—2021</std-ref>
-          <title>中医病证分类与代码</title>
+          <std-ref>GB/T 1.2—2020</std-ref>
+          <title>标准化工作导则 第2部分：以ISO/IEC标准化文件为基础的标准化文件起草规则</title>
         </std>
       </ref>
     </ref-list>

@@ -33,8 +33,8 @@
               <th colspan="2" align="center"><p>测量结果</p></th>
             </tr>
             <tr>
-              <th><p>公称厚度(e)</p><p>mm</p></th>
-              <th><p>平均偏差</p><p>%</p></th>
+              <th><p>标称尺寸(d)</p><p>mm</p></th>
+              <th><p>允许偏差</p><p>%</p></th>
             </tr>
           </thead>
           <tbody>
