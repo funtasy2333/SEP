@@ -125,11 +125,16 @@ EXPECTED_INVALID = {
     "tbx-normative-authorization-alias.xml": ("REJECT", {"REJECT", "RNG"}, "normative-Authorization"),
     "tbx-grammatical-number-alias.xml": ("REJECT", {"REJECT", "RNG"}, "grammatical-Number"),
     # 按 NISO STS 1.2 收紧后（2026-10-21）
-    "std-meta-wrong-order.xml": ("RNG", {"RNG"}, "content-language"),
     "sec-block-after-subsec.xml": ("RNG", {"RNG"}, "sec"),
     "bad-part-of-speech.xml": ("RNG", {"RNG"}, "partOfSpeech"),
     "named-content-without-type.xml": ("RNG", {"RNG"}, "front"),
     "empty-table-wrap-foot.xml": ("RNG", {"RNG"}, "table-wrap-foot"),
+}
+
+# 仅 export 档失败的“负例”：结构层（RELAX NG）不限次序，import 档通过并告警，export 档为错误。
+# 文件名 → (规则, 关键字)
+EXPORT_ONLY_INVALID = {
+    "std-meta-wrong-order.xml": ("V-12", "content-language"),
 }
 
 # 矩阵中 import: reject 的行（rejectKind 见 docs/wp8.1/matrix-*.json）：
@@ -182,8 +187,10 @@ class TestSampleInventory(unittest.TestCase):
 
     def test_every_invalid_sample_has_an_expectation_and_vice_versa(self):
         files = {p.name for p in INVALID_DIR.glob("*.xml")}
-        self.assertEqual(files - set(EXPECTED_INVALID), set(), "有负例没有写预期")
-        self.assertEqual(set(EXPECTED_INVALID) - files, set(), "预期里的负例文件不存在")
+        expected = set(EXPECTED_INVALID) | set(EXPORT_ONLY_INVALID)
+        self.assertEqual(set(EXPECTED_INVALID) & set(EXPORT_ONLY_INVALID), set(), "同一负例不能有两种预期")
+        self.assertEqual(files - expected, set(), "有负例没有写预期")
+        self.assertEqual(expected - files, set(), "预期里的负例文件不存在")
 
     def test_required_negative_samples_from_the_brief_exist(self):
         for name in ("tex-math.xml", "nested-table.xml", "dup-id.xml", "dangling-rid.xml",
@@ -238,16 +245,27 @@ class TestImportVariantsSample(unittest.TestCase):
         rep = VALIDATOR_IMPORT.validate_file(self.path)
         self.assertTrue(rep.valid, validate.format_human(rep))
         self.assertTrue(rep.warnings)
-        self.assertEqual({w["rule"] for w in rep.warnings}, {"IMPORT-ONLY"})
+        # IMPORT-ONLY：异写；V-12：std-meta 子元素次序同原文 4.1 示例（ics、ccs 在 title-wrap 之前）
+        self.assertEqual({w["rule"] for w in rep.warnings}, {"IMPORT-ONLY", "V-12"})
 
     def test_export_profile_rejects_every_import_only_form(self):
         rep = VALIDATOR_EXPORT.validate_file(self.path)
         self.assertFalse(rep.valid)
-        self.assertEqual(_rules(rep), {"IMPORT-ONLY"})
+        self.assertEqual(_rules(rep), {"IMPORT-ONLY", "V-12"})
         text = _messages(rep)
         for token in ("norm_refs", "inform_annex", "bibr", "date-type",
-                      "normativeAuthentication", "monospace", "other", "chem", "position", "center"):
+                      "normativeAuthentication", "monospace", "other", "chem", "position", "center",
+                      "STD-META-ORDER"):
             self.assertIn(token, text)
+
+    def test_std_meta_in_4_1_example_order_is_accepted_with_a_warning(self):
+        # 4.1 示例的次序（ics、ccs、title-wrap…）：导入接受，只告警；导出为错误
+        rep = VALIDATOR_IMPORT.validate_file(self.path)
+        order = [w for w in rep.warnings if w["rule"] == "V-12"]
+        self.assertEqual(len(order), 1, validate.format_human(rep))
+        self.assertIn("ics, ccs, title-wrap", order[0]["message"])
+        self.assertIs(rep.engines["lxml"]["valid"], True)
+        self.assertIs(rep.engines["xmllint"]["valid"], True)
 
 
 class TestInvalidSamples(unittest.TestCase):
@@ -273,6 +291,34 @@ def _make_invalid_test(name: str, spec):
 
 for _name, _spec in EXPECTED_INVALID.items():
     setattr(TestInvalidSamples, "test_" + _slug(Path(_name)), _make_invalid_test(_name, _spec))
+
+
+def _make_export_only_test(name: str, spec):
+    rule, keyword = spec
+
+    def test(self):
+        path = INVALID_DIR / name
+        # export 档：失败，且只违反这一条规则
+        rep = VALIDATOR_EXPORT.validate_file(path)
+        report = validate.format_human(rep)
+        self.assertFalse(rep.valid, "%s 应在 export 档失败" % name)
+        self.assertEqual(_rules(rep), {rule}, report)
+        self.assertIn(keyword, _messages(rep), report)
+        self.assertTrue(rep.consistent, report)
+        # import 档：通过（结构层不限次序），同一问题只作为告警
+        rep = VALIDATOR_IMPORT.validate_file(path)
+        report = validate.format_human(rep)
+        self.assertTrue(rep.valid, "%s 应在 import 档通过：\n%s" % (name, report))
+        self.assertEqual(rep.errors, [], report)
+        self.assertEqual({w["rule"] for w in rep.warnings}, {rule}, report)
+        self.assertIn(keyword, "\n".join(w["message"] for w in rep.warnings), report)
+        self.assertIs(rep.engines["lxml"]["valid"], True)
+        self.assertIs(rep.engines["xmllint"]["valid"], True)
+    return test
+
+
+for _name, _spec in EXPORT_ONLY_INVALID.items():
+    setattr(TestInvalidSamples, "test_export_only_" + _slug(Path(_name)), _make_export_only_test(_name, _spec))
 
 
 class TestGeneratedSamplesUpToDate(unittest.TestCase):
@@ -370,9 +416,11 @@ class TestSchemaConstraints(unittest.TestCase):
             "disp-formula 含两个 mml:math": _doc(body='<sec id="sec_1"><title>t</title><disp-formula><mml:math><mml:mi>a</mml:mi></mml:math><mml:math><mml:mi>b</mml:mi></mml:math></disp-formula></sec>'),
             "mml:math 内出现非 MathML 命名空间元素": _doc(body='<sec id="sec_1"><title>t</title><p><inline-formula><mml:math><foo/></mml:math></inline-formula></p></sec>'),
             "inline-formula 含两个 mml:math": _doc(body='<sec id="sec_1"><title>t</title><p><inline-formula><mml:math/><mml:math/></inline-formula></p></sec>'),
-            "std-meta 子元素顺序不符 STS 1.2（content-language 在 std-org-group 之前）": _doc(meta=_META + '<content-language>zh</content-language><std-org-group><std-org/></std-org-group>'),
+            "std-meta 乱序时 std-ident 仍不能出现两次": _doc(meta='<std-ident/>' + _META + '<std-ident/>'),
+            "std-meta 乱序时 proj-id 仍不能出现两次": _doc(meta='<proj-id>a</proj-id>' + _META + '<proj-id>b</proj-id>'),
+            "std-meta 乱序时仍需 title-wrap": _doc(meta='<ccs>L 72</ccs><ics>1.2</ics>'),
+            "std-meta 乱序时 page-count 仍不能出现两次": _doc(meta='<page-count count="1"/>' + _META + '<page-count count="2"/>'),
             "std-xref 空元素": _doc(meta=_META + '<std-xref type="revises"/>'),
-            "ics 在 comm-ref 之前": _doc(meta=_META + '<ics>1.2</ics><comm-ref>c</comm-ref>'),
             "tig 内 normativeAuthorization 在 partOfSpeech 之前": _doc(body='<sec id="sec_1"><title>t</title><term-sec><tbx:termEntry><tbx:langSet xml:lang="zh"><tbx:tig><tbx:term>a</tbx:term><tbx:normativeAuthorization value="preferredTerm"/><tbx:partOfSpeech value="noun"/></tbx:tig></tbx:langSet></tbx:termEntry></term-sec></sec>'),
             "tbx:partOfSpeech 取值不在 noun/verb/adj/adv 内": _doc(body='<sec id="sec_1"><title>t</title><term-sec><tbx:termEntry><tbx:langSet xml:lang="zh"><tbx:tig><tbx:term>a</tbx:term><tbx:partOfSpeech value="pron"/></tbx:tig></tbx:langSet></tbx:termEntry></term-sec></sec>'),
             "tbx:grammaticalNumber 取值不在 singular/plural 内": _doc(body='<sec id="sec_1"><title>t</title><term-sec><tbx:termEntry><tbx:langSet xml:lang="zh"><tbx:tig><tbx:term>a</tbx:term><tbx:grammaticalNumber value="dual"/></tbx:tig></tbx:langSet></tbx:termEntry></term-sec></sec>'),
@@ -417,6 +465,10 @@ class TestSchemaConstraints(unittest.TestCase):
                      '<release-date>2026-04-30</release-date><implementation-date>2026-11-01</implementation-date><equivalence>MOD</equivalence>'
                      '<comm-ref>c</comm-ref><ics>1.2</ics><ccs>L 72</ccs><std-supersedes>x</std-supersedes>'
                      '<std-xref type="revises"><std-ref>GB/T 1</std-ref></std-xref><permissions/><custom-meta-group><custom-meta><meta-name>n</meta-name><meta-value>v</meta-value></custom-meta></custom-meta-group>'),
+            "std-meta 次序不限：4.1 示例的 ics、ccs 在 title-wrap 之前（导入宽容，次序由 V-12 告警）": _doc(
+                meta='<ics>33.040.40</ics><ccs>M 32</ccs>' + _META),
+            "std-meta 次序不限：content-language 在 std-org-group 之前": _doc(meta=_META + '<content-language>zh</content-language><std-org-group><std-org/></std-org-group>'),
+            "std-meta 次序不限：ics 在 comm-ref 之前": _doc(meta=_META + '<ics>1.2</ics><comm-ref>c</comm-ref>'),
             "未知 sec-type 取值（表 D.1 行 13）": _doc(body='<sec id="sec_1"><title>t</title><sec id="sec_1_1" sec-type="custom-role"><title>u</title></sec></sec>'),
             "std-meta 里没有 std-org-group 等 SES 必填项": _doc(),
             "单元格为空": _doc(body='<sec id="sec_1"><title>t</title><table-wrap><table><tbody><tr><td/></tr></tbody></table></table-wrap></sec>'),
@@ -437,6 +489,122 @@ class TestSchemaConstraints(unittest.TestCase):
         for why, text in cases.items():
             with self.subTest(why=why):
                 self.assertAccepted(text, why)
+
+
+# std-meta 的全部子元素，按“导出次序”（STS 1.2 DTD 次序 + 国标扩展的约定位置，见 metadata.rng 文件头）排列
+_META_PARTS = [
+    ("std-type", "<std-type>推荐性国家标准</std-type>"),
+    ("title-wrap", _META),
+    ("proj-id", "<proj-id>p</proj-id>"),
+    ("release-version", "<release-version>1</release-version>"),
+    ("std-ident", "<std-ident/>"),
+    ("std-org-group", "<std-org-group><std-org/></std-org-group>"),
+    ("content-language", "<content-language>zh</content-language>"),
+    ("std-ref", "<std-ref>GB/T 1</std-ref>"),
+    ("doc-ref", "<doc-ref>d</doc-ref>"),
+    ("release-date", "<release-date>2026-04-30</release-date>"),
+    ("implementation-date", "<implementation-date>2026-11-01</implementation-date>"),
+    ("equivalence", "<equivalence>MOD</equivalence>"),
+    ("comm-ref", "<comm-ref>c</comm-ref>"),
+    ("secretariat", "<secretariat>s</secretariat>"),
+    ("ics", "<ics>1.2</ics>"),
+    ("ccs", "<ccs>L 72</ccs>"),
+    ("page-count", '<page-count count="3"/>'),
+    ("std-supersedes", "<std-supersedes>x</std-supersedes>"),
+    ("std-xref", '<std-xref type="revises"><std-ref>GB/T 1</std-ref></std-xref>'),
+    ("permissions", "<permissions/>"),
+    ("custom-meta-group", "<custom-meta-group><custom-meta><meta-name>n</meta-name><meta-value>v</meta-value></custom-meta></custom-meta-group>"),
+]
+
+
+class TestStdMetaOrder(unittest.TestCase):
+    """V-12 STD-META-ORDER：RELAX NG 不限 std-meta 子元素次序；次序在 export 档是错误，在 import 档是告警。"""
+
+    def _run(self, validator, parts):
+        text = _doc(meta="".join(x for _, x in parts))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case.xml"
+            path.write_text(text, encoding="utf-8")
+            rep = validator.validate_file(path)
+        self.assertTrue(rep.consistent, validate.format_human(rep))
+        return rep
+
+    @staticmethod
+    def _order_findings(items):
+        return [i for i in items if i["rule"] == "V-12"]
+
+    def test_export_order_is_clean_in_both_profiles(self):
+        for validator in (VALIDATOR_IMPORT, VALIDATOR_EXPORT):
+            rep = self._run(validator, _META_PARTS)
+            self.assertEqual(rep.errors, [], validate.format_human(rep))
+            self.assertEqual(self._order_findings(rep.warnings), [])
+
+    def test_4_1_example_order_import_warns_export_errors(self):
+        # 原文 4.1 示例：ics、ccs 在 title-wrap 之前，其后 release-date
+        parts = [(n, dict(_META_PARTS)[n]) for n in ("ics", "ccs", "title-wrap", "release-date")]
+        rep = self._run(VALIDATOR_IMPORT, parts)
+        self.assertEqual(rep.errors, [], validate.format_human(rep))
+        self.assertTrue(rep.valid)
+        found = self._order_findings(rep.warnings)
+        self.assertEqual(len(found), 1, validate.format_human(rep))
+        self.assertIn("STD-META-ORDER", found[0]["message"])
+        self.assertIn("实际次序：ics, ccs, title-wrap, release-date", found[0]["message"])
+        self.assertIn("导出次序：title-wrap, release-date, ics, ccs", found[0]["message"])
+        self.assertIn("行", found[0]["message"])
+        rep = self._run(VALIDATOR_EXPORT, parts)
+        self.assertFalse(rep.valid)
+        self.assertEqual(len(self._order_findings(rep.errors)), 1)
+        self.assertEqual({e["rule"] for e in rep.errors}, {"V-12"})
+
+    def test_every_adjacent_swap_is_detected(self):
+        for i in range(len(_META_PARTS) - 1):
+            parts = list(_META_PARTS)
+            parts[i], parts[i + 1] = parts[i + 1], parts[i]
+            name = "%s/%s" % (parts[i][0], parts[i + 1][0])
+            with self.subTest(swap=name):
+                rep = self._run(VALIDATOR_IMPORT, parts)
+                self.assertEqual(rep.errors, [], validate.format_human(rep))
+                self.assertEqual(len(self._order_findings(rep.warnings)), 1)
+                rep = self._run(VALIDATOR_EXPORT, parts)
+                self.assertEqual({e["rule"] for e in rep.errors}, {"V-12"}, validate.format_human(rep))
+
+    def test_random_permutations_are_schema_valid_and_flagged_iff_out_of_order(self):
+        import random
+        rank = {n: i for i, (n, _) in enumerate(_META_PARTS)}
+        rank["std-org"] = rank["std-org-group"]
+        rnd = random.Random(46687)
+        for _ in range(40):
+            parts = list(_META_PARTS)
+            rnd.shuffle(parts)
+            in_order = [rank[n] for n, _ in parts] == sorted(rank[n] for n, _ in parts)
+            with self.subTest(order=[n for n, _ in parts]):
+                rep = self._run(VALIDATOR_IMPORT, parts)
+                self.assertEqual(rep.errors, [], validate.format_human(rep))
+                self.assertIs(rep.engines["lxml"]["valid"], True)
+                self.assertIs(rep.engines["xmllint"]["valid"], True)
+                self.assertEqual(len(self._order_findings(rep.warnings)), 0 if in_order else 1)
+
+    def test_repeatable_children_keep_their_position_class(self):
+        # 同类重复元素（release-date、ics）相邻出现、整体次序正确 -> 不告警
+        parts = [(n, x) for n, x in _META_PARTS if n in ("title-wrap", "release-date", "ics")]
+        parts = [parts[0], parts[1], parts[1], parts[2], parts[2]]
+        rep = self._run(VALIDATOR_EXPORT, parts)
+        self.assertEqual(self._order_findings(rep.errors), [])
+
+    def test_schema_still_enforces_cardinality_when_order_is_free(self):
+        for meta in ('<std-ident/>' + _META + '<std-ident/>', '<proj-id>a</proj-id>' + _META + '<proj-id>b</proj-id>',
+                     '<ccs>L 72</ccs><ics>1.2</ics>'):
+            with self.subTest(meta=meta):
+                rep = VALIDATOR_IMPORT.validate_file(self._write(_doc(meta=meta)))
+                self.assertFalse(rep.valid)
+                self.assertIn("RNG", {e["rule"] for e in rep.errors})
+
+    def _write(self, text):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        path = Path(tmp) / "case.xml"
+        path.write_text(text, encoding="utf-8")
+        return path
 
 
 class TestWarnings(unittest.TestCase):
@@ -532,9 +700,23 @@ class TestStsCompat(unittest.TestCase):
         self.assertEqual({w for k in res["known"] for w in k["whitelist"]}, {"EXT-ccs"})
 
     def test_real_error_next_to_a_known_extension_is_still_unexplained(self):
-        # ccs 是已知扩展，但 std-ident 在 title-wrap 之前违反 STS 1.2 的顺序，且原文没有这样写
-        res = self._check_text(_doc(meta="<std-ident/>" + _META + "<ccs>L 72</ccs>"))
+        # ccs 是已知扩展，但 std-ident 出现两次违反 STS 1.2（std-ident?），且原文没有这样写
+        res = self._check_text(_doc(meta=_META + "<std-ident/><std-ident/><ccs>L 72</ccs>"))
         self.assertTrue(res["known"])
+        self.assertIn("std-meta", {u["element"] for u in res["unexplained"]})
+
+    def test_std_meta_order_alone_is_a_known_conflict(self):
+        # 4.1 示例的次序：ics、ccs 在 title-wrap 之前；ccs 是扩展，ics 的位置属于“原文示例与 STS 冲突”
+        res = self._check_text(_doc(meta="<ics>33.040.40</ics><ccs>M 32</ccs>" + _META))
+        self.assertEqual(res["unexplained"], [])
+        self.assertEqual({w for k in res["known"] for w in k["whitelist"]}, {"EXT-ccs", "CONFLICT-std-meta-order"})
+        by_id = {e["id"]: e for e in sts.WHITELIST}
+        self.assertEqual(by_id["CONFLICT-std-meta-order"]["category"], sts.CONFLICT)
+        self.assertIn("4.1", by_id["CONFLICT-std-meta-order"]["basis"])
+
+    def test_std_meta_order_whitelist_does_not_hide_other_dtd_errors(self):
+        # 次序不同 + 同时有 DTD 不允许的重复元素：重排后重复仍然报错
+        res = self._check_text(_doc(meta="<ics>1.2</ics>" + _META + "<proj-id>a</proj-id><proj-id>b</proj-id>"))
         self.assertIn("std-meta", {u["element"] for u in res["unexplained"]})
 
     def test_unwrapped_deviations_report_original_line_numbers(self):

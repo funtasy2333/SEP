@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- 负例：std-meta 子元素顺序不符（release-date 排在 content-language 之前）。顺序按 NISO STS 1.2（2026-10-21 主导人决定，不再 interleave）。 除此之外与基底文档一致。 -->
+<!-- 负例：std-meta 子元素次序不是导出次序（release-date 排在 content-language 之前）。结构层不限次序：import 档通过并告警 V-12 STD-META-ORDER，export 档为错误（仅 export 档的负例）。 除此之外与基底文档一致。 -->
 <standard xmlns:xlink="http://www.w3.org/1999/xlink"
           xmlns:mml="http://www.w3.org/1998/Math/MathML"
           xmlns:tbx="urn:iso:std:iso:30042:ed-1">

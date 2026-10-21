@@ -6,9 +6,13 @@
   依据：4.1 示例（印刷页 2～4）、4.3.2（印刷页 5～6）、表 C.1（元数据行）、表 F.1、附录 G（印刷页 71/PDF75 元数据实例）。
   约定：C-S-04、C-S-11～C-S-22。矩阵行：M-4.3.2-01～32、M-4.3.2-T01/T02、M-F-02～27、M-G-01～08、M-C-01～05。
 
-  std-meta 子元素顺序（2026-10-21 主导人决定）：
-    4.1 示例、附录 G、ISO 源指南三处顺序互不相同，46687.2 原文没有规定顺序（C-S-11），且它在 NISO STS 1.2 之上修改采用，
-    因此 std-meta 采用官方 STS 1.2 DTD 规定的顺序（不再用 interleave）。国标特有/DTD 未声明的元素按原文 4.3.2、表 C.1、附录 G
+  std-meta 子元素顺序（2026-10-21 主导人决定，后改为“导出严格、导入宽容”）：
+    4.1 示例、附录 G、ISO 源指南三处顺序互不相同，46687.2 原文没有规定顺序（C-S-11）；4.1 示例本身把 ics、ccs 写在 title-wrap 之前，
+    按该示例产出的文件是合理输入，导入时不能因次序拒绝。因此：
+      结构层（本 schema）：std-meta 的子元素用 interleave，次序不限，各子元素的出现次数仍按官方 STS 1.2 DTD 收紧后的结果；
+      次序检查在 scripts/xml46687/validate.py 的 V-12 STD-META-ORDER：按下面的“导出次序”检查，
+      profile=export 为错误，profile=import 为告警。
+    导出次序即官方 STS 1.2 DTD 规定的顺序；国标特有/DTD 未声明的元素按原文 4.3.2、表 C.1、附录 G
     的相对位置插入 DTD 顺序中最贴近的位置：
       std-type            4.3.2 清单第一项 → 放在最前（title-wrap 之前）
       ccs                 4.1 示例中紧随 ics → 紧随 ics*
@@ -16,6 +20,8 @@
       equivalence         4.3.2 清单中紧随 implementation-date → 紧随 implementation-date
       std-supersedes      4.3.2 清单末项，语义与 std-xref（被修订/取代的标准）相邻 → 紧邻 std-xref* 之前
     这些元素不在 STS 1.2 DTD 中（scripts/xml46687/sts_compat.py 的已知扩展白名单）。
+    次序不同于导出次序的文件（例如 4.1 示例的 ics、ccs 在前）在 sts_compat.py 中归入白名单
+    CONFLICT-std-meta-order（原文示例与 STS 冲突）。
 -->
 <grammar xmlns="http://relaxng.org/ns/structure/1.0"
          ns=""
@@ -58,56 +64,59 @@
     implementation-date 的“必填”要求属导出/导入器的约定，不写进格式 schema（避免最小文档也被拒绝；
     主导人 2026-10-21 决定：更严的导出档留待 WP8.2 在渲染器侧强制）。
     issue-agencies（M-4.3.2-12）、std-doc-meta（M-C-04）在矩阵中为 import: reject，不在 schema 中。
-    顺序见文件头；括号内为官方 STS 1.2 DTD 的写法（std-org | std-org-group、ics 等）。
+    顺序见文件头（interleave：结构层不限次序，次序由 V-12 检查）；(std-org | std-org-group) 等为官方 STS 1.2 DTD 的写法。
+    libxml2 的 interleave 要求各分支的顶层元素名互不相同，本定义满足（std-ref 只在 std-meta 直接子级出现一次）。
   -->
   <define name="el.std-meta">
     <element name="std-meta">
-      <!-- 国标/原文清单扩展：std-type（4.3.2、表 C.1 行 82；STS 1.2 没有；内容模型原文未给，取行内混合内容 [未核实]） -->
-      <optional><element name="std-type"><ref name="cm.inline"/></element></optional>
-      <oneOrMore><ref name="el.title-wrap"/></oneOrMore>
-      <optional><element name="proj-id"><text/></element></optional>
-      <optional><element name="release-version"><text/></element></optional>
-      <optional><ref name="el.std-ident"/></optional>
-      <!-- 附录 G 示例：std-org 直接位于 std-meta 下（无 group）；DTD 同样允许 (std-org | std-org-group)* -->
-      <zeroOrMore>
-        <choice>
-          <ref name="el.std-org"/>
-          <ref name="el.std-org-group"/>
-        </choice>
-      </zeroOrMore>
-      <zeroOrMore><element name="content-language"><data type="token"/></element></zeroOrMore>
-      <zeroOrMore><ref name="el.std-ref"/></zeroOrMore>
-      <optional><element name="doc-ref"><text/></element></optional>
-      <!-- 发布日期；4.1 示例的 date-type 写法见 el.release-date -->
-      <zeroOrMore><ref name="el.release-date"/></zeroOrMore>
-      <!-- implementation-date：中国标准特有（表 C.1 行 40）；STS 1.2 没有 -->
-      <optional><ref name="el.implementation-date"/></optional>
-      <!-- equivalence：中国标准特有（表 C.1 行 32）；STS 1.2 没有；原文没有内容模型 [未核实]，取宽松形式 -->
-      <optional>
-        <element name="equivalence">
-          <zeroOrMore><choice><text/><ref name="inline.any"/><ref name="el.std-ref"/></choice></zeroOrMore>
-        </element>
-      </optional>
-      <zeroOrMore><element name="comm-ref"><text/></element></zeroOrMore>
-      <zeroOrMore><element name="secretariat"><text/></element></zeroOrMore>
-      <zeroOrMore><element name="ics"><text/></element></zeroOrMore>
-      <!-- ccs：中国标准特有（表 C.1 行 10）；STS 1.2 没有 -->
-      <zeroOrMore><element name="ccs"><text/></element></zeroOrMore>
-      <optional>
-        <element name="page-count">
-          <attribute name="count"><data type="nonNegativeInteger"/></attribute>
-          <empty/>
-        </element>
-      </optional>
-      <!-- std-supersedes：4.3.2 列表；没有内容模型与示例 [未核实]，取宽松形式；STS 1.2 没有 -->
-      <zeroOrMore>
-        <element name="std-supersedes">
-          <zeroOrMore><choice><text/><ref name="inline.any"/><ref name="el.std-ref"/></choice></zeroOrMore>
-        </element>
-      </zeroOrMore>
-      <zeroOrMore><ref name="el.std-xref"/></zeroOrMore>
-      <zeroOrMore><ref name="el.permissions"/></zeroOrMore>
-      <zeroOrMore><ref name="el.custom-meta-group"/></zeroOrMore>
+      <interleave>
+        <!-- 国标/原文清单扩展：std-type（4.3.2、表 C.1 行 82；STS 1.2 没有；内容模型原文未给，取行内混合内容 [未核实]） -->
+        <optional><element name="std-type"><ref name="cm.inline"/></element></optional>
+        <oneOrMore><ref name="el.title-wrap"/></oneOrMore>
+        <optional><element name="proj-id"><text/></element></optional>
+        <optional><element name="release-version"><text/></element></optional>
+        <optional><ref name="el.std-ident"/></optional>
+        <!-- 附录 G 示例：std-org 直接位于 std-meta 下（无 group）；DTD 同样允许 (std-org | std-org-group)* -->
+        <zeroOrMore>
+          <choice>
+            <ref name="el.std-org"/>
+            <ref name="el.std-org-group"/>
+          </choice>
+        </zeroOrMore>
+        <zeroOrMore><element name="content-language"><data type="token"/></element></zeroOrMore>
+        <zeroOrMore><ref name="el.std-ref"/></zeroOrMore>
+        <optional><element name="doc-ref"><text/></element></optional>
+        <!-- 发布日期；4.1 示例的 date-type 写法见 el.release-date -->
+        <zeroOrMore><ref name="el.release-date"/></zeroOrMore>
+        <!-- implementation-date：中国标准特有（表 C.1 行 40）；STS 1.2 没有 -->
+        <optional><ref name="el.implementation-date"/></optional>
+        <!-- equivalence：中国标准特有（表 C.1 行 32）；STS 1.2 没有；原文没有内容模型 [未核实]，取宽松形式 -->
+        <optional>
+          <element name="equivalence">
+            <zeroOrMore><choice><text/><ref name="inline.any"/><ref name="el.std-ref"/></choice></zeroOrMore>
+          </element>
+        </optional>
+        <zeroOrMore><element name="comm-ref"><text/></element></zeroOrMore>
+        <zeroOrMore><element name="secretariat"><text/></element></zeroOrMore>
+        <zeroOrMore><element name="ics"><text/></element></zeroOrMore>
+        <!-- ccs：中国标准特有（表 C.1 行 10）；STS 1.2 没有 -->
+        <zeroOrMore><element name="ccs"><text/></element></zeroOrMore>
+        <optional>
+          <element name="page-count">
+            <attribute name="count"><data type="nonNegativeInteger"/></attribute>
+            <empty/>
+          </element>
+        </optional>
+        <!-- std-supersedes：4.3.2 列表；没有内容模型与示例 [未核实]，取宽松形式；STS 1.2 没有 -->
+        <zeroOrMore>
+          <element name="std-supersedes">
+            <zeroOrMore><choice><text/><ref name="inline.any"/><ref name="el.std-ref"/></choice></zeroOrMore>
+          </element>
+        </zeroOrMore>
+        <zeroOrMore><ref name="el.std-xref"/></zeroOrMore>
+        <zeroOrMore><ref name="el.permissions"/></zeroOrMore>
+        <zeroOrMore><ref name="el.custom-meta-group"/></zeroOrMore>
+      </interleave>
     </element>
   </define>
 

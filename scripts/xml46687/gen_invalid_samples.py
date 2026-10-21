@@ -272,7 +272,7 @@ case('tbx-normative-authorization-alias.xml', 'tbx:normativeAuthorization 写成
      [('<tbx:normativeAuthorization value="preferredTerm"/>', '<tbx:normative-Authorization value="preferredTerm"/>')])
 case('tbx-grammatical-number-alias.xml', 'tbx:grammaticalNumber 写成 tbx:grammatical-Number（M-C.1-07：附录 C 断行写法，疑为原文笔误，2026-10-21 起 REJECT）。',
      [('              <tbx:partOfSpeech value="noun"/>\n', '              <tbx:partOfSpeech value="noun"/>\n              <tbx:grammatical-Number value="singular"/>\n')])
-case('std-meta-wrong-order.xml', 'std-meta 子元素顺序不符（release-date 排在 content-language 之前）。顺序按 NISO STS 1.2（2026-10-21 主导人决定，不再 interleave）。',
+case('std-meta-wrong-order.xml', 'std-meta 子元素次序不是导出次序（release-date 排在 content-language 之前）。结构层不限次序：import 档通过并告警 V-12 STD-META-ORDER，export 档为错误（仅 export 档的负例）。',
      [('      <content-language>zh</content-language>\n      <release-date>2026-04-30</release-date>', '      <release-date>2026-04-30</release-date>\n      <content-language>zh</content-language>')])
 case('sec-block-after-subsec.xml', '含子条的条在子条之后又放了段落（STS 1.2 的 sec 内容模型：块在前，子条在后，其后只能是注、示例、清单）。',
      [('        <p>无标题条。</p>\n      </sec>\n    </sec>\n  </body>', '        <p>无标题条。</p>\n      </sec>\n      <p>悬置段落。</p>\n    </sec>\n  </body>')])

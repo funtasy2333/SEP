@@ -13,7 +13,8 @@
   4. 拒绝项  支持矩阵中 import 为 reject 的元素（tex-math、嵌套表、tfoot 等），给出矩阵行与约定编号（REJECT）
   5. 语义    V-1 id/rid；V-2 sec-type 与位置；V-3 app/ref-list 的 content-type；V-4 日期；V-5 列项；
              V-6 processing-meta 与 title-wrap；V-7 遗留 id 形式；
-             附加：V-8 xref 的 ref-type 与目标一致；V-9 术语条目定义个数；V-10 MathML 安全；V-11 外链协议
+             附加：V-8 xref 的 ref-type 与目标一致；V-9 术语条目定义个数；V-10 MathML 安全；V-11 外链协议；
+             V-12 std-meta 子元素次序（STD-META-ORDER：导出为错误，导入为告警；结构层不限次序）
 
 说明：lxml 与 xmllint 都基于 libxml2 的 RELAX NG 实现（版本不同、构建独立），不是两个互相独立的算法；
 它们能发现构建/版本差异，但不能替代 jing 之类独立实现（本机没有）。
@@ -507,6 +508,44 @@ def _import_only(rep: Report, msg: str, el) -> None:
         rep.warn(IMPORT_ONLY_RULE, msg + "（仅导入接受，导出须规范化）", el=el)
 
 
+# V-12 STD-META-ORDER：std-meta 子元素的“导出次序”= 官方 STS 1.2 DTD 的次序；国标特有元素按
+# schemas/gbt46687.2/metadata.rng 文件头的约定插入（std-type 最前；ccs 紧随 ics；implementation-date 紧随 release-date；
+# equivalence 紧随 implementation-date；std-supersedes 在 std-xref 之前）。原文没有规定次序，4.1 示例自己把 ics、ccs 写在
+# title-wrap 之前，所以结构层（RELAX NG）不限次序，导入只告警，导出才算错误。
+STD_META_EXPORT_ORDER = (
+    ("std-type",), ("title-wrap",), ("proj-id",), ("release-version",), ("std-ident",), ("std-org", "std-org-group"),
+    ("content-language",), ("std-ref",), ("doc-ref",), ("release-date",), ("implementation-date",), ("equivalence",),
+    ("comm-ref",), ("secretariat",), ("ics",), ("ccs",), ("page-count",), ("std-supersedes",), ("std-xref",),
+    ("permissions",), ("custom-meta-group",),
+)
+STD_META_RANK = {name: i for i, group in enumerate(STD_META_EXPORT_ORDER) for name in group}
+STD_META_ORDER_RULE = "V-12"
+
+
+def check_std_meta_order(el, rep: Report) -> None:
+    kids = [c for c in el if is_element(c) and nsuri(c) is None and local(c) in STD_META_RANK]
+    seen_max = -1
+    seen_el = None
+    first_bad = None
+    for c in kids:
+        r = STD_META_RANK[local(c)]
+        if r < seen_max and first_bad is None:
+            first_bad = (c, seen_el)
+        if r >= seen_max:
+            seen_max, seen_el = r, c
+    if first_bad is None:
+        return
+    bad, after = first_bad
+    actual = ", ".join(local(c) for c in kids)
+    expected = ", ".join(local(c) for c in sorted(kids, key=lambda c: STD_META_RANK[local(c)]))
+    msg = ("STD-META-ORDER：std-meta 的子元素次序不是导出次序：<%s>（行 %s）出现在 <%s>（行 %s）之后。实际次序：%s；导出次序：%s"
+           % (local(bad), bad.sourceline, local(after), after.sourceline, actual, expected))
+    if rep.profile == "export":
+        rep.error(STD_META_ORDER_RULE, msg + "（导出须按 STS 1.2 次序，C-S-11）", el=el)
+    else:
+        rep.warn(STD_META_ORDER_RULE, msg + "（原文条文没有规定次序，4.1 示例自己就把 ics、ccs 写在 title-wrap 之前，导入接受；导出须规范化，C-S-11）", el=el)
+
+
 def semantic_checks(tree, rep: Report) -> None:
     root = tree.getroot()
     elems = [e for e in root.iter() if is_element(e)]
@@ -694,6 +733,11 @@ def semantic_checks(tree, rep: Report) -> None:
         elif local(el) == "title-wrap":
             if el.get(_clark(NS_XML, "lang")) is None:
                 rep.error("V-6", "title-wrap 缺少 xml:lang（C-S-13）", el=el)
+
+    # ---------------- V-12 std-meta 子元素次序（导出严格、导入告警） ----------------
+    for el in elems:
+        if nsuri(el) is None and local(el) == "std-meta":
+            check_std_meta_order(el, rep)
 
     # ---------------- V-7 遗留 id 形式 ----------------
     for el in elems:

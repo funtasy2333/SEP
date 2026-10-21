@@ -199,6 +199,35 @@ def _t_table_wrap_graphic(root):
     return hit
 
 
+# std-meta 子元素次序（STS 1.2 DTD 的有序内容模型；只含 DTD 声明的、本 schema 使用的元素；
+# 国标扩展元素已由前面的 EXT 条目删除）
+_STD_META_DTD_ORDER = ("title-wrap", "proj-id", "release-version", "std-ident", ("std-org", "std-org-group"),
+                       "content-language", "std-ref", "doc-ref", "release-date", "comm-ref", "secretariat", "ics",
+                       "page-count", "std-xref", "permissions", "custom-meta-group")
+_STD_META_RANK = {}
+for _i, _g in enumerate(_STD_META_DTD_ORDER):
+    for _n in ((_g,) if isinstance(_g, str) else _g):
+        _STD_META_RANK[_n] = _i
+
+
+def _t_std_meta_order(root):
+    hit = []
+    for el in root.iter():
+        if _is_el(el) and _ns(el) is None and _local(el) == "std-meta":
+            kids = [c for c in el if _is_el(c) and _ns(c) is None and _local(c) in _STD_META_RANK]
+            ordered = sorted(kids, key=lambda c: _STD_META_RANK[_local(c)])
+            if ordered == kids:
+                continue
+            positions = [el.index(c) for c in kids]
+            moved = [c for c, o in zip(kids, ordered) if c is not o]
+            hit.append(_lines(*moved))
+            for c in kids:
+                el.remove(c)
+            for pos, c in zip(positions, ordered):
+                el.insert(pos, c)
+    return hit
+
+
 _BLOCK_FN_PARENTS = {"sec", "app"}
 
 
@@ -279,6 +308,13 @@ WHITELIST = [
         "id": "CONFLICT-table-wrap-graphic-after-foot", "category": CONFLICT, "what": "table-wrap 内 graphic 位于 table-wrap-foot 之后",
         "basis": "46687.2 6.2.3 示例（印刷页 21）把 graphic 写在 table-wrap-foot 之后；STS 1.2 的 table-wrap 要求 graphic 等块在 table-wrap-foot 之前",
         "transform": _t_table_wrap_graphic,
+    },
+    {
+        "id": "CONFLICT-std-meta-order", "category": CONFLICT, "what": "std-meta 子元素次序不同于 STS 1.2 的有序内容模型（如 ics 在 title-wrap 之前）",
+        "basis": "46687.2 4.1 示例（印刷页 2～3）把 ics、ccs 写在 title-wrap 之前；原文条文没有规定 std-meta 子元素次序（C-S-11），"
+                 "附录 G（印刷页 71）又是另一种次序；STS 1.2 的 std-meta 内容模型有固定次序（title-wrap*, proj-id?, …, ics, …）；"
+                 "导入接受任意次序（validate.py V-12 STD-META-ORDER 告警），导出须按 STS 1.2 次序",
+        "transform": _t_std_meta_order,
     },
     {
         "id": "PENDING-block-fn", "category": PENDING, "what": "sec/app 直接子元素 fn（块级正文脚注）",

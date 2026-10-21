@@ -25,6 +25,7 @@
               （scripts/xml46687/sts_compat.py）：DTD 能给出确定内容模型而原文没有另行规定的地方，已按 DTD 收紧（元素顺序、
               内容集合、取值枚举等）；原文明确的写法与 STS 冲突的，以原文为准并登记为“46687.2 相对 STS 1.2 的偏差”（README）；
               国标特有元素（ccs、implementation-date、equivalence、std-type、std-supersedes）登记为已知扩展。
+              例外：std-meta 子元素的次序结构层不限（原文 4.1 示例自己用了另一种次序），由 validate.py V-12 检查：export 档错误、import 档告警。
 
   覆盖范围    矩阵中 export 为 required/optional 或 import 为 required/accept 的元素与属性（含 status 为 gap 的行：
               schema 描述的是标准，不是当前实现能力）。import 为 reject 的行按 rejectKind 区分：format（格式层面不收：

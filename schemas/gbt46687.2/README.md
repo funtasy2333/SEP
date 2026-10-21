@@ -21,7 +21,7 @@
 | `figure.rng` | fig、fig-group、graphic、inline-graphic、legend、def-list/def-item |
 | `math.rng` | disp-formula、disp-formula-group、inline-formula、mml:math（MathML 3 宽松子 schema） |
 | `tbx.rng` | tbx:termEntry/langSet/tig/term/definition/note/example/source/subjectField/entailedTerm/partOfSpeech/… |
-| `samples/valid/` | 9 个手写正例：01～06 选用形式；07 “仅导入接受”的异写汇总；08 原文明确写法与 STS 1.2 不一致的情形（国标扩展、示例冲突）；09 格式合法但导入暂拒的写法 |
+| `samples/valid/` | 9 个手写正例：01～06 选用形式；07 “仅导入接受”的异写汇总（含按原文 4.1 示例次序写的 std-meta）；08 原文明确写法与 STS 1.2 不一致的情形（国标扩展、示例冲突）；09 格式合法但导入暂拒的写法 |
 | `samples/invalid/` | 54 个负例，每个由同一基底文档单点改动生成，文件开头的注释写明违反项 |
 | `../../scripts/xml46687/validate.py` | 校验工具（语法 + RELAX NG 双实现 + 语义规则） |
 | `../../scripts/xml46687/sts_compat.py` | 官方 NISO STS 1.2 DTD 兼容性检查（已知国标扩展白名单 + 未解释偏差） |
@@ -53,12 +53,18 @@
 1. **语法与分模块**：RELAX NG XML 语法（不是 compact 语法），主文件 `include` 各模块；模块只有 `define`，没有 `start`。
 2. **命名空间**：STS 元素无命名空间；`xlink`、`mml`、`tbx` 的 URI 与前缀见主文件头。RELAX NG 约束的是 URI，不是前缀名；
    命名空间声明本身不是属性，RELAX NG 无法约束，`validate.py` 在旧格式判别中检查根元素命名空间。
-3. **元素顺序（2026-10-21 主导人决定）**：46687.2 原文没有规定 `std-meta` 子元素顺序（4.1 示例、附录 G、ISO 源指南三处互不相同），
-   而且它在 NISO STS 1.2 之上修改采用，因此**采用官方 DTD 的顺序，去掉 interleave**。国标扩展元素按原文 4.3.2、表 C.1、附录 G 的相对位置
-   插入 DTD 顺序里最贴近的位置：`std-type` 在最前，`ccs` 紧随 `ics`，`implementation-date`、`equivalence` 紧随 `release-date`，
-   `std-supersedes` 紧邻 `std-xref` 之前（理由写在 `metadata.rng` 文件头）。
-   **已知后果**：原文 4.1 示例（印刷页 3）把 `ics`、`ccs` 写在 `title-wrap` 之前，按那个顺序写的文档会被本 schema 拒绝，需要调整顺序。
-   其余元素（章条、图、表、术语等）在 STS 1.2 能给出确定内容模型而原文没有另行规定的地方，也按 DTD 取顺序（见第 9 节）。
+3. **元素顺序与 std-meta：导出严格、导入宽容（2026-10-21 主导人决定，后改）**：46687.2 原文条文没有规定 `std-meta` 子元素顺序
+   （4.1 示例、附录 G、ISO 源指南三处互不相同），4.1 示例自己就把 `ics`、`ccs` 写在 `title-wrap` 之前，按该示例产出的文件是合理输入，
+   导入时不能因顺序拒绝；而 SES 导出应与官方 NISO STS 1.2 DTD 的顺序一致。因此分两层：
+   - **结构层（RELAX NG）**：`std-meta` 的子元素用 `interleave`，次序不限；**各子元素的出现次数仍按 DTD 收紧**（`title-wrap+`、`std-ident?`、`proj-id?`、
+     `page-count?` 等不能重复，`title-wrap` 必须有）。
+   - **次序层（`validate.py` 规则 V-12 `STD-META-ORDER`）**：按“导出次序”检查——官方 DTD 的顺序，国标扩展元素按原文 4.3.2、表 C.1、附录 G 的相对位置
+     插入最贴近的位置：`std-type` 在最前，`ccs` 紧随 `ics`，`implementation-date`、`equivalence` 紧随 `release-date`，`std-supersedes` 紧邻 `std-xref` 之前
+     （理由写在 `metadata.rng` 文件头）。`--profile export` 下乱序是**错误**，`--profile import`（默认）下是**告警**，信息列出实际次序与导出次序。
+   - **`sts_compat.py`**：导入档允许的乱序文件会被 DTD 报 `std-meta` 内容模型错误，归入白名单 `CONFLICT-std-meta-order`
+     （类别“原文与STS冲突”：4.1 印刷页 2～3 示例次序），不算未解释偏差。
+   其余元素（章条、图、表、术语等）在 STS 1.2 能给出确定内容模型而原文没有另行规定的地方，则按 DTD 取顺序，**结构层就拒绝**（见第 9 节）；
+   `std-meta` 是唯一把次序下放到 V-12 的元素（原文示例本身用了另一种次序）。
 4. **sec-type 与位置**：用不同的 `define` 表达位置约束——`front` 内 `foreword`/`intro`；`body` 顶层 `scope`/`norm-refs`/`terms`（及仅导入接受的 `norm_refs`）；
    其下的条 `numbered-paragraph` 或不写；其他取值（表 D.1 行 13 称“可以采用任何值”，STS 1.2 的 `sec-type` 为 cdata）接受，`validate.py` 告警。
    “numbered-paragraph 的 sec 不含 title”这类跨元素规则留给 V-2。
@@ -143,6 +149,7 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | V-9 | 附加 | 每个术语条目有且仅有一个定义（跨 langSet；0 个告警） | 附录 C 行 92 |
 | V-10 | 附加 | MathML 元素不得带事件属性、`javascript:` 等协议 | C-T-19 |
 | V-11 | 附加 | `ext-link` 的 `xlink:href` 协议白名单（http、https、mailto、ftp；相对地址不限） | C-T-56 |
+| V-12 | 次序 | `STD-META-ORDER`：`std-meta` 子元素次序须为“导出次序”（STS 1.2 DTD 次序 + 国标扩展的约定位置，第 3 节第 3 点）；`--profile export` 为错误，`--profile import` 为告警；RELAX NG 不限次序 | C-S-11 |
 | IMPORT-ONLY | 档位 | 仅导入接受的异写（见第 3 节第 6 点）：import 档告警，export 档错误 | 各 C- 行 |
 | W-IMPL-REJECT 等 | 告警 | rejectKind=implementation：格式合法、导入暂拒（引言中的条、array、disp-formula-group），同一 fn 多引用为 W-FN-MULTIREF | 各 M- 行 |
 | W-* | 告警 | 不阻断：未知 sec-type、named-content/graphic/ext-link 的非常规取值、`size:T` 用于行内图、有序列项缺 label、annex-type 与 content-type 矛盾、发布日期晚于实施日期、多 rid… | 各 C- 行 |
@@ -156,7 +163,7 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 
 `sts_compat.py` 用 `xmllint --noout --nonet --dtdvalid schemas/niso-sts-1.2/interchange-mathml3-dtd/NISO-STS-interchange-1-mathml3.dtd` 校验文件，
 把报错分成**已知偏差**（命中白名单，列出触发的白名单条目及其依据）和**未解释偏差**（其余全部报错）；有未解释偏差时退出码 1。
-白名单（`--list-whitelist`）共 12 条，每条写明类别和原文页码/DTD 事实，见第 9 节表格。
+白名单（`--list-whitelist`）共 13 条，每条写明类别和原文页码/DTD 事实，见第 8 节表格。
 实现上先按白名单对文档副本做规范化（删除国标扩展元素、把异写改成 STS 写法、调整位置），再校验副本：副本上仍存在的报错 = 未解释偏差；
 原文档上有、副本上消失的报错 = 已知偏差。行号已映射回原文档。MathML 内容也在此被 DTD 校验。
 
@@ -172,13 +179,14 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | `04-tables.xml` | 表头、跨行跨列、`col`、单位段、表注/表脚注（`table-wrap-foot`）、单位、横向表 |
 | `05-formulas-figures.xml` | disp-formula/inline-formula + mml:math + legend/def-list、公式注、fig（图例、说明段、多图形、图注、尺寸档位）、fig-group、inline-graphic |
 | `06-terms-references.xml` | term-sec + tbx:termEntry（多 langSet、多 tig、描述符、subjectField、note/example、entailedTerm）、缩略语、各类 xref、行内 fn、std、mixed-citation |
-| `07-import-variants.xml` | 仅导入接受的异写汇总：import 档通过并告警，export 档不通过 |
+| `07-import-variants.xml` | 仅导入接受的异写汇总，以及按原文 4.1 示例次序写的 `std-meta`（`ics`、`ccs` 在 `title-wrap` 之前）：import 档通过并告警（`IMPORT-ONLY`、V-12），export 档不通过 |
 | `08-original-forms-vs-sts.xml` | 原文明确写法与 STS 1.2 不一致的情形（5 个国标扩展元素、std-org 多名、xref 内 label、langSet 内 note 在 tig 之后、graphic 在 table-wrap-foot 之后、块级 fn）；两个档位都通过，`sts_compat.py` 列为已知偏差 |
 | `09-import-pending.xml` | 格式合法但导入暂拒（rejectKind=implementation）：引言中的条、array、disp-formula-group、同一脚注多次引用；只告警 |
 
 `samples/invalid/` 的 54 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
-语法 3、旧格式/根 3、矩阵 format 类 reject 16（含 4 个术语异写元素名）、V-1 3、V-2 3、V-3 2、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 4、仅 RELAX NG 8
-（含按 STS 1.2 收紧后新增的 std-meta 顺序、含子条的条再放段落、partOfSpeech 取值、named-content 缺 content-type、空 table-wrap-foot）。
+语法 3、旧格式/根 3、矩阵 format 类 reject 16（含 4 个术语异写元素名）、V-1 3、V-2 3、V-3 2、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 4、仅 RELAX NG 7
+（含按 STS 1.2 收紧后新增的含子条的条再放段落、partOfSpeech 取值、named-content 缺 content-type、空 table-wrap-foot）、
+**仅 export 档失败 1（`std-meta-wrong-order.xml`：结构层通过，import 档告警 V-12，export 档错误 V-12；预期见 `EXPORT_ONLY_INVALID`）**。
 
 ## 7. 官方 DTD 对照后：`[未核实]` 清单的复核结论（2026-10-21）
 
@@ -187,7 +195,7 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | 项 | 原先 | DTD 事实 | 结论 |
 |---|---|---|---|
 | 行内内容集合 | 所有行内位置共用一个集合 | 各元素的内容集合不同（bold 等不含 break；ext-link、xref 不含引用/脚注/公式；label 不含 ext-link/std；term/see-entry 不含 break/std） | 已收紧：`cm.inline/mark/phrase/label/term/citation/subsup` 七类 |
-| std-meta 子元素顺序 | interleave | 固定顺序 | 已收紧（第 3 节第 3 点） |
+| std-meta 子元素顺序 | interleave | 固定顺序 | 结构层保持 interleave（出现次数按 DTD 收紧），次序下放到 V-12：导出错误、导入告警（第 3 节第 3 点；2026-10-21 改） |
 | `std-xref` | 空元素与嵌套 std-ref 都收 | 内容必须含 `std-ref`（或 std-ident），`type` 必备 | 已收紧：只收嵌套 std-ref |
 | `std-org` | name*/abbrev* 任意顺序 | `std-org-name?, std-org-abbrev*, std-org-loc*` | 顺序按 DTD；name 多个是原文 4.1 示例的写法，登记为偏差 |
 | `std-org` 的 level/role/type | token | cdata | 确认（token 即可） |
@@ -229,19 +237,19 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | ALIAS-normativeAuthentication | 原文与STS冲突 | 元素 `tbx:normativeAuthentication`（采用级别的异写名） | 9.2.3 印刷页 37 三处说明文字；DTD 只有 `tbx:normativeAuthorization`；仅导入接受，导出写 normativeAuthorization |
 | CONFLICT-valign-center | 原文与STS冲突 | 属性 `valign="center"` | 6.4 示例（印刷页 25）；DTD 枚举 top/middle/bottom/baseline；仅导入接受，当作 middle |
 | CONFLICT-std-org-multi-name | 原文与STS冲突 | 一个 `std-org` 内有多个 `std-org-name` | 4.1 示例（印刷页 3），C-S-15 导入约定接受；DTD：`std-org-name?` |
+| CONFLICT-std-meta-order | 原文与STS冲突 | `std-meta` 子元素次序不同于 STS 1.2 的有序内容模型（如 `ics` 在 `title-wrap` 之前） | 4.1 示例（印刷页 2～3）把 `ics`、`ccs` 写在 `title-wrap` 之前；原文条文未规定次序，附录 G（印刷页 71）又是另一种次序；DTD 为固定次序；导入接受（V-12 告警），导出须按 STS 1.2 次序 |
 | CONFLICT-xref-label | 原文与STS冲突 | `xref` 内含 `label` | 10.1.8 示例（印刷页 48）；DTD 的 xref 内容不含 label |
 | CONFLICT-langSet-order | 原文与STS冲突 | `tbx:langSet` 内描述性元素（如 tbx:note）在 `tbx:tig` 之后 | 9.2.3 示例 2（印刷页 37）；DTD：描述性元素必须全部在 tig 之前 |
 | CONFLICT-table-wrap-graphic-after-foot | 原文与STS冲突 | `table-wrap` 内 `graphic` 在 `table-wrap-foot` 之后 | 6.2.3 示例（印刷页 21）；DTD：graphic 等块在 table-wrap-foot 之前 |
 | PENDING-block-fn | 待决扩展 | `sec`/`app` 的直接子元素 `fn` | 正文 fn 的定义位置原文未规定（10.1.8，D-T-10，待 WP8.M 决定）；DTD 的 sec/app 内容不含 fn |
 
-另有一条**被放弃的原文写法**（不在白名单里，因为 schema 已拒绝）：4.1 示例（印刷页 3）把 `ics`、`ccs` 写在 `title-wrap` 之前，
-按主导人决定改用 DTD 顺序后，这个顺序的文档会被 schema 拒绝。
+原先“4.1 示例的 `ics`、`ccs` 次序被 schema 拒绝”的做法已改为“导出严格、导入宽容”（第 3 节第 3 点），该次序现在是白名单中“原文与STS冲突”类的一条（CONFLICT-std-meta-order）。
 
 属性层面：schema 允许的全部属性在 DTD 中都有声明（`xml:lang`、`xlink:href` 等按命名空间核对），枚举取值只有 `valign="center"` 超出 DTD。
 
 ## 9. 按 STS 1.2 收紧的 schema 项（对应第 7 节）
 
-1. `std-meta` 顺序（去 interleave）；`std-xref` 必含 `std-ref`；`std-org` 的 name/abbrev 顺序；`permissions` 顺序。
+1. `std-meta` 各子元素的出现次数按 DTD（次序由 V-12 检查，结构层不限）；`std-xref` 必含 `std-ref`；`std-org` 的 name/abbrev 顺序；`permissions` 顺序。
 2. `sec`/`app`：块在前，子条/术语条在后，其后只能再放注、示例、清单；`label` 与 `title` 至少要有一个。
 3. `fig`：`label? caption legend?` 然后是 `graphic`/`p`/注/示例；`fig-group`：`label? caption? legend? fig+`。
 4. `table-wrap`：`graphic` 在 `table-wrap-foot` 之前（原文示例的“之后”也收，登记偏差）；`table-wrap-foot` 非空；`@position` 枚举。
