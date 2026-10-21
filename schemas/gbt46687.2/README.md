@@ -22,7 +22,7 @@
 | `math.rng` | disp-formula、disp-formula-group、inline-formula、mml:math（MathML 3 宽松子 schema） |
 | `tbx.rng` | tbx:termEntry/langSet/tig/term/definition/note/example/source/subjectField/entailedTerm/partOfSpeech/… |
 | `samples/valid/` | 9 个手写正例：01～06 选用形式；07 “仅导入接受”的异写汇总（含按原文 4.1 示例次序写的 std-meta）；08 原文明确写法与 STS 1.2 不一致的情形（国标扩展、示例冲突）；09 格式合法但导入暂拒的写法 |
-| `samples/invalid/` | 61 个负例，每个由同一基底文档单点改动生成，文件开头的注释写明违反项 |
+| `samples/invalid/` | 63 个负例，每个由同一基底文档单点改动生成，文件开头的注释写明违反项 |
 | `../../scripts/xml46687/validate.py` | 校验工具（语法 + RELAX NG 双实现 + 语义规则） |
 | `../../scripts/xml46687/sts_compat.py` | 官方 NISO STS 1.2 DTD 兼容性检查（已知国标扩展白名单 + 未解释偏差） |
 | `../../scripts/xml46687/test_validate.py` | unittest 回归测试 |
@@ -158,8 +158,8 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | RNG | 结构 | lxml RELAX NG 校验（同时调用 xmllint，二者不一致报 CONSISTENCY） | 本 schema |
 | REJECT | 拒绝项 | 矩阵 `import: reject` 且 `rejectKind=format` 的元素/用法，给出矩阵行与约定编号 | 各 M-、C- 行 |
 | V-1 | 语义 | `id` 合法且唯一；`xref/@rid`、`tbx:entailedTerm/@target` 可解析 | C-S-37、3.5 |
-| V-2 | 语义 | `sec-type` 与位置；numbered-paragraph 不含 title；章必须有 title | C-S-06、C-S-08 |
-| V-3 | 语义 | `app/@content-type` ∈ {informative, normative}；`ref-list/@content-type` ∈ {norm-refs, bibl}；norm-refs 清单必须在 norm-refs 章内 | C-S-07、C-S-24、C-S-27 |
+| V-2 | 语义 | `sec-type` 与位置；numbered-paragraph 不含 title；章必须有 title；**`term-sec` 必须位于“术语和定义”章（body 顶层 `sec-type=terms`）之内** | C-S-06、C-S-08、C-S-25、C-T-37 |
+| V-3 | 语义 | `app/@content-type` ∈ {informative, normative}；`ref-list/@content-type` ∈ {norm-refs, bibl}；norm-refs 清单必须是 norm-refs 章的直接子元素；**bibl（及别名 bibr）参考文献表必须是 `back` 的直接子元素** | C-S-07、C-S-24、C-S-27 |
 | V-4 | 语义 | `release-date`/`implementation-date` 为有效的 YYYY-MM-DD；发布日期、实施日期不得用两种写法重复表达（含 `date-type`） | C-S-12、D-S-01 |
 | V-5 | 语义 | `list-type` 取值；无序列项不带 label | C-S-32 |
 | V-6 | 语义 | `processing-meta` 六个固定属性值；`title-wrap` 带 `xml:lang` | C-S-04、C-S-13 |
@@ -188,9 +188,32 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | W-IMPL-REJECT 引言中的条 | **任意祖先** `sec[@sec-type=intro]`（原来只认第一层，`sec_0.1.1` 不告警） | M-4.3.4-02/03 |
 | 旧格式判别：`foreword`/`intro` 作为 `body`/`front`/`standard` 的子元素 | 直接父元素（有意） | 位置特征，用来识别 SEP 早期格式 |
 | V-2 `sec-type` 位置（front 内只能 foreword/intro，body 顶层只能 scope/norm-refs/terms…） | 直接父元素（有意） | 规则本身就是“位置”，C-S-06 |
-| V-3 `norm-refs` 清单必须在 `sec-type=norm-refs` 的章内 | 直接父元素（有意） | 4.4.2.3.1：章内先引导语再 `ref-list` |
+| V-2 `term-sec` 在术语和定义章之内 | 任意祖先（分组条可以嵌套）：祖先里有 body 顶层的 `sec-type=terms` | 9.1、C-S-25、C-T-37 |
+| V-3 `norm-refs` 清单必须是 `sec-type=norm-refs` 的章的直接子元素；bibl/bibr 参考文献表必须是 `back` 的直接子元素 | 直接父元素（有意） | 4.4.2.3.1：章内先引导语再 `ref-list`；4.5.3、C-S-27 |
 | V-13 `ref` 的“在 bibl 参考文献表内” | 直接父元素（有意） | `ref` 只能是 `ref-list` 的直接子元素 |
 | 标题数、`list-item` 的 `label` 等针对自身子元素的规则 | 自身子元素 | 内容模型本身 |
+
+### 有位置约束的容器：谁来拒绝
+
+结构层（RELAX NG）能表达的位置由 schema 拒绝；schema 为了容纳合法用法而放宽（`ref-list`、`term-sec` 都可作为条文块出现在任何 `sec`/`app` 里）的地方由语义规则补上。
+PR#55 审查后逐个核对：
+
+| 容器 | 位置要求 | 由谁拒绝 | 依据 |
+|---|---|---|---|
+| `processing-meta` | `standard` 的第一个子元素 | schema（序列） | C-S-04；`W-PM-POSITION` 因此不会再触发，仅留作库使用时的保险 |
+| `std-meta` | `front` 的第一个子元素 | schema | C-S-01 |
+| 前言/引言 `sec` | `front` 内，且只能是 foreword/intro | schema + V-2 | 4.3.3、4.3.4、C-S-09/10 |
+| 章 `sec`（scope/norm-refs/terms） | `body` 顶层；不得嵌套 | schema + V-2 | 表 1、C-S-06 |
+| `app-group`/`app` | `back` 内，`app` 只在 `app-group` 里 | schema | 4.5.2、C-S-01 |
+| `index` | `back` 内，在 `ref-list` 之后 | schema | 4.5.4、C-S-01 |
+| `ref-list`（bibl/bibr，参考文献表） | **`back` 的直接子元素** | schema 允许其出现在条文块里 → **V-3 补上（本次新增）** | 4.5.3、C-S-01、C-S-27 |
+| `ref-list`（norm-refs，规范性引用文件） | `sec-type=norm-refs` 章的直接子元素 | V-3（已有） | 4.4.2.3.1 |
+| `term-sec` | “术语和定义”章（body 顶层 `sec-type=terms`）之内，可在分组条里 | schema 允许其出现在任何 `sec`/`app` 里 → **V-2 补上（本次新增）** | 9.1 标题“‘术语和定义’章中的条”、C-S-25、C-T-37、M-9.2.1-01 路径 `sec/term-sec` |
+| `tbx:termEntry` | `term-sec` 内 | schema | 9.2.1 |
+| `ref` | `ref-list` 内 | schema | 4.5.3.1 |
+| 表脚注 `fn` | `table-wrap-foot` 内 | schema（`table-wrap-foot` 只在 `table-wrap` 里） | 6.2.3 |
+| 正文 `fn` | 原文没有规定定义位置（D-T-10，待 WP8.M） | 无（两处都收） | 10.1.8 |
+| 缩略语 `def-list[abbreviation]` | 原文只有示例（`sec_3.2` 里），没有位置要求 | 无 | 10.1.4 |
 
 **两个“实现”并不独立**：lxml（libxml2 2.14.6）与 xmllint（libxml 2.9.14）是同一套 libxml2 RELAX NG 代码的两个版本，二者一致能排除构建/版本差异，
 不能替代 jing 之类独立实现（本机没有 jing，也不得新增依赖）。libxml2 的 RELAX NG 报错粗糙（遇到第一处失败即停，信息含元素名但不一定含属性名），
@@ -238,8 +261,8 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | `08-original-forms-vs-sts.xml` | 原文明确写法与 STS 1.2 不一致的情形（5 个国标扩展元素、std-org 多名、xref 内 label、langSet 内 note 在 tig 之后、graphic 在 table-wrap-foot 之后、块级 fn）；两个档位都通过，`sts_compat.py` 列为已知偏差 |
 | `09-import-pending.xml` | 格式合法但导入暂拒（rejectKind=implementation）：引言中的条（含 `sec_0.1.1` 两层）、array、disp-formula-group、同一脚注多次引用；只告警 |
 
-`samples/invalid/` 的 61 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
-语法 3、旧格式/根 3、矩阵 format 类 reject 17（含 4 个术语异写元素名、1 个 fn 藏在 caption 段落里的图脚注）、V-1 3、V-2 3、V-3 2、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 6（含 2 个 custom 型 xref 的目标错误）、仅 RELAX NG 7
+`samples/invalid/` 的 63 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
+语法 3、旧格式/根 3、矩阵 format 类 reject 17（含 4 个术语异写元素名、1 个 fn 藏在 caption 段落里的图脚注）、V-1 3、V-2 4、V-3 3、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 6（含 2 个 custom 型 xref 的目标错误）、仅 RELAX NG 7
 （含按 STS 1.2 收紧后新增的含子条的条再放段落、partOfSpeech 取值、named-content 缺 content-type、空 table-wrap-foot）、
 **仅 export 档失败 5（`std-meta-wrong-order.xml`：结构层通过，import 档告警 V-12，export 档错误 V-12；`missing-term-entry-id.xml`、`missing-app-id.xml`、`missing-ref-id.xml`：缺必备 id，import 档告警 V-13，export 档错误 V-13；`custom-xref-no-type.xml`：custom 型 xref 缺 custom-type，import 档告警 V-8 CUSTOM-TYPE，export 档错误；预期见 `EXPORT_ONLY_INVALID`）**。
 

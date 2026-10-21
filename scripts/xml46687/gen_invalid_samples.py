@@ -288,6 +288,11 @@ case('custom-xref-wrong-target.xml', 'xref[ref-type=custom custom-type=note] 指
      [('<p>前言内容。</p>', '<p>前言<xref ref-type="custom" custom-type="note" rid="term_3.1">术语</xref>内容。</p>')])
 case('custom-xref-to-section.xml', 'xref[ref-type=custom] 没有 custom-type，且指向章（custom 的目标只能是术语条目、注或示例，V-8，C-T-48）。',
      [('<p>前言内容。</p>', '<p>前言<xref ref-type="custom" rid="sec_1">范围</xref>内容。</p>')])
+# ---- 容器位置（V-2 term-sec、V-3 参考文献表）：结构层允许，语义规则拒绝 ----
+case('bibl-ref-list-in-app.xml', '参考文献表（ref-list content-type=bibl）放在附录里（V-3：必须是 back 的直接子元素，4.5.3、C-S-27）。',
+     [('<p>附录内容。</p>', '<p>附录内容。</p>\n        <ref-list content-type="bibl" id="sec_bibl_app">\n          <ref id="biblref_9">\n            <label>[9]</label>\n            <mixed-citation>附录里的文献条目。</mixed-citation>\n          </ref>\n        </ref-list>')])
+case('term-sec-outside-terms.xml', 'term-sec 放在附录里，不在“术语和定义”章内（V-2：9.1、C-S-25、C-T-37）。',
+     [('<p>附录内容。</p>', '<p>附录内容。</p>\n        <term-sec id="sec_A.1">\n          <label>A.1</label>\n          <tbx:termEntry id="term_A.1">\n            <tbx:langSet xml:lang="zh">\n              <tbx:definition>附录里的术语定义。</tbx:definition>\n              <tbx:tig>\n                <tbx:term>附录术语</tbx:term>\n              </tbx:tig>\n            </tbx:langSet>\n          </tbx:termEntry>\n        </term-sec>')])
 case('sec-block-after-subsec.xml', '含子条的条在子条之后又放了段落（STS 1.2 的 sec 内容模型：块在前，子条在后，其后只能是注、示例、清单）。',
      [('        <p>无标题条。</p>\n      </sec>\n    </sec>\n  </body>', '        <p>无标题条。</p>\n      </sec>\n      <p>悬置段落。</p>\n    </sec>\n  </body>')])
 case('bad-part-of-speech.xml', 'tbx:partOfSpeech 取值 pron（只收 noun/verb/adj/adv，STS 1.2 的枚举）。',

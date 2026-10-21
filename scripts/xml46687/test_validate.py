@@ -128,6 +128,9 @@ EXPECTED_INVALID = {
     "tbx-grammatical-number-alias.xml": ("REJECT", {"REJECT", "RNG"}, "grammatical-Number"),
     # 按 NISO STS 1.2 收紧后（2026-10-21）
     "sec-block-after-subsec.xml": ("RNG", {"RNG"}, "sec"),
+    # 容器位置：结构层允许，语义规则拒绝
+    "bibl-ref-list-in-app.xml": ("V-3", {"V-3"}, "back 的直接子元素"),
+    "term-sec-outside-terms.xml": ("V-2", {"V-2"}, "术语和定义"),
     "custom-xref-wrong-target.xml": ("V-8", {"V-8"}, "custom-type=note"),
     "custom-xref-to-section.xml": ("V-8", {"V-8"}, "term-sec"),
     "bad-part-of-speech.xml": ("RNG", {"RNG"}, "partOfSpeech"),
@@ -458,6 +461,17 @@ class TestSchemaConstraints(unittest.TestCase):
             "back 内 index 在 ref-list 之前": _doc(back='<back><index/><ref-list content-type="bibl"><ref><mixed-citation>x</mixed-citation></ref></ref-list></back>'),
             "ref 含两个 mixed-citation": _doc(back='<back><ref-list content-type="bibl"><ref><mixed-citation>x</mixed-citation><mixed-citation>y</mixed-citation></ref></ref-list></back>'),
             "processing-meta 缺属性": _doc(pm='  <processing-meta base-tagset="interchange"/>\n'),
+            "索引放在章里": _doc(body='<sec id="sec_1"><title>t</title><index id="i1"><index-div><index-entry id="e1"><term>t</term></index-entry></index-div></index></sec>'),
+            "附录组放在 body 里": _doc(body='<sec id="sec_1"><title>t</title></sec><app-group><app id="a1" content-type="informative"><title>附录</title></app></app-group>'),
+            "app 直接放在 back 里（缺 app-group）": _doc(back='<back><app id="a1" content-type="informative"><title>附录</title></app></back>'),
+            "back 里 app-group 在 ref-list 之后": _doc(back='<back><ref-list content-type="bibl" id="r"><ref id="r1"><mixed-citation>x</mixed-citation></ref></ref-list>'
+                                                        '<app-group><app id="a1" content-type="informative"><title>附录</title></app></app-group></back>'),
+            "processing-meta 放在 front 之后": _doc().replace("</front>", "</front>\n  <processing-meta base-tagset=\"interchange\" mathml-version=\"3.0\" table-model=\"xhtml\" "
+                                                    "terminology-model=\"tbx\" math-representation=\"mathml\" tagset-family=\"sts\"/>", 1),
+            "sec-type=foreword 的 sec 放在 body 里": _doc(body='<sec id="sec_f" sec-type="foreword"><title>前言</title></sec>'),
+            "sec-type=terms 的条放在章里面": _doc(body='<sec id="sec_1"><title>t</title><sec id="sec_1_1" sec-type="terms"><label>1.1</label><title>u</title></sec></sec>'),
+            "tbx:termEntry 直接放在 sec 里（没有 term-sec）": _doc(body='<sec id="sec_3" sec-type="terms"><title>t</title><tbx:termEntry id="te"><tbx:langSet xml:lang="zh"/></tbx:termEntry></sec>'),
+            "ref 直接放在 sec 里": _doc(body='<sec id="sec_1"><title>t</title><ref id="r1"><mixed-citation>x</mixed-citation></ref></sec>'),
             "引言排在前言之前": _doc(front_secs='<sec sec-type="intro"><title>引言</title></sec><sec sec-type="foreword"><title>前言</title></sec>'),
             "tex-math 不被接受": _doc(body='<sec id="sec_1"><title>t</title><disp-formula><mml:math/><tex-math>x</tex-math></disp-formula></sec>'),
             "tbx 前缀绑定到别的命名空间": _doc(
@@ -1071,6 +1085,87 @@ class TestValidateEngineFailuresPropagate(unittest.TestCase):
         proc = subprocess.run([sys.executable, "-I", str(HERE / "validate.py"), "/no/such/file.xml"],
                               capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(proc.returncode, 1)
+
+
+class TestContainerPositions(unittest.TestCase):
+    """有位置约束的容器：能由结构层表达的由 RELAX NG 拒绝（见 TestSchemaConstraints），结构层表达不了的由语义规则拒绝。"""
+
+    TE = ('<tbx:termEntry id="te%d"><tbx:langSet xml:lang="zh"><tbx:definition>d</tbx:definition>'
+          '<tbx:tig><tbx:term>a</tbx:term></tbx:tig></tbx:langSet></tbx:termEntry>')
+    REFS = '<ref-list content-type="%s" id="rl%d"><ref id="r%d"><mixed-citation>x</mixed-citation></ref></ref-list>'
+
+    def _run(self, text, validator=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case.xml"
+            path.write_text(text, encoding="utf-8")
+            return (validator or VALIDATOR_IMPORT).validate_file(path)
+
+    def _term_sec(self, n):
+        return '<term-sec id="ts%d"><label>3.%d</label>%s</term-sec>' % (n, n, self.TE % n)
+
+    def test_bibl_ref_list_must_be_a_direct_child_of_back(self):
+        sec = '<sec id="sec_1" sec-type="scope"><label>1</label><title>范围</title><p>x</p>%s</sec>'
+        nested = '<sec id="sec_1" sec-type="scope"><label>1</label><title>范围</title><sec id="sec_1_1"><label>1.1</label><title>t</title>%s</sec></sec>'
+        cases = {
+            "放在章里": dict(body=sec % (self.REFS % ("bibl", 1, 1))),
+            "放在条里": dict(body=nested % (self.REFS % ("bibl", 1, 1))),
+            "放在附录里": dict(back='<back><app-group><app id="sec_A" content-type="informative"><title>附录</title>%s</app></app-group></back>' % (self.REFS % ("bibl", 1, 1))),
+            "别名 bibr 放在章里": dict(body=sec % (self.REFS % ("bibr", 1, 1))),
+        }
+        for why, kw in cases.items():
+            for validator in (VALIDATOR_IMPORT, VALIDATOR_EXPORT):
+                with self.subTest(why=why, profile=validator.profile):
+                    rep = self._run(_doc(**kw), validator)
+                    self.assertFalse(rep.valid, why)
+                    self.assertIn("V-3", _rules(rep))
+                    self.assertIn("back 的直接子元素", _messages(rep))
+                    self.assertIs(rep.engines["lxml"]["valid"], True, "结构层允许，由语义规则拒绝")
+
+    def test_bibl_ref_list_in_back_is_accepted(self):
+        rep = self._run(_doc(back="<back>%s</back>" % (self.REFS % ("bibl", 1, 1))))
+        self.assertEqual(rep.errors, [], validate.format_human(rep))
+        rep = self._run(_doc(back="<back>%s</back>" % (self.REFS % ("bibr", 1, 1))))  # 别名：导入接受（告警）
+        self.assertEqual(rep.errors, [], validate.format_human(rep))
+        self.assertIn("IMPORT-ONLY", {w["rule"] for w in rep.warnings})
+
+    def test_norm_refs_list_must_be_a_direct_child_of_the_norm_refs_chapter(self):
+        ok = '<sec id="sec_2" sec-type="norm-refs"><label>2</label><title>规范性引用文件</title><p>引导语。</p>%s</sec>' % (self.REFS % ("norm-refs", 1, 1))
+        self.assertEqual(self._run(_doc(body=ok)).errors, [])
+        nested = ('<sec id="sec_2" sec-type="norm-refs"><label>2</label><title>规范性引用文件</title><sec id="sec_2_1"><label>2.1</label><title>t</title>%s</sec></sec>'
+                  % (self.REFS % ("norm-refs", 1, 1)))
+        in_back = "<back>%s</back>" % (self.REFS % ("norm-refs", 1, 1))
+        in_scope = '<sec id="sec_1" sec-type="scope"><label>1</label><title>范围</title>%s</sec>' % (self.REFS % ("norm-refs", 1, 1))
+        for why, kw in {"嵌在子条里": dict(body=nested), "放在 back 里": dict(back=in_back), "放在范围章里": dict(body=in_scope)}.items():
+            with self.subTest(why=why):
+                rep = self._run(_doc(**kw))
+                self.assertIn("V-3", _rules(rep), why)
+                self.assertIn("norm-refs", _messages(rep))
+
+    def test_term_sec_belongs_in_the_terms_chapter(self):
+        terms = lambda inner: '<sec id="sec_3" sec-type="terms"><label>3</label><title>术语和定义</title>%s</sec>' % inner
+        ok = {
+            "术语章的直接子元素": dict(body=terms(self._term_sec(1))),
+            "术语章的分组条里": dict(body=terms('<sec id="sec_3_1"><label>3.1</label><title>分组</title>%s</sec>' % self._term_sec(2))),
+            "两层分组条里": dict(body=terms('<sec id="g1"><label>3.1</label><title>a</title><sec id="g2"><label>3.1.1</label><title>b</title>%s</sec></sec>' % self._term_sec(3))),
+        }
+        for why, kw in ok.items():
+            with self.subTest(why=why):
+                rep = self._run(_doc(**kw))
+                self.assertEqual([e for e in rep.errors if e["rule"] == "V-2"], [], why)
+        scope = '<sec id="sec_1" sec-type="scope"><label>1</label><title>范围</title>%s</sec>'
+        bad = {
+            "范围章里": dict(body=scope % self._term_sec(1)),
+            "附录里": dict(back='<back><app-group><app id="sec_A" content-type="informative"><title>附录</title>%s</app></app-group></back>' % self._term_sec(1)),
+            "前言里": dict(front_secs='<sec id="sec_foreword" sec-type="foreword"><title>前言</title>%s</sec>' % self._term_sec(1)),
+            "不带 sec-type 的章里": dict(body='<sec id="sec_4"><label>4</label><title>其他</title>%s</sec>' % self._term_sec(1)),
+        }
+        for why, kw in bad.items():
+            with self.subTest(why=why):
+                rep = self._run(_doc(**kw))
+                self.assertFalse(rep.valid, why)
+                self.assertIn("V-2", _rules(rep))
+                self.assertIn("术语和定义", _messages(rep))
+                self.assertIs(rep.engines["lxml"]["valid"], True, "结构层允许，由语义规则拒绝")
 
 
 class TestWarnings(unittest.TestCase):

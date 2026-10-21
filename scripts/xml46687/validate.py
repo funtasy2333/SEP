@@ -803,6 +803,15 @@ def semantic_checks(tree, rep: Report) -> None:
         if pname in ("body",) and not has_title:
             rep.error("V-2", "章（body 顶层 sec）必须有 title；无标题只适用于条（4.4.2.5）", el=el)
 
+    # term-sec 只出现在“术语和定义”章（body 顶层 sec-type=terms）之内（9.1 标题“‘术语和定义’章中的条”、C-S-25、C-T-37、M-9.2.1-01 path sec/term-sec）
+    for el in elems:
+        if nsuri(el) is None and local(el) == "term-sec" and not any(
+            is_element(a) and nsuri(a) is None and local(a) == "sec" and a.get("sec-type") == "terms"
+            and a.getparent() is not None and nsuri(a.getparent()) is None and local(a.getparent()) == "body"
+            for a in el.iterancestors()
+        ):
+            rep.error("V-2", "term-sec 必须位于“术语和定义”章（body 顶层 sec-type=terms）之内（9.1、C-S-25、C-T-37）", el=el)
+
     # ---------------- V-3 app / ref-list 的 content-type ----------------
     for el in elems:
         if nsuri(el) is not None:
@@ -830,11 +839,15 @@ def semantic_checks(tree, rep: Report) -> None:
                 _import_only(rep, "ref-list/@content-type=%r 的异写（4.4.2.3.2 / 10.1.6 示例）" % ct, el)
             else:
                 rep.error("V-3", "ref-list/@content-type=%r：只接受 norm-refs 或 bibl（4.4.2.3、4.5.3）" % ct, el=el)
+            parent = el.getparent()
+            pname = local(parent) if parent is not None and is_element(parent) and nsuri(parent) is None else None
             if ct in ("norm-refs", "norm_refs"):
-                parent = el.getparent()
-                ptype = parent.get("sec-type") if parent is not None and is_element(parent) else None
+                ptype = parent.get("sec-type") if pname == "sec" else None
                 if ptype not in ("norm-refs", "norm_refs"):
-                    rep.error("V-3", "content-type=norm-refs 的 ref-list 必须位于 sec-type=norm-refs 的章内（4.4.2.3.1）", el=el)
+                    rep.error("V-3", "content-type=norm-refs 的 ref-list 必须是 sec-type=norm-refs 的章的直接子元素（4.4.2.3.1）", el=el)
+            elif ct in ("bibl", "bibr") and pname != "back":
+                rep.error("V-3", "content-type=%s 的参考文献表 ref-list 必须是 back 的直接子元素（4.5.3、C-S-01、C-S-27），"
+                          "实际在 <%s> 内" % (ct, label(parent) if parent is not None and is_element(parent) else "?"), el=el)
 
     # ---------------- V-4 日期 ----------------
     release = [e for e in elems if nsuri(e) is None and local(e) == "release-date"]
