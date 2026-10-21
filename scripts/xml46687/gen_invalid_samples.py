@@ -274,6 +274,13 @@ case('tbx-grammatical-number-alias.xml', 'tbx:grammaticalNumber 写成 tbx:gramm
      [('              <tbx:partOfSpeech value="noun"/>\n', '              <tbx:partOfSpeech value="noun"/>\n              <tbx:grammatical-Number value="singular"/>\n')])
 case('std-meta-wrong-order.xml', 'std-meta 子元素次序不是导出次序（release-date 排在 content-language 之前）。结构层不限次序：import 档通过并告警 V-12 STD-META-ORDER，export 档为错误（仅 export 档的负例）。',
      [('      <content-language>zh</content-language>\n      <release-date>2026-04-30</release-date>', '      <release-date>2026-04-30</release-date>\n      <content-language>zh</content-language>')])
+# 必备 id（V-13 REQUIRED-ID）：结构层 id 一律可选，所以 import 档只告警，只有 export 档失败（仅 export 档的负例）
+case('missing-term-entry-id.xml', 'tbx:termEntry 缺 id（9.2.1 印刷页 35，shall）。结构层 id 可选：import 档通过并告警 V-13 REQUIRED-ID，export 档为错误（仅 export 档的负例）。',
+     [('<tbx:termEntry id="term_3.1">', '<tbx:termEntry>')])
+case('missing-app-id.xml', 'app 缺 id（附录 E 印刷页 67，M-E-04）。import 档通过并告警 V-13，export 档为错误（仅 export 档的负例）。',
+     [('<app id="sec_A" content-type="informative">', '<app content-type="informative">')])
+case('missing-ref-id.xml', '参考文献的 ref 缺 id（4.5.3.1 印刷页 12，shall）。import 档通过并告警 V-13，export 档为错误（仅 export 档的负例）。',
+     [('<ref id="biblref_1">', '<ref>')])
 case('sec-block-after-subsec.xml', '含子条的条在子条之后又放了段落（STS 1.2 的 sec 内容模型：块在前，子条在后，其后只能是注、示例、清单）。',
      [('        <p>无标题条。</p>\n      </sec>\n    </sec>\n  </body>', '        <p>无标题条。</p>\n      </sec>\n      <p>悬置段落。</p>\n    </sec>\n  </body>')])
 case('bad-part-of-speech.xml', 'tbx:partOfSpeech 取值 pron（只收 noun/verb/adj/adv，STS 1.2 的枚举）。',

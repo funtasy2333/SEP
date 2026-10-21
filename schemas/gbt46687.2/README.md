@@ -22,7 +22,7 @@
 | `math.rng` | disp-formula、disp-formula-group、inline-formula、mml:math（MathML 3 宽松子 schema） |
 | `tbx.rng` | tbx:termEntry/langSet/tig/term/definition/note/example/source/subjectField/entailedTerm/partOfSpeech/… |
 | `samples/valid/` | 9 个手写正例：01～06 选用形式；07 “仅导入接受”的异写汇总（含按原文 4.1 示例次序写的 std-meta）；08 原文明确写法与 STS 1.2 不一致的情形（国标扩展、示例冲突）；09 格式合法但导入暂拒的写法 |
-| `samples/invalid/` | 54 个负例，每个由同一基底文档单点改动生成，文件开头的注释写明违反项 |
+| `samples/invalid/` | 57 个负例，每个由同一基底文档单点改动生成，文件开头的注释写明违反项 |
 | `../../scripts/xml46687/validate.py` | 校验工具（语法 + RELAX NG 双实现 + 语义规则） |
 | `../../scripts/xml46687/sts_compat.py` | 官方 NISO STS 1.2 DTD 兼容性检查（已知国标扩展白名单 + 未解释偏差） |
 | `../../scripts/xml46687/test_validate.py` | unittest 回归测试 |
@@ -93,6 +93,25 @@
    `std-xref/@type` 只收 `revises`；`td/@scope` 只收 `row`；`processing-meta` 六个属性必须齐全且取固定值（导入容忍度属导入器）；
    `ref-list/@content-type`、`title-wrap/@xml:lang`、`named-content/@content-type` 必备。
 10. **id**：`NCName`（无冒号的 Name，与 `xml:id` 一致）。约定表写“Name 产生式”，只差带冒号的 id，实际无影响。
+    **`id` 在 schema 里一律可选**（`common.rng` 的 `attr.id`）：第三方文件缺 id 仍应能导入（导入器自生成内部 nodeId；被引用的目标缺 id 由 V-1 的 `rid` 可解析性检查报悬空）。
+    “哪些元素导出必须写 id”放在语义规则 **V-13 `REQUIRED-ID`**（导出严格、导入宽容，与 std-meta 次序同一原则）：
+    | 元素 | 何时要求 id | 依据 |
+    |---|---|---|
+    | `term-sec` | 一律 | 9.2.1（印刷页 35）；M-9.2.1-01/02（shall）；M-E-07 |
+    | `tbx:termEntry` | 一律（原文印刷页 38、39 的示例省略了 id，所以导入只告警） | 9.2.1；M-9.2.1-04/05（shall）；M-E-08 |
+    | `sec` | 有 `label`，或 `sec-type` 为 foreword/intro | 附录 E（印刷页 67）M-E-01/02/04；无 label 的条 id 可选 |
+    | `app` | 一律 | M-E-04；M-4.5.2-02 |
+    | `ref-list` | `content-type="bibl"`（norm-refs 清单不要求） | M-E-03；M-4.5.3-01 |
+    | `index` | 一律 | M-E-03 |
+    | `ref` | 在 bibl 参考文献表内，或带 `label` | 4.5.3.1（印刷页 12）M-4.5.3.1-01（shall）；M-E-05；无 label 的规范性引用条目 M-E-06 为可选 |
+    | `table-wrap` | 带 `label` | M-E-10；无 label 的表 M-E-11 不适用 |
+    | `fig` | 一律 | M-E-12；M-8.2-01 |
+    | `disp-formula` | 带 `label`（有编号） | M-E-13；无编号公式不写 id（X-21） |
+    | `fn`（`table-wrap-foot` 内） | 一律 | 6.2.3（印刷页 21）M-6.2.3-07（shall）；M-E-18 |
+    | `fn`（正文） | 有正文（有 `p` 或文本） | 10.1.8 M-10.1.8-01；M-E-15/16；无正文的 fn M-E-17 为可选 |
+
+    `sec`/`app` 之外的段落、列项、术语注、行内公式、`mml:math` 等不要求 id。
+
 11. **std-meta 的“必填”**：SES 对 `std-org-group`、`content-language`、`release-date`、`implementation-date` 的必填要求不写进格式 schema
     （避免最小文档也被拒绝）。**更严的导出档不在本任务做，留 WP8.2：由渲染器侧强制 SES 必填元数据**（主导人 2026-10-21 决定）。
 
@@ -150,6 +169,7 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | V-10 | 附加 | MathML 元素不得带事件属性、`javascript:` 等协议 | C-T-19 |
 | V-11 | 附加 | `ext-link` 的 `xlink:href` 协议白名单（http、https、mailto、ftp；相对地址不限） | C-T-56 |
 | V-12 | 次序 | `STD-META-ORDER`：`std-meta` 子元素次序须为“导出次序”（STS 1.2 DTD 次序 + 国标扩展的约定位置，第 3 节第 3 点）；`--profile export` 为错误，`--profile import` 为告警；RELAX NG 不限次序 | C-S-11 |
+| V-13 | 必备 id | `REQUIRED-ID`：矩阵（id 属性 obligation=shall）与附录 E（印刷页 67）要求导出必写 id 的元素缺 id；`--profile export` 为错误，`--profile import` 为告警；RELAX NG 里 id 一律可选。清单与依据见下表 | 附录 E、M-E-*、M-9.2.1-0x、M-4.5.3.1-01、M-6.2.3-07、C-S-37 |
 | IMPORT-ONLY | 档位 | 仅导入接受的异写（见第 3 节第 6 点）：import 档告警，export 档错误 | 各 C- 行 |
 | W-IMPL-REJECT 等 | 告警 | rejectKind=implementation：格式合法、导入暂拒（引言中的条、array、disp-formula-group），同一 fn 多引用为 W-FN-MULTIREF | 各 M- 行 |
 | W-* | 告警 | 不阻断：未知 sec-type、named-content/graphic/ext-link 的非常规取值、`size:T` 用于行内图、有序列项缺 label、annex-type 与 content-type 矛盾、发布日期晚于实施日期、多 rid… | 各 C- 行 |
@@ -183,10 +203,10 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | `08-original-forms-vs-sts.xml` | 原文明确写法与 STS 1.2 不一致的情形（5 个国标扩展元素、std-org 多名、xref 内 label、langSet 内 note 在 tig 之后、graphic 在 table-wrap-foot 之后、块级 fn）；两个档位都通过，`sts_compat.py` 列为已知偏差 |
 | `09-import-pending.xml` | 格式合法但导入暂拒（rejectKind=implementation）：引言中的条、array、disp-formula-group、同一脚注多次引用；只告警 |
 
-`samples/invalid/` 的 54 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
+`samples/invalid/` 的 57 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
 语法 3、旧格式/根 3、矩阵 format 类 reject 16（含 4 个术语异写元素名）、V-1 3、V-2 3、V-3 2、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 4、仅 RELAX NG 7
 （含按 STS 1.2 收紧后新增的含子条的条再放段落、partOfSpeech 取值、named-content 缺 content-type、空 table-wrap-foot）、
-**仅 export 档失败 1（`std-meta-wrong-order.xml`：结构层通过，import 档告警 V-12，export 档错误 V-12；预期见 `EXPORT_ONLY_INVALID`）**。
+**仅 export 档失败 4（`std-meta-wrong-order.xml`：结构层通过，import 档告警 V-12，export 档错误 V-12；`missing-term-entry-id.xml`、`missing-app-id.xml`、`missing-ref-id.xml`：缺必备 id，import 档告警 V-13，export 档错误 V-13；预期见 `EXPORT_ONLY_INVALID`）**。
 
 ## 7. 官方 DTD 对照后：`[未核实]` 清单的复核结论（2026-10-21）
 

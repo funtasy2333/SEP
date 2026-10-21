@@ -135,6 +135,10 @@ EXPECTED_INVALID = {
 # 文件名 → (规则, 关键字)
 EXPORT_ONLY_INVALID = {
     "std-meta-wrong-order.xml": ("V-12", "content-language"),
+    # V-13 REQUIRED-ID：结构层 id 可选，缺 id 导入告警、导出错误
+    "missing-term-entry-id.xml": ("V-13", "tbx:termEntry"),
+    "missing-app-id.xml": ("V-13", "app"),
+    "missing-ref-id.xml": ("V-13", "ref"),
 }
 
 # 矩阵中 import: reject 的行（rejectKind 见 docs/wp8.1/matrix-*.json）：
@@ -605,6 +609,119 @@ class TestStdMetaOrder(unittest.TestCase):
         path = Path(tmp) / "case.xml"
         path.write_text(text, encoding="utf-8")
         return path
+
+
+# V-13 REQUIRED-ID：(名称, 带 {ID} 占位符的片段)；片段放在 <standard> 内的 body/back，占位符处填 ` id="x"` 或空
+_REQUIRED_ID_CASES = [
+    ("term-sec", '<body><sec id="s3" sec-type="terms"><label>3</label><title>术语</title><term-sec{ID}><label>3.1</label>'
+                 '<tbx:termEntry id="te1"><tbx:langSet xml:lang="zh"><tbx:tig><tbx:term>a</tbx:term></tbx:tig></tbx:langSet></tbx:termEntry></term-sec></sec></body>'),
+    ("tbx:termEntry", '<body><sec id="s3" sec-type="terms"><label>3</label><title>术语</title><term-sec id="ts1"><label>3.1</label>'
+                      '<tbx:termEntry{ID}><tbx:langSet xml:lang="zh"><tbx:tig><tbx:term>a</tbx:term></tbx:tig></tbx:langSet></tbx:termEntry></term-sec></sec></body>'),
+    ("sec", '<body><sec{ID} sec-type="scope"><label>1</label><title>范围</title><p>x</p></sec></body>'),
+    ("sec", '<front><sec{ID} sec-type="foreword"><title>前言</title><p>x</p></sec></front><body><sec id="s1"><label>1</label><title>t</title></sec></body>'),
+    ("sec", '<front><sec{ID} sec-type="intro"><title>引言</title><p>x</p></sec></front><body><sec id="s1"><label>1</label><title>t</title></sec></body>'),
+    ("app", '<body><sec id="s1"><label>1</label><title>t</title></sec></body><back><app-group><app{ID} content-type="informative"><title>附录</title><p>x</p></app></app-group></back>'),
+    ("ref-list", '<body><sec id="s1"><label>1</label><title>t</title></sec></body><back><ref-list{ID} content-type="bibl"><ref id="r1"><mixed-citation>x</mixed-citation></ref></ref-list></back>'),
+    ("index", '<body><sec id="s1"><label>1</label><title>t</title></sec></body><back><index{ID}><index-div><index-title-group><title>A</title></index-title-group>'
+              '<index-entry id="ie1"><term>t</term></index-entry></index-div></index></back>'),
+    ("ref", '<body><sec id="s1"><label>1</label><title>t</title></sec></body><back><ref-list id="rl" content-type="bibl"><ref{ID}><mixed-citation>x</mixed-citation></ref></ref-list></back>'),
+    ("ref", '<body><sec id="s2" sec-type="norm-refs"><label>2</label><title>引用</title><ref-list content-type="norm-refs"><ref{ID}><label>[1]</label><std><std-ref>GB/T 1</std-ref></std></ref></ref-list></sec></body>'),
+    ("table-wrap", '<body><sec id="s1"><label>1</label><title>t</title><table-wrap{ID}><label>表1</label><caption><title>c</title></caption><table><tbody><tr><td>a</td></tr></tbody></table></table-wrap></sec></body>'),
+    ("fig", '<body><sec id="s1"><label>1</label><title>t</title><fig{ID}><caption><title>c</title></caption><graphic xlink:href="a"/></fig></sec></body>'),
+    ("disp-formula", '<body><sec id="s1"><label>1</label><title>t</title><disp-formula{ID}><label>(1)</label><mml:math/></disp-formula></sec></body>'),
+    ("fn", '<body><sec id="s1"><label>1</label><title>t</title><table-wrap id="t1"><label>表1</label><caption><title>c</title></caption><table><tbody><tr><td>a</td></tr></tbody></table>'
+           '<table-wrap-foot><fn{ID}><label>a</label><p>n</p></fn></table-wrap-foot></table-wrap></sec></body>'),
+    ("fn", '<body><sec id="s1"><label>1</label><title>t</title><p>x<fn{ID}><label>1)</label><p>y</p></fn></p></sec></body>'),
+]
+
+# 不要求 id 的情形（矩阵里 id 可选或不适用）
+_NOT_REQUIRED_ID_CASES = [
+    ("无 label 的 sec", '<body><sec id="s1"><label>1</label><title>t</title><sec><title>u</title><p>y</p></sec></sec></body>'),
+    ("无 label 的 table-wrap（M-E-11）", '<body><sec id="s1"><label>1</label><title>t</title><table-wrap><table><tbody><tr><td>a</td></tr></tbody></table></table-wrap></sec></body>'),
+    ("无 label 的 disp-formula（X-21）", '<body><sec id="s1"><label>1</label><title>t</title><disp-formula><mml:math/></disp-formula></sec></body>'),
+    ("规范性引用中无 label 的 ref 与 norm-refs 清单（M-E-06）",
+     '<body><sec id="s2" sec-type="norm-refs"><label>2</label><title>引用</title><ref-list content-type="norm-refs"><ref><std><std-ref>GB/T 1</std-ref></std></ref></ref-list></sec></body>'),
+    ("无正文的 fn（M-E-17）", '<body><sec id="s1"><label>1</label><title>t</title><p>x<fn/></p></sec></body>'),
+    ("行内公式、段落、列项、术语注等一律不要求", '<body><sec id="s1"><label>1</label><title>t</title><p>x</p><list list-type="dash"><list-item><p>y</p></list-item></list></sec></body>'),
+]
+
+
+class TestRequiredId(unittest.TestCase):
+    """V-13 REQUIRED-ID：结构层 id 一律可选；矩阵（obligation=shall）与附录 E 要求导出必写 id 的元素缺 id 时，export 档错误、import 档告警。"""
+
+    NS = ('xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:mml="http://www.w3.org/1998/Math/MathML" '
+          'xmlns:tbx="urn:iso:std:iso:30042:ed-1"')
+
+    def _findings(self, fragment, profile):
+        text = "<standard %s>%s</standard>" % (self.NS, fragment)
+        tree = validate.etree.ElementTree(validate.etree.fromstring(text.encode("utf-8"), validate.secure_parser()))
+        rep = validate.Report("case.xml", profile)
+        validate.check_required_ids([e for e in tree.getroot().iter() if validate.is_element(e)], rep)
+        return rep
+
+    def test_missing_id_is_a_warning_on_import_and_an_error_on_export(self):
+        for name, tpl in _REQUIRED_ID_CASES:
+            with self.subTest(element=name, fragment=tpl[:60]):
+                has = self._findings(tpl.replace("{ID}", ' id="x1"'), "export")
+                self.assertEqual((has.errors, has.warnings), ([], []), "有 id 时不应报告")
+                self.assertEqual(self._findings(tpl.replace("{ID}", ' xml:id="x1"'), "export").errors, [], "xml:id 也算 id")
+                missing = tpl.replace("{ID}", "")
+                imp = self._findings(missing, "import")
+                self.assertEqual(imp.errors, [])
+                self.assertEqual([w["rule"] for w in imp.warnings], ["V-13"])
+                self.assertIn("REQUIRED-ID", imp.warnings[0]["message"])
+                self.assertIn("<%s>" % name, imp.warnings[0]["message"])
+                self.assertIn("导入接受", imp.warnings[0]["message"])
+                exp = self._findings(missing, "export")
+                self.assertEqual(exp.warnings, [])
+                self.assertEqual([e["rule"] for e in exp.errors], ["V-13"])
+                self.assertIn("导出必须写 id", exp.errors[0]["message"])
+
+    def test_every_finding_cites_the_matrix_or_appendix_e(self):
+        for name, tpl in _REQUIRED_ID_CASES:
+            msg = self._findings(tpl.replace("{ID}", ""), "export").errors[0]["message"]
+            self.assertRegex(msg, r"M-[0-9A-Z.]+-\d+", "%s 的信息要写明矩阵行" % name)
+            self.assertIn("印刷页", msg, name)
+
+    def test_ids_not_required_for_these_forms(self):
+        for why, frag in _NOT_REQUIRED_ID_CASES:
+            with self.subTest(why=why):
+                for profile in ("import", "export"):
+                    rep = self._findings(frag, profile)
+                    self.assertEqual((rep.errors, rep.warnings), ([], []), why)
+
+    def test_term_entry_and_term_sec_are_reported_separately(self):
+        frag = ('<body><sec id="s3" sec-type="terms"><label>3</label><title>术语</title><term-sec><label>3.1</label>'
+                '<tbx:termEntry><tbx:langSet xml:lang="zh"><tbx:tig><tbx:term>a</tbx:term></tbx:tig></tbx:langSet></tbx:termEntry></term-sec></sec></body>')
+        rep = self._findings(frag, "export")
+        self.assertEqual(sorted(e["message"].split("：")[1].split(" ")[0] for e in rep.errors), ["<tbx:termEntry>", "<term-sec>"])
+
+    def test_schema_keeps_id_optional(self):
+        # 结构层不要求 id：缺 id 的文档两个 RELAX NG 实现都接受，import 档整体通过
+        for name in ("missing-term-entry-id.xml", "missing-app-id.xml", "missing-ref-id.xml"):
+            rep = VALIDATOR_IMPORT.validate_file(INVALID_DIR / name)
+            self.assertTrue(rep.valid, validate.format_human(rep))
+            self.assertIs(rep.engines["lxml"]["valid"], True)
+            self.assertIs(rep.engines["xmllint"]["valid"], True)
+
+    def test_export_clean_samples_have_every_required_id(self):
+        for path in sorted(VALID_DIR.glob("*.xml")):
+            if path.name.startswith(EXPORT_CLEAN_PREFIXES):
+                for validator in (VALIDATOR_IMPORT, VALIDATOR_EXPORT):
+                    rep = validator.validate_file(path)
+                    self.assertEqual([i for i in rep.errors + rep.warnings if i["rule"] == "V-13"], [], path.name)
+
+    def test_dangling_reference_to_missing_id_is_still_a_v1_error(self):
+        # 缺 id 的目标被 xref 引用时：V-13 只告警，悬空引用由 V-1 报错（import 档也是错误）
+        text = _doc(body='<sec id="sec_1" sec-type="scope"><label>1</label><title>范围</title><p>见<xref ref-type="fig" rid="fig_1">图1</xref></p>'
+                         '<fig><caption><title>c</title></caption><graphic xlink:href="a"/></fig></sec>')
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case.xml"
+            path.write_text(text, encoding="utf-8")
+            rep = VALIDATOR_IMPORT.validate_file(path)
+        self.assertFalse(rep.valid)
+        self.assertEqual({e["rule"] for e in rep.errors}, {"V-1"})
+        self.assertEqual([w["rule"] for w in rep.warnings if w["rule"] == "V-13"], ["V-13"])
 
 
 class TestWarnings(unittest.TestCase):

@@ -14,7 +14,8 @@
   5. 语义    V-1 id/rid；V-2 sec-type 与位置；V-3 app/ref-list 的 content-type；V-4 日期；V-5 列项；
              V-6 processing-meta 与 title-wrap；V-7 遗留 id 形式；
              附加：V-8 xref 的 ref-type 与目标一致；V-9 术语条目定义个数；V-10 MathML 安全；V-11 外链协议；
-             V-12 std-meta 子元素次序（STD-META-ORDER：导出为错误，导入为告警；结构层不限次序）
+             V-12 std-meta 子元素次序（STD-META-ORDER：导出为错误，导入为告警；结构层不限次序）；
+             V-13 必备 id（REQUIRED-ID：导出为错误，导入为告警；结构层 id 一律可选）
 
 说明：lxml 与 xmllint 都基于 libxml2 的 RELAX NG 实现（版本不同、构建独立），不是两个互相独立的算法；
 它们能发现构建/版本差异，但不能替代 jing 之类独立实现（本机没有）。
@@ -546,6 +547,82 @@ def check_std_meta_order(el, rep: Report) -> None:
         rep.warn(STD_META_ORDER_RULE, msg + "（原文条文没有规定次序，4.1 示例自己就把 ics、ccs 写在 title-wrap 之前，导入接受；导出须规范化，C-S-11）", el=el)
 
 
+# V-13 REQUIRED-ID：矩阵与附录 E 要求导出必须写 id 的元素。RELAX NG 里 id 一律可选（第三方文件缺 id 仍应可导入，
+# 导入器自生成内部 nodeId；被引用的目标缺 id 由 V-1 的 rid 可解析性检查捕获），所以必备性放在这里：
+# export 档为错误，import 档为告警。依据逐项来自 docs/wp8.1/matrix-*.json 的 id 属性行（obligation=shall）与附录 E（印刷页 67，M-E-*）。
+REQUIRED_ID_RULE = "V-13"
+
+
+def _kids(el, name):
+    return [c for c in el if is_element(c) and nsuri(c) is None and local(c) == name]
+
+
+def _has_text_label(el) -> bool:
+    return any(text_of(c) for c in _kids(el, "label"))
+
+
+def _in_bibl_ref_list(el) -> bool:
+    parent = el.getparent()
+    return parent is not None and is_element(parent) and nsuri(parent) is None and local(parent) == "ref-list" \
+        and parent.get("content-type") == "bibl"
+
+
+def _in_table_wrap_foot(el) -> bool:
+    parent = el.getparent()
+    return parent is not None and is_element(parent) and nsuri(parent) is None and local(parent) == "table-wrap-foot"
+
+
+def _fn_has_body(el) -> bool:
+    return bool(_kids(el, "p")) or any(c.tail and c.tail.strip() for c in el) or bool((el.text or "").strip())
+
+
+# (命名空间, 本地名, 适用条件, 依据)；条件为 None 表示一律适用
+REQUIRED_ID_ELEMENTS = [
+    (None, "term-sec", None,
+     "每个 term-sec 必须有 id（9.2.1 印刷页 35“ID 同时用于 term-sec 和 tbx:termEntry”，矩阵 M-9.2.1-01/02 obligation=shall；附录 E M-E-07）"),
+    (NS_TBX, "termEntry", None,
+     "每个 tbx:termEntry 必须有 id（9.2.1 印刷页 35，矩阵 M-9.2.1-04/05 obligation=shall；附录 E M-E-08）；"
+     "原文印刷页 38、39 的示例省略了 id，所以导入只告警"),
+    (None, "sec", lambda e: _has_text_label(e) or e.get("sec-type") in ("foreword", "intro"),
+     "有编号的章条（带 label）、前言、引言的 sec 导出必须写 id（附录 E 印刷页 67，M-E-01/02/04，C-S-37）"),
+    (None, "app", None, "app 导出必须写 id（附录 E 印刷页 67，M-E-04；M-4.5.2-02）"),
+    (None, "ref-list", lambda e: e.get("content-type") == "bibl",
+     "参考文献表 ref-list 导出必须写 id（附录 E 印刷页 67，M-E-03；M-4.5.3-01，示例 sec_bibl）"),
+    (None, "index", None, "index 导出必须写 id（附录 E 印刷页 67，M-E-03，示例 sec_index）"),
+    (None, "ref", lambda e: _in_bibl_ref_list(e) or _has_text_label(e),
+     "参考文献的 ref（或带 label 的 ref）必须有 id（4.5.3.1 印刷页 12“@id=biblref_[label 的值]”，矩阵 M-4.5.3.1-01 obligation=shall；"
+     "附录 E M-E-05；无 label 的规范性引用条目 id 可选，M-E-06）"),
+    (None, "table-wrap", _has_text_label,
+     "带编号（label）的表必须有 id（附录 E 印刷页 67，M-E-10；无 label 的表 M-E-11 不适用）"),
+    (None, "fig", None, "fig 导出必须写 id（附录 E 印刷页 67，M-E-12；M-8.2-01）"),
+    (None, "disp-formula", _has_text_label,
+     "带编号（label）的行间公式必须有 id（附录 E 印刷页 67，M-E-13；无编号公式不写 id，X-21）"),
+    (None, "fn", lambda e: _in_table_wrap_foot(e),
+     "表脚注 fn 必须有 id（6.2.3 印刷页 21，矩阵 M-6.2.3-07 obligation=shall；附录 E M-E-18）"),
+    (None, "fn", lambda e: not _in_table_wrap_foot(e) and _fn_has_body(e),
+     "正文脚注 fn 必须有 id（10.1.8 印刷页 48，矩阵 M-10.1.8-01；附录 E M-E-15/16；无正文的 fn 的 id 可选，M-E-17）"),
+]
+
+
+def check_required_ids(elems, rep: Report) -> None:
+    for el in elems:
+        ns = nsuri(el)
+        name = local(el)
+        if el.get("id") is not None or el.get(_clark(NS_XML, "id")) is not None:
+            continue
+        for rns, rname, cond, why in REQUIRED_ID_ELEMENTS:
+            if rns != ns or rname != name:
+                continue
+            if cond is not None and not cond(el):
+                continue
+            msg = "REQUIRED-ID：<%s> 缺少 id。%s" % (label(el), why)
+            if rep.profile == "export":
+                rep.error(REQUIRED_ID_RULE, msg + "（导出必须写 id）", el=el)
+            else:
+                rep.warn(REQUIRED_ID_RULE, msg + "（导入接受：第三方文件缺 id 仍可导入，导入器自生成内部 nodeId；被引用时由 V-1 报悬空）", el=el)
+            break
+
+
 def semantic_checks(tree, rep: Report) -> None:
     root = tree.getroot()
     elems = [e for e in root.iter() if is_element(e)]
@@ -738,6 +815,9 @@ def semantic_checks(tree, rep: Report) -> None:
     for el in elems:
         if nsuri(el) is None and local(el) == "std-meta":
             check_std_meta_order(el, rep)
+
+    # ---------------- V-13 必备 id（导出严格、导入告警） ----------------
+    check_required_ids(elems, rep)
 
     # ---------------- V-7 遗留 id 形式 ----------------
     for el in elems:

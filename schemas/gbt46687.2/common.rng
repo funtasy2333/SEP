@@ -16,7 +16,9 @@
 
   <!-- ===== 属性 ===== -->
 
-  <!-- id：C-S-37 / 附录 E。导入时当作不透明标识（NCName，与 xml:id 同），唯一性与可解析性由 validate.py V-1 检查。 -->
+  <!-- id：C-S-37 / 附录 E。导入时当作不透明标识（NCName，与 xml:id 同），唯一性与可解析性由 validate.py V-1 检查。
+       一律可选：第三方文件缺 id 仍应可导入（导入器自生成内部 nodeId）。哪些元素导出必须写 id 由 validate.py V-13 REQUIRED-ID
+       检查（export 档错误、import 档告警），依据是矩阵 id 属性 obligation=shall 与附录 E。 -->
   <define name="attr.id">
     <optional><attribute name="id"><data type="NCName"/></attribute></optional>
   </define>
