@@ -6,7 +6,7 @@
 检查 schemas/gbt46687.2 下的 RELAX NG 是否定义了对应的元素与属性（及枚举取值）；
 rejectKind 为 format（格式层面不收）的行，其元素若不在任何需要覆盖的行里出现，则必须不在 schema 中。
 
-    python3 -I scripts/xml46687/matrix_coverage.py [--json]
+    python3 -I scripts/xml46687/matrix_coverage.py [--json] [--export-table] [--check-readme] [--write-readme]
 
 方法说明（尽力而为，不是形式化证明）：
   - 元素名从矩阵 element 字段解析：去掉全角/半角括号注释，按 “,、，” 切分，取形如 name、tbx:name、mml:name、
@@ -14,12 +14,18 @@ rejectKind 为 format（格式层面不收）的行，其元素若不在任何�
   - 属性取行内 attributes[].name，宿主取行内元素片段（或 path 末段）；该行没有任何宿主时，只要求该属性在 schema 某处出现。
   - 属性取值：仅当 schema 中该属性是纯枚举（无开放的 data 类型）时才逐值核对。
   - 属性宿主为“该行任一元素片段”即算覆盖（同一行列出多个元素时无法唯一确定宿主）。
+
+第二节“导出档强制核对”（export_enforcement.py）：矩阵里 export 为 required 的每一行（及其 shall/should 且带固定取值的属性），
+必须登记由谁在 export 档强制——schema 结构、validate.py 的某条规则（用探针真实运行验证），或写明理由的“不适用”；
+出现“无人强制且未注明理由”的行、或探针没有得到预期结果，本脚本失败。--export-table 输出 README 里的对照表，
+--check-readme 核对 README 里的表与生成结果一致。
 本文件只依赖标准库与 lxml。
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import sys
@@ -385,15 +391,57 @@ def check(schema_dir: Path = SCHEMA_DIR) -> dict:
     }
 
 
+README = SCHEMA_DIR / "README.md"
+README_BEGIN = "<!-- BEGIN export-enforcement（由 matrix_coverage.py --export-table 生成，勿手工修改） -->"
+README_END = "<!-- END export-enforcement -->"
+
+
+def load_export_enforcement():
+    spec = importlib.util.spec_from_file_location("ses_export_enforcement", Path(__file__).resolve().parent / "export_enforcement.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["ses_export_enforcement"] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def readme_table_in_sync(table: str):
+    """README 里两个标记之间的表是否等于生成结果。返回 (是否一致, 说明)。"""
+    text = README.read_text(encoding="utf-8")
+    if README_BEGIN not in text or README_END not in text:
+        return False, "README 缺少导出档强制对照表的标记"
+    current = text.split(README_BEGIN, 1)[1].split(README_END, 1)[0].strip()
+    return current == table.strip(), "README 里的导出档强制对照表与生成结果不一致（运行 matrix_coverage.py --export-table 重新生成）"
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="支持矩阵 → RELAX NG schema 覆盖检查")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--export-table", action="store_true", help="只输出导出档强制对照表（Markdown，写入 README）")
+    ap.add_argument("--check-readme", action="store_true", help="同时核对 README 里的对照表与生成结果一致")
+    ap.add_argument("--write-readme", action="store_true", help="把生成的对照表写回 README 的标记之间")
     args = ap.parse_args(argv)
     try:
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:  # pragma: no cover
         pass
+    if args.export_table:
+        print(load_export_enforcement().render_markdown())
+        return 0
+    if args.write_readme:
+        text = README.read_text(encoding="utf-8")
+        head, rest = text.split(README_BEGIN, 1)
+        tail = rest.split(README_END, 1)[1]
+        README.write_text(head + README_BEGIN + "\n" + load_export_enforcement().render_markdown() + "\n" + README_END + tail, encoding="utf-8")
+        return 0
     res = check()
+    ee = load_export_enforcement()
+    audit = ee.audit(load_rows())
+    res["export_enforcement"] = {"units": len(audit["units"]), "tally": audit["tally"], "probes": len(audit["probe_results"]),
+                                 "problems": audit["problems"]}
+    if args.check_readme:
+        ok, why = readme_table_in_sync(ee.render_markdown())
+        if not ok:
+            audit["problems"].append(why)
     if args.json:
         print(json.dumps(res, ensure_ascii=False, indent=2))
     else:
@@ -418,8 +466,14 @@ def main(argv=None) -> int:
         if res["reject_kind_problems"]:
             print("  rejectKind 字段有问题的行：%s" % ", ".join(res["reject_kind_problems"]))
         print("非元素的说明性条目（schema 不表达）%d 个" % len(res["pseudo_items"]))
+        t = audit["tally"]
+        print("导出档强制核对：export required 的行与 shall/should 属性共 %d 个单元；%d 个探针全部真实运行；"
+              "含 schema 强制 %d、validate.py 规则强制 %d、不适用（注明理由）%d（一个单元可有多个强制者）"
+              % (len(audit["units"]), len(audit["probe_results"]), t["schema"], t["rule"], t["na"]))
+        for problem in audit["problems"]:
+            print("  问题：" + problem)
     bad = (res["elements_uncovered"] or res["attributes_uncovered"] or res["attribute_values_uncovered"]
-           or res["reject_elements_in_schema"] or res["reject_kind_problems"])
+           or res["reject_elements_in_schema"] or res["reject_kind_problems"] or audit["problems"])
     return 1 if bad else 0
 
 

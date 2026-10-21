@@ -1819,6 +1819,31 @@ class TestExportStrictRules(unittest.TestCase):
         self.assertEqual([e["rule"] for e in exp.errors], ["V-17"])
         self.assertIn("M-5.5-01", exp.errors[0]["message"])
 
+    def test_notes_and_examples_need_a_body(self):
+        for tag in ("non-normative-note", "non-normative-example"):
+            with self.subTest(tag=tag):
+                imp, exp = self._both("<%s><label>注：</label></%s>" % (tag, tag))
+                self.assertEqual([w["rule"] for w in imp.warnings], ["V-17"])
+                self.assertEqual([e["rule"] for e in exp.errors], ["V-17"])
+                self.assertIn("M-6.2.3-06", exp.errors[0]["message"])
+                self._assert_clean("<%s><label>注：</label><p>x</p></%s>" % (tag, tag))
+                self._assert_clean("<%s><p>x</p></%s>" % (tag, tag))
+
+    def test_std_needs_std_ref_and_inside_a_ref_also_a_title(self):
+        full = '<ref-list id="rl" content-type="norm-refs"><ref><std><std-ref>GB/T 1</std-ref>, <title>导则</title></std></ref></ref-list>'
+        self._assert_clean(full)
+        # 正文里提到标准：只要求 std-ref
+        self._assert_clean("<p><std><std-ref>GB/T 1</std-ref></std></p>")
+        for why, frag, keyword in (
+                ("ref 里的 std 缺 title", full.replace(", <title>导则</title>", ""), "title"),
+                ("ref 里的 std 缺 std-ref", full.replace("<std-ref>GB/T 1</std-ref>", ""), "std-ref"),
+                ("正文里的 std 缺 std-ref", "<p><std>GB/T 1</std></p>", "std-ref")):
+            with self.subTest(why=why):
+                imp, exp = self._both(frag)
+                self.assertEqual(imp.errors, [])
+                self.assertTrue([w for w in imp.warnings if w["rule"] == "V-17"], why)
+                self.assertTrue([e for e in exp.errors if e["rule"] == "V-17" and keyword in e["message"]], why)
+
     def test_p_must_not_carry_id(self):
         imp, exp = self._both('<p id="para_1">x</p>')
         self.assertEqual([w["rule"] for w in imp.warnings], ["V-18"])
@@ -2113,6 +2138,119 @@ class TestSchemaCoverage(unittest.TestCase):
         for rid in ("M-9.2.1-08", "M-9.2.1-09", "M-C.1-06", "M-C.1-07"):
             self.assertEqual((rows[rid]["import"], rows[rid]["rejectKind"]), ("reject", "format"), rid)
         self.assertEqual(rows["M-9.2.3-07"]["import"], "accept")   # 只保留 tbx:normativeAuthentication
+
+
+class TestExportEnforcementAudit(unittest.TestCase):
+    """矩阵 export required 的每一行都登记了“谁在 export 档强制它”，登记的强制者用探针真实验证。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.ee = _load("ses_export_enforcement_test", HERE / "export_enforcement.py")
+        cls.rows = cls.ee.load_rows()
+        cls.result = cls.ee.audit(cls.rows)
+
+    def test_audit_passes(self):
+        self.assertEqual(self.result["problems"], [])
+
+    def test_unit_counts_match_the_matrix(self):
+        req = [r for r in self.rows if r["export"] == "required"]
+        attr_units = [(r["id"], a["name"]) for r in req for a in r.get("attributes", [])
+                      if a["obligation"] in ("shall", "should") and a.get("values")]
+        self.assertEqual(len(req), 223)
+        self.assertEqual(len(attr_units), 59)
+        self.assertEqual(len(self.result["units"]), len(req) + len(attr_units))
+
+    def test_every_probe_really_ran_and_passed(self):
+        self.assertGreaterEqual(len(self.result["probe_results"]), 100)
+        self.assertTrue(all(ok for ok, _ in self.result["probe_results"].values()))
+
+    def test_an_unregistered_export_required_row_fails_the_audit(self):
+        from unittest import mock
+        victim = "M-4.1-04"
+        with mock.patch.dict(self.ee.ENTRIES):
+            del self.ee.ENTRIES[victim]
+            problems, _, _ = self.ee.registration_problems(self.rows)
+        self.assertTrue(any("无人强制且未注明理由" in p and victim in p for p in problems), problems)
+
+    def test_an_unregistered_attribute_unit_fails_the_audit(self):
+        from unittest import mock
+        victim = "M-5.7-01#list-type"
+        with mock.patch.dict(self.ee.ATTR_ENTRIES):
+            del self.ee.ATTR_ENTRIES[victim]
+            problems, _, _ = self.ee.registration_problems(self.rows)
+        self.assertTrue(any("无人强制且未注明理由" in p and victim in p for p in problems), problems)
+
+    def test_a_new_export_required_row_in_the_matrix_must_be_registered(self):
+        import copy
+        rows = copy.deepcopy(self.rows)
+        new = copy.deepcopy(next(r for r in rows if r["export"] == "required"))
+        new["id"] = "M-ZZ-99"
+        new["attributes"] = [{"name": "foo", "values": ["a", "b"], "obligation": "shall"}]
+        rows.append(new)
+        problems, _, _ = self.ee.registration_problems(rows)
+        self.assertTrue(any("M-ZZ-99" in p for p in problems), problems)
+        self.assertTrue(any("M-ZZ-99#foo" in p for p in problems), problems)
+
+    def test_unknown_probe_or_na_reason_and_stale_entries_are_reported(self):
+        from unittest import mock
+        with mock.patch.dict(self.ee.ENTRIES):
+            self.ee.ENTRIES["M-4.1-04"] = ["S-no-such-probe", "NA:no-such-reason"]
+            self.ee.ENTRIES["M-NOT-IN-MATRIX"] = ["NA:content"]
+            problems, _, _ = self.ee.registration_problems(self.rows)
+        self.assertTrue(any("未知的探针" in p for p in problems))
+        self.assertTrue(any("未知的不适用理由" in p for p in problems))
+        self.assertTrue(any("M-NOT-IN-MATRIX" in p for p in problems))
+
+    def test_a_probe_that_does_not_get_the_expected_failure_is_reported(self):
+        from unittest import mock
+        validators = self.ee.make_validators()
+        # 把“删除 front”的预期改成要求规则 V-13：实际是 schema 拒绝，探针必须报告不符
+        bad = dict(self.ee.PROBES["S-front"], expect=("rule", "V-13"))
+        with mock.patch.dict(self.ee.PROBES, {"S-front": bad}):
+            ok, msg = self.ee.run_probe("S-front", validators, {})
+        self.assertFalse(ok)
+        self.assertIn("V-13", msg)
+        # 一个没有任何效果的改动（改回同一个取值）不应被当成“schema 拒绝”
+        noop = dict(self.ee.PROBES["S-list-type-value"], op=("set_attr", "//list", "list-type", "arabic"))
+        with mock.patch.dict(self.ee.PROBES, {"S-list-type-value": noop}):
+            ok, msg = self.ee.run_probe("S-list-type-value", validators, {})
+        self.assertFalse(ok)
+
+    def test_import_behaviour_is_checked_too(self):
+        from unittest import mock
+        validators = self.ee.make_validators()
+        # R-extlink-type 在 import 档不报告；若把预期改成 warn，探针必须失败
+        wrong = dict(self.ee.PROBES["R-extlink-type"], imp="warn")
+        with mock.patch.dict(self.ee.PROBES, {"R-extlink-type": wrong}):
+            ok, msg = self.ee.run_probe("R-extlink-type", validators, {})
+        self.assertFalse(ok)
+        self.assertIn("import", msg)
+
+    def test_every_rule_named_by_a_probe_exists_in_validate_py(self):
+        source = (HERE / "validate.py").read_text(encoding="utf-8")
+        for pid, pr in self.ee.PROBES.items():
+            if pr["expect"][0] == "rule":
+                self.assertIn('"%s"' % pr["expect"][1], source, "%s 引用的规则 %s 在 validate.py 里找不到" % (pid, pr["expect"][1]))
+
+    def test_na_reasons_are_substantive(self):
+        for key, text in self.ee.NA.items():
+            self.assertGreater(len(text), 15, key)
+
+    def test_readme_table_is_in_sync_with_the_generator(self):
+        ok, why = coverage.readme_table_in_sync(self.ee.render_markdown(self.rows))
+        self.assertTrue(ok, why)
+
+    def test_matrix_coverage_cli_runs_the_audit_and_exits_zero(self):
+        proc = subprocess.run([sys.executable, "-I", str(HERE / "matrix_coverage.py"), "--check-readme"],
+                              capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("导出档强制核对", proc.stdout)
+
+    def test_gaps_found_by_the_audit_are_enforced_by_new_rules(self):
+        # 首次核对补上的规则都被探针引用（不是只在文档里声明）
+        used = {pr["expect"][1] for pr in self.ee.PROBES.values() if pr["expect"][0] == "rule"}
+        for rule in ("V-9", "V-13", "V-14", "V-15", "V-16", "V-17", "V-18"):
+            self.assertIn(rule, used)
 
 
 class TestHelpers(unittest.TestCase):

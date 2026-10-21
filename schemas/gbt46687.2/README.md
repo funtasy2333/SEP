@@ -173,7 +173,7 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | V-14 | mml:math 的 id | `MML-ID`：每个 mml:math 根（不在另一个 mml:math 之内）须有 `id="mml_m<k>"`，k 为正整数且等于它在全文中的出现序号（行间与行内合并计数，从 1 起）；缺 id、`m1` 之类写法、序号不符：`--profile export` 为错误，`--profile import` 为告警（导入器去掉根上的 id 并重新生成） | M-7.4-02、M-7.1-05（export required）、C-T-18、7.4 |
 | V-15 | mml:math 的 display | `MML-DISPLAY`：disp-formula 内的 mml:math 导出须 `display="block"`，inline-formula 内的导出不得带 display；export 档错误；import 档只对反向值告警（disp-formula 内取 inline、inline-formula 内带 display），行间公式缺省 display 不告警（原文 7.1、7.3 示例就没有） | M-7.4-03、C-T-17/19/21 |
 | V-16 | 导出外形 | `EXPORT-FORM`（**仅 export 档**，import 档不报告）：①以 `<?xml version="1.0" encoding="UTF-8"?>` 开头；②根 `standard` 上声明 `xmlns:xlink`、`xmlns:mml`、`xmlns:tbx`（URI 见主文件头）；③有 `processing-meta`（直接置于 `standard` 下） | M-4.1-01、M-4.1-03、M-4.1-T01/T02、M-4.3.2-30（export required） |
-| V-17 | 导出必备的部件 | `REQUIRED-PART`：矩阵 export required 的部件结构层放宽为可选，**export 档缺少即错误，import 档告警**（编号、标题由导入器重新派生）：`sec`（body/app 内）、`app`、`term-sec`、bibl 的 `ref`、`table-wrap`、`fig`、表脚注 `fn` 的 `label`；`app/annex-type`；bibl 参考文献表的 `title`；`table-wrap/caption/title`；`fig/graphic`；公式“式中”`def-list` 的 `list-content="formula"`；有序列项的 `label`（import 档沿用 `W-LIST-LABEL`）；`ext-link-type="uri"`（缺省 import 不报告，原文 10.1.9 示例就缺；非 uri 值 import 沿用 `W-EXTLINK-TYPE`）；`named-content` 的 `content-type` 只能是 variable（import 沿用 `W-NAMED-CONTENT`）；无标题的条须 `sec-type="numbered-paragraph"`（**仅 export 档**，4.4.2.1 的写法 import 不报告） | M-4.4.2.1-02、M-4.5.2-03/04、M-9.2.1-03、M-4.5.3-02/04、M-5.7-09、M-6.2.1-03/05、M-8.2-04/08、M-6.2.3-08、M-7.3-03、M-10.1.9-01、M-5.5-01、M-4.4.2.5-01 |
+| V-17 | 导出必备的部件 | `REQUIRED-PART`：矩阵 export required 的部件结构层放宽为可选，**export 档缺少即错误，import 档告警**（编号、标题由导入器重新派生）：`sec`（body/app 内）、`app`、`term-sec`、bibl 的 `ref`、`table-wrap`、`fig`、表脚注 `fn` 的 `label`；`app/annex-type`；bibl 参考文献表的 `title`；`table-wrap/caption/title`；`fig/graphic`；公式“式中”`def-list` 的 `list-content="formula"`；有序列项的 `label`（import 档沿用 `W-LIST-LABEL`）；`ext-link-type="uri"`（缺省 import 不报告，原文 10.1.9 示例就缺；非 uri 值 import 沿用 `W-EXTLINK-TYPE`）；`named-content` 的 `content-type` 只能是 variable（import 沿用 `W-NAMED-CONTENT`）；无标题的条须 `sec-type="numbered-paragraph"`（**仅 export 档**，4.4.2.1 的写法 import 不报告）；注/示例须有正文（p 或列项）；`std` 须有 `std-ref`，参考文献条目里的 `std` 还须有 `title` | M-4.4.2.1-02、M-4.5.2-03/04、M-9.2.1-03、M-4.5.3-02/04、M-5.7-09、M-6.2.1-03/05、M-8.2-04/08、M-6.2.3-08、M-7.3-03、M-10.1.9-01、M-5.5-01、M-4.4.2.5-01、M-6.2.3-06、M-5.6-05、M-4.5.3.1-04/05 |
 | V-18 | p 不带 id | `NO-ID`：附录 E“p 中无任何 id”；export 档错误，import 档告警（p 的 id 忽略，C-T-22） | M-E-25 |
 | IMPORT-ONLY | 档位 | 仅导入接受的异写（见第 3 节第 6 点）：import 档告警，export 档错误 | 各 C- 行 |
 | W-IMPL-REJECT 等 | 告警 | rejectKind=implementation：格式合法、导入暂拒（引言中的条、array、disp-formula-group），同一 fn 多引用为 W-FN-MULTIREF | 各 M- 行 |
@@ -296,6 +296,150 @@ PR#55 审查后逐个核对：
 | `validate.py`：找不到 xmllint | `ENGINE` 错误（`--no-xmllint` 才能显式跳过） |
 | `validate.py`：`xmllint --version` | 只用于显示版本号，失败显示 `unknown`，不影响结论 |
 | `matrix_coverage.py`、`gen_invalid_samples.py` | 不调用外部进程 |
+
+### 导出档强制核对：矩阵 export required 的每一行由谁强制
+
+PR#55 审查反复发现同一类缺口：矩阵写了 export required、obligation 为 shall/should，校验器的 export 档却没有任何东西强制它
+（必备 id、`mml:math` 的 id/display、`custom-type` ……）。为了不再逐条打地鼠，`matrix_coverage.py` 新增“导出档强制核对”一节
+（数据与逻辑在 `export_enforcement.py`）：
+
+- 对象：矩阵里 `export` 为 `required` 的 **223 行**，以及这些行中 obligation 为 shall/should 且带固定取值的 **59 个属性**，共 282 个单元。
+- 每个单元必须登记强制者：**schema 结构必选 / 枚举**，**validate.py 的某条规则**，或**不适用并写明理由**。
+  登记的“schema / 规则”都是**真实运行的探针**，不是文字声明：取一个 export 干净的样例，做一处改动（删掉元素/属性、改取值），
+  schema 探针要求 RELAX NG 的两个实现都拒绝，规则探针要求 export 档出现该规则的错误，并核对 import 档的行为
+  （告警 / 不报告 / 同为错误），即“导出严格、导入宽容”确实成立。
+- 出现“无人强制且未注明理由”的行、登记了矩阵里没有的单元、探针没有得到预期结果、探针没人引用，脚本都以退出码 1 失败；
+  `test_validate.py` 的 `TestExportEnforcementAudit` 还核对 README 里的这张表与脚本生成结果一致
+  （运行 `python3 -I scripts/xml46687/matrix_coverage.py --export-table` 重新生成）。
+
+首次核对补上的缺口：V-16（XML 声明、根上的命名空间声明、processing-meta）、V-17（label、title、annex-type、graphic、list-content、
+ext-link-type、named-content 取值、无标题条的 sec-type、注/示例正文、std 的 std-ref 与 title）、V-18（p 不带 id）、
+V-9（术语条目的定义，导出档）、V-14/V-15（mml:math）。注明理由的“不适用”有：内容依赖、章的角色、原文只有示例、
+id 取值样式、SES 必填元数据（留 WP8.2）、表 F.1 对照行、是否编号、被引用才写 id、文字版面、processing-meta 里的 custom-meta、
+xml:lang 取值、警告注、术语分组条。
+
+<!-- BEGIN export-enforcement（由 matrix_coverage.py --export-table 生成，勿手工修改） -->
+| 强制者 | 矩阵行（`行#属性` 为带固定取值的属性） |
+|---|---|
+| schema：app 必须有 content-type | M-4.2-07、M-4.5.2-02、M-4.5.2-02#content-type |
+| schema：app 必须放在 app-group 里 | M-4.5.2-01 |
+| schema：app 必须有 title | M-4.4.2.1-03、M-4.5.2-05、M-5.2-02 |
+| schema：standard 必须有 body（至少一个章） | M-4.1-05、M-4.4.2.1-01 |
+| schema：章（body 顶层 sec）必须有 title | M-4.4.2.1-03、M-5.2-02 |
+| schema：colspan 必须是正整数 | M-6.4-01、M-6.4-02、M-6.4-02#colspan |
+| schema：def-item 必须有 def | M-7.3-06 |
+| schema：def 必须有 p | M-7.3-07 |
+| schema：def-item 必须有 term | M-7.3-05 |
+| schema：p/@content-type 只收 dimension | M-6.2.5-02、M-6.2.5-02#content-type、M-8.6-01#content-type |
+| schema：tbx:entailedTerm 必须有 target | M-9.2.6-01、M-9.2.6-01#target |
+| schema：ext-link 必须有 xlink:href | M-10.1.9-01、M-10.1.9-02 |
+| schema：fig 必须有 caption | M-8.2-05 |
+| schema：图中单位说明 p/@content-type 只收 dimension | M-6.2.5-02#content-type、M-8.6-01、M-8.6-01#content-type |
+| schema：fig/@orientation 只收 portrait/landscape | M-8.2-03 |
+| schema：caption 必须有 title | M-5.2-02、M-8.2-06 |
+| schema：fn 必须有 p | M-6.2.3-09 |
+| schema：前言 sec 必须有 title | M-4.3.3-01 |
+| schema：disp-formula 必须有 mml:math | M-7.1-01、M-7.1-02、M-7.4-01、M-7.4-02 |
+| schema：standard 必须有 front | M-4.1-04 |
+| schema：front 内的 sec 必须带 sec-type=foreword/intro | M-4.2-01、M-4.2-02、M-4.3.4-01 |
+| schema：graphic 必须有 xlink:href | M-8.2-08、M-8.2-08#xlink:href、M-8.2-09、M-8.2-09#xlink:href |
+| schema：inline-formula 不带 id（附录 E） | M-E-14 |
+| schema：tbx:termEntry 必须有 tbx:langSet | M-9.2.1-06、M-9.2.1-07 |
+| schema：tbx:langSet 必须有 xml:lang | M-9.2.1-06、M-9.2.1-06#xml:lang、M-9.2.1-07、M-9.2.1-07#xml:lang |
+| schema：list 必须有 list-item | M-5.7-08 |
+| schema：list-item 必须有内容 | M-5.7-10 |
+| schema：list 必须有 list-type | M-5.7-01、M-5.7-01#list-type、M-5.7-02、M-5.7-02#list-type、M-5.7-03、M-5.7-03#list-type、M-5.7-04、M-5.7-04#list-type、M-5.7-05、M-5.7-05#list-type、M-5.7-06、M-5.7-06#list-type、M-D-03 |
+| schema：list-type 只收 alpha-lower/arabic/roman-lower/dash/bullet | M-5.7-01、M-5.7-01#list-type、M-5.7-02、M-5.7-02#list-type、M-5.7-03、M-5.7-03#list-type、M-5.7-04、M-5.7-04#list-type、M-5.7-05、M-5.7-05#list-type、M-5.7-06、M-5.7-06#list-type、M-D-03 |
+| schema：named-content 必须有 content-type | M-5.5-01、M-5.5-01#content-type |
+| schema：table-wrap/@orientation 只收 portrait/landscape | M-6.6-01、M-6.6-01#orientation |
+| schema：摘录必须有 p | M-5.9-02 |
+| schema：ref 必须含 std 或 mixed-citation | M-4.4.2.3-03、M-4.4.2.3-04、M-4.5.3-05、M-4.5.3-06、M-4.5.3.1-03、M-4.5.3.1-06 |
+| schema：ref-list 必须有 content-type | M-4.2-09、M-4.4.2.3-02、M-4.4.2.3-02#content-type、M-4.5.3-01、M-4.5.3-01#content-type、M-D-02、M-10.1.6-02、M-10.1.6-02#content-type、M-4.4.2.3.2-01、M-4.4.2.3.2-01#content-type |
+| schema：根元素必须是 standard | M-F-01 |
+| schema：rowspan 必须是正整数 | M-6.4-01、M-6.4-03、M-6.4-03#rowspan |
+| schema：正文文本必须放在 p 里，不能直接放在 sec 下 | M-4.4.2.1-04 |
+| schema：front 必须有 std-meta | M-4.1-07、M-4.3.2-01 |
+| schema：table-wrap 必须有 table | M-6.1-01 |
+| schema：table 必须有 tbody | M-6.2.5-01 |
+| schema：tr 必须有单元格 | M-6.4-01 |
+| schema：tbx:tig 必须有 tbx:term | M-9.2.3-02 |
+| schema：term-sec 必须有 tbx:termEntry | M-9.2.1-01、M-9.2.1-02 |
+| schema：tbx:langSet 必须有 tbx:tig | M-9.2.3-01 |
+| schema：std-meta 至少有一个 title-wrap | M-4.3.2-04、M-4.3.2-32 |
+| schema：title-wrap 必须有 xml:lang | M-4.3.2-04、M-4.3.2-32 |
+| schema：tbody 必须有 tr | M-6.2.2-02 |
+| schema：xref 必须有 ref-type | M-6.2.3-10、M-6.2.3-10#ref-type、M-9.2.6-02、M-9.2.6-02#ref-type、M-9.2.6-02#custom-type、M-9.2.6-02#rid、M-10.1.1-01、M-10.1.1-02、M-10.1.2-01、M-10.1.2-01#ref-type、M-9.2.7-02、M-9.2.7-02#ref-type、M-10.1.2-02、M-10.1.2-02#ref-type、M-10.1.2-03、M-10.1.2-03#ref-type、M-10.1.2-04、M-10.1.2-04#ref-type、M-10.1.6-01、M-10.1.6-01#ref-type、M-10.1.3-01、M-10.1.3-01#ref-type、M-10.1.3-01#custom-type、M-10.1.3-02、M-10.1.3-02#ref-type、M-10.1.3-02#custom-type、M-9.2.6-03、M-9.2.6-03#ref-type、M-9.2.6-03#custom-type、M-10.1.1-03、M-10.1.1-03#ref-type、M-6.2.3-11、M-6.2.3-11#ref-type |
+| schema：ref-type 只收 13 个取值 | M-6.2.3-10#ref-type、M-10.1.1-01、M-10.1.1-02、M-10.1.2-01、M-10.1.2-01#ref-type、M-9.2.7-02、M-9.2.7-02#ref-type、M-10.1.2-02、M-10.1.2-02#ref-type、M-10.1.2-03、M-10.1.2-03#ref-type、M-10.1.2-04、M-10.1.2-04#ref-type、M-10.1.6-01、M-10.1.6-01#ref-type、M-10.1.1-03#ref-type、M-6.2.3-11#ref-type |
+| schema：xref 必须有 rid | M-6.2.3-10、M-9.2.6-02、M-9.2.6-02#ref-type、M-9.2.6-02#custom-type、M-9.2.6-02#rid、M-10.1.1-01、M-10.1.1-02、M-10.1.2-01、M-9.2.7-02、M-10.1.2-02、M-10.1.2-03、M-10.1.2-04、M-10.1.6-01、M-10.1.3-01、M-10.1.3-01#ref-type、M-10.1.3-01#custom-type、M-10.1.3-02、M-10.1.3-02#ref-type、M-10.1.3-02#custom-type、M-9.2.6-03、M-9.2.6-03#ref-type、M-9.2.6-03#custom-type、M-10.1.1-03、M-6.2.3-11 |
+| V-17（import 告警）：app 的 annex-type | M-4.5.2-04 |
+| V-3（import 同为错误）：bibl 参考文献表须在 back 直下 | M-4.5.3-01、M-4.5.3-01#content-type、M-10.1.6-02、M-10.1.6-02#content-type |
+| V-17（import 告警）：bibl 参考文献表的 title | M-4.5.3-02 |
+| V-8（import 告警）：custom 型 xref 的 custom-type | M-9.2.6-02、M-9.2.6-02#ref-type、M-9.2.6-02#custom-type、M-9.2.6-02#rid、M-10.1.3-01、M-10.1.3-01#ref-type、M-10.1.3-01#custom-type、M-10.1.3-02、M-10.1.3-02#ref-type、M-10.1.3-02#custom-type、M-9.2.6-03、M-9.2.6-03#ref-type、M-9.2.6-03#custom-type |
+| V-1（import 同为错误）：rid 必须能解析到目标 | M-6.2.3-10、M-9.2.6-02、M-9.2.6-02#ref-type、M-9.2.6-02#custom-type、M-9.2.6-02#rid、M-10.1.1-01、M-10.1.1-02、M-10.1.2-01、M-9.2.7-02、M-10.1.2-02、M-10.1.2-03、M-10.1.2-04、M-10.1.6-01、M-10.1.3-01、M-10.1.3-01#ref-type、M-10.1.3-01#custom-type、M-10.1.3-02、M-10.1.3-02#ref-type、M-10.1.3-02#custom-type、M-9.2.6-03、M-9.2.6-03#ref-type、M-9.2.6-03#custom-type、M-10.1.1-03、M-6.2.3-11 |
+| V-16（import 不报告）：XML 声明 | M-4.1-01 |
+| V-9（import 告警）：术语条目的定义 | M-9.2.2-01 |
+| V-1（import 同为错误）：id 唯一 | M-D-01、M-D.1-01 |
+| SYN-2（import 同为错误）：编码只收 UTF-8 | M-4.1-01、M-5.4-01 |
+| V-8（import 同为错误）：entailedTerm 指向术语条目 | M-9.2.6-01、M-9.2.6-01#target |
+| V-11（import 同为错误）：URL 协议白名单 | M-10.1.9-01、M-10.1.9-02 |
+| V-17（import 不报告）：ext-link-type=uri | M-10.1.9-01、M-10.1.9-01#ext-link-type |
+| V-17（import 告警）：fig 的 graphic | M-8.2-08 |
+| W-FN-UNREFERENCED（import 告警）：脚注须被引用 | M-10.1.1-03、M-10.1.8-01 |
+| V-13（import 告警）：app 必须有 id | M-4.5.2-02、M-E-04 |
+| V-13（import 告警）：fig 必须有 id | M-E-12、M-D-01、M-D.1-01、M-8.2-01、M-8.2-02 |
+| V-13（import 告警）：正文脚注必须有 id | M-E-15、M-E-16、M-10.1.8-01 |
+| V-13（import 告警）：表脚注必须有 id | M-E-18、M-6.2.3-07 |
+| V-13（import 告警）：带编号的行间公式必须有 id | M-E-13、M-7.1-01、M-7.1-02 |
+| V-13（import 告警）：index 必须有 id | M-E-03 |
+| V-13（import 告警）：bibl 的 ref 必须有 id | M-4.5.3-03、M-4.5.3-03#id、M-E-05、M-4.5.3.1-01、M-4.5.3.1-01#id |
+| V-13（import 告警）：bibl 参考文献表必须有 id | M-4.5.3-01、M-E-03、M-10.1.6-02 |
+| V-13（import 告警）：有编号的章条必须有 id | M-4.4.2.1-01、M-4.4.2.2-01、M-4.4.2.2-01#id、M-4.4.2.3-01、M-4.4.2.4-01、M-4.4.2.4-01#id、M-4.5.2-06、M-E-01、M-E-04、M-D-01、M-D.1-01、M-9.1-01 |
+| V-13（import 告警）：前言/引言必须有 id | M-4.2-01、M-4.2-02、M-4.2-02#id、M-4.3.4-01、M-4.3.4-01#id、M-E-02 |
+| V-13（import 告警）：带编号的表必须有 id | M-E-10、M-6.2.1-01、M-6.2.1-02 |
+| V-13（import 告警）：tbx:termEntry 必须有 id | M-E-08、M-9.2.1-04、M-9.2.1-04#id、M-9.2.1-05、M-9.2.1-05#id |
+| V-13（import 告警）：term-sec 必须有 id | M-E-07、M-9.2.1-01、M-9.2.1-01#id、M-9.2.1-02、M-9.2.1-02#id |
+| V-17（import 告警）：app 的 label | M-4.5.2-03 |
+| V-17（import 告警）：图的 label | M-5.2-01、M-8.2-04 |
+| V-17（import 告警）：表脚注的 label | M-6.2.3-08 |
+| V-17（import 告警）：有序列项的 label | M-5.2-01、M-5.7-09 |
+| V-17（import 告警）：bibl 的 ref 的 label | M-4.5.3-04、M-4.5.3.1-02 |
+| V-17（import 告警）：章条的 label | M-4.4.2.1-02、M-4.4.2.5-01、M-4.5.2-06、M-5.2-01 |
+| V-17（import 告警）：表的 label | M-6.2.1-03 |
+| V-17（import 告警）：term-sec 的 label | M-9.2.1-03 |
+| V-17（import 告警）：公式“式中”列表的 list-content | M-7.3-03、M-7.3-03#list-content |
+| V-15（import 不报告）：行间 mml:math 的 display=block | M-7.4-03 |
+| V-15（import 告警）：行内 mml:math 不带 display | M-7.1-05 |
+| V-14（import 告警）：mml:math 的 id=mml_m<k> | M-7.4-01、M-7.4-02、M-7.4-02#id、M-7.1-05、M-7.1-05#id |
+| V-17（import 告警）：named-content 只能是 variable | M-5.5-01、M-5.5-01#content-type |
+| V-3（import 同为错误）：norm-refs 清单须在 norm-refs 章内 | M-4.2-04、M-4.4.2.3-01、M-4.4.2.3-01#sec-type、M-4.4.2.3-02、M-4.4.2.3-02#content-type、M-4.4.2.4-01#sec-type、M-9.1-01#sec-type、M-4.4.2.3.2-01、M-4.4.2.3.2-01#content-type |
+| V-17（import 告警）：注/示例必须有正文（p 或列项） | M-5.6-01、M-5.6-02、M-5.6-03、M-5.6-05、M-5.6-06、M-6.2.3-06 |
+| V-16（import 不报告）：根上声明 mml | M-4.1-03、M-4.1-T01 |
+| V-16（import 不报告）：根上声明 tbx | M-4.1-T02 |
+| V-16（import 不报告）：根上声明 xlink | M-4.1-03 |
+| V-17（import 不报告）：无标题条须 numbered-paragraph | M-4.4.2.5-01、M-4.4.2.5-01#sec-type |
+| V-18（import 告警）：p 不带 id | M-E-25 |
+| V-16（import 不报告）：processing-meta | M-4.3.2-30、M-4.3.2-T01、M-4.3.2-T02 |
+| V-6（import 同为错误）：processing-meta 六个属性取固定值 | M-4.3.2-T01、M-4.3.2-T02 |
+| V-17（import 告警）：std 必须含 std-ref | M-4.4.2.3-03、M-4.5.3-05、M-4.5.3.1-03、M-4.5.3.1-04 |
+| V-17（import 告警）：参考文献条目里的 std 必须含 title | M-4.4.2.3-03、M-4.5.3-05、M-4.5.3.1-03、M-4.5.3.1-05 |
+| V-17（import 告警）：表题 caption/title | M-5.2-02、M-6.2.1-05 |
+| V-2（import 同为错误）：term-sec 须在术语章内 | M-4.2-05、M-4.4.2.3-01#sec-type、M-4.4.2.4-01、M-4.4.2.4-01#sec-type、M-9.1-01、M-9.1-01#sec-type |
+| V-8（import 同为错误）：表脚注只能用 table-fn 引用 | M-6.2.3-10、M-6.2.3-10#ref-type、M-6.2.3-11、M-6.2.3-11#ref-type |
+| V-8（import 同为错误）：xref 的 ref-type 与目标一致 | M-9.2.6-02、M-9.2.6-02#ref-type、M-9.2.6-02#custom-type、M-9.2.6-02#rid、M-10.1.1-01、M-10.1.1-02、M-10.1.2-01、M-10.1.2-01#ref-type、M-9.2.7-02、M-9.2.7-02#ref-type、M-10.1.2-02、M-10.1.2-02#ref-type、M-10.1.2-03、M-10.1.2-03#ref-type、M-10.1.2-04、M-10.1.2-04#ref-type、M-10.1.6-01、M-10.1.6-01#ref-type、M-10.1.3-01、M-10.1.3-01#ref-type、M-10.1.3-01#custom-type、M-10.1.3-02、M-10.1.3-02#ref-type、M-10.1.3-02#custom-type、M-9.2.6-03、M-9.2.6-03#ref-type、M-9.2.6-03#custom-type、M-10.1.1-03、M-10.1.1-03#ref-type |
+| 不适用：取决于 IR 内容：只有文档含这种内容时才输出该元素，格式层面没有“每份文档都必须出现”的要求；渲染器按 IR 映射保证 | M-4.3.3-01、M-4.4.2.1-04、M-4.4.2.3-04、M-4.5.2-01、M-5.1-01、M-5.1-02、M-5.1-03、M-5.1-04、M-5.1-06、M-5.1-07、M-5.5-02、M-5.6-01、M-5.6-02、M-5.6-03、M-5.6-06、M-5.7-11、M-5.9-01、M-5.10-01、M-5.10-02、M-6.2.1-01、M-6.2.1-02、M-6.2.2-01、M-6.2.4-01、M-6.5-02、M-6.2.3-03、M-6.2.3-04、M-6.2.4-02、M-7.1-04、M-7.3-02、M-7.3-04、M-8.2-11、M-9.2.8-01、M-9.2.7-01、M-4.5.3.3-02、M-10.1.8-02、M-6.2.3-12、M-6.2.3-13、M-7.3-09、M-9.2.6-04 |
+| 不适用：原文只在示例中出现（obligation=example-only），没有“应/宜”约束；写法由约定固定，格式不另行强制 | M-4.5.3-06、M-8.2-10、M-4.5.3.1-06 |
+| 不适用：术语分组条是普通 sec，是否分组取决于内容；位置约束见 V-2（term-sec 须在术语章内） | M-9.1-02 |
+| 不适用：id 的取值样式（sec_<n>、fig_1 …）交 Resolver；格式只检查合法 XML ID 与唯一（V-1，C-S-37：id 不透明），id 是否必须出现由 V-13 强制 | M-4.2-02#id、M-4.3.4-01#id、M-4.4.2.2-01#id、M-4.4.2.4-01#id、M-4.5.3-03#id、M-9.2.1-01#id、M-9.2.1-02#id、M-9.2.1-04#id、M-9.2.1-05#id、M-4.5.3.1-01#id |
+| 不适用：只有被引用的注/示例/列项才写 id（C-T-50、C-T-52）；是否被引用取决于文档内容，引用目标的 id 缺失由 V-1 报悬空 | M-E-19、M-E-20、M-E-22、M-E-23、M-E-24 |
+| 不适用：SES 必填元数据（std-org-group、content-language、release-date、implementation-date、title-wrap/full 等）：主导人 2026-10-21 决定更严的导出档留 WP8.2，由渲染器侧强制（README 第 3 节第 11 点） | M-4.3.2-06、M-4.3.2-07、M-4.3.2-10、M-4.3.2-11、M-4.3.2-21 |
+| 不适用：label 的有无取决于该结构是否编号（公式的 numbered 标志、连续注/示例才编号，C-S-31），不是每个实例都必须有 | M-5.2-01、M-5.6-04、M-6.2.3-05、M-7.1-03、M-7.2-02 |
+| 不适用：processing-meta 内的 custom-meta 只做记录，不属于标准内容（C-S-04）；meta-value 的年份待用户确认（D-S-02） | M-4.3.2-31 |
+| 不适用：章的角色（scope / norm-refs / terms）由内容决定，格式不规定哪一章必须带哪个 sec-type；含 norm-refs 清单或术语条的章是否带对应 sec-type 由 V-3、V-2 约束，sec-type 取值开放（表 D.1 行 13） | M-4.2-03、M-4.2-04、M-4.2-05、M-4.4.2.2-01、M-4.4.2.3-01、M-4.4.2.3-01#sec-type、M-4.4.2.4-01、M-4.4.2.4-01#sec-type、M-D-04、M-9.1-01、M-9.1-01#sec-type |
+| 不适用：表 F.1 是与 GB/T 37967 的元素对照行，只表示对应关系；要求由对应的正文行承担 | M-F-04、M-F-05、M-F-06、M-F-07、M-F-08、M-F-09、M-F-10、M-F-11、M-F-12、M-F-13、M-F-14、M-F-15、M-F-16、M-F-17、M-F-19、M-F-21、M-F-22、M-F-24 |
+| 不适用：文字版面（空格、制表符）不是 XML 结构，无法在文档层面检查；由渲染器保证 | M-5.1-08 |
+| 不适用：是否是“警告”注取决于 IR 内容；schema 不限制 non-normative-note 的 content-type 取值 | M-5.6-03#content-type |
+| 不适用：xml:lang 必须出现（schema），具体语言代码由内容决定（zh、en 只是示例） | M-9.2.1-06#xml:lang、M-9.2.1-07#xml:lang |
+<!-- END export-enforcement -->
 
 ## 6. 样例
 

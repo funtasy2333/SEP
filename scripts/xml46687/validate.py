@@ -959,6 +959,16 @@ def check_required_parts(elems, rep: Report) -> None:
                     rep.error("V-17", "REQUIRED-PART：<named-content> 的 content-type=%r，导出只能是 variable（5.5 印刷页 15；矩阵 M-5.5-01 shall，C-S-30；导出必须如此）" % ct, el=el)
                 else:
                     rep.warn("W-NAMED-CONTENT", "named-content/@content-type=%r：只有 variable 有定义，导入时去掉标记（C-S-30）" % ct, el=el)
+        elif name in ("non-normative-note", "non-normative-example"):
+            if not any(is_element(c) and local(c) != "label" for c in el):
+                need(el, "正文（p 或列项）", "5.6、6.2.3 印刷页 21；矩阵 M-5.6-05、M-6.2.3-06 shall，C-S-31")
+        elif name == "std":
+            parent = el.getparent()
+            in_ref = parent is not None and is_element(parent) and _plain(parent, "ref")
+            if not _kids(el, "std-ref"):
+                need(el, "std-ref（标准编号）", "4.5.3.1 印刷页 12；矩阵 M-4.5.3.1-04 shall，C-T-54")
+            if in_ref and not _kids(el, "title"):
+                need(el, "title（标准名称）", "4.4.2.3.2、4.5.3.1 印刷页 10、12；矩阵 M-4.4.2.3-03、M-4.5.3.1-05 shall，C-T-54")
         elif name == "p" and (el.get("id") is not None or el.get(_clark(NS_XML, "id")) is not None):
             msg = "NO-ID：<p> 不应带 id（附录 E 印刷页 67“p 中无任何 id 或其他属性”；矩阵 M-E-25 export required，C-T-22）"
             _export_error_or_import(rep, "V-18", "V-18", msg, el, msg + "（导入接受：p 的 id 忽略）")
