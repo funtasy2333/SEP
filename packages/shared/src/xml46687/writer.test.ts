@@ -425,6 +425,18 @@ describe('writeXml DOCTYPE', () => {
     expect(withDoctype({ name: 's', systemId: 'a\nb.dtd' })).toContain('SYSTEM "a\nb.dtd"')
   })
 
+  it('公共标识符必须已是规范形式：含换行、制表符、首尾空格或连续空格时抛错（读回会被规范化）', () => {
+    for (const publicId of ['-//A\nB//EN', '-//A\tB//EN', ' -//A//EN', '-//A//EN ', '-//A  B//EN', ' ', '-//A\n']) {
+      const error = thrown(() => withDoctype({ name: 's', publicId, systemId: 'x.dtd' }))
+      expect(error.path).toBe('/!DOCTYPE')
+      expect(error.message).toContain('规范化')
+    }
+    // 规范形式（单个内部空格）与空串照常写出；系统标识符不做空白规范化
+    expect(withDoctype({ name: 's', publicId: '-//A B//EN', systemId: 'x.dtd' })).toContain('PUBLIC "-//A B//EN" "x.dtd"')
+    expect(withDoctype({ name: 's', publicId: '', systemId: 'x.dtd' })).toContain('PUBLIC "" "x.dtd"')
+    expect(withDoctype({ name: 's', systemId: ' a  b\n.dtd ' })).toContain('SYSTEM " a  b\n.dtd "')
+  })
+
   it('无法用字符引用保真的其它输出位置同样拒绝回车；可用字符引用的位置保留为 &#13;', () => {
     const compact: XmlWriteOptions = { namespaces: {}, indent: null }
     // 名称类位置：本就必须是合法名称，含回车被拒绝

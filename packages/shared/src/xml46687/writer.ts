@@ -52,7 +52,7 @@ const NAME_START = 'A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-
 const NAME_CHAR = `${NAME_START}\\-.0-9\\u00B7\\u0300-\\u036F\\u203F-\\u2040`
 const NCNAME = new RegExp(`^[${NAME_START}][${NAME_CHAR}]*$`, 'u')
 const XML_NAME = new RegExp(`^[:${NAME_START}][:${NAME_CHAR}]*$`, 'u')
-// PubidChar（回车因读回时被规范化为换行而在 writeDoctype 中单独拒绝，故不在此列）
+// PubidChar（回车与未规范化的空白因读回时被规范化而在 writeDoctype 中单独拒绝）
 const PUBID_LITERAL = /^[ \na-zA-Z0-9\-'()+,./:=?;!*#@$_%]*$/
 const INDENT_UNIT = /^[ \t]*$/
 
@@ -305,6 +305,8 @@ function writeDoctype(doctype: XmlDoctype): string {
   if (doctype.publicId !== undefined) {
     if (doctype.systemId === undefined) fail('DOCTYPE 有公共标识符时必须同时提供系统标识符', DOCTYPE_PATH)
     checkNoCarriageReturn(doctype.publicId, 'DOCTYPE 公共标识符', DOCTYPE_PATH)
+    // XML 1.0 §4.2.2：处理器会把公共标识符中的空白归一为单个空格并去掉首尾空白，写出方须先规范化。
+    if (/[\t\n]|^ | $|  /.test(doctype.publicId)) fail('DOCTYPE 公共标识符中的空白读回时会被规范化，须先规范化（无换行、制表符、首尾空格、连续空格）', DOCTYPE_PATH)
     if (!PUBID_LITERAL.test(doctype.publicId)) fail('DOCTYPE 公共标识符含有不允许的字符', DOCTYPE_PATH)
     checkChars(doctype.systemId, 'DOCTYPE 系统标识符', DOCTYPE_PATH)
     checkNoCarriageReturn(doctype.systemId, 'DOCTYPE 系统标识符', DOCTYPE_PATH)
