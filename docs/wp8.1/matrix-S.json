@@ -806,6 +806,7 @@
     "pmNode": null,
     "export": "not-applicable",
     "import": "reject",
+    "rejectKind": "format",
     "status": "not-applicable",
     "conventionRef": "C-S-15",
     "notes": "仅 4.3.2 列表出现，表 C.1 无此标签，无内容模型与示例，与 std-org-group 语义重复；不导出，导入拒绝。"
@@ -1252,6 +1253,7 @@
     "pmNode": null,
     "export": "optional",
     "import": "reject",
+    "rejectKind": "implementation",
     "status": "gap-both",
     "conventionRef": "C-S-10",
     "notes": "设置条的引言 @id=\"sec_0\"，示例 3 为 <sec id=\"sec_0\" sec-type=\"intro\"><title>引言</title><sec id=\"sec_0.1\">…。IR 的引言只含 IRBlock，PM 的 introduction 虽允许 block+ 但 pmToIr 未映射条；需 WP6 扩展。"
@@ -1280,6 +1282,7 @@
     "pmNode": null,
     "export": "optional",
     "import": "reject",
+    "rejectKind": "implementation",
     "status": "gap-ir",
     "conventionRef": "C-S-10",
     "notes": "引言中的条 @id=\"sec_0.1\"，label 为 0.1。示例 2 把引言写 sec_intro 却把后继条写 sec_0.1，与文字规则不符，不采用（D-S-10）。"
@@ -2779,6 +2782,7 @@
     "pmNode": null,
     "export": "not-applicable",
     "import": "reject",
+    "rejectKind": "implementation",
     "status": "gap-both",
     "conventionRef": "C-S-36",
     "notes": "“按列对齐且没有列或行边框的文本使用包含一个 <table> 的 <array> 进行标记”。IR/PM 的表总有编号与题名，没有无框对齐文本块；导入拒绝并定位，不降级为带编号的表。"
@@ -2813,6 +2817,7 @@
     "pmNode": null,
     "export": "not-applicable",
     "import": "reject",
+    "rejectKind": "format",
     "status": "not-applicable",
     "conventionRef": "C-S-36",
     "notes": "示例写 col-group 与 colwidth，表 C.1 行 13 写 colgroup，D.1 行 19 与 6.3 写 width；align=center 缺引号（排印）。详见 T 的第 6 章分片。"
@@ -3848,8 +3853,8 @@
   {
     "id": "M-F-17",
     "domain": "metadata",
-    "path": "std-meta, std-doc-meta",
-    "element": "std-meta、std-doc-meta（元数据）",
+    "path": "std-meta",
+    "element": "std-meta（元数据）",
     "attributes": [],
     "obligation": "example-only",
     "clause": "F",
@@ -3862,7 +3867,7 @@
     "import": "accept",
     "status": "mapped",
     "conventionRef": "C-S-20",
-    "notes": "F 行 17。std-doc-meta 在附录 B（印刷页 54）说明“功能重叠，故仅保留 std-meta”，导出不用，导入拒绝。"
+    "notes": "F 行 17 同时列有 std-doc-meta；它在附录 B（印刷页 54）说明“功能重叠，故仅保留 std-meta”，导出不用，导入拒绝（见 M-C-04，import: reject），已从本行 path/element 移出，以免与 reject 行矛盾（2026-10-21 主导人审查）。"
   },
   {
     "id": "M-F-18",
@@ -3963,7 +3968,7 @@
     "id": "M-F-23",
     "domain": "metadata",
     "path": "permissions",
-    "element": "permission（版权声明；原文缺 s）",
+    "element": "permissions（版权声明）",
     "attributes": [],
     "obligation": "example-only",
     "clause": "F",
@@ -3976,7 +3981,7 @@
     "import": "accept",
     "status": "mapped",
     "conventionRef": "C-S-19",
-    "notes": "F 行 23 写作 permission，4.3.2、表 C.1 为 permissions；按 permissions 处理。46687.1 copyright。"
+    "notes": "原文表 F.1 笔误：F 行 23 写作 permission（缺 s），4.3.2、表 C.1 为 permissions；本行按 permissions 处理。46687.1 copyright。"
   },
   {
     "id": "M-F-24",
@@ -4001,7 +4006,7 @@
     "id": "M-F-25",
     "domain": "metadata",
     "path": "std-ident",
-    "element": "std-indent（标准编号；原文拼写）",
+    "element": "std-ident（标准编号）",
     "attributes": [],
     "obligation": "example-only",
     "clause": "F",
@@ -4014,7 +4019,7 @@
     "import": "accept",
     "status": "mapped",
     "conventionRef": "C-S-14",
-    "notes": "F 行 25 与表 C.1 行 31 写作 std-indent，表 C.1 行 75 与 4.1、附录 G 为 std-ident；按 std-ident 处理。46687.1 std_id。"
+    "notes": "原文表 F.1 笔误：F 行 25 与表 C.1 行 31 写作 std-indent，表 C.1 行 75 与 4.1、附录 G 为 std-ident；本行按 std-ident 处理。46687.1 std_id。"
   },
   {
     "id": "M-F-26",
@@ -4317,6 +4322,7 @@
     "pmNode": null,
     "export": "not-applicable",
     "import": "reject",
+    "rejectKind": "format",
     "status": "not-applicable",
     "conventionRef": "C-S-20",
     "notes": "表 C.1 行 73；附录 B（印刷页 54）：与 std-meta 功能重叠，仅保留 std-meta。导入拒绝。"
@@ -4325,7 +4331,7 @@
     "id": "M-C-05",
     "domain": "structure",
     "path": "（表 C.1 缺项）",
-    "element": "named-content、inline-code、index-title-group、index-div、index-entry、see-entry、issue-agencies、col-group、fig-group 未列入表 C.1",
+    "element": "named-content、inline-code、index-title-group、index-div、index-entry、see-entry、fig-group 未列入表 C.1",
     "attributes": [],
     "obligation": "example-only",
     "clause": "C",
@@ -4338,7 +4344,7 @@
     "import": "accept",
     "status": "not-applicable",
     "conventionRef": null,
-    "notes": "表 C.1 共 119 行，title 重复两行（行 112、113）；正文使用的上述元素不在其中，表 C.1 不能当元素白名单。"
+    "notes": "表 C.1 共 119 行，title 重复两行（行 112、113）；正文使用的上述元素不在其中，表 C.1 不能当元素白名单。 issue-agencies（M-4.3.2-12）、col-group（M-5.8-02）同样不在表 C.1 中，但它们的 import 为 reject，已从本行 element 移出，以免与 reject 行矛盾（2026-10-21 主导人审查）。"
   },
   {
     "id": "M-D-01",
@@ -4369,15 +4375,14 @@
   },
   {
     "id": "M-D-02",
-    "domain": "section",
-    "path": "（属性 @content-type）",
-    "element": "@content-type",
+    "domain": "reference",
+    "path": "back/ref-list/@content-type",
+    "element": "ref-list",
     "attributes": [
       {
         "name": "content-type",
         "values": [
-          "bibl",
-          "index"
+          "bibl"
         ],
         "obligation": "example-only"
       }
@@ -4387,13 +4392,13 @@
     "printedPage": "64",
     "pdfPage": 68,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRDoc.bibliography[]",
+    "pmNode": "bibliography",
     "export": "required",
     "import": "required",
-    "status": "not-applicable",
-    "conventionRef": "C-S-07",
-    "notes": "表 D.1 行 3 值域只列 bibl、index；正文使用 informative、normative、norm-refs、variable、warning、dimension、disp_table、image 等，D 表不完整。"
+    "status": "mapped",
+    "conventionRef": "C-S-27",
+    "notes": "表 D.1 行 3 值域只列 bibl、index；本行宿主定为 ref-list（参考文献清单，取值 bibl，见 M-4.5.3-01；规范性引用文件清单取 norm-refs，见 M-4.4.2.3-02）。index 在原文中没有宿主依据（4.5.4 示例的 index 元素不带 content-type），schema 不收，已删除（2026-10-21 主导人审查）。正文还使用 informative、normative（app）、variable（named-content）、warning、dimension、disp_table、image 等，D 表不完整。"
   },
   {
     "id": "M-D-03",

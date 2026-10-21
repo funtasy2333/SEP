@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """支持矩阵 → RELAX NG schema 覆盖检查（项目实现约定，非官方）。
 
-对 docs/wp8.1/matrix-S.json、matrix-T.json 中 “export 为 required/optional，或 import 为 required/accept”
-的行，检查 schemas/gbt46687.2 下的 RELAX NG 是否定义了对应的元素与属性（及枚举取值）；
-同时检查 import 为 reject 的元素没有混入 schema。
+对 docs/wp8.1/matrix-S.json、matrix-T.json 中 “export 为 required/optional，或 import 为 required/accept，
+或 import 为 reject 且 rejectKind 为 implementation（格式本身接受，只是导入器暂拒）” 的行，
+检查 schemas/gbt46687.2 下的 RELAX NG 是否定义了对应的元素与属性（及枚举取值）；
+rejectKind 为 format（格式层面不收）的行，其元素若不在任何需要覆盖的行里出现，则必须不在 schema 中。
 
     python3 -I scripts/xml46687/matrix_coverage.py [--json]
 
@@ -254,30 +255,6 @@ IGNORED_ATTRS = {
 }
 
 
-# 矩阵中 import: reject 的行分两类：
-#  - 整体拒绝：元素在任何位置都不收（不应出现在 schema 中）。键为矩阵行 id，值为该行中真正整体拒绝的元素（None = 行内全部元素片段）。
-#  - 语境拒绝：元素本身被接受，只是在特定位置/取值/个数上拒绝（嵌套表、tbx:source 内的 std、英文题名、-admn-sts 值等），
-#    由内容模型或 validate.py 的 REJECT 规则体现，不是 schema 层面的“元素不存在”。
-WHOLESALE_REJECT_ROWS = {
-    "M-4.3.2-12": None,        # issue-agencies
-    "M-C-04": None,            # std-doc-meta
-    "M-5.8-01": None,          # array
-    "M-5.8-02": ["col-group"], # 其余 col/tbody/tr/td 在 array 之外是接受的
-    "M-C.1-03": None,          # tfoot
-    "M-C.1-04": None,          # array
-    "M-C.1-05": None,          # disp-formula-group
-    "M-7.4-14": None,          # tex-math
-    "M-7.4-15": None,          # alternatives
-    "M-7.4-12": None,          # 无前缀 mtext
-    "M-10.1.8-05": None,       # fn-group
-    "M-D.1-04": None,          # target
-    "M-B.1-01": None,          # term-display
-    "M-C.1-09": None,          # tbx:see
-}
-# 矩阵 element 字段里照抄了原文表 F.1 的拼写笔误；约定表说明“按正确名称处理”（conventions-S 第 4 节 #11）。
-TYPO_ALIASES = {"permission": "permissions", "std-indent": "std-ident"}
-
-
 def load_rows():
     rows = []
     for f in MATRICES:
@@ -286,31 +263,26 @@ def load_rows():
 
 
 def considered(row) -> bool:
-    return row["export"] in ("required", "optional") or row["import"] in ("required", "accept")
+    """需要 schema 覆盖的行：export 为 required/optional，或 import 为 required/accept，
+    或 import 为 reject 但 rejectKind=implementation（格式本身接受，只是导入器暂拒）。"""
+    return (row["export"] in ("required", "optional") or row["import"] in ("required", "accept")
+            or (row["import"] == "reject" and row.get("rejectKind") == "implementation"))
 
 
 def check(schema_dir: Path = SCHEMA_DIR) -> dict:
     idx = SchemaIndex(schema_dir)
     rows = load_rows()
 
-    reject_rows = [r for r in rows if r["import"] == "reject"]
-    reject_elems: dict[str, list[str]] = {}
-    context_rejects: list[str] = []
-    for r in reject_rows:
-        if r["id"] not in WHOLESALE_REJECT_ROWS:
-            context_rejects.append(r["id"])
-            continue
-        els, _, _ = parse_element_field(r["element"])
-        only = WHOLESALE_REJECT_ROWS[r["id"]]
-        for e in els:
-            if only is None or e in only:
-                reject_elems.setdefault(e, []).append(r["id"])
+    # rejectKind 必须覆盖全部 import: reject 的行，且只出现在这些行上
+    kind_problems = [r["id"] for r in rows if (r["import"] == "reject") != ("rejectKind" in r)]
+    kind_problems += [r["id"] for r in rows if r.get("rejectKind") not in (None, "format", "implementation")]
+
+    format_rows = [r for r in rows if r["import"] == "reject" and r.get("rejectKind") == "format"]
+    impl_rows = [r for r in rows if r["import"] == "reject" and r.get("rejectKind") == "implementation"]
 
     need_elems: dict[str, list[str]] = {}
     need_attrs: dict[tuple, list[str]] = {}
     pseudo: list[dict] = []
-    conflicts: list[dict] = []
-    typos: list[dict] = []
     n_considered = 0
 
     for r in rows:
@@ -320,10 +292,6 @@ def check(schema_dir: Path = SCHEMA_DIR) -> dict:
         els, hints, ps = parse_element_field(r["element"])
         for p in ps:
             pseudo.append({"row": r["id"], "item": p})
-        for i, e in enumerate(els):
-            if e in TYPO_ALIASES:
-                typos.append({"row": r["id"], "written": e, "treated_as": TYPO_ALIASES[e]})
-                els[i] = TYPO_ALIASES[e]
         owner_candidates = [e for e in els if e not in PSEUDO_ELEMENTS]
         if not owner_candidates:
             o = path_owner(r["path"])
@@ -333,10 +301,6 @@ def check(schema_dir: Path = SCHEMA_DIR) -> dict:
             if e in PSEUDO_ELEMENTS:
                 pseudo.append({"row": r["id"], "item": e, "reason": PSEUDO_ELEMENTS[e]})
                 continue
-            if e in reject_elems and r["import"] != "reject":
-                conflicts.append({"row": r["id"], "element": e, "rejected_in": reject_elems[e],
-                                  "note": "该行 import 为 accept/required，而同一元素在另一行整体 import: reject；按 reject 处理，不要求 schema 覆盖"})
-                continue
             need_elems.setdefault(e, []).append(r["id"])
         for a in r["attributes"]:
             k = attr_key(a["name"])
@@ -344,7 +308,7 @@ def check(schema_dir: Path = SCHEMA_DIR) -> dict:
                 continue
             if any((o, a["name"]) in IGNORED_ATTRS for o in els + [None]):
                 continue
-            hosts = tuple(sorted(c for c in owner_candidates if c not in reject_elems)) or ("*",)
+            hosts = tuple(sorted(owner_candidates)) or ("*",)
             need_attrs.setdefault((hosts, k), []).append((r["id"], a.get("values", [])))
         for host, a in hints:
             k = attr_key(a)
@@ -352,6 +316,17 @@ def check(schema_dir: Path = SCHEMA_DIR) -> dict:
                 continue
             hosts = (host,) if host else (tuple(sorted(owner_candidates)) or ("*",))
             need_attrs.setdefault((hosts, k), []).append((r["id"], []))
+
+    # format 类 reject：只出现在 reject 行、而不在任何需要覆盖的行里的元素 = 整体不收（不得出现在 schema 中）；
+    # 同时出现在需要覆盖的行里的（嵌套表里的 table、tbx:source 里的 std 等）是“语境拒绝”，由内容模型/REJECT 规则体现。
+    format_tokens: dict[str, list[str]] = {}
+    for r in format_rows:
+        els, _, _ = parse_element_field(r["element"])
+        for e in els:
+            format_tokens.setdefault(e, []).append(r["id"])
+    reject_elems = {e: ids for e, ids in format_tokens.items() if e not in need_elems}
+    context_format_rows = sorted({i for e, ids in format_tokens.items() if e in need_elems for i in ids}
+                                 - {i for e, ids in reject_elems.items() for i in ids})
 
     uncovered_elems = {e: ids for e, ids in need_elems.items() if not idx.has_element(e)}
     reject_in_schema = {e: ids for e, ids in reject_elems.items() if e in idx.elements}
@@ -382,7 +357,6 @@ def check(schema_dir: Path = SCHEMA_DIR) -> dict:
                     if v not in slot["values"]:
                         uncovered_values.append({"hosts": list(hosts), "attribute": k, "value": v, "rows": ids})
 
-    # 去重
     seen = set()
     uv = []
     for u in uncovered_values:
@@ -402,9 +376,10 @@ def check(schema_dir: Path = SCHEMA_DIR) -> dict:
         "attribute_values_uncovered": uv,
         "reject_elements_in_schema": reject_in_schema,
         "reject_elements": sorted(reject_elems),
-        "matrix_conflicts": conflicts,
-        "context_reject_rows": sorted(context_rejects),
-        "typo_aliases": typos,
+        "reject_rows_format": sorted(r["id"] for r in format_rows),
+        "reject_rows_implementation": sorted(r["id"] for r in impl_rows),
+        "context_reject_rows": context_format_rows,
+        "reject_kind_problems": sorted(set(kind_problems)),
         "pseudo_items": pseudo,
         "schema_elements": len(idx.elements),
     }
@@ -422,7 +397,8 @@ def main(argv=None) -> int:
     if args.json:
         print(json.dumps(res, ensure_ascii=False, indent=2))
     else:
-        print("矩阵共 %d 行，其中 export 为 required/optional 或 import 为 required/accept 的 %d 行" % (res["rows_total"], res["rows_considered"]))
+        print("矩阵共 %d 行，需要 schema 覆盖的 %d 行（export 为 required/optional，或 import 为 required/accept，"
+              "或 import 为 reject 但 rejectKind=implementation）" % (res["rows_total"], res["rows_considered"]))
         print("元素：需要覆盖 %d 个，schema 已定义 %d 个；schema 共定义 %d 个元素名" % (res["elements_expected"], res["elements_covered"], res["schema_elements"]))
         for e, ids in sorted(res["elements_uncovered"].items()):
             print("  未覆盖元素 %s（矩阵行 %s）" % (e, ", ".join(ids)))
@@ -431,16 +407,19 @@ def main(argv=None) -> int:
             print("  未覆盖属性 %s@%s（矩阵行 %s）" % ("/".join(u["hosts"]), u["attribute"], ", ".join(u["rows"])))
         for u in res["attribute_values_uncovered"]:
             print("  未覆盖取值 %s@%s=%r（矩阵行 %s）" % ("/".join(u["hosts"]), u["attribute"], u["value"], ", ".join(u["rows"])))
-        print("import: reject 且整体不收的元素 %d 个：%s" % (len(res["reject_elements"]), "、".join(res["reject_elements"])))
+        print("import: reject 共 %d 行：rejectKind=format %d 行，implementation %d 行"
+              % (len(res["reject_rows_format"]) + len(res["reject_rows_implementation"]),
+                 len(res["reject_rows_format"]), len(res["reject_rows_implementation"])))
+        print("  format 类中整体不收的元素 %d 个：%s" % (len(res["reject_elements"]), "、".join(res["reject_elements"])))
         print("  其中混入 schema 的：%s" % (", ".join(res["reject_elements_in_schema"]) or "无"))
-        for c in res["matrix_conflicts"]:
-            print("  矩阵内部冲突：%s 在行 %s 为 accept/required，却在行 %s 整体 reject" % (c["element"], c["row"], ", ".join(c["rejected_in"])))
-        print("语境拒绝（元素本身接受，只在特定位置/取值/个数上拒绝）的矩阵行 %d 个：%s" % (len(res["context_reject_rows"]), ", ".join(res["context_reject_rows"])))
-        for t in res["typo_aliases"]:
-            print("  矩阵行 %s 照抄了原文笔误 %s，按 %s 覆盖" % (t["row"], t["written"], t["treated_as"]))
+        print("  format 类中的语境拒绝行（元素本身接受，只在特定位置/取值/个数上拒绝）%d 行：%s"
+              % (len(res["context_reject_rows"]), ", ".join(res["context_reject_rows"])))
+        print("  implementation 类（格式接受，导入暂拒，已要求 schema 覆盖）：%s" % ", ".join(res["reject_rows_implementation"]))
+        if res["reject_kind_problems"]:
+            print("  rejectKind 字段有问题的行：%s" % ", ".join(res["reject_kind_problems"]))
         print("非元素的说明性条目（schema 不表达）%d 个" % len(res["pseudo_items"]))
     bad = (res["elements_uncovered"] or res["attributes_uncovered"] or res["attribute_values_uncovered"]
-           or res["reject_elements_in_schema"])
+           or res["reject_elements_in_schema"] or res["reject_kind_problems"])
     return 1 if bad else 0
 
 
