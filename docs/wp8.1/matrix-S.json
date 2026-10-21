@@ -175,7 +175,7 @@
     "import": "required",
     "status": "mapped",
     "conventionRef": "C-S-11",
-    "notes": "4.3.2“元数据宜使用 <std-meta> 标记”。子元素顺序三处来源不一致（4.1 示例 ics/ccs 在前，附录 G 与 ISO 源指南 title-wrap 在前），按 C-S-11 固定；DTD 是否对顺序敏感未核实。"
+    "notes": "4.3.2“元数据宜使用 <std-meta> 标记”。子元素顺序三处来源不一致（4.1 示例 ics/ccs 在前，附录 G 与 ISO 源指南 title-wrap 在前），按 C-S-11：导出采用 NISO STS 1.2 DTD 次序（DTD 已核实对次序敏感，国标扩展插入位置见 schemas/gbt46687.2/README.md），导入不限次序、仅告警（validate.py V-12）。"
   },
   {
     "id": "M-4.1-08",

@@ -1,6 +1,6 @@
 # WP8.1 原文、映射与校验约定：总索引
 
-状态：2026-10-20 分片完成；2026-10-21 关键约定已由用户确认（见 3A）。剩余：T1.5 项目自写 schema 与校验脚本。
+状态：2026-10-20 分片完成；2026-10-21 关键约定已由用户确认（见 3A）。2026-10-21 T1.5 完成：项目自写 RELAX NG schema（`schemas/gbt46687.2/`）、校验工具（`scripts/xml46687/`）及官方 NISO STS 1.2 DTD 兼容检查（`schemas/niso-sts-1.2/`，9 个正例未解释偏差为 0）。**WP8.1 完成。**
 规格：[Phase 5.5 主计划](../dev-plan-phase-5.5.md) §3 WP8、[WP8 XML 实施方案](../wp8-xml46687.md)。
 
 ## 1. 文件
@@ -61,7 +61,7 @@ WP8.2 起，测试应引用矩阵 id，并断言每个必做行（shall/should�
 
 其余 D-S、D-T 事项默认采纳分片建议，用户未逐项确认；实施时如有影响用户可见行为的，再单独提出。
 
-## 4. 校验包需求（阻塞项 B2，已按 3A 改为自写为主）
+## 4. 校验包需求（已解决：自写 schema 为主，官方 DTD 已取得并用于兼容检查）
 
 依据 `processing-meta` 示例、附录 C/D 引用的 Tag Library 1.2，以及 ISO 源指南的同一组声明，建议固定为：**NISO STS 1.2（2022）interchange 标签集 + MathML 3.0 + XHTML 表格 + TBX**。
 4.1 示例中的 DOCTYPE（`NISO-STS-extended-1-mathml2.dtd`）与上述声明矛盾，不沿用，导出时不写 DOCTYPE（D-S-03）。
