@@ -1,0 +1,4535 @@
+[
+  {
+    "id": "M-4.1-01",
+    "domain": "structure",
+    "path": "(prolog)",
+    "element": "xml-declaration",
+    "attributes": [
+      {
+        "name": "version",
+        "values": [
+          "1.0"
+        ],
+        "obligation": "example-only"
+      },
+      {
+        "name": "encoding",
+        "values": [
+          "utf-8"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "4.1",
+    "printedPage": "2",
+    "pdfPage": 6,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "required",
+    "import": "required",
+    "status": "not-applicable",
+    "conventionRef": "C-S-02",
+    "notes": "XML 声明；示例为小写 utf-8。导入只接受 UTF-8，GB2312 等编码拒绝（37967 旧格式特征）。"
+  },
+  {
+    "id": "M-4.1-02",
+    "domain": "structure",
+    "path": "(prolog)",
+    "element": "DOCTYPE",
+    "attributes": [
+      {
+        "name": "SYSTEM",
+        "values": [
+          "NISO-STS-extended-1-mathml2.dtd"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "4.1",
+    "printedPage": "2",
+    "pdfPage": 6,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": "C-S-02",
+    "notes": "示例 DOCTYPE 文件名（extended/mathml2）与 processing-meta（interchange/3.0）冲突，导出不写 DOCTYPE；导入接受声明但不读取外部子集、不联网、不展开实体，含内部子集或实体声明则拒绝。"
+  },
+  {
+    "id": "M-4.1-03",
+    "domain": "structure",
+    "path": "standard",
+    "element": "standard",
+    "attributes": [
+      {
+        "name": "xmlns:xlink",
+        "values": [
+          "http://www.w3.org/1999/xlink"
+        ],
+        "obligation": "example-only"
+      },
+      {
+        "name": "xmlns:mml",
+        "values": [
+          "http://www.w3.org/1998/Math/MathML"
+        ],
+        "obligation": "example-only"
+      },
+      {
+        "name": "xmlns:tbx",
+        "values": [
+          "urn:iso:std:iso:30042:ed-1"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "should",
+    "clause": "4.1",
+    "printedPage": "2",
+    "pdfPage": 6,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc",
+    "pmNode": "standardDoc",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-01",
+    "notes": "原文“宜在根标签 <standard> 中标记”。根元素无默认命名空间；导入按命名空间 URI 而非前缀识别 tbx/mml/xlink；默认命名空间非空（urn:csbts:std:xml:1.0）拒绝。"
+  },
+  {
+    "id": "M-4.1-04",
+    "domain": "structure",
+    "path": "standard/front",
+    "element": "front",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.3.1",
+    "printedPage": "5",
+    "pdfPage": 9,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta + IRDoc.front",
+    "pmNode": "standardDoc > coverPage? metadataBlock? foreword? introduction?",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-01",
+    "notes": "4.3.1 祈使陈述“前置页用 <front> 标记”，可含标准元数据、前言、引言。front 内顺序 std-meta、前言 sec、引言 sec。"
+  },
+  {
+    "id": "M-4.1-05",
+    "domain": "structure",
+    "path": "standard/body",
+    "element": "body",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.4.1",
+    "printedPage": "8",
+    "pdfPage": 12,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.body[]",
+    "pmNode": "standardDoc > chapter+",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-01",
+    "notes": "4.4.1 祈使陈述“标记在 <body> 标签中”；生产 Schema 要求至少一个章，body 无章导入拒绝。"
+  },
+  {
+    "id": "M-4.1-06",
+    "domain": "structure",
+    "path": "standard/back",
+    "element": "back",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.5.1",
+    "printedPage": "11",
+    "pdfPage": 15,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.appendices[] + IRDoc.bibliography[] + IRDoc.index",
+    "pmNode": "standardDoc > appendix* bibliography? indexBlock?",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-01",
+    "notes": "4.5.1“后置页是可选的”，可含附录、参考文献、索引；无内容时省略整个 back。back 内顺序 app-group、ref-list、index（4.5.3.1 与 4.5.4 对先后措辞不一致，取 4.5.4）。"
+  },
+  {
+    "id": "M-4.1-07",
+    "domain": "structure",
+    "path": "standard/front/std-meta",
+    "element": "std-meta",
+    "attributes": [],
+    "obligation": "should",
+    "clause": "4.3.2",
+    "printedPage": "5",
+    "pdfPage": 9,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta",
+    "pmNode": "metadataBlock + standardDoc/coverPage 属性",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-11",
+    "notes": "4.3.2“元数据宜使用 <std-meta> 标记”。子元素顺序三处来源不一致（4.1 示例 ics/ccs 在前，附录 G 与 ISO 源指南 title-wrap 在前），按 C-S-11：导出采用 NISO STS 1.2 DTD 次序（DTD 已核实对次序敏感，国标扩展插入位置见 schemas/gbt46687.2/README.md），导入不限次序、仅告警（validate.py V-12）。"
+  },
+  {
+    "id": "M-4.1-08",
+    "domain": "structure",
+    "path": "(cover/toc/header/footer)",
+    "element": "封面、目次、页眉页脚",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.1",
+    "printedPage": "4",
+    "pdfPage": 8,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": "coverPage（属性容器，不呈现）",
+    "export": "not-applicable",
+    "import": "not-applicable",
+    "status": "not-applicable",
+    "conventionRef": "C-S-05",
+    "notes": "“以下前置页内容不在 XML 中标记：封面、目次、含有文件名称、页码等的页眉和页脚”；注 2：封面中除格式外的信息记录在 std-meta。IR 不含目次/页眉页脚。"
+  },
+  {
+    "id": "M-4.3.2-30",
+    "domain": "processing",
+    "path": "standard/processing-meta",
+    "element": "processing-meta",
+    "attributes": [
+      {
+        "name": "base-tagset",
+        "values": [
+          "interchange"
+        ],
+        "obligation": "example-only"
+      },
+      {
+        "name": "mathml-version",
+        "values": [
+          "3.0"
+        ],
+        "obligation": "example-only"
+      },
+      {
+        "name": "table-model",
+        "values": [
+          "xhtml"
+        ],
+        "obligation": "example-only"
+      },
+      {
+        "name": "terminology-model",
+        "values": [
+          "tbx"
+        ],
+        "obligation": "example-only"
+      },
+      {
+        "name": "math-representation",
+        "values": [
+          "mathml"
+        ],
+        "obligation": "example-only"
+      },
+      {
+        "name": "tagset-family",
+        "values": [
+          "sts"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "should",
+    "clause": "4.3.2",
+    "printedPage": "6",
+    "pdfPage": 10,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "required",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": "C-S-04",
+    "notes": "“宜用 <processing-meta> 标记，直接置于 <standard> 标签下”，描述 XML 文件的处理信息而非标准本身。导出置于 standard 首个子元素（ISO 源指南旁证，原文示例 2 的“……”在其前，位置有歧义）；导入校验 tagset-family/table-model/terminology-model/math-representation，mathml-version 接受 3.0（及 C 行 54 同现的 2.0 并告警）。不进入 IR。"
+  },
+  {
+    "id": "M-4.3.2-31",
+    "domain": "processing",
+    "path": "standard/processing-meta/custom-meta-group/custom-meta",
+    "element": "custom-meta-group, custom-meta, meta-name, meta-value",
+    "attributes": [],
+    "obligation": "should",
+    "clause": "4.3.2",
+    "printedPage": "6",
+    "pdfPage": 10,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "required",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": "C-S-04",
+    "notes": "指明标记所依据的编码指南名称（meta-name）和版本（meta-value）。示例值 基于XML的标准文档内容标记指南 / 2025；导出取 2026（项目实现约定，D-S-02）。"
+  },
+  {
+    "id": "M-4.2-01",
+    "domain": "section",
+    "path": "front/sec",
+    "element": "sec",
+    "attributes": [
+      {
+        "name": "sec-type",
+        "values": [
+          "foreword"
+        ],
+        "obligation": "may"
+      },
+      {
+        "name": "id",
+        "values": [
+          "sec_foreword"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "may",
+    "clause": "4.2",
+    "printedPage": "4",
+    "pdfPage": 8,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.front.foreword[]",
+    "pmNode": "foreword",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-09",
+    "notes": "4.2：前置页中 @sec-type 的值可为 foreword 或 intro。前言容器在 IR 中没有 NodeId，不能成为交叉引用目标；无 label。"
+  },
+  {
+    "id": "M-4.2-02",
+    "domain": "section",
+    "path": "front/sec",
+    "element": "sec",
+    "attributes": [
+      {
+        "name": "sec-type",
+        "values": [
+          "intro"
+        ],
+        "obligation": "may"
+      },
+      {
+        "name": "id",
+        "values": [
+          "sec_intro",
+          "sec_0"
+        ],
+        "obligation": "should"
+      }
+    ],
+    "obligation": "may",
+    "clause": "4.2",
+    "printedPage": "4",
+    "pdfPage": 8,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.front.introduction[]",
+    "pmNode": "introduction",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-10",
+    "notes": "引言：未设置条用 sec_intro，设置条用 sec_0（4.3.4）。IR 的引言只含块，不含条，见 M-4.3.4-03。"
+  },
+  {
+    "id": "M-4.2-03",
+    "domain": "section",
+    "path": "body/sec",
+    "element": "sec",
+    "attributes": [
+      {
+        "name": "sec-type",
+        "values": [
+          "scope"
+        ],
+        "obligation": "may"
+      }
+    ],
+    "obligation": "may",
+    "clause": "4.2",
+    "printedPage": "4",
+    "pdfPage": 8,
+    "verifiedAgainstImage": true,
+    "irPath": "IRChapter.secType='scope'",
+    "pmNode": "chapter.attrs.secType",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-06",
+    "notes": "表 1 范围章；4.4.2.2“宜按以下方式为 <sec> 的属性赋值：@sec-type=\"scope\"、@id=\"sec_1\"”。"
+  },
+  {
+    "id": "M-4.2-04",
+    "domain": "section",
+    "path": "body/sec",
+    "element": "sec",
+    "attributes": [
+      {
+        "name": "sec-type",
+        "values": [
+          "norm-refs"
+        ],
+        "obligation": "may"
+      },
+      {
+        "name": "sec-type",
+        "values": [
+          "norm_refs"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "may",
+    "clause": "4.2",
+    "printedPage": "4",
+    "pdfPage": 8,
+    "verifiedAgainstImage": true,
+    "irPath": "IRChapter.secType='norm-refs'",
+    "pmNode": "chapter.attrs.secType",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-06",
+    "notes": "norm-refs（连字符）见 4.1 骨架、4.2 文字、表 1、4.4.2.3.1；仅 4.4.2.3.2 示例写 norm_refs（下划线）。导出 norm-refs；导入接受 norm_refs 并规范化后提示。"
+  },
+  {
+    "id": "M-4.2-05",
+    "domain": "section",
+    "path": "body/sec",
+    "element": "sec",
+    "attributes": [
+      {
+        "name": "sec-type",
+        "values": [
+          "terms"
+        ],
+        "obligation": "may"
+      }
+    ],
+    "obligation": "may",
+    "clause": "4.2",
+    "printedPage": "4",
+    "pdfPage": 8,
+    "verifiedAgainstImage": true,
+    "irPath": "IRChapter.secType='terms'",
+    "pmNode": "chapter.attrs.secType",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-06",
+    "notes": "表 1：术语和定义/术语，定义。术语条目内部结构详见 T。"
+  },
+  {
+    "id": "M-4.2-06",
+    "domain": "section",
+    "path": "body/sec",
+    "element": "sec",
+    "attributes": [
+      {
+        "name": "sec-type",
+        "values": [
+          "任意值"
+        ],
+        "obligation": "may"
+      }
+    ],
+    "obligation": "may",
+    "clause": "4.2",
+    "printedPage": "5",
+    "pdfPage": 9,
+    "verifiedAgainstImage": true,
+    "irPath": "IRChapter.secType='general'（仅 4 个取值）",
+    "pmNode": "chapter.attrs.secType（pmToIr 拒绝未知值）",
+    "export": "optional",
+    "import": "accept",
+    "status": "gap-ir",
+    "conventionRef": "C-S-06",
+    "notes": "表 D.1 行 13：sec-type“可以采用任何值”，IR 只有 scope/norm-refs/terms/general。导入遇未知值按 general 处理并告警（不能静默丢弃）。"
+  },
+  {
+    "id": "M-4.2-07",
+    "domain": "section",
+    "path": "back/app-group/app",
+    "element": "app",
+    "attributes": [
+      {
+        "name": "content-type",
+        "values": [
+          "informative",
+          "normative"
+        ],
+        "obligation": "may"
+      }
+    ],
+    "obligation": "may",
+    "clause": "4.2",
+    "printedPage": "5",
+    "pdfPage": 9,
+    "verifiedAgainstImage": true,
+    "irPath": "IRAppendix.normative",
+    "pmNode": "appendix.attrs.normative",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-07",
+    "notes": "4.2 文字、表 1、4.5.2.1 一致用 informative/normative；表 D.1 行 3 只列 bibl、index（D 表不完整）。"
+  },
+  {
+    "id": "M-4.2-08",
+    "domain": "section",
+    "path": "back/app-group/app",
+    "element": "app",
+    "attributes": [
+      {
+        "name": "content-type",
+        "values": [
+          "inform-annex"
+        ],
+        "obligation": "example-only"
+      },
+      {
+        "name": "content-type",
+        "values": [
+          "inform_annex"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "4.1",
+    "printedPage": "4",
+    "pdfPage": 8,
+    "verifiedAgainstImage": true,
+    "irPath": "IRAppendix.normative=false",
+    "pmNode": "appendix.attrs.normative",
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-07",
+    "notes": "inform-annex 仅见 4.1 骨架（印刷页 4），inform_annex 仅见 4.5.2.2 示例（印刷页 12）。导出不用；导入接受并规范化为 informative。规范性附录的异写原文无，不接受。"
+  },
+  {
+    "id": "M-4.2-09",
+    "domain": "section",
+    "path": "back/ref-list",
+    "element": "ref-list",
+    "attributes": [
+      {
+        "name": "content-type",
+        "values": [
+          "bibl"
+        ],
+        "obligation": "may"
+      }
+    ],
+    "obligation": "may",
+    "clause": "4.2",
+    "printedPage": "5",
+    "pdfPage": 9,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.bibliography[]",
+    "pmNode": "bibliography",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-27",
+    "notes": "10.1.6 示例 2（印刷页 47）写 content-type=\"bibr\"，疑似排印错误，导入接受并告警。"
+  },
+  {
+    "id": "M-4.3.2-01",
+    "domain": "metadata",
+    "path": "std-meta",
+    "element": "std-meta（容器）",
+    "attributes": [],
+    "obligation": "should",
+    "clause": "4.3.2",
+    "printedPage": "5",
+    "pdfPage": 9,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta",
+    "pmNode": "metadataBlock",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-11",
+    "notes": "同 M-4.1-07。"
+  },
+  {
+    "id": "M-4.3.2-02",
+    "domain": "metadata",
+    "path": "std-meta/ics",
+    "element": "ics",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.3.2",
+    "printedPage": "5",
+    "pdfPage": 9,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.icsCode",
+    "pmNode": "standardDoc.attrs.icsCode | coverPage.attrs.icsCode",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-17",
+    "notes": "表 C.1 行 39：多个 ICS 号时 ics 重复出现；IR 仅单值，多个 ics 导入拒绝并说明。"
+  },
+  {
+    "id": "M-4.3.2-03",
+    "domain": "metadata",
+    "path": "std-meta/ccs",
+    "element": "ccs",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.3.2",
+    "printedPage": "5",
+    "pdfPage": 9,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.ccsCode",
+    "pmNode": "standardDoc.attrs.ccsCode | coverPage.attrs.ccsCode",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-17",
+    "notes": "表 C.1 行 10 备注“中国标准特有”，需要国标扩展 schema。"
+  },
+  {
+    "id": "M-4.3.2-04",
+    "domain": "metadata",
+    "path": "std-meta/title-wrap",
+    "element": "title-wrap",
+    "attributes": [
+      {
+        "name": "xml:lang",
+        "values": [
+          "zh",
+          "en"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "may",
+    "clause": "4.3.2",
+    "printedPage": "5",
+    "pdfPage": 9,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.titleParts[]（兼容 title/titleEn）",
+    "pmNode": "metadataBlock > titlePart(lang,role)",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-13",
+    "notes": "每种语言一个 title-wrap；子元素 intro?、main、compl?、full；full 必写，不拆分旧单字符串题名。"
+  },
+  {
+    "id": "M-4.3.2-05",
+    "domain": "metadata",
+    "path": "std-meta/std-ident",
+    "element": "std-ident",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.3.2",
+    "printedPage": "5",
+    "pdfPage": 9,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.identifiers[].parts[]",
+    "pmNode": "metadataBlock > standardIdentifier > identifierPart(kind,position)",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-14",
+    "notes": "只写 IR 中确有的组成部分，不由 stdCode 猜测；年号不在 std-ident，写在 std-ref（见 M-G-02）。"
+  },
+  {
+    "id": "M-4.3.2-06",
+    "domain": "metadata",
+    "path": "std-meta/std-org-group",
+    "element": "std-org-group, std-org, std-org-name",
+    "attributes": [
+      {
+        "name": "std-org-role",
+        "values": [
+          "lead"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "may",
+    "clause": "4.3.2",
+    "printedPage": "6",
+    "pdfPage": 10,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.publishers[]（兼容 issuer）",
+    "pmNode": "metadataBlock > publisher(role,identifier)",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-15",
+    "notes": "4.3.2：std-org-group 记录发布机构信息的集合，std-org-name 记录发布单位名称。每个 IROrganization 对应一个 std-org。"
+  },
+  {
+    "id": "M-4.3.2-07",
+    "domain": "metadata",
+    "path": "std-meta/content-language",
+    "element": "content-language",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.3.2",
+    "printedPage": "6",
+    "pdfPage": 10,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.languages[].tag",
+    "pmNode": "metadataBlock > language(tag,usage)",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-16",
+    "notes": "usage 无对应元素，非空时报告“未表达”。"
+  },
+  {
+    "id": "M-4.3.2-08",
+    "domain": "metadata",
+    "path": "std-meta/equivalence",
+    "element": "equivalence",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.3.2",
+    "printedPage": "6",
+    "pdfPage": 10,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.adoptions[]（兼容 consistency）",
+    "pmNode": "metadataBlock > adoption(reference,degree,language)",
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": "C-S-18",
+    "notes": "4.3.2 与表 C.1 行 32（备注“中国标准特有”）只给元素名与含义，无内容模型、无示例。暂不导出并报告“未表达”（D-S-05）；导入只提示并记入报告，不映射。"
+  },
+  {
+    "id": "M-4.3.2-09",
+    "domain": "metadata",
+    "path": "std-meta/std-type",
+    "element": "std-type",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.3.2",
+    "printedPage": "5",
+    "pdfPage": 9,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.standardType（枚举 gb/industry/local/group/enterprise/guide）",
+    "pmNode": "standardDoc.attrs.standardType",
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": "C-S-18",
+    "notes": "表 C.1 行 82：标准的类型，如强制标准、推荐标准、标准化指导性技术文件；无取值表与示例，且 IR 枚举不区分 GB 与 GB/T。暂不导出并报告（D-S-05）。"
+  },
+  {
+    "id": "M-4.3.2-10",
+    "domain": "metadata",
+    "path": "std-meta/release-date",
+    "element": "release-date",
+    "attributes": [
+      {
+        "name": "date-type",
+        "values": [
+          "published"
+        ],
+        "obligation": "example-only"
+      },
+      {
+        "name": "date-type",
+        "values": [
+          "implemented"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "may",
+    "clause": "4.3.2",
+    "printedPage": "6",
+    "pdfPage": 10,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.publishDate",
+    "pmNode": "standardDoc.attrs.publishDate | coverPage.attrs.publishDate",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-12",
+    "notes": "原文异写：4.1 示例用两个 release-date + date-type；4.3.2 与表 C.1 行 40 用 release-date（发布）+ implementation-date（实施）；表 F 行 5 对本文件实施日期填“—”；表 D.1 无 date-type。选用 release-date 单独表示发布日期（需用户确认 D-S-01）；导入同时接受 date-type=published/implemented 两种写法。格式 YYYY-MM-DD。"
+  },
+  {
+    "id": "M-4.3.2-11",
+    "domain": "metadata",
+    "path": "std-meta/implementation-date",
+    "element": "implementation-date",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.3.2",
+    "printedPage": "6",
+    "pdfPage": 10,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.implementDate",
+    "pmNode": "standardDoc.attrs.implementDate | coverPage.attrs.implementDate",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-12",
+    "notes": "表 C.1 行 40：记录标准的实施日期，备注“中国标准特有”，需要国标扩展 schema。绝不把实施日期写入 release-date（旧 SEP 的错误映射）。"
+  },
+  {
+    "id": "M-4.3.2-12",
+    "domain": "metadata",
+    "path": "std-meta/issue-agencies",
+    "element": "issue-agencies",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.3.2",
+    "printedPage": "6",
+    "pdfPage": 10,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "reject",
+    "rejectKind": "format",
+    "status": "not-applicable",
+    "conventionRef": "C-S-15",
+    "notes": "仅 4.3.2 列表出现，表 C.1 无此标签，无内容模型与示例，与 std-org-group 语义重复；不导出，导入拒绝。"
+  },
+  {
+    "id": "M-4.3.2-13",
+    "domain": "metadata",
+    "path": "std-meta/std-supersedes",
+    "element": "std-supersedes",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.3.2",
+    "printedPage": "6",
+    "pdfPage": 10,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.replacedStandards[]（兼容 replaces）",
+    "pmNode": "metadataBlock > replacedStandard(reference,relation)",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-18",
+    "notes": "表 C.1 行 81：标准的替代情况；无内容模型与示例，内容取 reference 文本为项目实现约定，结构未核实（D-S-05）。"
+  },
+  {
+    "id": "M-4.3.2-14",
+    "domain": "metadata",
+    "path": "std-meta/custom-meta-group/custom-meta",
+    "element": "custom-meta-group, custom-meta, meta-name, meta-value",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.3.2",
+    "printedPage": "6",
+    "pdfPage": 10,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.filingNo | industryName | regionName | coverDesignation | applicant | proposer",
+    "pmNode": "standardDoc/coverPage 同名属性",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-21",
+    "notes": "SES 专有字段用小写连字符名称：filing-no、industry-name、region-name、cover-designation、applicant、proposer（项目实现约定）。IR 无通用 custom-meta 存储：未知名称（如 price-ref-pages）导入时提示已忽略，不静默。"
+  },
+  {
+    "id": "M-4.3.2-15",
+    "domain": "metadata",
+    "path": "std-meta/permissions",
+    "element": "permissions",
+    "attributes": [],
+    "obligation": "should",
+    "clause": "4.3.2",
+    "printedPage": "6",
+    "pdfPage": 10,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.copyrights[]",
+    "pmNode": "metadataBlock > copyright(holder,year,language)",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-19",
+    "notes": "“标准化文件的版权声明可在元数据中用 <permissions> 标记”。只有 1 份版权时输出；多份（多语言）原文无写法，报告。表 F 行 23 写作 permission 属排印错误。"
+  },
+  {
+    "id": "M-4.3.2-16",
+    "domain": "metadata",
+    "path": "std-meta/permissions/copyright-statement",
+    "element": "copyright-statement",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.3.2",
+    "printedPage": "6",
+    "pdfPage": 10,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.copyrights[].statement",
+    "pmNode": "copyright（内容）",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-19",
+    "notes": "示例：版权专有 侵权必究。"
+  },
+  {
+    "id": "M-4.3.2-17",
+    "domain": "metadata",
+    "path": "std-meta/permissions/copyright-year",
+    "element": "copyright-year",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.3.2",
+    "printedPage": "6",
+    "pdfPage": 10,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.copyrights[].year",
+    "pmNode": "copyright.attrs.year",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-19",
+    "notes": ""
+  },
+  {
+    "id": "M-4.3.2-18",
+    "domain": "metadata",
+    "path": "std-meta/permissions/copyright-holder",
+    "element": "copyright-holder",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.3.2",
+    "printedPage": "6",
+    "pdfPage": 10,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.copyrights[].holder",
+    "pmNode": "copyright.attrs.holder",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-19",
+    "notes": ""
+  },
+  {
+    "id": "M-4.3.2-19",
+    "domain": "metadata",
+    "path": "std-meta/title-wrap/main",
+    "element": "main",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.1",
+    "printedPage": "3",
+    "pdfPage": 7,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.titleParts[role='main']",
+    "pmNode": "titlePart.attrs.role",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-13",
+    "notes": "标题的主要部分（表 C.1 行 50）。"
+  },
+  {
+    "id": "M-4.3.2-20",
+    "domain": "metadata",
+    "path": "std-meta/title-wrap/compl",
+    "element": "compl",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.1",
+    "printedPage": "3",
+    "pdfPage": 7,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.titleParts[role='compl']",
+    "pmNode": "titlePart.attrs.role",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-13",
+    "notes": "补充标题（表 C.1 行 15）。4.1 示例含“第2部分：”前缀，附录 G 不含，不改写、不补前缀。"
+  },
+  {
+    "id": "M-4.3.2-21",
+    "domain": "metadata",
+    "path": "std-meta/title-wrap/full",
+    "element": "full",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.1",
+    "printedPage": "3",
+    "pdfPage": 7,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.titleParts[role='full']（兼容 title/titleEn）",
+    "pmNode": "titlePart.attrs.role",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-13",
+    "notes": "完整标题（表 C.1 行 37）。导出只要有题名就写 full。"
+  },
+  {
+    "id": "M-4.3.2-22",
+    "domain": "metadata",
+    "path": "std-meta/title-wrap/intro",
+    "element": "intro",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "C",
+    "printedPage": "58",
+    "pdfPage": 62,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.titleParts[role='intro']",
+    "pmNode": "titlePart.attrs.role",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-13",
+    "notes": "仅表 C.1 行 44 出现（标题的可选第一部分），无示例；IR 有 role 字段可承载。"
+  },
+  {
+    "id": "M-4.3.2-23",
+    "domain": "metadata",
+    "path": "std-meta/std-ident/originator",
+    "element": "originator",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.1",
+    "printedPage": "3",
+    "pdfPage": 7,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.identifiers[].parts[kind='originator']",
+    "pmNode": "identifierPart.attrs.kind",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-14",
+    "notes": "示例 SAC（4.1、附录 G 一致）。"
+  },
+  {
+    "id": "M-4.3.2-24",
+    "domain": "metadata",
+    "path": "std-meta/std-ident/doc-type",
+    "element": "doc-type",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.1",
+    "printedPage": "3",
+    "pdfPage": 7,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.identifiers[].parts[kind='doc-type']",
+    "pmNode": "identifierPart.attrs.kind",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-14",
+    "notes": "4.1 示例为“GB/T”，附录 G 为“standard”，表 C.1 行 30 称示例 standard/spec/tr。导出取编号前缀（GB/T），不取泛称。"
+  },
+  {
+    "id": "M-4.3.2-25",
+    "domain": "metadata",
+    "path": "std-meta/std-ident/doc-number",
+    "element": "doc-number",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.1",
+    "printedPage": "3",
+    "pdfPage": 7,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.identifiers[].parts[kind='doc-number']",
+    "pmNode": "identifierPart.attrs.kind",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-14",
+    "notes": ""
+  },
+  {
+    "id": "M-4.3.2-26",
+    "domain": "metadata",
+    "path": "std-meta/std-ident/part-number",
+    "element": "part-number",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.1",
+    "printedPage": "3",
+    "pdfPage": 7,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.identifiers[].parts[kind='part-number']",
+    "pmNode": "identifierPart.attrs.kind",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-14",
+    "notes": "附录 G 的 part-number=1 与 std-ref 的 .3 矛盾（示例瑕疵）。"
+  },
+  {
+    "id": "M-4.3.2-27",
+    "domain": "metadata",
+    "path": "std-meta/std-ident/edition",
+    "element": "edition",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.1",
+    "printedPage": "3",
+    "pdfPage": 7,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.identifiers[].parts[kind='edition']",
+    "pmNode": "identifierPart.attrs.kind",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-14",
+    "notes": "4.1 示例为空元素 <edition/>，导出不写空元素。"
+  },
+  {
+    "id": "M-4.3.2-28",
+    "domain": "metadata",
+    "path": "std-meta/std-ident/version",
+    "element": "version",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.1",
+    "printedPage": "3",
+    "pdfPage": 7,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.identifiers[].parts[kind='version']",
+    "pmNode": "identifierPart.attrs.kind",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-14",
+    "notes": ""
+  },
+  {
+    "id": "M-4.3.2-29",
+    "domain": "metadata",
+    "path": "std-meta/std-org/std-org-abbrev",
+    "element": "std-org, std-org-abbrev",
+    "attributes": [
+      {
+        "name": "std-org-level",
+        "values": [
+          "1"
+        ],
+        "obligation": "example-only"
+      },
+      {
+        "name": "std-org-role",
+        "values": [
+          "lead"
+        ],
+        "obligation": "example-only"
+      },
+      {
+        "name": "std-org-type",
+        "values": [
+          "national"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "4.1",
+    "printedPage": "3",
+    "pdfPage": 7,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.publishers[].identifier / .role（std-org-level、std-org-type 无 IR 字段）",
+    "pmNode": "publisher.attrs.identifier / role",
+    "export": "optional",
+    "import": "accept",
+    "status": "gap-ir",
+    "conventionRef": "C-S-15",
+    "notes": "std-org-level、std-org-role 见 4.1 示例，std-org-type 见附录 G，三者在表 D.1 均无定义。导出只写 std-org-role；std-org-level/std-org-type 导入时提示已忽略（IR 无字段，需 WP6 决定是否扩展）。"
+  },
+  {
+    "id": "M-4.3.2-32",
+    "domain": "metadata",
+    "path": "std-meta/xml:lang",
+    "element": "xml:lang（属性）",
+    "attributes": [
+      {
+        "name": "xml:lang",
+        "values": [
+          "zh",
+          "en"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "4.1",
+    "printedPage": "2",
+    "pdfPage": 6,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.titleParts[].lang",
+    "pmNode": "titlePart.attrs.lang",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-22",
+    "notes": "表 D.1 没有 xml:lang，但 4.1、附录 G、第 9 章大量使用；BCP 47 简码。"
+  },
+  {
+    "id": "M-4.3.3-01",
+    "domain": "section",
+    "path": "front/sec[@sec-type=foreword]/title,p",
+    "element": "title, p（前言）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.3.3",
+    "printedPage": "7",
+    "pdfPage": 11,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.front.foreword[]",
+    "pmNode": "foreword > block+",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-09",
+    "notes": "“前言使用 <sec> 标签进行标记”，属性 @sec-type=\"foreword\"，示例 <title>前言</title>。标题固定，不作数据；内容块按第 5 章。"
+  },
+  {
+    "id": "M-4.3.4-01",
+    "domain": "section",
+    "path": "front/sec[@sec-type=intro]",
+    "element": "sec（引言，无条）",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "sec_intro"
+        ],
+        "obligation": "should"
+      }
+    ],
+    "obligation": "should",
+    "clause": "4.3.4",
+    "printedPage": "7",
+    "pdfPage": 11,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.front.introduction[]",
+    "pmNode": "introduction",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-10",
+    "notes": "未设置条的引言 @id=\"sec_intro\"。"
+  },
+  {
+    "id": "M-4.3.4-02",
+    "domain": "section",
+    "path": "front/sec[@sec-type=intro]",
+    "element": "sec（引言，有条）",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "sec_0"
+        ],
+        "obligation": "should"
+      }
+    ],
+    "obligation": "should",
+    "clause": "4.3.4",
+    "printedPage": "7",
+    "pdfPage": 11,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "optional",
+    "import": "reject",
+    "rejectKind": "implementation",
+    "status": "gap-both",
+    "conventionRef": "C-S-10",
+    "notes": "设置条的引言 @id=\"sec_0\"，示例 3 为 <sec id=\"sec_0\" sec-type=\"intro\"><title>引言</title><sec id=\"sec_0.1\">…。IR 的引言只含 IRBlock，PM 的 introduction 虽允许 block+ 但 pmToIr 未映射条；需 WP6 扩展。"
+  },
+  {
+    "id": "M-4.3.4-03",
+    "domain": "section",
+    "path": "front/sec/sec",
+    "element": "sec（引言中的条）",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "sec_0.1",
+          "sec_0.1.1"
+        ],
+        "obligation": "should"
+      }
+    ],
+    "obligation": "should",
+    "clause": "4.3.4",
+    "printedPage": "8",
+    "pdfPage": 12,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "optional",
+    "import": "reject",
+    "rejectKind": "implementation",
+    "status": "gap-ir",
+    "conventionRef": "C-S-10",
+    "notes": "引言中的条 @id=\"sec_0.1\"，label 为 0.1。示例 2 把引言写 sec_intro 却把后继条写 sec_0.1，与文字规则不符，不采用（D-S-10）。"
+  },
+  {
+    "id": "M-4.4.2.1-01",
+    "domain": "section",
+    "path": "body/sec | sec/sec",
+    "element": "sec（章和条）",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "sec_5",
+          "sec_5.1",
+          "sec_5.1.1"
+        ],
+        "obligation": "example-only"
+      },
+      {
+        "name": "sec-type",
+        "values": [
+          "见 4.2"
+        ],
+        "obligation": "may"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "4.4.2.1",
+    "printedPage": "8",
+    "pdfPage": 12,
+    "verifiedAgainstImage": true,
+    "irPath": "IRChapter | IRClause",
+    "pmNode": "chapter | clause",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-23",
+    "notes": "“章和条使用 <sec> 标记”，可含任何类型内容（文本、表、图）和条。条嵌套表示层级；IR 条最多 5 级，更深层级无法表示。"
+  },
+  {
+    "id": "M-4.4.2.1-02",
+    "domain": "section",
+    "path": "sec/label",
+    "element": "label",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.4.2.1",
+    "printedPage": "8",
+    "pdfPage": 12,
+    "verifiedAgainstImage": true,
+    "irPath": "ResolveResult.labels[id].label（不存于 IR）",
+    "pmNode": "chapter.attrs.number | clause.attrs.number（派生）",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-23",
+    "notes": "“章和条编号在 <sec> 中用 <label> 标记”。导出取 Resolver label；导入文本不作数据，与重新派生编号不一致则告警。"
+  },
+  {
+    "id": "M-4.4.2.1-03",
+    "domain": "section",
+    "path": "sec/title",
+    "element": "title",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.4.2.1",
+    "printedPage": "8",
+    "pdfPage": 12,
+    "verifiedAgainstImage": true,
+    "irPath": "IRChapter.title | IRClause.title",
+    "pmNode": "chapterTitle | clauseTitle",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-23",
+    "notes": "标题内不写 <bold>（5.2：label/title 呈现时自动加粗）；导入时剥离标题内 bold 以保持往返幂等。"
+  },
+  {
+    "id": "M-4.4.2.1-04",
+    "domain": "text",
+    "path": "sec/p",
+    "element": "p",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.3",
+    "printedPage": "15",
+    "pdfPage": 19,
+    "verifiedAgainstImage": true,
+    "irPath": "IRParagraph.content",
+    "pmNode": "stdParagraph",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-23",
+    "notes": "5.3 前言、引言、正文及附录的文本在 <p> 中标记；附录 E：<p> 中无任何 id 或其他属性（导入忽略示例中的 p id）。"
+  },
+  {
+    "id": "M-4.4.2.2-01",
+    "domain": "section",
+    "path": "body/sec[@sec-type=scope]",
+    "element": "sec（范围）",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "sec_1"
+        ],
+        "obligation": "should"
+      }
+    ],
+    "obligation": "should",
+    "clause": "4.4.2.2",
+    "printedPage": "9",
+    "pdfPage": 13,
+    "verifiedAgainstImage": true,
+    "irPath": "IRChapter(secType='scope')",
+    "pmNode": "chapter",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-06",
+    "notes": "“宜按以下方式为 <sec> 的属性赋值”。"
+  },
+  {
+    "id": "M-4.4.2.3-01",
+    "domain": "section",
+    "path": "body/sec[@sec-type=norm-refs]",
+    "element": "sec（规范性引用文件）",
+    "attributes": [
+      {
+        "name": "sec-type",
+        "values": [
+          "norm-refs"
+        ],
+        "obligation": "shall"
+      },
+      {
+        "name": "id",
+        "values": [
+          "sec_2"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "4.4.2.3.1",
+    "printedPage": "9",
+    "pdfPage": 13,
+    "verifiedAgainstImage": true,
+    "irPath": "IRChapter(secType='norm-refs')",
+    "pmNode": "chapter",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-24",
+    "notes": "“按以下方式标记 <sec> 的属性”（祈使陈述）：@sec-type=\"norm-refs\"，@id 的值中包含章的编号。章内先 <p> 引导语，再 <ref-list>。"
+  },
+  {
+    "id": "M-4.4.2.3-02",
+    "domain": "reference",
+    "path": "sec/ref-list",
+    "element": "ref-list（规范性引用）",
+    "attributes": [
+      {
+        "name": "content-type",
+        "values": [
+          "norm-refs"
+        ],
+        "obligation": "shall"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "4.4.2.3.2",
+    "printedPage": "10",
+    "pdfPage": 14,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "required",
+    "import": "accept",
+    "status": "gap-both",
+    "conventionRef": "C-S-24",
+    "notes": "“规范性引用文件清单被标记为 <ref-list>，其 @content-type 属性值为 norm-refs”。示例写 norm_refs（异写）。IR/PM 没有规范性引用条目结构（章内只有块），见 M-4.4.2.3-03。"
+  },
+  {
+    "id": "M-4.4.2.3-03",
+    "domain": "reference",
+    "path": "ref-list/ref/std",
+    "element": "ref, std, std-ref, title（标准化文件）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.4.2.3.2",
+    "printedPage": "10",
+    "pdfPage": 14,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "required",
+    "import": "accept",
+    "status": "gap-both",
+    "conventionRef": "C-S-24",
+    "notes": "“每个引用的标准化文件都用 <ref> 内的 <std> 标签进行标记；<std> 中包含 <std-ref> 与 <title>”。IR 无结构化条目；方案见 D-S-08。示例中 std-ref 与 title 之间有的有逗号文本，有的没有。"
+  },
+  {
+    "id": "M-4.4.2.3-04",
+    "domain": "reference",
+    "path": "ref-list/ref/mixed-citation",
+    "element": "mixed-citation（非标准化文件）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.4.2.3.3",
+    "printedPage": "10",
+    "pdfPage": 14,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "required",
+    "import": "accept",
+    "status": "gap-both",
+    "conventionRef": "C-S-24",
+    "notes": "“规范性引用文件中非标准化文件的引用使用 <mixed-citation> 进行标记（以其原有格式）”。同上缺结构化条目。"
+  },
+  {
+    "id": "M-4.4.2.4-01",
+    "domain": "section",
+    "path": "body/sec[@sec-type=terms]",
+    "element": "sec（术语和定义章及分组条）",
+    "attributes": [
+      {
+        "name": "sec-type",
+        "values": [
+          "terms"
+        ],
+        "obligation": "should"
+      },
+      {
+        "name": "id",
+        "values": [
+          "sec_3"
+        ],
+        "obligation": "should"
+      }
+    ],
+    "obligation": "should",
+    "clause": "4.4.2.4",
+    "printedPage": "10",
+    "pdfPage": 14,
+    "verifiedAgainstImage": true,
+    "irPath": "IRChapter(secType='terms') | IRClause",
+    "pmNode": "chapter | clause",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-25",
+    "notes": "“宜按以下方式标记 <sec> 的属性”，术语分组、缩略语条“宜和其他条一样标记”。术语条目（term-sec/tbx:*）详见 T。"
+  },
+  {
+    "id": "M-4.4.2.5-01",
+    "domain": "section",
+    "path": "sec[@sec-type=numbered-paragraph]",
+    "element": "sec（无标题条）",
+    "attributes": [
+      {
+        "name": "sec-type",
+        "values": [
+          "numbered-paragraph"
+        ],
+        "obligation": "should"
+      },
+      {
+        "name": "id",
+        "values": [
+          "sec_6.3.4.1"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "should",
+    "clause": "4.4.2.5",
+    "printedPage": "11",
+    "pdfPage": 15,
+    "verifiedAgainstImage": true,
+    "irPath": "IRClause{titled:false,title:[]}",
+    "pmNode": "clause.attrs.hasTitle=false",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-08",
+    "notes": "“不包含 <title> 标签；宜 @sec-type=\"numbered-paragraph\"”，含 <label>。4.4.2.1 示例的无标题条没有 sec-type，导入凡缺 title 的 sec 一律视为无标题条。旧 SEP 的 content-type=\"untitled\" 拒绝。"
+  },
+  {
+    "id": "M-4.5.2-01",
+    "domain": "section",
+    "path": "back/app-group",
+    "element": "app-group",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.5.2.1",
+    "printedPage": "11",
+    "pdfPage": 15,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.appendices[]（容器）",
+    "pmNode": "standardDoc > appendix*",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-26",
+    "notes": "“所有附录都在 <app-group> 内使用 <app> 标记”。"
+  },
+  {
+    "id": "M-4.5.2-02",
+    "domain": "section",
+    "path": "back/app-group/app",
+    "element": "app",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "sec_A"
+        ],
+        "obligation": "example-only"
+      },
+      {
+        "name": "content-type",
+        "values": [
+          "informative",
+          "normative"
+        ],
+        "obligation": "shall"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "4.5.2.1",
+    "printedPage": "11",
+    "pdfPage": 15,
+    "verifiedAgainstImage": true,
+    "irPath": "IRAppendix",
+    "pmNode": "appendix",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-07",
+    "notes": "附录类型用 @content-type 区分，值可为 informative 或 normative。"
+  },
+  {
+    "id": "M-4.5.2-03",
+    "domain": "section",
+    "path": "app/label",
+    "element": "label（附录）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.5.2.1",
+    "printedPage": "11",
+    "pdfPage": 15,
+    "verifiedAgainstImage": true,
+    "irPath": "ResolveResult.labels[id].label（附录字母）",
+    "pmNode": "appendix.attrs.letter（派生）",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-07",
+    "notes": "“‘附录’二字和附录的编号使用 <label>（不包括其后的破折号）标记”；示例文本“附录 A”（含空格）。导出取“附录”+空格+字母；导入文本不作数据。"
+  },
+  {
+    "id": "M-4.5.2-04",
+    "domain": "section",
+    "path": "app/annex-type",
+    "element": "annex-type",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.1",
+    "printedPage": "4",
+    "pdfPage": 8,
+    "verifiedAgainstImage": true,
+    "irPath": "IRAppendix.normative",
+    "pmNode": "appendixLabel（文本“（资料性）”/“（规范性）”）",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-07",
+    "notes": "示例 <annex-type>（资料性）</annex-type>；全角/半角括号扫描字形难辨，未核实；4.5.2.1 正文未解释该元素，仅见示例（4.1 骨架、4.5.2.2 示例），故义务措辞按示例性对待。"
+  },
+  {
+    "id": "M-4.5.2-05",
+    "domain": "section",
+    "path": "app/title",
+    "element": "title（附录）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.5.2.1",
+    "printedPage": "11",
+    "pdfPage": 15,
+    "verifiedAgainstImage": true,
+    "irPath": "IRAppendix.title",
+    "pmNode": "appendixTitle",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-26",
+    "notes": "“附录标题使用 <title> 标记”。"
+  },
+  {
+    "id": "M-4.5.2-06",
+    "domain": "section",
+    "path": "app/sec",
+    "element": "sec（附录中的条）",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "sec_A.1"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "4.5.2.2",
+    "printedPage": "11",
+    "pdfPage": 15,
+    "verifiedAgainstImage": true,
+    "irPath": "IRClause（IRAppendix.children）",
+    "pmNode": "clause",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-26",
+    "notes": "“附录中的条用 <sec> 标记；它们的 <label> 宜继承上一级附录的标签前缀，如 A.1、A.2、A.3”。"
+  },
+  {
+    "id": "M-4.5.3-01",
+    "domain": "reference",
+    "path": "back/ref-list",
+    "element": "ref-list（参考文献）",
+    "attributes": [
+      {
+        "name": "content-type",
+        "values": [
+          "bibl"
+        ],
+        "obligation": "shall"
+      },
+      {
+        "name": "id",
+        "values": [
+          "sec_bibl"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "4.5.3.1",
+    "printedPage": "12",
+    "pdfPage": 16,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.bibliography[]",
+    "pmNode": "bibliography",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-27",
+    "notes": "“按以下方式标记 <ref-list> 的属性：@content-type=\"bibl\"”。参考文献通常是后置页最后一个元素，但 4.5.4 要求索引在其后。"
+  },
+  {
+    "id": "M-4.5.3-02",
+    "domain": "reference",
+    "path": "ref-list/title",
+    "element": "title（参考文献）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.5.3.1",
+    "printedPage": "12",
+    "pdfPage": 16,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": "bibliographyTitle",
+    "export": "required",
+    "import": "accept",
+    "status": "gap-ir",
+    "conventionRef": "C-S-27",
+    "notes": "IR 不保存参考文献标题（Resolver 中 container 'bibliographyTitle' 的脚注会被拒绝）；导出固定写“参考文献”，PM 中改过标题则无法保真，需 WP6 决定。"
+  },
+  {
+    "id": "M-4.5.3-03",
+    "domain": "reference",
+    "path": "ref-list/ref",
+    "element": "ref",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "biblref_1"
+        ],
+        "obligation": "should"
+      }
+    ],
+    "obligation": "should",
+    "clause": "4.5.3.1",
+    "printedPage": "12",
+    "pdfPage": 16,
+    "verifiedAgainstImage": true,
+    "irPath": "IRBibEntry",
+    "pmNode": "bibEntry",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-27",
+    "notes": "“<ref> 的属性包括 @id=\"biblref_[label 的值]\"”；每条含一个 <std> 或 <mixed-citation>。Resolver 现输出 bib_N，须改 biblref_N（R-1）。"
+  },
+  {
+    "id": "M-4.5.3-04",
+    "domain": "reference",
+    "path": "ref/label",
+    "element": "label（参考文献）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.5.3.2",
+    "printedPage": "13",
+    "pdfPage": 17,
+    "verifiedAgainstImage": true,
+    "irPath": "ResolveResult.labels[id].label（“[N]”）",
+    "pmNode": "bibEntry.attrs.index（派生）",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-27",
+    "notes": "label 含方括号，如 [1]；导入文本不作数据。"
+  },
+  {
+    "id": "M-4.5.3-05",
+    "domain": "reference",
+    "path": "ref/std",
+    "element": "std, std-ref, title（参考文献中的标准）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.5.3.1",
+    "printedPage": "12",
+    "pdfPage": 16,
+    "verifiedAgainstImage": true,
+    "irPath": "IRBibEntry.entryType + fields[]",
+    "pmNode": "bibEntry.attrs.entryType + bibStructured > bibField",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-27",
+    "notes": "仅当 IR 有类型化条目（entryType/fields）时输出 std；只有文本的旧条目输出 mixed-citation。自动拆分 std-ref/title 的启发式属待决事项 D-S-08。"
+  },
+  {
+    "id": "M-4.5.3-06",
+    "domain": "reference",
+    "path": "ref/mixed-citation",
+    "element": "mixed-citation",
+    "attributes": [
+      {
+        "name": "xlink:type",
+        "values": [
+          "simple"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "4.5.3.2",
+    "printedPage": "13",
+    "pdfPage": 17,
+    "verifiedAgainstImage": true,
+    "irPath": "IRBibEntry.content",
+    "pmNode": "bibEntry（行内内容）",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-27",
+    "notes": "“作者姓名和其他详细信息都标记在 <mixed-citation> 范围内”；示例带 xlink:type=\"simple\"，导出照示例写。"
+  },
+  {
+    "id": "M-4.5.3-07",
+    "domain": "reference",
+    "path": "mixed-citation/break",
+    "element": "break",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.5.3.3",
+    "printedPage": "13",
+    "pdfPage": 17,
+    "verifiedAgainstImage": true,
+    "irPath": "IRInline.text 中的 \\n",
+    "pmNode": "hardBreak",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-27",
+    "notes": "“如果 <mixed-citation> 中有换行或列项，可以在其内使用 <break/> 标记”。IR 以 \\n 表示换行（irToPm 转 hardBreak）。"
+  },
+  {
+    "id": "M-4.5.3-08",
+    "domain": "reference",
+    "path": "mixed-citation/uri",
+    "element": "uri",
+    "attributes": [
+      {
+        "name": "xlink:type",
+        "values": [
+          "simple"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "4.5.3.3",
+    "printedPage": "13",
+    "pdfPage": 17,
+    "verifiedAgainstImage": true,
+    "irPath": "IRBibEntry.externalLink.href",
+    "pmNode": "bibExternalLink(href,displayText)",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-27",
+    "notes": "“参考文献中的网址使用 <uri>”。displayText 与 href 不同时无对应表达，报告。"
+  },
+  {
+    "id": "M-4.5.4-01",
+    "domain": "index",
+    "path": "back/index",
+    "element": "index",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "sec_index"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "4.5.4",
+    "printedPage": "13",
+    "pdfPage": 17,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.index",
+    "pmNode": "indexBlock",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-28",
+    "notes": "“索引包含在 <back> 中，在 <index> 内标记，其位置在参考文献之后”（祈使陈述，无情态词）。表 C.1 行 41 有 index，但 index-title-group/index-div/index-entry/see-entry 及索引词 term 均未列入表 C.1。id：附录 E 为 sec_index，4.5.4 示例为 sec-index。"
+  },
+  {
+    "id": "M-4.5.4-02",
+    "domain": "index",
+    "path": "index/index-title-group/title",
+    "element": "index-title-group, title",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.5.4",
+    "printedPage": "14",
+    "pdfPage": 18,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.index.title",
+    "pmNode": "indexBlock.attrs.title",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-28",
+    "notes": "示例 <title>索引</title>。"
+  },
+  {
+    "id": "M-4.5.4-03",
+    "domain": "index",
+    "path": "index/index-div",
+    "element": "index-div（含分组 index-title-group/title）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.5.4",
+    "printedPage": "14",
+    "pdfPage": 18,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.index.groups[]",
+    "pmNode": "indexGroup.attrs.label",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-28",
+    "notes": "示例以字母“B”为分组标题。"
+  },
+  {
+    "id": "M-4.5.4-04",
+    "domain": "index",
+    "path": "index-div/index-entry",
+    "element": "index-entry",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "df_1"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "4.5.4",
+    "printedPage": "14",
+    "pdfPage": 18,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.index.groups[].entries[]",
+    "pmNode": "indexEntry",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-28",
+    "notes": "条目 id 示例 df_1…df_4，是原文唯一的条目 id 形式，附录 E 无规定。"
+  },
+  {
+    "id": "M-4.5.4-05",
+    "domain": "index",
+    "path": "index-entry/term",
+    "element": "term（索引词）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.5.4",
+    "printedPage": "14",
+    "pdfPage": 18,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.index.groups[].entries[].term",
+    "pmNode": "indexTerm",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-28",
+    "notes": "此处 term 为索引词，不同于表 C.1 行 107 的 def-item 中 term。"
+  },
+  {
+    "id": "M-4.5.4-06",
+    "domain": "index",
+    "path": "index-entry/see-entry",
+    "element": "see-entry",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "4.5.4",
+    "printedPage": "14",
+    "pdfPage": 18,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.index.groups[].entries[].targets（NodeId[]）",
+    "pmNode": "indexTarget(targetId)",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-28",
+    "notes": "see-entry 内是纯文本编号（3.2.5、表 C.1），没有 rid；导出取 Resolver refText，导入按 label/refText 精确匹配唯一目标，匹配失败拒绝（dangling-index-target）。"
+  },
+  {
+    "id": "M-4.5.4-07",
+    "domain": "index",
+    "path": "index-entry",
+    "element": "（“参见”关系）",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "4.5.4",
+    "printedPage": "14",
+    "pdfPage": 18,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.index.groups[].entries[].seeAlso",
+    "pmNode": "indexSeeAlso(targetId)",
+    "export": "not-applicable",
+    "import": "not-applicable",
+    "status": "not-applicable",
+    "conventionRef": "C-S-28",
+    "notes": "原文 see-entry 只用来给出出处编号，没有“参见”关系的写法；IR 的 seeAlso 导出时报告“未表达”。"
+  },
+  {
+    "id": "M-5.1-01",
+    "domain": "text",
+    "path": "p//bold",
+    "element": "bold",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.1",
+    "printedPage": "14",
+    "pdfPage": 18,
+    "verifiedAgainstImage": true,
+    "irPath": "IRInline.marks[type='bold']",
+    "pmNode": "mark: bold",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-29",
+    "notes": "5.1：格式设置“仅限于”七种：粗体 bold、斜体 italic、下划线 underline、删除线 strike、等宽字体 monospace、上标 sup、下标 sub。label/title 内容呈现时自动加粗，导出不在其中写 bold。"
+  },
+  {
+    "id": "M-5.1-02",
+    "domain": "text",
+    "path": "p//italic",
+    "element": "italic",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.1",
+    "printedPage": "14",
+    "pdfPage": 18,
+    "verifiedAgainstImage": true,
+    "irPath": "IRInline.marks[type='italic']",
+    "pmNode": "mark: italic",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-29",
+    "notes": "5.2：label/title 中的斜体和下划线需要单独标记。"
+  },
+  {
+    "id": "M-5.1-03",
+    "domain": "text",
+    "path": "p//underline",
+    "element": "underline",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.1",
+    "printedPage": "14",
+    "pdfPage": 18,
+    "verifiedAgainstImage": true,
+    "irPath": "IRInline.marks[type='underline']",
+    "pmNode": "mark: underline",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-29",
+    "notes": ""
+  },
+  {
+    "id": "M-5.1-04",
+    "domain": "text",
+    "path": "p//strike",
+    "element": "strike",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.1",
+    "printedPage": "15",
+    "pdfPage": 19,
+    "verifiedAgainstImage": true,
+    "irPath": "IRInline.marks[type='strike']",
+    "pmNode": "mark: strike",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-29",
+    "notes": ""
+  },
+  {
+    "id": "M-5.1-05",
+    "domain": "text",
+    "path": "p//monospace",
+    "element": "monospace",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.1",
+    "printedPage": "15",
+    "pdfPage": 19,
+    "verifiedAgainstImage": true,
+    "irPath": "IRInline.marks[type='code']（归并）",
+    "pmNode": "mark: code",
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-29",
+    "notes": "导出的等宽/代码文字用 inline-code（5.10），不写 monospace；导入 monospace 归并为 code 标记并告警，再导出变 inline-code（语义轻微变化，D-S-07）。"
+  },
+  {
+    "id": "M-5.1-06",
+    "domain": "text",
+    "path": "p//sup",
+    "element": "sup",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.1",
+    "printedPage": "15",
+    "pdfPage": 19,
+    "verifiedAgainstImage": true,
+    "irPath": "IRInline.marks[type='sup']",
+    "pmNode": "mark: superscript",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-29",
+    "notes": ""
+  },
+  {
+    "id": "M-5.1-07",
+    "domain": "text",
+    "path": "p//sub",
+    "element": "sub",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.1",
+    "printedPage": "15",
+    "pdfPage": 19,
+    "verifiedAgainstImage": true,
+    "irPath": "IRInline.marks[type='sub']",
+    "pmNode": "mark: subscript",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-29",
+    "notes": ""
+  },
+  {
+    "id": "M-5.1-08",
+    "domain": "text",
+    "path": "(text layout)",
+    "element": "空格与制表符版式",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.1",
+    "printedPage": "14",
+    "pdfPage": 18,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "required",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": "C-S-29",
+    "notes": "“内容布局不使用空格和制表符实现”。导出不插入版式空白，混合内容元素内部不缩进；导入忽略元素间纯空白，混合内容空白原样保留。"
+  },
+  {
+    "id": "M-5.1-09",
+    "domain": "text",
+    "path": "p//*",
+    "element": "其他行内样式（字体、字号、颜色、背景、字距、基线、大小写）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.1",
+    "printedPage": "14",
+    "pdfPage": 18,
+    "verifiedAgainstImage": true,
+    "irPath": "IRInline.style",
+    "pmNode": "mark: textStyle",
+    "export": "not-applicable",
+    "import": "not-applicable",
+    "status": "not-applicable",
+    "conventionRef": "C-S-29",
+    "notes": "5.1“仅限于”七种格式，原文没有表达字体、字号、颜色等的元素或属性。IR/PM 有 style 字段，导出时非空必须报告，不得静默丢弃（D-S-06）。"
+  },
+  {
+    "id": "M-5.2-01",
+    "domain": "text",
+    "path": "(sec|list-item|disp-formula|fig)/label",
+    "element": "label",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.2",
+    "printedPage": "15",
+    "pdfPage": 19,
+    "verifiedAgainstImage": true,
+    "irPath": "ResolveResult.labels[id].label（派生，不存于 IR）",
+    "pmNode": null,
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-23",
+    "notes": "“结构的编号在 <label> 中标记，位于公式、列项或图形等元素的开头”；注/示例/警告中含序号或标点者包含在 <label> 中。导入文本不作数据。"
+  },
+  {
+    "id": "M-5.2-02",
+    "domain": "text",
+    "path": "(sec|app|table-wrap|fig)/title",
+    "element": "title",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.2",
+    "printedPage": "15",
+    "pdfPage": 19,
+    "verifiedAgainstImage": true,
+    "irPath": "IRChapter.title | IRClause.title | IRAppendix.title",
+    "pmNode": "chapterTitle | clauseTitle | appendixTitle",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-23",
+    "notes": "“章、条、图、表等元素的标题用 <title> 标记”（图、表的标题在 caption/title 中，详见 T）。"
+  },
+  {
+    "id": "M-5.4-01",
+    "domain": "text",
+    "path": "(characters)",
+    "element": "UTF-8 实体",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.4",
+    "printedPage": "15",
+    "pdfPage": 19,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "required",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": "C-S-34",
+    "notes": "“特定符号使用 UTF-8 中相应的实体进行编码”，未说明实体集。导出 UTF-8 直接字符，只转义 & < >；导入接受数字字符引用与 XML 预定义实体，其他命名实体拒绝。"
+  },
+  {
+    "id": "M-5.5-01",
+    "domain": "text",
+    "path": "p//named-content",
+    "element": "named-content",
+    "attributes": [
+      {
+        "name": "content-type",
+        "values": [
+          "variable"
+        ],
+        "obligation": "shall"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "5.5",
+    "printedPage": "15",
+    "pdfPage": 19,
+    "verifiedAgainstImage": true,
+    "irPath": "IRInline.marks[type='variable']",
+    "pmNode": "mark: variable(kind,name)",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-30",
+    "notes": "“变量符号采用 <named-content> 标签进行标记，属性设置为 @content-type=\"variable\"”；MathML 不提供此功能，公式内变量不处理。IRMark.variable 的 kind/name 无对应属性，非空时报告。表 D.1 行 3 把元素误写成 name-content，且未列 variable 取值。"
+  },
+  {
+    "id": "M-5.5-02",
+    "domain": "text",
+    "path": "named-content/(sup|sub)",
+    "element": "sup、sub（变量的上下标位置）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.5",
+    "printedPage": "15",
+    "pdfPage": 19,
+    "verifiedAgainstImage": true,
+    "irPath": "IRInline.marks（variable + sup/sub 同一 run；常量下标无 variable）",
+    "pmNode": "marks: variable + superscript/subscript",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-30",
+    "notes": "数字上标与变量下标写在 named-content 内部（x<sup>2</sup>、x<sub>y</sub>）；非变量/常量下标写在 named-content 外部（</named-content><sub>b</sub>）。与按 mark 集合自然分组的结果一致。"
+  },
+  {
+    "id": "M-5.6-01",
+    "domain": "text",
+    "path": "non-normative-note",
+    "element": "non-normative-note",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.6",
+    "printedPage": "15",
+    "pdfPage": 19,
+    "verifiedAgainstImage": true,
+    "irPath": "IRNote",
+    "pmNode": "note",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-31",
+    "notes": "“条文中的注…使用 <non-normative-note> 进行标记”；示例 <label>注：</label><p>…</p>；注的内容用 <sec> 中的标签（p、list 等）。"
+  },
+  {
+    "id": "M-5.6-02",
+    "domain": "text",
+    "path": "non-normative-example",
+    "element": "non-normative-example",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.6",
+    "printedPage": "15",
+    "pdfPage": 19,
+    "verifiedAgainstImage": true,
+    "irPath": "IRExample",
+    "pmNode": "example",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-31",
+    "notes": "“示例…使用 <non-normative-example> 进行标记”；原文没有该元素的完整标记示例。"
+  },
+  {
+    "id": "M-5.6-03",
+    "domain": "text",
+    "path": "non-normative-note[@content-type=warning]",
+    "element": "non-normative-note（警告）",
+    "attributes": [
+      {
+        "name": "content-type",
+        "values": [
+          "warning"
+        ],
+        "obligation": "shall"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "5.6",
+    "printedPage": "15",
+    "pdfPage": 19,
+    "verifiedAgainstImage": true,
+    "irPath": "IRWarning",
+    "pmNode": "warning",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-31",
+    "notes": "“警告是带有‘警告’标签且 @content-type=\"warning\" 的注释”，元素名原文未写；按措辞与 ISO 源指南取 non-normative-note，label 文本“警告：”为项目实现约定。"
+  },
+  {
+    "id": "M-5.6-04",
+    "domain": "text",
+    "path": "non-normative-*/label",
+    "element": "label（注、示例、警告）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.6",
+    "printedPage": "15",
+    "pdfPage": 19,
+    "verifiedAgainstImage": true,
+    "irPath": "ResolveResult.labels[id].label（注：/注1：/示例：/示例1：）",
+    "pmNode": null,
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-31",
+    "notes": "多个连续的注/示例才带编号；label 含全角冒号，取 Resolver 的 label。5.6 称它们“不编号”，指元素不带编号属性（附录 E：无 id）。"
+  },
+  {
+    "id": "M-5.6-05",
+    "domain": "text",
+    "path": "non-normative-note/(p|list)",
+    "element": "注/示例内的块内容",
+    "attributes": [],
+    "obligation": "should",
+    "clause": "5.6",
+    "printedPage": "15",
+    "pdfPage": 19,
+    "verifiedAgainstImage": true,
+    "irPath": "IRNote.content: IRBlock[]",
+    "pmNode": "note（content: inline*）",
+    "export": "required",
+    "import": "accept",
+    "status": "gap-pm",
+    "conventionRef": "C-S-31",
+    "notes": "生产 PM 的 note/example 只含行内内容，IR 的 content 是块数组；含多段落、列表的注/示例无法由 PM 保存（pmToIr 方向无损，irToPm 方向有损）。表、图、公式出现在注中原文无写法，报告。"
+  },
+  {
+    "id": "M-5.6-06",
+    "domain": "text",
+    "path": "table-wrap-foot | fig | disp-formula 内的注",
+    "element": "non-normative-note（表注、图注、公式注）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.6",
+    "printedPage": "15",
+    "pdfPage": 19,
+    "verifiedAgainstImage": true,
+    "irPath": "IRTable.notes[] | IRFigure.notes[] | IRFormula.notes[]",
+    "pmNode": "tableNoteRow | figure 内 note | formulaNote",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-31",
+    "notes": "5.6 把表、图、公式中的注交由相应章节；详见 T（第 6、7、8 章）。附录 E：这些注均无 id。"
+  },
+  {
+    "id": "M-5.7-01",
+    "domain": "list",
+    "path": "list",
+    "element": "list",
+    "attributes": [
+      {
+        "name": "list-type",
+        "values": [
+          "alpha-lower",
+          "arabic",
+          "roman-lower",
+          "dash",
+          "bullet"
+        ],
+        "obligation": "shall"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "5.7.1",
+    "printedPage": "16",
+    "pdfPage": 20,
+    "verifiedAgainstImage": true,
+    "irPath": "IRList",
+    "pmNode": "stdList(listType,level)",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-32",
+    "notes": "“列项使用 <list> 标记，每个列项条目使用 <list-item>；列项独立于 <p> 之外”。有序“三个值之一”，无序“两个值之一”。D.1 行 7 另有 simple、symbol 等，无 IR 对应，导入拒绝。"
+  },
+  {
+    "id": "M-5.7-02",
+    "domain": "list",
+    "path": "list[@list-type=alpha-lower]",
+    "element": "list-type=alpha-lower",
+    "attributes": [
+      {
+        "name": "list-type",
+        "values": [
+          "alpha-lower"
+        ],
+        "obligation": "shall"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "5.7.2",
+    "printedPage": "16",
+    "pdfPage": 20,
+    "verifiedAgainstImage": true,
+    "irPath": "IRList.listType='alpha'",
+    "pmNode": "stdList.attrs.listType='alpha'",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-32",
+    "notes": "有序列项 a) b) c)；label 写在 <label> 内。"
+  },
+  {
+    "id": "M-5.7-03",
+    "domain": "list",
+    "path": "list[@list-type=arabic]",
+    "element": "list-type=arabic",
+    "attributes": [
+      {
+        "name": "list-type",
+        "values": [
+          "arabic"
+        ],
+        "obligation": "shall"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "5.7.2",
+    "printedPage": "16",
+    "pdfPage": 20,
+    "verifiedAgainstImage": true,
+    "irPath": "IRList.listType='number'",
+    "pmNode": "stdList.attrs.listType='numeric'",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-32",
+    "notes": "有序列项 1) 2) 3)。"
+  },
+  {
+    "id": "M-5.7-04",
+    "domain": "list",
+    "path": "list[@list-type=roman-lower]",
+    "element": "list-type=roman-lower",
+    "attributes": [
+      {
+        "name": "list-type",
+        "values": [
+          "roman-lower"
+        ],
+        "obligation": "shall"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "5.7.2",
+    "printedPage": "16",
+    "pdfPage": 20,
+    "verifiedAgainstImage": true,
+    "irPath": "IRList.listType='roman'",
+    "pmNode": "（无；normalizeStdListType 把 roman 降级为 numeric）",
+    "export": "required",
+    "import": "accept",
+    "status": "gap-pm",
+    "conventionRef": "C-S-32",
+    "notes": "IR 有 roman，生产 PM 不支持罗马列项（irToPm 诊断“生产列表schema不支持 roman”），导出可行、导入保存不可行。"
+  },
+  {
+    "id": "M-5.7-05",
+    "domain": "list",
+    "path": "list[@list-type=dash]",
+    "element": "list-type=dash",
+    "attributes": [
+      {
+        "name": "list-type",
+        "values": [
+          "dash"
+        ],
+        "obligation": "shall"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "5.7.3",
+    "printedPage": "17",
+    "pdfPage": 21,
+    "verifiedAgainstImage": true,
+    "irPath": "IRList.listType='dash'",
+    "pmNode": "stdList.attrs.listType='dash'",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-32",
+    "notes": "无序列项：XML 中没有特定标签标识无序列项，由 @list-type 值获得。"
+  },
+  {
+    "id": "M-5.7-06",
+    "domain": "list",
+    "path": "list[@list-type=bullet]",
+    "element": "list-type=bullet",
+    "attributes": [
+      {
+        "name": "list-type",
+        "values": [
+          "bullet"
+        ],
+        "obligation": "shall"
+      }
+    ],
+    "obligation": "shall",
+    "clause": "5.7.3",
+    "printedPage": "17",
+    "pdfPage": 21,
+    "verifiedAgainstImage": true,
+    "irPath": "IRList.listType='dot'",
+    "pmNode": "stdList.attrs.listType='dot'",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-32",
+    "notes": "原文只有 dash 与 bullet 两个无序值，dot（间隔号）按 bullet 导出（项目实现约定）。"
+  },
+  {
+    "id": "M-5.7-07",
+    "domain": "list",
+    "path": "list",
+    "element": "IR 列项类型 romanUpper、boxed（无原文取值）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.7.2",
+    "printedPage": "16",
+    "pdfPage": 20,
+    "verifiedAgainstImage": true,
+    "irPath": "IRList.listType='romanUpper'|'boxed'",
+    "pmNode": "stdList.attrs.listType='boxedNumeric'（romanUpper 不支持）",
+    "export": "not-applicable",
+    "import": "not-applicable",
+    "status": "not-applicable",
+    "conventionRef": "C-S-32",
+    "notes": "5.7.2 把有序 list-type 限定为三个值，原文没有大写罗马数字、带圈数字的写法；导出报告“无原文取值”，不得编造。"
+  },
+  {
+    "id": "M-5.7-08",
+    "domain": "list",
+    "path": "list/list-item",
+    "element": "list-item",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.7.1",
+    "printedPage": "16",
+    "pdfPage": 20,
+    "verifiedAgainstImage": true,
+    "irPath": "IRList.items[]",
+    "pmNode": "stdListItem",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-32",
+    "notes": ""
+  },
+  {
+    "id": "M-5.7-09",
+    "domain": "list",
+    "path": "list-item/label",
+    "element": "label（有序列项）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.7.2",
+    "printedPage": "16",
+    "pdfPage": 20,
+    "verifiedAgainstImage": true,
+    "irPath": "（生成：按 listType 与序号，不存于 IR）",
+    "pmNode": "stdListItem.attrs.marker（生成）",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-32",
+    "notes": "有序条目必写 <label>（a)、1)…）；无序条目不写（示例中的空 <label/> 与缺失并存，视为示例笔误）。导入文本不作数据，与序号不一致则告警。"
+  },
+  {
+    "id": "M-5.7-10",
+    "domain": "list",
+    "path": "list-item/p",
+    "element": "p（列项文本）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.7.2",
+    "printedPage": "16",
+    "pdfPage": 20,
+    "verifiedAgainstImage": true,
+    "irPath": "IRList.items[].content[]: IRParagraph",
+    "pmNode": "stdListItem（inline*）",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-32",
+    "notes": "“列项的文本内容标记在 <p> 中”；列项条目的 p 无 id（附录 E）。"
+  },
+  {
+    "id": "M-5.7-11",
+    "domain": "list",
+    "path": "list-item/list",
+    "element": "嵌套列项",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "5.7.3",
+    "printedPage": "18",
+    "pdfPage": 22,
+    "verifiedAgainstImage": true,
+    "irPath": "IRList.items[].content[]: IRList",
+    "pmNode": "（stdList 不支持嵌套；仅 StarterKit bulletList/orderedList 可嵌套）",
+    "export": "required",
+    "import": "accept",
+    "status": "gap-pm",
+    "conventionRef": "C-S-32",
+    "notes": "示例 7.1 在列项条目内先 <p> 后嵌套 <list list-type=\"bullet\">。irToPm 对嵌套 stdList 报“生产stdList不支持嵌套列表”，导入后无法保存。"
+  },
+  {
+    "id": "M-5.7-12",
+    "domain": "list",
+    "path": "list/@id, list-item/@id",
+    "element": "list@id、list-item@id（示例）",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "list-7.1-L1",
+          "lis-7.1-L1-1",
+          "id-<uuid>"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "5.7.3",
+    "printedPage": "18",
+    "pdfPage": 22,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": "C-S-37",
+    "notes": "附录 E：任何 <list> 或 <list-item> 中无 id 属性；示例中的 id 判为示例瑕疵（conventions-S.md 第 2.3 节），导入忽略，导出不写。"
+  },
+  {
+    "id": "M-5.7-13",
+    "domain": "list",
+    "path": "list/@list-content",
+    "element": "list-content（表 D.1 行 6）",
+    "attributes": [
+      {
+        "name": "list-content",
+        "values": [
+          "formula",
+          "figure",
+          "abbreviation"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "D",
+    "printedPage": "64",
+    "pdfPage": 68,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "not-applicable",
+    "status": "not-applicable",
+    "conventionRef": null,
+    "notes": "D.1 称其为 def-list、list 的可选属性，第 5 章列项不使用；def-list 的用法详见 T（公式“式中”、图例、缩略语）。"
+  },
+  {
+    "id": "M-5.8-01",
+    "domain": "table",
+    "path": "array",
+    "element": "array",
+    "attributes": [],
+    "obligation": "may",
+    "clause": "5.8",
+    "printedPage": "18",
+    "pdfPage": 22,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "reject",
+    "rejectKind": "implementation",
+    "status": "gap-both",
+    "conventionRef": "C-S-36",
+    "notes": "“按列对齐且没有列或行边框的文本使用包含一个 <table> 的 <array> 进行标记”。IR/PM 的表总有编号与题名，没有无框对齐文本块；导入拒绝并定位，不降级为带编号的表。"
+  },
+  {
+    "id": "M-5.8-02",
+    "domain": "table",
+    "path": "array/table/(col-group|col|tbody|tr|td)",
+    "element": "col-group、col、tbody、tr、td（array 内）",
+    "attributes": [
+      {
+        "name": "align",
+        "values": [
+          "center"
+        ],
+        "obligation": "example-only"
+      },
+      {
+        "name": "colwidth",
+        "values": [
+          "40%"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "5.8",
+    "printedPage": "19",
+    "pdfPage": 23,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "reject",
+    "rejectKind": "format",
+    "status": "not-applicable",
+    "conventionRef": "C-S-36",
+    "notes": "示例写 col-group 与 colwidth，表 C.1 行 13 写 colgroup，D.1 行 19 与 6.3 写 width；align=center 缺引号（排印）。详见 T 的第 6 章分片。"
+  },
+  {
+    "id": "M-5.9-01",
+    "domain": "text",
+    "path": "disp-quote",
+    "element": "disp-quote",
+    "attributes": [],
+    "obligation": "should",
+    "clause": "5.9",
+    "printedPage": "19",
+    "pdfPage": 23,
+    "verifiedAgainstImage": true,
+    "irPath": "IRQuote",
+    "pmNode": "quoteBlock",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-35",
+    "notes": "“被缩进的单段文本…使用 <disp-quote> 进行标记”。"
+  },
+  {
+    "id": "M-5.9-02",
+    "domain": "text",
+    "path": "disp-quote/p",
+    "element": "p（摘录内）",
+    "attributes": [],
+    "obligation": "shall",
+    "clause": "5.9",
+    "printedPage": "19",
+    "pdfPage": 23,
+    "verifiedAgainstImage": true,
+    "irPath": "IRQuote.content: IRBlock[]（段落）",
+    "pmNode": "quoteBlock > block+",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-35",
+    "notes": ""
+  },
+  {
+    "id": "M-5.9-03",
+    "domain": "text",
+    "path": "disp-quote/(attrib|permissions)",
+    "element": "attrib、permissions（摘录）",
+    "attributes": [
+      {
+        "name": "specific-use",
+        "values": [
+          "source"
+        ],
+        "obligation": "may"
+      }
+    ],
+    "obligation": "may",
+    "clause": "5.9",
+    "printedPage": "19",
+    "pdfPage": 23,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "gap-ir",
+    "conventionRef": "C-S-35",
+    "notes": "“引用的来源可以使用 <attrib> 通过 @specific-use=\"source\" 来标记，任何权限信息都可以使用 <disp-quote> 内的 <permissions> 标记”。IR 没有来源/权限字段；导入时提示“已忽略”。示例写成 <attrib @specific-use=…>（排印错误）。"
+  },
+  {
+    "id": "M-5.10-01",
+    "domain": "text",
+    "path": "code",
+    "element": "code",
+    "attributes": [],
+    "obligation": "should",
+    "clause": "5.10",
+    "printedPage": "19",
+    "pdfPage": 23,
+    "verifiedAgainstImage": true,
+    "irPath": "IRCodeBlock",
+    "pmNode": "codeBlock(language)",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-33",
+    "notes": "“如果在代码块中，宜标记为 <code>”；空白符保留；表 C.1 行 11 有 code。IRCodeBlock.language 无对应属性，非空时报告。"
+  },
+  {
+    "id": "M-5.10-02",
+    "domain": "text",
+    "path": "p//inline-code",
+    "element": "inline-code",
+    "attributes": [],
+    "obligation": "should",
+    "clause": "5.10",
+    "printedPage": "19",
+    "pdfPage": 23,
+    "verifiedAgainstImage": true,
+    "irPath": "IRInline.marks[type='code']",
+    "pmNode": "mark: code",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-33",
+    "notes": "“如果在文本行中，宜标记为 <inline-code>”；表 C.1 未列 inline-code（C 表不完整）。"
+  },
+  {
+    "id": "M-E-01",
+    "domain": "id",
+    "path": "sec/@id（有编号章条）",
+    "element": "sec@id",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "sec_1",
+          "sec_2",
+          "sec_3",
+          "sec_5",
+          "sec_5.2.1"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": "ResolveResult.labels[id].xmlId（章、条、无标题条、术语条）",
+    "pmNode": "—",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "资料性附录。当前 Resolver 已派生 sec_<编号>，无需修改（X-01、X-02、X-03、X-11）。导入 id 不透明。"
+  },
+  {
+    "id": "M-E-02",
+    "domain": "id",
+    "path": "front/sec/@id",
+    "element": "sec@id（前言、引言）",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "sec_foreword",
+          "sec_intro"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": "（渲染器常量；IR 前言/引言无容器 NodeId）",
+    "pmNode": "foreword | introduction",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "X-04、X-05；引言有条时 sec_0（4.3.4），需 IR 扩展。"
+  },
+  {
+    "id": "M-E-03",
+    "domain": "id",
+    "path": "ref-list/@id, index/@id",
+    "element": "ref-list@id、index@id",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "sec_bibl",
+          "sec_index"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": "（渲染器常量）",
+    "pmNode": "bibliography | indexBlock",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "X-08、X-25；4.5.4 示例写 sec-index（异写，不采用）。"
+  },
+  {
+    "id": "M-E-04",
+    "domain": "id",
+    "path": "app/@id, app/sec/@id",
+    "element": "app@id、附录条 sec@id",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "sec_A",
+          "sec_B",
+          "sec_B.1",
+          "sec_B.1.2"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": "ResolveResult.labels[id].xmlId（附录、附录条）",
+    "pmNode": "appendix | clause",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "X-06、X-07；Resolver 已一致。"
+  },
+  {
+    "id": "M-E-05",
+    "domain": "id",
+    "path": "ref/@id",
+    "element": "ref@id（有标签的参考文献）",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "biblref_1"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": "ResolveResult.labels[id].xmlId（IRBibEntry）",
+    "pmNode": "bibEntry",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "X-09：Resolver 现输出 bib_N，须改 biblref_N（R-1）。"
+  },
+  {
+    "id": "M-E-06",
+    "domain": "id",
+    "path": "ref/@id（无 label）",
+    "element": "ref@id（无正文）",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "ref_5"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "optional",
+    "import": "accept",
+    "status": "gap-ir",
+    "conventionRef": "C-S-37",
+    "notes": "说明“如第 5 个引用的参考文献”；“无正文”字面含义不清，解读为没有 <label> 的条目（X-10，未核实）。IR 没有规范性引用条目，需扩展。"
+  },
+  {
+    "id": "M-E-07",
+    "domain": "id",
+    "path": "term-sec/@id",
+    "element": "term-sec@id",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "sec_3.2"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": "ResolveResult.labels[id].xmlId（IRTermEntry）",
+    "pmNode": "termDef",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "X-11；详见 T。"
+  },
+  {
+    "id": "M-E-08",
+    "domain": "id",
+    "path": "tbx:termEntry/@id",
+    "element": "tbx:termEntry@id",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "te_3.2.2"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": "（Resolver 尚无）",
+    "pmNode": "termDef",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "与第 9 章正文 term_<编号> 冲突，选 term_（X-12，D-S-12）；需 Resolver 新增（R-3）。详见 T。"
+  },
+  {
+    "id": "M-E-09",
+    "domain": "id",
+    "path": "tbx:note/@id",
+    "element": "tbx:note@id（术语条目的注）",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "nte_3.1.3-1"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": "ResolveResult.labels[id].xmlId（IRNote，术语作用域）",
+    "pmNode": "note（术语内）",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "X-13：仅被引用时输出；需改派生形式（R-4）。详见 T。"
+  },
+  {
+    "id": "M-E-10",
+    "domain": "id",
+    "path": "table-wrap/@id",
+    "element": "table-wrap@id",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "tab_1"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": "ResolveResult.labels[id].xmlId（IRTable）",
+    "pmNode": "stdTable",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "X-19：Resolver 已一致（附录表 tab_A.1，原文隐含）。详见 T。"
+  },
+  {
+    "id": "M-E-11",
+    "domain": "id",
+    "path": "table-wrap/@id（无标题）",
+    "element": "table-wrap@id（无标题）",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "tab_r"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": "C-S-37",
+    "notes": "“可使用任何与附录编号无关的字母”；IR 的表一律有编号，不适用。ISO 源指南 F.2 同。"
+  },
+  {
+    "id": "M-E-12",
+    "domain": "id",
+    "path": "fig/@id",
+    "element": "fig@id",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "fig_1"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": "ResolveResult.labels[id].xmlId（IRFigure）",
+    "pmNode": "figure",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "X-20：Resolver 已一致。详见 T。"
+  },
+  {
+    "id": "M-E-13",
+    "domain": "id",
+    "path": "disp-formula/@id",
+    "element": "disp-formula@id",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "formula_1"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": "ResolveResult.labels[id].xmlId（IRFormula，numbered）",
+    "pmNode": "formula",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "X-21：第 7 章示例写 Formula_1、Formula1，判为示例瑕疵；无编号公式不写 id（Resolver 现输出 ext_，R-5）。详见 T。"
+  },
+  {
+    "id": "M-E-14",
+    "domain": "id",
+    "path": "inline-formula",
+    "element": "inline-formula（无 id）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": "IRInline.formula",
+    "pmNode": "formulaInline",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "“行内公式没有 ID”；id 编在 mml:math 上（mml_m<k>，7.4）。X-22、R-5。详见 T。"
+  },
+  {
+    "id": "M-E-15",
+    "domain": "id",
+    "path": "fn/@id",
+    "element": "fn@id（数字标签）",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "fn_1"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": "ResolveResult.labels[id].xmlId（IRInline.footnote）",
+    "pmNode": "footnoteRef",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "X-23：Resolver 已一致。"
+  },
+  {
+    "id": "M-E-16",
+    "domain": "id",
+    "path": "fn/@id（符号标签）",
+    "element": "fn@id（符号放在 label 中）",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "fn_2"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": "同上",
+    "pmNode": "footnoteRef",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "“符号被放置于标签中；id 编号按顺序继续”：id 与标签字符无关，只取连续序号。"
+  },
+  {
+    "id": "M-E-17",
+    "domain": "id",
+    "path": "fn/@id（无正文）",
+    "element": "fn@id（无正文）",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "fn_1"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": "同上",
+    "pmNode": "footnoteRef",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "“无正文”字面含义不清（未核实），形式仍为 fn_<序号>。"
+  },
+  {
+    "id": "M-E-18",
+    "domain": "id",
+    "path": "table-wrap-foot/fn/@id",
+    "element": "表脚注 fn@id",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "table-fn_1.1",
+          "table-fn_2.1"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": "ResolveResult.labels[id].xmlId（IRTable.footnotes[]）",
+    "pmNode": "tableFootnote",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "X-24：“表 1 的第 1 个注”“表 2 的第 1 个注”；Resolver 现输出 tabfn_<tab>_<字母>，须改（R-2）。6.2.3 文字写 table_fn_3.1 属排印错误。详见 T。"
+  },
+  {
+    "id": "M-E-19",
+    "domain": "id",
+    "path": "fig/non-normative-note",
+    "element": "图注（无 id）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "67",
+    "pdfPage": 71,
+    "verifiedAgainstImage": true,
+    "irPath": "IRFigure.notes[]",
+    "pmNode": "figure 内 note",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "“<non-normative-note> 中无 id 属性”（注、注 2 两行）。详见 T。"
+  },
+  {
+    "id": "M-E-20",
+    "domain": "id",
+    "path": "table-wrap-foot/non-normative-note",
+    "element": "表注（无 id）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "68",
+    "pdfPage": 72,
+    "verifiedAgainstImage": true,
+    "irPath": "IRTable.notes[]",
+    "pmNode": "tableNoteRow",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "同上。详见 T。"
+  },
+  {
+    "id": "M-E-21",
+    "domain": "id",
+    "path": "fig-group/non-normative-note",
+    "element": "图组注",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "68",
+    "pdfPage": 72,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "not-applicable",
+    "status": "not-applicable",
+    "conventionRef": "C-S-37",
+    "notes": "附录 E 该行各列均为“—”。详见 T。"
+  },
+  {
+    "id": "M-E-22",
+    "domain": "id",
+    "path": "list, list-item",
+    "element": "列项的项（无 id）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "68",
+    "pdfPage": 72,
+    "verifiedAgainstImage": true,
+    "irPath": "IRList / IRList.items[]",
+    "pmNode": "stdList | stdListItem",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "“任何 <list> 或 <list-item> 中无 id 属性”（a)、1、A）。X-17。"
+  },
+  {
+    "id": "M-E-23",
+    "domain": "id",
+    "path": "non-normative-note",
+    "element": "注（无 id）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "68",
+    "pdfPage": 72,
+    "verifiedAgainstImage": true,
+    "irPath": "IRNote",
+    "pmNode": "note",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "“常规注中无 id 属性”，但 10.1.3 的交叉引用示例需要注有 id：建议仅被引用时输出 note_<n>（X-14，D-S-09）。"
+  },
+  {
+    "id": "M-E-24",
+    "domain": "id",
+    "path": "non-normative-example",
+    "element": "示例（无 id）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "68",
+    "pdfPage": 72,
+    "verifiedAgainstImage": true,
+    "irPath": "IRExample",
+    "pmNode": "example",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "“示例中无 id 属性”；被引用时同 X-14（X-15）。"
+  },
+  {
+    "id": "M-E-25",
+    "domain": "id",
+    "path": "p",
+    "element": "段（无 id 或其他属性）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "E",
+    "printedPage": "68",
+    "pdfPage": 72,
+    "verifiedAgainstImage": true,
+    "irPath": "IRParagraph",
+    "pmNode": "stdParagraph",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "“<p> 中无任何 id 或其他属性”（250 dpi 复核，150 dpi 下“无”字被遮）。第 5～10 章示例中的 p-125、p-490 等判为示例瑕疵。X-18。"
+  },
+  {
+    "id": "M-F-01",
+    "domain": "structure",
+    "path": "standard",
+    "element": "standard（根元素）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc",
+    "pmNode": "standardDoc",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-01",
+    "notes": "F 行 1：GB/T 37967 对应 basic_info，GB/T 22373、46687.1 无对应；basic_info 是旧格式特征（见第 6 节）。"
+  },
+  {
+    "id": "M-F-02",
+    "domain": "metadata",
+    "path": "ics",
+    "element": "ics",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.icsCode",
+    "pmNode": "standardDoc.attrs.icsCode",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-17",
+    "notes": "F 行 2：37967 ics；22373 ICS number；46687.1 ics。"
+  },
+  {
+    "id": "M-F-03",
+    "domain": "metadata",
+    "path": "ccs",
+    "element": "ccs",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.ccsCode",
+    "pmNode": "standardDoc.attrs.ccsCode",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-17",
+    "notes": "F 行 3：37967 ccs；22373 CCS number；46687.1 ccs。"
+  },
+  {
+    "id": "M-F-04",
+    "domain": "metadata",
+    "path": "release-date",
+    "element": "release-date（发布日期）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.publishDate",
+    "pmNode": "standardDoc.attrs.publishDate",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-12",
+    "notes": "F 行 4：37967 isd；22373 data of announcemenet（原文拼写）；46687.1 issue_date。"
+  },
+  {
+    "id": "M-F-05",
+    "domain": "metadata",
+    "path": "implementation-date",
+    "element": "（实施日期；表 F 本文件列为“—”）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.implementDate",
+    "pmNode": "standardDoc.attrs.implementDate",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-12",
+    "notes": "F 行 5：本文件“—”，37967 efd，22373 effective date，46687.1 implementation_date。与 4.3.2/表 C.1 行 40 的 implementation-date 冲突（C-S-12，D-S-01）。"
+  },
+  {
+    "id": "M-F-06",
+    "domain": "section",
+    "path": "sec[@sec-type=foreword]",
+    "element": "sec（前言）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.front.foreword[]",
+    "pmNode": "foreword",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-09",
+    "notes": "F 行 6：37967 preface。"
+  },
+  {
+    "id": "M-F-07",
+    "domain": "section",
+    "path": "sec[@sec-type=intro]",
+    "element": "sec（引言）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.front.introduction[]",
+    "pmNode": "introduction",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-10",
+    "notes": "F 行 7：37967 introduction。"
+  },
+  {
+    "id": "M-F-08",
+    "domain": "section",
+    "path": "sec[@sec-type=scope]",
+    "element": "sec（使用范围）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRChapter(secType='scope')",
+    "pmNode": "chapter",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-06",
+    "notes": "F 行 8：37967 scope；46687.1 scope。"
+  },
+  {
+    "id": "M-F-09",
+    "domain": "section",
+    "path": "sec[@sec-type=norm-refs]",
+    "element": "sec（规范性引用文件）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRChapter(secType='norm-refs')",
+    "pmNode": "chapter",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-24",
+    "notes": "F 行 9：37967 normativereference；条目结构缺口见 M-4.4.2.3-03。"
+  },
+  {
+    "id": "M-F-10",
+    "domain": "section",
+    "path": "app, app-group",
+    "element": "app、app-group（附录）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRAppendix",
+    "pmNode": "appendix",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-26",
+    "notes": "F 行 10：37967 appendix。"
+  },
+  {
+    "id": "M-F-11",
+    "domain": "reference",
+    "path": "ref-list",
+    "element": "ref-list（参考文献）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.bibliography[]",
+    "pmNode": "bibliography",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-27",
+    "notes": "F 行 11：37967 reference。"
+  },
+  {
+    "id": "M-F-12",
+    "domain": "term",
+    "path": "tbx:termEntry",
+    "element": "tbx:termEntry（术语条目）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRTermEntry",
+    "pmNode": "termDef",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "F 行 12：37967 t_item。详见 T（第 9 章）。"
+  },
+  {
+    "id": "M-F-13",
+    "domain": "term",
+    "path": "def, term, term-sec",
+    "element": "def、term、term-sec（术语定义）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRTermEntry.definition",
+    "pmNode": "termDefinition",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "F 行 13：37967 t_def。详见 T。"
+  },
+  {
+    "id": "M-F-14",
+    "domain": "text",
+    "path": "non-normative-note",
+    "element": "non-normative-note（注）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRNote",
+    "pmNode": "note",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-31",
+    "notes": "F 行 14：37967 t_note。"
+  },
+  {
+    "id": "M-F-15",
+    "domain": "table",
+    "path": "table, fig, fig-group",
+    "element": "table、fig、fig-group（图表）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRTable | IRFigure | IRFigure.groups[]",
+    "pmNode": "stdTable | figure | figureGroup",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "F 行 15：37967 pic。fig-group 只出现在 F 表，表 C.1 与 D.1 未列。详见 T。"
+  },
+  {
+    "id": "M-F-16",
+    "domain": "section",
+    "path": "sec",
+    "element": "sec（章条条目）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRChapter | IRClause",
+    "pmNode": "chapter | clause",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-23",
+    "notes": "F 行 16：37967 tech_item。"
+  },
+  {
+    "id": "M-F-17",
+    "domain": "metadata",
+    "path": "std-meta",
+    "element": "std-meta（元数据）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta",
+    "pmNode": "metadataBlock",
+    "export": "required",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-20",
+    "notes": "F 行 17 同时列有 std-doc-meta；它在附录 B（印刷页 54）说明“功能重叠，故仅保留 std-meta”，导出不用，导入拒绝（见 M-C-04，import: reject），已从本行 path/element 移出，以免与 reject 行矛盾（2026-10-21 主导人审查）。"
+  },
+  {
+    "id": "M-F-18",
+    "domain": "metadata",
+    "path": "std-ref",
+    "element": "std-ref（标准号）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.identifiers[].value",
+    "pmNode": "standardIdentifier.attrs.value",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-14",
+    "notes": "F 行 18：22373 document reference。"
+  },
+  {
+    "id": "M-F-19",
+    "domain": "metadata",
+    "path": "std-org, std-org-group",
+    "element": "std-org、std-org-group（标准组织描述）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.publishers[]",
+    "pmNode": "publisher",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-15",
+    "notes": "F 行 19：22373 announcing body；46687.1 issue_agencies、agency_id、agency_name、issue_agency。"
+  },
+  {
+    "id": "M-F-20",
+    "domain": "metadata",
+    "path": "version, edition, release-version",
+    "element": "version、edition、release-version（版本）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.identifiers[].parts[kind='version'|'edition']",
+    "pmNode": "identifierPart.attrs.kind",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-14",
+    "notes": "F 行 20：22373 edition。release-version（表 C.1 行 68，草案/生命周期阶段）无 IR 数据，不导出。"
+  },
+  {
+    "id": "M-F-21",
+    "domain": "metadata",
+    "path": "content-language",
+    "element": "content-language（语言）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "69",
+    "pdfPage": 73,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.languages[]",
+    "pmNode": "language",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-16",
+    "notes": "F 行 21：22373 text language。"
+  },
+  {
+    "id": "M-F-22",
+    "domain": "formula",
+    "path": "disp-formula, inline-formula",
+    "element": "disp-formula、inline-formula（公式）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "70",
+    "pdfPage": 74,
+    "verifiedAgainstImage": true,
+    "irPath": "IRFormula | IRInline.formula",
+    "pmNode": "formula | formulaInline",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-37",
+    "notes": "F 行 22：46687.1 formula。详见 T（第 7 章）。"
+  },
+  {
+    "id": "M-F-23",
+    "domain": "metadata",
+    "path": "permissions",
+    "element": "permissions（版权声明）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "70",
+    "pdfPage": 74,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.copyrights[]",
+    "pmNode": "copyright",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-19",
+    "notes": "原文表 F.1 笔误：F 行 23 写作 permission（缺 s），4.3.2、表 C.1 为 permissions；本行按 permissions 处理。46687.1 copyright。"
+  },
+  {
+    "id": "M-F-24",
+    "domain": "metadata",
+    "path": "title-wrap",
+    "element": "title-wrap（标准名称）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "70",
+    "pdfPage": 74,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.titleParts[]",
+    "pmNode": "titlePart",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-13",
+    "notes": "F 行 24：46687.1 en/cn。"
+  },
+  {
+    "id": "M-F-25",
+    "domain": "metadata",
+    "path": "std-ident",
+    "element": "std-ident（标准编号）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "70",
+    "pdfPage": 74,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.identifiers[]",
+    "pmNode": "standardIdentifier",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-14",
+    "notes": "原文表 F.1 笔误：F 行 25 与表 C.1 行 31 写作 std-indent，表 C.1 行 75 与 4.1、附录 G 为 std-ident；本行按 std-ident 处理。46687.1 std_id。"
+  },
+  {
+    "id": "M-F-26",
+    "domain": "metadata",
+    "path": "equivalence",
+    "element": "equivalence（一致性程度）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "70",
+    "pdfPage": 74,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.adoptions[]",
+    "pmNode": "adoption",
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": "C-S-18",
+    "notes": "F 行 26：46687.1 equivalence；本分片暂不导出（D-S-05）。"
+  },
+  {
+    "id": "M-F-27",
+    "domain": "metadata",
+    "path": "comm-ref",
+    "element": "comm-ref（委员会）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "F",
+    "printedPage": "70",
+    "pdfPage": 74,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.technicalCommittee",
+    "pmNode": "standardDoc.attrs.technicalCommittee",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-20",
+    "notes": "F 行 27：46687.1 entrust_entity_name。"
+  },
+  {
+    "id": "M-G-01",
+    "domain": "metadata",
+    "path": "std-meta/std-org",
+    "element": "std-org@std-org-type",
+    "attributes": [
+      {
+        "name": "std-org-type",
+        "values": [
+          "national"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "G",
+    "printedPage": "71",
+    "pdfPage": 75,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "gap-ir",
+    "conventionRef": "C-S-15",
+    "notes": "G 的 std-org 无 std-org-group、无 std-org-name，仅 std-org-abbrev=SAC；std-org-type 无 IR 字段，导入提示已忽略。"
+  },
+  {
+    "id": "M-G-02",
+    "domain": "metadata",
+    "path": "std-meta/std-ref",
+    "element": "std-ref",
+    "attributes": [
+      {
+        "name": "type",
+        "values": [
+          "dated"
+        ],
+        "obligation": "example-only"
+      },
+      {
+        "name": "type",
+        "values": [
+          "undated"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "G",
+    "printedPage": "71",
+    "pdfPage": 75,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.identifiers[].value（scheme=dated|undated）",
+    "pmNode": "standardIdentifier(scheme,value)",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-14",
+    "notes": "G：dated=GB/T 20000.3—2014，undated=GB/T 20000.3。导出：完整编号（含年号）写 dated，undated 仅在 IR 有显式标识时写。无 type 的 std-ref 属 std-xref 的内容（G 末尾，结构疑为排印错误）。"
+  },
+  {
+    "id": "M-G-03",
+    "domain": "metadata",
+    "path": "std-meta/comm-ref",
+    "element": "comm-ref",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "G",
+    "printedPage": "71",
+    "pdfPage": 75,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.technicalCommittee",
+    "pmNode": "standardDoc.attrs.technicalCommittee",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-20",
+    "notes": "示例 SAC/TC 286。"
+  },
+  {
+    "id": "M-G-04",
+    "domain": "metadata",
+    "path": "std-meta/secretariat",
+    "element": "secretariat",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "G",
+    "printedPage": "71",
+    "pdfPage": 75,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": "C-S-20",
+    "notes": "示例 TC 286；IR 无数据，不导出；导入提示已忽略。"
+  },
+  {
+    "id": "M-G-05",
+    "domain": "metadata",
+    "path": "std-meta/page-count",
+    "element": "page-count@count",
+    "attributes": [
+      {
+        "name": "count",
+        "values": [
+          "8"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "G",
+    "printedPage": "71",
+    "pdfPage": 75,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": "C-S-20",
+    "notes": "页数由排版产生，不是内容；不导出；导入提示已忽略。"
+  },
+  {
+    "id": "M-G-06",
+    "domain": "metadata",
+    "path": "std-meta/std-xref",
+    "element": "std-xref@type",
+    "attributes": [
+      {
+        "name": "type",
+        "values": [
+          "revises"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "G",
+    "printedPage": "71",
+    "pdfPage": 75,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.replacedStandards[].relation='revises'",
+    "pmNode": "replacedStandard(relation)",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-18",
+    "notes": "G 写成空元素 <std-xref type=\"revises\"/>，其后独立 <std-ref>（疑为排印错误）；表 C.1 行 83 说明 std-xref 用于命名相关标准。嵌套结构未核实。"
+  },
+  {
+    "id": "M-G-07",
+    "domain": "metadata",
+    "path": "std-meta/custom-meta-group/custom-meta",
+    "element": "custom-meta（price-ref-pages、issue-date）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "G",
+    "printedPage": "71",
+    "pdfPage": 75,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": "C-S-21",
+    "notes": "G 的日期以 custom-meta issue-date=2014-12-31 表达，std-meta 内无 release-date/implementation-date。导入不把 issue-date 映射为发布日期，提示已忽略。"
+  },
+  {
+    "id": "M-G-08",
+    "domain": "metadata",
+    "path": "std-meta/std-ident/doc-type",
+    "element": "doc-type=standard（G）",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "G",
+    "printedPage": "71",
+    "pdfPage": 75,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.meta.identifiers[].parts[kind='doc-type']",
+    "pmNode": "identifierPart",
+    "export": "optional",
+    "import": "accept",
+    "status": "mapped",
+    "conventionRef": "C-S-14",
+    "notes": "与 4.1 示例的 GB/T 不一致，导出取编号前缀；导入原样保存。"
+  },
+  {
+    "id": "M-C-01",
+    "domain": "metadata",
+    "path": "std-meta/proj-id",
+    "element": "proj-id",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "C",
+    "printedPage": "60",
+    "pdfPage": 64,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": null,
+    "notes": "表 C.1 行 64：项目编号；无示例，IR 无数据；不导出，导入提示已忽略。"
+  },
+  {
+    "id": "M-C-02",
+    "domain": "metadata",
+    "path": "std-meta/release-version",
+    "element": "release-version",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "C",
+    "printedPage": "60",
+    "pdfPage": 64,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": null,
+    "notes": "表 C.1 行 68：草案版本状态/生命周期阶段；IR 无数据（文档 stage 不属正文 IR）。"
+  },
+  {
+    "id": "M-C-03",
+    "domain": "metadata",
+    "path": "std-meta/doc-ref",
+    "element": "doc-ref",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "C",
+    "printedPage": "57",
+    "pdfPage": 61,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": null,
+    "notes": "表 C.1 行 28：预先构建的格式化引用；无示例，不导出。"
+  },
+  {
+    "id": "M-C-04",
+    "domain": "metadata",
+    "path": "std-doc-meta",
+    "element": "std-doc-meta",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "C",
+    "printedPage": "60",
+    "pdfPage": 64,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "reject",
+    "rejectKind": "format",
+    "status": "not-applicable",
+    "conventionRef": "C-S-20",
+    "notes": "表 C.1 行 73；附录 B（印刷页 54）：与 std-meta 功能重叠，仅保留 std-meta。导入拒绝。"
+  },
+  {
+    "id": "M-C-05",
+    "domain": "structure",
+    "path": "（表 C.1 缺项）",
+    "element": "named-content、inline-code、index-title-group、index-div、index-entry、see-entry、fig-group 未列入表 C.1",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "C",
+    "printedPage": "56",
+    "pdfPage": 60,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": null,
+    "notes": "表 C.1 共 119 行，title 重复两行（行 112、113）；正文使用的上述元素不在其中，表 C.1 不能当元素白名单。 issue-agencies（M-4.3.2-12）、col-group（M-5.8-02）同样不在表 C.1 中，但它们的 import 为 reject，已从本行 element 移出，以免与 reject 行矛盾（2026-10-21 主导人审查）。"
+  },
+  {
+    "id": "M-D-01",
+    "domain": "id",
+    "path": "（属性 @id）",
+    "element": "@id",
+    "attributes": [
+      {
+        "name": "id",
+        "values": [
+          "（无值域）"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "D",
+    "printedPage": "64",
+    "pdfPage": 68,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "required",
+    "import": "required",
+    "status": "not-applicable",
+    "conventionRef": "C-S-37",
+    "notes": "表 D.1 行 5：元素内部唯一标识符，在标准化文件中必须是唯一的；备注“<target> 标签的必备属性”（target 元素不在表 C.1）。"
+  },
+  {
+    "id": "M-D-02",
+    "domain": "reference",
+    "path": "back/ref-list/@content-type",
+    "element": "ref-list",
+    "attributes": [
+      {
+        "name": "content-type",
+        "values": [
+          "bibl"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "D",
+    "printedPage": "64",
+    "pdfPage": 68,
+    "verifiedAgainstImage": true,
+    "irPath": "IRDoc.bibliography[]",
+    "pmNode": "bibliography",
+    "export": "required",
+    "import": "required",
+    "status": "mapped",
+    "conventionRef": "C-S-27",
+    "notes": "表 D.1 行 3 值域只列 bibl、index；本行宿主定为 ref-list（参考文献清单，取值 bibl，见 M-4.5.3-01；规范性引用文件清单取 norm-refs，见 M-4.4.2.3-02）。index 在原文中没有宿主依据（4.5.4 示例的 index 元素不带 content-type），schema 不收，已删除（2026-10-21 主导人审查）。正文还使用 informative、normative（app）、variable（named-content）、warning、dimension、disp_table、image 等，D 表不完整。"
+  },
+  {
+    "id": "M-D-03",
+    "domain": "list",
+    "path": "（属性 @list-type）",
+    "element": "@list-type",
+    "attributes": [
+      {
+        "name": "list-type",
+        "values": [
+          "simple",
+          "bullet",
+          "dash",
+          "symbol"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "D",
+    "printedPage": "64",
+    "pdfPage": 68,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "required",
+    "import": "required",
+    "status": "not-applicable",
+    "conventionRef": "C-S-32",
+    "notes": "表 D.1 行 7；第 5.7 节另给 alpha-lower、arabic、roman-lower。"
+  },
+  {
+    "id": "M-D-04",
+    "domain": "section",
+    "path": "（属性 @sec-type）",
+    "element": "@sec-type",
+    "attributes": [
+      {
+        "name": "sec-type",
+        "values": [
+          "任意值"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "D",
+    "printedPage": "65",
+    "pdfPage": 69,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "required",
+    "import": "required",
+    "status": "not-applicable",
+    "conventionRef": "C-S-06",
+    "notes": "表 D.1 行 13：sec、term-sec 的可选属性。"
+  },
+  {
+    "id": "M-D-05",
+    "domain": "text",
+    "path": "（属性 @specific-use）",
+    "element": "@specific-use",
+    "attributes": [
+      {
+        "name": "specific-use",
+        "values": [
+          "source"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "D",
+    "printedPage": "65",
+    "pdfPage": 69,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "optional",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": "C-S-35",
+    "notes": "表 D.1 行 14：值域空；5.9 用 source。"
+  },
+  {
+    "id": "M-D-06",
+    "domain": "text",
+    "path": "（属性 @style-type）",
+    "element": "@style-type",
+    "attributes": [
+      {
+        "name": "style-type",
+        "values": [
+          "align-left",
+          "align-right",
+          "align-center"
+        ],
+        "obligation": "example-only"
+      }
+    ],
+    "obligation": "example-only",
+    "clause": "D",
+    "printedPage": "65",
+    "pdfPage": 69,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "accept",
+    "status": "not-applicable",
+    "conventionRef": null,
+    "notes": "表 D.1 行 16：p、style-content 的可选属性；10.1.9 示例 <p style-type=\"align-center\">。附录 E 称 p 无其他属性，导出不写 p 属性；导入忽略并提示。"
+  },
+  {
+    "id": "M-D-07",
+    "domain": "text",
+    "path": "（属性 @xlink:href / @rid / @ref-type / @target 及表格类属性）",
+    "element": "@xlink:href、@rid、@ref-type、@target、@align、@valign、@colspan、@rowspan、@frame、@rules、@style、@width、@orientation",
+    "attributes": [],
+    "obligation": "example-only",
+    "clause": "D",
+    "printedPage": "64",
+    "pdfPage": 68,
+    "verifiedAgainstImage": true,
+    "irPath": null,
+    "pmNode": null,
+    "export": "not-applicable",
+    "import": "not-applicable",
+    "status": "not-applicable",
+    "conventionRef": null,
+    "notes": "详见 T（第 6、8、10 章）。"
+  }
+]

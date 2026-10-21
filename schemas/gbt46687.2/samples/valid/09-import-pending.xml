@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  格式上合法、但导入器暂时无法保存的写法（支持矩阵 import: reject 且 rejectKind=implementation）：
+  引言中的条（M-4.3.4-02/03）、5.8 的 array（M-5.8-01、M-C.1-04）、disp-formula-group（M-C.1-05）、
+  同一脚注被多处引用（M-10.1.8-04）。schema 接受它们（schema 描述标准，不是当前实现能力），
+  validate.py 只给出 W-IMPL-REJECT / W-FN-MULTIREF 告警，不算格式错误。
+-->
+<standard xmlns:xlink="http://www.w3.org/1999/xlink"
+          xmlns:mml="http://www.w3.org/1998/Math/MathML"
+          xmlns:tbx="urn:iso:std:iso:30042:ed-1">
+  <front>
+    <std-meta>
+      <title-wrap xml:lang="zh">
+        <full>导入暂拒的写法</full>
+      </title-wrap>
+    </std-meta>
+    <sec id="sec_0" sec-type="intro">
+      <title>引言</title>
+      <p>引言可以含条。</p>
+      <sec id="sec_0.1">
+        <label>0.1</label>
+        <title>综述</title>
+        <p>引言中的有标题条。</p>
+        <sec id="sec_0.1.1">
+          <label>0.1.1</label>
+          <title>更深一层</title>
+          <p>引言中的条可以再分条（M-4.3.4-03 的 sec_0.1.1）。</p>
+        </sec>
+      </sec>
+    </sec>
+  </front>
+  <body>
+    <sec id="sec_1" sec-type="scope">
+      <label>1</label>
+      <title>范围</title>
+      <p>脚注<xref ref-type="fn" rid="fn_1">1)</xref>被引用两次<xref ref-type="fn" rid="fn_1">1)</xref>。<fn id="fn_1"><label>1)</label><p>脚注内容。</p></fn></p>
+      <array>
+        <table>
+          <colgroup>
+            <col width="40%" align="center"/>
+            <col width="60%" align="left"/>
+          </colgroup>
+          <tbody>
+            <tr>
+              <td>甲</td>
+              <td>按列对齐的文本</td>
+            </tr>
+          </tbody>
+        </table>
+      </array>
+      <disp-formula-group id="formula_1">
+        <label>(1)</label>
+        <disp-formula>
+          <mml:math display="block" id="mml_m1">
+            <mml:mi>a</mml:mi><mml:mo>=</mml:mo><mml:mn>1</mml:mn>
+          </mml:math>
+        </disp-formula>
+        <disp-formula>
+          <mml:math display="block" id="mml_m2">
+            <mml:mi>b</mml:mi><mml:mo>=</mml:mo><mml:mn>2</mml:mn>
+          </mml:math>
+        </disp-formula>
+      </disp-formula-group>
+    </sec>
+  </body>
+</standard>

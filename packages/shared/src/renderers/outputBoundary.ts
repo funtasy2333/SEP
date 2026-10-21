@@ -13,8 +13,11 @@ export interface OutputSupportProblem {
   message: string
 }
 
-/** Current print renderers' explicit consumption contract. New authoring fields must not vanish silently. */
-const FIELDS: Record<string, ReadonlySet<string>> = Object.fromEntries(Object.entries({
+/** 输出边界检查的目标格式。 */
+export type OutputBoundaryFormat = 'DOCX' | 'HTML' | 'XML' | 'XML46687'
+
+/** Shared field contract of every format. New authoring fields must not vanish silently. */
+const BASE_FIELDS: Record<string, ReadonlySet<string>> = Object.fromEntries(Object.entries({
   doc: ['schemaVersion', 'extensionVersion', 'meta', 'front', 'body', 'appendices', 'bibliography', 'unsupportedContent', 'unmappedFootnotes'],
   // applicant is an editor-maintained legacy field: XML front does not carry it, and XML import
   // deliberately retains the current editor metadata. Keep that established XML export contract.
@@ -43,7 +46,7 @@ const FIELDS: Record<string, ReadonlySet<string>> = Object.fromEntries(Object.en
   mark: ['type', 'id', 'targetId', 'targetKind'],
   unmappedFootnote: ['container', 'nodeId', 'content', 'reason'],
 }).map(([key, values]) => [key, new Set(values)]))
-const PRINT_META_FIELDS = new Set(['proposer', 'technicalCommittee'])
+const PRINT_META_FIELDS = ['proposer', 'technicalCommittee']
 const MARKS = new Set(['bold', 'italic', 'underline', 'sub', 'sup', 'crossRef', 'tableFootnoteRef'])
 /**
  * 行内公式只开放给正文类位置（docs/phase7-inline-formula.md）：段落内容（注、示例、单元格、列项、术语定义
@@ -51,6 +54,32 @@ const MARKS = new Set(['bold', 'italic', 'underline', 'sub', 'sup', 'crossRef', 
  * 书签和引用文字，暂不放开。值为「行内数组所属容器」：父对象的 kind（无 kind 时为 shape）与字段名。
  */
 const INLINE_FORMULA_CONTAINERS = new Set(['paragraph.content', 'where.term', 'where.definition', 'footnote.content'])
+
+/** Fields a format consumes in addition to BASE_FIELDS (kind -> extra fields). */
+const NO_EXTRA_FIELDS: Readonly<Record<string, readonly string[]>> = {}
+const EXTRA_FIELDS: Record<OutputBoundaryFormat, Readonly<Record<string, readonly string[]>>> = {
+  DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'] },
+  HTML: { meta: PRINT_META_FIELDS },
+  XML: NO_EXTRA_FIELDS,
+  // XML46687 的允许表、marks 与特殊检查目前与 XML 完全相同；WP8.1 支持矩阵确定后，在 WP8.2 再放开。
+  XML46687: NO_EXTRA_FIELDS,
+}
+
+function buildFields(format: OutputBoundaryFormat): Record<string, ReadonlySet<string>> {
+  const extra = EXTRA_FIELDS[format]
+  return Object.fromEntries(Object.entries(BASE_FIELDS).map(([kind, base]) => [
+    kind, Object.prototype.hasOwnProperty.call(extra, kind) ? new Set([...base, ...extra[kind]!]) : base,
+  ]))
+}
+const FIELDS_BY_FORMAT: Record<OutputBoundaryFormat, Record<string, ReadonlySet<string>>> = {
+  DOCX: buildFields('DOCX'), HTML: buildFields('HTML'), XML: buildFields('XML'), XML46687: buildFields('XML46687'),
+}
+const MARKS_BY_FORMAT: Record<OutputBoundaryFormat, ReadonlySet<string>> = { DOCX: MARKS, HTML: MARKS, XML: MARKS, XML46687: MARKS }
+
+function fieldsFor(format: OutputBoundaryFormat): Record<string, ReadonlySet<string>> { return FIELDS_BY_FORMAT[format] }
+function marksFor(format: OutputBoundaryFormat): ReadonlySet<string> { return MARKS_BY_FORMAT[format] }
+/** XML-family formats share the legacy-XML header-row check. */
+function isXmlFormat(format: OutputBoundaryFormat): boolean { return format === 'XML' || format === 'XML46687' }
 
 function present(value: unknown): boolean {
   return value !== undefined && value !== null && value !== ''
@@ -80,7 +109,9 @@ function formulaSourceHasUnrenderedData(source: unknown, latex: unknown): boolea
   return typeof latex !== 'string' || text !== latex.trim()
 }
 
-export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | 'XML'): OutputSupportProblem[] {
+export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryFormat): OutputSupportProblem[] {
+  const fields = fieldsFor(format)
+  const marks = marksFor(format)
   const problems: OutputSupportProblem[] = (doc.unsupportedContent ?? []).map(issue => ({
     code: 'unsupported-output', nodeId: issue.nodeId ?? undefined, path: issue.path,
     message: `${format} 不能输出 ${issue.path}（${issue.nodeType}）：${issue.reason}。请保留 JSON 文档。`,
@@ -108,7 +139,7 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
         })
       }
     }
-    const allowed = Object.prototype.hasOwnProperty.call(FIELDS, kind) ? FIELDS[kind] : undefined
+    const allowed = Object.prototype.hasOwnProperty.call(fields, kind) ? fields[kind] : undefined
     const report = (field: string) => problems.push({
       code: 'unsupported-output', nodeId: id, path: `${path}.${field}`,
       message: `${format} 暂未支持此信息：${path}.${field}${id ? `（节点 ${id}）` : ''}。请保留 JSON 文档。`,
@@ -147,7 +178,7 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
     }
     if (!allowed) { report('kind'); return }
     for (const [key, child] of Object.entries(object)) {
-      if (kind === 'table' && key === 'headerRowCount' && format === 'XML'
+      if (kind === 'table' && key === 'headerRowCount' && isXmlFormat(format)
         && typeof child === 'number' && child !== inferredLegacyHeaderRowCount(object.rows)) {
         report(key)
         continue
@@ -156,14 +187,13 @@ export function getOutputSupportProblems(doc: IRDoc, format: 'DOCX' | 'HTML' | '
         report(key)
         continue
       }
-      if (!allowed.has(key) && !(kind === 'meta' && format !== 'XML' && PRINT_META_FIELDS.has(key))
-        && !(kind === 'cell' && format === 'DOCX' && key === 'columnWidths')) {
+      if (!allowed.has(key)) {
         if (present(child)) report(key)
         continue
       }
-      if (kind === 'mark' && key === 'type' && !MARKS.has(String(child))) { report(key); continue }
+      if (kind === 'mark' && key === 'type' && !marks.has(String(child))) { report(key); continue }
       if (shape === 'inline' && key === 'formula' && present(child)) {
-        if (format === 'XML') { report(key); continue }
+        if (isXmlFormat(format)) { report(key); continue }
         if (container === undefined || !INLINE_FORMULA_CONTAINERS.has(container)) {
           problems.push({
             code: 'unsupported-output', nodeId: id, path: `${path}.${key}`,
@@ -230,7 +260,7 @@ export class UnsupportedOutputError extends Error {
   }
 }
 
-export function assertOutputSupported(doc: IRDoc, format: 'DOCX' | 'HTML' | 'XML'): void {
+export function assertOutputSupported(doc: IRDoc, format: OutputBoundaryFormat): void {
   const problems = getOutputSupportProblems(doc, format)
   if (problems.length) throw new UnsupportedOutputError(problems)
 }

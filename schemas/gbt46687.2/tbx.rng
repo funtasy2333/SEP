@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ses-gbt46687-2 / tbx.rng  —  术语条目（第 9 章，TBX 子集）
+  版本 0.1.0  ·  项目实现约定，非官方（见 ses-gbt46687-2.rng 文件头）
+
+  依据：9.1、9.2.1～9.2.9、附录 C（tbx:* 行 91～104）、附录 E。命名空间 urn:iso:std:iso:30042:ed-1，前缀 tbx。
+  约定：C-T-36～C-T-47。矩阵行：M-9.x、M-C.1-06～09、M-B.1-01、M-E-08/09、M-F-12/13。
+
+  本模块只描述第 9 章示例与说明实际用到的 TBX 子集，不是 ISO 30042 TBX 的完整 schema（原文只给了
+  https://www.iso.org/schema/nisosts/v0.2/doc/tbx/index.html 的说明页，没有给 schema）。tbx: 元素的内容模型与取值枚举以
+  NISO STS 1.2 DTD 声明的 tbx: 元素为准（sts_compat.py 兼容检查已对照）。
+
+  拒绝项（矩阵 import: reject，不在 schema 中）：tbx:see（M-C.1-09）、tbx:definition/@target（M-C.1-08）、
+  tbx:source 内的 std（M-9.2.8-02）、嵌套 tbx:termEntry（M-9.1-03）、tbx:normativeAuthorization 的 *-admn-sts 取值（M-9.2.3-06）、
+  term-display（M-B.1-01）。
+
+  [仅导入接受] 的异写元素名：tbx:normativeAuthentication（9.2.3 印刷页 37 三处文字，已由主导人对照原图确认真实出现，C-T-39）。
+  主导人 2026-10-21 决定删除其余四个异写元素名 tbx:term-entry、tbx:Definition、tbx:normative-Authorization、tbx:grammatical-Number：
+  前两者只出现在说明文字、示例代码从未使用，后两者疑为附录 C 断行产生的假象；它们现在不在 schema 中，
+  validate.py 的 REJECT 规则报“疑为原文笔误”。
+  与 NISO STS 1.2 的对照见 scripts/xml46687/sts_compat.py 与 README“46687.2 相对 STS 1.2 的偏差”。
+-->
+<grammar xmlns="http://relaxng.org/ns/structure/1.0"
+         ns=""
+         datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+
+  <!--
+    tbx:termEntry：id 用 term_<编号>（用户决定 3A D-S-12；附录 E 的 te_ 不采用，但导入时 id 不透明，故不在此限定前缀）。
+    至少一个 langSet；term-sec 内恰一个 termEntry（见 body.rng）。
+  -->
+  <define name="el.tbx-termEntry">
+    <element name="termEntry" ns="urn:iso:std:iso:30042:ed-1">
+      <ref name="attr.id"/>
+      <oneOrMore><ref name="el.tbx-langSet"/></oneOrMore>
+    </element>
+  </define>
+
+  <!--
+    tbx:langSet：xml:lang 必备（V-6 同类，C-T-43）。内部顺序各示例不同，导入顺序任意（interleave）：
+    STS 1.2 要求描述性元素（subjectField、definition、example、note、source）都在 tig 之前，而 9.2.3 示例 2（印刷页 37）把
+    tbx:note 写在 tig 之后，原文明确写法与 STS 冲突，以原文为准（46687.2 相对 STS 1.2 的偏差，见 README 偏差表）。
+    SES 约定：条目级的 subjectField/definition/example/note/source 写入第一个 langSet，其他 langSet 只含 tig。
+    “每个术语条目必须有且仅有一个定义”（附录 C 行 92）是跨 langSet 的约束，由 validate.py V-9 检查；
+    schema 只限每个 langSet 至多一个 definition。
+  -->
+  <define name="el.tbx-langSet">
+    <element name="langSet" ns="urn:iso:std:iso:30042:ed-1">
+      <ref name="attr.xml-lang.req"/>
+      <interleave>
+        <zeroOrMore><ref name="el.tbx-subjectField"/></zeroOrMore>
+        <optional><ref name="el.tbx-definition"/></optional>
+        <zeroOrMore><ref name="el.tbx-example"/></zeroOrMore>
+        <zeroOrMore><ref name="el.tbx-note"/></zeroOrMore>
+        <zeroOrMore><ref name="el.tbx-source"/></zeroOrMore>
+        <oneOrMore><ref name="el.tbx-tig"/></oneOrMore>
+      </interleave>
+    </element>
+  </define>
+
+  <!-- tbx:subjectField：9.2.9，术语“领域”（附加标点〈 〉在渲染阶段添加，内容不含）。gap-both 项。 -->
+  <define name="el.tbx-subjectField">
+    <element name="subjectField" ns="urn:iso:std:iso:30042:ed-1">
+      <text/>
+    </element>
+  </define>
+
+  <!--
+    tbx:definition：9.2.2。只含行内内容（可含 break、entailedTerm、xref），多段用 break 连接（D-T-07）。
+  -->
+  <define name="cm.tbx-inline">
+    <zeroOrMore>
+      <choice>
+        <text/>
+        <ref name="inline.any"/>
+        <ref name="el.tbx-entailedTerm"/>
+      </choice>
+    </zeroOrMore>
+  </define>
+  <define name="el.tbx-definition">
+    <element name="definition" ns="urn:iso:std:iso:30042:ed-1">
+      <ref name="cm.tbx-inline"/>
+    </element>
+  </define>
+
+  <!-- tbx:example：9.2.4，内容不含“示例：”字样与编号（渲染时生成）。 -->
+  <define name="el.tbx-example">
+    <element name="example" ns="urn:iso:std:iso:30042:ed-1">
+      <ref name="cm.tbx-inline"/>
+    </element>
+  </define>
+
+  <!-- tbx:note：9.2.5，内容不含“注”字样；注内可含 xref（9.2.7 示例）。id 只在被引用时出现，形式 nte_<术语号>-<k>（X-13）。 -->
+  <define name="el.tbx-note">
+    <element name="note" ns="urn:iso:std:iso:30042:ed-1">
+      <ref name="attr.id"/>
+      <ref name="cm.tbx-inline"/>
+    </element>
+  </define>
+
+  <!-- tbx:source：9.2.8，纯文本（标准号原样，如 “GB/T 20000.1—2014,5.2”），其内不加 std。 -->
+  <define name="el.tbx-source">
+    <element name="source" ns="urn:iso:std:iso:30042:ed-1">
+      <text/>
+    </element>
+  </define>
+
+  <!--
+    tbx:entailedTerm：9.2.6。target 指向被引用 termEntry 的 id（V-1 检查可解析）。
+    原文文字称只能作为 termEntry 的子标签，示例却全部放在 definition 内（F-T-12），取示例。
+  -->
+  <define name="el.tbx-entailedTerm">
+    <element name="entailedTerm" ns="urn:iso:std:iso:30042:ed-1">
+      <attribute name="target"><data type="NCName"/></attribute>
+      <ref name="cm.inline"/>
+    </element>
+  </define>
+
+  <!--
+    tbx:tig：9.2.3。每个术语及其描述性元素一个 tig；tbx:term 为术语本身。
+    描述符（词性、采用级别、术语类型、语法数）必选性原文自相矛盾（C-T-40，F-T-09），均不强制出现，数据驱动、不伪造。
+    顺序 term、partOfSpeech、grammaticalNumber、normativeAuthorization、termType（STS 1.2 的顺序；原文示例
+    只出现 partOfSpeech→normativeAuthorization→termType，与之一致，grammaticalNumber 原文无示例，按 STS 插在词性之后）。
+    原先 C-T-40 约定的导出顺序（grammaticalNumber 在最后）无原文依据，改为 STS 顺序。
+  -->
+  <define name="el.tbx-tig">
+    <element name="tig" ns="urn:iso:std:iso:30042:ed-1">
+      <ref name="el.tbx-term"/>
+      <optional><ref name="el.tbx-partOfSpeech"/></optional>
+      <optional><ref name="el.tbx-grammaticalNumber"/></optional>
+      <optional><ref name="el.tbx-normativeAuthorization"/></optional>
+      <optional><ref name="el.tbx-termType"/></optional>
+    </element>
+  </define>
+
+  <define name="el.tbx-term">
+    <element name="term" ns="urn:iso:std:iso:30042:ed-1">
+      <ref name="cm.inline"/>
+    </element>
+  </define>
+
+  <!--
+    tbx:partOfSpeech：9.2.3，value 取 noun/verb/adj/adv。原文写“可选值包括”，STS 1.2 的 DTD 把该属性枚举为这四值，
+    故据 STS 收紧为枚举（原先的“其他值保留并告警”取消）。
+  -->
+  <define name="el.tbx-partOfSpeech">
+    <element name="partOfSpeech" ns="urn:iso:std:iso:30042:ed-1">
+      <attribute name="value">
+        <choice><value>noun</value><value>verb</value><value>adj</value><value>adv</value></choice>
+      </attribute>
+      <empty/>
+    </element>
+  </define>
+
+  <!--
+    tbx:normativeAuthorization：采用级别，value 三值 preferredTerm / admittedTerm / deprecatedTerm（9.2.3，C-T-39）。
+    *-admn-sts 之类取值全文未出现，不接受（M-9.2.3-06）。
+    [仅导入接受] 元素名异写 normativeAuthentication（9.2.3 印刷页 37 三处文字，主导人对照原图确认；STS 1.2 没有该元素名，
+    sts_compat.py 把它按 normativeAuthorization 处理）。
+  -->
+  <define name="el.tbx-normativeAuthorization">
+    <element>
+      <choice>
+        <name ns="urn:iso:std:iso:30042:ed-1">normativeAuthorization</name>
+        <name ns="urn:iso:std:iso:30042:ed-1">normativeAuthentication</name>
+      </choice>
+      <attribute name="value">
+        <choice><value>preferredTerm</value><value>admittedTerm</value><value>deprecatedTerm</value></choice>
+      </attribute>
+      <empty/>
+    </element>
+  </define>
+
+  <!-- tbx:termType：9.2.3，value 四值 fullForm（默认，可省）/ abbreviation / symbol / formula；每个术语至多一个。 -->
+  <define name="el.tbx-termType">
+    <element name="termType" ns="urn:iso:std:iso:30042:ed-1">
+      <attribute name="value">
+        <choice>
+          <value>fullForm</value><value>abbreviation</value><value>symbol</value><value>formula</value>
+        </choice>
+      </attribute>
+      <empty/>
+    </element>
+  </define>
+
+  <!--
+    tbx:grammaticalNumber：9.2.3，指示单数或复数，仅限名词，原文无示例与取值表（C-T-40）。
+    取值取 STS 1.2 的枚举 singular/plural（DTD 给出的确定取值，原文未另行规定）。
+  -->
+  <define name="el.tbx-grammaticalNumber">
+    <element name="grammaticalNumber" ns="urn:iso:std:iso:30042:ed-1">
+      <attribute name="value"><choice><value>singular</value><value>plural</value></choice></attribute>
+      <empty/>
+    </element>
+  </define>
+
+</grammar>

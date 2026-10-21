@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ses-gbt46687-2 / refs.rng  —  引用与脚注（第 10 章）、标准化文件引用、参考文献/规范性引用文件清单
+  版本 0.1.0  ·  项目实现约定，非官方（见 ses-gbt46687-2.rng 文件头）
+
+  依据：4.4.2.3（规范性引用文件）、4.5.3（参考文献）、10.1.1～10.1.9、10.2、表 D.1 行 9/10/20。
+  矩阵行：M-10.1.x、M-4.4.2.3-0x、M-4.5.3-0x、M-4.5.3.1-0x、M-4.5.3.3-0x、M-10.2-0x、M-10.1.7-01、M-6.2.3-10/11 等。
+-->
+<grammar xmlns="http://relaxng.org/ns/structure/1.0"
+         ns=""
+         datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+
+  <!--
+    xref（10.1.1～10.1.8）。
+    ref-type 全集 13 个：10.1.1 清单 10 个 + 附录 D 行 9 的 chem、list + 缩略语示例的 other（C-T-48、表 6-A）。
+      abbreviation app bibr custom disp-formula fig fn sec table table-fn   （10.1.1）
+      chem list                                                            （附录 D 行 9）
+      other                                                                （10.1.4 示例，[仅导入接受]：按目标类型归类）
+    custom-type 仅与 ref-type="custom" 共现：term-entry（9.2.6）、note / example（10.1.3）。
+    custom-type 在结构层保持可选（10.1.1 称“可选”，第三方文件缺它仍应可导入）；validate.py V-8 对 custom 一律检查目标
+    （术语条目、注、示例之一，有 custom-type 时须一致），缺 custom-type 时 export 档错误、import 档告警（导入器按 rid 目标推断）。
+    rid：附录 D 行 10 允许一个或多个标识符；导入只接受单个（G-T-15），validate.py 对多个 rid 告警。
+    内容：Resolver 的 refText（纯文本）；示例中还出现 bold（9.2.6）、label>sup（10.1.8）。
+    内容模型取 STS 1.2 的 xref：文本 + 格式 + 变量/代码 + 行内图（cm.phrase 一类）；另收 label（10.1.8 示例，STS 没有，列入偏差表）。
+  -->
+  <define name="el.xref">
+    <element name="xref">
+      <choice>
+        <group>
+          <attribute name="ref-type"><value>custom</value></attribute>
+          <optional>
+            <attribute name="custom-type">
+              <choice><value>term-entry</value><value>note</value><value>example</value></choice>
+            </attribute>
+          </optional>
+        </group>
+        <attribute name="ref-type">
+          <choice>
+            <value>abbreviation</value>
+            <value>app</value>
+            <value>bibr</value>
+            <value>disp-formula</value>
+            <value>fig</value>
+            <value>fn</value>
+            <value>sec</value>
+            <value>table</value>
+            <value>table-fn</value>
+            <value>list</value>
+            <!-- [仅导入接受] 附录 D 行 9 有、10.1.1 无：无类型语义，告警 -->
+            <value>chem</value>
+            <!-- [仅导入接受] 10.1.4 示例写作 other，应按目标元素归类为 abbreviation -->
+            <value>other</value>
+          </choice>
+        </attribute>
+      </choice>
+      <attribute name="rid">
+        <list><oneOrMore><data type="NCName"/></oneOrMore></list>
+      </attribute>
+      <zeroOrMore>
+        <choice>
+          <text/>
+          <ref name="inline.phrase"/>
+          <!-- 10.1.8 示例：<xref><label><sup>1)</sup></label></xref>（label 不在 DTD 的 xref 内容中，见 README 偏差表） -->
+          <element name="label"><ref name="cm.phrase"/></element>
+        </choice>
+      </zeroOrMore>
+    </element>
+  </define>
+
+  <!-- ext-link：10.1.9。ext-link-type="uri"；示例缺该属性（笔误），导入接受缺省；其他取值告警（C-T-56）。 -->
+  <define name="el.ext-link">
+    <element name="ext-link">
+      <optional>
+        <attribute name="ext-link-type">
+          <choice>
+            <value>uri</value>
+            <data type="token"><except><value>uri</value></except></data>
+          </choice>
+        </attribute>
+      </optional>
+      <ref name="attr.xlink-href.req"/>
+      <ref name="attr.xlink-type"/>
+      <ref name="cm.phrase"/>
+    </element>
+  </define>
+
+  <!-- uri：4.5.3.3，参考文献中的网址；xlink:type="simple" 仅示例。 -->
+  <define name="el.uri">
+    <element name="uri">
+      <ref name="attr.xlink-type"/>
+      <text/>
+    </element>
+  </define>
+
+  <!--
+    fn：脚注（10.1.8、6.2.3）。内含 label（可含 sup）与 p。
+    表脚注放 table-wrap-foot 内（C-T-02）；正文脚注的定义位置原文没有规定（D-T-10，待 WP8.M 决定），
+    此处两种都收：作为行内元素出现在 p 内（STS 1.2 允许），也作为块（见 body.rng 的 block.any；STS 1.2 的 sec 内容不含 fn，
+    属 46687.2 范围内的待决扩展，见 README 偏差表）。
+    注：fn-group 在支持矩阵中为 import: reject（M-10.1.8-05），不在 schema 中。
+  -->
+  <define name="el.fn">
+    <element name="fn">
+      <ref name="attr.id"/>
+      <optional><ref name="el.label"/></optional>
+      <oneOrMore><ref name="el.p"/></oneOrMore>
+    </element>
+  </define>
+
+  <!--
+    std：标准化文件引用（4.4.2.3.2、4.5.3.1、10.1.7、10.2）。
+    内容：std-ref 与 title；示例中两者之间有逗号文本节点（有的示例没有），故取混合内容（C-S-24、C-T-54）。
+    正文内联引用只有 std-ref（10.2 示例）。tbx:source 内不加 std（9.2.8，M-9.2.8-02 为 reject）。
+  -->
+  <define name="el.std">
+    <element name="std">
+      <zeroOrMore>
+        <choice>
+          <text/>
+          <ref name="el.std-ref"/>
+          <ref name="el.title"/>
+        </choice>
+      </zeroOrMore>
+    </element>
+  </define>
+
+  <!--
+    std-ref：标准编号。type="dated"/"undated" 只出现在 std-meta 内（附录 G）。
+    表 C.1 另有 std-ref 内含 edition（M-C.1-10，[仅导入接受]）。
+  -->
+  <define name="el.std-ref">
+    <element name="std-ref">
+      <optional>
+        <attribute name="type"><choice><value>dated</value><value>undated</value></choice></attribute>
+      </optional>
+      <zeroOrMore>
+        <choice>
+          <text/>
+          <ref name="el.edition"/>
+        </choice>
+      </zeroOrMore>
+    </element>
+  </define>
+
+  <!--
+    mixed-citation：非标准化文件，“以其原有格式”（4.4.2.3.2、4.5.3.2、10.1.7）。
+    可含 break（换行）、uri（网址）与行内格式；正文内联亦可（M-10.1.7-01，[导入接受]）。
+    属性 id（表 C.1 行 53）、xlink:type="simple"（4.5.3.3 示例）。
+  -->
+  <define name="el.mixed-citation">
+    <element name="mixed-citation">
+      <ref name="attr.id"/>
+      <ref name="attr.xlink-type"/>
+      <ref name="cm.citation"/>
+    </element>
+  </define>
+
+  <!--
+    ref-list：
+      参考文献：content-type="bibl"，id=sec_bibl（4.5.3.1，C-S-27）；
+      规范性引用文件清单：位于 sec[@sec-type="norm-refs"] 内，content-type="norm-refs"（4.4.2.3.1，C-S-24）。
+    [仅导入接受] content-type="bibr"（10.1.6 示例 2，疑似排印错误）、"norm_refs"（4.4.2.3.2 示例，下划线）。
+    表 D.1 行 3 另列 content-type="index"，用于 index，不用于 ref-list。
+  -->
+  <define name="el.ref-list">
+    <element name="ref-list">
+      <ref name="attr.id"/>
+      <attribute name="content-type">
+        <choice>
+          <value>bibl</value>
+          <value>norm-refs</value>
+          <!-- [仅导入接受] -->
+          <value>bibr</value>
+          <value>norm_refs</value>
+        </choice>
+      </attribute>
+      <optional><ref name="el.label"/></optional>
+      <optional><ref name="el.title"/></optional>
+      <zeroOrMore><ref name="el.ref"/></zeroOrMore>
+    </element>
+  </define>
+
+  <!--
+    ref：id 为 biblref_<N>（有 label 的参考文献）或 ref_<N>（无 label 的规范性引用条目，X-10，未核实）。
+    每条含一个 std 或一个 mixed-citation（4.5.3.1）。label 含方括号，如 “[1]”。
+  -->
+  <define name="el.ref">
+    <element name="ref">
+      <ref name="attr.id"/>
+      <optional><ref name="el.label"/></optional>
+      <choice>
+        <ref name="el.std"/>
+        <ref name="el.mixed-citation"/>
+      </choice>
+    </element>
+  </define>
+
+</grammar>

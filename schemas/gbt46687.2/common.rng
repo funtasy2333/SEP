@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ses-gbt46687-2 / common.rng  —  公共属性、数据类型与行内内容模型
+  版本 0.1.0  ·  项目实现约定，非官方（见 ses-gbt46687-2.rng 文件头）
+
+  依据（GB/T 46687.2—2026）：5.1（行内格式仅限七种）、5.4（UTF-8）、5.5（变量符号 named-content）、
+  5.10（代码）、5.2（label/title）、表 D.1（属性）。矩阵行 M-5.1-01～07、M-5.5-01/02、M-5.10-01/02、M-5.2-01/02。
+
+  本模块不含 <start>，由主文件 include。
+  记号：[仅导入接受] = 约定表“导入接受范围”中的异写，导出不得使用；
+        [未核实]     = 原文没有给出内容模型，取宽松形式。
+-->
+<grammar xmlns="http://relaxng.org/ns/structure/1.0"
+         ns=""
+         datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+
+  <!-- ===== 属性 ===== -->
+
+  <!-- id：C-S-37 / 附录 E。导入时当作不透明标识（NCName，与 xml:id 同），唯一性与可解析性由 validate.py V-1 检查。
+       一律可选：第三方文件缺 id 仍应可导入（导入器自生成内部 nodeId）。哪些元素导出必须写 id 由 validate.py V-13 REQUIRED-ID
+       检查（export 档错误、import 档告警），依据是矩阵 id 属性 obligation=shall 与附录 E。 -->
+  <define name="attr.id">
+    <optional><attribute name="id"><data type="NCName"/></attribute></optional>
+  </define>
+
+  <!-- xlink:type="simple"（4.5.3.3 示例，mixed-citation 与 uri 上；导出不写，导入忽略） -->
+  <define name="attr.xlink-type">
+    <optional>
+      <attribute name="type" ns="http://www.w3.org/1999/xlink"><value>simple</value></attribute>
+    </optional>
+  </define>
+  <!-- xlink:href：附录 D 行 20。graphic / inline-graphic 必备，ext-link 必备（10.1.9）。 -->
+  <define name="attr.xlink-href.req">
+    <attribute name="href" ns="http://www.w3.org/1999/xlink">
+      <data type="string"><param name="minLength">1</param></data>
+    </attribute>
+  </define>
+  <define name="attr.xml-lang.req">
+    <attribute name="lang" ns="http://www.w3.org/XML/1998/namespace">
+      <data type="token"><param name="minLength">1</param></data>
+    </attribute>
+  </define>
+
+  <!-- ===== 数据类型 ===== -->
+
+  <!-- align：6.3.2 给 left/center/right/justify；附录 D 行 1 另有 char（导入接受） -->
+  <define name="dt.align">
+    <choice>
+      <value>left</value><value>center</value><value>right</value><value>justify</value>
+      <!-- [仅导入接受] 附录 D 行 1 -->
+      <value>char</value>
+    </choice>
+  </define>
+  <!-- valign：6.3.2 给 top/middle/bottom；附录 D 行 18 另有 baseline；p25 示例写 center（笔误，导入接受并告警） -->
+  <define name="dt.valign">
+    <choice>
+      <value>top</value><value>middle</value><value>bottom</value>
+      <!-- [仅导入接受] 附录 D 行 18 -->
+      <value>baseline</value>
+      <!-- [仅导入接受] 6.4 示例 valign="center"（不在 6.3.2 取值集合内） -->
+      <value>center</value>
+    </choice>
+  </define>
+  <!-- orientation：6.6、8.2、附录 D 行 8 -->
+  <define name="dt.orientation">
+    <choice><value>portrait</value><value>landscape</value></choice>
+  </define>
+
+  <!-- ===== 文本与行内内容 ===== -->
+
+  <!--
+    行内内容按元素分类，类别划分对照官方 NISO STS 1.2 DTD 的内容模型（兼容性检查，见 scripts/xml46687/sts_compat.py）：
+    5.1 规定格式设置“仅限于”bold/italic/underline/strike/monospace/sup/sub；其余行内元素是引用、变量、代码、公式、图。
+      cm.inline   标题、段落、单元格、题名各部分、术语条目内的行内内容：格式 + 变量/代码 + 换行 + 引用/脚注 + 公式 + 行内图
+      cm.mark     格式元素内部（bold、italic…）：同 cm.inline 但不含 break（DTD 的 bold/italic 等不含 break）
+      cm.phrase   ext-link、xref、copyright-statement 内部：只有格式、变量、代码、行内图（不含引用、脚注、公式）
+      cm.label    label 内部：phrase + 公式 + fn + xref（不含 ext-link、std、mixed-citation、break）
+      cm.term     术语符号 term、索引词、see-entry、meta-value：phrase + 公式 + ext-link + fn + xref
+      cm.citation mixed-citation 内部：行内内容 + uri（不含嵌套 mixed-citation）
+      cm.subsup   std-org-name、edition、version、copyright-holder：文本 + sub + sup
+    原文没有逐元素规定这些集合，类别取 DTD 能给出的确定模型；原文示例没有与之冲突的写法。
+  -->
+  <define name="inline.format">
+    <choice>
+      <ref name="el.bold"/>
+      <ref name="el.italic"/>
+      <ref name="el.underline"/>
+      <ref name="el.strike"/>
+      <ref name="el.monospace"/>
+      <ref name="el.sup"/>
+      <ref name="el.sub"/>
+    </choice>
+  </define>
+  <define name="inline.phrase">
+    <choice>
+      <ref name="inline.format"/>
+      <ref name="el.named-content"/>
+      <ref name="el.inline-code"/>
+      <ref name="el.inline-graphic"/>
+    </choice>
+  </define>
+
+  <define name="cm.inline">
+    <zeroOrMore>
+      <choice>
+        <text/>
+        <ref name="inline.any"/>
+      </choice>
+    </zeroOrMore>
+  </define>
+  <define name="inline.any">
+    <choice>
+      <ref name="inline.mark"/>
+      <ref name="el.break"/>
+    </choice>
+  </define>
+  <define name="inline.mark">
+    <choice>
+      <ref name="inline.phrase"/>
+      <ref name="el.xref"/>
+      <ref name="el.ext-link"/>
+      <ref name="el.fn"/>
+      <ref name="el.std"/>
+      <ref name="el.mixed-citation"/>
+      <ref name="el.inline-formula"/>
+    </choice>
+  </define>
+  <define name="cm.mark">
+    <zeroOrMore>
+      <choice>
+        <text/>
+        <ref name="inline.mark"/>
+      </choice>
+    </zeroOrMore>
+  </define>
+  <define name="cm.phrase">
+    <zeroOrMore>
+      <choice>
+        <text/>
+        <ref name="inline.phrase"/>
+      </choice>
+    </zeroOrMore>
+  </define>
+  <define name="cm.label">
+    <zeroOrMore>
+      <choice>
+        <text/>
+        <ref name="inline.phrase"/>
+        <ref name="el.inline-formula"/>
+        <ref name="el.fn"/>
+        <ref name="el.xref"/>
+      </choice>
+    </zeroOrMore>
+  </define>
+  <define name="cm.term">
+    <zeroOrMore>
+      <choice>
+        <text/>
+        <ref name="inline.phrase"/>
+        <ref name="el.inline-formula"/>
+        <ref name="el.ext-link"/>
+        <ref name="el.fn"/>
+        <ref name="el.xref"/>
+      </choice>
+    </zeroOrMore>
+  </define>
+  <define name="cm.citation">
+    <zeroOrMore>
+      <choice>
+        <text/>
+        <ref name="inline.format"/>
+        <ref name="el.named-content"/>
+        <ref name="el.inline-code"/>
+        <ref name="el.inline-graphic"/>
+        <ref name="el.break"/>
+        <ref name="el.xref"/>
+        <ref name="el.ext-link"/>
+        <ref name="el.fn"/>
+        <ref name="el.std"/>
+        <ref name="el.inline-formula"/>
+        <ref name="el.uri"/>
+      </choice>
+    </zeroOrMore>
+  </define>
+  <define name="cm.subsup">
+    <zeroOrMore>
+      <choice>
+        <text/>
+        <ref name="el.sub"/>
+        <ref name="el.sup"/>
+      </choice>
+    </zeroOrMore>
+  </define>
+
+  <define name="el.bold"><element name="bold"><ref name="cm.mark"/></element></define>
+  <define name="el.italic"><element name="italic"><ref name="cm.mark"/></element></define>
+  <define name="el.underline"><element name="underline"><ref name="cm.mark"/></element></define>
+  <define name="el.strike"><element name="strike"><ref name="cm.mark"/></element></define>
+  <!-- [仅导入接受] monospace：5.1 列出，但导出用 inline-code（C-S-29、D-S-07） -->
+  <define name="el.monospace"><element name="monospace"><ref name="cm.mark"/></element></define>
+  <define name="el.sup"><element name="sup"><ref name="cm.mark"/></element></define>
+  <define name="el.sub"><element name="sub"><ref name="cm.mark"/></element></define>
+
+  <!--
+    named-content：5.5。content-type="variable" 标记变量符号。
+    表 D.1 行 3 称 content-type 是 named-content 的必备属性（DTD 同为必备，STS 1.2 兼容检查确认），故必备。
+    内容取 cm.term 一类（文本、格式、变量/代码、公式、行内图、ext-link、fn、xref；不含 break、std、mixed-citation，STS 1.2 同）。
+    其他 content-type 值：约定 C-S-30 “保留文本、去掉标记并告警”，故除 variable 外接受其他 token，validate.py 告警。
+  -->
+  <define name="el.named-content">
+    <element name="named-content">
+      <attribute name="content-type">
+        <choice>
+          <value>variable</value>
+          <data type="token"><except><value>variable</value></except></data>
+        </choice>
+      </attribute>
+      <ref name="cm.term"/>
+    </element>
+  </define>
+
+  <!-- inline-code：5.10（表 C.1 未列，正文使用）。内容为纯文本，保留空白。 -->
+  <define name="el.inline-code">
+    <element name="inline-code"><text/></element>
+  </define>
+
+  <!-- break：换行（6.5、4.5.3.3、9.2.2）。空元素。 -->
+  <define name="el.break">
+    <element name="break"><empty/></element>
+  </define>
+
+  <!-- ===== 常用结构元素 ===== -->
+
+  <!-- label：5.2（章条编号、列项序号、注/示例/警告标签、图表公式编号、脚注标签等）。可含 sup（10.1.8、6.2.3 的 fn/label/sup）。 -->
+  <define name="el.label">
+    <element name="label"><ref name="cm.label"/></element>
+  </define>
+
+  <!-- title：5.2。 -->
+  <define name="el.title">
+    <element name="title"><ref name="cm.inline"/></element>
+  </define>
+
+  <!--
+    p：5.3。附录 E：p 中无 id 或其他属性（导出不写）。
+    导入：示例中确有 id（p-125 等，判为工具生成物）、style-type（10.1.9 示例）、content-type="dimension"（6.2.5、8.6）、
+    specific-use（表 C.1），均接受并忽略（C-S-23、C-T-33）。
+    id 的 p-<数字> 形式由 validate.py V-7 拒绝。
+  -->
+  <define name="el.p">
+    <element name="p">
+      <ref name="attr.id"/>
+      <optional><attribute name="content-type"><value>dimension</value></attribute></optional>
+      <optional>
+        <attribute name="style-type">
+          <choice><value>align-left</value><value>align-right</value><value>align-center</value></choice>
+        </attribute>
+      </optional>
+      <optional><attribute name="specific-use"><data type="token"/></attribute></optional>
+      <ref name="cm.inline"/>
+    </element>
+  </define>
+
+</grammar>

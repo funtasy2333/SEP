@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ses-gbt46687-2 / math.rng  —  公式（第 7 章）与 MathML 3 的宽松子 schema
+  版本 0.1.0  ·  项目实现约定，非官方（见 ses-gbt46687-2.rng 文件头）
+
+  依据：7.1～7.4、附录 C（disp-formula、inline-formula、mml:math）、附录 E、processing-meta（mathml-version="3.0"）。
+  约定：C-T-17～C-T-25。矩阵行：M-7.x、M-4.1-T01、M-4.3.2-T01。
+
+  拒绝项（矩阵 import: reject 且 rejectKind=format，不在 schema 中）：tex-math（M-7.4-14）、alternatives（M-7.4-15）、
+  无前缀的 MathML 元素如 <mtext>（M-7.4-12，7.4 示例笔误）。
+  disp-formula-group（M-C.1-05）虽为 import: reject，但 rejectKind=implementation（IR 无公式组），格式本身接受，故收入 schema。
+  mml:annotation（M-7.4-16）是 MathML 自身内容，随 mml:math 内部通配规则一并接受。
+
+  ============================================================================================
+  关于 MathML 的说明（重要）：
+  本文件只写了一个“结构宽松、命名空间严格”的 MathML 子 schema：
+    - 根必须是命名空间 http://www.w3.org/1998/Math/MathML 的 math 元素，display 取 block/inline，id 为 NCName；
+    - math 之内允许该命名空间中的任意元素、任意属性和文本；
+    - 不检查 MathML 元素的内容模型（例如 mfrac 是否恰有两个子元素）。
+  MathML 内容模型的严格校验留待官方 schema 兼容检查：NISO STS 1.2 Interchange（MathML3）DTD 内嵌了 MathML 3 的内容模型，
+  scripts/xml46687/sts_compat.py 对给定文件（含 mml:math）按该 DTD 校验，不把它写进本 schema（见 docs/wp8.1/README.md 3A 与
+  schemas/gbt46687.2/README.md）。本项目不复刻官方 MathML schema。
+  事件属性（on*）、javascript: 链接等安全检查由 validate.py V-10 完成（RELAX NG 的名字类无法表达“以 on 开头”）。
+  ============================================================================================
+-->
+<grammar xmlns="http://relaxng.org/ns/structure/1.0"
+         ns=""
+         datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+
+  <!--
+    mml:math 根：7.4。行间公式带 display="block"，行内公式不带（C-T-19）；id 为 mml_m<k>（C-T-18）。
+    结构层不强制这三点：第三方文件常见 m1、缺 id、display 缺省或取反，导入必须接受（导入器去掉根上的 id、按所在的 disp-formula/inline-formula
+    决定行间/行内）；所以 display 的两个取值在两种公式里都收，不拆分 pattern。导出是否合规由 validate.py 的 V-14 MML-ID、
+    V-15 MML-DISPLAY 检查（export 档错误、import 档告警）。
+    其余属性（class、style、alttext、altimg…）不限制。
+    注意：名字类中的 <name> 要显式 ns=""，否则会继承 element 的 ns（MathML 命名空间），变成“限定名 display”。
+  -->
+  <define name="el.mml-math">
+    <element name="math" ns="http://www.w3.org/1998/Math/MathML">
+      <zeroOrMore>
+        <choice>
+          <attribute name="id"><data type="NCName"/></attribute>
+          <attribute name="display"><choice><value>block</value><value>inline</value></choice></attribute>
+          <attribute>
+            <anyName><except><name ns="">id</name><name ns="">display</name></except></anyName>
+          </attribute>
+        </choice>
+      </zeroOrMore>
+      <zeroOrMore>
+        <choice>
+          <text/>
+          <ref name="mml.any"/>
+        </choice>
+      </zeroOrMore>
+    </element>
+  </define>
+
+  <!--
+    MathML 命名空间内的任意元素（任意属性、文本与子元素）。本 schema 不校验 MathML 内容模型；
+    MathML 3 的内容模型由 NISO STS 1.2 DTD 内嵌的 MathML 3 部分给出，scripts/xml46687/sts_compat.py 对样例做该项检查。
+  -->
+  <define name="mml.any">
+    <element>
+      <nsName ns="http://www.w3.org/1998/Math/MathML"/>
+      <zeroOrMore><attribute><anyName/></attribute></zeroOrMore>
+      <zeroOrMore>
+        <choice>
+          <text/>
+          <ref name="mml.any"/>
+        </choice>
+      </zeroOrMore>
+    </element>
+  </define>
+
+  <!--
+    disp-formula-group：表 C.1 行 26 只列名，正文无用例（M-C.1-05）。内容模型按 NISO STS 1.2 取：
+    label? caption? legend? 之后是一个或多个 disp-formula（可嵌套 disp-formula-group）。
+  -->
+  <define name="el.disp-formula-group">
+    <element name="disp-formula-group">
+      <ref name="attr.id"/>
+      <optional><ref name="el.label"/></optional>
+      <optional><ref name="el.caption"/></optional>
+      <optional><ref name="el.legend"/></optional>
+      <oneOrMore>
+        <choice>
+          <ref name="el.disp-formula"/>
+          <ref name="el.disp-formula-group"/>
+        </choice>
+      </oneOrMore>
+    </element>
+  </define>
+
+  <!--
+    inline-formula：7.1，内含恰好一个 mml:math；自身不带属性（附录 E：行内公式没有 ID，id 在 mml:math 上）。
+  -->
+  <define name="el.inline-formula">
+    <element name="inline-formula">
+      <ref name="el.mml-math"/>
+    </element>
+  </define>
+
+  <!--
+    disp-formula：7.1～7.3。label（“(1)”“(A.1)”，括号含在 label 内）、一个 mml:math、公式注 non-normative-note、legend（“式中”）。
+    原文只规定注在 mml:math 之后（7.2）、“式中”用 legend 且至多一个（7.3），其余相对顺序未规定，故 interleave。
+    id：有编号 formula_<n>，无编号不写（X-21）。
+    graphic：公式替代图（7.4，content-type="disp-formula"），SES 不生成，导入接受（M-7.4-13，G-T-11）。
+  -->
+  <define name="el.disp-formula">
+    <element name="disp-formula">
+      <ref name="attr.id"/>
+      <interleave>
+        <optional><ref name="el.label"/></optional>
+        <ref name="el.mml-math"/>
+        <zeroOrMore><ref name="el.non-normative-note"/></zeroOrMore>
+        <optional><ref name="el.legend"/></optional>
+        <zeroOrMore><ref name="el.graphic"/></zeroOrMore>
+      </interleave>
+    </element>
+  </define>
+
+</grammar>

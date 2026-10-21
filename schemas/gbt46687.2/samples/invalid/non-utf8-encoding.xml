@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="GB2312"?>
+<!-- negative sample: XML declaration says encoding GB2312 (SYN-2: only UTF-8 is accepted; GB2312 is a GB/T 37967 legacy feature). -->
+<standard>
+  <front>
+    <std-meta>
+      <title-wrap xml:lang="zh">
+        <full>Minimal</full>
+      </title-wrap>
+    </std-meta>
+  </front>
+  <body>
+    <sec id="sec_1" sec-type="scope">
+      <label>1</label>
+      <title>Scope</title>
+      <p>Text.</p>
+    </sec>
+  </body>
+</standard>

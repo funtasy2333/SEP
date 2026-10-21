@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 负例：mml:math 内的 MathML 元素缺少 mml: 前缀（7.4 示例 <mtext> 笔误，M-7.4-12）。 除此之外与基底文档一致。 -->
+<standard xmlns:xlink="http://www.w3.org/1999/xlink"
+          xmlns:mml="http://www.w3.org/1998/Math/MathML"
+          xmlns:tbx="urn:iso:std:iso:30042:ed-1">
+  <processing-meta base-tagset="interchange" mathml-version="3.0" table-model="xhtml"
+                   terminology-model="tbx" math-representation="mathml" tagset-family="sts"/>
+  <front>
+    <std-meta>
+      <title-wrap xml:lang="zh">
+        <full>负例基底文档</full>
+      </title-wrap>
+      <std-org-group>
+        <std-org std-org-role="lead">
+          <std-org-name>国家标准化管理委员会</std-org-name>
+        </std-org>
+      </std-org-group>
+      <content-language>zh</content-language>
+      <release-date>2026-04-30</release-date>
+      <implementation-date>2026-11-01</implementation-date>
+    </std-meta>
+    <sec id="sec_foreword" sec-type="foreword">
+      <title>前言</title>
+      <p>前言内容。</p>
+    </sec>
+  </front>
+  <body>
+    <sec id="sec_1" sec-type="scope">
+      <label>1</label>
+      <title>范围</title>
+      <p>范围内容，见<xref ref-type="table" rid="tab_1">表1</xref>、<xref ref-type="fig" rid="fig_1">图1</xref>、<xref ref-type="disp-formula" rid="formula_1">(1)</xref>，
+      网站<ext-link ext-link-type="uri" xlink:href="https://example.org/">示例</ext-link>。</p>
+    </sec>
+    <sec id="sec_3" sec-type="terms">
+      <label>3</label>
+      <title>术语和定义</title>
+      <term-sec id="sec_3.1">
+        <label>3.1</label>
+        <tbx:termEntry id="term_3.1">
+          <tbx:langSet xml:lang="zh">
+            <tbx:definition>术语的定义。</tbx:definition>
+            <tbx:tig>
+              <tbx:term>术语</tbx:term>
+              <tbx:partOfSpeech value="noun"/>
+              <tbx:normativeAuthorization value="preferredTerm"/>
+            </tbx:tig>
+          </tbx:langSet>
+        </tbx:termEntry>
+      </term-sec>
+    </sec>
+    <sec id="sec_5">
+      <label>5</label>
+      <title>技术要求</title>
+      <table-wrap id="tab_1">
+        <label>表1</label>
+        <caption>
+          <title>示例表</title>
+        </caption>
+        <table>
+          <thead>
+            <tr>
+              <th>列</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>单元格</td>
+            </tr>
+          </tbody>
+        </table>
+      </table-wrap>
+      <fig id="fig_1">
+        <label>图1</label>
+        <caption>
+          <title>示例图</title>
+        </caption>
+        <graphic content-type="image" xlink:href="fig_1"/>
+      </fig>
+      <disp-formula id="formula_1">
+        <label>(1)</label>
+        <mml:math display="block" id="mml_m1">
+          <mtext>x</mtext>
+        </mml:math>
+      </disp-formula>
+      <sec id="sec_5.1">
+        <label>5.1</label>
+        <title>列项</title>
+        <list list-type="dash">
+          <list-item>
+            <p>项一。</p>
+          </list-item>
+        </list>
+        <list list-type="arabic">
+          <list-item>
+            <label>1)</label>
+            <p>项二。</p>
+          </list-item>
+        </list>
+      </sec>
+      <sec id="sec_5.2" sec-type="numbered-paragraph">
+        <label>5.2</label>
+        <p>无标题条。</p>
+      </sec>
+    </sec>
+  </body>
+  <back>
+    <app-group>
+      <app id="sec_A" content-type="informative">
+        <label>附录 A</label>
+        <annex-type>（资料性）</annex-type>
+        <title>附录</title>
+        <p>附录内容。</p>
+      </app>
+    </app-group>
+    <ref-list content-type="bibl" id="sec_bibl">
+      <title>参考文献</title>
+      <ref id="biblref_1">
+        <label>[1]</label>
+        <mixed-citation>文献条目。</mixed-citation>
+      </ref>
+    </ref-list>
+  </back>
+</standard>

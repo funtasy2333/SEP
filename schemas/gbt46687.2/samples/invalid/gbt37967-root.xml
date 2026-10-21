@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 负例：采用 GB/T 37967 的顶层结构 standard/content/basic_info（LEGACY：旧格式，本版本不再支持）。 -->
+<standard>
+  <content>
+    <basic_info>
+      <cn>棉蚜测报技术规范</cn>
+      <en lang="en">Rules for monitoring and forecast of the cotton aphid</en>
+      <ics>65.020.01</ics>
+      <gbn>GB/T 99999</gbn>
+      <isd>2019-05-10</isd>
+      <efd>2019-12-01</efd>
+    </basic_info>
+    <auxiliary_info>
+      <preface>前言内容。</preface>
+      <scope>本标准规定了调查方法。</scope>
+      <normativereference>
+        <n_docum>GB/T 1.1</n_docum>
+      </normativereference>
+    </auxiliary_info>
+  </content>
+</standard>

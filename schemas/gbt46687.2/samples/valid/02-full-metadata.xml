@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<standard xmlns:xlink="http://www.w3.org/1999/xlink"
+          xmlns:mml="http://www.w3.org/1998/Math/MathML"
+          xmlns:tbx="urn:iso:std:iso:30042:ed-1">
+  <processing-meta base-tagset="interchange"
+                   mathml-version="3.0"
+                   table-model="xhtml"
+                   terminology-model="tbx"
+                   math-representation="mathml"
+                   tagset-family="sts">
+    <custom-meta-group>
+      <custom-meta>
+        <meta-name>基于XML的标准文档内容标记指南</meta-name>
+        <meta-value>2026</meta-value>
+      </custom-meta>
+    </custom-meta-group>
+  </processing-meta>
+  <front>
+    <std-meta>
+      <title-wrap xml:lang="zh">
+        <main>网络设备安全要求</main>
+        <compl>第1部分：总则</compl>
+        <full>网络设备安全要求 第1部分：总则</full>
+      </title-wrap>
+      <title-wrap xml:lang="en">
+        <main>Security requirements for network devices</main>
+        <compl>Part 1: General</compl>
+        <full>Security requirements for network devices Part 1: General</full>
+      </title-wrap>
+      <std-ident>
+        <originator>SAC</originator>
+        <doc-type>GB/T</doc-type>
+        <doc-number>99999</doc-number>
+        <part-number>1</part-number>
+        <version>1</version>
+      </std-ident>
+      <std-org-group>
+        <std-org std-org-role="lead">
+          <std-org-name>国家市场监督管理总局</std-org-name>
+          <std-org-abbrev>SAMR</std-org-abbrev>
+        </std-org>
+        <std-org std-org-role="lead">
+          <std-org-name>国家标准化管理委员会</std-org-name>
+          <std-org-abbrev>SAC</std-org-abbrev>
+        </std-org>
+      </std-org-group>
+      <content-language>zh</content-language>
+      <content-language>en</content-language>
+      <std-ref type="dated">GB/T 99999.1—2026</std-ref>
+      <release-date>2026-04-30</release-date>
+      <implementation-date>2026-11-01</implementation-date>
+      <comm-ref>SAC/TC 28</comm-ref>
+      <ics>35.240.30</ics>
+      <ccs>L 72</ccs>
+      <permissions>
+        <copyright-statement>版权专有 侵权必究</copyright-statement>
+        <copyright-year>2026</copyright-year>
+        <copyright-holder>国家标准化管理委员会</copyright-holder>
+      </permissions>
+      <custom-meta-group>
+        <custom-meta>
+          <meta-name>filing-no</meta-name>
+          <meta-value>2026-0001</meta-value>
+        </custom-meta>
+        <custom-meta>
+          <meta-name>industry-name</meta-name>
+          <meta-value>信息技术</meta-value>
+        </custom-meta>
+      </custom-meta-group>
+    </std-meta>
+    <sec id="sec_foreword" sec-type="foreword">
+      <title>前言</title>
+      <p>本文件按照 GB/T 1.1—2020 起草。</p>
+    </sec>
+    <sec id="sec_intro" sec-type="intro">
+      <title>引言</title>
+      <p>为规范网络设备的安全要求，制定本文件。</p>
+    </sec>
+  </front>
+  <body>
+    <sec id="sec_1" sec-type="scope">
+      <label>1</label>
+      <title>范围</title>
+      <p>本文件规定了网络设备的安全要求。</p>
+    </sec>
+  </body>
+</standard>

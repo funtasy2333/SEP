@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  46687.2 原文明确的写法与 NISO STS 1.2 DTD 不一致的情形汇总（国标特有扩展、原文示例与 STS 内容模型冲突）。
+  它们在本项目 schema 下是合法的，在 export 档也通过；官方 DTD 兼容检查（scripts/xml46687/sts_compat.py）会把它们
+  列为“已知偏差”并逐条给出原文依据，不算“未解释偏差”。清单见 schemas/gbt46687.2/README.md“46687.2 相对 STS 1.2 的偏差”。
+-->
+<standard xmlns:xlink="http://www.w3.org/1999/xlink"
+          xmlns:mml="http://www.w3.org/1998/Math/MathML"
+          xmlns:tbx="urn:iso:std:iso:30042:ed-1">
+  <processing-meta base-tagset="interchange" mathml-version="3.0" table-model="xhtml"
+                   terminology-model="tbx" math-representation="mathml" tagset-family="sts"/>
+  <front>
+    <std-meta>
+      <std-type>推荐性国家标准</std-type>
+      <title-wrap xml:lang="zh">
+        <full>与 STS 不一致的原文写法</full>
+      </title-wrap>
+      <std-org-group>
+        <std-org std-org-level="1" std-org-role="lead">
+          <std-org-name>国家市场监督管理总局</std-org-name>
+          <std-org-name>国家标准化管理委员会</std-org-name>
+          <std-org-abbrev>GB</std-org-abbrev>
+        </std-org>
+      </std-org-group>
+      <content-language>zh</content-language>
+      <release-date>2026-04-30</release-date>
+      <implementation-date>2026-11-01</implementation-date>
+      <equivalence>MOD</equivalence>
+      <ics>35.240.30</ics>
+      <ccs>L 72</ccs>
+      <std-supersedes>GB/T 99998—2015</std-supersedes>
+    </std-meta>
+  </front>
+  <body>
+    <sec id="sec_1" sec-type="scope">
+      <label>1</label>
+      <title>范围</title>
+      <p>本文件汇总原文明确写法与 STS 1.2 的偏差，脚注引用见<xref ref-type="fn" rid="fn_1"><label><sup>1)</sup></label></xref>。</p>
+      <!-- 正文 fn 作为块：定义位置待决（D-T-10，待 WP8.M 决定），STS 1.2 的 sec 内容不含 fn -->
+      <fn id="fn_1">
+        <label>1)</label>
+        <p>块级正文脚注。</p>
+      </fn>
+    </sec>
+    <sec id="sec_3" sec-type="terms">
+      <label>3</label>
+      <title>术语和定义</title>
+      <term-sec id="sec_3.1">
+        <label>3.1</label>
+        <tbx:termEntry id="term_3.1">
+          <tbx:langSet xml:lang="zh">
+            <tbx:subjectField>标准化</tbx:subjectField>
+            <tbx:definition>术语的定义。</tbx:definition>
+            <tbx:tig>
+              <tbx:term>术语</tbx:term>
+              <tbx:partOfSpeech value="noun"/>
+              <tbx:normativeAuthorization value="preferredTerm"/>
+            </tbx:tig>
+            <tbx:tig>
+              <tbx:term>TS</tbx:term>
+              <tbx:partOfSpeech value="noun"/>
+              <tbx:termType value="abbreviation"/>
+            </tbx:tig>
+            <tbx:note>注写在 tig 之后（9.2.3 示例 2 的顺序）。</tbx:note>
+          </tbx:langSet>
+        </tbx:termEntry>
+      </term-sec>
+    </sec>
+    <sec id="sec_4">
+      <label>4</label>
+      <title>表</title>
+      <table-wrap id="tab_1">
+        <label>表1</label>
+        <caption>
+          <title>graphic 写在 table-wrap-foot 之后的表</title>
+        </caption>
+        <table>
+          <thead>
+            <tr>
+              <th>列</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>值</td>
+            </tr>
+          </tbody>
+        </table>
+        <table-wrap-foot>
+          <p content-type="dimension">单位为毫米</p>
+        </table-wrap-foot>
+        <graphic content-type="disp_table" xlink:href="tab_1"/>
+      </table-wrap>
+    </sec>
+  </body>
+</standard>

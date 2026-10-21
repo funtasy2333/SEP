@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  仅导入接受的异写汇总（导入接受范围，C-S-06/07/12/27、C-T-06/08/38/39/48）。
+  本文件在默认的 import 档位下通过（给出 IMPORT-ONLY 与 V-12 告警），在 export 档位下不通过：
+  导出文件必须只使用选用形式，且 std-meta 子元素按 STS 1.2 次序。
+-->
+<standard xmlns:xlink="http://www.w3.org/1999/xlink"
+          xmlns:mml="http://www.w3.org/1998/Math/MathML"
+          xmlns:tbx="urn:iso:std:iso:30042:ed-1">
+  <processing-meta base-tagset="interchange" mathml-version="3.0" table-model="xhtml"
+                   terminology-model="tbx" math-representation="mathml" tagset-family="sts"/>
+  <front>
+    <!-- std-meta 子元素次序同原文 4.1 示例（ics、ccs 在 title-wrap 之前）：import 档告警 V-12 STD-META-ORDER，export 档为错误 -->
+    <std-meta>
+      <ics>33.040.40</ics>
+      <ccs>M 32</ccs>
+      <title-wrap xml:lang="zh">
+        <full>异写汇总</full>
+      </title-wrap>
+      <release-date date-type="published">2020-10-26</release-date>
+      <release-date date-type="implemented">2025-02-01</release-date>
+    </std-meta>
+  </front>
+  <body>
+    <sec id="sec_2" sec-type="norm_refs">
+      <label>2</label>
+      <title>规范性引用文件</title>
+      <ref-list content-type="norm_refs">
+        <ref>
+          <std>
+            <std-ref>GB/T 1.1—2020</std-ref>
+            <title>标准化工作导则 第1部分：标准化文件的结构和起草规则</title>
+          </std>
+        </ref>
+      </ref-list>
+    </sec>
+    <sec id="sec_3" sec-type="terms">
+      <label>3</label>
+      <title>术语和定义</title>
+      <sec id="sec_3.2">
+        <label>3.2</label>
+        <title>缩略语</title>
+        <def-list list-content="abbreviation">
+          <def-item id="abb-gps">
+            <term>GPS</term>
+            <def><p>全球定位系统</p></def>
+          </def-item>
+        </def-list>
+      </sec>
+      <term-sec id="sec_3.1">
+        <label>3.1</label>
+        <tbx:termEntry id="term_3.1">
+          <tbx:langSet xml:lang="zh">
+            <tbx:definition>术语的定义。</tbx:definition>
+            <tbx:tig>
+              <tbx:term>术语</tbx:term>
+              <tbx:partOfSpeech value="noun"/>
+              <tbx:normativeAuthentication value="preferredTerm"/>
+            </tbx:tig>
+          </tbx:langSet>
+        </tbx:termEntry>
+      </term-sec>
+    </sec>
+    <sec id="sec_5">
+      <label>5</label>
+      <title>技术要求</title>
+      <p>等宽字体<monospace>fixed</monospace>；缩略语引用<xref ref-type="other" rid="abb-gps">GPS</xref>；
+      化学类引用<xref ref-type="chem" rid="sec_5">5</xref>。</p>
+      <table-wrap id="tab_1" position="float">
+        <label>表1</label>
+        <caption>
+          <title>valign 取 center 的表</title>
+        </caption>
+        <table>
+          <tbody>
+            <tr>
+              <td valign="center">单元格</td>
+            </tr>
+          </tbody>
+        </table>
+      </table-wrap>
+      <!-- 无标题条不带 sec-type（4.4.2.1 的写法）：导入接受；导出须写 sec-type="numbered-paragraph"（4.4.2.5） -->
+      <sec id="sec_5.1">
+        <label>5.1</label>
+        <p>无标题条，不带 sec-type 属性。</p>
+      </sec>
+    </sec>
+  </body>
+  <back>
+    <app-group>
+      <app id="sec_A" content-type="inform_annex">
+        <label>附录 A</label>
+        <annex-type>（资料性）</annex-type>
+        <title>资料性附录</title>
+        <p>附录正文。</p>
+      </app>
+    </app-group>
+    <ref-list content-type="bibr" id="sec_bibl">
+      <title>参考文献</title>
+      <ref id="biblref_1">
+        <label>[1]</label>
+        <mixed-citation>文献条目。</mixed-citation>
+      </ref>
+    </ref-list>
+  </back>
+</standard>
