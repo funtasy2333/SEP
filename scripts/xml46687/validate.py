@@ -780,6 +780,8 @@ def semantic_checks(tree, rep: Report) -> None:
                 _import_only(rep, "xref/@ref-type=%r（附录 D / 10.1.4 示例的写法，无类型语义，C-T-48）" % el.get("ref-type"), el)
             elif name == "named-content" and el.get("content-type") not in (None, "variable"):
                 rep.warn("W-NAMED-CONTENT", "named-content/@content-type=%r：只有 variable 有定义，导入时去掉标记（C-S-30）" % el.get("content-type"), el=el)
+            elif name == "index" and el.get("content-type") is not None:
+                _import_only(rep, "index/@content-type（表 D.1 行 3 的取值，4.5.4 示例没有该属性）", el)
             elif name == "table-wrap" and el.get("position") is not None:
                 _import_only(rep, "table-wrap/@position（附录 C 列出，正文无说明）", el)
             elif name == "std-ref" and any(is_element(c) and local(c) == "edition" for c in el):
@@ -877,7 +879,8 @@ def format_human(rep: Report) -> str:
     for name, eng in rep.engines.items():
         v = eng.get("valid")
         out.append("引擎 %s：%s（%s）" % (name, {True: "通过", False: "不通过", None: "未运行"}[v], eng.get("implementation")))
-    out.append("两个实现结论：%s" % ("一致" if rep.consistent else "不一致"))
+    if len(rep.engines) > 1:
+        out.append("两个实现结论：%s" % ("一致" if rep.consistent else "不一致"))
     if rep.errors:
         out.append("错误 %d 个：" % len(rep.errors))
         for e in rep.errors:
@@ -913,6 +916,11 @@ def main(argv=None) -> int:
             pass
 
     v = Validator(Path(args.schema), profile=args.profile, use_xmllint=not args.no_xmllint)
+    try:
+        v.rng  # 先编译 schema：schema 本身有问题时直接报错退出，而不是逐个文件报同样的错
+    except (etree.LxmlError, OSError) as exc:
+        sys.stderr.write("无法加载 RELAX NG schema %s：%s\n" % (args.schema, exc))
+        return 1
     reports = [v.validate_file(f) for f in args.files]
     ok = all(r.valid for r in reports)
     if args.json:

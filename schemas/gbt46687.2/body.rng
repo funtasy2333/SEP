@@ -236,10 +236,12 @@
     index：位置在参考文献之后（4.5.4）。表 C.1 只列 index，index-title-group / index-div / index-entry / see-entry 不在表中（M-C-05）。
     see-entry 内是纯文本编号（无 rid）。索引词 term 与 def-item 内的 term 同名异义，均为行内内容。
     index-div 允许嵌套的写法原文没有，仅按示例（index → index-div → index-entry）[未核实]。
+    content-type="index"：表 D.1 行 3 的取值（bibl、index）；4.5.4 示例没有该属性，故可选 [仅导入接受，未核实]。
   -->
   <define name="el.index">
     <element name="index">
       <ref name="attr.id"/>
+      <optional><attribute name="content-type"><value>index</value></attribute></optional>
       <optional><ref name="el.index-title-group"/></optional>
       <zeroOrMore>
         <choice>

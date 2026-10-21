@@ -18,6 +18,8 @@
     table-wrap：6.2.1。子元素顺序 label、caption、table、table-wrap-foot、graphic（C-T-01，顺序取自 6.2 示例，项目实现约定）。
     @position：表 C.1 列出，正文无说明（M-C.1-01，[仅导入接受]，取 token）。
     graphic：表的替代图（content-type="disp_table"，6.1），SES 不生成，导入接受（G-T-04）。
+    caption 在 schema 中可选：附录 E 行“无标题”的表（id=tab_r，M-E-11）说明原文允许没有表题的表；
+    SES 导出的表总是带 label 与 caption（M-6.2.1-04），该“必填”由导出器保证，不写进格式 schema。
   -->
   <define name="el.table-wrap">
     <element name="table-wrap">
@@ -25,7 +27,7 @@
       <optional><attribute name="orientation"><ref name="dt.orientation"/></attribute></optional>
       <optional><attribute name="position"><data type="token"/></attribute></optional>
       <optional><ref name="el.label"/></optional>
-      <ref name="el.caption"/>
+      <optional><ref name="el.caption"/></optional>
       <ref name="el.table"/>
       <optional><ref name="el.table-wrap-foot"/></optional>
       <zeroOrMore><ref name="el.graphic"/></zeroOrMore>
