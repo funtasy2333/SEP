@@ -271,6 +271,19 @@ case('mathml-id-missing.xml', 'mml:math 缺 id（矩阵 M-7.4-02、M-7.1-05：ex
      [('<mml:math display="block" id="mml_m1">', '<mml:math display="block">')])
 case('mathml-display-inline-in-disp-formula.xml', 'disp-formula 内的 mml:math 取 display="inline"（行间公式应为 block，C-T-19、M-7.4-03）。import 档通过并告警 V-15 MML-DISPLAY，export 档为错误（仅 export 档的负例）。',
      [('<mml:math display="block" id="mml_m1">', '<mml:math display="inline" id="mml_m1">')])
+# ---- 矩阵 export required 的部件（V-17/V-9/V-18）：结构层放宽，导出严格、导入宽容 ----
+case('sec-without-label.xml', '条缺 label（章条编号，矩阵 M-4.4.2.1-02 shall）。结构层只要 label 或 title 之一：import 档通过并告警 V-17，export 档为错误（仅 export 档的负例）。',
+     [('      <sec id="sec_5.1">\n        <label>5.1</label>\n', '      <sec id="sec_5.1">\n')])
+case('app-without-annex-type.xml', 'app 缺 annex-type（矩阵 M-4.5.2-04 shall）。import 档通过并告警 V-17，export 档为错误（仅 export 档的负例）。',
+     [('        <annex-type>（资料性）</annex-type>\n', '')])
+case('ext-link-without-type.xml', 'ext-link 缺 ext-link-type="uri"（矩阵 M-10.1.9-01 shall；原文 10.1.9 示例就缺该属性，所以 import 档不报告）。export 档为错误（仅 export 档的负例）。',
+     [('<ext-link ext-link-type="uri" xlink:href="https://example.org/">', '<ext-link xlink:href="https://example.org/">')])
+case('table-wrap-without-label.xml', 'table-wrap 缺 label（表编号，矩阵 M-6.2.1-03 shall）。import 档通过并告警 V-17，export 档为错误（仅 export 档的负例）。',
+     [('      <table-wrap id="tab_1">\n        <label>表1</label>\n', '      <table-wrap id="tab_1">\n')])
+case('term-entry-without-definition.xml', '术语条目没有 tbx:definition（矩阵 M-9.2.2-01 shall：必须有且仅有一个定义）。import 档通过并告警 W-TERM-NODEF，export 档为错误 V-9（仅 export 档的负例）。',
+     [('            <tbx:definition>术语的定义。</tbx:definition>\n', '')])
+case('p-with-id.xml', 'p 带 id（附录 E：p 中无任何 id；矩阵 M-E-25）。import 档通过并告警 V-18，export 档为错误（仅 export 档的负例）。',
+     [('<p>附录内容。</p>', '<p id="para_1">附录内容。</p>')])
 case('encoding-declared-after-400-bytes.xml', 'XML 声明里 version 与 encoding 之间塞了 450 个空格，encoding="ISO-8859-1" 排在第 400 字节之后（SYN-2：声明要看完整，不能只看开头 400 字节）。',
      [('<?xml version="1.0" encoding="UTF-8"?>', '<?xml version="1.0"' + ' ' * 450 + 'encoding="ISO-8859-1"?>')])
 # ---- 仅结构（RNG）----

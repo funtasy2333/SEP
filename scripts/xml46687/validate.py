@@ -17,7 +17,10 @@
              附加：V-8 xref 的 ref-type 与目标一致；V-9 术语条目定义个数；V-10 MathML 安全；V-11 外链协议；
              V-12 std-meta 子元素次序（STD-META-ORDER：导出为错误，导入为告警；结构层不限次序）；
              V-13 必备 id（REQUIRED-ID：导出为错误，导入为告警；结构层 id 一律可选）；
-             V-14 mml:math 的 id（MML-ID）；V-15 mml:math 的 display 按上下文（MML-DISPLAY）：均为导出错误、导入告警
+             V-14 mml:math 的 id（MML-ID）；V-15 mml:math 的 display 按上下文（MML-DISPLAY）：均为导出错误、导入告警；
+             V-16 导出文件的固定外形（XML 声明、根上的命名空间声明、processing-meta：仅导出档）；
+             V-17 导出必备的部件（label、title、annex-type、graphic、ext-link-type 等：导出错误、导入告警）；
+             V-18 p 不带 id（导出错误、导入告警）
 
 说明：lxml 与 xmllint 都基于 libxml2 的 RELAX NG 实现（版本不同、构建独立），不是两个互相独立的算法；
 它们能发现构建/版本差异，但不能替代 jing 之类独立实现（本机没有）。
@@ -285,6 +288,11 @@ def check_syntax_raw(raw: bytes, rep: Report, profile: str) -> None:
             if not is_utf8_name(enc):
                 rep.encoding_reported = True
                 rep.error("SYN-2", "XML 声明的编码为 %r，只接受 UTF-8（C-S-02；GB2312 是 GB/T 37967 旧格式特征）" % enc)
+    if profile == "export":
+        decl = _XMLDECL_RE.match(raw[3:] if raw.startswith(b"\xef\xbb\xbf") else raw)
+        enc = _DECL_ENCODING_RE.search(decl.group(1)) if decl else None
+        if decl is None or not re.search(rb"version\s*=\s*([\"'])1\.0\1", decl.group(1)) or enc is None or not is_utf8_name(enc.group(2).decode("ascii", "replace")):
+            rep.error("V-16", "EXPORT-FORM：导出文件必须以 XML 声明 <?xml version=\"1.0\" encoding=\"UTF-8\"?> 开头（4.1 印刷页 2；矩阵 M-4.1-01 export required，C-S-02）")
     dt = scan_prolog_doctype(raw)
     if dt is not None:
         detail = "（行 %d%s）" % (dt["line"], "，含 %d 个 <!ENTITY 声明" % dt["entities"] if dt["entities"] else "")
@@ -850,6 +858,112 @@ def check_mml_math(elems, rep: Report) -> None:
                                  el, "导出必须写 block", "导入接受：按所在的 disp-formula 当作行间公式")
 
 
+def check_export_form(tree, rep: Report) -> None:
+    """V-16 EXPORT-FORM（仅导出档）：根元素上的命名空间声明与 processing-meta。导入对这些宽容（只要 XML 良构、前缀有绑定即可）。"""
+    if rep.profile != "export":
+        return
+    root = tree.getroot()
+    for prefix, uri in (("xlink", NS_XLINK), ("mml", NS_MML), ("tbx", NS_TBX)):
+        if root.nsmap.get(prefix) != uri:
+            rep.error("V-16", "EXPORT-FORM：根元素 <standard> 必须声明 xmlns:%s=\"%s\"（4.1 印刷页 2；矩阵 M-4.1-03、M-4.1-T01、M-4.1-T02；C-S-01）" % (prefix, uri), el=root)
+    if not any(is_element(c) and nsuri(c) is None and local(c) == "processing-meta" for c in root):
+        rep.error("V-16", "EXPORT-FORM：导出文件必须有 processing-meta（直接置于 standard 下，4.3.2 印刷页 6；矩阵 M-4.3.2-30 export required，C-S-04）", el=root)
+
+
+def _export_error_or_import(rep: Report, export_rule: str, import_rule, msg: str, el, import_msg=None) -> None:
+    """导出档报错误（规则 export_rule）；导入档报告警（规则 import_rule，None 表示导入不报告）。"""
+    if rep.profile == "export":
+        rep.error(export_rule, msg + "（导出必须如此）", el=el)
+    elif import_rule:
+        rep.warn(import_rule, import_msg or (msg + "（导入接受）"), el=el)
+
+
+def check_required_parts(elems, rep: Report) -> None:
+    """V-17 REQUIRED-PART：矩阵 export required（obligation=shall/should）要求导出必须写出的部件。
+    结构层把它们都放宽为可选（第三方文件常缺 label、title 等，导入时编号由 Resolver 重新派生），所以导出严格、导入宽容。"""
+    def need(el, what, basis):
+        msg = "REQUIRED-PART：<%s> 缺少 %s（%s）" % (label(el), what, basis)
+        _export_error_or_import(rep, "V-17", "V-17", msg, el, msg + "（导入接受：编号/标题由导入器重新派生；导出须写）")
+
+    for el in elems:
+        if nsuri(el) is not None:
+            continue
+        name = local(el)
+        if name == "sec":
+            in_front = has_ancestor(el, "front")
+            has_title = bool(_kids(el, "title"))
+            if not in_front and not _has_text_label(el):
+                need(el, "label（章条编号）", "4.4.2.1 印刷页 8；矩阵 M-4.4.2.1-02 shall，C-S-23")
+            parent = el.getparent()
+            if (not in_front and not has_title and el.get("sec-type") != "numbered-paragraph"
+                    and parent is not None and is_element(parent) and local(parent) in ("sec", "app")):
+                # 无标题条宜 sec-type=numbered-paragraph（4.4.2.5；4.4.2.1 示例的无标题条没有 sec-type，所以导入不告警）
+                if rep.profile == "export":
+                    rep.error("V-17", "REQUIRED-PART：无标题的条必须写 sec-type=\"numbered-paragraph\"（4.4.2.5 印刷页 11；矩阵 M-4.4.2.5-01，C-S-08；导出必须如此）", el=el)
+        elif name == "app":
+            if not _has_text_label(el):
+                need(el, "label（“附录 A”）", "4.5.2.1 印刷页 11；矩阵 M-4.5.2-03 shall，C-S-07")
+            if not _kids(el, "annex-type"):
+                need(el, "annex-type（“（资料性）”）", "4.1 印刷页 4；矩阵 M-4.5.2-04 shall，C-S-07")
+        elif name == "term-sec":
+            if not _has_text_label(el):
+                need(el, "label（条目编号）", "9.2.1 印刷页 34；矩阵 M-9.2.1-03 shall，C-T-37")
+        elif name == "ref-list" and el.get("content-type") == "bibl":
+            if not _kids(el, "title"):
+                need(el, "title（“参考文献”）", "4.5.3.1 印刷页 12；矩阵 M-4.5.3-02 shall，C-S-27")
+        elif name == "ref" and _in_bibl_ref_list(el):
+            if not _has_text_label(el):
+                need(el, "label（“[1]”）", "4.5.3.2 印刷页 13；矩阵 M-4.5.3-04、M-4.5.3.1-02 shall，C-S-27")
+        elif name == "list-item":
+            parent = el.getparent()
+            if parent is not None and is_element(parent) and nsuri(parent) is None and local(parent) == "list" \
+                    and parent.get("list-type") in LIST_TYPES and parent.get("list-type") not in LIST_TYPES_UNORDERED \
+                    and not _kids(el, "label"):
+                msg = "有序列项（list-type=%s）的 list-item 缺少 label（序号在 label 中体现，5.7.1；矩阵 M-5.7-09 shall，C-S-32）" % parent.get("list-type")
+                if rep.profile == "export":
+                    rep.error("V-17", "REQUIRED-PART：" + msg + "（导出必须如此）", el=el)
+                else:
+                    rep.warn("W-LIST-LABEL", msg, el=el)
+        elif name == "table-wrap":
+            if not _has_text_label(el):
+                need(el, "label（表编号）", "6.2.1 印刷页 20；矩阵 M-6.2.1-03 shall，C-T-15")
+            caps = _kids(el, "caption")
+            if not (caps and _kids(caps[0], "title")):
+                need(el, "caption/title（表题）", "6.2.1 印刷页 20；矩阵 M-6.2.1-05 shall，C-T-01")
+        elif name == "fig":
+            if not _has_text_label(el):
+                need(el, "label（图编号）", "8.2 印刷页 31；矩阵 M-8.2-04 shall，C-T-35")
+            if not _kids(el, "graphic"):
+                need(el, "graphic（图形）", "8.2 印刷页 31；矩阵 M-8.2-08 shall，C-T-26")
+        elif name == "fn" and is_table_footnote(el):
+            if not _kids(el, "label"):
+                need(el, "label（脚注字母，label/sup）", "6.2.3 印刷页 21；矩阵 M-6.2.3-08 shall，C-T-06")
+        elif name == "def-list":
+            if any(is_element(a) and _plain(a, "legend") and a.getparent() is not None and _plain(a.getparent(), "disp-formula")
+                   for a in el.iterancestors()) and el.get("list-content") != "formula":
+                need(el, "list-content=\"formula\"（“式中”说明列表）", "7.3 印刷页 28；矩阵 M-7.3-03 shall，C-T-22")
+        elif name == "ext-link":
+            lt = el.get("ext-link-type")
+            if lt is None:  # 原文 10.1.9 示例缺该属性（笔误），导入接受缺省
+                if rep.profile == "export":
+                    rep.error("V-17", "REQUIRED-PART：<ext-link> 缺少 ext-link-type=\"uri\"（10.1.9 印刷页 48；矩阵 M-10.1.9-01 shall，C-T-56；导出必须如此）", el=el)
+            elif lt != "uri":
+                if rep.profile == "export":
+                    rep.error("V-17", "REQUIRED-PART：<ext-link> 的 ext-link-type=%r，导出只能是 uri（10.1.9；矩阵 M-10.1.9-01，C-T-56）" % lt, el=el)
+                else:
+                    rep.warn("W-EXTLINK-TYPE", "ext-link/@ext-link-type=%r：10.1.9 要求 uri，其他取值导入时告警（C-T-56）" % lt, el=el)
+        elif name == "named-content":
+            ct = el.get("content-type")
+            if ct is not None and ct != "variable":
+                if rep.profile == "export":
+                    rep.error("V-17", "REQUIRED-PART：<named-content> 的 content-type=%r，导出只能是 variable（5.5 印刷页 15；矩阵 M-5.5-01 shall，C-S-30；导出必须如此）" % ct, el=el)
+                else:
+                    rep.warn("W-NAMED-CONTENT", "named-content/@content-type=%r：只有 variable 有定义，导入时去掉标记（C-S-30）" % ct, el=el)
+        elif name == "p" and (el.get("id") is not None or el.get(_clark(NS_XML, "id")) is not None):
+            msg = "NO-ID：<p> 不应带 id（附录 E 印刷页 67“p 中无任何 id 或其他属性”；矩阵 M-E-25 export required，C-T-22）"
+            _export_error_or_import(rep, "V-18", "V-18", msg, el, msg + "（导入接受：p 的 id 忽略）")
+
+
 def semantic_checks(tree, rep: Report) -> None:
     root = tree.getroot()
     elems = [e for e in root.iter() if is_element(e)]
@@ -1047,8 +1161,6 @@ def semantic_checks(tree, rep: Report) -> None:
             has_label = any(is_element(c) and local(c) == "label" for c in it)
             if lt in LIST_TYPES_UNORDERED and has_label:
                 rep.error("V-5", "无序列项（list-type=%s）的 list-item 不应带 label（5.7.2、C-S-32）" % lt, el=it)
-            if lt not in LIST_TYPES_UNORDERED and not has_label:
-                rep.warn("W-LIST-LABEL", "有序列项（list-type=%s）的 list-item 缺少 label（序号在 label 中体现，5.7.1）" % lt, el=it)
 
     # ---------------- V-6 processing-meta 与 title-wrap ----------------
     for el in elems:
@@ -1076,6 +1188,10 @@ def semantic_checks(tree, rep: Report) -> None:
 
     # ---------------- V-14 / V-15 mml:math 的 id 与 display ----------------
     check_mml_math(elems, rep)
+
+    # ---------------- V-16 导出文件的固定外形（仅导出档）、V-17 导出必备的部件、V-18 p 不带 id ----------------
+    check_export_form(tree, rep)
+    check_required_parts(elems, rep)
 
     # ---------------- V-7 遗留 id 形式 ----------------
     for el in elems:
@@ -1141,7 +1257,10 @@ def semantic_checks(tree, rep: Report) -> None:
         if len(defs) > 1:
             rep.error("V-9", "术语条目含 %d 个 tbx:definition：“每个术语条目必须有且仅有一个定义”（附录 C 行 92）" % len(defs), el=el)
         elif not defs:
-            rep.warn("W-TERM-NODEF", "术语条目没有 tbx:definition（附录 C 行 92 要求有且仅有一个）", el=el)
+            if rep.profile == "export":
+                rep.error("V-9", "术语条目没有 tbx:definition：“每个术语条目必须有且仅有一个定义”（附录 C 行 92；矩阵 M-9.2.2-01 shall，C-T-37；导出必须如此）", el=el)
+            else:
+                rep.warn("W-TERM-NODEF", "术语条目没有 tbx:definition（附录 C 行 92 要求有且仅有一个；导入接受）", el=el)
     for el in elems:
         if nsuri(el) == NS_TBX and local(el) == "normativeAuthentication":
             _import_only(rep, "元素 <tbx:normativeAuthentication> 是 9.2.3 印刷页 37 说明文字中的异写（正式名 tbx:normativeAuthorization，D-T-06）", el)
@@ -1170,12 +1289,6 @@ def semantic_checks(tree, rep: Report) -> None:
             problem = url_value_problem(text_of(el))
             if problem:
                 rep.error("V-11", "<uri> 的内容 %s（C-T-56）" % problem, el=el)
-    for el in elems:
-        if nsuri(el) is None and local(el) == "ext-link":
-            ltype = el.get("ext-link-type")
-            if ltype not in (None, "uri"):
-                rep.warn("W-EXTLINK-TYPE", "ext-link/@ext-link-type=%r：10.1.9 要求 uri，其他取值导入时告警（C-T-56）" % ltype, el=el)
-
     # ---------------- 其余仅导入接受的写法与取值告警 ----------------
     for el in elems:
         if nsuri(el) is None:
@@ -1184,8 +1297,6 @@ def semantic_checks(tree, rep: Report) -> None:
                 _import_only(rep, "<monospace>（导出用 inline-code，D-S-07）", el)
             elif name == "xref" and el.get("ref-type") in ("chem", "other"):
                 _import_only(rep, "xref/@ref-type=%r（附录 D / 10.1.4 示例的写法，无类型语义，C-T-48）" % el.get("ref-type"), el)
-            elif name == "named-content" and el.get("content-type") not in (None, "variable"):
-                rep.warn("W-NAMED-CONTENT", "named-content/@content-type=%r：只有 variable 有定义，导入时去掉标记（C-S-30）" % el.get("content-type"), el=el)
             elif name == "table-wrap" and el.get("position") is not None:
                 _import_only(rep, "table-wrap/@position（附录 C 列出，正文无说明）", el)
             elif name == "std-ref" and any(is_element(c) and local(c) == "edition" for c in el):

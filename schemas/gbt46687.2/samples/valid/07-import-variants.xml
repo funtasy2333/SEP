@@ -7,6 +7,8 @@
 <standard xmlns:xlink="http://www.w3.org/1999/xlink"
           xmlns:mml="http://www.w3.org/1998/Math/MathML"
           xmlns:tbx="urn:iso:std:iso:30042:ed-1">
+  <processing-meta base-tagset="interchange" mathml-version="3.0" table-model="xhtml"
+                   terminology-model="tbx" math-representation="mathml" tagset-family="sts"/>
   <front>
     <!-- std-meta 子元素次序同原文 4.1 示例（ics、ccs 在 title-wrap 之前）：import 档告警 V-12 STD-META-ORDER，export 档为错误 -->
     <std-meta>
@@ -77,6 +79,11 @@
           </tbody>
         </table>
       </table-wrap>
+      <!-- 无标题条不带 sec-type（4.4.2.1 的写法）：导入接受；导出须写 sec-type="numbered-paragraph"（4.4.2.5） -->
+      <sec id="sec_5.1">
+        <label>5.1</label>
+        <p>无标题条，不带 sec-type 属性。</p>
+      </sec>
     </sec>
   </body>
   <back>

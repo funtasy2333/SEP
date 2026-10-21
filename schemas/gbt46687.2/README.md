@@ -22,7 +22,7 @@
 | `math.rng` | disp-formula、disp-formula-group、inline-formula、mml:math（MathML 3 宽松子 schema） |
 | `tbx.rng` | tbx:termEntry/langSet/tig/term/definition/note/example/source/subjectField/entailedTerm/partOfSpeech/… |
 | `samples/valid/` | 9 个手写正例：01～06 选用形式；07 “仅导入接受”的异写汇总（含按原文 4.1 示例次序写的 std-meta）；08 原文明确写法与 STS 1.2 不一致的情形（国标扩展、示例冲突）；09 格式合法但导入暂拒的写法 |
-| `samples/invalid/` | 71 个负例，每个由同一基底文档单点改动生成，文件开头的注释写明违反项 |
+| `samples/invalid/` | 77 个负例，每个由同一基底文档单点改动生成，文件开头的注释写明违反项 |
 | `../../scripts/xml46687/validate.py` | 校验工具（语法 + RELAX NG 双实现 + 语义规则） |
 | `../../scripts/xml46687/sts_compat.py` | 官方 NISO STS 1.2 DTD 兼容性检查（已知国标扩展白名单 + 未解释偏差） |
 | `../../scripts/xml46687/test_validate.py` | unittest 回归测试 |
@@ -165,13 +165,16 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | V-6 | 语义 | `processing-meta` 六个固定属性值；`title-wrap` 带 `xml:lang` | C-S-04、C-S-13 |
 | V-7 | 语义 | 不得出现 `ext_`、`Formula…`、`id-<uuid>`、`p-<数字>` 形式的 id | 2.3、R-5 |
 | V-8 | 附加 | `xref/@ref-type`（及 `custom-type`、`table-fn` 须同表）与目标元素类型一致；`entailedTerm` 指向 termEntry。`ref-type="custom"` 一律校验目标：`rid` 必须指向术语条目（`tbx:termEntry` 或 `term-sec`）、注（`non-normative-note`、`tbx:note`）或示例（`non-normative-example`、`tbx:example`）之一，有 `custom-type` 时还须与目标一致（两档都是错误）；**缺 `custom-type`：export 档错误、import 档告警 `CUSTOM-TYPE`**（10.1.1 称“可选”，schema 保持可选；导入器按 `rid` 目标推断类型） | C-T-48、C-T-50 |
-| V-9 | 附加 | 每个术语条目有且仅有一个定义（跨 langSet；0 个告警） | 附录 C 行 92 |
+| V-9 | 附加 | 每个术语条目有且仅有一个定义（跨 langSet）；多于一个两档都是错误，**没有定义：export 档错误、import 档告警 `W-TERM-NODEF`** | 附录 C 行 92、M-9.2.2-01 |
 | V-10 | 附加 | MathML 元素不得带事件属性（`on*`）；MathML 元素上的 URL 取值走统一的 URL 检查（见 V-11） | C-T-19 |
 | V-11 | 附加 | **所有 URL/URI 取值统一检查**（`url_value_problem`）：含任何 C0 控制字符（tab、换行、回车…）或 DEL 一律拒绝；协议（不分大小写，去掉首尾空格后）须是 http、https、mailto、ftp，相对地址不限。覆盖：任何元素上本地名为 `href`/`src`/`altimg` 的属性（`ext-link`、`graphic`、`inline-graphic`、MathML 的 `xlink:href` 等）和 `uri` 元素的文本；MathML 元素上的同类取值报 V-10 | C-T-56、C-T-19 |
 | V-12 | 次序 | `STD-META-ORDER`：`std-meta` 子元素次序须为“导出次序”（STS 1.2 DTD 次序 + 国标扩展的约定位置，第 3 节第 3 点）；`--profile export` 为错误，`--profile import` 为告警；RELAX NG 不限次序 | C-S-11 |
 | V-13 | 必备 id | `REQUIRED-ID`：矩阵（id 属性 obligation=shall）与附录 E（印刷页 67）要求导出必写 id 的元素缺 id；`--profile export` 为错误，`--profile import` 为告警；RELAX NG 里 id 一律可选。清单与依据见下表 | 附录 E、M-E-*、M-9.2.1-0x、M-4.5.3.1-01、M-6.2.3-07、C-S-37 |
 | V-14 | mml:math 的 id | `MML-ID`：每个 mml:math 根（不在另一个 mml:math 之内）须有 `id="mml_m<k>"`，k 为正整数且等于它在全文中的出现序号（行间与行内合并计数，从 1 起）；缺 id、`m1` 之类写法、序号不符：`--profile export` 为错误，`--profile import` 为告警（导入器去掉根上的 id 并重新生成） | M-7.4-02、M-7.1-05（export required）、C-T-18、7.4 |
 | V-15 | mml:math 的 display | `MML-DISPLAY`：disp-formula 内的 mml:math 导出须 `display="block"`，inline-formula 内的导出不得带 display；export 档错误；import 档只对反向值告警（disp-formula 内取 inline、inline-formula 内带 display），行间公式缺省 display 不告警（原文 7.1、7.3 示例就没有） | M-7.4-03、C-T-17/19/21 |
+| V-16 | 导出外形 | `EXPORT-FORM`（**仅 export 档**，import 档不报告）：①以 `<?xml version="1.0" encoding="UTF-8"?>` 开头；②根 `standard` 上声明 `xmlns:xlink`、`xmlns:mml`、`xmlns:tbx`（URI 见主文件头）；③有 `processing-meta`（直接置于 `standard` 下） | M-4.1-01、M-4.1-03、M-4.1-T01/T02、M-4.3.2-30（export required） |
+| V-17 | 导出必备的部件 | `REQUIRED-PART`：矩阵 export required 的部件结构层放宽为可选，**export 档缺少即错误，import 档告警**（编号、标题由导入器重新派生）：`sec`（body/app 内）、`app`、`term-sec`、bibl 的 `ref`、`table-wrap`、`fig`、表脚注 `fn` 的 `label`；`app/annex-type`；bibl 参考文献表的 `title`；`table-wrap/caption/title`；`fig/graphic`；公式“式中”`def-list` 的 `list-content="formula"`；有序列项的 `label`（import 档沿用 `W-LIST-LABEL`）；`ext-link-type="uri"`（缺省 import 不报告，原文 10.1.9 示例就缺；非 uri 值 import 沿用 `W-EXTLINK-TYPE`）；`named-content` 的 `content-type` 只能是 variable（import 沿用 `W-NAMED-CONTENT`）；无标题的条须 `sec-type="numbered-paragraph"`（**仅 export 档**，4.4.2.1 的写法 import 不报告） | M-4.4.2.1-02、M-4.5.2-03/04、M-9.2.1-03、M-4.5.3-02/04、M-5.7-09、M-6.2.1-03/05、M-8.2-04/08、M-6.2.3-08、M-7.3-03、M-10.1.9-01、M-5.5-01、M-4.4.2.5-01 |
+| V-18 | p 不带 id | `NO-ID`：附录 E“p 中无任何 id”；export 档错误，import 档告警（p 的 id 忽略，C-T-22） | M-E-25 |
 | IMPORT-ONLY | 档位 | 仅导入接受的异写（见第 3 节第 6 点）：import 档告警，export 档错误 | 各 C- 行 |
 | W-IMPL-REJECT 等 | 告警 | rejectKind=implementation：格式合法、导入暂拒（引言中的条、array、disp-formula-group），同一 fn 多引用为 W-FN-MULTIREF | 各 M- 行 |
 | W-* | 告警 | 不阻断：未知 sec-type、named-content/graphic/ext-link 的非常规取值、`size:T` 用于行内图、有序列项缺 label、annex-type 与 content-type 矛盾、发布日期晚于实施日期、多 rid、**脚注未被引用（`W-FN-UNREFERENCED`，正文脚注与表脚注都查，无 id 的 fn 按位置报告）**… | 各 C- 行 |
@@ -306,14 +309,14 @@ PR#55 审查后逐个核对：
 | `04-tables.xml` | 表头、跨行跨列、`col`、单位段、表注/表脚注（`table-wrap-foot`）、单位、横向表 |
 | `05-formulas-figures.xml` | disp-formula/inline-formula + mml:math + legend/def-list、公式注、fig（图例、说明段、多图形、图注、尺寸档位）、fig-group、inline-graphic |
 | `06-terms-references.xml` | term-sec + tbx:termEntry（多 langSet、多 tig、描述符、subjectField、note/example、entailedTerm）、缩略语、各类 xref、行内 fn、std、mixed-citation |
-| `07-import-variants.xml` | 仅导入接受的异写汇总，以及按原文 4.1 示例次序写的 `std-meta`（`ics`、`ccs` 在 `title-wrap` 之前）：import 档通过并告警（`IMPORT-ONLY`、V-12），export 档不通过 |
+| `07-import-variants.xml` | 仅导入接受的异写汇总，以及按原文 4.1 示例次序写的 `std-meta`（`ics`、`ccs` 在 `title-wrap` 之前）、4.4.2.1 写法的无标题条（不带 `sec-type`）：import 档通过并告警（`IMPORT-ONLY`、V-12），export 档不通过（另有 V-17） |
 | `08-original-forms-vs-sts.xml` | 原文明确写法与 STS 1.2 不一致的情形（5 个国标扩展元素、std-org 多名、xref 内 label、langSet 内 note 在 tig 之后、graphic 在 table-wrap-foot 之后、块级 fn）；两个档位都通过，`sts_compat.py` 列为已知偏差 |
 | `09-import-pending.xml` | 格式合法但导入暂拒（rejectKind=implementation）：引言中的条（含 `sec_0.1.1` 两层）、array、disp-formula-group、同一脚注多次引用；只告警 |
 
-`samples/invalid/` 的 71 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
+`samples/invalid/` 的 77 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
 语法 4、旧格式/根 3、矩阵 format 类 reject 17（含 4 个术语异写元素名、1 个 fn 藏在 caption 段落里的图脚注）、V-1 3、V-2 4、V-3 3、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 11（含 2 个 custom 型 xref 的目标错误、2 个脚注/表脚注引用类型互串、3 个 URL 里的控制字符）、仅 RELAX NG 7
 （含按 STS 1.2 收紧后新增的含子条的条再放段落、partOfSpeech 取值、named-content 缺 content-type、空 table-wrap-foot）、
-**仅 export 档失败 7（`std-meta-wrong-order.xml`：结构层通过，import 档告警 V-12，export 档错误 V-12；`missing-term-entry-id.xml`、`missing-app-id.xml`、`missing-ref-id.xml`：缺必备 id，import 档告警 V-13，export 档错误 V-13；`custom-xref-no-type.xml`：custom 型 xref 缺 custom-type，import 档告警 V-8 CUSTOM-TYPE，export 档错误；`mathml-id-missing.xml`、`mathml-display-inline-in-disp-formula.xml`：mml:math 的 id/display，import 档告警 V-14/V-15，export 档错误；预期见 `EXPORT_ONLY_INVALID`）**。
+**仅 export 档失败 13（`std-meta-wrong-order.xml`：结构层通过，import 档告警 V-12，export 档错误 V-12；`missing-term-entry-id.xml`、`missing-app-id.xml`、`missing-ref-id.xml`：缺必备 id，import 档告警 V-13，export 档错误 V-13；`custom-xref-no-type.xml`：custom 型 xref 缺 custom-type，import 档告警 V-8 CUSTOM-TYPE，export 档错误；`mathml-id-missing.xml`、`mathml-display-inline-in-disp-formula.xml`：mml:math 的 id/display，import 档告警 V-14/V-15，export 档错误；`sec-without-label`、`table-wrap-without-label`、`app-without-annex-type`、`ext-link-without-type`、`term-entry-without-definition`、`p-with-id`：矩阵 export required 的部件（V-17/V-9/V-18）；预期见 `EXPORT_ONLY_INVALID`）**。
 
 ## 7. 官方 DTD 对照后：`[未核实]` 清单的复核结论（2026-10-21）
 

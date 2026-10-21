@@ -157,6 +157,13 @@ EXPORT_ONLY_INVALID = {
     # mml:math 的 id 与 display（矩阵 M-7.4-02、M-7.1-05、M-7.4-03）：导入告警、导出错误
     "mathml-id-missing.xml": ("V-14", "缺少 id"),
     "mathml-display-inline-in-disp-formula.xml": ("V-15", "display"),
+    # 矩阵 export required 的部件（V-17 等）：结构层放宽为可选，导入告警（或不报告）、导出错误
+    "sec-without-label.xml": ("V-17", "label"),
+    "app-without-annex-type.xml": ("V-17", "annex-type"),
+    "ext-link-without-type.xml": ("V-17", "ext-link-type", ""),
+    "table-wrap-without-label.xml": ("V-17", "label"),
+    "term-entry-without-definition.xml": ("V-9", "tbx:definition", "W-TERM-NODEF"),
+    "p-with-id.xml": ("V-18", "NO-ID"),
 }
 
 # 矩阵中 import: reject 的行（rejectKind 见 docs/wp8.1/matrix-*.json）：
@@ -273,11 +280,12 @@ class TestImportVariantsSample(unittest.TestCase):
     def test_export_profile_rejects_every_import_only_form(self):
         rep = VALIDATOR_EXPORT.validate_file(self.path)
         self.assertFalse(rep.valid)
-        self.assertEqual(_rules(rep), {"IMPORT-ONLY", "V-12"})
+        # V-17：4.4.2.1 写法的无标题条（不带 sec-type）导入接受，导出必须写 numbered-paragraph
+        self.assertEqual(_rules(rep), {"IMPORT-ONLY", "V-12", "V-17"})
         text = _messages(rep)
         for token in ("norm_refs", "inform_annex", "bibr", "date-type",
                       "normativeAuthentication", "monospace", "other", "chem", "position", "center",
-                      "STD-META-ORDER"):
+                      "STD-META-ORDER", "numbered-paragraph"):
             self.assertIn(token, text)
 
     def test_std_meta_in_4_1_example_order_is_accepted_with_a_warning(self):
@@ -316,7 +324,9 @@ for _name, _spec in EXPECTED_INVALID.items():
 
 
 def _make_export_only_test(name: str, spec):
-    rule, keyword = spec
+    # spec = (规则, 关键字[, import 档的告警规则])：第三项缺省等于规则；"" 表示 import 档不报告（原文示例就是那种写法）
+    rule, keyword = spec[0], spec[1]
+    import_rule = spec[2] if len(spec) > 2 else rule
 
     def test(self):
         path = INVALID_DIR / name
@@ -332,8 +342,9 @@ def _make_export_only_test(name: str, spec):
         report = validate.format_human(rep)
         self.assertTrue(rep.valid, "%s 应在 import 档通过：\n%s" % (name, report))
         self.assertEqual(rep.errors, [], report)
-        self.assertEqual({w["rule"] for w in rep.warnings}, {rule}, report)
-        self.assertIn(keyword, "\n".join(w["message"] for w in rep.warnings), report)
+        self.assertEqual({w["rule"] for w in rep.warnings}, {import_rule} if import_rule else set(), report)
+        if import_rule:
+            self.assertIn(keyword, "\n".join(w["message"] for w in rep.warnings), report)
         self.assertIs(rep.engines["lxml"]["valid"], True)
         self.assertIs(rep.engines["xmllint"]["valid"], True)
     return test
@@ -399,7 +410,11 @@ _META = '<title-wrap xml:lang="zh"><full>t</full></title-wrap>'
 _BODY = '<sec id="sec_1" sec-type="scope"><label>1</label><title>范围</title><p>x</p></sec>'
 
 
-def _doc(meta=_META, body=_BODY, pm="", front_secs="", back=""):
+_PM = ('  <processing-meta base-tagset="interchange" mathml-version="3.0" table-model="xhtml" terminology-model="tbx" '
+       'math-representation="mathml" tagset-family="sts"/>\n')
+
+
+def _doc(meta=_META, body=_BODY, pm=_PM, front_secs="", back=""):
     return _SKELETON.format(pm=pm, meta=meta, body=body, front_secs=front_secs, back=back)
 
 
@@ -1691,6 +1706,206 @@ class TestMathmlIdAndDisplay(unittest.TestCase):
             if path.name.startswith(EXPORT_CLEAN_PREFIXES):
                 rep = VALIDATOR_EXPORT.validate_file(path)
                 self.assertEqual([i for i in rep.errors + rep.warnings if i["rule"] in ("V-14", "V-15")], [], path.name)
+
+
+class TestExportStrictRules(unittest.TestCase):
+    """矩阵 export required 的部件：结构层放宽，导出档强制（V-16 外形、V-17 部件、V-18 p 不带 id），导入档宽容。"""
+
+    NS = ('xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:mml="http://www.w3.org/1998/Math/MathML" '
+          'xmlns:tbx="urn:iso:std:iso:30042:ed-1"')
+
+    def _parts(self, fragment, profile):
+        text = "<standard %s><body><sec id=\"s\"><label>1</label><title>t</title>%s</sec></body></standard>" % (self.NS, fragment)
+        tree = validate.etree.ElementTree(validate.etree.fromstring(text.encode("utf-8"), validate.secure_parser()))
+        rep = validate.Report("case.xml", profile)
+        validate.check_required_parts([e for e in tree.getroot().iter() if validate.is_element(e)], rep)
+        return rep
+
+    def _both(self, fragment):
+        return self._parts(fragment, "import"), self._parts(fragment, "export")
+
+    def _assert_strict(self, fragment, keyword, import_rule="V-17"):
+        imp, exp = self._both(fragment)
+        self.assertEqual(imp.errors, [], fragment)
+        self.assertEqual([w["rule"] for w in imp.warnings], [import_rule] if import_rule else [], fragment)
+        self.assertEqual(exp.warnings, [], fragment)
+        self.assertEqual(len(exp.errors), 1, fragment)
+        self.assertTrue(exp.errors[0]["rule"] in ("V-17", "V-18"), fragment)
+        self.assertIn(keyword, exp.errors[0]["message"])
+        self.assertRegex(exp.errors[0]["message"], r"M-[0-9A-Z.]+-\d+", "信息要写明矩阵行")
+
+    def _assert_clean(self, fragment):
+        for rep in self._both(fragment):
+            self.assertEqual((rep.errors, rep.warnings), ([], []), fragment)
+
+    TABLE = '<table-wrap id="t1">%s<caption>%s</caption><table><tbody><tr><td>c</td></tr></tbody></table>%s</table-wrap>'
+
+    def test_labels_and_titles_are_required_on_export(self):
+        cases = [
+            ("条缺 label", '<sec id="s2"><title>u</title></sec>', "label"),
+            ("无标题条缺 label", '<sec id="s2" sec-type="numbered-paragraph"><p>x</p></sec>', "label"),
+            ("术语条缺 label", '<term-sec id="ts"><tbx:termEntry id="te"/></term-sec>', "label"),
+            ("参考文献缺 label", '<ref-list id="rl" content-type="bibl"><title>参考文献</title><ref id="r"><mixed-citation>x</mixed-citation></ref></ref-list>', "label"),
+            ("表缺 label", self.TABLE % ("", "<title>c</title>", ""), "label"),
+            ("表缺题", self.TABLE % ("<label>表1</label>", "", ""), "caption/title"),
+            ("图缺 label", '<fig id="f"><caption><title>c</title></caption><graphic xlink:href="a"/></fig>', "label"),
+            ("图缺 graphic", '<fig id="f"><label>图1</label><caption><title>c</title></caption><p>x</p></fig>', "graphic"),
+            ("表脚注缺 label", self.TABLE % ("<label>表1</label>", "<title>c</title>", '<table-wrap-foot><fn id="tf"><p>x</p></fn></table-wrap-foot>'), "label"),
+            ("参考文献表缺 title", '<ref-list id="rl" content-type="bibl"><ref id="r"><label>[1]</label><mixed-citation>x</mixed-citation></ref></ref-list>', "title"),
+            ("公式说明列表缺 list-content", '<disp-formula id="f"><label>(1)</label><mml:math/><legend><def-list><def-item><term>x</term><def><p>y</p></def></def-item></def-list></legend></disp-formula>', "list-content"),
+        ]
+        for why, frag, keyword in cases:
+            with self.subTest(why=why):
+                imp, exp = self._both(frag)
+                self.assertEqual(imp.errors, [])
+                self.assertTrue([w for w in imp.warnings if w["rule"] == "V-17"], why)
+                found = [e for e in exp.errors if e["rule"] == "V-17"]
+                self.assertTrue(found, why)
+                self.assertTrue(any(keyword in e["message"] for e in found), why)
+                for e in found:
+                    self.assertRegex(e["message"], r"M-[0-9A-Z.]+-\d+")
+
+    def test_complete_parts_are_clean(self):
+        self._assert_clean('<sec id="s2"><label>1.1</label><title>u</title></sec>')
+        self._assert_clean('<sec id="s2" sec-type="numbered-paragraph"><label>1.2</label><p>x</p></sec>')
+        self._assert_clean(self.TABLE % ("<label>表1</label>", "<title>c</title>", '<table-wrap-foot><fn id="tf"><label>a</label><p>x</p></fn></table-wrap-foot>'))
+        self._assert_clean('<fig id="f"><label>图1</label><caption><title>c</title></caption><graphic xlink:href="a"/></fig>')
+        self._assert_clean('<ref-list id="rl" content-type="bibl"><title>参考文献</title><ref id="r"><label>[1]</label><mixed-citation>x</mixed-citation></ref></ref-list>')
+        self._assert_clean('<disp-formula id="f"><label>(1)</label><mml:math/><legend><def-list list-content="formula"><def-item><term>x</term><def><p>y</p></def></def-item></def-list></legend></disp-formula>')
+
+    def test_app_needs_label_and_annex_type(self):
+        full = '<app-group><app id="a" content-type="informative"><label>附录 A</label><annex-type>（资料性）</annex-type><title>t</title></app></app-group>'
+        self._assert_clean(full)
+        for why, frag, keyword in (("缺 label", full.replace("<label>附录 A</label>", ""), "label"),
+                                    ("缺 annex-type", full.replace("<annex-type>（资料性）</annex-type>", ""), "annex-type")):
+            with self.subTest(why=why):
+                imp, exp = self._both(frag)
+                self.assertEqual(imp.errors, [])
+                self.assertEqual([w["rule"] for w in imp.warnings], ["V-17"])
+                self.assertIn(keyword, exp.errors[0]["message"])
+
+    def test_untitled_sec_must_carry_numbered_paragraph_on_export_only(self):
+        frag = '<sec id="s2"><label>1.1</label><p>无标题条</p></sec>'  # 4.4.2.1 的写法
+        imp, exp = self._both(frag)
+        self.assertEqual((imp.errors, imp.warnings), ([], []), "导入接受 4.4.2.1 的写法")
+        self.assertEqual([e["rule"] for e in exp.errors], ["V-17"])
+        self.assertIn("numbered-paragraph", exp.errors[0]["message"])
+
+    def test_ordered_list_items_need_labels(self):
+        for lt in ("arabic", "alpha-lower", "roman-lower"):
+            frag = '<list list-type="%s"><list-item><p>x</p></list-item></list>' % lt
+            imp, exp = self._both(frag)
+            self.assertEqual([w["rule"] for w in imp.warnings], ["W-LIST-LABEL"], lt)
+            self.assertEqual([e["rule"] for e in exp.errors], ["V-17"], lt)
+            self.assertIn("M-5.7-09", exp.errors[0]["message"])
+        self._assert_clean('<list list-type="arabic"><list-item><label>1)</label><p>x</p></list-item></list>')
+        self._assert_clean('<list list-type="dash"><list-item><p>x</p></list-item></list>')
+
+    def test_ext_link_type_and_named_content_values(self):
+        ok = '<p><ext-link ext-link-type="uri" xlink:href="https://example.org/">x</ext-link></p>'
+        self._assert_clean(ok)
+        # 缺 ext-link-type：原文 10.1.9 示例就缺，导入不报告；导出必须写
+        imp, exp = self._both(ok.replace(' ext-link-type="uri"', ""))
+        self.assertEqual((imp.errors, imp.warnings), ([], []))
+        self.assertEqual([e["rule"] for e in exp.errors], ["V-17"])
+        # 取值不是 uri：导入告警 W-EXTLINK-TYPE，导出错误
+        imp, exp = self._both(ok.replace('"uri"', '"doi"'))
+        self.assertEqual([w["rule"] for w in imp.warnings], ["W-EXTLINK-TYPE"])
+        self.assertEqual([e["rule"] for e in exp.errors], ["V-17"])
+        nc = '<p><named-content content-type="%s">x</named-content></p>'
+        self._assert_clean(nc % "variable")
+        imp, exp = self._both(nc % "foo")
+        self.assertEqual([w["rule"] for w in imp.warnings], ["W-NAMED-CONTENT"])
+        self.assertEqual([e["rule"] for e in exp.errors], ["V-17"])
+        self.assertIn("M-5.5-01", exp.errors[0]["message"])
+
+    def test_p_must_not_carry_id(self):
+        imp, exp = self._both('<p id="para_1">x</p>')
+        self.assertEqual([w["rule"] for w in imp.warnings], ["V-18"])
+        self.assertEqual([e["rule"] for e in exp.errors], ["V-18"])
+        self.assertIn("M-E-25", exp.errors[0]["message"])
+        self._assert_clean("<p>x</p>")
+
+    def test_front_sections_do_not_need_labels(self):
+        text = ('<standard %s><front><sec sec-type="foreword"><title>前言</title><p>x</p></sec></front></standard>' % self.NS)
+        tree = validate.etree.ElementTree(validate.etree.fromstring(text.encode("utf-8"), validate.secure_parser()))
+        rep = validate.Report("case.xml", "export")
+        validate.check_required_parts([e for e in tree.getroot().iter() if validate.is_element(e)], rep)
+        self.assertEqual((rep.errors, rep.warnings), ([], []))
+
+    def test_term_entry_needs_a_definition_on_export(self):
+        frag = ('<sec id="s3" sec-type="terms"><label>3</label><title>术语</title><term-sec id="ts"><label>3.1</label>'
+                '<tbx:termEntry id="te"><tbx:langSet xml:lang="zh"><tbx:tig><tbx:term>a</tbx:term></tbx:tig></tbx:langSet></tbx:termEntry></term-sec></sec>')
+        for validator, key in ((VALIDATOR_IMPORT, "warn"), (VALIDATOR_EXPORT, "error")):
+            with tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "case.xml"
+                path.write_text(_doc(body=frag), encoding="utf-8")
+                rep = validator.validate_file(path)
+            if key == "warn":
+                self.assertTrue(rep.valid, validate.format_human(rep))
+                self.assertIn("W-TERM-NODEF", {w["rule"] for w in rep.warnings})
+            else:
+                self.assertFalse(rep.valid)
+                self.assertIn("V-9", _rules(rep))
+                self.assertIn("M-9.2.2-01", _messages(rep))
+
+
+class TestExportForm(unittest.TestCase):
+    """V-16 EXPORT-FORM（仅导出档）：XML 声明、根上的命名空间声明、processing-meta。"""
+
+    def _run(self, text, validator):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case.xml"
+            path.write_text(text, encoding="utf-8")
+            return validator.validate_file(path)
+
+    @staticmethod
+    def _v16(rep):
+        return [e for e in rep.errors if e["rule"] == "V-16"]
+
+    def test_complete_form_is_clean(self):
+        rep = self._run(_doc(), VALIDATOR_EXPORT)
+        self.assertEqual(self._v16(rep), [], validate.format_human(rep))
+
+    def test_xml_declaration_is_required_on_export_only(self):
+        text = _doc().split("?>", 1)[1].lstrip("\n")
+        rep = self._run(text, VALIDATOR_EXPORT)
+        self.assertEqual(len(self._v16(rep)), 1)
+        self.assertIn("M-4.1-01", self._v16(rep)[0]["message"])
+        rep = self._run(text, VALIDATOR_IMPORT)
+        self.assertTrue(rep.valid, validate.format_human(rep))
+        self.assertEqual([i for i in rep.errors + rep.warnings if i["rule"] == "V-16"], [])
+
+    def test_declaration_must_say_version_1_0_and_utf8(self):
+        body = _doc().split("?>", 1)[1]
+        for why, decl in (("没有 encoding", '<?xml version="1.0"?>'), ("version 2.0", '<?xml version="2.0" encoding="UTF-8"?>')):
+            with self.subTest(why=why):
+                rep = self._run(decl + body, VALIDATOR_EXPORT)
+                self.assertEqual(len(self._v16(rep)), 1, validate.format_human(rep))
+        for ok in ('<?xml version="1.0" encoding="utf-8"?>', "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>"):
+            self.assertEqual(self._v16(self._run(ok + body, VALIDATOR_EXPORT)), [], ok)
+
+    def test_root_must_declare_the_three_namespaces_on_export(self):
+        for prefix in ("xlink", "mml", "tbx"):
+            with self.subTest(prefix=prefix):
+                text = _doc()
+                uri = {"xlink": "http://www.w3.org/1999/xlink", "mml": "http://www.w3.org/1998/Math/MathML",
+                       "tbx": "urn:iso:std:iso:30042:ed-1"}[prefix]
+                text = text.replace('xmlns:%s="%s"' % (prefix, uri), "")
+                rep = self._run(text, VALIDATOR_EXPORT)
+                found = self._v16(rep)
+                self.assertEqual(len(found), 1, validate.format_human(rep))
+                self.assertIn("xmlns:" + prefix, found[0]["message"])
+                imp = self._run(text, VALIDATOR_IMPORT)
+                self.assertEqual([i for i in imp.errors + imp.warnings if i["rule"] == "V-16"], [])
+
+    def test_processing_meta_is_required_on_export_only(self):
+        rep = self._run(_doc(pm=""), VALIDATOR_EXPORT)
+        found = self._v16(rep)
+        self.assertEqual(len(found), 1, validate.format_human(rep))
+        self.assertIn("M-4.3.2-30", found[0]["message"])
+        rep = self._run(_doc(pm=""), VALIDATOR_IMPORT)
+        self.assertTrue(rep.valid, validate.format_human(rep))
 
 
 class TestWarnings(unittest.TestCase):

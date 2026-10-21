@@ -61,10 +61,6 @@
           <label>5.1.1</label>
           <p>这是一个无标题条，没有 title，带 numbered-paragraph 属性。</p>
         </sec>
-        <sec id="sec_5.1.2">
-          <label>5.1.2</label>
-          <p>这是另一个无标题条，不带 sec-type 属性（4.4.2.1 的写法）。</p>
-        </sec>
         <non-normative-note id="note_1">
           <label>注：</label>
           <p>被引用的注才带 id。</p>
