@@ -247,6 +247,11 @@ case('uuid-id.xml', '图的 id 为 id-<uuid> 形式（V-7：转换工具生成�
 case('p-number-id.xml', '段落 id 为 p-125 形式（V-7：p 不带 id）。',
      [('<p>附录内容。</p>', '<p id="p-125">附录内容。</p>')])
 # ---- V-8 ~ V-11 ----
+case('fn-xref-to-table-footnote.xml', 'xref[ref-type=fn] 指向 table-wrap-foot 内的表脚注（V-8：表脚注只能用 ref-type=table-fn 引用，C-T-06、表 6-A）。',
+     [('        </table>\n      </table-wrap>', '        </table>\n        <table-wrap-foot>\n          <fn id="table-fn_1.1">\n            <label>a</label>\n            <p>表脚注。</p>\n          </fn>\n        </table-wrap-foot>\n      </table-wrap>'),
+      ('<p>前言内容。</p>', '<p>前言内容<xref ref-type="fn" rid="table-fn_1.1">a</xref>。</p>')])
+case('table-fn-xref-to-body-fn.xml', 'xref[ref-type=table-fn] 指向正文脚注（V-8：table-fn 只能指向同一 table-wrap 的 table-wrap-foot 内的表脚注，C-T-06）。',
+     [('<p>前言内容。</p>', '<p>前言内容<xref ref-type="table-fn" rid="fn_1">1)</xref><fn id="fn_1"><label>1)</label><p>正文脚注。</p></fn>。</p>')])
 case('wrong-xref-type.xml', 'xref 的 ref-type="fig" 却指向表（V-8）。',
      [('<xref ref-type="table" rid="tab_1">', '<xref ref-type="fig" rid="tab_1">')])
 case('term-two-definitions.xml', '同一术语条目的两个 langSet 各有一个定义（V-9：有且仅有一个）。',

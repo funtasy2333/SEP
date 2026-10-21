@@ -129,6 +129,8 @@ EXPECTED_INVALID = {
     # 按 NISO STS 1.2 收紧后（2026-10-21）
     "sec-block-after-subsec.xml": ("RNG", {"RNG"}, "sec"),
     # 容器位置：结构层允许，语义规则拒绝
+    "fn-xref-to-table-footnote.xml": ("V-8", {"V-8"}, "table-fn"),
+    "table-fn-xref-to-body-fn.xml": ("V-8", {"V-8"}, "表脚注 fn"),
     "bibl-ref-list-in-app.xml": ("V-3", {"V-3"}, "back 的直接子元素"),
     "term-sec-outside-terms.xml": ("V-2", {"V-2"}, "术语和定义"),
     "custom-xref-wrong-target.xml": ("V-8", {"V-8"}, "custom-type=note"),
@@ -1166,6 +1168,139 @@ class TestContainerPositions(unittest.TestCase):
                 self.assertIn("V-2", _rules(rep))
                 self.assertIn("术语和定义", _messages(rep))
                 self.assertIs(rep.engines["lxml"]["valid"], True, "结构层允许，由语义规则拒绝")
+
+
+class TestXrefTargets(unittest.TestCase):
+    """xref[ref-type] 的目标集合（conventions-T 表 6-A）：逐类型检查，且各类型的目标互斥。"""
+
+    NS = ('xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:mml="http://www.w3.org/1998/Math/MathML" '
+          'xmlns:tbx="urn:iso:std:iso:30042:ed-1"')
+
+    def _tree(self, fragment):
+        text = "<standard %s>%s</standard>" % (self.NS, fragment)
+        return validate.etree.ElementTree(validate.etree.fromstring(text.encode("utf-8"), validate.secure_parser()))
+
+    # 一个文档里放齐各类目标；xref 放在 td 里（与表 1 在同一 table-wrap）
+    DOC = (
+        '<body><sec id="s1" sec-type="scope"><title>范围</title>'
+        '<p id="para">x</p>'
+        '<non-normative-note id="note1"><p>n</p></non-normative-note>'
+        '<table-wrap id="t1"><label>表1</label><table><tbody><tr><td><xref id="x_in_t1" ref-type="table-fn" rid="tfn1">a</xref></td></tr></tbody></table>'
+        '<table-wrap-foot><fn id="tfn1"><label>a</label><p>表脚注。</p></fn><p>x<fn id="tfn_nested"><p>嵌在段落里的表脚注。</p></fn></p></table-wrap-foot></table-wrap>'
+        '<table-wrap id="t2"><label>表2</label><table><tbody><tr><td>b</td></tr></tbody></table>'
+        '<table-wrap-foot><fn id="tfn2"><label>a</label><p>另一张表的脚注。</p></fn></table-wrap-foot></table-wrap>'
+        '<p>正文<fn id="bfn"><label>1)</label><p>正文脚注。</p></fn></p>'
+        '<fig id="f1"><caption><title>c</title></caption><graphic xlink:href="a"/></fig>'
+        '<fig-group id="fg1"><caption><title>c</title></caption><fig id="f2"><caption><title>d</title></caption><graphic xlink:href="a"/></fig></fig-group>'
+        '<disp-formula id="df1"><label>(1)</label><mml:math/></disp-formula>'
+        '<list list-type="dash" id="l1"><list-item id="li1"><p>y</p></list-item></list>'
+        '<def-list list-content="abbreviation"><def-item id="abb1"><term>A</term><def><p>a</p></def></def-item></def-list>'
+        '<def-list><def-item id="legend1"><term>x</term><def><p>式中</p></def></def-item></def-list>'
+        '<sec id="s_sub"><label>1.1</label><title>子条</title></sec></sec></body>'
+        '<back><app-group><app id="a1" content-type="informative"><title>附录</title></app></app-group>'
+        '<ref-list content-type="bibl" id="rl"><ref id="r1"><label>[1]</label><mixed-citation id="mc1">x</mixed-citation></ref></ref-list>'
+        '<index id="ix"><index-div><index-entry id="ie"><term>t</term></index-entry></index-div></index></back>'
+    )
+    # 目标 id → 唯一应接受它的 ref-type
+    EXPECTED = {
+        "s1": "sec", "s_sub": "sec", "rl": "sec", "ix": "sec",
+        "a1": "app",
+        "f1": "fig", "fg1": "fig",
+        "t1": "table", "t2": "table",
+        "df1": "disp-formula",
+        "r1": "bibr",
+        "bfn": "fn",
+        "tfn1": "table-fn", "tfn_nested": "table-fn",   # xref 在表 1 的单元格里，同表
+        "li1": "list", "l1": "list",
+        "abb1": "abbreviation",
+    }
+    NOT_TARGETS = ("para", "mc1", "legend1", "tfn2", "note1", "ie")   # tfn2 是另一张表的脚注；mc1 是 mixed-citation
+
+    def _accepting(self, tid, tree, xref):
+        target = tree.getroot().xpath('//*[@id="%s"]' % tid)[0]
+        return {rt for rt, (rule, _) in validate.XREF_TARGET_RULES.items() if rt not in ("other", "chem") and rule(xref, target)}
+
+    def test_every_target_is_accepted_by_exactly_one_ref_type(self):
+        tree = self._tree(self.DOC)
+        xref = tree.getroot().xpath('//*[@id="x_in_t1"]')[0]
+        for tid, expected in self.EXPECTED.items():
+            with self.subTest(target=tid):
+                self.assertEqual(self._accepting(tid, tree, xref), {expected})
+        for tid in self.NOT_TARGETS:
+            with self.subTest(not_a_target=tid):
+                self.assertEqual(self._accepting(tid, tree, xref), set())
+
+    def test_other_accepts_exactly_the_classifiable_targets(self):
+        tree = self._tree(self.DOC)
+        xref = tree.getroot().xpath('//*[@id="x_in_t1"]')[0]
+        other = validate.XREF_TARGET_RULES["other"][0]
+        for tid in self.EXPECTED:
+            self.assertTrue(other(xref, tree.getroot().xpath('//*[@id="%s"]' % tid)[0]), tid)
+        for tid in ("para", "mc1", "legend1"):
+            self.assertFalse(other(xref, tree.getroot().xpath('//*[@id="%s"]' % tid)[0]), tid)
+        self.assertNotIn("chem", validate.XREF_TARGET_RULES)  # chem 无类型语义，不限定目标
+
+    def test_table_fn_must_stay_inside_its_own_table(self):
+        tree = self._tree(self.DOC)
+        xref = tree.getroot().xpath('//*[@id="x_in_t1"]')[0]
+        rule = validate.XREF_TARGET_RULES["table-fn"][0]
+        self.assertTrue(rule(xref, tree.getroot().xpath('//*[@id="tfn1"]')[0]))
+        self.assertFalse(rule(xref, tree.getroot().xpath('//*[@id="tfn2"]')[0]))  # 另一张表
+        self.assertFalse(rule(xref, tree.getroot().xpath('//*[@id="bfn"]')[0]))   # 正文脚注
+
+    def _run(self, xref_html, validator=None):
+        body = ('<sec id="sec_1" sec-type="scope"><label>1</label><title>范围</title><p>见%s。</p>'
+                '<table-wrap id="tab_1"><label>表1</label><table><tbody><tr><td>c</td></tr></tbody></table>'
+                '<table-wrap-foot><fn id="table-fn_1.1"><label>a</label><p>表脚注。</p></fn></table-wrap-foot></table-wrap>'
+                '<p>正文脚注<fn id="fn_1"><label>1)</label><p>y</p></fn></p>'
+                '<def-list list-content="abbreviation"><def-item id="abb-a"><term>A</term><def><p>a</p></def></def-item></def-list>'
+                '<def-list><def-item id="legend-a"><term>x</term><def><p>式中</p></def></def-item></def-list></sec>') % xref_html
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case.xml"
+            path.write_text(_doc(body=body, back='<back><ref-list content-type="bibl" id="rl"><ref id="r1"><label>[1]</label>'
+                                                  '<mixed-citation id="mc1">x</mixed-citation></ref></ref-list></back>'), encoding="utf-8")
+            return (validator or VALIDATOR_IMPORT).validate_file(path)
+
+    def test_end_to_end_errors(self):
+        bad = {
+            "fn 指向表脚注": ('<xref ref-type="fn" rid="table-fn_1.1">a</xref>', "table-fn"),
+            "table-fn 指向正文脚注": ('<xref ref-type="table-fn" rid="fn_1">1)</xref>', "表脚注"),
+            "table-fn 在表外引用表脚注": ('<xref ref-type="table-fn" rid="table-fn_1.1">a</xref>', "同一 table-wrap"),
+            "abbreviation 指向图例里的 def-item": ('<xref ref-type="abbreviation" rid="legend-a">x</xref>', "缩略语"),
+            "bibr 指向 mixed-citation": ('<xref ref-type="bibr" rid="mc1">[1]</xref>', "参考文献条目 ref"),
+            "other 指向无法归类的 mixed-citation": ('<xref ref-type="other" rid="mc1">x</xref>', "归类"),
+        }
+        for why, (xref, keyword) in bad.items():
+            for validator in (VALIDATOR_IMPORT, VALIDATOR_EXPORT):
+                with self.subTest(why=why, profile=validator.profile):
+                    rep = self._run(xref, validator)
+                    v8 = [e for e in rep.errors if e["rule"] == "V-8"]
+                    self.assertTrue(v8, validate.format_human(rep))
+                    self.assertIn(keyword, v8[0]["message"])
+
+    def test_end_to_end_accepted(self):
+        ok = [
+            '<xref ref-type="fn" rid="fn_1">1)</xref>',
+            '<xref ref-type="abbreviation" rid="abb-a">A</xref>',
+            '<xref ref-type="bibr" rid="r1">[1]</xref>',
+            '<xref ref-type="chem" rid="legend-a">x</xref>',          # 无类型语义，不限定
+            '<xref ref-type="other" rid="abb-a">A</xref>',            # 导入别名：目标可归类为缩略语
+        ]
+        for xref in ok:
+            with self.subTest(xref=xref):
+                rep = self._run(xref)
+                self.assertEqual([e for e in rep.errors if e["rule"] == "V-8"], [], validate.format_human(rep))
+
+    def test_table_footnote_in_a_paragraph_is_still_referenced_by_table_fn(self):
+        # 旧实现假定表脚注一定是 table-wrap-foot 的直接子元素，嵌在 p 里的会被误判
+        body = ('<sec id="sec_1" sec-type="scope"><label>1</label><title>范围</title><table-wrap id="tab_1"><label>表1</label>'
+                '<table><tbody><tr><td>c<xref ref-type="table-fn" rid="table-fn_1.1">a</xref></td></tr></tbody></table>'
+                '<table-wrap-foot><p>说明<fn id="table-fn_1.1"><label>a</label><p>嵌在段落里的表脚注。</p></fn></p></table-wrap-foot></table-wrap></sec>')
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case.xml"
+            path.write_text(_doc(body=body), encoding="utf-8")
+            rep = VALIDATOR_IMPORT.validate_file(path)
+        self.assertEqual([e for e in rep.errors if e["rule"] == "V-8"], [], validate.format_human(rep))
 
 
 class TestWarnings(unittest.TestCase):

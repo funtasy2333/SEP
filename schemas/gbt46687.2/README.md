@@ -22,7 +22,7 @@
 | `math.rng` | disp-formula、disp-formula-group、inline-formula、mml:math（MathML 3 宽松子 schema） |
 | `tbx.rng` | tbx:termEntry/langSet/tig/term/definition/note/example/source/subjectField/entailedTerm/partOfSpeech/… |
 | `samples/valid/` | 9 个手写正例：01～06 选用形式；07 “仅导入接受”的异写汇总（含按原文 4.1 示例次序写的 std-meta）；08 原文明确写法与 STS 1.2 不一致的情形（国标扩展、示例冲突）；09 格式合法但导入暂拒的写法 |
-| `samples/invalid/` | 63 个负例，每个由同一基底文档单点改动生成，文件开头的注释写明违反项 |
+| `samples/invalid/` | 65 个负例，每个由同一基底文档单点改动生成，文件开头的注释写明违反项 |
 | `../../scripts/xml46687/validate.py` | 校验工具（语法 + RELAX NG 双实现 + 语义规则） |
 | `../../scripts/xml46687/sts_compat.py` | 官方 NISO STS 1.2 DTD 兼容性检查（已知国标扩展白名单 + 未解释偏差） |
 | `../../scripts/xml46687/test_validate.py` | unittest 回归测试 |
@@ -174,6 +174,29 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | W-IMPL-REJECT 等 | 告警 | rejectKind=implementation：格式合法、导入暂拒（引言中的条、array、disp-formula-group），同一 fn 多引用为 W-FN-MULTIREF | 各 M- 行 |
 | W-* | 告警 | 不阻断：未知 sec-type、named-content/graphic/ext-link 的非常规取值、`size:T` 用于行内图、有序列项缺 label、annex-type 与 content-type 矛盾、发布日期晚于实施日期、多 rid… | 各 C- 行 |
 
+### xref 的目标集合（V-8，conventions-T 表 6-A）
+
+`xref` 的 `ref-type` 与 `rid` 目标一律互斥地对应（PR#55 审查后逐类型核对）。**表脚注只能用 `table-fn` 引用，正文脚注只能用 `fn` 引用**
+（原来 `fn` 的目标是“任意 fn”，`table-fn` 又假定表脚注是 `table-wrap-foot` 的直接子元素；现在表脚注 = `table-wrap-foot` 内任意深度的 `fn`）。
+目标不符是错误（两档都是）。`TestXrefTargets` 对一批代表性目标验证“恰好一个 `ref-type` 接受”。
+
+| `ref-type` | 目标（最终） | 与之前相比 / 依据 |
+|---|---|---|
+| `sec` | `sec`、`term-sec`，以及固定 id 的 `ref-list`（`sec_bibl`）、`index`（`sec_index`） | 不变。附录 E 的固定 id、9.2.1 的 `sec_` 前缀 |
+| `app` | `app` | 不变 |
+| `fig` | `fig`、`fig-group`（组合图本身有图号） | 不变 |
+| `table` | `table-wrap` | 不变 |
+| `disp-formula` | `disp-formula` | 不变 |
+| `bibr` | `ref`（参考文献条目） | **收紧**：去掉 `mixed-citation`（表 6-A 目标为 `ref`，rid 是条目 id） |
+| `fn` | 正文脚注：`fn` 且**不在** `table-wrap-foot` 内 | **收紧**：原来表脚注也接受（C-T-06） |
+| `table-fn` | `table-wrap-foot` 内的表脚注 `fn`，且与 `xref` 在**同一** `table-wrap` | **修正**：原来要求表脚注是 `table-wrap-foot` 的直接子元素，嵌在 `p` 里的被误判 |
+| `list` | `list-item`（或 `list`） | 不变（C-T-52：IR 无承载，导入时另报 unsupported） |
+| `abbreviation` | `def-list[@list-content=abbreviation]` 内的 `def-item` | **收紧**：原来任何 `def-item` 都接受，公式图例（`式中`）里的 `def-item` 不是缩略语 |
+| `custom` | 见 `custom-type`：`term-entry` → `tbx:termEntry`/`term-sec`；`note` → `non-normative-note`/`tbx:note`；`example` → `non-normative-example`/`tbx:example`；缺 `custom-type` 取三者并集 | 上一轮已定 |
+| `other`（仅导入） | 能按目标类型归类的元素（上面各行的并集 + 术语条目/注/示例） | **收紧**：原来不限定目标；C-T-48“按目标元素类型归类”，归不了类就是错误 |
+| `chem`（仅导入） | 不限定 | 无类型语义（C-T-48：按无类型引用接受并告警） |
+| `tbx:entailedTerm/@target` | `tbx:termEntry` | 不变（C-T-45） |
+
 ### 上下文规则：按任意祖先还是直接父元素
 
 “X 内不得有 Y”这类拒绝规则按**任意祖先**判断（Y 藏在 X 的段落、注、列表里也算在 X 内）；只有本身就是“位置”的规则才看直接父元素。
@@ -261,8 +284,8 @@ PR#55 审查后逐个核对：
 | `08-original-forms-vs-sts.xml` | 原文明确写法与 STS 1.2 不一致的情形（5 个国标扩展元素、std-org 多名、xref 内 label、langSet 内 note 在 tig 之后、graphic 在 table-wrap-foot 之后、块级 fn）；两个档位都通过，`sts_compat.py` 列为已知偏差 |
 | `09-import-pending.xml` | 格式合法但导入暂拒（rejectKind=implementation）：引言中的条（含 `sec_0.1.1` 两层）、array、disp-formula-group、同一脚注多次引用；只告警 |
 
-`samples/invalid/` 的 63 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
-语法 3、旧格式/根 3、矩阵 format 类 reject 17（含 4 个术语异写元素名、1 个 fn 藏在 caption 段落里的图脚注）、V-1 3、V-2 4、V-3 3、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 6（含 2 个 custom 型 xref 的目标错误）、仅 RELAX NG 7
+`samples/invalid/` 的 65 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
+语法 3、旧格式/根 3、矩阵 format 类 reject 17（含 4 个术语异写元素名、1 个 fn 藏在 caption 段落里的图脚注）、V-1 3、V-2 4、V-3 3、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 8（含 2 个 custom 型 xref 的目标错误、2 个脚注/表脚注引用类型互串）、仅 RELAX NG 7
 （含按 STS 1.2 收紧后新增的含子条的条再放段落、partOfSpeech 取值、named-content 缺 content-type、空 table-wrap-foot）、
 **仅 export 档失败 5（`std-meta-wrong-order.xml`：结构层通过，import 档告警 V-12，export 档错误 V-12；`missing-term-entry-id.xml`、`missing-app-id.xml`、`missing-ref-id.xml`：缺必备 id，import 档告警 V-13，export 档错误 V-13；`custom-xref-no-type.xml`：custom 型 xref 缺 custom-type，import 档告警 V-8 CUSTOM-TYPE，export 档错误；预期见 `EXPORT_ONLY_INVALID`）**。
 

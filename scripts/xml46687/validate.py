@@ -563,21 +563,41 @@ _LEGACY_ID_V7 = [
     (re.compile(r"^p-\d+$"), "p-<数字> 形式（段落不带 id，E.1、X-18）"),
 ]
 
-# xref/@ref-type → 允许的目标元素（Clark 名）。None 表示不限。
-_XREF_TARGETS = {
-    # sec_bibl、sec_index 是参考文献清单与索引的固定 id（附录 E），引用它们按“章”处理
-    "sec": {"sec", "term-sec", "ref-list", "index"},
-    "app": {"app"},
-    "fig": {"fig", "fig-group"},
-    "table": {"table-wrap"},
-    "disp-formula": {"disp-formula"},
-    "bibr": {"ref", "mixed-citation"},
-    "fn": {"fn"},
-    "table-fn": {"fn"},
-    "list": {"list-item", "list"},
-    "abbreviation": {"def-item"},
-    "other": None,
-    "chem": None,
+# xref/@ref-type → 目标判定（conventions-T 表 6-A）。每个值是 (判定函数(xref, 目标), 目标说明)。
+# 各类型的目标互斥（test_validate.py 的 TestXrefTargets 逐个目标验证）；只有 other（导入别名：按目标类型归类）和 chem（无类型语义）不限定单一类型。
+def _plain(el, *names) -> bool:
+    return nsuri(el) is None and local(el) in names
+
+
+def is_table_footnote(el) -> bool:
+    """表脚注：table-wrap-foot 内（任意深度）的 fn；其余 fn 是正文脚注。"""
+    return _plain(el, "fn") and has_ancestor(el, "table-wrap-foot")
+
+
+def _same_table_wrap(xref, fn) -> bool:
+    wrap = next((a for a in fn.iterancestors() if is_element(a) and _plain(a, "table-wrap")), None)
+    return wrap is not None and wrap in list(xref.iterancestors())
+
+
+def _is_abbreviation_item(el) -> bool:
+    parent = el.getparent()
+    return _plain(el, "def-item") and parent is not None and is_element(parent) and _plain(parent, "def-list") \
+        and parent.get("list-content") == "abbreviation"
+
+
+XREF_TARGET_RULES = {
+    # sec_bibl、sec_index 是参考文献清单与索引的固定 id（附录 E），引用它们按“章”处理；term-sec 的 id 前缀是 sec_（9.2.1）
+    "sec": (lambda x, t: _plain(t, "sec", "term-sec", "ref-list", "index"), "章/条 sec、术语条 term-sec，或固定 id 的参考文献表 ref-list、索引 index"),
+    "app": (lambda x, t: _plain(t, "app"), "附录 app"),
+    "fig": (lambda x, t: _plain(t, "fig", "fig-group"), "图 fig 或组合图 fig-group"),
+    "table": (lambda x, t: _plain(t, "table-wrap"), "表 table-wrap"),
+    "disp-formula": (lambda x, t: _plain(t, "disp-formula"), "行间公式 disp-formula"),
+    "bibr": (lambda x, t: _plain(t, "ref"), "参考文献条目 ref"),
+    "fn": (lambda x, t: _plain(t, "fn") and not is_table_footnote(t), "正文脚注 fn（table-wrap-foot 内的表脚注只能用 ref-type=table-fn 引用，C-T-06）"),
+    "table-fn": (lambda x, t: is_table_footnote(t) and _same_table_wrap(x, t), "同一 table-wrap 的 table-wrap-foot 内的表脚注 fn（C-T-06）"),
+    "list": (lambda x, t: _plain(t, "list-item", "list"), "列项 list-item（或 list）"),
+    "abbreviation": (lambda x, t: _is_abbreviation_item(t), "缩略语 def-list[list-content=abbreviation] 内的 def-item"),
+    # chem 无类型语义（C-T-48），不限定目标；other 在下面补上
 }
 # xref[ref-type=custom] 的目标：custom-type 取 term-entry（9.2.6）、note、example（10.1.3，C-T-48、C-T-50）。
 # 术语条目既可以指向 tbx:termEntry，也可以指向包着它的 term-sec；注、示例既有正文的 non-normative-*，也有术语条目内的 tbx:note/tbx:example。
@@ -589,6 +609,13 @@ _CUSTOM_TARGETS = {
 _CUSTOM_ANY_TARGETS = set().union(*_CUSTOM_TARGETS.values())
 # tbx:entailedTerm/@target 只能指向 tbx:termEntry（C-T-45）
 _ENTAILED_TARGETS = {_clark(NS_TBX, "termEntry")}
+
+# other 是仅导入接受的别名（缩略语示例，10.1.4）：“按目标元素类型归类”，所以目标必须是某个有类型的 xref 目标
+_TYPED_XREF_RULES = list(XREF_TARGET_RULES.values())
+XREF_TARGET_RULES["other"] = (
+    lambda x, t: any(rule(x, t) for rule, _ in _TYPED_XREF_RULES) or _clark(nsuri(t), local(t)) in _CUSTOM_ANY_TARGETS,
+    "能按目标类型归类的元素（章条、附录、图、表、公式、参考文献条目、脚注、列项、缩略语条目、术语条目、注、示例）",
+)
 
 
 def _key_label(key: str) -> str:
@@ -675,8 +702,7 @@ def _in_bibl_ref_list(el) -> bool:
 
 
 def _in_table_wrap_foot(el) -> bool:
-    parent = el.getparent()
-    return parent is not None and is_element(parent) and nsuri(parent) is None and local(parent) == "table-wrap-foot"
+    return is_table_footnote(el)
 
 
 def _fn_has_body(el) -> bool:
@@ -980,14 +1006,15 @@ def semantic_checks(tree, rep: Report) -> None:
                     else:
                         rep.warn("V-8", base + "（导入接受：导入器按 rid 目标元素 <%s> 推断为 custom-type=%s；导出须写出）" % (label(target), inferred), el=el)
                 continue
-            allowed = _XREF_TARGETS.get(rt)
-            if allowed is not None and tkey not in allowed:
-                rep.error("V-8", "xref[ref-type=%s] 指向 <%s>（%r），应指向 %s（C-T-48）"
-                          % (rt, label(target), t, "、".join(sorted(_key_label(k) for k in allowed))), el=el)
-            elif rt == "table-fn":
-                wrap = target.getparent().getparent() if target.getparent() is not None else None
-                if wrap is None or local(wrap) != "table-wrap" or wrap not in list(el.iterancestors()):
-                    rep.error("V-8", "xref[ref-type=table-fn] 必须指向同一 table-wrap 的表脚注（C-T-06）：%r" % t, el=el)
+            rule = XREF_TARGET_RULES.get(rt)
+            if rule is None:
+                continue  # chem 无类型语义；其他取值由 RELAX NG 拒绝
+            ok, desc = rule[0](el, target), rule[1]
+            if not ok:
+                if rt == "fn" and is_table_footnote(target):
+                    rep.error("V-8", "xref[ref-type=fn] 指向表脚注 <fn>（%r）：table-wrap-foot 内的表脚注只能用 ref-type=table-fn 引用（C-T-06、表 6-A）" % t, el=el)
+                else:
+                    rep.error("V-8", "xref[ref-type=%s] 指向 <%s>（%r），应指向 %s（C-T-48，表 6-A）" % (rt, label(target), t, desc), el=el)
     for el in entailed:
         t = el.get("target")
         target = id_map.get(t) if t else None
