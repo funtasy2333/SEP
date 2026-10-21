@@ -354,6 +354,21 @@ describe('writeXml 注释与处理指令', () => {
     expect(body(xmlElement('a', [], [xmlComment('')]))).toBe('<a>\n  <!---->\n</a>')
   })
 
+  it('注释与处理指令数据中的回车（CR、CRLF）抛错：读回时会被规范化为换行，无法无损表示', () => {
+    for (const value of ['a\rb', 'a\r\nb', '\r']) {
+      const comment = thrown(() => write(xmlElement('a', [], [xmlComment(value)])))
+      expect(comment.path).toBe('/a[1]/comment()[1]')
+      expect(comment.message).toContain('回车')
+      const pi = thrown(() => write(xmlElement('a', [], ['x', xmlPi('t', `d${value}`)])))
+      expect(pi.path).toBe("/a[1]/processing-instruction('t')[1]")
+      expect(pi.message).toContain('回车')
+    }
+    // 不含回车的换行照常写出；文本与属性中的回车仍以字符引用保留
+    expect(body(xmlElement('a', [], [xmlComment('a\nb')]), { namespaces: {}, indent: null })).toBe('<a><!--a\nb--></a>')
+    expect(body(xmlElement('a', [], [xmlPi('t', 'x\ny')]), { namespaces: {}, indent: null })).toBe('<a><?t x\ny?></a>')
+    expect(body(xmlElement('a', [xmlAttr('v', 'a\rb')], ['c\rd']), { namespaces: {}, indent: null })).toBe('<a v="a&#13;b">c&#13;d</a>')
+  })
+
   it('处理指令的 target 不得为 xml（任意大小写），且必须是合法名称', () => {
     for (const target of ['xml', 'XML', 'Xml']) expect(() => write(xmlElement('a', [], [xmlPi(target, 'd')]))).toThrow(XmlWriteError)
     for (const target of ['', 'a b', '1a', 'a:b']) expect(() => write(xmlElement('a', [], [xmlPi(target, 'd')]))).toThrow(XmlWriteError)

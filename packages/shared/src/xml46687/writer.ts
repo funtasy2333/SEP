@@ -101,6 +101,11 @@ function checkChars(value: string, what: string, path: string): void {
   if (illegal >= 0) fail(`${what}含有 XML 1.0 不允许的字符 ${hex(illegal)}`, path)
 }
 
+/** 注释与处理指令内不能使用字符引用，字面回车读回时会被行尾规范化为换行，因此无法无损表示。 */
+function checkNoCarriageReturn(value: string, what: string, path: string): void {
+  if (value.includes('\r')) fail(`${what}中的回车读回时会被规范化为换行，无法无损表示`, path)
+}
+
 const TEXT_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '\r': '&#13;' }
 const ATTR_ESCAPES: Record<string, string> = {
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\t': '&#9;', '\n': '&#10;', '\r': '&#13;',
@@ -240,6 +245,7 @@ function writeLeaf(entry: Entry): string {
       return escapeText(node.value)
     case 'comment':
       checkChars(node.value, '注释', path)
+      checkNoCarriageReturn(node.value, '注释', path)
       if (node.value.includes('--')) fail("注释内容不能含有 '--'", path)
       if (node.value.endsWith('-')) fail("注释内容不能以 '-' 结尾", path)
       return `<!--${node.value}-->`
@@ -247,6 +253,7 @@ function writeLeaf(entry: Entry): string {
       if (!NCNAME.test(node.target)) fail(`处理指令目标 '${node.target}' 不是合法的 NCName`, path)
       if (node.target.toLowerCase() === 'xml') fail("处理指令目标不能是 'xml'", path)
       checkChars(node.data, '处理指令数据', path)
+      checkNoCarriageReturn(node.data, '处理指令', path)
       if (node.data.includes('?>')) fail("处理指令数据不能含有 '?>'", path)
       if (/^[ \t\r\n]/.test(node.data)) fail('处理指令数据不能以空白开头（读回时会丢失）', path)
       return node.data === '' ? `<?${node.target}?>` : `<?${node.target} ${node.data}?>`
