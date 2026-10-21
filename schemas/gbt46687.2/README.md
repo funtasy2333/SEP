@@ -22,7 +22,7 @@
 | `math.rng` | disp-formula、disp-formula-group、inline-formula、mml:math（MathML 3 宽松子 schema） |
 | `tbx.rng` | tbx:termEntry/langSet/tig/term/definition/note/example/source/subjectField/entailedTerm/partOfSpeech/… |
 | `samples/valid/` | 9 个手写正例：01～06 选用形式；07 “仅导入接受”的异写汇总（含按原文 4.1 示例次序写的 std-meta）；08 原文明确写法与 STS 1.2 不一致的情形（国标扩展、示例冲突）；09 格式合法但导入暂拒的写法 |
-| `samples/invalid/` | 68 个负例，每个由同一基底文档单点改动生成，文件开头的注释写明违反项 |
+| `samples/invalid/` | 69 个负例，每个由同一基底文档单点改动生成，文件开头的注释写明违反项 |
 | `../../scripts/xml46687/validate.py` | 校验工具（语法 + RELAX NG 双实现 + 语义规则） |
 | `../../scripts/xml46687/sts_compat.py` | 官方 NISO STS 1.2 DTD 兼容性检查（已知国标扩展白名单 + 未解释偏差） |
 | `../../scripts/xml46687/test_validate.py` | unittest 回归测试 |
@@ -151,7 +151,7 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | 规则 | 层次 | 内容 | 依据 |
 |---|---|---|---|
 | SYN-1 | 语法 | 格式良好（禁止 DTD 加载、外部实体、联网：`resolve_entities=False, load_dtd=False, no_network=True`） | C-S-02、C-S-34 |
-| SYN-2 | 语法 | XML 声明编码必须是 UTF-8 | C-S-02 |
+| SYN-2 | 语法 | 编码必须是 UTF-8：①整个 XML 声明里的 `encoding`（不限长度；旧实现只看前 400 字节，声明里塞 401 个空格再写 `encoding="ISO-8859-1"` 就检查不到）；②UTF-16/UTF-32 的字节顺序标记；③解析器实际采用的编码（`docinfo.encoding`，兜底）。UTF-8 的 BOM 与 `utf8`/`UTF-8` 等写法接受；`US-ASCII` 也不接受 | C-S-02 |
 | SYN-3 | 语法 | DOCTYPE 含内部子集/实体声明 → 拒绝；外部 DOCTYPE 只告警（export 档为错误）；实体引用节点 → 拒绝。**按 XML 规则扫描序言来判断真实声明**（跳过注释与处理指令，进入 DOCTYPE 后跳过引号字面量与内部子集里的注释，数出真正的 `<!ENTITY`），所以注释、CDATA、处理指令或转义文本里写着的 `<!DOCTYPE`、`<!ENTITY` 字样不会误报，系统标识符里的 `[` 也不会被当成内部子集；序言扫描只认 ASCII 兼容编码，UTF-16 等由解析器的 `docinfo` 兜底。外部实体与外部 DTD 仍不被加载 | C-S-02、C-S-34 |
 | ROOT | 骨架 | 根元素必须是无命名空间的 standard | C-S-01、C-S-03 |
 | LEGACY | 旧格式 | GB/T 37967 与 SEP 早期自定义格式的判别特征，命中即拒绝并列出特征与位置，不尝试转换 | conventions-S 第 6 节 |
@@ -308,8 +308,8 @@ PR#55 审查后逐个核对：
 | `08-original-forms-vs-sts.xml` | 原文明确写法与 STS 1.2 不一致的情形（5 个国标扩展元素、std-org 多名、xref 内 label、langSet 内 note 在 tig 之后、graphic 在 table-wrap-foot 之后、块级 fn）；两个档位都通过，`sts_compat.py` 列为已知偏差 |
 | `09-import-pending.xml` | 格式合法但导入暂拒（rejectKind=implementation）：引言中的条（含 `sec_0.1.1` 两层）、array、disp-formula-group、同一脚注多次引用；只告警 |
 
-`samples/invalid/` 的 68 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
-语法 3、旧格式/根 3、矩阵 format 类 reject 17（含 4 个术语异写元素名、1 个 fn 藏在 caption 段落里的图脚注）、V-1 3、V-2 4、V-3 3、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 11（含 2 个 custom 型 xref 的目标错误、2 个脚注/表脚注引用类型互串、3 个 URL 里的控制字符）、仅 RELAX NG 7
+`samples/invalid/` 的 69 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
+语法 4、旧格式/根 3、矩阵 format 类 reject 17（含 4 个术语异写元素名、1 个 fn 藏在 caption 段落里的图脚注）、V-1 3、V-2 4、V-3 3、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 11（含 2 个 custom 型 xref 的目标错误、2 个脚注/表脚注引用类型互串、3 个 URL 里的控制字符）、仅 RELAX NG 7
 （含按 STS 1.2 收紧后新增的含子条的条再放段落、partOfSpeech 取值、named-content 缺 content-type、空 table-wrap-foot）、
 **仅 export 档失败 5（`std-meta-wrong-order.xml`：结构层通过，import 档告警 V-12，export 档错误 V-12；`missing-term-entry-id.xml`、`missing-app-id.xml`、`missing-ref-id.xml`：缺必备 id，import 档告警 V-13，export 档错误 V-13；`custom-xref-no-type.xml`：custom 型 xref 缺 custom-type，import 档告警 V-8 CUSTOM-TYPE，export 档错误；预期见 `EXPORT_ONLY_INVALID`）**。
 

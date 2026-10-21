@@ -117,6 +117,7 @@ EXPECTED_INVALID = {
     "term-two-definitions.xml": ("V-9", {"V-9"}, "有且仅有一个"),
     "mathml-onclick.xml": ("V-10", {"V-10"}, "onclick"),
     "js-ext-link.xml": ("V-11", {"V-11"}, "javascript"),
+    "encoding-declared-after-400-bytes.xml": ("SYN-2", {"SYN-2"}, "ISO-8859-1"),
     "ext-link-tab-in-scheme.xml": ("V-11", {"V-11"}, "控制字符"),
     "ext-link-newline-in-url.xml": ("V-11", {"V-11"}, "控制字符"),
     "mathml-href-control-char.xml": ("V-10", {"V-10"}, "控制字符"),
@@ -1484,6 +1485,108 @@ class TestUrlValues(unittest.TestCase):
                     self.assertFalse(rep.valid)
                     self.assertIn("V-11", _rules(rep))
                     self.assertTrue(rep.consistent)
+
+
+class TestEncodingDetection(unittest.TestCase):
+    """SYN-2：非 UTF-8 一律拒绝。声明里的 encoding 不论出现在多靠后的位置都能看到，解析器采用的编码兜底，BOM 单独检查。"""
+
+    @staticmethod
+    def _std():
+        return _doc().split("?>", 1)[1].lstrip("\n")
+
+    def _run(self, raw: bytes, validator=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case.xml"
+            path.write_bytes(raw)
+            return (validator or VALIDATOR_IMPORT).validate_file(path)
+
+    @staticmethod
+    def _syn2(rep):
+        return [e for e in rep.errors if e["rule"] == "SYN-2"]
+
+    def _with_decl(self, decl: str, encoding="utf-8") -> bytes:
+        return (decl + "\n" + self._std()).encode(encoding)
+
+    def test_encoding_pushed_far_into_the_declaration_is_still_seen(self):
+        # 旧实现只看前 400 字节：401 个空格之后再写 encoding 就检查不到
+        for pad in (0, 100, 399, 400, 401, 1000, 5000):
+            decl = '<?xml version="1.0"%sencoding="ISO-8859-1"?>' % (" " * pad if pad else " ")
+            with self.subTest(pad=pad):
+                rep = self._run(self._with_decl(decl))
+                found = self._syn2(rep)
+                self.assertEqual(len(found), 1, validate.format_human(rep))
+                self.assertIn("ISO-8859-1", found[0]["message"])
+                self.assertFalse(rep.valid)
+
+    def test_variants_of_the_declaration(self):
+        cases = {
+            "单引号": "<?xml version='1.0' encoding='GB2312'?>",
+            "encoding 在 standalone 之后": '<?xml version="1.0" standalone="yes" encoding="ISO-8859-1"?>',
+            "等号两侧有换行": '<?xml version="1.0" encoding\n=\n"ISO-8859-1"?>',
+            "制表符分隔": '<?xml\tversion="1.0"\tencoding="GB18030"?>',
+            "US-ASCII 也不接受": '<?xml version="1.0" encoding="US-ASCII"?>',
+        }
+        for why, decl in cases.items():
+            with self.subTest(why=why):
+                rep = self._run(self._with_decl(decl))
+                self.assertEqual(len(self._syn2(rep)), 1, validate.format_human(rep))
+
+    def test_utf8_spellings_are_accepted(self):
+        for enc in ("UTF-8", "utf-8", "utf8", "UTF8", "Utf-8"):
+            for pad in (1, 500):
+                with self.subTest(encoding=enc, pad=pad):
+                    rep = self._run(self._with_decl('<?xml version="1.0"%sencoding="%s"?>' % (" " * pad, enc)))
+                    self.assertEqual(self._syn2(rep), [], validate.format_human(rep))
+                    self.assertTrue(rep.valid, validate.format_human(rep))
+
+    def test_no_declaration_means_utf8(self):
+        rep = self._run(self._std().encode("utf-8"))
+        self.assertEqual(self._syn2(rep), [])
+        self.assertTrue(rep.valid, validate.format_human(rep))
+
+    def test_utf8_bom_is_fine_other_boms_are_not(self):
+        rep = self._run(b"\xef\xbb\xbf" + self._with_decl('<?xml version="1.0" encoding="UTF-8"?>'))
+        self.assertEqual(self._syn2(rep), [])
+        self.assertTrue(rep.valid, validate.format_human(rep))
+        text = self._std()
+        for name, raw in (("UTF-16 带 BOM、无声明", text.encode("utf-16")),
+                          ("UTF-16BE 带 BOM", b"\xfe\xff" + text.encode("utf-16-be")),
+                          ("UTF-32 带 BOM", text.encode("utf-32")),
+                          ("UTF-32BE 带 BOM", b"\x00\x00\xfe\xff" + text.encode("utf-32-be"))):
+            with self.subTest(name=name):
+                rep = self._run(raw)
+                self.assertTrue(self._syn2(rep), validate.format_human(rep))
+                self.assertFalse(rep.valid)
+
+    def test_parser_reported_encoding_is_the_fallback(self):
+        # 不经过 check_syntax_raw，直接走解析：解析器认出非 UTF-8 编码就报 SYN-2
+        raw = self._with_decl('<?xml version="1.0" encoding="ISO-8859-1"?>')
+        rep = validate.Report("case.xml", "import")
+        tree = validate.parse_secure(raw, rep)
+        self.assertIsNotNone(tree)
+        self.assertEqual(len(self._syn2(rep)), 1)
+        self.assertIn("解析器报告", self._syn2(rep)[0]["message"])
+
+    def test_a_non_utf8_declaration_is_reported_exactly_once(self):
+        rep = self._run(self._with_decl('<?xml version="1.0" encoding="ISO-8859-1"?>'))
+        self.assertEqual(len(self._syn2(rep)), 1)
+
+    def test_declared_utf8_but_invalid_bytes_is_a_syntax_error(self):
+        raw = self._with_decl('<?xml version="1.0" encoding="UTF-8"?>').replace("范围".encode("utf-8"), "范围".encode("gb2312"))
+        rep = self._run(raw)
+        self.assertIn("SYN-1", _rules(rep))
+        self.assertFalse(rep.valid)
+
+    def test_gb2312_declaration_with_gb2312_bytes(self):
+        raw = self._with_decl('<?xml version="1.0" encoding="GB2312"?>', encoding="gb2312")
+        rep = self._run(raw)
+        self.assertEqual(len(self._syn2(rep)), 1, validate.format_human(rep))
+        self.assertIn("GB2312", self._syn2(rep)[0]["message"])
+
+    def test_both_profiles(self):
+        raw = self._with_decl('<?xml version="1.0"' + " " * 450 + 'encoding="ISO-8859-1"?>')
+        for validator in (VALIDATOR_IMPORT, VALIDATOR_EXPORT):
+            self.assertTrue(self._syn2(self._run(raw, validator)), validator.profile)
 
 
 class TestWarnings(unittest.TestCase):

@@ -113,6 +113,7 @@ class Report:
         self.engines: dict = {}
         self.consistent = True
         self.doctype_reported = False
+        self.encoding_reported = False
 
     def add(self, severity: str, rule: str, message: str, el=None, line: int | None = None, path: str | None = None):
         item = {"rule": rule, "message": message}
@@ -169,7 +170,17 @@ def secure_parser() -> "etree.XMLParser":
     )
 
 
-_XMLDECL_RE = re.compile(rb"^\s*<\?xml\s+[^>]*?encoding\s*=\s*[\"']([^\"']+)[\"']", re.S)
+# 整个 XML 声明（到第一个 ?> 为止，不限长度——旧实现只看前 400 字节，声明里塞够多空白就能把 encoding 挤出检查范围）
+_XMLDECL_RE = re.compile(rb"^\s*<\?xml(?=[\s?])(.*?)\?>", re.S)
+_DECL_ENCODING_RE = re.compile(rb"encoding\s*=\s*([\"'])(.*?)\1", re.S)
+_BOMS = (  # UTF-32 必须排在 UTF-16 前面：FF FE 00 00 以 UTF-16LE 的 BOM 开头
+    (b"\x00\x00\xfe\xff", "UTF-32BE"), (b"\xff\xfe\x00\x00", "UTF-32LE"),
+    (b"\xff\xfe", "UTF-16LE"), (b"\xfe\xff", "UTF-16BE"),
+)
+
+
+def is_utf8_name(name: str) -> bool:
+    return name.replace("_", "-").lower() in ("utf-8", "utf8")
 
 _QUOTES = (0x22, 0x27)  # " '
 
@@ -260,13 +271,19 @@ def _report_doctype(rep: Report, rejected: bool, detail: str = "") -> None:
 
 def check_syntax_raw(raw: bytes, rep: Report, profile: str) -> None:
     """XML 声明编码与 DOCTYPE 检查（在解析前检查，不依赖解析器行为；DOCTYPE 用 XML 感知的序言扫描，见 scan_prolog_doctype）。"""
-    if raw.startswith(b"\xff\xfe") or raw.startswith(b"\xfe\xff"):
-        rep.error("SYN-2", "文件是 UTF-16 编码；GB/T 46687.2 示例只用 UTF-8（C-S-02），本版本只接受 UTF-8")
-    m = _XMLDECL_RE.match(raw[:400].lstrip(b"\xef\xbb\xbf"))
+    for bom, name in _BOMS:
+        if raw.startswith(bom):
+            rep.encoding_reported = True
+            rep.error("SYN-2", "文件以 %s 的字节顺序标记开头；GB/T 46687.2 示例只用 UTF-8（C-S-02），本版本只接受 UTF-8" % name)
+            break
+    m = _XMLDECL_RE.match(raw[3:] if raw.startswith(b"\xef\xbb\xbf") else raw)
     if m:
-        enc = m.group(1).decode("ascii", "replace")
-        if enc.replace("_", "-").lower() not in ("utf-8", "utf8"):
-            rep.error("SYN-2", "XML 声明的编码为 %r，只接受 UTF-8（C-S-02；GB2312 是 GB/T 37967 旧格式特征）" % enc)
+        e = _DECL_ENCODING_RE.search(m.group(1))
+        if e:
+            enc = e.group(2).decode("ascii", "replace")
+            if not is_utf8_name(enc):
+                rep.encoding_reported = True
+                rep.error("SYN-2", "XML 声明的编码为 %r，只接受 UTF-8（C-S-02；GB2312 是 GB/T 37967 旧格式特征）" % enc)
     dt = scan_prolog_doctype(raw)
     if dt is not None:
         detail = "（行 %d%s）" % (dt["line"], "，含 %d 个 <!ENTITY 声明" % dt["entities"] if dt["entities"] else "")
@@ -291,6 +308,13 @@ def parse_secure(raw: bytes, rep: Report):
     except Exception as exc:  # pragma: no cover
         rep.error("SYN-1", "无法解析：%s" % exc)
         return None
+    # 编码兜底：以解析器实际采用的编码为准（docinfo.encoding：声明的编码，没有声明时为 UTF-8）；声明里 encoding 的写法再怪，
+    # 只要解析器认出了非 UTF-8 的编码就报 SYN-2。字节顺序标记导致的 UTF-16/32 已在 check_syntax_raw 里报告。
+    if not rep.encoding_reported:
+        enc = tree.docinfo.encoding
+        if enc and not is_utf8_name(enc):
+            rep.encoding_reported = True
+            rep.error("SYN-2", "解析器报告文档编码为 %r，只接受 UTF-8（C-S-02）" % enc)
     # 兜底：序言扫描只认 ASCII 兼容的编码；解析器看到了 DOCTYPE 而扫描器没看到（如 UTF-16 编码的文件）时，用 docinfo 补报。
     # 外部子集不会被加载（load_dtd=False）；internalDTD 里声明的实体按“含实体声明”拒绝。
     if not rep.doctype_reported:

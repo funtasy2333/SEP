@@ -267,6 +267,8 @@ case('ext-link-newline-in-url.xml', 'ext-link 的 URL 里含换行（&#x0A;，V-
      [('xlink:href="https://example.org/"', 'xlink:href="https://example.org/&#x0A;x"')])
 case('mathml-href-control-char.xml', 'mml:math 的 href 里含 tab（V-10：与 ext-link 同一套 URL 检查）。',
      [('<mml:math display="block" id="mml_m1">', '<mml:math display="block" id="mml_m1" href="java&#x9;script:alert(1)">')])
+case('encoding-declared-after-400-bytes.xml', 'XML 声明里 version 与 encoding 之间塞了 450 个空格，encoding="ISO-8859-1" 排在第 400 字节之后（SYN-2：声明要看完整，不能只看开头 400 字节）。',
+     [('<?xml version="1.0" encoding="UTF-8"?>', '<?xml version="1.0"' + ' ' * 450 + 'encoding="ISO-8859-1"?>')])
 # ---- 仅结构（RNG）----
 case('mixed-cell-content.xml', '单元格内 p 与文本混排（C-T-11：仅行内，或仅 p/list）。',
      [('<td>单元格</td>', '<td><p>段落</p>散落文本</td>')])
