@@ -144,6 +144,18 @@
               </template>
             </el-dropdown>
             <button class="tbar-btn" @click="handleInsertFormula()">公式</button>
+            <button
+              class="tbar-btn"
+              :disabled="!cursorInFormula"
+              title="为光标所在公式添加一条式中符号说明"
+              @click="handleAddWhereItem()"
+            >式中</button>
+            <button
+              class="tbar-btn"
+              :disabled="!cursorAllowsInlineFormula"
+              title="插入行内公式；选中带上下标的文字时转为公式（Ctrl/Cmd+Shift+M）"
+              @click="handleInlineFormula()"
+            >行内公式</button>
           </div>
 
           <!-- 媒体 -->
@@ -297,6 +309,7 @@
         <h4>文档结构</h4>
         <p>使用左上角"+"按钮添加章节结构（前言、引言、章、附录、参考文献）。点击正文段落或选中其中的文字后，使用“条”“无题条”设置整段格式；新条之后的正文归入该条，直到下一个同级条。一级条置于章或附录内，其他级别置于上一级条内。含子条时保留原层级，可切换有题/无题；先调整子条结构再改层级或段落。需要新条时，先回车建立空段再设置格式。</p>
         <p>术语中英文名称同列显示：Tab 从中文名进入英文名，Enter 进入定义；在定义中 Enter 新建续段，末尾空续段再次 Enter 退出术语。使用工具栏插入列项、注、示例、公式、表格、图片等内容要素。选中图或表后，可切换纵向或横向版面。</p>
+        <p>行内公式：在正文、列项、注、示例、表格单元格、术语定义中按 Ctrl/Cmd+Shift+M（或工具栏「行内公式」）插入；先选中 q<sub>V</sub> 这类带上下标的文字再按，可把它转为公式。点击公式可重新编辑。</p>
       </div>
     </el-dialog>
 
@@ -443,6 +456,19 @@
         <el-button type="primary" :disabled="documentUnavailable" @click="saveFootnoteDialog">确定</el-button>
       </template>
     </el-dialog>
+
+    <WhereConversionDialog
+      v-model="showWhereConversion"
+      :rows="whereConversion?.rows ?? []"
+      @confirm="applyWhereConversion"
+    />
+
+    <MathInputDialog
+      v-model="showMathDialog"
+      :initial-latex="mathDialogLatex"
+      :title="mathDialogTitle"
+      @confirm="handleMathConfirm"
+    />
   </div>
 </template>
 
@@ -486,6 +512,9 @@ import SesLogo from '@/components/SesLogo.vue'
 import DocumentOutline from '@/components/editor/DocumentOutline.vue'
 import DocumentSettingsPanel from '@/components/editor/DocumentSettingsPanel.vue'
 import SlashMenu from '@/components/editor/SlashMenu.vue'
+import MathInputDialog from '@/components/editor/MathInputDialog.vue'
+import WhereConversionDialog from '@/components/editor/WhereConversionDialog.vue'
+import { convertLegacyWhereDescription, type WhereConversionRow } from '@/utils/whereListConversion'
 import VersionPanel from '@/components/version/VersionPanel.vue'
 
 import { useEditor } from '@tiptap/vue-3'
@@ -493,6 +522,12 @@ import { installRemoteDocument, replaceEditorDocument } from '@/utils/editorDocu
 import { createEditorExtensions } from '@/extensions/editorExtensions'
 import { hasNodeIdIssues, normalizeNodeIds } from '@/extensions/plugins/ensureNodeId'
 import { canInsertBodyFootnote } from '@/extensions/nodes/footnotes'
+import {
+  formulaHasLegacyDescription, selectedFormula,
+} from '@/extensions/plugins/whereListEditing'
+import {
+  canInsertInlineFormula, INLINE_FORMULA_EVENT, sameInlineLocation, type InlineFormulaRequest,
+} from '@/extensions/plugins/inlineFormulaEditing'
 import { getTableFootnoteEntries } from '@/extensions/nodes/std-table'
 import {
   serializeToXml, parseXmlToEditorJson,
@@ -814,6 +849,7 @@ const codeViewContent = computed(() => codeViewResult.value.error || codeViewRes
 
 onMounted(async () => {
   window.addEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
+  window.addEventListener(INLINE_FORMULA_EVENT, handleInlineFormulaEvent)
   window.addEventListener('ses:edit-footnote', handleFootnoteEditEvent)
   window.addEventListener('ses:paste-reference-error', handleAmbiguousPasteReference)
   window.addEventListener('beforeunload', guardUnsavedSettings)
@@ -873,6 +909,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
+  window.removeEventListener(INLINE_FORMULA_EVENT, handleInlineFormulaEvent)
   window.removeEventListener('ses:edit-footnote', handleFootnoteEditEvent)
   window.removeEventListener('ses:paste-reference-error', handleAmbiguousPasteReference)
   window.removeEventListener('beforeunload', guardUnsavedSettings)
@@ -1843,6 +1880,116 @@ function handleInsertFormula() {
   }).run()
 }
 
+// === 行内公式与式中符号（docs/phase7-inline-formula.md）===
+const showMathDialog = ref(false)
+const mathDialogLatex = ref('')
+const mathDialogRequest = ref<InlineFormulaRequest | null>(null)
+// 打开弹窗时的文档（不放进响应式：确认时要按对象身份判断文档是否被替换过）。
+let mathDialogDoc: PMNode | null = null
+const cursorInFormula = computed(() => !!editor.value && selectedFormula(editor.value.state) !== null)
+const cursorAllowsInlineFormula = computed(() => !!editor.value && canInsertInlineFormula(editor.value.state))
+const mathDialogTitle = computed(() => {
+  const request = mathDialogRequest.value
+  const inWhereTerm = request?.mode === 'where' || editor.value?.state.doc.resolve(Math.min(request?.pos ?? 0, editor.value.state.doc.content.size)).parent.type.name === 'whereTerm'
+  const noun = inWhereTerm ? '式中符号' : '行内公式'
+  return request?.mode === 'edit' ? `编辑${noun}` : request?.mode === 'replace' ? `转为${noun}` : `插入${noun}`
+})
+
+function openMathDialog(request: InlineFormulaRequest) {
+  mathDialogRequest.value = request
+  mathDialogDoc = editor.value?.state.doc ?? null
+  mathDialogLatex.value = request.latex
+  showMathDialog.value = true
+}
+
+function handleInlineFormulaEvent(event: Event) {
+  const detail = (event as CustomEvent<InlineFormulaRequest>).detail
+  if (detail) openMathDialog(detail)
+}
+
+/** 工具栏「行内公式」：与 Ctrl/Cmd+Shift+M 相同，无选区时插入，选中文字时转为公式。 */
+function handleInlineFormula() {
+  const ed = editor.value
+  if (!ed) return
+  if (!ed.commands.requestInlineFormula()) {
+    ElMessage.info('行内公式只能放在正文、列项、注、示例、表格单元格、术语定义等位置；选中文字转公式时，选区不能跨段或包含其他公式、脚注')
+  }
+}
+
+function handleAddWhereItem() {
+  const ed = editor.value
+  if (!ed) return
+  const formula = selectedFormula(ed.state)
+  if (!formula) {
+    ElMessage.info('请先把光标放在公式内')
+    return
+  }
+  if (formulaHasLegacyDescription(formula.node)) {
+    openWhereConversion(formula.pos)
+    return
+  }
+  // 条目在确认时才写入（handleMathConfirm 的 where 分支），取消输入不会留下空条目。
+  if (!ed.can().addWhereItem({ pos: formula.pos })) return
+  openMathDialog({ mode: 'where', pos: formula.pos, nodeId: formula.node.attrs.nodeId ?? undefined, latex: '' })
+}
+
+const showWhereConversion = ref(false)
+const whereConversion = ref<{ pos: number; source: string; formula: PMJsonNode; rows: WhereConversionRow[] } | null>(null)
+
+function openWhereConversion(formulaPos: number) {
+  const node = editor.value?.state.doc.nodeAt(formulaPos)
+  if (!node || node.type.name !== 'formula') return
+  const source = node.toJSON() as PMJsonNode
+  const { formula, rows } = convertLegacyWhereDescription(source)
+  if (!rows.length) return
+  whereConversion.value = { pos: formulaPos, source: JSON.stringify(source), formula, rows }
+  showWhereConversion.value = true
+}
+
+function applyWhereConversion() {
+  const ed = editor.value
+  const pending = whereConversion.value
+  whereConversion.value = null
+  if (!ed || !pending) return
+  const node = ed.state.doc.nodeAt(pending.pos)
+  // 弹窗期间公式被修改（含远端同步）时不覆盖，避免丢失新内容。
+  if (!node || JSON.stringify(node.toJSON()) !== pending.source) {
+    ElMessage.warning('公式已被修改，请重新转换')
+    return
+  }
+  const replacement = ed.schema.nodeFromJSON(pending.formula)
+  ed.view.dispatch(ed.state.tr.replaceWith(pending.pos, pending.pos + node.nodeSize, replacement).scrollIntoView())
+  ed.commands.focus()
+  ElMessage.success('已转换为结构化式中')
+}
+
+function handleMathConfirm(latex: string) {
+  const ed = editor.value
+  const request = mathDialogRequest.value
+  const openedDoc = mathDialogDoc
+  mathDialogRequest.value = null
+  mathDialogDoc = null
+  if (!ed || !request) return
+  // 弹窗期间可能载入了外部修订（整篇替换文档）：插入与替换只认原来那一处，位置之前有增删时拒绝。
+  const located = (pos: number) => !!openedDoc && sameInlineLocation(openedDoc, ed.state.doc, pos)
+  let applied = false
+  if (request.mode === 'where') {
+    // 弹窗期间公式可能被远端修订挪走或删除：只认原来那个公式。
+    const node = ed.state.doc.nodeAt(request.pos)
+    applied = node?.type.name === 'formula' && (node.attrs.nodeId ?? undefined) === request.nodeId
+      && ed.chain().focus().addWhereItem({ pos: request.pos, latex }).run()
+  } else if (request.mode === 'edit') {
+    applied = ed.chain().focus().updateFormulaInline({ pos: request.pos, latex, nodeId: request.nodeId }).run()
+  } else if (request.mode === 'replace') {
+    applied = located(request.pos) && located(request.to ?? request.pos) && ed.chain().focus().replaceSelectionWithFormula({
+      from: request.pos, to: request.to ?? request.pos, text: request.text ?? '', latex,
+    }).run()
+  } else if (located(request.pos)) {
+    applied = ed.chain().focus().setTextSelection(request.pos).insertInlineFormula({ latex }).run()
+  }
+  if (!applied) ElMessage.warning('文档已变化，未能写入公式，请重新选择位置')
+}
+
 // === 图片 ===
 function handleInsertFigure() {
   const pos = getInsertAfterCurrentBlock()
@@ -1883,6 +2030,7 @@ function handleSlashCommand(command: string) {
       case 'paragraph': insertStdParagraph(); break
       case 'table': handleTableCommand('insert'); break
       case 'formula': handleInsertFormula(); break
+      case 'whereItem': handleAddWhereItem(); break
       case 'figure': handleInsertFigure(); break
       case 'note': handleInsertNote('note'); break
       case 'footnote': handleInsertNote('footnote'); break

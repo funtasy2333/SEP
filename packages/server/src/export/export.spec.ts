@@ -27,8 +27,8 @@ import { ExportModule } from './export.module';
  * 的 nodeFromJSON().check() 校验并用 toJSON() 规范化，即编辑器 getJSON() 的形态。内容含 3 个公式
  * （\dfrac、求和+根号、含 \vdots 的列向量）、1 张 data URL PNG、1 个表格、1 个条文脚注；封面的标准
  * 编号等字段故意与下面的文档库 meta 不一致，用来证明导出前做了封面同步。
- * \vdots 选自 KaTeX 0.16.11 与 0.16.44 输出不同 MathML（进而不同 OMML）的写法：在打包产物上做
- * 端到端比对时，只有 io 用的是 0.16.44，字节才会与编辑器一致（jest 下按 Node 解析，io 天然取自己的版本）。
+ * \vdots 选自 KaTeX 0.16.11 与 0.16.44 输出不同 MathML（进而不同 OMML）的写法，用来证明打包产物与编辑器
+ * 用同一个 KaTeX（2026-10-18 起 server、io、client 统一锁定 0.16.44），字节一致。
  *
  * 本文件含公式的用例依赖 mathml2omml（ESM-only）的动态导入，jest 必须以 --experimental-vm-modules
  * 运行（见 package.json 的 test 脚本）；缺少该标志时公式会静默降级为 LaTeX 文本，

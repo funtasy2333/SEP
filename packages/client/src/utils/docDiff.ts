@@ -203,6 +203,21 @@ function nodeToText(
     case 'formula': {
       const formulaContent = extractTitle(content, 'formulaContent')
       lines.push(`${indent}[公式] ${formulaContent}`)
+      // 式中（结构化与自由文本）和公式注也要进入对比文本，否则只改这些内容的版本看起来相同。
+      for (const c of content ?? []) {
+        if (c.type === 'formulaDescription') {
+          const text = extractText(c)
+          if (text) lines.push(`${indent}  ${text}`)
+        } else if (c.type === 'formulaNote') {
+          lines.push(`${indent}  注：${extractText(c)}`)
+        } else if (c.type === 'whereList') {
+          lines.push(`${indent}  式中：`)
+          for (const item of (c.content as Array<Record<string, unknown>> | undefined) ?? []) {
+            const cells = item.content as Array<Record<string, unknown>> | undefined
+            lines.push(`${indent}    ${extractTitle(cells, 'whereTerm')}——${extractTitle(cells, 'whereDefinition')}`)
+          }
+        }
+      }
       break
     }
 
@@ -240,6 +255,11 @@ function extractTitle(
 /** 从节点中递归提取纯文本 */
 function extractText(node: Record<string, unknown>): string {
   if (node.text) return node.text as string
+  // 行内公式没有文字，按 LaTeX 源码输出，否则版本对比看不到公式改动。
+  if (node.type === 'formulaInline') {
+    const latex = (node.attrs as Record<string, unknown> | undefined)?.latex
+    return typeof latex === 'string' && latex ? `$${latex}$` : ''
+  }
   const content = node.content as Array<Record<string, unknown>> | undefined
   if (!content) return ''
   return content.map(c => extractText(c)).join('')

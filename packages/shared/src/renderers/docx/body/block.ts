@@ -9,7 +9,7 @@
 
 import type { IRBlock, IRExample, IRFigure, IRList, IRNote, IRParagraph, IRTable, NodeId } from '../../../ir/types'
 import { ABSTRACT_NUM_ID, listAbstractNumId } from '../numbering'
-import { emitParagraph, warn, type RenderContext } from './context'
+import { emitParagraph, formulaSink, warn, type RenderContext } from './context'
 import { plainRun, renderInlines, renderRun, superscriptRun, tabRun } from './inline'
 import { renderFigureImage } from './figure'
 import { renderTableGrid, type TableGridRenderOptions } from './table'
@@ -110,7 +110,7 @@ function renderListItemRest(ctx: RenderContext, blocks: (IRParagraph | IRList)[]
   let out = ''
   for (const block of blocks) {
     if (block.kind === 'paragraph') {
-      out += emitParagraph(ctx, plan.contStyleId, { runsXml: renderInlines(block.content, ctx.labels) })
+      out += emitParagraph(ctx, plan.contStyleId, { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx)) })
     } else {
       out += renderListLevel(ctx, block, bctx, depth + 1, { type: list.listType, numId: plan.firstNumPr?.numId })
     }
@@ -130,7 +130,7 @@ function renderListLevel(ctx: RenderContext, list: IRList, bctx: BlockCtx, depth
       out += emitParagraph(ctx, plan.firstStyleId, {
         numPr: plan.firstNumPr,
         indent: plan.firstIndent,
-        runsXml: renderInlines((first as IRParagraph).content, ctx.labels),
+        runsXml: renderInlines((first as IRParagraph).content, ctx.labels, formulaSink(ctx)),
         numbered,
       })
       out += renderListItemRest(ctx, item.content.slice(1), bctx, depth, list, plan)
@@ -168,7 +168,7 @@ function renderContentBlocks(ctx: RenderContext, blocks: IRBlock[], bctx: BlockC
   let out = ''
   for (const block of blocks) {
     if (block.kind === 'paragraph') {
-      out += emitParagraph(ctx, contStyleId, { runsXml: renderInlines(block.content, ctx.labels) })
+      out += emitParagraph(ctx, contStyleId, { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx)) })
     } else {
       out += renderBlock(ctx, block, bctx)
     }
@@ -188,7 +188,7 @@ function renderNote(ctx: RenderContext, note: IRNote, bctx: BlockCtx, inTable = 
 
   const [first, ...rest] = note.content
   if (first && first.kind === 'paragraph') {
-    let out = emitParagraph(ctx, firstStyleId, { numPr: firstNumPr, runsXml: renderInlines(first.content, ctx.labels), numbered })
+    let out = emitParagraph(ctx, firstStyleId, { numPr: firstNumPr, runsXml: renderInlines(first.content, ctx.labels, formulaSink(ctx)), numbered })
     out += renderContentBlocks(ctx, rest, innerBctx, contStyleId)
     return out
   }
@@ -264,15 +264,15 @@ function tableGridContent(
       const resolved = ctx.labels[footnote.id]
       if (!resolved) throw new Error(`renderTable: 表脚注 "${footnote.id}" 在 labels 中没有编号`)
       return emitParagraph(ctx, 'SesTableFootnote', {
-        runsXml: superscriptRun(resolved.refText) + tabRun() + renderInlines(footnote.content, ctx.labels),
+        runsXml: superscriptRun(resolved.refText) + tabRun() + renderInlines(footnote.content, ctx.labels, formulaSink(ctx)),
       })
     }).join(''),
     renderCell(cell, styleId) {
       if (cell.content.length === 0 || cell.content.every((block) => block.kind === 'paragraph' &&
         // Empty source text may still render a footnote or a resolved cross-reference.
-        block.content.every((run) => renderRun({ ...run, text: run.text.trim() }, ctx.labels) === ''))) return ''
+        block.content.every((run) => !run.formula && renderRun({ ...run, text: run.text.trim() }, ctx.labels) === ''))) return ''
       return cell.content.map((block) => block.kind === 'paragraph'
-        ? emitParagraph(ctx, styleId, { runsXml: renderInlines(block.content, ctx.labels) })
+        ? emitParagraph(ctx, styleId, { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx)) })
         : renderBlock(ctx, block, tableBctx)).join('')
     },
   }
@@ -415,7 +415,7 @@ function renderBlockContent(ctx: RenderContext, block: IRBlock, bctx: BlockCtx):
   }
   switch (block.kind) {
     case 'paragraph':
-      return emitParagraph(ctx, 'SesPara', { runsXml: renderInlines(block.content, ctx.labels) })
+      return emitParagraph(ctx, 'SesPara', { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx)) })
     case 'list':
       return renderList(ctx, block, bctx)
     case 'table':

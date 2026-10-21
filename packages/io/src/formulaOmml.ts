@@ -16,7 +16,14 @@ export interface FormulaConversionWarning {
 
 export interface FormulaOmmlResult {
   formulaOmml: Record<NodeId, string>
+  /** 式中符号行内公式的估算宽度（汉字宽），供 DOCX 计算破折号制表位；key = 行内公式 id */
+  formulaWidths: Record<NodeId, number>
   warnings: FormulaConversionWarning[]
+}
+
+export interface FormulaConversionOptions {
+  /** false 时按行内公式布局（KaTeX displayMode:false）；默认 true，即块级公式 */
+  display?: boolean
 }
 
 interface MathMlText {
@@ -270,19 +277,23 @@ function normalizeMathMl2Omml(omml: string): string {
   return normalized
 }
 
-/** 单条 LaTeX → OMML。转换异常向调用方抛出，由批量函数记录告警并按 LaTeX 降级。 */
-export async function convertFormulaToOmml(latex: string): Promise<string> {
+function latexToMathMl(latex: string, display: boolean): MathMlElement {
   const rendered = katex.renderToString(latex, {
     output: 'mathml',
-    displayMode: true,
+    displayMode: display,
     throwOnError: true,
   })
   const mathStart = rendered.indexOf('<math')
   const mathEnd = rendered.lastIndexOf('</math>')
   if (mathStart < 0 || mathEnd < mathStart) throw new Error('KaTeX 未输出完整 MathML')
-
   const math = parseMathMl(rendered.slice(mathStart, mathEnd + '</math>'.length))
   removeAnnotations(math)
+  return math
+}
+
+/** 单条 LaTeX → OMML。转换异常向调用方抛出，由批量函数记录告警并按 LaTeX 降级。 */
+export async function convertFormulaToOmml(latex: string, options: FormulaConversionOptions = {}): Promise<string> {
+  const math = latexToMathMl(latex, options.display ?? true)
   absorbNaryBodies(math)
   const safeMathMl = protectMathMlEntities(serializeMathMl(math))
   const omml = normalizeMathMl2Omml(restoreMathMlEntities(await (await loadMathMlConverter())(safeMathMl)))
@@ -295,10 +306,84 @@ export async function convertFormulaToOmml(latex: string): Promise<string> {
   return omml
 }
 
-function visitBlock(block: IRBlock, visitFormula: (id: NodeId, latex: string) => void): void {
+/** 脚标相对基线的缩放；Word 公式的上下标约为基线字号的七成。 */
+const SCRIPT_SCALE = 0.7
+/** 估算偏小会让制表符跳到下一个默认制表位，统一留出余量。 */
+const WIDTH_MARGIN = 0.25
+
+function charWidth(char: string): number {
+  return /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef]/u.test(char) ? 1 : 0.5
+}
+
+function mathWidth(node: MathMlNode, scale: number): number {
+  if (!isElement(node)) {
+    let width = 0
+    for (const char of operatorText(node)) if (char.trim()) width += charWidth(char)
+    return width * scale
+  }
+  const children = elementChildren(node)
+  const width = (child: MathMlElement | undefined, childScale = scale) => child ? mathWidth(child, childScale) : 0
+  switch (node.tag) {
+    case 'msub':
+    case 'msup':
+      return width(children[0]) + width(children[1], scale * SCRIPT_SCALE)
+    case 'msubsup':
+      return width(children[0]) + Math.max(width(children[1], scale * SCRIPT_SCALE), width(children[2], scale * SCRIPT_SCALE))
+    case 'munder':
+    case 'mover':
+    case 'munderover':
+      return Math.max(width(children[0]), ...children.slice(1).map(child => width(child, scale * SCRIPT_SCALE)))
+    case 'mfrac':
+      return Math.max(width(children[0]), width(children[1]))
+    case 'msqrt':
+      return node.children.reduce((sum, child) => sum + mathWidth(child, scale), 0) + 0.5 * scale
+    case 'mroot':
+      return width(children[0]) + width(children[1], scale * SCRIPT_SCALE) + 0.5 * scale
+    case 'mspace': {
+      // KaTeX 把 \quad、\hspace{…}、\kern 等统一换算成 em；1em 按一个汉字宽计。负宽度按 0 计（宁可估大）。
+      const em = /\bwidth="(-?\d*\.?\d+)em"/.exec(node.attrs)
+      return em ? Math.max(0, Number(em[1])) * scale : 0
+    }
+    case 'mphantom':
+      // 幻影不显示但占位（\phantom、\hphantom），按内容测量。
+      return node.children.reduce((sum, child) => sum + mathWidth(child, scale), 0)
+    default:
+      return node.children.reduce((sum, child) => sum + mathWidth(child, scale), 0)
+  }
+}
+
+/**
+ * 估算行内公式的排版宽度（汉字宽）。Word 不测量 OMML，制表位只能事先估算：
+ * 基线字符按汉字 1、其余 0.5，脚标乘 0.7，空白按 em 计、幻影按内容计，最后加 0.25 余量（docs/wp7-docx-delivery.md §5.10）。
+ */
+export function estimateFormulaWidth(latex: string): number {
+  return mathWidth(latexToMathMl(latex, false), 1) + WIDTH_MARGIN
+}
+
+type FormulaVisitor = (id: NodeId, latex: string, display: boolean) => void
+
+/**
+ * 行内公式可以出现在任何正文类位置（段落、单元格、注、脚注、表脚注、式中……，见 docs/phase7-inline-formula.md），
+ * 是否允许由导出边界决定；这里对整篇 IR 通用遍历，收集所有带 LaTeX 的行内公式片段。
+ */
+function collectInlineFormulas(value: unknown, visitFormula: FormulaVisitor): void {
+  if (Array.isArray(value)) {
+    for (const item of value) collectInlineFormulas(item, visitFormula)
+    return
+  }
+  if (value === null || typeof value !== 'object') return
+  const record = value as Record<string, unknown>
+  const formula = record.formula as { id?: unknown; latex?: unknown } | undefined
+  if (typeof record.text === 'string' && formula && typeof formula.id === 'string' && typeof formula.latex === 'string') {
+    visitFormula(formula.id, formula.latex, false)
+  }
+  for (const child of Object.values(record)) collectInlineFormulas(child, visitFormula)
+}
+
+function visitBlock(block: IRBlock, visitFormula: FormulaVisitor): void {
   switch (block.kind) {
     case 'formula':
-      visitFormula(block.id, block.latex)
+      visitFormula(block.id, block.latex, true)
       break
     case 'list':
       for (const item of block.items) {
@@ -323,7 +408,7 @@ function visitBlock(block: IRBlock, visitFormula: (id: NodeId, latex: string) =>
   }
 }
 
-function visitTermEntry(entry: IRTermEntry, visitFormula: (id: NodeId, latex: string) => void): void {
+function visitTermEntry(entry: IRTermEntry, visitFormula: FormulaVisitor): void {
   for (const block of entry.definition) visitBlock(block, visitFormula)
   for (const note of entry.notes) for (const block of note.content) visitBlock(block, visitFormula)
   for (const example of entry.examples) for (const block of example.content) visitBlock(block, visitFormula)
@@ -331,7 +416,7 @@ function visitTermEntry(entry: IRTermEntry, visitFormula: (id: NodeId, latex: st
 
 function visitStructuredChild(
   child: IRChapterChild | IRClause,
-  visitFormula: (id: NodeId, latex: string) => void,
+  visitFormula: FormulaVisitor,
 ): void {
   if (child.kind === 'clause') {
     for (const nested of child.children) visitStructuredChild(nested, visitFormula)
@@ -342,7 +427,7 @@ function visitStructuredChild(
   }
 }
 
-function visitChapter(chapter: IRChapter, visitFormula: (id: NodeId, latex: string) => void): void {
+function visitChapter(chapter: IRChapter, visitFormula: FormulaVisitor): void {
   for (const child of chapter.children) visitStructuredChild(child, visitFormula)
 }
 
@@ -352,11 +437,14 @@ function visitChapter(chapter: IRChapter, visitFormula: (id: NodeId, latex: stri
  */
 export async function convertFormulasToOmml(doc: IRDoc): Promise<FormulaOmmlResult> {
   const formulaOmml: Record<NodeId, string> = {}
+  const formulaWidths: Record<NodeId, number> = {}
   const warnings: FormulaConversionWarning[] = []
-  const convert = async (id: NodeId, latex: string) => {
+  const convert = async (id: NodeId, latex: string, display: boolean) => {
     try {
       if (!latex.trim()) throw new Error('公式源代码为空')
-      formulaOmml[id] = await convertFormulaToOmml(latex)
+      const omml = await convertFormulaToOmml(latex, { display })
+      if (!display) formulaWidths[id] = estimateFormulaWidth(latex)
+      formulaOmml[id] = omml
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
       warnings.push({
@@ -367,15 +455,16 @@ export async function convertFormulasToOmml(doc: IRDoc): Promise<FormulaOmmlResu
     }
   }
 
-  const formulas: { id: NodeId; latex: string }[] = []
-  const collect = (id: NodeId, latex: string) => formulas.push({ id, latex })
+  const formulas: { id: NodeId; latex: string; display: boolean }[] = []
+  const collect: FormulaVisitor = (id, latex, display) => formulas.push({ id, latex, display })
   for (const block of doc.front.foreword) visitBlock(block, collect)
   for (const block of doc.front.introduction) visitBlock(block, collect)
   for (const chapter of doc.body) visitChapter(chapter, collect)
   for (const appendix of doc.appendices) {
     for (const child of appendix.children) visitStructuredChild(child, collect)
   }
-  for (const formula of formulas) await convert(formula.id, formula.latex)
+  collectInlineFormulas(doc, collect)
+  for (const formula of formulas) await convert(formula.id, formula.latex, formula.display)
 
-  return { formulaOmml, warnings }
+  return { formulaOmml, formulaWidths, warnings }
 }

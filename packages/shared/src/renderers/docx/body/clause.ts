@@ -11,7 +11,7 @@
 import type { IRChapter, IRChapterChild, IRClause, IRClauseChild } from '../../../ir/types'
 import { ABSTRACT_NUM_ID } from '../numbering'
 import { renderBlock, type BlockCtx } from './block'
-import { emitParagraph, warn, type RenderContext } from './context'
+import { emitParagraph, formulaSink, warn, type RenderContext } from './context'
 import { renderInlines } from './inline'
 import { renderTermEntry } from './termEntry'
 
@@ -52,7 +52,7 @@ export function renderClause(ctx: RenderContext, clause: IRClause, bctx: BlockCt
   const numPr = { numId, ilvl: level }
   const [first, ...rest] = clause.children
   if (first && first.kind === 'paragraph') {
-    let out = emitParagraph(ctx, noTitleStyleId, { numPr, runsXml: renderInlines(first.content, ctx.labels), numbered })
+    let out = emitParagraph(ctx, noTitleStyleId, { numPr, runsXml: renderInlines(first.content, ctx.labels, formulaSink(ctx)), numbered })
     out += renderContainerChildren(ctx, rest, innerBctx, level, inTermsChapter)
     return out
   }

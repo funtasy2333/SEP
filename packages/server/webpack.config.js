@@ -26,10 +26,10 @@ function isInside(directory, parent) {
 // 在 nodeExternals 的基础上补一条规则：@ses/* 源码里导入的第三方包，若解析到的与 server 自己
 // 解析到的不是同一份（版本不同），就不外置，改为打入产物。
 //
-// 原因：nodeExternals 只看包名。外置后产物里是 require('katex')，运行时只会从 dist/main.js
-// 所在位置解析，即 server 的版本；@ses/io 声明的 katex ^0.16.44 会被静默换成 server 为 PDF 预渲染
-// 锁定的 0.16.11，DOCX 公式输出就可能与编辑器（用 0.16.44）不一致。打入后 webpack 按导入方所在位置
-// 解析（packages/io/node_modules），server 自己的 import 仍外置，两个版本各用各的。
+// 原因：nodeExternals 只看包名。外置后产物里是 require('<包名>')，运行时只会从 dist/main.js
+// 所在位置解析，即 server 的版本；@ses/* 声明的其他版本会被静默替换。打入后 webpack 按导入方所在位置
+// 解析，server 自己的 import 仍外置，两个版本各用各的。（此规则最初为 katex 而设：WP5 时 server 锁定
+// 0.16.11、io/client 为 0.16.44；2026-10-18 三处已统一锁定 0.16.44，katex 现在照常外置。）
 // 版本相同（解析到同一真实路径）时照旧外置，不增加产物体积。含原生扩展的包（如 better-sqlite3）
 // 不能走这条路：@ses/* 若需要不同版本的原生包，应统一版本，而不是打包。
 function externals({ context, request, getResolve }, callback) {
@@ -55,8 +55,8 @@ function externals({ context, request, getResolve }, callback) {
 // 别名加手写声明让 TS 不接触 client 源码；运行时的解析与打包则完全由别名完成。
 //
 // 依赖归属：client 链上的 @tiptap/*、prosemirror-* 等 server 未声明，webpack-node-externals 不会外置，
-// 按导入方（client）的 node_modules 解析并打入产物；katex 走上面 externals() 的版本分流（client 用 0.16.44，
-// 与 @ses/io 的同一份，不是 server 的 0.16.11），因此也被打入。client 里的 '@/' 别名不可用，需写相对路径。
+// 按导入方（client）的 node_modules 解析并打入产物；katex 三处版本一致，按上面的 externals() 外置。
+// client 里的 '@/' 别名不可用，需写相对路径。
 const clientEditorSchema = path.resolve(
   serverDir,
   '../client/src/extensions/editorSchema.ts',

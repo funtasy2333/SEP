@@ -64,8 +64,17 @@ function textRunsXml(text: string, rprXml: string): string {
   return parts.join('')
 }
 
-/** 渲染一个 IRInline：crossRef 换成 refText，其余 marks 正常应用，\n 拆成 br */
-export function renderRun(run: IRInline, labels: Labels): string {
+/**
+ * 行内公式的 OMML 来源（docs/phase7-inline-formula.md）。只有正文类位置会传入；
+ * 缺失时由调用方记 warning，这里回退为 LaTeX 源码文本。
+ */
+export interface InlineFormulaSink {
+  omml: Record<string, string>
+  missing(id: string, latex: string): void
+}
+
+/** 渲染一个 IRInline：crossRef 换成 refText，其余 marks 正常应用，\n 拆成 br；行内公式按 irToPm 顺序排在文字之后 */
+export function renderRun(run: IRInline, labels: Labels, formulas?: InlineFormulaSink): string {
   const marks = run.marks ?? []
   const textMarks = marks.filter((mark) => mark.type !== 'tableFootnoteRef')
   const xref = textMarks.find((mark) => mark.type === 'crossRef')
@@ -77,6 +86,20 @@ export function renderRun(run: IRInline, labels: Labels): string {
   const rprChildren = markRprChildren(textMarks)
   const rprXml = rprChildren.length > 0 ? rPr(rprChildren) : ''
   const body = textRunsXml(bodyText, rprXml)
+
+  let formulaXml = ''
+  if (run.formula) {
+    // 导出边界只在正文类位置放行行内公式；没有来源说明调用点漏传，报错而不是静默丢弃。
+    if (!formulas) throw new Error(`renderRun: 行内公式 "${run.formula.id}" 所在位置没有提供 OMML 来源`)
+    const latex = run.formula.latex ?? ''
+    const omml = formulas.omml[run.formula.id]
+    if (omml) {
+      formulaXml = omml
+    } else {
+      formulaXml = textRunsXml(latex, '')
+      formulas.missing(run.formula.id, latex)
+    }
+  }
 
   let footnoteAtom = ''
   if (run.footnote) {
@@ -106,12 +129,12 @@ export function renderRun(run: IRInline, labels: Labels): string {
 
   // Keep the same order as irToPm: source body, body footnote atom, then all
   // table-footnote reference atoms carried by this IR run.
-  return `${body}${footnoteAtom}${tableFootnoteAtoms}`
+  return `${body}${formulaXml}${footnoteAtom}${tableFootnoteAtoms}`
 }
 
 /** 渲染一组 IRInline；数组为空时返回空串（段落层再据此决定是否输出不含 run 的段落） */
-export function renderInlines(inlines: IRInline[], labels: Labels): string {
-  return inlines.map((r) => renderRun(r, labels)).join('')
+export function renderInlines(inlines: IRInline[], labels: Labels, formulas?: InlineFormulaSink): string {
+  return inlines.map((r) => renderRun(r, labels, formulas)).join('')
 }
 
 /** 纯文本 run（无 marks），用于字面量文字（如附录标识里的「（规范性）」） */

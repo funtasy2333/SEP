@@ -1,0 +1,196 @@
+import { Extension, type Editor } from '@tiptap/core'
+import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model'
+import { Plugin, PluginKey, TextSelection, type EditorState } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { dispatchInlineFormulaRequest } from './inlineFormulaEditing'
+
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    whereList: {
+      /**
+       * 为公式追加一条式中：默认取光标所在公式，给出 pos 时取该位置的公式节点。
+       * 给出 latex 时符号格直接放入该行内公式，与新增条目同属一个事务（一次撤销整体撤回），光标停在公式之后。
+       * 公式已有非空自由文本式中时返回 false（先走一键转换）。
+       */
+      addWhereItem: (options?: { pos?: number; latex?: string }) => ReturnType
+    }
+  }
+}
+
+function ancestorDepth($pos: ResolvedPos, name: string): number {
+  for (let depth = $pos.depth; depth > 0; depth--) if ($pos.node(depth).type.name === name) return depth
+  return -1
+}
+
+function newWhereItem(state: EditorState, latex?: string): PMNode {
+  const { whereItem, whereTerm, whereDefinition, formulaInline } = state.schema.nodes
+  const term = latex === undefined ? whereTerm!.create() : whereTerm!.create(null, formulaInline!.create({ latex }))
+  return whereItem!.create(null, [term, whereDefinition!.create()])
+}
+
+/** 自由文本式中有内容时不能与结构化式中并存（pmToIr 会报 unsupported）。 */
+export function formulaHasLegacyDescription(formula: PMNode): boolean {
+  let legacy = false
+  formula.forEach(child => { if (child.type.name === 'formulaDescription' && child.content.size > 0) legacy = true })
+  return legacy
+}
+
+/** 当前选区所在的公式；不在公式内时返回 null。 */
+export function selectedFormula(state: EditorState): { node: PMNode; pos: number } | null {
+  const depth = ancestorDepth(state.selection.$from, 'formula')
+  if (depth < 0) return null
+  return { node: state.selection.$from.node(depth), pos: state.selection.$from.before(depth) }
+}
+
+function formulaAt(doc: PMNode, pos: number): { node: PMNode; pos: number } | null {
+  const node = pos >= 0 && pos < doc.content.size ? doc.nodeAt(pos) : null
+  return node?.type.name === 'formula' ? { node, pos } : null
+}
+
+/** 光标放进 itemPos 处 whereItem 的符号格（offset 0）或释义格（end）。 */
+function cursorInItem(doc: PMNode, itemPos: number, cell: 'term' | 'definition'): TextSelection {
+  const itemNode = doc.nodeAt(itemPos)!
+  const termNode = itemNode.child(0)
+  const pos = cell === 'term' ? itemPos + 2 : itemPos + 1 + termNode.nodeSize + 1 + itemNode.child(1).content.size
+  return TextSelection.create(doc, pos)
+}
+
+function moveToCell(editor: Editor, cell: 'term' | 'definition'): boolean {
+  const { $from } = editor.state.selection
+  const itemDepth = ancestorDepth($from, 'whereItem')
+  if (itemDepth < 0) return false
+  const itemPos = $from.before(itemDepth)
+  const tr = editor.state.tr.setSelection(cursorInItem(editor.state.doc, itemPos, cell))
+  if (cell === 'term') {
+    // 回到符号格时停在内容末尾，便于继续输入。
+    const termEnd = itemPos + 1 + $from.node(itemDepth).child(0).nodeSize - 1
+    tr.setSelection(TextSelection.create(tr.doc, termEnd))
+  }
+  editor.view.dispatch(tr.scrollIntoView())
+  return true
+}
+
+function insertItemAfter(editor: Editor): boolean {
+  const { $from } = editor.state.selection
+  const itemDepth = ancestorDepth($from, 'whereItem')
+  if (itemDepth < 0) return false
+  const after = $from.after(itemDepth)
+  const tr = editor.state.tr.insert(after, newWhereItem(editor.state))
+  tr.setSelection(cursorInItem(tr.doc, after, 'term'))
+  editor.view.dispatch(tr.scrollIntoView())
+  return true
+}
+
+function deleteEmptyItem(editor: Editor): boolean {
+  const { $from, empty } = editor.state.selection
+  if (!empty || $from.parentOffset !== 0) return false
+  const itemDepth = ancestorDepth($from, 'whereItem')
+  if (itemDepth < 0) return false
+  const itemNode = $from.node(itemDepth)
+  if (itemNode.content.size !== 4) {
+    // 条目非空：释义开头的 Backspace 只把光标移回符号格，避免默认行为把两格合并或越界删除。
+    if ($from.parent.type.name === 'whereDefinition') return moveToCell(editor, 'term')
+    return $from.parent.type.name === 'whereTerm'
+  }
+  const listDepth = itemDepth - 1
+  const listNode = $from.node(listDepth)
+  const itemPos = $from.before(itemDepth)
+  const [from, to] = listNode.childCount === 1
+    ? [$from.before(listDepth), $from.after(listDepth)]
+    : [itemPos, itemPos + itemNode.nodeSize]
+  const tr = editor.state.tr.delete(from, to)
+  // 光标回到上一条释义末尾；没有上一条时回到公式源码末尾。
+  const index = $from.index(listDepth)
+  if (listNode.childCount > 1 && index > 0) {
+    const prevPos = itemPos - listNode.child(index - 1).nodeSize
+    tr.setSelection(cursorInItem(tr.doc, prevPos, 'definition'))
+  } else {
+    tr.setSelection(TextSelection.near(tr.doc.resolve(Math.max(0, from - 1)), -1))
+  }
+  editor.view.dispatch(tr.scrollIntoView())
+  return true
+}
+
+const emptyTermKey = new PluginKey('whereEmptyTerm')
+
+/** 结构化式中的编辑行为：添加条目、符号格与释义格之间的 Enter/Tab/Backspace、空符号格占位与点击插入。 */
+export const WhereListEditing = Extension.create({
+  name: 'whereListEditing',
+
+  addCommands() {
+    return {
+      addWhereItem: ({ pos, latex } = {}) => ({ state, dispatch }) => {
+        const formula = pos === undefined ? selectedFormula(state) : formulaAt(state.doc, pos)
+        if (!formula || formulaHasLegacyDescription(formula.node)) return false
+        if (!dispatch) return true
+        const tr = state.tr
+        let listPos = -1
+        let descriptionPos = -1
+        formula.node.forEach((child, offset) => {
+          const pos = formula.pos + 1 + offset
+          if (child.type.name === 'whereList') listPos = pos
+          if (child.type.name === 'formulaDescription') descriptionPos = pos
+        })
+        let itemPos: number
+        if (listPos >= 0) {
+          const list = state.doc.nodeAt(listPos)!
+          itemPos = listPos + list.nodeSize - 1
+          tr.insert(itemPos, newWhereItem(state, latex))
+        } else {
+          // whereList 是公式的最后一个子节点（formulaContent formulaDescription? formulaNote* whereList?）。
+          const end = formula.pos + formula.node.nodeSize - 1
+          tr.insert(end, state.schema.nodes.whereList!.create(null, newWhereItem(state, latex)))
+          itemPos = end + 1
+        }
+        if (descriptionPos >= 0) {
+          const description = state.doc.nodeAt(descriptionPos)!
+          tr.delete(descriptionPos, descriptionPos + description.nodeSize)
+          itemPos -= description.nodeSize
+        }
+        const term = tr.doc.nodeAt(itemPos)!.child(0)
+        tr.setSelection(TextSelection.create(tr.doc, itemPos + 2 + term.content.size))
+        dispatch(tr.scrollIntoView())
+        return true
+      },
+    }
+  },
+
+  addKeyboardShortcuts() {
+    const inCell = (editor: Editor, name: 'whereTerm' | 'whereDefinition') =>
+      editor.state.selection.$from.parent.type.name === name
+    return {
+      Enter: ({ editor }) => {
+        if (inCell(editor, 'whereTerm')) return moveToCell(editor, 'definition')
+        if (inCell(editor, 'whereDefinition')) return insertItemAfter(editor)
+        return false
+      },
+      Tab: ({ editor }) => inCell(editor, 'whereTerm') ? moveToCell(editor, 'definition') : false,
+      'Shift-Tab': ({ editor }) => inCell(editor, 'whereDefinition') ? moveToCell(editor, 'term') : false,
+      Backspace: ({ editor }) => inCell(editor, 'whereTerm') || inCell(editor, 'whereDefinition') ? deleteEmptyItem(editor) : false,
+    }
+  },
+
+  addProseMirrorPlugins() {
+    return [new Plugin({
+      key: emptyTermKey,
+      props: {
+        decorations(state) {
+          const decorations: Decoration[] = []
+          state.doc.descendants((node, pos) => {
+            if (node.type.name === 'whereTerm') {
+              if (node.content.size === 0) decorations.push(Decoration.node(pos, pos + node.nodeSize, { class: 'where-term-empty' }))
+              return false
+            }
+            return true
+          })
+          return DecorationSet.create(state.doc, decorations)
+        },
+        handleClickOn(_view, _pos, node, nodePos, _event, direct) {
+          if (!direct || node.type.name !== 'whereTerm' || node.content.size > 0) return false
+          dispatchInlineFormulaRequest({ mode: 'insert', pos: nodePos + 1, latex: '' })
+          return true
+        },
+      },
+    })]
+  },
+})

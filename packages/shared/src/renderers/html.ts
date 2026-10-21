@@ -1,4 +1,5 @@
 import { assertOutputSupported } from './outputBoundary'
+import { fullWidthFormulaLabel } from './formulaLabel'
 /**
  * HTML 渲染器（Phase 5.5 / WP4）。
  *
@@ -12,7 +13,8 @@ import { assertOutputSupported } from './outputBoundary'
  *   交叉引用输出纯文本（labels.refText），目次页码列为定宽占位（WP5 两遍构建注入数字）。
  *
  * 公式不在此渲染 KaTeX（KaTeX 依赖 DOM 字体度量不可靠，WP0 结论 6）：
- * 输出 <span class="ses-formula" data-latex="..."> 占位，由消费端（client 预览 / WP5 管线）渲染。
+ * 输出 <span class="ses-formula" data-latex="..."> 占位，由消费端（client 预览 / WP5 管线）渲染；
+ * 式中符号的行内公式输出 <span class="ses-formula-inline" data-latex="...">，按 KaTeX 行内模式渲染。
  *
  * 同构纯 TypeScript：不引用任何浏览器/Node API。
  */
@@ -199,6 +201,12 @@ function renderRun(run: IRInline, ctx: RenderCtx): string {
     ).join('')
   }
 
+  // 行内公式与块级公式同一占位约定，由消费端（client 预览 / PDF 管线）用 KaTeX 行内模式渲染。
+  // 公式片段不带 marks（导出边界已拒绝），按 irToPm 顺序排在文字之后。
+  const formulaAtom = run.formula?.latex
+    ? `<span class="ses-formula-inline" data-latex="${escapeAttr(run.formula.latex)}"></span>`
+    : ''
+
   let footnoteAtom = ''
   if (run.footnote) {
     const resolved = ctx.labels[run.footnote.id]
@@ -226,7 +234,7 @@ function renderRun(run: IRInline, ctx: RenderCtx): string {
       ? `<a class="ses-table-footnote-ref" href="#${escapeAttr(resolved.xmlId)}">${marker}</a>`
       : marker
   }
-  return `${body}${footnoteAtom}${tableFootnoteAtoms}`
+  return `${body}${formulaAtom}${footnoteAtom}${tableFootnoteAtoms}`
 }
 
 function renderInlines(inlines: IRInline[], ctx: RenderCtx): string {
@@ -373,7 +381,8 @@ function renderFormula(formula: IRFormula, ctx: RenderCtx): void {
   // KaTeX 占位（消费端渲染）；data-latex 保留原文
   ctx.push(`<span class="ses-formula" data-latex="${escapeAttr(formula.latex)}"></span>`)
   if (numbered) {
-    ctx.push(`<span class="ses-formula-num">${escapeHtml(ctx.label(formula.id))}</span>`)
+    // 打印样式在 ses-formula-leader 上铺点线（结构与目次条目相同：点线 span + 编号 span），屏幕样式隐藏它。
+    ctx.push(`<span class="ses-formula-tail"><span class="ses-formula-leader"></span><span class="ses-formula-num">${escapeHtml(fullWidthFormulaLabel(ctx.label(formula.id)))}</span></span>`)
   }
   ctx.push('</div>')
 
@@ -383,7 +392,8 @@ function renderFormula(formula: IRFormula, ctx: RenderCtx): void {
     ctx.push('<dl class="ses-where-list">')
     for (const item of formula.whereList) {
       ctx.push(
-        `<dt${idAttr(item.id)}${anchorAttr(ctx, item.id)}>${renderInlines(item.term, ctx)}</dt><dd>${renderInlines(item.definition, ctx)}</dd>`,
+        // GB/T 1.1 10.4.3：释义用破折号连接、各行破折号对齐；破折号写成文字，复制与 PDF 取文都能得到（与 DOCX 一致）。
+        `<dt${idAttr(item.id)}${anchorAttr(ctx, item.id)}>${renderInlines(item.term, ctx)}</dt><dd><span class="ses-where-dash">——</span><span class="ses-where-text">${renderInlines(item.definition, ctx)}</span></dd>`,
       )
     }
     ctx.push('</dl>')
@@ -762,11 +772,13 @@ function screenStyles(): string {
     .ses-figure-caption-en { font-style: italic; color: #555; }
     .ses-formula-block { display: flex; align-items: center; margin: 16px 0 6px; }
     .ses-formula { flex: 1; text-align: center; }
-    .ses-formula-num { width: 5em; text-align: right; }
+    .ses-formula-tail { width: 5em; text-align: right; }
+    .ses-formula-leader { display: none; }
     .ses-where { margin: 0 0 12px 3em; }
-    .ses-where-list { display: grid; grid-template-columns: min-content 1fr; column-gap: 0.8em; }
+    .ses-where-list { display: grid; grid-template-columns: min-content 1fr; column-gap: 1em; }
     .ses-where-list dt { font-style: italic; }
-    .ses-where-list dd { margin: 0; }
+    .ses-where-list dd { margin: 0; display: flex; }
+    .ses-where-dash { flex: none; }
     .ses-note, .ses-example { padding-left: 2em; font-size: 13px; color: #333; margin: 8px 0; }
     .ses-note-marker, .ses-example-marker { font-family: "SimHei", "黑体", sans-serif; }
     .ses-footnote { font-size: 0.85em; }
