@@ -411,6 +411,35 @@ describe('writeXml DOCTYPE', () => {
     expect(withDoctype({ name: 's', publicId: "-//A's//EN", systemId: 'x.dtd' })).toContain(`PUBLIC "-//A's//EN" "x.dtd"`)
   })
 
+  it('公共标识符与系统标识符中的回车（CR、CRLF）抛错：读回时会被规范化为换行，无法无损表示', () => {
+    for (const value of ['a\rb', 'a\r\nb', '\r']) {
+      const publicId = thrown(() => withDoctype({ name: 's', publicId: `-//A${value}//EN`, systemId: 'x.dtd' }))
+      expect(publicId.path).toBe('/!DOCTYPE')
+      expect(publicId.message).toContain('回车')
+      const systemId = thrown(() => withDoctype({ name: 's', systemId: `x${value}.dtd` }))
+      expect(systemId.path).toBe('/!DOCTYPE')
+      expect(systemId.message).toContain('回车')
+      expect(thrown(() => withDoctype({ name: 's', publicId: '-//A//EN', systemId: `x${value}.dtd` })).message).toContain('回车')
+    }
+    // 不含回车的标识符照常写出
+    expect(withDoctype({ name: 's', systemId: 'a\nb.dtd' })).toContain('SYSTEM "a\nb.dtd"')
+  })
+
+  it('无法用字符引用保真的其它输出位置同样拒绝回车；可用字符引用的位置保留为 &#13;', () => {
+    const compact: XmlWriteOptions = { namespaces: {}, indent: null }
+    // 名称类位置：本就必须是合法名称，含回车被拒绝
+    expect(() => write(xmlElement(qname(null, 'a\r')))).toThrow(XmlWriteError)
+    expect(() => write(xmlElement('a', [xmlAttr(qname(null, 'b\r'), '1')]))).toThrow(XmlWriteError)
+    expect(() => write(xmlElement('a', [], [xmlPi('t\r', 'd')]))).toThrow(XmlWriteError)
+    expect(() => withDoctype({ name: 's\r' })).toThrow(XmlWriteError)
+    expect(() => write(xmlElement('a'), { namespaces: { 'p\r': 'urn:x' } })).toThrow(XmlWriteError)
+    expect(() => write(xmlElement('a'), { namespaces: {}, indent: '\r' })).toThrow(XmlWriteError)
+    // 文本、属性值、命名空间 URI（均为属性值）可用字符引用，保留为 &#13;
+    expect(body(xmlElement(qname('urn:a\rb', 'r'), [xmlAttr('v', 'x\ry')], ['t\r\nu']), { namespaces: { '': 'urn:a\rb' }, indent: null })).toBe(
+      '<r xmlns="urn:a&#13;b" v="x&#13;y">t&#13;\nu</r>',
+    )
+  })
+
   it('DOCTYPE 名称必须是合法名称；不缩进模式同样换行分隔顶层部分', () => {
     expect(() => withDoctype({ name: 'a b' })).toThrow(XmlWriteError)
     expect(writeXml({ doctype: { name: 'standard', systemId: 'a.dtd' }, root: xmlElement('standard', [], [xmlElement('x')]) }, { namespaces: {}, indent: null })).toBe(

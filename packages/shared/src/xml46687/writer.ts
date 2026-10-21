@@ -52,7 +52,8 @@ const NAME_START = 'A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-
 const NAME_CHAR = `${NAME_START}\\-.0-9\\u00B7\\u0300-\\u036F\\u203F-\\u2040`
 const NCNAME = new RegExp(`^[${NAME_START}][${NAME_CHAR}]*$`, 'u')
 const XML_NAME = new RegExp(`^[:${NAME_START}][:${NAME_CHAR}]*$`, 'u')
-const PUBID_LITERAL = /^[ \r\na-zA-Z0-9\-'()+,./:=?;!*#@$_%]*$/
+// PubidChar（回车因读回时被规范化为换行而在 writeDoctype 中单独拒绝，故不在此列）
+const PUBID_LITERAL = /^[ \na-zA-Z0-9\-'()+,./:=?;!*#@$_%]*$/
 const INDENT_UNIT = /^[ \t]*$/
 
 interface Context {
@@ -101,7 +102,7 @@ function checkChars(value: string, what: string, path: string): void {
   if (illegal >= 0) fail(`${what}含有 XML 1.0 不允许的字符 ${hex(illegal)}`, path)
 }
 
-/** 注释与处理指令内不能使用字符引用，字面回车读回时会被行尾规范化为换行，因此无法无损表示。 */
+/** 注释、处理指令、DOCTYPE 标识符内不能使用字符引用，字面回车读回时会被行尾规范化为换行，因此无法无损表示。 */
 function checkNoCarriageReturn(value: string, what: string, path: string): void {
   if (value.includes('\r')) fail(`${what}中的回车读回时会被规范化为换行，无法无损表示`, path)
 }
@@ -303,12 +304,15 @@ function writeDoctype(doctype: XmlDoctype): string {
   if (!XML_NAME.test(doctype.name)) fail(`DOCTYPE 名称 '${doctype.name}' 不是合法的名称`, DOCTYPE_PATH)
   if (doctype.publicId !== undefined) {
     if (doctype.systemId === undefined) fail('DOCTYPE 有公共标识符时必须同时提供系统标识符', DOCTYPE_PATH)
+    checkNoCarriageReturn(doctype.publicId, 'DOCTYPE 公共标识符', DOCTYPE_PATH)
     if (!PUBID_LITERAL.test(doctype.publicId)) fail('DOCTYPE 公共标识符含有不允许的字符', DOCTYPE_PATH)
     checkChars(doctype.systemId, 'DOCTYPE 系统标识符', DOCTYPE_PATH)
+    checkNoCarriageReturn(doctype.systemId, 'DOCTYPE 系统标识符', DOCTYPE_PATH)
     return `<!DOCTYPE ${doctype.name} PUBLIC ${quoteLiteral(doctype.publicId, '公共标识符')} ${quoteLiteral(doctype.systemId, '系统标识符')}>`
   }
   if (doctype.systemId !== undefined) {
     checkChars(doctype.systemId, 'DOCTYPE 系统标识符', DOCTYPE_PATH)
+    checkNoCarriageReturn(doctype.systemId, 'DOCTYPE 系统标识符', DOCTYPE_PATH)
     return `<!DOCTYPE ${doctype.name} SYSTEM ${quoteLiteral(doctype.systemId, '系统标识符')}>`
   }
   return `<!DOCTYPE ${doctype.name}>`
