@@ -172,7 +172,7 @@ const IR_ONLY_FIELDS: Partial<Record<FieldOwner, readonly string[]>> = {
   table: ['width', 'style', 'unit', 'footnotes'],
   figure: ['title', 'unit', 'resourceId', 'imageWidth', 'imageHeight', 'descriptions', 'groups'],
   formula: ['mathml', 'sourceInlines', 'notes'],
-  termEntry: ['nestedEntries', 'languageSets', 'tailOrder'],
+  termEntry: ['nestedEntries', 'languageSets', 'tailOrder', 'subjectField'],
   bibEntry: ['entryType', 'fields', 'identifiers', 'externalLink'],
 }
 

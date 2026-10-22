@@ -454,13 +454,21 @@ function renderTermEntry(entry: IRTermEntry, ctx: RenderCtx): void {
       ? `　<span class="ses-term-name-en" lang="en">${renderInlines(entry.termEn, ctx)}</span>`
       : ''
   ctx.push(`<p class="ses-term-head">${termHtml}${enHtml}</p>`)
-  for (const block of entry.definition) {
+  // 领域（GB/T 46687.2 9.2.9）：“〈领域〉”紧接在定义之前、与定义同一行；内容不含 〈〉，附加标点在此渲染阶段添加。
+  // 定义首块不是段落（原生 IR）或缺少定义时，单独成行排在定义之前。
+  const subjectHtml = entry.subjectField && entry.subjectField.length > 0
+    ? `<span class="ses-term-subject-field" data-type="term-subject-field">〈${renderInlines(entry.subjectField, ctx)}〉</span>`
+    : ''
+  if (subjectHtml && entry.definition[0]?.kind !== 'paragraph') {
+    ctx.push(`<p class="ses-term-def ses-term-subject-line">${subjectHtml}</p>`)
+  }
+  entry.definition.forEach((block, index) => {
     if (block.kind === 'paragraph') {
-      ctx.push(`<p class="ses-term-def"${idAttr(block.id)}${anchorAttr(ctx, block.id)}>${renderInlines(block.content, ctx)}</p>`)
+      ctx.push(`<p class="ses-term-def"${idAttr(block.id)}${anchorAttr(ctx, block.id)}>${index === 0 ? subjectHtml : ''}${renderInlines(block.content, ctx)}</p>`)
     } else {
       renderBlock(block, ctx)
     }
-  }
+  })
   if (entry.source && entry.source.length > 0) {
     ctx.push(`<p class="ses-term-source">${renderInlines(entry.source, ctx)}</p>`)
   }

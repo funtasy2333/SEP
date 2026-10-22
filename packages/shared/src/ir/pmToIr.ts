@@ -985,6 +985,18 @@ function convertTermDef(node: PMJsonNode, ctx: Ctx, out: IRTermEntry[]): void {
       case 'termName':
       case 'termNameEn':
         break
+      case 'termSubjectField': {
+        // M-9.2.9-01：条目级领域，固定在术语名之后、定义之前（PM Schema 保证至多一个且位置固定）。
+        // 空节点不丢信息（IR 上无对应内容），直接忽略；脱离 Schema 校验的多个节点则明确报告而非静默覆盖。
+        const subjectField = convertInlines(child.content, ctx)
+        if (subjectField.length === 0) break
+        if (entry.subjectField !== undefined) {
+          ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(child, `术语条目/${id}`), nodeType: child.type, reason: '一个术语条目包含多个领域字段，IR只允许一个' })
+        } else {
+          entry.subjectField = subjectField
+        }
+        break
+      }
       case 'tbxLangSet': {
         entry.languageSets ??= []
         tailOrder.push({ kind: 'languageSet', index: entry.languageSets.length })

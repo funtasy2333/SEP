@@ -227,6 +227,8 @@ function termToPm(entry: IRTermEntry, path: string, errors: IRToPmDiagnostic[]):
   const content: PMJsonNode[] = [
     node('termName', undefined, inlinesToPm(entry.term)),
     ...(entry.termEn ? [node('termNameEn', undefined, inlinesToPm(entry.termEn))] : []),
+    // M-9.2.9-01：领域固定在术语名之后、定义之前，不进入 tailOrder；空数组与缺省等价，不输出空节点。
+    ...(entry.subjectField && entry.subjectField.length > 0 ? [node('termSubjectField', undefined, inlinesToPm(entry.subjectField))] : []),
   ]
   const [mainDefinition] = entry.definition
   if (!mainDefinition) {

@@ -326,6 +326,11 @@ export interface IRTermEntry {
   level?: number
   term: IRInline[]
   termEn?: IRInline[]
+  /**
+   * 术语所属领域（GB/T 46687.2 `tbx:subjectField`，M-9.2.9-01）。条目级，不分语言。
+   * 内容为纯领域名称，不含 `〈〉`：附加标点由渲染阶段添加；定位于术语名之后、定义之前，不进入 tailOrder。
+   */
+  subjectField?: IRInline[]
   definition: IRBlock[]
   /** 最多一个定义、最多一个来源（对齐 ISO OSD/NISO STS 约束） */
   source?: IRInline[]
@@ -516,6 +521,12 @@ export interface ResolvedLabel {
   xmlId: string
   /** 交叉引用处的展示文本："5.1.2" / "表A.1" / "公式(3)" */
   refText: string
+  /**
+   * 仅术语条目（IRTermEntry）有：术语条目独立 xmlId `term_<编号>`（M-9.2.1-05、R-3）。
+   * 编号与该条目的 label 相同（嵌套条目为 `term_3.1.2`）；与 `xmlId`（`sec_<编号>`）并存、互不覆盖。
+   * 只由 Resolver 产生，渲染器不得自行拼接。
+   */
+  termEntryXmlId?: string
 }
 
 // ---------- 编号策略（计划 2.4 节；gbT11Strategy 实现属 WP3） ----------

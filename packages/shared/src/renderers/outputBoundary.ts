@@ -58,8 +58,9 @@ const INLINE_FORMULA_CONTAINERS = new Set(['paragraph.content', 'where.term', 'w
 /** Fields a format consumes in addition to BASE_FIELDS (kind -> extra fields). */
 const NO_EXTRA_FIELDS: Readonly<Record<string, readonly string[]>> = {}
 const EXTRA_FIELDS: Record<OutputBoundaryFormat, Readonly<Record<string, readonly string[]>>> = {
-  DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'] },
-  HTML: { meta: PRINT_META_FIELDS },
+  // termEntry.subjectField（M-9.2.9-01）：WP8.M §7.1 本阶段排版，仅 HTML、DOCX 放行（定义前输出“〈领域〉”）；XML46687 留给 WP8.2。
+  DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'], termEntry: ['subjectField'] },
+  HTML: { meta: PRINT_META_FIELDS, termEntry: ['subjectField'] },
   XML: NO_EXTRA_FIELDS,
   // XML46687 的允许表、marks 与特殊检查目前与 XML 完全相同；WP8.1 支持矩阵确定后，在 WP8.2 再放开。
   XML46687: NO_EXTRA_FIELDS,

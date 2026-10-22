@@ -100,7 +100,7 @@ function childHasTableFootnotes(child: IRClauseChild): boolean {
 
 function childHasFootnoteSyntax(child: IRClauseChild): boolean {
   if (child.kind === 'clause') return inlineHasFootnote(child.title) || child.children.some(childHasFootnoteSyntax)
-  if (child.kind === 'termEntry') return inlineHasFootnote(child.term) || inlineHasFootnote(child.termEn ?? []) ||
+  if (child.kind === 'termEntry') return inlineHasFootnote(child.term) || inlineHasFootnote(child.termEn ?? []) || inlineHasFootnote(child.subjectField ?? []) ||
     child.definition.some(blockHasFootnoteSyntax) || child.notes.some((note) => note.content.some(blockHasFootnoteSyntax)) ||
     child.examples.some((example) => example.content.some(blockHasFootnoteSyntax)) || inlineHasFootnote(child.source ?? [])
   return blockHasFootnoteSyntax(child)

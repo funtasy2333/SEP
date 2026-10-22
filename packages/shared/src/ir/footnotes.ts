@@ -25,7 +25,7 @@ export function collectFootnotes(doc: IRDoc, bibliographyOrder?: string[]): IRFo
   const child = (node: IRClauseChild): void => {
     if (node.kind === 'clause') { inlines(node.title); node.children.forEach(child) }
     else if (node.kind === 'termEntry') {
-      inlines(node.term); inlines(node.termEn ?? [])
+      inlines(node.term); inlines(node.termEn ?? []); inlines(node.subjectField ?? [])
       node.definition.forEach(block); node.examples.forEach(block); node.notes.forEach(block)
       inlines(node.source ?? [])
     } else block(node)

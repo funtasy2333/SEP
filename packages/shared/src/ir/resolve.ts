@@ -91,8 +91,8 @@ class ResolveCtx {
     this.seenIds.add(id)
   }
 
-  setLabel(id: NodeId, label: string, xmlId: string, refText: string): void {
-    this.labels[id] = { label, xmlId, refText }
+  setLabel(id: NodeId, label: string, xmlId: string, refText: string, extra?: Pick<ResolvedLabel, 'termEntryXmlId'>): void {
+    this.labels[id] = extra ? { label, xmlId, refText, ...extra } : { label, xmlId, refText }
   }
 
   scope(key: string): NoteScope {
@@ -328,9 +328,12 @@ function visitTermEntry(
   // §4.7「遍历顺序」：DOCX 按 8.7.3.1／9.11.1 的顺序是 术语→定义→示例→注→来源（§5.4），
   // Resolver 据此遍历，与 Word 按文档顺序的计数保持一致。
   ctx.registerId(entry.id)
-  ctx.setLabel(entry.id, numberPath, `sec_${numberPath}`, numberPath)
+  // R-3：术语条目另有独立 xmlId term_<编号>（编号与 label 相同），与 sec_<编号> 并存。
+  ctx.setLabel(entry.id, numberPath, `sec_${numberPath}`, numberPath, { termEntryXmlId: `term_${numberPath}` })
   visitInlines(entry.term, entry.id, ctx)
   if (entry.termEn) visitInlines(entry.termEn, entry.id, ctx)
+  // M-9.2.9-01：领域位于术语名之后、定义之前；inTerm 已为真，其中的条文脚注自动报错。
+  if (entry.subjectField) visitInlines(entry.subjectField, entry.id, ctx)
   if (entry.definition[0]) visitBlock(entry.definition[0], entry.id, ctx)
   // Legacy native IR retains the published DOCX sequence example→note→source.
   // PM-imported extended terms use explicit order so nested/TBX references follow
