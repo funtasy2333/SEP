@@ -63,7 +63,7 @@ const EXTRA_FIELDS: Record<OutputBoundaryFormat, Readonly<Record<string, readonl
   // WP8.M §7.1 本阶段排版，仅 HTML、DOCX 放行；XML46687 留给 WP8.2：
   // - termEntry.subjectField（M-9.2.9-01，G5）：定义前输出“〈领域〉”；
   // - front.introductionClauses（M-4.3.4-02/03，G6）：引言中的条（0.1…）按条标题排版；
-  // - defList（M-10.1.4-01/-03/-04/-05，G2）：缩略语表，缩略语在前、释义在后同一行，中间空一个汉字。
+  // - defList（M-10.1.4-01/-03/-04/-05，G2）：缩略语表，缩略语在前、释义在后同一行，中间是全角冒号（渲染时添加，不入 IR）。
   //   项与公式“式中”项同形，沿用 where 形状（见 childShape）。
   DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'], termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS },
   HTML: { meta: PRINT_META_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS },

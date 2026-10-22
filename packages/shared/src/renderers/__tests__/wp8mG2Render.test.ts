@@ -7,7 +7,8 @@
  *   因此沿用 10.2 的条文段落式排版（段首空两个汉字起排，回行顶格）。
  * - GB/T 46687.2—2026 3.2 缩略语（印刷页 2，PDF 第 6 页）的实际排版：每条一行，缩略语在前、释义在后，起排位置与引导语
  *   “下列缩略语适用于本文件。”同为段首缩进，无序号、无破折号。
- * - 设计 §7.1：缩略语与释义同行，释义前空一个汉字（U+3000）。
+ * - 设计 §7.1 原定“释义前空一个汉字”，主导人审查后改按 46687.2 印刷页 2 的实排：缩略语与释义同行，中间是全角冒号“：”（U+FF1A），
+ *   不加空格；冒号只在渲染时添加，IR 与 PM 中不存。
  */
 
 import { describe, expect, it } from 'vitest'
@@ -37,20 +38,20 @@ function defListHtml(output: string, id: string): string {
   return output.slice(start, output.indexOf('</div>', start) + '</div>'.length)
 }
 
-const GAP = '　' // U+3000
+const SEP = '：' // U+FF1A 全角冒号，只在渲染时添加
 
 describe('[M-10.1.4-01] HTML：缩略语表的排法', () => {
   for (const variant of ['screen', 'print'] as const) {
-    it(`${variant}：每项一段，缩略语在前、释义在后，中间一个汉字空；锚点 id 取 abb_<k>`, () => {
+    it(`${variant}：每项一段，缩略语在前、释义在后，中间是全角冒号（无空格）；锚点 id 取 abb_<k>`, () => {
       const fragment = defListHtml(html(g2IrDoc(), variant), 'g2-list')
       const xref = variant === 'screen'
         ? '<a class="ses-xref" href="#abb_1" data-ref-target="abb-adc">ADC</a>'
         : '<span class="ses-xref" data-ref-target="abb-adc">ADC</span>'
       expect(fragment).toBe([
         '<div class="ses-def-list" data-type="def-list" data-node-id="g2-list">',
-        `<p class="ses-paragraph ses-def-item" data-type="def-item" data-node-id="abb-adc" id="abb_1"><span class="ses-def-term">ADC</span><span class="ses-def-gap">${GAP}</span><span class="ses-def-definition">模数转换器（Analog-to-Digital Converter）</span></p>`,
-        `<p class="ses-paragraph ses-def-item" data-type="def-item" data-node-id="abb-agc" id="abb_2"><span class="ses-def-term">AGC</span><span class="ses-def-gap">${GAP}</span><span class="ses-def-definition">自动增益控制（Automatic Gain Control）</span></p>`,
-        `<p class="ses-paragraph ses-def-item" data-type="def-item" data-node-id="abb-ct" id="abb_3"><span class="ses-def-term">CT</span><span class="ses-def-gap">${GAP}</span><span class="ses-def-definition">计算机断层扫描，参见${xref}<strong>与</strong>电流互感器</span></p>`,
+        `<p class="ses-paragraph ses-def-item" data-type="def-item" data-node-id="abb-adc" id="abb_1"><span class="ses-def-term">ADC</span><span class="ses-def-sep">${SEP}</span><span class="ses-def-definition">模数转换器（Analog-to-Digital Converter）</span></p>`,
+        `<p class="ses-paragraph ses-def-item" data-type="def-item" data-node-id="abb-agc" id="abb_2"><span class="ses-def-term">AGC</span><span class="ses-def-sep">${SEP}</span><span class="ses-def-definition">自动增益控制（Automatic Gain Control）</span></p>`,
+        `<p class="ses-paragraph ses-def-item" data-type="def-item" data-node-id="abb-ct" id="abb_3"><span class="ses-def-term">CT</span><span class="ses-def-sep">${SEP}</span><span class="ses-def-definition">计算机断层扫描，参见${xref}<strong>与</strong>电流互感器</span></p>`,
         '</div>',
       ].join('\n'))
     })
@@ -69,14 +70,14 @@ describe('[M-10.1.4-01] HTML：缩略语表的排法', () => {
     expect(fragment).not.toMatch(/式中|——|<dl|<dt|<dd|<ol|<ul|<li/)
   })
 
-  it('释义前的空格是写成文字的 U+3000（复制与 PDF 取文可得），每项恰一个', () => {
+  it('冒号是写成文字的全角“：”（复制与 PDF 取文可得），每项恰一个，缩略语与释义之间不再有空格', () => {
     const fragment = defListHtml(html(g2IrDoc(), 'print'), 'g2-list')
-    expect(fragment.match(/<span class="ses-def-gap">　<\/span>/g)).toHaveLength(3)
+    expect(fragment.match(/<span class="ses-def-sep">：<\/span>/g)).toHaveLength(3)
     const text = fragment.replace(/<[^>]+>/g, '')
     expect(text.split('\n').filter(Boolean)).toEqual([
-      `ADC${GAP}模数转换器（Analog-to-Digital Converter）`,
-      `AGC${GAP}自动增益控制（Automatic Gain Control）`,
-      `CT${GAP}计算机断层扫描，参见ADC与电流互感器`,
+      `ADC${SEP}模数转换器（Analog-to-Digital Converter）`,
+      `AGC${SEP}自动增益控制（Automatic Gain Control）`,
+      `CT${SEP}计算机断层扫描，参见ADC与电流互感器`,
     ])
   })
 
@@ -127,30 +128,30 @@ describe('[M-10.1.1-04] HTML：abbreviation 引用输出 refText 并链接到项
 })
 
 describe('[M-10.1.4-03][M-10.1.4-04][M-10.1.4-05] DOCX：缩略语表', () => {
-  it('大纲：每项一个 SesPara 段，缩略语、一个汉字空、释义；引导语在前，无编号栏', () => {
+  it('大纲：每项一个 SesPara 段，缩略语、全角冒号、释义；引导语在前，无编号栏', () => {
     const outline = docxOutline(docx(g2IrDoc()))
     expect(outline).toContain([
       'SesChapter │ 3 │ 符号和缩略语',
       'SesPara │ — │ 下列缩略语适用于本文件。',
-      `SesPara │ — │ ADC${GAP}模数转换器（Analog-to-Digital Converter）`,
-      `SesPara │ — │ AGC${GAP}自动增益控制（Automatic Gain Control）`,
-      `SesPara │ — │ CT${GAP}计算机断层扫描，参见ADC与电流互感器`,
+      `SesPara │ — │ ADC${SEP}模数转换器（Analog-to-Digital Converter）`,
+      `SesPara │ — │ AGC${SEP}自动增益控制（Automatic Gain Control）`,
+      `SesPara │ — │ CT${SEP}计算机断层扫描，参见ADC与电流互感器`,
     ].join('\n'))
-    expect(outline).toContain(`SesPara │ — │ UTF-8${GAP}8位统一码转换格式（8-bit Unicode Transformation Format）`)
+    expect(outline).toContain(`SesPara │ — │ UTF-8${SEP}8位统一码转换格式（8-bit Unicode Transformation Format）`)
   })
 
-  it('XML 片段：同一 w:p 内依次是缩略语 run、全角空格 run、释义 run；行内格式保留；沿用 SesPara、无 numPr', () => {
+  it('XML 片段：同一 w:p 内依次是缩略语 run、全角冒号 run、释义 run；行内格式保留；沿用 SesPara、无 numPr', () => {
     const xml = docx(g2IrDoc()).parts['word/document.xml']!
     expect(xml).toContain([
       '<w:p><w:pPr><w:pStyle w:val="SesPara"/></w:pPr>',
       '<w:r><w:t xml:space="preserve">ADC</w:t></w:r>',
-      `<w:r><w:t xml:space="preserve">${GAP}</w:t></w:r>`,
+      `<w:r><w:t xml:space="preserve">${SEP}</w:t></w:r>`,
       '<w:r><w:t xml:space="preserve">模数转换器（Analog-to-Digital Converter）</w:t></w:r></w:p>',
     ].join(''))
     expect(xml).toContain([
       '<w:p><w:pPr><w:pStyle w:val="SesPara"/></w:pPr>',
       '<w:r><w:t xml:space="preserve">CT</w:t></w:r>',
-      `<w:r><w:t xml:space="preserve">${GAP}</w:t></w:r>`,
+      `<w:r><w:t xml:space="preserve">${SEP}</w:t></w:r>`,
       '<w:r><w:t xml:space="preserve">计算机断层扫描，参见</w:t></w:r>',
       '<w:r><w:t xml:space="preserve">ADC</w:t></w:r>',
       '<w:r><w:rPr><w:b/><w:bCs/></w:rPr><w:t xml:space="preserve">与</w:t></w:r>',
@@ -218,7 +219,7 @@ describe('缩略语表在表格单元格内（DOCX 表格行高估算分支）',
       }] }],
     })
     const pkg = docx(doc)
-    expect(docxOutline(pkg)).toContain(`SesPara │ — │ TBX${GAP}术语数据库交换`)
+    expect(docxOutline(pkg)).toContain(`SesPara │ — │ TBX${SEP}术语数据库交换`)
     expect(() => assertWellFormed(pkg)).not.toThrow()
   })
 })

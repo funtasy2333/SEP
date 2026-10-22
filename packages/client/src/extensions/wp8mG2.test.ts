@@ -492,19 +492,19 @@ describe('[M-10.1.4-01] 编辑器显示与键盘', () => {
     editor.destroy()
   })
 
-  it('版本对比文本：缩略语表每项一行“缩略语　释义”，不重复、不丢项', () => {
+  it('版本对比文本：缩略语表每项一行“缩略语：释义”，不重复、不丢项', () => {
     const text = docToText(schema.nodeFromJSON(createWp8mG2Fixture()).toJSON() as unknown as Record<string, unknown>)
     const lines = text.split('\n')
     const start = lines.findIndex(line => line.trim() === '[缩略语]')
     expect(lines.slice(start, start + 4).map(line => line.trim())).toEqual([
       '[缩略语]',
-      'ADC　模数转换器（Analog-to-Digital Converter）',
-      'AGC　自动增益控制（Automatic Gain Control）',
-      'CT　计算机断层扫描，参见ADC与电流互感器',
+      'ADC：模数转换器（Analog-to-Digital Converter）',
+      'AGC：自动增益控制（Automatic Gain Control）',
+      'CT：计算机断层扫描，参见ADC与电流互感器',
     ])
     expect(lines.filter(line => line.includes('模数转换器（Analog-to-Digital Converter）'))).toHaveLength(1)
-    expect(text).toContain('CO2　二氧化碳')
-    expect(text).toContain('UTF-8　8位统一码转换格式')
+    expect(text).toContain('CO2：二氧化碳')
+    expect(text).toContain('UTF-8：8位统一码转换格式')
   })
 })
 
@@ -578,27 +578,27 @@ describe('[M-10.1.4-01] 导出链路：HTML、DOCX 放行并排版；旧 XML 阻
     expect(xml?.problems.map(problem => problem.nodeId)).toEqual(['g2-list', 'g2-list-clause', 'g2-list-app'])
   })
 
-  it('HTML：每项一段“缩略语　释义”，引用文字为缩略语并链接到 abb_<k>', () => {
+  it('HTML：每项一段“缩略语：释义”，引用文字为缩略语并链接到 abb_<k>', () => {
     const editor = mountEditor(createWp8mG2Fixture() as unknown as Record<string, unknown>)
     const html = exportSemanticHtml(editor.state.doc)
-    expect(html).toContain('<p class="ses-paragraph ses-def-item" data-type="def-item" data-node-id="abb-adc" id="abb_1"><span class="ses-def-term">ADC</span><span class="ses-def-gap">　</span><span class="ses-def-definition">模数转换器（Analog-to-Digital Converter）</span></p>')
+    expect(html).toContain('<p class="ses-paragraph ses-def-item" data-type="def-item" data-node-id="abb-adc" id="abb_1"><span class="ses-def-term">ADC</span><span class="ses-def-sep">：</span><span class="ses-def-definition">模数转换器（Analog-to-Digital Converter）</span></p>')
     expect(html).toContain('<a class="ses-xref" href="#abb_1" data-ref-target="abb-adc">ADC</a>')
-    expect(html).toContain('<span class="ses-def-term">CO<sub>2</sub></span><span class="ses-def-gap">　</span><span class="ses-def-definition">二氧化碳</span>')
+    expect(html).toContain('<span class="ses-def-term">CO<sub>2</sub></span><span class="ses-def-sep">：</span><span class="ses-def-definition">二氧化碳</span>')
     expect(html.match(/ id="abb_\d+"/g)).toHaveLength(G2_ITEM_IDS.length)
     editor.destroy()
   })
 
-  it('DOCX：每项一个 SesPara 段，缩略语、全角空格、释义依次排列；引用处为缩略语', async () => {
+  it('DOCX：每项一个 SesPara 段，缩略语、全角冒号、释义依次排列；引用处为缩略语', async () => {
     const editor = mountEditor(createWp8mG2Fixture() as unknown as Record<string, unknown>)
     const { blob } = await buildDocxBlob({ pmDoc: editor.getJSON() as PMJsonNode, createdAt: '2026-10-22T00:00:00Z' })
     const zip = await JSZip.loadAsync(await blob.arrayBuffer())
     const xml = await zip.file('word/document.xml')!.async('string')
     const paragraphs = [...xml.matchAll(/<w:p>([\s\S]*?)<\/w:p>/g)].map(match => [...match[1]!.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)].map(run => run[1]).join(''))
-    expect(paragraphs).toContain('ADC　模数转换器（Analog-to-Digital Converter）')
-    expect(paragraphs).toContain('AGC　自动增益控制（Automatic Gain Control）')
-    expect(paragraphs).toContain('CT　计算机断层扫描，参见ADC与电流互感器')
-    expect(paragraphs).toContain('CO2　二氧化碳')
-    expect(paragraphs).toContain('UTF-8　8位统一码转换格式（8-bit Unicode Transformation Format）')
+    expect(paragraphs).toContain('ADC：模数转换器（Analog-to-Digital Converter）')
+    expect(paragraphs).toContain('AGC：自动增益控制（Automatic Gain Control）')
+    expect(paragraphs).toContain('CT：计算机断层扫描，参见ADC与电流互感器')
+    expect(paragraphs).toContain('CO2：二氧化碳')
+    expect(paragraphs).toContain('UTF-8：8位统一码转换格式（8-bit Unicode Transformation Format）')
     expect(paragraphs).toContain('本文件使用缩略语ADC与CT。')
     editor.destroy()
   })

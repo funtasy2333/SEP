@@ -44,10 +44,10 @@ function pmWithAbbreviations(): PMJsonNode {
 }
 
 describe('[M-10.1.4-01] io：真实出件链路', () => {
-  it('exportSemanticHtml（screen）：缩略语表每项一段，缩略语、一个汉字空、释义；引用链接到 abb_<k>', () => {
+  it('exportSemanticHtml（screen）：缩略语表每项一段，缩略语、全角冒号、释义；引用链接到 abb_<k>', () => {
     const html = exportSemanticHtml(pmWithAbbreviations())
     expect(html).toContain('<div class="ses-def-list" data-type="def-list" data-node-id="dl-1">')
-    expect(html).toContain('<span class="ses-def-term">ADC</span><span class="ses-def-gap">　</span><span class="ses-def-definition">模数转换器（Analog-to-Digital Converter）</span>')
+    expect(html).toContain('<span class="ses-def-term">ADC</span><span class="ses-def-sep">：</span><span class="ses-def-definition">模数转换器（Analog-to-Digital Converter）</span>')
     expect(html).toContain('<a class="ses-xref" href="#abb_1" data-ref-target="abb-adc">ADC</a>')
     expect(html).toContain('id="abb_1"')
     expect(html).toContain('id="abb_2"')
@@ -55,19 +55,19 @@ describe('[M-10.1.4-01] io：真实出件链路', () => {
 
   it('PDF 出件请求：print HTML 含缩略语表，无内部链接；目次目标不受影响', () => {
     const request = buildPdfExportRequest(pmWithAbbreviations(), {})
-    expect(request.html).toContain('<span class="ses-def-term">AGC</span><span class="ses-def-gap">　</span>')
+    expect(request.html).toContain('<span class="ses-def-term">AGC</span><span class="ses-def-sep">：</span>')
     expect(request.html).toContain('<span class="ses-xref" data-ref-target="abb-adc">ADC</span>')
     expect(request.html).not.toContain('<a ')
     expect(extractPdfTocTargets(request.html).map(entry => entry.target)).toEqual(['sec_1', 'sec_2'])
   })
 
-  it('buildDocx：缩略语每项一个 SesPara 段（缩略语、全角空格、释义），引用处为缩略语，无降级告警', async () => {
+  it('buildDocx：缩略语每项一个 SesPara 段（缩略语、全角冒号、释义），引用处为缩略语，无降级告警', async () => {
     const { bytes, warnings } = await buildDocx({ pmDoc: pmWithAbbreviations(), createdAt: '2026-10-22T08:00:00Z' })
     const zip = await JSZip.loadAsync(bytes)
     const xml = await zip.file('word/document.xml')!.async('string')
     const paragraphs = [...xml.matchAll(/<w:p>([\s\S]*?)<\/w:p>/g)].map(match => [...match[1]!.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)].map(run => run[1]).join(''))
-    expect(paragraphs).toContain('ADC　模数转换器（Analog-to-Digital Converter）')
-    expect(paragraphs).toContain('AGC　自动增益控制（Automatic Gain Control）')
+    expect(paragraphs).toContain('ADC：模数转换器（Analog-to-Digital Converter）')
+    expect(paragraphs).toContain('AGC：自动增益控制（Automatic Gain Control）')
     expect(paragraphs).toContain('本文件使用ADC。')
     expect(warnings.filter(warning => warning.nodeId?.startsWith('abb-') || warning.nodeId === 'dl-1')).toEqual([])
   })
