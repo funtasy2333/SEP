@@ -80,7 +80,8 @@ export function buildStaticToc(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>
   }
 
   if (doc.front.foreword.length > 0) add({ kind: 'foreword' }, 'TOC1', plainRun('前言'))
-  if (doc.front.introduction.length > 0) add({ kind: 'introduction' }, 'TOC1', plainRun('引言'))
+  // 引言中的条（WP8.M G6）暂不进目次：GB/T 1.1 8.2 d) 的条目次“需要时列出”，与 HTML 目次保持一致。
+  if (doc.front.introduction.length > 0 || (doc.front.introductionClauses?.length ?? 0) > 0) add({ kind: 'introduction' }, 'TOC1', plainRun('引言'))
 
   const visitClause = (clause: IRClause, depth: number): void => {
     if (depth === 1 && clause.titled) {

@@ -778,7 +778,15 @@ export function resolve(doc: IRDoc, strategy: NumberingStrategy = gbT11Strategy)
 
   // 前置部分（前言/引言）：注/示例作用域为各自部分；图表公式与正文共用计数器
   for (const block of doc.front.foreword) visitBlock(block, 'front.foreword', ctx)
-  for (const block of doc.front.introduction) visitBlock(block, 'front.introduction', ctx)
+  const introductionClauses = doc.front.introductionClauses ?? []
+  if (introductionClauses.length === 0) {
+    for (const block of doc.front.introduction) visitBlock(block, 'front.introduction', ctx)
+  } else {
+    // 引言有条（GB/T 1.1—2020 8.4）：引言不给章编号，条仅编号 0.1、0.2……。路径首元素取数字 0，
+    // strategy.clause([0, n]) 得 "0.n"，xmlId 为 sec_0.n（R-7）；复用章/条的遍历，条内注/示例/
+    // 脚注作用域、层级检查与悬置段检查与正文一致。引言自身的 sec_0 / sec_intro 是渲染器常量（R-6、X-05），不在此赋值。
+    visitSectionChildren([...doc.front.introduction, ...introductionClauses], 'front.introduction', '引言', [0], 1, ctx)
+  }
 
   doc.body.forEach((chapter, i) => visitChapter(chapter, i + 1, ctx))
   doc.appendices.forEach((appendix, i) => visitAppendix(appendix, i + 1, ctx))

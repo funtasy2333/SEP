@@ -40,7 +40,8 @@ export function renderTermEntry(ctx: RenderContext, entry: IRTermEntry, bctx: Bl
   if (level > 5) {
     warn(ctx, 'clause-too-deep', `术语条目 "${entry.id}" 的编号级别超过 5（${level}），按 5 级输出`, entry.id)
   }
-  const numId = bctx.appendix ? ABSTRACT_NUM_ID.appendixClause : ABSTRACT_NUM_ID.chapter
+  const numId = bctx.introduction ? ctx.numbering.allocIntroClauseInstance()
+    : bctx.appendix ? ABSTRACT_NUM_ID.appendixClause : ABSTRACT_NUM_ID.chapter
 
   // 术语和定义章遵照 10.3.5：编号独占一行，术语另行空两个汉字起排。
   // 其他章节/附录中的测试用术语条目按用户验收要求与编号同排。

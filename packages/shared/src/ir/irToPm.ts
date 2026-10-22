@@ -617,7 +617,12 @@ export function irToPm(doc: IRDoc, options: IRToPmOptions = {}): PMJsonNode {
   if (hasScalarMeta || rootType === 'standardDoc') content.push(node('coverPage', metaToCover(doc.meta), [node('paragraph')]))
   if (metadata) content.push(metadata)
   if (doc.front.foreword.length) content.push(node('foreword', undefined, blocksToPm(doc.front.foreword, 'front.foreword', errors)))
-  if (doc.front.introduction.length) content.push(node('introduction', undefined, blocksToPm(doc.front.introduction, 'front.introduction', errors)))
+  // 引言：块在前、条在后（IR 约定，条之后不能再有引言正文块）；只有条时也要输出引言容器。
+  const introduction = [
+    ...blocksToPm(doc.front.introduction, 'front.introduction', errors),
+    ...(doc.front.introductionClauses ?? []).map((clause, index) => clauseToPm(clause, `front.introductionClauses[${index}]`, errors)),
+  ]
+  if (introduction.length) content.push(node('introduction', undefined, introduction))
   doc.body.forEach((chapter, index) => content.push(chapterToPm(chapter, `body[${index}]`, errors)))
   doc.appendices.forEach((appendix, index) => content.push(appendixToPm(appendix, `appendices[${index}]`, errors)))
   if (doc.bibliography.length) content.push(node('bibliography', undefined, [

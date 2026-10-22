@@ -32,6 +32,8 @@ export const ABSTRACT_NUM_ID = {
   listRoman: 14, // A14 旧罗马类型兼容槽，降级为数字列项
   listRomanUpper: 15, // A15 旧罗马类型兼容槽，降级为数字列项
   bibEntry: 16, // A16 参考文献
+  /** A17 引言中的条（0.1、0.2…）。按需输出：只有文档含引言条时才写入 numbering.xml（WP8.M G6），其余文档仍是 16 个 abstractNum */
+  introClause: 17,
 } as const
 
 /** 8 个固定实例：每个文档一个，numId = abstractNumId（§4.2），属主样式引用它们 */
@@ -111,6 +113,20 @@ function chapterLikeLevels(): LevelSpec[] {
   return levels
 }
 
+/**
+ * A17：引言中的条。引言不给章编号（GB/T 1.1—2020 8.4），条编号为 0.1、0.2……；Word 的多级列表里 L0 无法
+ * 显示为 0，所以 L1..L5 的 lvlText 把 "0" 写成字面量、只引用 %2..%n：L1 `0.%2　`、L2 `0.%2.%3　`……
+ * L0 仅为保持级别连续而保留（`0　`），文档里没有段落使用它。缩进、字体与 A1 的 L1..L5 完全相同。
+ */
+function introClauseLevels(): LevelSpec[] {
+  return chapterLikeLevels().map(level => {
+    if (level.ilvl === 0) return { ...level, lvlText: `0${SP}` }
+    const parts: string[] = []
+    for (let k = 2; k <= level.ilvl + 1; k++) parts.push(`%${k}`)
+    return { ...level, lvlText: `0.${parts.join('.')}${SP}` }
+  })
+}
+
 function appendixLevels(): LevelSpec[] {
   const levels: LevelSpec[] = [
     { ilvl: 0, numFmt: 'upperLetter', lvlText: `附录%1`, ind: IND_DEFAULT, rPr: RPR_HEI_SPACING },
@@ -156,6 +172,9 @@ const ABSTRACT_NUM_DEFS: readonly AbstractNumSpec[] = [
   { id: ABSTRACT_NUM_ID.listRomanUpper, multilevel: true, levels: listLevels('decimal', '%1）', 'bullet', '·') },
   { id: ABSTRACT_NUM_ID.bibEntry, multilevel: false, levels: [{ ilvl: 0, numFmt: 'decimal', lvlText: `[%1]${SP}`, ind: IND_FIRSTLINE_420, rPr: RPR_SONG }] },
 ]
+
+/** 按需输出的 abstractNum：不在 ABSTRACT_NUM_DEFS（后者总是全部输出），由分配器在首次使用时登记 */
+const INTRO_CLAUSE_DEF: AbstractNumSpec = { id: ABSTRACT_NUM_ID.introClause, multilevel: true, levels: introClauseLevels() }
 
 function levelXml(spec: LevelSpec): string {
   const children: XmlChild[] = [
@@ -224,7 +243,12 @@ export interface NumberingAllocator {
   /** 编号列表（A12–A15）：每次调用新建一个实例，ilvl 0 与 1 都写 startOverride=1（§4.3：按需实例对
    * 该 abstractNum 的每个级别都写 startOverride，不论本次是否用到该级别） */
   allocListInstance(abstractNumId: number): number
-  /** 汇总 16 个 abstractNum + 8 个固定实例 + 已分配的按需实例，生成完整 word/numbering.xml（含 XML 声明） */
+  /**
+   * 引言中的条（A17）：整份文档共用一个实例（引言只有一个，条编号连续），首次调用时才登记 A17 与实例，
+   * ilvl 1..5 都写 startOverride=1（§4.3：按需实例对该 abstractNum 的每个级别都写）。
+   */
+  allocIntroClauseInstance(): number
+  /** 汇总 16 个 abstractNum（含按需登记的 A17）+ 8 个固定实例 + 已分配的按需实例，生成完整 word/numbering.xml（含 XML 声明） */
   buildNumberingXml(): string
   /** 与生成的编号级别同源的段落缩进，供页流估算使用。 */
   getIndent(numId: number, ilvl: number): string | undefined
@@ -240,6 +264,7 @@ export function createNumberingAllocator(): NumberingAllocator {
   let lastExampleNumId: number | undefined
   const appendixFigureIds = new Map<string, number>()
   const appendixTableIds = new Map<string, number>()
+  let introClauseNumId: number | undefined
   const dynamicNums: string[] = []
   const abstractIds = new Map(FIXED_ABSTRACT_NUM_IDS.map(id => [id, id] as [number, number]))
 
@@ -293,12 +318,21 @@ export function createNumberingAllocator(): NumberingAllocator {
       )
       return id
     },
+    allocIntroClauseInstance() {
+      if (introClauseNumId !== undefined) return introClauseNumId
+      const id = nextId(ABSTRACT_NUM_ID.introClause)
+      dynamicNums.push(overrideOnlyNumXml(id, ABSTRACT_NUM_ID.introClause,
+        INTRO_CLAUSE_DEF.levels.filter(level => level.ilvl >= 1).map(level => ({ ilvl: level.ilvl, start: 1 }))))
+      introClauseNumId = id
+      return id
+    },
     getIndent(numId, ilvl) {
-      return ABSTRACT_NUM_DEFS.find(def => def.id === abstractIds.get(numId))?.levels.find(level => level.ilvl === ilvl)?.ind
+      return [...ABSTRACT_NUM_DEFS, INTRO_CLAUSE_DEF].find(def => def.id === abstractIds.get(numId))?.levels.find(level => level.ilvl === ilvl)?.ind
     },
     buildNumberingXml() {
       const children: XmlChild[] = []
       for (const def of ABSTRACT_NUM_DEFS) children.push(['abstractNum', abstractNumXml(def)])
+      if (introClauseNumId !== undefined) children.push(['abstractNum', abstractNumXml(INTRO_CLAUSE_DEF)])
       for (const id of FIXED_ABSTRACT_NUM_IDS) children.push(['num', fixedNumXml(id)])
       for (const dyn of dynamicNums) children.push(['num', dyn])
       const el = numbering(children, { 'xmlns:w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main' })

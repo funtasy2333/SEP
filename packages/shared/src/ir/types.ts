@@ -16,7 +16,16 @@ export interface IRDoc {
   /** 新增语义字段的兼容扩展版本；缺省值代表仅含原始 WP1/WP3 字段的旧文档。 */
   extensionVersion?: 1
   meta: IRDocMeta
-  front: { foreword: IRBlock[]; introduction: IRBlock[] }
+  front: {
+    foreword: IRBlock[]
+    introduction: IRBlock[]
+    /**
+     * 引言中的条（GB/T 1.1—2020 8.4：引言不给章编号，需要分条时仅对条编号，编为 0.1、0.2 等）。
+     * 兄弟字段而不是放宽 `introduction` 的元素类型：`introduction`（块）在前，条在后；条之后不能再出现
+     * 引言正文块（悬置段），pmToIr 遇到时报 unsupportedContent。条的 `level` 从 1 起，嵌套深度即编号路径长度。
+     */
+    introductionClauses?: IRClause[]
+  }
   body: IRChapter[]
   appendices: IRAppendix[]
   bibliography: IRBibEntry[]

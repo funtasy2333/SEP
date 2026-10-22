@@ -33,6 +33,8 @@ export interface BlockCtx {
   /** 注/示例分组的作用域键（§5.7），随渲染的容器切换（章/条/附录/术语条目/图/表/注/示例自身……） */
   scopeKey: NodeId
   appendix?: AppendixContext
+  /** 当前位于引言中的条内（WP8.M G6）：条与术语条目编号改用 A17（0.1…）的按需实例，而不是章条的 A1 */
+  introduction?: boolean
   /** 表格/图注等完整要素内部不得插入分节。 */
   suppressLandscape?: boolean
 }

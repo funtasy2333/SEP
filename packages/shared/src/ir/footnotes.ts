@@ -31,7 +31,7 @@ export function collectFootnotes(doc: IRDoc, bibliographyOrder?: string[]): IRFo
     } else block(node)
   }
   for (const source of doc.unmappedFootnotes ?? []) inlines(source.content)
-  doc.front.foreword.forEach(block); doc.front.introduction.forEach(block)
+  doc.front.foreword.forEach(block); doc.front.introduction.forEach(block); (doc.front.introductionClauses ?? []).forEach(child)
   for (const chapter of doc.body) { inlines(chapter.title); chapter.children.forEach(child) }
   for (const appendix of doc.appendices) { inlines(appendix.title); appendix.children.forEach(child) }
   const extras = (value: unknown): void => {

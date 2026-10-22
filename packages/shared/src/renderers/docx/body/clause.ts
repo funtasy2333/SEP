@@ -34,7 +34,10 @@ export function renderClause(ctx: RenderContext, clause: IRClause, bctx: BlockCt
     level = 5
   }
   const isAppendix = !!bctx.appendix
-  const numId = isAppendix ? ABSTRACT_NUM_ID.appendixClause : ABSTRACT_NUM_ID.chapter
+  // 引言中的条（WP8.M G6）：A17 按需实例，显示 0.1、0.1.1……，不占用章条 A1 的计数器
+  const isIntroduction = !!bctx.introduction
+  const numId = isIntroduction ? ctx.numbering.allocIntroClauseInstance()
+    : isAppendix ? ABSTRACT_NUM_ID.appendixClause : ABSTRACT_NUM_ID.chapter
   const numbered = { nodeId: clause.id, kind: 'clause' as const }
 
   // §5.7：条的直属块作用域 = 该条自己的 id（不是外层章/条的 id），条内注/示例分组据此独立计数
@@ -42,7 +45,11 @@ export function renderClause(ctx: RenderContext, clause: IRClause, bctx: BlockCt
 
   if (clause.titled) {
     const styleId = isAppendix ? `SesAppClause${level}` : `SesClause${level}`
-    let out = emitParagraph(ctx, styleId, { runsXml: renderInlines(clause.title, ctx.labels), numbered })
+    // 引言条沿用 SesClause{L} 的字体字号（五号黑体）与缩进，只把段落级 numPr 改指向 A17 实例
+    let out = emitParagraph(ctx, styleId, {
+      runsXml: renderInlines(clause.title, ctx.labels), numbered,
+      ...(isIntroduction ? { numPr: { numId, ilvl: level } } : {}),
+    })
     out += renderContainerChildren(ctx, clause.children, innerBctx, level, inTermsChapter)
     return out
   }
@@ -59,6 +66,15 @@ export function renderClause(ctx: RenderContext, clause: IRClause, bctx: BlockCt
   let out = emitParagraph(ctx, noTitleStyleId, { numPr, numbered })
   out += renderContainerChildren(ctx, clause.children, innerBctx, level, inTermsChapter)
   return out
+}
+
+/**
+ * 引言中的条（8.4）：引言本身不编号，直属条的级别为 1（容器深度 0 + 1），编号 0.1、0.2…，子条 0.1.1…；
+ * 作用域键沿用引言的 'front.introduction'（与 Resolver 一致），条内的注/示例以条自己的 id 分组。
+ */
+export function renderIntroductionClauses(ctx: RenderContext, clauses: readonly IRClause[]): string {
+  const bctx: BlockCtx = { scopeKey: 'front.introduction', introduction: true }
+  return clauses.map(clause => renderClause(ctx, clause, bctx, 1)).join('')
 }
 
 export function renderChapter(ctx: RenderContext, chapter: IRChapter): string {

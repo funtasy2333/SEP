@@ -182,7 +182,7 @@ function updateHeadings() {
       return false
     } else if (node.type.name === 'introduction') {
       items.push({ level: 1, text: '引言', pos, nodePos: pos, nodeSize: node.nodeSize, deletable: true })
-      return false
+      // 继续递归进引言内部，引言中的条（0.1、0.1.1，GB/T 1.1 8.4）要出现在大纲里
     } else if (node.type.name === 'chapter') {
       node.forEach((child, offset) => {
         if (child.type.name === 'chapterTitle') {

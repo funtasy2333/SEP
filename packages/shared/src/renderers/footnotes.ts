@@ -108,6 +108,7 @@ function childHasFootnoteSyntax(child: IRClauseChild): boolean {
 
 function documentHasFootnoteSyntax(doc: IRDoc): boolean {
   return (doc.unmappedFootnotes?.length ?? 0) > 0 || doc.front.foreword.some(blockHasFootnoteSyntax) || doc.front.introduction.some(blockHasFootnoteSyntax) ||
+    (doc.front.introductionClauses ?? []).some(childHasFootnoteSyntax) ||
     doc.body.some((chapter) => inlineHasFootnote(chapter.title) || chapter.children.some(childHasFootnoteSyntax)) ||
     doc.appendices.some((appendix) => inlineHasFootnote(appendix.title) || appendix.children.some(childHasFootnoteSyntax)) ||
     doc.bibliography.some((entry) => inlineHasFootnote(entry.content))
@@ -139,6 +140,7 @@ function collectDocumentTables(doc: IRDoc): IRTable[] {
   }
   doc.front.foreword.forEach((block) => collectTables(block, tables))
   doc.front.introduction.forEach((block) => collectTables(block, tables))
+  ;(doc.front.introductionClauses ?? []).forEach(collectChild)
   doc.body.forEach((chapter) => chapter.children.forEach(collectChild))
   doc.appendices.forEach((appendix) => appendix.children.forEach(collectChild))
   return tables
@@ -177,6 +179,7 @@ export function assertFootnoteReferences(doc: IRDoc, labels: Labels): IRFootnote
 export function documentHasFootnotes(doc: IRDoc, bodyFootnotes: IRFootnote[]): boolean {
   return bodyFootnotes.length > 0 || documentHasFootnoteSyntax(doc) ||
     doc.front.foreword.some(blockHasTableFootnotes) || doc.front.introduction.some(blockHasTableFootnotes) ||
+    (doc.front.introductionClauses ?? []).some(childHasTableFootnotes) ||
     doc.body.some((chapter) => chapter.children.some(childHasTableFootnotes)) ||
     doc.appendices.some((appendix) => appendix.children.some(childHasTableFootnotes))
 }

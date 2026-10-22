@@ -573,10 +573,17 @@ function tocText(label: string, title: IRInline[]): string {
   return label && t ? `${labelHtml}　${titleHtml}` : labelHtml || titleHtml
 }
 
+/** 引言有内容：正文块或条（WP8.M G6：引言中的条 0.1、0.2……） */
+function hasIntroduction(doc: IRDoc): boolean {
+  return doc.front.introduction.length > 0 || (doc.front.introductionClauses?.length ?? 0) > 0
+}
+
 function collectToc(doc: IRDoc, ctx: RenderCtx): TocEntry[] {
   const entries: TocEntry[] = []
   if (doc.front.foreword.length > 0) entries.push({ level: 1, text: '前言', anchor: 'front_foreword' })
-  if (doc.front.introduction.length > 0) entries.push({ level: 1, text: '引言', anchor: 'front_intro' })
+  // 目次只收「引言」一项：GB/T 1.1 8.2 d) 的条目次“需要时列出”，引言中的条暂不进目次（PDF 目次页码按锚点
+  // front_foreword / front_intro 划分前置分区，见 io/pdfExport.ts，引言条的页码需另行设计）。
+  if (hasIntroduction(doc)) entries.push({ level: 1, text: '引言', anchor: 'front_intro' })
   for (const chapter of doc.body) {
     entries.push({ level: 1, text: tocText(ctx.label(chapter.id), chapter.title), anchor: ctx.xmlId(chapter.id) })
     for (const child of chapter.children) {
@@ -638,10 +645,12 @@ function renderFront(doc: IRDoc, ctx: RenderCtx): void {
     for (const block of doc.front.foreword) renderBlock(block, ctx)
     ctx.push('</section>')
   }
-  if (doc.front.introduction.length > 0) {
+  if (hasIntroduction(doc)) {
     ctx.push('<section class="ses-introduction" data-type="introduction"' + ctx.anchorIdAttr('front_intro') + ' role="doc-introduction">')
     ctx.push('<h1 class="ses-front-heading">引　言</h1>')
     for (const block of doc.front.introduction) renderBlock(block, ctx)
+    // 引言中的条（8.4）：与正文条同一排版（条标题五号黑体、编号 0.1 取自 Resolver），不给章编号。
+    for (const clause of doc.front.introductionClauses ?? []) renderClause(clause, ctx)
     ctx.push('</section>')
   }
   ctx.push('</div>')

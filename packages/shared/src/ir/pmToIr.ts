@@ -1156,6 +1156,34 @@ function convertClause(node: PMJsonNode, ctx: Ctx): IRClause {
   }
 }
 
+/**
+ * 引言容器 → `front.introduction`（块）+ `front.introductionClauses`（条，GB/T 1.1—2020 8.4）。
+ * IR 约定块在前、条在后，所以条之后再出现的块（悬置段）无处安放：块仍按文档顺序并入 `introduction`
+ * 以免内容消失，同时给出 unsupportedContent，使 Resolver 与全部非 JSON 出口阻断输出，由作者把该块移到条前或条内。
+ * 多个引言容器合并时，后一个容器里的块同样排在前一个容器的条之后，按同一规则诊断。
+ */
+function convertIntroduction(node: PMJsonNode, doc: IRDoc, ctx: Ctx): void {
+  for (const child of node.content ?? []) {
+    if (child.type === 'clause') {
+      const clauses = doc.front.introductionClauses ?? []
+      clauses.push(convertClause(child, ctx))
+      doc.front.introductionClauses = clauses
+      continue
+    }
+    const block = convertBlock(child, ctx, '引言')
+    if (!block) continue
+    if (doc.front.introductionClauses?.length) {
+      ctx.unsupportedContent.push({
+        nodeId: typeof child.attrs?.nodeId === 'string' ? child.attrs.nodeId : null,
+        path: ctx.path(child, '引言'),
+        nodeType: child.type,
+        reason: '引言中条之后的正文块（悬置段）无法保存：GB/T 1.1 要求引言分条后不再有条外正文，请把它移到条之前或某一条之内',
+      })
+    }
+    doc.front.introduction.push(block)
+  }
+}
+
 const CHAPTER_SEC_TYPES: { match: RegExp; secType: IRChapter['secType'] }[] = [
   { match: /^范围$/, secType: 'scope' },
   { match: /^规范性引用文件$/, secType: 'norm-refs' },
@@ -1717,8 +1745,8 @@ export function pmToIr(pmDoc: PMJsonNode): PmToIrResult {
       case 'introduction':
         if (sawIntroduction) {
           ctx.unsupportedContent.push({ nodeId: typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : null, path: ctx.path(node, '引言'), nodeType: node.type, reason: '多个introduction容器合并后无法保留原容器边界' })
-          doc.front.introduction.push(...convertBlocks(node.content, ctx, '引言'))
-        } else doc.front.introduction = convertBlocks(node.content, ctx, '引言')
+        }
+        convertIntroduction(node, doc, ctx)
         sawIntroduction = true
         break
       case 'chapter':
