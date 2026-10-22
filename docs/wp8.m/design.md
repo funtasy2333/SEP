@@ -729,6 +729,12 @@ export interface IRCellStyle { /* 既有 */
 | D-M-14 | 本阶段排版，按上表处理 |
 | D-M-15 | 不建模 |
 
+**G5 补充决定（主导人，2026-10-22）**：WP6 已有术语级（`tig`）描述符 `IRTermDescriptor{kind:'subjectField'}`，生产节点为 `tbxTermDescriptor type=subjectField`，只能存纯文本。GB/T 46687.2 第 9.2.9 条把领域放在 `langSet`/条目级，因此**条目级 `IRTermEntry.subjectField` 为规范形式**。旧描述符保留，不迁移。WP8.2 导出时：
+- 条目级字段存在：只输出条目级字段，同名的术语级描述符报 warning 并忽略；
+- 条目级字段缺失：若所有术语级 `subjectField` 描述符的取值一致，提升为条目级输出并报 warning；取值不一致则报 error。
+
+WP8.3 导入时一律写入条目级字段。
+
 **对任务的影响**：每个“本阶段排版”的组，都须在本组任务内同时完成 HTML（含打印 CSS）与 DOCX 的渲染和测试，并在 `outputBoundary.ts` 中对 HTML/DOCX 放行。允许修改既有快照，但须逐项说明理由。XML46687 的白名单仍留给 WP8.2。
 
 ## 8. 工作量估算
