@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { normalizeAuthoringFragment } from '../authoring'
 import { irToPm } from '../irToPm'
 import { pmToIr, type PMJsonNode } from '../pmToIr'
 import { resolve } from '../resolve'
@@ -111,5 +112,27 @@ describe('[M-10.1.5-02] Resolver 对 IR 原生夹具（含嵌套/罗马）的整
       n2: { label: '2)', xmlId: 'li_3', refText: '5.2 2)' },
       r3: { label: 'iii)', xmlId: 'li_4', refText: '5.2 iii)' },
     })
+  })
+})
+
+describe('[M-10.1.5-01] 写作层接受 targetKind=listItem', () => {
+  const fragment = (targetKind: string) => [{ kind: 'paragraph', content: [{ text: '见列项', marks: [{ type: 'crossRef', targetId: 'a3', targetKind }] }] }]
+  let n = 0
+  const generateId = () => `gen${++n}`
+
+  it('listItem 作为 crossRef 的 targetKind 原样保留', () => {
+    const result = normalizeAuthoringFragment(fragment('listItem'), { parent: 'chapter' }, { generateId })
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.nodes[0]).toMatchObject({ kind: 'paragraph', content: [{ text: '见列项', marks: [{ type: 'crossRef', targetId: 'a3', targetKind: 'listItem' }] }] })
+  })
+
+  it('其他未知取值仍被拒绝，提示列出 listItem', () => {
+    const result = normalizeAuthoringFragment(fragment('listitem'), { parent: 'chapter' }, { generateId })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      const issue = result.issues.find(entry => entry.path === 'fragment[0].content[0].marks[0].targetKind')
+      expect(issue?.code).toBe('invalid-value')
+      expect(issue?.reason).toContain('listItem')
+    }
   })
 })

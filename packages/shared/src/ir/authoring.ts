@@ -178,7 +178,7 @@ const IR_ONLY_FIELDS: Partial<Record<FieldOwner, readonly string[]>> = {
 
 const REFERENCE_KINDS: readonly IRReferenceTargetKind[] = [
   'chapter', 'clause', 'appendix', 'figure', 'table', 'formula',
-  'note', 'example', 'bibliography', 'term', 'index', 'paragraph',
+  'note', 'example', 'bibliography', 'term', 'index', 'paragraph', 'listItem',
 ]
 
 const SIMPLE_MARKS = ['bold', 'italic', 'underline', 'sub', 'sup', 'strike', 'code'] as const

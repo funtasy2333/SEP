@@ -14,7 +14,8 @@
  */
 
 import type {
-  IRAppendix, IRBlock, IRChapter, IRClause, IRDoc, IRInline, IRList, IRParagraph, IRReferenceTargetKind, NodeId,
+  IRAppendix, IRBlock, IRChapter, IRClause, IRDoc, IRExample, IRFigure, IRInline, IRList, IRNote, IRParagraph,
+  IRReferenceTargetKind, IRTable, IRTermEntry, NodeId,
 } from '../types'
 
 export type ListItem = IRList['items'][number]
@@ -33,6 +34,29 @@ export function item(id: NodeId, text: string, ...nested: IRList[]): ListItem {
 
 export function list(id: NodeId, listType: IRList['listType'], items: ListItem[], level?: 1 | 2): IRList {
   return { kind: 'list', id, listType, ...(level ? { level } : {}), items }
+}
+
+export const note = (id: NodeId, ...content: IRBlock[]): IRNote => ({ kind: 'note', id, content })
+export const example = (id: NodeId, ...content: IRBlock[]): IRExample => ({ kind: 'example', id, content })
+
+/** 单格表：表内容为 cell 里的块，notes 为表注 */
+export function table(id: NodeId, cellContent: IRBlock[], notes: IRNote[] = []): IRTable {
+  return {
+    kind: 'table', id, caption: [{ text: '表题' }], orientation: 'portrait', headerRowCount: 0, notes,
+    rows: [{ id: `${id}-row`, cells: [{ id: `${id}-cell`, colspan: 1, rowspan: 1, header: false, content: cellContent }] }],
+  }
+}
+
+export function figure(id: NodeId, notes: IRNote[] = []): IRFigure {
+  return { kind: 'figure', id, caption: [{ text: '图题' }], orientation: 'portrait', src: 'data:image/png;base64,xx', notes }
+}
+
+export function termEntry(id: NodeId, extra: Partial<Pick<IRTermEntry, 'notes' | 'examples' | 'definition'>> = {}): IRTermEntry {
+  return {
+    kind: 'termEntry', id, term: [{ text: '术语' }],
+    definition: extra.definition ?? [para(`${id}-def`, { text: '定义' })],
+    notes: extra.notes ?? [], examples: extra.examples ?? [],
+  }
 }
 
 export function clause(id: NodeId, level: IRClause['level'], title: string, ...children: IRBlock[]): IRClause {

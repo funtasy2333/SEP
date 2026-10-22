@@ -3,7 +3,7 @@ import { resolve } from '../resolve'
 import { gbT11Strategy, listItem } from '../strategies'
 import type { IRBibEntry, IRDoc, NumberingStrategy } from '../types'
 import {
-  appendix, chapter, clause, clause52, docOf, item, list, listItemDoc, para, xref,
+  appendix, chapter, clause, clause52, docOf, example, figure, item, list, listItemDoc, note, para, table, termEntry, xref,
 } from './wp8mG4Fixtures'
 
 const problemCodes = (doc: IRDoc) => resolve(doc).problems.map(problem => `${problem.code}|${problem.nodeId}`)
@@ -235,5 +235,92 @@ describe('列表自身的登记', () => {
   it('clause52 夹具的其余引用不产生问题（对照）', () => {
     expect(resolve(docOf([chapter('ch5', 'general', '技术要求', clause('c1', 1, '条', ...clause52().children))])).problems
       .filter(problem => problem.severity === 'error')).toEqual([])
+  })
+})
+
+describe('[M-10.1.5-02] 无编号作用域内的列表：refText 回溯到最近的有编号祖先', () => {
+  const alpha = (prefix: string) => list(`${prefix}-list`, 'alpha', [item(`${prefix}-a`, '甲'), item(`${prefix}-b`, '乙')])
+  const refs = (...ids: string[]) => para('refs', ...ids.map(id => xref(id, 'listItem')))
+  const errors = (doc: IRDoc) => resolve(doc).problems.filter(problem => problem.severity === 'error')
+
+  it('条 1.2 里的注与示例内的列项 → 1.2 a)、1.2 b)；注自身的编号不受影响', () => {
+    const doc = docOf([chapter('ch5', 'general', '技术要求',
+      clause('c51', 1, '前一条', para('c51-p', { text: '正文' })),
+      clause('c52', 1, '列项条',
+        refs('n-a', 'x-b'),
+        note('n1', para('n1-p', { text: '注文' }), alpha('n')),
+        example('x1', para('x1-p', { text: '示例文' }), alpha('x')),
+      ),
+    )])
+    const { labels } = resolve(doc)
+    expect(errors(doc)).toEqual([])
+    expect(labels['c52']?.label).toBe('1.2')
+    expect(labels['n-a']).toEqual({ label: 'a)', xmlId: 'li_1', refText: '1.2 a)' })
+    expect(labels['x-b']).toEqual({ label: 'b)', xmlId: 'li_2', refText: '1.2 b)' })
+    expect(labels['n1']?.label).toBe('注：')
+    expect(labels['x1']?.label).toBe('示例：')
+  })
+
+  it('章直属的注、附录内的注 → 1 a)、附录A a)', () => {
+    const doc = docOf(
+      [chapter('ch1', 'general', '一般要求', refs('n-b', 'ap-b'), note('n1', alpha('n')))],
+      { appendices: [appendix('apx', '附录标题', note('ap-n', alpha('ap')))] },
+    )
+    const { labels } = resolve(doc)
+    expect(errors(doc)).toEqual([])
+    expect(labels['n-b']?.refText).toBe('1 b)')
+    expect(labels['ap-b']?.refText).toBe('附录A b)')
+  })
+
+  it('术语条目内的注与示例 → 3.1 a)；嵌套术语条目取自己的编号', () => {
+    const nested = termEntry('t-nested', { notes: [note('tn2', alpha('tn2'))] })
+    const entry = { ...termEntry('t1', { notes: [note('tn1', alpha('tn1'))], examples: [example('tx1', alpha('tx1'))] }), nestedEntries: [nested] }
+    const doc = docOf([
+      chapter('ch1', 'general', '一般要求', para('p1', { text: '引导' })),
+      chapter('ch2', 'general', '章二', para('p2', { text: '正文' })),
+      chapter('ch3', 'terms', '术语和定义', para('refs', xref('tn1-a', 'listItem'), xref('tx1-b', 'listItem'), xref('tn2-b', 'listItem')), entry),
+    ])
+    const { labels } = resolve(doc)
+    expect(errors(doc)).toEqual([])
+    expect(labels['t1']?.label).toBe('3.1')
+    expect(labels['tn1-a']?.refText).toBe('3.1 a)')
+    expect(labels['tx1-b']?.refText).toBe('3.1 b)')
+    expect(labels['t-nested']?.label).toBe('3.1.1')
+    expect(labels['tn2-b']?.refText).toBe('3.1.1 b)')
+  })
+
+  it('表内列表保持 表1 a)；表注内的列表同样落在 表1；图注内的列表落在 图1', () => {
+    const doc = docOf([chapter('ch5', 'general', '技术要求', clause('c52', 1, '列项条',
+      refs('cell-b', 'tn-a', 'fn-b'),
+      table('tab1', [alpha('cell')], [note('tab-note', alpha('tn'))]),
+      figure('fig1', [note('fig-note', alpha('fn'))]),
+    ))])
+    const { labels } = resolve(doc)
+    expect(errors(doc)).toEqual([])
+    expect(labels['tab1']?.label).toBe('表1')
+    expect(labels['cell-b']?.refText).toBe('表1 b)')
+    expect(labels['tn-a']?.refText).toBe('表1 a)')
+    expect(labels['fig1']?.label).toBe('图1')
+    expect(labels['fn-b']?.refText).toBe('图1 b)')
+  })
+
+  it('前言里的注没有任何编号祖先：只写标记路径（含前言直属列表）', () => {
+    const doc = listItemDoc([xref('fw-n-b', 'listItem'), xref('fw-b', 'listItem')], {
+      foreword: [list('fw-l', 'alpha', [item('fw-a', '甲'), item('fw-b', '乙')]), note('fw-note', alpha('fw-n'))],
+    })
+    const { labels } = resolve(doc)
+    expect(errors(doc)).toEqual([])
+    expect(labels['fw-n-b']?.refText).toBe('b)')
+    expect(labels['fw-b']?.refText).toBe('b)')
+  })
+
+  it('注套注、示例套注：沿父链一直回溯到条', () => {
+    const doc = docOf([chapter('ch5', 'general', '技术要求', clause('c1', 1, '条',
+      refs('deep-a'),
+      example('x1', note('inner-note', alpha('deep'))),
+    ))])
+    const { labels } = resolve(doc)
+    expect(errors(doc)).toEqual([])
+    expect(labels['deep-a']?.refText).toBe('1.1 a)')
   })
 })

@@ -57,6 +57,8 @@ class ResolveCtx {
   kinds = new Map<NodeId, string>()
   /** 有序列项候选（文档序）；只有被 crossRef 引用者才会在 labelReferencedListItems 里获得标签 */
   listItems: ListItemCandidate[] = []
+  /** 无编号作用域（注/示例）→ 其外层作用域；列项 refText 据此回溯到最近的有编号祖先 */
+  scopeParents = new Map<string, string>()
   /** 当前列项的有序祖先标记（嵌套列表的标记路径用）；无序祖先不贡献标记 */
   listMarkerPath: string[] = []
   targetTexts = new Map<NodeId, string>()
@@ -185,8 +187,9 @@ function labelFigureOrTable(id: NodeId, kind: 'fig' | 'tab', ctx: ResolveCtx): v
   ctx.setLabel(id, label, `${kind}_${num}`, label)
 }
 
-function visitNoteContent(note: IRNote, ctx: ResolveCtx, forbiddenContainer?: ForbiddenFootnoteContainer): void {
+function visitNoteContent(note: IRNote, ctx: ResolveCtx, forbiddenContainer?: ForbiddenFootnoteContainer, parentScope?: string): void {
   ctx.registerId(note.id)
+  if (parentScope !== undefined) ctx.scopeParents.set(note.id, parentScope)
   for (const block of note.content) visitBlock(block, note.id, ctx, forbiddenContainer)
 }
 
@@ -255,7 +258,7 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
       }
       // 表内注独立计数：作用域 = 该表
       for (const note of block.notes) {
-        visitNoteContent(note, ctx, forbiddenContainer)
+        visitNoteContent(note, ctx, forbiddenContainer, block.id)
         ctx.scope(block.id).notes.push({ id: note.id })
       }
       for (const note of block.footnotes ?? []) {
@@ -272,7 +275,7 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
       // §4.7「遍历顺序」：DOCX 按 9.11.1 把图中的注排在图题之上（§5.8），Resolver 据此先遍历
       // 注、再给图编号、最后遍历图题，与 Word 按文档顺序的计数保持一致。
       for (const note of block.notes) {
-        visitNoteContent(note, ctx, '图')
+        visitNoteContent(note, ctx, '图', block.id)
         ctx.scope(block.id).notes.push({ id: note.id })
       }
       labelFigureOrTable(block.id, 'fig', ctx)
@@ -328,11 +331,12 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
       ctx.registerId(block.id)
       break
     case 'note':
-      visitNoteContent(block, ctx, forbiddenContainer)
+      visitNoteContent(block, ctx, forbiddenContainer, scopeKey)
       ctx.scope(scopeKey).notes.push({ id: block.id })
       break
     case 'example':
       ctx.registerId(block.id)
+      ctx.scopeParents.set(block.id, scopeKey)
       for (const child of block.content) visitBlock(child, block.id, ctx, forbiddenContainer)
       ctx.scope(scopeKey).examples.push({ id: block.id })
       break
@@ -376,13 +380,14 @@ function visitTermEntry(
       case 'example': {
         const example = item.value
         ctx.registerId(example.id)
+        ctx.scopeParents.set(example.id, entry.id)
         for (const block of example.content) visitBlock(block, example.id, ctx)
         ctx.scope(entry.id).examples.push({ id: example.id })
         break
       }
       case 'note': {
         const note = item.value
-        visitNoteContent(note, ctx)
+        visitNoteContent(note, ctx, undefined, entry.id)
         ctx.scope(entry.id).notes.push({ id: note.id })
         break
       }
@@ -526,10 +531,25 @@ function labelNotesAndExamples(ctx: ResolveCtx): void {
 // ---------- 列项标签（仅被引用者） ----------
 
 /**
+ * 列项所在作用域的编号：作用域自身有编号（条、章、附录、术语条目、表、图）就用它；
+ * 注/示例等无编号作用域沿 scopeParents 回溯到最近的有编号祖先。前言/引言等没有任何编号祖先时返回 undefined。
+ * 此时注/示例尚未赋号（labelNotesAndExamples 在后），它们的 label 一定还不存在，不会被误当容器编号。
+ */
+function nearestNumberedScopeLabel(scopeKey: string, ctx: ResolveCtx): string | undefined {
+  const seen = new Set<string>()
+  for (let key: string | undefined = scopeKey; key !== undefined && !seen.has(key); key = ctx.scopeParents.get(key)) {
+    seen.add(key)
+    const label = ctx.labels[key]?.label
+    if (label) return label
+  }
+  return undefined
+}
+
+/**
  * 给被 crossRef 引用的有序列项赋标签（WP8.M / G4，设计 §3.2）：
  * label = 本项标记（"a)"），xmlId = li_<k>（k 为被引用列项的文档序），
  * refText = 容器编号 + 空格 + 标记路径（"5.2 a)"、"5.2 a) 1)"）。
- * 容器没有编号（前言/引言、注/示例内尚未赋号的作用域）时只写标记路径。
+ * 容器取最近的有编号作用域（注/示例内的列表回溯到所在条、术语条目、表、图）；前言/引言等没有编号祖先时只写标记路径。
  * 必须在 checkTypedReferences 之前：否则类型正确但无标签的目标会被补成 ext_ 占位标签。
  * 未被引用的列项保持无标签，这样现有文档的 HTML/DOCX 输出不新增任何 id。
  */
@@ -542,7 +562,7 @@ function labelReferencedListItems(ctx: ResolveCtx): void {
   for (const item of ctx.listItems) {
     if (!referenced.has(item.id) || labeled.has(item.id)) continue
     labeled.add(item.id)
-    const container = ctx.labels[item.scopeKey]?.label
+    const container = nearestNumberedScopeLabel(item.scopeKey, ctx)
     ctx.setLabel(item.id, item.marker, `li_${++seq}`, container ? `${container} ${item.markerPath}` : item.markerPath)
   }
 }

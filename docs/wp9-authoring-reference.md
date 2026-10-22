@@ -49,7 +49,7 @@
 | `bold` `italic` `underline` `sub` `sup` `strike` `code` | 无 | 同一段文字上同一种标记只能出现一次；`code` 不能与其他标记组合 |
 | `variable` | `kind`、`name`（可选字符串） | 标记变量符号（语义标记） |
 | `externalLink` | `href`（必填）、`title`、`target`、`rel` | `href` 只接受 `http://`、`https://`、`mailto:`、`tel:` 开头且不含空白的地址 |
-| `crossRef` | `targetId`（必填）、`targetKind`（可选） | 引用章、条、附录、图、表、公式、注、示例等；`targetKind` 取 `chapter` `clause` `appendix` `figure` `table` `formula` `note` `example` `bibliography` `term` `index` `paragraph` |
+| `crossRef` | `targetId`（必填）、`targetKind`（可选） | 引用章、条、附录、图、表、公式、注、示例等；`targetKind` 取 `chapter` `clause` `appendix` `figure` `table` `formula` `note` `example` `bibliography` `term` `index` `paragraph` `listItem`（被引用的有序列项） |
 | `bibRef` | `targetId`（必填） | 引用参考文献条目 |
 | `termRef` | `targetId`（必填） | 引用术语条目 |
 
