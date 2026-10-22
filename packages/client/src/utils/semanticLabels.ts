@@ -9,7 +9,7 @@ export function semanticLabels(source: PMJsonNode) {
   }
   collect(source)
   const sourceIds = new WeakMap<PMJsonNode, string>()
-  const numbered = new Set(['chapter', 'clause', 'termDef', 'appendix', 'stdTable', 'table', 'figure', 'formula', 'example', 'bibEntry'])
+  const numbered = new Set(['chapter', 'clause', 'termDef', 'appendix', 'stdTable', 'table', 'figure', 'formula', 'example', 'exampleBlock', 'bibEntry'])
   let serial = 0
   const project = (node: PMJsonNode): PMJsonNode => {
     const copy: PMJsonNode = { ...node, attrs: node.attrs ? { ...node.attrs } : undefined }

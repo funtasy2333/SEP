@@ -27,6 +27,9 @@ export const NODE_ID_TYPES = [
   'stdList',
   'note',
   'example',
+  // WP8.M G7-b：块内容的注/示例（IR 的 IRNote/IRExample 实体 id）
+  'noteBlock',
+  'exampleBlock',
   'appendix',
   'bibliography',
   // Structured document metadata records (metadataBlock is a non-semantic container).

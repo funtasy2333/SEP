@@ -247,16 +247,11 @@ describe('irToPm / native IR roundtrip', () => {
     expect(resolve(reopened).problems.filter(problem => problem.severity === 'error')).toEqual([])
   })
 
+  // WP8.M G7-b：原用例断言「块位置、术语条目、表注 5 个调用点遇到非派生段落 id 都拒绝」。块位置的注/示例现在有承载
+  // 节点（noteBlock/exampleBlock，段落 id 取自 stdParagraph.nodeId），不再需要把段落压平成行内内容，因而不再拒绝（见下一用例）；
+  // 仍压平为旧单段 note/example 的 3 个调用点（术语条目的注、示例，表注）继续拒绝，断言不变。
   it('rejects non-derived paragraph IDs at every note/example flattening callsite', () => {
     const cases: Array<{ path: string; makeDoc: (paragraphId: string) => IRDoc }> = [
-      {
-        path: 'body[0][0].content[0]',
-        makeDoc: paragraphId => docWithChildren([{ kind: 'note', id: 'block-note', content: [paragraph(paragraphId, '注')] }]),
-      },
-      {
-        path: 'body[0][0].content[0]',
-        makeDoc: paragraphId => docWithChildren([{ kind: 'example', id: 'block-example', content: [paragraph(paragraphId, '示例')] }]),
-      },
       {
         path: 'body[0][0].notes.term-note.content[0]',
         makeDoc: paragraphId => docWithChildren([{
@@ -291,6 +286,21 @@ describe('irToPm / native IR roundtrip', () => {
         reason: expect.stringContaining('无法保留'),
       }))
     }
+  })
+
+  it('[M-5.6-05] 块位置的注/示例：单个非派生 id 的段落投影为 noteBlock/exampleBlock 并保留段落 id（不再拒绝）', () => {
+    const doc = docWithChildren([
+      { kind: 'note', id: 'block-note', content: [paragraph('authored-note-p', '注')] },
+      { kind: 'example', id: 'block-example', content: [paragraph('authored-example-p', '示例')] },
+      // 派生 id 的单段仍是旧 note/example（输出与此前逐字节相同）
+      { kind: 'note', id: 'legacy-note', content: [paragraph('legacy-note.p0', '旧注')] },
+    ])
+    const pm = irToPm(doc)
+    const chapter = pm.content!.find(node => node.type === 'chapter')!
+    expect(chapter.content!.slice(1).map(node => node.type)).toEqual(['noteBlock', 'exampleBlock', 'note'])
+    expect(findNodes(pm, 'noteBlock')[0]!.content![0]).toMatchObject({ type: 'stdParagraph', attrs: { nodeId: 'authored-note-p' } })
+    expect(findNodes(pm, 'note')[0]!.content).toEqual([{ type: 'text', text: '旧注' }])
+    expect(pmToIr(pm).doc.body[0]!.children).toEqual(doc.body[0]!.children)
   })
 
   it('projects table-footnote references as atoms while retaining other text/formula marks', () => {

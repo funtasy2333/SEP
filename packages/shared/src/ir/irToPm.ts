@@ -7,10 +7,10 @@
  */
 import type {
   IRAppendix, IRBibEntry, IRBlock, IRChapter, IRClause, IRClauseChild, IRDefItem, IRDefList, IRDoc,
-  IRDocMeta, IRInline, IRList, IRMeasure, IRTable, IRTermEntry,
+  IRDocMeta, IRExample, IRInline, IRList, IRMeasure, IRNote, IRTable, IRTermEntry,
 } from './types'
 import type { PMJsonNode } from './pmToIr'
-import { hasSemanticExtensions } from './extensions'
+import { hasSemanticExtensions, isInlineNoteContent } from './extensions'
 import { unsupportedFootnoteContent } from './footnotePayload'
 import { diagnoseInlineProjection, findCrossRefRunProjectionIssues } from './inlineProjectionDiagnostics'
 import {
@@ -219,8 +219,36 @@ function noteContent(ownerId: string, content: IRBlock[], path: string, errors: 
     }
     return inlinesToPm(paragraph.content)
   }
-  errors.push({ path, nodeId: content[0]?.id, reason: '生产 note/example 只接受一段行内内容，IR 中存在多块或非段落内容' })
+  errors.push({ path, nodeId: content[0]?.id, reason: '该位置的注/示例只支持单段落，IR 中存在多块或非段落内容' })
   return []
+}
+
+/**
+ * 块位置的注/示例（WP8.M G7-b，D-M-05）。canonical 规则保证往返稳定：
+ * - content 恰为一个 id 等于 `${owner.id}.p0` 的段落 → 旧 `note`/`example`（行内内容，输出与此前逐字节相同）；
+ * - 其余且全为段落/列项 → `noteBlock`/`exampleBlock`，子块各自保留 nodeId（段落 id 取自 `stdParagraph.nodeId`）；
+ * - 含表/图/公式等其他块 → IRToPmError（原文 C-S-31 的注/示例内容只有 p、list）。
+ * 术语条目、表注行内的注/示例仍用旧节点（`noteContent`），多块在那些位置继续报错。
+ */
+function noteBlockToPm(block: IRNote | IRExample, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+  const blockType = block.kind === 'note' ? 'noteBlock' : 'exampleBlock'
+  if (block.content.length === 0) {
+    errors.push({ path: `${path}.content`, nodeId: block.id, reason: `生产 ${blockType} 至少需要一个段落或列项` })
+  }
+  const children: PMJsonNode[] = []
+  block.content.forEach((child, index) => {
+    const at = `${path}.content[${index}]`
+    if (child.kind === 'paragraph') {
+      children.push(paragraph(child.id, child.content))
+    } else if (child.kind === 'list') {
+      const list = listToPm(child, at, errors)
+      if (list.type === 'stdList') children.push(list)
+      else errors.push({ path: at, nodeId: child.id, reason: `生产 ${blockType} 中的列项只支持简单列项（每个列项一个段落）` })
+    } else {
+      errors.push({ path: at, nodeId: child.id, reason: `生产 ${blockType} 只接受段落与列项，不支持「${child.kind}」块` })
+    }
+  })
+  return node(blockType, withId(block.id), children)
 }
 
 function termToPm(entry: IRTermEntry, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
@@ -454,6 +482,7 @@ function blockToPm(block: IRBlock, path: string, errors: IRToPmDiagnostic[]): PM
     case 'formula': return formulaToPm(block, path, errors)
     case 'defList': return defListToPm(block, path, errors)
     case 'note': case 'example': {
+      if (!isInlineNoteContent(block.id, block.content)) return noteBlockToPm(block, path, errors)
       const content = noteContent(block.id, block.content, path, errors)
       return node(block.kind, withId(block.id), content)
     }

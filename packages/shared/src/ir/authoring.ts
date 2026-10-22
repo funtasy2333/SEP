@@ -655,7 +655,10 @@ function parseSingleParagraph(value: unknown, path: string, ownerId: string, wha
   }
   const blocks = value as Obj[]
   if (blocks.length !== 1) {
-    ctx.issue(path, 'not-allowed-here', `${what}只能包含一段内容（生产编辑器中为单个行内段落），不能写多个块`)
+    // 注/示例的块内容（noteBlock/exampleBlock）生产模型已支持（WP8.M G7-b），写作入口本阶段不放开；其余容器（列项项等）仍是生产限制。
+    ctx.issue(path, 'not-allowed-here', what === '注' || what === '示例'
+      ? `${what}只能包含一段内容，不能写多个块（模型已支持块内容的${what}，写作入口留后续交互任务）`
+      : `${what}只能包含一段内容（生产编辑器中为单个行内段落），不能写多个块`)
   }
   const first = blocks[0]!
   if (first.kind !== 'paragraph') {

@@ -213,6 +213,15 @@ export function analyzeReplaceability(env: InspectEnv, located: LocatedNode): No
           addReason(groups, `field:${issue.reason}`, () => ({
             code: 'unsupported-field', message: `${issue.reason}，整体替换会丢失它`, path: relativePath(issue.path), count: 1,
           }))
+        } else if (issue.code === 'not-allowed-here' && /^(注|示例)只能包含一段内容/.test(issue.reason)) {
+          // WP8.M G7-b：块内容的注/示例（noteBlock/exampleBlock，M-5.6-05）有多个段落/列项，写作片段只能写单段：
+          // 整体替换会丢掉多出的块，与其他「写作片段表达不了的内容」同样默认拒绝（replace-loses-content）。
+          const what = issue.reason.slice(0, issue.reason.indexOf('只能'))
+          addReason(groups, `blocks:${issue.path}`, () => ({
+            code: 'unsupported-content',
+            message: `${what}含有多个块（段落/列项），写作片段只能表达单段内容，整体替换会丢失其余块`,
+            path: relativePath(issue.path), count: 1,
+          }))
         } else if (issue.code === 'unsupported-kind') {
           addReason(groups, `kind:${issue.reason}`, () => ({
             code: 'unsupported-kind', message: issue.reason, path: relativePath(issue.path), count: 1,

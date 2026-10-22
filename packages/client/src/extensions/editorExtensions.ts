@@ -13,7 +13,7 @@ import {
   CrossRef,
   Copyright,
   DefList,
-  Example,
+  Example, ExampleBlock,
   ExternalLink,
   FootnoteLabels,
   Figure, FigureCaption, FigureCaptionEn, FigureDescription, FigureGroup, FigureImage, FigureResource, FigureResourceRef,
@@ -22,7 +22,7 @@ import {
   Foreword, Formula, FormulaContent, FormulaDescription,
   IdentifierPart, IndexBlock, IndexEntry, IndexGroup, IndexSeeAlso, IndexTarget, IndexTerm,
   Introduction,
-  MetadataBlock, MetadataFields, MetadataLanguage, NodeId, Note,
+  MetadataBlock, MetadataFields, MetadataLanguage, NodeId, Note, NoteBlock,
   Publisher, QuoteBlock,
   ReplacedStandard,
   SemanticCodeBlock,
@@ -82,5 +82,7 @@ export function createEditorExtensions(): Extensions {
     WhereListEditing, InlineFormulaEditing,
     // WP8.M：新节点一律追加在末尾（不改变 block 组默认填充节点的顺序）。
     TermSubjectField, DefList,
+    // G7-b：块内容的注/示例（旧的单段 note/example 保持不动）。
+    NoteBlock, ExampleBlock,
   ]
 }

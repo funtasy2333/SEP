@@ -619,6 +619,46 @@
   content: '示例：';
 }
 
+/*
+ * 块内容的注与示例（WP8.M G7-b：noteBlock / exampleBlock，内容为段落与列项）。
+ * 注：标记在左、内容块在右（GB/T 1.1 10.4.4.1：回行与注的内容的文字位置左对齐，续段同理）；
+ * 示例：标签「示例：」单独成行（10.4.5），内容块在其下，沿用示例的左缩进。
+ */
+.std-note-block {
+  display: flex;
+  align-items: baseline;
+}
+
+.std-note-block > .std-note-marker {
+  flex: none;
+}
+
+.std-note-block > .std-note-block-content {
+  flex: 1;
+  min-width: 0;
+  white-space: normal;
+}
+
+.std-note-block .std-paragraph,
+.std-note-block .std-list,
+.std-example-block .std-list {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.std-note-block .std-paragraph {
+  text-indent: 0;
+}
+
+.std-example-block::before {
+  display: block;
+}
+
+.std-example-block > .std-paragraph {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
 /* 术语定义编号（条内自动编号 3.1, 3.2） */
 .std-term-def {
   counter-increment: std-term;
@@ -766,6 +806,20 @@
   content: counter(numeric-counter) '） ';
 }
 
+/* 小写罗马列项 i） ii） iii）（GB/T 46687.2 5.7.2 roman-lower，WP8.M G7）；与字母列项同为一级。
+ * 大写罗马 romanUpper 没有原文取值，PM 不再产生它，旧 DOM 里残留的仍按数字显示。 */
+.std-list-roman {
+  counter-reset: roman-counter;
+}
+
+.std-list-roman .std-list-item {
+  counter-increment: roman-counter;
+}
+
+.std-list-roman .std-list-item::before {
+  content: counter(roman-counter, lower-roman) '） ';
+}
+
 /* 兼容嵌套 DOM：数字子列项保留编号，其他历史嵌套类型使用间隔号。 */
 .std-list .std-list:not(.std-list-numeric) .std-list-item {
   counter-increment: none;
@@ -806,20 +860,6 @@
 /* 最后一个章与附录/参考文献之间的分隔 */
 .std-appendix,
 .std-bibliography {
-/* 小写罗马列项 i） ii） iii）（GB/T 46687.2 5.7.2 roman-lower，WP8.M G7）；与字母列项同为一级。
- * 大写罗马 romanUpper 没有原文取值，PM 不再产生它，旧 DOM 里残留的仍按数字显示。 */
-.std-list-roman {
-  counter-reset: roman-counter;
-}
-
-.std-list-roman .std-list-item {
-  counter-increment: roman-counter;
-}
-
-.std-list-roman .std-list-item::before {
-  content: counter(roman-counter, lower-roman) '） ';
-}
-
   border-top: 1px solid #ccc;
   padding-top: 24px;
 }

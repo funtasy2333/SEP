@@ -49,6 +49,7 @@ Tiptap `setContent` 仅替换子内容。生产加载、版本回滚与 XML 导�
 ## 复审补充（2026-10-06）
 
 - `note/example` 及术语注、术语示例、表注只承载一段行内内容；IR 唯一段落 ID 必须等于 `${owner.id}.p0`，否则通过 IRToPmError 返回源段落 nodeId 与路径，避免引用失效。warning/quote 的块段落 ID 仍原样保留。
+- **WP8.M G7-b 修订（2026-10-22，设计 §4.7.2、D-M-05）**：块位置（章/条/附录/前言/引言/单元格）的注/示例新增承载节点 `noteBlock`/`exampleBlock`（块组，内容 `(stdParagraph | stdList)+`，带 nodeId；旧 `note`/`example` 不动）。canonical 规则：`IRNote/IRExample.content` 恰为一个 id 等于 `${owner.id}.p0` 的段落 → 仍输出旧 `note/example`（与此前逐字节相同）；其余且全为段落/列项（多块、含列项、或单段但段落 id 不是派生值）→ `noteBlock/exampleBlock`，子块各自保留 nodeId（段落 id 取自 `stdParagraph.nodeId`）；含表/图/公式等其他块、或含非简单列项 → IRToPmError。因此上一条里「块位置的注/示例遇到非派生段落 id 即拒绝」不再成立（有了承载节点就不必把段落压平成行内内容），术语条目的注/示例、表注行内的注仍用旧节点，多块或非派生 id 在那三处继续拒绝。多块或含列项或段落 id 非派生的块位置注/示例属语义扩展（`hasSemanticExtensions`）。
 - 生产 `textStyle` 的七个属性从对应的 inline CSS 回读，渲染与解析使用同一属性映射；CSS 字符串遵循浏览器的规范化，不要求保留相同的颜色字面量拼写。
 - 生产表格 td/th 的单位从 `data-unit` 回读，兼容直接 `unit` 属性；带编辑器包装的单元格只解析内容槽，不将展示用单位标签写进正文。普通外部 HTML 单元格仍解析全部内容。
 

@@ -182,6 +182,22 @@ function nodeToText(
       break
     }
 
+    // WP8.M G7-b：块内容的注/示例。首个子块是段落时与标签同行（与单段注一致），其余子块缩进一级，
+    // 这样只改注内某个段落或列项的版本也能在对比中看到。
+    case 'noteBlock':
+    case 'exampleBlock': {
+      const label = node.type === 'noteBlock' ? '注：' : '示例：'
+      const [first, ...rest] = content ?? []
+      if (first && (first.type as string) === 'stdParagraph') {
+        lines.push(`${indent}${label}${extractText(first)}`)
+        rest.forEach(c => nodeToText(c, lines, depth + 1, ctx))
+      } else {
+        lines.push(`${indent}${label}`)
+        for (const c of content ?? []) nodeToText(c, lines, depth + 1, ctx)
+      }
+      break
+    }
+
     case 'stdTable': {
       const caption = extractTitle(content, 'tableCaption')
       lines.push(`${indent}[表] ${caption}`)

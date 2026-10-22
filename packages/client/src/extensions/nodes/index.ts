@@ -11,6 +11,7 @@ export { FootnoteRef, TableFootnoteRef, canInsertBodyFootnote } from './footnote
 export { Figure, FigureImage, FigureCaption, FigureCaptionEn } from './figure'
 export { Formula, FormulaContent, FormulaDescription } from './formula'
 export { Note, Example } from './note'
+export { NoteBlock, ExampleBlock } from './note-block'
 export { Appendix, AppendixLabel, AppendixTitle } from './appendix'
 export { Bibliography, BibliographyTitle, BibEntry } from './bibliography'
 export { StdList, StdListItem } from './std-list'

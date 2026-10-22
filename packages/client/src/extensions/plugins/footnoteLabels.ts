@@ -56,7 +56,8 @@ export const FootnoteLabels = Extension.create({
           const decorations: Decoration[] = []
           const titles = new Set(['chapterTitle', 'clauseTitle', 'termName', 'tableCaption', 'figureCaption', 'appendixLabel'])
           state.doc.descendants((node, pos, parent) => {
-            const owner = titles.has(node.type.name) ? parent : node.type.name === 'example' ? node : null
+            // 示例（含 WP8.M G7-b 的块内容示例 exampleBlock）的「示例：/示例N：」标签挂在节点自身；其余标题挂在父节点上。
+            const owner = titles.has(node.type.name) ? parent : (node.type.name === 'example' || node.type.name === 'exampleBlock') ? node : null
             if (owner) decorations.push(Decoration.node(pos, pos + node.nodeSize, {
               'data-resolved-label': labels[owner.attrs.nodeId || '']?.label ?? '?',
             }))

@@ -92,7 +92,7 @@ PR #45 在 `9ad90668` 和 `df27182a` 上的两轮 review 共提出 7 条 P2 问�
 
 新复审提出 3 条 P2：注/示例段落 ID 丢失、文本样式 HTML 回读丢失、表格单元格单位 HTML 回读丢失。本次已逐条修复：
 
-- IR 投影对独立 note/example、术语 notes/examples、表 notes 五种入口校验派生段落 ID；不匹配时拒绝转换并返回 path/nodeId。有效 ID 回读保留，指向注段落及注中指向章节的 crossRef 均无 Resolver error。warning 段落 ID 保留；相邻公式说明、whereList、表脚注是行内数据，图注明确拒绝，未发现同类段落 ID 静默丢失。
+- IR 投影对独立 note/example、术语 notes/examples、表 notes 五种入口校验派生段落 ID；不匹配时拒绝转换并返回 path/nodeId（**WP8.M G7-b 修订**：独立的块位置 note/example 现投影为 noteBlock/exampleBlock 并保留段落 id，不再拒绝；术语 notes/examples、表 notes 三种入口仍拒绝）。有效 ID 回读保留，指向注段落及注中指向章节的 crossRef 均无 Resolver error。warning 段落 ID 保留；相邻公式说明、whereList、表脚注是行内数据，图注明确拒绝，未发现同类段落 ID 静默丢失。
 - `wp6HtmlRoundtrip.test.ts` 使用生产 Schema 的 DOMSerializer/DOMParser 复现 HTML 路径，初始 12 项全部失败。修复后 14 项通过，覆盖七个样式属性、样式与加粗叠加、连续三次 HTML 往返、td/th 单位及原单元格正文、跨度/列宽/格式保持、外部普通表格、有无单位、相邻数值度量和公式/表头布尔数值属性。单位显示标签排除于粘贴正文，避免重复污染内容。
 - shared 完整回归 42 个文件、899 项通过；client 完整回归 35 个文件、246 项通过，隔离 API 验收默认跳过 1 项。shared tsc、client vue-tsc/Vite 构建通过，仅现有大包体提示。未改 golden、依赖、lockfile、数据库；本轮 HTML 验证使用生产 DOM 路径，未重复真实浏览器或 SQLite 冷重开验收。
 

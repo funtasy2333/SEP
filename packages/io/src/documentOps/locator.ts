@@ -28,7 +28,8 @@ const BLOCK_BY_PM_TYPE: ReadonlyMap<string, NodeKind> = new Map<string, NodeKind
   ['stdParagraph', 'paragraph'], ['paragraph', 'paragraph'],
   ['stdList', 'list'], ['bulletList', 'list'], ['orderedList', 'list'],
   ['stdTable', 'table'], ['figure', 'figure'], ['formula', 'formula'],
-  ['note', 'note'], ['example', 'example'], ['warning', 'warning'],
+  // WP8.M G7-b：块内容的注/示例读成 IR 的 note/example（pmToIr.convertBlock 同构），可整体寻址、移动、删除。
+  ['note', 'note'], ['example', 'example'], ['noteBlock', 'note'], ['exampleBlock', 'example'], ['warning', 'warning'],
   ['quoteBlock', 'quote'], ['blockquote', 'quote'], ['codeBlock', 'code'],
   // WP8.M G2：缩略语表读成 IR 块 defList；写作片段不能创建它（与 warning/quote/code 同类，可删除/移动，不能整体替换）。
   ['defList', 'defList'],

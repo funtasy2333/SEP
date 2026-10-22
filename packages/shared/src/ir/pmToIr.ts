@@ -508,6 +508,25 @@ function convertNoteLike<K extends 'note' | 'example'>(
 const convertNote = (node: PMJsonNode, ctx: Ctx): IRNote => convertNoteLike('note', node, ctx)
 const convertExample = (node: PMJsonNode, ctx: Ctx): IRExample => convertNoteLike('example', node, ctx)
 
+/**
+ * noteBlock / exampleBlock（WP8.M G7-b）→ IRNote / IRExample，content 为段落与列项块：
+ * 子块各自保留 nodeId（段落 id 取自 stdParagraph.nodeId，不派生）。旧的单段 note/example 仍走 convertNoteLike。
+ */
+function convertNoteBlockLike<K extends 'note' | 'example'>(
+  kind: K,
+  node: PMJsonNode,
+  ctx: Ctx,
+): { kind: K; id: NodeId; content: IRBlock[] } {
+  const id = ctx.id(node)
+  const content: IRBlock[] = []
+  for (const child of node.content ?? []) {
+    if (child.type === 'stdParagraph') content.push({ kind: 'paragraph', id: ctx.id(child), content: convertInlines(child.content, ctx) })
+    else if (child.type === 'stdList') content.push(convertStdList(child, ctx))
+    else ctx.unknown(child.type, kind === 'note' ? '注' : '示例', child)
+  }
+  return { kind, id, content }
+}
+
 function convertFigure(node: PMJsonNode, ctx: Ctx): IRFigure {
   const id = ctx.id(node)
   const images = node.content?.filter((c) => c.type === 'figureImage') ?? []
@@ -938,6 +957,10 @@ function convertBlock(node: PMJsonNode, ctx: Ctx, where: string): IRBlock | null
       return convertExample(node, ctx)
     case 'defList':
       return { kind: 'defList', id: ctx.id(node), items: convertDefItems(node, ctx, '缩略语') } satisfies IRDefList
+    case 'noteBlock':
+      return convertNoteBlockLike('note', node, ctx)
+    case 'exampleBlock':
+      return convertNoteBlockLike('example', node, ctx)
     case 'warning':
       return { kind: 'warning', id: ctx.id(node), content: convertBlocks(node.content, ctx, '警告') } satisfies IRWarning
     case 'quoteBlock':
