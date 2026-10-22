@@ -699,6 +699,38 @@ export interface IRCellStyle { /* 既有 */
 
 ---
 
+### 7.1 决定（2026-10-22）
+
+**用户决定**：DOCX/PDF（经 HTML）中，**文字型结构本阶段排版**；版式较复杂的结构暂报 `unsupported-output`，另立排版任务。
+
+| 本阶段排版（HTML 与 DOCX 都放行并渲染） | 暂报 unsupported-output |
+|---|---|
+| 规范性引用清单 `normRefList`（按 GB/T 1.1 10.3.4 排版）；正文 `stdRef`/`mixedCitation` 两种 mark（按普通文本输出）；自定义参考文献标题 `bibliographyTitle`；缩略语表 `defList`（按 GB/T 1.1 缩略语排版：缩略语与释义同行，释义前空一字）；术语领域 `subjectField`（定义前输出“〈领域〉”，GB/T 1.1 术语条目要求）；罗马列项（`i)`、`ii)`…）；多块注/示例；引言中的条（`0.1` 等，按条标题排版） | 图例 `legend`、图中示例 `examples`、行内图 `image`、表 `columns` 列宽、单元格边框样式 `border*Style` |
+
+`figure.notes` 照原设计放行（渲染器早已支持）。
+
+**主导人决定**（D-M 各项）：
+
+| 编号 | 决定 |
+|---|---|
+| D-M-01 | 采用 A：正文 `fn` 为行内元素，紧随其 `xref` 放在同一 `p` 内。schema、README 与矩阵备注的同步作为收尾任务 M-Z 的一部分 |
+| D-M-02 | 序号式：`li_<k>`、`abb_<k>`、`ref_<n>` |
+| D-M-03 | 列项标签用半角括号，如 `a)`；引用文本写作 `5.2 a)` |
+| D-M-04 | `extensionVersion` 保持 1 |
+| D-M-05 | 新增节点 `noteBlock`、`exampleBlock` |
+| D-M-06 | 采用 A，真排：HTML `lower-roman`，DOCX `lowerRoman`。G7-c 由“可选”改为“必做” |
+| D-M-07 | 放行，按上表处理 |
+| D-M-08 | `inl_<k>` |
+| D-M-09 | 按原设计 |
+| D-M-10 | 用兄弟字段 `introductionClauses` |
+| D-M-11 | 列数变化时清空 `columns` |
+| D-M-12 | 全部留作后续；嵌套列项的处理在 WP8.3 拿到真实样稿后再定 |
+| D-M-13 | 同意。矩阵与 README 的同步放进 M-Z |
+| D-M-14 | 本阶段排版，按上表处理 |
+| D-M-15 | 不建模 |
+
+**对任务的影响**：每个“本阶段排版”的组，都须在本组任务内同时完成 HTML（含打印 CSS）与 DOCX 的渲染和测试，并在 `outputBoundary.ts` 中对 HTML/DOCX 放行。允许修改既有快照，但须逐项说明理由。XML46687 的白名单仍留给 WP8.2。
+
 ## 8. 工作量估算
 
 规模：S ≈ 0.5 天，M ≈ 1 天，L ≈ 1.5～2 天（README §6 的约定，含实现与审查各一次）。
