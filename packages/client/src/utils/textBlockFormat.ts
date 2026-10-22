@@ -114,6 +114,32 @@ export function hasReferenceLostAsParagraph(doc: PMNode, id: unknown, from: 'cla
 }
 
 /**
+ * 是否有交叉引用把这个列项本身当作「列项」来指（类型 listItem，或无类型）。
+ * 列项的编号标记（`c)`）只在它位于 alpha/numeric 等有序列表里时才存在：列项转成段落/注/示例，
+ * 或所在列表改为无序类型后，类型为 listItem 的引用会因目标类型不符而悬空，无类型引用会因没有编号而悬空。
+ * 指向列项内段落（`<项 id>.p0`，类型 paragraph）的引用不受影响，由 retargetReferences 照常处理。
+ */
+export function hasListItemReference(doc: PMNode, id: unknown): boolean {
+  if (typeof id !== 'string' || !id) return false
+  let found = false
+  const visit: RewriteMark = mark => {
+    if (mark.type !== 'crossRef') return mark
+    const typed = record(mark.attrs)
+    const attrs = typed ? mark.attrs as JsonRecord : mark
+    if ((attrs.targetId ?? attrs.refId) !== id) return mark
+    const kind = attrs[typed ? 'refType' : 'targetKind']
+    if (kind === 'listItem' || untyped(kind)) found = true
+    return mark
+  }
+  mapStoredAttrs(doc, visit)
+  doc.descendants(node => {
+    for (const mark of node.marks) visit({ type: mark.type.name, attrs: mark.attrs })
+    mapStoredAttrs(node, visit)
+  })
+  return found
+}
+
+/**
  * node 及其全部后代里是否有任何节点被交叉引用。整棵子树被删除时，这些引用会失去目标
  * （类型化引用悬空，导出校验失败），所以删除空条一类的操作要先问这个。
  */
@@ -224,6 +250,8 @@ export function convertTextBlock(state: EditorState, tr: Transaction, targetName
     const before = listNodes.slice(0, start), after = listNodes.slice(end)
     if (!before.length && !after.length && hasReferenceTo(state.doc, list.attrs.nodeId)) return 'referenced-block'
     const selected = listNodes.slice(start, end)
+    // 列项没有「段落/注/示例」形态的列项编号：被当作列项引用的项转换后引用会失去目标，拒绝（文档不动）。
+    if (selected.some(item => hasListItemReference(state.doc, item.attrs.nodeId))) return 'referenced-block'
     const converted = selected.map(item => target.create({ nodeId: item.attrs.nodeId }, item.content, item.marks))
     const replacement: PMNode[] = []
     if (before.length) replacement.push(list.type.create(list.attrs, before, list.marks))
@@ -256,6 +284,11 @@ export function formatTextBlock(state: EditorState, tr: Transaction, targetName:
 }
 
 const listTypes = new Set(['dash', 'alpha', 'numeric', 'dot', 'boxedNumeric'])
+/**
+ * 列项在 Resolver 里有编号标记的 PM 列表类型（IR alpha / number / roman）；其余为无序类型。
+ * 'roman' 的 PM 支持属 G7，这里先列入：该类型一旦能被命令创建，改成它不应被当作「失去编号」。
+ */
+const numberedListTypes = new Set(['alpha', 'numeric', 'roman'])
 const listableBlocks = new Set(['stdParagraph', 'note', 'example'])
 /** Body containers where an empty generic paragraph is as good as an empty stdParagraph: a list simply takes its place. */
 const listBodyContainers = new Set(['chapter', 'clause', 'appendix', 'foreword', 'introduction'])
@@ -286,6 +319,8 @@ export function formatStdList(state: EditorState, tr: Transaction, listType: str
     const items = children(list)
     const start = $from.index(depth), end = $to.index(depth) + 1
     const pos = $from.before(depth)
+    // 只有有序列表（Resolver 的 alpha/number/roman）的列项有编号；改成无序类型会让被引用的列项失去编号。
+    if (!numberedListTypes.has(listType) && items.slice(start, end).some(item => hasListItemReference(state.doc, item.attrs.nodeId))) return 'referenced-block'
     if (start === 0 && end === items.length) {
       if (list.attrs.listType !== listType || list.attrs.level !== level) tr.setNodeMarkup(pos, undefined, { ...list.attrs, listType, level }, list.marks)
       return null
