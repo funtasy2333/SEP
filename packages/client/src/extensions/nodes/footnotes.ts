@@ -17,7 +17,7 @@ declare module '@tiptap/core' {
 const FORBIDDEN_ANCESTORS = new Set([
   'coverPage',
   'chapterTitle', 'clauseTitle', 'appendixTitle',
-  'termDef', 'termName', 'termNameEn', 'termDefinition',
+  'termDef', 'termName', 'termNameEn', 'termSubjectField', 'termDefinition',
   'stdTable', 'table', 'tableCaption', 'tableCaptionEn', 'tableNoteRow', 'tableFootnoteRow', 'tableFootnoteEntry', 'tableFootnote',
   'figure', 'figureCaption', 'figureCaptionEn', 'formula', 'formulaContent', 'formulaDescription',
   'footnoteRef',

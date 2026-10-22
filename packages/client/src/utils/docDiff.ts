@@ -115,13 +115,15 @@ function nodeToText(
       const termName = extractTitle(content, 'termName')
       const termNameEn = extractTitle(content, 'termNameEn')
       const termDef = extractTitle(content, 'termDefinition')
+      const subjectField = extractTitle(content, 'termSubjectField')
       lines.push(`${indent}${numStr} ${termName}`)
       if (termNameEn) lines.push(`${indent}  ${termNameEn}`)
+      if (subjectField) lines.push(`${indent}  〈${subjectField}〉`)
       if (termDef) lines.push(`${indent}  ${termDef}`)
       if (content) {
         for (const c of content) {
           const ct = c.type as string
-          if (!['termName', 'termNameEn', 'termDefinition'].includes(ct)) {
+          if (!['termName', 'termNameEn', 'termSubjectField', 'termDefinition'].includes(ct)) {
             nodeToText(c, lines, depth + 1, ctx)
           }
         }

@@ -190,6 +190,35 @@
   min-width: 1em;
 }
 
+/*
+ * 术语领域（GB/T 46687.2 9.2.9，M-9.2.9-01）：节点内容只存领域名称，“〈”“〉”由此处在显示阶段添加（不入内容）。
+ * 编辑器中单独成行、位于术语名之后、定义之前，与定义同款缩进与字体；HTML/DOCX 导出时则与定义同一行（见渲染器）。
+ */
+.std-term-subject-field {
+  text-indent: 2em;
+  line-height: 1.8;
+  font-family: 'SimSun', 'Songti SC', serif;
+  font-size: 14px;
+}
+
+.std-term-subject-field::before {
+  content: '\3008';
+}
+
+.std-term-subject-field::after {
+  content: '\3009';
+}
+
+/* 空领域节点：ProseMirror 的 trailing <br> 会把后缀 〈〉 挤到下一行，空时不显示括号，只保留一行高度。 */
+.std-term-subject-field:has(> .ProseMirror-trailingBreak:only-child) {
+  min-height: 1.8em;
+}
+
+.std-term-subject-field:has(> .ProseMirror-trailingBreak:only-child)::before,
+.std-term-subject-field:has(> .ProseMirror-trailingBreak:only-child)::after {
+  content: none;
+}
+
 /* 术语定义正文：宋体 */
 .std-term-definition {
   text-indent: 2em;
