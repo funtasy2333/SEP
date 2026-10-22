@@ -49,7 +49,7 @@
 | `bold` `italic` `underline` `sub` `sup` `strike` `code` | 无 | 同一段文字上同一种标记只能出现一次；`code` 不能与其他标记组合 |
 | `variable` | `kind`、`name`（可选字符串） | 标记变量符号（语义标记） |
 | `externalLink` | `href`（必填）、`title`、`target`、`rel` | `href` 只接受 `http://`、`https://`、`mailto:`、`tel:` 开头且不含空白的地址 |
-| `crossRef` | `targetId`（必填）、`targetKind`（可选） | 引用章、条、附录、图、表、公式、注、示例等；`targetKind` 取 `chapter` `clause` `appendix` `figure` `table` `formula` `note` `example` `bibliography` `term` `index` `paragraph` `listItem`（被引用的有序列项） |
+| `crossRef` | `targetId`（必填）、`targetKind`（可选） | 引用章、条、附录、图、表、公式、注、示例等；`targetKind` 取 `chapter` `clause` `appendix` `figure` `table` `formula` `note` `example` `bibliography` `term` `index` `paragraph` `listItem`（被引用的有序列项） `abbreviation`（缩略语表中的项） |
 | `bibRef` | `targetId`（必填） | 引用参考文献条目 |
 | `termRef` | `targetId`（必填） | 引用术语条目 |
 
@@ -120,7 +120,7 @@
 
 - 未知字段会被拒绝（防止 `contnet` 这样的拼写错误被静默忽略）。
 - IR 里存在但写作片段暂不支持的字段（如图的 `imageWidth`、表的 `width`、公式的 `mathml`）会给出专门的提示：请省略。
-- `warning`、`quote`、`code` 等 IR 扩展块暂不支持，会以 `unsupported-kind` 拒绝。
+- `warning`、`quote`、`code`、`defList`（缩略语表）等 IR 扩展块暂不支持，会以 `unsupported-kind` 拒绝。
 - 缺省值由系统补齐。可推导字段可以省略：条的 `level` 与列项的 `level` 若给出必须与推导结果一致；`titled` 若给出不能与标题是否为空矛盾；`secType` 若给出则采用你给的值。
 
 读取节点得到的 IR，只要不含暂不支持的字段，就可以原样作为片段回传（替换内容时），其中的 id 会被保留。含暂不支持字段（如手工调整过的列宽、行内样式）的节点，回传时这些字段必须去掉，对应的版式信息会随替换丢失。因此 `replace` 遇到这样的节点默认拒绝，需要显式 `acceptLoss`，见第 7 节。
@@ -428,7 +428,7 @@
 | `unknown-field` | 未知字段（多为拼写错误） |
 | `unsupported-field` | IR 里有、但写作片段暂不支持的字段或标记 |
 | `unknown-kind` | 未知的 `kind` |
-| `unsupported-kind` | 暂不支持的块（`warning`、`quote`、`code`） |
+| `unsupported-kind` | 暂不支持的块（`warning`、`quote`、`code`、`defList`） |
 | `not-allowed-here` | 该节点不能放在此上下文或容器中 |
 | `invalid-value` | 取值非法（枚举、格式、范围） |
 | `empty-value` | 必须非空的内容为空 |

@@ -7,7 +7,7 @@ const semanticKeys = new Set([
   'imageWidth', 'imageHeight', 'alt', 'targetKind', 'subjectField', 'introductionClauses',
 ])
 const semanticMarks = new Set(['strike', 'code', 'variable', 'externalLink', 'bibRef', 'termRef'])
-const semanticKinds = new Set(['warning', 'quote', 'code'])
+const semanticKinds = new Set(['warning', 'quote', 'code', 'defList'])
 
 function present(value: unknown): boolean {
   if (value === undefined || value === null || value === '') return false

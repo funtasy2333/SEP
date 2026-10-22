@@ -20,6 +20,7 @@ export function collectFootnotes(doc: IRDoc, bibliographyOrder?: string[]): IRFo
         break
       case 'figure': node.notes.forEach(block); inlines(node.caption); inlines(node.captionEn ?? []); break
       case 'formula': inlines(node.sourceInlines ?? []); for (const item of node.whereList) { inlines(item.term); inlines(item.definition) }; break
+      case 'defList': for (const item of node.items) { inlines(item.term); inlines(item.definition) }; break
     }
   }
   const child = (node: IRClauseChild): void => {

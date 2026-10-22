@@ -50,7 +50,7 @@ export type AuthoringNodeKind = typeof AUTHORING_NODE_KINDS[number]
  * - unknown-field：未知字段（多为拼写错误）
  * - unsupported-field：IR 里存在、但写作片段暂不支持的字段
  * - unknown-kind：未知的 kind
- * - unsupported-kind：IR 里存在、但写作片段暂不支持的块（warning/quote/code）
+ * - unsupported-kind：IR 里存在、但写作片段暂不支持的块（warning/quote/code/defList）
  * - not-allowed-here：此种节点不能放在该上下文/容器中
  * - invalid-value：取值非法（枚举、格式、范围）
  * - empty-value：必须非空的内容为空
@@ -178,7 +178,7 @@ const IR_ONLY_FIELDS: Partial<Record<FieldOwner, readonly string[]>> = {
 
 const REFERENCE_KINDS: readonly IRReferenceTargetKind[] = [
   'chapter', 'clause', 'appendix', 'figure', 'table', 'formula',
-  'note', 'example', 'bibliography', 'term', 'index', 'paragraph', 'listItem',
+  'note', 'example', 'bibliography', 'term', 'index', 'paragraph', 'listItem', 'abbreviation',
 ]
 
 const SIMPLE_MARKS = ['bold', 'italic', 'underline', 'sub', 'sup', 'strike', 'code'] as const
@@ -1182,7 +1182,7 @@ function parseNode(
     ctx.issue(`${path}.kind`, 'invalid-type', 'kind 必须是字符串')
     return undefined
   }
-  if (kind === 'warning' || kind === 'quote' || kind === 'code') {
+  if (kind === 'warning' || kind === 'quote' || kind === 'code' || kind === 'defList') {
     ctx.issue(`${path}.kind`, 'unsupported-kind',
       `写作片段暂不支持「${kind}」块（支持：${AUTHORING_NODE_KINDS.join('、')}）`)
     return undefined

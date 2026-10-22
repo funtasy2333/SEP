@@ -63,6 +63,7 @@ function blockHasTableFootnotes(block: IRBlock): boolean {
     case 'paragraph':
     case 'formula':
     case 'code':
+    case 'defList':
       return false
   }
 }
@@ -85,6 +86,7 @@ function blockHasFootnoteSyntax(block: IRBlock): boolean {
     case 'figure': return inlineHasFootnote(block.caption) || inlineHasFootnote(block.captionEn ?? []) ||
       block.notes.some((note) => note.content.some(blockHasFootnoteSyntax))
     case 'formula': return inlineHasFootnote(block.sourceInlines ?? []) || block.whereList.some((item) => inlineHasFootnote(item.term) || inlineHasFootnote(item.definition))
+    case 'defList': return block.items.some((item) => inlineHasFootnote(item.term) || inlineHasFootnote(item.definition))
     case 'code': return false
   }
 }
@@ -124,7 +126,7 @@ function collectTables(block: IRBlock, out: IRTable[]): void {
     case 'list': block.items.forEach((item) => item.content.forEach((child) => collectTables(child, out))); break
     case 'warning': case 'quote': case 'note': case 'example': block.content.forEach((child) => collectTables(child, out)); break
     case 'figure': block.notes.forEach((note) => note.content.forEach((child) => collectTables(child, out))); break
-    case 'paragraph': case 'formula': case 'code': break
+    case 'paragraph': case 'formula': case 'code': case 'defList': break
   }
 }
 

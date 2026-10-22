@@ -67,6 +67,8 @@ class ResolveCtx {
   noteSeq = 0
   exampleSeq = 0
   footnoteSeq = 0
+  /** 缩略语项的 xmlId 全局序号（abb_<k>，文档序；D-M-02） */
+  abbrSeq = 0
   footnoteDepth = 0
   inTerm = false
   tableFootnotes: { tableId: string; ids: Set<string>; referenced: Set<string>; seq: number } | undefined
@@ -123,7 +125,7 @@ class ResolveCtx {
 // ---------- 行内（收集交叉引用） ----------
 
 // 与编辑器 canInsertBodyFootnote 保持一致；图中的限制沿块级子树传递。
-type ForbiddenFootnoteContainer = '标题' | '图' | '公式主体' | '公式说明'
+type ForbiddenFootnoteContainer = '标题' | '图' | '公式主体' | '公式说明' | '定义列表'
 
 function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx, forbiddenContainer?: ForbiddenFootnoteContainer): void {
   for (const run of inlines) {
@@ -320,6 +322,21 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
         ctx.registerId(item.id)
         visitInlines(item.term, item.id, ctx, '公式说明')
         visitInlines(item.definition, item.id, ctx, '公式说明')
+      }
+      break
+    }
+    case 'defList': {
+      // 缩略语表（M-10.1.4-01/-03/-04/-05）：项可被 crossRef(targetKind='abbreviation') 引用。
+      // label / refText 为术语纯文本，xmlId = abb_<k>（k 为全文缩略语项序，D-M-02）；项内不得有条文脚注。
+      // kind 在此先登记，通用扫描（registerExtendedData）不会覆盖，也不会补 ext_ 占位标签。
+      ctx.registerId(block.id)
+      for (const item of block.items) {
+        ctx.registerId(item.id)
+        ctx.kinds.set(item.id, 'abbreviation')
+        visitInlines(item.term, item.id, ctx, '定义列表')
+        visitInlines(item.definition, item.id, ctx, '定义列表')
+        const term = item.term.map(run => run.text).join('')
+        ctx.setLabel(item.id, term, `abb_${++ctx.abbrSeq}`, term)
       }
       break
     }

@@ -19,6 +19,8 @@ import type {
   IRChapterChild,
   IRClause,
   IRClauseChild,
+  IRDefItem,
+  IRDefList,
   IRDoc,
   IRDocMeta,
   IRExample,
@@ -175,7 +177,7 @@ const REF_KIND_MAP: Record<string, NonNullable<Extract<IRMark, { type: 'crossRef
   chapter: 'chapter', clause: 'clause', appendix: 'appendix', figure: 'figure',
   table: 'table', formula: 'formula', note: 'note', example: 'example',
   bibEntry: 'bibliography', bibliography: 'bibliography', term: 'term',
-  paragraph: 'paragraph', index: 'index', listItem: 'listItem',
+  paragraph: 'paragraph', index: 'index', listItem: 'listItem', abbreviation: 'abbreviation',
 }
 
 function styleFromAttrs(attrs: Record<string, unknown> | undefined): IRInlineStyle | undefined {
@@ -803,6 +805,28 @@ function trimInlines(inlines: IRInline[]): IRInline[] {
 }
 
 /**
+ * 定义列表容器（whereList / defList）的项 → IRDefItem[]。公式“式中”与缩略语共用（WP8.M / G2，P8）：
+ * 项节点都是 whereItem（whereTerm + whereDefinition）。容器内出现非 whereItem 子节点按未知内容报告。
+ */
+function convertDefItems(container: PMJsonNode, ctx: Ctx, where: string): IRDefItem[] {
+  const items: IRDefItem[] = []
+  for (const item of container.content ?? []) {
+    if (item.type !== 'whereItem') {
+      ctx.unknown(item.type, where, item)
+      continue
+    }
+    const term = item.content?.find((child) => child.type === 'whereTerm')
+    const definition = item.content?.find((child) => child.type === 'whereDefinition')
+    items.push({
+      id: ctx.id(item),
+      term: convertInlines(term?.content, ctx),
+      definition: convertInlines(definition?.content, ctx),
+    })
+  }
+  return items
+}
+
+/**
  * 解析 formulaDescription（自由文本「式中：A——定义；B——定义。」）为 whereList。
  * 条目以 ；/; 分隔，条目内以 —— 分隔变量与释义；无 —— 时整条视为释义。
  */
@@ -866,19 +890,7 @@ function convertFormula(node: PMJsonNode, ctx: Ctx): IRFormula {
   for (const child of node.content ?? []) if (!allowed.has(child.type)) ctx.unknown(child.type, '公式', child)
   const whereList: IRFormula['whereList'] = []
   if (typedWhere) {
-    for (const item of typedWhere.content ?? []) {
-      if (item.type !== 'whereItem') {
-        ctx.unknown(item.type, '公式式中列表', item)
-        continue
-      }
-      const term = item.content?.find((child) => child.type === 'whereTerm')
-      const definition = item.content?.find((child) => child.type === 'whereDefinition')
-      whereList.push({
-        id: ctx.id(item),
-        term: convertInlines(term?.content, ctx),
-        definition: convertInlines(definition?.content, ctx),
-      })
-    }
+    whereList.push(...convertDefItems(typedWhere, ctx, '公式式中列表'))
   } else if (desc) {
     whereList.push(...parseWhereList(convertInlines(desc.content, ctx), id))
   }
@@ -922,6 +934,8 @@ function convertBlock(node: PMJsonNode, ctx: Ctx, where: string): IRBlock | null
       return convertNote(node, ctx)
     case 'example':
       return convertExample(node, ctx)
+    case 'defList':
+      return { kind: 'defList', id: ctx.id(node), items: convertDefItems(node, ctx, '缩略语') } satisfies IRDefList
     case 'warning':
       return { kind: 'warning', id: ctx.id(node), content: convertBlocks(node.content, ctx, '警告') } satisfies IRWarning
     case 'quoteBlock':
@@ -1368,7 +1382,7 @@ function plainRecord(value: unknown): Record<string, unknown> | undefined {
 
 const IR_REFERENCE_TARGET_KINDS = [
   'chapter', 'clause', 'appendix', 'figure', 'table', 'formula',
-  'note', 'example', 'bibliography', 'term', 'index', 'paragraph', 'listItem',
+  'note', 'example', 'bibliography', 'term', 'index', 'paragraph', 'listItem', 'abbreviation',
 ] as const satisfies readonly IRReferenceTargetKind[]
 
 function isIRReferenceTargetKind(value: unknown): value is IRReferenceTargetKind {

@@ -6,7 +6,7 @@
  * the production schema is rejected with a path-bearing diagnostic.
  */
 import type {
-  IRAppendix, IRBibEntry, IRBlock, IRChapter, IRClause, IRClauseChild, IRDoc,
+  IRAppendix, IRBibEntry, IRBlock, IRChapter, IRClause, IRClauseChild, IRDefItem, IRDefList, IRDoc,
   IRDocMeta, IRInline, IRList, IRMeasure, IRTable, IRTermEntry,
 } from './types'
 import type { PMJsonNode } from './pmToIr'
@@ -55,7 +55,7 @@ const nonEmpty = <T>(value: T[] | undefined): T[] => value ?? []
 const targetKinds: Record<string, string> = {
   chapter: 'chapter', clause: 'clause', appendix: 'appendix', figure: 'figure',
   table: 'table', formula: 'formula', note: 'note', example: 'example',
-  bibliography: 'bibEntry', term: 'term', index: 'index', paragraph: 'paragraph', listItem: 'listItem',
+  bibliography: 'bibEntry', term: 'term', index: 'index', paragraph: 'paragraph', listItem: 'listItem', abbreviation: 'abbreviation',
 }
 
 function markToPm(mark: IRTextMark): { type: string; attrs?: PmAttrs } {
@@ -419,6 +419,20 @@ function figureToPm(figure: Extract<IRBlock, { kind: 'figure' }>, path: string, 
   return node('figure', withId(figure.id, { orientation: figure.orientation, unit: figure.unit ?? null }), content)
 }
 
+/** 定义列表的项 → whereItem（whereTerm + whereDefinition）；公式 whereList 与缩略语 defList 共用（WP8.M / G2，P8）。 */
+function defItemsToPm(items: IRDefItem[]): PMJsonNode[] {
+  return items.map(item => node('whereItem', withId(item.id), [
+    node('whereTerm', undefined, inlinesToPm(item.term)),
+    node('whereDefinition', undefined, inlinesToPm(item.definition)),
+  ]))
+}
+
+function defListToPm(list: IRDefList, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+  // PM 的 defList 要求 whereItem+；空列表无法投影，明确报错而不是静默丢弃。
+  if (list.items.length === 0) errors.push({ path: `${path}.items`, nodeId: list.id, reason: '缩略语列表没有任何项，生产 Schema 要求至少一项' })
+  return node('defList', withId(list.id), defItemsToPm(list.items))
+}
+
 function formulaToPm(formula: Extract<IRBlock, { kind: 'formula' }>, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
   if (formula.sourceInlines && inlinePlainText(formula.sourceInlines).trim() !== formula.latex.trim()) {
     errors.push({ path: `${path}.sourceInlines`, nodeId: formula.id, reason: 'IR公式latex与sourceInlines文本不一致，不能无损投影为单一编辑源' })
@@ -426,12 +440,7 @@ function formulaToPm(formula: Extract<IRBlock, { kind: 'formula' }>, path: strin
   const source = formula.sourceInlines ?? [{ text: formula.latex }]
   const content: PMJsonNode[] = [node('formulaContent', undefined, inlinesToPm(source))]
   if (formula.notes?.length) content.push(...formula.notes.map(note => node('formulaNote', withId(note.id), inlinesToPm(note.content))))
-  if (formula.whereList.length) {
-    content.push(node('whereList', undefined, formula.whereList.map(item => node('whereItem', withId(item.id), [
-      node('whereTerm', undefined, inlinesToPm(item.term)),
-      node('whereDefinition', undefined, inlinesToPm(item.definition)),
-    ]))))
-  }
+  if (formula.whereList.length) content.push(node('whereList', undefined, defItemsToPm(formula.whereList)))
   return node('formula', withId(formula.id, { latex: formula.latex, mathml: formula.mathml ?? null, numbered: formula.numbered }), content)
 }
 
@@ -442,6 +451,7 @@ function blockToPm(block: IRBlock, path: string, errors: IRToPmDiagnostic[]): PM
     case 'table': return tableToPm(block, path, errors)
     case 'figure': return figureToPm(block, path, errors)
     case 'formula': return formulaToPm(block, path, errors)
+    case 'defList': return defListToPm(block, path, errors)
     case 'note': case 'example': {
       const content = noteContent(block.id, block.content, path, errors)
       return node(block.kind, withId(block.id), content)

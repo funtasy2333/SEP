@@ -165,6 +165,7 @@ export interface IRAppendix {
 export type IRBlock =
   | IRParagraph | IRList | IRTable | IRFigure
   | IRFormula | IRNote | IRExample | IRWarning | IRQuote | IRCodeBlock
+  | IRDefList
 
 export interface IRParagraph {
   kind: 'paragraph'
@@ -310,8 +311,29 @@ export interface IRFormula {
   mathml?: string
   numbered: boolean
   /** 「式中：」键值对（NISO STS: disp-formula > legend > def-list） */
-  whereList: { id: NodeId; term: IRInline[]; definition: IRInline[] }[]
+  whereList: IRDefItem[]
   notes?: IRFormulaNote[]
+}
+
+/**
+ * 定义列表的项（WP8.M / G2）：公式“式中”、缩略语（以及后续的图例）共用同一形状 { id, term, definition }。
+ * 与 IRFormula.whereList 原有内联元素类型逐字相同，JSON 结构不变；PM 侧共用 whereItem/whereTerm/whereDefinition 节点。
+ */
+export interface IRDefItem {
+  id: NodeId
+  term: IRInline[]
+  definition: IRInline[]
+}
+
+/**
+ * 块级定义列表（WP8.M / G2，M-10.1.4-01）：目前只用于缩略语（NISO STS: def-list[@list-content="abbreviation"]）。
+ * 公式的“式中”仍是 IRFormula.whereList（既有字段不得改型），图例是 IRFigure.legend（G3），三者位置不同、不合并成万能容器。
+ * 每项由 Resolver 赋标签：label 与 refText 为术语纯文本，xmlId 为 abb_<k>（D-M-02）；项内不得有条文脚注。
+ */
+export interface IRDefList {
+  kind: 'defList'
+  id: NodeId
+  items: IRDefItem[]
 }
 
 export interface IRFormulaNote {
@@ -502,7 +524,7 @@ export type IRMark =
 export type IRReferenceTargetKind =
   | 'chapter' | 'clause' | 'appendix' | 'figure' | 'table' | 'formula'
   | 'note' | 'example' | 'bibliography' | 'term' | 'index' | 'paragraph'
-  | 'listItem'
+  | 'listItem' | 'abbreviation'
 
 export interface IRProblem {
   code: 'hanging-paragraph' | 'dangling-xref' | 'heading-skip'

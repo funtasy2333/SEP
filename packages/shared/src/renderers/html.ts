@@ -30,6 +30,7 @@ import type {
   IRDoc,
   IRDocMeta,
   IRFigure,
+  IRDefList,
   IRFormula,
   IRInline,
   IRList,
@@ -401,6 +402,23 @@ function renderFormula(formula: IRFormula, ctx: RenderCtx): void {
   }
 }
 
+/**
+ * 缩略语表（M-10.1.4-01/-03/-04/-05，WP8.M G2，设计 7.1 本阶段排版）。
+ * 每项一行：缩略语在前、释义在后，中间空一个汉字（U+3000 写成文字，复制与 PDF 取文都能得到，与 DOCX 一致）。
+ * 每项就是一个条文段落（`ses-paragraph`：首行空两个汉字起排、回行顶格，GB/T 1.1-2020 的条文段落式排版），
+ * 因此沿用既有的屏幕与打印段落样式，不新增 CSS；不输出“式中：”引导，也不加破折号（那是公式 whereList 的版式）。
+ * 项是 crossRef(targetKind='abbreviation') 的目标，每项都有 Resolver 的 xmlId（abb_<k>），与其他带标签的对象一样作为锚点 id 输出。
+ */
+function renderDefList(list: IRDefList, ctx: RenderCtx): void {
+  ctx.push(`<div class="ses-def-list" data-type="def-list"${idAttr(list.id)}>`)
+  for (const item of list.items) {
+    ctx.push(
+      `<p class="ses-paragraph ses-def-item" data-type="def-item"${idAttr(item.id)}${anchorAttr(ctx, item.id)}><span class="ses-def-term">${renderInlines(item.term, ctx)}</span><span class="ses-def-gap">　</span><span class="ses-def-definition">${renderInlines(item.definition, ctx)}</span></p>`,
+    )
+  }
+  ctx.push('</div>')
+}
+
 function renderNote(note: IRNote, ctx: RenderCtx): void {
   const marker = ctx.label(note.id) || '注：'
   ctx.push(
@@ -431,6 +449,9 @@ function renderBlock(block: IRBlock, ctx: RenderCtx): void {
       break
     case 'formula':
       renderFormula(block, ctx)
+      break
+    case 'defList':
+      renderDefList(block, ctx)
       break
     case 'note':
       renderNote(block, ctx)

@@ -7,7 +7,7 @@
  * 同构纯 TypeScript，不引用浏览器或 Node 专有 API。
  */
 
-import type { IRBlock, IRExample, IRFigure, IRList, IRNote, IRParagraph, IRTable, NodeId } from '../../../ir/types'
+import type { IRBlock, IRDefList, IRExample, IRFigure, IRList, IRNote, IRParagraph, IRTable, NodeId } from '../../../ir/types'
 import { ABSTRACT_NUM_ID, listAbstractNumId } from '../numbering'
 import { emitParagraph, formulaSink, warn, type RenderContext } from './context'
 import { plainRun, renderInlines, renderRun, superscriptRun, tabRun } from './inline'
@@ -146,6 +146,23 @@ function renderListLevel(ctx: RenderContext, list: IRList, bctx: BlockCtx, depth
 
 function renderList(ctx: RenderContext, list: IRList, bctx: BlockCtx): string {
   return renderListLevel(ctx, list, bctx, 1, undefined)
+}
+
+// ---------------- 缩略语表（WP8.M G2，设计 7.1 本阶段排版） ----------------
+
+/**
+ * 缩略语表（M-10.1.4-01/-03/-04/-05）：每项一个段落，缩略语在前、释义在后，中间空一个汉字（U+3000 写成文字，
+ * 与 HTML 一致）。沿用 SesPara（首行空两个汉字起排、回行顶格，GB/T 1.1-2020 条文段落式排版），
+ * 不新增样式、不进入任何编号（缩略语项没有序号；其 abb_<k> 只用于 crossRef 的目标）。
+ */
+function renderDefList(ctx: RenderContext, list: IRDefList): string {
+  let out = ''
+  for (const item of list.items) {
+    const runs = renderInlines(item.term, ctx.labels, formulaSink(ctx)) + plainRun('　')
+      + renderInlines(item.definition, ctx.labels, formulaSink(ctx))
+    out += emitParagraph(ctx, 'SesPara', { runsXml: runs })
+  }
+  return out
 }
 
 // ---------------- 注 / 示例（§5.7） ----------------
@@ -426,6 +443,8 @@ function renderBlockContent(ctx: RenderContext, block: IRBlock, bctx: BlockCtx):
       return renderFigure(ctx, block, bctx)
     case 'formula':
       return renderFormula(ctx, block, ctx.resources.formulaOmml[block.id])
+    case 'defList':
+      return renderDefList(ctx, block)
     case 'note':
       return renderNote(ctx, block, bctx)
     case 'example':

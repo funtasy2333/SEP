@@ -55,14 +55,18 @@ const MARKS = new Set(['bold', 'italic', 'underline', 'sub', 'sup', 'crossRef', 
  */
 const INLINE_FORMULA_CONTAINERS = new Set(['paragraph.content', 'where.term', 'where.definition', 'footnote.content'])
 
+const DEF_LIST_FIELDS = ['kind', 'id', 'items'] as const
+
 /** Fields a format consumes in addition to BASE_FIELDS (kind -> extra fields). */
 const NO_EXTRA_FIELDS: Readonly<Record<string, readonly string[]>> = {}
 const EXTRA_FIELDS: Record<OutputBoundaryFormat, Readonly<Record<string, readonly string[]>>> = {
   // WP8.M §7.1 本阶段排版，仅 HTML、DOCX 放行；XML46687 留给 WP8.2：
   // - termEntry.subjectField（M-9.2.9-01，G5）：定义前输出“〈领域〉”；
-  // - front.introductionClauses（M-4.3.4-02/03，G6）：引言中的条（0.1…）按条标题排版。
-  DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'], termEntry: ['subjectField'], front: ['introductionClauses'] },
-  HTML: { meta: PRINT_META_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'] },
+  // - front.introductionClauses（M-4.3.4-02/03，G6）：引言中的条（0.1…）按条标题排版；
+  // - defList（M-10.1.4-01/-03/-04/-05，G2）：缩略语表，缩略语在前、释义在后同一行，中间空一个汉字。
+  //   项与公式“式中”项同形，沿用 where 形状（见 childShape）。
+  DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'], termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS },
+  HTML: { meta: PRINT_META_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS },
   XML: NO_EXTRA_FIELDS,
   // XML46687 的允许表、marks 与特殊检查目前与 XML 完全相同；WP8.1 支持矩阵确定后，在 WP8.2 再放开。
   XML46687: NO_EXTRA_FIELDS,
@@ -70,9 +74,12 @@ const EXTRA_FIELDS: Record<OutputBoundaryFormat, Readonly<Record<string, readonl
 
 function buildFields(format: OutputBoundaryFormat): Record<string, ReadonlySet<string>> {
   const extra = EXTRA_FIELDS[format]
-  return Object.fromEntries(Object.entries(BASE_FIELDS).map(([kind, base]) => [
+  const merged = Object.fromEntries(Object.entries(BASE_FIELDS).map(([kind, base]) => [
     kind, Object.prototype.hasOwnProperty.call(extra, kind) ? new Set([...base, ...extra[kind]!]) : base,
   ]))
+  // 整个 kind 只对部分格式放行（如 defList）：不在 BASE_FIELDS 里，由该格式的 extra 单独引入，其余格式仍报 kind 不支持。
+  for (const [kind, fields] of Object.entries(extra)) if (!Object.prototype.hasOwnProperty.call(merged, kind)) merged[kind] = new Set(fields)
+  return merged
 }
 const FIELDS_BY_FORMAT: Record<OutputBoundaryFormat, Record<string, ReadonlySet<string>>> = {
   DOCX: buildFields('DOCX'), HTML: buildFields('HTML'), XML: buildFields('XML'), XML46687: buildFields('XML46687'),
@@ -213,7 +220,7 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
       if (key === 'tailOrder') continue
       const childShape = key === 'meta' ? 'meta' : key === 'front' ? 'front'
         : key === 'marks' ? 'mark' : key === 'footnote' || key === 'footnotes' ? 'footnote'
-        : key === 'rows' ? 'row' : key === 'cells' ? 'cell' : key === 'items' ? 'item'
+        : key === 'rows' ? 'row' : key === 'cells' ? 'cell' : key === 'items' ? (kind === 'defList' ? 'where' : 'item')
         : key === 'whereList' ? 'where' : key === 'unmappedFootnotes' ? 'unmappedFootnote'
         : key === 'formula' && shape === 'inline' ? 'inlineFormula'
         : 'inline'

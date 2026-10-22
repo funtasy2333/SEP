@@ -178,7 +178,7 @@ export function analyzeReplaceability(env: InspectEnv, located: LocatedNode): No
   }
   const groups = new Map<string, Grouped>()
 
-  if (irNode.kind === 'warning' || irNode.kind === 'quote' || irNode.kind === 'code') {
+  if (irNode.kind === 'warning' || irNode.kind === 'quote' || irNode.kind === 'code' || irNode.kind === 'defList') {
     addReason(groups, 'kind', () => ({
       code: 'unsupported-kind',
       message: `「${KIND_LABELS[irNode.kind]}」写作片段暂不支持，不能整体替换（可以删除或移动）`,

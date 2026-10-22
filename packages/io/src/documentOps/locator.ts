@@ -20,7 +20,7 @@ export const TITLE_TYPES: ReadonlySet<string> = new Set([
 ])
 
 const BLOCK_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
-  'paragraph', 'list', 'table', 'figure', 'formula', 'note', 'example', 'warning', 'quote', 'code',
+  'paragraph', 'list', 'table', 'figure', 'formula', 'note', 'example', 'warning', 'quote', 'code', 'defList',
 ])
 
 /** 与 pmToIr 的 `convertBlock` 一致：哪些 PM 节点类型会读成 IR 块。 */
@@ -30,12 +30,14 @@ const BLOCK_BY_PM_TYPE: ReadonlyMap<string, NodeKind> = new Map<string, NodeKind
   ['stdTable', 'table'], ['figure', 'figure'], ['formula', 'formula'],
   ['note', 'note'], ['example', 'example'], ['warning', 'warning'],
   ['quoteBlock', 'quote'], ['blockquote', 'quote'], ['codeBlock', 'code'],
+  // WP8.M G2：缩略语表读成 IR 块 defList；写作片段不能创建它（与 warning/quote/code 同类，可删除/移动，不能整体替换）。
+  ['defList', 'defList'],
 ])
 
 export const KIND_LABELS: Record<NodeKind, string> = {
   chapter: '章', clause: '条', appendix: '附录', termEntry: '术语条目', bibEntry: '参考文献条目',
   paragraph: '段落', list: '列项', table: '表', figure: '图', formula: '公式', note: '注',
-  example: '示例', warning: '警告块', quote: '引文块', code: '代码块',
+  example: '示例', warning: '警告块', quote: '引文块', code: '代码块', defList: '缩略语表',
 }
 
 export const CONTAINER_LABELS: Record<DocumentContainer, string> = {
