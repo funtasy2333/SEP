@@ -1,6 +1,6 @@
-# Phase 6：智能校验开发方案（评审稿，修订版）
+# Phase 6：智能校验开发方案（实施中）
 
-> 本文件为方案，不是实施完成记录。2026-10-22 根据用户最新反馈修订；本轮只修改方案。实施时使用 superpowers:executing-plans 按工作包执行，不因阅读本文件自动启动产品开发、委派或合并。
+> 2026-10-22 用户已授权启动开发，使用 gpt-6-luna/max 子代理实现，由主代理规划、审查和验收。继续提交到现有 Draft PR #57；此文件不是完成声明。
 
 **Goal：** 用户主动点击检查，获得当前草稿的结构、引出语、正文提及和术语使用次数报告，并能准确定位处理。
 
@@ -10,7 +10,7 @@
 
 **Spec：** 第 1—6 节是本轮规格，第 7—9 节是开发与验收计划；本文件记录的用户最新要求优先于 `ses-requirements.md` 中的历史 Phase 6 方案。
 
-**状态：** 基于 main `db339455` 的静态代码核对；尚未修改产品代码或执行开发测试。预计 7.5 个工作日，属于估算。
+**状态：** 基于 main `db339455`、方案提交 `4d068e81` 启动实施。实际进度与验收记录见 `docs/phase6-progress.md`。预计 7.5 个工作日，属于估算。
 
 ## 1. 最新范围
 
@@ -181,7 +181,7 @@ MCP 仍是显式调用 `validate_document({ documentId })`，保留 revision/pro
 - 问题面板与历史侧栏互斥；切换侧栏不更改正文。只有当前报告才显示行内标记，颜色外还有文字/图标区分。
 - 底部说明「术语权威性、引用文件有效性和准确性未检查；脚注、表脚注、参考文献提醒不在本期范围」。零问题只表示本期启用规则未发现问题。
 - 不引入自动删除、移动、改写或术语替换。修改后需再次手动检查，不自动刷新结论。
-- 实施使用独立 `codex/phase6-smart-validation` 分支，先核对可复用 worktree 和工作区，保护 `.pnpm-store/` 等未跟踪内容；本方案文件保持评审材料状态。
+- 按用户要求继续现有 Draft PR #57 的 `codex/phase6-validation-plan` 分支，不另建 PR；保护 `.pnpm-store/` 等未跟踪内容。
 
 重点风险：引出语只能确定识别结构与常见表达；图号边界/外部文件引用混淆；术语自计数及重叠误计数；过期报告跳错位置；脚注结果从旧接口意外混入面板。以下工作包均安排相应正反例。
 
@@ -261,14 +261,14 @@ MCP 仍是显式调用 `validate_document({ documentId })`，保留 revision/pro
 
 ## 8. 验证与完成条件
 
-本轮仅修订方案，以下命令和功能验收尚未执行。
+以下为实施阶段命令；实际执行结果记录在进度与验收文档中。
 
 | 范围 | 实施阶段命令 |
 |---|---|
-| shared定向 | `pnpm --filter @ses/shared test -- src/validation` |
+| shared定向 | `pnpm --filter @ses/shared exec vitest run src/validation --maxWorkers=2` |
 | shared全量/构建 | `pnpm --filter @ses/shared test`；`pnpm --filter @ses/shared build` |
 | client | `pnpm --filter @ses/client test`；`pnpm --filter @ses/client build` |
-| server | `pnpm --filter @ses/server test -- --runInBand`；`pnpm --filter @ses/server build` |
+| server | `pnpm --filter @ses/server test --runInBand`；`pnpm --filter @ses/server build` |
 | 全仓库 | `git diff --check`；`pnpm build` |
 
 人工验收场景：
@@ -290,4 +290,4 @@ MCP 仍是显式调用 `validate_document({ documentId })`，保留 revision/pro
 
 交付目标是手动本地检查、问题面板、结果后行内标记、正文提及证据、术语次数与兼容MCP报告。标准数据库相关功能继续单独排期。
 
-当前仅完成方案修订。产品开发、测试执行、浏览器验收和PR尚未开始。
+产品开发已获授权并启动；保持 Draft 状态，不自动合并。完成状态以进度和验收记录为准。
