@@ -14,6 +14,7 @@ export { Note, Example } from './note'
 export { Appendix, AppendixLabel, AppendixTitle } from './appendix'
 export { Bibliography, BibliographyTitle, BibEntry } from './bibliography'
 export { StdList, StdListItem } from './std-list'
+export { DefList } from './def-list'
 export {
   Adoption, BibExternalLink, BibField, BibIdentifier, BibStructured, Copyright,
   FigureDescription, FigureGroup, FigureResource, FigureResourceRef,

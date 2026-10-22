@@ -2,6 +2,7 @@ import { Extension, type Editor } from '@tiptap/core'
 import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model'
 import { Plugin, PluginKey, TextSelection, type EditorState } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { hasReferenceTo, hasReferenceWithin } from '../../utils/textBlockFormat'
 import { dispatchInlineFormulaRequest } from './inlineFormulaEditing'
 
 declare module '@tiptap/core' {
@@ -95,7 +96,11 @@ function deleteEmptyItem(editor: Editor): boolean {
   const listDepth = itemDepth - 1
   const listNode = $from.node(listDepth)
   const itemPos = $from.before(itemDepth)
-  const [from, to] = listNode.childCount === 1
+  // WP8.M G2：缩略语项是 crossRef(abbreviation) 的目标。被引用的项（或被引用项所在、将随之整体删除的表）不删除，
+  // 否则引用会悬空、导出校验失败；与删除被引用的空条、术语条目的守卫一致。公式式中项不是引用目标，行为不变。
+  const removesList = listNode.childCount === 1
+  if (removesList ? hasReferenceWithin(editor.state.doc, listNode) : hasReferenceTo(editor.state.doc, itemNode.attrs.nodeId)) return true
+  const [from, to] = removesList
     ? [$from.before(listDepth), $from.after(listDepth)]
     : [itemPos, itemPos + itemNode.nodeSize]
   const tr = editor.state.tr.delete(from, to)
@@ -112,6 +117,15 @@ function deleteEmptyItem(editor: Editor): boolean {
 }
 
 const emptyTermKey = new PluginKey('whereEmptyTerm')
+
+/**
+ * whereTerm 所在的容器节点类型：公式的 `whereList`，或缩略语表 `defList`（WP8.M G2，两者共用项节点）。
+ * 公式式中的符号格可插入行内公式（点击空格占位）；缩略语是纯文本，不应弹出公式输入。
+ */
+function termContainerName(doc: PMNode, termPos: number): string | undefined {
+  const $pos = doc.resolve(termPos)
+  return $pos.depth >= 1 ? $pos.node($pos.depth - 1).type.name : undefined
+}
 
 /** 结构化式中的编辑行为：添加条目、符号格与释义格之间的 Enter/Tab/Backspace、空符号格占位与点击插入。 */
 export const WhereListEditing = Extension.create({
@@ -178,15 +192,19 @@ export const WhereListEditing = Extension.create({
           const decorations: Decoration[] = []
           state.doc.descendants((node, pos) => {
             if (node.type.name === 'whereTerm') {
-              if (node.content.size === 0) decorations.push(Decoration.node(pos, pos + node.nodeSize, { class: 'where-term-empty' }))
+              if (node.content.size === 0) {
+                const inDefList = termContainerName(state.doc, pos) === 'defList'
+                decorations.push(Decoration.node(pos, pos + node.nodeSize, { class: inDefList ? 'def-term-empty' : 'where-term-empty' }))
+              }
               return false
             }
             return true
           })
           return DecorationSet.create(state.doc, decorations)
         },
-        handleClickOn(_view, _pos, node, nodePos, _event, direct) {
+        handleClickOn(view, _pos, node, nodePos, _event, direct) {
           if (!direct || node.type.name !== 'whereTerm' || node.content.size > 0) return false
+          if (termContainerName(view.state.doc, nodePos) === 'defList') return false
           dispatchInlineFormulaRequest({ mode: 'insert', pos: nodePos + 1, latex: '' })
           return true
         },

@@ -635,6 +635,13 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
   - 式中符号可以是行内公式（`IRInline.formula`，见 docs/phase7-inline-formula.md）：符号位置直接输出宿主注入的 `<m:oMath>`（`formulaOmml[行内公式 id]`，KaTeX `displayMode:false` 转换），不包 `oMathPara`；缺失时回退为 LaTeX 源码文本并记 `formula-missing-omml`。Word 不测量 OMML，符号宽度由宿主估算并经 `formulaWidths` 传入：基线字符汉字 1、其余 0.5，上下标乘 0.7，`mover/munder` 取基线与标记的较大者，空白（`mspace`）按 em 计（1em 计 1、负宽度计 0），幻影（`mphantom`）按内容计，最后加 0.25 余量；未传入时按 LaTeX 源码保守估算（每个非格式命令计 1 个字符，脚标按全宽）。
 - 正文类位置的行内公式（段落、列项、注、示例、单元格、术语定义、表注、条文脚注、表脚注）同样直接输出 `formulaOmml[行内公式 id]`，位于文字之后、脚注引用之前（与 irToPm 顺序一致）；缺失时回退为 LaTeX 源码并记 `formula-missing-omml`。标题、图表题、术语名、参考文献中的行内公式在导出边界拒绝。
 
+#### 5.10.1 缩略语表（WP8.M G2，`IRDefList`）
+
+- 版式依据 GB/T 1.1-2020 8.8.3（清单中的缩略语之前不给序号）与设计 7.1：每项一个段落，缩略语在前、释义在后，同一行，中间空一个汉字（`U+3000`，写成独立 run 的文字）。
+- 段落沿用 `SesPara`（首行空两个汉字起排、回行顶格，即条文段落式排版），**不新增样式、不进入任何编号**：`styles.xml`、`numbering.xml` 与没有缩略语表的同一文档逐字节相同，`emitParagraph` 不带 `numbered`/`numPr`。项的 `abb_<k>` 只在 HTML 作锚点，DOCX 没有对应书签，引用处只输出 `refText`（即缩略语）。
+- 术语与释义经 `renderInlines` 输出，行内公式沿用 §5.10 的 OMML 与降级规则；表格单元格内的缩略语表同样用 `SesPara`，表格行高估算按“缩略语　释义”的文字行数计。
+- 与公式“式中”的区别：没有「式中：」引导段、没有制表位与「——」。后续若要改为制表对齐或冒号形式，只需调整 `block.ts` 的 `renderDefList` 与对应测试，不影响其他要素。
+
 ### 5.11 附录
 
 附录编号、性质、标题分为三个居中段：P(SesAppendix) 的编号「附录A」由 A2 L0 生成，字距按 §3.3；P(SesAppendixKind,「（规范性）」或「（资料性）」)；P(SesAppendixTitle, title)。三段均 keepNext，只有第一段参与 A2 编号。分段可避免 Word 把同段内第二、三行相对编号悬挂区向右偏移。WP7.3 固定目次条目按 §7 单独生成「附录A（规范性）　标题」。

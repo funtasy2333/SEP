@@ -47,6 +47,8 @@ export const NODE_ID_TYPES = [
   'formulaInline',
   'formulaNote',
   'whereItem',
+  // 缩略语表（WP8.M G2）：容器带 nodeId；项复用 whereItem。
+  'defList',
   // Figure/resource and typed bibliography semantic records.
   'figureGroup',
   'figureDescription',

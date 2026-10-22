@@ -12,6 +12,7 @@ import {
   CoverPage,
   CrossRef,
   Copyright,
+  DefList,
   Example,
   ExternalLink,
   FootnoteLabels,
@@ -80,6 +81,6 @@ export function createEditorExtensions(): Extensions {
     TextStyle, Subscript, Superscript, Variable, ExternalLink, BibRef, TermRef,
     WhereListEditing, InlineFormulaEditing,
     // WP8.M：新节点一律追加在末尾（不改变 block 组默认填充节点的顺序）。
-    TermSubjectField,
+    TermSubjectField, DefList,
   ]
 }

@@ -223,6 +223,17 @@ function nodeToText(
       break
     }
 
+    case 'defList': {
+      // 缩略语表（WP8.M G2）：每项一行“缩略语　释义”（U+3000，与打印排版一致）。
+      // 不走默认分支，否则术语格与释义格各占一行并重复。
+      lines.push(`${indent}[缩略语]`)
+      for (const item of content ?? []) {
+        const cells = item.content as Array<Record<string, unknown>> | undefined
+        lines.push(`${indent}  ${extractTitle(cells, 'whereTerm')}　${extractTitle(cells, 'whereDefinition')}`)
+      }
+      break
+    }
+
     case 'stdList': {
       if (content) {
         for (const c of content) {

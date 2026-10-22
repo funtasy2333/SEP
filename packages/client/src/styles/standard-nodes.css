@@ -523,6 +523,38 @@
   font-family: 'SimSun', 'Songti SC', serif;
 }
 
+/*
+ * 缩略语表（WP8.M G2，M-10.1.4-01）：与公式“式中”共用 whereItem/whereTerm/whereDefinition 项节点，
+ * 版式不同——缩略语在前、释义在后，同一行，中间空一个汉字；没有“式中：”引导，也没有“——”。
+ * 打印出口的版式是首行空两个汉字起排、回行顶格；编辑器里按项分两列显示，释义回行与释义起点对齐，便于编辑。
+ */
+.std-def-list {
+  width: 100%;
+  margin: 4px 0;
+  line-height: 1.8;
+  text-indent: 0;
+  font-family: 'SimSun', 'Songti SC', serif;
+}
+
+.std-def-list > .std-where-item {
+  gap: 1em;
+  padding-left: 2em;
+}
+
+.std-def-list > .std-where-item > dt {
+  min-width: 0;
+}
+
+.std-def-list > .std-where-item > dd::before {
+  content: none;
+}
+
+/* 空缩略语格：占位提示；与公式式中不同，点击不会弹出行内公式输入（见 whereListEditing） */
+.std-def-list > .std-where-item > dt.def-term-empty::before {
+  content: '缩略语';
+  color: #aaa;
+}
+
 .std-formula-inline {
   cursor: pointer;
   border-radius: 2px;
