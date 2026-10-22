@@ -428,7 +428,8 @@ const STD_LIST_TYPE_MAP: Record<string, IRList['listType']> = {
   alpha: 'alpha',
   numeric: 'number',
   dot: 'dot',
-  roman: 'number',
+  roman: 'roman',
+  // romanUpper 没有 GB/T 46687.2 取值，PM 也不再产生它；旧文档里残留的按数字列项处理并给出警告。
   romanUpper: 'number',
   boxedNumeric: 'boxed',
 }
@@ -437,7 +438,8 @@ function convertStdList(node: PMJsonNode, ctx: Ctx): IRList {
   const id = ctx.id(node)
   const rawType = String(node.attrs?.listType ?? 'dash')
   let listType = STD_LIST_TYPE_MAP[rawType]
-  if (rawType === 'roman' || rawType === 'romanUpper') {
+  // WP8.M G7：小写罗马 roman 现在是受支持的列项类型，原样映射；只有 romanUpper 仍降级并告警。
+  if (rawType === 'romanUpper') {
     ctx.warnings.push(`旧罗马列项类型「${rawType}」已降级为数字编号列项`)
   }
   if (!listType) {

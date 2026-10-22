@@ -21,6 +21,8 @@ export function hasSemanticExtensions(value: unknown): boolean {
   const row = value as Record<string, unknown>
   if (typeof row.kind === 'string' && semanticKinds.has(row.kind)) return true
   if (Array.isArray(row.marks) && row.marks.some(mark => !!mark && typeof mark === 'object' && semanticMarks.has(String((mark as { type?: unknown }).type)))) return true
+  // WP8.M G7：小写罗马列项（roman-lower）只有生产 stdList 的 roman 类型承载；listType 是旧字段，不能走通用键扫描。
+  if (row.kind === 'list' && row.listType === 'roman') return true
   if (row.kind === 'formula' && Array.isArray(row.notes) && row.notes.length > 0) return true
   if (row.kind === 'figure' && ['title', 'unit', 'resourceId', 'imageWidth', 'imageHeight', 'alt', 'descriptions', 'groups'].some(key => present(row[key]))) return true
   if (row.kind === 'table' && ['width', 'style', 'unit'].some(key => present(row[key]))) return true

@@ -124,15 +124,21 @@ describe('irToPm / native IR roundtrip', () => {
     }))
   })
 
-  it('rejects roman list types instead of silently converting them to numeric', () => {
-    for (const listType of ['roman', 'romanUpper'] as const) {
-      const error = captureIrToPmError(docWithList(simpleList(listType)))
-      expect(error.diagnostics).toContainEqual(expect.objectContaining({
-        path: 'body[0][0].listType',
-        nodeId: `list-${listType}`,
-        reason: expect.stringContaining('不支持'),
-      }))
-    }
+  // WP8.M G7-a：原用例断言「roman 与 romanUpper 都被拒绝（不静默转数字）」；M-5.7-04 起 roman 往返成功，仅 romanUpper 仍被拒绝。
+  it('[M-5.7-04] roman 列项投影为 stdList(listType=roman) 并往返；romanUpper 仍被拒绝而不是静默转成数字', () => {
+    const roman = simpleList('roman')
+    const pm = irToPm(docWithList(roman))
+    const stdList = findNodes(pm, 'stdList')[0]!
+    expect(stdList.attrs).toMatchObject({ listType: 'roman', level: 1 })
+    expect(pm.attrs?.extensionVersion).toBe(1)
+    expect(pmToIr(pm).doc.body[0]?.children[0]).toEqual(roman)
+
+    const error = captureIrToPmError(docWithList(simpleList('romanUpper')))
+    expect(error.diagnostics).toContainEqual(expect.objectContaining({
+      path: 'body[0][0].listType',
+      nodeId: 'list-romanUpper',
+      reason: expect.stringContaining('不支持'),
+    }))
   })
 
   it('rejects explicit levels that conflict with production list levels', () => {

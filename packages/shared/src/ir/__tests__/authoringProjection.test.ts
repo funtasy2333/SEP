@@ -324,10 +324,12 @@ describe('irFragmentToPm / 诊断沿用 IRToPmError', () => {
     ]))
   })
 
-  it('不可表示的 IR：罗马数字列项、图中注、空列表/空表、嵌套列项', () => {
+  // WP8.M G7-a：原用例用小写罗马 roman 断言「罗马数字列项经 irFragmentToPm 被拒」；roman 现可表示，改用无原文取值的 romanUpper，
+  // 其余断言（图中注、空列表/空表）不变。
+  it('不可表示的 IR：大写罗马数字列项、图中注、空列表/空表、嵌套列项', () => {
     const item = (id: string) => ({ id, content: [{ kind: 'paragraph' as const, id: `${id}.p0`, content: [{ text: 'x' }] }] })
     const error = captureError(() => irFragmentToPm([
-      { kind: 'list', id: 'l1', listType: 'roman', items: [item('i1')] },
+      { kind: 'list', id: 'l1', listType: 'romanUpper', items: [item('i1')] },
       { kind: 'figure', id: 'f1', caption: [], orientation: 'portrait', src: PNG_DATA_URL, notes: [{ kind: 'note', id: 'fn', content: [] }] },
       { kind: 'list', id: 'l2', listType: 'dash', items: [] },
       { kind: 'table', id: 't1', caption: [], orientation: 'portrait', headerRowCount: 0, rows: [], notes: [] },

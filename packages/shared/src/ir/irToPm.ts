@@ -301,7 +301,8 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJso
   if (list.items.length === 0) {
     errors.push({ path: `${path}.items`, nodeId: list.id, reason: '生产列表至少需要一个列项' })
   }
-  if (list.listType === 'roman' || list.listType === 'romanUpper') {
+  // WP8.M G7：小写罗马 roman 由生产 stdList 支持（listType='roman'）；romanUpper 在 GB/T 46687.2 没有取值，仍拒绝。
+  if (list.listType === 'romanUpper') {
     errors.push({
       path: `${path}.listType`,
       nodeId: list.id,
@@ -321,7 +322,7 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJso
 
   const simple = list.items.every(item => item.content.length === 1 && item.content[0]?.kind === 'paragraph')
   if (simple) {
-    const typeByList = { dash: 'dash', number: 'numeric', alpha: 'alpha', boxed: 'boxedNumeric', dot: 'dot' } as const
+    const typeByList = { dash: 'dash', number: 'numeric', alpha: 'alpha', roman: 'roman', boxed: 'boxedNumeric', dot: 'dot' } as const
     const rawType = typeByList[list.listType]
     return node('stdList', withId(list.id, { listType: rawType, level: fixedLevel }), list.items.map((item, index) => {
       const content = item.content[0]

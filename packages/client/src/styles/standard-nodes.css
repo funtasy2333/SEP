@@ -752,19 +752,16 @@
 }
 
 .std-list-numeric,
-.std-list-roman,
 .std-list-romanUpper {
   counter-reset: numeric-counter;
 }
 
 .std-list-numeric .std-list-item,
-.std-list-roman .std-list-item,
 .std-list-romanUpper .std-list-item {
   counter-increment: numeric-counter;
 }
 
 .std-list-numeric .std-list-item::before,
-.std-list-roman .std-list-item::before,
 .std-list-romanUpper .std-list-item::before {
   content: counter(numeric-counter) '） ';
 }
@@ -809,6 +806,20 @@
 /* 最后一个章与附录/参考文献之间的分隔 */
 .std-appendix,
 .std-bibliography {
+/* 小写罗马列项 i） ii） iii）（GB/T 46687.2 5.7.2 roman-lower，WP8.M G7）；与字母列项同为一级。
+ * 大写罗马 romanUpper 没有原文取值，PM 不再产生它，旧 DOM 里残留的仍按数字显示。 */
+.std-list-roman {
+  counter-reset: roman-counter;
+}
+
+.std-list-roman .std-list-item {
+  counter-increment: roman-counter;
+}
+
+.std-list-roman .std-list-item::before {
+  content: counter(roman-counter, lower-roman) '） ';
+}
+
   border-top: 1px solid #ccc;
   padding-top: 24px;
 }

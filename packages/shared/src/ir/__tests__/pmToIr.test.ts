@@ -283,15 +283,20 @@ describe('pmToIr / 块级要素', () => {
     expect(types).toEqual(['number', 'boxed', 'dash'])
   })
 
-  it('旧罗马列项类型兼容降级为数字编号并给出警告', () => {
+  // WP8.M G7-a：原用例断言「roman 与 romanUpper 都降级为 number 并各给一条警告」；M-5.7-04 起小写罗马原样映射、无警告，
+  // 只有无原文取值的 romanUpper 仍降级为数字编号并保留 1 条警告。
+  it('[M-5.7-04] 小写罗马列项原样映射为 roman（无警告）；大写罗马仍降级为数字编号并给出警告', () => {
     const pm = fx.standardDoc({}, fx.chapter('c', 'X',
       fx.stdList('l1', 'roman', ['i1', 'a']),
       fx.stdList('l2', 'romanUpper', ['i2', 'b']),
     ))
     const { doc, warnings } = pmToIr(pm)
     const types = doc.body[0].children.map((block) => (block as IRList).listType)
-    expect(types).toEqual(['number', 'number'])
-    expect(warnings.filter((warning) => warning.includes('旧罗马列项类型'))).toHaveLength(2)
+    expect(types).toEqual(['roman', 'number'])
+    const romanWarnings = warnings.filter((warning) => warning.includes('旧罗马列项类型'))
+    expect(romanWarnings).toHaveLength(1)
+    expect(romanWarnings[0]).toContain('romanUpper')
+    expect(doc.extensionVersion).toBe(1)
   })
 
   it('未知列表类型回退 dash 并警告；列表项内容包装为段落', () => {

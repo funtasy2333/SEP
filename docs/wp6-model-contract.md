@@ -43,7 +43,8 @@ Tiptap `setContent` 仅替换子内容。生产加载、版本回滚与 XML 导�
 - `formula.numbered` 声明为生产属性；显式 false 保留，属性缺省或 null 时延续旧编号规则及 JSON golden。
 - `stdTable.headerRowCount` 独立持久化，不由单元格 header 标志覆盖；旧表格缺省或 null 时按连续表头单元格推断。非法显式角色或表头计数返回 unsupportedContent 诊断。
 - 脚注交叉引用与普通行内引用使用一致目标优先级：`targetId ?? refId`；空目标仍拒绝。
-- 原生 IR 标准列项中的唯一段落 ID 必须等于 `${item.id}.p0`，否则 IR→PM 拒绝转换。生产列表不支持的 roman/romanUpper、与固定级别冲突的显式 level 同样通过带路径与 nodeId 的 IRToPmError 拒绝；不静默降级或改写稳定 ID。生产标准列表 numeric/dot 固定二级，其余固定一级；此项检查也覆盖嵌套 StarterList 分支。
+- 原生 IR 标准列项中的唯一段落 ID 必须等于 `${item.id}.p0`，否则 IR→PM 拒绝转换。生产列表不支持的 romanUpper、与固定级别冲突的显式 level 同样通过带路径与 nodeId 的 IRToPmError 拒绝；不静默降级或改写稳定 ID。生产标准列表 numeric/dot 固定二级，其余固定一级；此项检查也覆盖嵌套 StarterList 分支。
+- **WP8.M G7-a 修订（2026-10-22，设计 §4.7.1、§7.1 D-M-06）**：小写罗马列项 `roman`（GB/T 46687.2 5.7.2 `roman-lower`，矩阵 M-5.7-04）现为生产 `stdList` 的受支持类型：`listType='roman'`、一级（与字母列项相同），pmToIr/irToPm 原样映射；`roman` 视为语义扩展（`hasSemanticExtensions`，`extensionVersion=1`）。本节上一条与 `wp6-validation.md`「罗马列项被静默降级」中「roman 也拒绝」的契约就此撤销，**只有 `romanUpper`**（原文没有 roman-upper 取值）仍拒绝（irToPm）/降级为数字列项并告警（pmToIr 读旧文档）。遗留文档里 `listType:'roman'` 的列表此前被当作数字列项，之后按罗马列项显示，这是预期变化。
 
 ## 复审补充（2026-10-06）
 

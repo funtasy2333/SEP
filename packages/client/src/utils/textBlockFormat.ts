@@ -286,7 +286,8 @@ export function formatTextBlock(state: EditorState, tr: Transaction, targetName:
 const listTypes = new Set(['dash', 'alpha', 'numeric', 'dot', 'boxedNumeric'])
 /**
  * 列项在 Resolver 里有编号标记的 PM 列表类型（IR alpha / number / roman）；其余为无序类型。
- * 'roman' 的 PM 支持属 G7，这里先列入：该类型一旦能被命令创建，改成它不应被当作「失去编号」。
+ * 'roman' 自 WP8.M G7-a 起是生产 stdList 的受支持类型（导入的罗马列项可被引用）；格式命令本阶段不提供创建入口，
+ * 但把有序列项改成无序类型时，罗马列项同样不得失去被引用的编号。
  */
 const numberedListTypes = new Set(['alpha', 'numeric', 'roman'])
 const listableBlocks = new Set(['stdParagraph', 'note', 'example'])

@@ -746,8 +746,11 @@ function parseList(obj: Obj, path: string, ctx: Ctx): IRList {
   const rawType = own(obj, 'listType')
   let listType: IRList['listType'] = 'dash'
   if (rawType !== undefined) {
-    if (rawType === 'roman' || rawType === 'romanUpper') {
-      ctx.issue(`${path}.listType`, 'invalid-value', `生产列表不支持「${rawType}」编号，请改用 ${LIST_TYPES.join('、')}`)
+    if (rawType === 'roman') {
+      // 模型已支持小写罗马列项（WP8.M G7-a，M-5.7-04），但写作入口本阶段不放开（插入/编辑入口留后续交互任务）。
+      ctx.issue(`${path}.listType`, 'invalid-value', `写作片段暂不支持「roman」编号（模型已支持，写作入口留后续交互任务），请改用 ${LIST_TYPES.join('、')}`)
+    } else if (rawType === 'romanUpper') {
+      ctx.issue(`${path}.listType`, 'invalid-value', `生产列表不支持「${rawType}」编号（GB/T 46687.2 没有大写罗马取值），请改用 ${LIST_TYPES.join('、')}`)
     } else if (typeof rawType !== 'string' || !(LIST_TYPES as readonly string[]).includes(rawType)) {
       ctx.issue(`${path}.listType`, 'invalid-value', `listType 必须是 ${LIST_TYPES.join('、')} 之一（缺省 dash）`)
     } else {
