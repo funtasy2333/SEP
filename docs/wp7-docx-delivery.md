@@ -308,6 +308,7 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 | A13 | 数字列项 | multilevel | L0 decimal `%1）`；L1 bullet `·`（suff、缩进和字体同 A12） | — |
 | A14 / A15 | 旧罗马类型兼容槽 | multilevel | L0 decimal `%1）`；L1 bullet `·`（字体同 A12）；旧文档的罗马列表降级为数字列项，不再输出罗马编号 | — |
 | A16 | 参考文献 | singleLevel | L0 decimal `[%1]　`，编号 rPr 指定宋体；首行 420 | SesBibEntry |
+| A17 | 引言中的条（按需，WP8.M G6） | multilevel | L0 `0　`（保持级别连续，无段落使用）；L1 `0.%2　`；L2 `0.%2.%3　`；L3–L5 依此类推；缩进、标识 rPr 同 A1 的 L1–L5（黑体） | —（段落级 numPr） |
 
 - 标识后的「空一个汉字」用 lvlText 里的全角空格 U+3000，不用 `suff=space`（半角）。
 - A1、A2 各级标识都用黑体：无标题条与术语条目的编号也是「条编号」（表 F.1 #33），原件中无标题条的编号即为黑体（如 7.5.1），
@@ -316,6 +317,13 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 - 注/示例的悬挂量等于标识的实际宽度（黑体小五：汉字与全角冒号各 1 em = 180 twips，阿拉伯数字 0.5 em = 90 twips），所以 `suff=nothing` 时回行正好与注内容左对齐：「注：」360、「注1：」450。
 - abstractNumId 即表中序号（A1 → 1 … A16 → 16）。A1、A2、A11–A15 的 `multiLevelType` 为 `multilevel`，其余为
   `singleLevel`；每个 abstractNum 只写表中列出的级别（spike 验证 Word 接受少于 9 级），不写 `nsid`、`tmpl`。
+- A17（引言中的条，GB/T 1.1-2020 8.4：引言不给章编号，需要分条时仅对条编号，编为 0.1、0.2 等）**按需输出**：只有文档含
+  `front.introductionClauses` 时才把 A17 写进 `numbering.xml`，其余文档仍是 16 个 abstractNum。Word 多级列表的 L0 无法显示为 0，
+  所以 L1–L5 的 lvlText 把「0」写成字面量、只引用 `%2…%n`（`0.%2　`、`0.%2.%3　`…），不依赖也不占用 A1 的章计数。
+  A17 的任何级别都不绑定样式（无 `pStyle`），引言条一律用 SesClause{L}/SesNoTitle{L} 样式 + **段落级** `numPr` 指向 A17 的按需实例，
+  字体字号与正文条完全相同；实例整份文档只有一个（引言只有一个、条编号连续），首次用到时创建，ilvl 1–5 都写 `startOverride=1`。
+  取舍：D2「可编辑优先」——原生编号经 §4.7 模拟器与 Resolver 的 `0.n` 逐段比对通过；在 Word 中用段落级 numPr 覆盖样式级 numPr，
+  与「无标题条」已用的段落级 numPr 是同一机制，但**尚未在真实 Word 中实测**，验收时须核对一次 0.1 / 0.1.1 的显示与续编。
 - 固定实例（§4.3）的 numId 等于其 abstractNumId；按需实例的 numId 从 101 起，按渲染时第一次需要它的顺序递增。
   `numbering.xml` 先按 abstractNumId 升序写全部 abstractNum，再按 numId 升序写全部 num（附录 B）。16 个 abstractNum 与
   8 个固定实例总是全部输出（属主样式引用它们，不论文档里有没有对应要素）。
@@ -364,6 +372,8 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 - 条：A1 L = **嵌套深度**（章的直属条为 1，其子条为 2……），**不用 `IRClause.level`**。Resolver 按路径长度编号，`level` 只用来
   报 heading-skip；两者不一致时只有按深度才与 Resolver 一致。深度超过 5 时按 5 输出并记 `clause-too-deep` warning
   （这类文档 Resolver 已报 heading-skip，Word 编号与 Resolver 不同，不要求一致）。
+- 引言中的条（WP8.M G6）：A17 的按需实例，L = 嵌套深度（引言直属条为 1，其子条为 2……），无标题条同样用段落级 `numPr`；
+  引言容器深度为 0，术语条目若出现在引言条内同样改用 A17。引言条不进目次（8.2 d)「条编号和标题（需要时列出）」，与 HTML 目次一致）。
 - 术语条目编号：**正文用 A1、附录用 A2** 的固定实例（段落级 numPr），L = 父节点深度 + 1（章、附录本身深度为 0：章直属 →
   「3.1」，条 3.1 之下 → 「3.1.1」，附录直属 → 「A.1」）；超过 5 同上处理。
 - 附录条、附录无标题条：A2，L = 深度。
@@ -652,6 +662,8 @@ content 里若已写了编号（如「[9] 」），先剥掉，否则会排成�
 
 P(SesFrontTitle, 「前言」/「引言」：「前」「引」的 run 带 `w:spacing w:val="640"`，§3.3) + 内容块，作用域键见 §5.7。
 引言中的图、表、公式参与全文连续编号（9.7.2.1「图编号从引言开始」），实例同正文（A3、A4 固定实例）。
+引言块之后输出引言中的条（`front.introductionClauses`，WP8.M G6）：按条标题排版（SesClause{L}/SesNoTitle{L}，编号 0.1、0.1.1…，§4.2 A17、§4.4），
+作用域键仍为 `'front.introduction'`，条内的注/示例以条自己的 id 分组。
 
 ### 5.15 横排（图、表共用）
 

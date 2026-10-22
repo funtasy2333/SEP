@@ -19,10 +19,10 @@ function table(id: NodeId, caption: string): IRTable {
     rows: [
       { id: `${id}-r1`, cells: [
         { id: `${id}-r1c1`, colspan: 1, rowspan: 1, header: true, content: [para(`${id}-r1c1-p`, t('项目'))] },
-        { id: `${id}-r1c2`, colspan: 1, rowspan: 1, header: true, content: [para(`${id}-r1c2-p`, t('说明'))] },
+        { id: `${id}-r1c2`, colspan: 1, rowspan: 1, header: true, content: [para(`${id}-r1c2-p`, t('备注'))] },
       ] },
       { id: `${id}-r2`, cells: [
-        { id: `${id}-r2c1`, colspan: 1, rowspan: 1, header: false, content: [para(`${id}-r2c1-p`, t('背景'))] },
+        { id: `${id}-r2c1`, colspan: 1, rowspan: 1, header: false, content: [para(`${id}-r2c1-p`, t('来由'))] },
         { id: `${id}-r2c2`, colspan: 1, rowspan: 1, header: false, content: [para(`${id}-r2c2-p`, t('编制缘由'))] },
       ] },
     ],
