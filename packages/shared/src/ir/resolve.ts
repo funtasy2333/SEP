@@ -25,7 +25,7 @@ import type {
   ResolvedLabel,
 } from './types'
 import { MISSING_ID_PREFIX } from './pmToIr'
-import { gbT11Strategy } from './strategies'
+import { gbT11Strategy, listItem as builtinListItem } from './strategies'
 import { orderedTermTail } from './termTailOrder'
 
 // ---------- 内部上下文 ----------
@@ -33,6 +33,15 @@ import { orderedTermTail } from './termTailOrder'
 interface NoteScope {
   notes: { id: NodeId }[]
   examples: { id: NodeId }[]
+}
+
+interface ListItemCandidate {
+  id: NodeId
+  marker: string
+  /** 有序祖先标记 + 本项标记，空格连接："a)"、"a) 1)" */
+  markerPath: string
+  /** visitBlock 传入的作用域 ID（最近的条/章/附录/术语条目/表…），其 label 即容器编号 */
+  scopeKey: string
 }
 
 class ResolveCtx {
@@ -46,6 +55,10 @@ class ResolveCtx {
   scopes = new Map<string, NoteScope>()
   visitedInlines = new WeakSet<IRInline>()
   kinds = new Map<NodeId, string>()
+  /** 有序列项候选（文档序）；只有被 crossRef 引用者才会在 labelReferencedListItems 里获得标签 */
+  listItems: ListItemCandidate[] = []
+  /** 当前列项的有序祖先标记（嵌套列表的标记路径用）；无序祖先不贡献标记 */
+  listMarkerPath: string[] = []
   targetTexts = new Map<NodeId, string>()
   typedRefs: { targetId: NodeId; fromId: NodeId; expectedKind: string; refKind: 'crossRef' | 'bibRef' | 'termRef' }[] = []
   /** note/example 的 xmlId 全局序号（按文档顺序，确定性） */
@@ -205,13 +218,23 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
       ctx.registerId(block.id)
       visitInlines(block.content, block.id, ctx, forbiddenContainer)
       break
-    case 'list':
+    case 'list': {
       ctx.registerId(block.id)
-      for (const item of block.items) {
+      // 只有 alpha / number / roman 有列项标记；无序列项与 romanUpper 不赋标签（对它们的引用照旧 dangling-xref）。
+      const ordered = block.listType === 'alpha' || block.listType === 'number' || block.listType === 'roman'
+      const inheritedPath = ctx.listMarkerPath
+      block.items.forEach((item, index) => {
         ctx.registerId(item.id)
+        ctx.kinds.set(item.id, 'listItem')
+        const marker = !ordered ? ''
+          : ctx.strategy.listItem ? ctx.strategy.listItem(block.listType, index + 1) : builtinListItem(block.listType, index + 1)
+        ctx.listMarkerPath = marker ? [...inheritedPath, marker] : inheritedPath
+        if (marker) ctx.listItems.push({ id: item.id, marker, markerPath: ctx.listMarkerPath.join(' '), scopeKey })
         for (const child of item.content) visitBlock(child, scopeKey, ctx, forbiddenContainer)
-      }
+      })
+      ctx.listMarkerPath = inheritedPath
       break
+    }
     case 'table': {
       labelFigureOrTable(block.id, 'tab', ctx)
       const previousTable = ctx.tableFootnotes
@@ -500,6 +523,30 @@ function labelNotesAndExamples(ctx: ResolveCtx): void {
   }
 }
 
+// ---------- 列项标签（仅被引用者） ----------
+
+/**
+ * 给被 crossRef 引用的有序列项赋标签（WP8.M / G4，设计 §3.2）：
+ * label = 本项标记（"a)"），xmlId = li_<k>（k 为被引用列项的文档序），
+ * refText = 容器编号 + 空格 + 标记路径（"5.2 a)"、"5.2 a) 1)"）。
+ * 容器没有编号（前言/引言、注/示例内尚未赋号的作用域）时只写标记路径。
+ * 必须在 checkTypedReferences 之前：否则类型正确但无标签的目标会被补成 ext_ 占位标签。
+ * 未被引用的列项保持无标签，这样现有文档的 HTML/DOCX 输出不新增任何 id。
+ */
+function labelReferencedListItems(ctx: ResolveCtx): void {
+  const referenced = new Set<NodeId>()
+  for (const { targetId, typed } of ctx.xrefs) if (!typed) referenced.add(targetId)
+  if (referenced.size === 0) return
+  let seq = 0
+  const labeled = new Set<NodeId>()
+  for (const item of ctx.listItems) {
+    if (!referenced.has(item.id) || labeled.has(item.id)) continue
+    labeled.add(item.id)
+    const container = ctx.labels[item.scopeKey]?.label
+    ctx.setLabel(item.id, item.marker, `li_${++seq}`, container ? `${container} ${item.markerPath}` : item.markerPath)
+  }
+}
+
 // ---------- 参考文献 ----------
 
 function resolveBibliography(doc: IRDoc, ctx: ResolveCtx): NodeId[] {
@@ -660,8 +707,9 @@ function checkTypedReferences(ctx: ResolveCtx): void {
     if (ref.refKind === 'crossRef' && !ctx.seenIds.has(ref.targetId)) continue
     if (actualKind !== ref.expectedKind) {
       ctx.problems.push({ code: 'dangling-typed-ref', nodeId: ref.fromId, severity: 'error', message: `引用目标「${ref.targetId}」应为 ${ref.expectedKind}，实际为 ${actualKind ?? '不存在'}` })
-    } else if (!ctx.labels[ref.targetId]) {
+    } else if (!ctx.labels[ref.targetId] && actualKind !== 'listItem') {
       // Explicit typed targets can reference entities without a numbered label.
+      // 列项是例外：无序列项与 romanUpper 没有编号，不补占位标签，让 checkXrefs 报「没有编号」的 dangling-xref。
       ctx.setLabel(ref.targetId, '', stableExtensionXmlId(ref.targetId), ctx.targetTexts.get(ref.targetId) ?? ref.targetId)
     }
   }
@@ -720,6 +768,8 @@ export function resolve(doc: IRDoc, strategy: NumberingStrategy = gbT11Strategy)
   const bibliographyOrder = resolveBibliography(doc, ctx)
   visitIndexInlines(doc.index, ctx)
   checkIndexTargets(indexTargets, ctx)
+  // 参考文献与索引内的引用此时都已进入 ctx.xrefs；必须先于 checkTypedReferences（见函数注释）。
+  labelReferencedListItems(ctx)
   checkTypedReferences(ctx)
   labelNotesAndExamples(ctx)
   checkXrefs(ctx)

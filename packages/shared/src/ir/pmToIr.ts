@@ -175,7 +175,7 @@ const REF_KIND_MAP: Record<string, NonNullable<Extract<IRMark, { type: 'crossRef
   chapter: 'chapter', clause: 'clause', appendix: 'appendix', figure: 'figure',
   table: 'table', formula: 'formula', note: 'note', example: 'example',
   bibEntry: 'bibliography', bibliography: 'bibliography', term: 'term',
-  paragraph: 'paragraph', index: 'index',
+  paragraph: 'paragraph', index: 'index', listItem: 'listItem',
 }
 
 function styleFromAttrs(attrs: Record<string, unknown> | undefined): IRInlineStyle | undefined {
@@ -1340,7 +1340,7 @@ function plainRecord(value: unknown): Record<string, unknown> | undefined {
 
 const IR_REFERENCE_TARGET_KINDS = [
   'chapter', 'clause', 'appendix', 'figure', 'table', 'formula',
-  'note', 'example', 'bibliography', 'term', 'index', 'paragraph',
+  'note', 'example', 'bibliography', 'term', 'index', 'paragraph', 'listItem',
 ] as const satisfies readonly IRReferenceTargetKind[]
 
 function isIRReferenceTargetKind(value: unknown): value is IRReferenceTargetKind {

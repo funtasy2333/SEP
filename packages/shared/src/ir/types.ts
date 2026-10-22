@@ -493,6 +493,7 @@ export type IRMark =
 export type IRReferenceTargetKind =
   | 'chapter' | 'clause' | 'appendix' | 'figure' | 'table' | 'formula'
   | 'note' | 'example' | 'bibliography' | 'term' | 'index' | 'paragraph'
+  | 'listItem'
 
 export interface IRProblem {
   code: 'hanging-paragraph' | 'dangling-xref' | 'heading-skip'
@@ -551,4 +552,10 @@ export interface NumberingStrategy {
   example(index: number, totalInScope: number): string
   /** "[1]" */
   bibEntry(seq: number): string
+  /**
+   * 有序列项标记（WP8.M / G4）：alpha -> "a)"，number -> "1)"，roman -> "i)"。
+   * 可选：缺省时 Resolver 用内置实现（strategies.listItem），不破坏既有第三方策略。
+   * 仅 alpha / number / roman 会被询问；返回空串表示该类型不编号。index 从 1 起。
+   */
+  listItem?(listType: IRList['listType'], index: number): string
 }

@@ -55,7 +55,7 @@ const nonEmpty = <T>(value: T[] | undefined): T[] => value ?? []
 const targetKinds: Record<string, string> = {
   chapter: 'chapter', clause: 'clause', appendix: 'appendix', figure: 'figure',
   table: 'table', formula: 'formula', note: 'note', example: 'example',
-  bibliography: 'bibEntry', term: 'term', index: 'index', paragraph: 'paragraph',
+  bibliography: 'bibEntry', term: 'term', index: 'index', paragraph: 'paragraph', listItem: 'listItem',
 }
 
 function markToPm(mark: IRTextMark): { type: string; attrs?: PmAttrs } {
