@@ -1,5 +1,5 @@
 import type {
-  IRAppendix, IRBlock, IRChapter, IRClause, IRClauseChild, IRDoc, IRInline, IRMark, IRTermEntry, ResolveResult,
+  IRAppendix, IRBlock, IRChapter, IRClauseChild, IRDoc, IRInline, IRMark, IRTermEntry, ResolveResult,
 } from '../ir/types'
 
 export type ContentArea = 'body' | 'terms' | 'normativeReferences' | 'appendix' | 'frontMatter' | 'bibliography' | 'index' | 'note' | 'example' | 'footnote' | 'tableFootnote'
@@ -15,6 +15,7 @@ export interface IndexedText {
   chapterId?: string
   appendixId?: string
   containerId?: string
+  objectAncestors?: string[]
 }
 
 export interface IndexedReference {
@@ -30,6 +31,7 @@ export interface IndexedReference {
   chapterId?: string
   appendixId?: string
   containerId?: string
+  objectAncestors?: string[]
 }
 
 export interface IndexedTerm {
@@ -47,6 +49,7 @@ export interface IndexedObject {
   chapterId?: string
   appendixId?: string
   containerId?: string
+  objectAncestors?: string[]
 }
 
 export interface IndexedMention {
@@ -63,6 +66,7 @@ export interface IndexedMention {
   appendixId?: string
   /** A table cell or other block container that owns the source text. */
   containerId?: string
+  objectAncestors?: string[]
 }
 
 export interface IndexedSequenceItem {
@@ -73,11 +77,13 @@ export interface IndexedSequenceItem {
   chapterId?: string
   appendixId?: string
   containerId?: string
+  objectAncestors?: string[]
   text?: IndexedText
   objectKind?: 'figure' | 'table'
 }
 
 export interface ContentIndex {
+  resolution: ResolveResult
   texts: IndexedText[]
   references: IndexedReference[]
   mentions: IndexedMention[]
@@ -89,8 +95,10 @@ export interface ContentIndex {
   mentionsByTarget: Map<string, IndexedMention[]>
 }
 
-function inlineText(inlines: IRInline[]): string {
-  return inlines.map(run => run.footnote ? '' : run.text).join('')
+function inlineText(inlines: IRInline[], maskCode = false): string {
+  return inlines.map(run => run.footnote ? ''
+    : maskCode && run.marks?.some(mark => mark.type === 'code') ? '\uFFFC'.repeat(run.text.length)
+      : run.text).join('')
 }
 
 function addText(index: ContentIndex, value: IndexedText): IndexedText {
@@ -114,18 +122,19 @@ function addInlines(
   context: Omit<IndexedText, 'text'>,
   includeReference = true,
 ): IndexedText {
-  const text = inlineText(inlines)
+  const text = inlineText(inlines, true)
   const value = addText(index, { ...context, text })
   if (includeReference) {
     let offset = 0
     for (const run of inlines) {
-      const shown = run.footnote ? '' : run.text
+      const isCode = run.marks?.some(mark => mark.type === 'code') === true
+      const shown = run.footnote ? '' : isCode ? '\uFFFC'.repeat(run.text.length) : run.text
       const from = offset
       const to = from + shown.length
-      if (!run.footnote) {
+      if (!run.footnote && !isCode) {
         for (const mark of run.marks ?? []) {
           const ref = markReference(mark)
-          if (ref) index.references.push({ ...ref, nodeId: context.nodeId, path: context.path, area: context.area, role: context.role, text: shown, from, to, chapterId: context.chapterId, appendixId: context.appendixId, containerId: context.containerId })
+          if (ref) index.references.push({ ...ref, nodeId: context.nodeId, path: context.path, area: context.area, role: context.role, text: shown, from, to, chapterId: context.chapterId, appendixId: context.appendixId, containerId: context.containerId, objectAncestors: context.objectAncestors })
         }
       }
       if (run.footnote) addInlines(index, run.footnote.content, { ...context, nodeId: run.footnote.id, path: `${context.path}.footnote`, area: 'footnote', role: 'footnote' })
@@ -160,7 +169,7 @@ function addSequenceItem(index: ContentIndex, key: string, item: IndexedSequence
   index.sequences.set(key, sequence)
 }
 
-function visitFootnote(index: ContentIndex, note: { id: string; content: IRInline[] }, path: string, context: Pick<IndexedText, 'chapterId' | 'appendixId' | 'containerId'>, tableFootnote = false): void {
+function visitFootnote(index: ContentIndex, note: { id: string; content: IRInline[] }, path: string, context: Pick<IndexedText, 'chapterId' | 'appendixId' | 'containerId' | 'objectAncestors'>, tableFootnote = false): void {
   const area: ContentArea = tableFootnote ? 'tableFootnote' : 'footnote'
   addInlines(index, note.content, { nodeId: note.id, path, area, role: tableFootnote ? 'tableFootnote' : 'footnote', ...context })
 }
@@ -169,7 +178,7 @@ function visitTerm(
   index: ContentIndex,
   entry: IRTermEntry,
   path: string,
-  context: Pick<IndexedText, 'chapterId' | 'appendixId' | 'containerId'>,
+  context: Pick<IndexedText, 'chapterId' | 'appendixId' | 'containerId' | 'objectAncestors'>,
 ): void {
   const name = inlineText(entry.term).normalize('NFKC').trim()
   addObject(index, { nodeId: entry.id, path, kind: 'term', label: undefined, area: 'terms', ...context })
@@ -194,22 +203,25 @@ function visitBlock(
   path: string,
   area: ContentArea,
   nestedRole: TextRole | undefined,
-  context: Pick<IndexedText, 'chapterId' | 'appendixId' | 'containerId'>,
+  context: Pick<IndexedText, 'chapterId' | 'appendixId' | 'containerId' | 'objectAncestors'>,
 ): void {
   switch (block.kind) {
     case 'paragraph':
       addInlines(index, block.content, { nodeId: block.id, path, area, role: nestedRole ?? (area === 'terms' ? 'termDefinition' : area === 'note' ? 'note' : area === 'example' ? 'example' : area === 'footnote' ? 'footnote' : area === 'tableFootnote' ? 'tableFootnote' : 'paragraph'), ...context })
       break
     case 'list':
-      block.items.forEach((item, i) => item.content.forEach((child, j) => {
-        if (child.kind === 'paragraph') addInlines(index, child.content, { nodeId: child.id, path: `${path}.items[${i}].content[${j}]`, area, role: nestedRole ?? 'listItem', ...context })
-        else visitBlock(index, child, `${path}.items[${i}].content[${j}]`, area, nestedRole ?? 'listItem', context)
-      }))
+      block.items.forEach((item, i) => {
+        const childPath = `${path}.items[${i}].content`
+        visitChildren(index, item.content, childPath, childPath, area, { ...context, containerId: item.id }, index.resolution, nestedRole ?? 'listItem')
+      })
       break
     case 'table':
       addInlines(index, block.caption, { nodeId: block.id, path: `${path}.caption`, area, role: 'caption', ...context }, false)
       if (block.captionEn) addInlines(index, block.captionEn, { nodeId: block.id, path: `${path}.captionEn`, area, role: 'caption', ...context }, false)
-      block.rows.forEach((row, r) => row.cells.forEach((cell, c) => cell.content.forEach((child, b) => visitBlock(index, child, `${path}.rows[${r}].cells[${c}].content[${b}]`, area, 'tableCell', { ...context, containerId: block.id }))))
+      block.rows.forEach((row, r) => row.cells.forEach((cell, c) => {
+        const childPath = `${path}.rows[${r}].cells[${c}].content`
+        visitChildren(index, cell.content, childPath, childPath, area, { ...context, containerId: block.id, objectAncestors: [...(context.objectAncestors ?? []), block.id] }, index.resolution, 'tableCell')
+      }))
       block.notes.forEach((note, i) => visitBlock(index, note, `${path}.notes[${i}]`, 'note', 'note', { ...context, containerId: block.id }))
       block.footnotes?.forEach((note, i) => visitFootnote(index, note, `${path}.footnotes[${i}]`, { ...context, containerId: block.id }, true))
       break
@@ -235,7 +247,7 @@ function visitBlock(
       break
     case 'warning':
     case 'quote':
-      block.content.forEach((child, i) => visitBlock(index, child, `${path}.content[${i}]`, area, 'other', context))
+      visitChildren(index, block.content, `${path}.content`, `${path}.content`, area, { ...context, containerId: block.id }, index.resolution, nestedRole)
       break
     case 'code':
       addText(index, { nodeId: block.id, path, area, role: 'code', text: block.text, ...context })
@@ -249,8 +261,9 @@ function visitChildren(
   key: string,
   path: string,
   area: ContentArea,
-  context: Pick<IndexedText, 'chapterId' | 'appendixId' | 'containerId'>,
+  context: Pick<IndexedText, 'chapterId' | 'appendixId' | 'containerId' | 'objectAncestors'>,
   result: ResolveResult,
+  nestedRole?: TextRole,
 ): void {
   children.forEach((child, i) => {
     const childPath = `${path}[${i}]`
@@ -266,7 +279,7 @@ function visitChildren(
     } else {
       const item: IndexedSequenceItem = { kind: child.kind, nodeId: child.id, path: childPath, area, ...context, objectKind: child.kind === 'figure' || child.kind === 'table' ? child.kind : undefined }
       if (child.kind === 'paragraph') {
-        const text = addInlines(index, child.content, { nodeId: child.id, path: childPath, area, role: area === 'terms' ? 'termDefinition' : 'paragraph', ...context })
+        const text = addInlines(index, child.content, { nodeId: child.id, path: childPath, area, role: nestedRole ?? (area === 'terms' ? 'termDefinition' : 'paragraph'), ...context })
         item.text = text
       }
       addSequenceItem(index, key, item)
@@ -275,7 +288,7 @@ function visitChildren(
         addObject(index, { nodeId: child.id, path: childPath, kind, label: result.labels[child.id]?.label, area, ...context })
       }
       if (child.kind === 'formula') addObject(index, { nodeId: child.id, path: childPath, kind: 'formula', label: result.labels[child.id]?.label, area, ...context })
-      if (child.kind !== 'paragraph') visitBlock(index, child, childPath, area, undefined, context)
+      if (child.kind !== 'paragraph') visitBlock(index, child, childPath, area, nestedRole, context)
     }
   })
 }
@@ -301,9 +314,18 @@ function compactWithOffsets(text: string): { compact: string; from: number[]; to
   return { compact: compact.toLocaleUpperCase('en-US'), from, to }
 }
 
-function isExternalFileMention(text: string, from: number): boolean {
-  const prefix = text.slice(Math.max(0, from - 80), from).normalize('NFKC').replace(/[\s\u3000]/g, '')
-  return /(?:GB\/T|GB\/Z|GB|ISO\/IEC|ISO|IEC|YY\/T|WS\/T|DB\d{2}\/T)[A-Z0-9./:—-]+.*(?:中的|中|的)$/i.test(prefix)
+function isExternalFileMention(text: string, from: number, to: number): boolean {
+  const before = text.slice(0, from)
+  const sentenceStart = Math.max(...['。', '！', '？', '；', ';', '\n'].map(separator => before.lastIndexOf(separator))) + 1
+  const prefix = before.slice(sentenceStart).normalize('NFKC').replace(/[\s\u3000]/g, '')
+  const external = /(?:GB\/T|GB\/Z|GB|ISO\/IEC|ISO|IEC|YY\/T|WS\/T|DB\d{2}\/T|T\/[A-Z]+)[A-Z0-9./:—-]+.*?(?:中的|中|的)/ig
+  const matches = [...prefix.matchAll(external)]
+  const lastExternal = matches[matches.length - 1]
+  const localAt = Math.max(prefix.lastIndexOf('本文件'), prefix.lastIndexOf('本标准'), prefix.lastIndexOf('本文档'))
+  if (lastExternal && localAt < (lastExternal.index ?? 0)) return true
+  if (localAt >= 0) return false
+  const suffix = text.slice(to).normalize('NFKC')
+  return /^\s*\([^()。！？]{0,160}(?:GB\s*\/\s*T|GB\s*\/\s*Z|GB|ISO\s*\/\s*IEC|ISO|IEC|YY\s*\/\s*T|WS\s*\/\s*T|DB\d{2}\s*\/\s*T|T\s*\/\s*[A-Z]+)\s*\d[^()。！？]*\)/i.test(suffix)
 }
 
 function addLiteralMentions(index: ContentIndex): IndexedMention[] {
@@ -316,7 +338,7 @@ function addLiteralMentions(index: ContentIndex): IndexedMention[] {
   const recordTarget = (entry: IndexedText, mapped: ReturnType<typeof compactWithOffsets>, key: string, wholeFrom: number, wholeTo: number, expectedKind?: IndexedObject['kind']) => {
     const from = mapped.from[wholeFrom]
     const to = mapped.to[wholeTo - 1]
-    if (from === undefined || to === undefined || isExternalFileMention(entry.text, from)) return
+    if (from === undefined || to === undefined || isExternalFileMention(entry.text, from, to)) return
     const targets = objectLabels.get(key.normalize('NFKC').replace(/[\s\u3000]/g, '').toLocaleUpperCase('en-US')) ?? []
     if (targets.length !== 1) return
     const target = targets[0]!
@@ -334,12 +356,13 @@ function addLiteralMentions(index: ContentIndex): IndexedMention[] {
       chapterId: entry.chapterId,
       appendixId: entry.appendixId,
       containerId: entry.containerId,
+      objectAncestors: entry.objectAncestors,
     })
   }
   const numberSource = '(?:[A-Z]{1,2}\\.)?\\d+(?:\\.\\d+)*'
   const literalPatterns: { regex: RegExp; kind: IndexedObject['kind']; keyPrefix: string; explicitPrefix: boolean }[] = [
-    { regex: new RegExp(`(图)(${numberSource})(?![A-Z0-9.])`, 'g'), kind: 'figure', keyPrefix: '图', explicitPrefix: true },
-    { regex: new RegExp(`(表)(${numberSource})(?![A-Z0-9.])`, 'g'), kind: 'table', keyPrefix: '表', explicitPrefix: true },
+    { regex: new RegExp(`(图)(${numberSource})(?![0-9.])`, 'g'), kind: 'figure', keyPrefix: '图', explicitPrefix: true },
+    { regex: new RegExp(`(表)(${numberSource})(?![0-9.])`, 'g'), kind: 'table', keyPrefix: '表', explicitPrefix: true },
     { regex: /附录([A-Z]{1,2})(?![A-Z0-9])/g, kind: 'appendix', keyPrefix: '附录', explicitPrefix: true },
     { regex: new RegExp(`(?:公式|式)?\\((${numberSource})(?![A-Z0-9.])\\)`, 'g'), kind: 'formula', keyPrefix: '(', explicitPrefix: false },
   ]
@@ -373,6 +396,9 @@ function addLiteralMentions(index: ContentIndex): IndexedMention[] {
       for (let match = pattern.regex.exec(mapped.compact); match; match = pattern.regex.exec(mapped.compact)) {
         const wholeFrom = match.index
         const wholeTo = wholeFrom + match[0].length
+        const sourceEnd = mapped.to[wholeTo - 1]
+        if ((pattern.kind === 'figure' || pattern.kind === 'table') && sourceEnd !== undefined
+          && /^[A-Z0-9.]/i.test(entry.text.slice(sourceEnd, sourceEnd + 1).normalize('NFKC'))) continue
         if (rangeSpans.some(span => span.kind === pattern.kind && wholeFrom >= span.from && wholeTo <= span.to)) continue
         let key: string
         if (pattern.kind === 'appendix') key = `附录${match[1]}`
@@ -404,6 +430,7 @@ function buildMentions(index: ContentIndex): IndexedMention[] {
       chapterId: reference.chapterId,
       appendixId: reference.appendixId,
       containerId: reference.containerId,
+      objectAncestors: reference.objectAncestors,
     }]
   })
   const literal = addLiteralMentions(index)
@@ -461,7 +488,7 @@ function buildMentions(index: ContentIndex): IndexedMention[] {
 }
 
 export function buildContentIndex(doc: IRDoc, result: ResolveResult): ContentIndex {
-  const index: ContentIndex = { texts: [], references: [], mentions: [], terms: [], objects: [], sequences: new Map(), nodeAreas: new Map(), labels: new Map(), mentionsByTarget: new Map() }
+  const index: ContentIndex = { resolution: result, texts: [], references: [], mentions: [], terms: [], objects: [], sequences: new Map(), nodeAreas: new Map(), labels: new Map(), mentionsByTarget: new Map() }
   doc.front.foreword.forEach((block, i) => visitBlock(index, block, `front.foreword[${i}]`, 'frontMatter', undefined, {}))
   doc.front.introduction.forEach((block, i) => visitBlock(index, block, `front.introduction[${i}]`, 'frontMatter', undefined, {}))
   doc.body.forEach((chapter: IRChapter, chapterIndex) => {
@@ -497,4 +524,3 @@ export function buildContentIndex(doc: IRDoc, result: ResolveResult): ContentInd
 export function textForInlines(inlines: IRInline[]): string {
   return inlineText(inlines)
 }
-

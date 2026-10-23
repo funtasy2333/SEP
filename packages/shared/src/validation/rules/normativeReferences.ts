@@ -87,4 +87,3 @@ export function validateNormativeReferences(doc: IRDoc): NormativeReferenceAnaly
     : '仅检查有限的章位置、清单前序号、标识语法和名称格式；不查询出版物数据库、时效性或内容准确性。'
   return { issues, coverage: { status: 'partial', reason } }
 }
-

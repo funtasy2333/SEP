@@ -121,4 +121,3 @@ export function validateStructure(doc: IRDoc): ValidationIssue[] {
   doc.appendices.forEach((appendix, index) => appendixRules(issues, appendix, `appendices[${index}]`))
   return issues
 }
-

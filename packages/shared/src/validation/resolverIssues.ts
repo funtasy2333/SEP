@@ -86,7 +86,7 @@ function issueFor(problem: IRProblem, result: ResolveResult, index: ContentIndex
     suggestion,
     basis: category === 'structure' ? structureBasis : referenceBasis,
     evidence: [{ nodeId, path, role: result.labels[problem.nodeId ?? ''] ? 'resolved-target' : 'source', text: problem.message }],
-    identity: documentLevel || nodeCandidates.length > 1 ? problem.message : undefined,
+    identity: `${problem.code}:${problem.message}`,
   })
 }
 
@@ -100,4 +100,3 @@ export function mapResolverIssues(result: ResolveResult, index: ContentIndex): V
   }
   return issues
 }
-

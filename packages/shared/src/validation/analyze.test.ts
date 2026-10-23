@@ -54,7 +54,7 @@ describe('analyzeDocument', () => {
     ], [appendix('app-a', [para('app-lead', '附录说明。'), clause('app-c1', [para('app-p', '附录内容。')])])])
 
     const hanging = issuesFor(ir, 'structure.hanging-paragraph')
-    expect(hanging.map(issue => issue.nodeId)).toEqual(['app-lead', 'symbols-lead', 'ordinary-lead'])
+    expect(hanging.map(issue => issue.nodeId)).toEqual(['symbols-lead', 'ordinary-lead', 'app-lead'])
     expect(analyzeDocument(ir).resolution.problems.filter(problem => problem.code === 'hanging-paragraph')).toHaveLength(4)
     expect(hanging.every(issue => issue.severity === 'warning' && issue.basis.kind === 'project-convention')).toBe(true)
   })

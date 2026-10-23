@@ -81,4 +81,3 @@ export function analyzeIntroductions(index: ContentIndex): IntroductionAnalysis 
 }
 
 export const introductionBasis = objectBasis
-

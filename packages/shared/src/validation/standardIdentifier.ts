@@ -38,4 +38,3 @@ export function parseStandardIdentifier(value: string): ParsedStandardIdentifier
     dated,
   }
 }
-

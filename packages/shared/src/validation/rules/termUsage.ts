@@ -32,9 +32,13 @@ function compact(value: string): CompactText {
     const source = String.fromCodePoint(point)
     const end = offset + source.length
     const mapped = source.normalize('NFKC').toLocaleLowerCase('en-US')
-    if (!/\s/u.test(mapped)) {
-      normalized += mapped
-      for (let i = 0; i < mapped.length; i++) {
+    const isSpace = /\s/u.test(mapped)
+    const following = isSpace ? value.slice(end).match(/^\s*(\S)/u)?.[1]?.normalize('NFKC') ?? '' : ''
+    const keepWordSpace = isSpace && /[a-z0-9_]$/i.test(normalized) && /^[a-z0-9_]/i.test(following)
+    if (!isSpace || keepWordSpace) {
+      const emitted = keepWordSpace ? ' ' : mapped
+      normalized += emitted
+      for (let i = 0; i < emitted.length; i++) {
         from.push(offset)
         to.push(end)
       }
@@ -49,8 +53,8 @@ function asciiBoundaryOkay(text: CompactText, term: string, start: number, end: 
   const sourceFrom = text.from[start]
   const sourceTo = text.to[end - 1]
   if (sourceFrom === undefined || sourceTo === undefined) return false
-  if (/^[a-z]/i.test(term) && sourceFrom > 0 && /[a-z0-9_]/i.test(text.source[sourceFrom - 1]!)) return false
-  if (/[a-z]$/i.test(term) && sourceTo < text.source.length && /[a-z0-9_]/i.test(text.source[sourceTo]!)) return false
+  if (/^[a-z]/i.test(term) && sourceFrom > 0 && /[a-z0-9_]/i.test(text.source[sourceFrom - 1]!.normalize('NFKC'))) return false
+  if (/[a-z]$/i.test(term) && sourceTo < text.source.length && /[a-z0-9_]/i.test(text.source[sourceTo]!.normalize('NFKC'))) return false
   return true
 }
 
@@ -124,6 +128,15 @@ function findHits(text: IndexedText, root: TrieNode): { hits: TermHit[]; compact
 
 export function validateTermUsage(index: ContentIndex): ValidationIssue[] {
   const resolvable = index.terms.filter(term => term.name.trim())
+  const byName = new Map<string, IndexedTerm[]>()
+  for (const term of resolvable) {
+    const name = compact(term.name).value
+    const entries = byName.get(name) ?? []
+    entries.push(term)
+    byName.set(name, entries)
+  }
+  const ambiguous = new Set([...byName.entries()].filter(([, terms]) => terms.length > 1).map(([name]) => name))
+  const ambiguousEvidence = new Map<string, ReturnType<typeof evidence>[]>()
   const trie = createTrie(resolvable)
   const counts = new Map<string, number>(resolvable.map(term => [term.nodeId, 0]))
   const evidenceByTerm = new Map<string, ReturnType<typeof evidence>[]>(resolvable.map(term => [term.nodeId, []]))
@@ -139,21 +152,21 @@ export function validateTermUsage(index: ContentIndex): ValidationIssue[] {
   for (const text of eligible) {
     const { hits, compactText } = findHits(text, trie)
     const structuredTerms = text.nodeId ? structuredByNode.get(text.nodeId) ?? [] : []
-    const structuredByTarget = new Map<string, typeof structuredTerms>()
-    for (const mention of structuredTerms) {
-      const values = structuredByTarget.get(mention.targetId) ?? []
-      values.push(mention)
-      structuredByTarget.set(mention.targetId, values)
-    }
     for (const hit of hits) {
       const from = compactText.from[hit.start]
       const to = compactText.to[hit.end - 1]
       if (from === undefined || to === undefined) continue
-      const duplicatedByReference = (structuredByTarget.get(hit.term.nodeId) ?? []).some(mention =>
+      const duplicatedByReference = structuredTerms.some(mention =>
         mention.from !== undefined && mention.to !== undefined
           && mention.from < to && from < mention.to,
       )
       if (duplicatedByReference) continue
+      if (ambiguous.has(compact(hit.term.name).value)) {
+        const matches = ambiguousEvidence.get(hit.term.nodeId) ?? []
+        matches.push(evidence(text.nodeId, text.text.slice(from, to), { from, to, path: text.path, role: text.role }))
+        ambiguousEvidence.set(hit.term.nodeId, matches)
+        continue
+      }
       counts.set(hit.term.nodeId, (counts.get(hit.term.nodeId) ?? 0) + 1)
       evidenceByTerm.get(hit.term.nodeId)?.push(evidence(text.nodeId, text.text.slice(from, to), { from, to, path: text.path, role: text.role }))
     }
@@ -181,6 +194,17 @@ export function validateTermUsage(index: ContentIndex): ValidationIssue[] {
     }
     const count = counts.get(term.nodeId) ?? 0
     if (count >= 2) continue
+    const ambiguousHits = ambiguousEvidence.get(term.nodeId)
+    if (ambiguousHits?.length) {
+      issues.push(makeIssue({
+        ruleId: 'coverage.term-name-ambiguous', severity: 'warning', category: 'coverage', nodeId: term.nodeId, path: term.path,
+        message: `术语「${name}」存在同名定义；正文的字面命中无法唯一对应，仅确认 ${count} 次结构化引用。`,
+        suggestion: '核对同名术语的含义，并用明确指向相应术语条目的引用区分；本次不将歧义命中计为通过。',
+        basis: { kind: 'system', text: '同名字面命中不能同时证明各个定义分别被使用。' },
+        evidence: ambiguousHits, count, threshold: 2,
+      }))
+      continue
+    }
     const nameMatches = evidenceByTerm.get(term.nodeId) ?? []
     issues.push(makeIssue({
       ruleId: 'term.minimum-usage', severity: 'warning', category: 'terms', nodeId: term.nodeId, path: term.path,
@@ -194,4 +218,3 @@ export function validateTermUsage(index: ContentIndex): ValidationIssue[] {
   }
   return issues
 }
-

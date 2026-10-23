@@ -25,7 +25,7 @@ function objectIntroductionAndMentionIssues(index: ContentIndex, introductions: 
     if (object.kind !== 'figure' && object.kind !== 'table') continue
     const label = object.label ?? (object.kind === 'figure' ? '图表' : '表格')
     const mentions = (index.mentionsByTarget.get(object.nodeId) ?? []).filter(mention =>
-      isRelevantObjectMention(object, mention) && mention.containerId !== object.nodeId,
+      isRelevantObjectMention(object, mention) && mention.containerId !== object.nodeId && !mention.objectAncestors?.includes(object.nodeId),
     )
     const isMentioned = mentions.length > 0
     const introduction = introductions.objectIntroductions.get(object.nodeId)
@@ -68,4 +68,3 @@ function appendixMentionIssues(index: ContentIndex): ValidationIssue[] {
 export function validateMentions(index: ContentIndex, introductions: IntroductionAnalysis): ValidationIssue[] {
   return [...objectIntroductionAndMentionIssues(index, introductions), ...appendixMentionIssues(index)]
 }
-
