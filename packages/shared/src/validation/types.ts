@@ -3,6 +3,7 @@ import type { ResolveResult } from '../ir/types'
 export type ValidationSeverity = 'error' | 'warning' | 'suggestion'
 export type ValidationCoverageStatus = 'checked' | 'partial' | 'deferred' | 'excluded' | 'not-applicable'
 export type ValidationBasisKind = 'standard' | 'project-convention' | 'system'
+export type ValidationCategory = 'structure' | 'introductions' | 'mentions' | 'terms' | 'references' | 'coverage'
 
 export interface ValidationEvidence {
   nodeId: string | null
@@ -25,7 +26,7 @@ export interface ValidationIssue {
   id: string
   ruleId: string
   severity: ValidationSeverity
-  category: 'structure' | 'introductions' | 'mentions' | 'terms' | 'references' | 'coverage'
+  category: ValidationCategory
   nodeId: string | null
   path?: string
   message: string
