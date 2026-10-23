@@ -7,9 +7,9 @@ export interface ParsedStandardIdentifier {
   dated?: boolean
 }
 
-const FAMILY_SOURCE = '(?:ISO\\s*\\/\\s*IEC|GB\\s*\\/\\s*T|GB\\s*\\/\\s*Z|YY\\s*\\/\\s*T|WS\\s*\\/\\s*T|DB\\s*\\d{2}\\s*\\/\\s*T|JB\\s*\\/\\s*T|QC\\s*\\/\\s*T|DL\\s*\\/\\s*T|NY\\s*\\/\\s*T|SN\\s*\\/\\s*T|GA\\s*\\/\\s*T|CJJ\\s*\\/\\s*T|T\\s*\\/\\s*[A-Z0-9\\u3400-\\u9fff.-]+|ISO|IEC|GB|JGJ)'
-const NORMALIZED_FAMILY = new RegExp(`^${FAMILY_SOURCE}(?=\\s|$)`, 'i')
-const IDENTIFIER = new RegExp(`^(${FAMILY_SOURCE})\\s+(\\d+(?:\\.\\d+)*(?:-(?!\\d{4}(?:\\b|$))\\d+)?)(?:(?:\\s*[:：]\\s*|\\s*[-—–]\\s*)(\\d{4}))?(?:\\s+|$)(.*)$`, 'i')
+export const STANDARD_IDENTIFIER_FAMILY_SOURCE = '(?:ISO\\s*\\/\\s*IEC|GB\\s*\\/\\s*T|GB\\s*\\/\\s*Z|YY\\s*\\/\\s*T|WS\\s*\\/\\s*T|DB\\s*\\d{2}\\s*\\/\\s*T|JB\\s*\\/\\s*T|QC\\s*\\/\\s*T|DL\\s*\\/\\s*T|NY\\s*\\/\\s*T|SN\\s*\\/\\s*T|GA\\s*\\/\\s*T|CJJ\\s*\\/\\s*T|T\\s*\\/\\s*[A-Z0-9\\u3400-\\u9fff.-]+|ISO|IEC|GB|JGJ)'
+const NORMALIZED_FAMILY = new RegExp(`^${STANDARD_IDENTIFIER_FAMILY_SOURCE}(?=\\s|$)`, 'i')
+const IDENTIFIER = new RegExp(`^(${STANDARD_IDENTIFIER_FAMILY_SOURCE})\\s+(\\d+(?:\\.\\d+)*(?:-(?!\\d{4}(?:\\b|$))\\d+)?)(?:(?:\\s*[:：]\\s*|\\s*[-—–]\\s*)(\\d{4}))?(?:\\s+|$)(.*)$`, 'i')
 
 export function normalizeStandardText(value: string): string {
   return value.normalize('NFKC').replace(/\u00a0/g, ' ').replace(/[‐‑‒–−]/g, '—')

@@ -1,6 +1,7 @@
 import type {
   IRAppendix, IRBlock, IRChapter, IRClauseChild, IRDoc, IRInline, IRMark, IRTermEntry, ResolveResult,
 } from '../ir/types'
+import { STANDARD_IDENTIFIER_FAMILY_SOURCE } from './standardIdentifier'
 
 export type ContentArea = 'body' | 'terms' | 'normativeReferences' | 'appendix' | 'frontMatter' | 'bibliography' | 'index' | 'note' | 'example' | 'footnote' | 'tableFootnote'
 export type TextRole = 'paragraph' | 'listItem' | 'tableCell' | 'caption' | 'title' | 'termName' | 'termDefinition' | 'termSource' | 'note' | 'example' | 'footnote' | 'tableFootnote' | 'formula' | 'code' | 'bibliography' | 'index' | 'other'
@@ -97,7 +98,8 @@ export interface ContentIndex {
 
 function inlineText(inlines: IRInline[], maskCode = false): string {
   return inlines.map(run => run.footnote ? ''
-    : maskCode && run.marks?.some(mark => mark.type === 'code') ? '\uFFFC'.repeat(run.text.length)
+    : maskCode && run.formula ? '\uFFFC'
+      : maskCode && run.marks?.some(mark => mark.type === 'code') ? '\uFFFC'.repeat(run.text.length)
       : run.text).join('')
 }
 
@@ -128,10 +130,11 @@ function addInlines(
     let offset = 0
     for (const run of inlines) {
       const isCode = run.marks?.some(mark => mark.type === 'code') === true
-      const shown = run.footnote ? '' : isCode ? '\uFFFC'.repeat(run.text.length) : run.text
+      const isFormula = Boolean(run.formula)
+      const shown = run.footnote ? '' : isFormula ? '\uFFFC' : isCode ? '\uFFFC'.repeat(run.text.length) : run.text
       const from = offset
       const to = from + shown.length
-      if (!run.footnote && !isCode) {
+      if (!run.footnote && !isCode && !isFormula) {
         for (const mark of run.marks ?? []) {
           const ref = markReference(mark)
           if (ref) index.references.push({ ...ref, nodeId: context.nodeId, path: context.path, area: context.area, role: context.role, text: shown, from, to, chapterId: context.chapterId, appendixId: context.appendixId, containerId: context.containerId, objectAncestors: context.objectAncestors })
@@ -318,14 +321,14 @@ function isExternalFileMention(text: string, from: number, to: number): boolean 
   const before = text.slice(0, from)
   const sentenceStart = Math.max(...['。', '！', '？', '；', ';', '\n'].map(separator => before.lastIndexOf(separator))) + 1
   const prefix = before.slice(sentenceStart).normalize('NFKC').replace(/[\s\u3000]/g, '')
-  const external = /(?:GB\/T|GB\/Z|GB|ISO\/IEC|ISO|IEC|YY\/T|WS\/T|DB\d{2}\/T|T\/[A-Z]+)[A-Z0-9./:—-]+.*?(?:中的|中|的)/ig
+  const external = new RegExp(`${STANDARD_IDENTIFIER_FAMILY_SOURCE}[A-Z0-9./:—–-]+.*?(?:中的|中|的)`, 'ig')
   const matches = [...prefix.matchAll(external)]
   const lastExternal = matches[matches.length - 1]
   const localAt = Math.max(prefix.lastIndexOf('本文件'), prefix.lastIndexOf('本标准'), prefix.lastIndexOf('本文档'))
   if (lastExternal && localAt < (lastExternal.index ?? 0)) return true
   if (localAt >= 0) return false
   const suffix = text.slice(to).normalize('NFKC')
-  return /^\s*\([^()。！？]{0,160}(?:GB\s*\/\s*T|GB\s*\/\s*Z|GB|ISO\s*\/\s*IEC|ISO|IEC|YY\s*\/\s*T|WS\s*\/\s*T|DB\d{2}\s*\/\s*T|T\s*\/\s*[A-Z]+)\s*\d[^()。！？]*\)/i.test(suffix)
+  return new RegExp(`^\\s*\\([^()。！？]{0,160}${STANDARD_IDENTIFIER_FAMILY_SOURCE}\\s*\\d[^()。！？]*\\)`, 'i').test(suffix)
 }
 
 function addLiteralMentions(index: ContentIndex): IndexedMention[] {

@@ -1,6 +1,9 @@
 // @vitest-environment node
 import { performance } from 'node:perf_hooks'
 import { describe, expect, it } from 'vitest'
+import { EditorState } from '@tiptap/pm/state'
+import { createDocumentValidationPlugin, documentValidationPluginKey } from '../extensions/plugins/documentValidation'
+import { resolveValidationIssueAnchors } from './anchors'
 import { analyzeDocument, pmToIr, type PMJsonNode } from '@ses/shared'
 import { createEditorSchema, normalizeNodeIds } from '../extensions/editorSchema'
 import { paragraph, phase6Fixture, text } from './__fixtures__/phase6'
@@ -42,6 +45,23 @@ describe('Phase 6 representative document measurements', () => {
       expect(report.coverage.footnotes.status).toBe('excluded')
     }
     expect(JSON.stringify(pm.toJSON())).toBe(before)
+
+    // Exercise a substantial nonempty report through real PM anchors and decoration state.
+    const unintroduced = pm.toJSON() as PMJsonNode
+    const requirements = unintroduced.content!.find(node => node.attrs?.nodeId === 'requirements')!
+    requirements.content = requirements.content!.filter(node => !String(node.attrs?.nodeId ?? '').startsWith('large-lead-'))
+    const problemDoc = schema.nodeFromJSON(unintroduced)
+    const report = analyzeDocument(pmToIr(unintroduced).doc).validation
+    const anchorStart = performance.now()
+    const anchors = resolveValidationIssueAnchors(problemDoc, report.issues)
+    const anchorEnd = performance.now()
+    const state = EditorState.create({ doc: problemDoc, plugins: [createDocumentValidationPlugin()] })
+    const decorated = state.apply(state.tr.setMeta(documentValidationPluginKey, anchors).setMeta('addToHistory', false))
+    const decorationEnd = performance.now()
+    expect(anchors.filter(anchor => anchor.status === 'located').length).toBeGreaterThanOrEqual(blocks / 50)
+    expect(documentValidationPluginKey.getState(decorated)!.find().length).toBeGreaterThanOrEqual(blocks / 50)
+    expect(decorated.doc.eq(problemDoc)).toBe(true)
+    console.info('PHASE6_PRESENTATION_MEASUREMENT', JSON.stringify({ blocks, issues: report.issues.length, anchorMs: anchorEnd - anchorStart, decorationMs: decorationEnd - anchorEnd }))
     console.info('PHASE6_MEASUREMENT', JSON.stringify({ blocks, samples }))
   }, 30000)
 })

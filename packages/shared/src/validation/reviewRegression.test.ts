@@ -90,6 +90,18 @@ describe('independent shared review regressions', () => {
     expect(analyzeDocument(doc).validation.issues.find(item => item.ruleId === 'term.minimum-usage')).toMatchObject({ count: 0 })
   })
 
+  it.each(['JB/T', 'DL/T', 'NY/T', 'QC/T', 'SN/T', 'GA/T', 'CJJ/T', 'JGJ'])('does not credit an external %s figure as a local mention', family => {
+    const doc = document([p('external', `结构采用${family} 123—2020中的图1。`), figure('f1')])
+    expect(analyzeDocument(doc).validation.issues.find(item => item.nodeId === 'f1')).toEqual(expect.objectContaining({ message: expect.stringContaining('正文未提及') }))
+  })
+
+  it('does not glue prose across an inline formula to invent term usage', () => {
+    const doc = withTerms(document([p('formula-prose', [
+      { text: '阀' }, { text: '', formula: { id: 'inline-formula', latex: 'x+y' } }, { text: '门。阀' }, { text: '', formula: { id: 'inline-formula-2', latex: 'x+y' } }, { text: '门。' },
+    ])]), [term('valve', '阀门')])
+    expect(analyzeDocument(doc).validation.issues.find(item => item.ruleId === 'term.minimum-usage')).toMatchObject({ count: 0 })
+  })
+
   it('indexes numbered figures and lists inside supported warning blocks', () => {
     const doc = document([{ kind: 'warning', id: 'warning', content: [figure('nested'), { kind: 'list', id: 'list', listType: 'dash', items: [{ id: 'item', content: [p('item-p', '内容。')] }] }] }])
     const report = analyzeDocument(doc).validation
