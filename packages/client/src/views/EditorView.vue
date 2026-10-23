@@ -48,6 +48,22 @@
           <el-icon><Clock /></el-icon>
           <span>{{ showVersionPanel ? '关闭历史' : '版本历史' }}</span>
         </el-button>
+        <el-button
+          text
+          :aria-label="showValidationPanel ? '关闭质量检查' : '打开质量检查'"
+          :aria-expanded="showValidationPanel"
+          @click="toggleValidationPanel"
+        >
+          <span>质量检查</span>
+        </el-button>
+        <button
+          class="nav-validation-run"
+          data-testid="editor-validation-run"
+          type="button"
+          :disabled="!validationCanRun"
+          :aria-label="validationRunLabel"
+          @click="handleManualValidation"
+        >{{ validationRunLabel }}</button>
         <el-button type="primary" aria-label="导出" @click="handleExport">
           <el-icon><Download /></el-icon>
           <span>导出</span>
@@ -229,7 +245,7 @@
         </div>
       </div>
 
-      <!-- Editor body: outline + canvas + (optional) version sidebar -->
+      <!-- Editor body: outline + canvas + one optional sidebar -->
       <div class="ed-body ses-scroll">
         <div :inert="documentUnavailable">
           <DocumentOutline :editor="editor" />
@@ -238,7 +254,7 @@
           <SesEditorContent :editor="editor" />
         </div>
         <transition name="slide-right">
-          <div class="version-sidebar" v-if="showVersionPanel">
+          <div class="version-sidebar" data-testid="version-sidebar" v-if="showVersionPanel">
             <VersionPanel
               :document-id="documentId"
               :get-content="getEditorContent"
@@ -247,6 +263,21 @@
               :read-only="documentUnavailable"
               @close="showVersionPanel = false"
               @conflict="enterSaveConflict('version-save')"
+            />
+          </div>
+        </transition>
+        <transition name="slide-right">
+          <div class="version-sidebar validation-sidebar" v-if="showValidationPanel">
+            <ValidationPanel
+              :state="validation.state.value"
+              :report="validation.report.value"
+              :conversion="validation.conversion.value"
+              :anchors="validation.anchors.value"
+              :error="validation.error.value"
+              :can-run="validationCanRun"
+              @run="handleManualValidation"
+              @locate="validation.locate"
+              @close="showValidationPanel = false"
             />
           </div>
         </transition>
@@ -516,10 +547,13 @@ import MathInputDialog from '@/components/editor/MathInputDialog.vue'
 import WhereConversionDialog from '@/components/editor/WhereConversionDialog.vue'
 import { convertLegacyWhereDescription, type WhereConversionRow } from '@/utils/whereListConversion'
 import VersionPanel from '@/components/version/VersionPanel.vue'
+import ValidationPanel from '@/components/editor/ValidationPanel.vue'
 
 import { useEditor } from '@tiptap/vue-3'
 import { installRemoteDocument, replaceEditorDocument } from '@/utils/editorDocument'
 import { createEditorExtensions } from '@/extensions/editorExtensions'
+import { createDocumentValidationExtension } from '@/extensions/plugins/documentValidation'
+import { useDocumentValidation } from '@/composables/useDocumentValidation'
 import { hasNodeIdIssues, normalizeNodeIds } from '@/extensions/plugins/ensureNodeId'
 import { canInsertBodyFootnote } from '@/extensions/nodes/footnotes'
 import {
@@ -581,6 +615,7 @@ const showExport = ref(false)
 const codeViewFormat = ref<'xml' | 'json' | 'html' | 'raw'>('xml')
 const xmlFileInput = ref<HTMLInputElement | null>(null)
 const showVersionPanel = ref(false)
+const showValidationPanel = ref(false)
 const documentId = computed(() => Number(route.params.id))
 const documentUnavailable = computed(() => store.isDocumentUnavailable(documentId.value))
 const unavailableMessage = ref('文档已移入回收站或当前页面已失效。')
@@ -673,7 +708,7 @@ function setActivePageOrientation(orientation: 'portrait' | 'landscape') {
 }
 
 const editor = useEditor({
-  extensions: createEditorExtensions(),
+  extensions: [...createEditorExtensions(), createDocumentValidationExtension()],
   content: '',
   onUpdate() {
     if (!suppressEditorUpdate) scheduleAutoSave()
@@ -689,6 +724,37 @@ const editor = useEditor({
     },
   },
 })
+
+const validation = useDocumentValidation({
+  editor,
+  documentId,
+  documentMeta: () => store.currentDocument?.meta,
+  contentReady,
+  documentUnavailable,
+})
+const validationCanRun = computed(() => contentReady.value
+  && !documentUnavailable.value
+  && validation.state.value !== 'running')
+const validationRunLabel = computed(() => validation.state.value === 'running' ? '检查中…'
+  : validation.state.value === 'current' || validation.state.value === 'stale' ? '重新检查'
+    : validation.state.value === 'failed' ? '重试检查'
+      : '检查文档')
+
+async function handleManualValidation() {
+  activeTab.value = 'edit'
+  showValidationPanel.value = true
+  showVersionPanel.value = false
+  const outcome = await validation.run()
+  if (outcome === 'composing') ElMessage.warning('请先完成当前中文输入，再检查文档')
+}
+
+function toggleValidationPanel() {
+  showValidationPanel.value = !showValidationPanel.value
+  if (showValidationPanel.value) {
+    activeTab.value = 'edit'
+    showVersionPanel.value = false
+  }
+}
 
 function hydrateSettingsDraft(document = store.currentDocument) {
   if (!document) {
@@ -2067,6 +2133,7 @@ function handleSearch() {
 
 // === 查看历史（占位） ===
 function handleViewHistory() {
+  if (showValidationPanel.value) showValidationPanel.value = false
   showVersionPanel.value = !showVersionPanel.value
 }
 
@@ -2578,6 +2645,7 @@ function handleXmlFileImport(event: Event) {
   flex: 1;
   display: flex;
   overflow: hidden;
+  position: relative;
 }
 .ed-main {
   flex: 1;
@@ -2599,8 +2667,49 @@ function handleXmlFileImport(event: Event) {
   flex-direction: column;
   overflow: hidden;
 }
+.validation-sidebar { min-width: 0; padding: 0; }
+.nav-validation-run {
+  border: 1px solid var(--ses-accent, #5543c2);
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: var(--ses-accent, #5543c2);
+  color: white;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.nav-validation-run:disabled { opacity: .48; cursor: not-allowed; }
+:deep(.ProseMirror .ses-validation-mark) {
+  position: relative;
+  box-shadow: inset 3px 0 currentColor;
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
+:deep(.ProseMirror .ses-validation-mark::after) {
+  position: absolute;
+  z-index: 4;
+  top: 2px;
+  right: 3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: var(--ses-validation-badge);
+  color: white;
+  content: attr(data-validation-count);
+  font: 700 10px/16px sans-serif;
+  text-align: center;
+}
+:deep(.ProseMirror .ses-validation-error) { color: #bc3030; --ses-validation-badge: #bc3030; }
+:deep(.ProseMirror .ses-validation-warning) { color: #a96500; --ses-validation-badge: #a96500; }
+:deep(.ProseMirror .ses-validation-suggestion) { color: #2865a5; --ses-validation-badge: #2865a5; }
 .slide-right-enter-active, .slide-right-leave-active { transition: all 0.3s ease; }
 .slide-right-enter-from,  .slide-right-leave-to     { transform: translateX(100%); opacity: 0; }
+
+@media (max-width: 700px) {
+  .nav-validation-run { padding: 6px 7px; font-size: 12px; }
+  .ed-body > .version-sidebar { position: absolute; top: 0; right: 0; bottom: 0; z-index: 20; width: min(92vw, 380px); min-width: min(92vw, 320px); box-shadow: -8px 0 24px #1d213322; }
+}
 
 /* === placeholder tabs === */
 .settings-host { flex: 1; min-height: 0; display: flex; overflow: hidden; }
