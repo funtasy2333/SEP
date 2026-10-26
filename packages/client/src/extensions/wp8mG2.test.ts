@@ -125,7 +125,8 @@ describe('[M-10.1.4-01] 生产 Schema：defList', () => {
 
   it('扩展追加在 createEditorExtensions() 末尾（P3），block 组默认填充节点与此前一致', () => {
     const names = extensions.map(extension => extension.name)
-    expect(names.at(-1)).toBe('defList')
+    // 多个 WP8.M 组都追加在末尾，defList 不一定是最后一个；P3 要求的是排在全部既有扩展之后。
+    expect(names.indexOf('defList')).toBeGreaterThan(names.indexOf('inlineFormulaEditing'))
     const without = getSchema(extensions.filter(extension => extension.name !== 'defList'))
     for (const name of ['doc', 'chapter', 'clause', 'appendix', 'foreword', 'introduction']) {
       expect(schema.nodes[name]!.createAndFill()?.toJSON(), name).toEqual(without.nodes[name]!.createAndFill()?.toJSON())
