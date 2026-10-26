@@ -15,7 +15,7 @@
 | 元数据 | `meta.titleParts[] {id,lang?,role?,content}`；`identifiers[] {id,scheme?,value?,parts[]}`，part `{id,kind,position?,content}`；`languages[] {id,tag,usage?}`；`publishers[] {id,name,role?,identifier?}`；`adoptions[] {id,reference,degree?,language?}`；`replacedStandards[] {id,reference,relation?}`；`copyrights[] {id,holder?,year?,language?,statement}` | 顶层 `metadataBlock` 下 `titlePart`、`standardIdentifier/identifierPart`、`language`、`publisher`、`adoption`、`replacedStandard`、`copyright`。`metadataBlock` 优先于根/封面 typed attrs；结构化值不覆盖兼容旧字段。编号组成保持为部件；没有完整 `value` 时不猜组合。 |
 | 术语/TBX | `IRTermEntry.languageSets[] {id,language,groups[]}`；group `{id,terms[]}`；variant `{id,content,descriptors[]}`；descriptor `{id,kind,value}`。旧 term fields 保持；定义段各自有稳定 ID，首段写入 `termDefinition.nodeId`，后续段写入 `stdParagraph.nodeId`；来源使用独立无实体 ID 的 `termSource` carrier，旧带来源前缀的段落继续作为输入兼容。`nestedEntries[]` 保持旧 PM 允许的嵌套关系。 | `termDef > tbxLangSet(lang) > tbxTig > tbxTermVariant > tbxTerm + tbxTermDescriptor(type)`。旧 `termName/termNameEn` 只写入旧 `term/termEn` 字段；不得推断语言或伪造描述符。 |
 | 公式 | `IRFormula.mathml?` 保存原文；`notes[] {id,content}`；`IRInline.formula {id,mathml?,latex?,source?}`；现有 `latex/sourceInlines/whereList` 保持 | 行间 `formula` attrs `mathml/latex`；`formulaInline` atom；`formulaNote`；`whereItem(id) > whereTerm/whereDefinition`。没有 LaTeX 时保留空编辑源，不从 MathML 反译。 |
-| 表格 | `IRTable.width?: IRMeasure`、`unit?:string`、`style?:IRTableStyle`、`columns?:IRTableColumn[]`（WP8.M G8 名义列宽）；行 `.style?:IRRowStyle`；单元格 `cellType?/width?/unit?/columnWidths?/style?`。度量统一 `{value:number,unit:string}`，现有 `colwidth` 向量单位固定为 CSS px，样式键显式列举 | `stdTable` 宽度/单位及 style attrs、`columns`（JSON 数组，缺省 null）；row/cell 的对应 attrs；既有跨度、表头、注、脚注和内容保持。 |
+| 表格 | `IRTable.width?: IRMeasure`、`unit?:string`、`style?:IRTableStyle`、`columns?:IRTableColumn[]`（WP8.M G8 名义列宽，见「WP8.M 补模型契约」）；行 `.style?:IRRowStyle`；单元格 `cellType?/width?/unit?/columnWidths?/style?`。度量统一 `{value:number,unit:string}`，现有 `colwidth` 向量单位固定为 CSS px，样式键显式列举 | `stdTable` 宽度/单位及 style attrs、`columns`（JSON 数组，缺省 null）；row/cell 的对应 attrs；既有跨度、表头、注、脚注和内容保持。 |
 | 图与资源 | `IRDoc.resources[] {id,mediaType?,name?,encoding,data}`；`IRFigure.resourceId?/imageWidth?/imageHeight?/alt?/title?/unit?/descriptions[]`、`groups[] {id,descriptions[],resourceRefs[]}`；描述 `{id,content}` | `figureImage(resourceId/src/width/height/alt)`、`figure`/`figureGroup > figureDescription/figureResourceRef`、文档级 `figureResource`。resource 引用按内部 ID 校验。 |
 | 文本与引用 | `IRInline.style? {fontFamily,fontSize,color,backgroundColor,letterSpacing,baseline,textTransform}`；typed `variable/externalLink/bibRef/termRef` marks；`crossRef.targetKind?`；`IRBlock` 有 `warning/quote/code` kind | StarterKit/custom style marks、`variable`、`externalLink`、`bibRef`、`termRef`；`warning`、`quoteBlock`、`codeBlock`。完整 href/title/target/rel 保留。 |
 | 文献 | `IRBibEntry` 保留 `{id,content}`，补 `entryType?`、`fields[] {id,name,value}`、`identifiers[] {id,scheme,value}`、`externalLink?` | `bibEntry` + typed `bibStructured/bibField/bibIdentifier/bibExternalLink`。普通显示文字仍在旧 `content`。 |
@@ -44,13 +44,13 @@ Tiptap `setContent` 仅替换子内容。生产加载、版本回滚与 XML 导�
 - `stdTable.headerRowCount` 独立持久化，不由单元格 header 标志覆盖；旧表格缺省或 null 时按连续表头单元格推断。非法显式角色或表头计数返回 unsupportedContent 诊断。
 - 脚注交叉引用与普通行内引用使用一致目标优先级：`targetId ?? refId`；空目标仍拒绝。
 - 原生 IR 标准列项中的唯一段落 ID 必须等于 `${item.id}.p0`，否则 IR→PM 拒绝转换。生产列表不支持的 romanUpper、与固定级别冲突的显式 level 同样通过带路径与 nodeId 的 IRToPmError 拒绝；不静默降级或改写稳定 ID。生产标准列表 numeric/dot 固定二级，其余固定一级；此项检查也覆盖嵌套 StarterList 分支。
-- **WP8.M G7-a 修订（2026-10-22，设计 §4.7.1、§7.1 D-M-06）**：小写罗马列项 `roman`（GB/T 46687.2 5.7.2 `roman-lower`，矩阵 M-5.7-04）现为生产 `stdList` 的受支持类型：`listType='roman'`、一级（与字母列项相同），pmToIr/irToPm 原样映射；`roman` 视为语义扩展（`hasSemanticExtensions`，`extensionVersion=1`）。本节上一条与 `wp6-validation.md`「罗马列项被静默降级」中「roman 也拒绝」的契约就此撤销，**只有 `romanUpper`**（原文没有 roman-upper 取值）仍拒绝（irToPm）/降级为数字列项并告警（pmToIr 读旧文档）。遗留文档里 `listType:'roman'` 的列表此前被当作数字列项，之后按罗马列项显示，这是预期变化。 输出边界（审查修订）：`roman` 对 HTML/DOCX 真排（`lower-roman`/`lowerRoman`）、对 `XML46687` 放行；**旧 `XML` 格式阻断**（旧序列化器会把它降为阿拉伯数字，属静默降级），这是 `XML` 与 `XML46687` 在字段表之外唯一有意的分叉（`outputBoundaryXml46687.test.ts` 列为已知例外）。列项标记（Resolver 的 `listItem`、refText）统一为全角右括号：`a）`、`1）`、`i）`，引用文字 `5.2 a）` 与文档里显示的符号一致（D-M-03 修订）。
+- **WP8.M G7-a 修订（2026-10-22，设计 §4.7.1、§7.1 D-M-06）**：小写罗马列项 `roman` 现为生产 `stdList` 的受支持类型，本节上一条与 `wp6-validation.md`「罗马列项被静默降级」中「roman 也拒绝」的契约就此撤销，**只有 `romanUpper`**（原文没有 roman-upper 取值）仍拒绝（irToPm）/降级为数字列项并告警（pmToIr 读旧文档）。遗留文档里 `listType:'roman'` 的列表此前被当作数字列项，之后按罗马列项显示，这是预期变化。细节见下文「WP8.M 补模型契约」。
 
 ## 复审补充（2026-10-06）
 
 - `note/example` 及术语注、术语示例、表注只承载一段行内内容；IR 唯一段落 ID 必须等于 `${owner.id}.p0`，否则通过 IRToPmError 返回源段落 nodeId 与路径，避免引用失效。warning/quote 的块段落 ID 仍原样保留。
-- **WP8.M G7-b 修订（2026-10-22，设计 §4.7.2、D-M-05）**：块位置（章/条/附录/前言/引言/单元格）的注/示例新增承载节点 `noteBlock`/`exampleBlock`（块组，内容 `(stdParagraph | stdList)+`，带 nodeId；旧 `note`/`example` 不动）。canonical 规则：`IRNote/IRExample.content` 恰为一个 id 等于 `${owner.id}.p0` 的段落 → 仍输出旧 `note/example`（与此前逐字节相同）；其余且全为段落/列项（多块、含列项、或单段但段落 id 不是派生值）→ `noteBlock/exampleBlock`，子块各自保留 nodeId（段落 id 取自 `stdParagraph.nodeId`）；含表/图/公式等其他块、或含非简单列项 → IRToPmError。因此上一条里「块位置的注/示例遇到非派生段落 id 即拒绝」不再成立（有了承载节点就不必把段落压平成行内内容），术语条目的注/示例、表注行内的注仍用旧节点，多块或非派生 id 在那三处继续拒绝。多块或含列项或段落 id 非派生的块位置注/示例属语义扩展（`hasSemanticExtensions`）。
-- **WP8.M G8 修订（2026-10-26，设计 §4.8、D-M-11、D-M-15）**：表新增**名义列宽模型** `IRTable.columns?: IRTableColumn[]`（`{width?: IRMeasure; textAlign?: string; verticalAlign?: string}`，对应 GB/T 46687.2 6.1 `table/col`，矩阵 M-6.1-03；导入的 `colgroup/col` 也展开到这里，M-C.1-02），生产端为 `stdTable.columns` 属性（JSON 数组 `{width, widthUnit, textAlign, verticalAlign}[]`，缺省 null，序列化时被剔除，旧文档与 JSON golden 不变）；单元格新增分边边框样式 `IRCellStyle.border{Top,Right,Bottom,Left}Style`（取值 `solid|dashed|dotted|none`，M-6.3.3.1-01），生产端为 `tableCell/tableHeader` 的四个字符串属性（缺省 null）；不建模分边颜色（D-M-15）。**与既有 `columnWidths` 的关系**：`columns[i].width` 是源文档给出的**名义**列宽（通常是百分数），单元格 `columnWidths`（即 PM `colwidth`，CSS px）是编辑器拖拽的结果，二者**独立保存、互不推导**——显示时 px 优先于名义宽度；DOCX 仍只消费 `columnWidths`；将来导出 `col` 时只取 `columns`，不由 px 反推。校验：`columns` 长度必须等于网格列数（按 colspan/rowspan 展开，`tableGridWidth`/`TableMap.width`），每项宽度为有限正数且单位是字母或 `%` 记号，`textAlign ∈ left|center|right|justify`、`verticalAlign ∈ top|middle|bottom|baseline`，边框样式 ∈ `solid|dashed|dotted|none`；任一不符 pmToIr 记 unsupportedContent（不静默丢弃，不合法字段不进 IR），irToPm 抛 IRToPmError。列数变化（插入/删除列等）时同步插件 `tableColumnsSync` 把该表 `columns` 置 null（退回自动列宽；与原编辑同属一个撤销组，撤销会一并还原）；载入时已列数不符的坏数据不被悄悄“修好”。`columns` 与单元格 `style`（含 `border*Style`）属语义扩展（`hasSemanticExtensions`）。输出边界（§7.1：本阶段不排版）：`table.columns` 与单元格 `style` 不在字段表内，HTML、DOCX、旧 XML、XML46687 一律报 unsupported-output，WP8.2 再放开 XML46687。编辑器显示：边框宽度/样式落成单元格内联 CSS；名义列宽靠 stdTable 外层的 `--ses-col-<n>` 自定义属性与样式表给 `<col>` 设 width（第 1～40 列），内联 px 自然优先。已在真实 Chrome 中核实（设计附录 A 第 1 项）：编辑器的 `<colgroup>` 由 `@tiptap/extension-table` 的 `TableView` 生成，每个网格列一个 `<col>`，无 `colwidth` 的列只带内联 `min-width`、有 `colwidth` 的列带内联 `width`，因此 40%/60% 的两列表首次显示约 4:6，拖拽列边线后该列以 px 为准且 `columns` 不变；无需子类化 `TableView`。
+- **WP8.M G7-b 修订（2026-10-22，设计 §4.7.2、D-M-05）**：块位置（章/条/附录/前言/引言/单元格）的注/示例新增承载节点 `noteBlock`/`exampleBlock`，因此上一条里「块位置的注/示例遇到非派生段落 id 即拒绝」不再成立；术语条目的注/示例、表注行内的注、图中的注仍用旧的单段节点，多块或非派生 id 在这些位置继续拒绝。细节见下文「WP8.M 补模型契约」。
+- **WP8.M G8 修订（2026-10-26，设计 §4.8、D-M-11、D-M-15）**：表新增名义列宽 `IRTable.columns` 与单元格分边边框样式 `border*Style`；`columns` 与既有 `columnWidths`（px）独立保存、互不推导。细节见下文「WP8.M 补模型契约」。
 - 生产 `textStyle` 的七个属性从对应的 inline CSS 回读，渲染与解析使用同一属性映射；CSS 字符串遵循浏览器的规范化，不要求保留相同的颜色字面量拼写。
 - 生产表格 td/th 的单位从 `data-unit` 回读，兼容直接 `unit` 属性；带编辑器包装的单元格只解析内容槽，不将展示用单位标签写进正文。普通外部 HTML 单元格仍解析全部内容。
 
@@ -187,3 +187,100 @@ Codex review 5464603293 于北京时间 2026-10-09 09:02:49 针对审阅起点 8
 问题出在 PM canonical 为定义→来源→注→例→嵌套术语→TBX 语言集，而旧 Resolver fallback 为定义→例→注→来源→嵌套术语→TBX 语言集。含嵌套术语或 TBX 的作者内容若按 PM canonical 写成来源→注→例，旧条件会省略 tailOrder，Resolver 因而改变文献首次引用次序。冻结复现确认来源 B、注 C、例 A 得到 bibliographyOrder B、C、A，标签分别为 B[1]、C[2]、A[3]，且源 PM 未改变；证据为 output/wp6-canonical-order-2026-10-12/reproduction.json。
 
 本次只调整 PM→IR 的 metadata 生成条件及其测试，不改变 IR 字段形状、生产 Schema、Renderer 默认顺序或 HTML/DOCX/XML 输出能力。完整方案边界见[方案审计](wp6-plan-audit.md#8dd9b3bf-规范术语顺序复审)，冻结验收见[验收记录](wp6-validation.md#8dd9b3bf-规范术语顺序复审)。
+
+## WP8.M 补模型契约（2026-10-26 收尾汇总）
+
+依据 [WP8.M 设计](wp8.m/design.md)（§3 跨组共性、§4 各组、§7.1 决定），目标是关闭 [WP8.1 支持矩阵](wp8.1/README.md) 的 33 行必做（shall/should）缺口：G1～G8 共 32 行改为 `mapped`，`M-7.4-13`（公式图片）改为 `not-applicable`，`docs/wp8.1/matrix-S.json`、`matrix-T.json` 已同步。范围只含“模型 + 显示”：IR、生产 Schema、PM↔IR 双向、Resolver 编号与标签、保存重开无损、编辑器正确显示；**不含**新增结构的插入菜单与属性面板（后续交互任务），也不含新 XML 的导出与导入（WP8.2/8.3）。本节是 G1～G8 字段、节点与规则的唯一汇总处；上文三处 G7/G8 修订只保留对旧契约的更正。
+
+### 设计原则（摘自设计 §1.3）
+
+IR 新字段一律可选，既有字段不改名、不改型（P1）；既有 PM 节点新增的属性一律 `default: null`，`renderSemanticJson` 剔除 null 属性，所以两个 JSON 字节 golden 与 `fixtures.ts` 的 SHA 不变，旧文档不需要迁移（P2）；新扩展追加在 `createEditorExtensions()` 里 `inlineFormulaEditing` 之后（P3）；新增带 `id` 的 IR 对象一律在 Resolver 主遍历里登记（P4）；PM 节点、`pmToIr`、`irToPm` 与往返测试同一次落地（P5）；非 JSON 出口默认阻断，放行必须有理由与测试（P6）；**不改任何既有 xmlId**，只对新结构增加标签（P7）；复用既有节点与类型（`whereItem/whereTerm/whereDefinition`、`resourceId`、`IRBibField` 的做法）（P8）。`IRDoc.extensionVersion` 保持 `1`（D-M-04）：新字段是否出现由 `hasSemanticExtensions` 判定，`extensions.ts` 的 `semanticKeys` 增加 `introductionClauses`、`bibliographyTitle`、`subjectField`、`columns`、`image`、`legend`，`semanticMarks` 增加 `stdRef`、`mixedCitation`，`semanticKinds` 增加 `defList`、`normRefList`；同名冲突的字段按 kind 专门判断（`figure.examples`，`list.listType==='roman'`，非 canonical 的 `note/example` 内容）。
+
+### IR 字段清单（全部新增，全部可选）
+
+| 组 | 矩阵行 | IR 字段与形状 | 说明 |
+|---|---|---|---|
+| G1 | M-4.4.2.3-02/-03/-04、M-4.4.2.3.2-01、M-E-06 | 块 `IRNormRefList {kind:'normRefList', id, entries: IRNormRef[]}`；`IRNormRef = {kind:'normRef', id, entryType:'std', ref: IRInline[], title: IRInline[]} \| {kind:'normRef', id, entryType:'mixed', content: IRInline[]}` | 规范性引用文件清单，只能是 `secType==='norm-refs'` 章的直属块，且全文至多一个；不复用 `IRBibEntry`（后者参与 `[n]` 编号与 `bibRef` 类型检查）。 |
+| G1 | M-10.2-01/-02、M-10.1.7-01 | `IRMark` 增 `{type:'stdRef'}`、`{type:'mixedCitation'}` | 被标记的文本即 `std-ref` / `mixed-citation` 的内容；两者互斥（`diagnoseInlineProjection` 报冲突）。 |
+| G1 | M-4.5.3-02 | `IRDoc.bibliographyTitle?: IRInline[]` | 仅标题不是默认“参考文献”时存在；标题内禁止脚注。 |
+| G2 | M-10.1.4-01/-03/-04/-05 | `IRDefItem {id, term: IRInline[], definition: IRInline[]}`（公式“式中”、缩略语、图例共用；`IRFormula.whereList: IRDefItem[]` 仅是类型别名替换，JSON 形状不变）；块 `IRDefList {kind:'defList', id, items: IRDefItem[]}` | 目前只用于缩略语表；缩略语项内禁止条文脚注。 |
+| G2/G4 | M-10.1.1-04、M-10.1.5-01 | `IRReferenceTargetKind` 增 `'abbreviation'`、`'listItem'` | 沿用既有 `crossRef.targetKind`。 |
+| G3 | M-8.5-01～06 | `IRFigure.legend?: IRLegend {id, title?: IRInline[], items: IRDefItem[]}` | 图例项不赋 label / xmlId，不可被引用（C-T-31）。 |
+| G3 | M-8.4-03、M-8.2-11 | `IRFigure.examples?: IRExample[]`；`IRFigure.notes` 早已存在，现在生产 `figure` 能保存 | 图中注 / 示例只支持单段；PM 固定“注在前、示例在后”（D-M-09）。 |
+| G3 | M-8.3-02 | `IRInline.image?: IRInlineImage {src, resourceId?, alt?, size?: 'S'\|'M'\|'L'}` | 行内叶子，`text` 恒为空，不带 marks / style，不另造实体 id；`resourceId` 沿用既有资源引用校验；只允许出现在 `IRParagraph.content`，且不在术语条目、脚注内（Resolver 校验）。 |
+| G5 | M-9.2.9-01 | `IRTermEntry.subjectField?: IRInline[]`（条目级，规范形式） | 旧的术语级 `IRTermDescriptor{kind:'subjectField'}` 保留不迁移；WP8.2 导出时条目级优先，缺失时仅当所有术语级取值一致才提升为条目级（设计 §7.1 G5 补充决定）。 |
+| G5 | M-9.2.1-05 | `ResolvedLabel.termEntryXmlId?: string` | 只由 Resolver 产生（`term_<编号>`），渲染器不得自行拼接。 |
+| G6 | M-4.3.4-02/-03 | `IRDoc.front.introductionClauses?: IRClause[]` | 兄弟字段而非放宽 `introduction` 的元素类型（D-M-10）；块在前、条在后，条之后再出现的块（悬置段）pmToIr 报 `unsupportedContent`。 |
+| G7 | M-5.7-04 | `IRList.listType` 既有取值 `'roman'` 现可由生产模型保存 | `romanUpper` 仍拒绝 / 降级。 |
+| G7 | M-5.6-05 | `IRNote.content` / `IRExample.content`（既有 `IRBlock[]`）可为多块 | canonical 判定函数 `isInlineNoteContent`（`extensions.ts`），`irToPm` 与 `hasSemanticExtensions` 共用。 |
+| G8 | M-6.1-03、M-C.1-02 | `IRTable.columns?: IRTableColumn[]`，`IRTableColumn {width?: IRMeasure, textAlign?: string, verticalAlign?: string}` | 名义列宽；长度必须等于网格列数。 |
+| G8 | M-6.3.3.1-01 | `IRCellStyle.border{Top,Right,Bottom,Left}Style?: string`（`solid\|dashed\|dotted\|none`） | 不建模分边颜色（D-M-15）。 |
+| 共用 | — | `IRProblem.code` 增 `'trailing-punctuation'`（warning）；`NumberingStrategy.listItem?(listType, index)`（可选，策略没有该方法时 Resolver 用内置同款函数） | 规范性引用条目末尾有标点：只告警，不剥离、不阻断。 |
+
+### 生产 PM 节点与 mark 总表（12 个新节点、2 个新 mark）
+
+所有新节点 `parseHTML` 用 `data-type` 并设 `priority: 51`；带 IR 实体 id 的节点在 `NODE_ID_TYPES` 里（粘贴时重映射 `nodeId`）；`inlineImage` 的 `resourceId` 在粘贴重映射的两张引用表里。
+
+| 节点 / mark | 组 | group | content | attrs（新增属性均 default null） | HTML `data-type` |
+|---|---|---|---|---|---|
+| `normRefList` | G1 | block | `(normRefStd \| normRefMixed)+` | nodeId | `norm-ref-list` |
+| `normRefStd` | G1 | — | `normRefStdRef normRefStdTitle` | nodeId | `norm-ref-std` |
+| `normRefStdRef` / `normRefStdTitle` | G1 | — | `inline*` | — | `norm-ref-std-ref` / `norm-ref-std-title` |
+| `normRefMixed` | G1 | — | `inline*` | nodeId | `norm-ref-mixed` |
+| mark `stdRef` / `mixedCitation` | G1 | — | — | — | `std-ref` / `mixed-citation` |
+| `defList` | G2 | block | `whereItem+` | nodeId | `def-list`（`dl`） |
+| `figureLegend` | G3 | —（只在 `figure` 内） | `figureLegendTitle? whereItem+` | nodeId | `figure-legend` |
+| `figureLegendTitle` | G3 | — | `inline*` | — | `figure-legend-title` |
+| `inlineImage` | G3 | inline，atom | — | src、resourceId、alt、size | `inline-image`（`img`） |
+| `termSubjectField` | G5 | — | `inline*` | — | `term-subject-field` |
+| `noteBlock` / `exampleBlock` | G7 | block | `(stdParagraph \| stdList)+` | nodeId | `note-block` / `example-block` |
+
+既有节点只放宽、不迁移（旧文档全部仍合法）：`figure` 内容表达式尾部追加 `figureLegend? note* example*`；`termDef` 在 `termNameEn?` 之后插入 `termSubjectField?`；`stdList.listType` 增 `roman`（一级）；`stdTable` 增 `columns`（JSON 数组 `{width, widthUnit, textAlign, verticalAlign}[]`）；`tableCell` / `tableHeader` 增 `borderTopStyle` 等四个字符串属性；`introduction` 的 `block+` 本来就含 `clause`，**Schema 无变化**，只补 `pmToIr` / `irToPm` 映射；`crossRef.refType` 增 `abbreviation`、`listItem`。新增 PM 插件 `tableColumnsSync`：列数变化时把该表 `columns` 置 null（D-M-11）。
+
+### 映射与诊断要点
+
+- `bibliographyTitle`：`pmToIr` 仅当标题不等于单个无格式的“参考文献”时才写入；`irToPm` 缺省回到“参考文献”。
+- 注 / 示例 canonical 规则（G7-b）：`content` 恰为一个 id 等于 `${owner.id}.p0` 的段落 → 旧 `note` / `example`（与此前逐字节相同）；其余且全为段落 / 列项 → `noteBlock` / `exampleBlock`，子块各自保留 nodeId；含表 / 图 / 公式等其他块 → IRToPmError。`term`、表注行、图内三处直接调用单段转换，多块在这些位置继续报错。
+- `figure`：`irToPm` 不再拒绝 `notes`，输出 `note*`、`example*`、`figureLegend`；`pmToIr` 反向对应，`legend.items` 为空、`image` 带 marks / style 等不可表达的组合记 `unsupportedContent` 或 IRToPmError，不静默丢弃。
+- 表：`columns` 长度须等于网格列数，每项宽度为有限正数且单位是字母或 `%`，`textAlign ∈ left|center|right|justify`，`verticalAlign ∈ top|middle|bottom|baseline`，边框样式 ∈ `solid|dashed|dotted|none`；任一不符 pmToIr 记 `unsupportedContent`，irToPm 抛 IRToPmError。`columns[i].width` 是源文档给出的名义列宽（通常是百分数），单元格 `columnWidths`（PM `colwidth`，CSS px）是编辑器拖拽的结果，二者独立保存、互不推导；显示时 px 优先，DOCX 仍只消费 `columnWidths`，将来导出 `col` 只取 `columns`。
+- 引言：`pmToIr` 把 `introduction` 内的 `clause` 收进 `introductionClauses`；条之后的块（悬置段）仍留在 `introduction`，同时记 `unsupportedContent`（`irToPm` 拒绝，不静默重排）。
+- 罗马列项：`roman` 为 `stdList` 的一级类型；`romanUpper` 仍降级为数字列项并告警（读旧文档）/ 拒绝（irToPm）。列项标记统一为全角右括号 `a）`、`1）`、`i）`，引用文字 `5.2 a）`（D-M-03 修订）。
+
+### Resolver：新增标签、xmlId 与校验
+
+均在主遍历内登记，不触发 `ext_` 占位（`ext_` 不得进入 XML，R-5）。**不改任何既有 xmlId**（`bib_<n>` 等仍归 WP8.2）。
+
+| 目标 | `label` | `xmlId` | `refText` | 何时产生 |
+|---|---|---|---|---|
+| 规范性引用条目（G1） | `''` | `ref_<清单内序号>` | 文件编号 + 名称（std）或内容前 40 字（mixed） | 总是 |
+| 缩略语项（G2） | 缩略语文本 | `abb_<全文序>` | 同 label | 总是；类型为 `abbreviation` |
+| 图例项（G3） | — | — | — | 不赋标签；图中的注 / 示例沿用 `注：/注n：`、`示例：/示例n：`，作用域为该图，xmlId 沿用全局 `note_<n>` / `example_<n>` |
+| 有序列项（G4/G7，`alpha/number/roman`） | `a）` `1）` `i）` | `li_<被引用列项的文档序>` | 容器编号 + 空格 + 标记路径，如 `5.2 a）`、`5.2 a）1）` | **仅被 crossRef 引用者**；无序列项与 `romanUpper` 不赋标签，引用它们报 `dangling-xref` |
+| 术语条目（G5） | 既有 | 既有 `sec_<编号>`；另有 `termEntryXmlId = term_<编号>`（嵌套条目 `term_3.1.2`） | 既有 | 总是 |
+| 引言中的条（G6） | `0.n`、`0.n.m` | `sec_0.n` | 同 label | 总是；参与悬置段与跳级检查 |
+
+校验：规范性引用清单不在 norm-refs 章，或全文出现多个清单（`ref_<n>` 会重复）→ `unsupported-content` error；行内图出现在段落之外的位置（标题、图表题、术语名、脚注、文献、索引等）→ `unsupported-content` error；缩略语项内的脚注 → `invalid-footnote`（容器 `'定义列表'`）；`crossRef.targetKind` 与目标类型不符 → `dangling-typed-ref`；规范性引用条目末尾有标点 → `trailing-punctuation` warning；参考文献标题内的脚注 → error。
+
+### 输出边界（`outputBoundary.ts`，设计 §3.4 + §7.1）
+
+| 结构 | HTML | DOCX | 旧 XML | XML46687（现在） |
+|---|---|---|---|---|
+| 规范性引用清单、`stdRef` / `mixedCitation`、自定义参考文献标题（G1） | 排版并放行（10.3.4；mark 按普通文本） | 同左 | 阻断 | 阻断 → WP8.2 放开 |
+| 缩略语表 `defList`（G2）、术语领域（G5）、引言中的条（G6） | 排版并放行 | 同左 | 阻断 | 阻断 → WP8.2 放开 |
+| 罗马列项（G7，D-M-06） | `lower-roman` 真排 | `lowerRoman` 真排 | **阻断**（旧序列化器会把 `i)` 降为 `1)`，静默降级） | 放行（`roman-lower`） |
+| 多块注 / 示例（G7） | 逐块输出 | 逐块输出 | 放行 | 放行 |
+| 图注 `figure.notes`（G3） | 放行（渲染器早已逐条输出） | 放行 | 放行 | 放行 |
+| 对列项 / 缩略语的 `crossRef`（G2/G4） | 放行（输出 `refText`） | 放行 | 由旧序列化器的目标检查拒绝 | 放行 |
+| 图例、图中示例、行内图（G3）；表 `columns`、单元格 `border*Style`（G8） | **暂报 unsupported-output**（另立排版任务） | 同左 | 阻断 | 阻断 → WP8.2 放开 |
+
+机制：新 kind / 新字段不进 `BASE_FIELDS`，由 `EXTRA_FIELDS`（HTML、DOCX 各自引入）放行，其余字段按 `report(field)` 自动阻断；`XML46687` 的字段表与旧 `XML` 相同，**WP8.M 不打开 XML46687 的任何白名单**（WP8.2 的增量清单见设计 §6.2）。`XML` 与 `XML46687` 唯一有意的分叉是罗马列项。
+
+**Resolver `unsupported-content` error 阻断非 JSON 出口（M-Z-a，设计 §7.1 主导人决定 2026-10-26）**：`getOutputSupportProblems` 对 Resolver 产生的 `code==='unsupported-content' && severity==='error'` 问题，对 HTML、DOCX、XML、XML46687 一律追加 `unsupported-output`（路径 `resolver.problems[unsupported-content]`，带 nodeId 与 Resolver 原文案）；其余 error 代码（如 `dangling-xref`）与 warning 保持既有导出口径。Resolver 对 `doc.unsupportedContent` 与术语 `tailOrder` 无效的重述按文案识别后跳过（边界已按各自路径阻断，不重复报告）。Resolver 产生 `unsupported-content` 的位置共 5 处：行内图位置非法、清单不在 norm-refs 章、多个清单（这三类是新增阻断）；术语 `tailOrder` 无效、`doc.unsupportedContent` 重述（含引言悬置段，早已阻断）。
+
+### 编辑器显示与联动
+
+`DocumentOutline` 遍历 `introduction` 内的条，使 `0.n` 进入大纲；`FootnoteLabels` 的 Decoration 对 `exampleBlock`、引言条、图内注 / 示例按 Resolver 作用域写标签；`noteBlock` 用 NodeView（与 `Note` 一致的标记）；`defList` 与图例复用 `WhereListEditing` 的 Enter / Tab 行为；`docDiff`、io 的 `locator`（`noteBlock→note`、`exampleBlock→example`，`normRefList` / `defList` 不可单独寻址）、`authoring.ts` 的 `IR_ONLY_FIELDS` 与中文字段标签均已补齐；写作层（`normalizeAuthoringFragment` / `irFragmentToPm`）**不**因此放开这些结构（`FRAGMENT_BLOCK_KINDS` 不增加，符合“不做插入”）。边框宽度 / 样式落成单元格内联 CSS；名义列宽靠 stdTable 外层的 `--ses-col-<n>` 自定义属性与样式表给 `<col>` 设 width（第 1～40 列），内联 px 自然优先（已在真实 Chrome 中核实 `TableView` 为每个网格列生成一个 `<col>`，无需子类化）。
+
+### 测试与回归
+
+全要素 fixture：生产 PM `client/src/extensions/__fixtures__/wp8m.ts`（复用各组 `wp8m-g*.ts`）与 IR 原生版 `shared/src/ir/__tests__/wp8mFixtures.ts`；`wp8mIntegration.test.ts` 覆盖 Schema、两版一致、Resolver 无 error、生产 Schema → PM → IR → PM → 保存重开（`Editor` + `replaceEditorDocument`）→ `exportSemanticJson` 两轮 JSON 相等、HTML 往返，以及四种格式的边界结论；`wp8mMatrixCoverage.test.ts` 内置 32 个矩阵 id，断言每个 id 出现在至少一个 `wp8m*.test.ts` 的标题里，并核对两份矩阵 JSON 已同步。`jsonExporter.test.ts` 的两个字节 golden 与 manifest 里 `fixtures.ts` 的 SHA 不变；HTML / DOCX 快照与 golden 相对 WP8.M 之前（`db33945`）只有 G7 的 3 个文件有变化：`html.test.ts.snap`（罗马列项与多块注 / 示例的样式）和两个 DOCX `numbering.xml` golden（`lowerRoman` 抽象编号），其余为 0。
