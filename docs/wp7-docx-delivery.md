@@ -557,7 +557,7 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
   - 表题行及前 `headerRowCount` 个数据行 `trPr` 写 `<w:tblHeader/>`（2026-10-16 起没有表题行，只有前 `headerRowCount` 个表头行写 `tblHeader`）；表头最后一行的单元格下边框 sz=6，所有表格行写 `cantSplit`，在行边界分页；
   - 合并：`colspan` → `tcPr/gridSpan`；`rowspan` → 起始格 `vMerge val="restart"`，**被覆盖的后续行在同一网格位置补占位格** `<w:tc><w:tcPr><w:gridSpan w:val="N"/><w:vMerge/></w:tcPr><w:p/></w:tc>`，其中 N = 起始格的 `colspan`（为 1 时省略 `gridSpan`）。占位格缺 `gridSpan` 会只占一列，同行后面的格整体左移，网格错位（旧导出器连占位格都没有）；
   - 单元格段落：表头格与纯数字格（`/^[\d\s.,±%~—-]+$/`）用 SesTableCenter，其余用 SesTableText；空单元格写一字线「—」（10.4.2.2）。
-- DOCX支持编辑器`columnWidths`（CSS像素），96dpi下换算为15twips/px。局部列宽保留绝对值，自动列平分剩余版心；全部列指定时保留总宽，超出版心按比例适配。合并格宽度为所覆盖列之和；全部续表使用原表统一网格，分页按自定义列宽估算。0为自动列宽；负值、非有限数值、数组长度与colspan不符或同列宽度冲突时明确阻断。HTML/XML尚未实现该字段，继续保留输出检查。
+- DOCX支持编辑器`columnWidths`（CSS像素），96dpi下换算为15twips/px。局部列宽保留绝对值，自动列平分剩余版心；全部列指定时保留总宽，超出版心按比例适配。合并格宽度为所覆盖列之和；全部续表使用原表统一网格，分页按自定义列宽估算。0为自动列宽；负值、非有限数值、数组长度与colspan不符或同列宽度冲突时明确阻断。HTML/XML尚未实现该字段，继续保留输出检查。WP8.M G8 新增的名义列宽 `IRTable.columns`（`col/@width`，通常为百分数）与单元格分边边框样式 `style.border*Style` 本阶段不排版：DOCX 与 HTML 一样报 unsupported-output；`columns` 与 `columnWidths` 是两条独立来源，DOCX 不由名义宽度推导像素列宽。
 - 表题保留五号黑体，不叠加粗体；普通单元格段落按用户指定版式默认无首行缩进（GB/T 1.1—2020 10.4.2.2 的一字起排为“宜”）。
 - 表格文字、表头及表注关闭正文网格（`snapToGrid=0`），使9磅行高与续表分段估算一致，并保持 Word 自动跨页时重复表题。
 - 表注：表内底部加一行，单元格 `gridSpan` 跨满全宽，上边框 sz=6，内容按 §5.7 规则，用 SesTableNote。若有表脚注，表注行在表脚注行之前。
