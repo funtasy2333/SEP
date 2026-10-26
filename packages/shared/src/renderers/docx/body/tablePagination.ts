@@ -7,7 +7,7 @@
  */
 import type { IRBlock, IRTable, IRTableRow } from '../../../ir/types'
 import { paragraphHeightMm } from './pageFlow'
-import { resolveTableColumnWidths, type TableColumnLayout } from './tableColumnWidths'
+import { resolveTableColumnWidths, TABLE_CELL_SIDE_MARGIN_TWIPS, type TableColumnLayout } from './tableColumnWidths'
 
 export interface TablePagination {
   /** 每段仅列出数据行；表头由调用方在每段之前重放。 */
@@ -62,7 +62,7 @@ function rowHeightMm(row: IRTableRow, columnCount: number, landscape: boolean, l
   const fullWidthUnits = landscape ? 73 : 48
   const lines = Math.max(1, ...row.cells.map((cell) => {
     const capacity = layout.custom
-      ? Math.max(1, fullWidthUnits * Math.max(1, (layout.cellWidths.get(cell.id) ?? 0) - 200) / layout.pageWidthTwips)
+      ? Math.max(1, fullWidthUnits * Math.max(1, (layout.cellWidths.get(cell.id) ?? 0) - 2 * TABLE_CELL_SIDE_MARGIN_TWIPS) / layout.pageWidthTwips)
       : Math.max(4, fullWidthUnits * cell.colspan / columnCount)
     return Math.max(1, cell.content.reduce((sum, block) => sum + blockLines(block, capacity), 0))
   }))

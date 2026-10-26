@@ -541,6 +541,7 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
 - 表题位于表格首个无边框、跨满全宽的标题行：P(SesTblCap / SesAppTblCap, caption)，不输出 `captionEn`。该行与列标题行均为重复标题行。（自然分页排法下表题移到表外，见下文 2026-10-15 条目。**2026-10-16 起所有排法的表题与续表题都是表外独立段落，表内不再有表题行，见下文 2026-10-16 条目；本条与下一组 `w:tbl` 条目中的「表题行」为历史描述。**）
 - `w:tbl`：
   - `tblPr`：`tblW` 5000 pct；`jc=center`；`tblLayout fixed`；边框外框 sz=6，`insideH/insideV` sz=2；
+    `tblCellMar` 左右各 102 twips（0.18 cm，上下沿用 Word 默认 0）；表脚注行仍以 `tcMar` 把左边距单独置 0；
   - `tblGrid`：按最大列数平均分配版心宽（必须写，否则不符合 schema）；
   - 表题行及前 `headerRowCount` 个数据行 `trPr` 写 `<w:tblHeader/>`（2026-10-16 起没有表题行，只有前 `headerRowCount` 个表头行写 `tblHeader`）；表头最后一行的单元格下边框 sz=6，所有表格行写 `cantSplit`，在行边界分页；
   - 合并：`colspan` → `tcPr/gridSpan`；`rowspan` → 起始格 `vMerge val="restart"`，**被覆盖的后续行在同一网格位置补占位格** `<w:tc><w:tcPr><w:gridSpan w:val="N"/><w:vMerge/></w:tcPr><w:p/></w:tc>`，其中 N = 起始格的 `colspan`（为 1 时省略 `gridSpan`）。占位格缺 `gridSpan` 会只占一列，同行后面的格整体左移，网格错位（旧导出器连占位格都没有）；

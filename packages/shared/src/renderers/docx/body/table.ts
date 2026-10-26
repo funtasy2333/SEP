@@ -10,7 +10,7 @@ import type { IRTable, IRTableRow } from '../../../ir/types'
 import { emitParagraph, type RenderContext } from './context'
 import { plainRun } from './inline'
 import { buildTableGrid, type GridCell } from './tableGrid'
-import { resolveTableColumnWidths } from './tableColumnWidths'
+import { resolveTableColumnWidths, TABLE_CELL_SIDE_MARGIN_TWIPS } from './tableColumnWidths'
 export { tableGridColumnCount } from './tableGrid'
 import { tcBorders, tcPr, tbl, tblBorders, tblPr, tr, trPr, type XmlChild } from '../xml'
 
@@ -132,7 +132,7 @@ function noteRowXml(widths: number[], columnCount: number, notesXml: string, kin
     ['tcW', `<w:tcW w:w="${width}" w:type="dxa"/>`],
     ...(columnCount > 1 ? [['gridSpan', `<w:gridSpan w:val="${columnCount}"/>`] as const] : []),
     ['tcBorders', cellBorderXml(['top'], topBorderSize)],
-    // Word's default 100-twip cell inset shifts the footnote paragraph away from the table frame.
+    // The table's 0.18 cm cell inset shifts the footnote paragraph away from the table frame.
     // Zero only the footnote row's left inset so its 9pt fourth-character tab aligns to that frame.
     ...(kind === 'footnotes' ? [['tcMar', '<w:tcMar><w:left w:w="0" w:type="dxa"/></w:tcMar>'] as const] : []),
   ])
@@ -173,6 +173,8 @@ export function renderTableGrid(ctx: RenderContext, table: IRTable, options: Tab
     ['jc', '<w:jc w:val="center"/>'],
     ['tblBorders', borderXml(6)],
     ['tblLayout', '<w:tblLayout w:type="fixed"/>'],
+    ['tblCellMar', `<w:tblCellMar><w:left w:w="${TABLE_CELL_SIDE_MARGIN_TWIPS}" w:type="dxa"/>` +
+      `<w:right w:w="${TABLE_CELL_SIDE_MARGIN_TWIPS}" w:type="dxa"/></w:tblCellMar>`],
   ])
   const rowsXml = rows.map((cells, rowIndex) => {
     const trPrXml = trPr([

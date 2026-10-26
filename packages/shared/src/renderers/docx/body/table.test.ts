@@ -89,6 +89,9 @@ describe('renderTableGrid', () => {
     const tblPr = findChild(tblEl, 'w:tblPr')!
     expect(findChild(tblPr, 'w:tblW')?.attrs).toEqual({ 'w:w': '5000', 'w:type': 'pct' })
     expect(findChild(tblPr, 'w:tblLayout')?.attrs).toEqual({ 'w:type': 'fixed' })
+    const cellMar = findChild(tblPr, 'w:tblCellMar')!
+    expect(findChild(cellMar, 'w:left')?.attrs).toEqual({ 'w:w': '102', 'w:type': 'dxa' })
+    expect(findChild(cellMar, 'w:right')?.attrs).toEqual({ 'w:w': '102', 'w:type': 'dxa' })
     const grid = findChild(tblEl, 'w:tblGrid')!
     const gridWidths = childrenNamed(grid, 'w:gridCol').map((col) => Number(col.attrs['w:w']))
     expect(gridWidths).toHaveLength(3)

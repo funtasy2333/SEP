@@ -3,6 +3,9 @@ import type { IRTable } from '../../../ir/types'
 import { mmToTwips } from '../units'
 import { buildTableGrid, type TableGrid } from './tableGrid'
 
+/** 表格单元格左右边距 0.18 cm（tblCellMar）；续表分段估算可用文字宽度时同样扣除。 */
+export const TABLE_CELL_SIDE_MARGIN_TWIPS = mmToTwips(1.8)
+
 export interface TableColumnWidthIssue {
   nodeId: string
   rowIndex: number
