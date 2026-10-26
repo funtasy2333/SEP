@@ -52,6 +52,8 @@ export const NODE_ID_TYPES = [
   'whereItem',
   // 缩略语表（WP8.M G2）：容器带 nodeId；项复用 whereItem。
   'defList',
+  // 图例（WP8.M G3）：容器带 nodeId（IRLegend.id）；项复用 whereItem，标题 figureLegendTitle 与行内图 inlineImage 无 id。
+  'figureLegend',
   // Figure/resource and typed bibliography semantic records.
   'figureGroup',
   'figureDescription',
@@ -361,6 +363,7 @@ function collectSliceReferenceIds(slice: Slice): Set<string> {
       indexTarget: ['targetId'],
       indexSeeAlso: ['targetId'],
       figureImage: ['resourceId'],
+      inlineImage: ['resourceId'],
     }
     for (const field of targetFields[node.type.name] ?? []) addReference(node.attrs[field])
   })
@@ -457,6 +460,7 @@ function remapPastedNode(node: PMNode, remaps: PastedIdRemaps): PMNode {
     indexTarget: ['targetId'],
     indexSeeAlso: ['targetId'],
     figureImage: ['resourceId'],
+    inlineImage: ['resourceId'],
   }
   for (const field of referenceFields[node.type.name] ?? []) {
     const mapped = remapId(node.attrs[field], remaps)

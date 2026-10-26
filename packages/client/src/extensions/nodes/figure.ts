@@ -18,11 +18,16 @@ declare module '@tiptap/core' {
  * 图节点
  * 包含图片和图题（中文+可选英文）
  * 编号格式：图1, 图2, ... 或附录中 图A.1, 图A.2, ...
+ *
+ * WP8.M G3：尾部追加 `figureLegend? note* example*`——图例（M-8.5-01～06）、图注（M-8.2-11）、图中示例（M-8.4-03）。
+ * 顺序固定“注在前、示例在后”（IR 的 notes / examples 是两个数组，PM 若允许交错，往返会改变作者顺序，D-M-09）；
+ * 图内的注与示例沿用单段的 `note` / `example` 节点，标签由 Resolver 按“作用域 = 本图”给出（注：/注n：、示例：/示例n：）。
+ * 旧文档（没有这些子节点）仍然合法，不需要迁移。
  */
 export const Figure = Node.create({
   name: 'figure',
   group: 'block',
-  content: 'figureImage figureCaption figureCaptionEn? figureDescription* figureGroup*',
+  content: 'figureImage figureCaption figureCaptionEn? figureDescription* figureGroup* figureLegend? note* example*',
   defining: true,
   isolating: true,
 

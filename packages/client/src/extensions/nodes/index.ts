@@ -9,6 +9,8 @@ export { TermDef, TermName, TermNameEn, TermSubjectField, TermDefinition, TermSo
 export { StdTable, TableCaption, TableCaptionEn, TableFootnote, TableNoteRow, TableFootnoteRow, TableFootnoteEntry } from './std-table'
 export { FootnoteRef, TableFootnoteRef, canInsertBodyFootnote } from './footnotes'
 export { Figure, FigureImage, FigureCaption, FigureCaptionEn } from './figure'
+export { FigureLegend, FigureLegendTitle } from './figure-legend'
+export { InlineImage } from './inline-image'
 export { Formula, FormulaContent, FormulaDescription } from './formula'
 export { Note, Example } from './note'
 export { NoteBlock, ExampleBlock } from './note-block'
