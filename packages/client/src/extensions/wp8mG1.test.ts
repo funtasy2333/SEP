@@ -90,9 +90,11 @@ describe('[M-4.4.2.3-02] 生产 Schema：normRefList 节点结构', () => {
 
   it('扩展追加在 createEditorExtensions() 末尾：既有 block 组节点顺序不变，block 组默认填充节点仍是段落', () => {
     const names = createEditorExtensions().map(extension => extension.name)
-    const tail = names.slice(-7)
-    expect(tail).toEqual(['normRefList', 'normRefStd', 'normRefStdRef', 'normRefStdTitle', 'normRefMixed', 'stdRef', 'mixedCitation'])
-    expect(names.indexOf('termSubjectField')).toBe(names.length - 8)
+    // 多个 WP8.M 组都追加在末尾，G1 不一定是最后一组；P3 要求的是：G1 的扩展连续、按序，且排在全部既有扩展之后。
+    const g1 = ['normRefList', 'normRefStd', 'normRefStdRef', 'normRefStdTitle', 'normRefMixed', 'stdRef', 'mixedCitation']
+    const start = names.indexOf('normRefList')
+    expect(names.slice(start, start + g1.length)).toEqual(g1)
+    expect(start).toBeGreaterThan(names.indexOf('inlineFormulaEditing'))
     expect(schema.nodes.chapter!.contentMatch.defaultType?.name).not.toBe('normRefList')
   })
 })
