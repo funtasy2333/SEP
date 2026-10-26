@@ -665,8 +665,11 @@
 
 /*
  * 缩略语表（WP8.M G2，M-10.1.4-01）：与公式“式中”共用 whereItem/whereTerm/whereDefinition 项节点，
- * 版式不同——缩略语在前、释义在后，同一行，导出时中间是全角冒号（编辑器里以 1em 间隔分列显示）；没有“式中：”引导，也没有“——”。
- * 打印出口的版式是首行空两个汉字起排、回行顶格；编辑器里按项分两列显示，释义回行与释义起点对齐，便于编辑。
+ * 版式不同——缩略语在前、释义在后，同一行，中间是全角冒号“：”（依据 GB/T 46687.2—2026 印刷页 2 的 3.2 缩略语实排
+ * “ID：唯一编码(Identity)”，设计 D-M-16）；没有“式中：”引导，也没有“——”。
+ * 编辑器里冒号由 dt::after 生成显示（M-Z-c F-3）：只是生成内容，不写入文档模型，导出时由渲染器输出；
+ * 全角冒号自带间隔，所以缩略语与释义之间不再另留间隙。
+ * 打印出口的版式是首行空两个汉字起排、回行顶格；编辑器里按项分两列显示，释义回行与释义起点（冒号之后）对齐，便于编辑。
  */
 .std-def-list {
   width: 100%;
@@ -677,7 +680,7 @@
 }
 
 .std-def-list > .std-where-item {
-  gap: 1em;
+  gap: 0;
   padding-left: 2em;
 }
 
@@ -685,14 +688,28 @@
   min-width: 0;
 }
 
+/* 缩略语之后的全角冒号（只是显示，不入文档模型） */
+.std-def-list > .std-where-item > dt::after {
+  content: '：';
+}
+
 .std-def-list > .std-where-item > dd::before {
   content: none;
 }
 
-/* 空缩略语格：占位提示；与公式式中不同，点击不会弹出行内公式输入（见 whereListEditing） */
+/* 空缩略语格：占位提示；与公式式中不同，点击不会弹出行内公式输入（见 whereListEditing）。
+ * 占位时不显示冒号，占位与释义之间留一个汉字的间隔。 */
 .std-def-list > .std-where-item > dt.def-term-empty::before {
   content: '缩略语';
   color: #aaa;
+}
+
+.std-def-list > .std-where-item > dt.def-term-empty::after {
+  content: none;
+}
+
+.std-def-list > .std-where-item > dt.def-term-empty {
+  margin-right: 1em;
 }
 
 .std-formula-inline {

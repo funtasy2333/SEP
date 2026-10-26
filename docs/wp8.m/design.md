@@ -374,7 +374,7 @@ export type IRReferenceTargetKind = /* 既有 */ | 'abbreviation' | 'listItem'  
 
 **Resolver**：`visitBlock` 增加 `defList` 分支：`registerId(list.id)`；每项 `registerId`、`ctx.kinds.set(id,'abbreviation')`、`visitInlines(term/definition, …, '定义列表')`、`setLabel(id, 术语纯文本, `abb_${++ctx.abbrSeq}`, 术语纯文本)`。无需改 `checkXrefs`/`checkTypedReferences`——类型为 `abbreviation` 的引用与目标 kind 一致即通过。
 
-**输出边界 / 显示**：§3.4。显示：`.std-def-list` 两列（术语 / 释义），覆盖 `.std-where-item > dd::before{content:'——'}`（`standard-nodes.css:492-495`）使其对 `.std-def-list` 不加破折号；块前不加“式中：”。
+**输出边界 / 显示**：§3.4。显示：`.std-def-list` 两列（术语 / 释义），覆盖 `.std-where-item > dd::before{content:'——'}`（`standard-nodes.css:492-495`）使其对 `.std-def-list` 不加破折号；块前不加“式中：”；缩略语后用 CSS `dt::after` 显示全角冒号“：”（空缩略语占位时不显示；冒号只是生成内容，不写入文档模型，导出时由渲染器生成，见 D-M-16）。
 
 **测试**：缩略语表（3 项）往返；正文 `crossRef(targetKind='abbreviation')` 指向第 2 项 → label/refText/`abb_2`；类型不符 → `dangling-typed-ref`；缩略语项内脚注 → `invalid-footnote`；`whereList` 抽取重构的回归（既有 `authoringWhereSymbol.test.ts`、`wp6FormulaEditing.test.ts`、`whereListEditing.test.ts` 必须不改动即通过）。
 
@@ -705,7 +705,7 @@ export interface IRCellStyle { /* 既有 */
 
 | 本阶段排版（HTML 与 DOCX 都放行并渲染） | 暂报 unsupported-output |
 |---|---|
-| 规范性引用清单 `normRefList`（按 GB/T 1.1 10.3.4 排版）；正文 `stdRef`/`mixedCitation` 两种 mark（按普通文本输出）；自定义参考文献标题 `bibliographyTitle`；缩略语表 `defList`（按 GB/T 1.1 缩略语排版：缩略语与释义同行，释义前空一字）；术语领域 `subjectField`（定义前输出“〈领域〉”，GB/T 1.1 术语条目要求）；罗马列项（`i)`、`ii)`…）；多块注/示例；引言中的条（`0.1` 等，按条标题排版） | 图例 `legend`、图中示例 `examples`、行内图 `image`、表 `columns` 列宽、单元格边框样式 `border*Style` |
+| 规范性引用清单 `normRefList`（按 GB/T 1.1 10.3.4 排版）；正文 `stdRef`/`mixedCitation` 两种 mark（按普通文本输出）；自定义参考文献标题 `bibliographyTitle`；缩略语表 `defList`（按 GB/T 1.1 缩略语排版：缩略语与释义同行，中间用全角冒号“：”（依据 GB/T 46687.2—2026 印刷页 2 的 3.2 实排），见 D-M-16）；术语领域 `subjectField`（定义前输出“〈领域〉”，GB/T 1.1 术语条目要求）；罗马列项（`i)`、`ii)`…）；多块注/示例；引言中的条（`0.1` 等，按条标题排版） | 图例 `legend`、图中示例 `examples`、行内图 `image`、表 `columns` 列宽、单元格边框样式 `border*Style` |
 
 `figure.notes` 照原设计放行（渲染器早已支持）。
 
@@ -728,6 +728,7 @@ export interface IRCellStyle { /* 既有 */
 | D-M-13 | 同意。矩阵与 README 的同步放进 M-Z |
 | D-M-14 | 本阶段排版，按上表处理 |
 | D-M-15 | 不建模 |
+| D-M-16 | 缩略语表的分隔符：缩略语与释义同行，中间用**全角冒号“：”**（依据 GB/T 46687.2—2026 印刷页 2 的 3.2 缩略语实排“ID：唯一编码(Identity)”），取代 §7.1 表格原写的“释义前空一字”。HTML、DOCX 的现有实现（`html.ts` 的 `ses-def-sep`、`docx/body/block.ts`）已是全角冒号，保持不变；编辑器在缩略语后以 CSS 生成内容显示冒号。来源：主导人，M-Z-b F-3（2026-10-26） |
 
 **G5 补充决定（主导人，2026-10-22）**：WP6 已有术语级（`tig`）描述符 `IRTermDescriptor{kind:'subjectField'}`，生产节点为 `tbxTermDescriptor type=subjectField`，只能存纯文本。GB/T 46687.2 第 9.2.9 条把领域放在 `langSet`/条目级，因此**条目级 `IRTermEntry.subjectField` 为规范形式**。旧描述符保留，不迁移。WP8.2 导出时：
 - 条目级字段存在：只输出条目级字段，同名的术语级描述符报 warning 并忽略；

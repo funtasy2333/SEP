@@ -376,6 +376,20 @@ describe('[M-10.1.4-01] 编辑器显示与键盘', () => {
     editor.destroy()
   })
 
+  it('[M-Z-c F-3] 缩略语后的全角冒号只是 CSS 生成内容：DOM 文本、PM 文档、保存的 JSON 里都没有“：”', () => {
+    const editor = mountEditor(createWp8mG2Fixture() as unknown as Record<string, unknown>)
+    const list = editor.view.dom.querySelector<HTMLElement>('dl.std-def-list[data-node-id="g2-list"]')!
+    const terms = [...list.querySelectorAll('dt')]
+    expect(terms.map(term => term.textContent)).toEqual(['ADC', 'AGC', 'CT'])
+    expect(terms.some(term => term.textContent!.includes('：'))).toBe(false)
+    expect(defListShapes(editor.getJSON() as PMJsonNode)['g2-list']!.map(item => item[1])).toEqual(['ADC', 'AGC', 'CT'])
+    // 保存形态（语义 JSON）里也没有冒号：冒号由编辑器 CSS 显示、由渲染器在导出时生成
+    const saved = JSON.stringify(exportSemanticJson(editor.state.doc))
+    expect(saved).not.toMatch(/"(?:ADC|AGC|CT)：/)
+    for (const item of defListShapes(editor.getJSON() as PMJsonNode)['g2-list']!) expect(item[1]).not.toContain('：')
+    editor.destroy()
+  })
+
   it('公式的 whereList 仍按“式中”显示，不带 std-def-list 类（两种容器互不串）', () => {
     const doc = createWp8mG2Fixture()
     doc.content!.find(node => node.attrs?.nodeId === 'g2-abbr-ch')!.content!.push({
