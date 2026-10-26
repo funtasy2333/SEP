@@ -2,7 +2,8 @@
  * 文档结构树（WP9.2c1）：章、条、附录、术语条目，以及表、图、公式，带编号与标题。
  *
  * 由 `pmToIr` + `resolve` 计算，编号一律来自 Resolver 的 label，本文件不做任何编号。
- * 段落等块不逐个列出，只给数量，避免结构树过大；前言、引言、参考文献只体现是否存在与数量。
+ * 段落等块不逐个列出，只给数量，避免结构树过大；前言、参考文献只体现是否存在与数量，
+ * 引言除此之外还列出其中的条（编号 0.1、0.2…，递归带子条）。
  */
 
 import {
@@ -11,6 +12,7 @@ import {
   type IRAppendix,
   type IRBlock,
   type IRChapter,
+  type IRClause,
   type IRClauseChild,
   type IRInline,
   type PMJsonNode,
@@ -80,7 +82,7 @@ export function buildOutline(pmDoc: PMJsonNode): DocumentOutline {
   const { doc: ir } = pmToIr(pmDoc)
   const { labels } = resolve(ir)
   const present = (type: string): boolean => (pmDoc.content ?? []).some(child => child.type === type)
-  const front = (blocks: readonly IRBlock[], type: string): FrontMatterOutline => {
+  const front = (blocks: readonly (IRBlock | IRClause)[], type: string): FrontMatterOutline => {
     const { items, blockCount } = listItems(blocks, labels)
     return { present: present(type), blockCount, items }
   }
@@ -99,7 +101,8 @@ export function buildOutline(pmDoc: PMJsonNode): DocumentOutline {
   })
   return {
     foreword: front(ir.front.foreword, 'foreword'),
-    introduction: front(ir.front.introduction, 'introduction'),
+    // 引言中的条（WP8.M G6，GB/T 1.1—2020 8.4）排在引言块之后，编号 0.1、0.2…来自 Resolver，结构与正文章下的条一致。
+    introduction: front([...ir.front.introduction, ...(ir.front.introductionClauses ?? [])], 'introduction'),
     body: sections(ir.body),
     appendices: sections(ir.appendices),
     bibliography: { present: present('bibliography'), entryCount: ir.bibliography.length },

@@ -177,7 +177,7 @@ export const TOOL_DEFINITIONS: readonly (Tool & { name: McpToolName })[] = [
   {
     name: 'get_outline',
     description:
-      '读取文档的结构树：前言、引言，以及正文各章、条、附录、表、图、公式的 nodeId、类型、编号、标题。' +
+      '读取文档的结构树：前言、引言（含引言中的条，编号 0.1、0.2…），以及正文各章、条、附录、表、图、公式的 nodeId、类型、编号、标题。' +
       '返回 { revision, outline }。revision 是之后 apply_operations 的 baseRevision；' +
       '文档里的 nodeId 缺失或重复时（常见于经 REST 直接写入的内容），会先补齐（重复的重新生成）并保存，所以 revision 可能比此前看到的大 1；nodeId 完整时不写库。' +
       '下一步：用 get_node 读取具体节点的内容，或直接用 apply_operations 修改。',

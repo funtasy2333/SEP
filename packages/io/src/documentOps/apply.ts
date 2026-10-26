@@ -31,7 +31,7 @@ import {
   analyzeReplaceability, buildInspectEnv, idsOutsideSubtree, RESERVED_IDS, usedIdsOf,
 } from './inspect'
 import {
-  CONTAINER_LABELS, firstBodyIndex, findEnclosingAddressable, indexDocument, kindAllowedIn, KIND_LABELS,
+  CONTAINER_LABELS, firstBodyIndex, findEnclosingAddressable, indexDocument, isIntroductionClause, kindAllowedIn, KIND_LABELS,
   nodeAtPath, parentPathOf, pathKey, rootInsertIndex, spliceAt, subtreeIds,
   type DocIndex, type LocatedNode,
 } from './locator'
@@ -496,6 +496,12 @@ function runReplace(
   if (located.context === undefined) {
     return fail(issueOf(i, `operations[${i}].nodeId`, 'invalid-context',
       `${KIND_LABELS[located.kind]}「${op.nodeId}」所在层级超过 ${MAX_LEVEL} 级，没有可用的替换上下文`, op.nodeId))
+  }
+  if (isIntroductionClause(located)) {
+    // WP8.M G6：引言中的条可读、可删除/移动；整体替换需要「引言可含条」的上下文，写作片段暂不提供。明确拒绝，不静默改写。
+    return fail(issueOf(i, `operations[${i}].nodeId`, 'invalid-context',
+      `引言中的条「${op.nodeId}」暂不支持整体替换（写作片段的「引言」上下文只允许块，不含条）；`
+      + '可以替换条内的块或子条，也可以删除或移动该条', op.nodeId))
   }
   const env = buildInspectEnv(doc, index)
 

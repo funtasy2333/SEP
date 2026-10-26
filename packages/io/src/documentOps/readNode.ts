@@ -15,7 +15,7 @@ import {
 import { CONTAINER_LABELS, findEnclosingAddressable, indexDocument, KIND_LABELS } from './locator'
 import { DOCUMENT_CONTAINERS, type ReadContainerResult, type ReadNodeResult } from './types'
 
-/** 读取一个可寻址节点（章、条、附录、术语条目、参考文献条目，以及前言/引言/章/条/附录下的块）。 */
+/** 读取一个可寻址节点（章、条（含引言中的条）、附录、术语条目、参考文献条目，以及前言/引言/章/条/附录下的块）。 */
 export function readNode(pmDoc: PMJsonNode, nodeId: string): ReadNodeResult {
   const index = indexDocument(pmDoc)
   if (index.duplicates.has(nodeId)) {
@@ -88,8 +88,10 @@ export function readContainer(pmDoc: PMJsonNode, container: string): ReadContain
     }
   }
   const { doc: ir } = pmToIr(pmDoc)
+  // 引言容器的节点 = 引言块之后接引言中的条（WP8.M G6，与 irToPm 的投影顺序一致）。
   const nodes: IRFragmentNode[] = container === 'foreword' ? ir.front.foreword
-    : container === 'introduction' ? ir.front.introduction : ir.bibliography
+    : container === 'introduction' ? [...ir.front.introduction, ...(ir.front.introductionClauses ?? [])]
+      : ir.bibliography
   return {
     ok: true,
     container: { container, exists: roots.length === 1, context: { parent: container }, nodes },

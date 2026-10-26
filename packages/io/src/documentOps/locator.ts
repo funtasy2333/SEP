@@ -35,6 +35,11 @@ const BLOCK_BY_PM_TYPE: ReadonlyMap<string, NodeKind> = new Map<string, NodeKind
   ['defList', 'defList'],
 ])
 
+/** 引言容器直属的条（GB/T 1.1—2020 8.4，编号 0.1、0.2…）：可寻址，但写作片段的「引言」上下文只允许块，不含条。 */
+export function isIntroductionClause(located: Pick<LocatedNode, 'kind' | 'parent'>): boolean {
+  return located.kind === 'clause' && 'container' in located.parent && located.parent.container === 'introduction'
+}
+
 export const KIND_LABELS: Record<NodeKind, string> = {
   chapter: '章', clause: '条', appendix: '附录', termEntry: '术语条目', bibEntry: '参考文献条目',
   paragraph: '段落', list: '列项', table: '表', figure: '图', formula: '公式', note: '注',
@@ -109,16 +114,20 @@ function nodeIdOf(node: PMJsonNode): string | undefined {
   return typeof id === 'string' && id.length > 0 ? id : undefined
 }
 
-type ChildMode = 'blocks' | 'section' | 'bibliography'
+/**
+ * `introduction`：引言容器。块在前、条在后（GB/T 1.1—2020 8.4，WP8.M G6）；条可寻址（编号 0.1、0.2…），
+ * 但引言不直接容纳术语条目（pmToIr 不把引言直属的 termDef 读成 IR）。
+ */
+type ChildMode = 'blocks' | 'introduction' | 'section' | 'bibliography'
 
 function childKind(mode: ChildMode, type: string): NodeKind | undefined {
   if (mode === 'bibliography') return type === 'bibEntry' ? 'bibEntry' : undefined
   const block = BLOCK_BY_PM_TYPE.get(type)
   if (block) return block
-  if (mode === 'section') {
+  if (mode === 'section' || mode === 'introduction') {
     if (type === 'clause') return 'clause'
-    if (type === 'termDef') return 'termEntry'
   }
+  if (mode === 'section' && type === 'termDef') return 'termEntry'
   return undefined
 }
 
@@ -187,7 +196,7 @@ export function indexDocument(root: PMJsonNode): DocIndex {
         break
       case 'introduction':
         index.rootIndices.introduction.push(rootIndex)
-        visit(child, path, { container: 'introduction' }, { parent: 'introduction' }, 'blocks', 1)
+        visit(child, path, { container: 'introduction' }, { parent: 'introduction' }, 'introduction', 1)
         break
       case 'bibliography':
         index.rootIndices.bibliography.push(rootIndex)

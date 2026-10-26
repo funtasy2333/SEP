@@ -19,7 +19,9 @@ import {
   type IRFragmentNode,
   type PMJsonNode,
 } from '@ses/shared'
-import { collectIrIds, collectPmNodeIds, KIND_LABELS, type DocIndex, type LocatedNode } from './locator'
+import {
+  collectIrIds, collectPmNodeIds, isIntroductionClause, KIND_LABELS, type DocIndex, type LocatedNode,
+} from './locator'
 import { DOCUMENT_CONTAINERS, type NotReplaceableReason } from './types'
 
 /** 保留字：容器名不能被节点 id 占用。 */
@@ -38,6 +40,8 @@ export function indexIrNodes(ir: IRDoc): Map<string, IRFragmentNode> {
   }
   addAll(ir.front.foreword)
   addAll(ir.front.introduction)
+  // WP8.M G6：引言中的条（编号 0.1、0.2…）在 IR 里是兄弟字段，位于引言块之后（与 irToPm 的投影顺序一致）。
+  addAll(ir.front.introductionClauses ?? [])
   addAll(ir.body)
   addAll(ir.appendices)
   addAll(ir.bibliography)
@@ -184,6 +188,13 @@ export function analyzeReplaceability(env: InspectEnv, located: LocatedNode): No
     addReason(groups, 'kind', () => ({
       code: 'unsupported-kind',
       message: `「${KIND_LABELS[irNode.kind]}」写作片段暂不支持，不能整体替换（可以删除或移动）`,
+    }))
+  } else if (isIntroductionClause(located)) {
+    // WP8.M G6：引言中的条可读、可删除/移动，其内部的块与子条也可替换；条本身的整体替换需要「引言可含条」的上下文，
+    // 写作片段暂不提供（引言上下文只允许块）。给出明确原因，而不是让归一化报「条不能放在引言中」。
+    addReason(groups, 'context', () => ({
+      code: 'no-context',
+      message: '引言中的条暂不支持整体替换（写作片段的「引言」上下文只允许块，不含条）；可以替换条内的块或子条，也可以删除或移动该条',
     }))
   } else if (located.context === undefined) {
     addReason(groups, 'context', () => ({
