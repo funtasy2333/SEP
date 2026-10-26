@@ -116,6 +116,17 @@ function visit(
       })
     }
 
+    // 生产 stdRef 与 mixedCitation 两个 mark 互相 excludes：同一 run 不能同时是标准化与非标准化文件引用
+    const stdIndex = types.findIndex(type => type === 'stdRef')
+    const mixedIndex = types.findIndex(type => type === 'mixedCitation')
+    if (stdIndex >= 0 && mixedIndex >= 0) {
+      errors.push({
+        path: `${path}.marks[${Math.max(stdIndex, mixedIndex)}]`,
+        nodeId: currentOwnerId,
+        reason: '同一行内不能同时带 stdRef 与 mixedCitation：生产ProseMirror中两个标记互斥，无法同时保留',
+      })
+    }
+
     const firstIndexByType = new Map<string, number>()
     types.forEach((type, index) => {
       if (type === undefined || ATOM_MARKS.has(type)) return

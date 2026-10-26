@@ -39,6 +39,8 @@ export const KIND_LABELS: Record<NodeKind, string> = {
   chapter: '章', clause: '条', appendix: '附录', termEntry: '术语条目', bibEntry: '参考文献条目',
   paragraph: '段落', list: '列项', table: '表', figure: '图', formula: '公式', note: '注',
   example: '示例', warning: '警告块', quote: '引文块', code: '代码块', defList: '缩略语表',
+  // 规范性引用文件清单（WP8.M G1）：可读成 IR 块，但不可单独寻址/创建（不在 BLOCK_KINDS 与 BLOCK_BY_PM_TYPE 内），这里只供提示文案。
+  normRefList: '规范性引用文件清单',
 }
 
 export const CONTAINER_LABELS: Record<DocumentContainer, string> = {

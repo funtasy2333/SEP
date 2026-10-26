@@ -4,10 +4,10 @@ const semanticKeys = new Set([
   'copyrights', 'languageSets', 'nestedEntries', 'tailOrder', 'mathml', 'formula', 'style', 'width',
   'columnWidths', 'cellType', 'unit', 'groups', 'descriptions', 'resourceId', 'resources',
   'index', 'fields', 'entryType', 'externalLink', 'proposer', 'technicalCommittee',
-  'imageWidth', 'imageHeight', 'alt', 'targetKind', 'subjectField', 'introductionClauses',
+  'imageWidth', 'imageHeight', 'alt', 'targetKind', 'subjectField', 'introductionClauses', 'bibliographyTitle',
 ])
-const semanticMarks = new Set(['strike', 'code', 'variable', 'externalLink', 'bibRef', 'termRef'])
-const semanticKinds = new Set(['warning', 'quote', 'code', 'defList'])
+const semanticMarks = new Set(['strike', 'code', 'variable', 'externalLink', 'bibRef', 'termRef', 'stdRef', 'mixedCitation'])
+const semanticKinds = new Set(['warning', 'quote', 'code', 'defList', 'normRefList'])
 
 function present(value: unknown): boolean {
   if (value === undefined || value === null || value === '') return false

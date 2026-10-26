@@ -57,7 +57,16 @@ const INLINE_FORMULA_CONTAINERS = new Set(['paragraph.content', 'where.term', 'w
 
 const DEF_LIST_FIELDS = ['kind', 'id', 'items'] as const
 
-/** Fields a format consumes in addition to BASE_FIELDS (kind -> extra fields). */
+/** G1 新增的块 kind：整体登记（BASE_FIELDS 中没有它们，见 buildFields）。 */
+const GROUP_G1: Readonly<Record<string, readonly string[]>> = {
+  normRefList: ['kind', 'id', 'entries'],
+  normRef: ['kind', 'id', 'entryType', 'ref', 'title', 'content'],
+}
+
+/**
+ * Fields a format consumes in addition to BASE_FIELDS (kind -> extra fields).
+ * BASE_FIELDS 中不存在的 kind 视为该格式新放行的整个 kind（缺省不在表内的 kind 一律报 unsupported-output）。
+ */
 const NO_EXTRA_FIELDS: Readonly<Record<string, readonly string[]>> = {}
 const EXTRA_FIELDS: Record<OutputBoundaryFormat, Readonly<Record<string, readonly string[]>>> = {
   // WP8.M §7.1 本阶段排版，仅 HTML、DOCX 放行；XML46687 留给 WP8.2：
@@ -65,8 +74,10 @@ const EXTRA_FIELDS: Record<OutputBoundaryFormat, Readonly<Record<string, readonl
   // - front.introductionClauses（M-4.3.4-02/03，G6）：引言中的条（0.1…）按条标题排版；
   // - defList（M-10.1.4-01/-03/-04/-05，G2）：缩略语表，缩略语在前、释义在后同一行，中间是全角冒号（渲染时添加，不入 IR）。
   //   项与公式“式中”项同形，沿用 where 形状（见 childShape）。
-  DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'], termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS },
-  HTML: { meta: PRINT_META_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS },
+  // - 规范性引用文件清单（M-4.4.2.3-02/-03/-04，G1）：新 kind normRefList / normRef，按 10.3.4 排版；
+  // - doc.bibliographyTitle（M-4.5.3-02，G1）：自定义参考文献标题替换默认标题。
+  DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'], termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'] },
+  HTML: { meta: PRINT_META_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'] },
   XML: NO_EXTRA_FIELDS,
   // XML46687 的允许表、marks 与特殊检查目前与 XML 完全相同；WP8.1 支持矩阵确定后，在 WP8.2 再放开。
   XML46687: NO_EXTRA_FIELDS,
@@ -84,7 +95,10 @@ function buildFields(format: OutputBoundaryFormat): Record<string, ReadonlySet<s
 const FIELDS_BY_FORMAT: Record<OutputBoundaryFormat, Record<string, ReadonlySet<string>>> = {
   DOCX: buildFields('DOCX'), HTML: buildFields('HTML'), XML: buildFields('XML'), XML46687: buildFields('XML46687'),
 }
-const MARKS_BY_FORMAT: Record<OutputBoundaryFormat, ReadonlySet<string>> = { DOCX: MARKS, HTML: MARKS, XML: MARKS, XML46687: MARKS }
+// WP8.M §7.1 / D-M-07：正文标准引用 mark（stdRef、mixedCitation，M-10.2-01/-02、M-10.1.7-01）本阶段在 HTML、DOCX
+// 按普通文本输出；XML 家族不放行（XML46687 留给 WP8.2）。
+const PRINT_MARKS = new Set([...MARKS, 'stdRef', 'mixedCitation'])
+const MARKS_BY_FORMAT: Record<OutputBoundaryFormat, ReadonlySet<string>> = { DOCX: PRINT_MARKS, HTML: PRINT_MARKS, XML: MARKS, XML46687: MARKS }
 
 function fieldsFor(format: OutputBoundaryFormat): Record<string, ReadonlySet<string>> { return FIELDS_BY_FORMAT[format] }
 function marksFor(format: OutputBoundaryFormat): ReadonlySet<string> { return MARKS_BY_FORMAT[format] }

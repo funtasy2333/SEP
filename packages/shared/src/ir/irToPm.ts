@@ -7,7 +7,7 @@
  */
 import type {
   IRAppendix, IRBibEntry, IRBlock, IRChapter, IRClause, IRClauseChild, IRDefItem, IRDefList, IRDoc,
-  IRDocMeta, IRExample, IRInline, IRList, IRMeasure, IRNote, IRTable, IRTermEntry,
+  IRDocMeta, IRExample, IRInline, IRList, IRMeasure, IRNormRefList, IRNote, IRTable, IRTermEntry,
 } from './types'
 import type { PMJsonNode } from './pmToIr'
 import { hasSemanticExtensions, isInlineNoteContent } from './extensions'
@@ -77,6 +77,8 @@ function markToPm(mark: IRTextMark): { type: string; attrs?: PmAttrs } {
     }
     case 'bibRef': return { type: 'bibRef', attrs: { targetId: mark.targetId } }
     case 'termRef': return { type: 'termRef', attrs: { targetId: mark.targetId } }
+    case 'stdRef': return { type: 'stdRef' }
+    case 'mixedCitation': return { type: 'mixedCitation' }
   }
 }
 
@@ -495,7 +497,19 @@ function blockToPm(block: IRBlock, path: string, errors: IRToPmDiagnostic[]): PM
       return node('quoteBlock', withId(block.id), blocksToPm(block.content, path, errors))
     }
     case 'code': return node('codeBlock', withId(block.id, { language: block.language ?? null }), block.text ? [text(block.text)] : [])
+    case 'normRefList': return normRefListToPm(block, path, errors)
   }
+}
+
+/** 规范性引用文件清单（M-4.4.2.3-02/-03/-04）：std 条目写两个子节点，mixed 条目写单段行内内容。 */
+function normRefListToPm(list: IRNormRefList, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+  if (list.entries.length === 0) errors.push({ path, nodeId: list.id, reason: '生产 normRefList 节点要求至少一个条目' })
+  return node('normRefList', withId(list.id), list.entries.map(entry => entry.entryType === 'std'
+    ? node('normRefStd', withId(entry.id), [
+      node('normRefStdRef', undefined, inlinesToPm(entry.ref)),
+      node('normRefStdTitle', undefined, inlinesToPm(entry.title)),
+    ])
+    : node('normRefMixed', withId(entry.id), inlinesToPm(entry.content))))
 }
 
 function childrenToPm(children: IRClauseChild[], path: string, errors: IRToPmDiagnostic[]): PMJsonNode[] {
@@ -665,8 +679,12 @@ export function irToPm(doc: IRDoc, options: IRToPmOptions = {}): PMJsonNode {
   if (introduction.length) content.push(node('introduction', undefined, introduction))
   doc.body.forEach((chapter, index) => content.push(chapterToPm(chapter, `body[${index}]`, errors)))
   doc.appendices.forEach((appendix, index) => content.push(appendixToPm(appendix, `appendices[${index}]`, errors)))
+  // 参考文献标题（M-4.5.3-02）：自定义标题替换默认的“参考文献”；没有条目时容器不存在，标题无处安放，明确报错而非丢弃。
+  if (doc.bibliographyTitle?.length && doc.bibliography.length === 0) {
+    errors.push({ path: 'bibliographyTitle', reason: '生产 bibliography 容器要求至少一个文献条目，自定义标题无处保存' })
+  }
   if (doc.bibliography.length) content.push(node('bibliography', undefined, [
-    node('bibliographyTitle', undefined, [text('参考文献')]),
+    node('bibliographyTitle', undefined, doc.bibliographyTitle?.length ? inlinesToPm(doc.bibliographyTitle) : [text('参考文献')]),
     ...doc.bibliography.map(bibEntryToPm),
   ]))
   if (doc.index) content.push(indexToPm(doc.index, errors))

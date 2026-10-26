@@ -64,6 +64,7 @@ function blockHasTableFootnotes(block: IRBlock): boolean {
     case 'formula':
     case 'code':
     case 'defList':
+    case 'normRefList':
       return false
   }
 }
@@ -88,6 +89,8 @@ function blockHasFootnoteSyntax(block: IRBlock): boolean {
     case 'formula': return inlineHasFootnote(block.sourceInlines ?? []) || block.whereList.some((item) => inlineHasFootnote(item.term) || inlineHasFootnote(item.definition))
     case 'defList': return block.items.some((item) => inlineHasFootnote(item.term) || inlineHasFootnote(item.definition))
     case 'code': return false
+    case 'normRefList': return block.entries.some((entry) => entry.entryType === 'std'
+      ? inlineHasFootnote(entry.ref) || inlineHasFootnote(entry.title) : inlineHasFootnote(entry.content))
   }
 }
 
@@ -113,7 +116,7 @@ function documentHasFootnoteSyntax(doc: IRDoc): boolean {
     (doc.front.introductionClauses ?? []).some(childHasFootnoteSyntax) ||
     doc.body.some((chapter) => inlineHasFootnote(chapter.title) || chapter.children.some(childHasFootnoteSyntax)) ||
     doc.appendices.some((appendix) => inlineHasFootnote(appendix.title) || appendix.children.some(childHasFootnoteSyntax)) ||
-    doc.bibliography.some((entry) => inlineHasFootnote(entry.content))
+    inlineHasFootnote(doc.bibliographyTitle ?? []) || doc.bibliography.some((entry) => inlineHasFootnote(entry.content))
 }
 
 function collectTables(block: IRBlock, out: IRTable[]): void {
@@ -126,7 +129,7 @@ function collectTables(block: IRBlock, out: IRTable[]): void {
     case 'list': block.items.forEach((item) => item.content.forEach((child) => collectTables(child, out))); break
     case 'warning': case 'quote': case 'note': case 'example': block.content.forEach((child) => collectTables(child, out)); break
     case 'figure': block.notes.forEach((note) => note.content.forEach((child) => collectTables(child, out))); break
-    case 'paragraph': case 'formula': case 'code': case 'defList': break
+    case 'paragraph': case 'formula': case 'code': case 'defList': case 'normRefList': break
   }
 }
 

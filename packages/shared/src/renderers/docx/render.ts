@@ -238,7 +238,7 @@ export function renderDocxTraced(
   if (doc.bibliography.length > 0) {
     body += sectionManager.startSection('bibliography')
     ctx.pageFlow.startSection()
-    const rendered = insertLandscapeSections(renderBibliography(ctx, doc.bibliography, toc.bibliographyBookmark), 'bibliography', sectionManager)
+    const rendered = insertLandscapeSections(renderBibliography(ctx, doc.bibliography, toc.bibliographyBookmark, doc.bibliographyTitle), 'bibliography', sectionManager)
     body += rendered.xml
     finalContentLandscape = rendered.endsLandscape
   }

@@ -61,9 +61,24 @@ function bibTitleRuns(): string {
   return plainRun('参', spacing) + plainRun('考', spacing) + plainRun('文', spacing) + plainRun('献')
 }
 
-export function renderBibliography(ctx: RenderContext, entries: readonly IRBibEntry[], titleBookmark?: DocxBookmark): string {
+/**
+ * 自定义参考文献标题（M-4.5.3-02）。纯文本标题与默认标题同一版式：逐字加 1 个字宽的字符间距、最后一个字不加（§3.3）；
+ * 带格式/脚注/引用的标题按行内渲染，不加字距（字符间距与 marks 的叠加没有定义）。
+ */
+function customBibTitleRuns(ctx: RenderContext, title: readonly IRInline[]): string {
+  const plain = title.every((run) => !run.marks?.length && !run.style && !run.formula && !run.footnote)
+  if (!plain) return renderInlines([...title], ctx.labels)
+  const chars = [...title.map((run) => run.text).join('')]
+  const spacing = spacingRpr(210)
+  return chars.map((char, index) => plainRun(char, index < chars.length - 1 ? spacing : '')).join('')
+}
+
+export function renderBibliography(
+  ctx: RenderContext, entries: readonly IRBibEntry[], titleBookmark?: DocxBookmark, title?: readonly IRInline[],
+): string {
   if (entries.length === 0) return ''
-  let out = emitParagraph(ctx, 'SesBibTitle', { runsXml: bibTitleRuns(), bookmark: titleBookmark })
+  const titleRuns = title?.length ? customBibTitleRuns(ctx, title) : bibTitleRuns()
+  let out = emitParagraph(ctx, 'SesBibTitle', { runsXml: titleRuns, bookmark: titleBookmark })
 
   // 没有 label 的排在最后并保持原顺序：Array.prototype.sort 是稳定排序（ES2019+），
   // MAX_SAFE_INTEGER 相同的条目之间天然保持原始相对顺序。

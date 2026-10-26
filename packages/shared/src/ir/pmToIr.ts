@@ -43,6 +43,8 @@ import type {
   IRList,
   IRMark,
   IRMeasure,
+  IRNormRef,
+  IRNormRefList,
   IRNote,
   IROrganization,
   IRParagraph,
@@ -232,6 +234,9 @@ function convertMarks(
         ...(typeof m.attrs?.rel === 'string' ? { rel: m.attrs.rel } : {}),
       }
       out.push({ type: 'externalLink', ...link })
+    } else if (m.type === 'stdRef' || m.type === 'mixedCitation') {
+      // 正文中的标准引用（M-10.2-01/-02、M-10.1.7-01）：无属性，被标记的文本即 std-ref / mixed-citation 内容
+      out.push({ type: m.type })
     } else if (m.type === 'bibRef' || m.type === 'termRef') {
       const targetId = m.attrs?.targetId
       if (typeof targetId === 'string' && targetId.length > 0) {
@@ -933,6 +938,35 @@ function convertFormula(node: PMJsonNode, ctx: Ctx): IRFormula {
   }
 }
 
+// ----- 规范性引用文件清单（M-4.4.2.3-02/-03/-04） -----
+
+/**
+ * normRefList → IRNormRefList。标准化文件条目（normRefStd）的两个子节点分别转为 `ref`（文件编号）与 `title`
+ * （文件名称）；非标准化文件条目（normRefMixed）转为 `content`。条目 ID 取 normRefStd/normRefMixed 的 nodeId，
+ * 子节点无 ID。清单位于非 norm-refs 章不在此报错：章角色可能由标题推断，由 Resolver 判定（见 visitBlock）。
+ */
+function convertNormRefList(node: PMJsonNode, ctx: Ctx): IRNormRefList {
+  const entries: IRNormRef[] = []
+  for (const child of node.content ?? []) {
+    if (child.type === 'normRefStd') {
+      const id = ctx.id(child)
+      let ref: IRInline[] | undefined
+      let title: IRInline[] | undefined
+      for (const part of child.content ?? []) {
+        if (part.type === 'normRefStdRef' && ref === undefined) ref = convertInlines(part.content, ctx)
+        else if (part.type === 'normRefStdTitle' && title === undefined) title = convertInlines(part.content, ctx)
+        else ctx.unknown(part.type, '规范性引用文件条目', part)
+      }
+      entries.push({ kind: 'normRef', id, entryType: 'std', ref: ref ?? [], title: title ?? [] })
+    } else if (child.type === 'normRefMixed') {
+      entries.push({ kind: 'normRef', id: ctx.id(child), entryType: 'mixed', content: convertInlines(child.content, ctx) })
+    } else {
+      ctx.unknown(child.type, '规范性引用文件清单', child)
+    }
+  }
+  return { kind: 'normRefList', id: ctx.id(node), entries }
+}
+
 // ----- 通用块分发 -----
 
 function convertBlock(node: PMJsonNode, ctx: Ctx, where: string): IRBlock | null {
@@ -961,6 +995,8 @@ function convertBlock(node: PMJsonNode, ctx: Ctx, where: string): IRBlock | null
       return convertNoteBlockLike('note', node, ctx)
     case 'exampleBlock':
       return convertNoteBlockLike('example', node, ctx)
+    case 'normRefList':
+      return convertNormRefList(node, ctx)
     case 'warning':
       return { kind: 'warning', id: ctx.id(node), content: convertBlocks(node.content, ctx, '警告') } satisfies IRWarning
     case 'quoteBlock':
@@ -1260,6 +1296,27 @@ function convertAppendix(node: PMJsonNode, ctx: Ctx): IRAppendix {
     // appendixLabel（「（规范性）」字样）由 Resolver/渲染器从 normative 派生，不入 IR
     children: convertClauseChildren(node.content, ctx, '附录', ['appendixLabel', 'appendixTitle']),
   }
+}
+
+/** 参考文献的默认标题；只有与它不同的标题才写入 IR（M-4.5.3-02） */
+const DEFAULT_BIBLIOGRAPHY_TITLE = '参考文献'
+
+/**
+ * bibliographyTitle → `IRDoc.bibliographyTitle`。标题是默认的单个无格式“参考文献”（或空节点）时返回 undefined，
+ * 使旧文档与默认标题不产生新字段（extensionVersion 不变）；其余一律保留（带格式、带引用的自定义标题都写入）。
+ */
+function convertBibliographyTitle(node: PMJsonNode, ctx: Ctx): IRInline[] | undefined {
+  const titleNode = node.content?.find((child) => child.type === 'bibliographyTitle')
+  if (!titleNode) return undefined
+  // 含脚注原子的标题不写入 IR：沿用既有的 unmappedFootnotes 路径（preserveUnmappedFootnotes 报 invalid-footnote，
+  // 阻断所有渲染出口）；PM 文档本身（语义 JSON 的来源）不受影响，作者删除标题中的脚注后即可正常保存与输出。
+  if ((titleNode.content ?? []).some((child) => child.type === 'footnoteRef' || child.type === 'tableFootnoteRef')) return undefined
+  const inlines = convertInlines(titleNode.content, ctx)
+  if (inlines.length === 0) return undefined
+  const [only] = inlines
+  if (inlines.length === 1 && only!.text === DEFAULT_BIBLIOGRAPHY_TITLE
+    && !only!.marks?.length && !only!.style && !only!.formula && !only!.footnote) return undefined
+  return inlines
 }
 
 function convertBibliography(node: PMJsonNode, ctx: Ctx): IRBibEntry[] {
@@ -1798,7 +1855,11 @@ export function pmToIr(pmDoc: PMJsonNode): PmToIrResult {
         if (sawBibliography) {
           ctx.unsupportedContent.push({ nodeId: typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : null, path: ctx.path(node, '参考文献'), nodeType: node.type, reason: 'IR仅支持一个bibliography容器；多容器被合并后无法保留容器边界' })
           doc.bibliography.push(...convertBibliography(node, ctx))
-        } else doc.bibliography = convertBibliography(node, ctx)
+        } else {
+          doc.bibliography = convertBibliography(node, ctx)
+          const bibliographyTitle = convertBibliographyTitle(node, ctx)
+          if (bibliographyTitle) doc.bibliographyTitle = bibliographyTitle
+        }
         sawBibliography = true
         break
       case 'indexBlock':

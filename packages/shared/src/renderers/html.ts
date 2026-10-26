@@ -34,6 +34,8 @@ import type {
   IRFormula,
   IRInline,
   IRList,
+  IRNormRef,
+  IRNormRefList,
   IRNote,
   IRExample,
   IRParagraph,
@@ -462,6 +464,33 @@ function renderExample(example: IRExample, ctx: RenderCtx): void {
   )
 }
 
+// ---------- 规范性引用文件清单（GB/T 1.1—2020 10.3.4；WP8.M G1） ----------
+
+/** 一个汉字的间隙：文件编号或“（所有部分）”与文件名称之间（10.3.4）；是版式，不入 IR 内容 */
+const NORM_REF_GAP = '　'
+
+function renderNormRef(entry: IRNormRef, ctx: RenderCtx): void {
+  // 版式复用 .ses-paragraph（首行缩进 2 字、回行顶格 = 10.3.4 “空两个汉字起排，回行时顶格编排”），不新增样式规则。
+  const attrs = `class="ses-paragraph ses-norm-ref" data-type="norm-ref" data-entry-type="${entry.entryType}"${idAttr(entry.id)}${anchorAttr(ctx, entry.id)}`
+  if (entry.entryType === 'mixed') {
+    // 非标准化文件：保持原有格式，原样输出
+    ctx.push(`<p ${attrs}>${renderInlines(entry.content, ctx)}</p>`)
+    return
+  }
+  const ref = renderInlines(entry.ref, ctx)
+  const title = renderInlines(entry.title, ctx)
+  const refHtml = ref ? `<span class="ses-norm-ref-no">${ref}</span>` : ''
+  const titleHtml = title ? `<span class="ses-norm-ref-title">${title}</span>` : ''
+  // 文件之后不加标点；任一段为空时不留多余间隔
+  ctx.push(`<p ${attrs}>${refHtml}${ref && title ? NORM_REF_GAP : ''}${titleHtml}</p>`)
+}
+
+function renderNormRefList(list: IRNormRefList, ctx: RenderCtx): void {
+  ctx.push(`<div class="ses-norm-ref-list" data-type="norm-ref-list"${idAttr(list.id)}>`)
+  for (const entry of list.entries) renderNormRef(entry, ctx)
+  ctx.push('</div>')
+}
+
 function renderBlock(block: IRBlock, ctx: RenderCtx): void {
   switch (block.kind) {
     case 'paragraph':
@@ -487,6 +516,9 @@ function renderBlock(block: IRBlock, ctx: RenderCtx): void {
       break
     case 'example':
       renderExample(block, ctx)
+      break
+    case 'normRefList':
+      renderNormRefList(block, ctx)
       break
   }
 }
@@ -595,10 +627,11 @@ function bibSeq(ctx: RenderCtx, id: NodeId): number {
   return m ? Number(m[1]) : Number.MAX_SAFE_INTEGER
 }
 
-function renderBibliography(entries: IRBibEntry[], ctx: RenderCtx): void {
+function renderBibliography(entries: IRBibEntry[], ctx: RenderCtx, title?: IRInline[]): void {
   if (entries.length === 0) return
   ctx.push('<section class="ses-bibliography" data-type="bibliography"' + ctx.anchorIdAttr('sec_bibliography') + ' role="doc-bibliography">')
-  ctx.push('<h2 class="ses-bib-title">参考文献</h2>')
+  // 自定义标题（M-4.5.3-02）替换默认的“参考文献”
+  ctx.push(`<h2 class="ses-bib-title">${title?.length ? renderInlines(title, ctx) : '参考文献'}</h2>`)
   const ordered = [...entries].sort((a, b) => bibSeq(ctx, a.id) - bibSeq(ctx, b.id))
   for (const entry of ordered) {
     ctx.push(
@@ -656,7 +689,10 @@ function collectToc(doc: IRDoc, ctx: RenderCtx): TocEntry[] {
       anchor: ctx.xmlId(appendix.id),
     })
   }
-  if (doc.bibliography.length > 0) entries.push({ level: 1, text: '参考文献', anchor: 'sec_bibliography' })
+  if (doc.bibliography.length > 0) {
+    // 目次条目随自定义参考文献标题（M-4.5.3-02）；缺省仍为“参考文献”
+    entries.push({ level: 1, text: doc.bibliographyTitle?.length ? tocText('', doc.bibliographyTitle) : '参考文献', anchor: 'sec_bibliography' })
+  }
   return entries
 }
 
@@ -760,7 +796,7 @@ function renderBody(doc: IRDoc, ctx: RenderCtx): void {
   }
   for (const chapter of doc.body) renderChapter(chapter, ctx)
   for (const appendix of doc.appendices) renderAppendix(appendix, ctx)
-  renderBibliography(doc.bibliography, ctx)
+  renderBibliography(doc.bibliography, ctx, doc.bibliographyTitle)
   // 终结线（10.1.5）：文件最后一个要素之下，居中粗实线，与末要素同页（CSS break-before: avoid）。
   // 若末要素为横排表/图，终结线须留在同一横排命名页上下文，否则回到竖排 body 页会另起空白终结线页。
   const endMark = '<div class="ses-end-mark" role="presentation"></div>'

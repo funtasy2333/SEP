@@ -61,6 +61,9 @@ class ResolveCtx {
   scopeParents = new Map<string, string>()
   /** 当前列项的有序祖先标记（嵌套列表的标记路径用）；无序祖先不贡献标记 */
   listMarkerPath: string[] = []
+  /** 规范性引用清单（WP8.M G1）：允许出现的清单 id（= 当前 norm-refs 章的直属清单）与已访问的清单数 */
+  allowedNormRefLists = new Set<NodeId>()
+  normRefListCount = 0
   targetTexts = new Map<NodeId, string>()
   typedRefs: { targetId: NodeId; fromId: NodeId; expectedKind: string; refKind: 'crossRef' | 'bibRef' | 'termRef' }[] = []
   /** note/example 的 xmlId 全局序号（按文档顺序，确定性） */
@@ -173,6 +176,10 @@ function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx, forb
       }
     }
   }
+}
+
+function inlinePlainText(inlines: IRInline[]): string {
+  return inlines.map(run => run.text).join('')
 }
 
 // ---------- 块级 ----------
@@ -344,6 +351,35 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
       ctx.registerId(block.id)
       for (const child of block.content) visitBlock(child, scopeKey, ctx, forbiddenContainer)
       break
+    case 'normRefList': {
+      // M-4.4.2.3-02：规范性引用清单只能是 secType==='norm-refs' 章的直属块（8.6：清单是该章内容，章不分条）。
+      ctx.registerId(block.id)
+      if (!ctx.allowedNormRefLists.has(block.id)) {
+        ctx.problems.push({
+          code: 'unsupported-content', nodeId: block.id, severity: 'error',
+          message: '规范性引用文件清单只能出现在「规范性引用文件」章（secType 为 norm-refs）中，不能放在其他位置',
+        })
+      }
+      if (++ctx.normRefListCount > 1) {
+        ctx.problems.push({
+          code: 'unsupported-content', nodeId: block.id, severity: 'warning',
+          message: '文档中有多个规范性引用文件清单，条目 xmlId（ref_<n>，n 为清单内序号）会重复；GB/T 46687.2 要求规范性引用文件只设一个清单，请合并',
+        })
+      }
+      // R-8：条目 xmlId = ref_<清单内序号>，label 为空（条目之前不给序号，GB/T 1.1—2020 8.6.3.1）。
+      // 条目内行内（含脚注）按文档顺序访问，脚注允许（与参考文献一致）。
+      block.entries.forEach((entry, index) => {
+        ctx.registerId(entry.id)
+        ctx.kinds.set(entry.id, 'normRef')
+        const text = entry.entryType === 'std' ? inlinePlainText(entry.ref) : inlinePlainText(entry.content).slice(0, 40)
+        ctx.setLabel(entry.id, '', `ref_${index + 1}`, text)
+        if (entry.entryType === 'std') {
+          visitInlines(entry.ref, entry.id, ctx, forbiddenContainer)
+          visitInlines(entry.title, entry.id, ctx, forbiddenContainer)
+        } else visitInlines(entry.content, entry.id, ctx, forbiddenContainer)
+      })
+      break
+    }
     case 'code':
       ctx.registerId(block.id)
       break
@@ -502,6 +538,10 @@ function visitClause(
 }
 
 function visitChapter(chapter: IRChapter, seq: number, ctx: ResolveCtx): void {
+  // 规范性引用清单只在 norm-refs 章的直属块位置合法（见 visitBlock 的 normRefList 分支）
+  if (chapter.secType === 'norm-refs') {
+    for (const child of chapter.children) if (child.kind === 'normRefList') ctx.allowedNormRefLists.add(child.id)
+  }
   ctx.registerId(chapter.id)
   const num = ctx.strategy.chapter(seq)
   ctx.setLabel(chapter.id, num, `sec_${num}`, `第${num}章`)
@@ -661,6 +701,7 @@ function collectDeferredInlineArrays(doc: IRDoc): WeakSet<object> {
     defer(entry.content)
     for (const field of entry.fields ?? []) defer(field.value)
   }
+  defer(doc.bibliographyTitle)
   if (doc.index) {
     defer(doc.index.title)
     for (const group of doc.index.groups) {
@@ -810,6 +851,8 @@ export function resolve(doc: IRDoc, strategy: NumberingStrategy = gbT11Strategy)
 
   const deferredInlineArrays = collectDeferredInlineArrays(doc)
   const indexTargets = registerExtendedData(doc, ctx, deferredInlineArrays)
+  // M-4.5.3-02：自定义参考文献标题只做检查（标题内不能有条文脚注），不产生标签；先于条目访问，与输出顺序一致。
+  if (doc.bibliographyTitle) visitInlines(doc.bibliographyTitle, 'doc.bibliographyTitle', ctx, '标题')
   const bibliographyOrder = resolveBibliography(doc, ctx)
   visitIndexInlines(doc.index, ctx)
   checkIndexTargets(indexTargets, ctx)

@@ -17,6 +17,7 @@ import { resolveTableColumnWidths } from './tableColumnWidths'
 import type { TableFlowBudget } from './pageFlow'
 import { paginateTable, SMALL_TABLE_MM } from './tablePagination'
 import { renderFormula } from './formula'
+import { renderNormRefList } from './normRef'
 import { orderTableFootnotes } from '../../footnotes'
 
 /** render.ts 在完整块之间解析这两个内部标记，连续横排块由此共用一节。 */
@@ -449,6 +450,8 @@ function renderBlockContent(ctx: RenderContext, block: IRBlock, bctx: BlockCtx):
       return renderNote(ctx, block, bctx)
     case 'example':
       return renderExample(ctx, block, bctx)
+    case 'normRefList':
+      return renderNormRefList(ctx, block)
     case 'warning':
     case 'quote':
     case 'code':

@@ -13,6 +13,11 @@ export function collectFootnotes(doc: IRDoc, bibliographyOrder?: string[]): IRFo
       case 'list': for (const item of node.items) item.content.forEach(block); break
       case 'note': case 'example': case 'warning': case 'quote': node.content.forEach(block); break
       case 'code': break
+      case 'normRefList':
+        for (const entry of node.entries) {
+          if (entry.entryType === 'std') { inlines(entry.ref); inlines(entry.title) } else inlines(entry.content)
+        }
+        break
       case 'table':
         inlines(node.caption); inlines(node.captionEn ?? [])
         for (const row of node.rows) for (const cell of row.cells) cell.content.forEach(block)
@@ -45,6 +50,7 @@ export function collectFootnotes(doc: IRDoc, bibliographyOrder?: string[]): IRFo
     }
   }
   extras(doc)
+  inlines(doc.bibliographyTitle ?? [])
   for (const entry of bibliographyOrder ? bibliographyOrder.map(id => doc.bibliography.find(entry => entry.id === id)!).filter(Boolean) : doc.bibliography) inlines(entry.content)
   return out
 }

@@ -131,7 +131,8 @@ export function buildStaticToc(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>
   }
 
   if (doc.bibliography.length > 0) {
-    add({ kind: 'bibliography' }, 'TOC1', plainRun('参考文献'))
+    // 自定义参考文献标题（M-4.5.3-02）替换默认的“参考文献”；目次条目不带标题字距（§3.3）
+    add({ kind: 'bibliography' }, 'TOC1', doc.bibliographyTitle?.length ? renderInlines(doc.bibliographyTitle, labels) : plainRun('参考文献'))
   }
 
   return {

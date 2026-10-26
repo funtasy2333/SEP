@@ -55,6 +55,9 @@ function blockLines(block: IRBlock, capacity: number): number {
       return 6
     case 'table':
       return 12
+    case 'normRefList':
+      return Math.max(1, block.entries.reduce((sum, entry) => sum + textLines(
+        (entry.entryType === 'std' ? [...entry.ref, ...entry.title] : entry.content).map((run) => run.text).join(''), capacity), 0))
     case 'warning':
     case 'quote':
     case 'code':

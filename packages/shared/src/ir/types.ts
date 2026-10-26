@@ -29,6 +29,12 @@ export interface IRDoc {
   body: IRChapter[]
   appendices: IRAppendix[]
   bibliography: IRBibEntry[]
+  /**
+   * 参考文献标题（GB/T 46687.2 4.5.3，M-4.5.3-02）。仅当标题不是默认的“参考文献”时存在：
+   * 缺省 = 默认标题，渲染器与导出器输出“参考文献”；存在 = 自定义标题（如“参考书目”），替换默认值。
+   * 只做检查、不产生标签；标题中不能插入条文脚注（Resolver 报 invalid-footnote）。
+   */
+  bibliographyTitle?: IRInline[]
   /** 文档级序列化资源目录；资源负载不得藏在渲染器私有属性中。 */
   resources?: IRResource[]
   index?: IRIndex
@@ -166,6 +172,25 @@ export type IRBlock =
   | IRParagraph | IRList | IRTable | IRFigure
   | IRFormula | IRNote | IRExample | IRWarning | IRQuote | IRCodeBlock
   | IRDefList
+  | IRNormRefList
+
+/**
+ * 规范性引用文件清单（GB/T 46687.2 4.4.2.3.1～3，GB/T 1.1—2020 8.6.3、10.3.4；M-4.4.2.3-02）。
+ * 只能出现在 `secType === 'norm-refs'` 的章内（Resolver 校验，别处报 error）。
+ * 清单是块，不带编号：条目之前不给序号（8.6.3.1），Resolver 只给条目 xmlId `ref_<n>`（R-8，n 为清单内序号）。
+ */
+export interface IRNormRefList { kind: 'normRefList'; id: NodeId; entries: IRNormRef[] }
+
+/**
+ * 清单条目。std：标准化文件，`ref`（文件编号，XML 的 std-ref）+ `title`（文件名称）两段行内，
+ * 两段之间的版式间隔（空一个汉字）由渲染阶段添加，不入内容（M-4.4.2.3-03）；
+ * mixed：非标准化文件，保持原有格式的一段行内内容（M-4.4.2.3-04）。
+ * 不复用 IRBibEntry：参考文献条目同时存“显示文本 + 结构化字段”并参与 [n] 编号与 bibRef 类型检查，
+ * 规范性引用条目无编号，只需要单一来源。
+ */
+export type IRNormRef =
+  | { kind: 'normRef'; id: NodeId; entryType: 'std'; ref: IRInline[]; title: IRInline[] }
+  | { kind: 'normRef'; id: NodeId; entryType: 'mixed'; content: IRInline[] }
 
 export interface IRParagraph {
   kind: 'paragraph'
@@ -520,6 +545,10 @@ export type IRMark =
   | { type: 'bibRef'; targetId: NodeId }
   | { type: 'termRef'; targetId: NodeId }
   | { type: 'tableFootnoteRef'; targetId: NodeId; id?: NodeId }
+  /** 正文中对标准化文件的引用（10.2，M-10.2-01/-02）：被标记的文本即 std-ref 内容；与 mixedCitation 互斥。 */
+  | { type: 'stdRef' }
+  /** 正文中对非标准化文件的引用（10.1.7，M-10.1.7-01）：保持原有格式；与 stdRef 互斥。 */
+  | { type: 'mixedCitation' }
 
 export type IRReferenceTargetKind =
   | 'chapter' | 'clause' | 'appendix' | 'figure' | 'table' | 'formula'
