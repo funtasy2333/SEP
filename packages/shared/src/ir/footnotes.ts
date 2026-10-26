@@ -49,8 +49,9 @@ export function collectFootnotes(doc: IRDoc, bibliographyOrder?: string[]): IRFo
       if (key !== 'footnote' && key !== 'unmappedFootnotes' && key !== 'unsupportedContent' && !(row.kind === 'bibEntry' && key === 'content')) extras(child)
     }
   }
-  extras(doc)
+  // 自定义参考文献标题（M-4.5.3-02）先于 extras 登记为已收集，否则会被通用扫描再收一次；其脚注由 Resolver 报错
   inlines(doc.bibliographyTitle ?? [])
+  extras(doc)
   for (const entry of bibliographyOrder ? bibliographyOrder.map(id => doc.bibliography.find(entry => entry.id === id)!).filter(Boolean) : doc.bibliography) inlines(entry.content)
   return out
 }

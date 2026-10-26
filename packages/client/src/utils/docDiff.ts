@@ -250,6 +250,22 @@ function nodeToText(
       break
     }
 
+    case 'normRefList': {
+      // 规范性引用文件清单（M-4.4.2.3-02/-03/-04）：每个条目一行，标准化文件为“文件编号　文件名称”（间隔与出件一致，
+      // 一个汉字）；不能落入 default（会把整个清单拼成一行，并把子节点再输出一遍）。
+      for (const entry of content ?? []) {
+        const entryContent = entry.content as Array<Record<string, unknown>> | undefined
+        if ((entry.type as string) === 'normRefStd') {
+          const ref = extractTitle(entryContent, 'normRefStdRef')
+          const title = extractTitle(entryContent, 'normRefStdTitle')
+          lines.push(`${indent}${ref && title ? `${ref}　${title}` : ref + title}`)
+        } else {
+          lines.push(`${indent}${extractText(entry)}`)
+        }
+      }
+      break
+    }
+
     case 'stdList': {
       if (content) {
         for (const c of content) {

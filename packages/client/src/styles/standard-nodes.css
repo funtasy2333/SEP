@@ -746,6 +746,51 @@
   line-height: 1.6;
 }
 
+/*
+ * 规范性引用文件清单（GB/T 1.1—2020 10.3.4；WP8.M G1，M-4.4.2.3-02/-03/-04）：每项空两个汉字起排、回行顶格（与条文段相同的
+ * 首行缩进 2 字）、文件之后不加标点；文件编号与文件名称之间空一个汉字，由 ::before 在显示阶段添加，不入节点内容。
+ * 编号、名称是两个行内文本块（span），与条目同在一行；空节点的 trailing <br> 不能把名称挤到下一行。
+ */
+.std-norm-ref-list {
+  margin: 6px 0;
+}
+
+.std-norm-ref {
+  text-indent: 2em;
+  margin: 2px 0;
+  line-height: 1.8;
+}
+
+.std-norm-ref-no,
+.std-norm-ref-title {
+  display: inline;
+}
+
+.std-norm-ref-title::before {
+  content: '\3000';
+}
+
+/* 空编号：给一个可点击的最小宽度，并让 trailing <br> 留在自己的行内盒里；空名称不显示间隔。 */
+.std-norm-ref-no:has(> .ProseMirror-trailingBreak:only-child) {
+  display: inline-block;
+  min-width: 4em;
+}
+
+.std-norm-ref-title:has(> .ProseMirror-trailingBreak:only-child)::before {
+  content: none;
+}
+
+/*
+ * 正文中的标准引用（M-10.2-01/-02、M-10.1.7-01）：std-ref / mixed-citation 在打印上与普通文本无差别，
+ * 编辑器里用弱样式（点状下划线）让作者看出标记范围又不抢眼，不同于交叉引用的蓝色实线。
+ */
+.std-std-ref,
+.std-mixed-citation {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--ses-ink-3, #999);
+  text-underline-offset: 3px;
+}
+
 /* 标准列表 */
 .std-list {
   margin: 8px 0;

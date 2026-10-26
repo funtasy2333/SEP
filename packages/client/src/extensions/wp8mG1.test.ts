@@ -17,7 +17,7 @@ import { replaceEditorDocument } from '../utils/editorDocument'
 import { exportSemanticJson } from '../serializer/jsonExporter'
 import { createEditorExtensions } from './editorExtensions'
 import { NODE_ID_TYPES, findNodeIdFixes, normalizeNodeIds } from './plugins/ensureNodeId'
-import { createG1Fixture, createG1LegacyFixture, createG1NormRefList } from './__fixtures__/wp8m-g1'
+import { createG1Fixture, createG1LegacyFixture } from './__fixtures__/wp8m-g1'
 
 const extensions = createEditorExtensions()
 const schema = getSchema(extensions)
@@ -314,6 +314,12 @@ describe('[M-4.4.2.3-02] [M-4.5.3-02] 保存重开：Editor + replaceEditorDocum
     expect(text).toContain('优先数和优先数系')
     expect(text).toContain('《中华人民共和国计量法》')
     expect(text).toContain('[参考书目]')
+    // 每个条目恰好一行，std 条目为“文件编号　文件名称”（一个汉字的间隔）；清单不被拼成一行，子节点不重复输出
+    const lines = text.split('\n')
+    expect(lines.filter(line => line.includes('优先数和优先数系'))).toEqual(['  GB/T 321　优先数和优先数系'])
+    expect(lines).toContain('  GB/T 3102（所有部分）　量和单位')
+    expect(lines).toContain('  ISO 80000（所有部分）　量和单位（Quantities and units）')
+    expect(lines).toContain('  《中华人民共和国计量法》')
   })
 })
 

@@ -10,7 +10,8 @@
 import { describe, expect, it } from 'vitest'
 import { hasSemanticExtensions } from '../extensions'
 import { collectFootnotes } from '../footnotes'
-import { IRToPmError, irToPm } from '../irToPm'
+import { normalizeAuthoringFragment } from '../authoring'
+import { IRToPmError, irFragmentToPm, irToPm } from '../irToPm'
 import { pmToIr, type PMJsonNode } from '../pmToIr'
 import { resolve } from '../resolve'
 import type { IRChapter, IRDoc, IRInline, IRNormRefList } from '../types'
@@ -385,6 +386,8 @@ describe('[M-4.5.3-02] 参考文献标题 bibliographyTitle', () => {
     expect(errors(doc).filter(problem => problem.code === 'invalid-footnote')).toEqual([
       expect.objectContaining({ nodeId: 'doc.bibliographyTitle', message: expect.stringContaining('标题') }),
     ])
+    // 标题里的脚注只被收集一次（既不漏收，也不被通用扫描重复收集）
+    expect(collectFootnotes(doc).filter(footnote => footnote.id === 'g1-fn-bib-title')).toHaveLength(1)
   })
 
   it('PM 标题含脚注：沿用 unmappedFootnotes 路径报 invalid-footnote，且不写入 doc.bibliographyTitle（输出被阻断，PM 不受影响）', () => {
@@ -405,5 +408,32 @@ describe('[M-4.5.3-02] 参考文献标题 bibliographyTitle', () => {
     const result = resolve(createG1IrDoc())
     expect(result.labels['g1-bib-1']).toMatchObject({ label: '[1]', xmlId: 'bib_1' })
     expect(result.bibliographyOrder).toEqual(['g1-bib-1', 'g1-bib-2'])
+  })
+})
+
+describe('[M-4.4.2.3-02] [M-10.2-01] [M-10.1.7-01] 写作片段：模型已支持但本阶段没有写作入口，给出准确提示', () => {
+  const chapter = { parent: 'chapter' } as const
+
+  it('kind=normRefList 报 unsupported-kind（而不是笼统的“未知的 kind”），提示模型已支持', () => {
+    const result = normalizeAuthoringFragment([{ kind: 'normRefList', entries: [] }], chapter, { generateId: () => 'gen-1' })
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.issues).toEqual([expect.objectContaining({ code: 'unsupported-kind', path: 'fragment[0].kind' })])
+    expect(result.issues[0]!.reason).toContain('规范性引用文件清单')
+    expect(result.issues[0]!.reason).toContain('模型已支持')
+  })
+
+  it('mark stdRef / mixedCitation 报 unsupported-field（写作入口留后续交互任务），不静默丢弃也不当作未知类型', () => {
+    for (const type of ['stdRef', 'mixedCitation']) {
+      const result = normalizeAuthoringFragment([{ kind: 'paragraph', content: [{ text: 'GB/T 321', marks: [{ type }] }] }], chapter, { generateId: () => 'gen-2' })
+      expect(result.ok, type).toBe(false)
+      if (result.ok) continue
+      expect(result.issues[0], type).toMatchObject({ code: 'unsupported-field', path: 'fragment[0].content[0].marks[0]' })
+      expect(result.issues[0]!.reason).toContain('模型已支持')
+    }
+  })
+
+  it('片段投影不创建 normRefList：irFragmentToPm 拒绝（FRAGMENT_BLOCK_KINDS 未增加，符合“不做插入”）', () => {
+    expect(() => irFragmentToPm([g1NormRefList()], chapter)).toThrow(IRToPmError)
   })
 })

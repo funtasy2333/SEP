@@ -398,6 +398,11 @@ function parseMark(value: unknown, path: string, ctx: Ctx): IRMark | undefined {
     case 'tableFootnoteRef':
       ctx.issue(path, 'unsupported-field', '写作片段暂不支持表脚注引用（tableFootnoteRef）')
       return undefined
+    case 'stdRef':
+    case 'mixedCitation':
+      // 模型已支持（WP8.M G1，正文引用标准化/非标准化文件），写作入口留后续交互任务
+      ctx.issue(path, 'unsupported-field', `写作片段暂不支持标准引用标记（${type}）：模型已支持，写作入口留后续交互任务；请先写成普通文字`)
+      return undefined
     default:
       ctx.issue(`${path}.type`, 'invalid-value', `未知的行内标记类型「${type}」（支持：${SUPPORTED_MARK_TYPES.join('、')}）`)
       return undefined
@@ -1191,6 +1196,12 @@ function parseNode(
   if (kind === 'warning' || kind === 'quote' || kind === 'code' || kind === 'defList') {
     ctx.issue(`${path}.kind`, 'unsupported-kind',
       `写作片段暂不支持「${kind}」块（支持：${AUTHORING_NODE_KINDS.join('、')}）`)
+    return undefined
+  }
+  if (kind === 'normRefList') {
+    // 模型已支持（WP8.M G1）：清单只能出现在“规范性引用文件”章内，本阶段写作片段没有创建它的入口
+    ctx.issue(`${path}.kind`, 'unsupported-kind',
+      `写作片段暂不支持「normRefList」（规范性引用文件清单）：模型已支持，写作入口留后续交互任务；请先写成普通段落（支持：${AUTHORING_NODE_KINDS.join('、')}）`)
     return undefined
   }
   if (!(AUTHORING_NODE_KINDS as readonly string[]).includes(kind)) {
