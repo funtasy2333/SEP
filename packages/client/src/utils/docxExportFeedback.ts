@@ -23,8 +23,9 @@ export function getDocxExportFeedback(warnings: DocxPackage['warnings']) {
   const tableIssues = tableNotes.filter(([code]) => codes.has(code)).map(([, message]) => message())
   const tocPending = codes.has('toc-pages-pending')
   const notes = [
-    ...(tocPending ? ['目次页码待更新：请用 Microsoft Word 打开文件，若询问是否更新域，请选“是”；' +
-      '完成分页后在目次上右键选择“更新域”→“更新整个目录”，或全选后按 F9（Mac 可按 Fn+F9），再保存。'] : []),
+    ...(tocPending ? ['目次页码待更新：请用 Microsoft Word 打开文件，打开时会依次出现两个提示：' +
+      '询问是否更新域时选“是”，“更新目录”时选“更新整个目录”，完成后保存。' +
+      '若打开时未更新，可在目次上右键选择“更新域”→“更新整个目录”。'] : []),
     ...tableIssues,
     ...warnings.filter(warning => warning.code === 'footnote-landscape-separator').map(warning => warning.message),
     ...(codes.has('cover-asset-approximation') ? ['部分封面素材的来源或清晰度有限，请核对后使用。'] : []),

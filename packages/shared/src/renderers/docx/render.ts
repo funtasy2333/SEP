@@ -175,7 +175,7 @@ export function renderDocxTraced(
   if (toc.entries.length > 0) {
     ctx.warnings.push({
       code: 'toc-pages-pending',
-      message: '目次页码尚未计算，请在 Microsoft Word 完成分页后全选文档并更新域，再保存文件。',
+      message: '目次页码尚未计算，请在 Microsoft Word 打开时允许更新域并选择“更新整个目录”，再保存文件。',
     })
   }
   ctx.pageFlow.setFootnoteHeights(new Map(bodyFootnotes.map(footnote => {
