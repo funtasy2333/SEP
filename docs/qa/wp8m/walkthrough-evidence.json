@@ -1,0 +1,307 @@
+{
+  "origin": "http://127.0.0.1:5198",
+  "status": "passed",
+  "screenshots": [
+    "01-norm-ref-chapter.png",
+    "02-std-ref-marks.png",
+    "03-abbreviation-list.png",
+    "04a-figure-legend-notes-example.png",
+    "04b-inline-images.png",
+    "05-term-subject-field.png",
+    "06-introduction-clauses-outline.png",
+    "07-roman-list.png",
+    "08-multi-block-notes-examples.png",
+    "08b-foreword-multi-block-note.png",
+    "09-table-columns-borders.png",
+    "10-bibliography-title.png",
+    "11-norm-ref-enter-no-split.png",
+    "12-legend-title-enter.png",
+    "13-export-blocked-full-doc.png",
+    "print-preview-toc-introduction-custom-bibliography-title.png",
+    "print-preview-introduction-clauses.png",
+    "print-preview-norm-refs-and-subject-field.png",
+    "print-preview-abbreviations-figure-notes.png",
+    "print-preview-roman-list-multi-block-notes.png",
+    "print-preview-appendix-subject-field.png",
+    "print-preview-bibliography-custom-title.png"
+  ],
+  "checks": [
+    {
+      "text": "隔离库已创建两份文档：全要素 id=1，去掉暂不排版结构 id=2"
+    },
+    {
+      "text": "全要素文档载入真实编辑器，无页面错误；根属性 extensionVersion=1"
+    },
+    {
+      "text": "规范性引用清单：4 条（3 条标准化 + 1 条非标准化），编号与名称之间由 ::before 加一个全角空格",
+      "normRefs": [
+        {
+          "cls": "std-norm-ref std-norm-ref-std",
+          "text": "GB/T 321优先数和优先数系",
+          "textIndent": "30px",
+          "gap": "\"　\""
+        },
+        {
+          "cls": "std-norm-ref std-norm-ref-std",
+          "text": "GB/T 3102（所有部分）量和单位",
+          "textIndent": "30px",
+          "gap": "\"　\""
+        },
+        {
+          "cls": "std-norm-ref std-norm-ref-std",
+          "text": "ISO 80000（所有部分）量和单位（Quantities and units）",
+          "textIndent": "30px",
+          "gap": "\"　\""
+        },
+        {
+          "cls": "std-norm-ref std-norm-ref-mixed",
+          "text": "《中华人民共和国计量法》2)",
+          "textIndent": "30px",
+          "gap": null
+        }
+      ]
+    },
+    {
+      "text": "正文 std / mixed-citation 标记：点状下划线，文本与 fixture 一致",
+      "marks": [
+        {
+          "cls": "std-std-ref",
+          "text": "GB/T 3102.1",
+          "deco": "underline dotted"
+        },
+        {
+          "cls": "std-mixed-citation",
+          "text": "《中华人民共和国计量法》",
+          "deco": "underline dotted"
+        },
+        {
+          "cls": "std-std-ref",
+          "text": "GB/T 321",
+          "deco": "underline dotted"
+        },
+        {
+          "cls": "std-std-ref",
+          "text": "2",
+          "deco": "underline dotted"
+        },
+        {
+          "cls": "std-std-ref",
+          "text": "GB/T 321",
+          "deco": "underline dotted"
+        },
+        {
+          "cls": "std-std-ref",
+          "text": "GB/T 3102",
+          "deco": "underline dotted"
+        }
+      ]
+    },
+    {
+      "text": "缩略语表（第 4 章）3 项",
+      "defRows": [
+        "ADC模数转换器（Analog-to-Digital Converter）",
+        "AGC自动增益控制（Automatic Gain Control）",
+        "CT计算机断层扫描，参见ADC与电流互感器"
+      ]
+    },
+    {
+      "text": "图例标题“图例” + 3 项；行内图 6 个",
+      "legendRows": [
+        "1主电路",
+        "2控制器，见图A.1",
+        "Vo输出电压"
+      ],
+      "images": [
+        {
+          "size": "M",
+          "w": 36,
+          "h": 36
+        },
+        {
+          "size": "S",
+          "w": 18,
+          "h": 18
+        },
+        {
+          "size": null,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "size": "L",
+          "w": 54,
+          "h": 54
+        },
+        {
+          "size": null,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "size": "S",
+          "w": 16,
+          "h": 16
+        }
+      ]
+    },
+    {
+      "text": "术语领域 4 处，〈〉由伪元素显示（不入内容）",
+      "subjects": [
+        {
+          "text": "顾客满意",
+          "before": "\"〈\"",
+          "after": "\"〉\""
+        },
+        {
+          "text": "ISO 和/或 IEC 发布的",
+          "before": "\"〈\"",
+          "after": "\"〉\""
+        },
+        {
+          "text": "化学",
+          "before": "\"〈\"",
+          "after": "\"〉\""
+        },
+        {
+          "text": "附录领域",
+          "before": "\"〈\"",
+          "after": "\"〉\""
+        }
+      ]
+    },
+    {
+      "text": "引言条编号与大纲",
+      "clauseNumbers": [
+        "背景",
+        "起因",
+        "说明",
+        "目的",
+        ""
+      ],
+      "outline": [
+        "前言",
+        "引言",
+        "0.1 背景",
+        "0.1.1 起因",
+        "0.1.2 说明",
+        "0.2 目的",
+        "1 范围",
+        "2 规范性引用文件",
+        "3 术语和定义",
+        "3.1 协会",
+        "3.2 无领域术语",
+        "3.3 分类术语"
+      ]
+    },
+    {
+      "text": "罗马列项（i）～iv））",
+      "roman": [
+        {
+          "text": "准备",
+          "marker": "counter(roman-counter, lower-roman) \"） \"",
+          "counter": "disc"
+        },
+        {
+          "text": "实施",
+          "marker": "counter(roman-counter, lower-roman) \"） \"",
+          "counter": "disc"
+        },
+        {
+          "text": "检查",
+          "marker": "counter(roman-counter, lower-roman) \"） \"",
+          "counter": "disc"
+        },
+        {
+          "text": "处置",
+          "marker": "counter(roman-counter, lower-roman) \"） \"",
+          "counter": "disc"
+        }
+      ]
+    },
+    {
+      "text": "两列表：列宽比与边框样式",
+      "tableMetrics": {
+        "widths": [
+          265,
+          397.5
+        ],
+        "ratio": 0.4,
+        "colWidths": [
+          "min-width: 25px;",
+          "min-width: 25px;"
+        ],
+        "body": [
+          {
+            "top": "solid",
+            "right": "none",
+            "bottom": "dashed",
+            "left": "solid"
+          },
+          {
+            "top": "dotted",
+            "right": "dotted",
+            "bottom": "dotted",
+            "left": "dotted"
+          }
+        ]
+      }
+    },
+    {
+      "text": "自定义参考文献标题“参考书目”"
+    }
+  ],
+  "interactions": [
+    {
+      "text": "规范性引用 std 条目的编号内按 Enter：不拆分，文档内容逐字不变，std 条目仍为 3 条"
+    },
+    {
+      "text": "规范性引用 std 条目的名称内按 Enter：不拆分，文档内容逐字不变，std 条目仍为 3 条"
+    },
+    {
+      "text": "（补充）mixed 条目内按 Enter：mixed 条目 1 → 2（拆出新条目，与 G1 报告一致）"
+    },
+    {
+      "text": "图例标题内按 Enter：光标进入第一项（g3-lg-1）的符号格，标题仍为 1 个（没有被劈开）"
+    }
+  ],
+  "exports": [
+    {
+      "text": "全要素文档导出 DOCX 被阻断：导出被阻止：DOCX 暂未支持此信息：doc.body[0].children[2].content[1].image（节点 g3-scope-p）。请保留 JSON 文档。【节点 g3-scope-p，位置 doc.body[0].children[2].content[1].image】；DOCX 暂未支持此信息："
+    },
+    {
+      "text": "全要素文档 JSON 导出仍可用，extensionVersion=1"
+    },
+    {
+      "text": "去掉暂不排版结构的文档：UI 导出“版式预览”成功，已保存 PDF"
+    },
+    {
+      "text": "去掉暂不排版结构的文档：UI 导出 DOCX 成功"
+    },
+    {
+      "text": "打印预览 PDF 11 页；各清单项所在页：{\"toc-introduction-custom-bibliography-title\":1,\"introduction-clauses\":3,\"norm-refs-and-subject-field\":4,\"abbreviations-figure-notes\":5,\"roman-list-multi-block-notes\":6,\"appendix-subject-field\":10,\"bibliography-custom-title\":11}",
+      "printPages": {
+        "toc-introduction-custom-bibliography-title": 1,
+        "introduction-clauses": 3,
+        "norm-refs-and-subject-field": 4,
+        "abbreviations-figure-notes": 5,
+        "roman-list-multi-block-notes": 6,
+        "appendix-subject-field": 10,
+        "bibliography-custom-title": 11
+      }
+    }
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "pdf": {
+    "pages": 11,
+    "printPages": {
+      "toc-introduction-custom-bibliography-title": 1,
+      "introduction-clauses": 3,
+      "norm-refs-and-subject-field": 4,
+      "abbreviations-figure-notes": 5,
+      "roman-list-multi-block-notes": 6,
+      "appendix-subject-field": 10,
+      "bibliography-custom-title": 11
+    }
+  }
+}
