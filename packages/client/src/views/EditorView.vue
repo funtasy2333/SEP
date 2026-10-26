@@ -247,7 +247,7 @@
 
       <!-- Editor body: outline + canvas + one optional sidebar -->
       <div class="ed-body ses-scroll">
-        <div :inert="documentUnavailable">
+        <div class="outline-host" :inert="documentUnavailable">
           <DocumentOutline :editor="editor" />
         </div>
         <div class="ed-main">
@@ -2646,6 +2646,11 @@ function handleXmlFileImport(event: Event) {
   display: flex;
   overflow: hidden;
   position: relative;
+}
+.outline-host {
+  display: flex;
+  flex-shrink: 0;
+  min-height: 0;
 }
 .ed-main {
   flex: 1;

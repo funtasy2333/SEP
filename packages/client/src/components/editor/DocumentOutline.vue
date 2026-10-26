@@ -285,6 +285,7 @@ watch(
 <style scoped>
 .document-outline {
   width: 240px;
+  min-height: 0;
   border-right: 1px solid var(--ses-line);
   display: flex;
   flex-direction: column;
@@ -294,6 +295,7 @@ watch(
 
 .outline-header {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 8px;
   padding: 14px 16px 8px;
@@ -306,6 +308,7 @@ watch(
 
 .outline-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 4px 8px 24px;
   scrollbar-width: thin;
