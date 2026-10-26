@@ -1,0 +1,189 @@
+{
+  "date": "2026-10-23",
+  "scope": "Phase 6 manual local validation, Draft PR #57",
+  "verification": [
+    {
+      "package": "shared",
+      "command": "pnpm --filter @ses/shared exec vitest run --maxWorkers=2",
+      "filesPassed": 65,
+      "testsPassed": 1485
+    },
+    {
+      "package": "client",
+      "command": "pnpm --filter @ses/client exec vitest run --maxWorkers=2",
+      "filesPassed": 95,
+      "filesSkipped": 1,
+      "testsPassed": 1028,
+      "testsSkipped": 1
+    },
+    {
+      "package": "server",
+      "command": "pnpm --filter @ses/server test --runInBand",
+      "suitesPassed": 21,
+      "testsPassed": 762,
+      "environment": "Chromium subprocess allowed"
+    },
+    {
+      "package": "io",
+      "command": "pnpm --filter @ses/io exec vitest run --maxWorkers=2",
+      "filesPassed": 15,
+      "testsPassed": 269
+    },
+    {
+      "command": "pnpm build",
+      "result": "passed",
+      "workerAsset": "analysis.worker-BSB3IOYK.js",
+      "workerKilobytes": 112.91
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "performance": [
+    {
+      "measurement": "PHASE6_PRESENTATION_MEASUREMENT",
+      "blocks": 500,
+      "issues": 10,
+      "anchorMs": 0.749416999999994,
+      "decorationMs": 1.0609580000000278
+    },
+    {
+      "measurement": "PHASE6_MEASUREMENT",
+      "blocks": 500,
+      "samples": [
+        {
+          "conversionMs": 4.16316699999993,
+          "analysisMs": 40.76850000000002,
+          "totalMs": 44.93166699999995
+        },
+        {
+          "conversionMs": 1.708750000000009,
+          "analysisMs": 26.02116699999999,
+          "totalMs": 27.729917
+        },
+        {
+          "conversionMs": 2.0493750000000546,
+          "analysisMs": 28.338499999999954,
+          "totalMs": 30.387875000000008
+        },
+        {
+          "conversionMs": 0.9841250000000628,
+          "analysisMs": 24.273249999999962,
+          "totalMs": 25.257375000000025
+        },
+        {
+          "conversionMs": 0.8474999999999682,
+          "analysisMs": 23.26745900000003,
+          "totalMs": 24.114959
+        }
+      ]
+    },
+    {
+      "measurement": "PHASE6_PRESENTATION_MEASUREMENT",
+      "blocks": 2000,
+      "issues": 40,
+      "anchorMs": 0.9404159999999138,
+      "decorationMs": 3.536292000000003
+    },
+    {
+      "measurement": "PHASE6_MEASUREMENT",
+      "blocks": 2000,
+      "samples": [
+        {
+          "conversionMs": 5.279207999999926,
+          "analysisMs": 98.29479199999992,
+          "totalMs": 103.57399999999984
+        },
+        {
+          "conversionMs": 3.4247080000000096,
+          "analysisMs": 88.5579580000001,
+          "totalMs": 91.98266600000011
+        },
+        {
+          "conversionMs": 2.97524999999996,
+          "analysisMs": 91.70662500000003,
+          "totalMs": 94.68187499999999
+        },
+        {
+          "conversionMs": 2.851791999999932,
+          "analysisMs": 91.87408300000016,
+          "totalMs": 94.72587500000009
+        },
+        {
+          "conversionMs": 2.952540999999883,
+          "analysisMs": 87.15525000000002,
+          "totalMs": 90.1077909999999
+        }
+      ]
+    },
+    {
+      "measurement": "PHASE6_PRESENTATION_MEASUREMENT",
+      "blocks": 10000,
+      "issues": 200,
+      "anchorMs": 1.9811250000002474,
+      "decorationMs": 24.822291999999834
+    },
+    {
+      "measurement": "PHASE6_MEASUREMENT",
+      "blocks": 10000,
+      "samples": [
+        {
+          "conversionMs": 37.588833999999906,
+          "analysisMs": 458.423583,
+          "totalMs": 496.0124169999999
+        },
+        {
+          "conversionMs": 21.29312499999969,
+          "analysisMs": 446.4172500000004,
+          "totalMs": 467.7103750000001
+        },
+        {
+          "conversionMs": 11.37237499999992,
+          "analysisMs": 422.83991700000024,
+          "totalMs": 434.21229200000016
+        },
+        {
+          "conversionMs": 18.46775000000025,
+          "analysisMs": 424.15170899999976,
+          "totalMs": 442.619459
+        },
+        {
+          "conversionMs": 19.364124999999603,
+          "analysisMs": 426.3140000000003,
+          "totalMs": 445.6781249999999
+        }
+      ]
+    }
+  ],
+  "performanceLimits": "PM conversion, combined analysis, live-node anchors and DecorationSet CPU timings; excludes worker startup/message transfer and browser paint; not a hardware-independent guarantee.",
+  "browser": {
+    "build": "production preview, isolated database",
+    "viewports": [
+      1280,
+      635,
+      390
+    ],
+    "passed": [
+      "opening panel stays not-run",
+      "manual production worker completes",
+      "editing and remote changes stale report without rerun",
+      "stale navigation disabled",
+      "manual recheck",
+      "safe figure navigation",
+      "panel remains inside narrow viewport",
+      "document/revision/updatedAt unchanged by validation"
+    ]
+  },
+  "reviews": {
+    "shared": "F1-F8 closed",
+    "client": "all reproduced issues closed",
+    "integration": "I1-I2 closed; no remaining P1/P2"
+  },
+  "limits": [
+    "finite natural language matching",
+    "standard database and term authority deferred",
+    "footnotes/table footnotes/bibliography reminders excluded from quality",
+    "existing legacy problems and export blocking preserved"
+  ]
+}

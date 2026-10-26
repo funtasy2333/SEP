@@ -280,6 +280,7 @@ export class McpToolsService {
     return jsonResult({
       revision: validation.revision,
       problems: validation.problems,
+      quality: validation.quality,
       exports: {
         docx: exportCheckResult(validation.checks.docx),
         pdf: {

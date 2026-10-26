@@ -259,9 +259,11 @@ export const TOOL_DEFINITIONS: readonly (Tool & { name: McpToolName })[] = [
   {
     name: 'validate_document',
     description:
-      '检查文档，不修改任何内容。返回 { revision, problems, exports }。' +
-      'problems 是文档的结构问题（悬空引用、标题跳级、空章节、脚注问题等），每项有 code、severity（error / warning）、nodeId、message；' +
-      '来源与 apply_operations 返回的 problems 相同，只是没有 introduced 字段（这里没有「本批操作」可供对比）。' +
+      '按调用方请求手动检查当前已保存文档，不会在打开、编辑或保存时自动运行，也不修改文档。返回 { revision, problems, exports, quality }。' +
+      'problems 保留既有 Resolver 问题（包括脚注问题），与 apply_operations 的 problems 来源和字段相同，只是不含 introduced；exports 保留 docx、pdf、html 的原导出前检查。' +
+      'quality 是本期规则质量报告，与 problems 和 exports 分开：检查结构、列项/图表引出语、正文提及、术语使用及受支持的内部引用；报告含 profile、rulesVersion、issues、summary 和 coverage。' +
+      'quality 不包含脚注、表脚注质量项或未引用参考文献提醒；术语权威性和外部标准编号、名称、现行状态检查因未接入数据库而 deferred。质量警告不改变导出是否阻断。' +
+      'quality 基于本次读取的同一文档快照及文档设置中的元数据，不额外读取或保存文档。' +
       'exports 是 docx、pdf、html 各自的导出前检查，与 export_document 在导出前做的检查完全相同：通过为 { ok: true }；' +
       '未通过为 { ok: false, source, message, problems }，source 是 footnote（脚注校验）或 output-boundary（该格式无法无损输出的内容），' +
       'message 与导出失败时（422）的 message 相同，problems 逐项列出原因和位置；未通过的格式 export_document 会失败。' +

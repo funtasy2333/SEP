@@ -13,9 +13,18 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, delimiter, dirname, join } from 'node:path';
 import { Logger } from '@nestjs/common';
-import type { PMJsonNode } from '@ses/shared';
+import { synchronizeCoverMetadata } from '@ses/io';
+import {
+  analyzeDocument,
+  irMetaFromDocumentMeta,
+  pmToIr,
+  resolve,
+  type DocumentMeta,
+  type PMJsonNode,
+} from '@ses/shared';
 import request from 'supertest';
 import { ConvertService } from '../convert/convert.service';
+import { validateContent } from '../editor-schema/editor-schema';
 import { readZipEntries } from '../export/__fixtures__/read-zip';
 import { WARNING_COUNT_HEADER, WARNINGS_HEADER } from '../export/export-http';
 import { EXTERNAL_IMAGE_REJECTED_MESSAGE } from '../export/external-images';
@@ -98,6 +107,37 @@ function danglingFootnoteDoc(): Record<string, unknown> {
               ],
             },
           ],
+        },
+      ],
+    },
+  ]);
+}
+
+/** 正文脚注内部的交叉引用悬空：旧 problems 保留，quality 必须过滤。 */
+function danglingInlineFootnoteDoc(): Record<string, unknown> {
+  return chapterDoc([
+    {
+      type: 'stdParagraph',
+      attrs: { nodeId: 'p-footnote' },
+      content: [
+        text('正文'),
+        {
+          type: 'footnoteRef',
+          attrs: {
+            nodeId: 'fn-ref',
+            content: [
+              {
+                type: 'text',
+                text: '引用缺失条款',
+                marks: [
+                  {
+                    type: 'crossRef',
+                    attrs: { refId: 'missing-footnote-target', refType: 'clause' },
+                  },
+                ],
+              },
+            ],
+          },
         },
       ],
     },
@@ -266,13 +306,14 @@ describe('MCP 工具：validate_document 与 export_document', () => {
 
   // ---------------------------------------------------------------------------
   describe('validate_document', () => {
-    it('返回 { revision, problems, exports }，与文本正文的 structuredContent 相同', async () => {
+    it('保留 revision/problems/exports，并新增 quality，与 structuredContent 相同', async () => {
       const id = await createDoc();
       const result = await mcp.call('validate_document', { documentId: id });
       expect(result.isError).toBe(false);
       expect(Object.keys(result.body).sort()).toEqual([
         'exports',
         'problems',
+        'quality',
         'revision',
       ]);
       expect(result.body.revision).toBe(0);
@@ -284,7 +325,84 @@ describe('MCP 工具：validate_document 与 export_document', () => {
       });
       // json 不做导出前检查，不列出。
       expect(result.body.exports).not.toHaveProperty('json');
+      expect(result.body.quality).toMatchObject({
+        profile: 'ses-phase6-manual-v2',
+        coverage: {
+          standardDatabase: { status: 'deferred' },
+          termAuthority: { status: 'deferred' },
+          bibliographyReminder: { status: 'excluded' },
+          footnotes: { status: 'excluded' },
+          tableFootnotes: { status: 'excluded' },
+        },
+      });
       expect(result.structured).toEqual(result.body);
+    });
+
+    it('从同一读取快照和前端相同的文档元数据覆盖生成 quality', async () => {
+      const id = await createDoc(canonical(sampleDocument()), {
+        meta: {
+          ...meta,
+          titleCn: '同快照元数据覆盖测试',
+          standardNo: 'GB/T 12345—2026',
+        },
+      });
+      const stored = await t.documents.findOne(id);
+      const pmDoc = validateContent(
+        synchronizeCoverMetadata(
+          stored.content as unknown as Record<string, unknown>,
+          stored.meta as unknown as DocumentMeta,
+        ),
+      ).toJSON() as PMJsonNode;
+      const irDoc = pmToIr(pmDoc).doc;
+      irDoc.meta = {
+        ...irDoc.meta,
+        ...irMetaFromDocumentMeta(stored.meta as unknown as DocumentMeta),
+      };
+      const expected = analyzeDocument(irDoc);
+      const legacyProblems = resolve(pmToIr(pmDoc).doc).problems;
+      const findOne = jest.spyOn(t.documents, 'findOne');
+
+      const result = await mcp.call('validate_document', { documentId: id });
+
+      expect(findOne).toHaveBeenCalledTimes(1);
+      expect(result.body.quality).toEqual(expected.validation);
+      // legacy problems 仍是原 Resolver 问题集合，metadata scalar 覆盖不改变它。
+      expect(expected.resolution.problems).toEqual(legacyProblems);
+      expect(result.body.problems).toEqual(legacyProblems);
+    });
+
+    it('quality 排除脚注与参考文献提醒，但保留导出脚注保护', async () => {
+      const result = await mcp.call('validate_document', {
+        documentId: await createDoc(danglingFootnoteDoc()),
+      });
+
+      expect(result.body.exports.docx).toMatchObject({
+        ok: false,
+        source: 'footnote',
+      });
+      expect(result.body.quality.coverage).toMatchObject({
+        footnotes: { status: 'excluded' },
+        tableFootnotes: { status: 'excluded' },
+        bibliographyReminder: { status: 'excluded' },
+      });
+      expect(
+        result.body.quality.issues
+          .map((issue: { message: string }) => issue.message)
+          .join('\n'),
+      ).not.toMatch(/脚注|表脚注|参考文献.*未引用/);
+    });
+
+    it('脚注内部的旧 Resolver 问题仍保留在 problems，不进入 quality', async () => {
+      const result = await mcp.call('validate_document', {
+        documentId: await createDoc(danglingInlineFootnoteDoc()),
+      });
+
+      expect(result.body.problems).toEqual(
+        expect.arrayContaining([expect.objectContaining({ code: 'dangling-xref' })]),
+      );
+      expect(result.body.quality.issues).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ nodeId: 'fn-ref' })]),
+      );
     });
 
     it('只读：不改 revision 与 updatedAt，不产生版本与变更事件', async () => {
