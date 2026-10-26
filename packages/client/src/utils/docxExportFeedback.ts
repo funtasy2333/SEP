@@ -21,13 +21,17 @@ export function getDocxExportFeedback(warnings: DocxPackage['warnings']) {
     ['table-header-rowspan-pagination', () => `${tables('table-header-rowspan-pagination')}的表头合并跨入数据行，续页重复的表头可能被截断，请在 Word 中核对分页。`],
   ]
   const tableIssues = tableNotes.filter(([code]) => codes.has(code)).map(([, message]) => message())
+  const tocPending = codes.has('toc-pages-pending')
   const notes = [
+    ...(tocPending ? ['目次页码待更新：请用 Microsoft Word 打开文件，打开时会依次出现两个提示：' +
+      '询问是否更新域时选“是”，“更新目录”时选“更新整个目录”，完成后保存。' +
+      '若打开时未更新，可在目次上右键选择“更新域”→“更新整个目录”。'] : []),
     ...tableIssues,
     ...warnings.filter(warning => warning.code === 'footnote-landscape-separator').map(warning => warning.message),
     ...(codes.has('cover-asset-approximation') ? ['部分封面素材的来源或清晰度有限，请核对后使用。'] : []),
     ...(codes.has('cover-field-missing') ? ['部分封面信息未填写，请补齐后核对。'] : []),
   ]
   return notes.length
-    ? { type: 'warning' as const, message: `DOCX 已导出。${notes.join('')}`, duration: tableIssues.length ? 0 : 8000, showClose: true }
+    ? { type: 'warning' as const, message: `DOCX 已导出。${notes.join('')}`, duration: tableIssues.length || tocPending ? 0 : 8000, showClose: true }
     : { type: 'success' as const, message: 'DOCX 文件已导出', duration: 3000, showClose: false }
 }

@@ -95,6 +95,7 @@ interface StyleSpec {
   /** 省略 = 'SesNormal'；SesNormal 自身传 null（不写 basedOn） */
   basedOn?: string | null
   isDefault?: boolean
+  builtIn?: boolean
   next?: string
   outlineLvl?: number
   rFonts?: 'song' | 'songAll' | 'hei'
@@ -153,6 +154,7 @@ function buildStyleXml(spec: StyleSpec): string {
   if (rprChildren.length > 0) styleChildren.push(['rPr', rPr(rprChildren)])
 
   const attrs: XmlAttrs = { 'w:type': 'paragraph', 'w:customStyle': '1', 'w:styleId': spec.id }
+  if (spec.builtIn) delete attrs['w:customStyle']
   if (spec.isDefault) attrs['w:default'] = '1'
   return style(styleChildren, attrs)
 }
@@ -293,6 +295,7 @@ const STYLE_SPECS: readonly StyleSpec[] = [
   { id: 'SesAppTblCapCont', name: 'SES_附录续表题', rFonts: 'hei', jc: 'center', keepNext: true, spacing: SPACING_HALF_LINE },
   { id: 'SesTableText', name: 'SES_表格文字', sz: 18, ind: IND_ZERO, snapToGridOff: true },
   { id: 'SesTableCenter', name: 'SES_表格居中', sz: 18, jc: 'center', ind: IND_ZERO, snapToGridOff: true },
+  { id: 'SesTableHeader', name: 'SES_表头', sz: 18, jc: 'center', ind: IND_ZERO, snapToGridOff: true },
   { id: 'SesTableNote', name: 'SES_表注', sz: 18, snapToGridOff: true },
   { id: 'SesFootnoteText', name: 'SES_脚注内容', rFonts: 'songAll', sz: 18, ind: IND_FOOTNOTE, tabs: TABS_FOOTNOTE, snapToGridOff: true },
   { id: 'SesTableFootnote', name: 'SES_表脚注', rFonts: 'songAll', sz: 18, ind: IND_TABLE_FOOTNOTE, tabs: TABS_TABLE_FOOTNOTE, snapToGridOff: true },
@@ -328,9 +331,9 @@ const STYLE_SPECS: readonly StyleSpec[] = [
   },
   { id: 'SesHeader', name: 'SES_书眉', rFonts: 'hei' },
   { id: 'SesFooter', name: 'SES_页码', sz: 18 },
-  { id: 'TOC1', name: 'toc 1', rFonts: 'songAll', tabs: TABS_TOC, spacing: SPACING_QUARTER_LINE },
-  { id: 'TOC2', name: 'toc 2', rFonts: 'songAll', tabs: TABS_TOC, ind: IND_TOC2 },
-  { id: 'TOC3', name: 'toc 3', rFonts: 'songAll', tabs: TABS_TOC, ind: IND_TOC3 },
+  { id: 'TOC1', name: 'toc 1', builtIn: true, rFonts: 'songAll', tabs: TABS_TOC, spacing: SPACING_QUARTER_LINE },
+  { id: 'TOC2', name: 'toc 2', builtIn: true, rFonts: 'songAll', tabs: TABS_TOC, ind: IND_TOC2 },
+  { id: 'TOC3', name: 'toc 3', builtIn: true, rFonts: 'songAll', tabs: TABS_TOC, ind: IND_TOC3 },
   { id: 'SesCoverIcs', name: 'SES_封面分类号', rFonts: 'hei', sz: 21, jc: 'left' },
   { id: 'SesCoverLogo', name: 'SES_封面标志', jc: 'center' },
   { id: 'SesCoverLogoText', name: 'SES_封面行业标志代号', rFonts: 'song', sz: 96, bold: true, characterScale: 130, jc: 'right' },

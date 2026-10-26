@@ -10,12 +10,12 @@ import type { IRTable, IRTableRow } from '../../../ir/types'
 import { emitParagraph, type RenderContext } from './context'
 import { plainRun } from './inline'
 import { buildTableGrid, type GridCell } from './tableGrid'
-import { resolveTableColumnWidths } from './tableColumnWidths'
+import { resolveTableColumnWidths, TABLE_CELL_SIDE_MARGIN_TWIPS } from './tableColumnWidths'
 export { tableGridColumnCount } from './tableGrid'
 import { tcBorders, tcPr, tbl, tblBorders, tblPr, tr, trPr, type XmlChild } from '../xml'
 
 export type IRTableCell = IRTableRow['cells'][number]
-export type TableCellParagraphStyle = 'SesTableText' | 'SesTableCenter'
+export type TableCellParagraphStyle = 'SesTableText' | 'SesTableCenter' | 'SesTableHeader'
 
 export interface TableCellRenderMeta {
   rowIndex: number
@@ -53,7 +53,7 @@ const NUMERIC_CELL_TEXT = /^[\d\s.,±%~—-]+$/
  * header. It mirrors the exact numeric pattern in §5.9 and avoids treating arbitrary lists as data.
  */
 export function tableCellParagraphStyle(cell: IRTableCell, header = cell.header): TableCellParagraphStyle {
-  if (header) return 'SesTableCenter'
+  if (header) return 'SesTableHeader'
   if (cell.content.length === 0) return 'SesTableCenter'
   if (!cell.content.every((block) => block.kind === 'paragraph')) return 'SesTableText'
   const text = cell.content.flatMap((block) => block.kind === 'paragraph' ? block.content.map((run) => run.text) : []).join('')
@@ -106,7 +106,7 @@ function cellXml(
   if (gridCell.kind === 'continuation') {
     contentXml = '<w:p/>'
   } else if (gridCell.kind === 'filler') {
-    contentXml = emitParagraph(ctx, 'SesTableCenter', { runsXml: plainRun('—') })
+    contentXml = emitParagraph(ctx, rowIndex < headerRowCount ? 'SesTableHeader' : 'SesTableCenter', { runsXml: plainRun('—') })
   } else {
     const origin = gridCell.origin!
     const isHeader = origin.cell.header || rowIndex < headerRowCount
@@ -116,7 +116,7 @@ function cellXml(
       header: isHeader,
     })
     if (contentXml.trim() === '') {
-      contentXml = emitParagraph(ctx, 'SesTableCenter', { runsXml: plainRun('—') })
+      contentXml = emitParagraph(ctx, isHeader ? 'SesTableHeader' : 'SesTableCenter', { runsXml: plainRun('—') })
     } else if (!/<\/w:p>\s*$/.test(contentXml)) {
       // Word requires a final paragraph in a cell after nested tables and other block-level content.
       contentXml += '<w:p/>'
@@ -132,7 +132,7 @@ function noteRowXml(widths: number[], columnCount: number, notesXml: string, kin
     ['tcW', `<w:tcW w:w="${width}" w:type="dxa"/>`],
     ...(columnCount > 1 ? [['gridSpan', `<w:gridSpan w:val="${columnCount}"/>`] as const] : []),
     ['tcBorders', cellBorderXml(['top'], topBorderSize)],
-    // Word's default 100-twip cell inset shifts the footnote paragraph away from the table frame.
+    // The table's 0.18 cm cell inset shifts the footnote paragraph away from the table frame.
     // Zero only the footnote row's left inset so its 9pt fourth-character tab aligns to that frame.
     ...(kind === 'footnotes' ? [['tcMar', '<w:tcMar><w:left w:w="0" w:type="dxa"/></w:tcMar>'] as const] : []),
   ])
@@ -173,6 +173,8 @@ export function renderTableGrid(ctx: RenderContext, table: IRTable, options: Tab
     ['jc', '<w:jc w:val="center"/>'],
     ['tblBorders', borderXml(6)],
     ['tblLayout', '<w:tblLayout w:type="fixed"/>'],
+    ['tblCellMar', `<w:tblCellMar><w:left w:w="${TABLE_CELL_SIDE_MARGIN_TWIPS}" w:type="dxa"/>` +
+      `<w:right w:w="${TABLE_CELL_SIDE_MARGIN_TWIPS}" w:type="dxa"/></w:tblCellMar>`],
   ])
   const rowsXml = rows.map((cells, rowIndex) => {
     const trPrXml = trPr([

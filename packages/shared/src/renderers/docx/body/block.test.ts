@@ -8,6 +8,7 @@ import { findChild, parseXml, type XmlElement } from '../__tests__/helpers/xmlTr
 import { renderBlock } from './block'
 import { createRenderContext } from './context'
 import { paginateTable } from './tablePagination'
+import { buildStylesXml } from '../styles'
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
 const SONG_FONT_ATTRS = {
@@ -83,6 +84,57 @@ function tableWithHeaderRowspan(coveredRows = 2, rowCount = 64, longFirst = true
     headerRowCount: 1, rows: [header, ...bodyRows], notes: [],
   }
 }
+
+describe('renderTable：表头文字', () => {
+  it('表头行数或单元格表头标记只影响居中，不自动加粗，多行合并表头与普通数值保持常规字重', () => {
+    const table: IRTable = {
+      kind: 'table', id: 'bold-headers', caption: [], orientation: 'portrait',
+      headerRowCount: 2, notes: [], rows: [
+        { id: 'h1', cells: [tableCell('merged', '分组', { rowspan: 2 }), tableCell('h1c', '名称')] },
+        { id: 'h2', cells: [tableCell('h2c', '单位')] },
+        { id: 'data', cells: [tableCell('row-header', '行标题', { header: true }), tableCell('value', '12.5')] },
+      ],
+    }
+    const before = JSON.stringify(table)
+    const xml = renderBlock(createRenderContext({}), table, { scopeKey: 'chapter-1' })
+    const root = parseXml(`<w:root xmlns:w="${W_NS}">${xml}</w:root>`)
+    const styles = parseXml(buildStylesXml())
+    for (const [text, bold] of [['分组', false], ['名称', false], ['单位', false], ['行标题', false], ['12.5', false]] as const) {
+      const p = descendants(root, 'w:p').find(p => textContent(p) === text)!
+      expect(p, text).toBeDefined()
+      const styleId = findChild(findChild(p, 'w:pPr')!, 'w:pStyle')!.attrs['w:val']
+      const style = childElements(styles, 'w:style').find(s => s.attrs['w:styleId'] === styleId)!
+      expect(!!findChild(findChild(style, 'w:rPr')!, 'w:b'), text).toBe(bold)
+      expect(!!findChild(findChild(style, 'w:rPr')!, 'w:bCs'), text).toBe(bold)
+      expect(findChild(findChild(style, 'w:pPr')!, 'w:jc')?.attrs['w:val']).toBe('center')
+    }
+    expect(JSON.stringify(table)).toBe(before)
+  })
+
+  it('表头清除源文字的粗体，保留斜体和普通数据格的粗体，不改动源数据', () => {
+    const cell = tableCell('authored-bold', '作者加粗')
+    const paragraph = cell.content[0]!
+    if (paragraph.kind !== 'paragraph') throw new Error('fixture must be a paragraph')
+    paragraph.content[0]!.marks = [{ type: 'bold' }, { type: 'italic' }]
+    const data = tableCell('data-bold', '数据强调')
+    if (data.content[0]!.kind !== 'paragraph') throw new Error('fixture must be a paragraph')
+    data.content[0]!.content[0]!.marks = [{ type: 'bold' }]
+    const table: IRTable = {
+      kind: 'table', id: 'authored-bold-table', caption: [], orientation: 'portrait',
+      headerRowCount: 1, notes: [], rows: [{ id: 'header', cells: [cell] }, { id: 'body', cells: [data] }],
+    }
+    const before = JSON.stringify(table)
+    const xml = renderBlock(createRenderContext({}), table, { scopeKey: 'chapter-1' })
+    const root = parseXml(`<w:root xmlns:w="${W_NS}">${xml}</w:root>`)
+    const run = descendants(root, 'w:r').find(run => textContent(run) === '作者加粗')!
+    expect(findChild(findChild(run, 'w:rPr')!, 'w:b')).toBeUndefined()
+    expect(findChild(findChild(run, 'w:rPr')!, 'w:bCs')).toBeUndefined()
+    expect(findChild(findChild(run, 'w:rPr')!, 'w:i')).toBeDefined()
+    const dataRun = descendants(root, 'w:r').find(run => textContent(run) === '数据强调')!
+    expect(findChild(findChild(dataRun, 'w:rPr')!, 'w:b')).toBeDefined()
+    expect(JSON.stringify(table)).toBe(before)
+  })
+})
 
 describe('renderFormula：编号标签', () => {
   it.each([

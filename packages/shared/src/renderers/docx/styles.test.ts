@@ -82,6 +82,7 @@ const EXPECTED_NAMES: Record<string, string> = {
   SesAppTblCapCont: 'SES_附录续表题',
   SesTableText: 'SES_表格文字',
   SesTableCenter: 'SES_表格居中',
+  SesTableHeader: 'SES_表头',
   SesTableNote: 'SES_表注',
   SesFormula: 'SES_公式',
   SesWhereLabel: 'SES_式中',
@@ -150,10 +151,10 @@ describe('styles.ts：§3.2 全部样式都在，ID/中文名/basedOn 正确', (
     expect(normal.attrs['w:customStyle']).toBe('1')
   })
 
-  it('全部样式都是 w:customStyle="1" 的段落样式', () => {
+  it('目录使用 Word 内置样式身份，其余为自定义段落样式', () => {
     for (const el of styles.values()) {
       expect(el.attrs['w:type']).toBe('paragraph')
-      expect(el.attrs['w:customStyle']).toBe('1')
+      expect(el.attrs['w:customStyle']).toBe(['TOC1', 'TOC2', 'TOC3'].includes(el.attrs['w:styleId']) ? undefined : '1')
       expect(findChild(el, 'w:qFormat')).toBeDefined()
     }
   })
