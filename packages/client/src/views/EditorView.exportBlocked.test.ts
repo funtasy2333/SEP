@@ -151,6 +151,10 @@ describe('导出被阻止的提示分行显示', () => {
       const alert = document.body.querySelector<HTMLElement>('.export-error')
       expect(alert, '应显示导出被阻止的提示').not.toBeNull()
       expect(alert!.getAttribute('role')).toBe('alert')
+      // 仍是 el-alert：概述与明细都在 .el-alert__title 内（WP6 的集成审计也按此读取诊断文字）
+      expect(alert!.classList.contains('el-alert')).toBe(true)
+      expect(alert!.querySelector('.el-alert__title .export-error-text')).not.toBeNull()
+      expect(alert!.querySelectorAll('.el-alert__title .export-error-items > li')).toHaveLength(15)
 
       // 概述：一行，不含任何明细
       const summary = alert!.querySelector('.export-error-text')!

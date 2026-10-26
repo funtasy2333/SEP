@@ -316,15 +316,20 @@
     <!-- =====================  EXPORT DIALOG  ===================== -->
     <el-dialog v-model="showExport" title="导出文档" width="560px">
       <p style="margin: 0 0 16px; color: var(--ses-ink-3); font-size: 13px">选择导出格式：</p>
-      <div v-if="exportError" class="export-error" role="alert">
-        <div class="export-error-summary">
-          <el-icon class="export-error-icon"><CircleCloseFilled /></el-icon>
+      <el-alert
+        v-if="exportError"
+        class="export-error"
+        type="error"
+        :closable="false"
+        show-icon
+      >
+        <template #title>
           <span class="export-error-text">{{ exportError }}</span>
-        </div>
-        <ol v-if="exportErrorItems.length" class="export-error-items" aria-label="阻止导出的内容明细">
-          <li v-for="(item, index) in exportErrorItems" :key="index">{{ item }}</li>
-        </ol>
-      </div>
+          <ol v-if="exportErrorItems.length" class="export-error-items" aria-label="阻止导出的内容明细">
+            <li v-for="(item, index) in exportErrorItems" :key="index">{{ item }}</li>
+          </ol>
+        </template>
+      </el-alert>
       <p style="margin: 0 0 12px; color: var(--ses-ink-3); font-size: 12px">
         DOCX 目次：增删章条后需重新导出以更新目次条目；页码由 Word 更新。续表与长脚注分页请用 Word 校对；横排页条文脚注分隔线的长度仍待完善。
         真实标准文稿的整体验收尚未完成；部分封面素材来源或清晰度有限，正式交付前请核对。
@@ -503,7 +508,7 @@ import { NodeSelection, TextSelection, type SelectionBookmark } from '@tiptap/pm
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 // Underline is included in StarterKit (tiptap v3)
-import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon, Clock, Download, WarningFilled, CircleCloseFilled } from '@element-plus/icons-vue'
+import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon, Clock, Download, WarningFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { documentApi, type DocumentData } from '@/api/document'
 import { useDocumentStore } from '@/stores/document'
@@ -2651,23 +2656,19 @@ function handleXmlFileImport(event: Event) {
 
 /* === export dialog === */
 /* 导出被阻止的提示：概述一行，明细逐条一行；明细区限高并在内部滚动，使下方的格式卡片不必滚动对话框即可看到。 */
-.export-error {
-  margin-bottom: 14px;
-  padding: 8px 12px;
-  border-radius: var(--ses-r-md);
-  background: var(--ses-err-soft);
-  color: oklch(0.4 0.18 25);
-  font-size: 13px;
-}
-.export-error-summary { display: flex; align-items: flex-start; gap: 8px; font-weight: 600; line-height: 1.6; }
-.export-error-icon { flex: 0 0 auto; margin-top: 3px; font-size: 16px; color: var(--ses-err); }
-.export-error-text { flex: 1; min-width: 0; overflow-wrap: anywhere; word-break: break-all; }
+.export-error { align-items: flex-start; margin-bottom: 14px; }
+/* el-alert 的内容列是 flex 项，缺省 min-width:auto 会被不可折行的长路径撑开并被 overflow:hidden 裁掉 */
+.export-error :deep(.el-alert__content) { flex: 1; min-width: 0; }
+.export-error :deep(.el-alert__icon) { margin-top: 4px; }
+.export-error :deep(.el-alert__title) { font-size: 13px; line-height: 1.6; }
+.export-error-text { display: block; font-weight: 600; overflow-wrap: anywhere; word-break: break-all; }
 .export-error-items {
   max-height: clamp(96px, 24vh, 220px);
   margin: 6px 0 0;
-  padding: 0 8px 0 24px;
+  padding: 0 8px 0 20px;
   overflow-y: auto;
   font-size: 12px;
+  font-weight: normal;
   line-height: 1.55;
 }
 .export-error-items li { padding: 2px 0; overflow-wrap: anywhere; word-break: break-all; }
