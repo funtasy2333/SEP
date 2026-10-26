@@ -37,10 +37,20 @@ export interface ExportGuardProblem {
 export interface ExportGuardFailure {
   source: ExportGuardSource
   problems: ExportGuardProblem[]
-  /** 导出详情文本（编辑器的 exportError） */
+  /** 导出详情文本（编辑器的 exportError）；等于 `summary` 之后接各条明细，文字与结构化字段加入前一致 */
   detail: string
   /** 简短提示文本（编辑器的 ElMessage.error） */
   message: string
+  /**
+   * 一行概述（不含明细），供编辑器对话框分行显示：先概述，再逐条列出 `items`。
+   * 脚注失败为“脚注校验未通过，暂不能导出”；输出边界失败形如“导出被阻止：DOCX 暂未支持 15 处内容”。
+   */
+  summary: string
+  /**
+   * 逐条明细，每条一行：与 `detail` 同源（`detail` 即在概述后把各条用“；”连成一段），只是不连接。
+   * 脚注问题按提示文字去重；输出边界问题每个问题一条，文末带【节点…，位置…】。
+   */
+  items: string[]
 }
 
 /** 会阻止导出的脚注问题类型（severity 同时须为 error）。 */
@@ -73,11 +83,18 @@ export function getFootnoteExportProblems(doc: IRDoc): ExportGuardProblem[] {
     }))
 }
 
+/** 脚注校验提示的概述（不含明细）。 */
+const FOOTNOTE_EXPORT_SUMMARY = '脚注校验未通过，暂不能导出'
+
+/** 脚注校验的逐条明细：按提示文字去重，保持问题出现的顺序；无问题时为空数组。 */
+export function getFootnoteExportItems(problems: readonly ExportGuardProblem[]): string[] {
+  return [...new Set(problems.map((problem) => problem.message))]
+}
+
 /** 脚注校验提示文本；无问题时返回空字符串。 */
 export function formatFootnoteExportError(problems: readonly ExportGuardProblem[]): string {
   if (!problems.length) return ''
-  const details = [...new Set(problems.map((problem) => problem.message))]
-  return `脚注校验未通过，暂不能导出：${details.join('；')}`
+  return `${FOOTNOTE_EXPORT_SUMMARY}：${getFootnoteExportItems(problems).join('；')}`
 }
 
 /** 对 ProseMirror 文档（JSON 或带 toJSON() 的节点）做脚注校验，返回提示文本；通过时为空字符串。 */
@@ -99,17 +116,30 @@ export function getOutputBoundaryProblems(doc: IRDoc, format: ExportGuardFormat)
   }))
 }
 
-/** 输出边界问题的导出详情文本；无问题时返回空字符串。 */
-export function formatOutputBoundaryDetail(problems: readonly ExportGuardProblem[]): string {
-  if (!problems.length) return ''
-  const details = problems.map((problem) => {
+/** 输出边界问题的逐条明细：每个问题一条，文末带【节点…，位置…】；无问题时为空数组。 */
+export function getOutputBoundaryItems(problems: readonly ExportGuardProblem[]): string[] {
+  return problems.map((problem) => {
     const location = [
       problem.nodeId ? `节点 ${problem.nodeId}` : '',
       problem.path ? `位置 ${problem.path}` : '',
     ].filter(Boolean).join('，')
     return `${problem.message}${location ? `【${location}】` : ''}`
-  }).join('；')
-  return `导出被阻止：${details}`
+  })
+}
+
+/** 输出边界问题的导出详情文本；无问题时返回空字符串。 */
+export function formatOutputBoundaryDetail(problems: readonly ExportGuardProblem[]): string {
+  if (!problems.length) return ''
+  return `导出被阻止：${getOutputBoundaryItems(problems).join('；')}`
+}
+
+/** 输出边界问题的一行概述，如“导出被阻止：DOCX 暂未支持 15 处内容”；无问题时返回空字符串。 */
+export function formatOutputBoundarySummary(
+  problems: readonly ExportGuardProblem[],
+  format: ExportGuardFormat,
+): string {
+  if (!problems.length) return ''
+  return `导出被阻止：${format.toUpperCase()} 暂未支持 ${problems.length} 处内容`
 }
 
 /** 输出边界问题的简短提示文本；无问题时返回空字符串。 */
@@ -132,7 +162,14 @@ export function checkExportGuard(doc: PMJsonNode | PMJsonSource, format: ExportG
   const footnoteProblems = getFootnoteExportProblems(irDoc)
   if (footnoteProblems.length) {
     const text = formatFootnoteExportError(footnoteProblems)
-    return { source: 'footnote', problems: footnoteProblems, detail: text, message: text }
+    return {
+      source: 'footnote',
+      problems: footnoteProblems,
+      detail: text,
+      message: text,
+      summary: FOOTNOTE_EXPORT_SUMMARY,
+      items: getFootnoteExportItems(footnoteProblems),
+    }
   }
 
   const outputProblems = getOutputBoundaryProblems(irDoc, format)
@@ -142,6 +179,8 @@ export function checkExportGuard(doc: PMJsonNode | PMJsonSource, format: ExportG
       problems: outputProblems,
       detail: formatOutputBoundaryDetail(outputProblems),
       message: formatOutputBoundaryMessage(outputProblems),
+      summary: formatOutputBoundarySummary(outputProblems, format),
+      items: getOutputBoundaryItems(outputProblems),
     }
   }
   return null

@@ -316,14 +316,15 @@
     <!-- =====================  EXPORT DIALOG  ===================== -->
     <el-dialog v-model="showExport" title="导出文档" width="560px">
       <p style="margin: 0 0 16px; color: var(--ses-ink-3); font-size: 13px">选择导出格式：</p>
-      <el-alert
-        v-if="exportError"
-        :title="exportError"
-        type="error"
-        :closable="false"
-        show-icon
-        style="margin-bottom: 14px"
-      />
+      <div v-if="exportError" class="export-error" role="alert">
+        <div class="export-error-summary">
+          <el-icon class="export-error-icon"><CircleCloseFilled /></el-icon>
+          <span class="export-error-text">{{ exportError }}</span>
+        </div>
+        <ol v-if="exportErrorItems.length" class="export-error-items" aria-label="阻止导出的内容明细">
+          <li v-for="(item, index) in exportErrorItems" :key="index">{{ item }}</li>
+        </ol>
+      </div>
       <p style="margin: 0 0 12px; color: var(--ses-ink-3); font-size: 12px">
         DOCX 目次：增删章条后需重新导出以更新目次条目；页码由 Word 更新。续表与长脚注分页请用 Word 校对；横排页条文脚注分隔线的长度仍待完善。
         真实标准文稿的整体验收尚未完成；部分封面素材来源或清晰度有限，正式交付前请核对。
@@ -475,6 +476,7 @@
 
 <script setup lang="ts">
 import { getDocxExportFeedback } from '@/utils/docxExportFeedback'
+import { exportErrorViewOf, exportErrorViewOfText, type ExportErrorView } from '@/utils/exportErrorView'
 import { createDefaultDocumentContent, createDefaultForeword } from '@/utils/newDocument'
 import {
   COVER_SETTINGS_KEYS,
@@ -501,7 +503,7 @@ import { NodeSelection, TextSelection, type SelectionBookmark } from '@tiptap/pm
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 // Underline is included in StarterKit (tiptap v3)
-import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon, Clock, Download, WarningFilled } from '@element-plus/icons-vue'
+import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon, Clock, Download, WarningFilled, CircleCloseFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { documentApi, type DocumentData } from '@/api/document'
 import { useDocumentStore } from '@/stores/document'
@@ -585,7 +587,9 @@ const documentId = computed(() => Number(route.params.id))
 const documentUnavailable = computed(() => store.isDocumentUnavailable(documentId.value))
 const unavailableMessage = ref('文档已移入回收站或当前页面已失效。')
 const exportingFormat = ref<'docx' | 'pdf' | null>(null)
+/** 导出对话框中的错误提示：概述一行；导出被阻止时另有逐条明细（每条一行），其他导出错误没有明细。 */
 const exportError = ref('')
+const exportErrorItems = ref<string[]>([])
 type FootnoteDialogMode = 'body-new' | 'body-edit' | 'table-new' | 'table-edit' | 'table-reference' | null
 const showFootnoteDialog = ref(false)
 const footnoteDialogMode = ref<FootnoteDialogMode>(null)
@@ -2086,6 +2090,15 @@ function setEditorContent(content: Record<string, unknown>) {
 }
 
 // === 导出 ===
+function setExportError(view: ExportErrorView) {
+  exportError.value = view.summary
+  exportErrorItems.value = view.items
+}
+
+function clearExportError() {
+  setExportError(exportErrorViewOfText(''))
+}
+
 function handleExport() {
   if (persistenceOperation.value !== null) {
     ElMessage.warning('文档保存或导入完成后再导出')
@@ -2096,7 +2109,7 @@ function handleExport() {
     activeTab.value = 'settings'
     return
   }
-  exportError.value = ''
+  clearExportError()
   showExport.value = true
 }
 
@@ -2123,7 +2136,7 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
   // 脚注校验与输出边界检查（json 不检查）；判定与提示文本见 @ses/io 的 exportGuard
   const guardFailure = checkExportGuard(doc, format)
   if (guardFailure) {
-    exportError.value = guardFailure.detail
+    setExportError(exportErrorViewOf(guardFailure))
     ElMessage.error(guardFailure.message)
     return
   }
@@ -2132,7 +2145,7 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
 
   if (format === 'docx') {
     exportingFormat.value = format
-    exportError.value = ''
+    clearExportError()
     try {
       const { blob, warnings } = await buildDocxBlob({
         pmDoc: doc,
@@ -2145,7 +2158,7 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
       showExport.value = false
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
-      exportError.value = `DOCX 导出失败：${detail}`
+      setExportError(exportErrorViewOfText(`DOCX 导出失败：${detail}`))
       ElMessage.error(exportError.value)
     } finally {
       exportingFormat.value = null
@@ -2155,7 +2168,7 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
 
   if (format === 'pdf') {
     exportingFormat.value = format
-    exportError.value = ''
+    clearExportError()
     // IR→HTML→服务端两遍构建（GB/T 1.1 版式，KaTeX 预渲染 + 目次页码注入）
     try {
       const req = buildPdfExportRequest(doc, meta)
@@ -2174,7 +2187,7 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
       showExport.value = false
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
-      exportError.value = `PDF 导出失败：${detail}`
+      setExportError(exportErrorViewOfText(`PDF 导出失败：${detail}`))
       ElMessage.error(exportError.value)
     } finally {
       exportingFormat.value = null
@@ -2211,7 +2224,7 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
     showExport.value = false
     ElMessage.success(`${format.toUpperCase()} 文件已导出`)
   } catch (e) {
-    exportError.value = `导出失败：${e instanceof Error ? e.message : String(e)}`
+    setExportError(exportErrorViewOfText(`导出失败：${e instanceof Error ? e.message : String(e)}`))
     ElMessage.error(exportError.value)
   }
 }
@@ -2637,6 +2650,27 @@ function handleXmlFileImport(event: Event) {
 .help-content p { margin: 6px 0; font-size: 13px; color: var(--ses-ink-2); line-height: 1.6; }
 
 /* === export dialog === */
+/* 导出被阻止的提示：概述一行，明细逐条一行；明细区限高并在内部滚动，使下方的格式卡片不必滚动对话框即可看到。 */
+.export-error {
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  border-radius: var(--ses-r-md);
+  background: var(--ses-err-soft);
+  color: oklch(0.4 0.18 25);
+  font-size: 13px;
+}
+.export-error-summary { display: flex; align-items: flex-start; gap: 8px; font-weight: 600; line-height: 1.6; }
+.export-error-icon { flex: 0 0 auto; margin-top: 3px; font-size: 16px; color: var(--ses-err); }
+.export-error-text { flex: 1; min-width: 0; overflow-wrap: anywhere; word-break: break-all; }
+.export-error-items {
+  max-height: clamp(96px, 24vh, 220px);
+  margin: 6px 0 0;
+  padding: 0 8px 0 24px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.export-error-items li { padding: 2px 0; overflow-wrap: anywhere; word-break: break-all; }
 .dlg-field-label {
   font-size: 11.5px;
   font-weight: 600;
