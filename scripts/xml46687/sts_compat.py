@@ -9,7 +9,6 @@
   * 已知偏差：属于下面 WHITELIST 里登记的情形。每条都写明依据（46687.2 原文条款与印刷页，或 DTD 中的事实）和类别：
       国标特有扩展   原文标注“中国标准特有”或 4.3.2/表 C.1 列出、而 STS 1.2 DTD 没有声明的元素
       原文与STS冲突  46687.2 原文明确的写法与 STS 1.2 内容模型冲突，以原文为准
-      待决扩展       原文没有规定、尚待决定的写法（如 D-T-10 正文脚注位置）
   * 未解释偏差：其余全部报错。任何未解释偏差都意味着样例或 schema 有问题（或白名单漏登记）。
 
 实现方式：xmllint 的 DTD 报错无法区分“被白名单解释”与“未解释”，因此先对文档的副本按白名单做规范化
@@ -41,7 +40,8 @@ NS_TBX = "urn:iso:std:iso:30042:ed-1"
 
 EXT = "国标特有扩展"
 CONFLICT = "原文与STS冲突"
-PENDING = "待决扩展"
+# 曾有第三类“待决扩展”（D-T-10 正文脚注位置，块级 fn）。WP8.M 设计评审已定案（D-M-01，方案 A）：正文 fn 是行内元素，
+# 紧随其 xref 写在同一 p 内（STS 1.2 允许，不是扩展），块级 fn 不再收，因此白名单里不再有待决条目。
 
 
 def _local(el) -> str:
@@ -228,24 +228,6 @@ def _t_std_meta_order(root):
     return hit
 
 
-_BLOCK_FN_PARENTS = {"sec", "app"}
-
-
-def _t_block_fn(root):
-    hit = []
-    for el in list(root.iter()):
-        if _is_el(el) and _ns(el) is None and _local(el) == "fn":
-            parent = el.getparent()
-            if parent is not None and _is_el(parent) and _ns(parent) is None and _local(parent) in _BLOCK_FN_PARENTS:
-                hit.append(_lines(el))
-                wrapper = etree.Element("p")
-                wrapper.tail = el.tail
-                el.tail = None
-                parent.replace(el, wrapper)
-                wrapper.append(el)
-    return hit
-
-
 WHITELIST = [
     {
         "id": "EXT-ccs", "category": EXT, "what": "元素 ccs（中国标准文献分类号）",
@@ -315,12 +297,6 @@ WHITELIST = [
                  "附录 G（印刷页 71）又是另一种次序；STS 1.2 的 std-meta 内容模型有固定次序（title-wrap*, proj-id?, …, ics, …）；"
                  "导入接受任意次序（validate.py V-12 STD-META-ORDER 告警），导出须按 STS 1.2 次序",
         "transform": _t_std_meta_order,
-    },
-    {
-        "id": "PENDING-block-fn", "category": PENDING, "what": "sec/app 直接子元素 fn（块级正文脚注）",
-        "basis": "46687.2 没有规定正文 fn 的定义位置（10.1.8，待决 D-T-10，由 WP8.M 决定）；schema 暂时同时收行内与块级；"
-                 "STS 1.2 的 sec/app 内容不含 fn（fn 只能在 p 等行内位置）",
-        "transform": _t_block_fn,
     },
 ]
 

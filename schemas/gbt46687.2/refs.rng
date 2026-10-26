@@ -94,9 +94,9 @@
 
   <!--
     fn：脚注（10.1.8、6.2.3）。内含 label（可含 sup）与 p。
-    表脚注放 table-wrap-foot 内（C-T-02）；正文脚注的定义位置原文没有规定（D-T-10，待 WP8.M 决定），
-    此处两种都收：作为行内元素出现在 p 内（STS 1.2 允许），也作为块（见 body.rng 的 block.any；STS 1.2 的 sec 内容不含 fn，
-    属 46687.2 范围内的待决扩展，见 README 偏差表）。
+    表脚注放 table-wrap-foot 内（C-T-02）；正文脚注的定义位置原文没有规定（D-T-10），WP8.M 已定案（D-M-01，方案 A）：
+    只作为行内元素出现在 p 内、紧随引用它的 xref[ref-type=fn]（STS 1.2 允许，不是国标扩展）；块级 fn（sec/app 的直接子元素）不收，
+    见 body.rng 的 block.any 与 validate.py 的 REJECT 规则。
     注：fn-group 在支持矩阵中为 import: reject（M-10.1.8-05），不在 schema 中。
   -->
   <define name="el.fn">

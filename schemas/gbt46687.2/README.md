@@ -264,7 +264,7 @@ PR#55 审查后逐个核对：
 | `tbx:termEntry` | `term-sec` 内 | schema | 9.2.1 |
 | `ref` | `ref-list` 内 | schema | 4.5.3.1 |
 | 表脚注 `fn` | `table-wrap-foot` 内 | schema（`table-wrap-foot` 只在 `table-wrap` 里） | 6.2.3 |
-| 正文 `fn` | 原文没有规定定义位置（D-T-10，待 WP8.M） | 无（两处都收） | 10.1.8 |
+| 正文 `fn` | 原文没有规定定义位置（D-T-10）；WP8.M 已定案（D-M-01，方案 A）：行内元素，写在引用它的 `p` 内、紧随其 `xref[ref-type=fn]` | schema（`sec`/`app` 的块集合不含 `fn`）+ `REJECT`（块级 `fn` 的明确提示） | 10.1.8、C-T-55 |
 | 缩略语 `def-list[abbreviation]` | 原文只有示例（`sec_3.2` 里），没有位置要求 | 无 | 10.1.4 |
 
 **两个“实现”并不独立**：lxml（libxml2 2.14.6）与 xmllint（libxml 2.9.14）是同一套 libxml2 RELAX NG 代码的两个版本，二者一致能排除构建/版本差异，
@@ -276,7 +276,7 @@ PR#55 审查后逐个核对：
 
 `sts_compat.py` 用 `xmllint --noout --nonet --dtdvalid schemas/niso-sts-1.2/interchange-mathml3-dtd/NISO-STS-interchange-1-mathml3.dtd` 校验文件，
 把报错分成**已知偏差**（命中白名单，列出触发的白名单条目及其依据）和**未解释偏差**（其余全部报错）；有未解释偏差时退出码 1。
-白名单（`--list-whitelist`）共 13 条，每条写明类别和原文页码/DTD 事实，见第 8 节表格。
+白名单（`--list-whitelist`）共 12 条，每条写明类别和原文页码/DTD 事实，见第 8 节表格。
 实现上先按白名单对文档副本做规范化（删除国标扩展元素、把异写改成 STS 写法、调整位置），再校验副本：副本上仍存在的报错 = 未解释偏差；
 原文档上有、副本上消失的报错 = 已知偏差。行号已映射回原文档。MathML 内容也在此被 DTD 校验。
 
@@ -454,11 +454,11 @@ xml:lang 取值、警告注、术语分组条。
 | `05-formulas-figures.xml` | disp-formula/inline-formula + mml:math + legend/def-list、公式注、fig（图例、说明段、多图形、图注、尺寸档位）、fig-group、inline-graphic |
 | `06-terms-references.xml` | term-sec + tbx:termEntry（多 langSet、多 tig、描述符、subjectField、note/example、entailedTerm）、缩略语、各类 xref、行内 fn、std、mixed-citation |
 | `07-import-variants.xml` | 仅导入接受的异写汇总，以及按原文 4.1 示例次序写的 `std-meta`（`ics`、`ccs` 在 `title-wrap` 之前）、4.4.2.1 写法的无标题条（不带 `sec-type`）：import 档通过并告警（`IMPORT-ONLY`、V-12），export 档不通过（另有 V-17） |
-| `08-original-forms-vs-sts.xml` | 原文明确写法与 STS 1.2 不一致的情形（5 个国标扩展元素、std-org 多名、xref 内 label、langSet 内 note 在 tig 之后、graphic 在 table-wrap-foot 之后、块级 fn）；两个档位都通过，`sts_compat.py` 列为已知偏差 |
+| `08-original-forms-vs-sts.xml` | 原文明确写法与 STS 1.2 不一致的情形（5 个国标扩展元素、std-org 多名、xref 内 label、langSet 内 note 在 tig 之后、graphic 在 table-wrap-foot 之后；正文 fn 写成行内、紧随其 xref）；两个档位都通过，`sts_compat.py` 列为已知偏差 |
 | `09-import-pending.xml` | 格式合法但导入暂拒（rejectKind=implementation）：引言中的条（含 `sec_0.1.1` 两层）、array、disp-formula-group、同一脚注多次引用；只告警 |
 
-`samples/invalid/` 的 77 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
-语法 4、旧格式/根 3、矩阵 format 类 reject 17（含 4 个术语异写元素名、1 个 fn 藏在 caption 段落里的图脚注）、V-1 3、V-2 4、V-3 3、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 11（含 2 个 custom 型 xref 的目标错误、2 个脚注/表脚注引用类型互串、3 个 URL 里的控制字符）、仅 RELAX NG 7
+`samples/invalid/` 的 78 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
+语法 4、旧格式/根 3、矩阵 format 类 reject 17（含 4 个术语异写元素名、1 个 fn 藏在 caption 段落里的图脚注）、D-M-01 定案的块级正文 fn 1（`block-level-fn.xml`）、V-1 3、V-2 4、V-3 3、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 11（含 2 个 custom 型 xref 的目标错误、2 个脚注/表脚注引用类型互串、3 个 URL 里的控制字符）、仅 RELAX NG 7
 （含按 STS 1.2 收紧后新增的含子条的条再放段落、partOfSpeech 取值、named-content 缺 content-type、空 table-wrap-foot）、
 **仅 export 档失败 13（`std-meta-wrong-order.xml`：结构层通过，import 档告警 V-12，export 档错误 V-12；`missing-term-entry-id.xml`、`missing-app-id.xml`、`missing-ref-id.xml`：缺必备 id，import 档告警 V-13，export 档错误 V-13；`custom-xref-no-type.xml`：custom 型 xref 缺 custom-type，import 档告警 V-8 CUSTOM-TYPE，export 档错误；`mathml-id-missing.xml`、`mathml-display-inline-in-disp-formula.xml`：mml:math 的 id/display，import 档告警 V-14/V-15，export 档错误；`sec-without-label`、`table-wrap-without-label`、`app-without-annex-type`、`ext-link-without-type`、`term-entry-without-definition`、`p-with-id`：矩阵 export required 的部件（V-17/V-9/V-18）；预期见 `EXPORT_ONLY_INVALID`）**。
 
@@ -495,11 +495,11 @@ xml:lang 取值、警告注、术语分组条。
 | **仍未核实** | | | |
 | `equivalence`、`std-supersedes`、`std-type` 的内容模型 | 行内混合 | DTD 未声明这三个元素 | 仍无内容模型，取宽松形式（登记为国标扩展） |
 | `ref_<N>`（无 label 的规范性引用条目）id 的含义 | — | DTD 不规定 id 形式 | 仍未核实（X-10） |
-| 块级 `fn` | 行内与块都收 | `sec`/`app` 内容不含 `fn`；行内（p 内）允许 | 位置原文未规定，**D-T-10 待 WP8.M 决定**，暂两种都收，登记为“待决扩展” |
+| 块级 `fn` | 行内与块都收 | `sec`/`app` 内容不含 `fn`；行内（p 内）允许 | 位置原文未规定；**D-T-10 已由 WP8.M 设计评审定案（D-M-01，方案 A）**：正文 `fn` 是行内元素、紧随其 `xref` 放在同一 `p` 内（STS 1.2 允许，不是国标扩展）；块级 `fn` 不再收（schema 与 `REJECT` 规则拒绝），“待决扩展”类已清空 |
 
 ## 8. 46687.2 相对 STS 1.2 的偏差（`sts_compat.py` 白名单）
 
-“类别”：国标特有扩展 = 原文标注“中国标准特有”或 4.3.2/表 C.1 列出而 DTD 未声明的元素；原文与STS冲突 = 原文明确的写法与 STS 1.2 内容模型冲突，以原文为准；待决扩展 = 原文未规定、待决定。
+“类别”：国标特有扩展 = 原文标注“中国标准特有”或 4.3.2/表 C.1 列出而 DTD 未声明的元素；原文与STS冲突 = 原文明确的写法与 STS 1.2 内容模型冲突，以原文为准；（曾有第三类“待决扩展”——原文未规定、待决定；D-T-10 由 WP8.M 定案后已清空，白名单里不再有这一类。）
 
 | 白名单 | 类别 | 内容 | 依据（46687.2 原文印刷页 / DTD 事实） |
 |---|---|---|---|
@@ -515,7 +515,6 @@ xml:lang 取值、警告注、术语分组条。
 | CONFLICT-xref-label | 原文与STS冲突 | `xref` 内含 `label` | 10.1.8 示例（印刷页 48）；DTD 的 xref 内容不含 label |
 | CONFLICT-langSet-order | 原文与STS冲突 | `tbx:langSet` 内描述性元素（如 tbx:note）在 `tbx:tig` 之后 | 9.2.3 示例 2（印刷页 37）；DTD：描述性元素必须全部在 tig 之前 |
 | CONFLICT-table-wrap-graphic-after-foot | 原文与STS冲突 | `table-wrap` 内 `graphic` 在 `table-wrap-foot` 之后 | 6.2.3 示例（印刷页 21）；DTD：graphic 等块在 table-wrap-foot 之前 |
-| PENDING-block-fn | 待决扩展 | `sec`/`app` 的直接子元素 `fn` | 正文 fn 的定义位置原文未规定（10.1.8，D-T-10，待 WP8.M 决定）；DTD 的 sec/app 内容不含 fn |
 
 原先“4.1 示例的 `ics`、`ccs` 次序被 schema 拒绝”的做法已改为“导出严格、导入宽容”（第 3 节第 3 点），该次序现在是白名单中“原文与STS冲突”类的一条（CONFLICT-std-meta-order）。
 

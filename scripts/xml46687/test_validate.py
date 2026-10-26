@@ -83,6 +83,8 @@ EXPECTED_INVALID = {
     "fig-footnote.xml": ("REJECT", {"REJECT", "RNG"}, "fn"),
     # 结构层允许（fn 在 caption 的段落里），只有上下文拒绝规则（按祖先判断）能拒绝
     "fig-footnote-in-caption.xml": ("REJECT", {"REJECT"}, "图内"),
+    # D-M-01（WP8.M 设计评审，方案 A）：正文 fn 是行内元素，sec/app 的直接子元素 fn（块级）不收
+    "block-level-fn.xml": ("REJECT", {"REJECT", "RNG"}, "块级正文脚注"),
     "nested-term-entry.xml": ("REJECT", {"REJECT", "RNG"}, "termEntry"),
     "definition-target.xml": ("REJECT", {"REJECT", "RNG"}, "target"),
     # V-1
@@ -471,6 +473,8 @@ class TestSchemaConstraints(unittest.TestCase):
             "disp-quote 内 permissions 在 p 之前": _doc(body='<sec id="sec_1"><title>t</title><disp-quote><permissions/><p>x</p></disp-quote></sec>'),
             "index 为空": _doc(back='<back><index/></back>'),
             "bold 内含 break": _doc(body='<sec id="sec_1"><title>t</title><p><bold>a<break/>b</bold></p></sec>'),
+            "sec 的直接子元素 fn（块级正文脚注，D-M-01 方案 A：正文 fn 只能是行内元素）": _doc(body='<sec id="sec_1"><title>t</title><fn id="f1"><p>z</p></fn></sec>'),
+            "app 的直接子元素 fn（块级正文脚注，D-M-01）": _doc(back='<back><app-group><app id="a1" content-type="informative"><title>附录</title><fn id="f1"><p>z</p></fn></app></app-group></back>'),
             "xref 内含 xref": _doc(body='<sec id="sec_1"><title>t</title><p><xref ref-type="sec" rid="sec_1"><xref ref-type="sec" rid="sec_1">x</xref></xref></p></sec>'),
             "originator 内含 bold": _doc(meta=_META + '<std-ident><originator><bold>x</bold></originator></std-ident>'),
             "只有 thead 的表": _doc(body='<sec id="sec_1"><title>t</title><table-wrap><caption><title>c</title></caption><table><thead><tr><th>a</th></tr></thead></table></table-wrap></sec>'),
@@ -523,7 +527,7 @@ class TestSchemaConstraints(unittest.TestCase):
             "表没有 caption（附录 E 的无标题表）": _doc(body='<sec id="sec_1"><title>t</title><table-wrap id="tab_r"><table><tbody><tr><td>a</td></tr></tbody></table></table-wrap></sec>'),
             "mml:math 内任意 MathML 元素与属性": _doc(body='<sec id="sec_1"><title>t</title><p><inline-formula><mml:math class="c" altimg="x.png"><mml:semantics><mml:mrow><mml:mi mathvariant="bold">x</mml:mi></mml:mrow><mml:annotation encoding="x">y</mml:annotation></mml:semantics></mml:math></inline-formula></p></sec>'),
             "xref 的 rid 含多个标识符": _doc(body='<sec id="sec_1"><title>t</title><p><xref ref-type="sec" rid="a b">x</xref></p></sec>'),
-            "fn 作为行内元素与块": _doc(body='<sec id="sec_1"><title>t</title><p>x<fn id="f1"><label>1)</label><p>y</p></fn></p><fn id="f2"><p>z</p></fn></sec>'),
+            "fn 作为行内元素，紧随其 xref（D-M-01 方案 A）": _doc(body='<sec id="sec_1"><title>t</title><p>x<xref ref-type="fn" rid="f1">1)</xref><fn id="f1"><label>1)</label><p>y</p></fn></p></sec>'),
             "std 与 mixed-citation 出现在正文": _doc(body='<sec id="sec_1"><title>t</title><p><std><std-ref>GB/T 1</std-ref></std><mixed-citation>m</mixed-citation></p></sec>'),
             "无前缀公式替代图作为兄弟元素": _doc(body='<sec id="sec_1"><title>t</title><disp-formula><mml:math/></disp-formula><graphic content-type="disp-formula" xlink:href="formula_40_5"/></sec>'),
             "std-xref 内嵌 std-ref": _doc(meta=_META + '<std-xref type="revises"><std-ref>GB/T 1</std-ref></std-xref>'),
@@ -1360,9 +1364,17 @@ class TestFootnotePairing(unittest.TestCase):
         self.assertTrue(found[0].get("line"))
         self.assertIn("/fn", found[0].get("path", ""))
 
-    def test_block_level_footnote_is_checked_too(self):
-        rep = self._run('<fn id="fn_9"><p>块级脚注。</p></fn>')
-        self.assertEqual(len(self._unref(rep)), 1)
+    def test_block_level_footnote_is_rejected(self):
+        # D-M-01（方案 A）：正文 fn 是行内元素；sec/app 的直接子元素 fn 在两个档位都是错误（RNG 与 REJECT 同时说明原因）
+        for validator in (VALIDATOR_IMPORT, VALIDATOR_EXPORT):
+            with self.subTest(profile=validator.profile):
+                rep = self._run('<p>x<xref ref-type="fn" rid="fn_9">1)</xref></p><fn id="fn_9"><p>块级脚注。</p></fn>', validator)
+                self.assertFalse(rep.valid, validate.format_human(rep))
+                self.assertIn("REJECT", _rules(rep))
+                self.assertIn("块级正文脚注", _messages(rep))
+                # 行内写法（紧随 xref 放在 p 内）是通过的
+                ok = self._run('<p>x<xref ref-type="fn" rid="fn_9">1)</xref><fn id="fn_9"><p>行内脚注。</p></fn></p>', validator)
+                self.assertEqual(ok.errors, [], validate.format_human(ok))
 
     def test_referenced_body_footnote_is_quiet(self):
         rep = self._run('<p>正文<xref ref-type="fn" rid="fn_1">1)</xref><fn id="fn_1"><label>1)</label><p>y</p></fn></p>')
@@ -1954,7 +1966,7 @@ class TestWarnings(unittest.TestCase):
             ("W-SIZE-T", _doc(body=sec % '<p><inline-graphic xlink:href="a" specific-use="size:T"/></p>')),
             ("W-LIST-LABEL", _doc(body=sec % '<list list-type="arabic"><list-item><p>x</p></list-item></list>')),
             ("W-RID-MULTI", _doc(body=sec % '<p><xref ref-type="sec" rid="sec_1 sec_1">x</xref></p>')),
-            ("W-FN-MULTIREF", _doc(body=sec % '<p><xref ref-type="fn" rid="fn_1">1</xref><xref ref-type="fn" rid="fn_1">1</xref></p><fn id="fn_1"><p>x</p></fn>')),
+            ("W-FN-MULTIREF", _doc(body=sec % '<p><xref ref-type="fn" rid="fn_1">1</xref><fn id="fn_1"><p>x</p></fn><xref ref-type="fn" rid="fn_1">1</xref></p>')),
             ("W-ANNEX-TYPE", _doc(back='<back><app-group><app content-type="normative" id="sec_A"><annex-type>（资料性）</annex-type><title>t</title></app></app-group></back>')),
             ("W-DATE-ORDER", _doc(meta=_META + "<release-date>2026-11-01</release-date><implementation-date>2026-04-30</implementation-date>")),
             ("V-14", _doc(body=sec % '<p><inline-formula><mml:math id="m1"><mml:mi>a</mml:mi></mml:math></inline-formula></p>')),
@@ -1991,9 +2003,15 @@ class TestStsCompat(unittest.TestCase):
         applied = {a["id"] for res in self.results.values() for a in res["applied"]}
         self.assertEqual(applied, {e["id"] for e in sts.WHITELIST})
         for e in sts.WHITELIST:
-            self.assertIn(e["category"], (sts.EXT, sts.CONFLICT, sts.PENDING), e["id"])
+            self.assertIn(e["category"], (sts.EXT, sts.CONFLICT), e["id"])
             self.assertTrue(e["basis"].strip(), e["id"])
-            self.assertTrue("印刷页" in e["basis"] or "D-T-10" in e["basis"], "%s 的依据要写明原文页码" % e["id"])
+            self.assertIn("印刷页", e["basis"], "%s 的依据要写明原文页码" % e["id"])
+
+    def test_no_pending_deviation_is_left(self):
+        # D-M-01（WP8.M 设计评审，方案 A）已定案：正文 fn 是行内元素，块级 fn 不再作为“待决扩展”登记
+        self.assertFalse(hasattr(sts, "PENDING"))
+        self.assertNotIn("PENDING-block-fn", {e["id"] for e in sts.WHITELIST})
+        self.assertFalse(any(e["category"] == "待决扩展" for e in sts.WHITELIST))
 
     def test_china_specific_extensions_cite_table_c1(self):
         by_id = {e["id"]: e for e in sts.WHITELIST}

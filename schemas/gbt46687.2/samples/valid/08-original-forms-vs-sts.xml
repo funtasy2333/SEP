@@ -35,12 +35,8 @@
     <sec id="sec_1" sec-type="scope">
       <label>1</label>
       <title>范围</title>
-      <p>本文件汇总原文明确写法与 STS 1.2 的偏差，脚注引用见<xref ref-type="fn" rid="fn_1"><label><sup>1)</sup></label></xref>。</p>
-      <!-- 正文 fn 作为块：定义位置待决（D-T-10，待 WP8.M 决定），STS 1.2 的 sec 内容不含 fn -->
-      <fn id="fn_1">
-        <label>1)</label>
-        <p>块级正文脚注。</p>
-      </fn>
+      <!-- 正文 fn 是行内元素，写在引用它的 p 内、紧随其 xref[ref-type=fn]（D-M-01，STS 1.2 允许）；块级 fn 不收 -->
+      <p>本文件汇总原文明确写法与 STS 1.2 的偏差，脚注引用见<xref ref-type="fn" rid="fn_1"><label><sup>1)</sup></label></xref><fn id="fn_1"><label>1)</label><p>行内正文脚注，紧随其 xref。</p></fn>。</p>
     </sec>
     <sec id="sec_3" sec-type="terms">
       <label>3</label>

@@ -11,7 +11,8 @@
              （SYN-3 用 XML 感知的序言扫描判断真实 DOCTYPE，不被注释/CDATA/处理指令里的字样误导）
   2. 旧格式  GB/T 37967 与 SEP 早期自定义格式的判别特征（LEGACY），命中即拒绝，不尝试转换
   3. 结构    项目自写 schema：lxml（RELAX NG）与 xmllint 两个实现同时校验，结果不一致即报告（RNG / CONSISTENCY）
-  4. 拒绝项  支持矩阵中 import 为 reject 的元素（tex-math、嵌套表、tfoot 等），给出矩阵行与约定编号（REJECT）
+  4. 拒绝项  支持矩阵中 import 为 reject 的元素（tex-math、嵌套表、tfoot 等），给出矩阵行与约定编号（REJECT）；
+             另含 WP8.M D-M-01 定案的 sec/app 直接子元素 fn（块级正文脚注：正文 fn 只能是行内元素，紧随其 xref）
   5. 语义    V-1 id/rid；V-2 sec-type 与位置；V-3 app/ref-list 的 content-type；V-4 日期；V-5 列项；
              V-6 processing-meta 与 title-wrap；V-7 遗留 id 形式；
              附加：V-8 xref 的 ref-type 与目标一致；V-9 术语条目定义个数；V-10 MathML 安全；V-11 外链协议；
@@ -522,6 +523,12 @@ def has_ancestor(el, *keys) -> bool:
     return any(is_element(a) and _clark(nsuri(a), local(a)) in keys for a in el.iterancestors())
 
 
+def _is_plain_child_of(el, *names) -> bool:
+    """el 的父元素是无命名空间的 names 之一（只看直接父元素）。"""
+    parent = el.getparent()
+    return parent is not None and is_element(parent) and nsuri(parent) is None and local(parent) in names
+
+
 def check_rejects(tree, rep: Report) -> None:
     root = tree.getroot()
     for el in root.iter():
@@ -550,6 +557,9 @@ def check_rejects(tree, rep: Report) -> None:
             rep.error("REJECT", "tbx:source 内的标准不加 std（9.2.8，M-9.2.8-02）", el=el)
         if key == "fn" and has_ancestor(el, "fig", "fig-group"):
             rep.error("REJECT", "fig 内的 fn（图脚注）原文没有规定标记（M-8.6-02，C-T-32）；fn 在图题、说明段、图注、图例等任何位置都算图内", el=el)
+        if key == "fn" and _is_plain_child_of(el, "sec", "app"):
+            rep.error("REJECT", "sec/app 的直接子元素 fn（块级正文脚注）：正文脚注定义位置已定案（WP8.M D-M-01，方案 A，10.1.8、C-T-55）——"
+                      "正文 fn 是行内元素，须写在引用它的 p 内、紧随其 xref[ref-type=fn]；STS 1.2 的 sec/app 内容也不含 fn", el=el)
         if key == _clark(NS_TBX, "termEntry") and has_ancestor(el, _clark(NS_TBX, "termEntry")):
             rep.error("REJECT", "嵌套的 tbx:termEntry（M-9.1-03，C-T-47：术语分组用嵌套 sec，不用嵌套条目）", el=el)
         if key == _clark(NS_TBX, "definition") and el.get("target") is not None:
