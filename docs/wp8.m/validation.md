@@ -164,6 +164,8 @@ export default mergeConfig(base, defineConfig({
 - 生成：`node packages/client/scripts/wp8m-word-sample.mjs <绝对路径.docx>`（走真实的 `buildDocxBlob`，与编辑器“导出 DOCX”同一条链路）。内容 = 全要素 fixture 去掉 §7.1 暂不排版的结构，并把第 8.1 条的罗马列项扩成 9 项（i）～ix），其中第 1～4 项文字很短，第 5～9 项文字较长、会回行）。封面采用模板图片，会有一条已知 warning `cover-asset-approximation`（封面素材来源未核实），与本次检查无关。
 - 生成后自检：`numbering.xml` 有 17 个 `abstractNum`，A17 的 L1/L2 为 `0.%2　`、`0.%2.%3　`；引言五个条的段落分别绑定 A17 的按需实例（numId 101）的 ilvl 1/2/2/1/1；罗马列项用 A14 的按需实例（numId 105），L0 为 `lowerRoman` + `%1）`，标识字体 Times New Roman / 宋体。LibreOffice 渲染（仅作参考）引言条显示 0.1、0.1.1、0.1.2、0.2、0.3，能正常打开。
 
+- **v2 样稿（合入 main 后重新生成，2026-10-26）**：main 合入了原生目次域（`TOC \f C`）与表头样式 SesTableHeader，故用合并后的代码重新生成 `wp8m-word-check-v2.docx`（不入库），SHA-256 `4a7e29f9370b2e74eaed0ae4b9bc30f423441d3f62c816478bdd2bdd508e72a5`，41 389 字节。自检：目次 TC 条目 20 条，含“引言”“参考书目”，不含引言中的条（0.1 等）。Word 打开时依次出现“是否更新域”与“更新目录”两个提示，前者选“是”，后者选“更新整个目录”（见 `docs/wp7-docx-delivery.md`）。W13 以 v2 为准。
+
 ### Word 检查清单
 
 请用真实 Word 打开样稿；若提示“更新域”请选“是”（目次页码由 Word 计算）。逐项记录“通过 / 不通过 + 现象（最好截图）”。
