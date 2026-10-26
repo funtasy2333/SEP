@@ -69,6 +69,10 @@ export const NODE_ID_TYPES = [
   // 表格行/单元格与公式 whereList 项的 ID 来源策略在 WP3 设计时确定
   'stdListItem',
   'bibEntry',
+  // 规范性引用文件清单及其条目（IR 的 IRNormRefList / IRNormRef 带 id；子节点 normRefStdRef/normRefStdTitle 无 id）。
+  'normRefList',
+  'normRefStd',
+  'normRefMixed',
   // Resolver assigns stable IDs to table rows/cells as well as their semantic table wrapper.
   'tableRow',
   'tableCell',

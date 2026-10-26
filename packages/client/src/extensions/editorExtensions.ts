@@ -36,6 +36,7 @@ import {
   StdList, StdListItem,
   StdParagraph, StdTable, TableCaption, TableCaptionEn, TableFootnote, TableFootnoteEntry, TableFootnoteRef, TableFootnoteRow, TableNoteRow,
   TermDef, TermDefinition, TermName, TermNameEn, TermSource, TermSubjectField,
+  NormRefList, NormRefStd, NormRefStdRef, NormRefStdTitle, NormRefMixed, StdRef, MixedCitation,
 } from './index' // 相对路径：服务端打包也会加载本文件，不认识 '@/' 别名（见 editorSchema.ts）
 
 /** The exact extension list used by EditorView's useEditor call. */
@@ -84,5 +85,7 @@ export function createEditorExtensions(): Extensions {
     TermSubjectField, DefList,
     // G7-b：块内容的注/示例（旧的单段 note/example 保持不动）。
     NoteBlock, ExampleBlock,
+    // G1：规范性引用文件清单（M-4.4.2.3-02/-03/-04）与正文标准引用 mark（M-10.2-01/-02、M-10.1.7-01）。
+    NormRefList, NormRefStd, NormRefStdRef, NormRefStdTitle, NormRefMixed, StdRef, MixedCitation,
   ]
 }
