@@ -362,6 +362,9 @@ function renderFigure(fig: IRFigure, ctx: RenderCtx): void {
   )
   const alt = escapeAttr(fig.caption.map((r) => r.text).join(''))
   ctx.push(`<img class="ses-figure-image" src="${escapeAttr(fig.src)}" alt="${alt}" />`)
+  // 图中的注置于图题之上（GB/T 1.1—2020 9.11.1、9.12.2；9.7.5 的编排示例见原 PDF 第 33 页〔印刷页 26〕：
+  // 图 → 标引序号说明 → 图中的注 → 图脚注 → 图编号和图题）。与 DOCX 顺序一致，也使 figcaption 位于 figure 的最后（HTML 要求 figcaption 为首或末子元素）。
+  for (const note of fig.notes) renderNote(note, ctx)
   const captionLabel = ctx.label(fig.id)
   const captionText = renderInlines(fig.caption, ctx)
   ctx.push(
@@ -371,7 +374,6 @@ function renderFigure(fig: IRFigure, ctx: RenderCtx): void {
   if (fig.captionEn && fig.captionEn.length > 0 && ctx.variant === 'screen') {
     ctx.push(`<figcaption class="ses-figure-caption-en" lang="en">${renderInlines(fig.captionEn, ctx)}</figcaption>`)
   }
-  for (const note of fig.notes) renderNote(note, ctx)
   ctx.push('</figure>')
   if (landscape) ctx.push('</div>')
 }

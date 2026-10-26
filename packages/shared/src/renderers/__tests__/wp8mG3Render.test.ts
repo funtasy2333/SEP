@@ -60,14 +60,14 @@ function figureHtml(output: string, id: string): string {
 
 describe('[M-8.2-11] HTML：图注逐条输出，标签只取自 Resolver（作用域 = 本图）', () => {
   for (const variant of ['screen', 'print'] as const) {
-    it(`${variant}：图一两条注 注1：/注2：，图二唯一注 注：；注位于图题之后、</figure> 之前；id 取 note_<n>`, () => {
+    it(`${variant}：图一两条注 注1：/注2：，图二唯一注 注：；注位于图之下、图题之上（图题在最后，与 DOCX 一致）；id 取 note_<n>`, () => {
       const output = html(notesDoc(), variant)
       expect(figureHtml(output, 'r-f1')).toBe([
         '<figure class="ses-figure-block" data-type="figure" data-orientation="portrait" data-node-id="r-f1" id="fig_1">',
         '<img class="ses-figure-image" src="DATA" alt="图一" />',
-        '<figcaption class="ses-figure-caption">图1　图一</figcaption>',
         '<div class="ses-note" data-type="note" data-node-id="r-f1-n1" id="note_1"><span class="ses-note-marker">注1：</span>图注一。</div>',
         '<div class="ses-note" data-type="note" data-node-id="r-f1-n2" id="note_2"><span class="ses-note-marker">注2：</span>图注二。</div>',
+        '<figcaption class="ses-figure-caption">图1　图一</figcaption>',
         '</figure>',
       ].join('\n'))
       expect(figureHtml(output, 'r-f2')).toContain('<div class="ses-note" data-type="note" data-node-id="r-f2-n1" id="note_3"><span class="ses-note-marker">注：</span>唯一图注。</div>')
@@ -97,6 +97,34 @@ describe('[M-8.2-11] HTML：图注逐条输出，标签只取自 Resolver（作�
 
   it('纯函数：同样输入两次输出字节级相同', () => {
     for (const variant of ['screen', 'print'] as const) expect(html(notesDoc(), variant)).toBe(html(notesDoc(), variant))
+  })
+})
+
+describe('[M-8.2-11] 图注与图题的先后：HTML 与 DOCX 一致，按 GB/T 1.1—2020 9.11.1、9.12.2、9.7.5 置于图题之上', () => {
+  // 依据：原 PDF 第 33 页（印刷页 26，9.7.5 图的编排示例）自上而下为 图 → 标引序号说明 → 图中的段 → 注 → 图脚注 → 图编号和图题；
+  // 9.11.1「图中的注应置于图题和图脚注（如有）之上」，10.4.2「图编号和图题应置于图之下」。
+  for (const variant of ['screen', 'print'] as const) {
+    it(`HTML ${variant}：<img> → 注 → <figcaption>（figcaption 为 figure 的末子元素）`, () => {
+      const figure = figureHtml(html(notesDoc(), variant), 'r-f1')
+      expect(figure.indexOf('<img')).toBeLessThan(figure.indexOf('data-node-id="r-f1-n1"'))
+      expect(figure.indexOf('data-node-id="r-f1-n2"')).toBeLessThan(figure.indexOf('<figcaption'))
+      expect(figure.endsWith('</figcaption>\n</figure>')).toBe(true)
+    })
+  }
+
+  it('DOCX：图片段 → 图注 → 图题；与 HTML 的先后相同', () => {
+    const doc = notesDoc()
+    const { pkg } = renderDocxTraced(doc, resolve(doc).labels, docxOptions)
+    const lines = docxOutline(pkg).split('\n')
+    const at = (prefix: string) => lines.findIndex(line => line.startsWith(prefix))
+    expect(at('SesFigure')).toBeLessThan(at('SesNoteN │ 注1：'))
+    expect(at('SesNoteN │ 注2：')).toBeLessThan(at('SesFigCap │ 图1'))
+  })
+
+  it('Resolver 的遍历顺序与版面一致：图注先于图题得到编号', () => {
+    const { labels } = resolve(notesDoc())
+    expect(labels['r-f1-n1']).toMatchObject({ label: '注1：', xmlId: 'note_1' })
+    expect(labels['r-f1']).toMatchObject({ label: '图1' })
   })
 })
 
