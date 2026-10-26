@@ -126,6 +126,18 @@ class ResolveCtx {
   }
 }
 
+/**
+ * Resolver 对 `doc.unsupportedContent`（pmToIr 的诊断）与术语 `tailOrder` 无效重述为 unsupported-content error 时使用的文案。
+ * 输出边界（outputBoundary.ts）已经按各自的路径阻断这两类问题；它用同一函数还原文案，以便把 Resolver 的重述识别出来、
+ * 不再重复报告（见 getOutputSupportProblems 对 Resolver unsupported-content 的处理）。
+ */
+export function unsupportedContentProblemMessage(issue: { path: string; nodeType: string; reason: string }): string {
+  return `${issue.path}（${issue.nodeType}）：${issue.reason}`
+}
+export function termTailOrderProblemMessage(reason: string): string {
+  return `术语条目 tailOrder 无效：${reason}`
+}
+
 // ---------- 行内（收集交叉引用） ----------
 
 // 与编辑器 canInsertBodyFootnote 保持一致；图中的限制沿块级子树传递。
@@ -479,7 +491,7 @@ function visitTermEntry(
     code: 'unsupported-content',
     nodeId: entry.id,
     severity: 'error',
-    message: `术语条目 tailOrder 无效：${tail.issue}`,
+    message: termTailOrderProblemMessage(tail.issue),
   })
   for (const item of tail.items) {
     switch (item.kind) {
@@ -828,7 +840,7 @@ function registerExtendedData(
     ctx.problems.push({ code: 'dangling-resource', nodeId: ref.ownerId, severity: 'error', message: `${ref.path} 的资源目标「${ref.targetId}」不存在` })
   }
   for (const issue of doc.unsupportedContent ?? []) {
-    ctx.problems.push({ code: 'unsupported-content', nodeId: issue.nodeId, severity: 'error', message: `${issue.path}（${issue.nodeType}）：${issue.reason}` })
+    ctx.problems.push({ code: 'unsupported-content', nodeId: issue.nodeId, severity: 'error', message: unsupportedContentProblemMessage(issue) })
   }
   return indexRefs
 }

@@ -1,7 +1,7 @@
 import { tableColumnWidthIssues } from './docx/body/tableColumnWidths'
 import type { IRTable } from '../ir/types'
 import type { IRDoc } from '../ir/types'
-import { resolve } from '../ir/resolve'
+import { resolve, termTailOrderProblemMessage, unsupportedContentProblemMessage } from '../ir/resolve'
 import { findCrossRefRunProjectionIssues } from '../ir/inlineProjectionDiagnostics'
 import { canonicalTermTailOrder, orderedTermTail, sameTermTailOrder } from '../ir/termTailOrder'
 import type { IRTermEntry, IRTermTailOrderItem } from '../ir/types'
@@ -287,6 +287,25 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
       ...(issue.nodeId !== null ? { nodeId: issue.nodeId } : {}),
       path: 'resolver.problems[dangling-typed-ref]',
       message: `${format} 不能输出类型错误的引用：${issue.message}。请修正引用目标；如需保留原稿，请导出 JSON。`,
+    })
+  }
+
+  // WP8.M M-Z-a（设计 §7.1，主导人 2026-10-26）：Resolver 产生的 `unsupported-content` error 一律阻断非 JSON 出口。
+  // 它们表示文档里有模型能保存、但无法合法表达的结构（规范性引用清单位置/数量不合法、行内图位置不合法等）；
+  // 之前只有脚注类与 dangling-typed-ref 被拦截，这类 error 会被静默带进 HTML/DOCX/XML。
+  // 其余 error 代码（dangling-xref、duplicate-id……）与 warning 保持既有的导出口径，不在此处改变。
+  // Resolver 还会把 doc.unsupportedContent（pmToIr 诊断）与术语 tailOrder 无效重述成同一代码：这两类上文已按各自路径
+  // 阻断，此处按文案识别后跳过，避免同一问题报两次。
+  const restated = new Set((doc.unsupportedContent ?? []).map(issue => `${issue.nodeId ?? ''}\u0000${unsupportedContentProblemMessage(issue)}`))
+  const tailOrderPrefix = termTailOrderProblemMessage('')
+  for (const issue of resolution.problems) {
+    if (issue.code !== 'unsupported-content' || issue.severity !== 'error') continue
+    if (restated.has(`${issue.nodeId ?? ''}\u0000${issue.message}`) || issue.message.startsWith(tailOrderPrefix)) continue
+    problems.push({
+      code: 'unsupported-output',
+      ...(issue.nodeId !== null ? { nodeId: issue.nodeId } : {}),
+      path: 'resolver.problems[unsupported-content]',
+      message: `${format} 不能输出无法合法表达的内容：${issue.message}。请修正该内容；如需保留原稿，请导出 JSON。`,
     })
   }
   return problems
