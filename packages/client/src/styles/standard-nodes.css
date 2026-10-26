@@ -1022,6 +1022,14 @@
   content: counter(roman-counter, lower-roman) '） ';
 }
 
+/* 罗马标识宽度随序号变化（i） 到 viii）），给标识一个固定的最小宽度，使各项文字起排位置一致（M-Z-c F-5）。
+ * 3em 能容纳 viii）：宋体的拉丁字母是半角（0.5em），viii） 为 4×0.5em + 1em（全角右括号）= 3em；比例字体下约 2.6em。
+ * 字母、数字列项标识等宽，不受影响。 */
+.std-list-roman .std-list-item::before {
+  display: inline-block;
+  min-width: 3em;
+}
+
 /* 兼容嵌套 DOM：数字子列项保留编号，其他历史嵌套类型使用间隔号。 */
 .std-list .std-list:not(.std-list-numeric) .std-list-item {
   counter-increment: none;

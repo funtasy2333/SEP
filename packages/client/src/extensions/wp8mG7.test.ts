@@ -273,6 +273,21 @@ describe('[M-5.7-04] 显示：编辑器 DOM 与样式', () => {
     expect(css).toMatch(/\.std-list-roman \.std-list-item \{\s*counter-increment: roman-counter;\s*\}/)
     expect(css).toMatch(/\.std-list-roman \.std-list-item::before \{\s*content: counter\(roman-counter, lower-roman\) '） ';\s*\}/)
   })
+
+  it('[M-Z-c F-5] 样式：罗马标识为固定最小宽度的行内块，i）到 viii）的文字起排位置一致；字母、数字列项的标识规则不变', () => {
+    expect(css).toMatch(/\.std-list-roman \.std-list-item::before \{\s*display: inline-block;\s*min-width: 3em;\s*\}/)
+    // 只作用于 roman：字母、数字、间隔号列项的 ::before 不带 display / min-width
+    for (const selector of [
+      '\\.std-list-alpha \\.std-list-item::before',
+      '\\.std-list-numeric \\.std-list-item::before,\\n\\.std-list-romanUpper \\.std-list-item::before',
+      '\\.std-list-dash \\.std-list-item::before',
+      '\\.std-list-dot \\.std-list-item::before',
+    ]) {
+      const rule = new RegExp(`${selector} \\{([^}]*)\\}`).exec(css)
+      expect(rule, selector).not.toBeNull()
+      expect(rule![1], selector).not.toMatch(/display|min-width/)
+    }
+  })
 })
 
 describe('[M-5.7-04][M-10.1.5-01] 与 G4 列项守卫衔接：罗马列项的被引用项不得因格式命令失去编号', () => {
