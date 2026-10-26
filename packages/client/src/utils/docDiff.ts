@@ -215,6 +215,22 @@ function nodeToText(
     case 'figure': {
       const caption = extractTitle(content, 'figureCaption')
       lines.push(`${indent}[图] ${caption}`)
+      // WP8.M G3：图例、图注、图中示例也要进入对比文本，否则只改这些内容的版本看起来相同。
+      for (const c of content ?? []) {
+        if (c.type === 'figureLegend') {
+          const legend = c.content as Array<Record<string, unknown>> | undefined
+          lines.push(`${indent}  [图例] ${extractTitle(legend, 'figureLegendTitle')}`.trimEnd())
+          for (const item of legend ?? []) {
+            if (item.type !== 'whereItem') continue
+            const cells = item.content as Array<Record<string, unknown>> | undefined
+            lines.push(`${indent}    ${extractTitle(cells, 'whereTerm')}：${extractTitle(cells, 'whereDefinition')}`)
+          }
+        } else if (c.type === 'note') {
+          lines.push(`${indent}  注：${extractText(c)}`)
+        } else if (c.type === 'example') {
+          lines.push(`${indent}  示例：${extractText(c)}`)
+        }
+      }
       break
     }
 
@@ -304,6 +320,13 @@ function extractText(node: Record<string, unknown>): string {
   if (node.type === 'formulaInline') {
     const latex = (node.attrs as Record<string, unknown> | undefined)?.latex
     return typeof latex === 'string' && latex ? `$${latex}$` : ''
+  }
+  // 行内图（WP8.M G3）同样没有文字：以 [行内图 …] 记号输出其替代文字、尺寸档位与资源引用，改动才会出现在对比里。
+  if (node.type === 'inlineImage') {
+    const attrs = (node.attrs ?? {}) as Record<string, unknown>
+    const parts = [attrs.alt, attrs.size ? `size=${String(attrs.size)}` : '', attrs.resourceId ? `res=${String(attrs.resourceId)}` : '']
+      .filter((part): part is string => typeof part === 'string' && part.length > 0)
+    return `[行内图${parts.length ? ' ' + parts.join(' ') : ''}]`
   }
   const content = node.content as Array<Record<string, unknown>> | undefined
   if (!content) return ''

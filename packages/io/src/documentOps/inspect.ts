@@ -150,6 +150,8 @@ const FIELD_LABELS: Record<string, string> = {
   languageSets: 'TBX 语言集', nestedEntries: '嵌套术语条目', tailOrder: '术语尾项顺序', subjectField: '术语领域',
   entryType: '文献类型', fields: '文献结构化字段', identifiers: '文献标识符', externalLink: '文献外链',
   footnote: '脚注', formula: '行内公式',
+  // WP8.M G3：图例、图中示例、行内图（IR 有、写作片段暂不支持）
+  legend: '图例', examples: '图中示例', image: '行内图',
 }
 
 const OWNER_FIELD = /^「(.+?)」(?:暂不支持字段|没有字段)「(.+?)」/

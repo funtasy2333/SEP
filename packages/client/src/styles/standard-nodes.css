@@ -492,6 +492,92 @@
   color: #555;
 }
 
+/*
+ * 图内的图例、注与示例（WP8.M G3，M-8.5-01～06、M-8.2-11、M-8.4-03）。
+ * 图本身居中（.std-figure），这些内容按版式左起排：图例在图题之后，其后是注，最后是示例（Schema 固定顺序，D-M-09）。
+ * 注 / 示例的标签（注：/注n：、示例：/示例n：）由 Resolver 按“作用域 = 本图”给出，见文末 data-resolved-label 规则。
+ */
+.std-figure > .std-note,
+.std-figure > .std-example {
+  text-align: left;
+}
+
+/*
+ * 图例：与公式“式中”、缩略语表共用 whereItem/whereTerm/whereDefinition 项节点；
+ * 符号在前、释义在后，两列显示（符号列不折行，释义列占满余宽），没有“式中：”引导也没有“——”。
+ * 可选的标题（如“图例”）单独成行。导出时 HTML/DOCX 暂不排版（边界报 unsupported-output）。
+ */
+.std-figure-legend {
+  margin: 8px 0 4px;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.8;
+  text-indent: 0;
+}
+
+.std-figure-legend-title {
+  margin: 0;
+  padding-left: 2em;
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+}
+
+/* 空标题节点：ProseMirror 的空文本块里有 trailing <br>，不能依赖 :empty，用 :has 识别 */
+.std-figure-legend-title:has(> .ProseMirror-trailingBreak:only-child)::before {
+  content: '图例标题';
+  color: #aaa;
+}
+
+.std-figure-legend > .std-where-item {
+  gap: 1em;
+  padding-left: 2em;
+}
+
+.std-figure-legend > .std-where-item > dt {
+  min-width: 1.5em;
+}
+
+.std-figure-legend > .std-where-item > dd::before {
+  content: none;
+}
+
+/* 空符号格：占位提示；与公式式中不同，点击不会弹出行内公式输入（见 whereListEditing） */
+.std-figure-legend > .std-where-item > dt.def-term-empty::before {
+  content: '符号';
+  color: #aaa;
+}
+
+/*
+ * 行内图（WP8.M G3，M-8.3-02）：跟随行高，垂直居中；data-size 对应 8.3 表 2 的 S/M/L = 单/双/三倍行高。
+ * 缺省（无 size）按单倍行高以内自适应。行内原子节点，被选中时描边。
+ */
+.std-inline-image {
+  display: inline-block;
+  vertical-align: middle;
+  height: auto;
+  max-height: 1.2em;
+  max-width: 100%;
+}
+
+.std-inline-image[data-size='S'] {
+  height: 1.2em;
+  max-height: none;
+}
+
+.std-inline-image[data-size='M'] {
+  height: 2.4em;
+  max-height: none;
+}
+
+.std-inline-image[data-size='L'] {
+  height: 3.6em;
+  max-height: none;
+}
+
+.std-inline-image.ProseMirror-selectednode {
+  outline: 2px solid #8ab4f8;
+  outline-offset: 1px;
+}
+
 /* 公式 */
 .std-formula {
   margin: 16px 0;
