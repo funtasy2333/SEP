@@ -59,7 +59,8 @@ function blockHasTableFootnotes(block: IRBlock): boolean {
     case 'example':
       return block.content.some(blockHasTableFootnotes)
     case 'figure':
-      return block.notes.some((note) => note.content.some(blockHasTableFootnotes))
+      return block.notes.some((note) => note.content.some(blockHasTableFootnotes)) ||
+        (block.examples ?? []).some((example) => example.content.some(blockHasTableFootnotes))
     case 'paragraph':
     case 'formula':
     case 'code':
@@ -85,7 +86,10 @@ function blockHasFootnoteSyntax(block: IRBlock): boolean {
       inlineHasFootnote(block.captionEn ?? []) || block.rows.some((row) => row.cells.some((cell) => cell.content.some(blockHasFootnoteSyntax))) ||
       block.notes.some((note) => note.content.some(blockHasFootnoteSyntax))
     case 'figure': return inlineHasFootnote(block.caption) || inlineHasFootnote(block.captionEn ?? []) ||
-      block.notes.some((note) => note.content.some(blockHasFootnoteSyntax))
+      block.notes.some((note) => note.content.some(blockHasFootnoteSyntax)) ||
+      (block.examples ?? []).some((example) => example.content.some(blockHasFootnoteSyntax)) ||
+      (block.legend !== undefined && (inlineHasFootnote(block.legend.title ?? []) ||
+        block.legend.items.some((item) => inlineHasFootnote(item.term) || inlineHasFootnote(item.definition))))
     case 'formula': return inlineHasFootnote(block.sourceInlines ?? []) || block.whereList.some((item) => inlineHasFootnote(item.term) || inlineHasFootnote(item.definition))
     case 'defList': return block.items.some((item) => inlineHasFootnote(item.term) || inlineHasFootnote(item.definition))
     case 'code': return false
@@ -128,7 +132,10 @@ function collectTables(block: IRBlock, out: IRTable[]): void {
       break
     case 'list': block.items.forEach((item) => item.content.forEach((child) => collectTables(child, out))); break
     case 'warning': case 'quote': case 'note': case 'example': block.content.forEach((child) => collectTables(child, out)); break
-    case 'figure': block.notes.forEach((note) => note.content.forEach((child) => collectTables(child, out))); break
+    case 'figure':
+      block.notes.forEach((note) => note.content.forEach((child) => collectTables(child, out)))
+      block.examples?.forEach((example) => example.content.forEach((child) => collectTables(child, out)))
+      break
     case 'paragraph': case 'formula': case 'code': case 'defList': case 'normRefList': break
   }
 }

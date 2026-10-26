@@ -167,10 +167,10 @@ const OWNER_LABELS: Record<FieldOwner, string> = {
 
 /** IR 里有、但写作片段暂不支持的字段：给出专门的提示，而不是笼统的「未知字段」。 */
 const IR_ONLY_FIELDS: Partial<Record<FieldOwner, readonly string[]>> = {
-  run: ['style', 'footnote'],
+  run: ['style', 'footnote', 'image'],
   inlineFormula: ['mathml', 'source'],
   table: ['width', 'style', 'unit', 'footnotes', 'columns'],
-  figure: ['title', 'unit', 'resourceId', 'imageWidth', 'imageHeight', 'descriptions', 'groups'],
+  figure: ['title', 'unit', 'resourceId', 'imageWidth', 'imageHeight', 'descriptions', 'groups', 'legend', 'examples'],
   formula: ['mathml', 'sourceInlines', 'notes'],
   termEntry: ['nestedEntries', 'languageSets', 'tailOrder', 'subjectField'],
   bibEntry: ['entryType', 'fields', 'identifiers', 'externalLink'],
@@ -980,7 +980,8 @@ function parseFigure(obj: Obj, path: string, ctx: Ctx): IRFigure {
   const alt = optionalString(obj, 'alt', path, ctx) ?? ''
   const notes = arrayField(obj, 'notes', path, ctx)
   if (notes && notes.length > 0) {
-    ctx.issue(`${path}.notes`, 'unsupported-field', '生产编辑器的图没有保存图中注的节点，notes 必须为空；请把说明写进 caption 或图后的 note')
+    // 图中注的模型已支持（WP8.M G3，M-8.2-11：figure 内的单段 note），写作入口本阶段不放开（插入/编辑入口留后续交互任务）。
+    ctx.issue(`${path}.notes`, 'unsupported-field', '写作片段暂不支持图中注（模型已支持，写作入口留后续交互任务），notes 必须为空；请把说明写进 caption 或图后的 note')
   }
   return { kind: 'figure', id, caption, ...(captionEn ? { captionEn } : {}), orientation, src, alt, notes: [] }
 }

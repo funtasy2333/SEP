@@ -23,7 +23,12 @@ export function collectFootnotes(doc: IRDoc, bibliographyOrder?: string[]): IRFo
         for (const row of node.rows) for (const cell of row.cells) cell.content.forEach(block)
         node.notes.forEach(block)
         break
-      case 'figure': node.notes.forEach(block); inlines(node.caption); inlines(node.captionEn ?? []); break
+      case 'figure':
+        node.notes.forEach(block); inlines(node.caption); inlines(node.captionEn ?? [])
+        // 图例与图中示例（WP8.M G3）：其中的条文脚注由 Resolver 报 invalid-footnote，这里照常收集以便渲染入口的脚注核对看见它们
+        if (node.legend) { inlines(node.legend.title ?? []); for (const item of node.legend.items) { inlines(item.term); inlines(item.definition) } }
+        node.examples?.forEach(block)
+        break
       case 'formula': inlines(node.sourceInlines ?? []); for (const item of node.whereList) { inlines(item.term); inlines(item.definition) }; break
       case 'defList': for (const item of node.items) { inlines(item.term); inlines(item.definition) }; break
     }

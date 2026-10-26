@@ -5,6 +5,8 @@ const semanticKeys = new Set([
   'columnWidths', 'cellType', 'unit', 'groups', 'descriptions', 'resourceId', 'resources',
   'index', 'fields', 'entryType', 'externalLink', 'proposer', 'technicalCommittee',
   'imageWidth', 'imageHeight', 'alt', 'targetKind', 'subjectField', 'introductionClauses', 'bibliographyTitle', 'columns',
+  // WP8.M G3：图例（IRFigure.legend）与行内图（IRInline.image）；键名在 IR 内唯一，可走通用扫描。
+  'legend', 'image',
 ])
 const semanticMarks = new Set(['strike', 'code', 'variable', 'externalLink', 'bibRef', 'termRef', 'stdRef', 'mixedCitation'])
 const semanticKinds = new Set(['warning', 'quote', 'code', 'defList', 'normRefList'])
@@ -36,7 +38,9 @@ export function hasSemanticExtensions(value: unknown): boolean {
   if ((row.kind === 'note' || row.kind === 'example') && typeof row.id === 'string' && Array.isArray(row.content)
     && row.content.length > 0 && !isInlineNoteContent(row.id, row.content)) return true
   if (row.kind === 'formula' && Array.isArray(row.notes) && row.notes.length > 0) return true
-  if (row.kind === 'figure' && ['title', 'unit', 'resourceId', 'imageWidth', 'imageHeight', 'alt', 'descriptions', 'groups'].some(key => present(row[key]))) return true
+  // WP8.M G3：图中的注（notes，M-8.2-11）与示例（examples，M-8.4-03）由 figure 内的 note/example 子节点承载，旧生产 Schema 没有；
+  // examples 与 IRTermEntry.examples 同名（后者是旧的必有字段），不能走通用键扫描，只在图上判定。
+  if (row.kind === 'figure' && ['title', 'unit', 'resourceId', 'imageWidth', 'imageHeight', 'alt', 'descriptions', 'groups', 'notes', 'examples'].some(key => present(row[key]))) return true
   if (row.kind === 'table' && ['width', 'style', 'unit'].some(key => present(row[key]))) return true
   for (const [key, child] of Object.entries(row)) {
     if (semanticKeys.has(key) && present(child)) return true

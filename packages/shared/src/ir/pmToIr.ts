@@ -36,8 +36,10 @@ import type {
   IRIndexEntry,
   IRIndexGroup,
   IRInlineFormula,
+  IRInlineImage,
   IRInlineStyle,
   IRInline,
+  IRLegend,
   IRReferenceTargetKind,
   IRLanguage,
   IRList,
@@ -284,6 +286,31 @@ function convertMarks(
   return out.length > 0 || style ? { marks: out, ...(style ? { style } : {}) } : undefined
 }
 
+const INLINE_IMAGE_SIZES: readonly NonNullable<IRInlineImage['size']>[] = ['S', 'M', 'L']
+
+function ownerIdOf(node: PMJsonNode, ctx: Ctx): NodeId | null {
+  return typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : ctx.ownerIds.get(node) ?? null
+}
+
+/** inlineImage → IRInlineImage（M-8.3-02）。空的 alt / resourceId 与未设的 size 不进入 IR，使 IR 保持最小。 */
+function convertInlineImage(node: PMJsonNode, ctx: Ctx): IRInlineImage {
+  const attrs = node.attrs
+  const image: IRInlineImage = { src: typeof attrs?.src === 'string' ? attrs.src : '' }
+  if (typeof attrs?.resourceId === 'string' && attrs.resourceId.length > 0) image.resourceId = attrs.resourceId
+  if (typeof attrs?.alt === 'string' && attrs.alt.length > 0) image.alt = attrs.alt
+  const size = attrs?.size
+  if (size !== undefined && size !== null && size !== '') {
+    if (typeof size === 'string' && (INLINE_IMAGE_SIZES as readonly string[]).includes(size)) image.size = size as IRInlineImage['size']
+    else {
+      ctx.unsupportedContent.push({
+        nodeId: ownerIdOf(node, ctx), path: ctx.path(node, '行内图'), nodeType: node.type,
+        reason: `行内图尺寸档位「${String(size)}」无效，只支持 S、M、L（8.3 表 2：单/双/三倍行高）`,
+      })
+    }
+  }
+  return image
+}
+
 /** 把 inline* 内容（text 节点序列）转为 IRInline[] */
 function convertInlines(content: PMJsonNode[] | undefined, ctx: Ctx): IRInline[] {
   if (!content) return []
@@ -327,6 +354,16 @@ function convertInlines(content: PMJsonNode[] | undefined, ctx: Ctx): IRInline[]
       if (unsupported) ctx.invalidFootnotePayloads.push({ nodeId: id || targetId, reason: unsupported })
       const inline: IRInline = { text: '', marks: [{ type: 'tableFootnoteRef', targetId, id }] }
       ctx.footnoteInlines.set(child, inline)
+      out.push(inline)
+    } else if (child.type === 'inlineImage') {
+      // 行内图（M-8.3-02）：纯行内叶子，IR 里是 { text: '', image }。marks/style 无处可存，明确报告而不是静默丢弃。
+      const inline: IRInline = { text: '', image: convertInlineImage(child, ctx) }
+      if (Array.isArray(child.marks) && child.marks.length > 0) {
+        ctx.unsupportedContent.push({
+          nodeId: ownerIdOf(child, ctx), path: ctx.path(child, '行内图'), nodeType: child.type,
+          reason: '行内图不能带行内格式标记（加粗、引用等），IR 无处保存，已忽略这些标记',
+        })
+      }
       out.push(inline)
     } else if (child.type === 'formulaInline') {
       const id = ctx.id(child)
@@ -555,9 +592,9 @@ function convertFigure(node: PMJsonNode, ctx: Ctx): IRFigure {
   const image = images[0]
   if (!image) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '图'), nodeType: node.type, reason: 'figure缺少必须的figureImage，无法完整还原图像内容' })
   if (images.length > 1) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '图'), nodeType: node.type, reason: 'figure包含多个figureImage，但IR只支持一个主图像' })
-  const allowed = new Set(['figureImage', 'figureCaption', 'figureCaptionEn', 'figureUnit', 'figureDescription', 'figureGroup', 'figureResource'])
+  const allowed = new Set(['figureImage', 'figureCaption', 'figureCaptionEn', 'figureUnit', 'figureDescription', 'figureGroup', 'figureResource', 'figureLegend', 'note', 'example'])
   for (const child of node.content ?? []) if (!allowed.has(child.type)) ctx.unknown(child.type, '图', child)
-  for (const type of ['figureCaption', 'figureCaptionEn', 'figureUnit']) {
+  for (const type of ['figureCaption', 'figureCaptionEn', 'figureUnit', 'figureLegend']) {
     const matches = node.content?.filter(child => child.type === type) ?? []
     if (matches.length > 1) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '图'), nodeType: type, reason: 'figure包含多个' + type + '，IR只允许一项' })
   }
@@ -618,7 +655,29 @@ function convertFigure(node: PMJsonNode, ctx: Ctx): IRFigure {
   for (const resourceNode of node.content?.filter((c) => c.type === 'figureResource') ?? []) {
     ctx.resources.push(convertFigureResource(resourceNode, ctx))
   }
+  // 图例（M-8.5-01～06）、图注（M-8.2-11）、图中示例（M-8.4-03）。生产 Schema 固定顺序为 figureLegend? note* example*；
+  // 注与示例用旧的单段 note / example 节点（段落 id 派生为 `${id}.p0`），与术语条目、表注行内的注同一规则。
+  const legendNode = node.content?.find((c) => c.type === 'figureLegend')
+  if (legendNode) fig.legend = convertLegend(legendNode, ctx)
+  for (const child of node.content ?? []) {
+    if (child.type === 'note') fig.notes.push(convertNote(child, ctx))
+  }
+  const examples = (node.content ?? []).filter((c) => c.type === 'example').map((c) => convertExample(c, ctx))
+  if (examples.length > 0) fig.examples = examples
   return fig
+}
+
+/**
+ * figureLegend → IRLegend。项节点与公式“式中”、缩略语共用 whereItem（P8），经 convertDefItems 读取；
+ * 标题节点为空时视为没有标题（不丢信息：空标题无内容）。
+ */
+function convertLegend(node: PMJsonNode, ctx: Ctx): IRLegend {
+  const legend: IRLegend = { id: ctx.id(node), items: [] }
+  const titleNode = node.content?.find((child) => child.type === 'figureLegendTitle')
+  const title = titleNode ? convertInlines(titleNode.content, ctx) : []
+  if (title.length > 0) legend.title = title
+  legend.items = convertDefItems({ type: node.type, content: (node.content ?? []).filter((child) => child.type !== 'figureLegendTitle') }, ctx, '图例')
+  return legend
 }
 
 function convertFigureResource(node: PMJsonNode, ctx: Ctx): IRResource {
@@ -868,6 +927,7 @@ function isInlineAtom(run: IRInline): boolean {
   return Boolean(
     run.formula ||
     run.footnote ||
+    run.image ||
     run.marks?.some(mark => mark.type === 'tableFootnoteRef') ||
     (!run.text && (run.style || run.marks?.length)),
   )
@@ -1562,6 +1622,8 @@ function storedInlines(value: unknown, ctx: Ctx, path: string): IRInline[] {
       continue
     }
     const inline: IRInline = { text: row.text }
+    // 行内图（WP8.M G3）只允许在段落内容里；元数据行内内容没有对应的生产节点，明确报告而不是静默丢弃。
+    if (row.image !== undefined) metadataInlineProblem(ctx, `${itemPath}.image`, '元数据行内内容不支持行内图（行内图只允许出现在段落内）')
     const style = styleFromAttrs(plainRecord(row.style))
     if (style) inline.style = style
     if (Array.isArray(row.marks)) {

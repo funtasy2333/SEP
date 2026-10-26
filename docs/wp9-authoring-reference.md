@@ -63,7 +63,7 @@
 ]
 ```
 
-暂不支持：行内样式 `style`、脚注 `footnote`、表脚注引用 `tableFootnoteRef`。
+暂不支持：行内样式 `style`、脚注 `footnote`、表脚注引用 `tableFootnoteRef`、行内图 `image`（模型已于 WP8.M G3 支持，写作入口留后续交互任务）。
 
 **出件限制**：DOCX、HTML、PDF 目前只能输出 `bold` `italic` `underline` `sub` `sup` `crossRef` 这几种标记。`strike`、`code`、`variable`、`externalLink`、`bibRef`、`termRef` 可以写入并保存（JSON 导出保留），但文档里只要有它们，导出 DOCX、HTML、PDF 就会被拒绝（`validate_document` 的 `exports` 会列出位置）。需要出件的文档不要使用这些标记：引用参考文献、术语时先写成普通文字。
 
@@ -119,7 +119,7 @@
 ### 2.4 字段检查是严格的
 
 - 未知字段会被拒绝（防止 `contnet` 这样的拼写错误被静默忽略）。
-- IR 里存在但写作片段暂不支持的字段（如图的 `imageWidth`、表的 `width`、公式的 `mathml`）会给出专门的提示：请省略。
+- IR 里存在但写作片段暂不支持的字段（如图的 `imageWidth`、图例 `legend`、图中示例 `examples`、表的 `width`、公式的 `mathml`）会给出专门的提示：请省略。
 - `warning`、`quote`、`code`、`defList`（缩略语表）等 IR 扩展块暂不支持，会以 `unsupported-kind` 拒绝。
 - 缺省值由系统补齐。可推导字段可以省略：条的 `level` 与列项的 `level` 若给出必须与推导结果一致；`titled` 若给出不能与标题是否为空矛盾；`secType` 若给出则采用你给的值。
 
@@ -254,7 +254,7 @@
 | `orientation` | 否 | `portrait` | `portrait` 或 `landscape` |
 | `src` | 是 | | 只接受 PNG、JPEG、GIF 的 base64 data URL（`data:image/png;base64,……`）；**不会下载外链图片** |
 | `alt` | 否 | `""` | 替代文字。DOCX、HTML、PDF 目前不能输出，非空时这三种导出会被拒绝；需要出件时省略 |
-| `notes` | 否 | `[]` | 必须为空或省略（编辑器的图没有图中注节点；要写说明请放进图题或图后的 `note`） |
+| `notes` | 否 | `[]` | 必须为空或省略（模型已于 WP8.M G3 支持图中注，写作入口留后续交互任务；要写说明请放进图题或图后的 `note`） |
 
 ```json ses-example context=chapter
 [

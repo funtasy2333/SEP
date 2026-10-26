@@ -131,9 +131,24 @@ class ResolveCtx {
 // 与编辑器 canInsertBodyFootnote 保持一致；图中的限制沿块级子树传递。
 type ForbiddenFootnoteContainer = '标题' | '图' | '公式主体' | '公式说明' | '定义列表'
 
-function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx, forbiddenContainer?: ForbiddenFootnoteContainer): void {
+/**
+ * `allowImage`：行内图（IRInline.image，M-8.3-02）只允许出现在 IRParagraph.content（visitBlock 的 paragraph 分支传 true），
+ * 且不在术语条目或脚注内。其余位置（标题、图题、术语名、脚注、文献、索引、元数据……）出现 image 报 unsupported-content（error）。
+ */
+function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx, forbiddenContainer?: ForbiddenFootnoteContainer, allowImage = false): void {
   for (const run of inlines) {
     ctx.visitedInlines.add(run)
+    if (run.image) {
+      const where = ctx.footnoteDepth ? '脚注' : ctx.inTerm ? '术语条目' : undefined
+      if (!allowImage || where) {
+        ctx.problems.push({
+          code: 'unsupported-content', nodeId: fromId, severity: 'error',
+          message: where
+            ? `行内图不能放在${where}内；行内图只允许出现在正文段落（含列项、注、示例、单元格内的段落）中`
+            : '行内图只允许出现在正文段落（含列项、注、示例、单元格内的段落）中，不能放在标题、图表题、术语名、文献、索引等位置',
+        })
+      }
+    }
     if (run.formula) {
       ctx.registerId(run.formula.id)
       ctx.kinds.set(run.formula.id, 'formula')
@@ -249,7 +264,7 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
   switch (block.kind) {
     case 'paragraph':
       ctx.registerId(block.id)
-      visitInlines(block.content, block.id, ctx, forbiddenContainer)
+      visitInlines(block.content, block.id, ctx, forbiddenContainer, true)
       break
     case 'list': {
       ctx.registerId(block.id)
@@ -320,6 +335,24 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
         for (const description of group.descriptions) {
           visitInlines(description.content, description.id, ctx, '图')
         }
+      }
+      // 图例（M-8.5-01～06）：登记容器与各项 id，标题与项内行内按文档顺序访问；图例项不赋 label（C-T-31：不带 id、不可被引用，
+      // 对它们的 crossRef 由 checkXrefs 报「没有编号」）。项内脚注沿用「图」的禁止规则。
+      if (block.legend) {
+        ctx.registerId(block.legend.id)
+        if (block.legend.title) visitInlines(block.legend.title, block.legend.id, ctx, '图')
+        for (const item of block.legend.items) {
+          ctx.registerId(item.id)
+          visitInlines(item.term, item.id, ctx, '图')
+          visitInlines(item.definition, item.id, ctx, '图')
+        }
+      }
+      // 图中的示例（M-8.4-03）：作用域 = 本图，标签沿用「示例：/示例n：」，与块位置的示例同一机制。
+      for (const example of block.examples ?? []) {
+        ctx.registerId(example.id)
+        ctx.scopeParents.set(example.id, block.id)
+        for (const child of example.content) visitBlock(child, example.id, ctx, '图')
+        ctx.scope(block.id).examples.push({ id: example.id })
       }
       break
     }

@@ -319,6 +319,10 @@ export interface IRFigure {
   orientation: 'portrait' | 'landscape'
   /** 资源引用（dataURL 或资源 key，与现状一致） */
   src: string
+  /**
+   * 图中的注（M-8.2-11）：作用域 = 本图，标签沿用「注：/注n：」。生产模型以 figure 内的 `note` 子节点保存，
+   * 每个注必须是 id 为 `${note.id}.p0` 的单段落（与术语条目、表注行内的注同一规则）。
+   */
   notes: IRNote[]
   resourceId?: NodeId
   imageWidth?: IRMeasure
@@ -328,6 +332,24 @@ export interface IRFigure {
   unit?: string
   descriptions?: IRFigureDescription[]
   groups?: IRFigureGroup[]
+  /** 图例（M-8.5-01～06）：图下的符号说明。项复用公式“式中”与缩略语的 IRDefItem；不赋标签、不可被引用。 */
+  legend?: IRLegend
+  /**
+   * 图中的示例（M-8.4-03）：作用域 = 本图，标签沿用「示例：/示例n：」。生产模型以 figure 内的 `example` 子节点保存，
+   * 顺序固定在 notes 之后（D-M-09：PM 不保存注与示例的交错顺序）；每个示例必须是 id 为 `${example.id}.p0` 的单段落。
+   */
+  examples?: IRExample[]
+}
+
+/**
+ * 图例（NISO STS: fig/legend > title? + def-list[@list-content="figure"]，WP8.M / G3，M-8.5-01～06）。
+ * 项与公式“式中”、缩略语共用 {@link IRDefItem}（P8）；PM 侧共用 whereItem/whereTerm/whereDefinition 节点。
+ * 图例项不赋标签、不可被引用（C-T-31：图例不带 id 输出）。items 不得为空（生产 Schema 要求 whereItem+）。
+ */
+export interface IRLegend {
+  id: NodeId
+  title?: IRInline[]
+  items: IRDefItem[]
 }
 
 export interface IRFigureGroup {
@@ -545,6 +567,22 @@ export interface IRInline {
   formula?: IRInlineFormula
   /** 原位条文脚注：引用与内容共同移动/删除，编号由 Resolver 派生。 */
   footnote?: IRFootnote
+  /**
+   * 行内图（NISO STS: inline-graphic，WP8.M / G3，M-8.3-02）：纯行内叶子，text 恒为空，不带 marks/style，不另造实体 id。
+   * 只允许出现在 IRParagraph.content，且不在术语条目或脚注内（Resolver 校验）。
+   */
+  image?: IRInlineImage
+}
+
+/**
+ * 行内图的载荷。resourceId 沿用既有资源引用键（外部 ID 重映射与 dangling-resource 校验自动覆盖）；
+ * size 对应 `@specific-use="size:S|M|L"`（8.3 表 2，S/M/L = 单/双/三倍行高；size:T 仅块级 graphic 可用，不收）。
+ */
+export interface IRInlineImage {
+  src: string
+  resourceId?: NodeId
+  alt?: string
+  size?: 'S' | 'M' | 'L'
 }
 
 export interface IRInlineStyle {

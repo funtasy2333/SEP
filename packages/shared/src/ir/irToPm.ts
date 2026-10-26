@@ -7,7 +7,7 @@
  */
 import type {
   IRAppendix, IRBibEntry, IRBlock, IRChapter, IRClause, IRClauseChild, IRDefItem, IRDefList, IRDoc,
-  IRDocMeta, IRExample, IRInline, IRList, IRMeasure, IRNormRefList, IRNote, IRTable, IRTermEntry,
+  IRDocMeta, IRExample, IRInline, IRLegend, IRList, IRMeasure, IRNormRefList, IRNote, IRTable, IRTermEntry,
 } from './types'
 import type { PMJsonNode } from './pmToIr'
 import { hasSemanticExtensions, isInlineNoteContent } from './extensions'
@@ -112,6 +112,12 @@ function inlineToPm(run: IRInline): PMJsonNode[] {
     result.push(node('footnoteRef', withId(run.footnote.id, {
       content: inlinesToPm(run.footnote.content),
     })))
+  }
+  if (run.image) {
+    // 行内图（M-8.3-02）：行内原子节点，无 nodeId；marks/style 无处可存（diagnoseInlineProjection 已报错）。
+    result.push(node('inlineImage', {
+      src: run.image.src, resourceId: run.image.resourceId ?? null, alt: run.image.alt ?? '', size: run.image.size ?? null,
+    }))
   }
   for (const mark of tableFootnoteRefs) result.push(node('tableFootnoteRef', withId(mark.id ?? '', { targetId: mark.targetId })))
   return result
@@ -476,7 +482,6 @@ function tableToPm(table: IRTable, path: string, errors: IRToPmDiagnostic[]): PM
 }
 
 function figureToPm(figure: Extract<IRBlock, { kind: 'figure' }>, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
-  if (figure.notes.length) errors.push({ path: `${path}.notes`, nodeId: figure.id, reason: '生产Figure节点没有可保存图中注的子节点' })
   const width = figure.imageWidth
   const height = figure.imageHeight
   const content: PMJsonNode[] = [
@@ -492,6 +497,11 @@ function figureToPm(figure: Extract<IRBlock, { kind: 'figure' }>, path: string, 
       ...group.descriptions.map(description => node('figureDescription', withId(description.id), inlinesToPm(description.content))),
       ...group.resourceRefs.map(targetId => node('figureResourceRef', { targetId })),
     ])),
+    // 生产 Schema 固定顺序 figureLegend? note* example*（D-M-09：不保存注与示例的交错顺序）；
+    // 图中的注/示例与术语条目、表注行内的注同一规则：单个 id 为 `${id}.p0` 的段落，否则带路径报错。
+    ...(figure.legend ? [legendToPm(figure.legend, `${path}.legend`, errors)] : []),
+    ...figure.notes.map(note => node('note', withId(note.id), noteContent(note.id, note.content, `${path}.notes.${note.id}`, errors))),
+    ...(figure.examples ?? []).map(example => node('example', withId(example.id), noteContent(example.id, example.content, `${path}.examples.${example.id}`, errors))),
   ]
   return node('figure', withId(figure.id, { orientation: figure.orientation, unit: figure.unit ?? null }), content)
 }
@@ -502,6 +512,16 @@ function defItemsToPm(items: IRDefItem[]): PMJsonNode[] {
     node('whereTerm', undefined, inlinesToPm(item.term)),
     node('whereDefinition', undefined, inlinesToPm(item.definition)),
   ]))
+}
+
+/** 图例（M-8.5-01～06）→ figureLegend（figureLegendTitle? whereItem+）；项与公式“式中”、缩略语共用 whereItem（P8）。 */
+function legendToPm(legend: IRLegend, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+  // PM 的 figureLegend 要求 whereItem+；空图例无法投影，明确报错而不是静默丢弃。
+  if (legend.items.length === 0) errors.push({ path: `${path}.items`, nodeId: legend.id, reason: '图例没有任何项，生产 Schema 要求至少一项' })
+  return node('figureLegend', withId(legend.id), [
+    ...(legend.title && legend.title.length > 0 ? [node('figureLegendTitle', undefined, inlinesToPm(legend.title))] : []),
+    ...defItemsToPm(legend.items),
+  ])
 }
 
 function defListToPm(list: IRDefList, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
