@@ -715,7 +715,7 @@ export interface IRCellStyle { /* 既有 */
 |---|---|
 | D-M-01 | 采用 A：正文 `fn` 为行内元素，紧随其 `xref` 放在同一 `p` 内。schema、README 与矩阵备注的同步作为收尾任务 M-Z 的一部分 |
 | D-M-02 | 序号式：`li_<k>`、`abb_<k>`、`ref_<n>` |
-| D-M-03 | 列项标签用半角括号，如 `a)`；引用文本写作 `5.2 a)` |
+| D-M-03 | ~~列项标签用半角括号，如 `a)`；引用文本写作 `5.2 a)`~~。**2026-10-26 修订**：改为全角“）”：`a）`、`1）`、`i）`，引用文本写作 `5.2 a）`。理由：与编辑器、HTML、DOCX 中显示的列项符号保持一致（WP7 A12/A13 已在 Word 验证为 `%1）`），确保引用文字与文档中的列项符号相同。GB/T 1.1-2020 10.2.2 没有规定括号的宽度 |
 | D-M-04 | `extensionVersion` 保持 1 |
 | D-M-05 | 新增节点 `noteBlock`、`exampleBlock` |
 | D-M-06 | 采用 A，真排：HTML `lower-roman`，DOCX `lowerRoman`。G7-c 由“可选”改为“必做” |
