@@ -2,6 +2,8 @@
 
 状态：2026-10-26 在基线 `ccdfe99`（G1～G8 与 M-Z-a 已合入）上完成设计 §4.9 第 5、6 项，并为用户准备 Word 实测样稿（§4.9 之外的补充要求）。本记录只记录实测结果与发现的问题，**没有修复任何缺陷**（缺陷与处理建议见“发现的问题”，由主导人决定是否派修复任务）。
 
+**M-Z-c 更新（2026-10-26，基线 `bd29c3f`）**：F-1、F-2、F-3、F-5 已修复或已决定（见 §四 各行与 §八）；F-4（待 Word 实测）、F-6、F-7 未动。以下 §一～§三、§五～§七 仍是 M-Z-b 当时的记录，不随修复改写；§三 的截图 03、07、13 与 14c 是修复前的现象。
+
 本记录**不**表示 Microsoft Word 实机验收完成：DOCX 的 Word 检查由用户用 `/tmp/claude-0/-home-user-SEP/3548a3a1-3442-5826-a26f-190013361684/scratchpad/wp8m-word-check.docx` 完成，检查清单见 [Word 检查清单](#word-检查清单)。也不表示 GB/T 46687.2—2026 XML 导出完成（XML46687 白名单仍留给 WP8.2）。
 
 ## 一、执行环境与安全约束
@@ -144,11 +146,11 @@ export default mergeConfig(base, defineConfig({
 
 | 编号 | 严重程度 | 问题 | 复现步骤 | 备注 / 初步判断 |
 |---|---|---|---|---|
-| F-1 | 低 | 导出被阻断时的提示难以阅读：全要素文档有 15 处暂不排版的结构，提示把 15 条路径连成一整段，长路径在横向被裁掉（如“…image（节点 g3-scope-p）。请”之后的“保留”被裁），对话框高度超出视口，下方的格式卡片要滚动才看得到 | 打开全要素文档（`__fixtures__/wp8m.ts`）→ 导出 → 点 DOCX（或 HTML / 版式预览），见 [13](../qa/wp8m/13-export-blocked-full-doc.png) | 提示组件是 WP6 既有的，条数少时无此问题；WP8.M 新结构一多就暴露。可按条分行、折叠或只列前 N 条加总数 |
-| F-2 | 低 | 打印预览中，术语条目的编号行可能孤立在页尾，术语名与定义在下一页（“3.3.2”在第 4 页底，“仅领域术语”及其定义在第 5 页顶） | 去掉暂不排版结构的文档 → 导出版式预览 → 看第 4～5 页，见 [14c](../qa/wp8m/print-preview-norm-refs-and-subject-field.png) | 既有打印 CSS 缺口，不是 WP8.M 引入：`printCss.ts` 里 `.ses-term-num-line` 没有 `break-after: avoid`、`.ses-term-entry` 没有 `break-inside: avoid` |
-| F-3 | 信息 / 需决定 | 缩略语分隔符口径不一致：设计 §7.1 的表格文字是“缩略语与释义同行，释义前**空一字**”；G2 的实现在 HTML 与 DOCX 都输出全角冒号“ADC：模数转换器…”（`html.ts` 的 `ses-def-sep`、`docx/body/block.ts` 注释写明“GB/T 46687.2—2026 印刷页 2 的 3.2 缩略语实排”），编辑器里则以 1em 间隔分列显示、没有冒号 | 看 [03](../qa/wp8m/03-abbreviation-list.png) 与 [14d](../qa/wp8m/print-preview-abbreviations-figure-notes.png) | 不是缺陷，是设计文字与 G2 依据的实排样张之间的差异，需主导人确认以哪个为准；改动只涉及 HTML 与 DOCX 两个渲染器的分隔符 |
+| F-1 | 低 | 导出被阻断时的提示难以阅读：全要素文档有 15 处暂不排版的结构，提示把 15 条路径连成一整段，长路径在横向被裁掉（如“…image（节点 g3-scope-p）。请”之后的“保留”被裁），对话框高度超出视口，下方的格式卡片要滚动才看得到 | 打开全要素文档（`__fixtures__/wp8m.ts`）→ 导出 → 点 DOCX（或 HTML / 版式预览），见 [13](../qa/wp8m/13-export-blocked-full-doc.png) | 提示组件是 WP6 既有的，条数少时无此问题；WP8.M 新结构一多就暴露。可按条分行、折叠或只列前 N 条加总数；**已修复（commit ca76d41、0449414）**：io 的 `ExportGuardFailure` 新增 `summary`（一行概述）与 `items`（逐条明细），`detail`、`message` 文字不变；对话框先显示概述，再用有序列表逐条列出，每条可折行，明细区限高并在内部滚动。1440×900 视口下对话框与格式卡片都可见，见 [mzc-f1](../qa/wp8m/mzc-f1-export-blocked-1440x900.png) |
+| F-2 | 低 | 打印预览中，术语条目的编号行可能孤立在页尾，术语名与定义在下一页（“3.3.2”在第 4 页底，“仅领域术语”及其定义在第 5 页顶） | 去掉暂不排版结构的文档 → 导出版式预览 → 看第 4～5 页，见 [14c](../qa/wp8m/print-preview-norm-refs-and-subject-field.png) | 既有打印 CSS 缺口，不是 WP8.M 引入：`printCss.ts` 里 `.ses-term-num-line` 没有 `break-after: avoid`、`.ses-term-entry` 没有 `break-inside: avoid`；**已修复（commit dd5d02e）**：`printCss.ts` 给 `.ses-term-num-line`、`.ses-term-head` 加 `break-after: avoid`（并写 `page-break-after: avoid`），未给 `.ses-term-entry` 设 `break-inside`。复跑版式预览：3.3.2 的编号行不再孤立在第 4 页底，随术语名与定义移到第 5 页顶，见 [第 4 页](../qa/wp8m/mzc-f2-print-preview-p4-term-numbering.png)、[第 5 页](../qa/wp8m/mzc-f2-print-preview-p5-term-numbering.png) |
+| F-3 | 信息（已决定） | 缩略语分隔符口径不一致：设计 §7.1 的表格文字是“缩略语与释义同行，释义前**空一字**”；G2 的实现在 HTML 与 DOCX 都输出全角冒号“ADC：模数转换器…”（`html.ts` 的 `ses-def-sep`、`docx/body/block.ts` 注释写明“GB/T 46687.2—2026 印刷页 2 的 3.2 缩略语实排”），编辑器里则以 1em 间隔分列显示、没有冒号 | 看 [03](../qa/wp8m/03-abbreviation-list.png) 与 [14d](../qa/wp8m/print-preview-abbreviations-figure-notes.png) | 不是缺陷，是设计文字与 G2 依据的实排样张之间的差异，需主导人确认以哪个为准；改动只涉及 HTML 与 DOCX 两个渲染器的分隔符；**已决定：全角冒号；已改设计文字与编辑器显示（commit b202ebf）**：design.md §7.1 与 §4.2 改为全角冒号并新增 D-M-16；编辑器 `.std-def-list` 在缩略语后以 `dt::after` 显示“：”（不入文档模型，空占位时不显示），见 [mzc-f3](../qa/wp8m/mzc-f3-abbreviation-colon.png)。HTML/DOCX 现有实现不变 |
 | F-4 | 中（待 Word 实测） | 罗马列项标识较宽时文字被推到下一个制表位：`vii）`、`viii）` 的文字比 `i）`～`vi）`、`ix）` 更靠右，回行后与首行不齐。这是 A14 的已知限制（`numbering.ts` 注释：Times New Roman 下 `i）`～`vi）` 能落在 2 字悬挂量内）；LibreOffice 中已复现，Word 是否一致需要用户实测 | 打开 `wp8m-word-check.docx` 第 8.1 条的 9 项罗马列项，或看 [参考图](../qa/wp8m/word-sample-libreoffice-reference-roman.png) | 设计 §7.1 D-M-06 决定“真排”；实际文档里罗马列项一般不超过 6 项，但 7、8 项并不罕见。如 Word 实测确认，可考虑给 A14 增大悬挂量或对宽标识改用 `suff=nothing` + 固定制表位（需主导人决定） |
-| F-5 | 低 | 编辑器里罗马列项文字起排位置随标识宽度略有不同（`i）` 与 `iii）` 的文字不齐），而打印预览、DOCX 里是对齐的 | 看 [07](../qa/wp8m/07-roman-list.png) | `standard-nodes.css` 用 `counter(…)'） '` 的行内 `::before`，字母列项因标识等宽不显现。纯编辑器显示细节，可给 `::before` 设固定最小宽度 |
+| F-5 | 低 | 编辑器里罗马列项文字起排位置随标识宽度略有不同（`i）` 与 `iii）` 的文字不齐），而打印预览、DOCX 里是对齐的 | 看 [07](../qa/wp8m/07-roman-list.png) | `standard-nodes.css` 用 `counter(…)'） '` 的行内 `::before`，字母列项因标识等宽不显现。纯编辑器显示细节，可给 `::before` 设固定最小宽度；**已修复（commit 1db9d73）**：`.std-list-roman .std-list-item::before` 加 `display: inline-block; min-width: 3em`；浏览器实测编辑器内 4 项与复制的 9 项（i）～ix））文字起排位置各自完全一致，见 [mzc-f5](../qa/wp8m/mzc-f5-roman-list-aligned.png) |
 | F-6 | 信息（环境 / 工具） | Playwright 的 `page.screenshot` 默认 `caret: 'hide'` 会在尚未获得焦点的编辑器里引起一次 DOM 变化，被 ProseMirror 的 `readDOMChange` 读成回车，把某段落劈开并生成一个空标题的章（本次在“去掉暂不排版结构”的文档里复现，截图后状态里章数 9 → 4，编辑器随即显示“正文待保存”）。改用 `caret: 'initial'` 后不再发生 | 以默认选项对该文档截图：载入后等 2.5 秒，截图前后各读一次 `editor.state.doc` | 仓库既有浏览器脚本一律用 `caret: 'initial'`，本次脚本也是，并在按键测试前断言“截图之后文档内容与载入时完全相同”。未深究 ProseMirror 为何把该次 DOM 变化读成回车，真实用户操作不会触发；若主导人想排查，可从 `readDOMChange` 的调用栈入手 |
 | F-7 | 低（既有行为） | 编辑器里交叉引用显示的是 fixture 里存的静态文字（“见表1”），目标表实际编号为表 3；导出的 HTML/DOCX 与打印预览里是正确的“见表 3” | 看 [09](../qa/wp8m/09-table-columns-borders.png)（“见表1。”与下方“表3 两列表”）与 [14e](../qa/wp8m/print-preview-roman-list-multi-block-notes.png)（“见表 3。”） | WP6 起的既有口径（标记里的文字只在导出时按 Resolver 的 `refText` 替换），不是 WP8.M 引入；写进记录以免与新结构的显示混淆 |
 
@@ -203,3 +205,18 @@ export default mergeConfig(base, defineConfig({
 - 全要素 fixture 里的图片是 1×1 像素 PNG 与占位图，只能验证“有没有、占位多大”，不能验证真实图片的缩放观感。
 - 保存重开验收只覆盖 API/SQLite 层与生产编辑器的加载入口；没有像 WP6 那样做“浏览器编辑保存 → 服务重启 → 浏览器重开”的整链路（本次浏览器走查读的是 API 直接写入的文档）。
 - 本记录不含 XML46687 导出（WP8.2）。
+
+## 八、M-Z-c 修复验证（F-1、F-2、F-3、F-5）
+
+在基线 `bd29c3f` 上逐项修复，每个问题一个 commit：F-1 `ca76d41` 与随后的修正 `0449414`（第一次换成了自写的提示块，破坏了 WP6 集成审计测试按 `.el-alert__title` 读取诊断的约定，改回 `el-alert`）、F-2 `dd5d02e`、F-3 `b202ebf`、F-5 `1db9d73`。验证按 §一 的安全约束：`pnpm --filter @ses/server build` 后在 scratchpad 的全新空目录里以 `PORT=3097 SES_LISTEN_HOST=127.0.0.1` 启动，Vite 临时配置（端口 5197，`/api` 只代理到 3097；未提交、用完删除），脚本先断言库为空；不读写 `packages/server/data/ses.db`；结束后两个进程都已停止（3097、5197 均无监听）。
+
+`packages/client/scripts/wp8m-browser-walkthrough.mjs` 随修复更新：步骤 13 改为对新的对话框结构做断言（概述 `导出被阻止：DOCX 暂未支持 15 处内容`、15 条明细各占一行、在 1440×900 视口下对话框与格式卡片都在视口内、明细区限高且内部可滚动、没有横向裁切），并新增 F-3（缩略语 `::after` 为“：”、DOM 文本无冒号、释义紧随冒号）与 F-5（编辑器内 4 项及编辑器外复制的 9 项 i）～ix）的文字起排位置一致）的可机检断言。完整运行通过（页面错误 0、控制台 error 0；打印预览 11 页）。
+
+| 问题 | 复测结果 | 截图 |
+|---|---|---|
+| F-1 | 概述一行加有序列表；长路径在条内折行，没有横向裁切；明细区限高、内部滚动；1440×900 下对话框与格式卡片全部可见（此前对话框高度超出视口） | [mzc-f1](../qa/wp8m/mzc-f1-export-blocked-1440x900.png) |
+| F-2 | 3.3.2 编号行与术语名、定义同在第 5 页顶；第 4 页底不再有孤立的编号行；全文仍 11 页，无大片空白 | [第 4 页](../qa/wp8m/mzc-f2-print-preview-p4-term-numbering.png)、[第 5 页](../qa/wp8m/mzc-f2-print-preview-p5-term-numbering.png) |
+| F-3 | 编辑器里缩略语表显示 `ADC：模数转换器…`，与打印、DOCX 一致；冒号为 CSS 生成内容 | [mzc-f3](../qa/wp8m/mzc-f3-abbreviation-colon.png) |
+| F-5 | `i）`～`iv）`（及 9 项 `i）`～`ix）`）文字起排位置一致 | [mzc-f5](../qa/wp8m/mzc-f5-roman-list-aligned.png) |
+
+限制：开发环境没有宋体（SimSun），浏览器用回退字体渲染；F-5 的 3em 最小宽度对宋体按“拉丁字母半角 0.5em，`viii）` = 3em”推算，没有在真实宋体下实测。F-2 的验证只针对 F-2 第 4～5 页的情形，没有逐页比对其余页面。

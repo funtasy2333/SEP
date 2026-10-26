@@ -173,6 +173,13 @@ try {
   const defRows = await page.locator('.std-def-list').first().locator('.std-where-item').evaluateAll(nodes => nodes.map(node => node.textContent))
   note('checks', `缩略语表（第 4 章）${defRows.length} 项`, { defRows })
   assert.equal(defRows.length, 3)
+  // F-3（M-Z-c）：缩略语后由 dt::after 显示全角冒号（生成内容，不入模型），释义紧随冒号
+  const defTerms = await page.locator('.std-def-list').first().locator('.std-where-item > dt').evaluateAll(nodes => nodes.map(node => ({
+    term: node.textContent, after: getComputedStyle(node, '::after').content,
+    gap: Math.round(node.nextElementSibling.getBoundingClientRect().left - node.getBoundingClientRect().right),
+  })))
+  assert.ok(defTerms.every(row => row.after === '"："' && row.gap === 0 && !row.term.includes('：')), `缩略语后应显示全角冒号：${JSON.stringify(defTerms)}`)
+  note('checks', '缩略语后显示全角冒号（::after），DOM 文本里没有冒号，释义紧随冒号', { defTerms })
 
   // 4 图例、图注、图中示例、行内图
   const figureChapter = page.locator('.std-chapter').filter({ has: page.locator('.std-figure-legend') })
@@ -208,6 +215,37 @@ try {
   await shot('07-roman-list', page.locator('[data-node-id="g7-intro"]'), { pad: 30, through: page.locator('.std-list-roman').first() })
   const roman = await page.locator('.std-list-roman').first().locator('.std-list-item').evaluateAll(nodes => nodes.map(node => ({ text: node.textContent, marker: getComputedStyle(node, '::before').content, counter: getComputedStyle(node).listStyleType })))
   note('checks', '罗马列项（i）～iv））', { roman })
+  // F-5（M-Z-c）：标识为固定最小宽度的行内块，各项文字起排位置一致。编辑器内的 4 项之外，另在编辑器之外复制 9 项（i）～ix））量取
+  const romanStarts = await page.locator('.std-list-roman').first().locator('.std-list-item').evaluateAll(nodes => nodes.map(node => {
+    const range = document.createRange()
+    range.selectNodeContents(node.firstChild)
+    return Math.round(range.getClientRects()[0].left * 10) / 10
+  }))
+  assert.equal(new Set(romanStarts).size, 1, `罗马列项各项文字起排位置应一致：${romanStarts}`)
+  const romanNineStarts = await page.evaluate(() => {
+    const source = document.querySelector('.std-list-roman')
+    const host = document.createElement('div')
+    host.className = document.querySelector('.tiptap').className
+    host.style.cssText = 'position:absolute;left:300px;top:200px;width:700px;background:#fff'
+    const list = source.cloneNode(false)
+    const template = source.querySelector(':scope > .std-list-item')
+    for (let index = 0; index < 9; index += 1) {
+      const item = template.cloneNode(false)
+      item.textContent = ['准备', '实施', '检查', '处置', '复核', '归档', '验收', '发布', '回访'][index]
+      list.appendChild(item)
+    }
+    host.appendChild(list)
+    document.body.appendChild(host)
+    const starts = [...list.children].map(item => {
+      const range = document.createRange()
+      range.selectNodeContents(item.firstChild)
+      return Math.round(range.getClientRects()[0].left * 10) / 10
+    })
+    host.remove()
+    return starts
+  })
+  assert.equal(new Set(romanNineStarts).size, 1, `i）～ix）的文字起排位置应一致：${romanNineStarts}`)
+  note('checks', `罗马列项文字起排位置一致（编辑器内 4 项：${romanStarts[0]}px；复制 9 项 i）～ix））：${romanNineStarts[0]}px）`, { romanStarts, romanNineStarts })
 
   // 8 多段注 / 示例
   await shot('08-multi-block-notes-examples', page.locator('[data-node-id="g7-n1"]'), { pad: 20, through: page.locator('[data-node-id="g7-e2"]') })
@@ -276,18 +314,41 @@ try {
   await page.reload()
   await page.locator('.tiptap').waitFor()
   await page.waitForTimeout(800)
+  // F-1（M-Z-c）：对话框与格式卡片须在 1440×900 视口内可见，所以这一步用 900 高的视口
+  await page.setViewportSize({ width: 1440, height: 900 })
   await page.getByRole('button', { name: '导出', exact: true }).click()
   await page.locator('.export-card').filter({ has: page.getByText('DOCX', { exact: true }) }).click()
-  const alert = page.locator('.el-dialog .el-alert__title').first()
-  await alert.waitFor()
-  const blockedText = (await alert.textContent()).trim()
-  assert.ok(blockedText.startsWith('导出被阻止：DOCX 暂未支持此信息'), `全要素文档导出 DOCX 应被阻断，实际提示：${blockedText}`)
+  const summary = page.locator('.el-dialog .export-error-text').first()
+  await summary.waitFor()
+  const blockedText = (await summary.textContent()).trim()
   // 阻断项恰为 §7.1 暂不排版的 15 处：行内图 6 + 图例 2 + 图中示例 2 + 文档级资源 1 + 单元格边框样式 2 + 列宽 2
-  const blockedCount = blockedText.split('DOCX 暂未支持此信息').length - 1
-  assert.equal(blockedCount, 15)
+  assert.equal(blockedText, '导出被阻止：DOCX 暂未支持 15 处内容', `全要素文档导出 DOCX 应被阻断，实际提示：${blockedText}`)
+  const blockedItems = (await page.locator('.el-dialog .export-error-items > li').allTextContents()).map(text => text.trim())
+  assert.equal(blockedItems.length, 15)
+  assert.ok(blockedItems.every(text => text.startsWith('DOCX ')), '每条明细单独一行')
+  const layout = await page.evaluate(() => {
+    const list = document.querySelector('.export-error-items')
+    const dialog = document.querySelector('.el-dialog')
+    const cards = [...document.querySelectorAll('.export-card')].map(card => card.getBoundingClientRect())
+    const dialogBox = dialog.getBoundingClientRect()
+    return {
+      viewportHeight: window.innerHeight,
+      dialogTop: Math.round(dialogBox.top), dialogBottom: Math.round(dialogBox.bottom),
+      cardsBottom: Math.round(Math.max(...cards.map(card => card.bottom))),
+      listClientHeight: list.clientHeight, listScrollHeight: list.scrollHeight,
+      listHorizontalOverflow: list.scrollWidth > list.clientWidth,
+      itemsHorizontalOverflow: [...list.children].some(item => item.scrollWidth > item.clientWidth),
+    }
+  })
+  assert.ok(layout.listScrollHeight > layout.listClientHeight, '明细区在内部滚动（限高）')
+  assert.equal(layout.listHorizontalOverflow, false, '明细不得横向裁切')
+  assert.equal(layout.itemsHorizontalOverflow, false, '每条明细自行折行')
+  assert.ok(layout.cardsBottom <= layout.viewportHeight, `格式卡片应在 ${layout.viewportHeight}px 高的视口内可见，实际底边 ${layout.cardsBottom}`)
+  assert.ok(layout.dialogBottom <= layout.viewportHeight, '对话框整体在视口内')
   await page.screenshot({ caret: 'initial', path: join(output, '13-export-blocked-full-doc.png') })
   evidence.screenshots.push('13-export-blocked-full-doc.png')
-  note('exports', `全要素文档导出 DOCX 被阻断：${blockedText.slice(0, 160)}`)
+  note('exports', `全要素文档导出 DOCX 被阻断：${blockedText}；${blockedItems.length} 条明细逐条一行；1440×900 下对话框与格式卡片可见`, { layout, firstItem: blockedItems[0] })
+  await page.setViewportSize({ width: 1440, height: 1100 })
   const jsonDownload = page.waitForEvent('download')
   await page.locator('.export-card').filter({ has: page.getByText('JSON', { exact: true }) }).click()
   const jsonPath = join(output, 'full-doc.json')
