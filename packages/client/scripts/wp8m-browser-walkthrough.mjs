@@ -322,7 +322,7 @@ try {
   await summary.waitFor()
   const blockedText = (await summary.textContent()).trim()
   // 阻断项恰为 §7.1 暂不排版的 15 处：行内图 6 + 图例 2 + 图中示例 2 + 文档级资源 1 + 单元格边框样式 2 + 列宽 2
-  assert.equal(blockedText, '导出被阻止：DOCX 暂未支持 15 处内容', `全要素文档导出 DOCX 应被阻断，实际提示：${blockedText}`)
+  assert.equal(blockedText, '导出被阻止：DOCX 有 15 处内容暂不能导出', `全要素文档导出 DOCX 应被阻断，实际提示：${blockedText}`)
   const blockedItems = (await page.locator('.el-dialog .export-error-items > li').allTextContents()).map(text => text.trim())
   assert.equal(blockedItems.length, 15)
   assert.ok(blockedItems.every(text => text.startsWith('DOCX ')), '每条明细单独一行')

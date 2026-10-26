@@ -43,7 +43,7 @@ export interface ExportGuardFailure {
   message: string
   /**
    * 一行概述（不含明细），供编辑器对话框分行显示：先概述，再逐条列出 `items`。
-   * 脚注失败为“脚注校验未通过，暂不能导出”；输出边界失败形如“导出被阻止：DOCX 暂未支持 15 处内容”。
+   * 脚注失败为“脚注校验未通过，暂不能导出”；输出边界失败形如“导出被阻止：DOCX 有 15 处内容暂不能导出”。
    */
   summary: string
   /**
@@ -133,13 +133,13 @@ export function formatOutputBoundaryDetail(problems: readonly ExportGuardProblem
   return `导出被阻止：${getOutputBoundaryItems(problems).join('；')}`
 }
 
-/** 输出边界问题的一行概述，如“导出被阻止：DOCX 暂未支持 15 处内容”；无问题时返回空字符串。 */
+/** 输出边界问题的一行概述，如“导出被阻止：DOCX 有 15 处内容暂不能导出”；无问题时返回空字符串。 */
 export function formatOutputBoundarySummary(
   problems: readonly ExportGuardProblem[],
   format: ExportGuardFormat,
 ): string {
   if (!problems.length) return ''
-  return `导出被阻止：${format.toUpperCase()} 暂未支持 ${problems.length} 处内容`
+  return `导出被阻止：${format.toUpperCase()} 有 ${problems.length} 处内容暂不能导出`
 }
 
 /** 输出边界问题的简短提示文本；无问题时返回空字符串。 */

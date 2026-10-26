@@ -158,7 +158,7 @@ describe('导出被阻止的提示分行显示', () => {
 
       // 概述：一行，不含任何明细
       const summary = alert!.querySelector('.export-error-text')!
-      expect(summary.textContent).toBe('导出被阻止：DOCX 暂未支持 15 处内容')
+      expect(summary.textContent).toBe('导出被阻止：DOCX 有 15 处内容暂不能导出')
 
       // 明细：一个问题一条 <li>，没有被连成一段
       const items = [...alert!.querySelectorAll('.export-error-items > li')].map((li) => li.textContent ?? '')
@@ -220,7 +220,7 @@ describe('导出被阻止的提示分行显示', () => {
     try {
       await openExportAndChoose('HTML')
       const summary = document.body.querySelector('.export-error-text')!
-      expect(summary.textContent).toMatch(/^导出被阻止：HTML 暂未支持 \d+ 处内容$/)
+      expect(summary.textContent).toMatch(/^导出被阻止：HTML 有 \d+ 处内容暂不能导出$/)
       const items = document.body.querySelectorAll('.export-error-items > li')
       expect(items.length).toBe(Number(/(\d+) 处内容/.exec(summary.textContent!)![1]))
       for (const item of items) expect(item.textContent).toMatch(/^HTML /)

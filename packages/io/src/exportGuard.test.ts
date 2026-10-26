@@ -275,12 +275,12 @@ describe('checkExportGuard 的结构化字段：summary 与 items（M-Z-c F-1）
 
   it('输出边界：summary 是单行概述，含格式名与处数，不含任何明细', () => {
     const failure = checkExportGuard(SUB_SUP_MANY, 'docx')!
-    expect(failure.summary).toBe('导出被阻止：DOCX 暂未支持 3 处内容')
+    expect(failure.summary).toBe('导出被阻止：DOCX 有 3 处内容暂不能导出')
     expect(failure.summary).not.toContain('\n')
     for (const item of failure.items) expect(failure.summary).not.toContain(item)
 
     const single = checkExportGuard(SUB_SUP_ONE, 'docx')!
-    expect(single.summary).toBe('导出被阻止：DOCX 暂未支持 1 处内容')
+    expect(single.summary).toBe('导出被阻止：DOCX 有 1 处内容暂不能导出')
     expect(single.items).toHaveLength(1)
   })
 
@@ -318,8 +318,8 @@ describe('checkExportGuard 的结构化字段：summary 与 items（M-Z-c F-1）
     // 上下标同时存在只阻止 DOCX；PDF 与 HTML 一样不被阻止，因此用手工问题检查文案
     expect(checkExportGuard(SUB_SUP_MANY, 'pdf')).toBeNull()
     const problems = getOutputBoundaryProblems(doc, 'docx')
-    expect(formatOutputBoundarySummary(problems, 'pdf')).toBe('导出被阻止：PDF 暂未支持 3 处内容')
-    expect(formatOutputBoundarySummary(problems, 'xml')).toBe('导出被阻止：XML 暂未支持 3 处内容')
+    expect(formatOutputBoundarySummary(problems, 'pdf')).toBe('导出被阻止：PDF 有 3 处内容暂不能导出')
+    expect(formatOutputBoundarySummary(problems, 'xml')).toBe('导出被阻止：XML 有 3 处内容暂不能导出')
   })
 
   it('无问题时概述与明细为空', () => {
@@ -332,7 +332,7 @@ describe('checkExportGuard 的结构化字段：summary 与 items（M-Z-c F-1）
     const many = Array.from({ length: 15 }, (_, index): PMJsonNode =>
       paragraph(`m${index}`, text(`甲${index}`, subSup())))
     const failure = checkExportGuard(standardDoc(...many), 'docx')!
-    expect(failure.summary).toBe('导出被阻止：DOCX 暂未支持 15 处内容')
+    expect(failure.summary).toBe('导出被阻止：DOCX 有 15 处内容暂不能导出')
     expect(failure.items).toHaveLength(15)
     expect(failure.items[14]).toContain('【节点 m14，位置 ')
   })

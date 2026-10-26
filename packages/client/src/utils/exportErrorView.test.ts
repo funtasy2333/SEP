@@ -5,7 +5,7 @@ import { exportErrorViewOf, exportErrorViewOfText } from './exportErrorView'
 type FailureFields = Pick<ExportGuardFailure, 'summary' | 'items' | 'detail'>
 
 const failure = (overrides: Partial<FailureFields> = {}): FailureFields => ({
-  summary: '导出被阻止：DOCX 暂未支持 2 处内容',
+  summary: '导出被阻止：DOCX 有 2 处内容暂不能导出',
   items: [
     'DOCX 暂未支持此信息：doc.body[0].children[2].content[1].image（节点 g3-scope-p）。请保留 JSON 文档。【节点 g3-scope-p，位置 doc.body[0].children[2].content[1].image】',
     'DOCX 暂未支持此信息：doc.body[5].children[1].legend（节点 g3-fig-1）。请保留 JSON 文档。【节点 g3-fig-1，位置 doc.body[5].children[1].legend】',
@@ -18,7 +18,7 @@ describe('exportErrorViewOf（导出被阻止提示的显示形态）', () => {
   it('概述一行，明细逐条一行，条数与顺序不变', () => {
     const input = failure()
     const view = exportErrorViewOf(input)
-    expect(view.summary).toBe('导出被阻止：DOCX 暂未支持 2 处内容')
+    expect(view.summary).toBe('导出被阻止：DOCX 有 2 处内容暂不能导出')
     expect(view.items).toEqual(input.items)
     // 概述里没有任何明细，明细里也不再含连接各条的全角分号分段
     expect(view.summary).not.toContain('；')
