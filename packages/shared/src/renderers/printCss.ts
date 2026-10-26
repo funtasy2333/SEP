@@ -247,8 +247,10 @@ const CONTENT = `
  *   ②术语 + 空一字 + 英文对应词 同一行、顶格（均黑体五号，英文行内、不斜体不灰）；
  *   ③定义/来源等各项另行、空两字起排（五号宋体，回行顶格＝首行缩进 2em）。—— */
 .ses-term-entry { margin: 6pt 0; }
-.ses-term-num-line { font-family: var(--ses-hei); font-weight: bold; margin: 0; }
-.ses-term-head { font-family: var(--ses-hei); font-weight: bold; margin: 0; }
+/* 编号行、术语名行都不得孤立在页尾：与其后紧邻的行同页（编号行 → 术语名行 → 定义首段）。
+ * 只对这两行设 avoid，不给整个 .ses-term-entry 设 break-inside: avoid——长定义、注、示例会整体跳页，留下大片空白。 */
+.ses-term-num-line { font-family: var(--ses-hei); font-weight: bold; margin: 0; break-after: avoid; page-break-after: avoid; }
+.ses-term-head { font-family: var(--ses-hei); font-weight: bold; margin: 0; break-after: avoid; page-break-after: avoid; }
 .ses-term-name-en { font-family: var(--ses-hei); font-weight: bold; }
 .ses-term-def { text-indent: 2em; margin: 2pt 0; }
 .ses-term-source { text-indent: 2em; margin: 2pt 0; }
