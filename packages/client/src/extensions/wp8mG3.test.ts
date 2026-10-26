@@ -749,7 +749,7 @@ describe('[M-8.5-01][M-8.4-03][M-8.3-02][M-8.2-11] 导出链路：图例、图�
     for (const format of ['html', 'pdf', 'docx', 'xml'] as const) {
       const failure = guard(doc, format)
       expect(failure?.source, format).toBe('output-boundary')
-      const paths = failure!.problems.map(problem => problem.path)
+      const paths = failure!.problems.map(problem => problem.path ?? '')
       expect(paths.some(path => path.endsWith('.legend')), format).toBe(true)
       expect(paths.some(path => path.endsWith('.examples')), format).toBe(true)
       expect(paths.some(path => path.endsWith('.image')), format).toBe(true)
