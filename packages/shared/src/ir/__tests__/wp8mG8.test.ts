@@ -5,6 +5,8 @@
  * 以及旧文档（无 columns / 无边框样式）的 IR 与 PM 投影不变。生产 Schema、同步插件、HTML 往返与保存重开见 client 的
  * wp8mG8.test.ts，输出边界见 renderers/__tests__/wp8mG8Boundary.test.ts。
  *
+ * M-C.1-02（示例级，`colgroup` 导入展开）本阶段只覆盖到模型层：导入展开后的 `col` 序列由 `IRTable.columns` 承载（`colgroup` 展开本身属 WP8.3）。
+ *
  * 两套列宽的关系（避免矛盾的列宽来源）：`columns[i].width` 是源文档给出的名义列宽（XML `col/@width`），
  * 单元格 `columnWidths` 是编辑器拖拽得到的 CSS px。二者独立保存、互不推导；这里的用例钉住“互不干扰”。
  */
@@ -49,7 +51,7 @@ function cells(table: PMJsonNode): PMJsonNode[] {
   return table.content!.find(child => child.type === 'table')!.content!.flatMap(row => row.content ?? [])
 }
 
-describe('[M-6.1-03] pmToIr：stdTable.columns → IRTable.columns', () => {
+describe('[M-6.1-03][M-C.1-02] pmToIr：stdTable.columns → IRTable.columns', () => {
   it('两列表：名义宽度、水平/垂直对齐逐项映射，未给出的属性不写键', () => {
     const { doc, warnings } = pmToIr(g8PmDoc())
     expect(warnings).toEqual([])
@@ -164,7 +166,7 @@ describe('[M-6.1-03] pmToIr：stdTable.columns → IRTable.columns', () => {
   })
 })
 
-describe('[M-6.1-03] irToPm：IRTable.columns → stdTable.columns', () => {
+describe('[M-6.1-03][M-C.1-02] irToPm：IRTable.columns → stdTable.columns', () => {
   it('写成四个键齐全的数组（缺省为 null）；无 columns 的表不写该属性', () => {
     const pm = irToPm(g8IrDoc([g8TwoColumnTable(), g8MergedTable(), g8LegacyTable()]))
     const [two, merged, legacy] = stdTables(pm)
@@ -404,7 +406,7 @@ describe('[M-6.1-03][M-6.3.3.1-01] Resolver 与写作入口', () => {
   })
 })
 
-describe('共用校验函数', () => {
+describe('[M-6.1-03][M-6.3.3.1-01] 共用校验函数（tableColumns.ts）', () => {
   it('columnWidthProblem / columnAlignProblem 的边界', () => {
     expect(columnWidthProblem(40, '%')).toBeNull()
     expect(columnWidthProblem(12.5, 'mm')).toBeNull()
