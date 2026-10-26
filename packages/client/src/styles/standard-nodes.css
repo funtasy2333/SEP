@@ -294,6 +294,60 @@
   content: '表' counter(std-table) '\2003';
 }
 
+/*
+ * WP8.M G8（M-6.1-03）：名义列宽 stdTable.columns 的显示。
+ * stdTable 的外层 DOM 带 data-columns（JSON，往返用）与 --ses-col-<n> 自定义属性（仅有效宽度才有，见 nodes/std-table.ts）；
+ * 编辑器里 <colgroup> 由 @tiptap/extension-table 生成：每个网格列一个 <col>，没有拖拽宽度（colwidth）的列只带内联 min-width，
+ * 有 colwidth 的列带内联 width（px）。下面的规则给每个 <col> 设样式表 width：内联 width 优先于样式表，因此拖拽过的列自然以 px 为准，
+ * 其余列保持名义宽度，且不需要 !important；没有名义宽度的列变量未定义，width 回落为 auto。
+ * 选择器不依赖 .tableWrapper（单元测试里的无视图 DOM 没有这一层）。CSS 无法按序号循环，故只展开到第 40 列；更宽的表第 41 列起按自动列宽。
+ * columns 被同步插件清空（列数变化）后外层不再有 data-columns，整表退回自动列宽。
+ */
+.std-table-wrapper[data-columns] table {
+  table-layout: fixed;
+  width: 100%;
+}
+.std-table-wrapper[data-columns] colgroup > col:nth-child(1) { width: var(--ses-col-1); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(2) { width: var(--ses-col-2); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(3) { width: var(--ses-col-3); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(4) { width: var(--ses-col-4); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(5) { width: var(--ses-col-5); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(6) { width: var(--ses-col-6); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(7) { width: var(--ses-col-7); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(8) { width: var(--ses-col-8); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(9) { width: var(--ses-col-9); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(10) { width: var(--ses-col-10); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(11) { width: var(--ses-col-11); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(12) { width: var(--ses-col-12); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(13) { width: var(--ses-col-13); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(14) { width: var(--ses-col-14); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(15) { width: var(--ses-col-15); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(16) { width: var(--ses-col-16); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(17) { width: var(--ses-col-17); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(18) { width: var(--ses-col-18); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(19) { width: var(--ses-col-19); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(20) { width: var(--ses-col-20); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(21) { width: var(--ses-col-21); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(22) { width: var(--ses-col-22); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(23) { width: var(--ses-col-23); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(24) { width: var(--ses-col-24); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(25) { width: var(--ses-col-25); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(26) { width: var(--ses-col-26); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(27) { width: var(--ses-col-27); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(28) { width: var(--ses-col-28); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(29) { width: var(--ses-col-29); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(30) { width: var(--ses-col-30); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(31) { width: var(--ses-col-31); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(32) { width: var(--ses-col-32); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(33) { width: var(--ses-col-33); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(34) { width: var(--ses-col-34); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(35) { width: var(--ses-col-35); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(36) { width: var(--ses-col-36); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(37) { width: var(--ses-col-37); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(38) { width: var(--ses-col-38); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(39) { width: var(--ses-col-39); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(40) { width: var(--ses-col-40); }
+
 .std-table-caption-en {
   text-align: center;
   font-size: 13px;
