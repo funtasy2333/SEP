@@ -14,7 +14,7 @@ await mkdir(output, { recursive: true })
 const text = value => ({ type: 'text', text: value })
 const p = value => ({ type: 'stdParagraph', content: [text(value)] })
 let fixture = {
-  id: 9001, title: '编辑交互验收样稿', stage: 'working_draft',
+  id: 9001, title: '编辑交互验收样稿', stage: 'working_draft', revision: 1,
   meta: { titleCn: '编辑交互验收样稿', standardType: 'group', standardNo: 'T/TEST 1—2026', issuer: '测试协会' },
   content: { type: 'doc', content: [
     { type: 'chapter', content: [
@@ -34,7 +34,11 @@ const evidence = { origin, status: 'in-progress', steps: [], errors: [] }
 page.on('pageerror', error => evidence.errors.push(error.message))
 await page.route(`${origin}/api/**`, async route => {
   if (new URL(route.request().url()).pathname === '/api/convert/capabilities') return route.fulfill({ json: { htmlToPdf: false } })
-  if (route.request().method() === 'PUT') fixture = { ...fixture, ...route.request().postDataJSON() }
+  if (route.request().method() === 'PUT') {
+    const { baseRevision, ...update } = route.request().postDataJSON()
+    assert.equal(baseRevision, fixture.revision)
+    fixture = { ...fixture, ...update, revision: fixture.revision + 1 }
+  }
   return route.fulfill({ json: fixture })
 })
 const editor = () => page.locator('.tiptap')
@@ -67,6 +71,12 @@ async function dragCells(first, last) {
 try {
   await page.goto(`${origin}/editor/9001`)
   await editor().locator('table').waitFor()
+  const cellFont = element => ({ weight: getComputedStyle(element).fontWeight, family: getComputedStyle(element).fontFamily })
+  const headerFont = await editor().locator('th').first().evaluate(cellFont)
+  const dataFont = await editor().locator('td').first().evaluate(cellFont)
+  assert.equal(headerFont.weight, '400', '表头不能被 th 默认样式强制加粗')
+  assert.equal(headerFont.family, dataFont.family, '表头和数据格使用相同的默认字体')
+  evidence.steps.push('无直接粗体标记的表头使用常规字重，默认字体与数据格一致')
   const gapExtension = await editor().evaluate(element => element.editor.extensionManager.extensions.some(extension => extension.name === 'gapCursor'))
   assert.equal(gapExtension, false)
   await selectText('表格后正文', 5)

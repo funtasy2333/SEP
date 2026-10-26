@@ -145,8 +145,7 @@ defineProps<{
 
 .editor-content :deep(.tiptap table th) {
   background: var(--ses-surface-2);
-  font-family: var(--ses-font-zh-hei);
-  font-weight: 700;
+  font-weight: 400;
   text-align: center;
 }
 

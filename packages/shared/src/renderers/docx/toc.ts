@@ -1,11 +1,11 @@
 /**
- * 固定目次条目与页码域（docs/wp7-docx-delivery.md §7）。
+ * 原生目次域、预生成条目与 TC 来源标记（docs/wp7-docx-delivery.md §7）。
  *
  * 目次条目在导出时按 IR/Resolver 生成；页码由逐条 PAGEREF 域在 Word 中计算。每个目标都用
  * 顺序分配的稳定书签名，源段落由 nodeId 或前置部分槽位直接关联，不按标题文字反查。
  */
 
-import type { IRChapterChild, IRClause, IRClauseChild, IRDoc, NodeId, ResolvedLabel } from '../../ir/types'
+import type { IRChapterChild, IRClause, IRClauseChild, IRDoc, IRInline, NodeId, ResolvedLabel } from '../../ir/types'
 import type { DocxBookmark } from './types'
 import { escapeXmlAttr, escapeXmlText, pPr } from './xml'
 import { plainRun, renderInlines } from './body/inline'
@@ -38,6 +38,28 @@ function labelRuns(label: string | undefined): string {
   return label ? plainRun(label) + plainRun(IDEOGRAPHIC_SPACE) : ''
 }
 
+function labelText(label: string | undefined): string {
+  return label ? label + IDEOGRAPHIC_SPACE : ''
+}
+
+function inlineText(inlines: IRInline[], labels: Record<NodeId, ResolvedLabel>): string {
+  return inlines.map(run => {
+    const ref = run.marks?.find(mark => mark.type === 'crossRef')
+    return ref?.type === 'crossRef' ? labels[ref.targetId]?.refText ?? run.text : run.text
+  }).join('')
+}
+
+/** 按 Word 自身生成的 TC 指令格式写入；TC 没有可见结果，不重复正文标题。 */
+export function renderTocEntryField(bookmark: DocxBookmark): string {
+  if (!bookmark.tocEntry) return ''
+  const text = bookmark.tocEntry.text.replace(/\r\n|[\r\n\t]/g, ' ').replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  const instruction = ` TC "${text}" \\f C \\l "${bookmark.tocEntry.level}" `
+  // 不给整个 TC 域强加 vanish：Word for Mac 会跳过这类来源。TC 的显示由 Word 的 ¶/隐藏文字选项控制。
+  return '<w:r><w:fldChar w:fldCharType="begin"/></w:r>' +
+    `<w:r><w:instrText xml:space="preserve">${escapeXmlAttr(instruction)}</w:instrText></w:r>` +
+    '<w:r><w:fldChar w:fldCharType="end"/></w:r>'
+}
+
 function pagerefField(bookmark: DocxBookmark): string {
   return (
     `<w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>` +
@@ -48,12 +70,17 @@ function pagerefField(bookmark: DocxBookmark): string {
   )
 }
 
-function renderEntry(entry: TocEntry): string {
+function renderEntry(entry: TocEntry, index: number, entries: TocEntry[]): string {
   const ppr = pPr([['pStyle', `<w:pStyle w:val="${entry.styleId}"/>`]])
   const link =
     `<w:hyperlink w:anchor="${escapeXmlAttr(entry.bookmark.name)}" w:history="1">` +
     `${entry.runsXml}</w:hyperlink>`
-  return `<w:p>${ppr}${link}<w:r><w:tab/></w:r>${pagerefField(entry.bookmark)}</w:p>`
+  const begin = index === 0
+    ? '<w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>' +
+      '<w:r><w:instrText xml:space="preserve"> TOC \\f C \\h \\z </w:instrText></w:r>' +
+      '<w:r><w:fldChar w:fldCharType="separate"/></w:r>' : ''
+  const end = index === entries.length - 1 ? '<w:r><w:fldChar w:fldCharType="end"/></w:r>' : ''
+  return `<w:p>${ppr}${begin}${link}<w:r><w:tab/></w:r>${pagerefField(entry.bookmark)}${end}</w:p>`
 }
 
 /**
@@ -68,9 +95,12 @@ export function buildStaticToc(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>
   let bibliographyBookmark: DocxBookmark | undefined
   let nextId = 0
 
-  const add = (target: TocTarget, styleId: TocEntry['styleId'], runsXml: string): DocxBookmark => {
+  const add = (target: TocTarget, styleId: TocEntry['styleId'], runsXml: string, text: string): DocxBookmark => {
     nextId += 1
-    const bookmark = { id: nextId, name: `SesToc${String(nextId).padStart(6, '0')}` }
+    const bookmark: DocxBookmark = {
+      id: nextId, name: `SesToc${String(nextId).padStart(6, '0')}`,
+      tocEntry: { text, level: styleId === 'TOC1' ? 1 : 2 },
+    }
     entries.push({ styleId, target, bookmark, runsXml })
     if (target.kind === 'node') bookmarksByNodeId.set(target.nodeId, bookmark)
     else if (target.kind === 'foreword') forewordBookmark = bookmark
@@ -79,13 +109,14 @@ export function buildStaticToc(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>
     return bookmark
   }
 
-  if (doc.front.foreword.length > 0) add({ kind: 'foreword' }, 'TOC1', plainRun('前言'))
-  if (doc.front.introduction.length > 0) add({ kind: 'introduction' }, 'TOC1', plainRun('引言'))
+  if (doc.front.foreword.length > 0) add({ kind: 'foreword' }, 'TOC1', plainRun('前言'), '前言')
+  if (doc.front.introduction.length > 0) add({ kind: 'introduction' }, 'TOC1', plainRun('引言'), '引言')
 
   const visitClause = (clause: IRClause, depth: number): void => {
     if (depth === 1 && clause.titled) {
       const prefix = labelRuns(labels[clause.id]?.label)
-      add({ kind: 'node', nodeId: clause.id }, 'TOC2', prefix + renderInlines(clause.title, labels))
+      add({ kind: 'node', nodeId: clause.id }, 'TOC2', prefix + renderInlines(clause.title, labels),
+        labelText(labels[clause.id]?.label) + inlineText(clause.title, labels))
     }
     for (const child of clause.children) {
       if (child.kind === 'clause') visitClause(child, depth + 1)
@@ -103,6 +134,7 @@ export function buildStaticToc(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>
       { kind: 'node', nodeId: chapter.id },
       'TOC1',
       labelRuns(labels[chapter.id]?.label) + renderInlines(chapter.title, labels),
+      labelText(labels[chapter.id]?.label) + inlineText(chapter.title, labels),
     )
     // 术语章中的 termEntry 和补充说明条（如 3.3）均不作为目次二级条目。
     if (chapter.secType !== 'terms') visitContainer(chapter.children)
@@ -116,6 +148,8 @@ export function buildStaticToc(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>
         plainRun(appendix.normative ? '（规范性）' : '（资料性）') +
         plainRun(IDEOGRAPHIC_SPACE) +
         renderInlines(appendix.title, labels),
+      (labels[appendix.id]?.label ?? '') + (appendix.normative ? '（规范性）' : '（资料性）') +
+        IDEOGRAPHIC_SPACE + inlineText(appendix.title, labels),
     )
     for (const child of appendix.children) {
       if (child.kind === 'clause') visitClause(child, 1)
@@ -124,13 +158,14 @@ export function buildStaticToc(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>
           { kind: 'node', nodeId: child.id },
           'TOC2',
           labelRuns(labels[child.id]?.label) + renderInlines(child.term, labels),
+          labelText(labels[child.id]?.label) + inlineText(child.term, labels),
         )
       }
     }
   }
 
   if (doc.bibliography.length > 0) {
-    add({ kind: 'bibliography' }, 'TOC1', plainRun('参考文献'))
+    add({ kind: 'bibliography' }, 'TOC1', plainRun('参考文献'), '参考文献')
   }
 
   return {
