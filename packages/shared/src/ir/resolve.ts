@@ -62,6 +62,11 @@ class ResolveCtx {
   scopeParents = new Map<string, string>()
   /** 当前列项的有序祖先标记（嵌套列表的标记路径用）；无序祖先不贡献标记 */
   listMarkerPath: string[] = []
+  /**
+   * 当前所处的列表嵌套深度：0 = 不在任何列项内，1 = 位于一层列表的列项内……
+   * 显式记录而不是用 `listMarkerPath` 是否为空推断：无序父列表不产生标记，却同样使其子列表成为嵌套列表。
+   */
+  listDepth = 0
   /** 规范性引用清单（WP8.M G1）：允许出现的清单 id（= 当前 norm-refs 章的直属清单）与已访问的清单数 */
   allowedNormRefLists = new Set<NodeId>()
   normRefListCount = 0
@@ -280,19 +285,29 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
       break
     case 'list': {
       ctx.registerId(block.id)
-      // 只有 alpha / number / roman 有列项标记；无序列项与 romanUpper 不赋标签（对它们的引用照旧 dangling-xref）。
+      // 只有「渲染时确有该标识」的列项才有标记（D-M-17）：
+      // - 第一层的 alpha / number / roman：HTML 与 DOCX 都显示 a） / 1） / i）；
+      // - 嵌套（第二层）的 number：HTML 仍显示 1），DOCX 另起 A13 实例显示 1）；
+      // - 嵌套的 alpha / roman：HTML 显示间隔号“·”，DOCX 取父列表实例 ilvl 1（bullet“·”），都不是 b） / ii） 本身，不赋标记；
+      // - 第三层及以下：DOCX 只输出 SesListDot（并给出 list-too-deep 警告），没有编号，不赋标记；
+      // - 无序列项与 romanUpper 本来就没有标识。
+      // 对没有标记的列项的引用照旧 dangling-xref（没有编号，无法生成引用文本），渲染器回退作者原文，不输出不存在的标识。
+      const depth = ctx.listDepth + 1
       const ordered = block.listType === 'alpha' || block.listType === 'number' || block.listType === 'roman'
+      const rendered = ordered && (depth === 1 || (depth === 2 && block.listType === 'number'))
       const inheritedPath = ctx.listMarkerPath
+      ctx.listDepth = depth
       block.items.forEach((item, index) => {
         ctx.registerId(item.id)
         ctx.kinds.set(item.id, 'listItem')
-        const marker = !ordered ? ''
+        const marker = !rendered ? ''
           : ctx.strategy.listItem ? ctx.strategy.listItem(block.listType, index + 1) : builtinListItem(block.listType, index + 1)
         ctx.listMarkerPath = marker ? [...inheritedPath, marker] : inheritedPath
         if (marker) ctx.listItems.push({ id: item.id, marker, markerPath: ctx.listMarkerPath.join(' '), scopeKey })
         for (const child of item.content) visitBlock(child, scopeKey, ctx, forbiddenContainer)
       })
       ctx.listMarkerPath = inheritedPath
+      ctx.listDepth = depth - 1
       break
     }
     case 'table': {
@@ -677,6 +692,7 @@ function nearestNumberedScopeLabel(scopeKey: string, ctx: ResolveCtx): string | 
  * 容器取最近的有编号作用域（注/示例内的列表回溯到所在条、术语条目、表、图）；前言/引言等没有编号祖先时只写标记路径。
  * 必须在 checkTypedReferences 之前：否则类型正确但无标签的目标会被补成 ext_ 占位标签。
  * 未被引用的列项保持无标签，这样现有文档的 HTML/DOCX 输出不新增任何 id。
+ * 候选只含渲染时确有该标识的列项（visitBlock 的 list 分支，D-M-17）：嵌套的 alpha / roman 渲染为间隔号，不在候选内。
  */
 function labelReferencedListItems(ctx: ResolveCtx): void {
   const referenced = new Set<NodeId>()

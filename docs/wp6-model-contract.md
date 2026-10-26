@@ -243,8 +243,8 @@ IR 新字段一律可选，既有字段不改名、不改型（P1）；既有 PM
 - 注 / 示例 canonical 规则（G7-b）：`content` 恰为一个 id 等于 `${owner.id}.p0` 的段落 → 旧 `note` / `example`（与此前逐字节相同）；其余且全为段落 / 列项 → `noteBlock` / `exampleBlock`，子块各自保留 nodeId；含表 / 图 / 公式等其他块 → IRToPmError。`term`、表注行、图内三处直接调用单段转换，多块在这些位置继续报错。
 - `figure`：`irToPm` 不再拒绝 `notes`，输出 `note*`、`example*`、`figureLegend`；`pmToIr` 反向对应，`legend.items` 为空、`image` 带 marks / style 等不可表达的组合记 `unsupportedContent` 或 IRToPmError，不静默丢弃。
 - 表：`columns` 长度须等于网格列数，每项宽度为有限正数且单位是字母或 `%`，`textAlign ∈ left|center|right|justify`，`verticalAlign ∈ top|middle|bottom|baseline`，边框样式 ∈ `solid|dashed|dotted|none`；任一不符 pmToIr 记 `unsupportedContent`，irToPm 抛 IRToPmError。`columns[i].width` 是源文档给出的名义列宽（通常是百分数），单元格 `columnWidths`（PM `colwidth`，CSS px）是编辑器拖拽的结果，二者独立保存、互不推导；显示时 px 优先，DOCX 仍只消费 `columnWidths`，将来导出 `col` 只取 `columns`。
-- 引言：`pmToIr` 把 `introduction` 内的 `clause` 收进 `introductionClauses`；条之后的块（悬置段）仍留在 `introduction`，同时记 `unsupportedContent`（`irToPm` 拒绝，不静默重排）。
-- 罗马列项：`roman` 为 `stdList` 的一级类型；`romanUpper` 仍降级为数字列项并告警（读旧文档）/ 拒绝（irToPm）。列项标记统一为全角右括号 `a）`、`1）`、`i）`，引用文字 `5.2 a）`（D-M-03 修订）。
+- 引言：`pmToIr` 把 `introduction` 内的 `clause` 收进 `introductionClauses`；条之后的块（悬置段）仍留在 `introduction`，同时记 `unsupportedContent`（`irToPm` 拒绝，不静默重排）。 documentOps（`readNode` / `readContainer` / 结构树）按“引言块 + 引言中的条”读取引言容器，条递归索引子条与块、带 Resolver 编号（`0.1`…）；引言直属的条可删除/移动，但不能由写作片段整体替换或新建（返回明确原因）。
+- 罗马列项：`roman` 为 `stdList` 的一级类型；`romanUpper` 仍降级为数字列项并告警（读旧文档）/ 拒绝（irToPm）。列项标记统一为全角右括号 `a）`、`1）`、`i）`，引用文字 `5.2 a）`（D-M-03 修订）；嵌套的 `alpha/roman` 渲染为间隔号“·”，不可被引用（D-M-17）。
 
 ### Resolver：新增标签、xmlId 与校验
 
@@ -255,7 +255,7 @@ IR 新字段一律可选，既有字段不改名、不改型（P1）；既有 PM
 | 规范性引用条目（G1） | `''` | `ref_<清单内序号>` | 文件编号 + 名称（std）或内容前 40 字（mixed） | 总是 |
 | 缩略语项（G2） | 缩略语文本 | `abb_<全文序>` | 同 label | 总是；类型为 `abbreviation` |
 | 图例项（G3） | — | — | — | 不赋标签；图中的注 / 示例沿用 `注：/注n：`、`示例：/示例n：`，作用域为该图，xmlId 沿用全局 `note_<n>` / `example_<n>` |
-| 有序列项（G4/G7，`alpha/number/roman`） | `a）` `1）` `i）` | `li_<被引用列项的文档序>` | 容器编号 + 空格 + 标记路径，如 `5.2 a）`、`5.2 a）1）` | **仅被 crossRef 引用者**；无序列项与 `romanUpper` 不赋标签，引用它们报 `dangling-xref` |
+| 有序列项（G4/G7，`alpha/number/roman`） | `a）` `1）` `i）` | `li_<被引用列项的文档序>` | 容器编号 + 空格 + 标记路径，如 `5.2 a）`、`5.2 a）1）` | **仅被 crossRef 引用者**；无序列项、`romanUpper` 与嵌套（第二层）的 `alpha/roman`（HTML 渲染为间隔号“·”，DOCX 取父实例 ilvl 1 的 bullet，第三层及以下 DOCX 无编号）不赋标签，不可被引用，引用它们报 `dangling-xref`（D-M-17）；嵌套 `number` 仍有标记（`1）`） |
 | 术语条目（G5） | 既有 | 既有 `sec_<编号>`；另有 `termEntryXmlId = term_<编号>`（嵌套条目 `term_3.1.2`） | 既有 | 总是 |
 | 引言中的条（G6） | `0.n`、`0.n.m` | `sec_0.n` | 同 label | 总是；参与悬置段与跳级检查 |
 

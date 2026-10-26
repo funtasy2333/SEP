@@ -154,14 +154,14 @@
 | 缩略语项 `IRDefItem`（`IRDefList` 内） | 术语纯文本 | `abb_<k>`（k = 全文缩略语项序，1 起） | 同 label | 总是 | G2 | X-26 补缺（D-M-02） |
 | 图例项（`IRLegend.items`） | — | —（不可被引用） | — | 不赋 label | G3 | C-T-31（图例不带 id） |
 | 图注/图示例 | 沿用 `注：/注n：`、`示例：/示例n：`，作用域 = 该图 | 沿用全局序 `note_<n>`/`example_<n>` | 沿用 | 总是 | G3 | X-14/15、R-4（渲染器决定是否写 id） |
-| 有序列项（`alpha/number/roman`） | `a)` `1)` `i)`（半角，D-M-03） | `li_<k>`（k = 全文被引用列项的文档序） | 容器编号 + 空格 + 标记路径，如 `5.2 a)`、`5.2 a) 1)` | **仅被 crossRef 引用者** | G4 | X-17/C-T-52 补缺 |
+| 有序列项（`alpha/number/roman`） | `a)` `1)` `i)`（半角，D-M-03） | `li_<k>`（k = 全文被引用列项的文档序） | 容器编号 + 空格 + 标记路径，如 `5.2 a)`、`5.2 a) 1)` | **仅被 crossRef 引用者**；嵌套的 `alpha/roman` 渲染为间隔号，不赋标签（D-M-17） | G4 | X-17/C-T-52 补缺 |
 | 术语条目 | 既有 | 既有 `sec_<n>`；新增 `termEntryXmlId = term_<n>` | 既有 | 总是 | G5 | R-3、D-S-12 |
 | 引言中的条 | `0.n`、`0.n.m` | `sec_0.n` | 同 label | 总是 | G6 | R-7、X-05 |
 
 要点与实现位置：
 
 - **G4 列项标签只给“被引用者”**。`visitBlock` 的 `list` 分支（`resolve.ts:208-214`）只登记候选（id、类型、序号、嵌套路径、容器标签）并 `ctx.kinds.set(item.id,'listItem')`；在 `resolve()` 里紧邻 `checkTypedReferences` **之前**（即 `visitIndexInlines`/`checkIndexTargets` 之后，使参考文献与索引内的引用也被计入 `ctx.xrefs`，见 `resolve.ts:715-722`）新增一步 `labelReferencedListItems(ctx)`，据此给被引用的有序列项 `setLabel`。理由：`checkTypedReferences`（`resolve.ts:660-663`）会对“类型正确但无标签”的目标补 `ext_` 占位标签，顺序错了就会出现 `ext_`；同时 HTML 渲染器对每个有 xmlId 的对象都会输出 `id=`（`html.ts:142-146`），只给被引用者赋 xmlId 可使现有快照零变化。
-- **无序列项（dash/dot/boxed）与 `romanUpper` 不赋标签**，对它们的 crossRef 由既有 `checkXrefs` 报 `dangling-xref`（“没有编号”，`resolve.ts:542-548`）。
+- **无序列项（dash/dot/boxed）与 `romanUpper` 不赋标签**，对它们的 crossRef 由既有 `checkXrefs` 报 `dangling-xref`（“没有编号”，`resolve.ts:542-548`）。嵌套（第二层）的 `alpha/roman` 与第三层及以下的列项同样不赋标签（实际渲染为间隔号或无编号，D-M-17）。
 - **缩略语项**的类型：`ctx.kinds.set(item.id,'abbreviation')`（沿用公式注先登记 kind、通用扫描不覆盖的做法，`resolve.ts:288-291,619`）。
 - **`NumberingStrategy`** 新增**可选**方法 `listItem?(listType, index): string`；`gbT11Strategy` 实现（`alpha`→`a)`…`z)`，27 起 `aa)`；`number`→`1)`；`roman`→`i)`…）。Resolver 在策略没有该方法时用内置同款函数，避免破坏既有第三方策略（`types.ts:522-543` 是“定稿接口”）。
 - **脚注限制**（`ForbiddenFootnoteContainer`，`resolve.ts:111`）：G1 规范性引用条目内的脚注**允许**（与参考文献一致，`resolveBibliography` 对条目 `visitInlines` 不设限）；G2 缩略语项内的脚注**禁止**，为此给该联合类型增加新值 `'定义列表'`；G3 图例项继承既有的 `'图'`；G5 `subjectField` 沿用 `ctx.inTerm`（术语内不得有条文脚注）。这与编辑器 `canInsertBodyFootnote` 的白名单（`client/src/extensions/nodes/footnotes.ts:27-32`，只允许 `stdParagraph/paragraph/stdListItem/bibEntry/note/example`）保持一致——新增的文本容器都不在白名单里，不会新增可插入位置。
@@ -449,6 +449,7 @@ export interface IRInline { /* 既有 */ image?: IRInlineImage }
 1. 候选登记：`visitBlock` 的 `list` 分支遍历 `block.items` 时，按 `block.listType ∈ {alpha, number, roman}` 登记 `{id, marker, markerPath, containerId}`，其中 `markerPath` 在嵌套列表（`IRList.items[].content` 可含 `IRList`）时为 `a) 1)` 这样的路径；全部列项（含无序）`ctx.kinds.set(id,'listItem')`。
 2. 赋标签：`labelReferencedListItems(ctx)` 只处理出现在 `ctx.xrefs` 里的候选：`label = marker`，`xmlId = li_${k}`（k = 被引用候选的文档序），`refText = containerLabel + ' ' + markerPath`；`containerLabel` 取 `ctx.labels[scopeKey]?.label`，前言/引言（`scopeKey` 为 `front.*`）与无标签容器时省略前缀与空格。
 3. 无序列项（`dash/dot/boxed`）、`romanUpper` 不赋标签；`checkXrefs` 照常报 `dangling-xref`（“没有编号”）。
+   - **嵌套列表（D-M-17）**：标记只赋给渲染时确有该标识的列项。第一层 `alpha/number/roman` 与第二层（嵌套在另一个列项内）的 `number` 有标记；嵌套的 `alpha/roman` 在 HTML 渲染为间隔号“·”（`.ses-list .ses-list:not(.ses-list-number) > .ses-list-item::before`），在 DOCX 取父列表实例 `ilvl 1` 的 bullet“·”，第三层及以下在 DOCX 只有 `SesListDot`、没有编号，因此它们与无序列项同等处理：不赋标签、不可被引用，对其 `crossRef` 报 `dangling-xref`（error，不阻断 HTML/DOCX 导出，渲染器回退作者原文）。Resolver 用显式的列表嵌套深度判定（无序父列表不产生标记，不能靠标记路径是否为空推断）。
 4. 半角括号与 `refText` 形式取默认值，待 D-M-03 确认。
 5. R-9 更新：`listItem` 现在是合法目标；`paragraph` 目标仍无 xmlId（导出时由 WP8.2 报告）。
 
@@ -729,6 +730,7 @@ export interface IRCellStyle { /* 既有 */
 | D-M-14 | 本阶段排版，按上表处理 |
 | D-M-15 | 不建模 |
 | D-M-16 | 缩略语表的分隔符：缩略语与释义同行，中间用**全角冒号“：”**（依据 GB/T 46687.2—2026 印刷页 2 的 3.2 缩略语实排“ID：唯一编码(Identity)”），取代 §7.1 表格原写的“释义前空一字”。HTML、DOCX 的现有实现（`html.ts` 的 `ses-def-sep`、`docx/body/block.ts`）已是全角冒号，保持不变；编辑器在缩略语后以 CSS 生成内容显示冒号。来源：主导人，M-Z-b F-3（2026-10-26） |
+| D-M-17 | 列项标记只赋给渲染时确有该标识的列项。第一层 `alpha/number/roman` 与第二层 `number` 有标记（HTML 与 DOCX 都渲染 `1）`）；嵌套（第二层）的 `alpha/roman` 在 HTML 渲染为间隔号“·”，在 DOCX 取父列表实例 `ilvl 1` 的 bullet“·”，第三层及以下在 DOCX 没有编号，因此与无序列项同等处理：不赋标签，不可被引用，对其 `crossRef` 报 `dangling-xref`（error，不阻断 HTML/DOCX 导出，渲染器回退作者原文）。Resolver 以显式的列表嵌套深度判定。来源：主导人，Codex 评审 PR #56（2026-10-26） |
 
 **G5 补充决定（主导人，2026-10-22）**：WP6 已有术语级（`tig`）描述符 `IRTermDescriptor{kind:'subjectField'}`，生产节点为 `tbxTermDescriptor type=subjectField`，只能存纯文本。GB/T 46687.2 第 9.2.9 条把领域放在 `langSet`/条目级，因此**条目级 `IRTermEntry.subjectField` 为规范形式**。旧描述符保留，不迁移。WP8.2 导出时：
 - 条目级字段存在：只输出条目级字段，同名的术语级描述符报 warning 并忽略；

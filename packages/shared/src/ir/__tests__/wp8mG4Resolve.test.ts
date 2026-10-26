@@ -86,7 +86,8 @@ describe('[M-10.1.5-01] [M-10.1.5-02] Resolver：被引用的有序列项获得�
       item('o2', '外二', list('l-inner', 'number', [item('i1', '内一'), item('i2', '内二')], 2)),
     ])
     const dashOuter = list('l-dash-outer', 'dash', [
-      item('x1', '破折', list('l-alpha-in-dash', 'alpha', [item('y1', '甲'), item('y2', '乙')])),
+      // D-M-17：嵌套的 alpha/roman 渲染为间隔号、不可被引用，所以这里用嵌套 number（渲染为 1） 2））检验“无序祖先不贡献标记”。
+      item('x1', '破折', list('l-number-in-dash', 'number', [item('y1', '甲'), item('y2', '乙')], 2)),
     ])
     const doc = docOf([chapter('ch5', 'general', '技术要求',
       clause('c1', 1, '嵌套',
@@ -96,7 +97,7 @@ describe('[M-10.1.5-01] [M-10.1.5-02] Resolver：被引用的有序列项获得�
     const { labels, problems } = resolve(doc)
     expect(problems.filter(problem => problem.severity === 'error')).toEqual([])
     expect(labels['i2']).toMatchObject({ label: '2）', refText: '1.1 b） 2）' })
-    expect(labels['y2']).toMatchObject({ label: 'b）', refText: '1.1 b）' })
+    expect(labels['y2']).toMatchObject({ label: '2）', refText: '1.1 2）' })
     expect(labels['o1']).toMatchObject({ label: 'a）', refText: '1.1 a）' })
     // 文档序：o1、i2、y2
     expect(['o1', 'i2', 'y2'].map(id => labels[id]?.xmlId)).toEqual(['li_1', 'li_2', 'li_3'])
