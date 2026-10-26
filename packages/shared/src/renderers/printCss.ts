@@ -292,9 +292,13 @@ const CONTENT = `
 .ses-list-dot > .ses-list-item::before { content: "·"; counter-increment: none; }
 .ses-list-number > .ses-list-item::before { content: counter(ses-li) "） "; }
 .ses-list-alpha > .ses-list-item::before { content: counter(ses-li, lower-alpha) "） "; }
-/* 旧罗马列表类按数字列项显示，确保旧文档不再产生罗马编号。 */
-.ses-list-roman > .ses-list-item::before,
+/* 小写罗马列项（GB/T 46687.2 5.7.2 roman-lower，WP8.M G7-c）：i） ii） iii）…，与字母/数字列项同为全角右括号；
+ * 大写罗马 romanUpper 没有原文取值，仍按数字列项显示。 */
+.ses-list-roman > .ses-list-item::before { content: counter(ses-li, lower-roman) "） "; }
 .ses-list-romanUpper > .ses-list-item::before { content: counter(ses-li) "） "; }
+/* 罗马标记宽度不定（vii）、viii）、xiii）…可超过 2 字）：不用绝对定位，改为左浮动 + 最小宽 2 字 + 左外边距 -2 字，
+ * 标记较窄时与其他一级列项一样空两字起排、文字在第五字位，过宽时首行文字后移而不与标记重叠，回行仍对齐第五字位（10.2.2）。 */
+.ses-list-roman > .ses-list-item::before { position: static; float: left; min-width: 2em; margin-left: -2em; }
 .ses-list-boxed > .ses-list-item::before { content: counter(ses-li) " "; }
 /* 二级数字列项保留编号；其他历史嵌套类型用间隔号，更深层由 DOCX 渲染器另行发出超层警告。 */
 .ses-list .ses-list:not(.ses-list-number) > .ses-list-item::before { content: "·"; counter-increment: none; }
@@ -399,6 +403,14 @@ const CONTENT = `
 /* —— 注 / 示例：标识黑体小五，内容宋体小五 —— */
 .ses-note, .ses-example { font-size: var(--ses-fs-xiaowu); margin: 4pt 0 4pt 2em; }
 .ses-note-marker, .ses-example-marker { font-family: var(--ses-hei); }
+/* 多块注/示例（WP8.M G7-b，GB/T 1.1—2020 10.4.4.1、10.4.5）：
+ * 注——标记在左、内容块在右（grid 两列），首段与「注：」同行，续段/列项回行与注的内容的文字位置左对齐，段不缩进；
+ * 示例——「示例：」单独成行，其下逐块，文字类示例保留首行缩进（与 DOCX SesExText 一致）。 */
+.ses-note-multi { display: grid; grid-template-columns: max-content 1fr; }
+.ses-note-body > .ses-paragraph { text-indent: 0; margin: 0; }
+.ses-note-body > .ses-list, .ses-example-multi > .ses-list { margin-top: 0; margin-bottom: 0; }
+.ses-example-multi > .ses-example-marker { display: block; }
+.ses-example-multi > .ses-paragraph { margin: 0; }
 
 /* —— 交叉引用：print 变体为纯文本（无内部链接），此处仅保证字体一致 —— */
 .ses-xref { color: inherit; text-decoration: none; }

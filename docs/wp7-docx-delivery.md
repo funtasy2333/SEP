@@ -306,7 +306,8 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 | A11 | 破折号列项 | multilevel | L0 bullet `——`，左 840 悬挂 420；L1 bullet `·` suff=tab，左 1260 悬挂 420；两级标识 rPr 全字符宋体 | SesListDash、SesListDot |
 | A12 | 字母列项 | multilevel | L0 lowerLetter `%1）` suff=tab，左 840 悬挂 420；L1 bullet `·` suff=tab，左 1260 悬挂 420；两级标识 rPr 全字符宋体 | —（按列表实例） |
 | A13 | 数字列项 | multilevel | L0 decimal `%1）`；L1 bullet `·`（suff、缩进和字体同 A12） | — |
-| A14 / A15 | 旧罗马类型兼容槽 | multilevel | L0 decimal `%1）`；L1 bullet `·`（字体同 A12）；旧文档的罗马列表降级为数字列项，不再输出罗马编号 | — |
+| A14 | 小写罗马列项（WP8.M G7-c，D-M-06 A 真排） | multilevel | L0 lowerRoman `%1）` suff=tab，左 840 悬挂 420，**标识 rPr：ASCII/hAnsi/cs 为 Times New Roman、eastAsia 宋体**（宋体的 ASCII 字母半角等宽，`iii）` 就超出 2 字悬挂量，Word 会把文字推到下一个默认制表位，第 2 项起与回行不对齐；Times 的 i 窄，`i）`～`vi）` 都落在 2 字内）；L1 bullet `·`（suff、缩进和字体同 A12）；括号与 A12/A13 一致用全角，罗马数字序列与 Resolver 的 `gbT11Strategy.listItem('roman', n)`（半角 `i)`，用于 refText）一致 | —（按列表实例） |
+| A15 | 大写罗马兼容槽 | multilevel | L0 decimal `%1）`；L1 bullet `·`（字体同 A12）；GB/T 46687.2 没有 roman-upper 取值，`romanUpper` 仍降级为数字列项（用 A13），本槽保持占位 | — |
 | A16 | 参考文献 | singleLevel | L0 decimal `[%1]　`，编号 rPr 指定宋体；首行 420 | SesBibEntry |
 | A17 | 引言中的条（按需，WP8.M G6） | multilevel | L0 `0　`（保持级别连续，无段落使用）；L1 `0.%2　`；L2 `0.%2.%3　`；L3–L5 依此类推；缩进、标识 rPr 同 A1 的 L1–L5（黑体） | —（段落级 numPr） |
 
@@ -385,7 +386,8 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
   | 第一层 | alpha | P(SesListItem) + 新建 A12 实例的 ilvl 0，显示 `a）` |
   | 第二层 | number | P(SesListItem) + 新建 A13 实例的 ilvl 0，段落直接缩进 left=1260 / hanging=420，显示 `1）` |
   | 第二层 | dot | P(SesListDot)，样式自带 A11 L1，显示 `·` |
-  | 旧数据 | roman / romanUpper | 降级为 number，不输出罗马数字 |
+  | 第一层 | roman（WP8.M G7-c） | P(SesListItem) + 新建 A14 实例的 ilvl 0，显示 `i）` `ii）` `iii）`…（小写罗马，一级，缩进同字母列项） |
+  | 旧数据 | romanUpper | 降级为 number，不输出大写罗马数字 |
   | 旧数据 | boxed | 按数字编号渲染，记 `list-format-fallback` |
   | 历史嵌套第二层 | dash / alpha / boxed 等 | 保留间隔号降级；嵌套 number 保留数字编号 |
   | 第三层及更深 | 任意类型 | P(SesListDot)，显示间隔号 `·`，并记 `list-too-deep` |
@@ -530,6 +532,7 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
 - 单条注：第一段 P(SesNote)（样式自带 A7）；后续段落 SesNoteCont。
 - 多条注：每条第一段 P(SesNoteN) + 段落级 `numPr`（A8 实例，按 §4.3 分配）；后续段落 SesNoteNCont。
 - 注的第一块不是段落时，先输出一个只有标识的段（样式与 numPr 同上、无文字），其后输出各块。注内的其他块（列项等）照常渲染。
+  （WP8.M G7-b 起生产模型可存多块注/示例，见 `wp8.m/design.md` §4.7.2；本节的逐块输出规则早已覆盖，无需改动，新增用例见 `renderers/__tests__/wp8mG7.test.ts`。）
 - 示例：标识单独一段（单个示例 P(SesExLabel)；多个 P(SesExLabelN) + A10 实例，按 §4.3 分配），段落内无文字；内容中的段落用
   SesExText，其他块照常。
 - **作用域键**（与 Resolver 的分组完全相同）：前言 `front.foreword`、引言 `front.introduction`；章、条、附录的直属块 = 该章、条、

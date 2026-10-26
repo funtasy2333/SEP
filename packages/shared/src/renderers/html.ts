@@ -420,8 +420,29 @@ function renderDefList(list: IRDefList, ctx: RenderCtx): void {
   ctx.push('</div>')
 }
 
+/**
+ * 注/示例的内容是否需要逐块输出（WP8.M G7-b，M-5.6-05）：多块，或唯一的块不是段落（如只含列项）。
+ * 单段（含空内容）仍走原来的行内拼接，输出与此前逐字节相同。
+ */
+function isMultiBlockContent(content: IRBlock[]): boolean {
+  return content.length > 1 || (content.length === 1 && content[0]!.kind !== 'paragraph')
+}
+
+/** 逐块以块级输出：段落、列项、其余块各自成块（不再拼成一行）。 */
+function renderBlocksAsBlocks(blocks: IRBlock[], ctx: RenderCtx): string {
+  return blocks.map((block) => ctx.capture(() => renderBlock(block, ctx))).join('')
+}
+
 function renderNote(note: IRNote, ctx: RenderCtx): void {
   const marker = ctx.label(note.id) || '注：'
+  if (isMultiBlockContent(note.content)) {
+    // 多块注：标记在左、内容块在右（grid 两列），首段与「注：」同一行，续段与列项回行时与注的内容的文字位置左对齐
+    //（GB/T 1.1—2020 10.4.4.1，与 DOCX 的 SesNote/SesNoteCont 一致）。
+    ctx.push(
+      `<div class="ses-note ses-note-multi" data-type="note"${idAttr(note.id)}${anchorAttr(ctx, note.id)}><span class="ses-note-marker">${escapeHtml(marker)}</span><div class="ses-note-body">${renderBlocksAsBlocks(note.content, ctx)}</div></div>`,
+    )
+    return
+  }
   ctx.push(
     `<div class="ses-note" data-type="note"${idAttr(note.id)}${anchorAttr(ctx, note.id)}><span class="ses-note-marker">${escapeHtml(marker)}</span>${renderBlocksInline(note.content, ctx)}</div>`,
   )
@@ -429,6 +450,13 @@ function renderNote(note: IRNote, ctx: RenderCtx): void {
 
 function renderExample(example: IRExample, ctx: RenderCtx): void {
   const marker = ctx.label(example.id) || '示例：'
+  if (isMultiBlockContent(example.content)) {
+    // 多块示例：「示例：」单独成行（GB/T 1.1—2020 10.4.5），其下逐块输出（与 DOCX 的 SesExLabel/SesExText 一致）。
+    ctx.push(
+      `<div class="ses-example ses-example-multi" data-type="example"${idAttr(example.id)}${anchorAttr(ctx, example.id)}><div class="ses-example-marker">${escapeHtml(marker)}</div>${renderBlocksAsBlocks(example.content, ctx)}</div>`,
+    )
+    return
+  }
   ctx.push(
     `<div class="ses-example" data-type="example"${idAttr(example.id)}${anchorAttr(ctx, example.id)}><span class="ses-example-marker">${escapeHtml(marker)}</span>${renderBlocksInline(example.content, ctx)}</div>`,
   )
@@ -796,7 +824,9 @@ function screenStyles(): string {
     .ses-list-dot > .ses-list-item::before { content: "·"; counter-increment: none; }
     .ses-list-number > .ses-list-item::before { content: counter(ses-li) "） "; }
     .ses-list-alpha > .ses-list-item::before { content: counter(ses-li, lower-alpha) "） "; }
-    .ses-list-roman > .ses-list-item::before, .ses-list-romanUpper > .ses-list-item::before { content: counter(ses-li) "） "; }
+    .ses-list-roman > .ses-list-item::before { content: counter(ses-li, lower-roman) "） "; }
+    .ses-list-romanUpper > .ses-list-item::before { content: counter(ses-li) "） "; }
+    .ses-list-roman > .ses-list-item::before { position: static; float: left; min-width: 2em; margin-left: -2em; }
     .ses-list .ses-list:not(.ses-list-number) > .ses-list-item::before { content: "·"; counter-increment: none; }
     .ses-table-block { margin: 16px 0; }
     .ses-table-caption { font-family: "SimHei", "黑体", sans-serif; font-weight: normal; text-align: center; margin: 8px 0 4px; }
@@ -820,6 +850,11 @@ function screenStyles(): string {
     .ses-where-dash { flex: none; }
     .ses-note, .ses-example { padding-left: 2em; font-size: 13px; color: #333; margin: 8px 0; }
     .ses-note-marker, .ses-example-marker { font-family: "SimHei", "黑体", sans-serif; }
+    .ses-note-multi { display: grid; grid-template-columns: max-content 1fr; }
+    .ses-note-body > .ses-paragraph { text-indent: 0; margin: 0; }
+    .ses-note-body > .ses-list, .ses-example-multi > .ses-list { margin-top: 0; margin-bottom: 0; }
+    .ses-example-multi > .ses-example-marker { display: block; }
+    .ses-example-multi > .ses-paragraph { margin: 0; }
     .ses-footnote { font-size: 0.85em; }
     .ses-footnote::before { content: attr(data-label); vertical-align: super; font-size: 0.75em; margin-right: 0.35em; }
     .ses-table-footnote { font-size: 13px; margin-left: calc(3em - 8px); text-indent: -1em; }

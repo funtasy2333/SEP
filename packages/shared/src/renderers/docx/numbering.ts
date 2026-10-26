@@ -29,8 +29,8 @@ export const ABSTRACT_NUM_ID = {
   listDash: 11, // A11 破折号/间隔号列项
   listAlpha: 12, // A12 字母列项
   listNumber: 13, // A13 数字列项
-  listRoman: 14, // A14 旧罗马类型兼容槽，降级为数字列项
-  listRomanUpper: 15, // A15 旧罗马类型兼容槽，降级为数字列项
+  listRoman: 14, // A14 小写罗马列项 i） ii） iii）（lowerRoman；WP8.M G7-c，D-M-06 A 真排）
+  listRomanUpper: 15, // A15 大写罗马兼容槽：GB/T 46687.2 没有 roman-upper 取值，romanUpper 仍降级为数字列项（A13），本槽保持占位
   bibEntry: 16, // A16 参考文献
   /** A17 引言中的条（0.1、0.2…）。按需输出：只有文档含引言条时才写入 numbering.xml（WP8.M G6），其余文档仍是 16 个 abstractNum */
   introClause: 17,
@@ -52,7 +52,7 @@ const FIXED_ABSTRACT_NUM_IDS: readonly number[] = [
 const LIST_TYPE_ABSTRACT_NUM = new Map<string, number>([
   ['alpha', ABSTRACT_NUM_ID.listAlpha],
   ['number', ABSTRACT_NUM_ID.listNumber],
-  ['roman', ABSTRACT_NUM_ID.listNumber],
+  ['roman', ABSTRACT_NUM_ID.listRoman],
   ['romanUpper', ABSTRACT_NUM_ID.listNumber],
   ['boxed', ABSTRACT_NUM_ID.listNumber],
 ])
@@ -70,6 +70,14 @@ const HEI_RFONTS = '<w:rFonts w:ascii="黑体" w:eastAsia="黑体" w:hAnsi="黑�
 const RPR_HEI = rPr([['rFonts', HEI_RFONTS]])
 const SONG_RFONTS = '<w:rFonts w:ascii="宋体" w:eastAsia="宋体" w:hAnsi="宋体" w:cs="宋体"/>'
 export const RPR_SONG = rPr([['rFonts', SONG_RFONTS]])
+/**
+ * A14 L0（小写罗马标识 i） ii） iii）…）：ASCII 字母用 Times New Roman，全角右括号仍用宋体（eastAsia）。
+ * 宋体的 ASCII 字母是半角等宽（0.5 em），`ii）`（1+1 em）已占满 2 字的悬挂量、`iii）`（1.5+1 em）超出，
+ * Word 会把标识之后的文字推到下一个默认制表位（再右移 2 字），第 2 项起就与回行不对齐；Times 的 i 只有 0.28 em，
+ * `i）`～`vi）` 都能落在 2 字之内，文字保持在第五字位（GB/T 1.1—2020 10.2.2）。
+ */
+const ROMAN_LABEL_RFONTS = '<w:rFonts w:ascii="Times New Roman" w:eastAsia="宋体" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>'
+const RPR_ROMAN_LABEL = rPr([['rFonts', ROMAN_LABEL_RFONTS]])
 /** A2 L0「附录%1」专用：黑体 + 字符间距 210（§3.3 标题字距偏差登记） */
 const RPR_HEI_SPACING = rPr([
   ['rFonts', HEI_RFONTS],
@@ -138,9 +146,9 @@ function appendixLevels(): LevelSpec[] {
 }
 
 /** A12–A15：保留双层抽象编号；二级数字列项另用 A13 L0 + 段落直接缩进。 */
-function listLevels(l0Fmt: string, l0Text: string, l1Fmt: string, l1Text: string): LevelSpec[] {
+function listLevels(l0Fmt: string, l0Text: string, l1Fmt: string, l1Text: string, l0RPr: string = RPR_SONG): LevelSpec[] {
   return [
-    { ilvl: 0, numFmt: l0Fmt, lvlText: l0Text, suff: 'tab', ind: IND_LIST_L0, rPr: RPR_SONG },
+    { ilvl: 0, numFmt: l0Fmt, lvlText: l0Text, suff: 'tab', ind: IND_LIST_L0, rPr: l0RPr },
     { ilvl: 1, numFmt: l1Fmt, lvlText: l1Text, suff: 'tab', ind: IND_LIST_L1, rPr: RPR_SONG },
   ]
 }
@@ -167,8 +175,9 @@ const ABSTRACT_NUM_DEFS: readonly AbstractNumSpec[] = [
   },
   { id: ABSTRACT_NUM_ID.listAlpha, multilevel: true, levels: listLevels('lowerLetter', '%1）', 'bullet', '·') },
   { id: ABSTRACT_NUM_ID.listNumber, multilevel: true, levels: listLevels('decimal', '%1）', 'bullet', '·') },
-  // 保留编号槽位以维持 A1–A16 的文档结构；旧罗马列表不会再输出罗马数字。
-  { id: ABSTRACT_NUM_ID.listRoman, multilevel: true, levels: listLevels('decimal', '%1）', 'bullet', '·') },
+  // A14：小写罗马列项，lvlText 与 A12/A13 同为全角右括号（i）ii）iii）），缩进与 A12 的 L0/L1 相同；L0 标识的 ASCII 用 Times New Roman（见 RPR_ROMAN_LABEL）。
+  { id: ABSTRACT_NUM_ID.listRoman, multilevel: true, levels: listLevels('lowerRoman', '%1）', 'bullet', '·', RPR_ROMAN_LABEL) },
+  // A15：占位槽，保持 A1–A16 的文档结构；大写罗马没有原文取值，不会被任何列项使用（romanUpper → A13 数字列项）。
   { id: ABSTRACT_NUM_ID.listRomanUpper, multilevel: true, levels: listLevels('decimal', '%1）', 'bullet', '·') },
   { id: ABSTRACT_NUM_ID.bibEntry, multilevel: false, levels: [{ ilvl: 0, numFmt: 'decimal', lvlText: `[%1]${SP}`, ind: IND_FIRSTLINE_420, rPr: RPR_SONG }] },
 ]
