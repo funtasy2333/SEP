@@ -4,6 +4,7 @@ import { buildStaticToc } from './toc'
 import { renderDocxTraced } from './render'
 import { assertChildOrder, assertWellFormed } from './__tests__/helpers/checks'
 import { docxOutline } from './__tests__/helpers/outline'
+import { parseXml, type XmlElement } from './__tests__/helpers/xmlTree'
 
 const OPTS = {
   formulaOmml: {},
@@ -120,6 +121,44 @@ function targetKey(entry: ReturnType<typeof buildStaticToc>['entries'][number]):
 }
 
 describe('static DOCX TOC', () => {
+  it('原生 TOC 包含缓存条目，正文 TC 标记保留完整编号、附录性质与一级条范围', () => {
+    const { doc, labels } = tocFixture()
+    const { pkg } = renderDocxTraced(doc, labels, OPTS)
+    const instructions: string[] = []
+    const visit = (element: XmlElement) => {
+      if (element.name === 'w:instrText') {
+        instructions.push(element.children.map(child => child.kind === 'text' ? child.text : '').join(''))
+      }
+      for (const child of element.children) if (child.kind === 'element') visit(child)
+    }
+    visit(parseXml(pkg.parts['word/document.xml']))
+    expect(instructions.filter(code => code.trim().startsWith('TOC '))).toEqual([' TOC \\f C \\h \\z '])
+    const sources = instructions.filter(code => code.trim().startsWith('TC '))
+    expect(sources).toHaveLength(11)
+    expect(sources).toContain(' TC "前言" \\f C \\l "1" ')
+    expect(sources).toContain(' TC "1.1　结构 <& 目标&文本" \\f C \\l "2" ')
+    expect(sources).toContain(' TC "附录A（规范性）　附录标题" \\f C \\l "1" ')
+    expect(sources).toContain(' TC "A.1　附录术语" \\f C \\l "2" ')
+    expect(sources.join('')).not.toContain('补充说明')
+  })
+
+  it('TC 标记转义标题中的引号和反斜线，不让标题文字成为域开关', () => {
+    const { doc, labels } = tocFixture()
+    doc.body[0]!.title = [{ text: '标题 "引用" \\n' }]
+    const { pkg } = renderDocxTraced(doc, labels, OPTS)
+    const expected = ' TC &quot;1　标题 \\&quot;引用\\&quot; \\\\n&quot; \\f C \\l &quot;1&quot; '
+    expect(pkg.parts['word/document.xml']).toContain(expected)
+  })
+
+  it('未排版的页码明确显示待更新，并向导出调用方报告需要 Word 更新', () => {
+    const { doc, labels } = tocFixture()
+    const { pkg } = renderDocxTraced(doc, labels, OPTS)
+    const xml = pkg.parts['word/document.xml']
+    const cachedPages = [...xml.matchAll(/<w:fldChar w:fldCharType="separate"\/><\/w:r><w:r><w:t>(.*?)<\/w:t>/g)]
+    expect(cachedPages.map(match => match[1])).toEqual(Array(11).fill('待更新'))
+    expect(pkg.warnings.filter(w => w.code === 'toc-pages-pending')).toHaveLength(1)
+  })
+
   it('collects headings by document depth and order, and resolves inline cross references', () => {
     const { doc, labels } = tocFixture()
     const toc = buildStaticToc(doc, labels)
@@ -243,6 +282,7 @@ describe('static DOCX TOC', () => {
     const endMarkIndex = xml.indexOf('<w:pStyle w:val="SesEndMark"/>')
 
     expect(xml).not.toContain('PAGEREF')
+    expect(pkg.warnings.some(w => w.code === 'toc-pages-pending')).toBe(false)
     expect(xml).not.toContain('<w:bookmarkStart')
     expect(lastContent[1]).toContain('<w:keepNext/>')
     expect(xml.match(/<w:pStyle w:val="SesEndMark"\/>/g)).toHaveLength(1)

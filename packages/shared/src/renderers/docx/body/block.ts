@@ -287,13 +287,18 @@ function tableGridContent(
         runsXml: superscriptRun(resolved.refText) + tabRun() + renderInlines(footnote.content, ctx.labels, formulaSink(ctx)),
       })
     }).join(''),
-    renderCell(cell, styleId) {
+    renderCell(cell, styleId, meta) {
       if (cell.content.length === 0 || cell.content.every((block) => block.kind === 'paragraph' &&
         // Empty source text may still render a footnote or a resolved cross-reference.
         block.content.every((run) => !run.formula && renderRun({ ...run, text: run.text.trim() }, ctx.labels) === ''))) return ''
-      return cell.content.map((block) => block.kind === 'paragraph'
-        ? emitParagraph(ctx, styleId, { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx)) })
-        : renderBlock(ctx, block, tableBctx)).join('')
+      return cell.content.map((block) => {
+        if (block.kind !== 'paragraph') return renderBlock(ctx, block, tableBctx)
+        // 表头统一使用常规字重；源稿导入的直接粗体也要清除，但不能改写编辑器/IR 数据。
+        const content = meta.header ? block.content.map(run => ({
+          ...run, marks: run.marks?.filter(mark => mark.type !== 'bold'),
+        })) : block.content
+        return emitParagraph(ctx, styleId, { runsXml: renderInlines(content, ctx.labels, formulaSink(ctx)) })
+      }).join('')
     },
   }
 }

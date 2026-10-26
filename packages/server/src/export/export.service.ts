@@ -15,12 +15,13 @@ import {
   type ExportGuardFormat,
 } from '@ses/io';
 import {
+  analyzeDocument,
   irMetaFromDocumentMeta,
   pmToIr,
-  resolve,
   type DocumentMeta,
   type IRProblem,
   type PMJsonNode,
+  type ValidationReport,
 } from '@ses/shared';
 import { schemaProblemDetails, unprocessable } from '../common/http-errors';
 import { ConvertService } from '../convert/convert.service';
@@ -112,6 +113,8 @@ export interface ExportValidation {
    * 只是没有 `introduced`（没有「本批操作」可供对比）。
    */
   problems: IRProblem[];
+  /** Phase 6 手动质量报告；与旧 problems / 导出检查分开，不改变导出阻断规则。 */
+  quality: ValidationReport;
   /** 各格式的导出前检查结论：null 表示通过；否则与对应导出接口 422 响应体里的 source、message、problems 相同。 */
   checks: Record<GuardedFormat, ExportGuardFailure | null>;
   /** PDF 管线是否可用（与 GET /api/convert/capabilities 的 htmlToPdf 一致）。 */
@@ -266,7 +269,7 @@ export class ExportService {
    * 文档不存在 404；内容为空、不符合生产 schema、结构无法解析 → 422，与导出接口一致。json 不做导出前检查，不在其中。
    */
   async validateForExport(id: number): Promise<ExportValidation> {
-    const { revision, pmDoc, failures } = await this.inspect(
+    const { revision, meta, pmDoc, failures } = await this.inspect(
       id,
       VALIDATED_EXPORT_FORMATS,
       { action: '校验', aborted: '校验' },
@@ -277,7 +280,13 @@ export class ExportService {
         failures.get(format) ?? null,
       ]),
     ) as ExportValidation['checks'];
-    const problems = resolve(pmToIr(pmDoc).doc).problems;
+    const irDoc = pmToIr(pmDoc).doc;
+    // 与客户端 validation worker 一致：文档设置中的元数据覆盖 PM 根节点推导值。
+    irDoc.meta = { ...irDoc.meta, ...irMetaFromDocumentMeta(meta) };
+    const analysis = analyzeDocument(irDoc);
+    // irMetaFromDocumentMeta 只覆盖 IRDocMeta 的标量字段；Resolver 的结构化元数据内联内容不变。
+    // 因而本次分析的 resolution 与旧 resolve(pmToIr(pmDoc).doc) 问题集合一致。
+    const problems = analysis.resolution.problems;
     this.logger.log(
       `文档 #${id} 校验完成：${problems.length} 个文档问题，` +
         VALIDATED_EXPORT_FORMATS.map(
@@ -287,6 +296,7 @@ export class ExportService {
     return {
       revision,
       problems,
+      quality: analysis.validation,
       checks,
       pdfAvailable: this.convertService.getCapabilities().htmlToPdf,
     };

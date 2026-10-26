@@ -48,4 +48,6 @@ export interface DocxPackage {
 export interface DocxBookmark {
   id: number
   name: string
+  /** 同一目标段落中的原生 TC 标记，供 Word 整体更新目录。 */
+  tocEntry?: { text: string; level: 1 | 2 }
 }

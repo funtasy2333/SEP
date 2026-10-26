@@ -17,6 +17,7 @@ import type { DocxRelatedPart } from '../package'
 import type { InlineFormulaSink } from './inline'
 import { escapeXmlAttr, numPr as numPrXml, pPr, type XmlChild } from '../xml'
 import { mmToTwips } from '../units'
+import { renderTocEntryField } from '../toc'
 import { createPageFlow, type PageFlow } from './pageFlow'
 
 const styles = new Map(styleSpecs().map(spec => [spec.id, spec]))
@@ -132,5 +133,5 @@ export function emitParagraph(ctx: RenderContext, styleId: string, opts: EmitPar
     ? `<w:bookmarkStart w:id="${bookmark.id}" w:name="${escapeXmlAttr(bookmark.name)}"/>`
     : ''
   const end = bookmark ? `<w:bookmarkEnd w:id="${bookmark.id}"/>` : ''
-  return `<w:p>${pPr(pprChildren)}${start}${opts.runsXml ?? ''}${end}</w:p>`
+  return `<w:p>${pPr(pprChildren)}${start}${bookmark ? renderTocEntryField(bookmark) : ''}${opts.runsXml ?? ''}${end}</w:p>`
 }

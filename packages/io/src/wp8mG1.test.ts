@@ -135,7 +135,7 @@ describe('[M-4.4.2.3-03] [M-4.4.2.3-04] [M-4.5.3-02] io：真实出件链路', (
     expect(documentXml).toContain('<w:t xml:space="preserve">书</w:t>')
     expect(documentXml).not.toContain('参考文献')
     expect(stylesXml).not.toMatch(/NormRef/)
-    expect(warnings.filter(warning => warning.code !== 'cover-asset-approximation')).toEqual([])
+    expect(warnings.filter(warning => warning.code !== 'cover-asset-approximation' && warning.code !== 'toc-pages-pending')).toEqual([])
   })
 
   it('exportSemanticHtml（screen）：清单按 10.3.4 输出，条目 id 为 ref_<n>，标题为自定义标题', () => {

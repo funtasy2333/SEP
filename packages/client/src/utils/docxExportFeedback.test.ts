@@ -6,6 +6,17 @@ const warning = (code: string, label?: string) => ({
 })
 
 describe('DOCX 导出后的用户提示', () => {
+  it('页码尚未计算时持续提示 Word 更新步骤，且不掩盖其他导出问题', () => {
+    const result = getDocxExportFeedback([warning('toc-pages-pending'), warning('cover-field-missing')])
+    expect(result.type).toBe('warning')
+    expect(result.message).toContain('目次页码')
+    expect(result.message).toContain('两个提示')
+    expect(result.message).toContain('更新整个目录')
+    expect(result.message).toContain('封面信息')
+    expect(result.duration).toBe(0)
+    expect(result.showClose).toBe(true)
+  })
+
   it.each(['table-flow-natural-fallback', 'table-row-too-tall', 'table-footer-too-tall',
     'table-final-segment-too-tall', 'table-header-rowspan-pagination'])('%s 应呈现需要 Word 复核的持续警告', code => {
     const result = getDocxExportFeedback([warning(code)])
