@@ -1,6 +1,6 @@
 # WP8.1 原文、映射与校验约定：总索引
 
-状态：2026-10-20 分片完成；2026-10-21 关键约定已由用户确认（见 3A）。2026-10-21 T1.5 完成：项目自写 RELAX NG schema（`schemas/gbt46687.2/`）、校验工具（`scripts/xml46687/`）及官方 NISO STS 1.2 DTD 兼容检查（`schemas/niso-sts-1.2/`，9 个正例未解释偏差为 0）。**WP8.1 完成。**
+状态：2026-10-20 分片完成；2026-10-21 关键约定已由用户确认（见 3A）。2026-10-21 T1.5 完成：项目自写 RELAX NG schema（`schemas/gbt46687.2/`）、校验工具（`scripts/xml46687/`）及官方 NISO STS 1.2 DTD 兼容检查（`schemas/niso-sts-1.2/`，9 个正例未解释偏差为 0）。**WP8.1 完成。** 2026-10-26 WP8.M（补模型）完成，必做缺口全部关闭，见第 2 节。
 规格：[Phase 5.5 主计划](../dev-plan-phase-5.5.md) §3 WP8、[WP8 XML 实施方案](../wp8-xml46687.md)。
 
 ## 1. 文件
@@ -18,25 +18,51 @@ WP8.2 起，测试应引用矩阵 id，并断言每个必做行（shall/should�
 
 ## 2. 覆盖统计
 
+下表为 **2026-10-26 WP8.M（补模型阶段）完成后** 的统计，共 391 行。WP8.1 交付时为 mapped 274 / not-applicable 64 / gap 53（当时的表误记为 277 / 61，合计不变，此处一并更正）。
+
 | 状态 | 行数 |
 |---|---:|
-| mapped | 277 |
-| not-applicable | 61 |
-| gap-both | 41 |
-| gap-ir | 8 |
-| gap-pm | 4 |
+| mapped | 308 |
+| not-applicable | 65 |
+| gap-both | 13 |
+| gap-ir | 4 |
+| gap-pm | 1 |
 
-其中 **33 行为必做（shall/should）缺口**，按领域分布如下：
+WP8.M 关闭了全部 **33 行必做（shall/should）缺口**：32 行改为 mapped（填写了 `irPath` / `pmNode`），`M-7.4-13`（公式图片）改为 not-applicable（SES 无 PDF 来源，导入忽略并告警）。另有两行示例级缺口随之解决并改为 mapped：`M-E-06`（随 G1，规范性引用条目 `ref_<n>`）、`M-C.1-02`（随 G8，模型层已覆盖，`colgroup` 展开待 WP8.3）。**必做缺口现为 0**；剩余 18 行缺口都是 may / example-only（2.2）。设计与决定见 [../wp8.m/design.md](../wp8.m/design.md)。
 
-| 领域 | 缺口 | 代表行 |
-|---|---|---|
-| 引用（14） | 规范性引用文件清单的结构化条目：`ref/std/std-ref/title` 与 `mixed-citation`；正文中以 `std` 引用标准化文件；缩略语 `def-list`；对列项的引用及列项 id | M-4.4.2.3-03、M-10.2-01、M-10.1.4-01、M-10.1.5-01 |
-| 图（9） | 图例 `legend/def-list`；行内图 `inline-graphic`；生产 Schema 中图下的注和示例 | M-8.5-01～06、M-8.3-02、M-8.2-11、M-8.4-03 |
-| 术语（3） | `tbx:subjectField`（领域）；`tbx:termEntry` 需要独立于 `term-sec` 的 id | M-9.2.9-01、M-9.2.1-05 |
-| 章节（2） | 引言中的条（`sec_0`、`sec_0.1`） | M-4.3.4-02/03 |
-| 表（2） | `col` 列宽模型；单元格边框样式 | M-6.1-03、M-6.3.3.1-01 |
-| 其他（3） | 生产 PM 不支持罗马列项；注/示例内不能放块内容；参考文献标题 | M-5.7-04、M-5.6-05、M-4.5.3-02 |
-| 公式（1） | 公式图片（命名依赖 PDF 页码，SES 不生成） | M-7.4-13（建议列为 not-applicable，待确认） |
+### 2.1 已关闭的 33 行必做缺口（按领域）
+
+| 领域 | 行数 | 矩阵行 | WP8.M 任务组 |
+|---|---:|---|---|
+| 引用 | 14 | 规范性引用文件清单的结构化条目 `ref/std/std-ref/title`、`mixed-citation`、`ref-list` 属性（M-4.4.2.3-02/-03/-04、M-4.4.2.3.2-01）；正文 `std`、`std-ref`、`mixed-citation`（M-10.2-01/-02、M-10.1.7-01）；缩略语 `def-list`（M-10.1.4-01/-03/-04/-05、M-10.1.1-04）；对列项的引用及列项 id（M-10.1.5-01/-02） | G1、G2、G4 |
+| 图 | 9 | 图例 `legend/def-list`（M-8.5-01～06）；行内图 `inline-graphic`（M-8.3-02）；生产 Schema 中图下的注和示例（M-8.2-11、M-8.4-03） | G3 |
+| 术语 | 2 | `tbx:subjectField`（领域，M-9.2.9-01）；`tbx:termEntry` 独立于 `term-sec` 的 id（M-9.2.1-05） | G5 |
+| 章节 | 2 | 引言中的条（`sec_0`、`sec_0.1`，M-4.3.4-02/03） | G6 |
+| 表 | 2 | `col` 列宽模型（M-6.1-03）；单元格边框样式（M-6.3.3.1-01） | G8 |
+| 其他 | 3 | 罗马列项（M-5.7-04）、注/示例内的块内容（M-5.6-05）、参考文献标题（M-4.5.3-02） | G7、G7、G1 |
+| 公式 | 1 | 公式图片（M-7.4-13）：命名依赖 PDF 页码，SES 不生成，改为 not-applicable | —（不实现） |
+
+勘误：WP8.1 原表把“术语”记为 3 行，实际只有 `M-9.2.9-01`、`M-9.2.1-05` 两行；原表各领域合计为 34，更正后合计 33。“引用（14）”= G1 的 7 行（不含参考文献标题）+ G2 的 5 行 + G4 的 2 行。
+
+### 2.2 仍为缺口的 18 行（may / example-only，WP8.M 不做）
+
+| 矩阵行 | 级别 | 状态 | 后续处置 |
+|---|---|---|---|
+| M-4.2-06 | may | gap-ir | 未知 `sec-type`：导入按 general 并告警（C-S-06） |
+| M-4.3.2-29、M-G-01 | example-only | gap-ir | `std-org-level/type`：导入提示已忽略 |
+| M-5.7-11 | may | gap-pm | 嵌套列项：WP8.3 拿到真实样稿后再定（D-M-12） |
+| M-5.8-01 | may | gap-both | `array`：导出 n/a，导入拒绝并定位 |
+| M-5.9-03 | may | gap-ir | 摘录 `attrib/permissions`：导入告警 |
+| M-6.2.3-02 | may | gap-both | `frame/rules/cellspacing`：导入接受并告警 |
+| M-6.4-04 | example-only | gap-both | `td@scope`：导入忽略并告警 |
+| M-6.1-04、M-6.1-05 | may | gap-both | 表的替代图 / 电子文件：导入告警或无从识别 |
+| M-7.3-08 | may | gap-both | `def` 内多个 `p`：导入拼接并告警 |
+| M-8.3-01 | may | gap-both | 块级 `graphic` 尺寸档位：导入告警（行内图的 `size:S/M/L` 已在 M-8.3-02） |
+| M-8.4-01、M-8.4-02 | may | gap-both | 同 `fig` 多 `graphic`、`fig-group`（D-T-11、D-M-12） |
+| M-10.1.4-02 | example-only | gap-both | `xref[other]` 指向缩略语：导入按 abbreviation 归类并告警 |
+| M-10.1.8-04 | may | gap-both | 同一 `fn` 被多个 `xref` 引用：导入报 error |
+| M-10.1.9-03 | example-only | gap-both | 段落对齐 `style-type`：不做 |
+| M-D.1-03 | example-only | gap-both | `thead` 等的 `@align/@valign/@style`：导入忽略并告警 |
 
 ## 3. 已统一的约定（两个分片一致，审查已对照原文图像抽查）
 
@@ -79,7 +105,7 @@ WP8.2 起，测试应引用矩阵 id，并断言每个必做行（shall/should�
 | D-S-09 | 一般注/示例的 id | 只在被引用时输出 |
 | D-S-12 / D-T-05 | 术语条目 id | `term_<编号>` |
 | D-S-08、D-S-10、D-T-11 等 | 33 个必做缺口 | 见第 6 节 |
-| D-T-10 | 正文脚注 `fn` 的位置 | 原文没有规定，需要决定 |
+| D-T-10 | 正文脚注 `fn` 的位置 | **已决（WP8.M D-M-01，方案 A）**：行内 `fn` 紧随其 `xref`，放在同一 `p` 内（STS 1.2 允许，无需国标扩展）；块级 `fn` 不收 |
 | D-S-06 | 行内颜色、字号等样式 | 原文第 5.1 条只允许七种格式：导出时报错并给出位置，用户确认后才丢弃 |
 
 ## 6. 工期估算（T1.6）

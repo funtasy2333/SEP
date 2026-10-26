@@ -371,13 +371,13 @@
     "printedPage": "20",
     "pdfPage": 24,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRTable.columns[]（IRTableColumn：width / textAlign / verticalAlign；名义列宽）",
+    "pmNode": "stdTable.attrs.columns（JSON 数组）",
     "export": "not-applicable",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-10",
-    "notes": "列宽在 table 内 col 的 @width 定义（6.1）；p22 示例 col 位于 thead 之前。IR 无列模型、生产 Schema 无 col 节点（G-T-03）；导入展开到单元格并 warning（D-T-02）。"
+    "notes": "列宽在 table 内 col 的 @width 定义（6.1）；p22 示例 col 位于 thead 之前。WP8.M G8：名义列宽与编辑器拖拽得到的 cell.columnWidths（px）独立保存；列数变化时 tableColumnsSync 清空 columns（D-M-11）。设计 §7.1：本阶段 HTML/DOCX/XML 暂报 unsupported-output。col 与 colgroup/col 的导入展开见 WP8.3（D-T-02）。"
   },
   {
     "id": "M-C.1-02",
@@ -390,13 +390,13 @@
     "printedPage": "56",
     "pdfPage": 60,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRTable.columns[]（导入时 colgroup 展开为 columns，不单独建模）",
+    "pmNode": "stdTable.attrs.columns",
     "export": "not-applicable",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-10",
-    "notes": "仅附录 C 第 13 行列名，正文无用例；处理同 col（G-T-03、D-T-02）。"
+    "notes": "模型层已覆盖，colgroup 展开待 WP8.3。（仅附录 C 第 13 行列名，正文无用例；处理同 col，见 M-6.1-03、G-T-03、D-T-02。）"
   },
   {
     "id": "M-6.2.2-01",
@@ -755,13 +755,13 @@
     "printedPage": "24",
     "pdfPage": 28,
     "verifiedAgainstImage": true,
-    "irPath": "IRTableRow.cells[].style.borderTop/Right/Bottom/Left (IRMeasure，仅宽度)",
-    "pmNode": "tableCell.attrs.borderTop… (+Unit)",
+    "irPath": "IRTableRow.cells[].style.border{Top,Right,Bottom,Left}（IRMeasure，宽度）+ border{Top,Right,Bottom,Left}Style",
+    "pmNode": "tableCell / tableHeader 的 border*(+Unit) 与 border*Style 属性",
     "export": "optional",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-09",
-    "notes": "边框样式 solid/dashed/dotted（及示例的 none）与分边颜色 IR/PM 均无字段（G-T-06）；宽度 1px~5px（宜）可映射。顺序：左、上、右、下。"
+    "notes": "边框样式 solid/dashed/dotted（及示例的 none）；宽度 1px~5px（宜）。顺序：左、上、右、下。WP8.M G8：新增 IRCellStyle.border*Style；分边颜色原文无写法，不建模（D-M-15）。设计 §7.1：本阶段 HTML/DOCX/XML 暂报 unsupported-output。"
   },
   {
     "id": "M-6.3.4-01",
@@ -1897,9 +1897,9 @@
     "pmNode": null,
     "export": "not-applicable",
     "import": "accept",
-    "status": "gap-both",
+    "status": "not-applicable",
     "conventionRef": "C-T-24",
-    "notes": "公式图 .png 命名 formula_XX_Y.png（XX=PDF 页码，Y=PDF 内图序）；示例 content-type=\"disp-formula\"、href=\"/graphics/formula_40_5.png\"，位于 disp-formula 之后；SES 无 PDF 来源，不生成；导入 warning 并保留资源（G-T-11）。"
+    "notes": "SES 无 PDF 来源，导入忽略并告警。（原文：公式图 .png 命名 formula_XX_Y.png，XX=PDF 页码、Y=PDF 内图序；示例 content-type=\"disp-formula\"、href=\"/graphics/formula_40_5.png\"，位于 disp-formula 之后。SES 的公式一律走 MathML，不生成公式替代图；导入遇 graphic[content-type=disp-formula] 时报 warning 并在导入报告中写明被忽略的资源名，公式本体以 mml:math 为准。WP8.M 设计 §2.2、§7.1 D-M-13。）"
   },
   {
     "id": "M-C.1-05",
@@ -2301,13 +2301,13 @@
     "printedPage": "31",
     "pdfPage": 35,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRInline.image（IRInlineImage：src / resourceId / alt / size）",
+    "pmNode": "inlineImage（行内原子节点）",
     "export": "not-applicable",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-29",
-    "notes": "与文本同一行的图；@xlink:href 规则同 graphic，可选 @specific-use(size:S/M/L)；IR 无行内图、生产 Schema 无行内图节点（G-T-07）；导入报 unsupported，不得转块级。"
+    "notes": "与文本同一行的图；@xlink:href 规则同 graphic，可选 @specific-use(size:S/M/L)。WP8.M G3：行内叶子，不另造实体 id；只允许出现在正文段落（含列项、注、单元格内的段落），Resolver 校验位置。设计 §7.1：本阶段 HTML/DOCX/XML 暂报 unsupported-output；xlink:href 命名 inl_<k>（D-M-08，WP8.2）；导入不得转块级。"
   },
   {
     "id": "M-8.4-01",
@@ -2358,13 +2358,13 @@
     "printedPage": "31",
     "pdfPage": 35,
     "verifiedAgainstImage": true,
-    "irPath": "IRFigure.notes[] (IRNote)",
-    "pmNode": null,
+    "irPath": "IRFigure.notes[]（IRNote）",
+    "pmNode": "figure > note*",
     "export": "required",
     "import": "accept",
-    "status": "gap-pm",
+    "status": "mapped",
     "conventionRef": "C-T-32",
-    "notes": "图注在 graphic 后面的 non-normative-note 中；IR 有 notes，但生产 figure 无 note 子节点，irToPm 报错、pmToIr 恒为 []（G-T-08）。附录 E：non-normative-note 无 id。"
+    "notes": "图注在 graphic 后面的 non-normative-note 中。附录 E：non-normative-note 无 id。WP8.M G3：PM figure 增 note 子节点（irToPm 不再拒绝、pmToIr 不再恒为 []）；图中的注只支持单段；HTML/DOCX 放行（渲染器早已逐条输出），XML 家族字段表放行。"
   },
   {
     "id": "M-8.2-12",
@@ -2396,13 +2396,13 @@
     "printedPage": "32",
     "pdfPage": 36,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRFigure.legend（IRLegend）",
+    "pmNode": "figureLegend（figure 内）",
     "export": "optional",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-31",
-    "notes": "图例；每个 fig 或 fig-group 至多一个；IR/PM 无键值结构（G-T-08、G-T-16）；本阶段不导出，导入报 unsupported。"
+    "notes": "图例；每个 fig 或 fig-group 至多一个。WP8.M G3：IRFigure.legend + PM figureLegend。设计 §7.1：本阶段只做模型与显示，HTML/DOCX/XML 暂报 unsupported-output（排版另立任务）。"
   },
   {
     "id": "M-8.5-02",
@@ -2415,13 +2415,13 @@
     "printedPage": "32",
     "pdfPage": 36,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRLegend.title（IRInline[]，可选）",
+    "pmNode": "figureLegendTitle",
     "export": "optional",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-31",
-    "notes": "图例标题，示例“标引序号说明：”。"
+    "notes": "图例标题，示例“标引序号说明：”。WP8.M G3。"
   },
   {
     "id": "M-8.5-03",
@@ -2447,13 +2447,13 @@
     "printedPage": "32",
     "pdfPage": 36,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRLegend.items（IRDefItem[]，与 G2 共用项类型）",
+    "pmNode": "figureLegend 内 whereItem+",
     "export": "optional",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-31",
-    "notes": "title 之后的 def-list；@list-content=\"figure\"。"
+    "notes": "title 之后的 def-list；@list-content=\"figure\"。WP8.M G3：图例没有独立的 def-list 容器 id，PM 复用 whereItem。"
   },
   {
     "id": "M-8.5-04",
@@ -2472,13 +2472,13 @@
     "printedPage": "32",
     "pdfPage": 36,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRLegend.items[]（IRDefItem）",
+    "pmNode": "whereItem",
     "export": "optional",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-31",
-    "notes": "每个 def-item 含一对 term 和 def；示例带 id（UUID 样式，不规范）。"
+    "notes": "每个 def-item 含一对 term 和 def；示例带 id（UUID 样式，不规范）。WP8.M G3：图例项不赋 label / xmlId，不可被引用（C-T-31）。"
   },
   {
     "id": "M-8.5-05",
@@ -2491,13 +2491,13 @@
     "printedPage": "32",
     "pdfPage": 36,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRDefItem.term（IRInline[]）",
+    "pmNode": "whereTerm",
     "export": "optional",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-31",
-    "notes": "标引序号，如 1。"
+    "notes": "标引序号，如 1。WP8.M G3。"
   },
   {
     "id": "M-8.5-06",
@@ -2510,13 +2510,13 @@
     "printedPage": "32",
     "pdfPage": 36,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRDefItem.definition（IRInline[]）",
+    "pmNode": "whereDefinition",
     "export": "optional",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-31",
-    "notes": "含义，def 内为 p；示例 p 带 id，附录 E 称无 id。"
+    "notes": "含义，def 内为 p；示例 p 带 id，附录 E 称无 id。WP8.M G3。"
   },
   {
     "id": "M-8.6-01",
@@ -2556,13 +2556,13 @@
     "printedPage": "32",
     "pdfPage": 36,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRFigure.examples[]（IRExample，可选）",
+    "pmNode": "figure > example*",
     "export": "optional",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-32",
-    "notes": "8.4 称图注和示例须在分图层级；示例元素名取附录 C 第 56 行；IRFigure 无 examples。"
+    "notes": "8.4 称图注和示例须在分图层级；示例元素名取附录 C 第 56 行。WP8.M G3：PM figure 内顺序固定为“注在前、示例在后”（D-M-09）；设计 §7.1：本阶段 HTML/DOCX/XML 暂报 unsupported-output。"
   },
   {
     "id": "M-8.6-02",
@@ -2760,13 +2760,13 @@
     "printedPage": "35",
     "pdfPage": 39,
     "verifiedAgainstImage": true,
-    "irPath": "IRTermEntry.id（Resolver 只派生 sec_<编号>，无 termEntry 独立 xmlId）",
+    "irPath": "IRTermEntry.id + ResolvedLabel.termEntryXmlId（term_<编号>）",
     "pmNode": "termDef.attrs.nodeId",
     "export": "required",
     "import": "accept",
-    "status": "gap-ir",
+    "status": "mapped",
     "conventionRef": "C-T-37",
-    "notes": "正文与 10 个示例用 term_<n>，附录 E 用 te_<n>；entailedTerm@target 与 xref@rid 需要它（G-T-02、D-T-05）。"
+    "notes": "正文与 10 个示例用 term_<n>，附录 E 用 te_<n>（D-T-05 取 term_<n>）；entailedTerm@target 与 xref@rid 需要它。WP8.M G5：Resolver 为每个术语条目派生 termEntryXmlId，嵌套条目含完整路径（term_3.1.2），与 sec_<编号> 并存。"
   },
   {
     "id": "M-9.2.1-06",
@@ -3278,13 +3278,13 @@
     "printedPage": "43",
     "pdfPage": 47,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRTermEntry.subjectField（IRInline[]，条目级）",
+    "pmNode": "termSubjectField（termDef 内）",
     "export": "optional",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-44",
-    "notes": "主题（领域）字段，附加标点（〈 〉）渲染时添加；IRTermEntry 无对应字段（G-T-01，WP8 方案 3.1 要求保留）；导入报 warning 并保留文本到报告。"
+    "notes": "主题（领域）字段，附加标点（〈 〉）渲染时添加。WP8.M G5：条目级字段为规范形式，旧的术语级 subjectField 描述符保留不迁移（WP8.2 导出时的取舍见设计 §7.1 G5 补充决定）；HTML/DOCX 在定义前输出“〈领域〉”（§7.1）。"
   },
   {
     "id": "M-9.2.6-01",
@@ -3517,13 +3517,13 @@
     "printedPage": "45",
     "pdfPage": 49,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRDefList (kind='defList').items[]（IRDefItem[]）",
+    "pmNode": "defList",
     "export": "optional",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-51",
-    "notes": "缩略语不是 term-sec 而是 sec 内的 def-list（G-T-16）。"
+    "notes": "缩略语不是 term-sec 而是 sec 内的 def-list（G-T-16）。WP8.M G2：块 IRDefList + PM defList；项类型与公式“式中”、图例共用（IRDefItem / whereItem）；导出恒写 list-content=\"abbreviation\"。"
   },
   {
     "id": "M-B.1-01",
@@ -4006,13 +4006,13 @@
     "printedPage": "46",
     "pdfPage": 50,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRMark crossRef.targetKind='listItem'",
+    "pmNode": "mark crossRef.attrs.refType='listItem'",
     "export": "not-applicable",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-52",
-    "notes": "对有序列项的引用（10.1.1 清单无、附录 D 有）；IR 的 targetKind 无列项，Resolver 无列项标签（G-T-17）。"
+    "notes": "对有序列项的引用（10.1.1 清单无、附录 D 有）。WP8.M G4：Resolver 只给被引用的有序列项赋标签（a）/1）/i）），refText 如 5.2 c）（D-M-03，全角括号）；无序列项与 romanUpper 的引用报 dangling-xref。"
   },
   {
     "id": "M-10.1.4-02",
@@ -4070,13 +4070,13 @@
     "printedPage": "44",
     "pdfPage": 48,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRMark crossRef.targetKind='abbreviation'",
+    "pmNode": "mark crossRef.attrs.refType='abbreviation'",
     "export": "not-applicable",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-51",
-    "notes": "10.1.1 清单取值，指向 def-list[abbreviation]/def-item；IR 无缩略语结构（G-T-16）。"
+    "notes": "10.1.1 清单取值，指向 def-list[abbreviation]/def-item。WP8.M G2：IRReferenceTargetKind 增 abbreviation；refText 为缩略语文本。"
   },
   {
     "id": "M-6.2.3-11",
@@ -4129,13 +4129,13 @@
     "printedPage": "45",
     "pdfPage": 49,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRDefItem.id（Resolver 赋 abb_<全文序>）",
+    "pmNode": "whereItem.attrs.nodeId（defList 内）",
     "export": "optional",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-51",
-    "notes": "缩略语条目，@id 标识每个 term-def 对（示例 abb-adc、abb-agc、abb-ct）；IR/PM 无缩略语结构（G-T-16）。"
+    "notes": "缩略语条目，@id 标识每个 term-def 对（示例 abb-adc、abb-agc、abb-ct）。WP8.M G2：xmlId abb_<k>（D-M-02），label 为缩略语文本；XML 仅在被 crossRef 引用时写 id（D-S-09）。缩略语项内禁止条文脚注。"
   },
   {
     "id": "M-10.1.4-04",
@@ -4148,13 +4148,13 @@
     "printedPage": "45",
     "pdfPage": 49,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRDefItem.term（IRInline[]）",
+    "pmNode": "whereTerm",
     "export": "optional",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-51",
-    "notes": "缩略语本身，如 ADC。"
+    "notes": "缩略语本身，如 ADC。WP8.M G2。"
   },
   {
     "id": "M-10.1.4-05",
@@ -4167,13 +4167,13 @@
     "printedPage": "45",
     "pdfPage": 49,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRDefItem.definition（IRInline[]）",
+    "pmNode": "whereDefinition",
     "export": "optional",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-51",
-    "notes": "缩略语释义；示例中 CT 的释义误写 Distributed Control System（笔误）。"
+    "notes": "缩略语释义；示例中 CT 的释义误写 Distributed Control System（笔误）。WP8.M G2；def 内多个 p 在导入时拼接并告警（WP8.3）。"
   },
   {
     "id": "M-10.1.5-02",
@@ -4186,13 +4186,13 @@
     "printedPage": "46",
     "pdfPage": 50,
     "verifiedAgainstImage": true,
-    "irPath": "IRList.items[].id",
+    "irPath": "IRList.items[].id（Resolver 对被引用的有序列项赋 xmlId li_<k>）",
     "pmNode": "stdListItem.attrs.nodeId",
     "export": "optional",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-52",
-    "notes": "被引用的列项需 @id；示例 rid 为 id-<UUID 样式>；附录 E 称 list/list-item 无 id（矛盾）；Resolver 不给列项编号（G-T-17）。"
+    "notes": "被引用的列项需 @id；示例 rid 为 id-<UUID 样式>；附录 E 称 list/list-item 无 id（矛盾）。WP8.M G4：xmlId li_<被引用列项的文档序>（D-M-02）；未被引用的列项不赋标签也不输出 id，既有快照不变。"
   },
   {
     "id": "M-10.1.6-02",
@@ -4251,13 +4251,13 @@
     "printedPage": "10",
     "pdfPage": 14,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRNormRefList（所在章 secType='norm-refs'）",
+    "pmNode": "normRefList（chapter secType=norm-refs 内）",
     "export": "required",
     "import": "required",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-54",
-    "notes": "规范性引用文件清单 @content-type 正文 norm-refs、示例 norm_refs（异写，归 S）；norm-refs 章当前只是普通块，无结构化条目（G-T-18）。"
+    "notes": "规范性引用文件清单 @content-type 正文 norm-refs、示例 norm_refs（异写，归 S）。WP8.M G1：清单已是结构化条目（G-T-18 关闭）；导出恒写 norm-refs，导入另收 norm_refs（WP8.3）。"
   },
   {
     "id": "M-4.5.3.1-01",
@@ -4451,13 +4451,13 @@
     "printedPage": "49",
     "pdfPage": 53,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRMark {type:'stdRef'}",
+    "pmNode": "mark stdRef",
     "export": "not-applicable",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-54",
-    "notes": "正文引用标准化文件用 std（示例仅含 std-ref，无 title）；IRInline/IRMark 无 std 引用（G-T-18）；导入报 unsupported。"
+    "notes": "正文引用标准化文件用 std（示例仅含 std-ref，无 title）。WP8.M G1：行内 mark stdRef，被标记的文本即 std-ref 内容；HTML/DOCX 按普通文本输出（D-M-07）。导入时 std 内若还有 title，整体并入 stdRef 并告警（C-T-54）。export 列沿用 WP8.1 取值，WP8.2 开工时按设计 §6.1 复核。"
   },
   {
     "id": "M-10.2-02",
@@ -4470,13 +4470,13 @@
     "printedPage": "49",
     "pdfPage": 53,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRMark {type:'stdRef'}（被标记文本即 std-ref）",
+    "pmNode": "mark stdRef",
     "export": "not-applicable",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-54",
-    "notes": "同上；标准编号文本。"
+    "notes": "同 M-10.2-01：标准编号文本即被 stdRef 标记的 run。WP8.M G1。"
   },
   {
     "id": "M-10.1.7-01",
@@ -4489,13 +4489,13 @@
     "printedPage": "48",
     "pdfPage": 52,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRMark {type:'mixedCitation'}",
+    "pmNode": "mark mixedCitation",
     "export": "not-applicable",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-T-54",
-    "notes": "正文引用非标准化文献用 mixed-citation（10.1.7、10.2）；IR 无对应（G-T-18）。10.1.7 称“与 4.4.2.2 一致”，条号应为 4.4.2.3（笔误）。"
+    "notes": "正文引用非标准化文献用 mixed-citation（10.1.7、10.2）；10.1.7 称“与 4.4.2.2 一致”，条号应为 4.4.2.3（笔误）。WP8.M G1：行内 mark mixedCitation，与 stdRef 互斥（inlineProjectionDiagnostics 报冲突）。"
   },
   {
     "id": "M-C.1-10",
@@ -4542,7 +4542,7 @@
     "import": "required",
     "status": "mapped",
     "conventionRef": "C-T-55",
-    "notes": "正文脚注定义：原文无规定其位置，也无 fn-group（D-T-10）；导出结构未决定前报问题。ID 示例 fn_1、fn_2(符号型)。"
+    "notes": "正文脚注定义：原文无规定其位置，也无 fn-group（D-T-10）；WP8.M D-M-01 已定案：行内 fn 紧随其 xref，放在同一 p 内（STS 1.2 允许）。ID 示例 fn_1、fn_2(符号型)。"
   },
   {
     "id": "M-10.1.8-02",
@@ -4628,7 +4628,7 @@
     "rejectKind": "format",
     "status": "not-applicable",
     "conventionRef": "C-T-55",
-    "notes": "原文全文无 fn-group（OCR 检索 0 命中）；若采用须在项目文档标注为扩展（D-T-10）。"
+    "notes": "原文全文无 fn-group（OCR 检索 0 命中）；WP8.M D-M-01 已定案不采用（正文 fn 为行内，紧随其 xref），schema 与 validate.py 拒绝。"
   },
   {
     "id": "M-10.1.9-01",
