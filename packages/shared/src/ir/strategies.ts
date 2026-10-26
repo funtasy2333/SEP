@@ -46,15 +46,16 @@ function lowerRoman(index: number): string {
 }
 
 /**
- * 有序列项标记（GB/T 1.1-2020 列项，半角括号，D-M-03）：alpha -> "a)"…"z)"，27 起 "aa)"；
- * number -> "1)"；roman -> "i)"。无序列项与 romanUpper 没有标记，返回空串。
+ * 有序列项标记（GB/T 1.1-2020 列项，全角右括号，D-M-03 修订：与编辑器、HTML、DOCX 显示的列项符号一致，
+ * 引用文字 `5.2 a）` 才与文档中看到的符号相同）：alpha -> "a）"…"z）"，27 起 "aa）"；
+ * number -> "1）"；roman -> "i）"。无序列项与 romanUpper 没有标记，返回空串。
  * 由 gbT11Strategy.listItem 引用；Resolver 在第三方策略缺该方法时也用它。
  */
 export function listItem(listType: IRList['listType'], index: number): string {
   switch (listType) {
-    case 'alpha': return `${lowerLetters(index)})`
-    case 'number': return `${index})`
-    case 'roman': return `${lowerRoman(index)})`
+    case 'alpha': return `${lowerLetters(index)}）`
+    case 'number': return `${index}）`
+    case 'roman': return `${lowerRoman(index)}）`
     default: return ''
   }
 }

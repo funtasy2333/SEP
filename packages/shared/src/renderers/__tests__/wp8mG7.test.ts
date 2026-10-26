@@ -2,7 +2,8 @@
  * WP8.M G7：罗马列项与注/示例块内容的输出边界与本阶段排版（docs/wp8.m/design.md §4.7、§7.1；矩阵 M-5.7-04、M-5.6-05）。
  *
  * D-M-06（A，真排）：HTML 罗马列项用 `lower-roman` 计数器，DOCX 的 A14 抽象编号用 `lowerRoman`；标记与同一输出里的字母/数字列项
- * 一致用全角右括号（i）ii）iii）），与 Resolver 的 `gbT11Strategy.listItem`（半角 `i)`，用于引用文本 refText）的罗马数字序列一致。
+ * 一致用全角右括号（i）ii）iii））；Resolver 的 `gbT11Strategy.listItem` 与显示的列项符号完全一致（D-M-03 修订：全角 `i）`，
+ * 引用文字 `5.2 iii）` 才与文档里看到的符号相同）。
  * 多块注/示例（§4.7.2）：HTML 逐块输出（单段输出保持字节不变），DOCX 早已逐块输出（SesNote/SesNoteCont、SesExLabel/SesExText）。
  * 版式依据 GB/T 1.1—2020 10.2.2 列项（第一层字母/破折号编号空两字起排、文字在第五字位）与 10.4.4.1 注、10.4.5 示例。
  */
@@ -43,23 +44,44 @@ function abstractNumXml(numberingXml: string, id: number): string {
   return numberingXml.slice(start, numberingXml.indexOf('</w:abstractNum>', start))
 }
 
-/** 全角右括号换成半角，用来与 Resolver 的半角标记比较序列（括号宽度是显示约定，罗马数字序列必须一致）。 */
-const halfWidth = (marker: string) => marker.replace('）', ')')
-
 // ---------------------------------------------------------------------------------------------------------------------
 // M-5.7-04 罗马列项
 // ---------------------------------------------------------------------------------------------------------------------
 
-describe('[M-5.7-04] 输出边界：罗马列项对 HTML、DOCX 放行（真排）；XML 系列字段表放行', () => {
+describe('[M-5.7-04] 输出边界：罗马列项对 HTML、DOCX、XML46687 放行；旧 XML 阻断（不静默降为阿拉伯数字）', () => {
   const doc = createG7RomanIrDoc()
 
-  it.each(FORMATS)('%s：没有 unsupported-output（listType 是既有字段，值 roman 不被阻断）', format => {
+  it.each(['HTML', 'DOCX', 'XML46687'] as const)('%s：没有 unsupported-output（listType 是既有字段；roman 真排或由 XML 的 roman-lower 承载）', format => {
     expect(getOutputSupportProblems(doc, format)).toEqual([])
   })
 
-  it('romanUpper 同样不被边界阻断（既有行为）：它没有原文取值，两种格式都按数字列项输出，PM 不再产生它', () => {
-    const upper = docWithBlocks([simpleList('up', 'romanUpper', ['u1', '项'])])
-    for (const format of FORMATS) expect(getOutputSupportProblems(upper, format), format).toEqual([])
+  it('旧 XML：每个罗马列表一条 unsupported-output，路径指向 listType、带 nodeId，说明旧序列化器会降为阿拉伯数字', () => {
+    const problems = getOutputSupportProblems(doc, 'XML')
+    expect(problems).toHaveLength(2)
+    expect(problems.map(problem => [problem.nodeId, problem.path])).toEqual([
+      ['g7-l-roman', 'doc.body[0].children[0].children[1].listType'],
+      ['g7-l-roman2', 'doc.body[0].children[0].children[2].listType'],
+    ])
+    for (const problem of problems) {
+      expect(problem).toMatchObject({ code: 'unsupported-output' })
+      expect(problem.message).toContain('罗马列项')
+      expect(problem.message).toContain('阿拉伯数字')
+    }
+  })
+
+  it('旧 XML 只阻断 roman：alpha/number/dash/dot/boxed 列项照常放行；romanUpper 不在此列（无原文取值，PM 不再产生，既有行为不变）', () => {
+    for (const type of ['dash', 'alpha', 'number', 'dot', 'boxed', 'romanUpper'] as const) {
+      expect(getOutputSupportProblems(docWithBlocks([simpleList('l', type, ['i1', '项'])]), 'XML'), type).toEqual([])
+    }
+  })
+
+  it('旧 XML 的差异只有罗马列项：把 roman 换成 alpha 后，XML 与 XML46687 的问题集合都为空', () => {
+    const converted = createG7RomanIrDoc()
+    for (const block of converted.body[0]!.children[0]!.kind === 'clause' ? (converted.body[0]!.children[0] as { children: unknown[] }).children : []) {
+      const list = block as { kind: string; listType?: string }
+      if (list.kind === 'list') list.listType = 'alpha'
+    }
+    for (const format of FORMATS) expect(getOutputSupportProblems(converted, format), format).toEqual([])
   })
 })
 
@@ -74,8 +96,8 @@ describe('[M-5.7-04] HTML（screen / print）：罗马列项用 lower-roman 计�
     expect(html).toContain('<div class="ses-list ses-list-roman" data-type="list" data-list-type="roman" data-node-id="g7-l-roman2">')
     expect(html).not.toMatch(/ses-list-roman"[^>]*data-level/)
     expect(html).toContain('<div class="ses-list-item" data-node-id="g7-r3" id="li_1"><span class="ses-list-item-text">检查</span></div>')
-    // 引用文本是 Resolver 的 refText（半角 iii)，容器编号 + 标记）；screen 为链接，print 为纯文本
-    expect(html).toMatch(/<(?:a|span) class="ses-xref"[^>]*data-ref-target="g7-r3">1\.1 iii\)<\/(?:a|span)>/)
+    // 引用文本是 Resolver 的 refText（全角 iii），容器编号 + 标记）；screen 为链接，print 为纯文本
+    expect(html).toMatch(/<(?:a|span) class="ses-xref"[^>]*data-ref-target="g7-r3">1\.1 iii）<\/(?:a|span)>/)
   })
 
   it('样式：screen 与 print 都用 counter(ses-li, lower-roman) 加全角右括号；大写罗马仍按数字，CSS 里没有 upper-roman', () => {
@@ -166,13 +188,15 @@ describe('[M-5.7-04] DOCX：A14 抽象编号为 lowerRoman，罗马列项一级�
       .toEqual(['SesListItem │ i） │ 甲', 'SesListItem │ ii） │ 乙', 'SesListItem │ a） │ 丙', 'SesListItem │ b） │ 丁'])
   })
 
-  it('§4.7 一致性：模拟器标识与手写期望逐段一致，且罗马数字序列与 Resolver 的 gbT11Strategy.listItem 一致（括号宽度除外）', () => {
+  it('§4.7 一致性：模拟器标识与手写期望逐段一致，且与 Resolver 的 gbT11Strategy.listItem 完全一致（含全角括号）', () => {
     expect(() => assertNumberingConsistency(pkg, numbered, labels, G7_LIST_ITEM_EXPECTED)).not.toThrow()
     expect(() => assertCoverage(numbered, collectNumberedNodeIds(doc))).not.toThrow()
     const simulated = simulateNumbering(pkg).filter(paragraph => paragraph.label !== undefined && paragraph.styleId === 'SesListItem')
-    expect(simulated.map(paragraph => halfWidth(paragraph.label!.replace(/　$/, '')))).toEqual([1, 2, 3, 4, 1, 2].map(n => gbT11Strategy.listItem!('roman', n)))
-    // 被引用项的 Resolver 标签就是同一个标记
-    expect(labels['g7-r3']!.label).toBe(halfWidth('iii）'))
+    expect(simulated.map(paragraph => paragraph.label!.replace(/　$/, ''))).toEqual([1, 2, 3, 4, 1, 2].map(n => gbT11Strategy.listItem!('roman', n)))
+    // 被引用项的 Resolver 标签、引用文字里的标记，就是文档里显示的同一个符号
+    expect(labels['g7-r3']!.label).toBe('iii）')
+    expect(labels['g7-r3']!.refText).toBe('1.1 iii）')
+    expect(simulated[2]!.label!.replace(/　$/, '')).toBe(labels['g7-r3']!.label)
   })
 
   it('大写罗马 romanUpper（无原文取值）仍降级为数字列项 1） 2），不产生 upperRoman；roman 作为嵌套列表的父级时子级照常', () => {
@@ -200,8 +224,19 @@ describe('[M-5.7-04] DOCX：A14 抽象编号为 lowerRoman，罗马列项一级�
 describe('[M-5.6-05] 输出边界：多块/含列项的注与示例对 HTML、DOCX 放行；内容里的其他块仍按各格式字段表检查', () => {
   const doc = createG7NoteIrDoc()
 
-  it.each(FORMATS)('%s：没有 unsupported-output（note/example 的 content 是既有字段）', format => {
+  it.each(['HTML', 'DOCX', 'XML46687'] as const)('%s：没有 unsupported-output（note/example 的 content 是既有字段）', format => {
     expect(getOutputSupportProblems(doc, format)).toEqual([])
+  })
+
+  it('旧 XML：note/example 的 content 字段表放行；夹具里 e2 内的罗马列表是唯一的问题（见罗马列项的旧 XML 阻断）', () => {
+    expect(getOutputSupportProblems(doc, 'XML').map(problem => [problem.nodeId, problem.path.endsWith('.listType')])).toEqual([['g7-e2-l', true]])
+    const noRoman = createG7NoteIrDoc()
+    const clause = noRoman.body[0]!.children[0]!
+    if (clause.kind !== 'clause') throw new Error('期望条')
+    const example = clause.children.find(child => child.id === 'g7-e2')
+    if (!example || example.kind !== 'example') throw new Error('期望示例')
+    ;(example.content[1] as IRList).listType = 'alpha'
+    expect(getOutputSupportProblems(noRoman, 'XML')).toEqual([])
   })
 
   it('注里放字段表不允许的块（警告）：HTML、DOCX 仍报问题，路径指向该块', () => {

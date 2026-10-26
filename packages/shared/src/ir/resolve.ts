@@ -38,7 +38,7 @@ interface NoteScope {
 interface ListItemCandidate {
   id: NodeId
   marker: string
-  /** 有序祖先标记 + 本项标记，空格连接："a)"、"a) 1)" */
+  /** 有序祖先标记 + 本项标记，空格连接："a）"、"a） 1）" */
   markerPath: string
   /** visitBlock 传入的作用域 ID（最近的条/章/附录/术语条目/表…），其 label 即容器编号 */
   scopeKey: string
@@ -564,8 +564,8 @@ function nearestNumberedScopeLabel(scopeKey: string, ctx: ResolveCtx): string | 
 
 /**
  * 给被 crossRef 引用的有序列项赋标签（WP8.M / G4，设计 §3.2）：
- * label = 本项标记（"a)"），xmlId = li_<k>（k 为被引用列项的文档序），
- * refText = 容器编号 + 空格 + 标记路径（"5.2 a)"、"5.2 a) 1)"）。
+ * label = 本项标记（"a）"），xmlId = li_<k>（k 为被引用列项的文档序），
+ * refText = 容器编号 + 空格 + 标记路径（"5.2 a）"、"5.2 a） 1）"）。
  * 容器取最近的有编号作用域（注/示例内的列表回溯到所在条、术语条目、表、图）；前言/引言等没有编号祖先时只写标记路径。
  * 必须在 checkTypedReferences 之前：否则类型正确但无标签的目标会被补成 ext_ 占位标签。
  * 未被引用的列项保持无标签，这样现有文档的 HTML/DOCX 输出不新增任何 id。

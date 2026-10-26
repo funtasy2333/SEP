@@ -22,14 +22,14 @@ const referenced = () => listItemDoc([xref('a3', 'listItem'), { text: '与' }, x
 describe('[M-10.1.5-01] HTML：引用处输出 refText', () => {
   it('screen：内部链接指向被引用列项的 id，文字为「容器编号 + 标记」', () => {
     const out = html(referenced(), 'screen')
-    expect(out).toContain('<a class="ses-xref" href="#li_1" data-ref-target="a3">5.2 c)</a>')
-    expect(out).toContain('<a class="ses-xref" href="#li_2" data-ref-target="n2">5.2 2)</a>')
+    expect(out).toContain('<a class="ses-xref" href="#li_1" data-ref-target="a3">5.2 c）</a>')
+    expect(out).toContain('<a class="ses-xref" href="#li_2" data-ref-target="n2">5.2 2）</a>')
     expect(out).not.toContain('见列项')
   })
 
   it('print：只输出文本 span，不输出内部链接', () => {
     const out = html(referenced(), 'print')
-    expect(out).toContain('<span class="ses-xref" data-ref-target="a3">5.2 c)</span>')
+    expect(out).toContain('<span class="ses-xref" data-ref-target="a3">5.2 c）</span>')
     expect(out).not.toMatch(/<a[\s>]/)
   })
 })
@@ -67,8 +67,8 @@ describe('[M-10.1.5-01] DOCX：引用处输出 refText', () => {
   it('文字为 refText，作者原文被替换；列项本身不新增书签', () => {
     const baseline = documentXml(listItemDoc())
     const xml = documentXml(referenced())
-    expect(xml).toContain('<w:t xml:space="preserve">5.2 c)</w:t>')
-    expect(xml).toContain('<w:t xml:space="preserve">5.2 2)</w:t>')
+    expect(xml).toContain('<w:t xml:space="preserve">5.2 c）</w:t>')
+    expect(xml).toContain('<w:t xml:space="preserve">5.2 2）</w:t>')
     expect(xml).not.toContain('见列项')
     expect(xml).not.toContain('li_')
     // 引用只改变引用段本身：书签总数与无引用文档相同

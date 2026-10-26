@@ -56,12 +56,12 @@ describe('[M-10.1.5-01] PM crossRef.refType=listItem ↔ IR targetKind=listItem'
     expect(irToPm(second)).toEqual(irToPm(first))
   })
 
-  it('往返后的 IR 经 Resolver：被引用列项得到 c) / 2)，xmlId 按文档序', () => {
+  it('往返后的 IR 经 Resolver：被引用列项得到 c） / 2），xmlId 按文档序', () => {
     const { doc } = pmToIr(irToPm(pmProjectableDoc()))
     const { labels, problems } = resolve(doc)
     expect(problems.filter(problem => problem.severity === 'error')).toEqual([])
-    expect(labels['a3']).toEqual({ label: 'c)', xmlId: 'li_1', refText: '1.1 c)' })
-    expect(labels['n2']).toEqual({ label: '2)', xmlId: 'li_2', refText: '1.1 2)' })
+    expect(labels['a3']).toEqual({ label: 'c）', xmlId: 'li_1', refText: '1.1 c）' })
+    expect(labels['n2']).toEqual({ label: '2）', xmlId: 'li_2', refText: '1.1 2）' })
     expect(labels['a1']).toBeUndefined()
     expect(labels['d1']).toBeUndefined()
   })
@@ -107,10 +107,10 @@ describe('[M-10.1.5-02] Resolver 对 IR 原生夹具（含嵌套/罗马）的整
     expect(problems).toEqual([])
     const listLabels = Object.fromEntries(Object.entries(labels).filter(([, label]) => label.xmlId.startsWith('li_')))
     expect(listLabels).toEqual({
-      a1: { label: 'a)', xmlId: 'li_1', refText: '5.2 a)' },
-      a3: { label: 'c)', xmlId: 'li_2', refText: '5.2 c)' },
-      n2: { label: '2)', xmlId: 'li_3', refText: '5.2 2)' },
-      r3: { label: 'iii)', xmlId: 'li_4', refText: '5.2 iii)' },
+      a1: { label: 'a）', xmlId: 'li_1', refText: '5.2 a）' },
+      a3: { label: 'c）', xmlId: 'li_2', refText: '5.2 c）' },
+      n2: { label: '2）', xmlId: 'li_3', refText: '5.2 2）' },
+      r3: { label: 'iii）', xmlId: 'li_4', refText: '5.2 iii）' },
     })
   })
 })

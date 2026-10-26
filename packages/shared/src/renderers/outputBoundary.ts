@@ -186,6 +186,15 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
           message:`DOCX 不能映射表格列宽：${error instanceof Error ? error.message : String(error)}。请保留 JSON 文档。`})
       }
     }
+    // 小写罗马列项（WP8.M G7，M-5.7-04）：只有旧 XML（format==='XML'）阻断——旧序列化器会把它降为阿拉伯数字（toXmlListType），
+    // 导出后 i) 变成 1)，属静默降级。XML46687 放行（GB/T 46687.2 5.7.2 有 roman-lower，WP8.2 消费）；HTML/DOCX 已真排。
+    // 这是 XML 与 XML46687 在字段表之外唯一有意的分叉，outputBoundaryXml46687.test.ts 把它列为已知例外。
+    if (format === 'XML' && kind === 'list' && object.listType === 'roman') {
+      problems.push({
+        code: 'unsupported-output', nodeId: id, path: `${path}.listType`,
+        message: `XML 不能输出罗马列项：旧 XML 序列化器会把它降为阿拉伯数字，改变列项编号：${path}.listType${id ? `（节点 ${id}）` : ''}。请保留 JSON 文档，或导出 HTML/DOCX。`,
+      })
+    }
     if (!allowed) { report('kind'); return }
     for (const [key, child] of Object.entries(object)) {
       if (kind === 'table' && key === 'headerRowCount' && isXmlFormat(format)

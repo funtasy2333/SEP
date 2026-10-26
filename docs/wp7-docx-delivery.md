@@ -306,7 +306,7 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 | A11 | 破折号列项 | multilevel | L0 bullet `——`，左 840 悬挂 420；L1 bullet `·` suff=tab，左 1260 悬挂 420；两级标识 rPr 全字符宋体 | SesListDash、SesListDot |
 | A12 | 字母列项 | multilevel | L0 lowerLetter `%1）` suff=tab，左 840 悬挂 420；L1 bullet `·` suff=tab，左 1260 悬挂 420；两级标识 rPr 全字符宋体 | —（按列表实例） |
 | A13 | 数字列项 | multilevel | L0 decimal `%1）`；L1 bullet `·`（suff、缩进和字体同 A12） | — |
-| A14 | 小写罗马列项（WP8.M G7-c，D-M-06 A 真排） | multilevel | L0 lowerRoman `%1）` suff=tab，左 840 悬挂 420，**标识 rPr：ASCII/hAnsi/cs 为 Times New Roman、eastAsia 宋体**（宋体的 ASCII 字母半角等宽，`iii）` 就超出 2 字悬挂量，Word 会把文字推到下一个默认制表位，第 2 项起与回行不对齐；Times 的 i 窄，`i）`～`vi）` 都落在 2 字内）；L1 bullet `·`（suff、缩进和字体同 A12）；括号与 A12/A13 一致用全角，罗马数字序列与 Resolver 的 `gbT11Strategy.listItem('roman', n)`（半角 `i)`，用于 refText）一致 | —（按列表实例） |
+| A14 | 小写罗马列项（WP8.M G7-c，D-M-06 A 真排） | multilevel | L0 lowerRoman `%1）` suff=tab，左 840 悬挂 420，**标识 rPr：ASCII/hAnsi/cs 为 Times New Roman、eastAsia 宋体**（宋体的 ASCII 字母半角等宽，`iii）` 就超出 2 字悬挂量，Word 会把文字推到下一个默认制表位，第 2 项起与回行不对齐；Times 的 i 窄，`i）`～`vi）` 都落在 2 字内）；L1 bullet `·`（suff、缩进和字体同 A12）；括号与 A12/A13 一致用全角，与 Resolver 的 `gbT11Strategy.listItem('roman', n)`（全角 `i）`，D-M-03 修订：引用文字 `5.2 iii）` 与文档里显示的符号完全一致）一致 | —（按列表实例） |
 | A15 | 大写罗马兼容槽 | multilevel | L0 decimal `%1）`；L1 bullet `·`（字体同 A12）；GB/T 46687.2 没有 roman-upper 取值，`romanUpper` 仍降级为数字列项（用 A13），本槽保持占位 | — |
 | A16 | 参考文献 | singleLevel | L0 decimal `[%1]　`，编号 rPr 指定宋体；首行 420 | SesBibEntry |
 | A17 | 引言中的条（按需，WP8.M G6） | multilevel | L0 `0　`（保持级别连续，无段落使用）；L1 `0.%2　`；L2 `0.%2.%3　`；L3–L5 依此类推；缩进、标识 rPr 同 A1 的 L1–L5（黑体） | —（段落级 numPr） |

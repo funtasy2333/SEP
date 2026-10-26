@@ -134,7 +134,7 @@ describe('[M-10.1.5-02] 列项转成段落/注/示例：被当作列项引用的
     expect(setParagraphFormat(e)).toEqual({ ok: true })
     expect(itemTypes(e, 'i1', 'i2')).toEqual(['stdParagraph', 'stdListItem'])
     expect(brokenOf(e)).toEqual([])
-    expect(irOf(e).labels['i2']).toMatchObject({ label: 'a)', refText: '1.2 a)' })
+    expect(irOf(e).labels['i2']).toMatchObject({ label: 'a）', refText: '1.2 a）' })
     expect(e.commands.undo()).toBe(true)
     expect(snapshot(e)).toEqual(original)
   })
@@ -168,12 +168,12 @@ describe('[M-10.1.5-02] 列项改成无序类型：被引用的有序列项拒�
     expectRefused(e, () => setListFormat(e, 'dash'))
   })
 
-  it('改为有序类型（numeric）不拒绝：引用仍然成立，标记随类型变为 2)', () => {
+  it('改为有序类型（numeric）不拒绝：引用仍然成立，标记随类型变为 2）', () => {
     const e = doc(ref('r1', 'i2', 'listItem'))
     e.commands.setTextSelection({ from: nodeById(e, 'i1').pos + 1, to: nodeById(e, 'i3').pos + 2 })
     expect(setListFormat(e, 'numeric')).toEqual({ ok: true })
     expect(brokenOf(e)).toEqual([])
-    expect(irOf(e).labels['i2']).toMatchObject({ label: '2)', refText: '1.2 2)' })
+    expect(irOf(e).labels['i2']).toMatchObject({ label: '2）', refText: '1.2 2）' })
   })
 
   it('未被引用的项可以改为无序类型；被引用项留在原有序列表，标签不变', () => {
@@ -181,7 +181,7 @@ describe('[M-10.1.5-02] 列项改成无序类型：被引用的有序列项拒�
     caretIn(e, 'i3', 1)
     expect(setListFormat(e, 'dash')).toEqual({ ok: true })
     expect(brokenOf(e)).toEqual([])
-    expect(irOf(e).labels['i2']).toMatchObject({ label: 'b)', refText: '1.2 b)' })
+    expect(irOf(e).labels['i2']).toMatchObject({ label: 'b）', refText: '1.2 b）' })
   })
 })
 

@@ -8,12 +8,12 @@ import type { PMJsonNode } from '@ses/shared'
  *   chapter g7-ch1 "技术要求"（章 1）
  *     clause g7-c11 "罗马列项"（1.1）
  *       stdParagraph g7-intro        ── 引用 g7-r3（第一个罗马列项的第 3 项）与 g7-s2（第二个罗马列项的第 2 项）
- *       stdList g7-l-roman (roman)   ── g7-r1…g7-r4（i) ii) iii) iv)）
- *       stdList g7-l-roman2 (roman)  ── g7-s1、g7-s2（编号从 i) 重新起）
+ *       stdList g7-l-roman (roman)   ── g7-r1…g7-r4（i） ii） iii） iv））
+ *       stdList g7-l-roman2 (roman)  ── g7-s1、g7-s2（编号从 i） 重新起）
  *       stdList g7-l-alpha (alpha)   ── 与罗马列项相邻的字母列项，用来核对类型互不串扰
  *
- * Resolver 只给被引用的有序列项赋标签（G4）：g7-r3 = { label:'iii)', xmlId:'li_1', refText:'1.1 iii)' }、
- * g7-s2 = { label:'ii)', xmlId:'li_2', refText:'1.1 ii)' }。
+ * Resolver 只给被引用的有序列项赋标签（G4）：g7-r3 = { label:'iii）', xmlId:'li_1', refText:'1.1 iii）' }、
+ * g7-s2 = { label:'ii）', xmlId:'li_2', refText:'1.1 ii）' }。
  *
  * 注/示例的块内容见 createG7NoteFixture（M-5.6-05）：
  *
@@ -21,7 +21,7 @@ import type { PMJsonNode } from '@ses/shared'
  *     noteBlock g7-fw-note        ── 前言里的多段注（两个段落）
  *   chapter g7-ch1 "技术要求"（章 1）
  *     clause g7-c11 "列项与注"（1.1）
- *       stdParagraph g7-intro     ── 引用 g7-r3（罗马列项 iii)）与 g7-n3（注）
+ *       stdParagraph g7-intro     ── 引用 g7-r3（罗马列项 iii））与 g7-n3（注）
  *       stdList g7-l-roman        ── g7-r1…g7-r4
  *       note g7-n1                ── 旧的单段注（canonical：派生段落 id）
  *       noteBlock g7-n2           ── 多块注：段落 + 带脚注的段落 + dash 列项
@@ -67,8 +67,8 @@ export function createG7RomanFixture(): PMJsonNode {
 
 /** 期望的 Resolver 标签（只有被引用的有序列项有标签） */
 export const WP8M_G7_ROMAN_LABELS = {
-  'g7-r3': { label: 'iii)', xmlId: 'li_1', refText: '1.1 iii)' },
-  'g7-s2': { label: 'ii)', xmlId: 'li_2', refText: '1.1 ii)' },
+  'g7-r3': { label: 'iii）', xmlId: 'li_1', refText: '1.1 iii）' },
+  'g7-s2': { label: 'ii）', xmlId: 'li_2', refText: '1.1 ii）' },
 } as const
 
 export function createG7NoteFixture(): PMJsonNode {

@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest'
 import { Fragment, Slice } from '@tiptap/pm/model'
 import {
   IRToPmError, UnsupportedOutputError, getOutputSupportProblems, irToPm, pmToIr, resolve,
-  type IRBlock, type IRList, type IRNote, type OutputBoundaryFormat, type PMJsonNode,
+  type IRBlock, type IRList, type IRNote, type PMJsonNode,
 } from '@ses/shared'
 import { docToText } from '../utils/docDiff'
 import { replaceEditorDocument } from '../utils/editorDocument'
@@ -32,7 +32,6 @@ import { createG7NoteFixture, createG7RomanFixture, WP8M_G7_NOTE_LABELS, WP8M_G7
 
 const extensions = createEditorExtensions()
 const schema = getSchema(extensions)
-const FORMATS: OutputBoundaryFormat[] = ['HTML', 'DOCX', 'XML', 'XML46687']
 
 function visit(node: PMJsonNode, fn: (node: PMJsonNode) => void): void {
   fn(node)
@@ -134,7 +133,7 @@ describe('[M-5.7-04] 往返：生产 PM → pmToIr → Resolver → irToPm → �
     expect(errorsOf(doc)).toEqual([])
   })
 
-  it('Resolver：被引用的罗马列项得到 i)…形式的标签（G4 的 gbT11Strategy.listItem），每个列表重新起编；未被引用的没有标签', () => {
+  it('Resolver：被引用的罗马列项得到 i）…形式的标签（G4 的 gbT11Strategy.listItem），每个列表重新起编；未被引用的没有标签', () => {
     const { labels } = resolve(pmToIr(originalJson).doc)
     for (const [id, expected] of Object.entries(WP8M_G7_ROMAN_LABELS)) expect(labels[id], id).toMatchObject(expected)
     for (const id of ['g7-r1', 'g7-r2', 'g7-r4', 'g7-s1']) expect(labels[id], id).toBeUndefined()
@@ -235,11 +234,24 @@ describe('[M-5.7-04] 保存重开：Editor + replaceEditorDocument + exportSeman
   })
 })
 
-describe('[M-5.7-04] 输出边界：HTML、DOCX 放行罗马列项（真排）；XML 系列字段表放行', () => {
+describe('[M-5.7-04] 输出边界：HTML、DOCX、XML46687 放行罗马列项；旧 XML 阻断（旧序列化器会把 i) 降为 1)）', () => {
   const { doc } = pmToIr(schema.nodeFromJSON(createG7RomanFixture()).toJSON() as PMJsonNode)
 
-  it.each(FORMATS)('%s：没有 unsupported-output', format => {
+  it.each(['HTML', 'DOCX', 'XML46687'] as const)('%s：没有 unsupported-output', format => {
     expect(getOutputSupportProblems(doc, format)).toEqual([])
+  })
+
+  it('XML：两个罗马列表各一条 unsupported-output（路径指向 listType），字母列表不受影响', () => {
+    const problems = getOutputSupportProblems(doc, 'XML')
+    expect(problems.map(problem => [problem.nodeId, problem.path.endsWith('.listType')])).toEqual([['g7-l-roman', true], ['g7-l-roman2', true]])
+    expect(problems[0]!.message).toContain('阿拉伯数字')
+  })
+
+  it('旧 XML 序列化器（serializeToXml）对含罗马列项的文档报 UnsupportedOutputError，不再静默导出为数字列项', () => {
+    let caught: unknown
+    try { serializeToXml(schema.nodeFromJSON(createG7RomanFixture())) } catch (error) { caught = error }
+    expect(caught).toBeInstanceOf(UnsupportedOutputError)
+    expect((caught as UnsupportedOutputError).problems.map(problem => problem.nodeId)).toEqual(['g7-l-roman', 'g7-l-roman2'])
   })
 })
 
@@ -286,7 +298,7 @@ describe('[M-5.7-04][M-10.1.5-01] 与 G4 列项守卫衔接：罗马列项的被
     ])
     const ir = pmToIr(json).doc
     expect(errorsOf(ir)).toEqual([])
-    expect(resolve(ir).labels['g7-r3']).toMatchObject({ label: 'a)', refText: '1.1 a)' })
+    expect(resolve(ir).labels['g7-r3']).toMatchObject({ label: 'a）', refText: '1.1 a）' })
     editor.destroy()
   })
 
@@ -417,7 +429,7 @@ describe('[M-5.6-05] 往返：生产 PM → pmToIr → Resolver → irToPm → �
     for (const [id, label] of Object.entries(WP8M_G7_NOTE_LABELS.examples)) expect(labels[id]?.label, id).toBe(label)
     expect(labels['g7-fw-note']?.label).toBe('注：')
     expect(labels['g7-t1-note']?.label).toBe('注：')
-    expect(labels['g7-r3']).toMatchObject({ label: 'iii)', refText: '1.1 iii)' })
+    expect(labels['g7-r3']).toMatchObject({ label: 'iii）', refText: '1.1 iii）' })
     expect(labels['g7-fn1']?.label).toBe('1)')
   })
 
@@ -568,13 +580,24 @@ describe('[M-5.6-05] 保存重开：Editor + replaceEditorDocument + exportSeman
 
 describe('[M-5.6-05] 输出边界：HTML、DOCX 放行块内容的注/示例（真排）；XML/XML46687 的字段表放行；旧 XML 序列化器拒绝拍平', () => {
   const { doc } = pmToIr(schema.nodeFromJSON(createG7NoteFixture()).toJSON() as PMJsonNode)
+  /** 夹具里有两个罗马列表（旧 XML 另行阻断，见罗马列项的边界用例）；换成字母列表后，注/示例本身在旧 XML 的字段表里放行 */
+  const withoutRoman = (): PMJsonNode => {
+    const copy = createG7NoteFixture()
+    for (const list of nodesOfType(copy, 'stdList')) if (list.attrs?.listType === 'roman') list.attrs.listType = 'alpha'
+    return copy
+  }
 
-  it.each(FORMATS)('%s：getOutputSupportProblems 为空', format => {
+  it.each(['HTML', 'DOCX', 'XML46687'] as const)('%s：getOutputSupportProblems 为空', format => {
     expect(getOutputSupportProblems(doc, format)).toEqual([])
   })
 
+  it('XML：字段表放行 note/example 的块内容，唯一的问题是夹具里的两个罗马列表；换成字母列表后为空', () => {
+    expect(getOutputSupportProblems(doc, 'XML').map(problem => problem.nodeId)).toEqual(['g7-l-roman', 'g7-e2-l'])
+    expect(getOutputSupportProblems(pmToIr(schema.nodeFromJSON(withoutRoman()).toJSON() as PMJsonNode).doc, 'XML')).toEqual([])
+  })
+
   it('旧 XML 序列化器（serializeToXml）遇到 noteBlock/exampleBlock 报 UnsupportedOutputError，不把它们静默拍平成普通段落', () => {
-    const pmDoc = schema.nodeFromJSON(createG7NoteFixture())
+    const pmDoc = schema.nodeFromJSON(withoutRoman())
     let caught: unknown
     try { serializeToXml(pmDoc) } catch (error) { caught = error }
     expect(caught).toBeInstanceOf(UnsupportedOutputError)

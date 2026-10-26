@@ -6,12 +6,12 @@ import type { PMJsonNode } from '@ses/shared'
  *
  *   chapter g4-ch1 "技术要求"（章 1）
  *     clause g4-c11 "列项"（1.1）
- *       stdParagraph g4-ref   ── 引用 g4-a3（字母列项 c)）与 g4-n2（数字列项 2)）
+ *       stdParagraph g4-ref   ── 引用 g4-a3（字母列项 c））与 g4-n2（数字列项 2））
  *       stdList g4-l-alpha    ── g4-a1 g4-a2 g4-a3
  *       stdList g4-l-number   ── g4-n1 g4-n2（level 2）
  *       stdList g4-l-dash     ── g4-d1 g4-d2（无序，不可被引用）
  *
- * 期望标签：g4-a3 = { label:'c)', xmlId:'li_1', refText:'1.1 c)' }、g4-n2 = { label:'2)', xmlId:'li_2', refText:'1.1 2)' }。
+ * 期望标签：g4-a3 = { label:'c）', xmlId:'li_1', refText:'1.1 c）' }、g4-n2 = { label:'2）', xmlId:'li_2', refText:'1.1 2）' }。
  */
 
 type Marks = NonNullable<PMJsonNode['marks']>
@@ -56,8 +56,8 @@ export function createWp8mG4Fixture(options: Wp8mG4Options = {}): PMJsonNode {
 
 /** 期望的 Resolver 标签（Fixture 默认引用） */
 export const WP8M_G4_EXPECTED_LABELS = {
-  'g4-a3': { label: 'c)', xmlId: 'li_1', refText: '1.1 c)' },
-  'g4-n2': { label: '2)', xmlId: 'li_2', refText: '1.1 2)' },
+  'g4-a3': { label: 'c）', xmlId: 'li_1', refText: '1.1 c）' },
+  'g4-n2': { label: '2）', xmlId: 'li_2', refText: '1.1 2）' },
 } as const
 
 /**

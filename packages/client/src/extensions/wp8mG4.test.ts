@@ -262,7 +262,7 @@ describe('[M-10.1.5-02] G4 粘贴重映射：对 stdListItem 目标同样生效'
       const { labels, problems } = resolve(doc)
       expect(problems.filter(problem => brokenCodes.includes(problem.code))).toEqual([])
       expect(['g4-a3', 'g4-n2', ids[9], ids[11]].map(id => labels[id]?.xmlId)).toEqual(['li_1', 'li_2', 'li_3', 'li_4'])
-      expect(labels[ids[9]!]?.refText).toBe('2.1 c)')
+      expect(labels[ids[9]!]?.refText).toBe('2.1 c）')
     } finally {
       editor.destroy()
     }

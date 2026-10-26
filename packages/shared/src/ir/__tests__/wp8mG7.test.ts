@@ -83,19 +83,19 @@ describe('[M-5.7-04] 罗马列项：IR → PM（stdList listType=roman）→ IR'
   })
 })
 
-describe('[M-5.7-04] Resolver：罗马列项标记为 i) ii) iii) iv)（半角，D-M-03），列项引用与 G4 一致', () => {
+describe('[M-5.7-04] Resolver：罗马列项标记为 i） ii） iii） iv）（全角右括号，D-M-03 修订），列项引用与 G4 一致', () => {
   const { labels, problems } = resolve(createG7RomanIrDoc())
 
   it('没有 error；被引用的列项得到标签 / li_<k> / refText（容器编号 + 标记）', () => {
     expect(problems.filter(problem => problem.severity === 'error')).toEqual([])
-    expect(labels['g7-r3']).toEqual({ label: 'iii)', xmlId: 'li_1', refText: '1.1 iii)' })
-    expect(labels['g7-s2']).toEqual({ label: 'ii)', xmlId: 'li_2', refText: '1.1 ii)' })
+    expect(labels['g7-r3']).toEqual({ label: 'iii）', xmlId: 'li_1', refText: '1.1 iii）' })
+    expect(labels['g7-s2']).toEqual({ label: 'ii）', xmlId: 'li_2', refText: '1.1 ii）' })
     expect(labels['g7-r1']).toBeUndefined()
   })
 
-  it('gbT11Strategy.listItem：罗马数字按 i)…；与 DOCX lowerRoman / HTML lower-roman 的计数一致（含 iv、ix、xl、xc）', () => {
+  it('gbT11Strategy.listItem：罗马数字按 i）…；与 DOCX lowerRoman / HTML lower-roman 的计数一致（含 iv、ix、xl、xc）', () => {
     const marks = [1, 2, 3, 4, 5, 8, 9, 10, 14, 19, 40, 49, 90].map(n => gbT11Strategy.listItem!('roman', n))
-    expect(marks).toEqual(['i)', 'ii)', 'iii)', 'iv)', 'v)', 'viii)', 'ix)', 'x)', 'xiv)', 'xix)', 'xl)', 'xlix)', 'xc)'])
+    expect(marks).toEqual(['i）', 'ii）', 'iii）', 'iv）', 'v）', 'viii）', 'ix）', 'x）', 'xiv）', 'xix）', 'xl）', 'xlix）', 'xc）'])
   })
 
   it('引用无序列项与 romanUpper 仍报 dangling-xref（没有编号），不受 roman 支持影响', () => {

@@ -584,7 +584,7 @@ export interface NumberingStrategy {
   /** "[1]" */
   bibEntry(seq: number): string
   /**
-   * 有序列项标记（WP8.M / G4）：alpha -> "a)"，number -> "1)"，roman -> "i)"。
+   * 有序列项标记（WP8.M / G4，全角右括号，与显示的列项符号一致）：alpha -> "a）"，number -> "1）"，roman -> "i）"。
    * 可选：缺省时 Resolver 用内置实现（strategies.listItem），不破坏既有第三方策略。
    * 仅 alpha / number / roman 会被询问；返回空串表示该类型不编号。index 从 1 起。
    */
