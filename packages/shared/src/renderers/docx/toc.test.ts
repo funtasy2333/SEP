@@ -120,6 +120,15 @@ function targetKey(entry: ReturnType<typeof buildStaticToc>['entries'][number]):
 }
 
 describe('static DOCX TOC', () => {
+  it('未排版的页码明确显示待更新，并向导出调用方报告需要 Word 更新', () => {
+    const { doc, labels } = tocFixture()
+    const { pkg } = renderDocxTraced(doc, labels, OPTS)
+    const xml = pkg.parts['word/document.xml']
+    const cachedPages = [...xml.matchAll(/<w:fldChar w:fldCharType="separate"\/><\/w:r><w:r><w:t>(.*?)<\/w:t>/g)]
+    expect(cachedPages.map(match => match[1])).toEqual(Array(11).fill('待更新'))
+    expect(pkg.warnings.filter(w => w.code === 'toc-pages-pending')).toHaveLength(1)
+  })
+
   it('collects headings by document depth and order, and resolves inline cross references', () => {
     const { doc, labels } = tocFixture()
     const toc = buildStaticToc(doc, labels)
@@ -243,6 +252,7 @@ describe('static DOCX TOC', () => {
     const endMarkIndex = xml.indexOf('<w:pStyle w:val="SesEndMark"/>')
 
     expect(xml).not.toContain('PAGEREF')
+    expect(pkg.warnings.some(w => w.code === 'toc-pages-pending')).toBe(false)
     expect(xml).not.toContain('<w:bookmarkStart')
     expect(lastContent[1]).toContain('<w:keepNext/>')
     expect(xml.match(/<w:pStyle w:val="SesEndMark"\/>/g)).toHaveLength(1)

@@ -8,6 +8,7 @@ import { findChild, parseXml, type XmlElement } from '../__tests__/helpers/xmlTr
 import { renderBlock } from './block'
 import { createRenderContext } from './context'
 import { paginateTable } from './tablePagination'
+import { buildStylesXml } from '../styles'
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
 const SONG_FONT_ATTRS = {
@@ -83,6 +84,33 @@ function tableWithHeaderRowspan(coveredRows = 2, rowCount = 64, longFirst = true
     headerRowCount: 1, rows: [header, ...bodyRows], notes: [],
   }
 }
+
+describe('renderTable：表头文字', () => {
+  it('按表头行数和单元格标记加粗，多行合并表头保持居中，普通数值不加粗', () => {
+    const table: IRTable = {
+      kind: 'table', id: 'bold-headers', caption: [], orientation: 'portrait',
+      headerRowCount: 2, notes: [], rows: [
+        { id: 'h1', cells: [tableCell('merged', '分组', { rowspan: 2 }), tableCell('h1c', '名称')] },
+        { id: 'h2', cells: [tableCell('h2c', '单位')] },
+        { id: 'data', cells: [tableCell('row-header', '行标题', { header: true }), tableCell('value', '12.5')] },
+      ],
+    }
+    const before = JSON.stringify(table)
+    const xml = renderBlock(createRenderContext({}), table, { scopeKey: 'chapter-1' })
+    const root = parseXml(`<w:root xmlns:w="${W_NS}">${xml}</w:root>`)
+    const styles = parseXml(buildStylesXml())
+    for (const [text, bold] of [['分组', true], ['名称', true], ['单位', true], ['行标题', true], ['12.5', false]] as const) {
+      const p = descendants(root, 'w:p').find(p => textContent(p) === text)!
+      expect(p, text).toBeDefined()
+      const styleId = findChild(findChild(p, 'w:pPr')!, 'w:pStyle')!.attrs['w:val']
+      const style = childElements(styles, 'w:style').find(s => s.attrs['w:styleId'] === styleId)!
+      expect(!!findChild(findChild(style, 'w:rPr')!, 'w:b'), text).toBe(bold)
+      expect(!!findChild(findChild(style, 'w:rPr')!, 'w:bCs'), text).toBe(bold)
+      expect(findChild(findChild(style, 'w:pPr')!, 'w:jc')?.attrs['w:val']).toBe('center')
+    }
+    expect(JSON.stringify(table)).toBe(before)
+  })
+})
 
 describe('renderFormula：编号标签', () => {
   it.each([

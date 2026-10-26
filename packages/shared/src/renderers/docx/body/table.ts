@@ -15,7 +15,7 @@ export { tableGridColumnCount } from './tableGrid'
 import { tcBorders, tcPr, tbl, tblBorders, tblPr, tr, trPr, type XmlChild } from '../xml'
 
 export type IRTableCell = IRTableRow['cells'][number]
-export type TableCellParagraphStyle = 'SesTableText' | 'SesTableCenter'
+export type TableCellParagraphStyle = 'SesTableText' | 'SesTableCenter' | 'SesTableHeader'
 
 export interface TableCellRenderMeta {
   rowIndex: number
@@ -53,7 +53,7 @@ const NUMERIC_CELL_TEXT = /^[\d\s.,±%~—-]+$/
  * header. It mirrors the exact numeric pattern in §5.9 and avoids treating arbitrary lists as data.
  */
 export function tableCellParagraphStyle(cell: IRTableCell, header = cell.header): TableCellParagraphStyle {
-  if (header) return 'SesTableCenter'
+  if (header) return 'SesTableHeader'
   if (cell.content.length === 0) return 'SesTableCenter'
   if (!cell.content.every((block) => block.kind === 'paragraph')) return 'SesTableText'
   const text = cell.content.flatMap((block) => block.kind === 'paragraph' ? block.content.map((run) => run.text) : []).join('')
@@ -106,7 +106,7 @@ function cellXml(
   if (gridCell.kind === 'continuation') {
     contentXml = '<w:p/>'
   } else if (gridCell.kind === 'filler') {
-    contentXml = emitParagraph(ctx, 'SesTableCenter', { runsXml: plainRun('—') })
+    contentXml = emitParagraph(ctx, rowIndex < headerRowCount ? 'SesTableHeader' : 'SesTableCenter', { runsXml: plainRun('—') })
   } else {
     const origin = gridCell.origin!
     const isHeader = origin.cell.header || rowIndex < headerRowCount
@@ -116,7 +116,7 @@ function cellXml(
       header: isHeader,
     })
     if (contentXml.trim() === '') {
-      contentXml = emitParagraph(ctx, 'SesTableCenter', { runsXml: plainRun('—') })
+      contentXml = emitParagraph(ctx, isHeader ? 'SesTableHeader' : 'SesTableCenter', { runsXml: plainRun('—') })
     } else if (!/<\/w:p>\s*$/.test(contentXml)) {
       // Word requires a final paragraph in a cell after nested tables and other block-level content.
       contentXml += '<w:p/>'

@@ -247,7 +247,8 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 | SesTblCapCont | SES_续表题 | 黑 五 | `jc=center`；keepNext；段前段后各半行 | — | 续表字面量表号，不另计数 | 9.8.3、WP7.4 后续修订 |
 | SesAppTblCapCont | SES_附录续表题 | 黑 五 | `jc=center`；keepNext；段前段后各半行 | — | 续表字面量附录表号，不另计数 | 9.8.3、WP7.4 后续修订 |
 | SesTableText | SES_表格文字 | 宋 小五 | 默认首行 0，回行顶格（用户指定版式） | — | — | 10.4.2.2、#40 注 a |
-| SesTableCenter | SES_表格居中 | 宋 小五 | `jc=center`，缩进 0 | — | — | 10.4.2.2（表头、数字） |
+| SesTableCenter | SES_表格居中 | 宋 小五 | `jc=center`，缩进 0 | — | — | 10.4.2.2（数字） |
+| SesTableHeader | SES_表头 | 宋 小五、加粗 | `jc=center`，缩进 0；按表头行数或单元格表头标记应用，续表沿用 | — | — | 表头加粗 |
 | SesTableNote | SES_表注 | 宋 小五 | 缩进见 A7 / A8 | — | 段落级：单条指向 A7 固定实例（spike v10 T6），多条按 §4.3 分配 A8 实例（WP7.4） | 10.4.4.1 |
 | SesFormula | SES_公式 | 宋 五；编号 run 全字符宋体 | 制表位：居中 4677、右对齐 9355 点线；缩进 0；段前段后各半行 | — | Resolver 编号用中文圆括号 | 10.4.3 |
 | SesWhereLabel | SES_式中 | 宋 五 | 首行 420 | — | — | 10.4.3 |
@@ -543,7 +544,7 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
   - `tblGrid`：按最大列数平均分配版心宽（必须写，否则不符合 schema）；
   - 表题行及前 `headerRowCount` 个数据行 `trPr` 写 `<w:tblHeader/>`（2026-10-16 起没有表题行，只有前 `headerRowCount` 个表头行写 `tblHeader`）；表头最后一行的单元格下边框 sz=6，所有表格行写 `cantSplit`，在行边界分页；
   - 合并：`colspan` → `tcPr/gridSpan`；`rowspan` → 起始格 `vMerge val="restart"`，**被覆盖的后续行在同一网格位置补占位格** `<w:tc><w:tcPr><w:gridSpan w:val="N"/><w:vMerge/></w:tcPr><w:p/></w:tc>`，其中 N = 起始格的 `colspan`（为 1 时省略 `gridSpan`）。占位格缺 `gridSpan` 会只占一列，同行后面的格整体左移，网格错位（旧导出器连占位格都没有）；
-  - 单元格段落：表头格与纯数字格（`/^[\d\s.,±%~—-]+$/`）用 SesTableCenter，其余用 SesTableText；空单元格写一字线「—」（10.4.2.2）。
+  - 单元格段落：表头格用加粗居中的 SesTableHeader；纯数字格（`/^[\d\s.,±%~—-]+$/`）用 SesTableCenter，其余用 SesTableText；空单元格写一字线「—」（10.4.2.2）。
 - DOCX支持编辑器`columnWidths`（CSS像素），96dpi下换算为15twips/px。局部列宽保留绝对值，自动列平分剩余版心；全部列指定时保留总宽，超出版心按比例适配。合并格宽度为所覆盖列之和；全部续表使用原表统一网格，分页按自定义列宽估算。0为自动列宽；负值、非有限数值、数组长度与colspan不符或同列宽度冲突时明确阻断。HTML/XML尚未实现该字段，继续保留输出检查。
 - 表题保留五号黑体，不叠加粗体；普通单元格段落按用户指定版式默认无首行缩进（GB/T 1.1—2020 10.4.2.2 的一字起排为“宜”）。
 - 表格文字、表头及表注关闭正文网格（`snapToGrid=0`），使9磅行高与续表分段估算一致，并保持 Word 自动跨页时重复表题。
@@ -766,12 +767,14 @@ P(SesFrontTitle, 「前言」/「引言」：「前」「引」的 run 带 `w:sp
   附录 =「附录编号」+「（规范性）/（资料性）」+ U+3000 +「完整标题」，编号与性质之间**无空格**；
   前言、引言、参考文献只写其名称。标题里的交叉引用显示为 `labels[targetId].refText`，不复制正文标题 run 的直接字距。
 - 每个目录目标标题段加确定性的 `bookmarkStart`/`bookmarkEnd`；相应目次段含指向该书签的内部跳转，
-  文字后写右对齐点线制表位和 `PAGEREF <书签名> \h` 域（页码缓存可为空）。`word/settings.xml` 保留
+  文字后写右对齐点线制表位和 `PAGEREF <书签名> \h` 域（未计算的页码缓存显示“待更新”）。`word/settings.xml` 保留
   `<w:updateFields w:val="true"/>`；Word 打开或打印时计算页码，核对不同分节的罗马/阿拉伯页码。
   目次条目本身是可编辑文字，但不会随 Word 中增删章条自动增删；此类结构性修改后应重新从 SES 导出，或手动修目次。
+  有目次条目时返回 `toc-pages-pending` 告警，浏览器导出后持续提示：在 Microsoft Word 打开时允许更新域，
+  完成分页后全选文档，按 F9（Mac 可按 Fn+F9）更新域并保存。浏览器没有 Word 排版引擎，不能保证下载时已有最终页码。
 - 导出稿的页码域标记为待更新，Word 首次及再次打开时可能提示「域可能引用其他文件」。这份生成稿没有外部文件关系；
   提示源于自动更新标记，选「是」可在打开时计算页码。只删自动更新标记会继续提示；连同待更新标记一起删则不提示，
-  但首次打开时目录页码为空。需要无提示且已填页码的**核验副本**时，必须先用 Word 计算并保存域结果；
+  但首次打开时目录页码仍未计算。需要无提示且已填页码的**核验副本**时，必须先用 Word 计算并保存域结果；
   这种副本只对应定稿时的分页，之后修改内容或分页须重新计算。
 - **取舍依据（Word for Mac 16.113，2026-09-26）**：原生 `TOC \o "1-2" \h \z \u` 更新后把章条编号后的
   一个汉字间隙变成半角空格，把附录行变成「附录A （规范性） 标题」；试过九种编号后缀/空格写法仍无法保持

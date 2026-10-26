@@ -82,6 +82,7 @@ const EXPECTED_NAMES: Record<string, string> = {
   SesAppTblCapCont: 'SES_附录续表题',
   SesTableText: 'SES_表格文字',
   SesTableCenter: 'SES_表格居中',
+  SesTableHeader: 'SES_表头',
   SesTableNote: 'SES_表注',
   SesFormula: 'SES_公式',
   SesWhereLabel: 'SES_式中',

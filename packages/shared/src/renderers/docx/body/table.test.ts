@@ -77,8 +77,8 @@ describe('renderTableGrid', () => {
     expect(result.rendered.map(({ cell: renderedCell, row, col, style, header }) => ({
       id: renderedCell.id, row, col, style, header,
     }))).toEqual([
-      { id: 'merged', row: 0, col: 0, style: 'SesTableCenter', header: true },
-      { id: 'header-3', row: 0, col: 2, style: 'SesTableCenter', header: true },
+      { id: 'merged', row: 0, col: 0, style: 'SesTableHeader', header: true },
+      { id: 'header-3', row: 0, col: 2, style: 'SesTableHeader', header: true },
       { id: 'number-cell', row: 1, col: 2, style: 'SesTableCenter', header: false },
     ])
   })

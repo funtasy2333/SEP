@@ -172,6 +172,12 @@ export function renderDocxTraced(
   // 页眉页脚四个部件的关系 ID：按 header1、header2、footer1、footer2 的顺序申请（§2.3）
   const allocateRelId = createRelationshipIdAllocator()
   const ctx = createRenderContext(labels, toc.bookmarksByNodeId, opts, allocateRelId)
+  if (toc.entries.length > 0) {
+    ctx.warnings.push({
+      code: 'toc-pages-pending',
+      message: '目次页码尚未计算，请在 Microsoft Word 完成分页后全选文档并更新域，再保存文件。',
+    })
+  }
   ctx.pageFlow.setFootnoteHeights(new Map(bodyFootnotes.map(footnote => {
     const text = footnote.content.map(run => run.text).join('')
     const lineCount = text.split('\n').reduce((sum, line) => sum + Math.max(1, Math.ceil(

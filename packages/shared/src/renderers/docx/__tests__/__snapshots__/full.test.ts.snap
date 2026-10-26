@@ -14,19 +14,19 @@ SesCoverIssuer │ — │ 〔图〕
 — │ — │
 § type=nextPage pgNumType=— start=— orient=— refs=0
 SesTocTitle │ — │ 目次
-TOC1 │ — │ 前言⇥
-TOC1 │ — │ 引言⇥
-TOC1 │ — │ 1　范围⇥
-TOC1 │ — │ 2　规范性引用文件⇥
-TOC1 │ — │ 3　术语和定义⇥
-TOC1 │ — │ 4　技术要求⇥
-TOC2 │ — │ 4.1　总体要求⇥
-TOC2 │ — │ 4.2　详细要求⇥
-TOC1 │ — │ 附录A（规范性）　附加技术内容⇥
-TOC2 │ — │ A.1　附录条⇥
-TOC2 │ — │ A.2　附录图表⇥
-TOC1 │ — │ 附录B（资料性）　资料性附录⇥
-TOC1 │ — │ 参考文献⇥
+TOC1 │ — │ 前言⇥待更新
+TOC1 │ — │ 引言⇥待更新
+TOC1 │ — │ 1　范围⇥待更新
+TOC1 │ — │ 2　规范性引用文件⇥待更新
+TOC1 │ — │ 3　术语和定义⇥待更新
+TOC1 │ — │ 4　技术要求⇥待更新
+TOC2 │ — │ 4.1　总体要求⇥待更新
+TOC2 │ — │ 4.2　详细要求⇥待更新
+TOC1 │ — │ 附录A（规范性）　附加技术内容⇥待更新
+TOC2 │ — │ A.1　附录条⇥待更新
+TOC2 │ — │ A.2　附录图表⇥待更新
+TOC1 │ — │ 附录B（资料性）　资料性附录⇥待更新
+TOC1 │ — │ 参考文献⇥待更新
 — │ — │
 § type=oddPage pgNumType=upperRoman start=1 orient=— refs=4
 SesFrontTitle │ — │ 前言
@@ -70,9 +70,9 @@ SesClause1 │ 4.2 │ 详细要求
 SesNoTitle2 │ 4.2.1 │ 无题条内容，见图1、公式(1)。
 SesClause2 │ 4.2.2 │ 性能
 SesTblCap │ 表1 │ 性能指标
-┆SesTableCenter │ — │ 项目
-┆SesTableCenter │ — │ 指标
-┆SesTableCenter │ — │ 精度
+┆SesTableHeader │ — │ 项目
+┆SesTableHeader │ — │ 指标
+┆SesTableHeader │ — │ 精度
 ┆SesTableCenter │ — │ 0.1
 ┆SesTableNote │ 注： │ 表内的注。
 SesFigure │ — │ 〔图片缺失〕
@@ -94,7 +94,7 @@ SesAppClause1 │ A.2 │ 附录图表
 SesFigure │ — │ 〔图片缺失〕
 SesAppFigCap │ 图A.1 │ 附录图
 SesAppTblCap │ 表A.1 │ 附录表
-┆SesTableCenter │ — │ 列
+┆SesTableHeader │ — │ 列
 ┆SesTableText │ — │ 值
 SesFormula │ — │ ⇥x = y⇥（A.1）
 — │ — │

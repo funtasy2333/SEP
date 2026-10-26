@@ -293,6 +293,7 @@ const STYLE_SPECS: readonly StyleSpec[] = [
   { id: 'SesAppTblCapCont', name: 'SES_附录续表题', rFonts: 'hei', jc: 'center', keepNext: true, spacing: SPACING_HALF_LINE },
   { id: 'SesTableText', name: 'SES_表格文字', sz: 18, ind: IND_ZERO, snapToGridOff: true },
   { id: 'SesTableCenter', name: 'SES_表格居中', sz: 18, jc: 'center', ind: IND_ZERO, snapToGridOff: true },
+  { id: 'SesTableHeader', name: 'SES_表头', sz: 18, bold: true, jc: 'center', ind: IND_ZERO, snapToGridOff: true },
   { id: 'SesTableNote', name: 'SES_表注', sz: 18, snapToGridOff: true },
   { id: 'SesFootnoteText', name: 'SES_脚注内容', rFonts: 'songAll', sz: 18, ind: IND_FOOTNOTE, tabs: TABS_FOOTNOTE, snapToGridOff: true },
   { id: 'SesTableFootnote', name: 'SES_表脚注', rFonts: 'songAll', sz: 18, ind: IND_TABLE_FOOTNOTE, tabs: TABS_TABLE_FOOTNOTE, snapToGridOff: true },

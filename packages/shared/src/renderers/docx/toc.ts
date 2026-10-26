@@ -43,7 +43,7 @@ function pagerefField(bookmark: DocxBookmark): string {
     `<w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>` +
     `<w:r><w:instrText xml:space="preserve"> PAGEREF ${escapeXmlText(bookmark.name)} \\h </w:instrText></w:r>` +
     '<w:r><w:fldChar w:fldCharType="separate"/></w:r>' +
-    '<w:r><w:t></w:t></w:r>' +
+    '<w:r><w:t>待更新</w:t></w:r>' +
     '<w:r><w:fldChar w:fldCharType="end"/></w:r>'
   )
 }
