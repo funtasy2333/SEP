@@ -31,6 +31,7 @@ import { exportSemanticJson } from '../serializer/jsonExporter'
 import { serializeToXml } from '../serializer/xmlSerializer'
 import { docToText } from '../utils/docDiff'
 import { replaceEditorDocument } from '../utils/editorDocument'
+import { setClauseFormat, setListFormat, setParagraphFormat } from '../utils/structureEditing'
 
 const extensions = createEditorExtensions()
 const schema = getSchema(extensions)
@@ -654,6 +655,66 @@ describe('[M-8.5-03][M-8.5-04][M-8.5-05][M-8.5-06] 图例项键盘：与公式�
     press(editor, 'Backspace')
     expect(editor.state.selection.$from.parent.type.name).toBe('whereTerm')
     expect((figureShapes(editor.getJSON() as PMJsonNode)['g3-fig-1'] as { legend: { items: unknown[] } }).legend.items).toHaveLength(3)
+    editor.destroy()
+  })
+})
+
+describe('[M-8.2-11][M-8.4-03] 编辑命令遇到图内的注 / 示例：拒绝而不是抛错，文档不变', () => {
+  /** 光标放进 nodeId 所属图内注 / 示例的文字里。 */
+  function caretInFigureBlock(editor: Editor, type: 'note' | 'example', nodeId: string): void {
+    let target = -1
+    editor.state.doc.descendants((node, pos) => {
+      if (target < 0 && node.type.name === type && node.attrs.nodeId === nodeId) target = pos + 1
+    })
+    if (target < 0) throw new Error(`找不到 ${type}#${nodeId}`)
+    editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, target + 1)))
+  }
+
+  it('设为条 / 设为段落 / 设为列项：图内的注与示例都返回失败（它们只能是图的 note / example 子节点），文档不变', () => {
+    const editor = mountEditor(createWp8mG3Fixture() as unknown as Record<string, unknown>)
+    for (const [type, id] of [['note', 'g3-fig1-n1'], ['example', 'g3-fig1-e1']] as const) {
+      caretInFigureBlock(editor, type, id)
+      const before = JSON.stringify(editor.getJSON())
+      expect(setClauseFormat(editor, 1).ok, `${type} 设为条`).toBe(false)
+      expect(setParagraphFormat(editor).ok, `${type} 设为段落`).toBe(false)
+      expect(setListFormat(editor, 'dash').ok, `${type} 设为列项`).toBe(false)
+      expect(JSON.stringify(editor.getJSON()), type).toBe(before)
+      expect(() => editor.state.doc.check()).not.toThrow()
+    }
+    editor.destroy()
+  })
+
+  it('insertNote / insertExample：在图内的注里不新增块、文档保持合法（把注就地“设为注”是幂等的；设为示例会破坏 注在前、示例在后 的顺序，被拒绝）', () => {
+    const editor = mountEditor(createWp8mG3Fixture() as unknown as Record<string, unknown>)
+    caretInFigureBlock(editor, 'note', 'g3-fig1-n1')
+    const before = JSON.stringify(editor.getJSON())
+    editor.commands.insertNote()
+    expect(JSON.stringify(editor.getJSON())).toBe(before)
+    expect(editor.commands.insertExample()).toBe(false)
+    expect(JSON.stringify(editor.getJSON())).toBe(before)
+    expect(() => editor.state.doc.check()).not.toThrow()
+    editor.destroy()
+  })
+
+  it('insertNote / insertExample 在图例项与图例标题里被拒绝（返回 false）：块插入会把图例劈开、让后面的项散落到图例之外；文档不变', () => {
+    const editor = mountEditor(createWp8mG3Fixture() as unknown as Record<string, unknown>)
+    const placements: Array<() => void> = [
+      () => caretInItem(editor, 'g3-lg-1', 'whereDefinition', 1),
+      () => caretInItem(editor, 'g3-lg-2', 'whereTerm'),
+      () => caretInLegendTitle(editor, 'g3-legend-1'),
+    ]
+    for (const place of placements) {
+      place()
+      // 基线在放好光标之后取：第一个事务会让 NodeId / 末尾空段插件补全 id（与本组无关）
+      const before = JSON.stringify(editor.getJSON())
+      expect(editor.commands.insertNote()).toBe(false)
+      expect(editor.commands.insertExample()).toBe(false)
+      expect(JSON.stringify(editor.getJSON())).toBe(before)
+    }
+    expect(figureShapes(editor.getJSON() as PMJsonNode)['g3-fig-1']).toMatchObject({
+      children: ['figureImage', 'figureCaption', 'figureLegend', 'note', 'note', 'example'],
+      legend: { items: [['g3-lg-1', '1', '主电路'], ['g3-lg-2', '2', '控制器，见图A.1'], ['g3-lg-3', 'Vo', '输出电压']] },
+    })
     editor.destroy()
   })
 })

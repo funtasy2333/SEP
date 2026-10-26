@@ -14,6 +14,15 @@ declare module '@tiptap/core' {
 }
 
 /**
+ * 光标所在文本块是这些类型时，插入注/示例一律拒绝（返回 false）：在它们里面插入块会把所在容器劈开、让后面的项散落到容器之外。
+ * 除原有的正文文本块外，WP8.M G3 加入式中 / 缩略语 / 图例共用的项单元格（whereTerm、whereDefinition）与图例标题。
+ */
+const NO_BLOCK_INSERT_PARENTS: ReadonlySet<string> = new Set([
+  'stdListItem', 'stdParagraph', 'paragraph', 'note', 'example',
+  'whereTerm', 'whereDefinition', 'figureLegendTitle',
+])
+
+/**
  * 注节点
  * 对应 "注：" 或 "注1：", "注2：" 等
  * 当同一层级有多个注时，自动编号
@@ -86,7 +95,7 @@ export const Note = Node.create({
         ({ state, tr, dispatch, chain }) => {
           if (formatTextBlock(state, dispatch ? tr : state.tr, 'note')) return true
           // Unsupported selections stay intact; empty cursors may still insert a new block.
-          if (!state.selection.empty || ['stdListItem', 'stdParagraph', 'paragraph', 'note', 'example'].includes(state.selection.$from.parent.type.name)) return false
+          if (!state.selection.empty || NO_BLOCK_INSERT_PARENTS.has(state.selection.$from.parent.type.name)) return false
           return chain().insertContent({ type: 'note' }).run()
         },
     }
@@ -128,7 +137,7 @@ export const Example = Node.create({
         ({ state, tr, dispatch, chain }) => {
           if (formatTextBlock(state, dispatch ? tr : state.tr, 'example')) return true
           // Unsupported selections stay intact; empty cursors may still insert a new block.
-          if (!state.selection.empty || ['stdListItem', 'stdParagraph', 'paragraph', 'note', 'example'].includes(state.selection.$from.parent.type.name)) return false
+          if (!state.selection.empty || NO_BLOCK_INSERT_PARENTS.has(state.selection.$from.parent.type.name)) return false
           return chain().insertContent({ type: 'example' }).run()
         },
     }
