@@ -16,6 +16,8 @@ import { pmToIr, type PMJsonNode } from '../pmToIr'
 import { resolve } from '../resolve'
 import type { IRChapter, IRDoc, IRInline, IRNormRefList } from '../types'
 import { fullFixture } from './fixtures'
+import { getOutputSupportProblems } from '../../renderers/outputBoundary'
+import { renderHtml } from '../../renderers/html'
 import { createG1IrDoc, createG1LegacyIrDoc, createG1PmDoc, g1NormRefList } from './wp8mG1Fixtures'
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T }
@@ -68,7 +70,7 @@ describe('[M-4.4.2.3-02] Resolver：规范性引用清单只能是 norm-refs 章
     expect(Object.values(labels).some(label => label.xmlId.startsWith('ext_'))).toBe(false)
   })
 
-  it('文档里有多个清单：给 warning（条目 xmlId 会重复），不报 error', () => {
+  it('文档里有多个清单：报 error（条目 xmlId 会重复、XML id 冲突），提示合并为一个清单；第一个清单不受影响', () => {
     const doc = createG1IrDoc()
     const second = clone(normRefList(doc))
     second.id = 'g1-nrl-2'
@@ -77,10 +79,19 @@ describe('[M-4.4.2.3-02] Resolver：规范性引用清单只能是 norm-refs 章
     ;(second.entries[3] as { content: IRInline[] }).content[1]!.footnote!.id = 'g1-fn-nr2'
     normRefChapter(doc).children.push(second)
     const problems = resolve(doc).problems
-    expect(problems.filter(problem => problem.severity === 'error')).toEqual([])
-    expect(problems.filter(problem => problem.code === 'unsupported-content')).toEqual([
-      expect.objectContaining({ nodeId: 'g1-nrl-2', severity: 'warning', message: expect.stringContaining('多个规范性引用文件清单') }),
+    expect(problems.filter(problem => problem.severity === 'error')).toEqual([
+      expect.objectContaining({ code: 'unsupported-content', nodeId: 'g1-nrl-2', message: expect.stringContaining('多个规范性引用文件清单') }),
     ])
+    expect(problems.find(problem => problem.nodeId === 'g1-nrl-2')!.message).toContain('合并为一个清单')
+    // 两个清单分处不同的 norm-refs 章也一样（仍然是同一份文档里的第二个清单）
+    const twoChapters = createG1IrDoc()
+    twoChapters.body.push({ kind: 'chapter', id: 'g1-ch-extra', secType: 'norm-refs', title: [{ text: '规范性引用文件' }], children: [{ ...clone(second), id: 'g1-nrl-3', entries: second.entries.map(entry => ({ ...clone(entry), id: `${entry.id}-x` })) as IRNormRefList['entries'] }] })
+    ;((twoChapters.body[3]!.children[0] as IRNormRefList).entries[3] as { content: IRInline[] }).content[1]!.footnote!.id = 'g1-fn-nr3'
+    expect(errors(twoChapters).filter(problem => problem.code === 'unsupported-content').map(problem => problem.nodeId)).toEqual(['g1-nrl-3'])
+  })
+
+  it('只有一个清单：没有该 error（回归）', () => {
+    expect(errors(createG1IrDoc()).filter(problem => problem.code === 'unsupported-content')).toEqual([])
   })
 
   it('条目或清单 ID 重复：duplicate-id；缺少 ID：missing-id', () => {
@@ -127,6 +138,80 @@ describe('[M-E-06] Resolver：条目 xmlId 为 ref_<清单内序号>（R-8、X-1
     paragraph.content.push({ text: '占位', marks: [{ type: 'crossRef', targetId: 'g1-nr-2' }] })
     const result = resolve(doc)
     expect(result.problems.filter(problem => problem.code === 'dangling-xref')).toEqual([])
+  })
+})
+
+describe('[M-4.4.2.3-03] [M-4.4.2.3-04] 条目末尾标点：warning（GB/T 1.1—2020 10.3.4 “文件之后不加标点符号”）', () => {
+  const PUNCTUATION = ['；', ';', '，', ',', '。', '.', '、']
+  const trailing = (doc: IRDoc) => resolve(doc).problems.filter(problem => problem.code === 'trailing-punctuation')
+
+  it('夹具的条目末尾都没有标点：不告警', () => {
+    expect(trailing(createG1IrDoc())).toEqual([])
+    expect(resolve(createG1IrDoc()).problems.filter(problem => problem.severity === 'warning' && problem.nodeId?.startsWith('g1-nr'))).toEqual([])
+  })
+
+  it.each(PUNCTUATION)('std 条目的文件名称以“%s”结尾：warning，节点为该条目，severity=warning（不是 error）', punctuation => {
+    const doc = createG1IrDoc()
+    const entry = normRefList(doc).entries[0]!
+    if (entry.entryType !== 'std') throw new Error('夹具应为 std 条目')
+    entry.title = [{ text: `优先数和优先数系${punctuation}` }]
+    expect(trailing(doc)).toEqual([expect.objectContaining({ nodeId: 'g1-nr-1', severity: 'warning', message: expect.stringContaining(`“${punctuation}”`) })])
+    expect(errors(doc)).toEqual([])
+  })
+
+  it.each(PUNCTUATION)('mixed 条目的内容以“%s”结尾：warning', punctuation => {
+    const doc = createG1IrDoc()
+    normRefList(doc).entries[3] = { kind: 'normRef', id: 'g1-nr-4', entryType: 'mixed', content: [{ text: `《中华人民共和国计量法》${punctuation}` }] }
+    expect(trailing(doc)).toEqual([expect.objectContaining({ nodeId: 'g1-nr-4', severity: 'warning' })])
+    expect(errors(doc)).toEqual([])
+  })
+
+  it('末尾空白不算：“名称；  ”仍告警，“名称 ”不告警；标点在句中不告警；括号、引号结尾不告警（只认列出的句读标点）', () => {
+    const doc = createG1IrDoc()
+    const entries = normRefList(doc).entries
+    const set = (index: number, title: string) => {
+      const entry = entries[index]!
+      if (entry.entryType !== 'std') throw new Error('夹具应为 std 条目')
+      entry.title = [{ text: title }]
+    }
+    set(0, '优先数；  ')
+    set(1, '量和单位 ')
+    set(2, '量和单位（Quantities and units）')
+    expect(trailing(doc).map(problem => problem.nodeId)).toEqual(['g1-nr-1'])
+    set(0, '优先数；和优先数系')
+    set(1, '《量和单位》')
+    expect(trailing(doc)).toEqual([])
+  })
+
+  it('跨 run 取最后一个字符；末尾的脚注原子不影响判断（标点在脚注引用之前）；std 的名称为空时看文件编号', () => {
+    const doc = createG1IrDoc()
+    const entries = normRefList(doc).entries
+    const first = entries[0]!
+    if (first.entryType !== 'std') throw new Error('夹具应为 std 条目')
+    first.title = [{ text: '优先数和', marks: [{ type: 'bold' }] }, { text: '优先数系' }, { text: '；', marks: [{ type: 'bold' }] }]
+    const second = entries[1]!
+    if (second.entryType !== 'std') throw new Error('夹具应为 std 条目')
+    second.title = []
+    second.ref = [{ text: 'GB/T 3102（所有部分）,' }]
+    expect(trailing(doc).map(problem => problem.nodeId)).toEqual(['g1-nr-1', 'g1-nr-2'])
+  })
+
+  it('不剥离、不阻断：渲染输出保留作者原文，HTML/DOCX 边界无问题，pmToIr/irToPm 往返不变', () => {
+    const doc = createG1IrDoc()
+    normRefList(doc).entries[3] = { kind: 'normRef', id: 'g1-nr-4', entryType: 'mixed', content: [{ text: '《中华人民共和国计量法》；' }] }
+    expect(trailing(doc)).toHaveLength(1)
+    expect(pmToIr(irToPm(doc)).doc).toEqual(doc)
+    const { labels } = resolve(doc)
+    expect(renderHtml(doc, labels, { variant: 'print' })).toContain('《中华人民共和国计量法》；</p>')
+    expect(getOutputSupportProblems(doc, 'HTML')).toEqual([])
+    expect(getOutputSupportProblems(doc, 'DOCX')).toEqual([])
+  })
+
+  it('只检查规范性引用条目：普通段落、参考文献条目以标点结尾不告警', () => {
+    const doc = createG1IrDoc()
+    ;(doc.body[0]!.children[0] as { content: IRInline[] }).content = [{ text: '本文件规定了引用的写法。' }]
+    expect(trailing(doc)).toEqual([])
+    expect(doc.bibliography[0]!.content[0]!.text.endsWith('.')).toBe(true)
   })
 })
 

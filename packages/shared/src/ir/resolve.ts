@@ -16,6 +16,7 @@ import type {
   IRClauseChild,
   IRDoc,
   IRInline,
+  IRNormRef,
   IRNote,
   IRProblem,
   IRTermEntry,
@@ -180,6 +181,26 @@ function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx, forb
 
 function inlinePlainText(inlines: IRInline[]): string {
   return inlines.map(run => run.text).join('')
+}
+
+/** GB/T 1.1—2020 10.3.4：规范性引用文件“文件之后不加标点符号”；中英文常见的句读标点 */
+const NORM_REF_TRAILING_PUNCTUATION = new Set(['；', ';', '，', ',', '。', '.', '、'])
+
+/**
+ * 规范性引用条目末尾有标点：给 warning，不剥离、不阻断（旧稿常以“；”结尾，渲染与导出保持作者原文）。
+ * std 看文件名称末尾（名称为空时看文件编号），mixed 看内容末尾；末尾空白不算。
+ */
+function warnTrailingPunctuation(entry: IRNormRef, ctx: ResolveCtx): void {
+  const tail = entry.entryType === 'std'
+    ? (inlinePlainText(entry.title).trim() ? entry.title : entry.ref)
+    : entry.content
+  const text = inlinePlainText(tail).trimEnd()
+  const last = text.slice(-1)
+  if (!last || !NORM_REF_TRAILING_PUNCTUATION.has(last)) return
+  ctx.problems.push({
+    code: 'trailing-punctuation', nodeId: entry.id, severity: 'warning',
+    message: `规范性引用文件条目「${text.slice(0, 40)}」末尾有标点“${last}”：GB/T 1.1—2020 10.3.4 规定文件之后不加标点符号，请删除（输出时不会自动剥离）`,
+  })
 }
 
 // ---------- 块级 ----------
@@ -361,9 +382,10 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
         })
       }
       if (++ctx.normRefListCount > 1) {
+        // 条目 xmlId 取清单内序号（ref_<n>），第二个清单会让 XML 里的 id 重复；规范性引用文件只设一个清单，必须合并。
         ctx.problems.push({
-          code: 'unsupported-content', nodeId: block.id, severity: 'warning',
-          message: '文档中有多个规范性引用文件清单，条目 xmlId（ref_<n>，n 为清单内序号）会重复；GB/T 46687.2 要求规范性引用文件只设一个清单，请合并',
+          code: 'unsupported-content', nodeId: block.id, severity: 'error',
+          message: '文档中出现多个规范性引用文件清单：条目 xmlId（ref_<n>，n 为清单内序号）会重复，导出 XML 时 id 冲突；规范性引用文件只设一个清单，请合并为一个清单',
         })
       }
       // R-8：条目 xmlId = ref_<清单内序号>，label 为空（条目之前不给序号，GB/T 1.1—2020 8.6.3.1）。
@@ -377,6 +399,7 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
           visitInlines(entry.ref, entry.id, ctx, forbiddenContainer)
           visitInlines(entry.title, entry.id, ctx, forbiddenContainer)
         } else visitInlines(entry.content, entry.id, ctx, forbiddenContainer)
+        warnTrailingPunctuation(entry, ctx)
       })
       break
     }

@@ -561,6 +561,8 @@ export interface IRProblem {
       | 'dangling-footnote' | 'unreferenced-footnote' | 'invalid-footnote'
       | 'unsupported-content' | 'dangling-resource' | 'dangling-index-target'
       | 'dangling-typed-ref'
+      /** 规范性引用文件条目末尾有标点（GB/T 1.1—2020 10.3.4，WP8.M G1）；仅 warning */
+      | 'trailing-punctuation'
   nodeId: NodeId | null
   severity: 'error' | 'warning'
   /** 中文，面向最终用户 */
