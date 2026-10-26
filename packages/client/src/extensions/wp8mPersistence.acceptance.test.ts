@@ -196,7 +196,7 @@ function assertEdits(doc: IRDoc, label: string): void {
   expect((roman?.items as unknown[] | undefined)?.length, `${label} 罗马列项新增一项后共 5 项`).toBe(5)
   expect(plainText(findIr(doc, 'g7-n2-p1')), `${label} 多块注第一段`).toContain(EDIT_MARK)
   const table = findIr(doc, 'g8-tbl-2col')
-  expect((table?.columns as Array<{ width: number }> | undefined)?.map(column => column.width), `${label} 列宽 30:70`).toEqual([30, 70])
+  expect(columnWidths(table), `${label} 列宽 30:70`).toEqual([30, 70])
   // 新增条目插在 g1-nr-3 之后，Resolver 的 ref_<清单内序号> 随之重排：新条目 ref_4，原第 4 条变 ref_5
   expect(labels['wp8m-acc-nr-5']?.xmlId, label).toBe('ref_4')
   expect(labels['g1-nr-4']?.xmlId, label).toBe('ref_5')
@@ -206,7 +206,12 @@ function assertNotEdited(doc: IRDoc, label: string): void {
   expect(JSON.stringify(doc), `${label} 不应含编辑标记`).not.toContain(EDIT_MARK)
   expect(findIr(doc, 'wp8m-acc-nr-5'), label).toBeUndefined()
   const table = findIr(doc, 'g8-tbl-2col')
-  expect((table?.columns as Array<{ width: number }> | undefined)?.map(column => column.width), `${label} 列宽 40:60`).toEqual([40, 60])
+  expect(columnWidths(table), `${label} 列宽 40:60`).toEqual([40, 60])
+}
+
+/** IRTable.columns[].width 是 IRMeasure（{ value, unit }）；取其数值。 */
+function columnWidths(table: Record<string, unknown> | undefined): Array<number | undefined> | undefined {
+  return (table?.columns as Array<{ width?: { value: number; unit: string } }> | undefined)?.map(column => column.width?.value)
 }
 
 /** 与 wp8mIntegration.test.ts 一致：编辑器加载时给没有 IR 实体 ID 的容器随机补 nodeId，并在文档末尾保留一个光标段落。 */
