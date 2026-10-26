@@ -4,7 +4,7 @@ const semanticKeys = new Set([
   'copyrights', 'languageSets', 'nestedEntries', 'tailOrder', 'mathml', 'formula', 'style', 'width',
   'columnWidths', 'cellType', 'unit', 'groups', 'descriptions', 'resourceId', 'resources',
   'index', 'fields', 'entryType', 'externalLink', 'proposer', 'technicalCommittee',
-  'imageWidth', 'imageHeight', 'alt', 'targetKind', 'subjectField', 'introductionClauses', 'bibliographyTitle',
+  'imageWidth', 'imageHeight', 'alt', 'targetKind', 'subjectField', 'introductionClauses', 'bibliographyTitle', 'columns',
 ])
 const semanticMarks = new Set(['strike', 'code', 'variable', 'externalLink', 'bibRef', 'termRef', 'stdRef', 'mixedCitation'])
 const semanticKinds = new Set(['warning', 'quote', 'code', 'defList', 'normRefList'])

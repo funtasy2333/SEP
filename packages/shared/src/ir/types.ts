@@ -226,6 +226,21 @@ export interface IRTable {
   style?: IRTableStyle
   /** 整张表适用的单位说明。 */
   unit?: string
+  /**
+   * 列模型（WP8.M G8，M-6.1-03；对应 GB/T 46687.2 6.1 `table/col`，导入的 `colgroup/col` 同样展开到这里）。
+   * 长度必须等于表格网格列数（不足的列用 `{}`）。这里保存的是源文档给出的**名义**列宽（通常是百分数），
+   * 与单元格的 `columnWidths`（编辑器拖拽得到的 CSS px）互相独立、互不推导：显示时 px 优先于名义宽度，
+   * 导出 `col` 时只取本字段。HTML / DOCX / XML 本阶段都不排版它（输出边界报 unsupported-output）。
+   */
+  columns?: IRTableColumn[]
+}
+/** `table/col` 的属性（6.1、6.3.2）：`width` 为主；`col/@style` 无语义无用例，不建模。 */
+export interface IRTableColumn {
+  width?: IRMeasure
+  /** 取值 left | center | right | justify（6.3.2）。 */
+  textAlign?: string
+  /** 取值 top | middle | bottom | baseline（6.3.2）。 */
+  verticalAlign?: string
 }
 export interface IRTableRow {
   id: NodeId
@@ -282,6 +297,14 @@ export interface IRCellStyle {
   borderRight?: IRMeasure
   borderBottom?: IRMeasure
   borderLeft?: IRMeasure
+  /**
+   * 分边边框样式（WP8.M G8，M-6.3.3.1-01，GB/T 46687.2 6.3.3.2）：取值 solid | dashed | dotted | none。
+   * 宽度仍由上面的 `border*`（IRMeasure）承载；不建模分边颜色（D-M-15）。
+   */
+  borderTopStyle?: string
+  borderRightStyle?: string
+  borderBottomStyle?: string
+  borderLeftStyle?: string
   paddingTop?: IRMeasure
   paddingRight?: IRMeasure
   paddingBottom?: IRMeasure

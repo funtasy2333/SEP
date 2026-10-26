@@ -144,7 +144,7 @@ export function idsOutsideSubtree(env: InspectEnv, located: LocatedNode): Set<st
 const MAX_REASONS = 10
 
 const FIELD_LABELS: Record<string, string> = {
-  style: '样式', width: '宽度', unit: '单位', footnotes: '表脚注', columnWidths: '列宽', cellType: '单元格类型',
+  style: '样式', width: '宽度', unit: '单位', footnotes: '表脚注', columnWidths: '列宽', columns: '列宽模型', cellType: '单元格类型',
   resourceId: '图资源引用', imageWidth: '图片宽度', imageHeight: '图片高度', title: '图的标题属性',
   descriptions: '图说明', groups: '图分组', mathml: 'MathML', sourceInlines: '含标记的公式源',
   languageSets: 'TBX 语言集', nestedEntries: '嵌套术语条目', tailOrder: '术语尾项顺序', subjectField: '术语领域',

@@ -18,6 +18,9 @@ import {
   type AuthoringContext, type FragmentContextRules, type IRFragmentNode,
 } from './fragmentContext'
 import { orderedTermTail } from './termTailOrder'
+import {
+  CELL_BORDER_STYLES, CELL_BORDER_STYLE_KEYS, columnAlignProblem, columnWidthProblem, isCellBorderStyle, tableGridWidth,
+} from './tableColumns'
 
 export interface IRToPmDiagnostic {
   path: string
@@ -388,6 +391,35 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJso
   return node('stdList', withId(list.id, { listType: 'dash', level: list.level ?? 1 }), [])
 }
 
+/** `IRTable.columns` → `stdTable.attrs.columns`（WP8.M G8）：每列四个键齐全（缺省为 null），与生产 Schema 的属性形状一致。 */
+function tableColumnsAttr(table: IRTable, path: string, errors: IRToPmDiagnostic[]): PmAttrs[] {
+  const columns = table.columns ?? []
+  const gridWidth = tableGridWidth(table.rows)
+  if (columns.length !== gridWidth) {
+    errors.push({
+      path: `${path}.columns`, nodeId: table.id,
+      reason: `列模型columns有 ${columns.length} 项，与表格网格列数 ${gridWidth} 不符，不能无损转换`,
+    })
+  }
+  return columns.map((column, index) => {
+    const where = `${path}.columns[${index}]`
+    if (column.width) {
+      const problem = columnWidthProblem(column.width.value, column.width.unit)
+      if (problem) errors.push({ path: `${where}.width`, nodeId: table.id, reason: `第${index + 1}列${problem}` })
+    }
+    const textAlign = columnAlignProblem(column.textAlign, undefined)
+    if (textAlign) errors.push({ path: `${where}.textAlign`, nodeId: table.id, reason: `第${index + 1}列${textAlign}` })
+    const verticalAlign = columnAlignProblem(undefined, column.verticalAlign)
+    if (verticalAlign) errors.push({ path: `${where}.verticalAlign`, nodeId: table.id, reason: `第${index + 1}列${verticalAlign}` })
+    return {
+      width: column.width?.value ?? null,
+      widthUnit: column.width?.unit ?? null,
+      textAlign: column.textAlign ?? null,
+      verticalAlign: column.verticalAlign ?? null,
+    }
+  })
+}
+
 function tableToPm(table: IRTable, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
   if (table.rows.length === 0) {
     errors.push({ path: `${path}.rows`, nodeId: table.id, reason: '生产表格至少需要一个表格行' })
@@ -395,6 +427,7 @@ function tableToPm(table: IRTable, path: string, errors: IRToPmDiagnostic[]): PM
   const attrs: PmAttrs = withId(table.id, { orientation: table.orientation, unit: table.unit ?? null, headerRowCount: table.headerRowCount })
   measureAttrs(attrs, 'width', table.width)
   if (table.style) Object.assign(attrs, tableStyleAttrs(table.style))
+  if (table.columns !== undefined) attrs.columns = tableColumnsAttr(table, path, errors)
   const rows = table.rows.map((row, ri) => {
     if (row.cells.length === 0) {
       errors.push({ path: `${path}.rows[${ri}].cells`, nodeId: row.id, reason: '生产表格行至少需要一个单元格' })
@@ -411,7 +444,20 @@ function tableToPm(table: IRTable, path: string, errors: IRToPmDiagnostic[]): PM
         unit: cell.unit ?? null,
       })
       measureAttrs(cellAttrs, 'width', cell.width)
-      if (cell.style) Object.assign(cellAttrs, cellStyleAttrs(cell.style))
+      if (cell.style) {
+        const style = { ...cell.style }
+        // WP8.M G8：非法的分边边框样式不写入 PM（调用方因 errors 非空而收到 IRToPmError），避免带着不合法取值落库。
+        for (const key of CELL_BORDER_STYLE_KEYS) {
+          const value = style[key]
+          if (value === undefined || isCellBorderStyle(value)) continue
+          errors.push({
+            path: `${path}.rows[${ri}].cells[${ci}].style.${key}`, nodeId: cell.id,
+            reason: `边框样式「${key}」的取值「${String(value)}」不在 ${CELL_BORDER_STYLES.join(' | ')} 之内`,
+          })
+          delete style[key]
+        }
+        Object.assign(cellAttrs, cellStyleAttrs(style))
+      }
       return node(cell.header ? 'tableHeader' : 'tableCell', cellAttrs, blocksToPm(cell.content, `${path}.rows[${ri}].cells[${ci}].content`, errors))
     })
     return node('tableRow', withId(row.id, row.style ? rowStyleAttrs(row.style) : {}), cells)

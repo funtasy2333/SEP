@@ -169,7 +169,7 @@ const OWNER_LABELS: Record<FieldOwner, string> = {
 const IR_ONLY_FIELDS: Partial<Record<FieldOwner, readonly string[]>> = {
   run: ['style', 'footnote'],
   inlineFormula: ['mathml', 'source'],
-  table: ['width', 'style', 'unit', 'footnotes'],
+  table: ['width', 'style', 'unit', 'footnotes', 'columns'],
   figure: ['title', 'unit', 'resourceId', 'imageWidth', 'imageHeight', 'descriptions', 'groups'],
   formula: ['mathml', 'sourceInlines', 'notes'],
   termEntry: ['nestedEntries', 'languageSets', 'tailOrder', 'subjectField'],

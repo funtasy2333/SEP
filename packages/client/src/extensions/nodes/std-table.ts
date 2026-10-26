@@ -2,7 +2,7 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import { Fragment } from '@tiptap/pm/model'
 import type { DOMOutputSpec, Node as PMNode } from '@tiptap/pm/model'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
-import { generateNodeId, type PMJsonNode } from '@ses/shared'
+import { columnWidthProblem, generateNodeId, type PMJsonNode } from '@ses/shared'
 import { normalizePageOrientation, readPageOrientation } from '../../utils/orientation'
 
 function stringAttribute(name: string, defaultValue: string | null = null) {
@@ -21,6 +21,37 @@ function legacyTableFootnoteContentElement(element: HTMLElement): HTMLElement {
     content.append(copy)
   }
   return content
+}
+
+/**
+ * `columns`（WP8.M G8，M-6.1-03）在 HTML 中的载体：`data-columns` 存 JSON，往返以它为准；
+ * 同时为每个带有效宽度的列写自定义属性 `--ses-col-<n>`（n 从 1 起），供样式给 `<colgroup>` 的对应 `<col>` 设宽度
+ * （见 styles/standard-nodes.css）。自定义属性只来自通过 {@link columnWidthProblem} 校验的值（有限正数 + 字母/% 记号式单位），
+ * 不会把任意文本写进 style。
+ */
+function parseColumnsAttribute(element: HTMLElement): unknown {
+  const raw = element.getAttribute('data-columns')
+  if (raw === null || raw === '') return null
+  try {
+    return JSON.parse(raw) as unknown
+  } catch {
+    return null
+  }
+}
+
+function renderColumnsAttribute(attributes: Record<string, unknown>): Record<string, string> {
+  const columns = attributes.columns
+  if (!Array.isArray(columns) || columns.length === 0) return {}
+  const variables: string[] = []
+  columns.forEach((column: unknown, index) => {
+    if (!column || typeof column !== 'object') return
+    const { width, widthUnit } = column as { width?: unknown; widthUnit?: unknown }
+    if (columnWidthProblem(width, widthUnit) === null) variables.push(`--ses-col-${index + 1}: ${String(width)}${String(widthUnit)}`)
+  })
+  return {
+    'data-columns': JSON.stringify(columns),
+    ...(variables.length > 0 ? { style: variables.join('; ') } : {}),
+  }
 }
 
 declare module '@tiptap/core' {
@@ -85,6 +116,16 @@ export const StdTable = Node.create({
       backgroundColor: stringAttribute('backgroundColor'),
       cellPadding: { default: null },
       cellPaddingUnit: stringAttribute('cellPaddingUnit'),
+      /**
+       * 列模型（名义列宽，M-6.1-03）：`{width, widthUnit, textAlign, verticalAlign}[]`，长度等于网格列数；
+       * 缺省 null（P2：序列化时 null 属性被剔除，旧文档与 JSON golden 不变）。放在外层 stdTable 而不是内层 table：
+       * 内层是 prosemirror-tables 的网格节点。与单元格的 `colwidth`（编辑器拖拽得到的 px）互相独立。
+       */
+      columns: {
+        default: null,
+        parseHTML: parseColumnsAttribute,
+        renderHTML: renderColumnsAttribute,
+      },
       orientation: {
         default: 'portrait',
         parseHTML: (element) => readPageOrientation(element),

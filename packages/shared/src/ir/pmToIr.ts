@@ -57,6 +57,7 @@ import type {
   IRTableRow,
   IRTermEntry,
   IRTermGroup,
+  IRTableColumn,
   IRTermTailOrderItem,
   IRTermLanguageSet,
   IRTermVariant,
@@ -68,6 +69,9 @@ import type {
   NodeId,
 } from './types'
 import { canonicalTermTailOrder, sameTermTailOrder } from './termTailOrder'
+import {
+  CELL_BORDER_STYLES, CELL_BORDER_STYLE_KEYS, columnAlignProblem, columnWidthProblem, isCellBorderStyle, tableGridWidth,
+} from './tableColumns'
 
 /** ProseMirror JSON 节点（纯对象形态） */
 export interface PMJsonNode {
@@ -402,6 +406,19 @@ function rowStyle(attrs: Record<string, unknown> | undefined, ctx: Ctx, node: PM
 
 function cellStyle(attrs: Record<string, unknown> | undefined, ctx: Ctx, node: PMJsonNode): IRCellStyle | undefined {
   const style: IRCellStyle = scalarStyle(attrs, ['textAlign', 'verticalAlign', 'backgroundColor'])
+  // WP8.M G8（M-6.3.3.1-01）：分边边框样式只接受 solid | dashed | dotted | none；其他取值不能静默改写或丢弃。
+  for (const key of CELL_BORDER_STYLE_KEYS) {
+    const value = attrs?.[key]
+    if (value === undefined || value === null || value === '') continue
+    if (isCellBorderStyle(value)) style[key] = value
+    else {
+      ctx.unsupportedContent.push({
+        nodeId: typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : null,
+        path: '表格/单元格', nodeType: node.type,
+        reason: `边框样式「${key}」的取值「${String(value)}」不在 ${CELL_BORDER_STYLES.join(' | ')} 之内`,
+      })
+    }
+  }
   const measurements: [keyof IRCellStyle, string, string][] = [
     ['borderTop', 'borderTop', 'borderTopUnit'], ['borderRight', 'borderRight', 'borderRightUnit'],
     ['borderBottom', 'borderBottom', 'borderBottomUnit'], ['borderLeft', 'borderLeft', 'borderLeftUnit'],
@@ -648,6 +665,58 @@ function convertTableCellBlocks(
   return out
 }
 
+const COLUMN_ATTR_KEYS = new Set(['width', 'widthUnit', 'textAlign', 'verticalAlign'])
+
+/**
+ * `stdTable.attrs.columns`（WP8.M G8，M-6.1-03）→ `IRTable.columns`。
+ * 每项逐字段校验；任何不合法之处都记入 unsupportedContent（不静默丢弃），非法字段不进 IR。
+ * 项数与网格列数不符时整体不进 IR（否则 irToPm 会因长度不符拒绝），同样记入 unsupportedContent。
+ */
+function convertTableColumns(node: PMJsonNode, id: NodeId, rows: IRTableRow[], ctx: Ctx): IRTableColumn[] | undefined {
+  const raw = node.attrs?.columns
+  if (raw === undefined || raw === null) return undefined
+  const problem = (reason: string) => ctx.unsupportedContent.push({
+    nodeId: id, path: ctx.path(node, '表格'), nodeType: node.type, reason: `列模型columns：${reason}`,
+  })
+  if (!Array.isArray(raw)) {
+    problem('必须是数组')
+    return undefined
+  }
+  const columns: IRTableColumn[] = []
+  raw.forEach((item: unknown, index) => {
+    const label = `第${index + 1}列`
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      problem(`${label}必须是对象`)
+      columns.push({})
+      return
+    }
+    const entry = item as Record<string, unknown>
+    for (const key of Object.keys(entry)) {
+      if (!COLUMN_ATTR_KEYS.has(key) && entry[key] !== null && entry[key] !== undefined) problem(`${label}含有不受支持的属性「${key}」`)
+    }
+    const column: IRTableColumn = {}
+    const hasWidth = (entry.width !== undefined && entry.width !== null) || (entry.widthUnit !== undefined && entry.widthUnit !== null)
+    if (hasWidth) {
+      const widthProblem = columnWidthProblem(entry.width, entry.widthUnit)
+      if (widthProblem) problem(`${label}${widthProblem}`)
+      else column.width = { value: entry.width as number, unit: entry.widthUnit as string }
+    }
+    const textAlignProblem = columnAlignProblem(entry.textAlign, undefined)
+    if (textAlignProblem) problem(`${label}${textAlignProblem}`)
+    else if (typeof entry.textAlign === 'string') column.textAlign = entry.textAlign
+    const verticalAlignProblem = columnAlignProblem(undefined, entry.verticalAlign)
+    if (verticalAlignProblem) problem(`${label}${verticalAlignProblem}`)
+    else if (typeof entry.verticalAlign === 'string') column.verticalAlign = entry.verticalAlign
+    columns.push(column)
+  })
+  const gridWidth = tableGridWidth(rows)
+  if (columns.length !== gridWidth) {
+    problem(`有 ${columns.length} 项，与表格网格列数 ${gridWidth} 不符`)
+    return undefined
+  }
+  return columns
+}
+
 function convertStdTable(node: PMJsonNode, ctx: Ctx): IRTable {
   const id = ctx.id(node)
   const rows: IRTableRow[] = []
@@ -727,6 +796,8 @@ function convertStdTable(node: PMJsonNode, ctx: Ctx): IRTable {
   if (width) table.width = width
   const style = tableStyle(node.attrs, ctx, node)
   if (style) table.style = style
+  const columns = convertTableColumns(node, id, rows, ctx)
+  if (columns) table.columns = columns
   const captionEn = node.content?.find((c) => c.type === 'tableCaptionEn')
   if (captionEn) table.captionEn = convertInlines(captionEn.content, ctx)
   const footnote = node.content?.find((c) => c.type === 'tableFootnote')

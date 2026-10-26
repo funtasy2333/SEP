@@ -37,6 +37,7 @@ import {
   StdParagraph, StdTable, TableCaption, TableCaptionEn, TableFootnote, TableFootnoteEntry, TableFootnoteRef, TableFootnoteRow, TableNoteRow,
   TermDef, TermDefinition, TermName, TermNameEn, TermSource, TermSubjectField,
   NormRefList, NormRefStd, NormRefStdRef, NormRefStdTitle, NormRefMixed, StdRef, MixedCitation,
+  TableColumnsSync,
 } from './index' // 相对路径：服务端打包也会加载本文件，不认识 '@/' 别名（见 editorSchema.ts）
 
 /** The exact extension list used by EditorView's useEditor call. */
@@ -87,5 +88,7 @@ export function createEditorExtensions(): Extensions {
     NoteBlock, ExampleBlock,
     // G1：规范性引用文件清单（M-4.4.2.3-02/-03/-04）与正文标准引用 mark（M-10.2-01/-02、M-10.1.7-01）。
     NormRefList, NormRefStd, NormRefStdRef, NormRefStdTitle, NormRefMixed, StdRef, MixedCitation,
+    // G8：列数变化时清空 stdTable.columns（M-6.1-03，D-M-11）。纯插件，不新增节点。
+    TableColumnsSync,
   ]
 }
