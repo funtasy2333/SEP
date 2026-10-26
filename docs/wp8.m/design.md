@@ -735,6 +735,8 @@ export interface IRCellStyle { /* 既有 */
 
 WP8.3 导入时一律写入条目级字段。
 
+**集成中发现、交由 M-Z 决定的问题**：导出前检查（`exportGuard`）与输出边界只拦截脚注类问题和 `dangling-typed-ref`，**不拦截 Resolver 的其他 error**。受影响的包括 G1 的“清单出现在非 norm-refs 章”“多个清单”、G3 的“行内图位置非法”、G6 的“悬置段”等。这是 WP8.M 之前就有的口径。M-Z 需要决定：是否让 Resolver 的 error 级问题统一阻断非 JSON 出口；若阻断，则逐项列出现有 error 代码对既有文档的影响。
+
 **对任务的影响**：每个“本阶段排版”的组，都须在本组任务内同时完成 HTML（含打印 CSS）与 DOCX 的渲染和测试，并在 `outputBoundary.ts` 中对 HTML/DOCX 放行。允许修改既有快照，但须逐项说明理由。XML46687 的白名单仍留给 WP8.2。
 
 ## 8. 工作量估算
