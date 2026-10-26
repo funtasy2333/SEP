@@ -366,7 +366,7 @@ function addLiteralMentions(index: ContentIndex): IndexedMention[] {
   const literalPatterns: { regex: RegExp; kind: IndexedObject['kind']; keyPrefix: string; explicitPrefix: boolean }[] = [
     { regex: new RegExp(`(图)(${numberSource})(?![0-9.])`, 'g'), kind: 'figure', keyPrefix: '图', explicitPrefix: true },
     { regex: new RegExp(`(表)(${numberSource})(?![0-9.])`, 'g'), kind: 'table', keyPrefix: '表', explicitPrefix: true },
-    { regex: /附录([A-Z]{1,2})(?![A-Z0-9])/g, kind: 'appendix', keyPrefix: '附录', explicitPrefix: true },
+    { regex: /附录([A-Z]{1,2})/g, kind: 'appendix', keyPrefix: '附录', explicitPrefix: true },
     { regex: new RegExp(`(?:公式|式)?\\((${numberSource})(?![A-Z0-9.])\\)`, 'g'), kind: 'formula', keyPrefix: '(', explicitPrefix: false },
   ]
   const rangePattern = new RegExp(`(图|表)(${numberSource})(至|到|[-~～—–])(?:(图|表))?(${numberSource}|\\d+)(?![A-Z0-9.])`, 'g')
@@ -398,13 +398,19 @@ function addLiteralMentions(index: ContentIndex): IndexedMention[] {
       pattern.regex.lastIndex = 0
       for (let match = pattern.regex.exec(mapped.compact); match; match = pattern.regex.exec(mapped.compact)) {
         const wholeFrom = match.index
-        const wholeTo = wholeFrom + match[0].length
+        let wholeTo = wholeFrom + match[0].length
+        if (pattern.kind === 'appendix') {
+          // A compacted second letter may belong to the next word, e.g. “附录A API”.
+          const secondLetter = wholeFrom + 3
+          if (secondLetter < wholeTo && mapped.from[secondLetter] !== mapped.to[secondLetter - 1]) wholeTo = secondLetter
+        }
         const sourceEnd = mapped.to[wholeTo - 1]
-        if ((pattern.kind === 'figure' || pattern.kind === 'table') && sourceEnd !== undefined
-          && /^[A-Z0-9.]/i.test(entry.text.slice(sourceEnd, sourceEnd + 1).normalize('NFKC'))) continue
+        if ((pattern.kind === 'figure' || pattern.kind === 'table' || pattern.kind === 'appendix') && sourceEnd !== undefined
+          && (pattern.kind === 'appendix' ? /^[A-Z0-9]/i : /^[A-Z0-9.]/i)
+            .test(entry.text.slice(sourceEnd, sourceEnd + 1).normalize('NFKC'))) continue
         if (rangeSpans.some(span => span.kind === pattern.kind && wholeFrom >= span.from && wholeTo <= span.to)) continue
         let key: string
-        if (pattern.kind === 'appendix') key = `附录${match[1]}`
+        if (pattern.kind === 'appendix') key = `附录${mapped.compact.slice(wholeFrom + 2, wholeTo)}`
         else if (pattern.kind === 'formula') key = `(${match[1]})`
         else key = `${pattern.keyPrefix}${match[2]}`
         recordTarget(entry, mapped, key, wholeFrom, wholeTo, pattern.kind)

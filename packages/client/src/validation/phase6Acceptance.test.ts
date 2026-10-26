@@ -39,6 +39,14 @@ describe('Phase 6: production PM → IR → manual quality acceptance', () => {
     expect(issues.find(i => i.ruleId === 'appendix.body-mention')?.nodeId).toBe('appendix-a')
   })
 
+  it.each([' ', '\t', '　'])('recognizes an appendix label followed by %j and styled English prose', separator => {
+    const pm = phase6Fixture()
+    requirement(pm).content!.push(paragraph('appendix-english', text('要求见附录'), text('A', [{ type: 'bold' }]), text(`${separator}API接口。`)))
+    const lead = requirement(pm).content!.find(node => node.attrs?.nodeId === 'objects-lead')!
+    lead.content = [text('阀门结构见图1，参数见表1。阀门应检验。')]
+    expect(issuesFor(pm, 'appendix.body-mention')).toEqual([])
+  })
+
   it('does not count a term definition or caption, but counts two real occurrences across styled inline runs', () => {
     const pm = phase6Fixture()
     const req = requirement(pm)

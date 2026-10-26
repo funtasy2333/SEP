@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { analyzeDocument } from './analyze'
+import { buildContentIndex } from './contentIndex'
 import { createParagraphDocument } from './__fixtures__/documents'
 import type { IRBlock, IRChapter, IRDoc, IRInline, IRParagraph, IRTermEntry } from '../ir/types'
 
@@ -80,6 +81,35 @@ describe('independent shared review regressions', () => {
   it('keeps whitespace between a figure number and following English prose', () => {
     const doc = document([p('lead', '结构见图1 API接口。'), figure('f1')])
     expect(analyzeDocument(doc).validation.issues.filter(item => item.ruleId === 'object.introduction-and-mention')).toEqual([])
+  })
+
+  it.each([
+    ['A API接口。', 0, true],
+    ['A Interface接口。', 0, true],
+    ['A\tAPI接口。', 0, true],
+    ['Ａ　API接口。', 0, true],
+    ['A A接口。', 0, true],
+    ['AA API接口。', 26, true],
+    ['A，接口说明。', 0, true],
+    ['AAPI接口。', 0, false],
+    ['AAAPI接口。', 26, false],
+    ['AA1接口。', 26, false],
+  ] as const)('keeps original appendix label boundaries in %s', (suffix, targetIndex, mentioned) => {
+    const doc = document([p('appendix-ref', `要求见附录${suffix}`)])
+    doc.appendices = Array.from({ length: 27 }, (_, index) => ({
+      kind: 'appendix', id: `app-${index}`, normative: false,
+      title: [{ text: '说明' }], children: [p(`app-p-${index}`, '附录内容。')],
+    }))
+    const analysis = analyzeDocument(doc)
+    const issues = analysis.validation.issues.filter(item => item.ruleId === 'appendix.body-mention')
+    const mentions = buildContentIndex(doc, analysis.resolution).mentions.filter(item => item.kind === 'appendix')
+    const labelLength = targetIndex === 26 ? 2 : 1
+    expect(mentions).toMatchObject(mentioned ? [{ targetId: `app-${targetIndex}`, text: `附录${suffix.slice(0, labelLength)}`, from: 3, to: 5 + labelLength }] : [])
+    expect(mentions).toHaveLength(mentioned ? 1 : 0)
+    expect(issues.some(item => item.nodeId === `app-${targetIndex}`)).toBe(!mentioned)
+    expect(issues).toHaveLength(mentioned ? 26 : 27)
+    // A followed by a new word must not accidentally count as appendix AA.
+    if (targetIndex === 0) expect(issues.some(item => item.nodeId === 'app-26')).toBe(true)
   })
 
   it('does not count inline code and does not glue text across a skipped code run', () => {
