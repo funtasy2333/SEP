@@ -3,7 +3,7 @@ import type { IRBibEntry, IRBlock, IRClauseChild, IRDoc, IRIndex, IRNormRef, IRN
 import { exportXml46687 } from '../xml46687'
 import { site } from '../xml46687Parts/context'
 import { createRenderSession } from '../xml46687Parts/dispatch'
-import { EMPTY_OPTIONS, appendix, bodyOf, chapter, clause, codesOf, exportDoc, find, labelsOf, makeDoc, para, renderOk, run } from './xml46687Kit'
+import { EMPTY_OPTIONS, appendix, bodyOf, chapter, clause, codesOf, deepFreeze, exportDoc, find, labelsOf, makeDoc, para, renderOk, run } from './xml46687Kit'
 import { shouldSkipValidation, stsCompatWithPython, validateWithPython } from './xml46687PythonValidation'
 
 /**
@@ -452,6 +452,12 @@ describe('域快照与外部校验', () => {
   it('导出幂等：连续两次逐字节相同', () => {
     const first = exportXml46687(doc, labels, EMPTY_OPTIONS).xml
     expect(exportXml46687(doc, labels, EMPTY_OPTIONS).xml).toBe(first)
+  })
+
+  it('不修改输入（设计 §7.3）：递归冻结的 doc 与 labels 副本导出不抛错，输出与未冻结时逐字节相同', () => {
+    const frozenDoc = deepFreeze(structuredClone(doc))
+    const frozenLabels = deepFreeze(structuredClone(labels))
+    expect(exportXml46687(frozenDoc, frozenLabels, EMPTY_OPTIONS).xml).toBe(exportXml46687(doc, labels, EMPTY_OPTIONS).xml)
   })
 
   it('独立复算 id 与 rid（不复用渲染器的检查函数）：id 唯一，xref/@rid 都能解析', () => {

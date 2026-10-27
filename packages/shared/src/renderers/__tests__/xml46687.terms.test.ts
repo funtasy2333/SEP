@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { IRBlock, IRClauseChild, IRDefList, IRDoc, IRTermDescriptor, IRTermEntry, IRTermLanguageSet } from '../../ir/types'
 import { exportXml46687 } from '../xml46687'
-import { EMPTY_OPTIONS, appendix, bodyOf, chapter, clause, codesOf, exportDoc, find, labelsOf, makeDoc, para, renderOk, run } from './xml46687Kit'
+import { EMPTY_OPTIONS, appendix, bodyOf, chapter, clause, codesOf, deepFreeze, exportDoc, find, labelsOf, makeDoc, para, renderOk, run } from './xml46687Kit'
 import { shouldSkipValidation, stsCompatWithPython, validateWithPython } from './xml46687PythonValidation'
 
 /**
@@ -630,6 +630,12 @@ describe('域快照与外部校验', () => {
   it('导出幂等：连续两次逐字节相同', () => {
     const first = exportXml46687(doc, labels, EMPTY_OPTIONS).xml
     expect(exportXml46687(doc, labels, EMPTY_OPTIONS).xml).toBe(first)
+  })
+
+  it('不修改输入（设计 §7.3）：递归冻结的 doc 与 labels 副本导出不抛错，输出与未冻结时逐字节相同', () => {
+    const frozenDoc = deepFreeze(structuredClone(doc))
+    const frozenLabels = deepFreeze(structuredClone(labels))
+    expect(exportXml46687(frozenDoc, frozenLabels, EMPTY_OPTIONS).xml).toBe(exportXml46687(doc, labels, EMPTY_OPTIONS).xml)
   })
 
   describe.skipIf(shouldSkipValidation())('python3 -I scripts/xml46687/validate.py --json --profile export', () => {
