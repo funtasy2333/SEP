@@ -710,7 +710,7 @@ ResourceManifestEntry {
 |---|---|---|
 | `xml-label-missing` | error | 需要 Resolver 标签而缺失或形状不对（2.2、2.5、2.6～2.9、2.10） |
 | `xml-body-empty` | error | 没有章（2.1） |
-| `meta-required-missing` | error（D-X-02 备选 warning） | 缺题名；SES 必填的 `std-org-group`/`content-language`/`release-date`/`implementation-date` 缺失（2.1） |
+| `meta-required-missing` | 题名缺失 error；其余 warning（D-X-02 决定 B，见 8.1） | 缺题名；SES 必填的 `std-org-group`/`content-language`/`release-date`/`implementation-date` 缺失（2.1） |
 | `xml-date-invalid` | error | 日期不是真实日历日 `YYYY-MM-DD`（2.1） |
 | `xml-block-after-subsec` | error | 子条之后出现非注/示例/清单的块（2.1、2.2） |
 | `xml-mark-combination` | error | 不可表达的 mark 组合，或容器不允许的 mark（2.3.2、2.3.3） |
@@ -976,6 +976,20 @@ T2.4a-0 ──┬── T2.4a-1 ──┬── T2.4b ──┐                �
 | D-X-18 | 外部校验对 python3 的依赖（7.4） | A：无 python 时跳过，`REQUIRE_XML_VALIDATION=1` 时失败，验收命令固定带它；B：总是强制；C：只放独立脚本，不进 vitest | A | 仓库无 CI 配置、`ENVIRONMENT.md` 称 Python“可选”；需要用户确认验收环境有 python3、lxml、xmllint |
 | D-X-19 | 术语注的 `nte_<术语号>-<k>` 是否占用全局 `note_<n>` 计数（R-4） | A：不占用，其余 `note_<n>` 连续；B：占用，`note_<n>` 出现空洞 | A | A 使 `html.test.ts.snap` 里术语 1 之后各注的序号前移（1.4.3 已实测两项快照变化） |
 | D-X-20 | 矩阵覆盖断言的范围（7.6） | A：shall/should 且 export≠not-applicable 的行必须有测试引用（186 行）；may/示例行只报告；B：全部 export≠not-applicable 的行（322 行）；C：只要求 shall（151 行） | A | B 会要求为示例性的 MathML 元素行（M-7.4-04～M-7.4-11）等逐行造测试，收益低 |
+
+### 8.1 决定（2026-10-27）
+
+**用户决定**（会话中确认）：
+
+| 编号 | 决定 | 落实要点 |
+|---|---|---|
+| D-X-02 | **B：warning，导出继续** | 发布机构 `std-org-group`、`content-language`、`release-date`、`implementation-date` 缺失时报 `meta-required-missing`（**warning**），省略对应元素；题名（`title-wrap`）缺失仍为 **error**（同一码，按字段区分级别）。此类输出可能通不过 `validate.py` 的必备检查，属已知后果；黄金样例与验收夹具必须补齐这四项。理由：WP8.4 版本快照切到新 XML 后，未填元数据的草稿仍须能保存版本 |
+| D-X-03 | **A** | `columnWidths`（px）、`cellType`、`width` 放行并 info；非表头单元格 `unit` 为 error `cell-unit-unsupported` |
+| D-X-04 | **A：放行并 warning/info，按类聚合** | 行内 `style` 仍按 D-S-06 阻断；`figure.groups`、`termEntry.nestedEntries` 仍阻断（1.3.3） |
+| D-X-07 | **A：半角 `a)`** | `list-item/label` 由 `computeOrderedListMarkers` 的标记把末尾全角“）”转为半角“)”；`xref` 内容仍用 `refText`（全角，D-M-03） |
+| D-X-18 | **A** | 无 python3/lxml/xmllint 时跳过外部校验并打印提示；`REQUIRE_XML_VALIDATION=1` 时缺环境即失败；验收命令固定带该变量 |
+
+**主导人决定**：其余各项均采纳倾向 A——D-X-01（已由 T2.0 落实）、D-X-05、D-X-06、D-X-08（已由 T2.3 落实）、D-X-09、D-X-10、D-X-11、D-X-12、D-X-13、D-X-14、D-X-15（已由 T2.4a-0 落实）、D-X-16、D-X-17、D-X-19（已由 T2.3 落实）、D-X-20。
 
 另有**不是待决、但需要用户知情**的三点：①T2.0 复核后 `M-4.3.4-02/-03`（引言条）的 `import` 仍是 `reject`，应在 WP8.3 改 `accept`；②本阶段不改 `io/src/exportGuard.ts`，`xml` 仍映射到旧 `XML` 边界，到 WP8.4 才切换；③`outputBoundary.ts` 对 `warning/quote/code` 三个块 kind 对 HTML、DOCX 同样阻断，本阶段只对 XML46687 放行，HTML/DOCX 的放行另立任务。
 
