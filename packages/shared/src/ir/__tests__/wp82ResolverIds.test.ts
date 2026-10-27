@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { resolve } from '../resolve'
 import type { IRBibEntry, IRDoc, IRTable } from '../types'
-import { appendix, chapter, docOf, para } from './wp8mG4Fixtures'
+import { appendix, chapter, docOf, example, note, para, termEntry } from './wp8mG4Fixtures'
 
 describe('[X-09] [R-1] 参考文献条目 xmlId = biblref_<n>', () => {
   const bib = (id: string, text: string): IRBibEntry => ({ kind: 'bibEntry', id, content: [{ text }] })
@@ -84,5 +84,48 @@ describe('[X-24] [R-2] 表脚注 xmlId = table-fn_<表号>.<k>', () => {
     expect(labels[fnId('t1', 'n25')]).toMatchObject({ label: 'z', xmlId: 'table-fn_1.26' })
     expect(labels[fnId('t1', 'n26')]).toMatchObject({ label: 'aa', xmlId: 'table-fn_1.27' })
     expect(Object.values(labels).filter(label => label.xmlId.startsWith('tabfn_'))).toEqual([])
+  })
+})
+
+describe('[X-13] [R-4] 术语条目内的注 xmlId = nte_<术语编号>-<k>，不占全局 note_<n> 计数', () => {
+  const noteOf = (id: string) => note(id, para(`${id}.p`, { text: `注${id}` }))
+  const exampleOf = (id: string) => example(id, para(`${id}.p`, { text: `示例${id}` }))
+
+  function termDoc(): IRDoc {
+    const nested = termEntry('t1a', { notes: [noteOf('tna1')] })
+    return docOf([
+      chapter('ch1', 'scope', '范围', para('ch1-p', { text: '范围' }), noteOf('n-before')),
+      chapter('ch2', 'norm-refs', '规范性引用文件', para('ch2-p', { text: '无' })),
+      chapter('ch3', 'terms', '术语和定义',
+        { ...termEntry('t1', { notes: [noteOf('tn1'), noteOf('tn2')], examples: [exampleOf('tx1')] }), nestedEntries: [nested] },
+        termEntry('t2', { notes: [noteOf('tn3')], examples: [exampleOf('tx2')] }),
+      ),
+      chapter('ch4', 'general', '一般要求', para('ch4-p', { text: '正文' }), noteOf('n-after'), exampleOf('ex-after')),
+    ])
+  }
+
+  it('术语注得到 nte_<术语编号>-<k>：k 为术语内序号，嵌套术语按自己的编号（3.1.1）', () => {
+    const { labels, problems } = resolve(termDoc())
+    expect(problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(labels['t1']).toMatchObject({ label: '3.1', xmlId: 'sec_3.1', termEntryXmlId: 'term_3.1' })
+    expect(labels['tn1']).toEqual({ label: '注1：', xmlId: 'nte_3.1-1', refText: '注1' })
+    expect(labels['tn2']).toEqual({ label: '注2：', xmlId: 'nte_3.1-2', refText: '注2' })
+    expect(labels['t1a']).toMatchObject({ label: '3.1.1', termEntryXmlId: 'term_3.1.1' })
+    expect(labels['tna1']).toEqual({ label: '注：', xmlId: 'nte_3.1.1-1', refText: '注' })
+    expect(labels['tn3']).toEqual({ label: '注：', xmlId: 'nte_3.2-1', refText: '注' })
+  })
+
+  it('不占全局 note_<n> 计数（D-X-19）：术语前后其余的注仍是连续的 note_1、note_2', () => {
+    const { labels } = resolve(termDoc())
+    expect(labels['n-before']!.xmlId).toBe('note_1')
+    expect(labels['n-after']!.xmlId).toBe('note_2')
+    const noteIds = Object.values(labels).map(label => label.xmlId).filter(xmlId => /^note_/.test(xmlId))
+    expect(noteIds).toEqual(['note_1', 'note_2'])
+  })
+
+  it('术语内的示例仍是全局 example_<n>（tbx:example 没有 id，渲染器遇到引用才报错）', () => {
+    const { labels } = resolve(termDoc())
+    expect(['tx1', 'tx2', 'ex-after'].map(id => labels[id]!.xmlId)).toEqual(['example_1', 'example_2', 'example_3'])
+    expect(labels['tx1']!.label).toBe('示例：')
   })
 })

@@ -654,20 +654,24 @@ function visitAppendix(appendix: IRAppendix, seq: number, ctx: ResolveCtx): void
 function labelScopeGroup(
   items: { id: NodeId }[],
   labelOf: (index: number, totalInScope: number) => string,
-  xmlPrefix: string,
-  nextSeq: () => number,
+  xmlIdOf: (index: number) => string,
   ctx: ResolveCtx,
 ): void {
   items.forEach(({ id }, i) => {
     const label = labelOf(i + 1, items.length)
-    ctx.setLabel(id, label, `${xmlPrefix}_${nextSeq()}`, label.replace(/：$/, ''))
+    ctx.setLabel(id, label, xmlIdOf(i + 1), label.replace(/：$/, ''))
   })
 }
 
 function labelNotesAndExamples(ctx: ResolveCtx): void {
-  for (const scope of ctx.scopes.values()) {
-    labelScopeGroup(scope.notes, (i, t) => ctx.strategy.note(i, t), 'note', () => ++ctx.noteSeq, ctx)
-    labelScopeGroup(scope.examples, (i, t) => ctx.strategy.example(i, t), 'example', () => ++ctx.exampleSeq, ctx)
+  for (const [key, scope] of ctx.scopes) {
+    // 术语条目作用域内的注：xmlId = nte_<术语编号>-<k>（X-13，R-4），k 为该术语内的注序号；
+    // 不占用全局 note_<n> 计数（D-X-19），其余作用域的 note_<n> 因此保持连续。
+    const termNumber = ctx.kinds.get(key) === 'term' ? ctx.labels[key]?.label : undefined
+    labelScopeGroup(scope.notes, (i, t) => ctx.strategy.note(i, t),
+      termNumber ? k => `nte_${termNumber}-${k}` : () => `note_${++ctx.noteSeq}`, ctx)
+    // 示例在术语内同样沿用全局 example_<n>（tbx:example 没有 id，渲染器不会输出它）
+    labelScopeGroup(scope.examples, (i, t) => ctx.strategy.example(i, t), () => `example_${++ctx.exampleSeq}`, ctx)
   }
 }
 
