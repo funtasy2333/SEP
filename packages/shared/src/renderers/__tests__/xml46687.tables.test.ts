@@ -4,7 +4,7 @@ import { buildXml46687Document, exportXml46687, renderXml46687 } from '../xml466
 import {
   EMPTY_OPTIONS, appendix, chapter, codesOf, deepFreeze, exportDoc, find, labelsOf, makeDoc, para, renderOk, run,
 } from './xml46687Kit'
-import { shouldSkipValidation, validateWithPython } from './xml46687PythonValidation'
+import { shouldSkipValidation, stsCompatWithPython, validateWithPython } from './xml46687PythonValidation'
 
 /**
  * 表（WP8.2 设计 §2.6）：table-wrap 的结构、XHTML 表模型、col、单元格 style、表注/表脚注/单位、各 warning/info/error。
@@ -466,6 +466,13 @@ describe('错误与降级（设计 §4.4）', () => {
     }
   })
 
+  it('xml-table-empty（error）：行里没有任何单元格（tr 至少需要一个 th/td）', () => {
+    const result = exportDoc(docWith([table('t1', [row('r0', [cell('c0', '甲')]), row('r1', [])])]))
+    expect(result.xml).toBeNull()
+    expect(find(result.problems, 'xml-table-empty')).toHaveLength(1)
+    expect(find(result.problems, 'xml-table-empty')[0]).toMatchObject({ severity: 'error', nodeId: 'r1', path: 'doc.body[0].children[0].rows[1].cells' })
+  })
+
   it('xml-label-missing（error）：Resolver 没有给出表的标签（缺 xmlId）或编号文本为空', () => {
     const doc = docWith([simple('t1')])
     const missing = labelsOf(doc)
@@ -592,5 +599,12 @@ describe.skipIf(shouldSkipValidation())('外部校验：python3 -I scripts/xml46
     expect(result.errors).toEqual([])
     expect(result.valid).toBe(true)
     expect(result.warnings).toEqual([])
+  })
+
+  it('sts_compat.py（与官方 NISO STS 1.2 DTD 对照）：退出码 0，零未解释偏差', () => {
+    const doc = domainDoc()
+    const result = stsCompatWithPython(renderXml46687(doc, labelsOf(doc), EMPTY_OPTIONS))
+    expect(result.status, result.stdout).toBe(0)
+    expect(result.stdout).toContain('未解释偏差 0 个')
   })
 })

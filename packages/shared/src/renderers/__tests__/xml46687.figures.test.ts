@@ -5,7 +5,7 @@ import { exportXml46687, renderXml46687 } from '../xml46687'
 import {
   EMPTY_OPTIONS, appendix, chapter, codesOf, deepFreeze, find, labelsOf, makeDoc, para, renderRuns, run,
 } from './xml46687Kit'
-import { shouldSkipValidation, validateWithPython } from './xml46687PythonValidation'
+import { shouldSkipValidation, stsCompatWithPython, validateWithPython } from './xml46687PythonValidation'
 import { stubManifest, stubOptions } from './xml46687StubKit'
 
 /**
@@ -362,5 +362,12 @@ describe.skipIf(shouldSkipValidation())('外部校验：python3 -I scripts/xml46
     expect(result.errors).toEqual([])
     expect(result.valid).toBe(true)
     expect(result.warnings).toEqual([])
+  })
+
+  it('sts_compat.py（与官方 NISO STS 1.2 DTD 对照）：退出码 0，零未解释偏差', () => {
+    const doc = domainDoc()
+    const result = stsCompatWithPython(renderXml46687(doc, labelsOf(doc), stubOptions(doc)))
+    expect(result.status, result.stdout).toBe(0)
+    expect(result.stdout).toContain('未解释偏差 0 个')
   })
 })

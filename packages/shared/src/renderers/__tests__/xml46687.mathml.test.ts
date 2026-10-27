@@ -300,6 +300,26 @@ describe('输出可写（与写出器的契约）', () => {
   })
 })
 
+describe('鲁棒性：任意截断/替换/删除字符后只会成功或抛 MathMlParseError', () => {
+  const sample = `<math ${NS} display="block"><semantics><mrow><mi mathvariant="italic">x</mi><mo>&#x2264;</mo><mfrac><mn>1</mn><mn>2</mn></mfrac><mspace width="1em"/></mrow>`
+    + `<annotation encoding="application/x-tex">x\\le\\frac12</annotation></semantics><!-- c --></math>`
+
+  it('逐位截断、删除、换成特殊字符：不抛其他类型的异常（无 TypeError、无无限循环）', () => {
+    const specials = ['<', '>', '&', '"', "'", '/', '=', ' ', ':', ';', '\u0001', '\ud800']
+    for (let index = 0; index <= sample.length; index += 1) {
+      const variants = [sample.slice(0, index), sample.slice(0, index) + sample.slice(index + 1), ...specials.map((char) => sample.slice(0, index) + char + sample.slice(index + 1))]
+      for (const variant of variants) {
+        try {
+          parseMathMl(variant)
+        } catch (error) {
+          expect(error, JSON.stringify(variant)).toBeInstanceOf(MathMlParseError)
+          expect((error as MathMlParseError).offset).toBeGreaterThanOrEqual(0)
+        }
+      }
+    }
+  })
+})
+
 /** 遍历计数辅助：确认规范化后树里没有 annotation / semantics 元素。 */
 function names(node: XmlNode, out: string[] = []): string[] {
   if (node.type === 'element') { out.push(node.name.local); node.children.forEach((child) => names(child, out)) }

@@ -235,6 +235,9 @@ function renderRow(row: IRTableRow, rowIndex: number, rowSite: Site, scope: Tabl
       .filter((key) => key !== 'textAlign' && key !== 'verticalAlign' && isPresent(style[key]))
     if (others.length > 0) styleWarning(scope, `${rowName}的样式（${others.join('、')}）无 XML 表达，已省略`, sub(rowSite, '.style'))
   }
+  if (row.cells.length === 0) {
+    scope.ctx.report('xml-table-empty', 'error', `${scope.name} 第 ${rowIndex + 1} 行没有任何单元格（XHTML 表的 tr 至少需要一个 th 或 td）。`, sub(rowSite, '.cells'))
+  }
   const cells = row.cells.map((cell, cellIndex) =>
     renderCell(cell, `第 ${rowIndex + 1} 行第 ${cellIndex + 1} 个单元格`, sub(rowSite, `.cells[${cellIndex}]`, cell.id), scope))
   return el('tr', { align, valign }, cells)
