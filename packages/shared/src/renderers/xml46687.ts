@@ -51,7 +51,7 @@ export type Xml46687ProblemCode =
   | 'table-width-not-expressed' | 'table-style-not-expressed' | 'figure-attr-not-expressed'
   | 'term-subjectfield-duplicate' | 'term-subjectfield-promoted' | 'term-subjectfield-brackets'
   | 'term-descriptor-not-expressed' | 'term-descriptor-missing' | 'bib-std-incomplete' | 'bib-field-not-expressed'
-  | 'index-seealso-not-expressed'
+  | 'index-seealso-not-expressed' | 'list-type-normalized'
   // info
   | 'cell-attr-not-expressed' | 'px-width-ignored' | 'term-language-merged' | 'term-tail-order-normalized'
   | 'mathml-annotation-removed' | 'resource-unused'

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import { resolve } from '../../ir/resolve'
 import type { IRBlock, IRDoc, IRList } from '../../ir/types'
 import { exportXml46687 } from '../xml46687'
-import { EMPTY_OPTIONS, bodyOf, chapter, codesOf, exportDoc, find, labelsOf, makeDoc, para, renderOk, run } from './xml46687Kit'
+import { site } from '../xml46687Parts/context'
+import { createRenderSession } from '../xml46687Parts/dispatch'
+import { shouldSkipValidation, validateWithPython } from './xml46687PythonValidation'
+import { EMPTY_OPTIONS, bodyOf, chapter, codesOf, exportDoc, find, labelsOf, makeDoc, para, renderOk, renderRuns, run } from './xml46687Kit'
 
 /**
  * 列项、注、示例、警告、摘录、代码（WP8.2 设计 §2.4、§2.5）。
@@ -82,13 +86,18 @@ describe('列项 list（设计 §2.4）', () => {
     expect(codesOf(result.problems, 'error')).toEqual(['xml-list-empty'])
   })
 
-  it('list-marker-missing：默认策略下没有标记的有序项（第二层 alpha）不能省略 label，error', () => {
-    const inner = list('inner', 'alpha', [['n1', '内一']])
-    const outer: IRList = { kind: 'list', id: 'outer', listType: 'alpha', items: [{ id: 'o1', content: [para('o1.p0', '外一'), inner] }] }
-    const result = exportDoc(docWith([outer]))
-    expect(result.xml).toBeNull()
-    expect(find(result.problems, 'list-marker-missing')).toHaveLength(1)
-    expect(find(result.problems, 'list-marker-missing')[0]).toMatchObject({ severity: 'error', nodeId: 'n1', path: 'doc.body[0].children[0].items[0].content[1].items[0]' })
+  it('list-marker-missing：同一有序列表内只有部分列项有标记（不一致）时，对没有标记的列项报 error，列表类型不变', () => {
+    const doc = docWith([list('la', 'alpha', [['a1', '甲'], ['a2', '乙'], ['a3', '丙']])])
+    const session = createRenderSession(doc, labelsOf(doc), EMPTY_OPTIONS)
+    // 默认策略不会出现“部分有标记”；这里模拟自定义策略：a2 的标记为空串
+    ;(session.ctx.orderedMarkers as Record<string, string>)['a2'] = ''
+    const rendered = session.ctx.renderBlock(doc.body[0]!.children[0] as IRBlock, site('doc.body[0].children[0]', 'la'))
+    session.flushMerged()
+    expect(rendered).toHaveLength(1)
+    expect(rendered[0]!.attrs.map((attr) => `${attr.name.local}=${attr.value}`)).toEqual(['list-type=alpha-lower'])
+    expect(find(session.ctx.problems, 'list-marker-missing')).toHaveLength(1)
+    expect(find(session.ctx.problems, 'list-marker-missing')[0]).toMatchObject({ severity: 'error', nodeId: 'a2', path: 'doc.body[0].children[0].items[1]' })
+    expect(find(session.ctx.problems, 'list-type-normalized')).toHaveLength(0)
   })
 
   it('empty-content：列项没有内容时给 warning 并写出空 p', () => {
@@ -193,5 +202,129 @@ describe('警告、摘录、代码（设计 §2.5）', () => {
     ]))
     expect(xml).not.toContain(' id=')
     expect(xml).not.toContain('ext_')
+  })
+})
+
+describe('渲染时无标识的有序列项按显示形态导出（设计 §2.4；主导决定 2026-10-27）', () => {
+  const item = (id: string, text: string, ...nested: IRList[]): IRList['items'][number] => ({ id, content: [para(`${id}.p0`, text), ...nested] })
+  const listOf = (id: string, listType: IRList['listType'], ...items: IRList['items']): IRList => ({ kind: 'list', id, listType, items })
+
+  /** 二层 alpha：外层 alpha，内层 alpha 在 HTML/DOCX 中显示为间隔号。 */
+  const secondLevelAlpha = (): IRDoc => docWith([listOf('outer', 'alpha', item('o1', '外一', listOf('inner', 'alpha', item('n1', '内一'), item('n2', '内二'))), item('o2', '外二'))])
+  /** 二层 roman。 */
+  const secondLevelRoman = (): IRDoc => docWith([listOf('outer', 'alpha', item('o1', '外一', listOf('inner', 'roman', item('n1', '内一'), item('n2', '内二'))))])
+  /** 三层 number：一、二层 number 有标记（1)、1)），三层没有。 */
+  const thirdLevelNumber = (): IRDoc => docWith([
+    listOf('l1', 'number', item('a1', '一层', listOf('l2', 'number', item('b1', '二层', listOf('l3', 'number', item('c1', '三层一'), item('c2', '三层二')))))),
+  ])
+
+  it('[M-5.7-09] [M-5.7-06] 二层 alpha：内层导出为 bullet、列项不写 label，warning list-type-normalized，导出成功', () => {
+    const doc = secondLevelAlpha()
+    const { xml, problems } = renderOk(doc)
+    expect(blocksOf(doc)).toBe(
+      '<list list-type="alpha-lower"><list-item><label>a)</label><p>外一</p>'
+      + '<list list-type="bullet"><list-item><p>内一</p></list-item><list-item><p>内二</p></list-item></list>'
+      + '</list-item><list-item><label>b)</label><p>外二</p></list-item></list>',
+    )
+    expect(xml).not.toMatch(/<list list-type="bullet">(?:(?!<\/list>)[\s\S])*<label>/)
+    const normalized = find(problems, 'list-type-normalized')
+    expect(normalized).toHaveLength(1)
+    expect(normalized[0]).toMatchObject({ severity: 'warning', nodeId: 'inner', path: 'doc.body[0].children[0].items[0].content[1]' })
+    expect(normalized[0]!.message).toContain('alpha')
+    expect(normalized[0]!.message).toContain('嵌套第 2 层')
+    expect(normalized[0]!.message).toContain('与 HTML/DOCX 显示一致')
+    expect(find(problems, 'list-marker-missing')).toHaveLength(0)
+    expect(codesOf(problems, 'error')).toEqual([])
+  })
+
+  it('[M-5.7-09] [M-5.7-06] 二层 roman：内层同样导出为 bullet 且不写 label', () => {
+    const doc = secondLevelRoman()
+    expect(blocksOf(doc)).toBe(
+      '<list list-type="alpha-lower"><list-item><label>a)</label><p>外一</p>'
+      + '<list list-type="bullet"><list-item><p>内一</p></list-item><list-item><p>内二</p></list-item></list>'
+      + '</list-item></list>',
+    )
+    const normalized = find(renderOk(doc).problems, 'list-type-normalized')
+    expect(normalized).toHaveLength(1)
+    expect(normalized[0]).toMatchObject({ severity: 'warning', nodeId: 'inner' })
+    expect(normalized[0]!.message).toContain('roman')
+    expect(normalized[0]!.message).toContain('嵌套第 2 层')
+  })
+
+  it('[M-5.7-09] [M-5.7-06] 三层 number：前两层照常写 label，第三层导出为 bullet；消息说明嵌套第 3 层', () => {
+    const doc = thirdLevelNumber()
+    expect(blocksOf(doc)).toBe(
+      '<list list-type="arabic"><list-item><label>1)</label><p>一层</p>'
+      + '<list list-type="arabic"><list-item><label>1)</label><p>二层</p>'
+      + '<list list-type="bullet"><list-item><p>三层一</p></list-item><list-item><p>三层二</p></list-item></list>'
+      + '</list-item></list></list-item></list>',
+    )
+    const normalized = find(renderOk(doc).problems, 'list-type-normalized')
+    expect(normalized).toHaveLength(1)
+    expect(normalized[0]).toMatchObject({ severity: 'warning', nodeId: 'l3' })
+    expect(normalized[0]!.message).toContain('number')
+    expect(normalized[0]!.message).toContain('嵌套第 3 层')
+  })
+
+  it('list-type-normalized 按类聚合：同一文档多处合并为一条，列出个数与各处的原 listType、深度', () => {
+    const doc = docWith([secondLevelAlpha().body[0]!.children[0] as IRBlock, listOf('x', 'alpha', item('x1', '外', listOf('y', 'roman', item('y1', '内'))))])
+    const normalized = find(renderOk(doc).problems, 'list-type-normalized')
+    expect(normalized).toHaveLength(1)
+    expect(normalized[0]!.message).toContain('共 2 处')
+    expect(normalized[0]!.message).toContain('alpha')
+    expect(normalized[0]!.message).toContain('roman')
+  })
+
+  it('不影响本来就有标记的列表：第一层 alpha/number/roman 与二层 number 照常写 label，无 list-type-normalized', () => {
+    const doc = docWith([listOf('outer', 'alpha', item('o1', '外一', listOf('inner', 'number', item('n1', '内一'))))])
+    const { problems } = renderOk(doc)
+    expect(find(problems, 'list-type-normalized')).toHaveLength(0)
+    expect(blocksOf(doc)).toContain('<list list-type="arabic"><list-item><label>1)</label><p>内一</p></list-item></list>')
+  })
+
+  it('无序列表（dash/dot）不触发 list-type-normalized，也不写 label', () => {
+    const doc = docWith([listOf('l1', 'dash', item('i1', '甲')), listOf('l2', 'dot', item('i2', '乙'))])
+    expect(find(renderOk(doc).problems, 'list-type-normalized')).toHaveLength(0)
+  })
+
+  describe('被引用的无标识列项（二层 alpha 项）', () => {
+    const referencing = (): IRDoc => docWith([
+      para('ref-p', '见', run('b）', { type: 'crossRef', targetId: 'n2', targetKind: 'listItem' })),
+      ...secondLevelAlpha().body[0]!.children as IRBlock[],
+    ])
+
+    it('Resolver 本就报 dangling-xref（没有编号）；渲染器报 error xml-xref-target-unsupported，不导出 XML，且不写 xref', () => {
+      const doc = referencing()
+      expect(resolve(doc).problems.filter((problem) => problem.code === 'dangling-xref')).toHaveLength(1)
+      const result = exportDoc(doc)
+      expect(result.xml).toBeNull()
+      expect(codesOf(result.problems, 'error')).toEqual(['xml-xref-target-unsupported'])
+      const problem = find(result.problems, 'xml-xref-target-unsupported')[0]!
+      expect(problem.message).toContain('没有标识')
+      expect(problem.message).toContain('n2')
+      // 内层列表仍按显示形态规范化，不额外报 list-marker-missing
+      expect(find(result.problems, 'list-type-normalized')).toHaveLength(1)
+      expect(find(result.problems, 'list-marker-missing')).toHaveLength(0)
+    })
+
+    it('该 run 回退为作者原文（不生成 xref、不补写 id，不输出不存在的 b）标识）', () => {
+      const doc = referencing()
+      const { xml, problems } = renderRuns(doc, [run('见'), run('b）', { type: 'crossRef', targetId: 'n2', targetKind: 'listItem' })])
+      expect(xml).toBe('见b）')
+      expect(codesOf(problems, 'error')).toEqual(['xml-xref-target-unsupported'])
+    })
+  })
+
+  describe.skipIf(shouldSkipValidation())('外部校验：python3 -I scripts/xml46687/validate.py --json --profile export', () => {
+    it.each([
+      ['二层 alpha', secondLevelAlpha],
+      ['二层 roman', secondLevelRoman],
+      ['三层 number', thirdLevelNumber],
+    ] as const)('%s：valid:true，errors:[]（无序列项不带 label，V-5）', (_name, build) => {
+      const { xml } = renderOk(build())
+      const result = validateWithPython(xml, 'export')
+      expect(result.errors).toEqual([])
+      expect(result.valid).toBe(true)
+    })
   })
 })

@@ -386,10 +386,10 @@ WP8.M 的 31 条恰为设计 §6.2 的 11 类，说明 §6.2 对“WP8.M 新增�
 
 | XML 路径与属性 | IR 来源 | id/rid 来源 | 矩阵行 · 约定 | 错误/告警条件 |
 |---|---|---|---|---|
-| `list[@list-type]` | `IRList.listType`：`alpha`→`alpha-lower`、`number`→`arabic`、`roman`→`roman-lower`、`dash`→`dash`、`dot`→`bullet` | **不写 `list/@id`**（M-E-22） | M-5.7-01、M-5.7-02、M-5.7-03、M-5.7-04、M-5.7-05、M-5.7-06、M-D-03 · C-S-32 | `boxed`、`romanUpper` → error `xml-list-type-unsupported`（原文无取值；D-X-09 给出“降级并告警”的备选）；`IRList.level` 不使用（嵌套由结构表达） |
+| `list[@list-type]` | `IRList.listType`：`alpha`→`alpha-lower`、`number`→`arabic`、`roman`→`roman-lower`、`dash`→`dash`、`dot`→`bullet` | **不写 `list/@id`**（M-E-22） | M-5.7-01、M-5.7-02、M-5.7-03、M-5.7-04、M-5.7-05、M-5.7-06、M-D-03 · C-S-32 | `boxed`、`romanUpper` → error `xml-list-type-unsupported`（原文无取值；D-X-09 给出“降级并告警”的备选）；`IRList.level` 不使用（嵌套由结构表达）。**按显示形态导出（主导决定 2026-10-27）**：`listType` 为有序（`alpha`/`number`/`roman`）而该列表的列项**全部**没有标记（D-M-17：二层 alpha/roman、三层及以下，HTML/DOCX 显示为间隔号“·”，不是 b）/ii））时，输出 `list[@list-type="bullet"]`、列项不写 `label`（无序项不写 label，V-5），并报 warning `list-type-normalized`（按类聚合，消息说明原 `listType` 与嵌套深度，以及“与 HTML/DOCX 显示一致”）；不改 Resolver |
 | `list` 是 `p` 的兄弟块，**不放进 `p`** | 块序列 | — | M-5.7-01 · C-S-32 | — |
 | `list-item` | `IRList.items[]` | 仅被引用时写 `@id`：`R: labels[item.id].xmlId`（`li_<k>`）；写出过指向它的 `xref` 才补写（3.2；M-5.7-10 的“被引用才有 id”口径，附录 E M-E-22） | M-5.7-08、M-10.1.5-02 · C-T-52 | 被引用但 `labels` 无该项（无序列项、`romanUpper` 项）→ error `xml-xref-target-unsupported` |
-| `list-item/label`（有序项必写，无序项不写） | `orderedMarkers[item.id]`（D-X-08）：取 Resolver 的 `computeOrderedListMarkers`，**全角括号转半角**（`a）`→`a)`，D-X-07；印刷页 16 的标记示例亲验为半角 `a)`/`b)`/`c)`） | — | M-5.7-09 · C-S-32 | 有序项没有标记（自定义策略返回空串；默认策略不会）→ error `list-marker-missing`（省略 `label` 会被 V-17 在 export 档判错） |
+| `list-item/label`（有序项必写，无序项不写） | `orderedMarkers[item.id]`（D-X-08）：取 Resolver 的 `computeOrderedListMarkers`，**全角括号转半角**（`a）`→`a)`，D-X-07；印刷页 16 的标记示例亲验为半角 `a)`/`b)`/`c)`） | — | M-5.7-09 · C-S-32 | 同一列表内**部分**列项有标记、部分没有（不应出现的不一致；自定义策略才可能）→ 对没有标记的列项报 error `list-marker-missing`（省略 `label` 会被 V-17 在 export 档判错）；整个列表的列项都没有标记则按上一条规范化为 `bullet`（warning `list-type-normalized`），不报此码。被引用的无标记列项（如二层 alpha 项）：Resolver 报 `dangling-xref`，渲染器报 error `xml-xref-target-unsupported`（列项没有 `li_<k>`），与 2.11 的“被引用但 `labels` 无该项”一致 |
 | `list-item/p`（列项正文） | `items[].content` 里的 `IRParagraph`（行内 `inline` 容器），无 id | — | M-5.7-10 · C-S-32 | 段落外的块 → 类型系统已禁止 |
 | 嵌套 `list`（在同一 `list-item` 内，接在 `p` 之后） | `items[].content` 里的 `IRList` | 同上 | M-5.7-11 · C-S-32 | 嵌套层数不限；`level` 忽略 |
 | 空 `items` 的列表 | — | — | — | error `xml-list-empty`（schema 要求至少一个 `list-item`）；项内无任何块 → warning `empty-content` 并输出空 `<p/>` |
@@ -718,7 +718,8 @@ ResourceManifestEntry {
 | `xml-footnote-position` | error | 脚注原子不在 `p` 内（2.3.5） |
 | `formula-in-text-only` | error | 纯文本容器内出现行内公式或行内图（2.3.3、2.8、2.9） |
 | `xml-list-type-unsupported` | error | `boxed`/`romanUpper`（2.4，D-X-09） |
-| `list-marker-missing` | error | 有序列项没有标记（2.4） |
+| `list-marker-missing` | error | 同一有序列表内部分列项有标记、部分没有（2.4；整个列表都没有标记时按显示形态导出，见下一行） |
+| `list-type-normalized` | warning；聚合 | 有序列表的列项全部没有标记（二层 alpha/roman、三层及以下），按 HTML/DOCX 的显示形态导出为 `list-type="bullet"`、不写 `label`（2.4；主导决定 2026-10-27） |
 | `xml-list-empty` | error | `list`、`defList`、图例没有任何项（2.4、2.7、2.12） |
 | `xml-note-content` | error | 注/示例内容含 `paragraph`、`list` 之外的块；术语注/示例非单段（2.5、2.9） |
 | `xml-quote-content` | error | 摘录含非段落块（2.5） |

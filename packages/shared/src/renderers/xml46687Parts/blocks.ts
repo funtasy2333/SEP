@@ -4,6 +4,9 @@
  * - `p` 不带任何属性（M-E-25，V-18）；列表是 `p` 的兄弟块；
  * - 列项：`list-item/label` 取 `computeOrderedListMarkers` 的标记并把末尾全角“）”转半角（D-X-07）；
  *   `list-item` 仅被引用时写 `id`（`li_<k>`，经 `registerPendingId`）；
+ *   有序列表的列项**全部**没有标记（D-M-17：二层 alpha/roman、三层及以下）时，HTML/DOCX 显示为间隔号“·”，
+ *   XML 按显示形态导出为 `list-type="bullet"`、不写 `label`，并报 warning `list-type-normalized`（主导决定 2026-10-27，设计 §2.4）；
+ *   同一列表内只有部分列项有标记才是不一致，仍报 error `list-marker-missing`；
  * - 注/示例：`non-normative-note|example`，`label` 取 Resolver（“注：”“示例1：”），`id` 仅被引用时写；
  *   内容只收 `paragraph`、`list`（D-X-12）；
  * - 警告 `non-normative-note[@content-type="warning"]`、摘录 `disp-quote`、代码块 `code` 不写 id（R-5：Resolver 的 `ext_` 占位不读）。
@@ -44,6 +47,11 @@ export function renderParagraph(block: IRParagraph, at: Site, ctx: RenderContext
   return [el('p', undefined, ctx.renderInlines(block.content, sub(at, '.content'), 'p'))]
 }
 
+/** 列表的嵌套深度（1 = 不在任何列项内）：路径里每经过一个 `.items[` 就是一层列项（该写法只由 `renderList` 产生）。 */
+function listDepthOf(at: Site): number {
+  return (at.path.match(/\.items\[/g) ?? []).length + 1
+}
+
 export function renderList(list: IRList, at: Site, ctx: RenderContext): XmlElement[] {
   const listType = LIST_TYPES[list.listType]
   if (listType === undefined) {
@@ -55,13 +63,24 @@ export function renderList(list: IRList, at: Site, ctx: RenderContext): XmlEleme
     return []
   }
   const ordered = ORDERED_LIST_TYPES.has(list.listType)
+  const markerOf = (item: IRList['items'][number]): string => ctx.orderedMarkers[item.id] ?? ''
+  // 有序列表的列项全部没有标记：HTML/DOCX 显示为间隔号“·”，XML 与显示一致，按无序列表导出（不是 list-marker-missing）
+  const displayedAsBullet = ordered && list.items.every((item) => markerOf(item) === '')
+  if (displayedAsBullet) {
+    ctx.reportMerged(
+      'list-type-normalized', 'warning',
+      '有序列表的列项在 HTML/DOCX 中没有 a）/1）/i） 标识（二层字母、罗马列项与三层及以下的列项显示为间隔号“·”），XML 与 HTML/DOCX 显示一致，已导出为无序列表（list-type="bullet"，不写 label）',
+      `列表「${list.id}」原 listType 为 ${list.listType}、嵌套第 ${listDepthOf(at)} 层`,
+      at,
+    )
+  }
   const items = list.items.map((item, index): XmlElement => {
     const itemSite = sub(at, `.items[${index}]`, item.id)
     const children: Array<XmlElement | null> = []
-    if (ordered) {
-      const marker = ctx.orderedMarkers[item.id]
-      if (marker === undefined || marker === '') {
-        ctx.report('list-marker-missing', 'error', '有序列项没有标记（该层级的列项在默认编号策略下无标识），list-item/label 不能省略。', itemSite)
+    if (ordered && !displayedAsBullet) {
+      const marker = markerOf(item)
+      if (marker === '') {
+        ctx.report('list-marker-missing', 'error', '同一有序列表内只有部分列项有标记，本列项没有标记（该列表的显示形态不一致），list-item/label 不能省略。', itemSite)
       } else {
         children.push(el('label', undefined, [halfWidthMarker(marker)]))
       }
@@ -77,7 +96,7 @@ export function renderList(list: IRList, at: Site, ctx: RenderContext): XmlEleme
     ctx.registerPendingId(item.id, element, itemSite)
     return element
   })
-  return [el('list', { 'list-type': listType }, items)]
+  return [el('list', { 'list-type': displayedAsBullet ? 'bullet' : listType }, items)]
 }
 
 /** 注/示例/警告内容：只收段落与列项（D-X-12），其余块报 `xml-note-content`。 */
