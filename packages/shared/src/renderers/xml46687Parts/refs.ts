@@ -215,9 +215,9 @@ function renderIndexEntry(entry: IRIndexEntry, at: Site, ctx: RenderContext): Xm
   entry.targets.forEach((targetId, index) => {
     const targetSite = sub(at, `.targets[${index}]`)
     const label = ctx.labelOf(targetId)
-    if (!label) {
-      ctx.report('xml-xref-target-missing', 'error', `索引条目的目标「${targetId}」在 labels 中不存在，无法写出 see-entry。`, targetSite)
-    } else if (label.label === '' || label.refText === '') {
+    if (!label && !ctx.targets.has(targetId)) {
+      ctx.report('xml-xref-target-missing', 'error', `索引条目的目标「${targetId}」在文档中不存在，无法写出 see-entry。`, targetSite)
+    } else if (!label || label.label === '' || label.refText === '') {
       ctx.report('xml-xref-target-unsupported', 'error', `索引条目的目标「${targetId}」没有真实编号（如段落、规范性引用条目），see-entry 里写不出编号。`, targetSite)
     } else {
       seeEntries.push(el('see-entry', undefined, [label.refText]))

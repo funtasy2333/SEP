@@ -103,7 +103,7 @@ function buildTig(ctx: RenderContext, input: TigInput): XmlElement {
     if (descriptor.kind === 'subjectField') return
     if (!isDescriptorKind(descriptor.kind)) {
       ctx.reportMerged('term-descriptor-not-expressed', 'warning', '术语描述符在 GB/T 46687.2 中没有对应元素，未导出',
-        `术语条目 ${entryLabel} 的「${descriptor.kind}」`, descriptorSite)
+        `术语条目${entryLabel}的「${descriptor.kind}」`, descriptorSite)
       return
     }
     const kind = descriptor.kind
@@ -123,8 +123,8 @@ function buildTig(ctx: RenderContext, input: TigInput): XmlElement {
 
   const missing = (['partOfSpeech', 'normativeAuthorization'] as const).filter((kind) => !present.has(kind))
   if (missing.length > 0) {
-    ctx.reportMerged('term-descriptor-missing', 'warning', '术语名缺少词性或采用级别，未导出（不推断、不伪造）',
-      `术语条目 ${entryLabel} 的术语名「${textOf(nameNodes).trim()}」缺${missing.map((kind) => DESCRIPTOR_NAMES[kind]).join('、')}`, at)
+    ctx.reportMerged('term-descriptor-missing', 'warning', '术语名缺少词性或采用级别，对应元素未输出（不推断、不伪造）',
+      `术语条目${entryLabel}的术语名「${textOf(nameNodes).trim()}」缺${missing.map((kind) => DESCRIPTOR_NAMES[kind]).join('、')}`, at)
   }
   return el('tbx:tig', undefined, [
     el('tbx:term', undefined, nameNodes),
@@ -222,7 +222,7 @@ function resolveSubjectField(ctx: RenderContext, entry: IRTermEntry, at: Site, e
   if (own !== '') {
     for (const item of termLevel) {
       ctx.report('term-subjectfield-duplicate', 'warning',
-        `术语条目 ${entryLabel} 已有条目级领域「${own}」，术语级的领域描述符被忽略（tbx:subjectField 只在 langSet 内、只有一个）。`, item.at)
+        `术语条目${entryLabel}已有条目级领域「${own}」，术语级的领域描述符被忽略（tbx:subjectField 只在 langSet 内、只有一个）。`, item.at)
     }
     text = own
   } else if (termLevel.length > 0) {
@@ -233,14 +233,14 @@ function resolveSubjectField(ctx: RenderContext, entry: IRTermEntry, at: Site, e
     if (distinct.length === 1) {
       text = distinct[0]
       ctx.report('term-subjectfield-promoted', 'warning',
-        `术语条目 ${entryLabel} 没有条目级领域，已把 ${values.length} 个取值一致的术语级领域描述符提升为条目级领域「${text}」。`, at)
+        `术语条目${entryLabel}没有条目级领域，已把 ${values.length} 个取值一致的术语级领域描述符提升为条目级领域「${text}」。`, at)
     } else if (distinct.length > 1) {
       ctx.report('term-subjectfield-conflict', 'error',
-        `术语条目 ${entryLabel} 没有条目级领域，而术语级领域描述符取值不一致：${values.map((value) => `「${value.text}」（描述符 ${value.id}）`).join('、')}；请在条目级填写统一的领域。`, at)
+        `术语条目${entryLabel}没有条目级领域，而术语级领域描述符取值不一致：${values.map((value) => `「${value.text}」（描述符 ${value.id}）`).join('、')}；请在条目级填写统一的领域。`, at)
     }
   }
   if (text !== undefined && /[〈〉]/.test(text)) {
-    ctx.report('term-subjectfield-brackets', 'warning', `术语条目 ${entryLabel} 的领域「${text}」含〈〉：括号由渲染阶段添加，内容里不应带（9.2.9），已原样输出。`, at)
+    ctx.report('term-subjectfield-brackets', 'warning', `术语条目${entryLabel}的领域「${text}」含〈〉：括号由渲染阶段添加，内容里不应带（9.2.9），已原样输出。`, at)
   }
   return text
 }
@@ -311,7 +311,7 @@ export function renderTermEntry(entry: IRTermEntry, at: Site, ctx: RenderContext
 
   const plans = buildLanguageSets(ctx, entry, at, entryLabel)
   if (plans.length === 0) {
-    ctx.report('xml-term-empty', 'error', `术语条目 ${entryLabel} 没有任何术语名（term、termEn 与语言集都为空）：langSet 内至少要有一个 tbx:tig。`, at)
+    ctx.report('xml-term-empty', 'error', `术语条目${entryLabel}没有任何术语名（term、termEn 与语言集都为空）：langSet 内至少要有一个 tbx:tig。`, at)
   }
 
   const subjectField = resolveSubjectField(ctx, entry, at, entryLabel)
@@ -338,7 +338,7 @@ export function renderTermEntry(entry: IRTermEntry, at: Site, ctx: RenderContext
     : undefined
 
   if (Array.isArray(entry.tailOrder) && !sameTermTailOrder(entry.tailOrder, canonicalTermTailOrder(entry, 'resolver'))) {
-    ctx.report('term-tail-order-normalized', 'info', `术语条目 ${entryLabel} 的尾项作者顺序与 XML 固定次序（领域、定义、示例、注、来源、术语名）不同，已按固定次序输出。`, sub(at, '.tailOrder'))
+    ctx.report('term-tail-order-normalized', 'info', `术语条目${entryLabel}的尾项作者顺序与 XML 固定次序（领域、定义、示例、注、来源、术语名）不同，已按固定次序输出。`, sub(at, '.tailOrder'))
   }
 
   if (plans.length === 0) return []
