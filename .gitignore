@@ -27,3 +27,7 @@ tmp-e2e/
 # scripts/docx-check/ 等本地 Python 工具的字节码缓存
 __pycache__/
 *.pyc
+
+# Local portable Windows runtime and release archives
+.ses-tools/
+release/

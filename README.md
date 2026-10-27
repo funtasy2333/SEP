@@ -114,6 +114,9 @@ pnpm dev:client   # 仅前端
 pnpm dev:server   # 仅后端
 ```
 
+Windows 可以双击根目录的 `启动SES.cmd` 和 `退出SES.cmd`（Windows 10/11 64 位，PowerShell 5.1+）。
+首次启动会按需安装本地便携 Node.js 和 pnpm，并安装依赖、备份数据库、构建和启动。Windows 脚本优先使用官方 HTTPS 来源，失败后自动重试中国大陆 npmmirror 镜像；不会更改全局 npm 源。运行时保存在 `.ses-tools/`，日志保存在 `.ses-run/`。
+
 macOS 也可以在 Finder 中双击根目录的 `启动SES.command` 和 `退出SES.command`。
 启动脚本会检查依赖，在后端未运行时构建项目并备份现有数据库，然后启动前后端并打开浏览器；关闭脚本窗口后服务继续运行。
 重复启动会复用这套脚本已启动的服务；退出脚本只停止这套脚本登记的 SES 进程，保留文档数据。如已通过 `pnpm dev` 手动启动，请先在原终端按 Ctrl+C 退出，再双击启动脚本。日志位于 `.ses-run/`，数据库备份位于 `output/startup-backups/`。

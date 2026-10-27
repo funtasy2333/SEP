@@ -13,6 +13,7 @@
 // 而不是外置；需要外置时应把它加进 server 的 dependencies。
 // 例外：@ses/* 导入的、server 也声明了但解析到不同版本的包同样会被打入产物，见下面的 externals()。
 const path = require('path')
+const fs = require('fs')
 const nodeExternals = require('webpack-node-externals')
 
 const serverDir = __dirname
@@ -71,7 +72,10 @@ const clientNewDocument = path.resolve(serverDir, '../client/src/utils/newDocume
 // MCP 工具 get_authoring_reference 返回的写作说明（docs/wp9-authoring-reference.md）以别名
 // '@docs/authoring-reference' 引用，并用 asset/source 规则把全文内联进 dist/main.js：部署时不依赖 docs 目录。
 // 只对这一个文件生效，不影响其他 .md。jest 侧用文本转换器（jest.text-transform.js）做等价处理。
-const authoringReference = path.resolve(serverDir, '../../docs/wp9-authoring-reference.md')
+const packagedReference = path.resolve(serverDir, 'resources/authoring-reference.md')
+const authoringReference = fs.existsSync(packagedReference)
+  ? packagedReference
+  : path.resolve(serverDir, '../../docs/wp9-authoring-reference.md')
 
 module.exports = (options) => ({
   ...options,
