@@ -16,7 +16,7 @@ import { Editor } from '@tiptap/vue-3'
 import { DOMParser, DOMSerializer } from '@tiptap/pm/model'
 import { describe, expect, it } from 'vitest'
 import {
-  getOutputSupportProblems, irToPm, pmToIr, renderDocx, renderHtml, resolve,
+  XML46687_DECLARED_DIFFERENCES, findDeclaredDifference, getOutputSupportProblems, irToPm, pmToIr, renderDocx, renderHtml, resolve,
   type IRDoc, type OutputBoundaryFormat, type OutputSupportProblem, type PMJsonNode,
 } from '@ses/shared'
 import { replaceEditorDocument } from '../utils/editorDocument'
@@ -419,25 +419,51 @@ describe('[M-Z] 输出边界：全要素文档的 getOutputSupportProblems 与�
     expect(problemsOf('XML').some(problem => ['g7-n2', 'g7-e2', 'g7-fw-note', 'g7-t1-note'].includes(problem.nodeId ?? ''))).toBe(false)
   })
 
-  it('XML46687 与 XML 一致，唯一例外是旧 XML 阻断 roman（XML46687 的 roman-lower 留给 WP8.2 消费）', () => {
-    const xml = pairs(problemsOf('XML'))
-    const xml46687 = pairs(problemsOf('XML46687'))
-    expect(xml46687).toEqual(xml.filter(entry => !entry.endsWith('.listType')))
-    expect(xml.filter(entry => entry.endsWith('.listType')).map(entry => entry.split(' ')[0])).toEqual(['g7-l-roman', 'g7-e2-l'])
-    expect(xml46687.some(entry => entry.endsWith('.listType'))).toBe(false)
-    // 路径与消息文案也相同（除格式名外）
+  // WP8.2 T2.4a-1：XML46687 不再与 XML 一致。差集（XML 阻断而 XML46687 放行）必须逐条落在 XML46687_DECLARED_DIFFERENCES 内，
+  // XML46687 不得比 XML 多阻断，共同阻断的问题逐条相同。差集是计算值，T2.4b / T2.4c 再放行字段时本测试无需修改。
+  const keyOf = (problem: OutputSupportProblem) => `${problem.nodeId ?? '-'} ${problem.path}`
+  const differenceOf = () => {
+    const xml = problemsOf('XML')
+    const xml46687 = problemsOf('XML46687')
+    const xmlKeys = new Set(xml.map(keyOf))
+    const nextKeys = new Set(xml46687.map(keyOf))
+    return {
+      xml, xml46687,
+      onlyXml: xml.filter(problem => !nextKeys.has(keyOf(problem))),
+      onlyNew: xml46687.filter(problem => !xmlKeys.has(keyOf(problem))),
+      common: xml.filter(problem => nextKeys.has(keyOf(problem))),
+    }
+  }
+
+  it('XML46687 与 XML 的差集恰等于已声明差异（XML46687_DECLARED_DIFFERENCES，计算值）：不比 XML 多阻断，共同阻断的逐条相同', () => {
+    const { xml46687, onlyXml, onlyNew, common } = differenceOf()
+    expect(XML46687_DECLARED_DIFFERENCES.length).toBeGreaterThan(0)
+    expect(onlyNew).toEqual([])
+    expect(onlyXml.length).toBeGreaterThan(0)
+    for (const problem of onlyXml) expect(findDeclaredDifference(doc, problem.path), `${keyOf(problem)} 应是已声明差异`).toBeDefined()
+    // 共同阻断的问题：nodeId 与路径相同，消息只差格式名
     const strip = (problem: OutputSupportProblem) => ({ nodeId: problem.nodeId, path: problem.path })
-    expect(problemsOf('XML46687').map(strip)).toEqual(problemsOf('XML').filter(problem => !problem.path.endsWith('.listType')).map(strip))
+    expect(xml46687.map(strip)).toEqual(common.map(strip))
+    expect(xml46687.map(problem => problem.message)).toEqual(common.map(problem => problem.message.replace(/^XML /, 'XML46687 ')))
+  })
+
+  it('差集里包含旧 XML 阻断的两个罗马列项（XML46687 的 roman-lower 自 T2.4a-1 起消费），且每个罗马列项都被声明项覆盖', () => {
+    const { onlyXml } = differenceOf()
+    const roman = onlyXml.filter(problem => problem.path.endsWith('.listType'))
+    expect(roman.map(problem => problem.nodeId)).toEqual(['g7-l-roman', 'g7-e2-l'])
+    for (const problem of roman) expect(findDeclaredDifference(doc, problem.path)).toMatchObject({ kind: 'field', name: 'listType' })
+    expect(problemsOf('XML46687').some(problem => problem.path.endsWith('.listType'))).toBe(false)
   })
 
   it('没有 unsupportedContent 或 Resolver unsupported-content error 带来的额外阻断：每种格式都没有 resolver 来源的问题', () => {
     for (const format of FORMATS) expect(problemsOf(format).some(problem => problem.path.startsWith('resolver.')), format).toBe(false)
   })
 
-  it('四种格式的问题数量（回归基线）：HTML 15、DOCX 15、XML 与 XML46687 之差恰为 2 个罗马列表', () => {
+  it('四种格式的问题数量（回归基线）：HTML 15、DOCX 15、XML 与 XML46687 之差恰为被声明差异覆盖的问题数（计算值）', () => {
     expect(problemsOf('HTML')).toHaveLength(G3_BLOCKED.length + G8_BLOCKED.length)
     expect(problemsOf('DOCX')).toHaveLength(G3_BLOCKED.length + G8_BLOCKED.length)
-    expect(problemsOf('XML').length - problemsOf('XML46687').length).toBe(2)
+    const covered = problemsOf('XML').filter(problem => findDeclaredDifference(doc, problem.path) !== undefined)
+    expect(problemsOf('XML').length - problemsOf('XML46687').length).toBe(covered.length)
   })
 })
 
@@ -470,11 +496,13 @@ describe('[M-Z] 真实渲染：去掉 §7.1 暂不排版的结构后，HTML（sc
   const { labels } = resolve(stripped)
   const docxOptions = { formulaOmml: {}, images: {}, stage: 'approval_draft' as const, createdAt: '2026-10-26T08:00:00.000Z' }
 
-  it('剥离后 HTML、DOCX 没有任何 unsupported-output；XML 家族仍因 G1/G2/G5/G6 的新结构阻断', () => {
+  it('剥离后 HTML、DOCX 没有任何 unsupported-output；旧 XML 仍因 G1/G2/G5/G6 的新结构阻断；XML46687 的阻断是 XML 的子集', () => {
     expect(getOutputSupportProblems(stripped, 'HTML')).toEqual([])
     expect(getOutputSupportProblems(stripped, 'DOCX')).toEqual([])
     expect(getOutputSupportProblems(stripped, 'XML').length).toBeGreaterThan(0)
-    expect(getOutputSupportProblems(stripped, 'XML46687').length).toBeGreaterThan(0)
+    // WP8.2 逐步放行：XML46687 阻断的路径都是 XML 也阻断的（随 T2.4b / T2.4c 放行而减少，不在这里钉数量）
+    const xmlPaths = new Set(getOutputSupportProblems(stripped, 'XML').map(problem => problem.path))
+    for (const problem of getOutputSupportProblems(stripped, 'XML46687')) expect(xmlPaths.has(problem.path), problem.path).toBe(true)
   })
 
   it.each(['screen', 'print'] as const)('HTML %s：各组结构都按 §7.1 排版', variant => {

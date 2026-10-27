@@ -18,7 +18,7 @@ import { getSchema } from '@tiptap/core'
 import { Editor } from '@tiptap/vue-3'
 import { describe, expect, it } from 'vitest'
 import {
-  getOutputSupportProblems, pmToIr, resolve,
+  findDeclaredDifference, getOutputSupportProblems, pmToIr, resolve,
   type IRDoc, type OutputBoundaryFormat, type PMJsonNode, type DocumentMeta,
 } from '@ses/shared'
 import { createEditorExtensions } from './editorExtensions'
@@ -260,6 +260,17 @@ function boundarySignature(doc: IRDoc): Record<OutputBoundaryFormat, string[]> {
   ])) as Record<OutputBoundaryFormat, string[]>
 }
 
+/**
+ * XML 阻断而 XML46687 放行的问题数，应恰等于被 XML46687_DECLARED_DIFFERENCES 覆盖的问题数（WP8.2：计算值，不写死个数）。
+ * 同时核对 XML46687 不比 XML 多阻断。
+ */
+function expectXml46687DifferenceIsDeclared(doc: IRDoc, boundary: Record<OutputBoundaryFormat, string[]>): void {
+  const covered = getOutputSupportProblems(doc, 'XML').filter(problem => findDeclaredDifference(doc, problem.path) !== undefined)
+  expect(boundary.XML.length - boundary.XML46687.length).toBe(covered.length)
+  const xml = new Set(boundary.XML)
+  for (const entry of boundary.XML46687) expect(xml.has(entry), `XML46687 不应比 XML 多阻断：${entry}`).toBe(true)
+}
+
 /** 对存储的一份内容做全部结构性断言，返回其 IR。`pristine` 为 true 表示编辑前的状态（应与 IR 原生版本深度相等）。 */
 function assertProductionContent(content: PMJsonNode, label: string, options: { pristine: boolean }): IRDoc {
   const node = schema.nodeFromJSON(content)
@@ -336,7 +347,7 @@ describe.runIf(Boolean(baseUrl && evidenceFile))('WP8.M M-Z-b real API/SQLite ac
       expect(boundary).toEqual(evidence.boundary)
       expect(boundary.HTML).toHaveLength(15)
       expect(boundary.DOCX).toHaveLength(15)
-      expect(boundary.XML.length - boundary.XML46687.length).toBe(2)
+      expectXml46687DifferenceIsDeclared(documentIr, boundary)
       expect(boundarySignature(versionIr)).toEqual(boundary)
       // 编辑前版本的边界基线相同（编辑没有引入或消除任何阻断）
       expect(boundarySignature(initialIr)).toEqual(boundary)
@@ -358,7 +369,7 @@ describe.runIf(Boolean(baseUrl && evidenceFile))('WP8.M M-Z-b real API/SQLite ac
           'document/duplicate/version/initialVersion content toEqual evidence (field by field)',
           'meta/title/stage/revision equal', 'sha256 equal to prepare', 'Schema check + pmToIr warnings=[] + Resolver no error for all four',
           'initial version IR deep-equals native IR (shared wp8mFixtures)', 'edits present in document/duplicate/version, absent in initial',
-          'duplicate body/appendices/bibliography/resources == document', 'output boundary identical to prepare (HTML 15, DOCX 15, XML-XML46687=2)',
+          'duplicate body/appendices/bibliography/resources == document', 'output boundary identical to prepare (HTML 15, DOCX 15, XML minus XML46687 = declared differences, computed)',
           'Editor + replaceEditorDocument + exportSemanticJson identical to prepare-time load',
         ],
       }, null, 2))
@@ -407,7 +418,7 @@ describe.runIf(Boolean(baseUrl && evidenceFile))('WP8.M M-Z-b real API/SQLite ac
     const boundary = boundarySignature(documentIr)
     expect(boundary.HTML).toHaveLength(15)
     expect(boundary.DOCX).toHaveLength(15)
-    expect(boundary.XML.length - boundary.XML46687.length).toBe(2)
+    expectXml46687DifferenceIsDeclared(documentIr, boundary)
     expect(boundarySignature(duplicateIr).HTML).toEqual(boundary.HTML)
     expect(boundarySignature(duplicateIr).DOCX).toEqual(boundary.DOCX)
 

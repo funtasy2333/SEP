@@ -13,7 +13,7 @@ import { DOMParser, DOMSerializer } from '@tiptap/pm/model'
 import { createApp, h, nextTick } from 'vue'
 import ElementPlus from 'element-plus'
 import { describe, expect, it } from 'vitest'
-import { getOutputSupportProblems, irToPm, pmToIr, resolve, type IRClause, type PMJsonNode, type OutputBoundaryFormat } from '@ses/shared'
+import { findDeclaredDifference, getOutputSupportProblems, irToPm, pmToIr, resolve, type IRClause, type PMJsonNode, type OutputBoundaryFormat } from '@ses/shared'
 import DocumentOutline from '../components/editor/DocumentOutline.vue'
 import { docToText } from '../utils/docDiff'
 import { replaceEditorDocument } from '../utils/editorDocument'
@@ -263,17 +263,23 @@ describe('[M-4.3.4-02][M-4.3.4-03] 保存重开：Editor + replaceEditorDocument
   })
 })
 
-describe('[M-4.3.4-02] 输出边界：HTML、DOCX 放行，XML、XML46687 阻断（来自生产 PM）', () => {
+describe('[M-4.3.4-02] 输出边界：HTML、DOCX、XML46687 放行，XML 阻断（来自生产 PM）', () => {
   const { doc } = pmToIr(schema.nodeFromJSON(createG6Fixture()).toJSON() as PMJsonNode)
 
   it.each([['HTML', []], ['DOCX', []]] as const)('%s：没有 unsupported-output', (format, expected) => {
     expect(getOutputSupportProblems(doc, format)).toEqual(expected)
   })
 
-  it.each(['XML', 'XML46687'] as const)('%s：unsupported-output 指向 front.introductionClauses', format => {
-    const problems = getOutputSupportProblems(doc, format)
+  it('XML：unsupported-output 指向 front.introductionClauses', () => {
+    const problems = getOutputSupportProblems(doc, 'XML')
     expect(problems.map(problem => problem.path)).toEqual(['doc.front.introductionClauses'])
     expect(problems[0]).toMatchObject({ code: 'unsupported-output' })
+  })
+
+  // WP8.2 T2.4a-1：XML46687 放行引言条（写成 sec_0.<n>），并登记为已声明差异
+  it('XML46687：放行 front.introductionClauses，该项是已声明差异', () => {
+    expect(getOutputSupportProblems(doc, 'XML46687')).toEqual([])
+    expect(findDeclaredDifference(doc, 'doc.front.introductionClauses')).toMatchObject({ kind: 'field', name: 'introductionClauses' })
   })
 })
 

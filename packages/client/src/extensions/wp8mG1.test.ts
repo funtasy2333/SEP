@@ -398,18 +398,26 @@ describe('[M-4.4.2.3-03] [M-E-06] 粘贴与编辑：nodeId 唯一性', () => {
   })
 })
 
-describe('[M-4.4.2.3-02] [M-10.2-01] [M-10.1.7-01] [M-4.5.3-02] 输出边界（来自生产 PM）：HTML、DOCX 放行，XML、XML46687 阻断', () => {
+describe('[M-4.4.2.3-02] [M-10.2-01] [M-10.1.7-01] [M-4.5.3-02] 输出边界（来自生产 PM）：HTML、DOCX 放行，XML 阻断，XML46687 放行两个 mark', () => {
   const { doc } = pmToIr(normalized())
 
   it.each(['HTML', 'DOCX'] as const)('%s：没有 unsupported-output', format => {
     expect(getOutputSupportProblems(doc, format)).toEqual([])
   })
 
-  it.each(['XML', 'XML46687'] as const)('%s：清单（kind）、两个 mark（type）、标题各被阻断', format => {
-    const paths = getOutputSupportProblems(doc, format).map(problem => problem.path)
+  it('XML：清单（kind）、两个 mark（type）、标题各被阻断', () => {
+    const paths = getOutputSupportProblems(doc, 'XML').map(problem => problem.path)
     expect(paths).toContain('doc.body[1].children[1].kind')
     expect(paths).toContain('doc.bibliographyTitle')
     expect(paths.filter(path => path.endsWith('.marks[0].type') || path.endsWith('.marks[1].type'))).toHaveLength(6)
+  })
+
+  // WP8.2 T2.4a-1：两个 mark（stdRef / mixedCitation）对 XML46687 放行（已声明差异）；清单与标题仍阻断，留给 T2.4c。
+  it('XML46687：两个 mark（type）已放行；清单（kind）与标题仍被阻断', () => {
+    const paths = getOutputSupportProblems(doc, 'XML46687').map(problem => problem.path)
+    expect(paths).toContain('doc.body[1].children[1].kind')
+    expect(paths).toContain('doc.bibliographyTitle')
+    expect(paths.filter(path => path.endsWith('.marks[0].type') || path.endsWith('.marks[1].type'))).toHaveLength(0)
   })
 
   it('旧形态文档：四种格式都没有问题', () => {
