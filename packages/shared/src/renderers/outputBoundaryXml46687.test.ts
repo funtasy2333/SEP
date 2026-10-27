@@ -9,7 +9,9 @@ import {
 } from './outputBoundary'
 import {
   XML46687_DECLARED_DIFFERENCES,
+  describeBoundaryDifference,
   findDeclaredDifference,
+  stripPathIndices,
   type Xml46687DeclaredDifference,
 } from './xml46687Boundary'
 import {
@@ -157,6 +159,15 @@ function installedDoc(entry: Xml46687DeclaredDifference): IRDoc {
   return doc
 }
 
+/** 差异对照函数的测试文档：段落里依次有删除线、带 kind 的变量，块里有警告。 */
+function releasedDocForHelpers(): IRDoc {
+  const doc = base()
+  INSTALLERS['markType:strike']!(doc)
+  INSTALLERS['field:kind']!(doc)
+  INSTALLERS['kind:warning']!(doc)
+  return doc
+}
+
 describe('[M-4.3.2-30] XML46687_DECLARED_DIFFERENCES：导出自 shared，登记完整', () => {
   it('从 @ses/shared 的包入口可取到，且与边界模块是同一份常量', () => {
     expect(shared.XML46687_DECLARED_DIFFERENCES).toBe(XML46687_DECLARED_DIFFERENCES)
@@ -226,6 +237,33 @@ describe('XML46687 输出边界：差集恰等于声明集合（计算值）', (
     expect(findDeclaredDifference(doc, problem.path)?.name).toBe('proposer')
     // 对照：没有声明项能覆盖一个“假想的”路径
     expect(findDeclaredDifference(doc, 'doc.meta.notDeclared')).toBeUndefined()
+  })
+})
+
+describe('差异对照函数（describeBoundaryDifference / findDeclaredDifference / stripPathIndices）', () => {
+  const doc = releasedDocForHelpers()
+
+  it('stripPathIndices 去掉全部 [n] 下标', () => {
+    expect(stripPathIndices('doc.body[0].children[12].content[3].marks[1].type')).toBe('doc.body.children.content.marks.type')
+    expect(stripPathIndices('doc.meta.proposer')).toBe('doc.meta.proposer')
+  })
+
+  it('以 .kind 结尾且父对象不是 mark → 块 kind；以 marks[n].type 结尾 → mark 类型；mark 的 kind 字段仍是字段；其余按字段名', () => {
+    const blocks = doc.body[0]!.children
+    const warningIndex = blocks.findIndex(block => block.kind === 'warning')
+    expect(describeBoundaryDifference(doc, `doc.body[0].children[${warningIndex}].kind`)).toEqual({ kind: 'kind', name: 'warning' })
+    const runs = (blocks[0] as IRParagraph).content
+    const strikeIndex = runs.findIndex(entry => entry.marks?.some(mark => mark.type === 'strike'))
+    expect(describeBoundaryDifference(doc, `doc.body[0].children[0].content[${strikeIndex}].marks[0].type`)).toEqual({ kind: 'markType', name: 'strike' })
+    const variableIndex = runs.findIndex(entry => entry.marks?.some(mark => mark.type === 'variable' && 'kind' in mark))
+    expect(describeBoundaryDifference(doc, `doc.body[0].children[0].content[${variableIndex}].marks[0].kind`)).toEqual({ kind: 'field', name: 'kind' })
+    expect(describeBoundaryDifference(doc, 'doc.meta.proposer')).toEqual({ kind: 'field', name: 'proposer' })
+  })
+
+  it('路径解析不到时按字段名处理，不抛错；没有声明项覆盖时 findDeclaredDifference 返回 undefined', () => {
+    expect(describeBoundaryDifference(doc, 'resolver.problems[dangling-typed-ref]')).toEqual({ kind: 'field', name: 'problems[dangling-typed-ref]' })
+    expect(describeBoundaryDifference(doc, 'doc.nowhere[3].kind')).toEqual({ kind: 'field', name: 'kind' })
+    expect(findDeclaredDifference(doc, 'resolver.problems[dangling-typed-ref]')).toBeUndefined()
   })
 })
 
