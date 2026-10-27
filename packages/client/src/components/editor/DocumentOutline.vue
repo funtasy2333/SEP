@@ -1,8 +1,8 @@
 <template>
   <div class="document-outline">
     <div class="outline-header">
-      <el-icon><Document /></el-icon>
-      <span>文档大纲</span>
+      <span class="outline-title">文档结构</span>
+      <div class="outline-actions"><slot name="actions" /></div>
     </div>
     <div class="outline-body">
       <div
@@ -11,11 +11,12 @@
         class="outline-item"
         :class="{
           active: activeIndex === index,
+          'is-top': item.level === 1,
           'drag-over-above': dragOverIndex === index && dragPosition === 'above',
           'drag-over-below': dragOverIndex === index && dragPosition === 'below',
           dragging: dragIndex === index,
         }"
-        :style="{ paddingLeft: (item.level - 1) * 16 + 8 + 'px' }"
+        :style="{ paddingLeft: (item.level - 1) * 14 + 18 + 'px' }"
         :draggable="item.level === 1"
         @click="scrollToHeading(item)"
         @dragstart="onDragStart(index, $event)"
@@ -29,13 +30,14 @@
         <el-icon
           v-if="item.deletable"
           class="outline-item-delete"
+          title="删除此节及其全部内容"
           @click.stop="deleteSection(item)"
         >
           <Close />
         </el-icon>
       </div>
       <div v-if="headings.length === 0" class="outline-empty">
-        暂无标题
+        暂无章节。使用上方「添加」插入前言、章或附录。
       </div>
     </div>
   </div>
@@ -43,7 +45,9 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { Document, Close, Rank } from '@element-plus/icons-vue'
+import { Close, Rank } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import type { Node as PMNode } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/vue-3'
 import { pmToIr, resolve } from '@ses/shared'
 
@@ -260,11 +264,46 @@ function scrollToHeading(item: HeadingItem) {
   props.editor.chain().focus().setTextSelection(item.pos + 1).run()
 }
 
-function deleteSection(item: HeadingItem) {
-  if (!props.editor) return
-  const { tr } = props.editor.state
-  tr.delete(item.nodePos, item.nodePos + item.nodeSize)
-  props.editor.view.dispatch(tr)
+async function deleteSection(item: HeadingItem) {
+  const editor = props.editor
+  if (!editor) return
+  const docBefore = editor.state.doc
+  const target = docBefore.nodeAt(item.nodePos)
+  if (!target) return
+  try {
+    await ElMessageBox.confirm(`删除「${item.text || '(空标题)'}」及其下全部内容？删除后可用撤销（Ctrl+Z）恢复。`, '删除章节', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
+  if (props.editor !== editor || editor.isDestroyed) return
+  // 确认期间文档可能已被外部修订替换：旧位置上可能已是另一节，改按 nodeId 找回对话框里点名的那一节
+  const located = editor.state.doc === docBefore
+    ? { node: target, pos: item.nodePos }
+    : findSection(editor.state.doc, target.type.name, target.attrs.nodeId)
+  if (!located) {
+    ElMessage.warning('文档在确认期间已更新，未找到要删除的章节，未做删除')
+    return
+  }
+  const { tr } = editor.state
+  tr.delete(located.pos, located.pos + located.node.nodeSize)
+  editor.view.dispatch(tr)
+}
+
+function findSection(doc: PMNode, typeName: string, nodeId: unknown): { node: PMNode; pos: number } | null {
+  if (typeof nodeId !== 'string' || !nodeId) return null
+  let found: { node: PMNode; pos: number } | null = null
+  doc.descendants((node, pos) => {
+    if (found) return false
+    if (node.type.name === typeName && node.attrs.nodeId === nodeId) {
+      found = { node, pos }
+      return false
+    }
+  })
+  return found
 }
 
 watch(
@@ -284,7 +323,8 @@ watch(
 
 <style scoped>
 .document-outline {
-  width: 240px;
+  width: 248px;
+  height: 100%;
   min-height: 0;
   border-right: 1px solid var(--ses-line);
   display: flex;
@@ -297,20 +337,28 @@ watch(
   display: flex;
   flex-shrink: 0;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  padding: 14px 16px 8px;
-  font-size: 11px;
+  height: 44px;
+  padding: 0 10px 0 16px;
+  border-bottom: 1px solid var(--ses-line);
+}
+.outline-title {
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ses-ink-3);
+  color: var(--ses-ink);
+}
+.outline-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .outline-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 4px 8px 24px;
+  padding: 8px 8px 24px;
   scrollbar-width: thin;
 }
 .outline-body::-webkit-scrollbar { width: 8px; }
@@ -327,25 +375,39 @@ watch(
 }
 
 .outline-item {
-  padding: 6px 10px;
+  padding: 5px 10px;
   margin: 1px 0;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
-  color: var(--ses-ink-2);
+  font-size: 12.5px;
+  color: var(--ses-ink-3);
   display: flex;
   align-items: center;
   gap: 6px;
   transition: background 0.1s ease, color 0.1s ease;
   line-height: 1.4;
+  position: relative;
 }
+
+/* 章、附录、前言等顶层要素加重，与其下的条拉开层级 */
+.outline-item.is-top {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ses-ink);
+}
+.outline-item.is-top:first-child { margin-top: 0; }
 
 .outline-item.dragging { opacity: 0.4; }
 .outline-item.drag-over-above { box-shadow: inset 0 2px 0 var(--ses-accent); }
 .outline-item.drag-over-below { box-shadow: inset 0 -2px 0 var(--ses-accent); }
 
+/* 拖动柄放在左侧留白里，不推挤标题文字，保证同级条目文字对齐 */
 .outline-item-drag {
-  flex-shrink: 0;
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
   font-size: 12px;
   color: var(--ses-ink-4);
   opacity: 0;
@@ -387,7 +449,8 @@ watch(
 }
 
 .outline-empty {
-  padding: 24px 16px;
+  padding: 24px 12px;
+  line-height: 1.6;
   color: var(--ses-ink-4);
   font-size: 12.5px;
   text-align: center;

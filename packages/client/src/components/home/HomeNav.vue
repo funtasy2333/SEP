@@ -6,7 +6,7 @@
         <span class="ses-brand-label">标准编辑器</span>
       </router-link>
       <div class="brand-sep" />
-      <nav class="home-nav-tabs">
+      <nav class="home-nav-tabs" aria-label="标准库视图">
         <button
           v-for="tab in tabs"
           :key="tab.id"
@@ -19,31 +19,10 @@
         </button>
       </nav>
     </div>
-    <div class="nav-r">
-      <el-input
-        v-model="searchValue"
-        size="default"
-        placeholder="搜索标准编号、题名、起草人…"
-        class="nav-search"
-        clearable
-      >
-        <template #prefix>
-          <el-icon><Search /></el-icon>
-        </template>
-        <template #suffix>
-          <span class="kbd-hint">⌘K</span>
-        </template>
-      </el-input>
-      <el-button text :icon="Clock" />
-      <el-button text :icon="Setting" />
-      <span class="ses-avatar a1" style="width: 28px; height: 28px; font-size: 11px">李</span>
-    </div>
   </header>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Search, Clock, Setting } from '@element-plus/icons-vue'
 import SesLogo from '@/components/SesLogo.vue'
 
 defineProps<{
@@ -52,8 +31,6 @@ defineProps<{
 }>()
 
 defineEmits<{ (e: 'select-tab', id: string): void }>()
-
-const searchValue = ref('')
 </script>
 
 <style scoped>
@@ -64,10 +41,10 @@ const searchValue = ref('')
   background: var(--ses-surface);
   border-bottom: 1px solid var(--ses-line);
 }
-.nav-l, .nav-r { display: flex; align-items: center; gap: 18px; }
-.brand-sep { width: 1px; height: 18px; background: var(--ses-line-2); }
+.nav-l { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.brand-sep { flex-shrink: 0; width: 1px; height: 18px; background: var(--ses-line-2); }
 
-.home-nav-tabs { display: flex; align-items: center; gap: 2px; }
+.home-nav-tabs { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .home-nav-tab {
   padding: 6px 12px;
   font-size: 13px;
@@ -79,6 +56,7 @@ const searchValue = ref('')
   cursor: pointer;
   display: inline-flex; align-items: center; gap: 8px;
   font-family: inherit;
+  white-space: nowrap;
 }
 .home-nav-tab:hover { color: var(--ses-ink); background: var(--ses-surface-2); }
 .home-nav-tab.is-active { color: var(--ses-ink); background: var(--ses-surface-2); font-weight: 600; }
@@ -92,20 +70,10 @@ const searchValue = ref('')
   font-weight: 500;
 }
 .home-nav-tab.is-active .count { background: var(--ses-accent-soft); color: var(--ses-accent); }
-.nav-search { width: 260px; }
-.kbd-hint { font-size: 10px; color: var(--ses-ink-4); font-family: var(--ses-font-mono); }
 
-@media (max-width: 1100px) {
-  .nav-l, .nav-r { gap: 12px; }
-  .nav-search { width: 180px; }
+@media (max-width: 620px) {
+  .home-nav { padding: 0 12px; }
+  .nav-l { gap: 10px; }
   .home-nav-tab { padding: 6px 8px; }
-}
-@media (max-width: 900px) {
-  .home-nav { height: auto; padding: 10px 16px; flex-wrap: wrap; gap: 10px; }
-  .nav-l, .nav-r { width: 100%; min-width: 0; }
-  .brand-sep { flex-shrink: 0; }
-  .home-nav-tabs { flex: 1; min-width: 0; overflow-x: auto; }
-  .home-nav-tab { flex-shrink: 0; white-space: nowrap; }
-  .nav-search { flex: 1; width: auto; }
 }
 </style>

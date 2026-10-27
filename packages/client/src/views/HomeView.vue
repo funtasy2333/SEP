@@ -6,10 +6,10 @@
       <!-- Page head -->
       <div class="home-head">
         <div>
-          <h1>{{ isTrashView ? '回收站' : '我的标准库' }}</h1>
+          <h1>{{ isTrashView ? '回收站' : '标准库' }}</h1>
           <p class="sub">
-            <template v-if="isTrashView">{{ store.trashDocuments.length }} 份已移入回收站的文件</template>
-            <template v-else>{{ store.documents.length }} 份起草中文件 · 上次保存于 {{ lastSaved }}</template>
+            <template v-if="isTrashView">{{ store.trashDocuments.length }} 份已移入回收站的文件；可恢复，或永久删除</template>
+            <template v-else>共 {{ store.documents.length }} 份文件<template v-if="lastSaved"> · 最近更新于 {{ lastSaved }}</template></template>
           </p>
         </div>
         <div class="actions">
@@ -22,8 +22,14 @@
             >清空回收站</el-button>
           </template>
           <template v-else>
-            <el-button :icon="Download">批量导出</el-button>
-            <el-button type="primary" :icon="Plus" @click="openNewDoc()">新建标准文件</el-button>
+            <el-dropdown split-button type="primary" trigger="click" @click="openNewDoc()" @command="openNewDoc">
+              <span class="new-doc-label"><el-icon><Plus /></el-icon>新建标准文件</span>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item v-for="t in TYPE_DEFS" :key="t.id" :command="t.id">新建{{ t.name }}</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </div>
       </div>
@@ -77,54 +83,69 @@
         </el-table>
       </section>
 
-      <template v-else>
-        <!-- Stats -->
-        <StatCards :stats="stats" />
-
-        <!-- Template rail -->
+      <!-- 标准库为空：直接给出按类型新建的入口 -->
+      <section v-else-if="libraryEmpty" class="welcome" aria-label="开始起草">
+        <h2>开始起草第一份标准</h2>
+        <p>选择标准类型，系统按 GB/T 1.1—2020 生成封面、前言和章条骨架；编号与题名之后可在“文件设置”中修改。</p>
         <TemplateRail @pick="openNewDoc" />
+      </section>
 
-        <!-- Filters & view toggle -->
+      <template v-else>
+        <!-- 编制阶段概览：真实数量，点击筛选 -->
+        <StageOverview :counts="stageCounts" :total="store.documents.length" :active="stageFilter" @select="stageFilter = $event" />
+
+        <!-- 查找、类型筛选与视图 -->
         <div class="list-toolbar">
-        <div class="list-toolbar-l">
-          <button
-            v-for="t in typeFilters"
-            :key="t.id"
-            class="chip"
-            :class="{ 'is-active': typeFilter === t.id }"
-            @click="typeFilter = t.id"
-          >
-            {{ t.label }}
-            <span class="count">{{ counts[t.id] || 0 }}</span>
-          </button>
-        </div>
-        <div class="list-toolbar-r">
-          <el-select v-model="stageFilter" size="small" style="width: 130px">
-            <el-option value="all" label="所有阶段" />
-            <el-option v-for="(label, k) in STAGE_LABELS" :key="k" :value="k" :label="label" />
-          </el-select>
-          <el-select v-model="sort" size="small" style="width: 120px">
-            <el-option value="updated" label="最近更新" />
-            <el-option value="title" label="标题 A-Z" />
-            <el-option value="stage" label="阶段" />
-          </el-select>
-          <div class="view-toggle">
-            <button :class="{ 'is-active': view === 'grid' }" @click="view = 'grid'">
-              <el-icon><Grid /></el-icon> 卡片
-            </button>
-            <button :class="{ 'is-active': view === 'list' }" @click="view = 'list'">
-              <el-icon><List /></el-icon> 列表
+          <el-input
+            ref="searchInput"
+            v-model="searchText"
+            class="list-search"
+            placeholder="搜索标准编号或题名（Ctrl/⌘ K）"
+            :prefix-icon="Search"
+            clearable
+          />
+          <div class="list-toolbar-l" role="group" aria-label="按标准类型筛选">
+            <button
+              v-for="t in typeFilters"
+              :key="t.id"
+              class="chip"
+              type="button"
+              :class="{ 'is-active': typeFilter === t.id }"
+              :aria-pressed="typeFilter === t.id"
+              @click="typeFilter = t.id"
+            >
+              {{ t.label }}
+              <span class="count">{{ counts[t.id] || 0 }}</span>
             </button>
           </div>
+          <div class="list-toolbar-r">
+            <el-select v-model="sort" size="default" class="sort-select" aria-label="排序">
+              <el-option value="updated" label="最近更新" />
+              <el-option value="title" label="按题名" />
+              <el-option value="stage" label="按编制阶段" />
+            </el-select>
+            <div class="view-toggle" role="group" aria-label="显示方式">
+              <button type="button" :class="{ 'is-active': view === 'grid' }" :aria-pressed="view === 'grid'" title="卡片" @click="setView('grid')">
+                <el-icon><Grid /></el-icon><span>卡片</span>
+              </button>
+              <button type="button" :class="{ 'is-active': view === 'list' }" :aria-pressed="view === 'list'" title="列表" @click="setView('list')">
+                <el-icon><List /></el-icon><span>列表</span>
+              </button>
+            </div>
+          </div>
         </div>
+
+        <div v-if="filtersActive" class="filter-summary">
+          <span>显示 {{ filtered.length }} / {{ store.documents.length }} 份</span>
+          <button type="button" class="link-btn" @click="clearFilters">清除筛选</button>
         </div>
 
         <!-- Content -->
         <div v-if="filtered.length === 0" class="empty-state">
-          <el-icon :size="40"><Document /></el-icon>
-          <h3>没有匹配的文档</h3>
-          <p>试试调整筛选条件，或新建一份标准。</p>
-          <el-button type="primary" :icon="Plus" @click="openNewDoc()">新建标准文件</el-button>
+          <el-icon :size="36"><Document /></el-icon>
+          <h3>没有匹配的文件</h3>
+          <p>换个关键词或筛选条件试试。</p>
+          <el-button @click="clearFilters">清除筛选</el-button>
         </div>
 
         <div v-else-if="view === 'grid'" class="doc-grid">
@@ -143,48 +164,46 @@
           v-loading="store.loading"
           :data="filtered"
           :show-header="true"
+          row-class-name="doc-list-row"
           @row-click="openDocument"
           class="doc-list-table"
         >
-        <el-table-column prop="meta.standardNo" label="标准编号" width="170">
-          <template #default="{ row }">
-            <span style="font-family: var(--ses-font-mono); font-size: 12px; color: var(--ses-ink-3)">
-              {{ row.meta?.standardNo || '—' }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="title" label="文件题名" min-width="240">
-          <template #default="{ row }">
-            <span style="font-weight: 500; color: var(--ses-ink)">{{ row.meta?.titleCn || row.title }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="类型" width="120">
-          <template #default="{ row }">
-            <span class="ses-type-chip" :data-type="row.meta?.standardType">
-              {{ TYPE_LABELS[row.meta?.standardType] || '—' }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column label="阶段" width="130">
-          <template #default="{ row }">
-            <span class="ses-stage" :class="row.stage">
-              <span class="dot" />
-              {{ STAGE_LABELS[row.stage] || row.stage }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column label="更新时间" width="170">
-          <template #default="{ row }">
-            <span style="color: var(--ses-ink-3); font-size: 12.5px">
-              {{ formatDate(row.updatedAt) }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="90" fixed="right">
-          <template #default="{ row }">
-            <el-button type="danger" text size="small" @click.stop="handleDelete(row)">删除</el-button>
-          </template>
-        </el-table-column>
+          <el-table-column prop="meta.standardNo" label="标准编号" width="180">
+            <template #default="{ row }">
+              <span class="list-std-no">{{ row.meta?.standardNo || '—' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="title" label="文件题名" min-width="240">
+            <template #default="{ row }">
+              <span class="list-title">{{ row.meta?.titleCn || row.title }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="类型" width="130">
+            <template #default="{ row }">
+              <span class="ses-type-chip" :data-type="row.meta?.standardType">
+                {{ TYPE_LABELS[row.meta?.standardType] || '—' }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="阶段" width="130">
+            <template #default="{ row }">
+              <span class="ses-stage" :class="row.stage">
+                <span class="dot" />
+                {{ STAGE_LABELS[row.stage] || row.stage }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="更新时间" width="170">
+            <template #default="{ row }">
+              <span class="list-time">{{ formatDate(row.updatedAt) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="190" fixed="right">
+            <template #default="{ row }">
+              <el-button text size="small" @click.stop="handleDuplicate(row)">复制</el-button>
+              <el-button type="danger" text size="small" @click.stop="handleDelete(row)">移入回收站</el-button>
+            </template>
+          </el-table-column>
         </el-table>
       </template>
     </main>
@@ -194,19 +213,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Download, Plus, Grid, List, Document } from '@element-plus/icons-vue'
+import { Plus, Grid, List, Document, Search } from '@element-plus/icons-vue'
+import type { InputInstance } from 'element-plus'
 
 import { useDocumentStore } from '@/stores/document'
 import type { DocumentData, TrashDocumentData } from '@/api/document'
 import { createNewDocument, type NewDocForm } from '@/utils/newDocument'
 import { createDocumentDuplicate } from '@/utils/duplicateDocument'
-import { STAGE_LABELS, TYPE_LABELS } from '@/constants/standards'
+import { STAGES, STAGE_LABELS, TYPE_DEFS, TYPE_LABELS } from '@/constants/standards'
 
 import HomeNav from '@/components/home/HomeNav.vue'
-import StatCards, { type Stat } from '@/components/home/StatCards.vue'
+import StageOverview from '@/components/home/StageOverview.vue'
 import TemplateRail from '@/components/home/TemplateRail.vue'
 import DocCard from '@/components/home/DocCard.vue'
 import NewDocDialog from '@/components/home/NewDocDialog.vue'
@@ -218,7 +238,10 @@ const navTab = ref('all')
 const typeFilter = ref('all')
 const stageFilter = ref<'all' | string>('all')
 const sort = ref<'updated' | 'title' | 'stage'>('updated')
-const view = ref<'grid' | 'list'>('grid')
+const VIEW_STORAGE_KEY = 'ses.home.view'
+const view = ref<'grid' | 'list'>(readStoredView())
+const searchText = ref('')
+const searchInput = ref<InputInstance>()
 const newDocOpen = ref(false)
 const newDocType = ref<string | undefined>(undefined)
 const trashActionId = ref<number | null>(null)
@@ -245,6 +268,20 @@ const counts = computed(() => {
   return r
 })
 
+const stageCounts = computed(() => {
+  const r: Record<string, number> = {}
+  for (const d of store.documents) r[d.stage] = (r[d.stage] || 0) + 1
+  return r
+})
+
+const libraryEmpty = computed(() => !store.loading && store.documents.length === 0)
+const filtersActive = computed(() => typeFilter.value !== 'all' || stageFilter.value !== 'all' || searchText.value.trim() !== '')
+
+const stageOrder = (stage: string) => {
+  const index = (STAGES as readonly string[]).indexOf(stage)
+  return index === -1 ? STAGES.length : index
+}
+
 const filtered = computed(() => {
   let arr = [...store.documents]
   if (typeFilter.value !== 'all') {
@@ -253,29 +290,55 @@ const filtered = computed(() => {
   if (stageFilter.value !== 'all') {
     arr = arr.filter((d) => d.stage === stageFilter.value)
   }
+  const keyword = searchText.value.trim().toLowerCase()
+  if (keyword) {
+    arr = arr.filter((d) => [d.meta?.standardNo, d.meta?.titleCn, d.meta?.titleEn, d.title]
+      .some((field) => field?.toLowerCase().includes(keyword)))
+  }
   if (sort.value === 'title') {
-    arr.sort((a, b) => (a.meta?.titleCn || a.title).localeCompare(b.meta?.titleCn || b.title))
+    arr.sort((a, b) => (a.meta?.titleCn || a.title).localeCompare(b.meta?.titleCn || b.title, 'zh-CN'))
   } else if (sort.value === 'stage') {
-    arr.sort((a, b) => a.stage.localeCompare(b.stage))
+    arr.sort((a, b) => stageOrder(a.stage) - stageOrder(b.stage))
   } else {
     arr.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
   }
   return arr
 })
 
-const navTabs = computed(() => [
-  { id: 'all',        label: '全部文档',  count: store.documents.length },
-  { id: 'mine',       label: '我的草案',  count: store.documents.filter((d) => d.stage === 'working_draft').length },
-  { id: 'collab',     label: '协作中' },
-  { id: 'templates',  label: '模板库' },
-  { id: 'trash',      label: '回收站', count: store.trashDocuments.length },
-])
+function clearFilters() {
+  typeFilter.value = 'all'
+  stageFilter.value = 'all'
+  searchText.value = ''
+}
 
-const stats = computed<Stat[]>(() => [
-  { label: '我的起草', value: store.documents.filter((d) => d.stage === 'working_draft').length, unit: '份', trend: '本周 +1', trendUp: true },
-  { label: '待审阅',   value: store.documents.filter((d) => ['review_draft','review_discussion_draft'].includes(d.stage)).length, unit: '份', trend: '今天 +1', live: true },
-  { label: '本月发布', value: store.documents.filter((d) => d.stage === 'published').length, unit: '份', trend: 'vs 上月 +25%', trendUp: true },
-  { label: '未读评论', value: 0, unit: '条', trend: '—' },
+function readStoredView(): 'grid' | 'list' {
+  try {
+    return localStorage.getItem(VIEW_STORAGE_KEY) === 'list' ? 'list' : 'grid'
+  } catch {
+    return 'grid'
+  }
+}
+
+function setView(next: 'grid' | 'list') {
+  view.value = next
+  try {
+    localStorage.setItem(VIEW_STORAGE_KEY, next)
+  } catch {
+    // 浏览器禁用存储时只影响偏好记忆
+  }
+}
+
+function focusSearchShortcut(event: KeyboardEvent) {
+  if (isTrashView.value || libraryEmpty.value) return
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault()
+    searchInput.value?.focus()
+  }
+}
+
+const navTabs = computed(() => [
+  { id: 'all',   label: '标准库', count: store.documents.length },
+  { id: 'trash', label: '回收站', count: store.trashDocuments.length },
 ])
 
 const lastSaved = computed(() => {
@@ -283,12 +346,13 @@ const lastSaved = computed(() => {
     .map((d) => d.updatedAt)
     .filter((s): s is string => Boolean(s))
     .sort((a, b) => b.localeCompare(a))
-  if (!arr[0]) return '——'
+  if (!arr[0]) return ''
   const date = new Date(arr[0])
   return date.toLocaleString('zh-CN')
 })
 
 onMounted(() => {
+  window.addEventListener('keydown', focusSearchShortcut)
   void store.fetchDocuments().catch((error) => {
     ElMessage.error(`标准库加载失败${error instanceof Error ? `：${error.message}` : ''}`)
   })
@@ -296,6 +360,8 @@ onMounted(() => {
     ElMessage.warning(`回收站数量刷新失败${error instanceof Error ? `：${error.message}` : ''}`)
   })
 })
+
+onBeforeUnmount(() => window.removeEventListener('keydown', focusSearchShortcut))
 
 async function selectTab(tab: string) {
   navTab.value = tab
@@ -432,36 +498,51 @@ function formatDate(s?: string) {
   max-width: 1240px;
   width: 100%;
   margin: 0 auto;
-  padding: 32px 32px 80px;
+  padding: 28px 32px 80px;
   flex: 1;
 }
 
 .home-head {
   display: flex; justify-content: space-between; align-items: flex-end;
-  margin-bottom: 24px;
+  gap: 16px;
+  margin-bottom: 20px;
 }
 .home-head h1 {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 700;
   letter-spacing: 0.01em;
   margin: 0 0 6px;
   color: var(--ses-ink);
 }
-.home-head .sub { color: var(--ses-ink-3); font-size: 13.5px; margin: 0; }
-.home-head .actions { display: flex; gap: 10px; }
+.home-head .sub { color: var(--ses-ink-3); font-size: 13px; margin: 0; }
+.home-head .actions { display: flex; gap: 10px; flex-shrink: 0; }
+.new-doc-label { display: inline-flex; align-items: center; gap: 6px; }
 
-.list-toolbar {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
+/* === 空库欢迎 === */
+.welcome {
+  padding: 32px;
+  background: var(--ses-surface);
+  border: 1px solid var(--ses-line);
+  border-radius: 16px;
 }
-.list-toolbar-l { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.list-toolbar-r { display: flex; align-items: center; gap: 8px; }
+.welcome h2 { margin: 0 0 6px; font-size: 18px; color: var(--ses-ink); }
+.welcome p { margin: 0 0 20px; font-size: 13px; line-height: 1.7; color: var(--ses-ink-3); }
+
+/* === 查找与筛选 === */
+.list-toolbar {
+  display: flex; align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 20px 0 12px;
+}
+.list-search { width: 280px; }
+.list-toolbar-l { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.list-toolbar-r { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.sort-select { width: 130px; }
 
 .chip {
   height: 28px;
-  padding: 0 12px;
+  padding: 0 10px;
   border-radius: 999px;
   font-size: 12.5px;
   font-weight: 500;
@@ -470,25 +551,22 @@ function formatDate(s?: string) {
   border: 1px solid var(--ses-line);
   display: inline-flex; align-items: center; gap: 6px;
   cursor: pointer;
-  transition: all 0.12s ease;
+  transition: background 0.12s ease, border-color 0.12s ease;
   font-family: inherit;
 }
 .chip:hover { background: var(--ses-surface-2); border-color: var(--ses-line-2); }
 .chip.is-active {
-  background: var(--ses-ink);
-  color: oklch(0.98 0.003 270);
-  border-color: var(--ses-ink);
+  background: var(--ses-accent-soft);
+  color: var(--ses-accent);
+  border-color: var(--ses-accent);
 }
 .chip .count {
   font-size: 11px;
-  padding: 0 5px;
-  border-radius: 4px;
-  background: var(--ses-surface-2);
-  color: var(--ses-ink-3);
+  color: var(--ses-ink-4);
   font-family: var(--ses-font-mono);
-  font-weight: 500;
 }
-.chip.is-active .count { background: oklch(0.3 0.014 270); color: oklch(0.85 0.005 270); }
+.chip.is-active .count { color: var(--ses-accent); }
+.chip:focus-visible, .view-toggle button:focus-visible { outline: 2px solid var(--ses-accent-ring); outline-offset: 1px; }
 
 .view-toggle {
   display: flex;
@@ -497,7 +575,7 @@ function formatDate(s?: string) {
   padding: 2px;
 }
 .view-toggle button {
-  height: 24px; padding: 0 10px;
+  height: 28px; padding: 0 10px;
   border-radius: 4px;
   font-size: 12px;
   color: var(--ses-ink-3);
@@ -514,25 +592,57 @@ function formatDate(s?: string) {
   font-weight: 500;
 }
 
+.filter-summary {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  color: var(--ses-ink-3);
+}
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ses-accent);
+  font: inherit;
+  cursor: pointer;
+}
+.link-btn:hover { text-decoration: underline; }
+
 .doc-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(296px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
 }
 
 .empty-state {
-  padding: 64px 24px;
+  padding: 56px 24px;
   text-align: center;
   background: var(--ses-surface);
-  border: 2px dashed var(--ses-line-2);
-  border-radius: 16px;
-  color: var(--ses-ink-3);
+  border: 1px dashed var(--ses-line-2);
+  border-radius: 14px;
+  color: var(--ses-ink-4);
 }
-.empty-state h3 { margin: 16px 0 4px; font-size: 16px; color: var(--ses-ink); }
+.empty-state h3 { margin: 14px 0 4px; font-size: 15px; color: var(--ses-ink); }
 .empty-state p { color: var(--ses-ink-3); font-size: 13px; margin: 0 0 16px; }
 
 .doc-list-table { border: 1px solid var(--ses-line); border-radius: 12px; overflow: hidden; }
+.doc-list-table :deep(.doc-list-row) { cursor: pointer; }
+.list-std-no { font-family: var(--ses-font-mono); font-size: 12px; color: var(--ses-ink-3); }
+.list-title { font-weight: 500; color: var(--ses-ink); }
+.list-time { color: var(--ses-ink-3); font-size: 12.5px; }
 .trash-view { margin-top: 8px; }
 .trash-standard-no { font-family: var(--ses-font-mono); font-size: 12px; color: var(--ses-ink-3); }
 .trash-title { font-weight: 500; color: var(--ses-ink); }
+
+@media (max-width: 1000px) {
+  .list-search { width: 100%; }
+  .list-toolbar-r { margin-left: 0; }
+}
+@media (max-width: 620px) {
+  .home-body { padding: 20px 16px 64px; }
+  .home-head { flex-direction: column; align-items: stretch; }
+  .home-head .actions { justify-content: flex-start; }
+  .welcome { padding: 20px; }
+  .view-toggle button span { display: none; }
+}
 </style>
