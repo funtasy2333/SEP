@@ -14,7 +14,9 @@ export function orderTableFootnotes(footnotes: IRFootnote[], labels: Labels): IR
       const resolved = labels[footnote.id]
       if (!resolved) throw new Error(`render: 表脚注 "${footnote.id}" 在 labels 中没有编号`)
       const marker = resolved.refText
-      if (!/^[a-z]+$/.test(marker) || resolved.label !== marker || !resolved.xmlId.endsWith(`_${marker}`)) {
+      // xmlId = table-fn_<表号>.<k>，k 为表内序号，与字母标记同序（a→1、b→2、aa→27）
+      const k = /^table-fn_.+\.([1-9][0-9]*)$/.exec(resolved.xmlId)?.[1]
+      if (!/^[a-z]+$/.test(marker) || resolved.label !== marker || k === undefined || Number(k) !== alphaMarkerOrder(marker)) {
         throw new Error(`render: 表脚注 "${footnote.id}" 的 resolver 标签无效: "${marker}"`)
       }
       return { footnote, markerOrder: alphaMarkerOrder(marker) }

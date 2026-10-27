@@ -1165,12 +1165,19 @@ function serializeInlineJson(content: unknown): string {
   }).join('')
 }
 
+/** 表脚注字母标记 → 表内序号（a→1、z→26、aa→27），即 table-fn_<表号>.<k> 的 k */
+function tableFootnoteSeq(label: string): number {
+  let seq = 0
+  for (const char of label) seq = seq * 26 + char.charCodeAt(0) - 96
+  return seq
+}
+
 function requireFootnoteLabel(nodeId: unknown, kind: 'body' | 'table'): ResolvedLabel {
   const id = typeof nodeId === 'string' ? nodeId : ''
   const resolved = activeFootnoteLabels[id]
   const valid = resolved && resolved.refText === resolved.label && (kind === 'body'
     ? /^fn_[1-9][0-9]*$/.test(resolved.xmlId) && /^[1-9][0-9]*\)$/.test(resolved.label)
-    : /^tabfn_.+_[a-z]+$/.test(resolved.xmlId) && /^[a-z]+$/.test(resolved.label) && resolved.xmlId.endsWith(`_${resolved.label}`))
+    : /^table-fn_.+\.[1-9][0-9]*$/.test(resolved.xmlId) && /^[a-z]+$/.test(resolved.label) && resolved.xmlId.endsWith(`.${tableFootnoteSeq(resolved.label)}`))
   if (!valid) throw new XmlFootnoteValidationError(`脚注「${id}」缺少有效 Resolver 标签，不能生成 XML。`)
   return resolved
 }

@@ -201,10 +201,13 @@ function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx, forb
           ctx.problems.push({ code: 'dangling-footnote', nodeId: fromId, severity: 'error', message: `表脚注上标的目标「${mark.targetId}」不在当前表中，或位于脚注内部` })
         } else if (!scope.referenced.has(mark.targetId)) {
           scope.referenced.add(mark.targetId)
-          let n = ++scope.seq
+          // 标签是字母（a、b…z、aa…），xmlId 的 k 是表内序号（X-24，R-2）：与标签字符无关，a→1、b→2。
+          const k = ++scope.seq
+          let n = k
           let label = ''
           while (n > 0) { n -= 1; label = String.fromCharCode(97 + n % 26) + label; n = Math.floor(n / 26) }
-          ctx.setLabel(mark.targetId, label, `tabfn_${ctx.labels[scope.tableId]!.xmlId}_${label}`, label)
+          // 表号 = 表 xmlId 去掉 tab_ 前缀（正文表 1、附录表 A.1）：table-fn_1.1、table-fn_A.1.2
+          ctx.setLabel(mark.targetId, label, `table-fn_${ctx.labels[scope.tableId]!.xmlId.replace(/^tab_/, '')}.${k}`, label)
         }
       }
     }

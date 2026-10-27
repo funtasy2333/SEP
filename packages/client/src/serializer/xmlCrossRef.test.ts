@@ -266,7 +266,7 @@ describe('生产 XML 交叉引用序列化', () => {
     const xml = serializeToXml(toProductionNode(doc))
     expectEveryXrefHasOneTarget(xml)
     expect(xrefRidFor(xml, '正文脚注目标')).toBe('fn_1')
-    expect(xrefRidFor(xml, '表脚注目标')).toMatch(/^tabfn_/)
+    expect(xrefRidFor(xml, '表脚注目标')).toBe('table-fn_1.1')
   })
 
   it('legacy refId 命中不同的 stable ID 与 emitted XML ID 时拒绝歧义', () => {
