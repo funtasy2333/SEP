@@ -60,7 +60,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useZIndex } from 'element-plus'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { isComplexInlineLatex, loadMathLive, validateWhereSymbolLatex, WHERE_SYMBOL_SHORTCUTS, type MathfieldStatics } from '@/utils/mathlive'
@@ -92,6 +93,42 @@ const loadFailed = ref(false)
 const mathfieldReady = ref(false)
 const mathfieldRef = ref<MathfieldLike | null>(null)
 
+const { nextZIndex } = useZIndex()
+
+/**
+ * MathLive 的屏幕键盘挂在 body 上，默认 z-index 105，低于 el-dialog 的遮罩（2000 起）：
+ * 键盘被遮罩盖住，点按键实际点在遮罩上，弹窗随之关闭。打开时把键盘层级抬到弹窗之上。
+ */
+function raiseVirtualKeyboard(): void {
+  document.body.style.setProperty('--keyboard-zindex', String(nextZIndex()))
+  window.mathVirtualKeyboard?.addEventListener('geometrychange', fitDialogAboveKeyboard)
+}
+
+function releaseVirtualKeyboard(): void {
+  const keyboard = window.mathVirtualKeyboard
+  keyboard?.removeEventListener('geometrychange', fitDialogAboveKeyboard)
+  keyboard?.hide()
+  document.body.style.removeProperty('--keyboard-zindex')
+}
+
+/**
+ * 键盘从底部弹出会盖住弹窗下半部（含「确定」）。给遮罩留出键盘高度的底部空间，
+ * 并把弹窗上移到底部露出；弹窗放不下时以输入框不被移出视口为限。
+ */
+function fitDialogAboveKeyboard(): void {
+  const field = mathfieldRef.value
+  const overlay = field?.closest<HTMLElement>('.el-overlay-dialog')
+  const dialog = field?.closest<HTMLElement>('.el-dialog')
+  const keyboard = window.mathVirtualKeyboard
+  if (!field || !overlay || !dialog || !keyboard) return
+  const height = keyboard.visible ? keyboard.boundingRect.height : 0
+  overlay.style.paddingBottom = height > 0 ? `${height}px` : ''
+  if (height <= 0) return
+  const covered = dialog.getBoundingClientRect().bottom - (window.innerHeight - height)
+  const shift = Math.min(covered, field.getBoundingClientRect().top - 8)
+  if (shift > 0) overlay.scrollTop += shift
+}
+
 const complexHint = computed(() => isComplexInlineLatex(source.value))
 
 const previewHtml = computed(() => {
@@ -109,7 +146,10 @@ function escapeHtml(text: string): string {
 }
 
 watch(() => props.modelValue, (open) => {
-  if (!open) return
+  if (!open) {
+    releaseVirtualKeyboard()
+    return
+  }
   // destroy-on-close 每次打开都会新建 <math-field>，就绪前确认按源码取值。
   mathfieldReady.value = false
   source.value = props.initialLatex
@@ -132,9 +172,12 @@ async function handleOpened(): Promise<void> {
   const field = mathfieldRef.value
   if (!field) return
   field.value = source.value
+  raiseVirtualKeyboard()
   mathfieldReady.value = true
   if (mode.value === 'visual') field.focus()
 }
+
+onBeforeUnmount(releaseVirtualKeyboard)
 
 function currentVisualLatex(): string {
   const field = mathfieldRef.value
