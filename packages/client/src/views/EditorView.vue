@@ -1,33 +1,37 @@
 <template>
   <div class="editor-view" v-loading="loading">
-    <!-- =====================  TOP NAV  ===================== -->
+    <!-- =====================  TOP NAV：文档级操作  ===================== -->
     <header class="ed-nav">
       <div class="nav-l">
-        <a class="ses-brand" @click.prevent="goHome" href="#">
+        <a class="ses-brand" @click.prevent="goHome" href="#" title="返回标准库">
           <SesLogo />
           <span class="ses-brand-label">标准编辑器</span>
         </a>
         <div class="brand-sep" />
-        <div class="doc-crumb" :title="store.currentDocument?.meta?.titleCn || store.currentDocument?.title">
+        <div
+          class="doc-crumb"
+          role="button"
+          tabindex="0"
+          :title="`${store.currentDocument?.meta?.titleCn || store.currentDocument?.title || ''}（点击编辑文件信息）`"
+          @click="activeTab = 'settings'"
+          @keydown.enter.prevent="activeTab = 'settings'"
+        >
           <span class="std-no">{{ store.currentDocument?.meta?.standardNo || '— · 待编号' }}</span>
-          <span class="dot-sep">·</span>
           <span class="crumb-title">{{ store.currentDocument?.meta?.titleCn || store.currentDocument?.title || '加载中…' }}</span>
-          <el-icon class="caret"><ArrowDownIcon /></el-icon>
         </div>
       </div>
 
-      <nav class="ed-tabs">
+      <nav class="ed-tabs" aria-label="编辑器视图">
         <button class="ed-tab" :class="{ 'is-active': activeTab === 'edit' }" @click="activeTab = 'edit'">
           文件编辑<span v-if="dirty" class="tab-dirty-mark" aria-label="正文有未保存修改" />
         </button>
         <button class="ed-tab" :class="{ 'is-active': activeTab === 'settings' }" @click="activeTab = 'settings'">
           文件设置<span v-if="settingsDirty" class="tab-dirty-mark settings-mark" aria-label="设置有未保存修改" />
         </button>
-        <button class="ed-tab" :class="{ 'is-active': activeTab === 'preview' }" @click="activeTab = 'preview'">预览</button>
       </nav>
 
       <div class="nav-r">
-        <span class="ses-save-pill" :class="{ 'is-saving': saving, 'is-conflict': saveConflict }">
+        <span class="ses-save-pill" :class="{ 'is-saving': saving, 'is-conflict': saveConflict, 'is-dirty': !saving && !saveConflict && (dirty || settingsDirty) }">
           <span class="dot" />
           <template v-if="persistenceOperation === 'settings-save'">设置保存中…</template>
           <template v-else-if="persistenceOperation === 'xml-import'">导入中…</template>
@@ -39,31 +43,52 @@
           <template v-else-if="documentLoaded">已保存</template>
           <template v-else>未保存</template>
         </span>
-        <div class="ses-avatar-stack">
-          <span class="ses-avatar a1" title="李工 · 起草人">李</span>
-          <span class="ses-avatar a2" title="王老师 · 审核人">王</span>
-          <span class="ses-avatar a3" title="陈主任 · 批准人">陈</span>
+
+        <div class="nav-actions" role="toolbar" aria-label="文档操作">
+          <button
+            class="nav-btn"
+            type="button"
+            title="查看文档源码（XML / JSON / HTML）"
+            @click="showXmlCode = true"
+          ><span class="nav-glyph" aria-hidden="true">&lt;/&gt;</span><span class="nav-btn-label">源码</span></button>
+          <button
+            class="nav-btn"
+            type="button"
+            title="从 XML 文件导入，替换当前正文"
+            :disabled="documentUnavailable"
+            @click="triggerXmlImport"
+          ><el-icon><Upload /></el-icon><span class="nav-btn-label">导入 XML</span></button>
+          <button
+            class="nav-btn"
+            type="button"
+            :class="{ 'is-active': showVersionPanel }"
+            :aria-pressed="showVersionPanel"
+            title="版本历史"
+            @click="handleViewHistory"
+          ><el-icon><Clock /></el-icon><span class="nav-btn-label">版本历史</span></button>
+          <div class="nav-split" :class="{ 'is-active': showValidationPanel }">
+            <button
+              class="nav-btn"
+              type="button"
+              title="打开或关闭质量检查结果"
+              :aria-label="showValidationPanel ? '关闭质量检查' : '打开质量检查'"
+              :aria-expanded="showValidationPanel"
+              @click="toggleValidationPanel"
+            ><el-icon><CircleCheck /></el-icon><span class="nav-btn-label">质量检查</span></button>
+            <button
+              class="nav-btn nav-validation-run"
+              data-testid="editor-validation-run"
+              type="button"
+              :disabled="!validationCanRun"
+              :aria-label="validationRunLabel"
+              @click="handleManualValidation"
+            >{{ validationRunLabel }}</button>
+          </div>
+          <button class="nav-btn" type="button" title="快捷键与帮助" aria-label="帮助" @click="showHelp = true">
+            <el-icon><QuestionFilled /></el-icon>
+          </button>
         </div>
-        <el-button text @click="handleViewHistory">
-          <el-icon><Clock /></el-icon>
-          <span>{{ showVersionPanel ? '关闭历史' : '版本历史' }}</span>
-        </el-button>
-        <el-button
-          text
-          :aria-label="showValidationPanel ? '关闭质量检查' : '打开质量检查'"
-          :aria-expanded="showValidationPanel"
-          @click="toggleValidationPanel"
-        >
-          <span>质量检查</span>
-        </el-button>
-        <button
-          class="nav-validation-run"
-          data-testid="editor-validation-run"
-          type="button"
-          :disabled="!validationCanRun"
-          :aria-label="validationRunLabel"
-          @click="handleManualValidation"
-        >{{ validationRunLabel }}</button>
+
         <el-button type="primary" aria-label="导出" @click="handleExport">
           <el-icon><Download /></el-icon>
           <span>导出</span>
@@ -86,108 +111,120 @@
 
     <!-- =====================  EDIT TAB  ===================== -->
     <template v-if="activeTab === 'edit'">
-      <!-- Toolbar -->
-      <div class="ed-toolbar" :inert="documentUnavailable">
-        <div class="tbar-outline-head">
-          <span>文档结构</span>
-          <el-dropdown trigger="click" @command="handleAddStructure">
-            <button class="add-btn" title="添加章节结构"><el-icon><Plus /></el-icon></button>
+      <!-- 工具栏：只放正文编辑操作，按「历史 / 文字 / 设为 / 插入 / 对象」排列；放不下时换行，不再隐藏按钮 -->
+      <div class="ed-toolbar" role="toolbar" aria-label="正文编辑" :inert="documentUnavailable">
+        <div class="tbar-group">
+          <button
+            class="tbar-btn icon-btn"
+            :class="{ 'is-active': showOutline }"
+            :aria-pressed="showOutline"
+            :title="showOutline ? '隐藏文档结构' : '显示文档结构'"
+            :aria-label="showOutline ? '隐藏文档结构' : '显示文档结构'"
+            @click="showOutline = !showOutline"
+          ><el-icon><Memo /></el-icon></button>
+        </div>
+        <span class="tbar-sep" />
+
+        <div class="tbar-group">
+          <button class="tbar-btn icon-btn" :disabled="!editor?.can().undo()" @click="editor?.chain().focus().undo().run()" title="撤销（Ctrl+Z）" aria-label="撤销">
+            <el-icon><RefreshLeft /></el-icon>
+          </button>
+          <button class="tbar-btn icon-btn" :disabled="!editor?.can().redo()" @click="editor?.chain().focus().redo().run()" title="重做（Ctrl+Shift+Z）" aria-label="重做">
+            <el-icon><RefreshRight /></el-icon>
+          </button>
+        </div>
+        <span class="tbar-sep" />
+
+        <div class="tbar-group format-group">
+          <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('bold') }" title="加粗（Ctrl+B）" aria-label="加粗" @click="editor?.chain().focus().toggleBold().run()"><strong>B</strong></button>
+          <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('italic') }" title="斜体（Ctrl+I）" aria-label="斜体" @click="editor?.chain().focus().toggleItalic().run()"><em>I</em></button>
+          <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('underline') }" title="下划线（Ctrl+U）" aria-label="下划线" @click="toggleUnderline()"><u>U</u></button>
+          <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('strike') }" title="删除线" aria-label="删除线" @click="editor?.chain().focus().toggleStrike().run()"><s>S</s></button>
+        </div>
+        <span class="tbar-sep" />
+
+        <!-- 设为：改变光标所在段落的结构角色 -->
+        <div class="tbar-group" aria-label="将当前段落设为">
+          <span class="tbar-label">设为</span>
+          <button class="tbar-btn" title="将当前段落恢复为正文段落" @click="insertStdParagraph()">正文</button>
+          <el-dropdown trigger="click" @command="handleInsertClause">
+            <button class="tbar-btn" title="将当前段落或条标题设为所选层级的条">条 <el-icon><ArrowDownIcon /></el-icon></button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="foreword">前言</el-dropdown-item>
-                <el-dropdown-item command="introduction">引言</el-dropdown-item>
-                <el-dropdown-item command="chapter">章</el-dropdown-item>
-                <el-dropdown-item divided command="appendixNorm">规范性附录</el-dropdown-item>
-                <el-dropdown-item command="appendixInfo">资料性附录</el-dropdown-item>
-                <el-dropdown-item divided command="bibliography">参考文献</el-dropdown-item>
+                <el-dropdown-item v-for="lv in 5" :key="lv" :command="String(lv)">{{ ['一','二','三','四','五'][lv-1] }}级条</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <el-dropdown trigger="click" @command="handleInsertClauseNoTitle">
+            <button class="tbar-btn" title="将当前段落或条标题设为无题条">无题条 <el-icon><ArrowDownIcon /></el-icon></button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item v-for="lv in 4" :key="lv" :command="String(lv)">{{ ['一','二','三','四'][lv-1] }}级无题条</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <el-dropdown trigger="click" @command="handleInsertList">
+            <button class="tbar-btn" title="将当前段落设为列项">列项 <el-icon><ArrowDownIcon /></el-icon></button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="dash">破折号列项（一级）</el-dropdown-item>
+                <el-dropdown-item command="alpha">字母编号列项（一级）</el-dropdown-item>
+                <el-dropdown-item command="numeric">数字编号列项（二级）</el-dropdown-item>
+                <el-dropdown-item command="dot">间隔号列项（二级）</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
         </div>
+        <span class="tbar-sep" />
 
-        <div class="tbar-groups">
-          <!-- 结构要素 -->
-          <div class="tbar-group">
-            <el-dropdown trigger="click" @command="handleInsertClause">
-              <button class="tbar-btn" title="将当前段落或条标题设为所选层级">条 <el-icon><ArrowDownIcon /></el-icon></button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item v-for="lv in 5" :key="lv" :command="String(lv)">{{ ['一','二','三','四','五'][lv-1] }}级条</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+        <!-- 插入：在光标处加入内容要素 -->
+        <div class="tbar-group" aria-label="插入内容要素">
+          <span class="tbar-label">插入</span>
+          <el-dropdown trigger="click" @command="handleInsertNote">
+            <button class="tbar-btn" title="设置注或插入脚注">注 <el-icon><ArrowDownIcon /></el-icon></button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="note">注</el-dropdown-item>
+                <el-dropdown-item command="footnote">脚注（Ctrl+Shift+F）</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <button class="tbar-btn" title="在当前段落后插入示例" @click="handleInsertExample('example')">示例</button>
+          <el-dropdown trigger="click" @command="handleInsertTermDef">
+            <button class="tbar-btn" title="插入术语条目">术语 <el-icon><ArrowDownIcon /></el-icon></button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item v-for="lv in 5" :key="lv" :command="String(lv)">{{ ['一','二','三','四','五'][lv-1] }}级术语条</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <button class="tbar-btn" title="在当前段落后插入公式" @click="handleInsertFormula()">公式</button>
+          <button
+            class="tbar-btn"
+            :disabled="!cursorAllowsInlineFormula"
+            title="插入行内公式；选中带上下标的文字时转为公式（Ctrl/Cmd+Shift+M）"
+            @click="handleInlineFormula()"
+          >行内公式</button>
+          <TableMenu
+            :in-table="editor?.isActive('stdTable') || editor?.isActive('table') || false"
+            :in-cell="editor?.isActive('tableCell') || editor?.isActive('tableHeader') || false"
+            @open="rememberTableSelection"
+            @command="handleTableCommand"
+          />
+          <button class="tbar-btn" title="在当前段落后插入图" @click="handleInsertFigure()">图片</button>
+        </div>
 
-            <el-dropdown trigger="click" @command="handleInsertClauseNoTitle">
-              <button class="tbar-btn" title="将当前段落或条标题设为无题条">无题条 <el-icon><ArrowDownIcon /></el-icon></button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item v-for="lv in 4" :key="lv" :command="String(lv)">{{ ['一','二','三','四'][lv-1] }}级无题条</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-
-            <el-dropdown trigger="click" @command="handleInsertList">
-              <button class="tbar-btn">列项 <el-icon><ArrowDownIcon /></el-icon></button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="dash">破折号列项（一级）</el-dropdown-item>
-                  <el-dropdown-item command="alpha">字母编号列项（一级）</el-dropdown-item>
-                  <el-dropdown-item command="numeric">数字编号列项（二级）</el-dropdown-item>
-                  <el-dropdown-item command="dot">间隔号列项（二级）</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+        <!-- 上下文工具：只在光标位于公式、图或表时出现 -->
+        <template v-if="cursorInFormula">
+          <span class="tbar-sep" />
+          <div class="tbar-group tbar-context" aria-label="公式">
+            <span class="tbar-label">公式</span>
+            <button class="tbar-btn" title="为光标所在公式添加一条式中符号说明" @click="handleAddWhereItem()">添加式中</button>
           </div>
-
-          <!-- 内容要素 -->
-          <div class="tbar-group">
-            <el-dropdown trigger="click" @command="handleInsertNote">
-              <button class="tbar-btn">注 <el-icon><ArrowDownIcon /></el-icon></button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="note">注</el-dropdown-item>
-                  <el-dropdown-item command="footnote">脚注</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-            <button class="tbar-btn" @click="handleInsertExample('example')">示例</button>
-            <el-dropdown trigger="click" @command="handleInsertTermDef">
-              <button class="tbar-btn">术语定义 <el-icon><ArrowDownIcon /></el-icon></button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item v-for="lv in 5" :key="lv" :command="String(lv)">{{ ['一','二','三','四','五'][lv-1] }}级术语条</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-            <button class="tbar-btn" @click="handleInsertFormula()">公式</button>
-            <button
-              class="tbar-btn"
-              :disabled="!cursorInFormula"
-              title="为光标所在公式添加一条式中符号说明"
-              @click="handleAddWhereItem()"
-            >式中</button>
-            <button
-              class="tbar-btn"
-              :disabled="!cursorAllowsInlineFormula"
-              title="插入行内公式；选中带上下标的文字时转为公式（Ctrl/Cmd+Shift+M）"
-              @click="handleInlineFormula()"
-            >行内公式</button>
-          </div>
-
-          <!-- 媒体 -->
-          <div class="tbar-group">
-            <TableMenu
-              :in-table="editor?.isActive('stdTable') || editor?.isActive('table') || false"
-              :in-cell="editor?.isActive('tableCell') || editor?.isActive('tableHeader') || false"
-              @open="rememberTableSelection"
-              @command="handleTableCommand"
-            />
-            <button class="tbar-btn" @click="handleInsertFigure()">图片</button>
-            <button class="tbar-btn" @click="insertStdParagraph()">段落</button>
-          </div>
-
-          <!-- 图表方向 -->
-          <div v-if="activeOrientationNodeType()" class="tbar-group" aria-label="图表版面方向">
+        </template>
+        <template v-if="activeOrientationNodeType()">
+          <span class="tbar-sep" />
+          <div class="tbar-group tbar-context" aria-label="图表版面方向">
             <span class="tbar-label">版面</span>
             <button
               class="tbar-btn"
@@ -202,42 +239,13 @@
               @click="setActivePageOrientation('landscape')"
             >横向</button>
           </div>
+        </template>
 
-          <!-- 格式 -->
-          <div class="tbar-group format-group">
-            <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('bold') }"      @click="editor?.chain().focus().toggleBold().run()"><strong>B</strong></button>
-            <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('italic') }"    @click="editor?.chain().focus().toggleItalic().run()"><em>I</em></button>
-            <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('underline') }" @click="toggleUnderline()"><u>U</u></button>
-            <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('strike') }"    @click="editor?.chain().focus().toggleStrike().run()"><s>S</s></button>
-          </div>
-
-          <!-- 撤销 / 重做 -->
-          <div class="tbar-group">
-            <button class="tbar-btn icon-btn" :disabled="!editor?.can().undo()" @click="editor?.chain().focus().undo().run()" title="撤销 Ctrl+Z">
-              <el-icon><RefreshLeft /></el-icon>
-            </button>
-            <button class="tbar-btn icon-btn" :disabled="!editor?.can().redo()" @click="editor?.chain().focus().redo().run()" title="重做 Ctrl+Shift+Z">
-              <el-icon><RefreshRight /></el-icon>
-            </button>
-          </div>
-
-          <!-- 代码 / 导入 / 帮助 -->
-          <div class="tbar-group">
-            <button class="tbar-btn" @click="showXmlCode = true">
-              <span style="font-family: var(--ses-font-mono); font-weight: 700">&lt;/&gt;</span>
-              源码
-            </button>
-            <button class="tbar-btn" @click="triggerXmlImport">导入 XML</button>
-            <button class="tbar-btn icon-btn" @click="showHelp = true" title="帮助">?</button>
-          </div>
-        </div>
-
-        <!-- search -->
         <div class="tbar-search">
           <el-input
             v-model="searchText"
             size="small"
-            placeholder="搜索…"
+            placeholder="查找正文，回车定位"
             :prefix-icon="Search"
             clearable
             @keyup.enter="handleSearch"
@@ -247,9 +255,32 @@
 
       <!-- Editor body: outline + canvas + one optional sidebar -->
       <div class="ed-body ses-scroll">
-        <div class="outline-host" :inert="documentUnavailable">
-          <DocumentOutline :editor="editor" />
-        </div>
+        <transition name="slide-left">
+          <div v-show="showOutline" class="outline-host" :inert="documentUnavailable">
+            <DocumentOutline :editor="editor">
+              <template #actions>
+                <el-dropdown trigger="click" @command="handleAddStructure">
+                  <button class="outline-add-btn" title="添加前言、引言、章、附录或参考文献">
+                    <el-icon><Plus /></el-icon><span>添加</span>
+                  </button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="foreword">前言</el-dropdown-item>
+                      <el-dropdown-item command="introduction">引言</el-dropdown-item>
+                      <el-dropdown-item command="chapter">章</el-dropdown-item>
+                      <el-dropdown-item divided command="appendixNorm">规范性附录</el-dropdown-item>
+                      <el-dropdown-item command="appendixInfo">资料性附录</el-dropdown-item>
+                      <el-dropdown-item divided command="bibliography">参考文献</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+                <button class="outline-icon-btn" title="隐藏文档结构" aria-label="隐藏文档结构" @click="showOutline = false">
+                  <el-icon><DArrowLeft /></el-icon>
+                </button>
+              </template>
+            </DocumentOutline>
+          </div>
+        </transition>
         <div class="ed-main">
           <SesEditorContent :editor="editor" />
         </div>
@@ -300,11 +331,6 @@
       />
     </div>
 
-    <!-- =====================  PREVIEW TAB  ===================== -->
-    <div v-if="activeTab === 'preview'" class="tab-placeholder">
-      <el-empty description="GB/T 1.1 文档预览（开发中）" />
-    </div>
-
     <!-- =====================  CODE VIEW DIALOG  ===================== -->
     <el-dialog v-model="showXmlCode" title="查看文档代码" width="900px" class="ses-code-dlg">
       <div class="code-dlg-head">
@@ -335,11 +361,13 @@
           <li><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> 重做</li>
           <li><kbd>Ctrl</kbd> + <kbd>S</kbd> 保存</li>
           <li><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> 插入脚注</li>
+          <li><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>M</kbd> 行内公式</li>
           <li><kbd>/</kbd> 智能插入菜单</li>
         </ul>
         <h4>文档结构</h4>
-        <p>使用左上角"+"按钮添加章节结构（前言、引言、章、附录、参考文献）。点击正文段落或选中其中的文字后，使用“条”“无题条”设置整段格式；新条之后的正文归入该条，直到下一个同级条。一级条置于章或附录内，其他级别置于上一级条内。含子条时保留原层级，可切换有题/无题；先调整子条结构再改层级或段落。需要新条时，先回车建立空段再设置格式。</p>
-        <p>术语中英文名称同列显示：Tab 从中文名进入英文名，Enter 进入定义；在定义中 Enter 新建续段，末尾空续段再次 Enter 退出术语。使用工具栏插入列项、注、示例、公式、表格、图片等内容要素。选中图或表后，可切换纵向或横向版面。</p>
+        <p>界面分三层：顶栏是整份文件的操作（源码、导入、版本历史、质量检查、导出）；工具栏只处理正文，「设为」改变当前段落的角色，「插入」加入新的内容要素；光标位于公式、图或表时，工具栏右侧会出现对应的上下文工具（添加式中、纵向/横向版面）。</p>
+        <p>使用左侧「文档结构」面板的「添加」按钮添加章节结构（前言、引言、章、附录、参考文献）；工具栏最左侧的按钮可隐藏或显示该面板。点击正文段落或选中其中的文字后，使用“条”“无题条”设置整段格式；新条之后的正文归入该条，直到下一个同级条。一级条置于章或附录内，其他级别置于上一级条内。含子条时保留原层级，可切换有题/无题；先调整子条结构再改层级或段落。需要新条时，先回车建立空段再设置格式。</p>
+        <p>术语中英文名称同列显示：Tab 从中文名进入英文名，Enter 进入定义；在定义中 Enter 新建续段，末尾空续段再次 Enter 退出术语。使用工具栏「设为」设置列项，「插入」加入注、示例、术语、公式、表格、图片等内容要素。选中图或表后，可切换纵向或横向版面。</p>
         <p>行内公式：在正文、列项、注、示例、表格单元格、术语定义中按 Ctrl/Cmd+Shift+M（或工具栏「行内公式」）插入；先选中 q<sub>V</sub> 这类带上下标的文字再按，可把它转为公式。点击公式可重新编辑。</p>
       </div>
     </el-dialog>
@@ -539,7 +567,7 @@ import { NodeSelection, TextSelection, type SelectionBookmark } from '@tiptap/pm
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 // Underline is included in StarterKit (tiptap v3)
-import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon, Clock, Download, WarningFilled } from '@element-plus/icons-vue'
+import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon, Clock, Download, WarningFilled, Upload, CircleCheck, QuestionFilled, Memo, DArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { documentApi, type DocumentData } from '@/api/document'
 import { useDocumentStore } from '@/stores/document'
@@ -587,7 +615,7 @@ const loading = ref(true)
 const documentLoaded = ref(false)
 const saving = ref(false)
 const lastSaved = ref('')
-const activeTab = ref<'edit' | 'settings' | 'preview'>('edit')
+const activeTab = ref<'edit' | 'settings'>('edit')
 const persistenceOperation = ref<'body-save' | 'settings-save' | 'xml-import' | null>(null)
 /**
  * 保存冲突：任一保存路径收到 409（文档在别处被修改）后非空。
@@ -623,6 +651,8 @@ const codeViewFormat = ref<'xml' | 'json' | 'html' | 'raw'>('xml')
 const xmlFileInput = ref<HTMLInputElement | null>(null)
 const showVersionPanel = ref(false)
 const showValidationPanel = ref(false)
+/** 文档结构面板：窄屏默认收起，把宽度留给正文 */
+const showOutline = ref(typeof window === 'undefined' || window.innerWidth > 960)
 const documentId = computed(() => Number(route.params.id))
 const documentUnavailable = computed(() => store.isDocumentUnavailable(documentId.value))
 const unavailableMessage = ref('文档已移入回收站或当前页面已失效。')
@@ -2493,45 +2523,50 @@ function handleXmlFileImport(event: Event) {
   background: var(--ses-bg);
 }
 
-/* === top nav === */
+/* === top nav：文档级操作 === */
 .ed-nav {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  /* 右侧按实际宽度占位，左侧标题让位截断，避免中间的视图切换与右侧按钮重叠 */
+  grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
   align-items: center;
+  gap: 16px;
   padding: 0 16px;
-  height: 48px;
+  height: 52px;
   background: var(--ses-surface);
   border-bottom: 1px solid var(--ses-line);
   flex-shrink: 0;
 }
 .nav-l, .nav-r { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.nav-r { justify-content: flex-end; }
-.brand-sep { width: 1px; height: 14px; background: var(--ses-line-2); margin: 0 4px; }
+.nav-r { justify-content: flex-end; gap: 10px; }
+.brand-sep { flex: 0 0 auto; width: 1px; height: 16px; background: var(--ses-line-2); }
 
 .doc-crumb {
-  display: flex; align-items: center; gap: 6px;
-  padding: 4px 10px; border-radius: 6px;
-  font-size: 12.5px; color: var(--ses-ink-2);
+  display: flex; flex-direction: column; justify-content: center;
+  min-width: 0; max-width: 420px;
+  padding: 3px 8px; margin-left: -4px;
+  border: 0; border-radius: 6px;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
   cursor: pointer;
-  max-width: 360px;
+  line-height: 1.3;
 }
 .doc-crumb:hover { background: var(--ses-surface-2); }
-.doc-crumb .std-no { color: var(--ses-ink-3); font-family: var(--ses-font-mono); font-size: 11.5px; }
-.doc-crumb .dot-sep { color: var(--ses-ink-4); }
-.doc-crumb .crumb-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.doc-crumb .caret { color: var(--ses-ink-4); font-size: 10px; }
+.doc-crumb:focus-visible { outline: 2px solid var(--ses-accent-ring); outline-offset: 1px; }
+.doc-crumb .std-no { color: var(--ses-ink-3); font-family: var(--ses-font-mono); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-crumb .crumb-title { font-size: 13px; font-weight: 600; color: var(--ses-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
 .ed-tabs {
   display: flex;
   gap: 2px;
-  padding: 4px;
+  padding: 3px;
   background: var(--ses-surface-2);
   border-radius: 8px;
 }
 .ed-tab {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 5px 14px;
-  border-radius: 5px;
+  padding: 5px 16px;
+  border-radius: 6px;
   font-size: 13px;
   font-weight: 500;
   color: var(--ses-ink-3);
@@ -2539,6 +2574,7 @@ function handleXmlFileImport(event: Event) {
   border: 0;
   cursor: pointer;
   font-family: inherit;
+  white-space: nowrap;
 }
 .ed-tab:hover { color: var(--ses-ink); }
 .ed-tab.is-active {
@@ -2549,6 +2585,55 @@ function handleXmlFileImport(event: Event) {
 }
 .tab-dirty-mark { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--ses-warn); box-shadow: 0 0 0 2px var(--ses-warn-soft); }
 .tab-dirty-mark.settings-mark { background: var(--ses-accent); box-shadow: 0 0 0 2px var(--ses-accent-soft); }
+
+.ses-save-pill.is-dirty .dot { background: var(--ses-warn); }
+
+/* 文档操作：同一种低调按钮，开启的面板用强调色标出；整页只有「导出」是主按钮 */
+.nav-actions {
+  display: flex; align-items: center; gap: 2px;
+  padding-left: 10px;
+  border-left: 1px solid var(--ses-line);
+}
+.nav-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ses-ink-2);
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+.nav-btn:hover { background: var(--ses-surface-2); color: var(--ses-ink); }
+.nav-btn:focus-visible, .tbar-btn:focus-visible { outline: 2px solid var(--ses-accent-ring); outline-offset: 1px; }
+.nav-btn.is-active { background: var(--ses-accent-soft); color: var(--ses-accent); }
+.nav-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.nav-btn .el-icon { font-size: 15px; }
+.nav-glyph { font-family: var(--ses-font-mono); font-size: 12px; font-weight: 700; }
+
+.nav-split {
+  display: inline-flex; align-items: center;
+  margin: 0 2px;
+  border: 1px solid var(--ses-line-2);
+  border-radius: 7px;
+}
+.nav-split .nav-btn { height: 30px; }
+.nav-split .nav-btn:first-child { border-radius: 6px 0 0 6px; }
+.nav-split.is-active { border-color: var(--ses-accent); }
+.nav-split.is-active > .nav-btn:first-child { background: var(--ses-accent-soft); color: var(--ses-accent); }
+.nav-validation-run {
+  border-left: 1px solid var(--ses-line-2);
+  border-radius: 0 6px 6px 0;
+  color: var(--ses-accent);
+  font-weight: 600;
+}
+.nav-split.is-active .nav-validation-run { border-left-color: var(--ses-accent); }
+.nav-validation-run:hover { background: var(--ses-accent-soft); color: var(--ses-accent); }
 
 /* === save conflict (409) === */
 .ses-save-pill.is-conflict { background: var(--ses-err-soft); color: oklch(0.4 0.18 25); font-weight: 600; }
@@ -2575,62 +2660,47 @@ function handleXmlFileImport(event: Event) {
 .conflict-detail { margin: 0 0 8px; color: var(--ses-ink-2); line-height: 1.7; }
 .conflict-options { margin: 8px 0 0; padding-left: 18px; color: var(--ses-ink-2); font-size: 13px; line-height: 1.8; }
 
-/* === toolbar === */
+/* === toolbar：正文编辑 === */
 .ed-toolbar {
-  display: grid;
-  grid-template-columns: 280px 1fr auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
-  padding: 0 16px;
+  gap: 4px 2px;
+  min-height: 44px;
+  padding: 6px 12px;
   background: var(--ses-surface);
   border-bottom: 1px solid var(--ses-line);
-  height: 56px;
+  box-shadow: 0 1px 2px oklch(0.21 0.014 270 / 0.03);
   flex-shrink: 0;
+  position: relative;
+  z-index: 2;
 }
-
-.tbar-outline-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding-right: 12px;
-  border-right: 1px solid var(--ses-line);
-  height: 36px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ses-ink-3);
-}
-.tbar-outline-head .add-btn {
-  width: 22px; height: 22px;
-  border-radius: 5px;
-  background: var(--ses-surface-3);
-  color: var(--ses-ink-2);
-  display: inline-flex; align-items: center; justify-content: center;
-  border: 0;
-  cursor: pointer;
-}
-.tbar-outline-head .add-btn:hover { background: var(--ses-accent); color: white; }
-
-.tbar-groups {
-  display: flex; align-items: center; gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.tbar-groups::-webkit-scrollbar { display: none; }
 
 .tbar-group {
-  display: flex; align-items: center; gap: 4px;
-  height: 36px;
-  padding: 0 6px;
-  background: var(--ses-surface-2);
-  border-radius: 8px;
+  display: flex; align-items: center; gap: 1px;
+  height: 32px;
   flex-shrink: 0;
 }
+.tbar-sep {
+  flex: 0 0 auto;
+  width: 1px; height: 18px;
+  margin: 0 6px;
+  background: var(--ses-line-2);
+}
+.tbar-label {
+  margin: 0 4px 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ses-ink-4);
+  white-space: nowrap;
+  user-select: none;
+}
 .tbar-group :deep(.tbar-btn) {
-  display: inline-flex; align-items: center; gap: 5px;
-  height: 26px;
-  padding: 0 9px;
-  border-radius: 5px;
-  font-size: 12.5px;
+  display: inline-flex; align-items: center; gap: 3px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--ses-ink-2);
   background: transparent;
@@ -2638,22 +2708,32 @@ function handleXmlFileImport(event: Event) {
   cursor: pointer;
   font-family: inherit;
   white-space: nowrap;
-  transition: all 0.1s ease;
+  transition: background 0.1s ease, color 0.1s ease;
 }
+.tbar-group :deep(.tbar-btn .el-icon) { font-size: 11px; color: var(--ses-ink-4); }
 .tbar-group :deep(.tbar-btn:hover) {
-  background: var(--ses-surface);
+  background: var(--ses-surface-3);
   color: var(--ses-ink);
-  box-shadow: var(--ses-shadow-1);
 }
 .tbar-btn.is-active { background: var(--ses-accent-soft); color: var(--ses-accent); }
-.tbar-btn[disabled] { opacity: 0.4; pointer-events: none; }
-.tbar-btn.icon-btn { width: 26px; padding: 0; justify-content: center; }
+.tbar-btn.is-active .el-icon { color: var(--ses-accent); }
+.tbar-btn[disabled] { opacity: 0.38; pointer-events: none; }
+.tbar-btn.icon-btn { width: 28px; padding: 0; justify-content: center; }
+.tbar-group :deep(.tbar-btn.icon-btn .el-icon) { font-size: 15px; color: inherit; }
+
+/* 上下文工具：浅色底与常驻工具区分，提示它们只作用于当前公式、图或表 */
+.tbar-context {
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--ses-accent-soft);
+}
+.tbar-context .tbar-label { color: var(--ses-accent); }
 
 .format-group strong, .format-group em, .format-group u, .format-group s {
   font-family: var(--ses-font-zh-hei);
 }
 
-.tbar-search { width: 180px; }
+.tbar-search { width: 200px; margin-left: auto; flex-shrink: 0; }
 :deep(.tbar-search .el-input__wrapper) {
   border-radius: 6px;
 }
@@ -2670,6 +2750,28 @@ function handleXmlFileImport(event: Event) {
   flex-shrink: 0;
   min-height: 0;
 }
+.outline-add-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--ses-line-2);
+  border-radius: 6px;
+  background: var(--ses-surface);
+  color: var(--ses-ink-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.outline-add-btn:hover { border-color: var(--ses-accent); color: var(--ses-accent); }
+.outline-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px;
+  border: 0; border-radius: 6px;
+  background: transparent;
+  color: var(--ses-ink-3);
+  cursor: pointer;
+}
+.outline-icon-btn:hover { background: var(--ses-surface-2); color: var(--ses-ink); }
 .ed-main {
   flex: 1;
   display: flex;
@@ -2691,17 +2793,6 @@ function handleXmlFileImport(event: Event) {
   overflow: hidden;
 }
 .validation-sidebar { min-width: 0; padding: 0; }
-.nav-validation-run {
-  border: 1px solid var(--ses-accent, #5543c2);
-  border-radius: 6px;
-  padding: 6px 10px;
-  background: var(--ses-accent, #5543c2);
-  color: white;
-  font: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.nav-validation-run:disabled { opacity: .48; cursor: not-allowed; }
 :deep(.ProseMirror .ses-validation-mark) {
   position: relative;
   box-shadow: inset 3px 0 currentColor;
@@ -2728,20 +2819,19 @@ function handleXmlFileImport(event: Event) {
 :deep(.ProseMirror .ses-validation-suggestion) { color: #2865a5; --ses-validation-badge: #2865a5; }
 .slide-right-enter-active, .slide-right-leave-active { transition: all 0.3s ease; }
 .slide-right-enter-from,  .slide-right-leave-to     { transform: translateX(100%); opacity: 0; }
+.slide-left-enter-active, .slide-left-leave-active { transition: transform 0.2s ease, opacity 0.2s ease; }
+.slide-left-enter-from,  .slide-left-leave-to     { transform: translateX(-24px); opacity: 0; }
 
-@media (max-width: 700px) {
-  .nav-validation-run { padding: 6px 7px; font-size: 12px; }
+/* 窄屏：结构面板与侧栏浮在正文上方，不再挤占纸面宽度 */
+@media (max-width: 960px) {
+  .ed-body > .outline-host { position: absolute; top: 0; left: 0; bottom: 0; z-index: 20; box-shadow: 8px 0 24px #1d213322; }
+}
+@media (max-width: 1100px) {
   .ed-body > .version-sidebar { position: absolute; top: 0; right: 0; bottom: 0; z-index: 20; width: min(92vw, 380px); min-width: min(92vw, 320px); box-shadow: -8px 0 24px #1d213322; }
 }
 
-/* === placeholder tabs === */
+/* === settings tab === */
 .settings-host { flex: 1; min-height: 0; display: flex; overflow: hidden; }
-.tab-placeholder {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 
 /* === code dialog === */
 .code-dlg-head {
@@ -2841,31 +2931,41 @@ function handleXmlFileImport(event: Event) {
 }
 .export-card.primary .ec-sub { color: oklch(0.95 0.005 270 / 0.85); }
 
+/* 中等宽度：文档操作只留图标（悬停有提示），检查按钮保留文字 */
+@media (max-width: 1366px) {
+  .nav-actions .nav-btn-label { display: none; }
+  .nav-actions .nav-btn { padding: 0 7px; }
+  .nav-actions .nav-validation-run { padding: 0 9px; }
+}
+@media (max-width: 1180px) {
+  .tbar-label { display: none; }
+  .tbar-search { width: 160px; }
+}
 @media (max-width: 1000px) {
   .ed-nav {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas: 'nav-left nav-right' 'nav-tabs nav-tabs';
-    gap: 5px 10px;
+    gap: 6px 10px;
     height: auto;
-    min-height: 48px;
+    min-height: 52px;
     padding: 7px 10px;
   }
   .nav-l { grid-area: nav-left; }
   .ed-tabs { grid-area: nav-tabs; justify-self: center; }
-  .nav-r { grid-area: nav-right; gap: 7px; }
+  .nav-r { grid-area: nav-right; gap: 6px; }
   .doc-crumb { max-width: min(300px, 34vw); }
-  .nav-r .ses-avatar-stack { display: none; }
-  .nav-r > .el-button:first-of-type span { display: none; }
+  .tbar-search { width: 100%; margin-left: 0; order: 10; }
 }
 @media (max-width: 620px) {
   .ed-nav { padding: 6px 8px; }
   .nav-l { gap: 7px; }
-  .brand-sep, .doc-crumb .std-no, .doc-crumb .dot-sep, .doc-crumb .caret { display: none; }
-  .doc-crumb { max-width: 34vw; padding: 4px 5px; font-size: 11px; }
+  .brand-sep, .doc-crumb .std-no { display: none; }
+  .doc-crumb { max-width: 34vw; padding: 4px 5px; }
+  .doc-crumb .crumb-title { font-size: 11px; }
   .nav-r { gap: 4px; }
-  .nav-r > .el-button:first-of-type { display: none; }
-  .nav-r > .el-button:last-of-type span { display: none; }
-  .nav-r > .el-button:last-of-type { padding: 7px 9px; }
+  .nav-actions { padding-left: 4px; }
+  .nav-r > .el-button span { display: none; }
+  .nav-r > .el-button { padding: 7px 9px; }
   .ses-save-pill { padding: 4px 7px; font-size: 9px; }
   .ed-tab { padding: 5px 10px; font-size: 11px; }
 }
