@@ -339,6 +339,8 @@ case('fig-footnote.xml', 'fig 内出现 fn（图脚注，M-8.6-02，C-T-32：原
      [('        <graphic content-type="image" xlink:href="fig_1"/>', '        <graphic content-type="image" xlink:href="fig_1"/>\n        <fn id="fn_1">\n          <label>a</label>\n          <p>图脚注。</p>\n        </fn>')])
 case('fig-footnote-in-caption.xml', 'fig 的 caption 内的段落里有 fn（图脚注，M-8.6-02，C-T-32：fn 在图内任何位置都算，不只是 fig 的直接子元素）。结构层允许，只有 REJECT 规则拒绝。',
      [('          <title>示例图</title>\n        </caption>', '          <title>示例图</title>\n          <p>单位说明<fn id="fn_1"><label>a</label><p>图脚注。</p></fn></p>\n        </caption>')])
+case('block-level-fn.xml', 'sec 的直接子元素 fn（块级正文脚注）。WP8.M D-M-01 已定案（方案 A，10.1.8、C-T-55）：正文 fn 是行内元素，写在引用它的 p 内、紧随其 xref[ref-type=fn]；块级 fn 不收（schema 与 REJECT 规则）。',
+     [('<p>前言内容。</p>', '<p>前言内容<xref ref-type="fn" rid="fn_1">1)</xref>。</p>\n      <fn id="fn_1">\n        <label>1)</label>\n        <p>块级正文脚注。</p>\n      </fn>')])
 case('nested-term-entry.xml', 'tbx:termEntry 内嵌套另一个 tbx:termEntry（M-9.1-03，C-T-47）。',
      [('            <tbx:definition>术语的定义。</tbx:definition>', '            <tbx:definition>术语的定义。</tbx:definition>\n            <tbx:termEntry id="term_3.2">\n              <tbx:langSet xml:lang="zh">\n                <tbx:tig>\n                  <tbx:term>子条目</tbx:term>\n                </tbx:tig>\n              </tbx:langSet>\n            </tbx:termEntry>')])
 case('definition-target.xml', 'tbx:definition 带 target 属性（M-C.1-08：仅附录 C 列出，无解释）。',

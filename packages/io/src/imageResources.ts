@@ -92,6 +92,7 @@ function collectFigures(doc: IRDoc): IRFigure[] {
   const visitFigure = (figure: IRFigure) => figures.push(figure)
   visitBlocks(doc.front.foreword, visitFigure)
   visitBlocks(doc.front.introduction, visitFigure)
+  for (const clause of doc.front.introductionClauses ?? []) visitStructuredChild(clause, visitFigure)
   for (const chapter of doc.body) for (const child of chapter.children) visitStructuredChild(child, visitFigure)
   for (const appendix of doc.appendices) for (const child of appendix.children) visitStructuredChild(child, visitFigure)
   return figures

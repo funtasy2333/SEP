@@ -243,7 +243,7 @@ export interface OutlineItem {
   children?: OutlineItem[]
 }
 
-/** 前言、引言：是否存在、块数量，以及其中的表、图、公式。 */
+/** 前言、引言：是否存在、块数量，以及其中的表、图、公式；引言还列出其中的条（编号 0.1、0.2…，带子条）。 */
 export interface FrontMatterOutline {
   present: boolean
   blockCount: number
@@ -298,7 +298,7 @@ export type ReadNodeResult =
   | { ok: true; node: ReadNodeInfo }
   | { ok: false; code: 'node-not-found' | 'node-not-addressable' | 'node-ambiguous'; reason: string }
 
-/** 前言、引言、参考文献容器的内容（用于取得其中节点的 id）。 */
+/** 前言、引言、参考文献容器的内容（用于取得其中节点的 id）；引言的节点 = 引言块之后接引言中的条。 */
 export interface ReadContainerInfo {
   container: 'foreword' | 'introduction' | 'bibliography'
   /** 容器是否存在于文档中；不存在时 `nodes` 为空。 */

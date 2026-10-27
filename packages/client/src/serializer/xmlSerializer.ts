@@ -321,6 +321,19 @@ export function serializeToXml(doc: PMNode): string {
             }
           }
         }
+        // WP8.M G7-b：块内容的注/示例（多段、含列项）。旧序列化器按「未知块」递归输出子段落，会丢掉注/示例的外层包装与标签，
+        // 因此在 WP8.2 的新导出器接手前整体阻断，而不是静默拍平成普通段落。
+        if (node.type.name === 'noteBlock' || node.type.name === 'exampleBlock') {
+          addUnsupported(node, path, `XML 暂未支持块内容的${node.type.name === 'noteBlock' ? '注' : '示例'}（多段或含列项）。`)
+        }
+        // WP8.M G3：图中的注（figure.notes，M-8.2-11）是输出边界唯一放行的新字段（HTML/DOCX 早已排版），
+        // 但旧 XML 序列化器的 serializeFigure 只输出图片与图题，会把 figure 内的 note 悄悄丢掉；在 WP8.2 的新导出器接手前整体阻断。
+        // 图例、图中示例与行内图已由输出边界（assertOutputSupported）以 unsupported-output 拦截。
+        if (node.type.name === 'figure') {
+          node.forEach((child, _offset, index) => {
+            if (child.type.name === 'note') addUnsupported(child, `${path}.content[${index}]`, 'XML 暂未支持图中的注。', node.attrs.nodeId ?? node.attrs.id)
+          })
+        }
         if (node.type.name === 'termSource' && node.childCount > 0) {
           addUnsupported(node, path, 'XML 暂未支持独立的术语来源节点。')
         }

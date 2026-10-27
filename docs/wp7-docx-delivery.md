@@ -307,8 +307,10 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 | A11 | 破折号列项 | multilevel | L0 bullet `——`，左 840 悬挂 420；L1 bullet `·` suff=tab，左 1260 悬挂 420；两级标识 rPr 全字符宋体 | SesListDash、SesListDot |
 | A12 | 字母列项 | multilevel | L0 lowerLetter `%1）` suff=tab，左 840 悬挂 420；L1 bullet `·` suff=tab，左 1260 悬挂 420；两级标识 rPr 全字符宋体 | —（按列表实例） |
 | A13 | 数字列项 | multilevel | L0 decimal `%1）`；L1 bullet `·`（suff、缩进和字体同 A12） | — |
-| A14 / A15 | 旧罗马类型兼容槽 | multilevel | L0 decimal `%1）`；L1 bullet `·`（字体同 A12）；旧文档的罗马列表降级为数字列项，不再输出罗马编号 | — |
+| A14 | 小写罗马列项（WP8.M G7-c，D-M-06 A 真排） | multilevel | L0 lowerRoman `%1）` suff=tab，左 840 悬挂 420，**标识 rPr：ASCII/hAnsi/cs 为 Times New Roman、eastAsia 宋体**（宋体的 ASCII 字母半角等宽，`iii）` 就超出 2 字悬挂量，Word 会把文字推到下一个默认制表位，第 2 项起与回行不对齐；Times 的 i 窄，`i）`～`vi）` 都落在 2 字内）；L1 bullet `·`（suff、缩进和字体同 A12）；括号与 A12/A13 一致用全角，与 Resolver 的 `gbT11Strategy.listItem('roman', n)`（全角 `i）`，D-M-03 修订：引用文字 `5.2 iii）` 与文档里显示的符号完全一致）一致 | —（按列表实例） |
+| A15 | 大写罗马兼容槽 | multilevel | L0 decimal `%1）`；L1 bullet `·`（字体同 A12）；GB/T 46687.2 没有 roman-upper 取值，`romanUpper` 仍降级为数字列项（用 A13），本槽保持占位 | — |
 | A16 | 参考文献 | singleLevel | L0 decimal `[%1]　`，编号 rPr 指定宋体；首行 420 | SesBibEntry |
+| A17 | 引言中的条（按需，WP8.M G6） | multilevel | L0 `0　`（保持级别连续，无段落使用）；L1 `0.%2　`；L2 `0.%2.%3　`；L3–L5 依此类推；缩进、标识 rPr 同 A1 的 L1–L5（黑体） | —（段落级 numPr） |
 
 - 标识后的「空一个汉字」用 lvlText 里的全角空格 U+3000，不用 `suff=space`（半角）。
 - A1、A2 各级标识都用黑体：无标题条与术语条目的编号也是「条编号」（表 F.1 #33），原件中无标题条的编号即为黑体（如 7.5.1），
@@ -317,6 +319,13 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 - 注/示例的悬挂量等于标识的实际宽度（黑体小五：汉字与全角冒号各 1 em = 180 twips，阿拉伯数字 0.5 em = 90 twips），所以 `suff=nothing` 时回行正好与注内容左对齐：「注：」360、「注1：」450。
 - abstractNumId 即表中序号（A1 → 1 … A16 → 16）。A1、A2、A11–A15 的 `multiLevelType` 为 `multilevel`，其余为
   `singleLevel`；每个 abstractNum 只写表中列出的级别（spike 验证 Word 接受少于 9 级），不写 `nsid`、`tmpl`。
+- A17（引言中的条，GB/T 1.1-2020 8.4：引言不给章编号，需要分条时仅对条编号，编为 0.1、0.2 等）**按需输出**：只有文档含
+  `front.introductionClauses` 时才把 A17 写进 `numbering.xml`，其余文档仍是 16 个 abstractNum。Word 多级列表的 L0 无法显示为 0，
+  所以 L1–L5 的 lvlText 把「0」写成字面量、只引用 `%2…%n`（`0.%2　`、`0.%2.%3　`…），不依赖也不占用 A1 的章计数。
+  A17 的任何级别都不绑定样式（无 `pStyle`），引言条一律用 SesClause{L}/SesNoTitle{L} 样式 + **段落级** `numPr` 指向 A17 的按需实例，
+  字体字号与正文条完全相同；实例整份文档只有一个（引言只有一个、条编号连续），首次用到时创建，ilvl 1–5 都写 `startOverride=1`。
+  取舍：D2「可编辑优先」——原生编号经 §4.7 模拟器与 Resolver 的 `0.n` 逐段比对通过；在 Word 中用段落级 numPr 覆盖样式级 numPr，
+  与「无标题条」已用的段落级 numPr 是同一机制，但**尚未在真实 Word 中实测**，验收时须核对一次 0.1 / 0.1.1 的显示与续编。
 - 固定实例（§4.3）的 numId 等于其 abstractNumId；按需实例的 numId 从 101 起，按渲染时第一次需要它的顺序递增。
   `numbering.xml` 先按 abstractNumId 升序写全部 abstractNum，再按 numId 升序写全部 num（附录 B）。16 个 abstractNum 与
   8 个固定实例总是全部输出（属主样式引用它们，不论文档里有没有对应要素）。
@@ -365,6 +374,8 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 - 条：A1 L = **嵌套深度**（章的直属条为 1，其子条为 2……），**不用 `IRClause.level`**。Resolver 按路径长度编号，`level` 只用来
   报 heading-skip；两者不一致时只有按深度才与 Resolver 一致。深度超过 5 时按 5 输出并记 `clause-too-deep` warning
   （这类文档 Resolver 已报 heading-skip，Word 编号与 Resolver 不同，不要求一致）。
+- 引言中的条（WP8.M G6）：A17 的按需实例，L = 嵌套深度（引言直属条为 1，其子条为 2……），无标题条同样用段落级 `numPr`；
+  引言容器深度为 0，术语条目若出现在引言条内同样改用 A17。引言条不进目次（8.2 d)「条编号和标题（需要时列出）」，与 HTML 目次一致）。
 - 术语条目编号：**正文用 A1、附录用 A2** 的固定实例（段落级 numPr），L = 父节点深度 + 1（章、附录本身深度为 0：章直属 →
   「3.1」，条 3.1 之下 → 「3.1.1」，附录直属 → 「A.1」）；超过 5 同上处理。
 - 附录条、附录无标题条：A2，L = 深度。
@@ -376,7 +387,8 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
   | 第一层 | alpha | P(SesListItem) + 新建 A12 实例的 ilvl 0，显示 `a）` |
   | 第二层 | number | P(SesListItem) + 新建 A13 实例的 ilvl 0，段落直接缩进 left=1260 / hanging=420，显示 `1）` |
   | 第二层 | dot | P(SesListDot)，样式自带 A11 L1，显示 `·` |
-  | 旧数据 | roman / romanUpper | 降级为 number，不输出罗马数字 |
+  | 第一层 | roman（WP8.M G7-c） | P(SesListItem) + 新建 A14 实例的 ilvl 0，显示 `i）` `ii）` `iii）`…（小写罗马，一级，缩进同字母列项） |
+  | 旧数据 | romanUpper | 降级为 number，不输出大写罗马数字 |
   | 旧数据 | boxed | 按数字编号渲染，记 `list-format-fallback` |
   | 历史嵌套第二层 | dash / alpha / boxed 等 | 保留间隔号降级；嵌套 number 保留数字编号 |
   | 第三层及更深 | 任意类型 | P(SesListDot)，显示间隔号 `·`，并记 `list-too-deep` |
@@ -408,8 +420,10 @@ V1 写 `labels[targetId].refText` 纯文字，**不加颜色、不加下划线**
 2. 术语条目：示例在注之前、来源在最后（8.7.3.1、§5.4）。Resolver 改为 术语 → 定义 → 示例 → 注 → 来源。
 
 这两处只在注、示例里再嵌图、表时影响编号（IR 允许，pmToIr 目前产生不了）；另外参考文献按首次引用排序，取的是 Resolver
-收集交叉引用的顺序，同一术语条目的注与示例中各有引用时，排序随之改为文档顺序。HTML 渲染器（PDF，已冻结）把图注排在
-图题之下、把术语的来源与注排在示例之前，上述罕见情形下 PDF 的编号先后与版面先后会不一致，不回改。其余要素（章、条、
+收集交叉引用的顺序，同一术语条目的注与示例中各有引用时，排序随之改为文档顺序。HTML 渲染器（PDF，已冻结）把术语的来源与注排在
+示例之前，上述罕见情形下 PDF 的编号先后与版面先后会不一致，不回改。（图中的注原先在 HTML 里排在图题之下，与 DOCX 不一致；
+2026-10-26 WP8.M 收尾任务对照 GB/T 1.1—2020 原 PDF 第 33 页〔印刷页 26，9.7.5 图的编排示例：图 → 标引序号说明 → 图中的注 → 图脚注 → 图编号和图题〕
+确认应在图题之上，已把 HTML 改为图片 → 图注 → 图题，与 DOCX 一致；只影响带图注的图，既有快照与 golden 无变化。）其余要素（章、条、
 附录、表、公式、列项、注与示例的内容、参考文献条目）两边顺序本来一致。
 
 **模拟器**（`__tests__/helpers/numberingSim.ts`，测试代码）
@@ -521,6 +535,7 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
 - 单条注：第一段 P(SesNote)（样式自带 A7）；后续段落 SesNoteCont。
 - 多条注：每条第一段 P(SesNoteN) + 段落级 `numPr`（A8 实例，按 §4.3 分配）；后续段落 SesNoteNCont。
 - 注的第一块不是段落时，先输出一个只有标识的段（样式与 numPr 同上、无文字），其后输出各块。注内的其他块（列项等）照常渲染。
+  （WP8.M G7-b 起生产模型可存多块注/示例，见 `wp8.m/design.md` §4.7.2；本节的逐块输出规则早已覆盖，无需改动，新增用例见 `renderers/__tests__/wp8mG7.test.ts`。）
 - 示例：标识单独一段（单个示例 P(SesExLabel)；多个 P(SesExLabelN) + A10 实例，按 §4.3 分配），段落内无文字；内容中的段落用
   SesExText，其他块照常。
 - **作用域键**（与 Resolver 的分组完全相同）：前言 `front.foreword`、引言 `front.introduction`；章、条、附录的直属块 = 该章、条、
@@ -546,7 +561,7 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
   - 表题行及前 `headerRowCount` 个数据行 `trPr` 写 `<w:tblHeader/>`（2026-10-16 起没有表题行，只有前 `headerRowCount` 个表头行写 `tblHeader`）；表头最后一行的单元格下边框 sz=6，所有表格行写 `cantSplit`，在行边界分页；
   - 合并：`colspan` → `tcPr/gridSpan`；`rowspan` → 起始格 `vMerge val="restart"`，**被覆盖的后续行在同一网格位置补占位格** `<w:tc><w:tcPr><w:gridSpan w:val="N"/><w:vMerge/></w:tcPr><w:p/></w:tc>`，其中 N = 起始格的 `colspan`（为 1 时省略 `gridSpan`）。占位格缺 `gridSpan` 会只占一列，同行后面的格整体左移，网格错位（旧导出器连占位格都没有）；
   - 单元格段落：表头格用常规字重、居中的 SesTableHeader；表头段落内源文字的直接 bold 标记仅在 DOCX 渲染时清除，不改写源稿或 IR，也不影响普通数据格的粗体。纯数字格（`/^[\d\s.,±%~—-]+$/`）用 SesTableCenter，其余用 SesTableText；空单元格写一字线「—」（10.4.2.2）。
-- DOCX支持编辑器`columnWidths`（CSS像素），96dpi下换算为15twips/px。局部列宽保留绝对值，自动列平分剩余版心；全部列指定时保留总宽，超出版心按比例适配。合并格宽度为所覆盖列之和；全部续表使用原表统一网格，分页按自定义列宽估算。0为自动列宽；负值、非有限数值、数组长度与colspan不符或同列宽度冲突时明确阻断。HTML/XML尚未实现该字段，继续保留输出检查。
+- DOCX支持编辑器`columnWidths`（CSS像素），96dpi下换算为15twips/px。局部列宽保留绝对值，自动列平分剩余版心；全部列指定时保留总宽，超出版心按比例适配。合并格宽度为所覆盖列之和；全部续表使用原表统一网格，分页按自定义列宽估算。0为自动列宽；负值、非有限数值、数组长度与colspan不符或同列宽度冲突时明确阻断。HTML/XML尚未实现该字段，继续保留输出检查。WP8.M G8 新增的名义列宽 `IRTable.columns`（`col/@width`，通常为百分数）与单元格分边边框样式 `style.border*Style` 本阶段不排版：DOCX 与 HTML 一样报 unsupported-output；`columns` 与 `columnWidths` 是两条独立来源，DOCX 不由名义宽度推导像素列宽。
 - 表题保留五号黑体，不叠加粗体；普通单元格段落按用户指定版式默认无首行缩进（GB/T 1.1—2020 10.4.2.2 的一字起排为“宜”）。
 - 表格文字、表头及表注关闭正文网格（`snapToGrid=0`），使9磅行高与续表分段估算一致，并保持 Word 自动跨页时重复表题。
 - 表注：表内底部加一行，单元格 `gridSpan` 跨满全宽，上边框 sz=6，内容按 §5.7 规则，用 SesTableNote。若有表脚注，表注行在表脚注行之前。
@@ -627,6 +642,13 @@ P(SesChapter, 标题)。`secType` 只影响内容，不影响版式。悬置段�
   - 式中符号可以是行内公式（`IRInline.formula`，见 docs/phase7-inline-formula.md）：符号位置直接输出宿主注入的 `<m:oMath>`（`formulaOmml[行内公式 id]`，KaTeX `displayMode:false` 转换），不包 `oMathPara`；缺失时回退为 LaTeX 源码文本并记 `formula-missing-omml`。Word 不测量 OMML，符号宽度由宿主估算并经 `formulaWidths` 传入：基线字符汉字 1、其余 0.5，上下标乘 0.7，`mover/munder` 取基线与标记的较大者，空白（`mspace`）按 em 计（1em 计 1、负宽度计 0），幻影（`mphantom`）按内容计，最后加 0.25 余量；未传入时按 LaTeX 源码保守估算（每个非格式命令计 1 个字符，脚标按全宽）。
 - 正文类位置的行内公式（段落、列项、注、示例、单元格、术语定义、表注、条文脚注、表脚注）同样直接输出 `formulaOmml[行内公式 id]`，位于文字之后、脚注引用之前（与 irToPm 顺序一致）；缺失时回退为 LaTeX 源码并记 `formula-missing-omml`。标题、图表题、术语名、参考文献中的行内公式在导出边界拒绝。
 
+#### 5.10.1 缩略语表（WP8.M G2，`IRDefList`）
+
+- 版式依据：GB/T 1.1-2020 8.8.3 只规定清单中的缩略语之前不给序号，没有缩略语行的版式示例；仓库内唯一按 GB/T 1.1 排版的权威样例是 GB/T 46687.2—2026 印刷页 2（PDF 第 6 页）的 3.2 缩略语，其实排为“缩略语：释义”（全角冒号，无空格，起排位置与引导语同为段首缩进）。据此每项一个段落，缩略语在前、释义在后，同一行，中间是全角冒号“：”（`U+FF1A`，写成独立 run 的文字，不加空格）。冒号只在渲染时添加，IR 与 PM 中不存。
+- 段落沿用 `SesPara`（首行空两个汉字起排、回行顶格，即条文段落式排版），**不新增样式、不进入任何编号**：`styles.xml`、`numbering.xml` 与没有缩略语表的同一文档逐字节相同，`emitParagraph` 不带 `numbered`/`numPr`。项的 `abb_<k>` 只在 HTML 作锚点，DOCX 没有对应书签，引用处只输出 `refText`（即缩略语）。
+- 术语与释义经 `renderInlines` 输出，行内公式沿用 §5.10 的 OMML 与降级规则；表格单元格内的缩略语表同样用 `SesPara`，表格行高估算按“缩略语：释义”的文字行数计。
+- 与公式“式中”的区别：没有「式中：」引导段、没有制表位与「——」。后续若要改为制表对齐，只需调整 `block.ts` 的 `renderDefList` 与对应测试，不影响其他要素。
+
 ### 5.11 附录
 
 附录编号、性质、标题分为三个居中段：P(SesAppendix) 的编号「附录A」由 A2 L0 生成，字距按 §3.3；P(SesAppendixKind,「（规范性）」或「（资料性）」)；P(SesAppendixTitle, title)。三段均 keepNext，只有第一段参与 A2 编号。分段可避免 Word 把同段内第二、三行相对编号悬挂区向右偏移。WP7.3 固定目次条目按 §7 单独生成「附录A（规范性）　标题」。
@@ -646,6 +668,23 @@ content 里若已写了编号（如「[9] 」），先剥掉，否则会排成�
    的部分，marks 不变；其后的 run 原样保留；
 3. 前缀范围内有带 crossRef mark 的 run 时不剥离，原样输出（这种 run 显示的是 refText，不是 text）。
 
+#### 自定义参考文献标题（WP8.M G1，M-4.5.3-02）
+
+`IRDoc.bibliographyTitle` 存在时替换默认的「参考文献」：纯文本标题与默认标题同一版式（逐字加 `w:spacing w:val="210"`、最后一个字不加，§3.3）；
+带格式、脚注、引用的标题按行内渲染、不加字距（字符间距与 marks 的叠加没有定义）。目次条目（TOC1）取标题纯文本，不带字距。
+
+### 5.12a 规范性引用文件清单（10.3.4，WP8.M G1）
+
+`IRNormRefList`（`secType === 'norm-refs'` 章的直属块）逐条输出 P(SesPara, …)，**不新增样式**（`styles.xml` 与没有清单的文档逐字相同）：
+10.3.4「空两个汉字起排，回行时顶格编排」与段（§3.2 SesPara：首行缩进 2 字、回行顶格）的版式完全相同，字体也同为宋体五号。
+- 标准化文件（`entryType='std'`）：`ref`（文件编号，含“（所有部分）”）+ 一个汉字的间隙（U+3000，独立 run）+ `title`（文件名称）；间隙是版式，不入 IR 内容。
+  任一段为空时不输出间隙。
+- 非标准化文件（`entryType='mixed'`）：保持原有格式，`content` 原样输出。
+- 文件之后不加标点：渲染器不追加任何字符，也不改写作者内容。条目之前不给序号（8.6.3.1），因此条目段没有编号，不进入 §4.7 追踪。
+- 条目内的条文脚注、交叉引用、行内格式照常输出；行内公式不放开（输出边界拦截）。
+- 正文里的 `stdRef`、`mixedCitation` 两个 mark（M-10.2-01/-02、M-10.1.7-01）按普通文本输出：不产生 rPr，不改变文字。
+版式依据：GB/T 1.1—2020 原 PDF 第 8 页（印刷页 1，第 2 章清单）已按图像核对——首行缩进与相邻条文段相同，每项一行，编号与名称之间约一个汉字，无末尾标点。
+
 ### 5.13 终结线（10.1.5）
 
 文件最后一个要素之后写 P(SesEndMark)。为保证与最后内容同页、不另起一面：**最后一个内容段落加 `keepNext`**。
@@ -654,6 +693,8 @@ content 里若已写了编号（如「[9] 」），先剥掉，否则会排成�
 
 P(SesFrontTitle, 「前言」/「引言」：「前」「引」的 run 带 `w:spacing w:val="640"`，§3.3) + 内容块，作用域键见 §5.7。
 引言中的图、表、公式参与全文连续编号（9.7.2.1「图编号从引言开始」），实例同正文（A3、A4 固定实例）。
+引言块之后输出引言中的条（`front.introductionClauses`，WP8.M G6）：按条标题排版（SesClause{L}/SesNoTitle{L}，编号 0.1、0.1.1…，§4.2 A17、§4.4），
+作用域键仍为 `'front.introduction'`，条内的注/示例以条自己的 id 分组。
 
 ### 5.15 横排（图、表共用）
 

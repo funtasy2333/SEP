@@ -5,8 +5,11 @@ import {
   formatFootnoteExportError,
   formatOutputBoundaryDetail,
   formatOutputBoundaryMessage,
+  formatOutputBoundarySummary,
   getFootnoteExportError,
+  getFootnoteExportItems,
   getFootnoteExportProblems,
+  getOutputBoundaryItems,
   getOutputBoundaryProblems,
   outputBoundaryFormatOf,
   type ExportGuardFormat,
@@ -249,5 +252,88 @@ describe('checkExportGuard 与迁移前 EditorView 逻辑逐项一致', () => {
       expect(checkExportGuard(ALL_DOCS[name]!, 'json')).toBeNull()
     }
     for (const format of ALL_FORMATS) expect(checkExportGuard(CLEAN, format)).toBeNull()
+  })
+})
+
+describe('checkExportGuard 的结构化字段：summary 与 items（M-Z-c F-1）', () => {
+  const SEP = '；'
+
+  it('输出边界：items 一问题一条，detail 恰为“导出被阻止：”接各条明细', () => {
+    const failure = checkExportGuard(SUB_SUP_MANY, 'docx')!
+    expect(failure.source).toBe('output-boundary')
+    expect(failure.items).toHaveLength(failure.problems.length)
+    expect(failure.items).toHaveLength(3)
+    expect(failure.items).toEqual(getOutputBoundaryItems(failure.problems))
+    // 每条带自己的节点与位置，而不是整段连接
+    failure.items.forEach((item, index) => {
+      expect(item).toContain(failure.problems[index]!.message)
+      expect(item).toContain(`【节点 ${failure.problems[index]!.nodeId}，位置 `)
+      expect(item).not.toContain(SEP.repeat(2))
+    })
+    expect(failure.detail).toBe(`导出被阻止：${failure.items.join(SEP)}`)
+  })
+
+  it('输出边界：summary 是单行概述，含格式名与处数，不含任何明细', () => {
+    const failure = checkExportGuard(SUB_SUP_MANY, 'docx')!
+    expect(failure.summary).toBe('导出被阻止：DOCX 有 3 处内容暂不能导出')
+    expect(failure.summary).not.toContain('\n')
+    for (const item of failure.items) expect(failure.summary).not.toContain(item)
+
+    const single = checkExportGuard(SUB_SUP_ONE, 'docx')!
+    expect(single.summary).toBe('导出被阻止：DOCX 有 1 处内容暂不能导出')
+    expect(single.items).toHaveLength(1)
+  })
+
+  it('保留 detail 与 message 的文字不变：加入结构化字段前后逐字相同', () => {
+    for (const [name, json] of Object.entries(ALL_DOCS)) {
+      for (const format of ALL_FORMATS) {
+        const legacy = legacyHandleExportChecks({ toJSON: () => json }, format)
+        const actual = checkExportGuard(json, format)
+        if (!legacy) {
+          expect(actual, `${name}/${format}`).toBeNull()
+          continue
+        }
+        expect(actual!.detail, `${name}/${format}`).toBe(legacy.exportError)
+        expect(actual!.message, `${name}/${format}`).toBe(legacy.message)
+        // 结构化字段与 detail 同源：把各条明细连起来就是 detail 的正文
+        const prefix = actual!.source === 'footnote' ? `${actual!.summary}：` : '导出被阻止：'
+        expect(actual!.detail, `${name}/${format}`).toBe(`${prefix}${actual!.items.join(SEP)}`)
+      }
+    }
+  })
+
+  it('脚注失败：summary 为概述，items 按提示文字去重，detail 与 message 保持原样', () => {
+    const failure = checkExportGuard(MANY_FOOTNOTE_ERRORS, 'docx')!
+    expect(failure.source).toBe('footnote')
+    expect(failure.summary).toBe('脚注校验未通过，暂不能导出')
+    expect(failure.items).toEqual(getFootnoteExportItems(failure.problems))
+    expect(new Set(failure.items).size).toBe(failure.items.length)
+    expect(failure.items.length).toBeGreaterThanOrEqual(2)
+    expect(failure.detail).toBe(`${failure.summary}：${failure.items.join(SEP)}`)
+    expect(failure.message).toBe(failure.detail)
+  })
+
+  it('PDF 按用户选择的格式命名，判定仍走 HTML 管线', () => {
+    const { doc } = pmToIr(SUB_SUP_MANY)
+    // 上下标同时存在只阻止 DOCX；PDF 与 HTML 一样不被阻止，因此用手工问题检查文案
+    expect(checkExportGuard(SUB_SUP_MANY, 'pdf')).toBeNull()
+    const problems = getOutputBoundaryProblems(doc, 'docx')
+    expect(formatOutputBoundarySummary(problems, 'pdf')).toBe('导出被阻止：PDF 有 3 处内容暂不能导出')
+    expect(formatOutputBoundarySummary(problems, 'xml')).toBe('导出被阻止：XML 有 3 处内容暂不能导出')
+  })
+
+  it('无问题时概述与明细为空', () => {
+    expect(formatOutputBoundarySummary([], 'docx')).toBe('')
+    expect(getOutputBoundaryItems([])).toEqual([])
+    expect(getFootnoteExportItems([])).toEqual([])
+  })
+
+  it('多项问题的 items 数等于问题数（全要素情形：15 处暂不排版内容各占一条）', () => {
+    const many = Array.from({ length: 15 }, (_, index): PMJsonNode =>
+      paragraph(`m${index}`, text(`甲${index}`, subSup())))
+    const failure = checkExportGuard(standardDoc(...many), 'docx')!
+    expect(failure.summary).toBe('导出被阻止：DOCX 有 15 处内容暂不能导出')
+    expect(failure.items).toHaveLength(15)
+    expect(failure.items[14]).toContain('【节点 m14，位置 ')
   })
 })

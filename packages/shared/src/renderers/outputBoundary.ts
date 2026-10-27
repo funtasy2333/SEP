@@ -1,7 +1,7 @@
 import { tableColumnWidthIssues } from './docx/body/tableColumnWidths'
 import type { IRTable } from '../ir/types'
 import type { IRDoc } from '../ir/types'
-import { resolve } from '../ir/resolve'
+import { resolve, termTailOrderProblemMessage, unsupportedContentProblemMessage } from '../ir/resolve'
 import { findCrossRefRunProjectionIssues } from '../ir/inlineProjectionDiagnostics'
 import { canonicalTermTailOrder, orderedTermTail, sameTermTailOrder } from '../ir/termTailOrder'
 import type { IRTermEntry, IRTermTailOrderItem } from '../ir/types'
@@ -55,11 +55,37 @@ const MARKS = new Set(['bold', 'italic', 'underline', 'sub', 'sup', 'crossRef', 
  */
 const INLINE_FORMULA_CONTAINERS = new Set(['paragraph.content', 'where.term', 'where.definition', 'footnote.content'])
 
-/** Fields a format consumes in addition to BASE_FIELDS (kind -> extra fields). */
+const DEF_LIST_FIELDS = ['kind', 'id', 'items'] as const
+
+/** G1 新增的块 kind：整体登记（BASE_FIELDS 中没有它们，见 buildFields）。 */
+const GROUP_G1: Readonly<Record<string, readonly string[]>> = {
+  normRefList: ['kind', 'id', 'entries'],
+  normRef: ['kind', 'id', 'entryType', 'ref', 'title', 'content'],
+}
+
+/*
+ * WP8.M G3（设计 §7.1）：图例 figure.legend（M-8.5-01～06）、图中示例 figure.examples（M-8.4-03）、行内图 IRInline.image
+ * （M-8.3-02）本阶段只做模型、Schema 与显示，不排版——它们既不在 BASE_FIELDS.figure / BASE_FIELDS.inline 里，也不进任何
+ * EXTRA_FIELDS，因此 HTML、DOCX、XML、XML46687 四种格式都自动按 `report(field)` 报 unsupported-output（测试：wp8mG3Boundary.test.ts）。
+ * figure.notes（M-8.2-11）是 BASE_FIELDS.figure 早有的字段，HTML 与 DOCX 渲染器早已逐条输出，随 PM 现可保存而首次到达渲染器，
+ * 无需改动本表（回归：wp8mG3Render.test.ts）；旧 XML 序列化器不输出图中注，由其自身的 PM 层检查拒绝（xmlSerializer.ts）。
+ */
+
+/**
+ * Fields a format consumes in addition to BASE_FIELDS (kind -> extra fields).
+ * BASE_FIELDS 中不存在的 kind 视为该格式新放行的整个 kind（缺省不在表内的 kind 一律报 unsupported-output）。
+ */
 const NO_EXTRA_FIELDS: Readonly<Record<string, readonly string[]>> = {}
 const EXTRA_FIELDS: Record<OutputBoundaryFormat, Readonly<Record<string, readonly string[]>>> = {
-  DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'] },
-  HTML: { meta: PRINT_META_FIELDS },
+  // WP8.M §7.1 本阶段排版，仅 HTML、DOCX 放行；XML46687 留给 WP8.2：
+  // - termEntry.subjectField（M-9.2.9-01，G5）：定义前输出“〈领域〉”；
+  // - front.introductionClauses（M-4.3.4-02/03，G6）：引言中的条（0.1…）按条标题排版；
+  // - defList（M-10.1.4-01/-03/-04/-05，G2）：缩略语表，缩略语在前、释义在后同一行，中间是全角冒号（渲染时添加，不入 IR）。
+  //   项与公式“式中”项同形，沿用 where 形状（见 childShape）。
+  // - 规范性引用文件清单（M-4.4.2.3-02/-03/-04，G1）：新 kind normRefList / normRef，按 10.3.4 排版；
+  // - doc.bibliographyTitle（M-4.5.3-02，G1）：自定义参考文献标题替换默认标题。
+  DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'], termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'] },
+  HTML: { meta: PRINT_META_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'] },
   XML: NO_EXTRA_FIELDS,
   // XML46687 的允许表、marks 与特殊检查目前与 XML 完全相同；WP8.1 支持矩阵确定后，在 WP8.2 再放开。
   XML46687: NO_EXTRA_FIELDS,
@@ -67,14 +93,20 @@ const EXTRA_FIELDS: Record<OutputBoundaryFormat, Readonly<Record<string, readonl
 
 function buildFields(format: OutputBoundaryFormat): Record<string, ReadonlySet<string>> {
   const extra = EXTRA_FIELDS[format]
-  return Object.fromEntries(Object.entries(BASE_FIELDS).map(([kind, base]) => [
+  const merged = Object.fromEntries(Object.entries(BASE_FIELDS).map(([kind, base]) => [
     kind, Object.prototype.hasOwnProperty.call(extra, kind) ? new Set([...base, ...extra[kind]!]) : base,
   ]))
+  // 整个 kind 只对部分格式放行（如 defList）：不在 BASE_FIELDS 里，由该格式的 extra 单独引入，其余格式仍报 kind 不支持。
+  for (const [kind, fields] of Object.entries(extra)) if (!Object.prototype.hasOwnProperty.call(merged, kind)) merged[kind] = new Set(fields)
+  return merged
 }
 const FIELDS_BY_FORMAT: Record<OutputBoundaryFormat, Record<string, ReadonlySet<string>>> = {
   DOCX: buildFields('DOCX'), HTML: buildFields('HTML'), XML: buildFields('XML'), XML46687: buildFields('XML46687'),
 }
-const MARKS_BY_FORMAT: Record<OutputBoundaryFormat, ReadonlySet<string>> = { DOCX: MARKS, HTML: MARKS, XML: MARKS, XML46687: MARKS }
+// WP8.M §7.1 / D-M-07：正文标准引用 mark（stdRef、mixedCitation，M-10.2-01/-02、M-10.1.7-01）本阶段在 HTML、DOCX
+// 按普通文本输出；XML 家族不放行（XML46687 留给 WP8.2）。
+const PRINT_MARKS = new Set([...MARKS, 'stdRef', 'mixedCitation'])
+const MARKS_BY_FORMAT: Record<OutputBoundaryFormat, ReadonlySet<string>> = { DOCX: PRINT_MARKS, HTML: PRINT_MARKS, XML: MARKS, XML46687: MARKS }
 
 function fieldsFor(format: OutputBoundaryFormat): Record<string, ReadonlySet<string>> { return FIELDS_BY_FORMAT[format] }
 function marksFor(format: OutputBoundaryFormat): ReadonlySet<string> { return MARKS_BY_FORMAT[format] }
@@ -176,6 +208,15 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
           message:`DOCX 不能映射表格列宽：${error instanceof Error ? error.message : String(error)}。请保留 JSON 文档。`})
       }
     }
+    // 小写罗马列项（WP8.M G7，M-5.7-04）：只有旧 XML（format==='XML'）阻断——旧序列化器会把它降为阿拉伯数字（toXmlListType），
+    // 导出后 i) 变成 1)，属静默降级。XML46687 放行（GB/T 46687.2 5.7.2 有 roman-lower，WP8.2 消费）；HTML/DOCX 已真排。
+    // 这是 XML 与 XML46687 在字段表之外唯一有意的分叉，outputBoundaryXml46687.test.ts 把它列为已知例外。
+    if (format === 'XML' && kind === 'list' && object.listType === 'roman') {
+      problems.push({
+        code: 'unsupported-output', nodeId: id, path: `${path}.listType`,
+        message: `XML 不能输出罗马列项：旧 XML 序列化器会把它降为阿拉伯数字，改变列项编号：${path}.listType${id ? `（节点 ${id}）` : ''}。请保留 JSON 文档，或导出 HTML/DOCX。`,
+      })
+    }
     if (!allowed) { report('kind'); return }
     for (const [key, child] of Object.entries(object)) {
       if (kind === 'table' && key === 'headerRowCount' && isXmlFormat(format)
@@ -210,7 +251,7 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
       if (key === 'tailOrder') continue
       const childShape = key === 'meta' ? 'meta' : key === 'front' ? 'front'
         : key === 'marks' ? 'mark' : key === 'footnote' || key === 'footnotes' ? 'footnote'
-        : key === 'rows' ? 'row' : key === 'cells' ? 'cell' : key === 'items' ? 'item'
+        : key === 'rows' ? 'row' : key === 'cells' ? 'cell' : key === 'items' ? (kind === 'defList' ? 'where' : 'item')
         : key === 'whereList' ? 'where' : key === 'unmappedFootnotes' ? 'unmappedFootnote'
         : key === 'formula' && shape === 'inline' ? 'inlineFormula'
         : 'inline'
@@ -246,6 +287,25 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
       ...(issue.nodeId !== null ? { nodeId: issue.nodeId } : {}),
       path: 'resolver.problems[dangling-typed-ref]',
       message: `${format} 不能输出类型错误的引用：${issue.message}。请修正引用目标；如需保留原稿，请导出 JSON。`,
+    })
+  }
+
+  // WP8.M M-Z-a（设计 §7.1，主导人 2026-10-26）：Resolver 产生的 `unsupported-content` error 一律阻断非 JSON 出口。
+  // 它们表示文档里有模型能保存、但无法合法表达的结构（规范性引用清单位置/数量不合法、行内图位置不合法等）；
+  // 之前只有脚注类与 dangling-typed-ref 被拦截，这类 error 会被静默带进 HTML/DOCX/XML。
+  // 其余 error 代码（dangling-xref、duplicate-id……）与 warning 保持既有的导出口径，不在此处改变。
+  // Resolver 还会把 doc.unsupportedContent（pmToIr 诊断）与术语 tailOrder 无效重述成同一代码：这两类上文已按各自路径
+  // 阻断，此处按文案识别后跳过，避免同一问题报两次。
+  const restated = new Set((doc.unsupportedContent ?? []).map(issue => `${issue.nodeId ?? ''}\u0000${unsupportedContentProblemMessage(issue)}`))
+  const tailOrderPrefix = termTailOrderProblemMessage('')
+  for (const issue of resolution.problems) {
+    if (issue.code !== 'unsupported-content' || issue.severity !== 'error') continue
+    if (restated.has(`${issue.nodeId ?? ''}\u0000${issue.message}`) || issue.message.startsWith(tailOrderPrefix)) continue
+    problems.push({
+      code: 'unsupported-output',
+      ...(issue.nodeId !== null ? { nodeId: issue.nodeId } : {}),
+      path: 'resolver.problems[unsupported-content]',
+      message: `${format} 不能输出无法合法表达的内容：${issue.message}。请修正该内容；如需保留原稿，请导出 JSON。`,
     })
   }
   return problems

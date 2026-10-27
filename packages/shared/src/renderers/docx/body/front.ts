@@ -7,8 +7,9 @@
  * 同构纯 TypeScript，不引用浏览器或 Node 专有 API。
  */
 
-import type { IRBlock } from '../../../ir/types'
+import type { IRBlock, IRClause } from '../../../ir/types'
 import { renderBlocks } from './block'
+import { renderIntroductionClauses } from './clause'
 import { emitParagraph, warn, type RenderContext } from './context'
 import type { DocxBookmark } from '../types'
 import { plainRun, spacingRpr, wrapTitleAtSeparator } from './inline'
@@ -27,9 +28,11 @@ export function renderForeword(ctx: RenderContext, blocks: readonly IRBlock[], b
   return out
 }
 
-export function renderIntroduction(ctx: RenderContext, blocks: readonly IRBlock[], bookmark?: DocxBookmark): string {
+export function renderIntroduction(ctx: RenderContext, blocks: readonly IRBlock[], clauses: readonly IRClause[] = [], bookmark?: DocxBookmark): string {
   let out = emitParagraph(ctx, 'SesFrontTitle', { runsXml: plainRun('引', SPACING_640) + plainRun('言'), bookmark })
   out += renderBlocks(ctx, blocks as IRBlock[], { scopeKey: 'front.introduction' })
+  // 引言中的条（WP8.M G6）排在引言块之后，按条标题排版，编号 0.1…
+  out += renderIntroductionClauses(ctx, clauses)
   return out
 }
 

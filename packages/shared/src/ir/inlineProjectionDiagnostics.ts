@@ -116,6 +116,17 @@ function visit(
       })
     }
 
+    // 生产 stdRef 与 mixedCitation 两个 mark 互相 excludes：同一 run 不能同时是标准化与非标准化文件引用
+    const stdIndex = types.findIndex(type => type === 'stdRef')
+    const mixedIndex = types.findIndex(type => type === 'mixedCitation')
+    if (stdIndex >= 0 && mixedIndex >= 0) {
+      errors.push({
+        path: `${path}.marks[${Math.max(stdIndex, mixedIndex)}]`,
+        nodeId: currentOwnerId,
+        reason: '同一行内不能同时带 stdRef 与 mixedCitation：生产ProseMirror中两个标记互斥，无法同时保留',
+      })
+    }
+
     const firstIndexByType = new Map<string, number>()
     types.forEach((type, index) => {
       if (type === undefined || ATOM_MARKS.has(type)) return
@@ -131,7 +142,28 @@ function visit(
       })
     })
 
-    if (value.text.length === 0 && !value.formula) {
+    // 行内图（WP8.M G3，M-8.3-02）：生产 inlineImage 是无 marks、无 textStyle 的行内原子节点，
+    // 且只承载图本身——同一 run 里的文字、公式、脚注、marks、style 无处共存，往返会改变 run 的拆分或丢失信息。
+    if (isRecord(value.image)) {
+      if (value.text.length > 0) {
+        errors.push({ path: `${path}.text`, nodeId: currentOwnerId, reason: '行内图所在 run 的文字必须为空：生产 inlineImage 是独立的行内原子节点，文字无法与图共存于同一 run' })
+      }
+      if (isRecord(value.formula) || isRecord(value.footnote)) {
+        errors.push({ path: `${path}.image`, nodeId: currentOwnerId, reason: '行内图不能与行内公式或脚注处于同一 run：它们各自是独立的行内原子节点' })
+      }
+      marks.forEach((mark, index) => {
+        errors.push({
+          path: `${path}.marks[${index}]`,
+          nodeId: currentOwnerId,
+          reason: `行内图不能带${markType(mark) ?? '格式'}标记：生产 inlineImage 不接受行内格式或引用，标记在投影中会丢失`,
+        })
+      })
+      if (hasNonEmptyStyle(value.style)) {
+        errors.push({ path: `${path}.style`, nodeId: currentOwnerId, reason: '行内图不能带 textStyle：生产 inlineImage 不接受行内样式，样式在投影中会丢失' })
+      }
+    }
+
+    if (value.text.length === 0 && !value.formula && !value.image) {
       marks.forEach((mark, index) => {
         const type = markType(mark)
         if (type === undefined || ATOM_MARKS.has(type) || EXISTING_EMPTY_REFERENCE_MARKS.has(type)) return

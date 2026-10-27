@@ -4,6 +4,7 @@ import { TableCell } from '@tiptap/extension-table-cell'
 import { TableHeader } from '@tiptap/extension-table-header'
 import { TableRow } from '@tiptap/extension-table-row'
 import katex from 'katex'
+import { isCellBorderStyle } from '@ses/shared'
 import { dispatchInlineFormulaRequest } from '../plugins/inlineFormulaEditing'
 
 function safeExternalHref(value: unknown): string | null {
@@ -592,6 +593,17 @@ const cellMeasureAttrs = {
   paddingLeft: { default: null }, paddingLeftUnit: stringAttribute('paddingLeftUnit'),
 }
 
+/**
+ * 分边边框样式（WP8.M G8，M-6.3.3.1-01）：solid | dashed | dotted | none，各边一个字符串属性，缺省 null。
+ * 宽度仍用上面的 `border<Side>` + `border<Side>Unit`。取值合法性由 pmToIr 校验（非法值记为 unsupportedContent），这里不拦截。
+ */
+const cellBorderStyleAttrs = {
+  borderTopStyle: stringAttribute('borderTopStyle'),
+  borderRightStyle: stringAttribute('borderRightStyle'),
+  borderBottomStyle: stringAttribute('borderBottomStyle'),
+  borderLeftStyle: stringAttribute('borderLeftStyle'),
+}
+
 const cellUnitAttribute = {
   default: null,
   parseHTML: (element: HTMLElement) => element.getAttribute('data-unit') ?? element.getAttribute('unit'),
@@ -602,9 +614,33 @@ function cellContentElement(element: HTMLElement): HTMLElement {
   return element.querySelector<HTMLElement>(':scope > .std-table-cell-wrapper > .std-table-cell-content') ?? element
 }
 
+/** 边框宽度可用的 CSS 长度单位（`%` 不能用于 border-width）。不在表内的单位不写进样式，避免把任意文本带进 style。 */
+const CSS_BORDER_WIDTH_UNITS = new Set(['px', 'pt', 'mm', 'cm', 'in', 'pc', 'em', 'rem'])
+
+/**
+ * 把单元格的边框宽度（`border<Side>` + `border<Side>Unit`）与样式（`border<Side>Style`）落成内联 CSS，
+ * 否则导入稿里的边框在编辑器中看不出来。只写宽度与样式两个分量，不用 `border` 简写，颜色仍由样式表决定（D-M-15 不建模分边颜色）。
+ * 取值不合法的分量跳过（诊断由 pmToIr 负责）。
+ */
+export function cellBorderCss(attrs: Record<string, unknown>): string {
+  const declarations: string[] = []
+  for (const side of ['Top', 'Right', 'Bottom', 'Left'] as const) {
+    const width = attrs[`border${side}`]
+    const unit = attrs[`border${side}Unit`]
+    if (typeof width === 'number' && Number.isFinite(width) && width >= 0 && typeof unit === 'string' && CSS_BORDER_WIDTH_UNITS.has(unit)) {
+      declarations.push(`border-${side.toLowerCase()}-width: ${width}${unit}`)
+    }
+    const style = attrs[`border${side}Style`]
+    if (isCellBorderStyle(style)) declarations.push(`border-${side.toLowerCase()}-style: ${style}`)
+  }
+  return declarations.join('; ')
+}
+
 function renderCell(node: { attrs: Record<string, unknown> }, tag: 'td' | 'th', HTMLAttributes: Record<string, unknown>): DOMOutputSpec {
   const attributes = { ...HTMLAttributes }
   delete attributes.unit
+  const borderCss = cellBorderCss(node.attrs)
+  if (borderCss) attributes.style = typeof attributes.style === 'string' && attributes.style ? `${attributes.style}; ${borderCss}` : borderCss
   if (typeof node.attrs.unit === 'string' && node.attrs.unit.length > 0) attributes['data-unit'] = node.attrs.unit
   const cellChildren: DOMOutputSpec[] = []
   if (typeof node.attrs.unit === 'string' && node.attrs.unit.length > 0) {
@@ -641,6 +677,7 @@ export const StandardTableCell = TableCell.extend({
       verticalAlign: stringAttribute('verticalAlign'),
       backgroundColor: stringAttribute('backgroundColor'),
       ...cellMeasureAttrs,
+      ...cellBorderStyleAttrs,
     }
   },
 
@@ -665,6 +702,7 @@ export const StandardTableHeader = TableHeader.extend({
       verticalAlign: stringAttribute('verticalAlign'),
       backgroundColor: stringAttribute('backgroundColor'),
       ...cellMeasureAttrs,
+      ...cellBorderStyleAttrs,
     }
   },
 

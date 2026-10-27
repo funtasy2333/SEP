@@ -4,7 +4,7 @@ import type { DOMOutputSpec, Node as PMNode, ResolvedPos } from '@tiptap/pm/mode
 import { TextSelection } from '@tiptap/pm/state'
 import { hasReferenceWithin } from '../../utils/textBlockFormat'
 
-type TermFieldName = 'termName' | 'termNameEn' | 'termDefinition'
+type TermFieldName = 'termName' | 'termNameEn' | 'termSubjectField' | 'termDefinition'
 
 interface TermFieldPosition {
   node: PMNode
@@ -45,7 +45,8 @@ function handleTermEnter(editor: Editor): boolean {
   const { $from, $to } = state.selection
   const fieldName = $from.parent.type.name
 
-  if (fieldName === 'termName' || fieldName === 'termNameEn') {
+  // termSubjectField 与术语名、英文名一样是头部字段：Enter 进入定义（定义始终在其后，不受该字段存在与否影响）。
+  if (fieldName === 'termName' || fieldName === 'termNameEn' || fieldName === 'termSubjectField') {
     const depth = termDepthAt($from)
     if (depth < 0) return false
     const term = $from.node(depth)
@@ -152,13 +153,13 @@ declare module '@tiptap/core' {
 /**
  * 术语定义节点
  * 对应 GB/T 37967 中的 <term> 元素
- * 结构：术语名（标题） + 英文名 + 定义 + 注(可选) + 示例(可选)
+ * 结构：术语名（标题） + 英文名(可选) + 领域(可选) + 定义 + 注(可选) + 示例(可选)
  * 支持 1~5 级，与"条"一致
  */
 export const TermDef = Node.create({
   name: 'termDef',
   group: 'block',
-  content: 'termName termNameEn? termDefinition (stdParagraph | note | example | termDef | tbxLangSet | termSource)*',
+  content: 'termName termNameEn? termSubjectField? termDefinition (stdParagraph | note | example | termDef | tbxLangSet | termSource)*',
   defining: true,
 
   addAttributes() {
@@ -297,6 +298,32 @@ export const TermNameEn = Node.create({
         'data-type': 'term-name-en',
         class: 'std-term-name-en',
         lang: 'en',
+      }),
+      0,
+    ]
+  },
+})
+
+/**
+ * 术语领域（GB/T 46687.2 9.2.9 `tbx:subjectField`，矩阵 M-9.2.9-01）。
+ * 条目级、至多一个，固定在术语名/英文名之后、定义之前；不进入尾项顺序（tailOrder）。
+ * 内容只存领域名称：“〈”“〉”由 CSS 在显示阶段添加，不入内容（与导出的 `tbx:subjectField` 纯文本一致）。
+ */
+export const TermSubjectField = Node.create({
+  name: 'termSubjectField',
+  content: 'inline*',
+  defining: true,
+
+  parseHTML() {
+    return [{ tag: 'div[data-type="term-subject-field"]', priority: 51 }]
+  },
+
+  renderHTML({ HTMLAttributes }): DOMOutputSpec {
+    return [
+      'div',
+      mergeAttributes(HTMLAttributes, {
+        'data-type': 'term-subject-field',
+        class: 'std-term-subject-field',
       }),
       0,
     ]

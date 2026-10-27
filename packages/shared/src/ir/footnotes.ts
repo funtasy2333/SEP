@@ -13,25 +13,36 @@ export function collectFootnotes(doc: IRDoc, bibliographyOrder?: string[]): IRFo
       case 'list': for (const item of node.items) item.content.forEach(block); break
       case 'note': case 'example': case 'warning': case 'quote': node.content.forEach(block); break
       case 'code': break
+      case 'normRefList':
+        for (const entry of node.entries) {
+          if (entry.entryType === 'std') { inlines(entry.ref); inlines(entry.title) } else inlines(entry.content)
+        }
+        break
       case 'table':
         inlines(node.caption); inlines(node.captionEn ?? [])
         for (const row of node.rows) for (const cell of row.cells) cell.content.forEach(block)
         node.notes.forEach(block)
         break
-      case 'figure': node.notes.forEach(block); inlines(node.caption); inlines(node.captionEn ?? []); break
+      case 'figure':
+        node.notes.forEach(block); inlines(node.caption); inlines(node.captionEn ?? [])
+        // 图例与图中示例（WP8.M G3）：其中的条文脚注由 Resolver 报 invalid-footnote，这里照常收集以便渲染入口的脚注核对看见它们
+        if (node.legend) { inlines(node.legend.title ?? []); for (const item of node.legend.items) { inlines(item.term); inlines(item.definition) } }
+        node.examples?.forEach(block)
+        break
       case 'formula': inlines(node.sourceInlines ?? []); for (const item of node.whereList) { inlines(item.term); inlines(item.definition) }; break
+      case 'defList': for (const item of node.items) { inlines(item.term); inlines(item.definition) }; break
     }
   }
   const child = (node: IRClauseChild): void => {
     if (node.kind === 'clause') { inlines(node.title); node.children.forEach(child) }
     else if (node.kind === 'termEntry') {
-      inlines(node.term); inlines(node.termEn ?? [])
+      inlines(node.term); inlines(node.termEn ?? []); inlines(node.subjectField ?? [])
       node.definition.forEach(block); node.examples.forEach(block); node.notes.forEach(block)
       inlines(node.source ?? [])
     } else block(node)
   }
   for (const source of doc.unmappedFootnotes ?? []) inlines(source.content)
-  doc.front.foreword.forEach(block); doc.front.introduction.forEach(block)
+  doc.front.foreword.forEach(block); doc.front.introduction.forEach(block); (doc.front.introductionClauses ?? []).forEach(child)
   for (const chapter of doc.body) { inlines(chapter.title); chapter.children.forEach(child) }
   for (const appendix of doc.appendices) { inlines(appendix.title); appendix.children.forEach(child) }
   const extras = (value: unknown): void => {
@@ -43,6 +54,8 @@ export function collectFootnotes(doc: IRDoc, bibliographyOrder?: string[]): IRFo
       if (key !== 'footnote' && key !== 'unmappedFootnotes' && key !== 'unsupportedContent' && !(row.kind === 'bibEntry' && key === 'content')) extras(child)
     }
   }
+  // 自定义参考文献标题（M-4.5.3-02）先于 extras 登记为已收集，否则会被通用扫描再收一次；其脚注由 Resolver 报错
+  inlines(doc.bibliographyTitle ?? [])
   extras(doc)
   for (const entry of bibliographyOrder ? bibliographyOrder.map(id => doc.bibliography.find(entry => entry.id === id)!).filter(Boolean) : doc.bibliography) inlines(entry.content)
   return out

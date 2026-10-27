@@ -49,7 +49,7 @@
 | `bold` `italic` `underline` `sub` `sup` `strike` `code` | 无 | 同一段文字上同一种标记只能出现一次；`code` 不能与其他标记组合 |
 | `variable` | `kind`、`name`（可选字符串） | 标记变量符号（语义标记） |
 | `externalLink` | `href`（必填）、`title`、`target`、`rel` | `href` 只接受 `http://`、`https://`、`mailto:`、`tel:` 开头且不含空白的地址 |
-| `crossRef` | `targetId`（必填）、`targetKind`（可选） | 引用章、条、附录、图、表、公式、注、示例等；`targetKind` 取 `chapter` `clause` `appendix` `figure` `table` `formula` `note` `example` `bibliography` `term` `index` `paragraph` |
+| `crossRef` | `targetId`（必填）、`targetKind`（可选） | 引用章、条、附录、图、表、公式、注、示例等；`targetKind` 取 `chapter` `clause` `appendix` `figure` `table` `formula` `note` `example` `bibliography` `term` `index` `paragraph` `listItem`（被引用的有序列项） `abbreviation`（缩略语表中的项） |
 | `bibRef` | `targetId`（必填） | 引用参考文献条目 |
 | `termRef` | `targetId`（必填） | 引用术语条目 |
 
@@ -63,7 +63,7 @@
 ]
 ```
 
-暂不支持：行内样式 `style`、脚注 `footnote`、表脚注引用 `tableFootnoteRef`。
+暂不支持：行内样式 `style`、脚注 `footnote`、表脚注引用 `tableFootnoteRef`、行内图 `image`（模型已于 WP8.M G3 支持，写作入口留后续交互任务）。
 
 **出件限制**：DOCX、HTML、PDF 目前只能输出 `bold` `italic` `underline` `sub` `sup` `crossRef` 这几种标记。`strike`、`code`、`variable`、`externalLink`、`bibRef`、`termRef` 可以写入并保存（JSON 导出保留），但文档里只要有它们，导出 DOCX、HTML、PDF 就会被拒绝（`validate_document` 的 `exports` 会列出位置）。需要出件的文档不要使用这些标记：引用参考文献、术语时先写成普通文字。
 
@@ -119,8 +119,8 @@
 ### 2.4 字段检查是严格的
 
 - 未知字段会被拒绝（防止 `contnet` 这样的拼写错误被静默忽略）。
-- IR 里存在但写作片段暂不支持的字段（如图的 `imageWidth`、表的 `width`、公式的 `mathml`）会给出专门的提示：请省略。
-- `warning`、`quote`、`code` 等 IR 扩展块暂不支持，会以 `unsupported-kind` 拒绝。
+- IR 里存在但写作片段暂不支持的字段（如图的 `imageWidth`、图例 `legend`、图中示例 `examples`、表的 `width`、公式的 `mathml`）会给出专门的提示：请省略。
+- `warning`、`quote`、`code`、`defList`（缩略语表）等 IR 扩展块暂不支持，会以 `unsupported-kind` 拒绝。
 - 缺省值由系统补齐。可推导字段可以省略：条的 `level` 与列项的 `level` 若给出必须与推导结果一致；`titled` 若给出不能与标题是否为空矛盾；`secType` 若给出则采用你给的值。
 
 读取节点得到的 IR，只要不含暂不支持的字段，就可以原样作为片段回传（替换内容时），其中的 id 会被保留。含暂不支持字段（如手工调整过的列宽、行内样式）的节点，回传时这些字段必须去掉，对应的版式信息会随替换丢失。因此 `replace` 遇到这样的节点默认拒绝，需要显式 `acceptLoss`，见第 7 节。
@@ -199,7 +199,7 @@
 | `level` | 否 | 由 `listType` 决定 | `number`、`dot` 固定为 2 级，其余为 1 级；不要写，写了必须一致 |
 | `items` | 是 | | 至少一项；每项可以是字符串、行内数组或 `{ "content": …, "id": … }` |
 
-不支持罗马数字列项，也不支持列项嵌套列项：需要二级列项时，在一级列项之后再写一个 `number` 或 `dot` 列项。
+写作片段暂不支持罗马数字列项（模型已于 WP8.M G7 支持小写罗马 `roman`，写作入口留后续交互任务），也不支持列项嵌套列项：需要二级列项时，在一级列项之后再写一个 `number` 或 `dot` 列项。
 
 ```json ses-example context=chapter
 [
@@ -254,7 +254,7 @@
 | `orientation` | 否 | `portrait` | `portrait` 或 `landscape` |
 | `src` | 是 | | 只接受 PNG、JPEG、GIF 的 base64 data URL（`data:image/png;base64,……`）；**不会下载外链图片** |
 | `alt` | 否 | `""` | 替代文字。DOCX、HTML、PDF 目前不能输出，非空时这三种导出会被拒绝；需要出件时省略 |
-| `notes` | 否 | `[]` | 必须为空或省略（编辑器的图没有图中注节点；要写说明请放进图题或图后的 `note`） |
+| `notes` | 否 | `[]` | 必须为空或省略（模型已于 WP8.M G3 支持图中注，写作入口留后续交互任务；要写说明请放进图题或图后的 `note`） |
 
 ```json ses-example context=chapter
 [
@@ -428,7 +428,7 @@
 | `unknown-field` | 未知字段（多为拼写错误） |
 | `unsupported-field` | IR 里有、但写作片段暂不支持的字段或标记 |
 | `unknown-kind` | 未知的 `kind` |
-| `unsupported-kind` | 暂不支持的块（`warning`、`quote`、`code`） |
+| `unsupported-kind` | 暂不支持的块（`warning`、`quote`、`code`、`defList`） |
 | `not-allowed-here` | 该节点不能放在此上下文或容器中 |
 | `invalid-value` | 取值非法（枚举、格式、范围） |
 | `empty-value` | 必须非空的内容为空 |

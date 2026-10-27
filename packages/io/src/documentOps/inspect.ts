@@ -19,7 +19,9 @@ import {
   type IRFragmentNode,
   type PMJsonNode,
 } from '@ses/shared'
-import { collectIrIds, collectPmNodeIds, KIND_LABELS, type DocIndex, type LocatedNode } from './locator'
+import {
+  collectIrIds, collectPmNodeIds, isIntroductionClause, KIND_LABELS, type DocIndex, type LocatedNode,
+} from './locator'
 import { DOCUMENT_CONTAINERS, type NotReplaceableReason } from './types'
 
 /** 保留字：容器名不能被节点 id 占用。 */
@@ -38,6 +40,8 @@ export function indexIrNodes(ir: IRDoc): Map<string, IRFragmentNode> {
   }
   addAll(ir.front.foreword)
   addAll(ir.front.introduction)
+  // WP8.M G6：引言中的条（编号 0.1、0.2…）在 IR 里是兄弟字段，位于引言块之后（与 irToPm 的投影顺序一致）。
+  addAll(ir.front.introductionClauses ?? [])
   addAll(ir.body)
   addAll(ir.appendices)
   addAll(ir.bibliography)
@@ -144,12 +148,14 @@ export function idsOutsideSubtree(env: InspectEnv, located: LocatedNode): Set<st
 const MAX_REASONS = 10
 
 const FIELD_LABELS: Record<string, string> = {
-  style: '样式', width: '宽度', unit: '单位', footnotes: '表脚注', columnWidths: '列宽', cellType: '单元格类型',
+  style: '样式', width: '宽度', unit: '单位', footnotes: '表脚注', columnWidths: '列宽', columns: '列宽模型', cellType: '单元格类型',
   resourceId: '图资源引用', imageWidth: '图片宽度', imageHeight: '图片高度', title: '图的标题属性',
   descriptions: '图说明', groups: '图分组', mathml: 'MathML', sourceInlines: '含标记的公式源',
-  languageSets: 'TBX 语言集', nestedEntries: '嵌套术语条目', tailOrder: '术语尾项顺序',
+  languageSets: 'TBX 语言集', nestedEntries: '嵌套术语条目', tailOrder: '术语尾项顺序', subjectField: '术语领域',
   entryType: '文献类型', fields: '文献结构化字段', identifiers: '文献标识符', externalLink: '文献外链',
   footnote: '脚注', formula: '行内公式',
+  // WP8.M G3：图例、图中示例、行内图（IR 有、写作片段暂不支持）
+  legend: '图例', examples: '图中示例', image: '行内图',
 }
 
 const OWNER_FIELD = /^「(.+?)」(?:暂不支持字段|没有字段)「(.+?)」/
@@ -178,10 +184,17 @@ export function analyzeReplaceability(env: InspectEnv, located: LocatedNode): No
   }
   const groups = new Map<string, Grouped>()
 
-  if (irNode.kind === 'warning' || irNode.kind === 'quote' || irNode.kind === 'code') {
+  if (irNode.kind === 'warning' || irNode.kind === 'quote' || irNode.kind === 'code' || irNode.kind === 'defList') {
     addReason(groups, 'kind', () => ({
       code: 'unsupported-kind',
       message: `「${KIND_LABELS[irNode.kind]}」写作片段暂不支持，不能整体替换（可以删除或移动）`,
+    }))
+  } else if (isIntroductionClause(located)) {
+    // WP8.M G6：引言中的条可读、可删除/移动，其内部的块与子条也可替换；条本身的整体替换需要「引言可含条」的上下文，
+    // 写作片段暂不提供（引言上下文只允许块）。给出明确原因，而不是让归一化报「条不能放在引言中」。
+    addReason(groups, 'context', () => ({
+      code: 'no-context',
+      message: '引言中的条暂不支持整体替换（写作片段的「引言」上下文只允许块，不含条）；可以替换条内的块或子条，也可以删除或移动该条',
     }))
   } else if (located.context === undefined) {
     addReason(groups, 'context', () => ({
@@ -212,6 +225,15 @@ export function analyzeReplaceability(env: InspectEnv, located: LocatedNode): No
         } else if (issue.code === 'unsupported-field' || issue.code === 'unknown-field') {
           addReason(groups, `field:${issue.reason}`, () => ({
             code: 'unsupported-field', message: `${issue.reason}，整体替换会丢失它`, path: relativePath(issue.path), count: 1,
+          }))
+        } else if (issue.code === 'not-allowed-here' && /^(注|示例)只能包含一段内容/.test(issue.reason)) {
+          // WP8.M G7-b：块内容的注/示例（noteBlock/exampleBlock，M-5.6-05）有多个段落/列项，写作片段只能写单段：
+          // 整体替换会丢掉多出的块，与其他「写作片段表达不了的内容」同样默认拒绝（replace-loses-content）。
+          const what = issue.reason.slice(0, issue.reason.indexOf('只能'))
+          addReason(groups, `blocks:${issue.path}`, () => ({
+            code: 'unsupported-content',
+            message: `${what}含有多个块（段落/列项），写作片段只能表达单段内容，整体替换会丢失其余块`,
+            path: relativePath(issue.path), count: 1,
           }))
         } else if (issue.code === 'unsupported-kind') {
           addReason(groups, `kind:${issue.reason}`, () => ({

@@ -3,7 +3,7 @@
  * gbT11Strategy：GB/T 1.1-2020 编号规则。
  */
 
-import type { NumberingStrategy } from './types'
+import type { IRList, NumberingStrategy } from './types'
 
 /** 1 -> "A"，27 -> "AA"（GB/T 1.1 附录通常不超过 26 个，超出按双字母延展） */
 export function appendixLetterOf(seq: number): string {
@@ -15,6 +15,49 @@ export function appendixLetterOf(seq: number): string {
     n = Math.floor(n / 26)
   }
   return letters
+}
+
+/** 1 -> "a"，26 -> "z"，27 -> "aa"（与表脚注字母同一种逐位进位） */
+function lowerLetters(index: number): string {
+  let n = index
+  let letters = ''
+  while (n > 0) {
+    n -= 1
+    letters = String.fromCharCode(97 + (n % 26)) + letters
+    n = Math.floor(n / 26)
+  }
+  return letters
+}
+
+const ROMAN_STEPS: ReadonlyArray<readonly [number, string]> = [
+  [1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'], [90, 'xc'],
+  [50, 'l'], [40, 'xl'], [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i'],
+]
+
+/** 1 -> "i"，4 -> "iv"；超出 1～3999 不可表示，退回十进制。 */
+function lowerRoman(index: number): string {
+  if (!Number.isInteger(index) || index < 1 || index > 3999) return String(index)
+  let rest = index
+  let out = ''
+  for (const [value, glyph] of ROMAN_STEPS) {
+    while (rest >= value) { out += glyph; rest -= value }
+  }
+  return out
+}
+
+/**
+ * 有序列项标记（GB/T 1.1-2020 列项，全角右括号，D-M-03 修订：与编辑器、HTML、DOCX 显示的列项符号一致，
+ * 引用文字 `5.2 a）` 才与文档中看到的符号相同）：alpha -> "a）"…"z）"，27 起 "aa）"；
+ * number -> "1）"；roman -> "i）"。无序列项与 romanUpper 没有标记，返回空串。
+ * 由 gbT11Strategy.listItem 引用；Resolver 在第三方策略缺该方法时也用它。
+ */
+export function listItem(listType: IRList['listType'], index: number): string {
+  switch (listType) {
+    case 'alpha': return `${lowerLetters(index)}）`
+    case 'number': return `${index}）`
+    case 'roman': return `${lowerRoman(index)}）`
+    default: return ''
+  }
 }
 
 function prefixed(seq: number, appendixLetter?: string): string {
@@ -33,4 +76,5 @@ export const gbT11Strategy: NumberingStrategy = {
   note: (index, totalInScope) => (totalInScope > 1 ? `注${index}：` : '注：'),
   example: (index, totalInScope) => (totalInScope > 1 ? `示例${index}：` : '示例：'),
   bibEntry: (seq) => `[${seq}]`,
+  listItem,
 }

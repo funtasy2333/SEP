@@ -38,8 +38,10 @@ describe('resolve / 章条编号', () => {
 
   it('术语条目与条共用编号序列（3.1、3.2）', () => {
     const { labels } = resolveFull()
-    expect(labels['term-1']).toEqual({ label: '3.1', xmlId: 'sec_3.1', refText: '3.1' })
+    // WP8.M G5（M-9.2.1-05、R-3）：术语条目另有独立 xmlId term_<编号>，与 sec_<编号> 并存。
+    expect(labels['term-1']).toEqual({ label: '3.1', xmlId: 'sec_3.1', refText: '3.1', termEntryXmlId: 'term_3.1' })
     expect(labels['term-2'].label).toBe('3.2')
+    expect(labels['term-2'].termEntryXmlId).toBe('term_3.2')
   })
 
   it('附录编号：label 含「附录」前缀，xmlId 用字母', () => {

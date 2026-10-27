@@ -324,29 +324,51 @@ describe('irFragmentToPm / 诊断沿用 IRToPmError', () => {
     ]))
   })
 
-  it('不可表示的 IR：罗马数字列项、图中注、空列表/空表、嵌套列项', () => {
+  // WP8.M G7-a：原用例用小写罗马 roman 断言「罗马数字列项经 irFragmentToPm 被拒」；roman 现可表示，改用无原文取值的 romanUpper。
+  // WP8.M G3（M-8.2-11）：图中注现可表示（figure 内的单段 note），原用例的空内容图中注改为仍不可表示的多块图中注，
+  // 诊断路径由 `fragment[1].notes` 变为 `fragment[1].notes.fn`（与术语条目、表注行内的注同一规则），其余断言（空列表/空表）不变。
+  it('不可表示的 IR：大写罗马数字列项、多块图中注、空列表/空表、嵌套列项', () => {
     const item = (id: string) => ({ id, content: [{ kind: 'paragraph' as const, id: `${id}.p0`, content: [{ text: 'x' }] }] })
     const error = captureError(() => irFragmentToPm([
-      { kind: 'list', id: 'l1', listType: 'roman', items: [item('i1')] },
-      { kind: 'figure', id: 'f1', caption: [], orientation: 'portrait', src: PNG_DATA_URL, notes: [{ kind: 'note', id: 'fn', content: [] }] },
+      { kind: 'list', id: 'l1', listType: 'romanUpper', items: [item('i1')] },
+      {
+        kind: 'figure', id: 'f1', caption: [], orientation: 'portrait', src: PNG_DATA_URL,
+        notes: [{ kind: 'note', id: 'fn', content: [
+          { kind: 'paragraph', id: 'fn.p0', content: [{ text: '一' }] }, { kind: 'paragraph', id: 'fn.p1', content: [{ text: '二' }] },
+        ] }],
+      },
       { kind: 'list', id: 'l2', listType: 'dash', items: [] },
       { kind: 'table', id: 't1', caption: [], orientation: 'portrait', headerRowCount: 0, rows: [], notes: [] },
     ], ctx))
     const byPath = new Map(error.diagnostics.map(diagnostic => [diagnostic.path, diagnostic.nodeId]))
     expect(byPath.get('fragment[0].listType')).toBe('l1')
-    expect(byPath.get('fragment[1].notes')).toBe('f1')
+    expect(byPath.get('fragment[1].notes.fn')).toBe('fn.p0')
     expect(byPath.get('fragment[2].items')).toBe('l2')
     expect(byPath.get('fragment[3].rows')).toBe('t1')
   })
 
-  it('注/示例内段落 id 与派生值不符、术语条目缺主定义：投影层拒绝，不静默改写 id', () => {
+  // WP8.M G7-b：原用例的第一个片段是块位置的注，断言其非派生段落 id 在 `fragment[0].content[0]` 被拒绝。块位置的注现投影为
+  // noteBlock 并保留该 id（下一用例），所以改用仍压平为单段 note 的术语条目注作为拒绝对象；术语条目缺主定义的断言不变。
+  it('术语条目的注/示例内段落 id 与派生值不符、术语条目缺主定义：投影层拒绝，不静默改写 id', () => {
     const error = captureError(() => irFragmentToPm([
-      { kind: 'note', id: 'n1', content: [{ kind: 'paragraph', id: 'wrong', content: [{ text: 'x' }] }] },
+      {
+        kind: 'termEntry', id: 't0', term: [{ text: 't' }], definition: [{ kind: 'paragraph', id: 't0.def0', content: [{ text: 'd' }] }],
+        notes: [{ kind: 'note', id: 'n1', content: [{ kind: 'paragraph', id: 'wrong', content: [{ text: 'x' }] }] }], examples: [],
+      },
       { kind: 'termEntry', id: 't1', term: [{ text: 't' }], definition: [], notes: [], examples: [] },
     ], ctx))
     const paths = error.diagnostics.map(diagnostic => diagnostic.path)
-    expect(paths).toContain('fragment[0].content[0]')
+    expect(paths).toContain('fragment[0].notes.n1.content[0]')
     expect(paths).toContain('fragment[1].definition')
+  })
+
+  it('[M-5.6-05] 块位置的注内段落 id 与派生值不符：投影为 noteBlock，保留段落 id（不静默改写）', () => {
+    const nodes = irFragmentToPm([
+      { kind: 'note', id: 'n1', content: [{ kind: 'paragraph', id: 'wrong', content: [{ text: 'x' }] }] },
+    ], ctx)
+    expect(nodes).toHaveLength(1)
+    expect(nodes[0]).toMatchObject({ type: 'noteBlock', attrs: { nodeId: 'n1' } })
+    expect(nodes[0]!.content![0]).toMatchObject({ type: 'stdParagraph', attrs: { nodeId: 'wrong' } })
   })
 
   it('脚注内容无法保存、表脚注引用缺 id：路径以片段根开头', () => {

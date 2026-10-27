@@ -16,10 +16,25 @@ export interface IRDoc {
   /** 新增语义字段的兼容扩展版本；缺省值代表仅含原始 WP1/WP3 字段的旧文档。 */
   extensionVersion?: 1
   meta: IRDocMeta
-  front: { foreword: IRBlock[]; introduction: IRBlock[] }
+  front: {
+    foreword: IRBlock[]
+    introduction: IRBlock[]
+    /**
+     * 引言中的条（GB/T 1.1—2020 8.4：引言不给章编号，需要分条时仅对条编号，编为 0.1、0.2 等）。
+     * 兄弟字段而不是放宽 `introduction` 的元素类型：`introduction`（块）在前，条在后；条之后不能再出现
+     * 引言正文块（悬置段），pmToIr 遇到时报 unsupportedContent。条的 `level` 从 1 起，嵌套深度即编号路径长度。
+     */
+    introductionClauses?: IRClause[]
+  }
   body: IRChapter[]
   appendices: IRAppendix[]
   bibliography: IRBibEntry[]
+  /**
+   * 参考文献标题（GB/T 46687.2 4.5.3，M-4.5.3-02）。仅当标题不是默认的“参考文献”时存在：
+   * 缺省 = 默认标题，渲染器与导出器输出“参考文献”；存在 = 自定义标题（如“参考书目”），替换默认值。
+   * 只做检查、不产生标签；标题中不能插入条文脚注（Resolver 报 invalid-footnote）。
+   */
+  bibliographyTitle?: IRInline[]
   /** 文档级序列化资源目录；资源负载不得藏在渲染器私有属性中。 */
   resources?: IRResource[]
   index?: IRIndex
@@ -156,6 +171,26 @@ export interface IRAppendix {
 export type IRBlock =
   | IRParagraph | IRList | IRTable | IRFigure
   | IRFormula | IRNote | IRExample | IRWarning | IRQuote | IRCodeBlock
+  | IRDefList
+  | IRNormRefList
+
+/**
+ * 规范性引用文件清单（GB/T 46687.2 4.4.2.3.1～3，GB/T 1.1—2020 8.6.3、10.3.4；M-4.4.2.3-02）。
+ * 只能出现在 `secType === 'norm-refs'` 的章内（Resolver 校验，别处报 error）。
+ * 清单是块，不带编号：条目之前不给序号（8.6.3.1），Resolver 只给条目 xmlId `ref_<n>`（R-8，n 为清单内序号）。
+ */
+export interface IRNormRefList { kind: 'normRefList'; id: NodeId; entries: IRNormRef[] }
+
+/**
+ * 清单条目。std：标准化文件，`ref`（文件编号，XML 的 std-ref）+ `title`（文件名称）两段行内，
+ * 两段之间的版式间隔（空一个汉字）由渲染阶段添加，不入内容（M-4.4.2.3-03）；
+ * mixed：非标准化文件，保持原有格式的一段行内内容（M-4.4.2.3-04）。
+ * 不复用 IRBibEntry：参考文献条目同时存“显示文本 + 结构化字段”并参与 [n] 编号与 bibRef 类型检查，
+ * 规范性引用条目无编号，只需要单一来源。
+ */
+export type IRNormRef =
+  | { kind: 'normRef'; id: NodeId; entryType: 'std'; ref: IRInline[]; title: IRInline[] }
+  | { kind: 'normRef'; id: NodeId; entryType: 'mixed'; content: IRInline[] }
 
 export interface IRParagraph {
   kind: 'paragraph'
@@ -191,6 +226,21 @@ export interface IRTable {
   style?: IRTableStyle
   /** 整张表适用的单位说明。 */
   unit?: string
+  /**
+   * 列模型（WP8.M G8，M-6.1-03；对应 GB/T 46687.2 6.1 `table/col`，导入的 `colgroup/col` 同样展开到这里）。
+   * 长度必须等于表格网格列数（不足的列用 `{}`）。这里保存的是源文档给出的**名义**列宽（通常是百分数），
+   * 与单元格的 `columnWidths`（编辑器拖拽得到的 CSS px）互相独立、互不推导：显示时 px 优先于名义宽度，
+   * 导出 `col` 时只取本字段。HTML / DOCX / XML 本阶段都不排版它（输出边界报 unsupported-output）。
+   */
+  columns?: IRTableColumn[]
+}
+/** `table/col` 的属性（6.1、6.3.2）：`width` 为主；`col/@style` 无语义无用例，不建模。 */
+export interface IRTableColumn {
+  width?: IRMeasure
+  /** 取值 left | center | right | justify（6.3.2）。 */
+  textAlign?: string
+  /** 取值 top | middle | bottom | baseline（6.3.2）。 */
+  verticalAlign?: string
 }
 export interface IRTableRow {
   id: NodeId
@@ -247,6 +297,14 @@ export interface IRCellStyle {
   borderRight?: IRMeasure
   borderBottom?: IRMeasure
   borderLeft?: IRMeasure
+  /**
+   * 分边边框样式（WP8.M G8，M-6.3.3.1-01，GB/T 46687.2 6.3.3.2）：取值 solid | dashed | dotted | none。
+   * 宽度仍由上面的 `border*`（IRMeasure）承载；不建模分边颜色（D-M-15）。
+   */
+  borderTopStyle?: string
+  borderRightStyle?: string
+  borderBottomStyle?: string
+  borderLeftStyle?: string
   paddingTop?: IRMeasure
   paddingRight?: IRMeasure
   paddingBottom?: IRMeasure
@@ -261,6 +319,10 @@ export interface IRFigure {
   orientation: 'portrait' | 'landscape'
   /** 资源引用（dataURL 或资源 key，与现状一致） */
   src: string
+  /**
+   * 图中的注（M-8.2-11）：作用域 = 本图，标签沿用「注：/注n：」。生产模型以 figure 内的 `note` 子节点保存，
+   * 每个注必须是 id 为 `${note.id}.p0` 的单段落（与术语条目、表注行内的注同一规则）。
+   */
   notes: IRNote[]
   resourceId?: NodeId
   imageWidth?: IRMeasure
@@ -270,6 +332,24 @@ export interface IRFigure {
   unit?: string
   descriptions?: IRFigureDescription[]
   groups?: IRFigureGroup[]
+  /** 图例（M-8.5-01～06）：图下的符号说明。项复用公式“式中”与缩略语的 IRDefItem；不赋标签、不可被引用。 */
+  legend?: IRLegend
+  /**
+   * 图中的示例（M-8.4-03）：作用域 = 本图，标签沿用「示例：/示例n：」。生产模型以 figure 内的 `example` 子节点保存，
+   * 顺序固定在 notes 之后（D-M-09：PM 不保存注与示例的交错顺序）；每个示例必须是 id 为 `${example.id}.p0` 的单段落。
+   */
+  examples?: IRExample[]
+}
+
+/**
+ * 图例（NISO STS: fig/legend > title? + def-list[@list-content="figure"]，WP8.M / G3，M-8.5-01～06）。
+ * 项与公式“式中”、缩略语共用 {@link IRDefItem}（P8）；PM 侧共用 whereItem/whereTerm/whereDefinition 节点。
+ * 图例项不赋标签、不可被引用（C-T-31：图例不带 id 输出）。items 不得为空（生产 Schema 要求 whereItem+）。
+ */
+export interface IRLegend {
+  id: NodeId
+  title?: IRInline[]
+  items: IRDefItem[]
 }
 
 export interface IRFigureGroup {
@@ -301,8 +381,29 @@ export interface IRFormula {
   mathml?: string
   numbered: boolean
   /** 「式中：」键值对（NISO STS: disp-formula > legend > def-list） */
-  whereList: { id: NodeId; term: IRInline[]; definition: IRInline[] }[]
+  whereList: IRDefItem[]
   notes?: IRFormulaNote[]
+}
+
+/**
+ * 定义列表的项（WP8.M / G2）：公式“式中”、缩略语（以及后续的图例）共用同一形状 { id, term, definition }。
+ * 与 IRFormula.whereList 原有内联元素类型逐字相同，JSON 结构不变；PM 侧共用 whereItem/whereTerm/whereDefinition 节点。
+ */
+export interface IRDefItem {
+  id: NodeId
+  term: IRInline[]
+  definition: IRInline[]
+}
+
+/**
+ * 块级定义列表（WP8.M / G2，M-10.1.4-01）：目前只用于缩略语（NISO STS: def-list[@list-content="abbreviation"]）。
+ * 公式的“式中”仍是 IRFormula.whereList（既有字段不得改型），图例是 IRFigure.legend（G3），三者位置不同、不合并成万能容器。
+ * 每项由 Resolver 赋标签：label 与 refText 为术语纯文本，xmlId 为 abb_<k>（D-M-02）；项内不得有条文脚注。
+ */
+export interface IRDefList {
+  kind: 'defList'
+  id: NodeId
+  items: IRDefItem[]
 }
 
 export interface IRFormulaNote {
@@ -326,6 +427,11 @@ export interface IRTermEntry {
   level?: number
   term: IRInline[]
   termEn?: IRInline[]
+  /**
+   * 术语所属领域（GB/T 46687.2 `tbx:subjectField`，M-9.2.9-01）。条目级，不分语言。
+   * 内容为纯领域名称，不含 `〈〉`：附加标点由渲染阶段添加；定位于术语名之后、定义之前，不进入 tailOrder。
+   */
+  subjectField?: IRInline[]
   definition: IRBlock[]
   /** 最多一个定义、最多一个来源（对齐 ISO OSD/NISO STS 约束） */
   source?: IRInline[]
@@ -461,6 +567,22 @@ export interface IRInline {
   formula?: IRInlineFormula
   /** 原位条文脚注：引用与内容共同移动/删除，编号由 Resolver 派生。 */
   footnote?: IRFootnote
+  /**
+   * 行内图（NISO STS: inline-graphic，WP8.M / G3，M-8.3-02）：纯行内叶子，text 恒为空，不带 marks/style，不另造实体 id。
+   * 只允许出现在 IRParagraph.content，且不在术语条目或脚注内（Resolver 校验）。
+   */
+  image?: IRInlineImage
+}
+
+/**
+ * 行内图的载荷。resourceId 沿用既有资源引用键（外部 ID 重映射与 dangling-resource 校验自动覆盖）；
+ * size 对应 `@specific-use="size:S|M|L"`（8.3 表 2，S/M/L = 单/双/三倍行高；size:T 仅块级 graphic 可用，不收）。
+ */
+export interface IRInlineImage {
+  src: string
+  resourceId?: NodeId
+  alt?: string
+  size?: 'S' | 'M' | 'L'
 }
 
 export interface IRInlineStyle {
@@ -484,10 +606,15 @@ export type IRMark =
   | { type: 'bibRef'; targetId: NodeId }
   | { type: 'termRef'; targetId: NodeId }
   | { type: 'tableFootnoteRef'; targetId: NodeId; id?: NodeId }
+  /** 正文中对标准化文件的引用（10.2，M-10.2-01/-02）：被标记的文本即 std-ref 内容；与 mixedCitation 互斥。 */
+  | { type: 'stdRef' }
+  /** 正文中对非标准化文件的引用（10.1.7，M-10.1.7-01）：保持原有格式；与 stdRef 互斥。 */
+  | { type: 'mixedCitation' }
 
 export type IRReferenceTargetKind =
   | 'chapter' | 'clause' | 'appendix' | 'figure' | 'table' | 'formula'
   | 'note' | 'example' | 'bibliography' | 'term' | 'index' | 'paragraph'
+  | 'listItem' | 'abbreviation'
 
 export interface IRProblem {
   code: 'hanging-paragraph' | 'dangling-xref' | 'heading-skip'
@@ -495,6 +622,8 @@ export interface IRProblem {
       | 'dangling-footnote' | 'unreferenced-footnote' | 'invalid-footnote'
       | 'unsupported-content' | 'dangling-resource' | 'dangling-index-target'
       | 'dangling-typed-ref'
+      /** 规范性引用文件条目末尾有标点（GB/T 1.1—2020 10.3.4，WP8.M G1）；仅 warning */
+      | 'trailing-punctuation'
   nodeId: NodeId | null
   severity: 'error' | 'warning'
   /** 中文，面向最终用户 */
@@ -516,6 +645,12 @@ export interface ResolvedLabel {
   xmlId: string
   /** 交叉引用处的展示文本："5.1.2" / "表A.1" / "公式(3)" */
   refText: string
+  /**
+   * 仅术语条目（IRTermEntry）有：术语条目独立 xmlId `term_<编号>`（M-9.2.1-05、R-3）。
+   * 编号与该条目的 label 相同（嵌套条目为 `term_3.1.2`）；与 `xmlId`（`sec_<编号>`）并存、互不覆盖。
+   * 只由 Resolver 产生，渲染器不得自行拼接。
+   */
+  termEntryXmlId?: string
 }
 
 // ---------- 编号策略（计划 2.4 节；gbT11Strategy 实现属 WP3） ----------
@@ -540,4 +675,10 @@ export interface NumberingStrategy {
   example(index: number, totalInScope: number): string
   /** "[1]" */
   bibEntry(seq: number): string
+  /**
+   * 有序列项标记（WP8.M / G4，全角右括号，与显示的列项符号一致）：alpha -> "a）"，number -> "1）"，roman -> "i）"。
+   * 可选：缺省时 Resolver 用内置实现（strategies.listItem），不破坏既有第三方策略。
+   * 仅 alpha / number / roman 会被询问；返回空串表示该类型不编号。index 从 1 起。
+   */
+  listItem?(listType: IRList['listType'], index: number): string
 }

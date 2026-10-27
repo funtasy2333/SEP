@@ -2,6 +2,7 @@ import { Extension, type Editor } from '@tiptap/core'
 import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model'
 import { Plugin, PluginKey, TextSelection, type EditorState } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { hasReferenceTo, hasReferenceWithin } from '../../utils/textBlockFormat'
 import { dispatchInlineFormulaRequest } from './inlineFormulaEditing'
 
 declare module '@tiptap/core' {
@@ -70,6 +71,20 @@ function moveToCell(editor: Editor, cell: 'term' | 'definition'): boolean {
   return true
 }
 
+/** 光标在图例标题里：移到同一图例第一项的符号格。 */
+function enterFirstLegendItem(editor: Editor): boolean {
+  const { $from } = editor.state.selection
+  const legendDepth = ancestorDepth($from, 'figureLegend')
+  if (legendDepth < 0) return false
+  const legend = $from.node(legendDepth)
+  const firstItem = legend.firstChild?.type.name === 'figureLegendTitle' ? 1 : 0
+  if (legend.childCount <= firstItem) return false
+  let itemPos = $from.start(legendDepth)
+  for (let index = 0; index < firstItem; index += 1) itemPos += legend.child(index).nodeSize
+  editor.view.dispatch(editor.state.tr.setSelection(cursorInItem(editor.state.doc, itemPos, 'term')).scrollIntoView())
+  return true
+}
+
 function insertItemAfter(editor: Editor): boolean {
   const { $from } = editor.state.selection
   const itemDepth = ancestorDepth($from, 'whereItem')
@@ -95,13 +110,21 @@ function deleteEmptyItem(editor: Editor): boolean {
   const listDepth = itemDepth - 1
   const listNode = $from.node(listDepth)
   const itemPos = $from.before(itemDepth)
-  const [from, to] = listNode.childCount === 1
+  // WP8.M G2：缩略语项是 crossRef(abbreviation) 的目标。被引用的项（或被引用项所在、将随之整体删除的表）不删除，
+  // 否则引用会悬空、导出校验失败；与删除被引用的空条、术语条目的守卫一致。公式式中项不是引用目标，行为不变。
+  // WP8.M G3：图例（figureLegend）容器里除项外还有可选的标题节点，项数要扣除它；标题有文字时不随最后一项一起整体删除（会丢字）。
+  const hasLegendTitle = listNode.type.name === 'figureLegend' && listNode.firstChild?.type.name === 'figureLegendTitle'
+  const removesList = listNode.childCount - (hasLegendTitle ? 1 : 0) === 1
+  if (removesList && hasLegendTitle && listNode.firstChild!.content.size > 0) return true
+  if (removesList ? hasReferenceWithin(editor.state.doc, listNode) : hasReferenceTo(editor.state.doc, itemNode.attrs.nodeId)) return true
+  const [from, to] = removesList
     ? [$from.before(listDepth), $from.after(listDepth)]
     : [itemPos, itemPos + itemNode.nodeSize]
   const tr = editor.state.tr.delete(from, to)
   // 光标回到上一条释义末尾；没有上一条时回到公式源码末尾。
   const index = $from.index(listDepth)
-  if (listNode.childCount > 1 && index > 0) {
+  // 上一个兄弟必须是项：图例的第一项之前是标题节点，不能当作项去取符号格 / 释义格。
+  if (listNode.childCount > 1 && index > 0 && listNode.child(index - 1).type.name === 'whereItem') {
     const prevPos = itemPos - listNode.child(index - 1).nodeSize
     tr.setSelection(cursorInItem(tr.doc, prevPos, 'definition'))
   } else {
@@ -112,6 +135,17 @@ function deleteEmptyItem(editor: Editor): boolean {
 }
 
 const emptyTermKey = new PluginKey('whereEmptyTerm')
+
+/**
+ * whereTerm 所在的容器节点类型：公式的 `whereList`，缩略语表 `defList`（WP8.M G2），或图例 `figureLegend`（WP8.M G3），
+ * 三者共用项节点。公式式中的符号格可插入行内公式（点击空格占位）；缩略语与图例的符号格按纯文本处理，不弹出公式输入。
+ */
+function termContainerName(doc: PMNode, termPos: number): string | undefined {
+  const $pos = doc.resolve(termPos)
+  return $pos.depth >= 1 ? $pos.node($pos.depth - 1).type.name : undefined
+}
+
+const PLAIN_TERM_CONTAINERS = new Set(['defList', 'figureLegend'])
 
 /** 结构化式中的编辑行为：添加条目、符号格与释义格之间的 Enter/Tab/Backspace、空符号格占位与点击插入。 */
 export const WhereListEditing = Extension.create({
@@ -160,6 +194,8 @@ export const WhereListEditing = Extension.create({
       editor.state.selection.$from.parent.type.name === name
     return {
       Enter: ({ editor }) => {
+        // 图例标题（WP8.M G3）：回车进入第一项的符号格，而不是把标题劈成两个标题节点（Schema 只允许一个）。
+        if (editor.state.selection.$from.parent.type.name === 'figureLegendTitle') return enterFirstLegendItem(editor)
         if (inCell(editor, 'whereTerm')) return moveToCell(editor, 'definition')
         if (inCell(editor, 'whereDefinition')) return insertItemAfter(editor)
         return false
@@ -178,15 +214,19 @@ export const WhereListEditing = Extension.create({
           const decorations: Decoration[] = []
           state.doc.descendants((node, pos) => {
             if (node.type.name === 'whereTerm') {
-              if (node.content.size === 0) decorations.push(Decoration.node(pos, pos + node.nodeSize, { class: 'where-term-empty' }))
+              if (node.content.size === 0) {
+                const plain = PLAIN_TERM_CONTAINERS.has(termContainerName(state.doc, pos) ?? '')
+                decorations.push(Decoration.node(pos, pos + node.nodeSize, { class: plain ? 'def-term-empty' : 'where-term-empty' }))
+              }
               return false
             }
             return true
           })
           return DecorationSet.create(state.doc, decorations)
         },
-        handleClickOn(_view, _pos, node, nodePos, _event, direct) {
+        handleClickOn(view, _pos, node, nodePos, _event, direct) {
           if (!direct || node.type.name !== 'whereTerm' || node.content.size > 0) return false
+          if (PLAIN_TERM_CONTAINERS.has(termContainerName(view.state.doc, nodePos) ?? '')) return false
           dispatchInlineFormulaRequest({ mode: 'insert', pos: nodePos + 1, latex: '' })
           return true
         },

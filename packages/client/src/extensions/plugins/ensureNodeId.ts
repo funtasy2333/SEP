@@ -27,6 +27,9 @@ export const NODE_ID_TYPES = [
   'stdList',
   'note',
   'example',
+  // WP8.M G7-b：块内容的注/示例（IR 的 IRNote/IRExample 实体 id）
+  'noteBlock',
+  'exampleBlock',
   'appendix',
   'bibliography',
   // Structured document metadata records (metadataBlock is a non-semantic container).
@@ -47,6 +50,10 @@ export const NODE_ID_TYPES = [
   'formulaInline',
   'formulaNote',
   'whereItem',
+  // 缩略语表（WP8.M G2）：容器带 nodeId；项复用 whereItem。
+  'defList',
+  // 图例（WP8.M G3）：容器带 nodeId（IRLegend.id）；项复用 whereItem，标题 figureLegendTitle 与行内图 inlineImage 无 id。
+  'figureLegend',
   // Figure/resource and typed bibliography semantic records.
   'figureGroup',
   'figureDescription',
@@ -64,6 +71,10 @@ export const NODE_ID_TYPES = [
   // 表格行/单元格与公式 whereList 项的 ID 来源策略在 WP3 设计时确定
   'stdListItem',
   'bibEntry',
+  // 规范性引用文件清单及其条目（IR 的 IRNormRefList / IRNormRef 带 id；子节点 normRefStdRef/normRefStdTitle 无 id）。
+  'normRefList',
+  'normRefStd',
+  'normRefMixed',
   // Resolver assigns stable IDs to table rows/cells as well as their semantic table wrapper.
   'tableRow',
   'tableCell',
@@ -352,6 +363,7 @@ function collectSliceReferenceIds(slice: Slice): Set<string> {
       indexTarget: ['targetId'],
       indexSeeAlso: ['targetId'],
       figureImage: ['resourceId'],
+      inlineImage: ['resourceId'],
     }
     for (const field of targetFields[node.type.name] ?? []) addReference(node.attrs[field])
   })
@@ -448,6 +460,7 @@ function remapPastedNode(node: PMNode, remaps: PastedIdRemaps): PMNode {
     indexTarget: ['targetId'],
     indexSeeAlso: ['targetId'],
     figureImage: ['resourceId'],
+    inlineImage: ['resourceId'],
   }
   for (const field of referenceFields[node.type.name] ?? []) {
     const mapped = remapId(node.attrs[field], remaps)

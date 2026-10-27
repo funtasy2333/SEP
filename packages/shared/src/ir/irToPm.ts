@@ -6,11 +6,11 @@
  * the production schema is rejected with a path-bearing diagnostic.
  */
 import type {
-  IRAppendix, IRBibEntry, IRBlock, IRChapter, IRClause, IRClauseChild, IRDoc,
-  IRDocMeta, IRInline, IRList, IRMeasure, IRTable, IRTermEntry,
+  IRAppendix, IRBibEntry, IRBlock, IRChapter, IRClause, IRClauseChild, IRDefItem, IRDefList, IRDoc,
+  IRDocMeta, IRExample, IRInline, IRLegend, IRList, IRMeasure, IRNormRefList, IRNote, IRTable, IRTermEntry,
 } from './types'
 import type { PMJsonNode } from './pmToIr'
-import { hasSemanticExtensions } from './extensions'
+import { hasSemanticExtensions, isInlineNoteContent } from './extensions'
 import { unsupportedFootnoteContent } from './footnotePayload'
 import { diagnoseInlineProjection, findCrossRefRunProjectionIssues } from './inlineProjectionDiagnostics'
 import {
@@ -18,6 +18,9 @@ import {
   type AuthoringContext, type FragmentContextRules, type IRFragmentNode,
 } from './fragmentContext'
 import { orderedTermTail } from './termTailOrder'
+import {
+  CELL_BORDER_STYLES, CELL_BORDER_STYLE_KEYS, columnAlignProblem, columnWidthProblem, isCellBorderStyle, tableGridWidth,
+} from './tableColumns'
 
 export interface IRToPmDiagnostic {
   path: string
@@ -55,7 +58,7 @@ const nonEmpty = <T>(value: T[] | undefined): T[] => value ?? []
 const targetKinds: Record<string, string> = {
   chapter: 'chapter', clause: 'clause', appendix: 'appendix', figure: 'figure',
   table: 'table', formula: 'formula', note: 'note', example: 'example',
-  bibliography: 'bibEntry', term: 'term', index: 'index', paragraph: 'paragraph',
+  bibliography: 'bibEntry', term: 'term', index: 'index', paragraph: 'paragraph', listItem: 'listItem', abbreviation: 'abbreviation',
 }
 
 function markToPm(mark: IRTextMark): { type: string; attrs?: PmAttrs } {
@@ -77,6 +80,8 @@ function markToPm(mark: IRTextMark): { type: string; attrs?: PmAttrs } {
     }
     case 'bibRef': return { type: 'bibRef', attrs: { targetId: mark.targetId } }
     case 'termRef': return { type: 'termRef', attrs: { targetId: mark.targetId } }
+    case 'stdRef': return { type: 'stdRef' }
+    case 'mixedCitation': return { type: 'mixedCitation' }
   }
 }
 
@@ -107,6 +112,12 @@ function inlineToPm(run: IRInline): PMJsonNode[] {
     result.push(node('footnoteRef', withId(run.footnote.id, {
       content: inlinesToPm(run.footnote.content),
     })))
+  }
+  if (run.image) {
+    // 行内图（M-8.3-02）：行内原子节点，无 nodeId；marks/style 无处可存（diagnoseInlineProjection 已报错）。
+    result.push(node('inlineImage', {
+      src: run.image.src, resourceId: run.image.resourceId ?? null, alt: run.image.alt ?? '', size: run.image.size ?? null,
+    }))
   }
   for (const mark of tableFootnoteRefs) result.push(node('tableFootnoteRef', withId(mark.id ?? '', { targetId: mark.targetId })))
   return result
@@ -219,14 +230,44 @@ function noteContent(ownerId: string, content: IRBlock[], path: string, errors: 
     }
     return inlinesToPm(paragraph.content)
   }
-  errors.push({ path, nodeId: content[0]?.id, reason: '生产 note/example 只接受一段行内内容，IR 中存在多块或非段落内容' })
+  errors.push({ path, nodeId: content[0]?.id, reason: '该位置的注/示例只支持单段落，IR 中存在多块或非段落内容' })
   return []
+}
+
+/**
+ * 块位置的注/示例（WP8.M G7-b，D-M-05）。canonical 规则保证往返稳定：
+ * - content 恰为一个 id 等于 `${owner.id}.p0` 的段落 → 旧 `note`/`example`（行内内容，输出与此前逐字节相同）；
+ * - 其余且全为段落/列项 → `noteBlock`/`exampleBlock`，子块各自保留 nodeId（段落 id 取自 `stdParagraph.nodeId`）；
+ * - 含表/图/公式等其他块 → IRToPmError（原文 C-S-31 的注/示例内容只有 p、list）。
+ * 术语条目、表注行内的注/示例仍用旧节点（`noteContent`），多块在那些位置继续报错。
+ */
+function noteBlockToPm(block: IRNote | IRExample, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+  const blockType = block.kind === 'note' ? 'noteBlock' : 'exampleBlock'
+  if (block.content.length === 0) {
+    errors.push({ path: `${path}.content`, nodeId: block.id, reason: `生产 ${blockType} 至少需要一个段落或列项` })
+  }
+  const children: PMJsonNode[] = []
+  block.content.forEach((child, index) => {
+    const at = `${path}.content[${index}]`
+    if (child.kind === 'paragraph') {
+      children.push(paragraph(child.id, child.content))
+    } else if (child.kind === 'list') {
+      const list = listToPm(child, at, errors)
+      if (list.type === 'stdList') children.push(list)
+      else errors.push({ path: at, nodeId: child.id, reason: `生产 ${blockType} 中的列项只支持简单列项（每个列项一个段落）` })
+    } else {
+      errors.push({ path: at, nodeId: child.id, reason: `生产 ${blockType} 只接受段落与列项，不支持「${child.kind}」块` })
+    }
+  })
+  return node(blockType, withId(block.id), children)
 }
 
 function termToPm(entry: IRTermEntry, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
   const content: PMJsonNode[] = [
     node('termName', undefined, inlinesToPm(entry.term)),
     ...(entry.termEn ? [node('termNameEn', undefined, inlinesToPm(entry.termEn))] : []),
+    // M-9.2.9-01：领域固定在术语名之后、定义之前，不进入 tailOrder；空数组与缺省等价，不输出空节点。
+    ...(entry.subjectField && entry.subjectField.length > 0 ? [node('termSubjectField', undefined, inlinesToPm(entry.subjectField))] : []),
   ]
   const [mainDefinition] = entry.definition
   if (!mainDefinition) {
@@ -299,7 +340,8 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJso
   if (list.items.length === 0) {
     errors.push({ path: `${path}.items`, nodeId: list.id, reason: '生产列表至少需要一个列项' })
   }
-  if (list.listType === 'roman' || list.listType === 'romanUpper') {
+  // WP8.M G7：小写罗马 roman 由生产 stdList 支持（listType='roman'）；romanUpper 在 GB/T 46687.2 没有取值，仍拒绝。
+  if (list.listType === 'romanUpper') {
     errors.push({
       path: `${path}.listType`,
       nodeId: list.id,
@@ -319,7 +361,7 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJso
 
   const simple = list.items.every(item => item.content.length === 1 && item.content[0]?.kind === 'paragraph')
   if (simple) {
-    const typeByList = { dash: 'dash', number: 'numeric', alpha: 'alpha', boxed: 'boxedNumeric', dot: 'dot' } as const
+    const typeByList = { dash: 'dash', number: 'numeric', alpha: 'alpha', roman: 'roman', boxed: 'boxedNumeric', dot: 'dot' } as const
     const rawType = typeByList[list.listType]
     return node('stdList', withId(list.id, { listType: rawType, level: fixedLevel }), list.items.map((item, index) => {
       const content = item.content[0]
@@ -355,6 +397,35 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJso
   return node('stdList', withId(list.id, { listType: 'dash', level: list.level ?? 1 }), [])
 }
 
+/** `IRTable.columns` → `stdTable.attrs.columns`（WP8.M G8）：每列四个键齐全（缺省为 null），与生产 Schema 的属性形状一致。 */
+function tableColumnsAttr(table: IRTable, path: string, errors: IRToPmDiagnostic[]): PmAttrs[] {
+  const columns = table.columns ?? []
+  const gridWidth = tableGridWidth(table.rows)
+  if (columns.length !== gridWidth) {
+    errors.push({
+      path: `${path}.columns`, nodeId: table.id,
+      reason: `列模型columns有 ${columns.length} 项，与表格网格列数 ${gridWidth} 不符，不能无损转换`,
+    })
+  }
+  return columns.map((column, index) => {
+    const where = `${path}.columns[${index}]`
+    if (column.width) {
+      const problem = columnWidthProblem(column.width.value, column.width.unit)
+      if (problem) errors.push({ path: `${where}.width`, nodeId: table.id, reason: `第${index + 1}列${problem}` })
+    }
+    const textAlign = columnAlignProblem(column.textAlign, undefined)
+    if (textAlign) errors.push({ path: `${where}.textAlign`, nodeId: table.id, reason: `第${index + 1}列${textAlign}` })
+    const verticalAlign = columnAlignProblem(undefined, column.verticalAlign)
+    if (verticalAlign) errors.push({ path: `${where}.verticalAlign`, nodeId: table.id, reason: `第${index + 1}列${verticalAlign}` })
+    return {
+      width: column.width?.value ?? null,
+      widthUnit: column.width?.unit ?? null,
+      textAlign: column.textAlign ?? null,
+      verticalAlign: column.verticalAlign ?? null,
+    }
+  })
+}
+
 function tableToPm(table: IRTable, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
   if (table.rows.length === 0) {
     errors.push({ path: `${path}.rows`, nodeId: table.id, reason: '生产表格至少需要一个表格行' })
@@ -362,6 +433,7 @@ function tableToPm(table: IRTable, path: string, errors: IRToPmDiagnostic[]): PM
   const attrs: PmAttrs = withId(table.id, { orientation: table.orientation, unit: table.unit ?? null, headerRowCount: table.headerRowCount })
   measureAttrs(attrs, 'width', table.width)
   if (table.style) Object.assign(attrs, tableStyleAttrs(table.style))
+  if (table.columns !== undefined) attrs.columns = tableColumnsAttr(table, path, errors)
   const rows = table.rows.map((row, ri) => {
     if (row.cells.length === 0) {
       errors.push({ path: `${path}.rows[${ri}].cells`, nodeId: row.id, reason: '生产表格行至少需要一个单元格' })
@@ -378,7 +450,20 @@ function tableToPm(table: IRTable, path: string, errors: IRToPmDiagnostic[]): PM
         unit: cell.unit ?? null,
       })
       measureAttrs(cellAttrs, 'width', cell.width)
-      if (cell.style) Object.assign(cellAttrs, cellStyleAttrs(cell.style))
+      if (cell.style) {
+        const style = { ...cell.style }
+        // WP8.M G8：非法的分边边框样式不写入 PM（调用方因 errors 非空而收到 IRToPmError），避免带着不合法取值落库。
+        for (const key of CELL_BORDER_STYLE_KEYS) {
+          const value = style[key]
+          if (value === undefined || isCellBorderStyle(value)) continue
+          errors.push({
+            path: `${path}.rows[${ri}].cells[${ci}].style.${key}`, nodeId: cell.id,
+            reason: `边框样式「${key}」的取值「${String(value)}」不在 ${CELL_BORDER_STYLES.join(' | ')} 之内`,
+          })
+          delete style[key]
+        }
+        Object.assign(cellAttrs, cellStyleAttrs(style))
+      }
       return node(cell.header ? 'tableHeader' : 'tableCell', cellAttrs, blocksToPm(cell.content, `${path}.rows[${ri}].cells[${ci}].content`, errors))
     })
     return node('tableRow', withId(row.id, row.style ? rowStyleAttrs(row.style) : {}), cells)
@@ -397,7 +482,6 @@ function tableToPm(table: IRTable, path: string, errors: IRToPmDiagnostic[]): PM
 }
 
 function figureToPm(figure: Extract<IRBlock, { kind: 'figure' }>, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
-  if (figure.notes.length) errors.push({ path: `${path}.notes`, nodeId: figure.id, reason: '生产Figure节点没有可保存图中注的子节点' })
   const width = figure.imageWidth
   const height = figure.imageHeight
   const content: PMJsonNode[] = [
@@ -413,8 +497,37 @@ function figureToPm(figure: Extract<IRBlock, { kind: 'figure' }>, path: string, 
       ...group.descriptions.map(description => node('figureDescription', withId(description.id), inlinesToPm(description.content))),
       ...group.resourceRefs.map(targetId => node('figureResourceRef', { targetId })),
     ])),
+    // 生产 Schema 固定顺序 figureLegend? note* example*（D-M-09：不保存注与示例的交错顺序）；
+    // 图中的注/示例与术语条目、表注行内的注同一规则：单个 id 为 `${id}.p0` 的段落，否则带路径报错。
+    ...(figure.legend ? [legendToPm(figure.legend, `${path}.legend`, errors)] : []),
+    ...figure.notes.map(note => node('note', withId(note.id), noteContent(note.id, note.content, `${path}.notes.${note.id}`, errors))),
+    ...(figure.examples ?? []).map(example => node('example', withId(example.id), noteContent(example.id, example.content, `${path}.examples.${example.id}`, errors))),
   ]
   return node('figure', withId(figure.id, { orientation: figure.orientation, unit: figure.unit ?? null }), content)
+}
+
+/** 定义列表的项 → whereItem（whereTerm + whereDefinition）；公式 whereList 与缩略语 defList 共用（WP8.M / G2，P8）。 */
+function defItemsToPm(items: IRDefItem[]): PMJsonNode[] {
+  return items.map(item => node('whereItem', withId(item.id), [
+    node('whereTerm', undefined, inlinesToPm(item.term)),
+    node('whereDefinition', undefined, inlinesToPm(item.definition)),
+  ]))
+}
+
+/** 图例（M-8.5-01～06）→ figureLegend（figureLegendTitle? whereItem+）；项与公式“式中”、缩略语共用 whereItem（P8）。 */
+function legendToPm(legend: IRLegend, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+  // PM 的 figureLegend 要求 whereItem+；空图例无法投影，明确报错而不是静默丢弃。
+  if (legend.items.length === 0) errors.push({ path: `${path}.items`, nodeId: legend.id, reason: '图例没有任何项，生产 Schema 要求至少一项' })
+  return node('figureLegend', withId(legend.id), [
+    ...(legend.title && legend.title.length > 0 ? [node('figureLegendTitle', undefined, inlinesToPm(legend.title))] : []),
+    ...defItemsToPm(legend.items),
+  ])
+}
+
+function defListToPm(list: IRDefList, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+  // PM 的 defList 要求 whereItem+；空列表无法投影，明确报错而不是静默丢弃。
+  if (list.items.length === 0) errors.push({ path: `${path}.items`, nodeId: list.id, reason: '缩略语列表没有任何项，生产 Schema 要求至少一项' })
+  return node('defList', withId(list.id), defItemsToPm(list.items))
 }
 
 function formulaToPm(formula: Extract<IRBlock, { kind: 'formula' }>, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
@@ -424,12 +537,7 @@ function formulaToPm(formula: Extract<IRBlock, { kind: 'formula' }>, path: strin
   const source = formula.sourceInlines ?? [{ text: formula.latex }]
   const content: PMJsonNode[] = [node('formulaContent', undefined, inlinesToPm(source))]
   if (formula.notes?.length) content.push(...formula.notes.map(note => node('formulaNote', withId(note.id), inlinesToPm(note.content))))
-  if (formula.whereList.length) {
-    content.push(node('whereList', undefined, formula.whereList.map(item => node('whereItem', withId(item.id), [
-      node('whereTerm', undefined, inlinesToPm(item.term)),
-      node('whereDefinition', undefined, inlinesToPm(item.definition)),
-    ]))))
-  }
+  if (formula.whereList.length) content.push(node('whereList', undefined, defItemsToPm(formula.whereList)))
   return node('formula', withId(formula.id, { latex: formula.latex, mathml: formula.mathml ?? null, numbered: formula.numbered }), content)
 }
 
@@ -440,7 +548,9 @@ function blockToPm(block: IRBlock, path: string, errors: IRToPmDiagnostic[]): PM
     case 'table': return tableToPm(block, path, errors)
     case 'figure': return figureToPm(block, path, errors)
     case 'formula': return formulaToPm(block, path, errors)
+    case 'defList': return defListToPm(block, path, errors)
     case 'note': case 'example': {
+      if (!isInlineNoteContent(block.id, block.content)) return noteBlockToPm(block, path, errors)
       const content = noteContent(block.id, block.content, path, errors)
       return node(block.kind, withId(block.id), content)
     }
@@ -453,7 +563,19 @@ function blockToPm(block: IRBlock, path: string, errors: IRToPmDiagnostic[]): PM
       return node('quoteBlock', withId(block.id), blocksToPm(block.content, path, errors))
     }
     case 'code': return node('codeBlock', withId(block.id, { language: block.language ?? null }), block.text ? [text(block.text)] : [])
+    case 'normRefList': return normRefListToPm(block, path, errors)
   }
+}
+
+/** 规范性引用文件清单（M-4.4.2.3-02/-03/-04）：std 条目写两个子节点，mixed 条目写单段行内内容。 */
+function normRefListToPm(list: IRNormRefList, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+  if (list.entries.length === 0) errors.push({ path, nodeId: list.id, reason: '生产 normRefList 节点要求至少一个条目' })
+  return node('normRefList', withId(list.id), list.entries.map(entry => entry.entryType === 'std'
+    ? node('normRefStd', withId(entry.id), [
+      node('normRefStdRef', undefined, inlinesToPm(entry.ref)),
+      node('normRefStdTitle', undefined, inlinesToPm(entry.title)),
+    ])
+    : node('normRefMixed', withId(entry.id), inlinesToPm(entry.content))))
 }
 
 function childrenToPm(children: IRClauseChild[], path: string, errors: IRToPmDiagnostic[]): PMJsonNode[] {
@@ -615,11 +737,20 @@ export function irToPm(doc: IRDoc, options: IRToPmOptions = {}): PMJsonNode {
   if (hasScalarMeta || rootType === 'standardDoc') content.push(node('coverPage', metaToCover(doc.meta), [node('paragraph')]))
   if (metadata) content.push(metadata)
   if (doc.front.foreword.length) content.push(node('foreword', undefined, blocksToPm(doc.front.foreword, 'front.foreword', errors)))
-  if (doc.front.introduction.length) content.push(node('introduction', undefined, blocksToPm(doc.front.introduction, 'front.introduction', errors)))
+  // 引言：块在前、条在后（IR 约定，条之后不能再有引言正文块）；只有条时也要输出引言容器。
+  const introduction = [
+    ...blocksToPm(doc.front.introduction, 'front.introduction', errors),
+    ...(doc.front.introductionClauses ?? []).map((clause, index) => clauseToPm(clause, `front.introductionClauses[${index}]`, errors)),
+  ]
+  if (introduction.length) content.push(node('introduction', undefined, introduction))
   doc.body.forEach((chapter, index) => content.push(chapterToPm(chapter, `body[${index}]`, errors)))
   doc.appendices.forEach((appendix, index) => content.push(appendixToPm(appendix, `appendices[${index}]`, errors)))
+  // 参考文献标题（M-4.5.3-02）：自定义标题替换默认的“参考文献”；没有条目时容器不存在，标题无处安放，明确报错而非丢弃。
+  if (doc.bibliographyTitle?.length && doc.bibliography.length === 0) {
+    errors.push({ path: 'bibliographyTitle', reason: '生产 bibliography 容器要求至少一个文献条目，自定义标题无处保存' })
+  }
   if (doc.bibliography.length) content.push(node('bibliography', undefined, [
-    node('bibliographyTitle', undefined, [text('参考文献')]),
+    node('bibliographyTitle', undefined, doc.bibliographyTitle?.length ? inlinesToPm(doc.bibliographyTitle) : [text('参考文献')]),
     ...doc.bibliography.map(bibEntryToPm),
   ]))
   if (doc.index) content.push(indexToPm(doc.index, errors))

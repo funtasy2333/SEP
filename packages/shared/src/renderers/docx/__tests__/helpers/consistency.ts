@@ -125,6 +125,8 @@ export function collectNumberedNodeIds(doc: IRDoc): NodeId[] {
   const ids: NodeId[] = []
   for (const b of doc.front.foreword) walkBlock(b, ids)
   for (const b of doc.front.introduction) walkBlock(b, ids)
+  // WP8.M G6：引言中的条（0.1…）同样是「应恰好编号一次」的节点
+  walkContainerChildren(doc.front.introductionClauses ?? [], ids)
   for (const chapter of doc.body) {
     ids.push(chapter.id)
     walkContainerChildren(chapter.children, ids)

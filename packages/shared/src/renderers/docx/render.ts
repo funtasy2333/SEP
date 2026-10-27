@@ -214,10 +214,10 @@ export function renderDocxTraced(
     body += rendered.xml
     finalContentLandscape = rendered.endsLandscape
   }
-  if (doc.front.introduction.length > 0) {
+  if (doc.front.introduction.length > 0 || (doc.front.introductionClauses?.length ?? 0) > 0) {
     body += sectionManager.startSection('introduction')
     ctx.pageFlow.startSection()
-    const rendered = insertLandscapeSections(renderIntroduction(ctx, doc.front.introduction, toc.introductionBookmark), 'introduction', sectionManager)
+    const rendered = insertLandscapeSections(renderIntroduction(ctx, doc.front.introduction, doc.front.introductionClauses ?? [], toc.introductionBookmark), 'introduction', sectionManager)
     body += rendered.xml
     finalContentLandscape = rendered.endsLandscape
   }
@@ -244,7 +244,7 @@ export function renderDocxTraced(
   if (doc.bibliography.length > 0) {
     body += sectionManager.startSection('bibliography')
     ctx.pageFlow.startSection()
-    const rendered = insertLandscapeSections(renderBibliography(ctx, doc.bibliography, toc.bibliographyBookmark), 'bibliography', sectionManager)
+    const rendered = insertLandscapeSections(renderBibliography(ctx, doc.bibliography, toc.bibliographyBookmark, doc.bibliographyTitle), 'bibliography', sectionManager)
     body += rendered.xml
     finalContentLandscape = rendered.endsLandscape
   }

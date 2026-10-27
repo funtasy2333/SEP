@@ -175,8 +175,9 @@
 
   <!--
     条文块（出现在 sec/app 内的各种块级元素）。
-    fn 作为块：正文脚注定义位置原文没有规定（D-T-10，待 WP8.M 决定），暂与行内的 fn 并收；STS 1.2 的 sec 内容不含 fn，
-    属 46687.2 范围内的待决扩展（README 偏差表）。ref-list 作为块：规范性引用文件章内的清单（4.4.2.3.1）。
+    fn 不作为块：正文脚注的定义位置原文没有规定（D-T-10），WP8.M 设计评审已定案（D-M-01，方案 A）：正文 fn 是行内元素，
+    写在引用它的 p 内、紧随其 xref[ref-type=fn]（STS 1.2 允许，无需国标扩展）；STS 1.2 的 sec 内容也不含 fn，所以 block.any 不收 fn，
+    sec/app 的直接子元素 fn 由 RELAX NG 与 validate.py 的 REJECT 规则拒绝。ref-list 作为块：规范性引用文件章内的清单（4.4.2.3.1）。
     graphic 作为块：7.4 示例中公式图片是 disp-formula 的兄弟元素（M-7.4-13 的 path 却写作 disp-formula/graphic，已两种都容纳）。
     array（5.8）、disp-formula-group：矩阵 import 为 reject，但 rejectKind 为 implementation（IR 暂时无法保存，格式本身接受），
     故收入 schema，由导入器暂拒；fn-group 为 format 类 reject（原文无此标签用法），不在 schema 中。
@@ -197,7 +198,6 @@
       <ref name="el.disp-formula-group"/>
       <ref name="el.graphic"/>
       <ref name="el.def-list"/>
-      <ref name="el.fn"/>
       <ref name="el.ref-list"/>
     </choice>
   </define>

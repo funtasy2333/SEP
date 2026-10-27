@@ -77,7 +77,7 @@ PR #45 在 `9ad90668` 和 `df27182a` 上的两轮 review 共提出 7 条 P2 问�
 | 脚注 crossRef 的 canonical targetId 被误判缺目标 | 与普通引用统一使用 targetId ?? refId；生产 Schema 往返后 Resolver 无 invalid-footnote |
 | 简单列项丢段落稳定 ID | 无法保留的原生 IR 段落 ID 通过 IRToPmError 拒绝；五种受支持列表的派生段落 ID 及对应引用往返有效 |
 | 显式章角色被标题推断覆盖 | 生产 chapter.secType 持久化并优先读取；四种角色均覆盖非标准标题或与标题相反的角色 |
-| 罗马列项被静默降级 | roman/romanUpper 均返回带位置诊断，不改为 numeric |
+| 罗马列项被静默降级 | roman/romanUpper 均返回带位置诊断，不改为 numeric（**WP8.M G7-a 修订**：小写罗马 roman 现为受支持类型，往返成功；仅 romanUpper 仍返回带位置诊断） |
 | 公式 numbered:false 被 Schema 丢弃 | 新增 nullable 生产属性，显式 false 保留；后续 Resolver 标签保持；旧文档默认编号及 JSON byte golden 不变 |
 | 表头行数被单元格类型推断覆盖 | 独立保存 headerRowCount，覆盖显式 0/1/2 与混合单元格标志；旧文档缺省继续推断 |
 | 显式列表级别被规范化 | 与生产固定级别冲突时拒绝，覆盖嵌套 StarterList 分支 |
@@ -92,7 +92,7 @@ PR #45 在 `9ad90668` 和 `df27182a` 上的两轮 review 共提出 7 条 P2 问�
 
 新复审提出 3 条 P2：注/示例段落 ID 丢失、文本样式 HTML 回读丢失、表格单元格单位 HTML 回读丢失。本次已逐条修复：
 
-- IR 投影对独立 note/example、术语 notes/examples、表 notes 五种入口校验派生段落 ID；不匹配时拒绝转换并返回 path/nodeId。有效 ID 回读保留，指向注段落及注中指向章节的 crossRef 均无 Resolver error。warning 段落 ID 保留；相邻公式说明、whereList、表脚注是行内数据，图注明确拒绝，未发现同类段落 ID 静默丢失。
+- IR 投影对独立 note/example、术语 notes/examples、表 notes 五种入口校验派生段落 ID；不匹配时拒绝转换并返回 path/nodeId（**WP8.M G7-b 修订**：独立的块位置 note/example 现投影为 noteBlock/exampleBlock 并保留段落 id，不再拒绝；术语 notes/examples、表 notes 三种入口仍拒绝）。有效 ID 回读保留，指向注段落及注中指向章节的 crossRef 均无 Resolver error。warning 段落 ID 保留；相邻公式说明、whereList、表脚注是行内数据，图注明确拒绝，未发现同类段落 ID 静默丢失。
 - `wp6HtmlRoundtrip.test.ts` 使用生产 Schema 的 DOMSerializer/DOMParser 复现 HTML 路径，初始 12 项全部失败。修复后 14 项通过，覆盖七个样式属性、样式与加粗叠加、连续三次 HTML 往返、td/th 单位及原单元格正文、跨度/列宽/格式保持、外部普通表格、有无单位、相邻数值度量和公式/表头布尔数值属性。单位显示标签排除于粘贴正文，避免重复污染内容。
 - shared 完整回归 42 个文件、899 项通过；client 完整回归 35 个文件、246 项通过，隔离 API 验收默认跳过 1 项。shared tsc、client vue-tsc/Vite 构建通过，仅现有大包体提示。未改 golden、依赖、lockfile、数据库；本轮 HTML 验证使用生产 DOM 路径，未重复真实浏览器或 SQLite 冷重开验收。
 

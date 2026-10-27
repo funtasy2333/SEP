@@ -20,7 +20,7 @@ export const TITLE_TYPES: ReadonlySet<string> = new Set([
 ])
 
 const BLOCK_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
-  'paragraph', 'list', 'table', 'figure', 'formula', 'note', 'example', 'warning', 'quote', 'code',
+  'paragraph', 'list', 'table', 'figure', 'formula', 'note', 'example', 'warning', 'quote', 'code', 'defList',
 ])
 
 /** 与 pmToIr 的 `convertBlock` 一致：哪些 PM 节点类型会读成 IR 块。 */
@@ -28,14 +28,24 @@ const BLOCK_BY_PM_TYPE: ReadonlyMap<string, NodeKind> = new Map<string, NodeKind
   ['stdParagraph', 'paragraph'], ['paragraph', 'paragraph'],
   ['stdList', 'list'], ['bulletList', 'list'], ['orderedList', 'list'],
   ['stdTable', 'table'], ['figure', 'figure'], ['formula', 'formula'],
-  ['note', 'note'], ['example', 'example'], ['warning', 'warning'],
+  // WP8.M G7-b：块内容的注/示例读成 IR 的 note/example（pmToIr.convertBlock 同构），可整体寻址、移动、删除。
+  ['note', 'note'], ['example', 'example'], ['noteBlock', 'note'], ['exampleBlock', 'example'], ['warning', 'warning'],
   ['quoteBlock', 'quote'], ['blockquote', 'quote'], ['codeBlock', 'code'],
+  // WP8.M G2：缩略语表读成 IR 块 defList；写作片段不能创建它（与 warning/quote/code 同类，可删除/移动，不能整体替换）。
+  ['defList', 'defList'],
 ])
+
+/** 引言容器直属的条（GB/T 1.1—2020 8.4，编号 0.1、0.2…）：可寻址，但写作片段的「引言」上下文只允许块，不含条。 */
+export function isIntroductionClause(located: Pick<LocatedNode, 'kind' | 'parent'>): boolean {
+  return located.kind === 'clause' && 'container' in located.parent && located.parent.container === 'introduction'
+}
 
 export const KIND_LABELS: Record<NodeKind, string> = {
   chapter: '章', clause: '条', appendix: '附录', termEntry: '术语条目', bibEntry: '参考文献条目',
   paragraph: '段落', list: '列项', table: '表', figure: '图', formula: '公式', note: '注',
-  example: '示例', warning: '警告块', quote: '引文块', code: '代码块',
+  example: '示例', warning: '警告块', quote: '引文块', code: '代码块', defList: '缩略语表',
+  // 规范性引用文件清单（WP8.M G1）：可读成 IR 块，但不可单独寻址/创建（不在 BLOCK_KINDS 与 BLOCK_BY_PM_TYPE 内），这里只供提示文案。
+  normRefList: '规范性引用文件清单',
 }
 
 export const CONTAINER_LABELS: Record<DocumentContainer, string> = {
@@ -104,16 +114,20 @@ function nodeIdOf(node: PMJsonNode): string | undefined {
   return typeof id === 'string' && id.length > 0 ? id : undefined
 }
 
-type ChildMode = 'blocks' | 'section' | 'bibliography'
+/**
+ * `introduction`：引言容器。块在前、条在后（GB/T 1.1—2020 8.4，WP8.M G6）；条可寻址（编号 0.1、0.2…），
+ * 但引言不直接容纳术语条目（pmToIr 不把引言直属的 termDef 读成 IR）。
+ */
+type ChildMode = 'blocks' | 'introduction' | 'section' | 'bibliography'
 
 function childKind(mode: ChildMode, type: string): NodeKind | undefined {
   if (mode === 'bibliography') return type === 'bibEntry' ? 'bibEntry' : undefined
   const block = BLOCK_BY_PM_TYPE.get(type)
   if (block) return block
-  if (mode === 'section') {
+  if (mode === 'section' || mode === 'introduction') {
     if (type === 'clause') return 'clause'
-    if (type === 'termDef') return 'termEntry'
   }
+  if (mode === 'section' && type === 'termDef') return 'termEntry'
   return undefined
 }
 
@@ -182,7 +196,7 @@ export function indexDocument(root: PMJsonNode): DocIndex {
         break
       case 'introduction':
         index.rootIndices.introduction.push(rootIndex)
-        visit(child, path, { container: 'introduction' }, { parent: 'introduction' }, 'blocks', 1)
+        visit(child, path, { container: 'introduction' }, { parent: 'introduction' }, 'introduction', 1)
         break
       case 'bibliography':
         index.rootIndices.bibliography.push(rootIndex)

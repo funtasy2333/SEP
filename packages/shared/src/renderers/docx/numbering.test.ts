@@ -158,11 +158,14 @@ describe('numbering.ts：静态部分（16 个 abstractNum + 8 个固定实例�
     })
   })
 
-  it('A12–A15：首层字母/数字用全角右括号，次层统一用间隔号', () => {
+  // WP8.M G7-c（D-M-06 A 真排）：原断言 A14 与 A15 的 L0 都是 decimal、且 numbering.xml 里没有任何罗马数字格式
+  // （「旧罗马类型降级为数字列项」契约）。现 A14 为小写罗马 lowerRoman（M-5.7-04）；A15 仍是 decimal 占位槽
+  // （大写罗马没有原文取值），所以 numbering.xml 里 lowerRoman 恰出现一次，upperRoman 仍不出现。
+  it('A12–A15：首层字母/数字/小写罗马用全角右括号，次层统一用间隔号；A15 是 decimal 占位槽', () => {
     const expectFmt: [string, string][] = [
       ['12', 'lowerLetter'],
       ['13', 'decimal'],
-      ['14', 'decimal'],
+      ['14', 'lowerRoman'],
       ['15', 'decimal'],
     ]
     for (const [id, l0Fmt] of expectFmt) {
@@ -176,15 +179,15 @@ describe('numbering.ts：静态部分（16 个 abstractNum + 8 个固定实例�
       expect(lvlAttr(lv.get(1)!, 'w:suff')).toBe('tab')
       expect(lvlInd(lv.get(1)!)).toEqual({ 'w:left': '1260', 'w:hanging': '420' })
       for (const ilvl of [0, 1]) {
-        expect(lvlRFontsAttrs(lv.get(ilvl)!)).toEqual({
-          'w:ascii': '宋体',
-          'w:eastAsia': '宋体',
-          'w:hAnsi': '宋体',
-          'w:cs': '宋体',
-        })
+        // WP8.M G7-c：A14 L0 的标识 ASCII 用 Times New Roman（宋体的 ASCII 字母半角等宽，iii） 就超出 2 字悬挂量）；全角括号仍是宋体
+        const romanLabel = id === '14' && ilvl === 0
+        expect(lvlRFontsAttrs(lv.get(ilvl)!)).toEqual(romanLabel
+          ? { 'w:ascii': 'Times New Roman', 'w:eastAsia': '宋体', 'w:hAnsi': 'Times New Roman', 'w:cs': 'Times New Roman' }
+          : { 'w:ascii': '宋体', 'w:eastAsia': '宋体', 'w:hAnsi': '宋体', 'w:cs': '宋体' })
       }
     }
-    expect(xml).not.toMatch(/w:val="(?:lowerRoman|upperRoman)"/)
+    expect(xml.match(/w:val="lowerRoman"/g)).toHaveLength(1)
+    expect(xml).not.toMatch(/w:val="upperRoman"/)
   })
 
   it('A16 参考文献：编号标识为宋体，ASCII、East Asia、HAnsi 和复杂文字均明确指定', () => {
@@ -296,10 +299,12 @@ describe('numbering.ts：按需实例分配器（§4.3）', () => {
 })
 
 describe('listAbstractNumId：§4.4 列表类型 → 按需实例 abstractNum', () => {
-  it('alpha/number 使用对应编号；旧罗马类型降级到数字编号 A13', () => {
+  // WP8.M G7-c：原断言 roman 与 romanUpper 都降级到数字编号 A13；现 roman → A14（lowerRoman），romanUpper 仍降级到 A13。
+  it('[M-5.7-04] alpha/number/roman 使用对应编号（roman → A14）；大写罗马 romanUpper 仍降级到数字编号 A13', () => {
     expect(listAbstractNumId('alpha')).toBe(ABSTRACT_NUM_ID.listAlpha)
     expect(listAbstractNumId('number')).toBe(ABSTRACT_NUM_ID.listNumber)
-    expect(listAbstractNumId('roman')).toBe(ABSTRACT_NUM_ID.listNumber)
+    expect(listAbstractNumId('roman')).toBe(ABSTRACT_NUM_ID.listRoman)
+    expect(ABSTRACT_NUM_ID.listRoman).toBe(14)
     expect(listAbstractNumId('romanUpper')).toBe(ABSTRACT_NUM_ID.listNumber)
   })
 

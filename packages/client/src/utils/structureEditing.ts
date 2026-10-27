@@ -17,7 +17,8 @@ const convertible = new Set(['stdListItem', 'note', 'example'])
 
 /**
  * 注/示例有编号，可被无类型引用指向；转成 stdParagraph 后没有编号。指向它的引用里，同类型（改为 paragraph）的仍成立，
- * 无类型或类型不再兼容的会失去目标。列项本来就没有编号（指向其正文的 paragraph 引用由 convertTextBlock 改指），不受此限。
+ * 无类型或类型不再兼容的会失去目标。列项不在此列：指向其正文的 paragraph 引用由 convertTextBlock 改指；
+ * 被当作列项引用（listItem 类型或无类型）的有序列项则由 convertTextBlock 直接拒绝（hasListItemReference）。
  */
 const losesNumbering = (doc: PMNode, block: PMNode) =>
   (block.type.name === 'note' || block.type.name === 'example') && hasReferenceLostAsParagraph(doc, block.attrs.nodeId, block.type.name)
@@ -178,12 +179,12 @@ const paragraphMessages: Partial<Record<StructureFailureReason, string>> = {
   'missing-parent': '该条含有子条，改为段落后子条会缺少上级条；请先调整子条级别',
   'level-skip': '改为段落后其后的子条会跳级；请先调整子条级别',
   'hanging-paragraph': '改为段落会在含子条的章（条）里留下悬置段落；请先把正文并入某个条',
-  'referenced-block': '该条、注、示例（或整个列表）被引用，转为段落会让引用失去目标；请先删除或改指引用',
+  'referenced-block': '该条、注、示例、列项（或整个列表）被引用，转为段落会让引用失去目标；请先删除或改指引用',
 }
 
 const listMessages: Partial<Record<StructureFailureReason, string>> = {
   'invalid-selection': '当前位置不能设置列项：请将光标放在正文段落、注、示例或列项内（标题、术语、表格单元格等位置不支持，选区也不能跨类型）；空段落中会插入新列表',
-  'referenced-block': '该注/示例被交叉引用，转为列项后引用会失效；请先修改或删除引用',
+  'referenced-block': '该注/示例被交叉引用，转为列项后引用会失效；被引用的列项也不能改成无序列项；请先修改或删除引用',
 }
 
 /** 把失败原因码转成面向用户的中文提示（不同原因给出不同提示）。 */

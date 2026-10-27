@@ -6,10 +6,15 @@ const css = readFileSync(fileURLToPath(new URL('./standard-nodes.css', import.me
 const editorContentVue = readFileSync(fileURLToPath(new URL('../components/editor/EditorContent.vue', import.meta.url)), 'utf8')
 
 describe('standard-nodes.css 列项标记', () => {
-  it('alpha/number 使用全角右括号，旧罗马类型退化为数字标记', () => {
+  // WP8.M G7-a：原断言「CSS 不得出现 lower/upper-roman 计数器，罗马类型退化为数字标记」；小写罗马现为受支持的列项类型。
+  it('alpha/number 使用全角右括号，罗马列项用 lower-roman 计数器，大写罗马仍退化为数字标记', () => {
     expect(css).toContain("counter(alpha-counter, lower-alpha) '） '")
     expect(css).toContain("counter(numeric-counter) '） '")
-    expect(css).not.toMatch(/counter\([^)]*(?:lower|upper)-roman/)
+    expect(css).toContain("counter(roman-counter, lower-roman) '） '")
+    expect(css).not.toMatch(/counter\([^)]*upper-roman/)
+    // roman 不再共用数字计数器；romanUpper 仍与数字列项共用
+    expect(css).not.toMatch(/\.std-list-roman\s+\.std-list-item::before,\s*\.std-list-romanUpper/)
+    expect(css).toMatch(/\.std-list-numeric \.std-list-item::before,\n\.std-list-romanUpper \.std-list-item::before/)
   })
 
   it('嵌套列项使用间隔号', () => {

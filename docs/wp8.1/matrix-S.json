@@ -1249,14 +1249,14 @@
     "printedPage": "7",
     "pdfPage": 11,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRDoc.front.introductionClauses[]（IRClause，兄弟字段）",
+    "pmNode": "introduction > clause",
     "export": "optional",
     "import": "reject",
     "rejectKind": "implementation",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-S-10",
-    "notes": "设置条的引言 @id=\"sec_0\"，示例 3 为 <sec id=\"sec_0\" sec-type=\"intro\"><title>引言</title><sec id=\"sec_0.1\">…。IR 的引言只含 IRBlock，PM 的 introduction 虽允许 block+ 但 pmToIr 未映射条；需 WP6 扩展。"
+    "notes": "设置条的引言 @id=\"sec_0\"，示例 3 为 <sec id=\"sec_0\" sec-type=\"intro\"><title>引言</title><sec id=\"sec_0.1\">…。WP8.M G6（D-M-10）：pmToIr 映射引言内的条；条之后再出现的正文块（悬置段）报 unsupportedContent。HTML/DOCX 按条标题排版（§7.1）；导入侧本行仍为 reject（WP8.3 再放开）。"
   },
   {
     "id": "M-4.3.4-03",
@@ -1278,14 +1278,14 @@
     "printedPage": "8",
     "pdfPage": 12,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRClause（位于 introductionClauses 内；Resolver 编号 0.n、xmlId sec_0.n）",
+    "pmNode": "clause（introduction 内）",
     "export": "optional",
     "import": "reject",
     "rejectKind": "implementation",
-    "status": "gap-ir",
+    "status": "mapped",
     "conventionRef": "C-S-10",
-    "notes": "引言中的条 @id=\"sec_0.1\"，label 为 0.1。示例 2 把引言写 sec_intro 却把后继条写 sec_0.1，与文字规则不符，不采用（D-S-10）。"
+    "notes": "引言中的条 @id=\"sec_0.1\"，label 为 0.1。示例 2 把引言写 sec_intro 却把后继条写 sec_0.1，与文字规则不符，不采用（D-S-10）。WP8.M G6：Resolver 对引言条按 [0,n,m] 路径编号，并参与悬置段与跳级检查。"
   },
   {
     "id": "M-4.4.2.1-01",
@@ -1460,13 +1460,13 @@
     "printedPage": "10",
     "pdfPage": 14,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRNormRefList (kind='normRefList').entries[]（只能位于 secType='norm-refs' 的章内）",
+    "pmNode": "normRefList",
     "export": "required",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-S-24",
-    "notes": "“规范性引用文件清单被标记为 <ref-list>，其 @content-type 属性值为 norm-refs”。示例写 norm_refs（异写）。IR/PM 没有规范性引用条目结构（章内只有块），见 M-4.4.2.3-03。"
+    "notes": "“规范性引用文件清单被标记为 <ref-list>，其 @content-type 属性值为 norm-refs”。示例写 norm_refs（异写）。WP8.M G1：结构化清单 IRNormRefList + PM normRefList，Resolver 校验章角色与清单个数；导出恒写 norm-refs，导入另收 norm_refs（WP8.3）。"
   },
   {
     "id": "M-4.4.2.3-03",
@@ -1479,13 +1479,13 @@
     "printedPage": "10",
     "pdfPage": 14,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRNormRef{entryType:'std'}.ref / .title（IRInline[]）",
+    "pmNode": "normRefStd > normRefStdRef + normRefStdTitle",
     "export": "required",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-S-24",
-    "notes": "“每个引用的标准化文件都用 <ref> 内的 <std> 标签进行标记；<std> 中包含 <std-ref> 与 <title>”。IR 无结构化条目；方案见 D-S-08。示例中 std-ref 与 title 之间有的有逗号文本，有的没有。"
+    "notes": "“每个引用的标准化文件都用 <ref> 内的 <std> 标签进行标记；<std> 中包含 <std-ref> 与 <title>”。示例中 std-ref 与 title 之间有的有逗号文本，有的没有。WP8.M G1（D-S-08 选项①，不做启发式拆分）：ref 与 title 两段行内内容；条目 xmlId 为 ref_<清单内序号>（Resolver，R-8）。"
   },
   {
     "id": "M-4.4.2.3-04",
@@ -1498,13 +1498,13 @@
     "printedPage": "10",
     "pdfPage": 14,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRNormRef{entryType:'mixed'}.content（IRInline[]）",
+    "pmNode": "normRefMixed",
     "export": "required",
     "import": "accept",
-    "status": "gap-both",
+    "status": "mapped",
     "conventionRef": "C-S-24",
-    "notes": "“规范性引用文件中非标准化文件的引用使用 <mixed-citation> 进行标记（以其原有格式）”。同上缺结构化条目。"
+    "notes": "“规范性引用文件中非标准化文件的引用使用 <mixed-citation> 进行标记（以其原有格式）”。WP8.M G1：mixed 条目保持原有格式，单一来源（不复用 IRBibEntry）。"
   },
   {
     "id": "M-4.4.2.4-01",
@@ -1757,13 +1757,13 @@
     "printedPage": "12",
     "pdfPage": 16,
     "verifiedAgainstImage": true,
-    "irPath": null,
+    "irPath": "IRDoc.bibliographyTitle（IRInline[]，仅标题不是默认“参考文献”时存在）",
     "pmNode": "bibliographyTitle",
     "export": "required",
     "import": "accept",
-    "status": "gap-ir",
+    "status": "mapped",
     "conventionRef": "C-S-27",
-    "notes": "IR 不保存参考文献标题（Resolver 中 container 'bibliographyTitle' 的脚注会被拒绝）；导出固定写“参考文献”，PM 中改过标题则无法保真，需 WP6 决定。"
+    "notes": "WP8.M G1：自定义参考文献标题进入 IR；默认标题不产生该字段，旧文档不被标为语义扩展。Resolver 在标题内禁止脚注。HTML/DOCX 用自定义标题替换默认标题。"
   },
   {
     "id": "M-4.5.3-03",
@@ -2421,13 +2421,13 @@
     "printedPage": "15",
     "pdfPage": 19,
     "verifiedAgainstImage": true,
-    "irPath": "IRNote.content: IRBlock[]",
-    "pmNode": "note（content: inline*）",
+    "irPath": "IRNote.content / IRExample.content（IRBlock[]，多块）",
+    "pmNode": "noteBlock / exampleBlock（块位置）；单段仍用 note / example",
     "export": "required",
     "import": "accept",
-    "status": "gap-pm",
+    "status": "mapped",
     "conventionRef": "C-S-31",
-    "notes": "生产 PM 的 note/example 只含行内内容，IR 的 content 是块数组；含多段落、列表的注/示例无法由 PM 保存（pmToIr 方向无损，irToPm 方向有损）。表、图、公式出现在注中原文无写法，报告。"
+    "notes": "WP8.M G7（D-M-05）：新增 noteBlock / exampleBlock，内容限段落与列项；canonical 规则：content 恰为 id 等于 ${id}.p0 的单段落时仍输出旧 note / example。term / 表 / 图内的注仍只存单段，多块报错。表、图、公式出现在注中原文无写法，报告。HTML 渲染器多块注逐块输出。"
   },
   {
     "id": "M-5.6-06",
@@ -2553,12 +2553,12 @@
     "pdfPage": 20,
     "verifiedAgainstImage": true,
     "irPath": "IRList.listType='roman'",
-    "pmNode": "（无；normalizeStdListType 把 roman 降级为 numeric）",
+    "pmNode": "stdList.attrs.listType='roman'",
     "export": "required",
     "import": "accept",
-    "status": "gap-pm",
+    "status": "mapped",
     "conventionRef": "C-S-32",
-    "notes": "IR 有 roman，生产 PM 不支持罗马列项（irToPm 诊断“生产列表schema不支持 roman”），导出可行、导入保存不可行。"
+    "notes": "WP8.M G7（D-M-06）：PM StdListType 增 roman（romanUpper 仍降级为 numeric）；HTML lower-roman、DOCX lowerRoman 真排。这是对 WP6/WP7“罗马列项降级为数字”契约的有意反转。旧 XML 序列化器仍会把 i) 降为 1)，故旧 XML 阻断，XML46687 放行（roman-lower，WP8.2 消费）。"
   },
   {
     "id": "M-5.7-05",
@@ -3088,13 +3088,13 @@
     "printedPage": "67",
     "pdfPage": 71,
     "verifiedAgainstImage": true,
-    "irPath": null,
-    "pmNode": null,
+    "irPath": "IRNormRef.id（Resolver 赋 xmlId ref_<清单内序号>，label 为空）",
+    "pmNode": "normRefStd / normRefMixed 的 nodeId",
     "export": "optional",
     "import": "accept",
-    "status": "gap-ir",
+    "status": "mapped",
     "conventionRef": "C-S-37",
-    "notes": "说明“如第 5 个引用的参考文献”；“无正文”字面含义不清，解读为没有 <label> 的条目（X-10，未核实）。IR 没有规范性引用条目，需扩展。"
+    "notes": "说明“如第 5 个引用的参考文献”；“无正文”字面含义不清，解读为没有 <label> 的条目（X-10，未核实）。WP8.M G1：规范性引用条目已结构化，Resolver 赋 ref_<清单内序号>（R-8）。"
   },
   {
     "id": "M-E-07",

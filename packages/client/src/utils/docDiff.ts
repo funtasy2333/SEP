@@ -115,13 +115,15 @@ function nodeToText(
       const termName = extractTitle(content, 'termName')
       const termNameEn = extractTitle(content, 'termNameEn')
       const termDef = extractTitle(content, 'termDefinition')
+      const subjectField = extractTitle(content, 'termSubjectField')
       lines.push(`${indent}${numStr} ${termName}`)
       if (termNameEn) lines.push(`${indent}  ${termNameEn}`)
+      if (subjectField) lines.push(`${indent}  〈${subjectField}〉`)
       if (termDef) lines.push(`${indent}  ${termDef}`)
       if (content) {
         for (const c of content) {
           const ct = c.type as string
-          if (!['termName', 'termNameEn', 'termDefinition'].includes(ct)) {
+          if (!['termName', 'termNameEn', 'termSubjectField', 'termDefinition'].includes(ct)) {
             nodeToText(c, lines, depth + 1, ctx)
           }
         }
@@ -180,6 +182,22 @@ function nodeToText(
       break
     }
 
+    // WP8.M G7-b：块内容的注/示例。首个子块是段落时与标签同行（与单段注一致），其余子块缩进一级，
+    // 这样只改注内某个段落或列项的版本也能在对比中看到。
+    case 'noteBlock':
+    case 'exampleBlock': {
+      const label = node.type === 'noteBlock' ? '注：' : '示例：'
+      const [first, ...rest] = content ?? []
+      if (first && (first.type as string) === 'stdParagraph') {
+        lines.push(`${indent}${label}${extractText(first)}`)
+        rest.forEach(c => nodeToText(c, lines, depth + 1, ctx))
+      } else {
+        lines.push(`${indent}${label}`)
+        for (const c of content ?? []) nodeToText(c, lines, depth + 1, ctx)
+      }
+      break
+    }
+
     case 'stdTable': {
       const caption = extractTitle(content, 'tableCaption')
       lines.push(`${indent}[表] ${caption}`)
@@ -197,6 +215,22 @@ function nodeToText(
     case 'figure': {
       const caption = extractTitle(content, 'figureCaption')
       lines.push(`${indent}[图] ${caption}`)
+      // WP8.M G3：图例、图注、图中示例也要进入对比文本，否则只改这些内容的版本看起来相同。
+      for (const c of content ?? []) {
+        if (c.type === 'figureLegend') {
+          const legend = c.content as Array<Record<string, unknown>> | undefined
+          lines.push(`${indent}  [图例] ${extractTitle(legend, 'figureLegendTitle')}`.trimEnd())
+          for (const item of legend ?? []) {
+            if (item.type !== 'whereItem') continue
+            const cells = item.content as Array<Record<string, unknown>> | undefined
+            lines.push(`${indent}    ${extractTitle(cells, 'whereTerm')}：${extractTitle(cells, 'whereDefinition')}`)
+          }
+        } else if (c.type === 'note') {
+          lines.push(`${indent}  注：${extractText(c)}`)
+        } else if (c.type === 'example') {
+          lines.push(`${indent}  示例：${extractText(c)}`)
+        }
+      }
       break
     }
 
@@ -216,6 +250,33 @@ function nodeToText(
             const cells = item.content as Array<Record<string, unknown>> | undefined
             lines.push(`${indent}    ${extractTitle(cells, 'whereTerm')}——${extractTitle(cells, 'whereDefinition')}`)
           }
+        }
+      }
+      break
+    }
+
+    case 'defList': {
+      // 缩略语表（WP8.M G2）：每项一行“缩略语：释义”（全角冒号，与打印排版一致）。
+      // 不走默认分支，否则术语格与释义格各占一行并重复。
+      lines.push(`${indent}[缩略语]`)
+      for (const item of content ?? []) {
+        const cells = item.content as Array<Record<string, unknown>> | undefined
+        lines.push(`${indent}  ${extractTitle(cells, 'whereTerm')}：${extractTitle(cells, 'whereDefinition')}`)
+      }
+      break
+    }
+
+    case 'normRefList': {
+      // 规范性引用文件清单（M-4.4.2.3-02/-03/-04）：每个条目一行，标准化文件为“文件编号　文件名称”（间隔与出件一致，
+      // 一个汉字）；不能落入 default（会把整个清单拼成一行，并把子节点再输出一遍）。
+      for (const entry of content ?? []) {
+        const entryContent = entry.content as Array<Record<string, unknown>> | undefined
+        if ((entry.type as string) === 'normRefStd') {
+          const ref = extractTitle(entryContent, 'normRefStdRef')
+          const title = extractTitle(entryContent, 'normRefStdTitle')
+          lines.push(`${indent}${ref && title ? `${ref}　${title}` : ref + title}`)
+        } else {
+          lines.push(`${indent}${extractText(entry)}`)
         }
       }
       break
@@ -259,6 +320,13 @@ function extractText(node: Record<string, unknown>): string {
   if (node.type === 'formulaInline') {
     const latex = (node.attrs as Record<string, unknown> | undefined)?.latex
     return typeof latex === 'string' && latex ? `$${latex}$` : ''
+  }
+  // 行内图（WP8.M G3）同样没有文字：以 [行内图 …] 记号输出其替代文字、尺寸档位与资源引用，改动才会出现在对比里。
+  if (node.type === 'inlineImage') {
+    const attrs = (node.attrs ?? {}) as Record<string, unknown>
+    const parts = [attrs.alt, attrs.size ? `size=${String(attrs.size)}` : '', attrs.resourceId ? `res=${String(attrs.resourceId)}` : '']
+      .filter((part): part is string => typeof part === 'string' && part.length > 0)
+    return `[行内图${parts.length ? ' ' + parts.join(' ') : ''}]`
   }
   const content = node.content as Array<Record<string, unknown>> | undefined
   if (!content) return ''

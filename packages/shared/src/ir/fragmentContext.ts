@@ -31,6 +31,9 @@
  * | appendix    | `appendixLabel appendixTitle (clause \| stdParagraph \| … \| block)*`   | `IRAppendix.children: IRClauseChild[]`            | 1 级条、块、术语条目        |
  * | bibliography| `bibliographyTitle bibEntry+`                                           | `IRDoc.bibliography: IRBibEntry[]`                | 参考文献条目                |
  *
+ * 引言里的条（GB/T 1.1—2020 8.4，编号 0.1、0.2…）由 pmToIr 读入 `IRDoc.front.introductionClauses`（WP8.M G6）；
+ * 本表仍按「块」收窄：写作片段暂不能在引言内创建条（本阶段不做插入入口）。
+ *
  * 术语条目（termDef）的 `level` 属性在编辑器里由人选择（斜杠菜单「一/二/三级术语条」），Resolver
  * 的编号只看位置、不读该值。写作片段的缺省值与条对齐（`childLevel`：章/附录下为 1，L 级条下为
  * L+1），使显示层级与编号路径深度一致；显式给出的 1~5 的值原样保留（与条不同，不要求一致）。

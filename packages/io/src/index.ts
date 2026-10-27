@@ -24,8 +24,11 @@ export {
   formatFootnoteExportError,
   formatOutputBoundaryDetail,
   formatOutputBoundaryMessage,
+  formatOutputBoundarySummary,
   getFootnoteExportError,
+  getFootnoteExportItems,
   getFootnoteExportProblems,
+  getOutputBoundaryItems,
   getOutputBoundaryProblems,
   outputBoundaryFormatOf,
 } from './exportGuard'

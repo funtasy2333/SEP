@@ -17,13 +17,17 @@ export type StdListType =
   | 'dash'           // 破折号列项 ——
   | 'alpha'          // 字母编号列项 a）b）c）
   | 'numeric'        // 数字编号列项 1）2）3）
+  | 'roman'          // 罗马数字（小写）编号列项 i）ii）iii）（GB/T 46687.2 5.7.2 roman-lower，WP8.M G7）
   | 'dot'            // 间隔号列项 ·
   | 'boxedNumeric'   // 方框数字 ① ② ③
 
-/** 将旧文档中的罗马列表类型降级为仍受支持的数字编号列项。 */
+/**
+ * 归一化列项类型。小写罗马 `roman` 自 WP8.M G7 起是受支持的类型（原先降级为数字，该契约已撤销）；
+ * 大写罗马 `romanUpper` 在 GB/T 46687.2 没有对应取值，仍降级为数字编号列项。
+ */
 export function normalizeStdListType(value: unknown): StdListType {
-  if (value === 'roman' || value === 'romanUpper') return 'numeric'
-  if (value === 'alpha' || value === 'numeric' || value === 'boxedNumeric' || value === 'dot') return value
+  if (value === 'romanUpper') return 'numeric'
+  if (value === 'alpha' || value === 'numeric' || value === 'boxedNumeric' || value === 'dot' || value === 'roman') return value
   return 'dash'
 }
 

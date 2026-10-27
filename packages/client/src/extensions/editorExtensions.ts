@@ -12,16 +12,17 @@ import {
   CoverPage,
   CrossRef,
   Copyright,
-  Example,
+  DefList,
+  Example, ExampleBlock,
   ExternalLink,
   FootnoteLabels,
-  Figure, FigureCaption, FigureCaptionEn, FigureDescription, FigureGroup, FigureImage, FigureResource, FigureResourceRef,
+  Figure, FigureCaption, FigureCaptionEn, FigureDescription, FigureGroup, FigureImage, FigureLegend, FigureLegendTitle, FigureResource, FigureResourceRef,
   FootnoteRef,
   FormulaInline, FormulaNote,
   Foreword, Formula, FormulaContent, FormulaDescription,
   IdentifierPart, IndexBlock, IndexEntry, IndexGroup, IndexSeeAlso, IndexTarget, IndexTerm,
-  Introduction,
-  MetadataBlock, MetadataFields, MetadataLanguage, NodeId, Note,
+  InlineImage, Introduction,
+  MetadataBlock, MetadataFields, MetadataLanguage, NodeId, Note, NoteBlock,
   Publisher, QuoteBlock,
   ReplacedStandard,
   SemanticCodeBlock,
@@ -34,7 +35,9 @@ import {
   Variable, WarningBlock, WhereDefinition, WhereItem, WhereList, WhereListEditing, WhereTerm,
   StdList, StdListItem,
   StdParagraph, StdTable, TableCaption, TableCaptionEn, TableFootnote, TableFootnoteEntry, TableFootnoteRef, TableFootnoteRow, TableNoteRow,
-  TermDef, TermDefinition, TermName, TermNameEn, TermSource,
+  TermDef, TermDefinition, TermName, TermNameEn, TermSource, TermSubjectField,
+  NormRefList, NormRefStd, NormRefStdRef, NormRefStdTitle, NormRefMixed, StdRef, MixedCitation,
+  TableColumnsSync,
 } from './index' // 相对路径：服务端打包也会加载本文件，不认识 '@/' 别名（见 editorSchema.ts）
 
 /** The exact extension list used by EditorView's useEditor call. */
@@ -79,5 +82,15 @@ export function createEditorExtensions(): Extensions {
     WarningBlock, QuoteBlock, SemanticCodeBlock,
     TextStyle, Subscript, Superscript, Variable, ExternalLink, BibRef, TermRef,
     WhereListEditing, InlineFormulaEditing,
+    // WP8.M：新节点一律追加在末尾（不改变 block 组默认填充节点的顺序）。
+    TermSubjectField, DefList,
+    // G7-b：块内容的注/示例（旧的单段 note/example 保持不动）。
+    NoteBlock, ExampleBlock,
+    // G1：规范性引用文件清单（M-4.4.2.3-02/-03/-04）与正文标准引用 mark（M-10.2-01/-02、M-10.1.7-01）。
+    NormRefList, NormRefStd, NormRefStdRef, NormRefStdTitle, NormRefMixed, StdRef, MixedCitation,
+    // G8：列数变化时清空 stdTable.columns（M-6.1-03，D-M-11）。纯插件，不新增节点。
+    TableColumnsSync,
+    // G3：图例（M-8.5-01～06）与行内图（M-8.3-02）；图注、图中示例复用 figure 内的 note / example，无新节点。
+    FigureLegend, FigureLegendTitle, InlineImage,
   ]
 }

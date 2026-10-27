@@ -46,11 +46,18 @@ function blockLines(block: IRBlock, capacity: number): number {
     case 'note':
     case 'example':
       return 1 + block.content.reduce((sum, child) => sum + blockLines(child, capacity), 0)
+    case 'defList':
+      // 缩略语表：每项一个条文段落（缩略语与释义同一行，可回行）
+      return block.items.reduce((sum, item) =>
+        sum + textLines(`${item.term.map((run) => run.text).join('')}：${item.definition.map((run) => run.text).join('')}`, capacity), 0)
     case 'figure':
     case 'formula':
       return 6
     case 'table':
       return 12
+    case 'normRefList':
+      return Math.max(1, block.entries.reduce((sum, entry) => sum + textLines(
+        (entry.entryType === 'std' ? [...entry.ref, ...entry.title] : entry.content).map((run) => run.text).join(''), capacity), 0))
     case 'warning':
     case 'quote':
     case 'code':

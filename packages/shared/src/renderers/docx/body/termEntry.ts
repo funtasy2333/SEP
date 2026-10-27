@@ -7,13 +7,29 @@
  * 同构纯 TypeScript，不引用浏览器或 Node 专有 API。
  */
 
-import type { IRTermEntry } from '../../../ir/types'
+import type { IRInline, IRTermEntry } from '../../../ir/types'
 import { ABSTRACT_NUM_ID } from '../numbering'
 import { renderBlocks, type BlockCtx } from './block'
 import { emitParagraph, warn, type RenderContext } from './context'
 import { plainRun, renderInlines } from './inline'
 
 const SP = '　'
+
+/**
+ * 定义块；有领域（GB/T 46687.2 9.2.9）时在定义之前输出“〈领域〉”：与定义首段同一行、无间隔。
+ * 内容不含 〈〉，附加标点在此渲染阶段添加。定义首块不是段落（原生 IR）或缺少定义时，单独成段排在定义之前。
+ * 前缀并入首段内容后仍走 renderBlock，使分页/横排等流程与普通定义段完全一致。
+ */
+function renderDefinition(ctx: RenderContext, entry: IRTermEntry, bctx: BlockCtx): string {
+  const subjectField = entry.subjectField
+  if (!subjectField || subjectField.length === 0) return renderBlocks(ctx, entry.definition, bctx)
+  const prefix: IRInline[] = [{ text: '〈' }, ...subjectField, { text: '〉' }]
+  const [first, ...rest] = entry.definition
+  if (first?.kind === 'paragraph') {
+    return renderBlocks(ctx, [{ ...first, content: [...prefix, ...first.content] }, ...rest], bctx)
+  }
+  return renderBlocks(ctx, [{ kind: 'paragraph', id: `${entry.id}.subjectField`, content: prefix }, ...entry.definition], bctx)
+}
 
 /**
  * @param level 已经算好的编号级别（= 父节点深度 + 1，由调用方按 §4.4 统一计算并做 5 级上限处理；
@@ -24,7 +40,8 @@ export function renderTermEntry(ctx: RenderContext, entry: IRTermEntry, bctx: Bl
   if (level > 5) {
     warn(ctx, 'clause-too-deep', `术语条目 "${entry.id}" 的编号级别超过 5（${level}），按 5 级输出`, entry.id)
   }
-  const numId = bctx.appendix ? ABSTRACT_NUM_ID.appendixClause : ABSTRACT_NUM_ID.chapter
+  const numId = bctx.introduction ? ctx.numbering.allocIntroClauseInstance()
+    : bctx.appendix ? ABSTRACT_NUM_ID.appendixClause : ABSTRACT_NUM_ID.chapter
 
   // 术语和定义章遵照 10.3.5：编号独占一行，术语另行空两个汉字起排。
   // 其他章节/附录中的测试用术语条目按用户验收要求与编号同排。
@@ -40,7 +57,7 @@ export function renderTermEntry(ctx: RenderContext, entry: IRTermEntry, bctx: Bl
 
   // ③–⑥ 定义 → 示例 → 注 → 来源；作用域键统一为本术语条目的 id（§5.7）
   const innerBctx: BlockCtx = { ...bctx, scopeKey: entry.id }
-  out += renderBlocks(ctx, entry.definition, innerBctx)
+  out += renderDefinition(ctx, entry, innerBctx)
   out += renderBlocks(ctx, entry.examples, innerBctx)
   out += renderBlocks(ctx, entry.notes, innerBctx)
 

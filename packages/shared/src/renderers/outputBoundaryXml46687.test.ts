@@ -11,6 +11,10 @@ import type { IRDoc, IRInline } from '../ir/types'
 /**
  * XML46687 在 WP8.1 支持矩阵确定前，允许表与特殊检查与 XML 完全相同（WP8.2 再放开）。
  * 本文件锁定这一点：任何一处让二者分叉的改动都必须同时更新这里。
+ *
+ * 已知例外（唯一一处）：小写罗马列项 `list.listType === 'roman'`（WP8.M G7，M-5.7-04）。旧 XML 序列化器会把它降为阿拉伯数字
+ * （toXmlListType），为避免静默降级，`XML` 对它报 unsupported-output；`XML46687` 放行（GB/T 46687.2 5.7.2 有 roman-lower，
+ * WP8.2 消费）。下面的「已知例外」用例显式列出这一差异；其余用例用的文档都不含罗马列项，一致性不受影响。
  */
 
 const base = (): IRDoc => ({
@@ -173,6 +177,32 @@ describe('XML46687 输出边界目前与 XML 完全一致', () => {
     expect(caught).toBeInstanceOf(UnsupportedOutputError)
     expect((caught as UnsupportedOutputError).problems).toEqual(getOutputSupportProblems(doc, 'XML46687'))
     expect(() => assertOutputSupported(base(), 'XML46687')).not.toThrow()
+  })
+
+  it('已知例外：罗马列项（roman-lower）——旧 XML 阻断（旧序列化器降为阿拉伯数字），XML46687 放行；去掉这一项后二者仍逐项相同', () => {
+    const doc = pushChild(richDoc(), {
+      kind: 'list', id: 'roman-list', listType: 'roman',
+      items: [{ id: 'roman-item', content: [{ kind: 'paragraph', id: 'roman-item.p0', content: [{ text: '项' }] }] }],
+    })
+    const romanPath = `doc.body[0].children[${doc.body[0]!.children.length - 1}].listType`
+    const xml = getOutputSupportProblems(doc, 'XML')
+    const xml46687 = getOutputSupportProblems(doc, 'XML46687')
+    expect(paths(xml)).toContain(romanPath)
+    expect(paths(xml46687)).not.toContain(romanPath)
+    expect(xml.find(problem => problem.path === romanPath)).toMatchObject({ code: 'unsupported-output', nodeId: 'roman-list' })
+    // 除这一条外，XML 与 XML46687 逐项相同（含顺序、nodeId、path、消息）
+    expect(asXml(xml46687)).toEqual(xml.filter(problem => problem.path !== romanPath))
+    // 只含罗马列项的最小文档：XML 一条、XML46687 为空
+    const minimal = pushChild(base(), {
+      kind: 'list', id: 'only-roman', listType: 'roman',
+      items: [{ id: 'only-roman-i', content: [{ kind: 'paragraph', id: 'only-roman-i.p0', content: [{ text: '项' }] }] }],
+    })
+    expect(paths(getOutputSupportProblems(minimal, 'XML'))).toEqual(['doc.body[0].children[1].listType'])
+    expect(getOutputSupportProblems(minimal, 'XML46687')).toEqual([])
+    expect(getOutputSupportProblems(minimal, 'HTML')).toEqual([])
+    expect(getOutputSupportProblems(minimal, 'DOCX')).toEqual([])
+    expect(() => assertOutputSupported(minimal, 'XML')).toThrow(UnsupportedOutputError)
+    expect(() => assertOutputSupported(minimal, 'XML46687')).not.toThrow()
   })
 
   it('OutputBoundaryFormat 四个取值都可传入，旧的三个取值保持原样', () => {

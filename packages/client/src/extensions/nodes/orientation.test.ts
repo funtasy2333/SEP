@@ -8,10 +8,11 @@ import { describe, expect, it } from 'vitest'
 import { Figure, FigureCaption, FigureCaptionEn, FigureImage } from './figure'
 import { StdTable, TableCaption, TableCaptionEn, TableFootnote, TableFootnoteEntry, TableFootnoteRow, TableNoteRow } from './std-table'
 import { FootnoteRef, TableFootnoteRef } from './footnotes'
-import { Note } from './note'
+import { FigureLegend, FigureLegendTitle } from './figure-legend'
+import { Example, Note } from './note'
 import { ChapterTitle } from './chapter'
 import { serializeToXml } from '../../serializer/xmlSerializer'
-import { FigureDescription, FigureGroup, FigureResourceRef } from './semantic'
+import { FigureDescription, FigureGroup, FigureResourceRef, WhereDefinition, WhereItem, WhereTerm } from './semantic'
 
 const TestChapter = Node.create({
   name: 'chapter',
@@ -45,6 +46,13 @@ function createSchema() {
     FigureDescription,
     FigureGroup,
     FigureResourceRef,
+    // WP8.M G3：figure 的内容表达式尾部追加了 figureLegend? note* example*，手工拼的 schema 必须带上它们引用的节点。
+    FigureLegend,
+    FigureLegendTitle,
+    WhereItem,
+    WhereTerm,
+    WhereDefinition,
+    Example,
   ])
 }
 

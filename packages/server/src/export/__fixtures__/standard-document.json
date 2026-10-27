@@ -337,6 +337,7 @@
                 "backgroundColor": null,
                 "cellPadding": null,
                 "cellPaddingUnit": null,
+                "columns": null,
                 "orientation": "portrait"
               },
               "content": [
@@ -403,7 +404,11 @@
                             "paddingBottom": null,
                             "paddingBottomUnit": null,
                             "paddingLeft": null,
-                            "paddingLeftUnit": null
+                            "paddingLeftUnit": null,
+                            "borderTopStyle": null,
+                            "borderRightStyle": null,
+                            "borderBottomStyle": null,
+                            "borderLeftStyle": null
                           },
                           "content": [
                             {
@@ -449,7 +454,11 @@
                             "paddingBottom": null,
                             "paddingBottomUnit": null,
                             "paddingLeft": null,
-                            "paddingLeftUnit": null
+                            "paddingLeftUnit": null,
+                            "borderTopStyle": null,
+                            "borderRightStyle": null,
+                            "borderBottomStyle": null,
+                            "borderLeftStyle": null
                           },
                           "content": [
                             {
@@ -519,7 +528,11 @@
                             "paddingBottom": null,
                             "paddingBottomUnit": null,
                             "paddingLeft": null,
-                            "paddingLeftUnit": null
+                            "paddingLeftUnit": null,
+                            "borderTopStyle": null,
+                            "borderRightStyle": null,
+                            "borderBottomStyle": null,
+                            "borderLeftStyle": null
                           },
                           "content": [
                             {
@@ -565,7 +578,11 @@
                             "paddingBottom": null,
                             "paddingBottomUnit": null,
                             "paddingLeft": null,
-                            "paddingLeftUnit": null
+                            "paddingLeftUnit": null,
+                            "borderTopStyle": null,
+                            "borderRightStyle": null,
+                            "borderBottomStyle": null,
+                            "borderLeftStyle": null
                           },
                           "content": [
                             {

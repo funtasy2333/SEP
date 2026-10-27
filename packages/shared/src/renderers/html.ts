@@ -30,9 +30,12 @@ import type {
   IRDoc,
   IRDocMeta,
   IRFigure,
+  IRDefList,
   IRFormula,
   IRInline,
   IRList,
+  IRNormRef,
+  IRNormRefList,
   IRNote,
   IRExample,
   IRParagraph,
@@ -359,6 +362,9 @@ function renderFigure(fig: IRFigure, ctx: RenderCtx): void {
   )
   const alt = escapeAttr(fig.caption.map((r) => r.text).join(''))
   ctx.push(`<img class="ses-figure-image" src="${escapeAttr(fig.src)}" alt="${alt}" />`)
+  // 图中的注置于图题之上（GB/T 1.1—2020 9.11.1、9.12.2；9.7.5 的编排示例见原 PDF 第 33 页〔印刷页 26〕：
+  // 图 → 标引序号说明 → 图中的注 → 图脚注 → 图编号和图题）。与 DOCX 顺序一致，也使 figcaption 位于 figure 的最后（HTML 要求 figcaption 为首或末子元素）。
+  for (const note of fig.notes) renderNote(note, ctx)
   const captionLabel = ctx.label(fig.id)
   const captionText = renderInlines(fig.caption, ctx)
   ctx.push(
@@ -368,7 +374,6 @@ function renderFigure(fig: IRFigure, ctx: RenderCtx): void {
   if (fig.captionEn && fig.captionEn.length > 0 && ctx.variant === 'screen') {
     ctx.push(`<figcaption class="ses-figure-caption-en" lang="en">${renderInlines(fig.captionEn, ctx)}</figcaption>`)
   }
-  for (const note of fig.notes) renderNote(note, ctx)
   ctx.push('</figure>')
   if (landscape) ctx.push('</div>')
 }
@@ -401,8 +406,47 @@ function renderFormula(formula: IRFormula, ctx: RenderCtx): void {
   }
 }
 
+/**
+ * 缩略语表（M-10.1.4-01/-03/-04/-05，WP8.M G2，设计 7.1 本阶段排版）。
+ * 每项一行：缩略语在前、释义在后，中间是全角冒号“：”，不加空格（GB/T 46687.2—2026 印刷页 2 的 3.2 缩略语实排）。
+ * 冒号只在此处渲染时添加，IR 与 PM 中不存；写成文字，复制与 PDF 取文都能得到，与 DOCX 一致。
+ * 每项就是一个条文段落（`ses-paragraph`：首行空两个汉字起排、回行顶格，GB/T 1.1-2020 的条文段落式排版），
+ * 因此沿用既有的屏幕与打印段落样式，不新增 CSS；不输出“式中：”引导，也不加破折号（那是公式 whereList 的版式）。
+ * 项是 crossRef(targetKind='abbreviation') 的目标，每项都有 Resolver 的 xmlId（abb_<k>），与其他带标签的对象一样作为锚点 id 输出。
+ */
+function renderDefList(list: IRDefList, ctx: RenderCtx): void {
+  ctx.push(`<div class="ses-def-list" data-type="def-list"${idAttr(list.id)}>`)
+  for (const item of list.items) {
+    ctx.push(
+      `<p class="ses-paragraph ses-def-item" data-type="def-item"${idAttr(item.id)}${anchorAttr(ctx, item.id)}><span class="ses-def-term">${renderInlines(item.term, ctx)}</span><span class="ses-def-sep">：</span><span class="ses-def-definition">${renderInlines(item.definition, ctx)}</span></p>`,
+    )
+  }
+  ctx.push('</div>')
+}
+
+/**
+ * 注/示例的内容是否需要逐块输出（WP8.M G7-b，M-5.6-05）：多块，或唯一的块不是段落（如只含列项）。
+ * 单段（含空内容）仍走原来的行内拼接，输出与此前逐字节相同。
+ */
+function isMultiBlockContent(content: IRBlock[]): boolean {
+  return content.length > 1 || (content.length === 1 && content[0]!.kind !== 'paragraph')
+}
+
+/** 逐块以块级输出：段落、列项、其余块各自成块（不再拼成一行）。 */
+function renderBlocksAsBlocks(blocks: IRBlock[], ctx: RenderCtx): string {
+  return blocks.map((block) => ctx.capture(() => renderBlock(block, ctx))).join('')
+}
+
 function renderNote(note: IRNote, ctx: RenderCtx): void {
   const marker = ctx.label(note.id) || '注：'
+  if (isMultiBlockContent(note.content)) {
+    // 多块注：标记在左、内容块在右（grid 两列），首段与「注：」同一行，续段与列项回行时与注的内容的文字位置左对齐
+    //（GB/T 1.1—2020 10.4.4.1，与 DOCX 的 SesNote/SesNoteCont 一致）。
+    ctx.push(
+      `<div class="ses-note ses-note-multi" data-type="note"${idAttr(note.id)}${anchorAttr(ctx, note.id)}><span class="ses-note-marker">${escapeHtml(marker)}</span><div class="ses-note-body">${renderBlocksAsBlocks(note.content, ctx)}</div></div>`,
+    )
+    return
+  }
   ctx.push(
     `<div class="ses-note" data-type="note"${idAttr(note.id)}${anchorAttr(ctx, note.id)}><span class="ses-note-marker">${escapeHtml(marker)}</span>${renderBlocksInline(note.content, ctx)}</div>`,
   )
@@ -410,9 +454,43 @@ function renderNote(note: IRNote, ctx: RenderCtx): void {
 
 function renderExample(example: IRExample, ctx: RenderCtx): void {
   const marker = ctx.label(example.id) || '示例：'
+  if (isMultiBlockContent(example.content)) {
+    // 多块示例：「示例：」单独成行（GB/T 1.1—2020 10.4.5），其下逐块输出（与 DOCX 的 SesExLabel/SesExText 一致）。
+    ctx.push(
+      `<div class="ses-example ses-example-multi" data-type="example"${idAttr(example.id)}${anchorAttr(ctx, example.id)}><div class="ses-example-marker">${escapeHtml(marker)}</div>${renderBlocksAsBlocks(example.content, ctx)}</div>`,
+    )
+    return
+  }
   ctx.push(
     `<div class="ses-example" data-type="example"${idAttr(example.id)}${anchorAttr(ctx, example.id)}><span class="ses-example-marker">${escapeHtml(marker)}</span>${renderBlocksInline(example.content, ctx)}</div>`,
   )
+}
+
+// ---------- 规范性引用文件清单（GB/T 1.1—2020 10.3.4；WP8.M G1） ----------
+
+/** 一个汉字的间隙：文件编号或“（所有部分）”与文件名称之间（10.3.4）；是版式，不入 IR 内容 */
+const NORM_REF_GAP = '　'
+
+function renderNormRef(entry: IRNormRef, ctx: RenderCtx): void {
+  // 版式复用 .ses-paragraph（首行缩进 2 字、回行顶格 = 10.3.4 “空两个汉字起排，回行时顶格编排”），不新增样式规则。
+  const attrs = `class="ses-paragraph ses-norm-ref" data-type="norm-ref" data-entry-type="${entry.entryType}"${idAttr(entry.id)}${anchorAttr(ctx, entry.id)}`
+  if (entry.entryType === 'mixed') {
+    // 非标准化文件：保持原有格式，原样输出
+    ctx.push(`<p ${attrs}>${renderInlines(entry.content, ctx)}</p>`)
+    return
+  }
+  const ref = renderInlines(entry.ref, ctx)
+  const title = renderInlines(entry.title, ctx)
+  const refHtml = ref ? `<span class="ses-norm-ref-no">${ref}</span>` : ''
+  const titleHtml = title ? `<span class="ses-norm-ref-title">${title}</span>` : ''
+  // 文件之后不加标点；任一段为空时不留多余间隔
+  ctx.push(`<p ${attrs}>${refHtml}${ref && title ? NORM_REF_GAP : ''}${titleHtml}</p>`)
+}
+
+function renderNormRefList(list: IRNormRefList, ctx: RenderCtx): void {
+  ctx.push(`<div class="ses-norm-ref-list" data-type="norm-ref-list"${idAttr(list.id)}>`)
+  for (const entry of list.entries) renderNormRef(entry, ctx)
+  ctx.push('</div>')
 }
 
 function renderBlock(block: IRBlock, ctx: RenderCtx): void {
@@ -432,11 +510,17 @@ function renderBlock(block: IRBlock, ctx: RenderCtx): void {
     case 'formula':
       renderFormula(block, ctx)
       break
+    case 'defList':
+      renderDefList(block, ctx)
+      break
     case 'note':
       renderNote(block, ctx)
       break
     case 'example':
       renderExample(block, ctx)
+      break
+    case 'normRefList':
+      renderNormRefList(block, ctx)
       break
   }
 }
@@ -454,13 +538,21 @@ function renderTermEntry(entry: IRTermEntry, ctx: RenderCtx): void {
       ? `　<span class="ses-term-name-en" lang="en">${renderInlines(entry.termEn, ctx)}</span>`
       : ''
   ctx.push(`<p class="ses-term-head">${termHtml}${enHtml}</p>`)
-  for (const block of entry.definition) {
+  // 领域（GB/T 46687.2 9.2.9）：“〈领域〉”紧接在定义之前、与定义同一行；内容不含 〈〉，附加标点在此渲染阶段添加。
+  // 定义首块不是段落（原生 IR）或缺少定义时，单独成行排在定义之前。
+  const subjectHtml = entry.subjectField && entry.subjectField.length > 0
+    ? `<span class="ses-term-subject-field" data-type="term-subject-field">〈${renderInlines(entry.subjectField, ctx)}〉</span>`
+    : ''
+  if (subjectHtml && entry.definition[0]?.kind !== 'paragraph') {
+    ctx.push(`<p class="ses-term-def ses-term-subject-line">${subjectHtml}</p>`)
+  }
+  entry.definition.forEach((block, index) => {
     if (block.kind === 'paragraph') {
-      ctx.push(`<p class="ses-term-def"${idAttr(block.id)}${anchorAttr(ctx, block.id)}>${renderInlines(block.content, ctx)}</p>`)
+      ctx.push(`<p class="ses-term-def"${idAttr(block.id)}${anchorAttr(ctx, block.id)}>${index === 0 ? subjectHtml : ''}${renderInlines(block.content, ctx)}</p>`)
     } else {
       renderBlock(block, ctx)
     }
-  }
+  })
   if (entry.source && entry.source.length > 0) {
     ctx.push(`<p class="ses-term-source">${renderInlines(entry.source, ctx)}</p>`)
   }
@@ -537,10 +629,11 @@ function bibSeq(ctx: RenderCtx, id: NodeId): number {
   return m ? Number(m[1]) : Number.MAX_SAFE_INTEGER
 }
 
-function renderBibliography(entries: IRBibEntry[], ctx: RenderCtx): void {
+function renderBibliography(entries: IRBibEntry[], ctx: RenderCtx, title?: IRInline[]): void {
   if (entries.length === 0) return
   ctx.push('<section class="ses-bibliography" data-type="bibliography"' + ctx.anchorIdAttr('sec_bibliography') + ' role="doc-bibliography">')
-  ctx.push('<h2 class="ses-bib-title">参考文献</h2>')
+  // 自定义标题（M-4.5.3-02）替换默认的“参考文献”
+  ctx.push(`<h2 class="ses-bib-title">${title?.length ? renderInlines(title, ctx) : '参考文献'}</h2>`)
   const ordered = [...entries].sort((a, b) => bibSeq(ctx, a.id) - bibSeq(ctx, b.id))
   for (const entry of ordered) {
     ctx.push(
@@ -565,10 +658,17 @@ function tocText(label: string, title: IRInline[]): string {
   return label && t ? `${labelHtml}　${titleHtml}` : labelHtml || titleHtml
 }
 
+/** 引言有内容：正文块或条（WP8.M G6：引言中的条 0.1、0.2……） */
+function hasIntroduction(doc: IRDoc): boolean {
+  return doc.front.introduction.length > 0 || (doc.front.introductionClauses?.length ?? 0) > 0
+}
+
 function collectToc(doc: IRDoc, ctx: RenderCtx): TocEntry[] {
   const entries: TocEntry[] = []
   if (doc.front.foreword.length > 0) entries.push({ level: 1, text: '前言', anchor: 'front_foreword' })
-  if (doc.front.introduction.length > 0) entries.push({ level: 1, text: '引言', anchor: 'front_intro' })
+  // 目次只收「引言」一项：GB/T 1.1 8.2 d) 的条目次“需要时列出”，引言中的条暂不进目次（PDF 目次页码按锚点
+  // front_foreword / front_intro 划分前置分区，见 io/pdfExport.ts，引言条的页码需另行设计）。
+  if (hasIntroduction(doc)) entries.push({ level: 1, text: '引言', anchor: 'front_intro' })
   for (const chapter of doc.body) {
     entries.push({ level: 1, text: tocText(ctx.label(chapter.id), chapter.title), anchor: ctx.xmlId(chapter.id) })
     for (const child of chapter.children) {
@@ -591,7 +691,10 @@ function collectToc(doc: IRDoc, ctx: RenderCtx): TocEntry[] {
       anchor: ctx.xmlId(appendix.id),
     })
   }
-  if (doc.bibliography.length > 0) entries.push({ level: 1, text: '参考文献', anchor: 'sec_bibliography' })
+  if (doc.bibliography.length > 0) {
+    // 目次条目随自定义参考文献标题（M-4.5.3-02）；缺省仍为“参考文献”
+    entries.push({ level: 1, text: doc.bibliographyTitle?.length ? tocText('', doc.bibliographyTitle) : '参考文献', anchor: 'sec_bibliography' })
+  }
   return entries
 }
 
@@ -630,10 +733,12 @@ function renderFront(doc: IRDoc, ctx: RenderCtx): void {
     for (const block of doc.front.foreword) renderBlock(block, ctx)
     ctx.push('</section>')
   }
-  if (doc.front.introduction.length > 0) {
+  if (hasIntroduction(doc)) {
     ctx.push('<section class="ses-introduction" data-type="introduction"' + ctx.anchorIdAttr('front_intro') + ' role="doc-introduction">')
     ctx.push('<h1 class="ses-front-heading">引　言</h1>')
     for (const block of doc.front.introduction) renderBlock(block, ctx)
+    // 引言中的条（8.4）：与正文条同一排版（条标题五号黑体、编号 0.1 取自 Resolver），不给章编号。
+    for (const clause of doc.front.introductionClauses ?? []) renderClause(clause, ctx)
     ctx.push('</section>')
   }
   ctx.push('</div>')
@@ -693,7 +798,7 @@ function renderBody(doc: IRDoc, ctx: RenderCtx): void {
   }
   for (const chapter of doc.body) renderChapter(chapter, ctx)
   for (const appendix of doc.appendices) renderAppendix(appendix, ctx)
-  renderBibliography(doc.bibliography, ctx)
+  renderBibliography(doc.bibliography, ctx, doc.bibliographyTitle)
   // 终结线（10.1.5）：文件最后一个要素之下，居中粗实线，与末要素同页（CSS break-before: avoid）。
   // 若末要素为横排表/图，终结线须留在同一横排命名页上下文，否则回到竖排 body 页会另起空白终结线页。
   const endMark = '<div class="ses-end-mark" role="presentation"></div>'
@@ -757,7 +862,9 @@ function screenStyles(): string {
     .ses-list-dot > .ses-list-item::before { content: "·"; counter-increment: none; }
     .ses-list-number > .ses-list-item::before { content: counter(ses-li) "） "; }
     .ses-list-alpha > .ses-list-item::before { content: counter(ses-li, lower-alpha) "） "; }
-    .ses-list-roman > .ses-list-item::before, .ses-list-romanUpper > .ses-list-item::before { content: counter(ses-li) "） "; }
+    .ses-list-roman > .ses-list-item::before { content: counter(ses-li, lower-roman) "） "; }
+    .ses-list-romanUpper > .ses-list-item::before { content: counter(ses-li) "） "; }
+    .ses-list-roman > .ses-list-item::before { position: static; float: left; min-width: 2em; margin-left: -2em; }
     .ses-list .ses-list:not(.ses-list-number) > .ses-list-item::before { content: "·"; counter-increment: none; }
     .ses-table-block { margin: 16px 0; }
     .ses-table-caption { font-family: "SimHei", "黑体", sans-serif; font-weight: normal; text-align: center; margin: 8px 0 4px; }
@@ -781,6 +888,11 @@ function screenStyles(): string {
     .ses-where-dash { flex: none; }
     .ses-note, .ses-example { padding-left: 2em; font-size: 13px; color: #333; margin: 8px 0; }
     .ses-note-marker, .ses-example-marker { font-family: "SimHei", "黑体", sans-serif; }
+    .ses-note-multi { display: grid; grid-template-columns: max-content 1fr; }
+    .ses-note-body > .ses-paragraph { text-indent: 0; margin: 0; }
+    .ses-note-body > .ses-list, .ses-example-multi > .ses-list { margin-top: 0; margin-bottom: 0; }
+    .ses-example-multi > .ses-example-marker { display: block; }
+    .ses-example-multi > .ses-paragraph { margin: 0; }
     .ses-footnote { font-size: 0.85em; }
     .ses-footnote::before { content: attr(data-label); vertical-align: super; font-size: 0.75em; margin-right: 0.35em; }
     .ses-table-footnote { font-size: 13px; margin-left: calc(3em - 8px); text-indent: -1em; }

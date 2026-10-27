@@ -19,6 +19,8 @@ import type {
   IRChapterChild,
   IRClause,
   IRClauseChild,
+  IRDefItem,
+  IRDefList,
   IRDoc,
   IRDocMeta,
   IRExample,
@@ -34,13 +36,17 @@ import type {
   IRIndexEntry,
   IRIndexGroup,
   IRInlineFormula,
+  IRInlineImage,
   IRInlineStyle,
   IRInline,
+  IRLegend,
   IRReferenceTargetKind,
   IRLanguage,
   IRList,
   IRMark,
   IRMeasure,
+  IRNormRef,
+  IRNormRefList,
   IRNote,
   IROrganization,
   IRParagraph,
@@ -53,6 +59,7 @@ import type {
   IRTableRow,
   IRTermEntry,
   IRTermGroup,
+  IRTableColumn,
   IRTermTailOrderItem,
   IRTermLanguageSet,
   IRTermVariant,
@@ -64,6 +71,9 @@ import type {
   NodeId,
 } from './types'
 import { canonicalTermTailOrder, sameTermTailOrder } from './termTailOrder'
+import {
+  CELL_BORDER_STYLES, CELL_BORDER_STYLE_KEYS, columnAlignProblem, columnWidthProblem, isCellBorderStyle, tableGridWidth,
+} from './tableColumns'
 
 /** ProseMirror JSON 节点（纯对象形态） */
 export interface PMJsonNode {
@@ -175,7 +185,7 @@ const REF_KIND_MAP: Record<string, NonNullable<Extract<IRMark, { type: 'crossRef
   chapter: 'chapter', clause: 'clause', appendix: 'appendix', figure: 'figure',
   table: 'table', formula: 'formula', note: 'note', example: 'example',
   bibEntry: 'bibliography', bibliography: 'bibliography', term: 'term',
-  paragraph: 'paragraph', index: 'index',
+  paragraph: 'paragraph', index: 'index', listItem: 'listItem', abbreviation: 'abbreviation',
 }
 
 function styleFromAttrs(attrs: Record<string, unknown> | undefined): IRInlineStyle | undefined {
@@ -230,6 +240,9 @@ function convertMarks(
         ...(typeof m.attrs?.rel === 'string' ? { rel: m.attrs.rel } : {}),
       }
       out.push({ type: 'externalLink', ...link })
+    } else if (m.type === 'stdRef' || m.type === 'mixedCitation') {
+      // 正文中的标准引用（M-10.2-01/-02、M-10.1.7-01）：无属性，被标记的文本即 std-ref / mixed-citation 内容
+      out.push({ type: m.type })
     } else if (m.type === 'bibRef' || m.type === 'termRef') {
       const targetId = m.attrs?.targetId
       if (typeof targetId === 'string' && targetId.length > 0) {
@@ -271,6 +284,31 @@ function convertMarks(
     }
   }
   return out.length > 0 || style ? { marks: out, ...(style ? { style } : {}) } : undefined
+}
+
+const INLINE_IMAGE_SIZES: readonly NonNullable<IRInlineImage['size']>[] = ['S', 'M', 'L']
+
+function ownerIdOf(node: PMJsonNode, ctx: Ctx): NodeId | null {
+  return typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : ctx.ownerIds.get(node) ?? null
+}
+
+/** inlineImage → IRInlineImage（M-8.3-02）。空的 alt / resourceId 与未设的 size 不进入 IR，使 IR 保持最小。 */
+function convertInlineImage(node: PMJsonNode, ctx: Ctx): IRInlineImage {
+  const attrs = node.attrs
+  const image: IRInlineImage = { src: typeof attrs?.src === 'string' ? attrs.src : '' }
+  if (typeof attrs?.resourceId === 'string' && attrs.resourceId.length > 0) image.resourceId = attrs.resourceId
+  if (typeof attrs?.alt === 'string' && attrs.alt.length > 0) image.alt = attrs.alt
+  const size = attrs?.size
+  if (size !== undefined && size !== null && size !== '') {
+    if (typeof size === 'string' && (INLINE_IMAGE_SIZES as readonly string[]).includes(size)) image.size = size as IRInlineImage['size']
+    else {
+      ctx.unsupportedContent.push({
+        nodeId: ownerIdOf(node, ctx), path: ctx.path(node, '行内图'), nodeType: node.type,
+        reason: `行内图尺寸档位「${String(size)}」无效，只支持 S、M、L（8.3 表 2：单/双/三倍行高）`,
+      })
+    }
+  }
+  return image
 }
 
 /** 把 inline* 内容（text 节点序列）转为 IRInline[] */
@@ -316,6 +354,16 @@ function convertInlines(content: PMJsonNode[] | undefined, ctx: Ctx): IRInline[]
       if (unsupported) ctx.invalidFootnotePayloads.push({ nodeId: id || targetId, reason: unsupported })
       const inline: IRInline = { text: '', marks: [{ type: 'tableFootnoteRef', targetId, id }] }
       ctx.footnoteInlines.set(child, inline)
+      out.push(inline)
+    } else if (child.type === 'inlineImage') {
+      // 行内图（M-8.3-02）：纯行内叶子，IR 里是 { text: '', image }。marks/style 无处可存，明确报告而不是静默丢弃。
+      const inline: IRInline = { text: '', image: convertInlineImage(child, ctx) }
+      if (Array.isArray(child.marks) && child.marks.length > 0) {
+        ctx.unsupportedContent.push({
+          nodeId: ownerIdOf(child, ctx), path: ctx.path(child, '行内图'), nodeType: child.type,
+          reason: '行内图不能带行内格式标记（加粗、引用等），IR 无处保存，已忽略这些标记',
+        })
+      }
       out.push(inline)
     } else if (child.type === 'formulaInline') {
       const id = ctx.id(child)
@@ -395,6 +443,19 @@ function rowStyle(attrs: Record<string, unknown> | undefined, ctx: Ctx, node: PM
 
 function cellStyle(attrs: Record<string, unknown> | undefined, ctx: Ctx, node: PMJsonNode): IRCellStyle | undefined {
   const style: IRCellStyle = scalarStyle(attrs, ['textAlign', 'verticalAlign', 'backgroundColor'])
+  // WP8.M G8（M-6.3.3.1-01）：分边边框样式只接受 solid | dashed | dotted | none；其他取值不能静默改写或丢弃。
+  for (const key of CELL_BORDER_STYLE_KEYS) {
+    const value = attrs?.[key]
+    if (value === undefined || value === null || value === '') continue
+    if (isCellBorderStyle(value)) style[key] = value
+    else {
+      ctx.unsupportedContent.push({
+        nodeId: typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : null,
+        path: '表格/单元格', nodeType: node.type,
+        reason: `边框样式「${key}」的取值「${String(value)}」不在 ${CELL_BORDER_STYLES.join(' | ')} 之内`,
+      })
+    }
+  }
   const measurements: [keyof IRCellStyle, string, string][] = [
     ['borderTop', 'borderTop', 'borderTopUnit'], ['borderRight', 'borderRight', 'borderRightUnit'],
     ['borderBottom', 'borderBottom', 'borderBottomUnit'], ['borderLeft', 'borderLeft', 'borderLeftUnit'],
@@ -426,7 +487,8 @@ const STD_LIST_TYPE_MAP: Record<string, IRList['listType']> = {
   alpha: 'alpha',
   numeric: 'number',
   dot: 'dot',
-  roman: 'number',
+  roman: 'roman',
+  // romanUpper 没有 GB/T 46687.2 取值，PM 也不再产生它；旧文档里残留的按数字列项处理并给出警告。
   romanUpper: 'number',
   boxedNumeric: 'boxed',
 }
@@ -435,7 +497,8 @@ function convertStdList(node: PMJsonNode, ctx: Ctx): IRList {
   const id = ctx.id(node)
   const rawType = String(node.attrs?.listType ?? 'dash')
   let listType = STD_LIST_TYPE_MAP[rawType]
-  if (rawType === 'roman' || rawType === 'romanUpper') {
+  // WP8.M G7：小写罗马 roman 现在是受支持的列项类型，原样映射；只有 romanUpper 仍降级并告警。
+  if (rawType === 'romanUpper') {
     ctx.warnings.push(`旧罗马列项类型「${rawType}」已降级为数字编号列项`)
   }
   if (!listType) {
@@ -504,15 +567,34 @@ function convertNoteLike<K extends 'note' | 'example'>(
 const convertNote = (node: PMJsonNode, ctx: Ctx): IRNote => convertNoteLike('note', node, ctx)
 const convertExample = (node: PMJsonNode, ctx: Ctx): IRExample => convertNoteLike('example', node, ctx)
 
+/**
+ * noteBlock / exampleBlock（WP8.M G7-b）→ IRNote / IRExample，content 为段落与列项块：
+ * 子块各自保留 nodeId（段落 id 取自 stdParagraph.nodeId，不派生）。旧的单段 note/example 仍走 convertNoteLike。
+ */
+function convertNoteBlockLike<K extends 'note' | 'example'>(
+  kind: K,
+  node: PMJsonNode,
+  ctx: Ctx,
+): { kind: K; id: NodeId; content: IRBlock[] } {
+  const id = ctx.id(node)
+  const content: IRBlock[] = []
+  for (const child of node.content ?? []) {
+    if (child.type === 'stdParagraph') content.push({ kind: 'paragraph', id: ctx.id(child), content: convertInlines(child.content, ctx) })
+    else if (child.type === 'stdList') content.push(convertStdList(child, ctx))
+    else ctx.unknown(child.type, kind === 'note' ? '注' : '示例', child)
+  }
+  return { kind, id, content }
+}
+
 function convertFigure(node: PMJsonNode, ctx: Ctx): IRFigure {
   const id = ctx.id(node)
   const images = node.content?.filter((c) => c.type === 'figureImage') ?? []
   const image = images[0]
   if (!image) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '图'), nodeType: node.type, reason: 'figure缺少必须的figureImage，无法完整还原图像内容' })
   if (images.length > 1) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '图'), nodeType: node.type, reason: 'figure包含多个figureImage，但IR只支持一个主图像' })
-  const allowed = new Set(['figureImage', 'figureCaption', 'figureCaptionEn', 'figureUnit', 'figureDescription', 'figureGroup', 'figureResource'])
+  const allowed = new Set(['figureImage', 'figureCaption', 'figureCaptionEn', 'figureUnit', 'figureDescription', 'figureGroup', 'figureResource', 'figureLegend', 'note', 'example'])
   for (const child of node.content ?? []) if (!allowed.has(child.type)) ctx.unknown(child.type, '图', child)
-  for (const type of ['figureCaption', 'figureCaptionEn', 'figureUnit']) {
+  for (const type of ['figureCaption', 'figureCaptionEn', 'figureUnit', 'figureLegend']) {
     const matches = node.content?.filter(child => child.type === type) ?? []
     if (matches.length > 1) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '图'), nodeType: type, reason: 'figure包含多个' + type + '，IR只允许一项' })
   }
@@ -573,7 +655,29 @@ function convertFigure(node: PMJsonNode, ctx: Ctx): IRFigure {
   for (const resourceNode of node.content?.filter((c) => c.type === 'figureResource') ?? []) {
     ctx.resources.push(convertFigureResource(resourceNode, ctx))
   }
+  // 图例（M-8.5-01～06）、图注（M-8.2-11）、图中示例（M-8.4-03）。生产 Schema 固定顺序为 figureLegend? note* example*；
+  // 注与示例用旧的单段 note / example 节点（段落 id 派生为 `${id}.p0`），与术语条目、表注行内的注同一规则。
+  const legendNode = node.content?.find((c) => c.type === 'figureLegend')
+  if (legendNode) fig.legend = convertLegend(legendNode, ctx)
+  for (const child of node.content ?? []) {
+    if (child.type === 'note') fig.notes.push(convertNote(child, ctx))
+  }
+  const examples = (node.content ?? []).filter((c) => c.type === 'example').map((c) => convertExample(c, ctx))
+  if (examples.length > 0) fig.examples = examples
   return fig
+}
+
+/**
+ * figureLegend → IRLegend。项节点与公式“式中”、缩略语共用 whereItem（P8），经 convertDefItems 读取；
+ * 标题节点为空时视为没有标题（不丢信息：空标题无内容）。
+ */
+function convertLegend(node: PMJsonNode, ctx: Ctx): IRLegend {
+  const legend: IRLegend = { id: ctx.id(node), items: [] }
+  const titleNode = node.content?.find((child) => child.type === 'figureLegendTitle')
+  const title = titleNode ? convertInlines(titleNode.content, ctx) : []
+  if (title.length > 0) legend.title = title
+  legend.items = convertDefItems({ type: node.type, content: (node.content ?? []).filter((child) => child.type !== 'figureLegendTitle') }, ctx, '图例')
+  return legend
 }
 
 function convertFigureResource(node: PMJsonNode, ctx: Ctx): IRResource {
@@ -618,6 +722,58 @@ function convertTableCellBlocks(
     seq += 1
   }
   return out
+}
+
+const COLUMN_ATTR_KEYS = new Set(['width', 'widthUnit', 'textAlign', 'verticalAlign'])
+
+/**
+ * `stdTable.attrs.columns`（WP8.M G8，M-6.1-03）→ `IRTable.columns`。
+ * 每项逐字段校验；任何不合法之处都记入 unsupportedContent（不静默丢弃），非法字段不进 IR。
+ * 项数与网格列数不符时整体不进 IR（否则 irToPm 会因长度不符拒绝），同样记入 unsupportedContent。
+ */
+function convertTableColumns(node: PMJsonNode, id: NodeId, rows: IRTableRow[], ctx: Ctx): IRTableColumn[] | undefined {
+  const raw = node.attrs?.columns
+  if (raw === undefined || raw === null) return undefined
+  const problem = (reason: string) => ctx.unsupportedContent.push({
+    nodeId: id, path: ctx.path(node, '表格'), nodeType: node.type, reason: `列模型columns：${reason}`,
+  })
+  if (!Array.isArray(raw)) {
+    problem('必须是数组')
+    return undefined
+  }
+  const columns: IRTableColumn[] = []
+  raw.forEach((item: unknown, index) => {
+    const label = `第${index + 1}列`
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      problem(`${label}必须是对象`)
+      columns.push({})
+      return
+    }
+    const entry = item as Record<string, unknown>
+    for (const key of Object.keys(entry)) {
+      if (!COLUMN_ATTR_KEYS.has(key) && entry[key] !== null && entry[key] !== undefined) problem(`${label}含有不受支持的属性「${key}」`)
+    }
+    const column: IRTableColumn = {}
+    const hasWidth = (entry.width !== undefined && entry.width !== null) || (entry.widthUnit !== undefined && entry.widthUnit !== null)
+    if (hasWidth) {
+      const widthProblem = columnWidthProblem(entry.width, entry.widthUnit)
+      if (widthProblem) problem(`${label}${widthProblem}`)
+      else column.width = { value: entry.width as number, unit: entry.widthUnit as string }
+    }
+    const textAlignProblem = columnAlignProblem(entry.textAlign, undefined)
+    if (textAlignProblem) problem(`${label}${textAlignProblem}`)
+    else if (typeof entry.textAlign === 'string') column.textAlign = entry.textAlign
+    const verticalAlignProblem = columnAlignProblem(undefined, entry.verticalAlign)
+    if (verticalAlignProblem) problem(`${label}${verticalAlignProblem}`)
+    else if (typeof entry.verticalAlign === 'string') column.verticalAlign = entry.verticalAlign
+    columns.push(column)
+  })
+  const gridWidth = tableGridWidth(rows)
+  if (columns.length !== gridWidth) {
+    problem(`有 ${columns.length} 项，与表格网格列数 ${gridWidth} 不符`)
+    return undefined
+  }
+  return columns
 }
 
 function convertStdTable(node: PMJsonNode, ctx: Ctx): IRTable {
@@ -699,6 +855,8 @@ function convertStdTable(node: PMJsonNode, ctx: Ctx): IRTable {
   if (width) table.width = width
   const style = tableStyle(node.attrs, ctx, node)
   if (style) table.style = style
+  const columns = convertTableColumns(node, id, rows, ctx)
+  if (columns) table.columns = columns
   const captionEn = node.content?.find((c) => c.type === 'tableCaptionEn')
   if (captionEn) table.captionEn = convertInlines(captionEn.content, ctx)
   const footnote = node.content?.find((c) => c.type === 'tableFootnote')
@@ -769,6 +927,7 @@ function isInlineAtom(run: IRInline): boolean {
   return Boolean(
     run.formula ||
     run.footnote ||
+    run.image ||
     run.marks?.some(mark => mark.type === 'tableFootnoteRef') ||
     (!run.text && (run.style || run.marks?.length)),
   )
@@ -800,6 +959,28 @@ function trimInlines(inlines: IRInline[]): IRInline[] {
     out.pop()
   }
   return out
+}
+
+/**
+ * 定义列表容器（whereList / defList）的项 → IRDefItem[]。公式“式中”与缩略语共用（WP8.M / G2，P8）：
+ * 项节点都是 whereItem（whereTerm + whereDefinition）。容器内出现非 whereItem 子节点按未知内容报告。
+ */
+function convertDefItems(container: PMJsonNode, ctx: Ctx, where: string): IRDefItem[] {
+  const items: IRDefItem[] = []
+  for (const item of container.content ?? []) {
+    if (item.type !== 'whereItem') {
+      ctx.unknown(item.type, where, item)
+      continue
+    }
+    const term = item.content?.find((child) => child.type === 'whereTerm')
+    const definition = item.content?.find((child) => child.type === 'whereDefinition')
+    items.push({
+      id: ctx.id(item),
+      term: convertInlines(term?.content, ctx),
+      definition: convertInlines(definition?.content, ctx),
+    })
+  }
+  return items
 }
 
 /**
@@ -866,19 +1047,7 @@ function convertFormula(node: PMJsonNode, ctx: Ctx): IRFormula {
   for (const child of node.content ?? []) if (!allowed.has(child.type)) ctx.unknown(child.type, '公式', child)
   const whereList: IRFormula['whereList'] = []
   if (typedWhere) {
-    for (const item of typedWhere.content ?? []) {
-      if (item.type !== 'whereItem') {
-        ctx.unknown(item.type, '公式式中列表', item)
-        continue
-      }
-      const term = item.content?.find((child) => child.type === 'whereTerm')
-      const definition = item.content?.find((child) => child.type === 'whereDefinition')
-      whereList.push({
-        id: ctx.id(item),
-        term: convertInlines(term?.content, ctx),
-        definition: convertInlines(definition?.content, ctx),
-      })
-    }
+    whereList.push(...convertDefItems(typedWhere, ctx, '公式式中列表'))
   } else if (desc) {
     whereList.push(...parseWhereList(convertInlines(desc.content, ctx), id))
   }
@@ -898,6 +1067,35 @@ function convertFormula(node: PMJsonNode, ctx: Ctx): IRFormula {
     whereList,
     ...(notes.length ? { notes } : {}),
   }
+}
+
+// ----- 规范性引用文件清单（M-4.4.2.3-02/-03/-04） -----
+
+/**
+ * normRefList → IRNormRefList。标准化文件条目（normRefStd）的两个子节点分别转为 `ref`（文件编号）与 `title`
+ * （文件名称）；非标准化文件条目（normRefMixed）转为 `content`。条目 ID 取 normRefStd/normRefMixed 的 nodeId，
+ * 子节点无 ID。清单位于非 norm-refs 章不在此报错：章角色可能由标题推断，由 Resolver 判定（见 visitBlock）。
+ */
+function convertNormRefList(node: PMJsonNode, ctx: Ctx): IRNormRefList {
+  const entries: IRNormRef[] = []
+  for (const child of node.content ?? []) {
+    if (child.type === 'normRefStd') {
+      const id = ctx.id(child)
+      let ref: IRInline[] | undefined
+      let title: IRInline[] | undefined
+      for (const part of child.content ?? []) {
+        if (part.type === 'normRefStdRef' && ref === undefined) ref = convertInlines(part.content, ctx)
+        else if (part.type === 'normRefStdTitle' && title === undefined) title = convertInlines(part.content, ctx)
+        else ctx.unknown(part.type, '规范性引用文件条目', part)
+      }
+      entries.push({ kind: 'normRef', id, entryType: 'std', ref: ref ?? [], title: title ?? [] })
+    } else if (child.type === 'normRefMixed') {
+      entries.push({ kind: 'normRef', id: ctx.id(child), entryType: 'mixed', content: convertInlines(child.content, ctx) })
+    } else {
+      ctx.unknown(child.type, '规范性引用文件清单', child)
+    }
+  }
+  return { kind: 'normRefList', id: ctx.id(node), entries }
 }
 
 // ----- 通用块分发 -----
@@ -922,6 +1120,14 @@ function convertBlock(node: PMJsonNode, ctx: Ctx, where: string): IRBlock | null
       return convertNote(node, ctx)
     case 'example':
       return convertExample(node, ctx)
+    case 'defList':
+      return { kind: 'defList', id: ctx.id(node), items: convertDefItems(node, ctx, '缩略语') } satisfies IRDefList
+    case 'noteBlock':
+      return convertNoteBlockLike('note', node, ctx)
+    case 'exampleBlock':
+      return convertNoteBlockLike('example', node, ctx)
+    case 'normRefList':
+      return convertNormRefList(node, ctx)
     case 'warning':
       return { kind: 'warning', id: ctx.id(node), content: convertBlocks(node.content, ctx, '警告') } satisfies IRWarning
     case 'quoteBlock':
@@ -985,6 +1191,18 @@ function convertTermDef(node: PMJsonNode, ctx: Ctx, out: IRTermEntry[]): void {
       case 'termName':
       case 'termNameEn':
         break
+      case 'termSubjectField': {
+        // M-9.2.9-01：条目级领域，固定在术语名之后、定义之前（PM Schema 保证至多一个且位置固定）。
+        // 空节点不丢信息（IR 上无对应内容），直接忽略；脱离 Schema 校验的多个节点则明确报告而非静默覆盖。
+        const subjectField = convertInlines(child.content, ctx)
+        if (subjectField.length === 0) break
+        if (entry.subjectField !== undefined) {
+          ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(child, `术语条目/${id}`), nodeType: child.type, reason: '一个术语条目包含多个领域字段，IR只允许一个' })
+        } else {
+          entry.subjectField = subjectField
+        }
+        break
+      }
       case 'tbxLangSet': {
         entry.languageSets ??= []
         tailOrder.push({ kind: 'languageSet', index: entry.languageSets.length })
@@ -1144,6 +1362,34 @@ function convertClause(node: PMJsonNode, ctx: Ctx): IRClause {
   }
 }
 
+/**
+ * 引言容器 → `front.introduction`（块）+ `front.introductionClauses`（条，GB/T 1.1—2020 8.4）。
+ * IR 约定块在前、条在后，所以条之后再出现的块（悬置段）无处安放：块仍按文档顺序并入 `introduction`
+ * 以免内容消失，同时给出 unsupportedContent，使 Resolver 与全部非 JSON 出口阻断输出，由作者把该块移到条前或条内。
+ * 多个引言容器合并时，后一个容器里的块同样排在前一个容器的条之后，按同一规则诊断。
+ */
+function convertIntroduction(node: PMJsonNode, doc: IRDoc, ctx: Ctx): void {
+  for (const child of node.content ?? []) {
+    if (child.type === 'clause') {
+      const clauses = doc.front.introductionClauses ?? []
+      clauses.push(convertClause(child, ctx))
+      doc.front.introductionClauses = clauses
+      continue
+    }
+    const block = convertBlock(child, ctx, '引言')
+    if (!block) continue
+    if (doc.front.introductionClauses?.length) {
+      ctx.unsupportedContent.push({
+        nodeId: typeof child.attrs?.nodeId === 'string' ? child.attrs.nodeId : null,
+        path: ctx.path(child, '引言'),
+        nodeType: child.type,
+        reason: '引言中条之后的正文块（悬置段）无法保存：GB/T 1.1 要求引言分条后不再有条外正文，请把它移到条之前或某一条之内',
+      })
+    }
+    doc.front.introduction.push(block)
+  }
+}
+
 const CHAPTER_SEC_TYPES: { match: RegExp; secType: IRChapter['secType'] }[] = [
   { match: /^范围$/, secType: 'scope' },
   { match: /^规范性引用文件$/, secType: 'norm-refs' },
@@ -1181,6 +1427,27 @@ function convertAppendix(node: PMJsonNode, ctx: Ctx): IRAppendix {
     // appendixLabel（「（规范性）」字样）由 Resolver/渲染器从 normative 派生，不入 IR
     children: convertClauseChildren(node.content, ctx, '附录', ['appendixLabel', 'appendixTitle']),
   }
+}
+
+/** 参考文献的默认标题；只有与它不同的标题才写入 IR（M-4.5.3-02） */
+const DEFAULT_BIBLIOGRAPHY_TITLE = '参考文献'
+
+/**
+ * bibliographyTitle → `IRDoc.bibliographyTitle`。标题是默认的单个无格式“参考文献”（或空节点）时返回 undefined，
+ * 使旧文档与默认标题不产生新字段（extensionVersion 不变）；其余一律保留（带格式、带引用的自定义标题都写入）。
+ */
+function convertBibliographyTitle(node: PMJsonNode, ctx: Ctx): IRInline[] | undefined {
+  const titleNode = node.content?.find((child) => child.type === 'bibliographyTitle')
+  if (!titleNode) return undefined
+  // 含脚注原子的标题不写入 IR：沿用既有的 unmappedFootnotes 路径（preserveUnmappedFootnotes 报 invalid-footnote，
+  // 阻断所有渲染出口）；PM 文档本身（语义 JSON 的来源）不受影响，作者删除标题中的脚注后即可正常保存与输出。
+  if ((titleNode.content ?? []).some((child) => child.type === 'footnoteRef' || child.type === 'tableFootnoteRef')) return undefined
+  const inlines = convertInlines(titleNode.content, ctx)
+  if (inlines.length === 0) return undefined
+  const [only] = inlines
+  if (inlines.length === 1 && only!.text === DEFAULT_BIBLIOGRAPHY_TITLE
+    && !only!.marks?.length && !only!.style && !only!.formula && !only!.footnote) return undefined
+  return inlines
 }
 
 function convertBibliography(node: PMJsonNode, ctx: Ctx): IRBibEntry[] {
@@ -1328,7 +1595,7 @@ function plainRecord(value: unknown): Record<string, unknown> | undefined {
 
 const IR_REFERENCE_TARGET_KINDS = [
   'chapter', 'clause', 'appendix', 'figure', 'table', 'formula',
-  'note', 'example', 'bibliography', 'term', 'index', 'paragraph',
+  'note', 'example', 'bibliography', 'term', 'index', 'paragraph', 'listItem', 'abbreviation',
 ] as const satisfies readonly IRReferenceTargetKind[]
 
 function isIRReferenceTargetKind(value: unknown): value is IRReferenceTargetKind {
@@ -1355,6 +1622,8 @@ function storedInlines(value: unknown, ctx: Ctx, path: string): IRInline[] {
       continue
     }
     const inline: IRInline = { text: row.text }
+    // 行内图（WP8.M G3）只允许在段落内容里；元数据行内内容没有对应的生产节点，明确报告而不是静默丢弃。
+    if (row.image !== undefined) metadataInlineProblem(ctx, `${itemPath}.image`, '元数据行内内容不支持行内图（行内图只允许出现在段落内）')
     const style = styleFromAttrs(plainRecord(row.style))
     if (style) inline.style = style
     if (Array.isArray(row.marks)) {
@@ -1705,8 +1974,8 @@ export function pmToIr(pmDoc: PMJsonNode): PmToIrResult {
       case 'introduction':
         if (sawIntroduction) {
           ctx.unsupportedContent.push({ nodeId: typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : null, path: ctx.path(node, '引言'), nodeType: node.type, reason: '多个introduction容器合并后无法保留原容器边界' })
-          doc.front.introduction.push(...convertBlocks(node.content, ctx, '引言'))
-        } else doc.front.introduction = convertBlocks(node.content, ctx, '引言')
+        }
+        convertIntroduction(node, doc, ctx)
         sawIntroduction = true
         break
       case 'chapter':
@@ -1719,7 +1988,11 @@ export function pmToIr(pmDoc: PMJsonNode): PmToIrResult {
         if (sawBibliography) {
           ctx.unsupportedContent.push({ nodeId: typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : null, path: ctx.path(node, '参考文献'), nodeType: node.type, reason: 'IR仅支持一个bibliography容器；多容器被合并后无法保留容器边界' })
           doc.bibliography.push(...convertBibliography(node, ctx))
-        } else doc.bibliography = convertBibliography(node, ctx)
+        } else {
+          doc.bibliography = convertBibliography(node, ctx)
+          const bibliographyTitle = convertBibliographyTitle(node, ctx)
+          if (bibliographyTitle) doc.bibliographyTitle = bibliographyTitle
+        }
         sawBibliography = true
         break
       case 'indexBlock':

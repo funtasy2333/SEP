@@ -59,10 +59,13 @@ function blockHasTableFootnotes(block: IRBlock): boolean {
     case 'example':
       return block.content.some(blockHasTableFootnotes)
     case 'figure':
-      return block.notes.some((note) => note.content.some(blockHasTableFootnotes))
+      return block.notes.some((note) => note.content.some(blockHasTableFootnotes)) ||
+        (block.examples ?? []).some((example) => example.content.some(blockHasTableFootnotes))
     case 'paragraph':
     case 'formula':
     case 'code':
+    case 'defList':
+    case 'normRefList':
       return false
   }
 }
@@ -83,9 +86,15 @@ function blockHasFootnoteSyntax(block: IRBlock): boolean {
       inlineHasFootnote(block.captionEn ?? []) || block.rows.some((row) => row.cells.some((cell) => cell.content.some(blockHasFootnoteSyntax))) ||
       block.notes.some((note) => note.content.some(blockHasFootnoteSyntax))
     case 'figure': return inlineHasFootnote(block.caption) || inlineHasFootnote(block.captionEn ?? []) ||
-      block.notes.some((note) => note.content.some(blockHasFootnoteSyntax))
+      block.notes.some((note) => note.content.some(blockHasFootnoteSyntax)) ||
+      (block.examples ?? []).some((example) => example.content.some(blockHasFootnoteSyntax)) ||
+      (block.legend !== undefined && (inlineHasFootnote(block.legend.title ?? []) ||
+        block.legend.items.some((item) => inlineHasFootnote(item.term) || inlineHasFootnote(item.definition))))
     case 'formula': return inlineHasFootnote(block.sourceInlines ?? []) || block.whereList.some((item) => inlineHasFootnote(item.term) || inlineHasFootnote(item.definition))
+    case 'defList': return block.items.some((item) => inlineHasFootnote(item.term) || inlineHasFootnote(item.definition))
     case 'code': return false
+    case 'normRefList': return block.entries.some((entry) => entry.entryType === 'std'
+      ? inlineHasFootnote(entry.ref) || inlineHasFootnote(entry.title) : inlineHasFootnote(entry.content))
   }
 }
 
@@ -100,7 +109,7 @@ function childHasTableFootnotes(child: IRClauseChild): boolean {
 
 function childHasFootnoteSyntax(child: IRClauseChild): boolean {
   if (child.kind === 'clause') return inlineHasFootnote(child.title) || child.children.some(childHasFootnoteSyntax)
-  if (child.kind === 'termEntry') return inlineHasFootnote(child.term) || inlineHasFootnote(child.termEn ?? []) ||
+  if (child.kind === 'termEntry') return inlineHasFootnote(child.term) || inlineHasFootnote(child.termEn ?? []) || inlineHasFootnote(child.subjectField ?? []) ||
     child.definition.some(blockHasFootnoteSyntax) || child.notes.some((note) => note.content.some(blockHasFootnoteSyntax)) ||
     child.examples.some((example) => example.content.some(blockHasFootnoteSyntax)) || inlineHasFootnote(child.source ?? [])
   return blockHasFootnoteSyntax(child)
@@ -108,9 +117,10 @@ function childHasFootnoteSyntax(child: IRClauseChild): boolean {
 
 function documentHasFootnoteSyntax(doc: IRDoc): boolean {
   return (doc.unmappedFootnotes?.length ?? 0) > 0 || doc.front.foreword.some(blockHasFootnoteSyntax) || doc.front.introduction.some(blockHasFootnoteSyntax) ||
+    (doc.front.introductionClauses ?? []).some(childHasFootnoteSyntax) ||
     doc.body.some((chapter) => inlineHasFootnote(chapter.title) || chapter.children.some(childHasFootnoteSyntax)) ||
     doc.appendices.some((appendix) => inlineHasFootnote(appendix.title) || appendix.children.some(childHasFootnoteSyntax)) ||
-    doc.bibliography.some((entry) => inlineHasFootnote(entry.content))
+    inlineHasFootnote(doc.bibliographyTitle ?? []) || doc.bibliography.some((entry) => inlineHasFootnote(entry.content))
 }
 
 function collectTables(block: IRBlock, out: IRTable[]): void {
@@ -122,8 +132,11 @@ function collectTables(block: IRBlock, out: IRTable[]): void {
       break
     case 'list': block.items.forEach((item) => item.content.forEach((child) => collectTables(child, out))); break
     case 'warning': case 'quote': case 'note': case 'example': block.content.forEach((child) => collectTables(child, out)); break
-    case 'figure': block.notes.forEach((note) => note.content.forEach((child) => collectTables(child, out))); break
-    case 'paragraph': case 'formula': case 'code': break
+    case 'figure':
+      block.notes.forEach((note) => note.content.forEach((child) => collectTables(child, out)))
+      block.examples?.forEach((example) => example.content.forEach((child) => collectTables(child, out)))
+      break
+    case 'paragraph': case 'formula': case 'code': case 'defList': case 'normRefList': break
   }
 }
 
@@ -139,6 +152,7 @@ function collectDocumentTables(doc: IRDoc): IRTable[] {
   }
   doc.front.foreword.forEach((block) => collectTables(block, tables))
   doc.front.introduction.forEach((block) => collectTables(block, tables))
+  ;(doc.front.introductionClauses ?? []).forEach(collectChild)
   doc.body.forEach((chapter) => chapter.children.forEach(collectChild))
   doc.appendices.forEach((appendix) => appendix.children.forEach(collectChild))
   return tables
@@ -177,6 +191,7 @@ export function assertFootnoteReferences(doc: IRDoc, labels: Labels): IRFootnote
 export function documentHasFootnotes(doc: IRDoc, bodyFootnotes: IRFootnote[]): boolean {
   return bodyFootnotes.length > 0 || documentHasFootnoteSyntax(doc) ||
     doc.front.foreword.some(blockHasTableFootnotes) || doc.front.introduction.some(blockHasTableFootnotes) ||
+    (doc.front.introductionClauses ?? []).some(childHasTableFootnotes) ||
     doc.body.some((chapter) => chapter.children.some(childHasTableFootnotes)) ||
     doc.appendices.some((appendix) => appendix.children.some(childHasTableFootnotes))
 }

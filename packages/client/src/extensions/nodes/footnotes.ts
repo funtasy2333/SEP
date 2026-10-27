@@ -17,9 +17,11 @@ declare module '@tiptap/core' {
 const FORBIDDEN_ANCESTORS = new Set([
   'coverPage',
   'chapterTitle', 'clauseTitle', 'appendixTitle',
-  'termDef', 'termName', 'termNameEn', 'termDefinition',
+  'termDef', 'termName', 'termNameEn', 'termSubjectField', 'termDefinition',
   'stdTable', 'table', 'tableCaption', 'tableCaptionEn', 'tableNoteRow', 'tableFootnoteRow', 'tableFootnoteEntry', 'tableFootnote',
   'figure', 'figureCaption', 'figureCaptionEn', 'formula', 'formulaContent', 'formulaDescription',
+  // 缩略语表内不得有条文脚注（Resolver 的“定义列表”限制）
+  'defList',
   'footnoteRef',
 ])
 

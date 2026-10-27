@@ -190,6 +190,35 @@
   min-width: 1em;
 }
 
+/*
+ * 术语领域（GB/T 46687.2 9.2.9，M-9.2.9-01）：节点内容只存领域名称，“〈”“〉”由此处在显示阶段添加（不入内容）。
+ * 编辑器中单独成行、位于术语名之后、定义之前，与定义同款缩进与字体；HTML/DOCX 导出时则与定义同一行（见渲染器）。
+ */
+.std-term-subject-field {
+  text-indent: 2em;
+  line-height: 1.8;
+  font-family: 'SimSun', 'Songti SC', serif;
+  font-size: 14px;
+}
+
+.std-term-subject-field::before {
+  content: '\3008';
+}
+
+.std-term-subject-field::after {
+  content: '\3009';
+}
+
+/* 空领域节点：ProseMirror 的 trailing <br> 会把后缀 〈〉 挤到下一行，空时不显示括号，只保留一行高度。 */
+.std-term-subject-field:has(> .ProseMirror-trailingBreak:only-child) {
+  min-height: 1.8em;
+}
+
+.std-term-subject-field:has(> .ProseMirror-trailingBreak:only-child)::before,
+.std-term-subject-field:has(> .ProseMirror-trailingBreak:only-child)::after {
+  content: none;
+}
+
 /* 术语定义正文：宋体 */
 .std-term-definition {
   text-indent: 2em;
@@ -264,6 +293,60 @@
 .std-table-caption::before {
   content: '表' counter(std-table) '\2003';
 }
+
+/*
+ * WP8.M G8（M-6.1-03）：名义列宽 stdTable.columns 的显示。
+ * stdTable 的外层 DOM 带 data-columns（JSON，往返用）与 --ses-col-<n> 自定义属性（仅有效宽度才有，见 nodes/std-table.ts）；
+ * 编辑器里 <colgroup> 由 @tiptap/extension-table 生成：每个网格列一个 <col>，没有拖拽宽度（colwidth）的列只带内联 min-width，
+ * 有 colwidth 的列带内联 width（px）。下面的规则给每个 <col> 设样式表 width：内联 width 优先于样式表，因此拖拽过的列自然以 px 为准，
+ * 其余列保持名义宽度，且不需要 !important；没有名义宽度的列变量未定义，width 回落为 auto。
+ * 选择器不依赖 .tableWrapper（单元测试里的无视图 DOM 没有这一层）。CSS 无法按序号循环，故只展开到第 40 列；更宽的表第 41 列起按自动列宽。
+ * columns 被同步插件清空（列数变化）后外层不再有 data-columns，整表退回自动列宽。
+ */
+.std-table-wrapper[data-columns] table {
+  table-layout: fixed;
+  width: 100%;
+}
+.std-table-wrapper[data-columns] colgroup > col:nth-child(1) { width: var(--ses-col-1); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(2) { width: var(--ses-col-2); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(3) { width: var(--ses-col-3); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(4) { width: var(--ses-col-4); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(5) { width: var(--ses-col-5); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(6) { width: var(--ses-col-6); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(7) { width: var(--ses-col-7); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(8) { width: var(--ses-col-8); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(9) { width: var(--ses-col-9); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(10) { width: var(--ses-col-10); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(11) { width: var(--ses-col-11); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(12) { width: var(--ses-col-12); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(13) { width: var(--ses-col-13); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(14) { width: var(--ses-col-14); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(15) { width: var(--ses-col-15); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(16) { width: var(--ses-col-16); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(17) { width: var(--ses-col-17); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(18) { width: var(--ses-col-18); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(19) { width: var(--ses-col-19); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(20) { width: var(--ses-col-20); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(21) { width: var(--ses-col-21); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(22) { width: var(--ses-col-22); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(23) { width: var(--ses-col-23); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(24) { width: var(--ses-col-24); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(25) { width: var(--ses-col-25); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(26) { width: var(--ses-col-26); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(27) { width: var(--ses-col-27); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(28) { width: var(--ses-col-28); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(29) { width: var(--ses-col-29); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(30) { width: var(--ses-col-30); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(31) { width: var(--ses-col-31); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(32) { width: var(--ses-col-32); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(33) { width: var(--ses-col-33); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(34) { width: var(--ses-col-34); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(35) { width: var(--ses-col-35); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(36) { width: var(--ses-col-36); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(37) { width: var(--ses-col-37); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(38) { width: var(--ses-col-38); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(39) { width: var(--ses-col-39); }
+.std-table-wrapper[data-columns] colgroup > col:nth-child(40) { width: var(--ses-col-40); }
 
 .std-table-caption-en {
   text-align: center;
@@ -409,6 +492,92 @@
   color: #555;
 }
 
+/*
+ * 图内的图例、注与示例（WP8.M G3，M-8.5-01～06、M-8.2-11、M-8.4-03）。
+ * 图本身居中（.std-figure），这些内容按版式左起排：图例在图题之后，其后是注，最后是示例（Schema 固定顺序，D-M-09）。
+ * 注 / 示例的标签（注：/注n：、示例：/示例n：）由 Resolver 按“作用域 = 本图”给出，见文末 data-resolved-label 规则。
+ */
+.std-figure > .std-note,
+.std-figure > .std-example {
+  text-align: left;
+}
+
+/*
+ * 图例：与公式“式中”、缩略语表共用 whereItem/whereTerm/whereDefinition 项节点；
+ * 符号在前、释义在后，两列显示（符号列不折行，释义列占满余宽），没有“式中：”引导也没有“——”。
+ * 可选的标题（如“图例”）单独成行。导出时 HTML/DOCX 暂不排版（边界报 unsupported-output）。
+ */
+.std-figure-legend {
+  margin: 8px 0 4px;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.8;
+  text-indent: 0;
+}
+
+.std-figure-legend-title {
+  margin: 0;
+  padding-left: 2em;
+  font-family: 'SimHei', 'Heiti SC', sans-serif;
+}
+
+/* 空标题节点：ProseMirror 的空文本块里有 trailing <br>，不能依赖 :empty，用 :has 识别 */
+.std-figure-legend-title:has(> .ProseMirror-trailingBreak:only-child)::before {
+  content: '图例标题';
+  color: #aaa;
+}
+
+.std-figure-legend > .std-where-item {
+  gap: 1em;
+  padding-left: 2em;
+}
+
+.std-figure-legend > .std-where-item > dt {
+  min-width: 1.5em;
+}
+
+.std-figure-legend > .std-where-item > dd::before {
+  content: none;
+}
+
+/* 空符号格：占位提示；与公式式中不同，点击不会弹出行内公式输入（见 whereListEditing） */
+.std-figure-legend > .std-where-item > dt.def-term-empty::before {
+  content: '符号';
+  color: #aaa;
+}
+
+/*
+ * 行内图（WP8.M G3，M-8.3-02）：跟随行高，垂直居中；data-size 对应 8.3 表 2 的 S/M/L = 单/双/三倍行高。
+ * 缺省（无 size）按单倍行高以内自适应。行内原子节点，被选中时描边。
+ */
+.std-inline-image {
+  display: inline-block;
+  vertical-align: middle;
+  height: auto;
+  max-height: 1.2em;
+  max-width: 100%;
+}
+
+.std-inline-image[data-size='S'] {
+  height: 1.2em;
+  max-height: none;
+}
+
+.std-inline-image[data-size='M'] {
+  height: 2.4em;
+  max-height: none;
+}
+
+.std-inline-image[data-size='L'] {
+  height: 3.6em;
+  max-height: none;
+}
+
+.std-inline-image.ProseMirror-selectednode {
+  outline: 2px solid #8ab4f8;
+  outline-offset: 1px;
+}
+
 /* 公式 */
 .std-formula {
   margin: 16px 0;
@@ -494,6 +663,55 @@
   font-family: 'SimSun', 'Songti SC', serif;
 }
 
+/*
+ * 缩略语表（WP8.M G2，M-10.1.4-01）：与公式“式中”共用 whereItem/whereTerm/whereDefinition 项节点，
+ * 版式不同——缩略语在前、释义在后，同一行，中间是全角冒号“：”（依据 GB/T 46687.2—2026 印刷页 2 的 3.2 缩略语实排
+ * “ID：唯一编码(Identity)”，设计 D-M-16）；没有“式中：”引导，也没有“——”。
+ * 编辑器里冒号由 dt::after 生成显示（M-Z-c F-3）：只是生成内容，不写入文档模型，导出时由渲染器输出；
+ * 全角冒号自带间隔，所以缩略语与释义之间不再另留间隙。
+ * 打印出口的版式是首行空两个汉字起排、回行顶格；编辑器里按项分两列显示，释义回行与释义起点（冒号之后）对齐，便于编辑。
+ */
+.std-def-list {
+  width: 100%;
+  margin: 4px 0;
+  line-height: 1.8;
+  text-indent: 0;
+  font-family: 'SimSun', 'Songti SC', serif;
+}
+
+.std-def-list > .std-where-item {
+  gap: 0;
+  padding-left: 2em;
+}
+
+.std-def-list > .std-where-item > dt {
+  min-width: 0;
+}
+
+/* 缩略语之后的全角冒号（只是显示，不入文档模型） */
+.std-def-list > .std-where-item > dt::after {
+  content: '：';
+}
+
+.std-def-list > .std-where-item > dd::before {
+  content: none;
+}
+
+/* 空缩略语格：占位提示；与公式式中不同，点击不会弹出行内公式输入（见 whereListEditing）。
+ * 占位时不显示冒号，占位与释义之间留一个汉字的间隔。 */
+.std-def-list > .std-where-item > dt.def-term-empty::before {
+  content: '缩略语';
+  color: #aaa;
+}
+
+.std-def-list > .std-where-item > dt.def-term-empty::after {
+  content: none;
+}
+
+.std-def-list > .std-where-item > dt.def-term-empty {
+  margin-right: 1em;
+}
+
 .std-formula-inline {
   cursor: pointer;
   border-radius: 2px;
@@ -556,6 +774,46 @@
 /* 仅有一个示例时不显示编号 */
 .std-example:first-of-type:last-of-type::before {
   content: '示例：';
+}
+
+/*
+ * 块内容的注与示例（WP8.M G7-b：noteBlock / exampleBlock，内容为段落与列项）。
+ * 注：标记在左、内容块在右（GB/T 1.1 10.4.4.1：回行与注的内容的文字位置左对齐，续段同理）；
+ * 示例：标签「示例：」单独成行（10.4.5），内容块在其下，沿用示例的左缩进。
+ */
+.std-note-block {
+  display: flex;
+  align-items: baseline;
+}
+
+.std-note-block > .std-note-marker {
+  flex: none;
+}
+
+.std-note-block > .std-note-block-content {
+  flex: 1;
+  min-width: 0;
+  white-space: normal;
+}
+
+.std-note-block .std-paragraph,
+.std-note-block .std-list,
+.std-example-block .std-list {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.std-note-block .std-paragraph {
+  text-indent: 0;
+}
+
+.std-example-block::before {
+  display: block;
+}
+
+.std-example-block > .std-paragraph {
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 /* 术语定义编号（条内自动编号 3.1, 3.2） */
@@ -645,6 +903,51 @@
   line-height: 1.6;
 }
 
+/*
+ * 规范性引用文件清单（GB/T 1.1—2020 10.3.4；WP8.M G1，M-4.4.2.3-02/-03/-04）：每项空两个汉字起排、回行顶格（与条文段相同的
+ * 首行缩进 2 字）、文件之后不加标点；文件编号与文件名称之间空一个汉字，由 ::before 在显示阶段添加，不入节点内容。
+ * 编号、名称是两个行内文本块（span），与条目同在一行；空节点的 trailing <br> 不能把名称挤到下一行。
+ */
+.std-norm-ref-list {
+  margin: 6px 0;
+}
+
+.std-norm-ref {
+  text-indent: 2em;
+  margin: 2px 0;
+  line-height: 1.8;
+}
+
+.std-norm-ref-no,
+.std-norm-ref-title {
+  display: inline;
+}
+
+.std-norm-ref-title::before {
+  content: '\3000';
+}
+
+/* 空编号：给一个可点击的最小宽度，并让 trailing <br> 留在自己的行内盒里；空名称不显示间隔。 */
+.std-norm-ref-no:has(> .ProseMirror-trailingBreak:only-child) {
+  display: inline-block;
+  min-width: 4em;
+}
+
+.std-norm-ref-title:has(> .ProseMirror-trailingBreak:only-child)::before {
+  content: none;
+}
+
+/*
+ * 正文中的标准引用（M-10.2-01/-02、M-10.1.7-01）：std-ref / mixed-citation 在打印上与普通文本无差别，
+ * 编辑器里用弱样式（点状下划线）让作者看出标记范围又不抢眼，不同于交叉引用的蓝色实线。
+ */
+.std-std-ref,
+.std-mixed-citation {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--ses-ink-3, #999);
+  text-underline-offset: 3px;
+}
+
 /* 标准列表 */
 .std-list {
   margin: 8px 0;
@@ -691,21 +994,40 @@
 }
 
 .std-list-numeric,
-.std-list-roman,
 .std-list-romanUpper {
   counter-reset: numeric-counter;
 }
 
 .std-list-numeric .std-list-item,
-.std-list-roman .std-list-item,
 .std-list-romanUpper .std-list-item {
   counter-increment: numeric-counter;
 }
 
 .std-list-numeric .std-list-item::before,
-.std-list-roman .std-list-item::before,
 .std-list-romanUpper .std-list-item::before {
   content: counter(numeric-counter) '） ';
+}
+
+/* 小写罗马列项 i） ii） iii）（GB/T 46687.2 5.7.2 roman-lower，WP8.M G7）；与字母列项同为一级。
+ * 大写罗马 romanUpper 没有原文取值，PM 不再产生它，旧 DOM 里残留的仍按数字显示。 */
+.std-list-roman {
+  counter-reset: roman-counter;
+}
+
+.std-list-roman .std-list-item {
+  counter-increment: roman-counter;
+}
+
+.std-list-roman .std-list-item::before {
+  content: counter(roman-counter, lower-roman) '） ';
+}
+
+/* 罗马标识宽度随序号变化（i） 到 viii）），给标识一个固定的最小宽度，使各项文字起排位置一致（M-Z-c F-5）。
+ * 3em 能容纳 viii）：宋体的拉丁字母是半角（0.5em），viii） 为 4×0.5em + 1em（全角右括号）= 3em；比例字体下约 2.6em。
+ * 字母、数字列项标识等宽，不受影响。 */
+.std-list-roman .std-list-item::before {
+  display: inline-block;
+  min-width: 3em;
 }
 
 /* 兼容嵌套 DOM：数字子列项保留编号，其他历史嵌套类型使用间隔号。 */

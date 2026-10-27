@@ -459,6 +459,7 @@ export async function convertFormulasToOmml(doc: IRDoc): Promise<FormulaOmmlResu
   const collect: FormulaVisitor = (id, latex, display) => formulas.push({ id, latex, display })
   for (const block of doc.front.foreword) visitBlock(block, collect)
   for (const block of doc.front.introduction) visitBlock(block, collect)
+  for (const clause of doc.front.introductionClauses ?? []) visitStructuredChild(clause, collect)
   for (const chapter of doc.body) visitChapter(chapter, collect)
   for (const appendix of doc.appendices) {
     for (const child of appendix.children) visitStructuredChild(child, collect)

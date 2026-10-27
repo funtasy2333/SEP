@@ -18,6 +18,8 @@ declare module '@tiptap/core' {
  * 交叉引用标记
  * 用于引用文档内的章、条、表、图、公式、附录等
  * refType: chapter | clause | table | figure | formula | appendix | bibEntry
+ *   另有 listItem（被引用的有序列项，WP8.M G4）与 abbreviation（缩略语表中的项，WP8.M G2），
+ *   与 IR 的 targetKind 一一对应（见 pmToIr 的 REF_KIND_MAP）。
  */
 export const CrossRef = Mark.create({
   name: 'crossRef',

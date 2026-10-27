@@ -50,7 +50,7 @@ export type AuthoringNodeKind = typeof AUTHORING_NODE_KINDS[number]
  * - unknown-field：未知字段（多为拼写错误）
  * - unsupported-field：IR 里存在、但写作片段暂不支持的字段
  * - unknown-kind：未知的 kind
- * - unsupported-kind：IR 里存在、但写作片段暂不支持的块（warning/quote/code）
+ * - unsupported-kind：IR 里存在、但写作片段暂不支持的块（warning/quote/code/defList）
  * - not-allowed-here：此种节点不能放在该上下文/容器中
  * - invalid-value：取值非法（枚举、格式、范围）
  * - empty-value：必须非空的内容为空
@@ -167,18 +167,18 @@ const OWNER_LABELS: Record<FieldOwner, string> = {
 
 /** IR 里有、但写作片段暂不支持的字段：给出专门的提示，而不是笼统的「未知字段」。 */
 const IR_ONLY_FIELDS: Partial<Record<FieldOwner, readonly string[]>> = {
-  run: ['style', 'footnote'],
+  run: ['style', 'footnote', 'image'],
   inlineFormula: ['mathml', 'source'],
-  table: ['width', 'style', 'unit', 'footnotes'],
-  figure: ['title', 'unit', 'resourceId', 'imageWidth', 'imageHeight', 'descriptions', 'groups'],
+  table: ['width', 'style', 'unit', 'footnotes', 'columns'],
+  figure: ['title', 'unit', 'resourceId', 'imageWidth', 'imageHeight', 'descriptions', 'groups', 'legend', 'examples'],
   formula: ['mathml', 'sourceInlines', 'notes'],
-  termEntry: ['nestedEntries', 'languageSets', 'tailOrder'],
+  termEntry: ['nestedEntries', 'languageSets', 'tailOrder', 'subjectField'],
   bibEntry: ['entryType', 'fields', 'identifiers', 'externalLink'],
 }
 
 const REFERENCE_KINDS: readonly IRReferenceTargetKind[] = [
   'chapter', 'clause', 'appendix', 'figure', 'table', 'formula',
-  'note', 'example', 'bibliography', 'term', 'index', 'paragraph',
+  'note', 'example', 'bibliography', 'term', 'index', 'paragraph', 'listItem', 'abbreviation',
 ]
 
 const SIMPLE_MARKS = ['bold', 'italic', 'underline', 'sub', 'sup', 'strike', 'code'] as const
@@ -397,6 +397,11 @@ function parseMark(value: unknown, path: string, ctx: Ctx): IRMark | undefined {
     }
     case 'tableFootnoteRef':
       ctx.issue(path, 'unsupported-field', '写作片段暂不支持表脚注引用（tableFootnoteRef）')
+      return undefined
+    case 'stdRef':
+    case 'mixedCitation':
+      // 模型已支持（WP8.M G1，正文引用标准化/非标准化文件），写作入口留后续交互任务
+      ctx.issue(path, 'unsupported-field', `写作片段暂不支持标准引用标记（${type}）：模型已支持，写作入口留后续交互任务；请先写成普通文字`)
       return undefined
     default:
       ctx.issue(`${path}.type`, 'invalid-value', `未知的行内标记类型「${type}」（支持：${SUPPORTED_MARK_TYPES.join('、')}）`)
@@ -655,7 +660,10 @@ function parseSingleParagraph(value: unknown, path: string, ownerId: string, wha
   }
   const blocks = value as Obj[]
   if (blocks.length !== 1) {
-    ctx.issue(path, 'not-allowed-here', `${what}只能包含一段内容（生产编辑器中为单个行内段落），不能写多个块`)
+    // 注/示例的块内容（noteBlock/exampleBlock）生产模型已支持（WP8.M G7-b），写作入口本阶段不放开；其余容器（列项项等）仍是生产限制。
+    ctx.issue(path, 'not-allowed-here', what === '注' || what === '示例'
+      ? `${what}只能包含一段内容，不能写多个块（模型已支持块内容的${what}，写作入口留后续交互任务）`
+      : `${what}只能包含一段内容（生产编辑器中为单个行内段落），不能写多个块`)
   }
   const first = blocks[0]!
   if (first.kind !== 'paragraph') {
@@ -746,8 +754,11 @@ function parseList(obj: Obj, path: string, ctx: Ctx): IRList {
   const rawType = own(obj, 'listType')
   let listType: IRList['listType'] = 'dash'
   if (rawType !== undefined) {
-    if (rawType === 'roman' || rawType === 'romanUpper') {
-      ctx.issue(`${path}.listType`, 'invalid-value', `生产列表不支持「${rawType}」编号，请改用 ${LIST_TYPES.join('、')}`)
+    if (rawType === 'roman') {
+      // 模型已支持小写罗马列项（WP8.M G7-a，M-5.7-04），但写作入口本阶段不放开（插入/编辑入口留后续交互任务）。
+      ctx.issue(`${path}.listType`, 'invalid-value', `写作片段暂不支持「roman」编号（模型已支持，写作入口留后续交互任务），请改用 ${LIST_TYPES.join('、')}`)
+    } else if (rawType === 'romanUpper') {
+      ctx.issue(`${path}.listType`, 'invalid-value', `生产列表不支持「${rawType}」编号（GB/T 46687.2 没有大写罗马取值），请改用 ${LIST_TYPES.join('、')}`)
     } else if (typeof rawType !== 'string' || !(LIST_TYPES as readonly string[]).includes(rawType)) {
       ctx.issue(`${path}.listType`, 'invalid-value', `listType 必须是 ${LIST_TYPES.join('、')} 之一（缺省 dash）`)
     } else {
@@ -969,7 +980,8 @@ function parseFigure(obj: Obj, path: string, ctx: Ctx): IRFigure {
   const alt = optionalString(obj, 'alt', path, ctx) ?? ''
   const notes = arrayField(obj, 'notes', path, ctx)
   if (notes && notes.length > 0) {
-    ctx.issue(`${path}.notes`, 'unsupported-field', '生产编辑器的图没有保存图中注的节点，notes 必须为空；请把说明写进 caption 或图后的 note')
+    // 图中注的模型已支持（WP8.M G3，M-8.2-11：figure 内的单段 note），写作入口本阶段不放开（插入/编辑入口留后续交互任务）。
+    ctx.issue(`${path}.notes`, 'unsupported-field', '写作片段暂不支持图中注（模型已支持，写作入口留后续交互任务），notes 必须为空；请把说明写进 caption 或图后的 note')
   }
   return { kind: 'figure', id, caption, ...(captionEn ? { captionEn } : {}), orientation, src, alt, notes: [] }
 }
@@ -1182,9 +1194,15 @@ function parseNode(
     ctx.issue(`${path}.kind`, 'invalid-type', 'kind 必须是字符串')
     return undefined
   }
-  if (kind === 'warning' || kind === 'quote' || kind === 'code') {
+  if (kind === 'warning' || kind === 'quote' || kind === 'code' || kind === 'defList') {
     ctx.issue(`${path}.kind`, 'unsupported-kind',
       `写作片段暂不支持「${kind}」块（支持：${AUTHORING_NODE_KINDS.join('、')}）`)
+    return undefined
+  }
+  if (kind === 'normRefList') {
+    // 模型已支持（WP8.M G1）：清单只能出现在“规范性引用文件”章内，本阶段写作片段没有创建它的入口
+    ctx.issue(`${path}.kind`, 'unsupported-kind',
+      `写作片段暂不支持「normRefList」（规范性引用文件清单）：模型已支持，写作入口留后续交互任务；请先写成普通段落（支持：${AUTHORING_NODE_KINDS.join('、')}）`)
     return undefined
   }
   if (!(AUTHORING_NODE_KINDS as readonly string[]).includes(kind)) {
