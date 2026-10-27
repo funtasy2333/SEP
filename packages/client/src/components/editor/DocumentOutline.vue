@@ -46,7 +46,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { Close, Rank } from '@element-plus/icons-vue'
-import { ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import type { Node as PMNode } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/vue-3'
 import { pmToIr, resolve } from '@ses/shared'
 
@@ -264,7 +265,11 @@ function scrollToHeading(item: HeadingItem) {
 }
 
 async function deleteSection(item: HeadingItem) {
-  if (!props.editor) return
+  const editor = props.editor
+  if (!editor) return
+  const docBefore = editor.state.doc
+  const target = docBefore.nodeAt(item.nodePos)
+  if (!target) return
   try {
     await ElMessageBox.confirm(`删除「${item.text || '(空标题)'}」及其下全部内容？删除后可用撤销（Ctrl+Z）恢复。`, '删除章节', {
       confirmButtonText: '删除',
@@ -274,13 +279,31 @@ async function deleteSection(item: HeadingItem) {
   } catch {
     return
   }
-  const editor = props.editor
-  // 确认期间文档可能已变化：按位置重新核对，节点不再是原来那一个时放弃删除
-  const node = editor.state.doc.nodeAt(item.nodePos)
-  if (!node || node.nodeSize !== item.nodeSize) return
+  if (props.editor !== editor || editor.isDestroyed) return
+  // 确认期间文档可能已被外部修订替换：旧位置上可能已是另一节，改按 nodeId 找回对话框里点名的那一节
+  const located = editor.state.doc === docBefore
+    ? { node: target, pos: item.nodePos }
+    : findSection(editor.state.doc, target.type.name, target.attrs.nodeId)
+  if (!located) {
+    ElMessage.warning('文档在确认期间已更新，未找到要删除的章节，未做删除')
+    return
+  }
   const { tr } = editor.state
-  tr.delete(item.nodePos, item.nodePos + item.nodeSize)
+  tr.delete(located.pos, located.pos + located.node.nodeSize)
   editor.view.dispatch(tr)
+}
+
+function findSection(doc: PMNode, typeName: string, nodeId: unknown): { node: PMNode; pos: number } | null {
+  if (typeof nodeId !== 'string' || !nodeId) return null
+  let found: { node: PMNode; pos: number } | null = null
+  doc.descendants((node, pos) => {
+    if (found) return false
+    if (node.type.name === typeName && node.attrs.nodeId === nodeId) {
+      found = { node, pos }
+      return false
+    }
+  })
+  return found
 }
 
 watch(
