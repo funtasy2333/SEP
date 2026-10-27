@@ -2174,8 +2174,8 @@ class TestExportEnforcementAudit(unittest.TestCase):
         req = [r for r in self.rows if r["export"] == "required"]
         attr_units = [(r["id"], a["name"]) for r in req for a in r.get("attributes", [])
                       if a["obligation"] in ("shall", "should") and a.get("values")]
-        self.assertEqual(len(req), 223)
-        self.assertEqual(len(attr_units), 59)
+        self.assertEqual(len(req), 228)
+        self.assertEqual(len(attr_units), 61)
         self.assertEqual(len(self.result["units"]), len(req) + len(attr_units))
 
     def test_every_probe_really_ran_and_passed(self):

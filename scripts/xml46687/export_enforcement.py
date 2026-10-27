@@ -343,11 +343,13 @@ _reg("M-9.2.8-01 M-9.2.7-01", "NA:content")
 _reg("M-9.2.6-01", "S-entailed-target", "R-entailed-target")
 _reg("M-9.2.6-02 M-9.2.6-03 M-10.1.3-01 M-10.1.3-02", "S-xref-ref-type", "S-xref-rid", "R-dangling-rid", "R-custom-type", "R-xref-target")
 # 引用
-_reg("M-10.1.1-01 M-10.1.1-02 M-10.1.2-01 M-9.2.7-02 M-10.1.2-02 M-10.1.2-03 M-10.1.2-04 M-10.1.6-01",
+_reg("M-10.1.1-01 M-10.1.1-02 M-10.1.2-01 M-9.2.7-02 M-10.1.2-02 M-10.1.2-03 M-10.1.2-04 M-10.1.6-01 M-10.1.1-04 M-10.1.5-01",
      "S-xref-ref-type", "S-xref-ref-type-value", "S-xref-rid", "R-dangling-rid", "R-xref-target")
 _reg("M-10.1.1-03", "S-xref-ref-type", "S-xref-rid", "R-dangling-rid", "R-xref-target", "R-fn-unreferenced")
 _reg("M-10.1.8-01", "R-id-fn-body", "R-fn-unreferenced")
 _reg("M-10.1.8-02", "NA:content")
+_reg("M-10.2-01 M-10.2-02", "R-std-ref", "NA:content")
+_reg("M-10.1.7-01", "NA:content")
 _reg("M-10.1.9-01", "S-extlink-href", "R-extlink-type", "R-extlink-scheme")
 _reg("M-10.1.9-02", "S-extlink-href", "R-extlink-scheme")
 _reg("M-6.2.3-12 M-6.2.3-13 M-7.3-09 M-9.2.6-04", "NA:content")
@@ -391,7 +393,8 @@ _areg("M-9.2.6-01#target", "S-entailed-target", "R-entailed-target")
 _areg("M-9.2.6-02#ref-type M-9.2.6-02#custom-type M-9.2.6-02#rid M-10.1.3-01#ref-type M-10.1.3-01#custom-type M-10.1.3-02#ref-type "
       "M-10.1.3-02#custom-type M-9.2.6-03#ref-type M-9.2.6-03#custom-type",
       "S-xref-ref-type", "S-xref-rid", "R-dangling-rid", "R-custom-type", "R-xref-target")
-_areg("M-10.1.2-01#ref-type M-9.2.7-02#ref-type M-10.1.2-02#ref-type M-10.1.2-03#ref-type M-10.1.2-04#ref-type M-10.1.6-01#ref-type M-10.1.1-03#ref-type",
+_areg("M-10.1.2-01#ref-type M-9.2.7-02#ref-type M-10.1.2-02#ref-type M-10.1.2-03#ref-type M-10.1.2-04#ref-type M-10.1.6-01#ref-type M-10.1.1-03#ref-type "
+      "M-10.1.1-04#ref-type M-10.1.5-01#ref-type",
       "S-xref-ref-type", "S-xref-ref-type-value", "R-xref-target")
 _areg("M-4.5.3.1-01#id", "R-id-ref", "NA:id-form")
 _areg("M-10.1.9-01#ext-link-type", "R-extlink-type")

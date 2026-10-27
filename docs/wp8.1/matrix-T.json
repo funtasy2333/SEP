@@ -373,11 +373,11 @@
     "verifiedAgainstImage": true,
     "irPath": "IRTable.columns[]（IRTableColumn：width / textAlign / verticalAlign；名义列宽）",
     "pmNode": "stdTable.attrs.columns（JSON 数组）",
-    "export": "not-applicable",
+    "export": "optional",
     "import": "accept",
     "status": "mapped",
     "conventionRef": "C-T-10",
-    "notes": "列宽在 table 内 col 的 @width 定义（6.1）；p22 示例 col 位于 thead 之前。WP8.M G8：名义列宽与编辑器拖拽得到的 cell.columnWidths（px）独立保存；列数变化时 tableColumnsSync 清空 columns（D-M-11）。设计 §7.1：本阶段 HTML/DOCX/XML 暂报 unsupported-output。col 与 colgroup/col 的导入展开见 WP8.3（D-T-02）。"
+    "notes": "列宽在 table 内 col 的 @width 定义（6.1）；p22 示例 col 位于 thead 之前。WP8.M G8：名义列宽与编辑器拖拽得到的 cell.columnWidths（px）独立保存；列数变化时 tableColumnsSync 清空 columns（D-M-11）。设计 §7.1：本阶段 HTML/DOCX/XML 暂报 unsupported-output。col 与 colgroup/col 的导入展开见 WP8.3（D-T-02）。export 列：由 not-applicable 改为 optional（WP8.2 设计 §1.1 复核，D-X-01）。"
   },
   {
     "id": "M-C.1-02",
@@ -2303,11 +2303,11 @@
     "verifiedAgainstImage": true,
     "irPath": "IRInline.image（IRInlineImage：src / resourceId / alt / size）",
     "pmNode": "inlineImage（行内原子节点）",
-    "export": "not-applicable",
+    "export": "optional",
     "import": "accept",
     "status": "mapped",
     "conventionRef": "C-T-29",
-    "notes": "与文本同一行的图；@xlink:href 规则同 graphic，可选 @specific-use(size:S/M/L)。WP8.M G3：行内叶子，不另造实体 id；只允许出现在正文段落（含列项、注、单元格内的段落），Resolver 校验位置。设计 §7.1：本阶段 HTML/DOCX/XML 暂报 unsupported-output；xlink:href 命名 inl_<k>（D-M-08，WP8.2）；导入不得转块级。"
+    "notes": "与文本同一行的图；@xlink:href 规则同 graphic，可选 @specific-use(size:S/M/L)。WP8.M G3：行内叶子，不另造实体 id；只允许出现在正文段落（含列项、注、单元格内的段落），Resolver 校验位置。设计 §7.1：本阶段 HTML/DOCX/XML 暂报 unsupported-output；xlink:href 命名 inl_<k>（D-M-08，WP8.2）；导入不得转块级。export 列：由 not-applicable 改为 optional（WP8.2 设计 §1.1 复核，D-X-01）。"
   },
   {
     "id": "M-8.4-01",
@@ -4008,11 +4008,11 @@
     "verifiedAgainstImage": true,
     "irPath": "IRMark crossRef.targetKind='listItem'",
     "pmNode": "mark crossRef.attrs.refType='listItem'",
-    "export": "not-applicable",
+    "export": "required",
     "import": "accept",
     "status": "mapped",
     "conventionRef": "C-T-52",
-    "notes": "对有序列项的引用（10.1.1 清单无、附录 D 有）。WP8.M G4：Resolver 只给被引用的有序列项赋标签（a）/1）/i）），refText 如 5.2 c）（D-M-03，全角括号）；无序列项与 romanUpper 的引用报 dangling-xref。"
+    "notes": "对有序列项的引用（10.1.1 清单无、附录 D 有）。WP8.M G4：Resolver 只给被引用的有序列项赋标签（a）/1）/i）），refText 如 5.2 c）（D-M-03，全角括号）；无序列项与 romanUpper 的引用报 dangling-xref。export 列：由 not-applicable 改为 required（WP8.2 设计 §1.1 复核，D-X-01）。"
   },
   {
     "id": "M-10.1.4-02",
@@ -4072,11 +4072,11 @@
     "verifiedAgainstImage": true,
     "irPath": "IRMark crossRef.targetKind='abbreviation'",
     "pmNode": "mark crossRef.attrs.refType='abbreviation'",
-    "export": "not-applicable",
+    "export": "required",
     "import": "accept",
     "status": "mapped",
     "conventionRef": "C-T-51",
-    "notes": "10.1.1 清单取值，指向 def-list[abbreviation]/def-item。WP8.M G2：IRReferenceTargetKind 增 abbreviation；refText 为缩略语文本。"
+    "notes": "10.1.1 清单取值，指向 def-list[abbreviation]/def-item。WP8.M G2：IRReferenceTargetKind 增 abbreviation；refText 为缩略语文本。export 列：由 not-applicable 改为 required（WP8.2 设计 §1.1 复核，D-X-01）。"
   },
   {
     "id": "M-6.2.3-11",
@@ -4453,11 +4453,11 @@
     "verifiedAgainstImage": true,
     "irPath": "IRMark {type:'stdRef'}",
     "pmNode": "mark stdRef",
-    "export": "not-applicable",
+    "export": "required",
     "import": "accept",
     "status": "mapped",
     "conventionRef": "C-T-54",
-    "notes": "正文引用标准化文件用 std（示例仅含 std-ref，无 title）。WP8.M G1：行内 mark stdRef，被标记的文本即 std-ref 内容；HTML/DOCX 按普通文本输出（D-M-07）。导入时 std 内若还有 title，整体并入 stdRef 并告警（C-T-54）。export 列沿用 WP8.1 取值，WP8.2 开工时按设计 §6.1 复核。"
+    "notes": "正文引用标准化文件用 std（示例仅含 std-ref，无 title）。WP8.M G1：行内 mark stdRef，被标记的文本即 std-ref 内容；HTML/DOCX 按普通文本输出（D-M-07）。导入时 std 内若还有 title，整体并入 stdRef 并告警（C-T-54）。export 列：由 not-applicable 改为 required（WP8.2 设计 §1.1 复核，D-X-01）。"
   },
   {
     "id": "M-10.2-02",
@@ -4472,11 +4472,11 @@
     "verifiedAgainstImage": true,
     "irPath": "IRMark {type:'stdRef'}（被标记文本即 std-ref）",
     "pmNode": "mark stdRef",
-    "export": "not-applicable",
+    "export": "required",
     "import": "accept",
     "status": "mapped",
     "conventionRef": "C-T-54",
-    "notes": "同 M-10.2-01：标准编号文本即被 stdRef 标记的 run。WP8.M G1。"
+    "notes": "同 M-10.2-01：标准编号文本即被 stdRef 标记的 run。WP8.M G1。export 列：由 not-applicable 改为 required（WP8.2 设计 §1.1 复核，D-X-01）。"
   },
   {
     "id": "M-10.1.7-01",
@@ -4491,11 +4491,11 @@
     "verifiedAgainstImage": true,
     "irPath": "IRMark {type:'mixedCitation'}",
     "pmNode": "mark mixedCitation",
-    "export": "not-applicable",
+    "export": "required",
     "import": "accept",
     "status": "mapped",
     "conventionRef": "C-T-54",
-    "notes": "正文引用非标准化文献用 mixed-citation（10.1.7、10.2）；10.1.7 称“与 4.4.2.2 一致”，条号应为 4.4.2.3（笔误）。WP8.M G1：行内 mark mixedCitation，与 stdRef 互斥（inlineProjectionDiagnostics 报冲突）。"
+    "notes": "正文引用非标准化文献用 mixed-citation（10.1.7、10.2）；10.1.7 称“与 4.4.2.2 一致”，条号应为 4.4.2.3（笔误）。WP8.M G1：行内 mark mixedCitation，与 stdRef 互斥（inlineProjectionDiagnostics 报冲突）。export 列：由 not-applicable 改为 required（WP8.2 设计 §1.1 复核，D-X-01）。"
   },
   {
     "id": "M-C.1-10",
