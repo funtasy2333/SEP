@@ -12,7 +12,8 @@
  * 容器（§2.3.3）决定哪些 mark/原子能写出：纯文本容器（`subsup`、`text`）里的 mark 被丢弃并给 warning
  * `mark-dropped-in-text-only`，公式/行内图是 error `formula-in-text-only`；其他容器里不允许的 mark 是 error
  * `xml-mark-combination`。换行：`inline/citation/tbx` 里写 `<break/>`（格式元素与链接元素内部不含 `break`，所以先收起它们），
- * 其余容器改为空格并给 warning `newline-flattened`；`code` mark 的文本原样保留换行。
+ * 其余容器改为空格并给 warning `newline-flattened`；`code` mark 的文本原样保留换行。条文脚注只写在 `p` 与 `citation`（mixed-citation 内）容器，
+ * 其他容器报 error `xml-footnote-position`。
  */
 
 import type { IRInline, IRMark, NodeId } from '../../ir/types'
@@ -90,7 +91,8 @@ const CAPABILITIES: Record<InlineContainer, Capabilities> = {
   term: { ...NONE_CAPS, format: true, variable: true, code: true, externalLink: true, xref: true, formula: true, image: true },
   phrase: { ...NONE_CAPS, format: true, variable: true, code: true, image: true },
   label: { ...NONE_CAPS, format: true, variable: true, code: true, xref: true, formula: true, image: true },
-  citation: { ...INLINE_CAPS, mixedCitation: false },
+  // mixed-citation 内允许条文脚注（schema 的 cm.citation 含 fn，Resolver 也允许规范性引用/参考文献条目带脚注；主导决定 2026-10-27）
+  citation: { ...INLINE_CAPS, mixedCitation: false, footnote: true },
   subsup: { ...NONE_CAPS, format: 'subsup', textOnly: true },
   text: { ...NONE_CAPS, textOnly: true },
 }
@@ -358,12 +360,16 @@ function processRun(ctx: RenderContext, run: IRInline, at: Site, container: Inli
   }
 }
 
-/** 条文脚注（§2.3.5）：`xref[@ref-type="fn"]` 紧随 `fn`，同一个 `p` 内（D-M-01）。 */
+/**
+ * 条文脚注（§2.3.5）：`xref[@ref-type="fn"]` 紧随 `fn`，同一个 `p` 或 `mixed-citation` 内（D-M-01；`citation` 容器的放开见主导决定 2026-10-27）。
+ * 脚注是原子，写在容器的最外层、不被 mark 包装器包住：stdRef 文本上的脚注落在 `std` 之后。`std/std-ref/title`（标准化文件条目）
+ * 没有合法位置：`std-ref` 只含文本，条目里的 `std-ref`/`title` 走 `text`/`inline` 容器，脚注在这里报 `xml-footnote-position`。
+ */
 function renderFootnoteAtom(ctx: RenderContext, run: IRInline, at: Site, caps: Capabilities): XmlElement[] {
   const footnote = run.footnote!
   const here = sub(at, '.footnote', footnote.id)
   if (!caps.footnote) {
-    ctx.report('xml-footnote-position', 'error', '条文脚注只能写在正文段落（p）内，此处（标题、单元格、术语、文献等）不能放脚注。', here)
+    ctx.report('xml-footnote-position', 'error', '条文脚注只能写在正文段落（p）或非标准化文件引用（mixed-citation）内，此处（标题、单元格、术语、标准化文件的 std 条目等）不能放脚注。', here)
     return []
   }
   const label = ctx.labelOf(footnote.id)

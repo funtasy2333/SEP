@@ -62,7 +62,7 @@ describe('XML46687 导出契约：公共导出与类型', () => {
     expect(JSON.parse(JSON.stringify({ result, withResources }))).toEqual({ result, withResources })
   })
 
-  it('问题码联合恰好是设计 §4.4 的 73 个码，均为 kebab-case 且互不重复', () => {
+  it('问题码联合恰好是设计 §4.4 的 74 个码，均为 kebab-case 且互不重复', () => {
     const codes: Record<Xml46687ProblemCode, true> = {
       'xml-label-missing': true, 'xml-body-empty': true, 'meta-required-missing': true, 'xml-date-invalid': true,
       'xml-block-after-subsec': true, 'xml-mark-combination': true, 'xml-link-protocol': true, 'xml-footnote-position': true,
@@ -83,12 +83,12 @@ describe('XML46687 导出契约：公共导出与类型', () => {
       'figure-attr-not-expressed': true, 'term-subjectfield-duplicate': true, 'term-subjectfield-promoted': true,
       'term-subjectfield-brackets': true, 'term-descriptor-not-expressed': true, 'term-descriptor-missing': true,
       'bib-std-incomplete': true, 'bib-field-not-expressed': true, 'index-seealso-not-expressed': true, 'list-type-normalized': true,
-      'cell-attr-not-expressed': true, 'px-width-ignored': true, 'term-language-merged': true,
+      'normref-unstructured': true, 'cell-attr-not-expressed': true, 'px-width-ignored': true, 'term-language-merged': true,
       'term-tail-order-normalized': true, 'mathml-annotation-removed': true, 'resource-unused': true,
     }
     const names = Object.keys(codes)
-    expect(names).toHaveLength(73)
-    expect(new Set(names).size).toBe(73)
+    expect(names).toHaveLength(74)
+    expect(new Set(names).size).toBe(74)
     for (const name of names) expect(name).toMatch(/^[a-z]+(?:-[a-z]+)+$/)
   })
 })

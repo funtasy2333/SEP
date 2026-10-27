@@ -3,7 +3,8 @@
  *
  * - 规范性引用（`renderNormRefList`）：`ref-list[@content-type="norm-refs"]`（只能在 `secType === 'norm-refs'` 的章内，否则
  *   `xml-normref-outside`；`ref-list` 不写 id）＞ `ref[@id=ref_<n>]`（恒输出，D-X-11）＞ `std>std-ref+title`（两者之间不写逗号文本，C-T-54）
- *   或 `mixed-citation`；`std` 条目的编号或名称为空 → error `xml-normref-incomplete`；
+ *   或 `mixed-citation`；`std` 条目的编号或名称为空 → error `xml-normref-incomplete`；未结构化的 norm-refs 章（没有 `normRefList`，
+ *   且除条之外至少有 2 个块）仍按普通段落输出，warning `normref-unstructured`（C-S-24；单个引导段如“本文件没有规范性引用文件。”不报）；
  * - 参考文献（`renderBibliography`）：`back/ref-list[@content-type="bibl"][@id="sec_bibl"]` ＞ `title`（`bibliographyTitle`，缺省“参考文献”）
  *   ＞ `ref[@id=biblref_<n>]`（按 xmlId 尾号升序，不信任数组序）＞ `label`（“[n]”）+ `std` 或 `mixed-citation[@xlink:type="simple"]`
  *   （+ `uri`）。`entryType==='standard'` 且 `fields` 有非空 `std-ref` 与 `title` 才写 `std`，否则 warning `bib-std-incomplete` 并按
@@ -180,7 +181,25 @@ function renderBibEntry(entry: IRBibEntry, at: Site, ctx: RenderContext, xmlId: 
   return el('ref', { id: xmlId }, [el('label', undefined, [label]), body])
 }
 
+/**
+ * 未结构化的规范性引用文件章（C-S-24）：章内没有 `normRefList`，而块（不含子条/术语条）至少 2 个——引导语之外还有按段落写的条目。
+ * 这些段落照常写成 `p`（没有 std/mixed-citation 标记），这里给 warning `normref-unstructured`。
+ * 只有一个块（如“本文件没有规范性引用文件。”）是合法写法，不报。
+ * 渲染器没有“章渲染完成”的钩子（structure.ts 属 T2.4a），本检查挂在 back 阶段必经的 `renderBibliography` 入口，只读 IR，不产生节点。
+ */
+function checkUnstructuredNormRefs(ctx: RenderContext): void {
+  ctx.doc.body.forEach((chapter, index) => {
+    if (chapter.secType !== 'norm-refs') return
+    const blocks = chapter.children.filter((child) => child.kind !== 'clause' && child.kind !== 'termEntry')
+    if (blocks.length < 2 || blocks.some((block) => block.kind === 'normRefList')) return
+    ctx.report('normref-unstructured', 'warning',
+      `「规范性引用文件」章没有结构化的清单（normRefList）：章内 ${blocks.length} 个块按普通段落输出，文件条目没有 std/mixed-citation 标记（C-S-24）。`,
+      site(`doc.body[${index}]`, chapter.id))
+  })
+}
+
 export function renderBibliography(ctx: RenderContext): XmlElement | null {
+  checkUnstructuredNormRefs(ctx)
   const entries = ctx.doc.bibliography
   if (entries.length === 0) return null
   const prepared = entries.map((entry, index) => {
