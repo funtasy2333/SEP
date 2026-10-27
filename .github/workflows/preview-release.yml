@@ -24,6 +24,8 @@ jobs:
         env:
           SES_PWSH: powershell.exe
         run: python scripts/test_ses_windows.py
+      - name: Verify literal paths and detached service logs
+        run: python scripts/test_service_spawn.py
       - name: Verify package contents
         run: python scripts/test_package_release.py
       - name: Build runtime archives

@@ -34,7 +34,7 @@ def runtime_files(platform):
             files[path.relative_to(ROOT).as_posix()] = path
     # This user-facing MCP reference is an actual build input, not a development document.
     files['packages/server/resources/authoring-reference.md'] = ROOT / 'docs/wp9-authoring-reference.md'
-    entries = (['启动SES.cmd', '退出SES.cmd', 'scripts/ses-windows.ps1', 'scripts/backup-db.cjs', 'scripts/check-sqlite.cjs'] if platform == 'windows'
+    entries = (['启动SES.cmd', '退出SES.cmd', 'scripts/ses-windows.ps1', 'scripts/backup-db.cjs', 'scripts/check-sqlite.cjs', 'scripts/start-service.cjs'] if platform == 'windows'
                else ['启动SES.command', '退出SES.command', 'scripts/ses-local.sh'])
     files.update({name: ROOT / name for name in entries})
     return files

@@ -215,9 +215,12 @@ function Stop-SesService([string]$Role) {
 }
 
 function Start-SesService([string]$Role, [string]$Entry, [string[]]$ExtraArguments, [string]$Url) {
-    $arguments = @('"' + $Entry + '"') + $ExtraArguments
     $working = Join-Path $script:SesRoot "packages/$Role"
-    $process = Start-Process -FilePath $script:SesNode -ArgumentList $arguments -WorkingDirectory $working -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $script:SesRun "$Role.log") -RedirectStandardError (Join-Path $script:SesRun "$Role-error.log")
+    $spawner = Join-Path $script:SesRoot 'scripts/start-service.cjs'
+    $spawnArguments = @($spawner, $working, (Join-Path $script:SesRun "$Role.log"), (Join-Path $script:SesRun "$Role-error.log"), $Entry) + $ExtraArguments
+    $processId = & $script:SesNode @spawnArguments
+    if ($LASTEXITCODE -ne 0) { throw "Cannot start SES $Role. Check $script:SesRun/$Role-error.log" }
+    $process = Get-Process -Id ([int]$processId) -ErrorAction Stop
     # Record identity immediately so failure cleanup can reclaim a partially started service.
     $script:SesStarted += $Role
     $details = Get-CimInstance Win32_Process -Filter "ProcessId = $($process.Id)"
