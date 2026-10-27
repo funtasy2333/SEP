@@ -6,6 +6,10 @@
  * 这里钉住该结论，防止后续为别的组放行字段时误带上它们。
  *
  * 两条列宽通路互不影响：DOCX 仍消费单元格 `columnWidths`（CSS px，`cell` 字段表放行），`columns`（名义宽度）不参与。
+ *
+ * WP8.2 T2.4b：XML46687 自此放行 `columns`、单元格 `style`（含 `border*Style`）与单元格 `columnWidths`（`XML46687_TABLES_BOUNDARY`，
+ * 已声明差异）。渲染器写成 `table/col`、`td/@style` 并对 px 列宽报 info `px-width-ignored`（D-X-03）；
+ * HTML、DOCX、旧 XML 的阻断断言**保持不变**（下面 `BLOCKING_FORMATS`），XML46687 的断言改为“放行且已声明”。放行后的输出见 xml46687.tables.test.ts。
  */
 
 import { describe, expect, it } from 'vitest'
@@ -18,8 +22,11 @@ import {
 import { renderDocx } from '../docx'
 import { renderHtml } from '../html'
 import { UnsupportedOutputError, getOutputSupportProblems, type OutputBoundaryFormat } from '../outputBoundary'
+import { findDeclaredDifference } from '../xml46687Boundary'
 
 const FORMATS: OutputBoundaryFormat[] = ['HTML', 'DOCX', 'XML', 'XML46687']
+/** 仍阻断 G8 字段的格式（XML46687 自 WP8.2 T2.4b 起放行）。 */
+const BLOCKING_FORMATS: OutputBoundaryFormat[] = ['HTML', 'DOCX', 'XML']
 
 function tableOf(doc: IRDoc, id: string): IRTable {
   const chapter = doc.body[0]!
@@ -44,8 +51,8 @@ function withoutCellStyles(doc: IRDoc): IRDoc {
   return copy
 }
 
-describe('[M-6.1-03] 输出边界：table.columns 在四种格式下均阻断', () => {
-  for (const format of FORMATS) {
+describe('[M-6.1-03] 输出边界：table.columns 在 HTML、DOCX、旧 XML 下均阻断，XML46687 放行', () => {
+  for (const format of BLOCKING_FORMATS) {
     it(`${format}：每个带 columns 的表各报一条 unsupported-output（含表 id、路径与 JSON 提示），不影响其他字段`, () => {
       const problems = problemsAt(g8IrDoc([g8TwoColumnTable({ columns: [{ width: { value: 40, unit: '%' } }, { width: { value: 60, unit: '%' } }] }), g8MergedTable()]), format, '.columns')
       expect(problems.map(problem => problem.nodeId)).toEqual(['g8-tbl-2col', 'g8-tbl-merged'])
@@ -62,11 +69,23 @@ describe('[M-6.1-03] 输出边界：table.columns 在四种格式下均阻断', 
     })
   }
 
-  it('XML46687 在 8.M 内不得放开：与旧 XML 对 columns 的结果逐条相同（仅格式名不同）', () => {
+  it('XML46687：去掉 columns 与单元格样式后整份文档零问题', () => {
+    expect(getOutputSupportProblems(withoutCellStyles(withoutColumns(g8IrDoc())), 'XML46687')).toEqual([])
+  })
+
+  it('XML46687 自 WP8.2 T2.4b 起放行 columns（已声明差异）；旧 XML 仍对同一文档逐表阻断', () => {
     const doc = g8IrDoc()
-    expect(problemsAt(doc, 'XML46687', '.columns')).toEqual(
-      problemsAt(doc, 'XML', '.columns').map(problem => ({ ...problem, message: problem.message.replace('XML ', 'XML46687 ') })),
-    )
+    expect(problemsAt(doc, 'XML46687', '.columns')).toEqual([])
+    expect(problemsAt(doc, 'XML', '.columns').length).toBeGreaterThan(0)
+    for (const problem of problemsAt(doc, 'XML', '.columns')) {
+      expect(findDeclaredDifference(doc, problem.path)).toMatchObject({ kind: 'field', name: 'columns', task: 'T2.4b' })
+    }
+  })
+
+  it('XML46687 的 columns 按 column 的字段表校验：合法的列（宽度、对齐）零问题；未登记的字段仍被精确报出', () => {
+    const doc = g8IrDoc([g8TwoColumnTable({ columns: [{ width: { value: 40, unit: '%' }, textAlign: 'center' }, { verticalAlign: 'top', extra: 1 } as never] })])
+    const found = getOutputSupportProblems(withoutCellStyles(doc), 'XML46687').map(problem => problem.path)
+    expect(found).toEqual(['doc.body[0].children[1].columns[1].extra'])
   })
 
   it('columns 是空数组等价于缺省：不报告（与 present() 的既有判定一致）', () => {
@@ -80,8 +99,8 @@ describe('[M-6.1-03] 输出边界：table.columns 在四种格式下均阻断', 
   })
 })
 
-describe('[M-6.3.3.1-01] 输出边界：单元格 style（含 border*Style）在四种格式下均阻断', () => {
-  for (const format of FORMATS) {
+describe('[M-6.3.3.1-01] 输出边界：单元格 style（含 border*Style）在 HTML、DOCX、旧 XML 下均阻断，XML46687 放行', () => {
+  for (const format of BLOCKING_FORMATS) {
     it(`${format}：每个带样式的单元格报一条 unsupported-output，路径落在 cells[i].style`, () => {
       const problems = problemsAt(g8IrDoc([g8TwoColumnTable({ columns: null })]), format, '.style')
       // 两个数据单元格带边框样式（p24 示例与 dotted）；表头单元格没有样式。
@@ -106,16 +125,34 @@ describe('[M-6.3.3.1-01] 输出边界：单元格 style（含 border*Style）在
     const table = g8LegacyTable()
     table.rows[1]!.cells[0]!.style = { borderLeftStyle: 'none' }
     const doc = g8IrDoc([table])
-    for (const format of FORMATS) {
+    for (const format of BLOCKING_FORMATS) {
       expect(problemsAt(doc, format, '.style').map(problem => problem.nodeId), format).toEqual(['g8-tbl-legacy.r1c0'])
+    }
+    expect(problemsAt(doc, 'XML46687', '.style')).toEqual([])
+  })
+
+  it('XML46687 自 WP8.2 T2.4b 起放行单元格样式（已声明差异）；旧 XML 仍逐格阻断', () => {
+    const doc = g8IrDoc()
+    expect(problemsAt(doc, 'XML46687', '.style')).toEqual([])
+    const blocked = problemsAt(doc, 'XML', '.style')
+    expect(blocked.length).toBeGreaterThan(0)
+    for (const problem of blocked) {
+      expect(findDeclaredDifference(doc, problem.path)).toMatchObject({ kind: 'field', name: 'style', task: 'T2.4b', pathSuffix: 'cells.style' })
     }
   })
 
-  it('XML46687 与旧 XML 对单元格样式的结果逐条相同（仅格式名不同）', () => {
-    const doc = g8IrDoc()
-    expect(problemsAt(doc, 'XML46687', '.style')).toEqual(
-      problemsAt(doc, 'XML', '.style').map(problem => ({ ...problem, message: problem.message.replace('XML ', 'XML46687 ') })),
-    )
+  it('XML46687 的单元格样式按 cellStyle / measure 的字段表校验：全部合法字段零问题，未登记的字段被精确报出', () => {
+    const table = g8LegacyTable()
+    table.rows[1]!.cells[0]!.style = {
+      textAlign: 'center', verticalAlign: 'middle', backgroundColor: '#EFEFEF',
+      borderTop: { value: 1, unit: 'px' }, borderTopStyle: 'solid', paddingLeft: { value: 2, unit: 'px' },
+    }
+    expect(getOutputSupportProblems(g8IrDoc([table]), 'XML46687')).toEqual([])
+    table.rows[1]!.cells[0]!.style = { borderTop: { value: 1, unit: 'px', extra: 1 } as never, glow: 'x' } as never
+    expect(problemsAt(g8IrDoc([table]), 'XML46687', '').map(problem => problem.path)).toEqual([
+      'doc.body[0].children[1].rows[1].cells[0].style.borderTop.extra',
+      'doc.body[0].children[1].rows[1].cells[0].style.glow',
+    ])
   })
 })
 
@@ -130,11 +167,13 @@ describe('[M-6.1-03] 两条列宽通路互不影响', () => {
     expect(problems.map(problem => problem.path)).toEqual(['doc.body[0].children[1].columns'])
   })
 
-  it('HTML 与 XML 家族：单元格 columnWidths 本来就不放行，与 columns 无关', () => {
+  it('HTML 与旧 XML：单元格 columnWidths 本来就不放行，与 columns 无关；XML46687 自 WP8.2 T2.4b 起放行（D-X-03，渲染时报 info px-width-ignored）', () => {
     const clean = withoutCellStyles(g8IrDoc([g8TwoColumnTable({ columns: null, columnWidths: true })]))
-    for (const format of ['HTML', 'XML', 'XML46687'] as const) {
+    for (const format of ['HTML', 'XML'] as const) {
       expect(problemsAt(clean, format, '.columnWidths').length, format).toBe(2)
     }
+    expect(problemsAt(clean, 'XML46687', '.columnWidths')).toEqual([])
+    expect(findDeclaredDifference(clean, 'doc.body[0].children[1].rows[1].cells[0].columnWidths')).toMatchObject({ kind: 'field', name: 'columnWidths', task: 'T2.4b' })
   })
 })
 
@@ -165,12 +204,14 @@ describe('[M-6.1-03][M-6.3.3.1-01] 渲染入口：阻断发生在渲染之前，
 })
 
 describe('[M-6.1-03][M-6.3.3.1-01] 来自生产 PM 文档的路径一致', () => {
-  it('pmToIr 得到的 IR 与手写 IR 的边界结论相同：columns 与单元格样式在四种格式下都被报告', () => {
+  it('pmToIr 得到的 IR 与手写 IR 的边界结论相同：columns 与单元格样式在 HTML、DOCX、旧 XML 下都被报告，XML46687 放行', () => {
     const { doc } = pmToIr(g8PmDoc())
-    for (const format of FORMATS) {
+    for (const format of BLOCKING_FORMATS) {
       expect(problemsAt(doc, format, '.columns').map(problem => problem.nodeId), format).toEqual(['g8-tbl-2col', 'g8-tbl-merged'])
       expect(problemsAt(doc, format, '.style').length, format).toBe(2)
     }
+    expect(problemsAt(doc, 'XML46687', '.columns')).toEqual([])
+    expect(problemsAt(doc, 'XML46687', '.style')).toEqual([])
     expect(tableOf(doc, 'g8-tbl-2col').columns).toBeDefined()
   })
 

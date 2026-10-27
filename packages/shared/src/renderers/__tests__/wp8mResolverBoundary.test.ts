@@ -173,12 +173,12 @@ describe('[M-8.3-02] Resolver unsupported-content 阻断非 JSON 出口：行内
     return doc
   }
 
-  it('段落内的行内图不产生 Resolver 问题（该路径无条目）；其自身仍由 image 字段阻断（G3 既有口径，不变）', () => {
+  it('段落内的行内图不产生 Resolver 问题（该路径无条目）；其自身仍由 image 字段阻断（G3 既有口径，不变；XML46687 自 WP8.2 T2.4b 起放行 image 字段）', () => {
     const doc = g3IrDoc()
     expect(resolverErrors(doc, 'unsupported-content')).toEqual([])
     for (const format of FORMATS) {
       expect(resolverProblems(doc, format), format).toEqual([])
-      expect(getOutputSupportProblems(doc, format).some(problem => problem.path.endsWith('.image')), format).toBe(true)
+      expect(getOutputSupportProblems(doc, format).some(problem => problem.path.endsWith('.image')), format).toBe(format !== 'XML46687')
     }
   })
 
