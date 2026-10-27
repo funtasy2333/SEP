@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<standard xmlns:mml="http://www.w3.org/1998/Math/MathML" xmlns:tbx="urn:iso:std:iso:30042:ed-1" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <processing-meta base-tagset="interchange" mathml-version="3.0" table-model="xhtml" terminology-model="tbx" math-representation="mathml" tagset-family="sts">
+    <custom-meta-group>
+      <custom-meta>
+        <meta-name>基于XML的标准文档内容标记指南</meta-name>
+        <meta-value>2026</meta-value>
+      </custom-meta>
+    </custom-meta-group>
+  </processing-meta>
+  <front>
+    <std-meta>
+      <title-wrap xml:lang="zh">
+        <main>网络设备安全要求</main>
+        <compl>第1部分：总则</compl>
+        <full>网络设备安全要求 第1部分：总则</full>
+      </title-wrap>
+      <title-wrap xml:lang="en">
+        <main>Security requirements for network devices</main>
+        <full>Security requirements for network devices Part 1: General</full>
+      </title-wrap>
+      <std-ident>
+        <originator>SAC</originator>
+        <doc-type>GB/T</doc-type>
+        <doc-number>99999</doc-number>
+        <part-number>1</part-number>
+        <version>1<sup>a</sup></version>
+      </std-ident>
+      <std-org-group>
+        <std-org std-org-role="lead">
+          <std-org-name>国家市场监督管理总局</std-org-name>
+          <std-org-abbrev>SAMR</std-org-abbrev>
+        </std-org>
+        <std-org std-org-role="lead">
+          <std-org-name>国家标准化管理委员会</std-org-name>
+          <std-org-abbrev>SAC</std-org-abbrev>
+        </std-org>
+      </std-org-group>
+      <content-language>zh</content-language>
+      <content-language>en</content-language>
+      <std-ref type="dated">GB/T 99999.1—2026</std-ref>
+      <std-ref type="undated">GB/T 99999.1</std-ref>
+      <release-date>2026-04-30</release-date>
+      <implementation-date>2026-11-01</implementation-date>
+      <comm-ref>SAC/TC 28</comm-ref>
+      <ics>35.240.30</ics>
+      <ccs>L 72</ccs>
+      <std-supersedes>GB/T 99999.1—2020</std-supersedes>
+      <std-xref type="revises">
+        <std-ref>GB/T 88888</std-ref>
+      </std-xref>
+      <permissions>
+        <copyright-statement>版权专有 侵权必究</copyright-statement>
+        <copyright-year>2026</copyright-year>
+        <copyright-holder>国家标准化管理委员会</copyright-holder>
+      </permissions>
+      <custom-meta-group>
+        <custom-meta>
+          <meta-name>filing-no</meta-name>
+          <meta-value>2026-0001</meta-value>
+        </custom-meta>
+        <custom-meta>
+          <meta-name>industry-name</meta-name>
+          <meta-value>信息技术</meta-value>
+        </custom-meta>
+        <custom-meta>
+          <meta-name>region-name</meta-name>
+          <meta-value>全国</meta-value>
+        </custom-meta>
+        <custom-meta>
+          <meta-name>cover-designation</meta-name>
+          <meta-value>中华人民共和国国家标准</meta-value>
+        </custom-meta>
+        <custom-meta>
+          <meta-name>applicant</meta-name>
+          <meta-value>起草单位</meta-value>
+        </custom-meta>
+        <custom-meta>
+          <meta-name>proposer</meta-name>
+          <meta-value>提出单位</meta-value>
+        </custom-meta>
+      </custom-meta-group>
+    </std-meta>
+    <sec id="sec_foreword" sec-type="foreword">
+      <title>前言</title>
+      <p>本文件按照GB/T 1.1—2020的规定起草。</p>
+      <non-normative-note>
+        <label>注：</label>
+        <p>前言中的注。</p>
+      </non-normative-note>
+    </sec>
+    <sec id="sec_0" sec-type="intro">
+      <title>引言</title>
+      <p>引言的正文。</p>
+      <sec id="sec_0.1">
+        <label>0.1</label>
+        <title>背景</title>
+        <p>引言中的第一个条。</p>
+      </sec>
+      <sec id="sec_0.2">
+        <label>0.2</label>
+        <title>目的</title>
+        <sec id="sec_0.2.1">
+          <label>0.2.1</label>
+          <title>起因</title>
+          <p>引言中的二级条。</p>
+        </sec>
+      </sec>
+    </sec>
+  </front>
+  <body>
+    <sec id="sec_1" sec-type="scope">
+      <label>1</label>
+      <title>范围</title>
+      <p>本文件规定了骨架样例的内容，参见<xref ref-type="app" rid="sec_A">附录A</xref>。</p>
+      <p>格式有<bold>粗体</bold>、<italic>斜体</italic>、<underline>下划线</underline>和<strike>删除线</strike>；变量<named-content content-type="variable">x<sup>2</sup></named-content>，调用<inline-code>init(&amp;ctx)</inline-code>。</p>
+    </sec>
+    <sec id="sec_2" sec-type="norm-refs">
+      <label>2</label>
+      <title>规范性引用文件</title>
+      <p>下列文件中的内容通过文中的规范性引用而构成本文件必不可少的条款。</p>
+    </sec>
+    <sec id="sec_3" sec-type="terms">
+      <label>3</label>
+      <title>术语和定义</title>
+      <p>本文件没有需要界定的术语和定义。</p>
+    </sec>
+    <sec id="sec_4">
+      <label>4</label>
+      <title>技术要求</title>
+      <sec id="sec_4.1">
+        <label>4.1</label>
+        <title>总体要求</title>
+        <p>各项要求应符合<xref ref-type="sec" rid="sec_4.2">4.2</xref>的规定，见<xref ref-type="custom" custom-type="note" rid="note_3">注2</xref>与<xref ref-type="custom" custom-type="example" rid="example_1">示例1</xref>，以及列项<xref ref-type="list" rid="li_1">4.1 c）</xref>。</p>
+        <p>参照<std><std-ref>GB/T 1.1—2020</std-ref></std>，另见<mixed-citation>Example Corp. Interface specification</mixed-citation>，访问<ext-link ext-link-type="uri" xlink:href="https://example.org/">示例网站</ext-link>，脚注内容<xref ref-type="fn" rid="fn_1">1)</xref><fn id="fn_1"><label><sup>1)</sup></label><p>正文脚注的内容。</p></fn>。</p>
+        <list list-type="alpha-lower">
+          <list-item>
+            <label>a)</label>
+            <p>第一项；</p>
+            <list list-type="arabic">
+              <list-item>
+                <label>1)</label>
+                <p>嵌套数字项；</p>
+              </list-item>
+              <list-item>
+                <label>2)</label>
+                <p>嵌套数字项。</p>
+              </list-item>
+            </list>
+          </list-item>
+          <list-item>
+            <label>b)</label>
+            <p>第二项；</p>
+          </list-item>
+          <list-item id="li_1">
+            <label>c)</label>
+            <p>第三项。</p>
+          </list-item>
+        </list>
+        <list list-type="dash">
+          <list-item>
+            <p>无序项一；</p>
+          </list-item>
+          <list-item>
+            <p>无序项二。</p>
+          </list-item>
+        </list>
+        <list list-type="bullet">
+          <list-item>
+            <p>圆点项。</p>
+          </list-item>
+        </list>
+        <list list-type="roman-lower">
+          <list-item>
+            <label>i)</label>
+            <p>罗马项一；</p>
+          </list-item>
+          <list-item>
+            <label>ii)</label>
+            <p>罗马项二。</p>
+          </list-item>
+        </list>
+        <non-normative-note>
+          <label>注1：</label>
+          <p>没有被引用的注，不带 id。</p>
+        </non-normative-note>
+        <non-normative-note id="note_3">
+          <label>注2：</label>
+          <p>被引用的注，带 id。</p>
+        </non-normative-note>
+        <non-normative-example id="example_1">
+          <label>示例1：</label>
+          <p>被引用的示例，带 id。</p>
+        </non-normative-example>
+        <non-normative-example>
+          <label>示例2：</label>
+          <p>没有被引用的示例，不带 id。</p>
+        </non-normative-example>
+      </sec>
+      <sec id="sec_4.2">
+        <label>4.2</label>
+        <title>详细要求</title>
+        <sec id="sec_4.2.1" sec-type="numbered-paragraph">
+          <label>4.2.1</label>
+          <p>这是一个无标题条，没有 title，带 numbered-paragraph 属性。</p>
+        </sec>
+        <sec id="sec_4.2.2">
+          <label>4.2.2</label>
+          <title>警告与摘录</title>
+          <non-normative-note content-type="warning">
+            <label>警告：</label>
+            <p>警告是带有警告标签的注。</p>
+          </non-normative-note>
+          <disp-quote>
+            <p>被缩进的单段引文。</p>
+          </disp-quote>
+          <code>for (i = 0; i &lt; n; i++) {
+    total += a[i];
+}</code>
+        </sec>
+        <non-normative-note>
+          <label>注：</label>
+          <p>子条之后的尾部注：写在子条之后。</p>
+        </non-normative-note>
+      </sec>
+    </sec>
+  </body>
+  <back>
+    <app-group>
+      <app id="sec_A" content-type="informative">
+        <label>附录 A</label>
+        <annex-type>（资料性）</annex-type>
+        <title>资料性附录示例</title>
+        <sec id="sec_A.1">
+          <label>A.1</label>
+          <title>附录中的条</title>
+          <p>附录中的条沿用附录字母作编号前缀。</p>
+        </sec>
+      </app>
+      <app id="sec_B" content-type="normative">
+        <label>附录 B</label>
+        <annex-type>（规范性）</annex-type>
+        <title>规范性附录示例</title>
+        <p>规范性附录的正文。</p>
+      </app>
+    </app-group>
+  </back>
+</standard>

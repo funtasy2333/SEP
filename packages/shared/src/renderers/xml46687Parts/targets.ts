@@ -36,9 +36,12 @@ export function xrefTypeOf(info: TargetInfo): XrefType | undefined {
   }
 }
 
-/** 引用内容取 run 自己的文本而不是 Resolver 的 `refText` 的目标（D-X-10；术语条目）。 */
+/**
+ * 引用内容取 run 自己的文本而不是 Resolver 的 `refText` 的目标：参考文献条目（D-X-10）、术语条目（`refText` 只是编号，
+ * 正文要的是术语名）、索引（`refText` 在没有标题时就是内部 id）。
+ */
 export function xrefUsesRunText(info: TargetInfo): boolean {
-  return info.kind === 'bibEntry' || info.kind === 'termEntry'
+  return info.kind === 'bibEntry' || info.kind === 'termEntry' || info.kind === 'index'
 }
 
 /** 目标种类的中文名，用于问题消息。 */

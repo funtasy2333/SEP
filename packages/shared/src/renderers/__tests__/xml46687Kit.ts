@@ -6,8 +6,11 @@
  */
 
 import { resolve } from '../../ir/resolve'
+import { writeXml } from '../../xml46687/writer'
+import { XML46687_NAMESPACES, el, site, type InlineContainer, type RenderContext } from '../xml46687Parts/context'
+import { createRenderSession } from '../xml46687Parts/dispatch'
 import type {
-  IRAppendix, IRBlock, IRChapter, IRClause, IRClauseChild, IRDoc, IRDocMeta, IRInline, IRMark, IRParagraph, NodeId,
+  IRAppendix, IRBlock, IRChapter, IRClause, IRClauseChild, IRDoc, IRDocMeta, IRInline, IRMark, IRParagraph, NodeId, ResolvedLabel,
 } from '../../ir/types'
 import { exportXml46687, type RenderXml46687Options, type Xml46687ExportResult, type Xml46687Problem } from '../xml46687'
 
@@ -102,6 +105,26 @@ export function codesOf(problems: readonly Xml46687Problem[], severity?: Xml4668
 
 export function find(problems: readonly Xml46687Problem[], code: string): Xml46687Problem[] {
   return problems.filter((problem) => problem.code === code)
+}
+
+/**
+ * 直接用渲染上下文渲染一段行内数组（不经过块渲染）：目标对象（表、图、公式、术语、文献……）只需存在于 `doc` 里，
+ * 不必真的被渲染——这样 T2.4a 的 xref 映射能对 T2.4b/T2.4c 才实现的目标种类做测试。
+ * 返回 `p` 内容的 XML 片段（相邻文本不缩进）与渲染期间收集的问题（含聚合问题）。
+ */
+export function renderRuns(
+  doc: IRDoc,
+  runs: IRInline[],
+  container: InlineContainer = 'p',
+  options: RenderXml46687Options = EMPTY_OPTIONS,
+  labels: Record<NodeId, ResolvedLabel> = labelsOf(doc),
+): { xml: string; problems: Xml46687Problem[]; ctx: RenderContext } {
+  const session = createRenderSession(doc, labels, options)
+  const nodes = session.ctx.renderInlines(runs, site('doc.test.content', 'test-owner'), container)
+  session.flushMerged()
+  const text = writeXml({ root: el('r', undefined, nodes) }, { namespaces: XML46687_NAMESPACES, indent: null })
+  const xml = text.replace(/^[\s\S]*?<r[^>]*?(?:\/>|>)/, '').replace(/<\/r>\n?$/, '')
+  return { xml, problems: session.ctx.problems, ctx: session.ctx }
 }
 
 /** 递归冻结（7.3：不修改输入）。 */
