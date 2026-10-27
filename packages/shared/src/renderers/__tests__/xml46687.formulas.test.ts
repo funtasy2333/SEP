@@ -116,6 +116,13 @@ describe('MathML 的来源与根属性（设计 §4.5）', () => {
     expect([...xml.matchAll(/<mml:mi>([^<]*)<\/mml:mi>/g)].map((match) => match[1])).toEqual(['a', 'n', 'b', 'c'])
   })
 
+  it('[M-4.1-T01] [M-4.3.2-T01] 公式以 MathML 表示：根 standard 声明 xmlns:mml，processing-meta 声明 mathml-version="3.0" 与 math-representation="mathml"；没有 DOCTYPE', () => {
+    const { whole } = dispXml([formula('f1')], options({ f1: stubMathMl() }))
+    expect(whole).toMatch(/<standard [^>]*xmlns:mml="http:\/\/www\.w3\.org\/1998\/Math\/MathML"/)
+    expect(whole).toMatch(/<processing-meta [^>]*mathml-version="3\.0"[^>]*math-representation="mathml"/)
+    expect(whole).not.toContain('<!DOCTYPE')
+  })
+
   it('[M-7.4-04] [M-7.4-05] [M-7.4-06] [M-7.4-07] [M-7.4-08] [M-7.4-09] [M-7.4-10] [M-7.4-11] MathML 内部元素按字符串保真：mrow、mi、mn、mo、mfrac、msub、msup、mspace 及其属性原样输出', () => {
     const source = `<mml:math><mml:mrow><mml:mi>E</mml:mi><mml:mo>=</mml:mo><mml:mfrac><mml:mrow><mml:mi>m</mml:mi><mml:msup><mml:mi>v</mml:mi><mml:mn>2</mml:mn></mml:msup></mml:mrow><mml:mn>2</mml:mn></mml:mfrac>`
       + `<mml:mspace width="1em"/><mml:msub><mml:mi>E</mml:mi><mml:mn>0</mml:mn></mml:msub></mml:mrow></mml:math>`
