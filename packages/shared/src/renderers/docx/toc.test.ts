@@ -110,7 +110,7 @@ function tocFixture(): { doc: IRDoc; labels: Record<NodeId, ResolvedLabel> } {
     'appendix-term-entry': label('A.1', 'sec_A.1'),
     'appendix-clause': label('A.2', 'sec_A.2'),
     'nested-appendix-clause': label('A.2.1', 'sec_A.2.1'),
-    'bib-one': label('[1]', 'bib_1'),
+    'bib-one': label('[1]', 'biblref_1'),
     'ref-target': label('3.1', 'sec_3.1', '目标&文本'),
   }
   return { doc, labels }

@@ -146,7 +146,7 @@ describe('[M-4.4.2.3-03] [M-4.4.2.3-04] [M-E-06] [M-10.2-01] [M-10.1.7-01] [M-4.
       ['', 'ref_1'], ['', 'ref_2'], ['', 'ref_3'], ['', 'ref_4'],
     ])
     expect(labels['g1-fn-nr']).toMatchObject({ label: '1)', xmlId: 'fn_1' })
-    expect(labels['g1-bib-1']).toMatchObject({ label: '[1]', xmlId: 'bib_1' })
+    expect(labels['g1-bib-1']).toMatchObject({ label: '[1]', xmlId: 'biblref_1' })
   })
 
   it('irToPm 后 Schema 校验通过，节点 ID、属性、标记与原文档逐节点相同；JSON 冷重开、再次 pmToIr 后 IR 深度相等', () => {

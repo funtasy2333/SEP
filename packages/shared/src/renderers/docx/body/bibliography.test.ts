@@ -78,8 +78,8 @@ describe('renderBibliography：顺序（按 labels[id].xmlId 的序号，没有 
 
   it('按 xmlId 里的序号升序排列，不是数组原始顺序', () => {
     const labels: Record<NodeId, ResolvedLabel> = {
-      'bib-a': { label: '[2]', xmlId: 'bib_2', refText: '[2]' },
-      'bib-b': { label: '[1]', xmlId: 'bib_1', refText: '[1]' },
+      'bib-a': { label: '[2]', xmlId: 'biblref_2', refText: '[2]' },
+      'bib-b': { label: '[1]', xmlId: 'biblref_1', refText: '[1]' },
     }
     const entries = [bibEntry('bib-a', '条目A'), bibEntry('bib-b', '条目B')]
     expect(orderOf(entries, labels)).toEqual(['条目B', '条目A'])
@@ -87,7 +87,7 @@ describe('renderBibliography：顺序（按 labels[id].xmlId 的序号，没有 
 
   it('没有 label 的条目排在最后，保持原数组的相对顺序', () => {
     const labels: Record<NodeId, ResolvedLabel> = {
-      'bib-ref': { label: '[1]', xmlId: 'bib_1', refText: '[1]' },
+      'bib-ref': { label: '[1]', xmlId: 'biblref_1', refText: '[1]' },
     }
     const entries = [bibEntry('bib-unref1', '未引用一'), bibEntry('bib-ref', '被引用'), bibEntry('bib-unref2', '未引用二')]
     expect(orderOf(entries, labels)).toEqual(['被引用', '未引用一', '未引用二'])

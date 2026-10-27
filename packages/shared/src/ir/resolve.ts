@@ -727,7 +727,7 @@ function resolveBibliography(doc: IRDoc, ctx: ResolveCtx): NodeId[] {
   }
   order.forEach((id, i) => {
     const label = ctx.strategy.bibEntry(i + 1)
-    ctx.setLabel(id, label, `bib_${i + 1}`, label)
+    ctx.setLabel(id, label, `biblref_${i + 1}`, label)
   })
   // 文献按引用顺序输出，文献中的脚注也必须按最终输出顺序编号。
   for (const id of order) {

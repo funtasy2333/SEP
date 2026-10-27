@@ -616,8 +616,8 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 </section>
 <section class="ses-bibliography" data-type="bibliography" id="sec_bibliography" role="doc-bibliography">
 <h2 class="ses-bib-title">参考文献</h2>
-<div class="ses-bib-entry" data-node-id="bib-2" id="bib_1">[1]　ISO/IEC Directives, Part 2</div>
-<div class="ses-bib-entry" data-node-id="bib-1" id="bib_2">[2]　GB/T 20000.1—2014 标准化工作指南</div>
+<div class="ses-bib-entry" data-node-id="bib-2" id="biblref_1">[1]　ISO/IEC Directives, Part 2</div>
+<div class="ses-bib-entry" data-node-id="bib-1" id="biblref_2">[2]　GB/T 20000.1—2014 标准化工作指南</div>
 </section>
 <div class="ses-end-mark" role="presentation"></div>
 </div>
@@ -856,7 +856,7 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 <dt data-node-id="f-1.w2">c</dt><dd><span class="ses-where-dash">——</span><span class="ses-where-text">光速。</span></dd>
 </dl>
 </div>
-<p class="ses-paragraph" data-type="paragraph" data-node-id="p-4221">引用文献<a class="ses-xref" href="#bib_1" data-ref-target="bib-2">[1]</a>。</p>
+<p class="ses-paragraph" data-type="paragraph" data-node-id="p-4221">引用文献<a class="ses-xref" href="#biblref_1" data-ref-target="bib-2">[1]</a>。</p>
 </section>
 </section>
 </section>
@@ -903,8 +903,8 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 </section>
 <section class="ses-bibliography" data-type="bibliography" id="sec_bibliography" role="doc-bibliography">
 <h2 class="ses-bib-title">参考文献</h2>
-<div class="ses-bib-entry" data-node-id="bib-2" id="bib_1">[1]　ISO/IEC Directives, Part 2</div>
-<div class="ses-bib-entry" data-node-id="bib-1" id="bib_2">[2]　GB/T 20000.1—2014 标准化工作指南</div>
+<div class="ses-bib-entry" data-node-id="bib-2" id="biblref_1">[1]　ISO/IEC Directives, Part 2</div>
+<div class="ses-bib-entry" data-node-id="bib-1" id="biblref_2">[2]　GB/T 20000.1—2014 标准化工作指南</div>
 </section>
 <div class="ses-end-mark" role="presentation"></div>
 </div>

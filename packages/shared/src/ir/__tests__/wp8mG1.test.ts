@@ -122,14 +122,14 @@ describe('[M-E-06] Resolver：条目 xmlId 为 ref_<清单内序号>（R-8、X-1
     expect(resolve(long).labels['g1-nr-4']!.refText).toBe('甲'.repeat(40))
   })
 
-  it('序号取清单内位置：在清单头部插入条目，后面的 xmlId 顺延；与参考文献的 bib_<n> 互不影响', () => {
+  it('序号取清单内位置：在清单头部插入条目，后面的 xmlId 顺延；与参考文献的 biblref_<n> 互不影响', () => {
     const doc = createG1IrDoc()
     normRefList(doc).entries.unshift({ kind: 'normRef', id: 'g1-nr-0', entryType: 'mixed', content: [{ text: '新条目' }] })
     const result = resolve(doc)
     expect(result.labels['g1-nr-0']!.xmlId).toBe('ref_1')
     expect(result.labels['g1-nr-1']!.xmlId).toBe('ref_2')
-    expect(result.labels['g1-bib-1']!.xmlId).toBe('bib_1')
-    expect(result.labels['g1-bib-2']!.xmlId).toBe('bib_2')
+    expect(result.labels['g1-bib-1']!.xmlId).toBe('biblref_1')
+    expect(result.labels['g1-bib-2']!.xmlId).toBe('biblref_2')
   })
 
   it('条目是合法的交叉引用目标（有标签）：crossRef 指向条目得到 refText，无 dangling-xref', () => {
@@ -489,9 +489,9 @@ describe('[M-4.5.3-02] 参考文献标题 bibliographyTitle', () => {
     expect(() => irToPm(doc)).toThrow(IRToPmError)
   })
 
-  it('标题内容不影响文献编号：bib_<n> 与 [n] 仍按引用顺序', () => {
+  it('标题内容不影响文献编号：biblref_<n> 与 [n] 仍按引用顺序', () => {
     const result = resolve(createG1IrDoc())
-    expect(result.labels['g1-bib-1']).toMatchObject({ label: '[1]', xmlId: 'bib_1' })
+    expect(result.labels['g1-bib-1']).toMatchObject({ label: '[1]', xmlId: 'biblref_1' })
     expect(result.bibliographyOrder).toEqual(['g1-bib-1', 'g1-bib-2'])
   })
 })

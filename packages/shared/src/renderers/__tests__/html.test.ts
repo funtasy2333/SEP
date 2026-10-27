@@ -334,13 +334,13 @@ describe('参考文献顺序契约：按 xmlId 数字后缀排序', () => {
   }
   // 文档顺序 a,b,c，但 xmlId 后缀打乱为 3,1,2 → 展示顺序应为 b,c,a
   const labels: Record<NodeId, ResolvedLabel> = {
-    a: { label: '[3]', xmlId: 'bib_3', refText: '[3]' },
-    b: { label: '[1]', xmlId: 'bib_1', refText: '[1]' },
-    c: { label: '[2]', xmlId: 'bib_2', refText: '[2]' },
+    a: { label: '[3]', xmlId: 'biblref_3', refText: '[3]' },
+    b: { label: '[1]', xmlId: 'biblref_1', refText: '[1]' },
+    c: { label: '[2]', xmlId: 'biblref_2', refText: '[2]' },
   }
   const html = renderHtml(doc, labels, { variant: 'screen' })
 
-  it('展示顺序由 bib_<n> 后缀决定（b→c→a），与文档顺序无关', () => {
+  it('展示顺序由 biblref_<n> 后缀决定（b→c→a），与文档顺序无关', () => {
     const ib = html.indexOf('Entry B')
     const ic = html.indexOf('Entry C')
     const ia = html.indexOf('Entry A')

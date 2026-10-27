@@ -136,7 +136,7 @@ describe('resolve / 参考文献', () => {
     // 全要素文档中正文仅引用 bib-2，bib-2 应为 [1]
     const { labels, bibliographyOrder } = resolveFull()
     expect(bibliographyOrder).toEqual(['bib-2', 'bib-1'])
-    expect(labels['bib-2']).toEqual({ label: '[1]', xmlId: 'bib_1', refText: '[1]' })
+    expect(labels['bib-2']).toEqual({ label: '[1]', xmlId: 'biblref_1', refText: '[1]' })
     expect(labels['bib-1'].label).toBe('[2]')
   })
 
