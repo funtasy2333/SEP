@@ -3,9 +3,10 @@
  * 依据 docs/wp8.2/design.md §1.4、§3.1；约定编号见 docs/wp8.1/conventions-S.md §2.2（X-xx）。
  */
 import { describe, expect, it } from 'vitest'
-import { resolve } from '../resolve'
-import type { IRBibEntry, IRDoc, IRFormula, IRTable } from '../types'
-import { appendix, chapter, docOf, example, note, para, termEntry } from './wp8mG4Fixtures'
+import { computeOrderedListMarkers, resolve } from '../resolve'
+import { gbT11Strategy } from '../strategies'
+import type { IRBibEntry, IRBlock, IRDoc, IRFormula, IRInline, IRTable, NumberingStrategy } from '../types'
+import { appendix, chapter, clause, docOf, example, figure, item, list, note, para, table, termEntry, xref } from './wp8mG4Fixtures'
 
 describe('[X-09] [R-1] 参考文献条目 xmlId = biblref_<n>', () => {
   const bib = (id: string, text: string): IRBibEntry => ({ kind: 'bibEntry', id, content: [{ text }] })
@@ -164,5 +165,137 @@ describe('[M-7.2-02] [R-10] 公式注进入作用域编号：label「注：/注n
     expect(problems.filter(problem => problem.code === 'dangling-typed-ref' || problem.code === 'dangling-xref')).toEqual([])
     expect(labels['fn-a']).toEqual({ label: '注：', xmlId: 'note_1', refText: '注' })
     expect(Object.entries(labels).filter(([, label]) => label.xmlId.startsWith('ext_')).map(([id]) => id)).toEqual([])
+  })
+})
+
+describe('[M-5.7-09] [R-11] computeOrderedListMarkers：有序列项标记（D-X-08、D-M-17）', () => {
+  /** 把块放进一个章，返回全文标记表 */
+  const markersOf = (...blocks: IRBlock[]) => computeOrderedListMarkers(docOf([chapter('ch', 'general', '一般要求', ...blocks)]))
+
+  it('一层 alpha / number / roman 有标记（全角右括号），含未被引用的列项', () => {
+    const markers = markersOf(
+      list('la', 'alpha', [item('a1', '甲'), item('a2', '乙'), item('a3', '丙')]),
+      list('ln', 'number', [item('n1', '壹'), item('n2', '贰')]),
+      list('lr', 'roman', [item('r1', 'Ⅰ'), item('r2', 'Ⅱ'), item('r3', 'Ⅲ'), item('r4', 'Ⅳ')]),
+    )
+    expect(markers).toEqual({
+      a1: 'a）', a2: 'b）', a3: 'c）', n1: '1）', n2: '2）', r1: 'i）', r2: 'ii）', r3: 'iii）', r4: 'iv）',
+    })
+  })
+
+  it('二层 number 有标记；二层 alpha / roman 没有（HTML/DOCX 渲染为间隔号）', () => {
+    const markers = markersOf(list('outer', 'alpha', [
+      item('o1', '外一',
+        list('in-n', 'number', [item('in-n1', '一'), item('in-n2', '二')]),
+        list('in-a', 'alpha', [item('in-a1', '甲'), item('in-a2', '乙')]),
+        list('in-r', 'roman', [item('in-r1', 'Ⅰ')]),
+      ),
+      item('o2', '外二'),
+    ]))
+    expect(markers).toEqual({ o1: 'a）', o2: 'b）', 'in-n1': '1）', 'in-n2': '2）' })
+    expect(markers['in-a1']).toBeUndefined()
+    expect(markers['in-r1']).toBeUndefined()
+  })
+
+  it('三层及以下没有标记，即使是 number；无序列项与 romanUpper 也没有', () => {
+    const markers = markersOf(
+      list('l1', 'number', [item('x1', '一', list('l2', 'number', [item('y1', '二', list('l3', 'number', [item('z1', '三', list('l4', 'number', [item('w1', '四')]))]))]))]),
+      ...(['dash', 'dot', 'boxed', 'romanUpper'] as const).map(listType => list(`l-${listType}`, listType, [item(`${listType}-1`, '项'), item(`${listType}-2`, '项')])),
+    )
+    expect(markers).toEqual({ x1: '1）', y1: '1）' })
+  })
+
+  it('无序父列表不产生标记，但仍使子列表成为嵌套列表：其下的 alpha 没有标记，number 有', () => {
+    const markers = markersOf(list('dash', 'dash', [
+      item('d1', '破折', list('d-alpha', 'alpha', [item('da1', '甲')]), list('d-number', 'number', [item('dn1', '壹')])),
+    ]))
+    expect(markers).toEqual({ dn1: '1）' })
+  })
+
+  it('覆盖文档里所有放块的位置：前言、引言、章/条/附录、注、示例、表（单元格与表注）、图（注与示例）、警告、摘录、术语（定义/注/示例/嵌套）', () => {
+    const alpha = (id: string) => list(`l-${id}`, 'alpha', [item(`${id}-a`, '甲'), item(`${id}-b`, '乙')])
+    const nested = termEntry('t-nested', { notes: [note('tn-nested', alpha('tnn'))] })
+    const entry = {
+      ...termEntry('t1', { definition: [para('t1-def', { text: '定义' }), alpha('tdef')], notes: [note('tn1', alpha('tn'))], examples: [example('tx1', alpha('tx'))] }),
+      nestedEntries: [nested],
+    }
+    const doc = docOf([
+      chapter('ch1', 'general', '一般要求',
+        alpha('ch'),
+        clause('c1', 1, '条', alpha('cl'), note('n1', alpha('n')), example('x1', alpha('x')),
+          { kind: 'warning', id: 'w1', content: [alpha('w')] }, { kind: 'quote', id: 'q1', content: [alpha('q')] },
+          table('tab1', [alpha('cell')], [note('tab-note', alpha('tabn'))]),
+          { ...figure('fig1', [note('fig-note', alpha('fign'))]), examples: [example('fig-ex', alpha('figx'))] },
+        ),
+      ),
+      chapter('ch2', 'terms', '术语和定义', entry),
+    ], { foreword: [alpha('fw')], appendices: [appendix('apx', '附录', alpha('ap'))] })
+    doc.front.introduction = [alpha('intro')]
+    doc.front.introductionClauses = [clause('intro-c', 1, '引言条', alpha('introc'))]
+
+    const prefixes = ['fw', 'intro', 'introc', 'ch', 'cl', 'n', 'x', 'w', 'q', 'cell', 'tabn', 'fign', 'figx', 'tdef', 'tn', 'tx', 'tnn', 'ap']
+    const markers = computeOrderedListMarkers(doc)
+    expect(Object.keys(markers).sort()).toEqual(prefixes.flatMap(prefix => [`${prefix}-a`, `${prefix}-b`]).sort())
+    expect(prefixes.flatMap(prefix => [markers[`${prefix}-a`], markers[`${prefix}-b`]])).toEqual(prefixes.flatMap(() => ['a）', 'b）']))
+  })
+
+  it('与 resolve() 的 labels 一致：被引用时 label === 标记；不在结果里的项被引用 → dangling-xref 且无 label', () => {
+    const refAll = (ids: string[]): IRInline[] => ids.map(id => xref(id))
+    const withMarker = ['a1', 'a2', 'n1', 'in1']
+    const withoutMarker = ['d1', 'u1', 'ia1', 'deep1']
+    const doc = docOf([chapter('ch', 'general', '一般要求', clause('c1', 1, '条',
+      para('refs', ...refAll([...withMarker, ...withoutMarker])),
+      list('la', 'alpha', [item('a1', '甲', list('l-in', 'number', [item('in1', '内')]), list('l-ia', 'alpha', [item('ia1', '内甲', list('l-deep', 'number', [item('deep1', '深')]))])), item('a2', '乙')]),
+      list('ln', 'number', [item('n1', '壹')]),
+      list('ld', 'dash', [item('d1', '一')]),
+      list('lu', 'romanUpper', [item('u1', 'Ⅴ')]),
+    ))])
+    const markers = computeOrderedListMarkers(doc)
+    const { labels, problems } = resolve(doc)
+    for (const id of withMarker) {
+      expect(markers[id], id).toBeTruthy()
+      expect(labels[id]?.label, id).toBe(markers[id])
+    }
+    for (const id of withoutMarker) {
+      expect(markers[id], id).toBeUndefined()
+      expect(labels[id], id).toBeUndefined()
+      expect(problems.some(problem => problem.code === 'dangling-xref' && problem.message.includes(`「${id}」`)), id).toBe(true)
+    }
+  })
+
+  it('labels 内容不变：未被引用的列项仍没有 label，只有被引用者获得 li_<k>', () => {
+    const doc = docOf([chapter('ch', 'general', '一般要求', clause('c1', 1, '条',
+      para('refs', xref('a2')),
+      list('la', 'alpha', [item('a1', '甲'), item('a2', '乙'), item('a3', '丙')]),
+    ))])
+    expect(Object.keys(computeOrderedListMarkers(doc)).sort()).toEqual(['a1', 'a2', 'a3'])
+    const { labels } = resolve(doc)
+    expect(labels['a1']).toBeUndefined()
+    expect(labels['a3']).toBeUndefined()
+    expect(labels['a2']).toEqual({ label: 'b）', xmlId: 'li_1', refText: '1.1 b）' })
+  })
+
+  it('策略：默认 gbT11Strategy；自定义 listItem 策略同时作用于函数与 resolve()；省略 listItem 时回退内置规则', () => {
+    const doc = docOf([chapter('ch', 'general', '一般要求', clause('c1', 1, '条',
+      para('refs', xref('a2')),
+      list('la', 'alpha', [item('a1', '甲'), item('a2', '乙')]),
+    ))])
+    expect(computeOrderedListMarkers(doc)).toEqual(computeOrderedListMarkers(doc, gbT11Strategy))
+    const custom: NumberingStrategy = { ...gbT11Strategy, listItem: (listType, ordinal) => `(${listType}${ordinal})` }
+    expect(computeOrderedListMarkers(doc, custom)).toEqual({ a1: '(alpha1)', a2: '(alpha2)' })
+    expect(resolve(doc, custom).labels['a2']).toMatchObject({ label: '(alpha2)', refText: '1.1 (alpha2)' })
+    const { listItem: _omitted, ...withoutListItem } = gbT11Strategy
+    expect(computeOrderedListMarkers(doc, withoutListItem as NumberingStrategy)).toEqual({ a1: 'a）', a2: 'b）' })
+    // 自定义策略返回空串 = 该项没有标记
+    const blank: NumberingStrategy = { ...gbT11Strategy, listItem: (_listType, ordinal) => (ordinal === 1 ? '' : 'x') }
+    expect(computeOrderedListMarkers(doc, blank)).toEqual({ a2: 'x' })
+  })
+
+  it('纯函数：不修改入参，同一输入两次结果深度相等；无列表的文档返回空表', () => {
+    const doc = docOf([chapter('ch', 'general', '一般要求', list('la', 'alpha', [item('a1', '甲')]), para('p', { text: '正文' }))])
+    const before = JSON.stringify(doc)
+    expect(computeOrderedListMarkers(doc)).toEqual(computeOrderedListMarkers(doc))
+    expect(JSON.stringify(doc)).toBe(before)
+    expect(computeOrderedListMarkers(docOf([chapter('ch', 'general', '一般要求', para('p', { text: '正文' }))]))).toEqual({})
   })
 })
