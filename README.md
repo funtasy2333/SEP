@@ -80,53 +80,105 @@ SEP/
 
 ---
 
-## 快速开始
+## 安装与启动
 
-### 环境要求
+### 下载使用（推荐）
 
-| 依赖项  | 最低版本 |
-| ------- | -------- |
-| Node.js | 20.19.0  |
-| pnpm    | 9.0      |
+当前版本为 [SES 0.1.0 Preview](https://github.com/funtasy2333/SEP/releases/tag/v0.1.0-preview)。请根据操作系统下载对应压缩包，**完整解压到可写的本地目录后再启动，不要直接在压缩包内运行脚本**。
 
-> 详细的环境配置说明请参阅 [ENVIRONMENT.md](ENVIRONMENT.md)
+| 操作系统 | 下载 | 启动 | 退出 |
+| -------- | ---- | ---- | ---- |
+| Windows 10/11（64 位） | [SES-0.1.0-preview-windows.zip](https://github.com/funtasy2333/SEP/releases/download/v0.1.0-preview/SES-0.1.0-preview-windows.zip) | 双击 `启动SES.cmd` | 双击 `退出SES.cmd` |
+| macOS | [SES-0.1.0-preview-macos.zip](https://github.com/funtasy2333/SEP/releases/download/v0.1.0-preview/SES-0.1.0-preview-macos.zip) | 双击 `启动SES.command` | 双击 `退出SES.command` |
 
-### 安装与启动
+压缩包包含 SES 程序源码、资源、启动文件和使用说明；不包含开发过程文档、测试、已有数据库或第三方依赖。直接使用压缩包无需安装 Git 或 Python，**首次启动需要联网安装依赖并构建项目**。
+
+#### Windows
+
+1. 解压 Windows 压缩包，进入解压后的 SES 目录。
+2. 双击 `启动SES.cmd`，等待依赖安装与构建完成，浏览器会自动打开编辑器。
+3. 使用结束后，双击 `退出SES.cmd` 停止服务。
+
+需要 Windows PowerShell 5.1 或更高版本（Windows 10/11 通常已自带）。脚本会检查现有 Node.js；未找到兼容版本时，在 SES 目录内安装经过 SHA256 校验的便携版 Node.js 22.22.0，并在本目录安装 pnpm 10.33.0，无需手动配置全局运行环境。
+
+Windows 脚本优先尝试官方 HTTPS 来源，下载或安装失败后自动重试中国大陆 npmmirror 镜像；通过实际请求判断连接情况，不依赖 ICMP ping。此逻辑仅适用于 Windows，不修改全局 npm 源。两个来源都失败时会显示错误并停止，请检查网络或代理后重新启动。
+
+#### macOS
+
+1. 下载并安装 [Node.js 22.22.0（macOS 安装包）](https://nodejs.org/dist/v22.22.0/node-v22.22.0.pkg)，或使用已安装的兼容版本。
+2. 在终端安装 pnpm（最低 9.0，推荐 10.33.0）：
+
+   ```bash
+   npm install -g pnpm@10.33.0
+   ```
+
+3. 解压 macOS 压缩包，在 Finder 中双击 `启动SES.command`，等待依赖安装与构建完成。
+4. 使用结束后，双击 `退出SES.command` 停止服务。
+
+如果提示脚本没有执行权限，请在终端进入解压后的 SES 目录执行以下命令，再双击启动：
+
+```bash
+chmod +x 启动SES.command 退出SES.command scripts/ses-local.sh
+```
+
+macOS 启动脚本沿用原有依赖来源配置，不包含 Windows 的自动镜像切换逻辑。
+
+### 访问、退出与数据保存
+
+启动成功后访问 [http://localhost:5173/](http://localhost:5173/)；Windows 启动脚本会打开 [http://127.0.0.1:5173/](http://127.0.0.1:5173/)。后端 API 使用端口 `3000`，默认只监听本机 `127.0.0.1`。
+
+关闭启动脚本窗口后，SES 会继续在后台运行；请使用对应的退出脚本停止服务。重复启动会复用这套脚本已启动的服务，退出脚本只停止其登记的 SES 进程，保留文档数据。
+
+| 内容 | 保存位置（相对于 SES 目录） |
+| ---- | ------------------------- |
+| 文档数据库 | `packages/server/data/ses.db` |
+| 启动前的数据库备份 | `output/startup-backups/` |
+| 服务日志 | `.ses-run/` |
+| Windows 本地 Node.js 与 pnpm | `.ses-tools/` |
+
+启动脚本会在启动后端前备份已有数据库。升级或移动 SES 前，请先退出服务并备份原目录，避免丢失文档。
+
+如提示端口 `3000` 或 `5173` 被占用，请先退出占用端口的程序。如已通过 `pnpm dev` 启动，请先在原终端按 Ctrl+C 停止，再使用双击启动脚本。
+
+### 可选：启用 PDF 版式预览
+
+PDF 版式预览还需要 Poppler，DOCX 编辑与导出无需安装此依赖。
+
+- macOS：运行 `brew install poppler`。
+- Windows：安装 Poppler，并将包含 `pdftotext.exe` 和 `pdfinfo.exe` 的目录加入 `PATH`；安装后退出并重新启动 SES。
+
+Vivliostyle 的排版浏览器可能在首次生成 PDF 时另行联网下载。更多环境说明见 [ENVIRONMENT.md](ENVIRONMENT.md)。
+
+### 从源码开发
+
+需要自行安装 Git、Node.js 和 pnpm。推荐使用 Node.js **22.22.0** 与 pnpm **10.33.0**；项目最低 Node.js 版本为 20.19.0，使用 Node.js 22 时需至少 22.12.0，pnpm 至少 9.0。
 
 ```bash
 # 克隆项目
 git clone https://github.com/funtasy2333/SEP.git
 cd SEP
 
-# 安装依赖
-pnpm install
+# 按锁文件安装依赖
+pnpm install --frozen-lockfile
 
-# 启动开发环境（前端 + 后端）
+# 启动前端和后端开发服务
 pnpm dev
 ```
 
-启动后访问 http://localhost:5173 即可使用编辑器，后端 API 运行在 http://localhost:3000（默认只监听本机 127.0.0.1，局域网内的其他设备访问不到；如需开放，见 [本地接入 MCP](docs/wp9-mcp-local-setup.md) 的 `SES_LISTEN_HOST`）。
-
-也可以分别启动前端和后端：
+启动后访问 [http://localhost:5173/](http://localhost:5173/)。开发服务在前台运行，按 Ctrl+C 停止。也可以分别启动前后端：
 
 ```bash
 pnpm dev:client   # 仅前端
 pnpm dev:server   # 仅后端
 ```
 
-Windows 可以双击根目录的 `启动SES.cmd` 和 `退出SES.cmd`（Windows 10/11 64 位，PowerShell 5.1+）。
-首次启动会按需安装本地便携 Node.js 和 pnpm，并安装依赖、备份数据库、构建和启动。Windows 脚本优先使用官方 HTTPS 来源，失败后自动重试中国大陆 npmmirror 镜像；不会更改全局 npm 源。运行时保存在 `.ses-tools/`，日志保存在 `.ses-run/`。
-
-macOS 也可以在 Finder 中双击根目录的 `启动SES.command` 和 `退出SES.command`。
-启动脚本会检查依赖，在后端未运行时构建项目并备份现有数据库，然后启动前后端并打开浏览器；关闭脚本窗口后服务继续运行。
-重复启动会复用这套脚本已启动的服务；退出脚本只停止这套脚本登记的 SES 进程，保留文档数据。如已通过 `pnpm dev` 手动启动，请先在原终端按 Ctrl+C 退出，再双击启动脚本。日志位于 `.ses-run/`，数据库备份位于 `output/startup-backups/`。
-后端采用构建模式运行，修改后端代码后需先退出再启动。
-
-### 构建
+构建项目：
 
 ```bash
 pnpm build
 ```
+
+双击启动脚本采用构建后的后端代码；修改后端代码后，需要先退出服务再重新启动。需要从局域网访问或配置 MCP 时，请参阅 [本地接入 MCP](docs/wp9-mcp-local-setup.md)。
 
 ---
 
