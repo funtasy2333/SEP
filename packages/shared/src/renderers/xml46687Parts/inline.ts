@@ -144,7 +144,7 @@ interface LinkPlan {
 }
 
 /** 把链接类 mark 解析为包装器；失败时已报告问题并返回 undefined（该 run 按无链接输出）。 */
-function planLink(ctx: RenderContext, mark: LinkMark, run: IRInline, at: Site, caps: Capabilities): LinkPlan | undefined {
+function planLink(ctx: RenderContext, mark: LinkMark, at: Site, caps: Capabilities): LinkPlan | undefined {
   if (mark.type === 'externalLink') {
     const href = typeof mark.href === 'string' ? mark.href.trim() : ''
     const problem = href === '' ? '地址为空' : urlProblem(mark.href)
@@ -158,7 +158,7 @@ function planLink(ctx: RenderContext, mark: LinkMark, run: IRInline, at: Site, c
         ctx.report('link-attr-not-expressed', 'warning', `外部链接的 ${attribute}「${value}」在 GB/T 46687.2 中没有对应属性，未导出。`, at)
       }
     }
-    return { wrapper: simpleWrapper(RANK.link, `ext-link|${mark.href}`, () => el('ext-link', { 'ext-link-type': 'uri', 'xlink:href': mark.href })) }
+    return { wrapper: simpleWrapper(RANK.link, `ext-link|${href}`, () => el('ext-link', { 'ext-link-type': 'uri', 'xlink:href': href })) }
   }
 
   const targetId: NodeId = mark.targetId
@@ -279,7 +279,7 @@ function processRun(ctx: RenderContext, run: IRInline, at: Site, container: Inli
   for (const link of links) {
     const allowed = link.type === 'externalLink' ? caps.externalLink : caps.xref
     if (!permit(allowed, link.type)) continue
-    const plan = planLink(ctx, link, run, at, caps)
+    const plan = planLink(ctx, link, at, caps)
     if (!plan) continue
     wrappers.push(plan.wrapper)
     if (plan.replaceText !== undefined) { replaceText = plan.replaceText; replacedBy = plan.wrapper.key }
