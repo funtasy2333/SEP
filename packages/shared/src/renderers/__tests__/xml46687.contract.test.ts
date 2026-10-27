@@ -115,11 +115,27 @@ describe('XmlExportError', () => {
 })
 
 describe('XML46687 入口断言：先脚注、后输出边界；render 抛、export 转问题', () => {
-  it('文档通过两道断言时到达占位：两个入口都抛 not implemented（T2.4a-1 实现前的占位行为）', () => {
+  // T2.4a-1 把“到达占位”的两条用例改成真实管线断言（见本文件头注释）；入口断言的其余用例保持不变。
+  it('文档通过两道断言后进入渲染管线：缺题名是内容 error——render 抛 XmlExportError，export 返回 xml:null 与问题', () => {
     const value = validDoc()
     expect(getOutputSupportProblems(value, 'XML46687')).toEqual([])
-    expect(() => renderXml46687(value, labelsOf(value), options)).toThrow('renderXml46687: not implemented (WP8.2 T2.4a-1)')
-    expect(() => exportXml46687(value, labelsOf(value), options)).toThrow('exportXml46687: not implemented (WP8.2 T2.4a-1)')
+    let thrown: unknown
+    try { renderXml46687(value, labelsOf(value), options) } catch (error) { thrown = error }
+    expect(thrown).toBeInstanceOf(XmlExportError)
+    expect((thrown as XmlExportError).problems.some((problem) => problem.code === 'meta-required-missing' && problem.severity === 'error')).toBe(true)
+    const result = exportXml46687(value, labelsOf(value), options)
+    expect(result.xml).toBeNull()
+    expect(result.problems).toEqual((thrown as XmlExportError).problems)
+  })
+
+  it('文档元数据有题名时：render 返回 XML 字符串，export 返回同一份 XML 与 warning/info', () => {
+    const value = validDoc()
+    value.meta.title = '契约测试标准'
+    const xml = renderXml46687(value, labelsOf(value), options)
+    expect(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>\n<standard')).toBe(true)
+    const result = exportXml46687(value, labelsOf(value), options)
+    expect(result.xml).toBe(xml)
+    expect(result.problems.every((problem) => problem.severity !== 'error')).toBe(true)
   })
 
   it('输出边界错误：render 抛 UnsupportedOutputError；export 返回 xml:null 与逐条映射的问题', () => {

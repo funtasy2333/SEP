@@ -1,17 +1,27 @@
 /**
- * GB/T 46687.2—2026 XML 导出渲染器的公共契约（WP8.2 设计 §4.1～§4.4）。
+ * GB/T 46687.2—2026 XML 导出渲染器：公共契约（设计 §4.1～§4.4）与渲染管线 P0～P5（设计 §2.0.1）。
  *
- * 本文件目前只有类型与入口占位（T2.4a-0）：问题类型与码、选项、结果、`XmlExportError`，以及
- * `exportXml46687`（不因内容问题抛错）与 `renderXml46687`（有 error 即抛）的签名。入口断言已就位，
- * 渲染管线（设计 §2.0.1 的 P1～P5）由 T2.4a-1 实现。
+ * - P0 入口断言：先脚注核对、后输出边界（沿用 HTML/DOCX 渲染器的口径）；再核对 `options` 的形状；
+ * - P1 预扫描：目标种类表、有序列项标记、图片引用清单（`xml46687Parts/targets.ts`、`dispatch.ts`）；
+ * - P2 构建：自顶向下按分派表（`xml46687Parts/dispatch.ts`）构建 `XmlElement` 树，问题写入 `ctx.problems`；
+ * - P3 后置赋值：仅被引用时写的 id、`mml_m<k>`（`xml46687Parts/ids.ts`）；
+ * - P4 收尾检查：id 合法/唯一、rid 可解析、无 `ext_` 泄漏、资源清单核对（`xml46687Parts/ids.ts`）；
+ * - P5 写出：有 error 则 `renderXml46687` 抛 `XmlExportError`、`exportXml46687` 返回 `xml: null`；否则 `writeXml`。
  *
- * 同构纯 TypeScript，不引用任何浏览器/Node API；渲染器内**不含编号逻辑**，id 一律取自 Resolver 的 `labels`。
+ * 同构纯 TypeScript，不引用任何浏览器/Node API；渲染器内**不含编号逻辑**，id 一律取自 Resolver 的 `labels`
+ * （渲染器自己只做 `mml_m<k>`/`df_<k>` 计数与常量 id）。
  */
 
 import type { IRDoc, NodeId, ResolvedLabel } from '../ir/types'
 import type { ResourceManifest } from '../xml46687/resources'
+import type { XmlDocument } from '../xml46687/tree'
+import { XmlWriteError, writeXml } from '../xml46687/writer'
 import { assertFootnoteReferences } from './footnotes'
 import { UnsupportedOutputError, assertOutputSupported } from './outputBoundary'
+import { XML46687_NAMESPACES, preserveSpace } from './xml46687Parts/context'
+import { createRenderSession } from './xml46687Parts/dispatch'
+import { assignMathIds, assignPendingIds, checkOutputTree } from './xml46687Parts/ids'
+import { renderStandard } from './xml46687Parts/structure'
 
 /** 设计 §4.4 问题目录的全部码。 */
 export type Xml46687ProblemCode =
@@ -95,6 +105,67 @@ function isFootnoteAssertionError(error: unknown): error is Error {
   return error instanceof Error && Object.getPrototypeOf(error) === Error.prototype
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** P0：核对 `options` 的形状（调用方契约，错了是编程错误，抛 `TypeError`）。 */
+function assertOptions(options: RenderXml46687Options): void {
+  if (!isPlainObject(options) || !isPlainObject(options.mathml)) {
+    throw new TypeError('renderXml46687: options.mathml 必须是对象（公式 NodeId → MathML 字符串）')
+  }
+  for (const [key, value] of Object.entries(options.mathml)) {
+    if (typeof value !== 'string') throw new TypeError(`renderXml46687: options.mathml["${key}"] 必须是字符串`)
+  }
+  const resources = options.resources as ResourceManifest | undefined
+  if (!isPlainObject(resources) || !Array.isArray(resources.entries)) {
+    throw new TypeError('renderXml46687: options.resources 必须是资源清单（{ version: 1, entries: [] }）')
+  }
+}
+
+/**
+ * P1～P4：构建输出树并做收尾检查，返回 `XmlDocument` 与全部问题（含 warning/info）。
+ * 不做入口断言、不写出文本；`exportXml46687` 与 `renderXml46687` 共用，也供语义检查测试直接取树
+ * （设计 §7.1⑤，“写出前的树”）。
+ */
+export function buildXml46687Document(
+  doc: IRDoc,
+  labels: Record<NodeId, ResolvedLabel>,
+  options: RenderXml46687Options,
+): { document: XmlDocument; problems: Xml46687Problem[] } {
+  assertOptions(options)
+  const session = createRenderSession(doc, labels, options)
+  const { ctx } = session
+  const root = renderStandard(ctx)
+  session.flushMerged()
+  assignPendingIds(ctx, session.ids)
+  assignMathIds(root)
+  checkOutputTree(ctx, root)
+  return { document: { root }, problems: ctx.problems }
+}
+
+/** P5：写出 XML 文本；`XmlWriteError`（控制字符等）包装为 `xml-write-failed` 问题。 */
+function writeDocument(document: XmlDocument, problems: Xml46687Problem[]): string | null {
+  try {
+    return writeXml(document, { namespaces: XML46687_NAMESPACES, indent: '  ', preserveSpace })
+  } catch (error) {
+    if (!(error instanceof XmlWriteError)) throw error
+    problems.push({ code: 'xml-write-failed', severity: 'error', path: `xml:${error.path}`, message: error.message })
+    return null
+  }
+}
+
+function runPipeline(
+  doc: IRDoc,
+  labels: Record<NodeId, ResolvedLabel>,
+  options: RenderXml46687Options,
+): Xml46687ExportResult {
+  const { document, problems } = buildXml46687Document(doc, labels, options)
+  if (problems.some((problem) => problem.severity === 'error')) return { xml: null, problems }
+  const xml = writeDocument(document, problems)
+  return { xml, problems }
+}
+
 /**
  * 导出为 GB/T 46687.2 XML，不因内容问题抛错：返回 XML（有 error 时为 null）与全部问题。
  * 入口断言（先脚注、后输出边界，与 `renderXml46687` 同序）失败时转为问题返回，不再继续。
@@ -102,7 +173,7 @@ function isFootnoteAssertionError(error: unknown): error is Error {
 export function exportXml46687(
   doc: IRDoc,
   labels: Record<NodeId, ResolvedLabel>,
-  _options: RenderXml46687Options,
+  options: RenderXml46687Options,
 ): Xml46687ExportResult {
   try {
     assertFootnoteReferences(doc, labels)
@@ -128,19 +199,21 @@ export function exportXml46687(
       })),
     }
   }
-  throw new Error('exportXml46687: not implemented (WP8.2 T2.4a-1)')
+  return runPipeline(doc, labels, options)
 }
 
 /**
  * 渲染为 GB/T 46687.2 XML 字符串，与 `renderHtml`/DOCX 渲染器对称：入口断言失败抛原错误
- * （脚注 `Error`、`UnsupportedOutputError`），内容有 error 抛 `XmlExportError`。
+ * （脚注 `Error`、`UnsupportedOutputError`），内容有 error 抛 `XmlExportError`（携带全部问题）。
  */
 export function renderXml46687(
   doc: IRDoc,
   labels: Record<NodeId, ResolvedLabel>,
-  _options: RenderXml46687Options,
+  options: RenderXml46687Options,
 ): string {
   assertFootnoteReferences(doc, labels)
   assertOutputSupported(doc, 'XML46687')
-  throw new Error('renderXml46687: not implemented (WP8.2 T2.4a-1)')
+  const result = runPipeline(doc, labels, options)
+  if (result.xml === null) throw new XmlExportError(result.problems)
+  return result.xml
 }

@@ -2,7 +2,7 @@
  * WP8.M G6：引言中的条的输出边界与本阶段排版（docs/wp8.m/design.md §4.6、§7.1；矩阵 M-4.3.4-02、M-4.3.4-03）。
  *
  * §7.1：引言中的条在 HTML（含打印）与 DOCX 按条标题排版，编号 0.1，字体字号与正文条一致（GB/T 1.1—2020 表 F.1 #33
- * 章、条编号及其标题五号黑体；8.4 引言仅对条编号，编为 0.1、0.2 等）；XML、XML46687 仍阻断（XML46687 留给 WP8.2）。
+ * 章、条编号及其标题五号黑体；8.4 引言仅对条编号，编为 0.1、0.2 等）；旧 XML 仍阻断；XML46687 自 WP8.2 T2.4a-1 起放行并写成 sec_0.<n>。
  * 目次只列「引言」，不列引言条（8.2 d 条目次“需要时列出”，目次页码的前置/正文分区见 io/pdfExport.ts）。
  */
 
@@ -19,6 +19,7 @@ import { docxOutline } from '../docx/__tests__/helpers/outline'
 import { renderHtml } from '../html'
 import { getOutputSupportProblems, type OutputBoundaryFormat } from '../outputBoundary'
 import { printCss } from '../printCss'
+import { findDeclaredDifference } from '../xml46687Boundary'
 
 const FORMATS: OutputBoundaryFormat[] = ['HTML', 'DOCX', 'XML', 'XML46687']
 const docxOptions = { formulaOmml: {}, images: {}, stage: 'approval_draft' as const, createdAt: '2026-10-22T08:00:00.000Z' }
@@ -37,7 +38,7 @@ function docx(doc: IRDoc) {
 
 const listItemExpected = new Map([['intro-c2-list-i1', 'a）'], ['intro-c2-list-i2', 'b）']])
 
-describe('[M-4.3.4-02] 输出边界：front.introductionClauses 只对 HTML、DOCX 放行', () => {
+describe('[M-4.3.4-02] 输出边界：front.introductionClauses 对 HTML、DOCX、XML46687 放行，旧 XML 阻断', () => {
   const withClauses = createG6IrDoc()
   const legacy = createG6IrDocWithoutClauses()
 
@@ -46,12 +47,17 @@ describe('[M-4.3.4-02] 输出边界：front.introductionClauses 只对 HTML、DO
     expect(getOutputSupportProblems(withClauses, 'DOCX')).toEqual([])
   })
 
-  it('XML、XML46687：阻断，路径指向 front.introductionClauses（WP8.2 再放开 XML46687）', () => {
-    for (const format of ['XML', 'XML46687'] as const) {
-      const problems = getOutputSupportProblems(withClauses, format)
-      expect(problems.map(problem => problem.path), format).toEqual(['doc.front.introductionClauses'])
-      expect(problems[0]).toMatchObject({ code: 'unsupported-output', message: expect.stringContaining('introductionClauses') })
-    }
+  it('旧 XML：阻断，路径指向 front.introductionClauses', () => {
+    const problems = getOutputSupportProblems(withClauses, 'XML')
+    expect(problems.map(problem => problem.path)).toEqual(['doc.front.introductionClauses'])
+    expect(problems[0]).toMatchObject({ code: 'unsupported-output', message: expect.stringContaining('introductionClauses') })
+  })
+
+  // WP8.2 T2.4a-1：XML46687 放行 front.introductionClauses（写成 sec_0.<n>，4.3.4），并登记为已声明差异
+  it('XML46687：放行 front.introductionClauses（WP8.2），差异恰为已声明的 front.introductionClauses', () => {
+    expect(getOutputSupportProblems(withClauses, 'XML46687')).toEqual([])
+    const xmlOnly = getOutputSupportProblems(withClauses, 'XML').map(problem => problem.path)
+    expect(xmlOnly.map(path => findDeclaredDifference(withClauses, path)?.pathSuffix)).toEqual(['front.introductionClauses'])
   })
 
   it('无条的引言：四种格式都与改动前一致，没有问题', () => {

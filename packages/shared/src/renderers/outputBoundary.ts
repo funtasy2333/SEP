@@ -5,6 +5,9 @@ import { resolve, termTailOrderProblemMessage, unsupportedContentProblemMessage 
 import { findCrossRefRunProjectionIssues } from '../ir/inlineProjectionDiagnostics'
 import { canonicalTermTailOrder, orderedTermTail, sameTermTailOrder } from '../ir/termTailOrder'
 import type { IRTermEntry, IRTermTailOrderItem } from '../ir/types'
+import {
+  XML46687_EXTRA_FIELDS, XML46687_EXTRA_MARKS, XML46687_PLAIN_KIND_SHAPES, XML46687_SHAPE_RULES,
+} from './xml46687Boundary'
 
 export interface OutputSupportProblem {
   code: 'unsupported-output'
@@ -87,8 +90,9 @@ const EXTRA_FIELDS: Record<OutputBoundaryFormat, Readonly<Record<string, readonl
   DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'], termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'] },
   HTML: { meta: PRINT_META_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'] },
   XML: NO_EXTRA_FIELDS,
-  // XML46687 的允许表、marks 与特殊检查目前与 XML 完全相同；WP8.1 支持矩阵确定后，在 WP8.2 再放开。
-  XML46687: NO_EXTRA_FIELDS,
+  // XML46687 比 XML 多放行的字段/kind/mark 由各领域文件登记（renderers/xml46687Parts/*.ts 的 XML46687_*_BOUNDARY），
+  // 汇总在 xml46687Boundary.ts；XML46687_DECLARED_DIFFERENCES 逐项列出差异，outputBoundaryXml46687.test.ts 据此断言。
+  XML46687: XML46687_EXTRA_FIELDS,
 }
 
 function buildFields(format: OutputBoundaryFormat): Record<string, ReadonlySet<string>> {
@@ -104,9 +108,15 @@ const FIELDS_BY_FORMAT: Record<OutputBoundaryFormat, Record<string, ReadonlySet<
   DOCX: buildFields('DOCX'), HTML: buildFields('HTML'), XML: buildFields('XML'), XML46687: buildFields('XML46687'),
 }
 // WP8.M §7.1 / D-M-07：正文标准引用 mark（stdRef、mixedCitation，M-10.2-01/-02、M-10.1.7-01）本阶段在 HTML、DOCX
-// 按普通文本输出；XML 家族不放行（XML46687 留给 WP8.2）。
+// 按普通文本输出；旧 XML 不放行。XML46687 的 mark 集合 = MARKS 加 xml46687Boundary 汇总的 mark（WP8.2 §1.3.3）。
 const PRINT_MARKS = new Set([...MARKS, 'stdRef', 'mixedCitation'])
-const MARKS_BY_FORMAT: Record<OutputBoundaryFormat, ReadonlySet<string>> = { DOCX: PRINT_MARKS, HTML: PRINT_MARKS, XML: MARKS, XML46687: MARKS }
+const XML46687_MARKS = new Set([...MARKS, ...XML46687_EXTRA_MARKS])
+const MARKS_BY_FORMAT: Record<OutputBoundaryFormat, ReadonlySet<string>> = { DOCX: PRINT_MARKS, HTML: PRINT_MARKS, XML: MARKS, XML46687: XML46687_MARKS }
+/**
+ * 对象的 `kind` 字段是数据而不是节点 kind 的 shape：mark（`variable` 的 `kind`）恒如此，其余由领域登记
+ * （如 `IRIdentifierPart.kind`）。不排除它们，带 `kind` 的数据字段会被当成“kind 为某某的节点”而整体误报。
+ */
+const PLAIN_KIND_SHAPES: ReadonlySet<string> = new Set(['mark', ...XML46687_PLAIN_KIND_SHAPES])
 
 function fieldsFor(format: OutputBoundaryFormat): Record<string, ReadonlySet<string>> { return FIELDS_BY_FORMAT[format] }
 function marksFor(format: OutputBoundaryFormat): ReadonlySet<string> { return MARKS_BY_FORMAT[format] }
@@ -153,7 +163,7 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
     if (!value || typeof value !== 'object' || Array.isArray(value)) return
     const object = value as Record<string, unknown>
     const id = typeof object.id === 'string' ? object.id : parentId
-    const kind = typeof object.kind === 'string' ? object.kind : shape
+    const kind = !PLAIN_KIND_SHAPES.has(shape) && typeof object.kind === 'string' ? object.kind : shape
     if (format === 'DOCX' && typeof object.text === 'string' && Array.isArray(object.marks)) {
       const marks = object.marks as Array<{ type?: unknown }>
       const subIndex = marks.findIndex(mark => mark?.type === 'sub')
@@ -234,8 +244,10 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
       }
       if (kind === 'mark' && key === 'type' && !marks.has(String(child))) { report(key); continue }
       if (shape === 'inline' && key === 'formula' && present(child)) {
-        if (isXmlFormat(format)) { report(key); continue }
-        if (container === undefined || !INLINE_FORMULA_CONTAINERS.has(container)) {
+        // 旧 XML 一律阻断；XML46687 放行（WP8.2 §1.3.3）：纯文本型容器里的行内公式由渲染器报 formula-in-text-only，
+        // 公式是否有可用的 MathML 也由渲染器核对（mathml-missing），所以这里既不查容器也不要求 latex。
+        if (format === 'XML') { report(key); continue }
+        if (format !== 'XML46687' && (container === undefined || !INLINE_FORMULA_CONTAINERS.has(container))) {
           problems.push({
             code: 'unsupported-output', nodeId: id, path: `${path}.${key}`,
             message: `${format} 暂未支持此位置的行内公式：${path}.${key}${id ? `（节点 ${id}）` : ''}；标题、图表题、术语名、参考文献中暂不支持行内公式。请保留 JSON 文档。`,
@@ -245,16 +257,20 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
         if (present(object.marks)) report('marks')
         if (present(object.footnote)) report('footnote')
         const formula = child as Record<string, unknown>
-        if (typeof formula.latex !== 'string' || formula.latex.trim() === '') report(`${key}.latex`)
+        if (format !== 'XML46687' && (typeof formula.latex !== 'string' || formula.latex.trim() === '')) report(`${key}.latex`)
       }
       if (key === 'unsupportedContent') continue
       if (key === 'tailOrder') continue
-      const childShape = key === 'meta' ? 'meta' : key === 'front' ? 'front'
+      const defaultShape = key === 'meta' ? 'meta' : key === 'front' ? 'front'
         : key === 'marks' ? 'mark' : key === 'footnote' || key === 'footnotes' ? 'footnote'
         : key === 'rows' ? 'row' : key === 'cells' ? 'cell' : key === 'items' ? (kind === 'defList' ? 'where' : 'item')
         : key === 'whereList' ? 'where' : key === 'unmappedFootnotes' ? 'unmappedFootnote'
         : key === 'formula' && shape === 'inline' ? 'inlineFormula'
         : 'inline'
+      // XML46687：领域登记的 childShape（没有 kind 的对象类型，如 titlePart/identifier）优先于上面的默认链
+      const childShape = format === 'XML46687'
+        ? XML46687_SHAPE_RULES.find(rule => rule.parent === kind && rule.key === key)?.shape ?? defaultShape
+        : defaultShape
       const childContainer = `${kind}.${key}`
       if (Array.isArray(child)) child.forEach((entry, index) => visit(entry, childShape, `${path}.${key}[${index}]`, id, childContainer))
       else if (child && typeof child === 'object') visit(child, childShape, `${path}.${key}`, id, childContainer)

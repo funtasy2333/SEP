@@ -5,7 +5,7 @@
  * §7.1：规范性引用清单按 GB/T 1.1—2020 10.3.4 排版（HTML 含打印与 DOCX）——每项空两个汉字起排、回行顶格，文件之后不加标点，
  * 文件编号或“（所有部分）”与文件名称之间空一个汉字；stdRef / mixedCitation 按普通文本输出（D-M-07）；自定义参考文献标题替换默认标题。
  * 版式依据：GB/T 1.1—2020 原 PDF 第 8 页（印刷页 1，第 2 章“规范性引用文件”，已按图像核对：首行缩进与段落相同、
- * 每项一行、编号与名称之间约一个汉字、无末尾标点）。XML、XML46687 仍阻断（XML46687 留给 WP8.2）。
+ * 每项一行、编号与名称之间约一个汉字、无末尾标点）。旧 XML 仍阻断；XML46687 的清单与标题留给 WP8.2 T2.4c，两种 mark 自 T2.4a-1 起放行。
  */
 
 import { describe, expect, it } from 'vitest'
@@ -20,6 +20,7 @@ import { assertChildOrder, assertNumberingIntegrity, assertWellFormed } from '..
 import { docxOutline } from '../docx/__tests__/helpers/outline'
 import { renderHtml } from '../html'
 import { getOutputSupportProblems, type OutputBoundaryFormat } from '../outputBoundary'
+import { findDeclaredDifference } from '../xml46687Boundary'
 
 const FORMATS: OutputBoundaryFormat[] = ['HTML', 'DOCX', 'XML', 'XML46687']
 const docxOptions = { formulaOmml: {}, images: {}, stage: 'approval_draft' as const, createdAt: '2026-10-22T08:00:00.000Z' }
@@ -43,7 +44,7 @@ function pathsOf(doc: IRDoc, format: OutputBoundaryFormat): string[] {
   return getOutputSupportProblems(doc, format).map(problem => problem.path)
 }
 
-describe('[M-4.4.2.3-02] 输出边界：normRefList 只对 HTML、DOCX 放行', () => {
+describe('[M-4.4.2.3-02] 输出边界：normRefList 只对 HTML、DOCX 放行（stdRef/mixedCitation 两种 mark 自 T2.4a-1 起也对 XML46687 放行）', () => {
   const doc = createG1IrDoc()
 
   it('HTML、DOCX：含清单、两种 mark、自定义标题的文档没有任何 unsupported-output', () => {
@@ -51,29 +52,44 @@ describe('[M-4.4.2.3-02] 输出边界：normRefList 只对 HTML、DOCX 放行', 
     expect(getOutputSupportProblems(doc, 'DOCX')).toEqual([])
   })
 
-  it('XML、XML46687：清单（kind）、两种 mark（type）、标题（bibliographyTitle）各被阻断，路径精确', () => {
-    for (const format of ['XML', 'XML46687'] as const) {
-      const paths = pathsOf(doc, format)
-      expect(paths, format).toEqual([
-        'doc.body[1].children[1].kind',
-        'doc.body[2].children[0].content[1].marks[0].type',
-        'doc.body[2].children[0].content[3].marks[0].type',
-        'doc.body[2].children[1].content[1].marks[1].type',
-        'doc.body[2].children[1].content[4].marks[1].type',
-        'doc.body[2].children[2].items[0].content[0].content[1].marks[0].type',
-        'doc.body[2].children[3].content[0].content[1].marks[0].type',
-        'doc.bibliographyTitle',
-      ])
-      for (const problem of getOutputSupportProblems(doc, format)) {
-        expect(problem).toMatchObject({ code: 'unsupported-output', message: expect.stringContaining(format) })
-        expect(problem.message).toContain('请保留 JSON 文档')
-      }
+  it('旧 XML：清单（kind）、两种 mark（type）、标题（bibliographyTitle）各被阻断，路径精确', () => {
+    const paths = pathsOf(doc, 'XML')
+    expect(paths).toEqual([
+      'doc.body[1].children[1].kind',
+      'doc.body[2].children[0].content[1].marks[0].type',
+      'doc.body[2].children[0].content[3].marks[0].type',
+      'doc.body[2].children[1].content[1].marks[1].type',
+      'doc.body[2].children[1].content[4].marks[1].type',
+      'doc.body[2].children[2].items[0].content[0].content[1].marks[0].type',
+      'doc.body[2].children[3].content[0].content[1].marks[0].type',
+      'doc.bibliographyTitle',
+    ])
+    for (const problem of getOutputSupportProblems(doc, 'XML')) {
+      expect(problem).toMatchObject({ code: 'unsupported-output', message: expect.stringContaining('XML') })
+      expect(problem.message).toContain('请保留 JSON 文档')
     }
   })
 
-  it('XML46687 在 8.M 内不得放开：与旧 XML 逐条相同（仅消息里的格式名不同）', () => {
-    expect(getOutputSupportProblems(doc, 'XML46687').map(problem => ({ ...problem, message: problem.message.replace('XML46687', 'XML') })))
-      .toEqual(getOutputSupportProblems(doc, 'XML'))
+  // WP8.2 T2.4a-1：stdRef / mixedCitation 两种 mark（M-10.2-01/-02、M-10.1.7-01）随行内渲染一起对 XML46687 放行；
+  // 清单（kind normRefList）与自定义标题（bibliographyTitle）仍阻断，留给 T2.4c。
+  it('XML46687：两种 mark（type）已放行（已声明差异）；清单（kind）与标题（bibliographyTitle）仍阻断，路径精确', () => {
+    expect(pathsOf(doc, 'XML46687')).toEqual(['doc.body[1].children[1].kind', 'doc.bibliographyTitle'])
+    for (const problem of getOutputSupportProblems(doc, 'XML46687')) {
+      expect(problem).toMatchObject({ code: 'unsupported-output', message: expect.stringContaining('XML46687') })
+      expect(problem.message).toContain('请保留 JSON 文档')
+    }
+  })
+
+  it('XML46687 与旧 XML 的差异恰为 6 处 stdRef / mixedCitation 的 mark 类型，且都在已声明差异内', () => {
+    const xml = getOutputSupportProblems(doc, 'XML')
+    const xml46687 = getOutputSupportProblems(doc, 'XML46687')
+    const blockedOnlyInXml = xml.filter(problem => !xml46687.some(other => other.path === problem.path))
+    expect(blockedOnlyInXml.map(problem => problem.path)).toHaveLength(6)
+    expect(new Set(blockedOnlyInXml.map(problem => findDeclaredDifference(doc, problem.path)?.name)))
+      .toEqual(new Set(['stdRef', 'mixedCitation']))
+    // 其余问题逐条相同（仅消息里的格式名不同）
+    expect(xml46687.map(problem => ({ ...problem, message: problem.message.replace('XML46687', 'XML') })))
+      .toEqual(xml.filter(problem => !blockedOnlyInXml.includes(problem)))
   })
 
   it('去掉 G1 新结构的旧文档：四种格式都没有问题（放行只由新结构触发）', () => {
