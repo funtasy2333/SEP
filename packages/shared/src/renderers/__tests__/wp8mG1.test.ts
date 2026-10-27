@@ -5,7 +5,7 @@
  * §7.1：规范性引用清单按 GB/T 1.1—2020 10.3.4 排版（HTML 含打印与 DOCX）——每项空两个汉字起排、回行顶格，文件之后不加标点，
  * 文件编号或“（所有部分）”与文件名称之间空一个汉字；stdRef / mixedCitation 按普通文本输出（D-M-07）；自定义参考文献标题替换默认标题。
  * 版式依据：GB/T 1.1—2020 原 PDF 第 8 页（印刷页 1，第 2 章“规范性引用文件”，已按图像核对：首行缩进与段落相同、
- * 每项一行、编号与名称之间约一个汉字、无末尾标点）。旧 XML 仍阻断；XML46687 的清单与标题留给 WP8.2 T2.4c，两种 mark 自 T2.4a-1 起放行。
+ * 每项一行、编号与名称之间约一个汉字、无末尾标点）。旧 XML 仍阻断；XML46687 的两种 mark 自 T2.4a-1 起放行，清单与标题自 T2.4c 起放行。
  */
 
 import { describe, expect, it } from 'vitest'
@@ -44,7 +44,7 @@ function pathsOf(doc: IRDoc, format: OutputBoundaryFormat): string[] {
   return getOutputSupportProblems(doc, format).map(problem => problem.path)
 }
 
-describe('[M-4.4.2.3-02] 输出边界：normRefList 只对 HTML、DOCX 放行（stdRef/mixedCitation 两种 mark 自 T2.4a-1 起也对 XML46687 放行）', () => {
+describe('[M-4.4.2.3-02] 输出边界：normRefList 与自定义参考文献标题对 HTML、DOCX 放行，旧 XML 阻断；XML46687 自 T2.4c 起放行（两种 mark 自 T2.4a-1 起放行）', () => {
   const doc = createG1IrDoc()
 
   it('HTML、DOCX：含清单、两种 mark、自定义标题的文档没有任何 unsupported-output', () => {
@@ -70,24 +70,21 @@ describe('[M-4.4.2.3-02] 输出边界：normRefList 只对 HTML、DOCX 放行（
     }
   })
 
-  // WP8.2 T2.4a-1：stdRef / mixedCitation 两种 mark（M-10.2-01/-02、M-10.1.7-01）随行内渲染一起对 XML46687 放行；
-  // 清单（kind normRefList）与自定义标题（bibliographyTitle）仍阻断，留给 T2.4c。
-  it('XML46687：两种 mark（type）已放行（已声明差异）；清单（kind）与标题（bibliographyTitle）仍阻断，路径精确', () => {
-    expect(pathsOf(doc, 'XML46687')).toEqual(['doc.body[1].children[1].kind', 'doc.bibliographyTitle'])
-    for (const problem of getOutputSupportProblems(doc, 'XML46687')) {
-      expect(problem).toMatchObject({ code: 'unsupported-output', message: expect.stringContaining('XML46687') })
-      expect(problem.message).toContain('请保留 JSON 文档')
-    }
+  // WP8.2：stdRef / mixedCitation 两种 mark 随行内渲染（T2.4a-1）、清单与自定义标题随 T2.4c 一起对 XML46687 放行（均为已声明差异）；
+  // 旧 XML 的阻断断言（上一条）保持不变。
+  it('XML46687：两种 mark（type）、清单（kind）、标题（bibliographyTitle）都已放行（已声明差异），没有任何边界问题', () => {
+    expect(getOutputSupportProblems(doc, 'XML46687')).toEqual([])
   })
 
-  it('XML46687 与旧 XML 的差异恰为 6 处 stdRef / mixedCitation 的 mark 类型，且都在已声明差异内', () => {
+  it('XML46687 与旧 XML 的差异恰为 6 处 stdRef / mixedCitation 的 mark 类型 + 清单 kind + 标题，且都在已声明差异内', () => {
     const xml = getOutputSupportProblems(doc, 'XML')
     const xml46687 = getOutputSupportProblems(doc, 'XML46687')
     const blockedOnlyInXml = xml.filter(problem => !xml46687.some(other => other.path === problem.path))
-    expect(blockedOnlyInXml.map(problem => problem.path)).toHaveLength(6)
-    expect(new Set(blockedOnlyInXml.map(problem => findDeclaredDifference(doc, problem.path)?.name)))
-      .toEqual(new Set(['stdRef', 'mixedCitation']))
-    // 其余问题逐条相同（仅消息里的格式名不同）
+    expect(blockedOnlyInXml.map(problem => problem.path)).toHaveLength(8)
+    expect(blockedOnlyInXml.map(problem => findDeclaredDifference(doc, problem.path)).every(entry => entry !== undefined)).toBe(true)
+    expect([...new Set(blockedOnlyInXml.map(problem => findDeclaredDifference(doc, problem.path)?.name))].sort())
+      .toEqual(['bibliographyTitle', 'mixedCitation', 'normRefList', 'stdRef'])
+    // XML46687 比旧 XML 没有多出任何阻断；其余问题（此夹具没有）逐条相同
     expect(xml46687.map(problem => ({ ...problem, message: problem.message.replace('XML46687', 'XML') })))
       .toEqual(xml.filter(problem => !blockedOnlyInXml.includes(problem)))
   })
@@ -97,15 +94,17 @@ describe('[M-4.4.2.3-02] 输出边界：normRefList 只对 HTML、DOCX 放行（
     for (const format of FORMATS) expect(getOutputSupportProblems(legacy, format), format).toEqual([])
   })
 
-  it('只有清单（没有 mark 与标题）：XML 家族只报清单的 kind；只有标题：只报 bibliographyTitle', () => {
+  it('只有清单（没有 mark 与标题）：旧 XML 只报清单的 kind、XML46687 放行；只有标题：旧 XML 只报 bibliographyTitle、XML46687 放行', () => {
     const onlyList = createG1LegacyIrDoc()
     onlyList.body[1]!.children.push(normRefs(doc))
-    for (const format of ['XML', 'XML46687'] as const) expect(pathsOf(onlyList, format), format).toEqual(['doc.body[1].children[2].kind'])
+    expect(pathsOf(onlyList, 'XML')).toEqual(['doc.body[1].children[2].kind'])
+    expect(pathsOf(onlyList, 'XML46687')).toEqual([])
     for (const format of ['HTML', 'DOCX'] as const) expect(pathsOf(onlyList, format), format).toEqual([])
 
     const onlyTitle = createG1LegacyIrDoc()
     onlyTitle.bibliographyTitle = [{ text: '参考书目' }]
-    for (const format of ['XML', 'XML46687'] as const) expect(pathsOf(onlyTitle, format), format).toEqual(['doc.bibliographyTitle'])
+    expect(pathsOf(onlyTitle, 'XML')).toEqual(['doc.bibliographyTitle'])
+    expect(pathsOf(onlyTitle, 'XML46687')).toEqual([])
     for (const format of ['HTML', 'DOCX'] as const) expect(pathsOf(onlyTitle, format), format).toEqual([])
   })
 
