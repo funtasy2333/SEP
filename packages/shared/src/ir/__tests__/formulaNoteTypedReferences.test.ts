@@ -50,18 +50,16 @@ describe('Resolver formula-note typed references', () => {
 
     expect(result.problems.filter(problem => problem.severity === 'error')).toEqual([])
     expect(result.bibliographyOrder).toEqual([])
-    for (const [id, text] of [
-      ['front-note', '前言注指向正文注'],
-      ['body-note', '正文注指向附录注'],
-      ['cell-note', '单元格注指向正文注'],
-      ['appendix-note', '附录注指向单元格注'],
+    // R-10（C-T-23、M-7.2-02）：公式注由 Resolver 按作用域（该公式）编号，与表注、图注同一机制——
+    // label「注：」、refText「注」、xmlId note_<n>（文档序）；不再是 label:'' + ext_ 占位。
+    for (const [id, xmlId] of [
+      ['front-note', 'note_1'],
+      ['body-note', 'note_2'],
+      ['cell-note', 'note_3'],
+      ['appendix-note', 'note_4'],
     ]) {
-      expect(result.labels[id]).toMatchObject({ label: '', refText: text })
-      expect(result.labels[id]?.xmlId).toBeTruthy()
+      expect(result.labels[id]).toEqual({ label: '注：', xmlId, refText: '注' })
     }
-    expect(result.labels['front-note']).toEqual({
-      label: '', xmlId: 'ext_66_72_6f_6e_74_2d_6e_6f_74_65', refText: '前言注指向正文注',
-    })
     expect(JSON.stringify(doc)).toBe(sourceBefore)
 
     const reordered: IRDoc = {

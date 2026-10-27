@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { resolve } from '../resolve'
-import type { IRBibEntry, IRDoc, IRTable } from '../types'
+import type { IRBibEntry, IRDoc, IRFormula, IRTable } from '../types'
 import { appendix, chapter, docOf, example, note, para, termEntry } from './wp8mG4Fixtures'
 
 describe('[X-09] [R-1] 参考文献条目 xmlId = biblref_<n>', () => {
@@ -127,5 +127,42 @@ describe('[X-13] [R-4] 术语条目内的注 xmlId = nte_<术语编号>-<k>，�
     const { labels } = resolve(termDoc())
     expect(['tx1', 'tx2', 'ex-after'].map(id => labels[id]!.xmlId)).toEqual(['example_1', 'example_2', 'example_3'])
     expect(labels['tx1']!.label).toBe('示例：')
+  })
+})
+
+describe('[M-7.2-02] [R-10] 公式注进入作用域编号：label「注：/注n：」+ note_<n>', () => {
+  const formula = (id: string, noteIds: string[]): IRFormula => ({
+    kind: 'formula', id, latex: 'x = 1', numbered: true, whereList: [],
+    notes: noteIds.map(noteId => ({ id: noteId, content: [{ text: `注 ${noteId}` }] })),
+  })
+
+  it('一个公式一个作用域：单条注为“注：”，多条注为“注1：”“注2：”；note_<n> 与其他注共用全局序号（文档序）', () => {
+    const doc = docOf([
+      chapter('c1', 'general', '一般要求',
+        formula('f1', ['fn-a']),
+        note('body-note', para('body-note.p', { text: '正文注' })),
+        formula('f2', ['fn-b', 'fn-c']),
+      ),
+    ])
+    const { labels, problems } = resolve(doc)
+    expect(problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(labels['fn-a']).toEqual({ label: '注：', xmlId: 'note_1', refText: '注' })
+    expect(labels['fn-b']).toEqual({ label: '注1：', xmlId: 'note_3', refText: '注1' })
+    expect(labels['fn-c']).toEqual({ label: '注2：', xmlId: 'note_4', refText: '注2' })
+    // note_<n> 按作用域首次出现的顺序赋号：f1 的注 → 章 c1 的正文注 → f2 的注
+    expect(labels['body-note']).toEqual({ label: '注：', xmlId: 'note_2', refText: '注' })
+  })
+
+  it('不再留下 ext_ 占位 xmlId，且被类型化引用的公式注仍是合法目标（无 dangling-typed-ref）', () => {
+    const doc = docOf([
+      chapter('c1', 'general', '一般要求',
+        para('p1', { text: '见', marks: [{ type: 'crossRef', targetId: 'fn-a', targetKind: 'note' }] }),
+        formula('f1', ['fn-a']),
+      ),
+    ])
+    const { labels, problems } = resolve(doc)
+    expect(problems.filter(problem => problem.code === 'dangling-typed-ref' || problem.code === 'dangling-xref')).toEqual([])
+    expect(labels['fn-a']).toEqual({ label: '注：', xmlId: 'note_1', refText: '注' })
+    expect(Object.entries(labels).filter(([, label]) => label.xmlId.startsWith('ext_')).map(([id]) => id)).toEqual([])
   })
 })

@@ -408,6 +408,10 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
         // extension scan preserves a kind registered here instead of assigning `entity`.
         ctx.kinds.set(note.id, 'note')
         visitInlines(note.content, note.id, ctx, '公式说明')
+        // R-10：公式注与表注、图注同一机制，作用域 = 该公式：label「注：/注n：」、xmlId note_<n>
+        // （C-T-23、M-7.2-02）。通用扫描（registerExtendedData）先补的 label:'' + ext_ 占位标签
+        // 由 labelNotesAndExamples 覆盖。
+        ctx.scope(block.id).notes.push({ id: note.id })
       }
       for (const item of block.whereList) {
         ctx.registerId(item.id)

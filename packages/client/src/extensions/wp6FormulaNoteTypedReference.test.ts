@@ -79,7 +79,8 @@ it('round-trips formula-note typed refs through the production schema while JSON
   expect(initialResolution.problems.filter(problem => problem.code === 'dangling-typed-ref')).toEqual([])
   expect(finalResolution.problems.filter(problem => problem.code === 'dangling-typed-ref')).toEqual([])
   expect(finalResolution.labels['formula-note']).toEqual(initialResolution.labels['formula-note'])
-  expect(finalResolution.labels['formula-note']).toMatchObject({ label: '', refText: '公式注引用章节' })
+  // R-10（C-T-23、M-7.2-02）：公式注由 Resolver 按作用域编号，不再是 label:'' + ext_ 占位
+  expect(finalResolution.labels['formula-note']).toEqual({ label: '注：', xmlId: 'note_1', refText: '注' })
   expect(reloadedPm).toEqual(raw)
   expect((returned.body[0]!.children[1] as Extract<IRDoc['body'][number]['children'][number], { kind: 'formula' }>).notes)
     .toEqual((ir.body[0]!.children[1] as Extract<IRDoc['body'][number]['children'][number], { kind: 'formula' }>).notes)
