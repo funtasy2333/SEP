@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { createApp, h, nextTick, ref } from 'vue'
 import ElementPlus from 'element-plus'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
+import type { MathfieldStatics } from '@/utils/mathlive'
 import MathInputDialog from './MathInputDialog.vue'
 
 const roots: HTMLElement[] = []
@@ -11,7 +12,7 @@ async function settle(): Promise<void> {
   for (let i = 0; i < 6; i++) { await nextTick(); await new Promise(resolve => setTimeout(resolve, 0)) }
 }
 
-async function mountDialog(initialLatex = '') {
+async function mountDialog(initialLatex = '', loader: () => Promise<MathfieldStatics | null> = async () => null) {
   const root = document.createElement('div')
   document.body.append(root)
   roots.push(root)
@@ -21,7 +22,7 @@ async function mountDialog(initialLatex = '') {
     setup: () => () => h(MathInputDialog, {
       modelValue: open.value,
       initialLatex,
-      loader: async () => null,
+      loader,
       'onUpdate:modelValue': (value: boolean) => { open.value = value },
       onConfirm: (latex: string) => confirmed.push(latex),
     }),
@@ -77,4 +78,38 @@ it('简单符号不显示提示', async () => {
   const { app } = await mountDialog('q_{V}')
   expect(document.querySelector('.math-dlg-complex')).toBeNull()
   app.unmount()
+})
+
+it('屏幕键盘层级高于弹窗遮罩，弹出时弹窗让出底部，关闭弹窗时收起键盘', async () => {
+  if (!customElements.get('math-field')) {
+    customElements.define('math-field', class extends HTMLElement {
+      value = ''
+      getValue() { return this.value }
+      insert() { return true }
+    })
+  }
+  const keyboard = Object.assign(new EventTarget(), {
+    visible: false,
+    boundingRect: new DOMRect(0, 0, 0, 0),
+    hide: vi.fn(),
+  })
+  Object.assign(window, { mathVirtualKeyboard: keyboard })
+  const { open, app } = await mountDialog('x', async () => ({}) as MathfieldStatics)
+
+  const overlay = document.querySelector('.el-overlay') as HTMLElement
+  expect(overlay.style.zIndex).not.toBe('')
+  const keyboardZ = Number(document.body.style.getPropertyValue('--keyboard-zindex'))
+  expect(keyboardZ).toBeGreaterThan(Number(overlay.style.zIndex))
+
+  keyboard.visible = true
+  keyboard.boundingRect = new DOMRect(0, 400, 1000, 320)
+  keyboard.dispatchEvent(new Event('geometrychange'))
+  expect((document.querySelector('.el-overlay-dialog') as HTMLElement).style.paddingBottom).toBe('320px')
+
+  open.value = false
+  await settle()
+  expect(keyboard.hide).toHaveBeenCalled()
+  expect(document.body.style.getPropertyValue('--keyboard-zindex')).toBe('')
+  app.unmount()
+  Reflect.deleteProperty(window, 'mathVirtualKeyboard')
 })
