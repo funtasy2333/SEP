@@ -31,7 +31,7 @@ export interface ImageResourcesResult {
   diagnostics: ImageResourceDiagnostic[]
 }
 
-interface ImageBytes {
+export interface ImageBytes {
   bytes: Uint8Array
   contentType?: string
 }
@@ -98,13 +98,13 @@ function collectFigures(doc: IRDoc): IRFigure[] {
   return figures
 }
 
-function isFetchableUrl(value: string): boolean {
+export function isFetchableUrl(value: string): boolean {
   if (/^(?:https?:|blob:|\/\/|\/|\.\.?\/)/i.test(value)) return true
   if (/^[a-z][a-z\d+.-]*:/i.test(value)) return false // custom schemes are resource keys, not fetch URLs.
   return value.includes('/') || /\.(?:png|jpe?g|gif)(?:[?#]|$)/i.test(value)
 }
 
-function decodeBase64(value: string): Uint8Array {
+export function decodeBase64(value: string): Uint8Array {
   const compact = value.replace(/\s/g, '').replace(/-/g, '+').replace(/_/g, '/')
   if (!compact || !/^[A-Za-z0-9+/]*={0,2}$/.test(compact) || compact.length % 4 === 1) {
     throw new Error('base64 数据格式无效')
@@ -220,7 +220,7 @@ async function bytesFromResponse(response: Response): Promise<ImageBytes> {
   }
 }
 
-async function bytesFromValue(value: ImageResourceValue, fetcher: typeof fetch): Promise<ImageBytes> {
+export async function bytesFromValue(value: ImageResourceValue, fetcher: typeof fetch): Promise<ImageBytes> {
   if (typeof value === 'string') {
     const normalized = value.trim()
     if (/^data:/i.test(normalized)) return parseDataUrl(normalized)
@@ -245,7 +245,7 @@ async function bytesFromValue(value: ImageResourceValue, fetcher: typeof fetch):
   throw new Error('资源解析器返回了不支持的数据类型')
 }
 
-async function fetchBytes(src: string, fetcher: typeof fetch): Promise<ImageBytes> {
+export async function fetchBytes(src: string, fetcher: typeof fetch): Promise<ImageBytes> {
   if (typeof fetcher !== 'function') throw new Error('当前环境没有可用的 fetch')
   return bytesFromResponse(await fetcher(src))
 }
