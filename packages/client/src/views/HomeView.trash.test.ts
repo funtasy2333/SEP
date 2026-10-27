@@ -40,7 +40,7 @@ vi.mock('@/components/home/HomeNav.vue', async () => {
     },
   }
 })
-vi.mock('@/components/home/StatCards.vue', () => ({ default: defineComponent({ render: () => h('div') }) }))
+vi.mock('@/components/home/StageOverview.vue', () => ({ default: defineComponent({ render: () => h('div') }) }))
 vi.mock('@/components/home/TemplateRail.vue', () => ({ default: defineComponent({ render: () => h('div') }) }))
 vi.mock('@/components/home/DocCard.vue', () => ({ default: defineComponent({ render: () => h('div') }) }))
 vi.mock('@/components/home/NewDocDialog.vue', () => ({ default: defineComponent({ render: () => h('div') }) }))
