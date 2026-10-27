@@ -295,5 +295,10 @@ function Invoke-SesMain([string]$Mode) {
 
 if ($MyInvocation.InvocationName -ne '.') {
     try { Invoke-SesMain $Action }
-    catch { Write-Host "SES error: $($_.Exception.Message)" -ForegroundColor Red; exit 1 }
+    catch {
+        Write-Host "SES error: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host $_.InvocationInfo.PositionMessage
+        Write-Host $_.ScriptStackTrace
+        exit 1
+    }
 }

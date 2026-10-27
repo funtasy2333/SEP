@@ -54,6 +54,7 @@ jobs:
         if: failure()
         with:
           name: windows-launcher-logs
+          include-hidden-files: true
           path: ${{ runner.temp }}/SES*/**/.ses-run/*.log
 
   macos:
@@ -85,6 +86,7 @@ jobs:
         if: failure()
         with:
           name: macos-launcher-logs
+          include-hidden-files: true
           path: ${{ runner.temp }}/SES*/**/.ses-run/*.log
 
   release:
