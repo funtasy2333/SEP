@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Editor } from '@tiptap/core'
-import { effectScope, nextTick, ref, shallowRef, type EffectScope } from 'vue'
-import type { DocumentMeta } from '@ses/shared'
+import { effectScope, nextTick, reactive, ref, shallowRef, type EffectScope } from 'vue'
+import type { DocumentMeta, PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from '../extensions/editorExtensions'
 import { createEditorSchema, normalizeNodeIds } from '../extensions/editorSchema'
 import { createDocumentValidationExtension, documentValidationPluginKey } from '../extensions/plugins/documentValidation'
@@ -16,7 +16,8 @@ class WorkerDouble {
   onmessage: ((event: MessageEvent<ValidationWorkerResponse>) => void) | null = null
   onerror: ((event: ErrorEvent) => void) | null = null
   onmessageerror: ((event: MessageEvent) => void) | null = null
-  postMessage(request: ValidationWorkerRequest) { this.request = request }
+  // A real Worker structured-clones the message, so non-cloneable values must fail here too.
+  postMessage(request: ValidationWorkerRequest) { this.request = structuredClone(request) }
   terminate = vi.fn()
   fail(message: string) { this.onerror?.({ message } as ErrorEvent) }
 
@@ -108,6 +109,19 @@ async function completeManualRun(validation: DocumentValidationController, worke
 }
 
 describe('useDocumentValidation manual lifecycle', () => {
+  it('posts a cloneable snapshot when the document was loaded from reactive store content', async () => {
+    const { editor, workers, validation } = setup()
+    const content = editor.getJSON() as PMJsonNode
+    const findNode = (node: PMJsonNode): PMJsonNode | undefined => node.attrs?.nodeId === 'scope-p'
+      ? node : node.content?.map(findNode).find(Boolean)
+    findNode(content)!.content!.push({ type: 'footnoteRef', attrs: { content: [{ type: 'text', text: '脚注' }] } })
+    // Pinia keeps currentDocument in a deep reactive proxy; ProseMirror keeps array attrs by reference.
+    replaceEditorDocument(editor, reactive(content) as Record<string, unknown>, false, false)
+
+    await completeManualRun(validation, workers)
+    expect(validation.error.value).toBe('')
+  })
+
   it('does not run on setup, edits, or selection changes; one click analyzes the actual snapshot without editing it', async () => {
     const { editor, onUpdate, workers, validation } = setup()
     expect(validation.state.value).toBe('not-run')

@@ -156,7 +156,9 @@ export function useDocumentValidation(options: UseDocumentValidationOptions): Do
     const snapshot = { editor, doc, documentId, generation }
     let pmJson: PMJsonNode
     try {
-      pmJson = doc.toJSON() as PMJsonNode
+      // toJSON shares attr values by reference; docs loaded from the store can carry Vue proxies there,
+      // which Worker.postMessage cannot structured-clone. A JSON round-trip yields plain data.
+      pmJson = JSON.parse(JSON.stringify(doc.toJSON())) as PMJsonNode
     } catch (cause) {
       error.value = cause instanceof Error ? cause.message : String(cause)
       state.value = 'failed'
