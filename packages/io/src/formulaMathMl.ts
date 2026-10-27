@@ -6,6 +6,7 @@
  */
 
 import katex from 'katex'
+import type { IRDoc, NodeId, Xml46687Problem } from '@ses/shared'
 
 export interface MathMlText {
   text: string
@@ -86,4 +87,114 @@ export function latexToMathMl(latex: string, display: boolean): MathMlElement {
   const math = parseMathMl(rendered.slice(mathStart, mathEnd + '</math>'.length))
   removeAnnotations(math)
   return math
+}
+
+export interface ConvertLatexToMathMlOptions {
+  /** false 时按行内公式布局（KaTeX displayMode:false）；默认 true，即块级公式 */
+  display?: boolean
+}
+
+/**
+ * 单条 LaTeX → MathML 字符串（XML46687 导出用，设计 §5.2 (a)）。
+ *
+ * 同步（KaTeX 是同步的）；输出 `<math xmlns="http://www.w3.org/1998/Math/MathML" …>…</math>`，
+ * 已去掉 `annotation`（不带 TeX 源码）。失败时抛 `Error`：KaTeX 的 `ParseError` 原样向上，
+ * 消息保留 “at position N” 字样；源码为空白同样视为失败，不会产出空公式。
+ */
+export function convertLatexToMathMl(latex: string, options: ConvertLatexToMathMlOptions = {}): string {
+  if (!latex.trim()) throw new Error('公式源代码为空')
+  return serializeMathMl(latexToMathMl(latex, options.display ?? true))
+}
+
+export interface ConvertFormulasToMathMlResult {
+  /** 公式 NodeId → MathML 元素字符串。只含 IR 自身没有 MathML 而由 LaTeX 转出的公式（原生 MathML 由渲染器直接取用 IR 值）。 */
+  mathml: Record<NodeId, string>
+  problems: Xml46687Problem[]
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** KaTeX 的 ParseError 消息里，出错位置用组合下划线（U+0332）标注，面向用户的消息里去掉它。 */
+function describeKatexError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error)
+  let detail = raw.replace(/̲/g, '')
+  const position = (error as { position?: unknown } | null)?.position
+  // 个别 KaTeX 错误（如 “at end of input”）消息里没有 “at position N”，补上 ParseError 自带的位置（与 KaTeX 同样从 1 起算）。
+  if (!/at position \d+/.test(detail) && typeof position === 'number' && Number.isInteger(position)) {
+    detail += `（位置 ${position + 1}）`
+  }
+  return detail
+}
+
+/**
+ * 转换 IR 文档里全部公式为 MathML（设计 §5.2 (a)、§4.5）。
+ *
+ * - **原生 MathML 优先**：`IRFormula.mathml` / `IRInlineFormula.mathml` 非空白的公式不转换，渲染器直接用 IR 值。
+ * - 只转换缺 `mathml` 而有 `latex` 的公式；`latex` 缺失或空白 → error `mathml-empty-source`；
+ *   KaTeX 抛错 → error `mathml-conversion-failed`（带公式 NodeId、IR 路径与 KaTeX 的位置）。
+ * - 失败不用图片或空公式代替（C-T-19）：失败的公式不进 `mathml`，由渲染器随后报 `mathml-missing`。
+ * - 键为公式的 NodeId：块公式 `IRFormula.id`，行内公式 `IRInlineFormula.id`。
+ * - 对整篇 IR 做通用深度遍历（不按块种类枚举），列表、图注、单元格、式中、术语、嵌套条等任何深度的公式都不会漏；
+ *   `problems` 与 `mathml` 的顺序均为 IR 文档序。IR 路径与 `getOutputSupportProblems` 同写法，块公式指向公式块，行内公式指向所在 run。
+ */
+export function convertFormulasToMathMl(doc: IRDoc): ConvertFormulasToMathMlResult {
+  const mathml: Record<NodeId, string> = Object.create(null) as Record<NodeId, string>
+  const problems: Xml46687Problem[] = []
+  const seen = new Set<NodeId>()
+
+  const convert = (
+    id: NodeId,
+    nativeMathml: unknown,
+    latex: unknown,
+    display: boolean,
+    path: string,
+  ): void => {
+    if (seen.has(id)) return
+    seen.add(id)
+    if (typeof nativeMathml === 'string' && nativeMathml.trim() !== '') return
+    if (typeof latex !== 'string' || latex.trim() === '') {
+      problems.push({
+        code: 'mathml-empty-source',
+        severity: 'error',
+        nodeId: id,
+        path,
+        message: `公式（节点 ${id}）没有 LaTeX 源码，无法转换为 MathML：${path}。请补全公式内容或删除该公式。`,
+      })
+      return
+    }
+    try {
+      mathml[id] = convertLatexToMathMl(latex, { display })
+    } catch (error) {
+      problems.push({
+        code: 'mathml-conversion-failed',
+        severity: 'error',
+        nodeId: id,
+        path,
+        message: `公式（节点 ${id}）无法转换为 MathML：${describeKatexError(error)}（${path}）。请修正公式的 LaTeX 源码。`,
+      })
+    }
+  }
+
+  const visit = (value: unknown, path: string): void => {
+    if (Array.isArray(value)) {
+      value.forEach((entry, index) => visit(entry, `${path}[${index}]`))
+      return
+    }
+    if (!isRecord(value)) return
+
+    if (value.kind === 'formula' && typeof value.id === 'string') {
+      convert(value.id, value.mathml, value.latex, true, path)
+    }
+    const inline = value.formula
+    if (typeof value.text === 'string' && isRecord(inline) && typeof inline.id === 'string') {
+      convert(inline.id, inline.mathml, inline.latex, false, path)
+    }
+
+    for (const [name, child] of Object.entries(value)) visit(child, `${path}.${name}`)
+  }
+
+  visit(doc, 'doc')
+  return { mathml, problems }
 }
