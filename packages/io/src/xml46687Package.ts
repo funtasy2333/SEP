@@ -80,10 +80,14 @@ function assertSafeFileName(fileName: string): void {
 
 /**
  * 键序固定的清单条目，使 `manifest.json` 的文本不依赖调用方对象的键序。
- * 注意：`key` 按设计原样写入；图以 data URL 内联时 `key` 就是整段 data URL，`manifest.json` 会因此带上一份 base64 副本。
+ *
+ * 图以 data URL 内联（`source:'dataUrl'`）时，内存清单里的 `key` 是整段 data URL（渲染器据此核对 `resource-mismatch`）；
+ * 写进 `manifest.json` 时换成固定占位 `data:<mediaType>;base64,…`，不带数据，免得包里多出一份 base64 副本
+ * （图片字节已在 `resources/<fileName>`）。其余字段与内存清单一致。
  */
 function orderedEntry(entry: ResourceManifestEntry): ResourceManifestEntry {
-  return { href: entry.href, key: entry.key, fileName: entry.fileName, mediaType: entry.mediaType, source: entry.source }
+  const key = entry.source === 'dataUrl' ? `data:${entry.mediaType};base64,…` : entry.key
+  return { href: entry.href, key, fileName: entry.fileName, mediaType: entry.mediaType, source: entry.source }
 }
 
 /**

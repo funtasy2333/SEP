@@ -85,7 +85,11 @@ describe('buildXml46687Package：成功路径的编排', () => {
     expect(Object.keys(zip.files)).toEqual(['standard.xml', 'manifest.json', 'resources/fig_1.png', 'resources/inl_1.svg'])
     expect(await zip.file('standard.xml')!.async('string')).toBe(XML)
     const manifestJson = JSON.parse(await zip.file('manifest.json')!.async('string'))
-    expect(manifestJson.entries).toEqual(result.manifest.entries)
+    // manifest.json 与内存清单只在 dataUrl 条目的 key 上不同：写成固定占位，不带 base64 数据。
+    const { manifest } = result
+    expect(manifest.entries.every(entry => entry.source === 'dataUrl' && entry.key.startsWith('data:'))).toBe(true)
+    expect(manifestJson.entries).toEqual(manifest.entries.map(entry => ({ ...entry, key: `data:${entry.mediaType};base64,…` })))
+    expect(JSON.stringify(manifestJson)).not.toContain('iVBORw0KGgo')
     const png = await zip.file('resources/fig_1.png')!.async('uint8array')
     expect(Array.from(png.slice(0, 4))).toEqual([0x89, 0x50, 0x4e, 0x47])
     expect(await zip.file('resources/inl_1.svg')!.async('string')).toContain('<svg')

@@ -68,6 +68,39 @@ describe('packageXml46687：包布局', () => {
     expect(text).not.toMatch(/\d{4}-\d{2}-\d{2}T/)
   })
 
+  it('manifest.json 里 dataUrl 条目的 key 是固定占位 data:<mediaType>;base64,…，不含数据；其余字段与内存清单一致', async () => {
+    const base64Data = btoa(String.fromCharCode(...PNG))
+    const svgData = encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg"/>')
+    const pngEntry = {
+      href: 'fig_1', key: `data:image/png;base64,${base64Data}`, fileName: 'fig_1.png', mediaType: 'image/png', source: 'dataUrl',
+    } as const
+    const svgEntry = {
+      href: 'inl_1', key: `data:image/svg+xml;utf8,${svgData}`, fileName: 'inl_1.svg', mediaType: 'image/svg+xml', source: 'dataUrl',
+    } as const
+    const resourceEntry = { href: 'fig_2', key: 'res-1', fileName: 'fig_2.png', mediaType: 'image/png', source: 'resource' } as const
+    const manifest = manifestOf(pngEntry, svgEntry, resourceEntry)
+    const before = JSON.stringify(manifest)
+
+    const zip = await unzip(await packageXml46687(XML, manifest, { 'fig_1.png': PNG, 'inl_1.svg': SVG, 'fig_2.png': PNG }))
+    const text = await zip.file('manifest.json')!.async('string')
+    expect(text).not.toContain(base64Data)
+    expect(text).not.toContain(svgData)
+    expect(text).not.toContain('iVBORw0KGgo')
+    const entries: Record<string, string>[] = JSON.parse(text).entries
+    expect(entries.map(entry => [entry.fileName, entry.key])).toEqual([
+      ['fig_1.png', 'data:image/png;base64,…'],
+      ['fig_2.png', 'res-1'],
+      ['inl_1.svg', 'data:image/svg+xml;base64,…'],
+    ])
+    // 其余字段（href / fileName / mediaType / source）与内存清单一致；内存清单不被修改。
+    const byFileName = new Map<string, ResourceManifest['entries'][number]>(manifest.entries.map(entry => [entry.fileName, entry]))
+    for (const entry of entries) {
+      const original = byFileName.get(entry.fileName!)!
+      expect({ ...entry, key: undefined }).toEqual({ ...original, key: undefined })
+    }
+    expect(JSON.stringify(manifest)).toBe(before)
+  })
+
   it('manifest.json 的键序不依赖调用方清单条目的键序', async () => {
     const shuffled = { source: 'src', mediaType: 'image/png', fileName: 'fig_1.png', key: 'asset:a', href: 'fig_1' } as const
     const first = await packageXml46687(XML, manifestOf(PNG_ENTRY), { 'fig_1.png': PNG })
