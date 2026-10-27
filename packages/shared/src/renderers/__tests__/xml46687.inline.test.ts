@@ -298,6 +298,26 @@ describe('脚注与表脚注上标', () => {
     expect(problems[0]).toMatchObject({ nodeId: 'fn-test', path: 'doc.test.content[0].footnote' })
   })
 
+  it('[M-10.1.8-01] 脚注在 citation 容器（mixed-citation 内）里允许：xref[fn] 紧随 fn，写在容器最外层（schema 的 cm.citation 含 fn；主导决定 2026-10-27）', () => {
+    const docOne = docWithFootnote()
+    const { xml, problems } = renderRuns(docOne, [{ text: '《计量法》', footnote: { id: 'fn-test', content: [{ text: '脚注内容' }] } }, run('后文')], 'citation')
+    expect(xml).toBe('《计量法》<xref ref-type="fn" rid="fn_1">1)</xref><fn id="fn_1"><label><sup>1)</sup></label><p>脚注内容</p></fn>后文')
+    expect(problems).toEqual([])
+  })
+
+  it('[M-10.1.8-01] 脚注不被 stdRef 包装器包住：stdRef 文本上的脚注落在 std 元素之后；term/phrase/label/text/subsup/tbx 容器仍不允许脚注', () => {
+    const docOne = docWithFootnote()
+    const withStd: IRInline[] = [{ text: 'GB/T 1', marks: [{ type: 'stdRef' }], footnote: { id: 'fn-test', content: [{ text: '内容' }] } }]
+    expect(renderRuns(docOne, withStd, 'p').xml)
+      .toBe('<std><std-ref>GB/T 1</std-ref></std><xref ref-type="fn" rid="fn_1">1)</xref><fn id="fn_1"><label><sup>1)</sup></label><p>内容</p></fn>')
+    expect(renderRuns(docOne, withStd, 'citation').xml)
+      .toBe('<std><std-ref>GB/T 1</std-ref></std><xref ref-type="fn" rid="fn_1">1)</xref><fn id="fn_1"><label><sup>1)</sup></label><p>内容</p></fn>')
+    for (const container of ['term', 'phrase', 'label', 'text', 'subsup', 'tbx', 'inline'] as const) {
+      const { problems } = renderRuns(docOne, [{ text: '文', footnote: { id: 'fn-test', content: [{ text: '内容' }] } }], container)
+      expect(codesOf(problems, 'error'), container).toEqual(['xml-footnote-position'])
+    }
+  })
+
   it('[M-6.2.3-10] [M-6.2.3-11] 表脚注上标：xref[@ref-type="table-fn"]，内容是字母 refText（不套 sup），多个依次排列', () => {
     const cell = doc.body[3]!.children[1]
     if (cell.kind !== 'table') throw new Error('fixture')

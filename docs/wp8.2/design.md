@@ -323,7 +323,7 @@ WP8.M 的 31 条恰为设计 §6.2 的 11 类，说明 §6.2 对“WP8.M 新增�
 
 1. **正文片段**：`run.text` 按 `'\n'` 切成段，段间用 `break`（2.3.4）；整段正文被 marks 对应的包装器包住（2.3.2）。`crossRef` 的正文改取 `labels[目标].refText`（“引用文本由 Resolver 解析，不存死文本”）；`bibRef`、`termRef`、`externalLink`、`variable`、`code`、`stdRef`、`mixedCitation` 用 run 自己的文本。
 2. **`run.formula`** → `inline-formula/mml:math`（2.8）。
-3. **`run.footnote`** → `xref[@ref-type="fn"]` 紧随 `fn`（同一个 `p` 内，D-M-01；2.11）。
+3. **`run.footnote`** → `xref[@ref-type="fn"]` 紧随 `fn`（同一个 `p` 或 `mixed-citation` 内，D-M-01；`citation` 容器的放开见主导决定 2026-10-27；2.11）。
 4. **`marks` 里的每个 `tableFootnoteRef`**（按 marks 顺序）→ `xref[@ref-type="table-fn"]`（2.6）。
 5. **`run.image`** → `inline-graphic`（2.7）。
 
@@ -363,7 +363,7 @@ WP8.M 的 31 条恰为设计 §6.2 的 11 类，说明 §6.2 对“WP8.M 新增�
 | `term` | `cm.term` | `def-item/term`、`index-entry/term`、`see-entry`、`meta-value` | 格式、`variable`、`code`、行内图、公式、`externalLink`、`crossRef`（不含 `std`、`mixed-citation`、`break`；脚注 Resolver 已禁止） |
 | `phrase` | `cm.phrase` | `copyright-statement`、`ext-link`/`xref` 内部 | 格式、`variable`、`code`、行内图 |
 | `label` | `cm.label` | `label` | `phrase` 的集合 + 公式 + `crossRef`（不含 `externalLink`、`std`、`mixed-citation`、`break`） |
-| `citation` | `cm.citation` | `mixed-citation` 内部 | 全部，但不含嵌套 `mixedCitation`；允许 `break`、`uri` |
+| `citation` | `cm.citation` | `mixed-citation` 内部 | 全部，但不含嵌套 `mixedCitation`；允许 `break`、`uri`、**条文脚注**（schema 的 `cm.citation` 含 `fn`，Resolver 也允许规范性引用与参考文献条目带脚注；主导决定 2026-10-27，与 `p` 同规则：`xref[fn]` 紧随 `fn`，写在容器最外层）。`std`/`std-ref`/`title`（标准化文件条目）内没有脚注的合法位置 |
 | `subsup` | `cm.subsup` | `std-org-name`、`edition`、`version`、`copyright-holder` | 仅 `sup`/`sub` 与文本 |
 | `text` | 纯文本 | `std-ref`、`tbx:source`、`tbx:subjectField`、`originator` 等、`uri`、`code` | 仅文本 |
 
@@ -378,7 +378,7 @@ WP8.M 的 31 条恰为设计 §6.2 的 11 类，说明 §6.2 对“WP8.M 新增�
 | XML | IR 来源 | id/rid 来源 | 矩阵行 · 约定 | 错误/告警条件 |
 |---|---|---|---|---|
 | `inline-formula/mml:math`（无 `display`；`id=mml_m<k>`） | `run.formula`（`mathml` 优先，缺失用 `options.mathml[formula.id]`） | `S: mml_m<k>`；`inline-formula` 自身无 id | M-7.1-04、M-7.1-05、M-7.4-02 · C-T-21 | 见 2.8 |
-| `xref[@ref-type="fn" @rid=fn_k]` + 紧随的 `fn[@id=fn_k]`（`label/sup`、`p`） | `run.footnote`（`content` 用 `inline`） | `R: labels[footnote.id].xmlId`（`fn_<seq>`）；`xref` 内容为 `refText`（`1)`，纯文本，C-T-55） | M-10.1.1-03、M-10.1.8-01、M-10.1.8-02、M-E-15、M-E-16、M-E-17 · C-T-55 | 脚注不在 `p` 内（标题、单元格直出形式等）→ error `xml-footnote-position`；脚注内容为空 → `invalid-footnote` 由入口断言已抛错 |
+| `xref[@ref-type="fn" @rid=fn_k]` + 紧随的 `fn[@id=fn_k]`（`label/sup`、`p`） | `run.footnote`（`content` 用 `inline`） | `R: labels[footnote.id].xmlId`（`fn_<seq>`）；`xref` 内容为 `refText`（`1)`，纯文本，C-T-55） | M-10.1.1-03、M-10.1.8-01、M-10.1.8-02、M-E-15、M-E-16、M-E-17 · C-T-55 | 脚注不在 `p` 或 `citation` 容器（`mixed-citation` 内，含规范性引用与参考文献条目；主导决定 2026-10-27）内（标题、单元格直出形式、`std` 条目的 `std-ref`/`title` 等）→ error `xml-footnote-position`；脚注是原子，不被 `stdRef` 等 mark 包装器包住（stdRef 文本上的脚注落在 `std` 之后）；脚注内容为空 → `invalid-footnote` 由入口断言已抛错 |
 | `xref[@ref-type="table-fn"]`（内容为字母） | `marks[].tableFootnoteRef` | `R: labels[target].xmlId`（`table-fn_<表号>.<k>`，R-2） | M-6.2.3-10、M-6.2.3-11 · C-T-06 | 目标不在同一 `table-wrap` → 入口断言已抛错 |
 | `inline-graphic[@xlink:href][@specific-use]` | `run.image` | `S: inl_<k>` | M-8.3-02（1.1 复核后为 `optional`）· C-T-29 | 见 2.7 |
 
@@ -497,16 +497,16 @@ WP8.M 的 31 条恰为设计 §6.2 的 11 类，说明 §6.2 对“WP8.M 新增�
 
 | XML 路径与属性 | IR 来源 | id/rid 来源 | 矩阵行 · 约定 | 错误/告警条件 |
 |---|---|---|---|---|
-| `sec[@sec-type="norm-refs"]/ref-list[@content-type="norm-refs"]`（引导语 `p` 在 `ref-list` 之前，两者都是章的块） | `IRNormRefList`（块，只在 `norm-refs` 章） | `ref-list` 不写 id | M-4.4.2.3-02、M-4.4.2.3.2-01、M-F-09 · C-S-24、C-T-54 | 清单不在 `norm-refs` 章 → error `xml-normref-outside`（Resolver 已报，再保险）；导出恒写 `norm-refs`（不写 `norm_refs`） |
+| `sec[@sec-type="norm-refs"]/ref-list[@content-type="norm-refs"]`（引导语 `p` 在 `ref-list` 之前，两者都是章的块） | `IRNormRefList`（块，只在 `norm-refs` 章） | `ref-list` 不写 id | M-4.4.2.3-02、M-4.4.2.3.2-01、M-F-09 · C-S-24、C-T-54 | 清单不在 `norm-refs` 章 → error `xml-normref-outside`（Resolver 已报，再保险）；**未结构化的章**（`norm-refs` 章没有 `normRefList`，且除子条外至少 2 个块；单个引导段如“本文件没有规范性引用文件。”不报）仍按 `p` 输出，并报 warning `normref-unstructured`（C-S-24；主导决定 2026-10-27）；导出恒写 `norm-refs`（不写 `norm_refs`） |
 | `ref[@id]`（无 `label`） | `IRNormRef` | `R: labels[条目].xmlId`（`ref_<n>`，R-8；D-X-11 倾向“恒输出”） | M-E-06 · X-10 | — |
 | `ref/std/std-ref` + `std/title` | `IRNormRef{entryType:'std'}`：`ref`（`text` 容器）、`title`（`inline` 容器）；**两者之间不写逗号文本节点**（C-T-54） | — | M-4.4.2.3-03 · C-T-54 | `ref` 或 `title` 为空 → error `xml-normref-incomplete`（V-17 要求 `ref` 内的 `std` 有 `std-ref` 与 `title`） |
-| `ref/mixed-citation`（保持原有格式） | `IRNormRef{entryType:'mixed'}.content`（`citation` 容器） | — | M-4.4.2.3-04 · C-T-54 | 末尾标点 `trailing-punctuation`（Resolver 的 warning）不由渲染器转发，原样输出 |
+| `ref/mixed-citation`（保持原有格式） | `IRNormRef{entryType:'mixed'}.content`（`citation` 容器） | — | M-4.4.2.3-04 · C-T-54 | 末尾标点 `trailing-punctuation`（Resolver 的 warning）不由渲染器转发，原样输出；**条目内的条文脚注**写成 `xref[fn]` + 紧随 `fn`，在 `mixed-citation` 内（Resolver 允许；主导决定 2026-10-27）；`std` 条目的 `ref`/`title` 里的脚注没有合法位置 → error `xml-footnote-position` |
 | `back/ref-list[@content-type="bibl"][@id="sec_bibl"]` | `IRDoc.bibliography`（非空才写） | `K: sec_bibl` | M-4.5.3-01、M-4.2-09、M-10.1.6-02、M-D-02、M-E-03、M-F-11 · C-S-27 | — |
 | `ref-list/title` | `IRDoc.bibliographyTitle`（`inline` 容器），缺省为常量“参考文献” | — | M-4.5.3-02 · C-S-27 | — |
 | `ref[@id=biblref_<n>]`（**按 `n` 升序输出**） | `IRBibEntry`；顺序取 `labels[条目].xmlId` 的尾部数字（与 `html.ts` 的 `bibSeq` 同一规则，Resolver 已按首次引用排序），不信任 `doc.bibliography` 数组序 | `R: labels[条目].xmlId`（**依赖 R-1**） | M-4.5.3-03、M-4.5.3.1-01、M-E-05 · C-S-27、C-T-53 | 缺 `biblref_` 前缀或无尾号 → error `xml-label-missing` |
 | `ref/label`（“[1]”） | `labels[条目].label` | — | M-4.5.3-04、M-4.5.3.1-02 · C-S-27 | — |
 | `ref/std`＞`std-ref`＋`title` | `entryType==='standard'` 且 `fields` 有非空 `std-ref` 与 `title`（字段名取矩阵建议，值用 `text`/`inline` 容器） | — | M-4.5.3-05、M-4.5.3.1-03、M-4.5.3.1-04、M-4.5.3.1-05 · C-T-54 | `entryType==='standard'` 但缺 `std-ref` 或 `title` → warning `bib-std-incomplete` 并按 `mixed-citation` 输出（WP6 夹具只有 `title`，属此情形）；其余 `fields`（`author` 等）、`identifiers[]` → warning `bib-field-not-expressed`（合并为一条） |
-| `ref/mixed-citation[@xlink:type="simple"]` | `IRBibEntry.content`（`citation` 容器） | — | M-4.5.3-06、M-4.5.3.1-06、M-4.5.3-07、M-4.5.3.3-01 · C-S-27 | `@xlink:type` 只写在**参考文献**的 `mixed-citation` 上（矩阵 M-4.5.3-06 “照示例写”）；规范性引用与正文行内的 `mixed-citation` 不写 |
+| `ref/mixed-citation[@xlink:type="simple"]` | `IRBibEntry.content`（`citation` 容器） | — | M-4.5.3-06、M-4.5.3.1-06、M-4.5.3-07、M-4.5.3.3-01 · C-S-27 | `@xlink:type` 只写在**参考文献**的 `mixed-citation` 上（矩阵 M-4.5.3-06 “照示例写”）；规范性引用与正文行内的 `mixed-citation` 不写。条目内的条文脚注写成 `xref[fn]` + 紧随 `fn`，在 `mixed-citation` 内（主导决定 2026-10-27）；`std` 形式条目的 `std-ref`/`title` 里的脚注 → error `xml-footnote-position` |
 | `mixed-citation/uri`（接在内容之后；不写 `xlink:type`） | `IRBibEntry.externalLink.href` | — | M-4.5.3-08、M-4.5.3.3-02 · C-T-56 | 协议白名单同 2.3.2（V-11）；`displayText` 与 `href` 不同、`title/target/rel` 非空 → warning `link-attr-not-expressed`；`std` 形式的条目没有 `uri` 位置 → warning `bib-field-not-expressed` |
 | 对文献的引用 `xref[@ref-type="bibr"]` | `bibRef` mark | `rid` = `biblref_<n>`；**内容取 run 自己的文本**（D-X-10） | M-10.1.6-01 · C-T-53 | 目标不是文献条目 → `xml-xref-target-unsupported` |
 
@@ -715,7 +715,7 @@ ResourceManifestEntry {
 | `xml-block-after-subsec` | error | 子条之后出现非注/示例/清单的块（2.1、2.2） |
 | `xml-mark-combination` | error | 不可表达的 mark 组合，或容器不允许的 mark（2.3.2、2.3.3） |
 | `xml-link-protocol` | error | `externalLink.href` 为空或协议不在 `http/https/mailto/ftp`（2.3.2、2.10） |
-| `xml-footnote-position` | error | 脚注原子不在 `p` 内（2.3.5） |
+| `xml-footnote-position` | error | 脚注原子不在 `p` 或 `mixed-citation`（`citation` 容器）内：标题、单元格、术语、`std` 条目的 `std-ref`/`title` 等（2.3.5、2.10；`citation` 容器的放开为主导决定 2026-10-27） |
 | `formula-in-text-only` | error | 纯文本容器内出现行内公式或行内图（2.3.3、2.8、2.9） |
 | `xml-list-type-unsupported` | error | `boxed`/`romanUpper`（2.4，D-X-09） |
 | `list-marker-missing` | error | 同一有序列表内部分列项有标记、部分没有（2.4；整个列表都没有标记时按显示形态导出，见下一行） |
@@ -760,6 +760,7 @@ ResourceManifestEntry {
 | `term-descriptor-not-expressed`、`term-descriptor-missing` | warning；聚合 | 描述符无表达 / 缺词性或采用级别（2.9） |
 | `bib-std-incomplete`、`bib-field-not-expressed` | warning；后者聚合 | 参考文献 `std` 信息不全；多余字段（2.10） |
 | `index-seealso-not-expressed` | warning | `seeAlso`（2.11） |
+| `normref-unstructured` | warning | `norm-refs` 章没有 `normRefList` 且除子条外至少 2 个块：条目按 `p` 输出，没有 std/mixed-citation 标记（2.10，C-S-24；主导决定 2026-10-27） |
 | `cell-attr-not-expressed`、`px-width-ignored` | info；聚合 | 单元格 `cellType/width`；拖拽 px 列宽（2.6） |
 | `term-language-merged`、`term-tail-order-normalized` | info | 语言集合并；尾项次序规范化（2.9） |
 | `mathml-annotation-removed`、`resource-unused` | info | 去掉 TeX 注释；清单多余条目（4.3、4.5） |

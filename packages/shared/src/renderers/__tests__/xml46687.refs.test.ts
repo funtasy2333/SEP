@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { IRBibEntry, IRBlock, IRClauseChild, IRDoc, IRIndex, IRNormRef, IRNormRefList } from '../../ir/types'
+import { g1NormRefList } from '../../ir/__tests__/wp8mG1Fixtures'
+import type { IRBibEntry, IRBlock, IRClauseChild, IRDoc, IRIndex, IRInline, IRNormRef, IRNormRefList } from '../../ir/types'
 import { exportXml46687 } from '../xml46687'
 import { site } from '../xml46687Parts/context'
 import { createRenderSession } from '../xml46687Parts/dispatch'
@@ -129,6 +130,123 @@ describe('规范性引用文件清单 ref-list[@content-type="norm-refs"]（设�
     const xml = bodyXml(refsDoc(undefined))
     expect(xml).toContain('<sec id="sec_2" sec-type="norm-refs"><label>2</label><title>规范性引用文件</title><p>下列文件中的内容通过文中的规范性引用而构成本文件必不可少的条款。</p></sec>')
     expect(xml).not.toContain('ref-list')
+  })
+})
+
+describe('未结构化的规范性引用文件章（C-S-24，主导决定 2026-10-27）', () => {
+  const normRefsChapter = (...children: IRClauseChild[]): IRDoc => makeDoc([
+    chapter('ch-scope', '范围', [para('scope-p', '范围。')], 'scope'),
+    chapter('ch-refs', '规范性引用文件', children, 'norm-refs'),
+  ])
+
+  it('normref-unstructured（warning）：norm-refs 章没有 normRefList 且块数 ≥ 2 → 照常按 p 输出，并给 warning（nodeId=章，path=doc.body[n]）', () => {
+    const doc = normRefsChapter(para('refs-p0', '下列文件中的内容通过文中的规范性引用而构成本文件必不可少的条款。'), para('refs-p1', 'GB/T 321 优先数和优先数系'), para('refs-p2', 'GB/T 3102（所有部分） 量和单位'))
+    const { xml, problems } = renderOk(doc)
+    expect(compact(bodyOf(xml))).toContain('<p>下列文件中的内容通过文中的规范性引用而构成本文件必不可少的条款。</p><p>GB/T 321 优先数和优先数系</p><p>GB/T 3102（所有部分） 量和单位</p>')
+    expect(compact(xml)).not.toContain('ref-list')
+    const warnings = find(problems, 'normref-unstructured')
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toMatchObject({ severity: 'warning', nodeId: 'ch-refs', path: 'doc.body[1]' })
+    expect(warnings[0]!.message).toContain('3 个块')
+  })
+
+  it('块数恰为 2 也报（引导语 + 一个条目段落）；块里的注、示例同样计数，子条不计', () => {
+    const two = renderOk(normRefsChapter(para('p0', '引导语。'), para('p1', 'GB/T 1 名称')))
+    expect(find(two.problems, 'normref-unstructured')).toHaveLength(1)
+    const note = { kind: 'note' as const, id: 'n1', content: [para('n1.p', '注')] }
+    expect(find(renderOk(normRefsChapter(para('p0', '引导语。'), note)).problems, 'normref-unstructured')).toHaveLength(1)
+    // 子条不计块数：一个块 + 一个子条 = 1 个块，不报
+    expect(find(renderOk(normRefsChapter(para('p0', '引导语。'), clause('c1', 1, '条', [para('c1.p', '条')]))).problems, 'normref-unstructured')).toEqual([])
+  })
+
+  it('单个引导段（如“本文件没有规范性引用文件。”）不报；有 normRefList 的章（引导语 + 清单共 2 个块）不报；其他章的多个段落不报', () => {
+    expect(find(renderOk(normRefsChapter(para('p0', '本文件没有规范性引用文件。'))).problems, 'normref-unstructured')).toEqual([])
+    const structured = renderOk(refsDoc(normRefs('nrl', std('nr1', 'GB/T 1', '甲'))))
+    expect(find(structured.problems, 'normref-unstructured')).toEqual([])
+    const scope = makeDoc([chapter('ch-scope', '范围', [para('p0', '一。'), para('p1', '二。'), para('p2', '三。')], 'scope')])
+    expect(find(renderOk(scope).problems, 'normref-unstructured')).toEqual([])
+  })
+
+  it('没有参考文献时同样检查（检查挂在 back 阶段必经的入口，不依赖是否有文献）；有参考文献时也只报一次', () => {
+    const doc = normRefsChapter(para('p0', '引导语。'), para('p1', 'GB/T 1 名称'))
+    expect(find(renderOk(doc).problems, 'normref-unstructured')).toHaveLength(1)
+    doc.bibliography = [bib('b1', '文献一')]
+    expect(find(renderOk(doc).problems, 'normref-unstructured')).toHaveLength(1)
+  })
+})
+
+describe('条文脚注在 mixed-citation 内（主导决定 2026-10-27）', () => {
+  const footnoteRun = (id: string, text: string): IRInline => ({ text: '', footnote: { id, content: [{ text }] } })
+  /** WP8.M 夹具 g1-nr-4 的形态：mixed 条目 = 文字 + 一个空文字的脚注 run；再加正文脚注与参考文献脚注，核对编号次序。 */
+  function footnoteDoc(): IRDoc {
+    return refsDoc(g1NormRefList(), {
+      bibliography: [
+        bib('bf1', '', { content: [{ text: '张伯奥.中医内科学[M].' }, footnoteRun('fn-bib', '文献的脚注。')] }),
+      ],
+    }, [chapter('ch-body', '技术要求', [para('body-p', '正文', { text: '带脚注', footnote: { id: 'fn-body', content: [{ text: '正文脚注的内容。' }] } }, '。', run('文献', { type: 'bibRef', targetId: 'bf1' }))])])
+  }
+  const doc = footnoteDoc()
+  const labels = labelsOf(doc)
+
+  it('[M-4.4.2.3-04] 规范性引用的 mixed 条目里的脚注：xref[fn] 紧随 fn，写在 mixed-citation 内（WP8.M 夹具 g1-fn-nr 的形态）', () => {
+    const { xml, problems } = renderOk(doc)
+    expect(codesOf(problems, 'error')).toEqual([])
+    expect(refList(compact(bodyOf(xml)))).toContain(
+      '<ref id="ref_4"><mixed-citation>《中华人民共和国计量法》<xref ref-type="fn" rid="fn_1">1)</xref><fn id="fn_1"><label><sup>1)</sup></label><p>非标准化文件的脚注。</p></fn></mixed-citation></ref>',
+    )
+  })
+
+  it('[M-4.5.3-06] 参考文献的 mixed-citation 里的脚注同样允许；脚注编号按 Resolver 的次序（规范性引用章 → 正文 → 参考文献）', () => {
+    expect([labels['g1-fn-nr']!.xmlId, labels['fn-body']!.xmlId, labels['fn-bib']!.xmlId]).toEqual(['fn_1', 'fn_2', 'fn_3'])
+    const { xml } = renderOk(doc)
+    expect(bibList(backXml(doc))).toContain(
+      '<mixed-citation xlink:type="simple">张伯奥.中医内科学[M].<xref ref-type="fn" rid="fn_3">3)</xref><fn id="fn_3"><label><sup>3)</sup></label><p>文献的脚注。</p></fn></mixed-citation>',
+    )
+    expect(compact(xml).match(/<fn id=/g)).toHaveLength(3)
+  })
+
+  it('标准化文件的 std 条目里没有脚注的合法位置：std-ref（纯文本）、title 里的脚注报 xml-footnote-position（error）；规范性引用与参考文献都一样', () => {
+    const inRef: IRNormRef = { kind: 'normRef', id: 'nr1', entryType: 'std', ref: [{ text: 'GB/T 1', footnote: { id: 'fn-a', content: [{ text: '甲' }] } }], title: [{ text: '名称' }] }
+    const inTitle: IRNormRef = { kind: 'normRef', id: 'nr2', entryType: 'std', ref: [{ text: 'GB/T 2' }], title: [{ text: '名称' }, footnoteRun('fn-b', '乙')] }
+    const result = exportDoc(refsDoc(normRefs('nrl', inRef, inTitle)))
+    expect(result.xml).toBeNull()
+    expect(find(result.problems, 'xml-footnote-position')).toMatchObject([
+      { severity: 'error', nodeId: 'fn-a', path: 'doc.body[1].children[1].entries[0].ref[0].footnote' },
+      { severity: 'error', nodeId: 'fn-b', path: 'doc.body[1].children[1].entries[1].title[1].footnote' },
+    ])
+    const stdBib = bib('bs', '', {
+      entryType: 'standard',
+      fields: [
+        { id: 'f1', name: 'std-ref', value: [{ text: 'GB/T 1' }] },
+        { id: 'f2', name: 'title', value: [{ text: '名称' }, footnoteRun('fn-c', '丙')] },
+      ],
+    })
+    const bibResult = exportDoc(makeDoc([chapter('ch1', '范围', [para('p1', '正文')], 'scope')], { bibliography: [stdBib] }))
+    expect(bibResult.xml).toBeNull()
+    expect(find(bibResult.problems, 'xml-footnote-position')).toMatchObject([{ severity: 'error', nodeId: 'fn-c', path: 'doc.bibliography[0].fields[1].value[1].footnote' }])
+  })
+
+  it('stdRef 正文引用上的脚注不报错：脚注落在 std 之后、p 之内', () => {
+    const body = makeDoc([chapter('ch1', '范围', [para('p1', '见', { text: 'GB/T 1', marks: [{ type: 'stdRef' }], footnote: { id: 'fn-s', content: [{ text: '丁' }] } }, '。')], 'scope')])
+    const { xml, problems } = renderOk(body)
+    expect(codesOf(problems, 'error')).toEqual([])
+    expect(compact(bodyOf(xml))).toContain('<p>见<std><std-ref>GB/T 1</std-ref></std><xref ref-type="fn" rid="fn_1">1)</xref><fn id="fn_1"><label><sup>1)</sup></label><p>丁</p></fn>。</p>')
+  })
+
+  describe.skipIf(shouldSkipValidation())('python3 -I scripts/xml46687/validate.py --json --profile export', () => {
+    it('规范性引用与参考文献里 mixed-citation 的脚注：valid:true，errors:[]（fn 有 id，xref[fn] 的 rid 可解析）', () => {
+      const xml = exportXml46687(doc, labels, EMPTY_OPTIONS).xml!
+      const result = validateWithPython(xml, 'export')
+      expect(result.errors).toEqual([])
+      expect(result.valid).toBe(true)
+    })
+
+    it('同一份导出按 import 档校验也通过；sts_compat.py 零未解释偏差', () => {
+      const xml = exportXml46687(doc, labels, EMPTY_OPTIONS).xml!
+      expect(validateWithPython(xml, 'import').errors).toEqual([])
+      const compat = stsCompatWithPython(xml)
+      expect(compat.status, compat.stdout).toBe(0)
+    })
   })
 })
 
