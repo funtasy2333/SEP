@@ -81,6 +81,14 @@ describe('collectXml46687Resources：data URL 与文件名', () => {
     expect(new TextDecoder().decode(files['fig_1.svg'])).toBe(SVG_TEXT)
   })
 
+  it('手写的 SVG data URL 含未转义的 % 时按原文取用', async () => {
+    const raw = '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="50%"/>'
+    const { manifest, files, problems } = await collect(docOf([figure('fig-a', `data:image/svg+xml;utf8,${raw}`)]))
+    expect(problems).toEqual([])
+    expect(manifest.entries[0]).toMatchObject({ fileName: 'fig_1.svg', mediaType: 'image/svg+xml' })
+    expect(new TextDecoder().decode(files['fig_1.svg'])).toBe(raw)
+  })
+
   it('块图与行内图共用同一函数给出的 href：fig_<n> 与 inl_<k>，条目按 IR 文档序', async () => {
     const doc = docOf([
       figure('fig-a', dataUrl('image/png', PNG)),

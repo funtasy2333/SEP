@@ -122,11 +122,13 @@ function parseImageDataUrl(value: string): ImageBytes {
   if (parameters.some(parameter => parameter.toLowerCase() === 'base64')) {
     return { bytes: decodeBase64(match[2]!), contentType }
   }
+  let payload = match[2]!
   try {
-    return { bytes: textEncoder.encode(decodeURIComponent(match[2]!)), contentType }
+    payload = decodeURIComponent(payload)
   } catch {
-    throw new Error('data URL 的数据无法解码')
+    // 常见的“手写”SVG data URL 含未转义的 `%`（如 width="100%"），浏览器照样接受：按原文取用。
   }
+  return { bytes: textEncoder.encode(payload), contentType }
 }
 
 function bytesOfResource(resource: IRResource): ImageBytes {
