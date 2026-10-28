@@ -2,21 +2,21 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 /**
- * 矩阵覆盖断言骨架（WP8.2 设计 §7.6；T2.4a-1 建立，T2.6 打开强制开关）。
+ * 矩阵覆盖断言（WP8.2 设计 §7.6；T2.4a-1 建立骨架，T2.6 打开强制开关，需覆盖的行全部被引用：186/186）。
  *
  * 读取 docs/wp8.1/matrix-S.json、matrix-T.json（只读），**计算**需覆盖的行：`obligation ∈ {shall, should}` 且
  * `export ∈ {required, optional}`（含 T2.0 复核后的七行）；静态扫描 `renderers/__tests__/xml46687*.test.ts` 与
  * `renderers/outputBoundaryXml46687*.test.ts` 的源文本，收集形如 `[M-…]` 的矩阵 id。
  *
  * - 恒强制：出现的 id 都存在于矩阵（防笔误）；
- * - 强制开关 `ENFORCE_COVERAGE` 打开后：每个需覆盖的 id 至少出现一次，失败信息列出缺失 id 与其所属设计节（附录 C）；
- *   **T2.4a-1 阶段开关关闭，只报告缺口不失败**（T2.4b/T2.4c 补齐各自域后，由 T2.6 打开）；
+ * - 强制开关 `ENFORCE_COVERAGE`（T2.6 起为 true）：每个需覆盖的 id 至少出现一次，失败信息列出缺失 id 与其所属设计节（附录 C）；
+ *   T2.4a-1 阶段开关关闭、只报告缺口（T2.4b/T2.4c 补齐各自域后，由 T2.6 打开）；
  * - 对 `may`/示例性的行（`export≠not-applicable`，D-X-20）只报告未引用个数，不失败。
  * 矩阵行数变化会自动改变覆盖要求；本测试读矩阵、不改矩阵。
  */
 
-/** T2.6 把它改成 true。 */
-const ENFORCE_COVERAGE = false
+/** T2.6 起强制：任何需覆盖的矩阵行没有测试标题引用即失败。 */
+const ENFORCE_COVERAGE = true
 
 interface MatrixRow { id: string; obligation: string; export: string; clause: string }
 
@@ -51,7 +51,7 @@ function sectionsOfAppendixC(): Map<string, string> {
   return map
 }
 
-describe('WP8.2 矩阵覆盖断言（T2.4a-1：只报告；T2.6 打开强制）', () => {
+describe('WP8.2 矩阵覆盖断言（T2.6 起强制）', () => {
   const missing = required.filter(row => !referenced.has(row.id))
   const sections = sectionsOfAppendixC()
 
@@ -67,7 +67,7 @@ describe('WP8.2 矩阵覆盖断言（T2.4a-1：只报告；T2.6 打开强制）'
     expect(unknown, `不存在于矩阵的 id：${unknown.join('、')}`).toEqual([])
   })
 
-  it('每个需覆盖的矩阵行至少被一条测试标题引用（强制开关 ENFORCE_COVERAGE；T2.4a-1 阶段只报告）', () => {
+  it('每个需覆盖的矩阵行至少被一条测试标题引用（强制开关 ENFORCE_COVERAGE）', () => {
     const bySection = new Map<string, string[]>()
     for (const row of missing) {
       const section = sections.get(row.id) ?? '未知'
@@ -76,7 +76,7 @@ describe('WP8.2 矩阵覆盖断言（T2.4a-1：只报告；T2.6 打开强制）'
     const lines = [...bySection.entries()].sort(([a], [b]) => a.localeCompare(b, 'en', { numeric: true }))
       .map(([section, ids]) => `  设计 §${section}（${ids.length}）：${ids.join('、')}`)
     const summary = `需覆盖 ${required.length} 行，已引用 ${required.length - missing.length} 行，缺 ${missing.length} 行`
-    if (missing.length > 0) console.info(`[wp82MatrixCoverage] ${summary}\n${lines.join('\n')}`)
+    console.info(`[wp82MatrixCoverage] ${summary}${missing.length > 0 ? `\n${lines.join('\n')}` : ''}`)
     if (ENFORCE_COVERAGE) expect(missing, `${summary}\n${lines.join('\n')}`).toEqual([])
     else expect(required.length - missing.length).toBeGreaterThan(0)
   })

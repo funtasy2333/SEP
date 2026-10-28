@@ -4,6 +4,7 @@ import type { IRBlock, IRDoc, IRList } from '../../ir/types'
 import { exportXml46687 } from '../xml46687'
 import { site } from '../xml46687Parts/context'
 import { createRenderSession } from '../xml46687Parts/dispatch'
+import { stubMathMl, stubOptions } from './xml46687StubKit'
 import { shouldSkipValidation, validateWithPython } from './xml46687PythonValidation'
 import { EMPTY_OPTIONS, bodyOf, chapter, codesOf, exportDoc, find, labelsOf, makeDoc, para, renderOk, renderRuns, run } from './xml46687Kit'
 
@@ -139,6 +140,45 @@ describe('注、示例（设计 §2.5）', () => {
     expect(blocksOf(docWith([multi]))).toBe(
       '<non-normative-note><label>注：</label><p>第一段</p><list list-type="dash"><list-item><p>项</p></list-item></list><p>第二段</p></non-normative-note>',
     )
+  })
+
+  it('[M-5.6-06] [M-5.6-04] 表注、图注、公式注：各在 table-wrap-foot / fig / disp-formula 内写成 non-normative-note，label 取 Resolver（多条时“注1：”“注2：”，作用域各自独立），id 仅被引用时写', () => {
+    const tableNote = (id: string, text: string): IRBlock & { kind: 'note' } => ({ kind: 'note', id, content: [para(`${id}.p0`, text)] })
+    const table: IRBlock = {
+      kind: 'table', id: 't1', caption: [{ text: '表题' }], orientation: 'portrait', headerRowCount: 0, footnotes: [],
+      rows: [{ id: 't1.r0', cells: [{ id: 't1.r0c0', colspan: 1, rowspan: 1, header: false, content: [para('t1.r0c0.p0', '值')] }] }],
+      notes: [tableNote('n-t1', '表注一'), tableNote('n-t2', '表注二（被引用）')],
+    }
+    const figure: IRBlock = {
+      kind: 'figure', id: 'fig1', caption: [{ text: '图题' }], orientation: 'portrait', src: 'fig.png',
+      notes: [tableNote('n-f1', '图注一'), tableNote('n-f2', '图注二（被引用）')],
+    }
+    const formula: IRBlock = {
+      kind: 'formula', id: 'f1', latex: 'x', numbered: true, whereList: [],
+      notes: [{ id: 'n-m1', content: [{ text: '公式注一' }] }, { id: 'n-m2', content: [{ text: '公式注二（被引用）' }] }],
+    }
+    const refs = para('refs', '见',
+      run('x', { type: 'crossRef', targetId: 'n-t2', targetKind: 'note' }), run('y', { type: 'crossRef', targetId: 'n-f2', targetKind: 'note' }),
+      run('z', { type: 'crossRef', targetId: 'n-m2', targetKind: 'note' }))
+    const doc = docWith([table, figure, formula, refs])
+    const labels = labelsOf(doc)
+    const result = exportXml46687(doc, labels, stubOptions(doc, { f1: stubMathMl() }))
+    expect(codesOf(result.problems, 'error')).toEqual([])
+    const xml = result.xml!.replace(/>\s+</g, '><')
+    const idOf = (id: string): string => labels[id]!.xmlId
+    const noteXml = (label: string, text: string, id?: string): string =>
+      `<non-normative-note${id ? ` id="${id}"` : ''}><label>${label}</label><p>${text}</p></non-normative-note>`
+    // 表注：table-wrap-foot 内，在单位段之后
+    expect(/<table-wrap-foot>[\s\S]*?<\/table-wrap-foot>/.exec(xml)![0]).toBe(
+      `<table-wrap-foot>${noteXml('注1：', '表注一')}${noteXml('注2：', '表注二（被引用）', idOf('n-t2'))}</table-wrap-foot>`,
+    )
+    // 图注：fig 内，在 graphic 之后
+    expect(/<fig [\s\S]*?<\/fig>/.exec(xml)![0]).toContain(`<graphic content-type="image" xlink:href="fig_1"/>${noteXml('注1：', '图注一')}${noteXml('注2：', '图注二（被引用）', idOf('n-f2'))}</fig>`)
+    // 公式注：disp-formula 内，在 mml:math 之后（R-10：Resolver 给公式注 label 与 note_<n>）
+    expect(/<disp-formula [\s\S]*?<\/disp-formula>/.exec(xml)![0]).toContain(`</mml:math>${noteXml('注1：', '公式注一')}${noteXml('注2：', '公式注二（被引用）', idOf('n-m2'))}</disp-formula>`)
+    // 被引用的三个注各有 xref，没被引用的三个不带 id
+    for (const id of ['n-t2', 'n-f2', 'n-m2']) expect(xml).toContain(`rid="${idOf(id)}"`)
+    expect(xml.match(/<non-normative-note id=/g)).toHaveLength(3)
   })
 
   it('xml-note-content（D-X-12）：注/示例/警告内容里出现段落、列项之外的块（如代码）是 error', () => {

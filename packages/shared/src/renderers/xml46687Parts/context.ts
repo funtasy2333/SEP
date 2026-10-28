@@ -53,7 +53,8 @@ export function sub(base: Site, suffix: string, nodeId?: NodeId): Site {
 
 /**
  * 行内容器（设计 §2.3.3）：决定一个 run 里哪些 mark/原子可以写出。
- * `p` 是 `inline` 内容模型且允许条文脚注（脚注只写在 `p` 内，D-M-01）；`tbx` 是 `inline` 另加 `tbx:entailedTerm`。
+ * `p` 是 `inline` 内容模型且允许条文脚注；`citation`（`mixed-citation` 内，含规范性引用与参考文献条目）同样允许条文脚注
+ * （D-M-01，主导决定 2026-10-27）——脚注只写在这两种容器的最外层；`tbx` 是 `inline` 另加 `tbx:entailedTerm`。
  */
 export type InlineContainer = 'p' | 'inline' | 'tbx' | 'term' | 'phrase' | 'label' | 'citation' | 'subsup' | 'text'
 
