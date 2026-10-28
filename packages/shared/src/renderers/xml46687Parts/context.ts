@@ -129,7 +129,7 @@ export interface RenderContext {
   /** 渲染块序列；`at.path` 是该数组的路径。 */
   renderBlocks(blocks: readonly IRBlock[], at: Site): XmlElement[]
   /**
-   * 渲染 `sec`/`app` 的内容（设计 §2.2）：块、子条/术语条、尾部的注/示例/规范性引用清单，三态处理。
+   * 渲染 `sec`/`app` 的内容（设计 §2.2）：块、子条/术语条、尾部的注/示例/规范性引用清单，按次序处理（尾部之后不能再有子条）。
    * `at.path` 是 `children` 数组的路径。
    */
   renderSectionContent(children: readonly IRClauseChild[], at: Site): XmlElement[]

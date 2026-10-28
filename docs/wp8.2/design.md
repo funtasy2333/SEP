@@ -303,7 +303,7 @@ WP8.M 的 31 条恰为设计 §6.2 的 11 类，说明 §6.2 对“WP8.M 新增�
 | `body/sec`（章）：`@id`、`@sec-type`（`scope`/`norm-refs`/`terms`；`general` 不写）；`label`；`title`；内容 | `IRChapter`：`secType`、`title`；`label` 取 Resolver | `R: labels[章].xmlId`（`sec_1`） | M-4.4.2.1-01、M-4.4.2.1-02、M-4.4.2.1-03、M-4.2-03、M-4.2-04、M-4.2-05、M-4.2-06、M-4.4.2.2-01、M-4.4.2.3-01、M-4.4.2.4-01、M-9.1-01、M-D-04、M-E-01、M-F-08、M-F-09、M-F-16 · C-S-06/23/24/25 | `title` 为空 → warning `title-missing` 并输出空 `<title/>`（schema 要求章有 title，V-2）；`label` 缺失 → error `xml-label-missing` |
 | `sec`（条，任意深度）：`@id`；`label`；`title`；内容 | `IRClause`（嵌套由树结构表达，`level` 不使用） | `R: labels[条].xmlId`（`sec_5.1.2`） | M-4.4.2.1-01、M-4.4.2.1-02、M-4.4.2.1-03、M-E-01、M-F-16、M-9.1-02（术语章内的分组条、缩略语条与普通条同写法） · C-S-23、C-S-25 | 同上 |
 | 无标题条：`sec[@sec-type="numbered-paragraph"]`，有 `label`，**没有 `title`** | `IRClause{titled:false}` | 同上 | M-4.4.2.5-01 · C-S-08 | `titled:false` 但 `title` 非空 → warning `title-ignored`（标题不输出，V-2 禁止 numbered-paragraph 带 title） |
-| `sec` 内容次序：块在前，然后是子条/术语条，最后是尾部的注、示例、`ref-list` | `children` 按原序处理，三态：①块；②遇到第一个子条或术语条后进入“子条态”；③子条态下只接受 `note`/`example`/`normRefList` | — | M-4.4.2.1-04（p）· C-S-23；schema `cm.sec-content` | 子条之后出现其他块（段落、表、图、列项…）→ error `xml-block-after-subsec`（`hanging-paragraph` 是 Resolver 已有的同类 error，此处再保险） |
+| `sec` 内容次序：块在前，然后是子条/术语条，最后是尾部的注、示例、`ref-list` | `children` 按原序处理，四态：①块；②遇到第一个子条或术语条后进入“子条态”；③子条态下只接受 `note`/`example`/`normRefList`，其中第一个注/示例/清单起进入“尾部态”（Codex 评审 PR #62，2026-10-28）；④尾部态下只接受 `note`/`example`/`normRefList`，再遇到 `clause`/`termEntry` 即越序 | — | M-4.4.2.1-04（p）· C-S-23；schema `cm.sec-content`（块\*，（子条\|术语条）+，尾部（注\|示例\|ref-list）\*：尾部之后不能再有子条） | 子条之后出现其他块（段落、表、图、列项…）→ error `xml-block-after-subsec`（`hanging-paragraph` 是 Resolver 已有的同类 warning，此处升为 error）；尾部的注/示例/清单之后再出现子条或术语条 → 同一 error `xml-block-after-subsec`（Codex 评审 PR #62，2026-10-28），定位到该子条，该子条不输出 |
 | `p`：行内内容，**无任何属性** | `IRParagraph.content` | — | M-4.4.2.1-04、M-E-25、M-10.1.9-03 · C-S-23 | 段落内含 `id`（IR `NodeId`）不输出，`style-type`（M-10.1.9-03 示例的 `align-center`）也不输出；`p-<n>` 形式 id 永远不产生（V-7/V-18） |
 | `app-group` | `IRDoc.appendices`（非空才输出） | — | M-4.5.2-01 · C-S-26 | 无 |
 | `app-group/app`：`@id`、`@content-type="informative"\|"normative"` | `IRAppendix.normative` | `R: labels[附录].xmlId`（`sec_A`） | M-4.5.2-02、M-4.2-07、M-E-04、M-F-10 · C-S-07 | — |
@@ -712,7 +712,7 @@ ResourceManifestEntry {
 | `xml-body-empty` | error | 没有章（2.1） |
 | `meta-required-missing` | 题名缺失 error；其余 warning（D-X-02 决定 B，见 8.1） | 缺题名；SES 必填的 `std-org-group`/`content-language`/`release-date`/`implementation-date` 缺失（2.1） |
 | `xml-date-invalid` | error | 日期不是真实日历日 `YYYY-MM-DD`（2.1） |
-| `xml-block-after-subsec` | error | 子条之后出现非注/示例/清单的块（2.1、2.2） |
+| `xml-block-after-subsec` | error | 子条之后出现非注/示例/清单的块；尾部的注/示例/清单之后又出现子条/术语条（2.1、2.2；后一条件为 Codex 评审 PR #62，2026-10-28） |
 | `xml-mark-combination` | error | 不可表达的 mark 组合，或容器不允许的 mark（2.3.2、2.3.3） |
 | `xml-link-protocol` | error | `externalLink.href` 为空或协议不在 `http/https/mailto/ftp`（2.3.2、2.10） |
 | `xml-footnote-position` | error | 脚注原子不在 `p` 或 `mixed-citation`（`citation` 容器）内：标题、单元格、术语、`std` 条目的 `std-ref`/`title` 等（2.3.5、2.10；`citation` 容器的放开为主导决定 2026-10-27） |

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { IRDoc } from '../../ir/types'
+import type { IRClauseChild, IRDoc, IRNormRefList, IRTermEntry } from '../../ir/types'
 import { exportXml46687 } from '../xml46687'
+import { site } from '../xml46687Parts/context'
+import { createRenderSession } from '../xml46687Parts/dispatch'
 import {
   EMPTY_OPTIONS, appendix, bodyOf, chapter, clause, codesOf, exportDoc, find, labelsOf, makeDoc, para, renderOk, run,
 } from './xml46687Kit'
+import { shouldSkipValidation, validateWithPython } from './xml46687PythonValidation'
 
 /**
  * 根、前置页、章、条、附录与后置页（WP8.2 设计 §2.1 根/前置页、§2.2）。
@@ -193,6 +196,89 @@ describe('sec 内容三态（设计 §2.2）', () => {
       front: { foreword: [], introduction: [para('in1', '引言块')], introductionClauses: [clause('ic1', 1, '条', [para('ic1-p', '条正文')])] },
     })
     expect(codesOf(exportDoc(doc).problems, 'error')).toEqual([])
+  })
+})
+
+describe('sec 内容次序：尾部的注/示例/清单之后不能再出现子条/术语条（设计 §2.2，Codex 评审 PR #62，2026-10-28）', () => {
+  const note = { kind: 'note' as const, id: 'n1', content: [para('n1.p0', '尾部的注')] }
+  const example = { kind: 'example' as const, id: 'e1', content: [para('e1.p0', '尾部的示例')] }
+  const normRefList: IRNormRefList = {
+    kind: 'normRefList', id: 'nrl', entries: [{ kind: 'normRef', id: 'nr1', entryType: 'std', ref: [{ text: 'GB/T 321' }], title: [{ text: '优先数和优先数系' }] }],
+  }
+  const termEntry = (id: string): IRTermEntry => ({ kind: 'termEntry', id, term: [{ text: `术语${id}` }], definition: [para(`${id}.d0`, '定义。')], notes: [], examples: [] })
+  const MESSAGE = '尾部的注/示例/清单之后不能再出现子条/术语条（sec 内容次序：块、子条、尾部注/示例/清单）'
+
+  /** 把 `children` 放进指定类型的章（术语章里放 termEntry、norm-refs 章里放清单，其余放普通章）。 */
+  const docOf = (children: IRClauseChild[], secType: Parameters<typeof chapter>[3] = 'general'): IRDoc =>
+    makeDoc([chapter('ch1', '技术要求', children, secType)])
+
+  it.each([
+    ['[clause, note, clause]', docOf([clause('c1', 1, '条一', [para('c1.p', '条一正文')]), note, clause('c2', 1, '条二', [para('c2.p', '条二正文')])]), 'c2'],
+    ['[clause, example, clause]', docOf([clause('c1', 1, '条一', [para('c1.p', '条一正文')]), example, clause('c2', 1, '条二', [para('c2.p', '条二正文')])]), 'c2'],
+    ['[termEntry, note, termEntry]（术语章）', docOf([termEntry('t1'), note, termEntry('t2')], 'terms'), 't2'],
+    ['[clause, note, termEntry]（术语章）', docOf([clause('c1', 1, '分组', [termEntry('t1')]), note, termEntry('t2')], 'terms'), 't2'],
+    ['[clause, normRefList, clause]（规范性引用文件章）', docOf([clause('c1', 1, '条一', [para('c1.p', '条一正文')]), normRefList, clause('c2', 1, '条二', [para('c2.p', '条二正文')])], 'norm-refs'), 'c2'],
+  ] as const)('%s：error xml-block-after-subsec，定位到尾部之后的那一条，xml 为 null', (_name, doc, nodeId) => {
+    const result = exportDoc(doc)
+    expect(result.xml).toBeNull()
+    expect(codesOf(result.problems, 'error')).toEqual(['xml-block-after-subsec'])
+    expect(find(result.problems, 'xml-block-after-subsec')).toMatchObject([{ severity: 'error', nodeId, path: 'doc.body[0].children[2]', message: expect.stringContaining(MESSAGE) }])
+  })
+
+  it('嵌套的条与附录同样适用；尾部之后的子条不输出（只输出尾部之前的内容）', () => {
+    const inner = clause('c1', 1, '条', [clause('c1-1', 2, '子条一', [para('c1-1.p', '正文')]), note, clause('c1-2', 2, '子条二', [para('c1-2.p', '正文')])])
+    const nested = exportDoc(docOf([inner]))
+    expect(nested.xml).toBeNull()
+    expect(find(nested.problems, 'xml-block-after-subsec')).toMatchObject([{ severity: 'error', nodeId: 'c1-2', path: 'doc.body[0].children[0].children[2]' }])
+
+    const inAppendix = exportDoc(makeDoc([chapter('ch1', '范围', [para('p1', '正文')], 'scope')], {
+      appendices: [appendix('app-a', false, '附录', [clause('a1', 1, '条一', [para('a1.p', '正文')]), example, clause('a2', 1, '条二', [para('a2.p', '正文')])])],
+    }))
+    expect(inAppendix.xml).toBeNull()
+    expect(find(inAppendix.problems, 'xml-block-after-subsec')).toMatchObject([{ severity: 'error', nodeId: 'a2', path: 'doc.appendices[0].children[2]' }])
+
+    const doc = docOf([clause('c1', 1, '条一', [para('c1.p', '条一正文')]), note, clause('c2', 1, '条二', [para('c2.p', '条二正文')])])
+    const session = createRenderSession(doc, labelsOf(doc), EMPTY_OPTIONS)
+    session.ctx.scope.chapter = doc.body[0]
+    const elements = session.ctx.renderSectionContent(doc.body[0]!.children, site('doc.body[0].children'))
+    expect(elements.map((element) => element.name.local)).toEqual(['sec', 'non-normative-note'])
+  })
+
+  it('尾部（注、示例）之后的每个子条各报一条，路径各自精确', () => {
+    const doc = docOf([clause('c1', 1, '条一', [para('c1.p', '正文')]), note, example, clause('c2', 1, '条二', [para('c2.p', '正文')]), clause('c3', 1, '条三', [para('c3.p', '正文')])])
+    const result = exportDoc(doc)
+    expect(find(result.problems, 'xml-block-after-subsec').map((problem) => [problem.nodeId, problem.path])).toEqual([
+      ['c2', 'doc.body[0].children[3]'], ['c3', 'doc.body[0].children[4]'],
+    ])
+  })
+
+  it('合法次序不报：[clause, clause, note, example]、[段落, clause, note, example]、[termEntry, termEntry, note]、[clause, clause, normRefList]', () => {
+    const legal: Array<[string, IRDoc]> = [
+      ['[clause, clause, note, example]', docOf([clause('c1', 1, '条一', [para('c1.p', '正文')]), clause('c2', 1, '条二', [para('c2.p', '正文')]), note, example])],
+      ['[para, clause, note, example]', docOf([para('p0', '前导段'), clause('c1', 1, '条一', [para('c1.p', '正文')]), note, example])],
+      ['[termEntry, termEntry, note]', docOf([termEntry('t1'), termEntry('t2'), note], 'terms')],
+      ['[clause, clause, normRefList]', docOf([clause('c1', 1, '条一', [para('c1.p', '正文')]), clause('c2', 1, '条二', [para('c2.p', '正文')]), normRefList], 'norm-refs')],
+    ]
+    for (const [name, doc] of legal) {
+      const result = exportDoc(doc)
+      expect(codesOf(result.problems, 'error'), name).toEqual([])
+      expect(result.xml, name).not.toBeNull()
+    }
+  })
+
+  describe.skipIf(shouldSkipValidation())('外部校验：合法次序的导出通过 validate.py --profile export', () => {
+    it('[段落, clause, clause, note, example]、[clause, clause, normRefList]、[termEntry, termEntry, note, example]：valid:true，errors:[]', () => {
+      const docs = [
+        docOf([para('p0', '前导段'), clause('c1', 1, '条一', [para('c1.p', '正文')]), clause('c2', 1, '条二', [para('c2.p', '正文')]), note, example]),
+        docOf([clause('c1', 1, '条一', [para('c1.p', '正文')]), clause('c2', 1, '条二', [para('c2.p', '正文')]), normRefList], 'norm-refs'),
+        docOf([termEntry('t1'), termEntry('t2'), note, example], 'terms'),
+      ]
+      for (const doc of docs) {
+        const result = validateWithPython(renderOk(doc).xml, 'export')
+        expect(result.errors).toEqual([])
+        expect(result.valid).toBe(true)
+      }
+    })
   })
 })
 

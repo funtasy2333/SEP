@@ -4,8 +4,9 @@
  * - `standard`：processing-meta → front（std-meta、前言、引言）→ body → back（app-group、参考文献、索引）；
  * - 章/条/附录的 `id` 一律取 Resolver 的 `labels[...].xmlId`；前言/引言的 id 是渲染器常量（`sec_foreword`、
  *   `sec_intro` 或有引言条时的 `sec_0`，R-6）；
- * - `sec` 内容三态（M-4.4.2.1-04，schema `cm.sec-content`）：块在前，遇到第一个子条/术语条后只接受尾部的
- *   注、示例、规范性引用清单，其他块是 error `xml-block-after-subsec`；
+ * - `sec` 内容次序（M-4.4.2.1-04，schema `cm.sec-content`）：块在前，遇到第一个子条/术语条后只接受尾部的
+ *   注、示例、规范性引用清单，其他块是 error `xml-block-after-subsec`；尾部的注/示例/清单一旦出现，
+ *   其后也不能再有子条/术语条（同一错误码，Codex 评审 PR #62）；
  * - 无标题条写 `sec-type="numbered-paragraph"` 且不写 `title`（V-2、V-17）。
  */
 
@@ -97,22 +98,27 @@ function renderAppendix(appendix: IRAppendix, at: Site, ctx: RenderContext): Xml
 
 /**
  * `sec`/`app` 的内容（设计 §2.2 “sec 内容次序”）：块在前，然后是子条/术语条，最后是尾部的注、示例、`ref-list`。
- * 子条之后出现其他块是 `xml-block-after-subsec`（`hanging-paragraph` 是 Resolver 已有的同类 warning，此处是 error）。
+ * 子条之后出现其他块是 `xml-block-after-subsec`（`hanging-paragraph` 是 Resolver 已有的同类 warning，此处是 error）；
+ * 子条之后已出现注/示例/清单（进入尾部）时再出现子条/术语条同样是该错误，该子条不输出（schema `cm.sec-content`：尾部之后不能再有子条）。
  */
 export function renderSectionContent(ctx: RenderContext, children: readonly IRClauseChild[], at: Site): XmlElement[] {
   const out: XmlElement[] = []
   let afterSubsection = false
+  let inTrailer = false
   children.forEach((child, index) => {
     const childSite = sub(at, `[${index}]`, child.id)
-    if (child.kind === 'clause') {
+    if (child.kind === 'clause' || child.kind === 'termEntry') {
+      if (inTrailer) {
+        ctx.report('xml-block-after-subsec', 'error', '尾部的注/示例/清单之后不能再出现子条/术语条（sec 内容次序：块、子条、尾部注/示例/清单）。', childSite)
+        return
+      }
       afterSubsection = true
-      out.push(renderClause(child, childSite, ctx))
-    } else if (child.kind === 'termEntry') {
-      afterSubsection = true
-      out.push(...renderTermEntry(child, childSite, ctx))
+      if (child.kind === 'clause') out.push(renderClause(child, childSite, ctx))
+      else out.push(...renderTermEntry(child, childSite, ctx))
     } else if (afterSubsection && child.kind !== 'note' && child.kind !== 'example' && child.kind !== 'normRefList') {
       ctx.report('xml-block-after-subsec', 'error', `子条之后不能再出现「${child.kind}」块（sec 内容为：块、子条、尾部的注/示例/清单）。`, childSite)
     } else {
+      if (afterSubsection) inTrailer = true
       out.push(...ctx.renderBlock(child, childSite))
     }
   })
