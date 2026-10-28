@@ -485,6 +485,34 @@ export function createWp82Doc(): IRDoc {
   )
 }
 
+/**
+ * 生产 ProseMirror 能表示的变体（io 端到端经 `irToPm` → `buildXml46687Package` 用）。`irToPm` 对 IR 里下面两处报
+ * `IRToPmError`（生产 Schema 的限制，不是渲染器的限制），所以变体去掉它们，其余内容原样保留：
+ *
+ * 1. `w82-scope-p2` 里 `bold + code` 的 run：生产 `code` 标记排斥其他行内标记 → 改为只带 `code`；
+ * 2. `w82-list-outer`（列项内嵌套列表）：生产 `stdList` 不支持嵌套列表 → 整个块去掉（连同其中二层字母项的 `list-type-normalized` 告警）。
+ */
+export function createWp82PmRepresentableDoc(): IRDoc {
+  const doc = createWp82Doc()
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const entry of value) visit(entry)
+      return
+    }
+    if (typeof value !== 'object' || value === null) return
+    const record = value as Record<string, unknown>
+    if (record.id === 'w82-scope-p2' && Array.isArray(record.content)) {
+      for (const run of record.content as IRInline[]) {
+        if (run.marks?.some(mark => mark.type === 'code') && run.marks.length > 1) run.marks = run.marks.filter(mark => mark.type === 'code')
+      }
+    }
+    if (Array.isArray(record.children)) record.children = (record.children as Array<{ id?: string }>).filter(child => child.id !== 'w82-list-outer')
+    for (const child of Object.values(record)) visit(child)
+  }
+  visit(doc.body)
+  return doc
+}
+
 /** 公式 NodeId（深度遍历，块公式与行内公式），按文档序，用于生成确定性 MathML 桩。 */
 export function formulaIdsOf(doc: IRDoc): NodeId[] {
   const ids: NodeId[] = []
