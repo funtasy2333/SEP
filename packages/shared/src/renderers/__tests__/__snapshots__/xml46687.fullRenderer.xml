@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<standard xmlns:mml="http://www.w3.org/1998/Math/MathML" xmlns:tbx="urn:iso:std:iso:30042:ed-1" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <processing-meta base-tagset="interchange" mathml-version="3.0" table-model="xhtml" terminology-model="tbx" math-representation="mathml" tagset-family="sts">
+    <custom-meta-group>
+      <custom-meta>
+        <meta-name>基于XML的标准文档内容标记指南</meta-name>
+        <meta-value>2026</meta-value>
+      </custom-meta>
+    </custom-meta-group>
+  </processing-meta>
+  <front>
+    <std-meta>
+      <title-wrap xml:lang="zh">
+        <full>标准化文件编辑系统</full>
+      </title-wrap>
+      <title-wrap xml:lang="en">
+        <full>Standardization document editing system</full>
+      </title-wrap>
+      <std-org-group>
+        <std-org>
+          <std-org-name>国家市场监督管理总局</std-org-name>
+        </std-org>
+      </std-org-group>
+      <content-language>zh</content-language>
+      <std-ref type="dated">GB/T 12345—2026</std-ref>
+      <release-date>2026-06-01</release-date>
+      <implementation-date>2026-12-01</implementation-date>
+      <ics>35.240</ics>
+      <ccs>L 70</ccs>
+    </std-meta>
+    <sec id="sec_foreword" sec-type="foreword">
+      <title>前言</title>
+      <p>本文件按照GB/T 1.1—2020的规定起草。</p>
+      <non-normative-note>
+        <label>注：</label>
+        <p>前言中的注。</p>
+      </non-normative-note>
+    </sec>
+    <sec id="sec_intro" sec-type="intro">
+      <title>引言</title>
+      <p>引言内容。</p>
+    </sec>
+  </front>
+  <body>
+    <sec id="sec_1" sec-type="scope">
+      <label>1</label>
+      <title>范围</title>
+      <p>本文件规定了……</p>
+    </sec>
+    <sec id="sec_2" sec-type="norm-refs">
+      <label>2</label>
+      <title>规范性引用文件</title>
+      <p>GB/T 1.1—2020</p>
+    </sec>
+    <sec id="sec_3" sec-type="terms">
+      <label>3</label>
+      <title>术语和定义</title>
+      <p>下列术语和定义适用于本文件。</p>
+      <term-sec id="sec_3.1">
+        <label>3.1</label>
+        <tbx:termEntry id="term_3.1">
+          <tbx:langSet xml:lang="zh">
+            <tbx:definition>通过标准化活动制定的文件。</tbx:definition>
+            <tbx:example>术语示例。</tbx:example>
+            <tbx:note>术语注。</tbx:note>
+            <tbx:source>[来源：GB/T 20000.1—2014，5.3]</tbx:source>
+            <tbx:tig>
+              <tbx:term>标准</tbx:term>
+            </tbx:tig>
+          </tbx:langSet>
+          <tbx:langSet xml:lang="en">
+            <tbx:tig>
+              <tbx:term>standard</tbx:term>
+            </tbx:tig>
+          </tbx:langSet>
+        </tbx:termEntry>
+      </term-sec>
+      <term-sec id="sec_3.2">
+        <label>3.2</label>
+        <tbx:termEntry id="term_3.2">
+          <tbx:langSet xml:lang="zh">
+            <tbx:definition>为要素赋予序号。</tbx:definition>
+            <tbx:tig>
+              <tbx:term>编号</tbx:term>
+            </tbx:tig>
+          </tbx:langSet>
+          <tbx:langSet xml:lang="en">
+            <tbx:tig>
+              <tbx:term>numbering</tbx:term>
+            </tbx:tig>
+          </tbx:langSet>
+        </tbx:termEntry>
+      </term-sec>
+    </sec>
+    <sec id="sec_4">
+      <label>4</label>
+      <title>技术要求</title>
+      <sec id="sec_4.1">
+        <label>4.1</label>
+        <title>总体要求</title>
+        <p>应满足<xref ref-type="sec" rid="sec_4.2">4.2</xref>与<xref ref-type="table" rid="tab_1">表1</xref>的要求。</p>
+        <list list-type="alpha-lower">
+          <list-item>
+            <label>a)</label>
+            <p>第一项</p>
+          </list-item>
+          <list-item>
+            <label>b)</label>
+            <p>第二项</p>
+          </list-item>
+        </list>
+        <non-normative-note>
+          <label>注1：</label>
+          <p>第一条注。</p>
+        </non-normative-note>
+        <non-normative-note>
+          <label>注2：</label>
+          <p>第二条注。</p>
+        </non-normative-note>
+        <non-normative-example>
+          <label>示例1：</label>
+          <p>第一个示例。</p>
+        </non-normative-example>
+        <non-normative-example>
+          <label>示例2：</label>
+          <p>第二个示例。</p>
+        </non-normative-example>
+      </sec>
+      <sec id="sec_4.2">
+        <label>4.2</label>
+        <title>详细要求</title>
+        <sec id="sec_4.2.1" sec-type="numbered-paragraph">
+          <label>4.2.1</label>
+          <p>无题条内容，见<xref ref-type="fig" rid="fig_1">图1</xref>、<xref ref-type="disp-formula" rid="formula_1">公式(1)</xref>。</p>
+        </sec>
+        <sec id="sec_4.2.2">
+          <label>4.2.2</label>
+          <title>性能</title>
+          <table-wrap id="tab_1">
+            <label>表1</label>
+            <caption>
+              <title>性能指标</title>
+            </caption>
+            <table>
+              <thead>
+                <tr>
+                  <th>项目</th>
+                  <th>指标</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th>精度</th>
+                  <td>0.1</td>
+                </tr>
+              </tbody>
+            </table>
+            <table-wrap-foot>
+              <non-normative-note>
+                <label>注：</label>
+                <p>表内的注。</p>
+              </non-normative-note>
+            </table-wrap-foot>
+          </table-wrap>
+          <fig id="fig_1">
+            <label>图1</label>
+            <caption>
+              <title>系统架构图</title>
+            </caption>
+            <graphic content-type="image" xlink:href="fig_1"/>
+          </fig>
+          <disp-formula id="formula_1">
+            <label>(1)</label>
+            <mml:math id="mml_m1" display="block">
+              <mml:mi>m1</mml:mi>
+            </mml:math>
+            <legend>
+              <title>式中：</title>
+              <def-list list-content="formula">
+                <def-item>
+                  <term>E</term>
+                  <def>
+                    <p>能量，单位为焦耳（J）</p>
+                  </def>
+                </def-item>
+                <def-item>
+                  <term>m</term>
+                  <def>
+                    <p>质量</p>
+                  </def>
+                </def-item>
+                <def-item>
+                  <term>c</term>
+                  <def>
+                    <p>光速。</p>
+                  </def>
+                </def-item>
+              </def-list>
+            </legend>
+          </disp-formula>
+          <p>引用文献<xref ref-type="bibr" rid="biblref_1">[1]</xref>。</p>
+        </sec>
+      </sec>
+    </sec>
+  </body>
+  <back>
+    <app-group>
+      <app id="sec_A" content-type="normative">
+        <label>附录 A</label>
+        <annex-type>（规范性）</annex-type>
+        <title>附加技术内容</title>
+        <sec id="sec_A.1">
+          <label>A.1</label>
+          <title>附录条</title>
+          <p>附录正文。</p>
+        </sec>
+        <sec id="sec_A.2">
+          <label>A.2</label>
+          <title>附录图表</title>
+          <fig id="fig_A.1">
+            <label>图A.1</label>
+            <caption>
+              <title>附录图</title>
+            </caption>
+            <graphic content-type="image" xlink:href="fig_A.1"/>
+          </fig>
+          <table-wrap id="tab_A.1">
+            <label>表A.1</label>
+            <caption>
+              <title>附录表</title>
+            </caption>
+            <table>
+              <thead>
+                <tr>
+                  <th>列</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>值</td>
+                </tr>
+              </tbody>
+            </table>
+          </table-wrap>
+          <disp-formula id="formula_A.1">
+            <label>(A.1)</label>
+            <mml:math id="mml_m2" display="block">
+              <mml:mi>m2</mml:mi>
+            </mml:math>
+          </disp-formula>
+        </sec>
+      </app>
+      <app id="sec_B" content-type="informative">
+        <label>附录 B</label>
+        <annex-type>（资料性）</annex-type>
+        <title>资料性附录</title>
+        <p>资料性内容。</p>
+      </app>
+    </app-group>
+    <ref-list id="sec_bibl" content-type="bibl">
+      <title>参考文献</title>
+      <ref id="biblref_1">
+        <label>[1]</label>
+        <mixed-citation xlink:type="simple">ISO/IEC Directives, Part 2</mixed-citation>
+      </ref>
+      <ref id="biblref_2">
+        <label>[2]</label>
+        <mixed-citation xlink:type="simple">GB/T 20000.1—2014 标准化工作指南</mixed-citation>
+      </ref>
+    </ref-list>
+  </back>
+</standard>
