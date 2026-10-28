@@ -38,7 +38,7 @@ export function normalizeStdListType(value: unknown): StdListType {
 export const StdList = Node.create({
   name: 'stdList',
   group: 'block',
-  content: 'stdListItem+',
+  content: '(stdListItem | stdListBlockItem)+',
   defining: true,
 
   addAttributes() {
@@ -58,7 +58,7 @@ export const StdList = Node.create({
           const el = dom as HTMLElement
           return {
             listType: normalizeStdListType(el.getAttribute('data-list-type')),
-            level: ['numeric', 'dot'].includes(el.getAttribute('data-list-type') || '') ? 2 : 1,
+            level: el.getAttribute('data-level') === '2' || ['numeric', 'dot'].includes(el.getAttribute('data-list-type') || '') ? 2 : 1,
           }
         },
       },
@@ -67,7 +67,7 @@ export const StdList = Node.create({
 
   renderHTML({ node, HTMLAttributes }): DOMOutputSpec {
     const listType = normalizeStdListType(node.attrs.listType)
-    const level = listType === 'numeric' || listType === 'dot' ? 2 : 1
+    const level = listType === 'numeric' || listType === 'dot' || node.attrs.level === 2 ? 2 : 1
     return [
       'div',
       mergeAttributes(HTMLAttributes, {
@@ -137,5 +137,17 @@ export const StdListItem = Node.create({
       }),
       0,
     ]
+  },
+})
+
+/** 块级列项承载有嵌套列表或多个段落的导入内容；旧行内列项保持不变。 */
+export const StdListBlockItem = Node.create({
+  name: 'stdListBlockItem',
+  content: 'paragraph (paragraph | stdList | bulletList | orderedList)*',
+  defining: true,
+  addAttributes() { return { marker: { default: null } } },
+  parseHTML() { return [{ tag: 'div[data-type="std-list-block-item"]' }] },
+  renderHTML({ HTMLAttributes }): DOMOutputSpec {
+    return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'std-list-block-item', class: 'std-list-item' }), 0]
   },
 })

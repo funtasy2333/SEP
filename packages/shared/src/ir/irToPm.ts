@@ -336,7 +336,7 @@ function termToPm(entry: IRTermEntry, path: string, errors: IRToPmDiagnostic[]):
   return node('termDef', withId(entry.id, { level: entry.level ?? 1 }), content)
 }
 
-function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[], nested = false): PMJsonNode {
   if (list.items.length === 0) {
     errors.push({ path: `${path}.items`, nodeId: list.id, reason: '生产列表至少需要一个列项' })
   }
@@ -351,7 +351,7 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJso
   }
 
   const fixedLevel = list.listType === 'number' || list.listType === 'dot' ? 2 : 1
-  if (list.level !== undefined && list.level !== fixedLevel) {
+  if (list.level !== undefined && list.level !== fixedLevel && !(nested && list.level === 2)) {
     errors.push({
       path: `${path}.level`,
       nodeId: list.id,
@@ -363,7 +363,7 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJso
   if (simple) {
     const typeByList = { dash: 'dash', number: 'numeric', alpha: 'alpha', roman: 'roman', boxed: 'boxedNumeric', dot: 'dot' } as const
     const rawType = typeByList[list.listType]
-    return node('stdList', withId(list.id, { listType: rawType, level: fixedLevel }), list.items.map((item, index) => {
+    return node('stdList', withId(list.id, { listType: rawType, level: nested ? (list.level ?? fixedLevel) : fixedLevel }), list.items.map((item, index) => {
       const content = item.content[0]
       if (content?.kind === 'paragraph' && content.id !== `${item.id}.p0`) {
         errors.push({
@@ -390,11 +390,18 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJso
     return node(type, withId(list.id), list.items.map(item => node('listItem', withId(item.id), [
       ...item.content.flatMap((block, index) => block.kind === 'paragraph'
         ? [paragraph(block.id, block.content, 'paragraph')]
-        : [listToPm(block, `${path}.${item.id}[${index}]`, errors)]),
+        : [listToPm(block, `${path}.${item.id}[${index}]`, errors, true)]),
     ])))
   }
-  errors.push({ path, nodeId: list.id, reason: '生产stdList不支持嵌套列表；当前IR列项结构不能无损映射' })
-  return node('stdList', withId(list.id, { listType: 'dash', level: list.level ?? 1 }), [])
+  const typeByList = { alpha: 'alpha', roman: 'roman', boxed: 'boxedNumeric', dot: 'dot' } as const
+  return node('stdList', withId(list.id, { listType: typeByList[list.listType], level: nested ? (list.level ?? fixedLevel) : fixedLevel }), list.items.map((item, index) => {
+    if (item.content[0]?.kind !== 'paragraph') {
+      errors.push({ path: `${path}.items[${index}].content[0]`, nodeId: item.id, reason: '标准块级列项必须以段落开头' })
+    }
+    return node('stdListBlockItem', withId(item.id), item.content.map((block, childIndex) => block.kind === 'paragraph'
+      ? paragraph(block.id, block.content, 'paragraph')
+      : listToPm(block, `${path}.items[${index}].content[${childIndex}]`, errors, true)))
+  }))
 }
 
 /** `IRTable.columns` → `stdTable.attrs.columns`（WP8.M G8）：每列四个键齐全（缺省为 null），与生产 Schema 的属性形状一致。 */

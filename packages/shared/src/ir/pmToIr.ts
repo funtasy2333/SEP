@@ -507,18 +507,26 @@ function convertStdList(node: PMJsonNode, ctx: Ctx): IRList {
   }
   const items: IRList['items'] = []
   for (const item of node.content ?? []) {
-    if (item.type !== 'stdListItem') {
+    if (item.type !== 'stdListItem' && item.type !== 'stdListBlockItem') {
       ctx.unknown(item.type, '标准列表', item)
       continue
     }
     const itemId = ctx.id(item)
     items.push({
       id: itemId,
-      content: [wrapParagraph(itemId, 'p0', convertInlines(item.content, ctx))],
+      content: item.type === 'stdListItem'
+        ? [wrapParagraph(itemId, 'p0', convertInlines(item.content, ctx))]
+        : (item.content ?? []).flatMap<IRParagraph | IRList>(child => {
+          if (child.type === 'paragraph') return [{ kind: 'paragraph' as const, id: ctx.id(child), content: convertInlines(child.content, ctx) }]
+          if (child.type === 'stdList') return [convertStdList(child, ctx)]
+          if (child.type === 'bulletList' || child.type === 'orderedList') return [convertStarterList(child, ctx)]
+          ctx.unknown(child.type, '标准块级列表项', child)
+          return []
+        }),
     })
   }
   // 数字和间隔号列项固定为二级，兼容旧文档中仍写着 level=1 的数字列项。
-  const level = rawType === 'numeric' || rawType === 'dot' ? 2 : 1
+  const level = rawType === 'numeric' || rawType === 'dot' || node.attrs?.level === 2 ? 2 : 1
   return level === 2 ? { kind: 'list', id, listType, level, items } : { kind: 'list', id, listType, items }
 }
 

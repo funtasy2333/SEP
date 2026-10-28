@@ -70,6 +70,7 @@ export const NODE_ID_TYPES = [
   // 块级容器内的可引用子节点（IR 类型中带 id，需稳定锚点供 WP3 pmToIr 使用）；
   // 表格行/单元格与公式 whereList 项的 ID 来源策略在 WP3 设计时确定
   'stdListItem',
+  'stdListBlockItem',
   'bibEntry',
   // 规范性引用文件清单及其条目（IR 的 IRNormRefList / IRNormRef 带 id；子节点 normRefStdRef/normRefStdTitle 无 id）。
   'normRefList',

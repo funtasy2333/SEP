@@ -967,6 +967,11 @@
   text-indent: 0;
 }
 
+/* 块级列项的首段与标识同行，后续块保持各自的块级布局。 */
+.std-list-item[data-type="std-list-block-item"] > p:first-child {
+  display: inline;
+}
+
 .std-list-dash .std-list-item::before {
   content: '——';
   margin-right: 0.5em;
