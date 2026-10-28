@@ -147,7 +147,7 @@ function renderTitleWraps(ctx: RenderContext): XmlElement[] {
     })))
 }
 
-/** `std-ident`：第一个有 `parts` 的标识符；只写 IR 里有的组成部分（C-S-14）。 */
+/** `std-ident`：第一个有 `parts` 的标识符；只写 IR 里有的组成部分（C-S-14），每种组成部分至多一个（排序后第一个非空的）。 */
 function renderStdIdent(ctx: RenderContext): XmlElement | null {
   const identifiers = ctx.doc.meta.identifiers ?? []
   const index = identifiers.findIndex((identifier) => identifier.parts.length > 0)
@@ -165,9 +165,18 @@ function renderStdIdent(ctx: RenderContext): XmlElement | null {
   for (const name of order) {
     const same = parts.filter(({ part }) => part.kind === name)
       .sort((a, b) => (a.part.position ?? Number.MAX_SAFE_INTEGER) - (b.part.position ?? Number.MAX_SAFE_INTEGER) || a.position - b.position)
+    // schema 规定每种组成部分至多一次：只导出排序后第一个非空的，其余非空的同种部件告警（空部件不占位）
+    let written = false
     for (const { part, position } of same) {
-      const nodes = ctx.renderInlines(part.content, site(`${at.path}.parts[${position}].content`, part.id), name === 'edition' || name === 'version' ? 'subsup' : 'text')
-      if (nodes.length > 0) children.push(el(name, undefined, nodes))
+      const partAt = site(`${at.path}.parts[${position}]`, part.id)
+      const nodes = ctx.renderInlines(part.content, site(`${partAt.path}.content`, part.id), name === 'edition' || name === 'version' ? 'subsup' : 'text')
+      if (nodes.length === 0) continue
+      if (written) {
+        ctx.reportMerged('meta-not-expressed', 'warning', NOT_EXPRESSED_TITLE, `标准编号的组成部分「${name}」重复，只导出第一个`, partAt)
+        continue
+      }
+      children.push(el(name, undefined, nodes))
+      written = true
     }
   }
   identifier.parts.forEach((part, position) => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { IRDoc, IRDocMeta } from '../../ir/types'
 import { chapter, codesOf, completeMeta, exportDoc, find, makeDoc, para, renderOk } from './xml46687Kit'
+import { shouldSkipValidation, validateWithPython } from './xml46687PythonValidation'
 
 /** 前置元数据 std-meta（WP8.2 设计 §2.1 “std-meta 子元素”）。 */
 
@@ -115,7 +116,7 @@ describe('题名 title-wrap（M-4.3.2-04、-19～-22）', () => {
 })
 
 describe('标准编号 std-ident / std-ref（C-S-14）', () => {
-  it('[M-4.3.2-05] [M-4.3.2-23] [M-4.3.2-24] [M-4.3.2-25] [M-4.3.2-26] [M-4.3.2-27] [M-4.3.2-28] std-ident：originator、doc-type、doc-number、part-number、edition、version 按 schema 次序，同类按 position；edition/version 可含 sup/sub', () => {
+  it('[M-4.3.2-05] [M-4.3.2-23] [M-4.3.2-24] [M-4.3.2-25] [M-4.3.2-26] [M-4.3.2-27] [M-4.3.2-28] std-ident：originator、doc-type、doc-number、part-number、edition、version 按 schema 次序，同种多个部件按 position 取第一个；edition/version 可含 sup/sub', () => {
     const meta = completeMeta({
       identifiers: [{
         id: 'i1', scheme: 'dated', value: 'GB/T 99999.1—2026',
@@ -130,7 +131,89 @@ describe('标准编号 std-ident / std-ref（C-S-14）', () => {
         ],
       }],
     })
-    expect(stdMeta(meta)).toContain('<std-ident><originator>SAC</originator><doc-type>GB/T</doc-type><doc-number>一</doc-number><doc-number>二</doc-number><part-number>1</part-number><edition>2</edition><version>1<sup>a</sup></version></std-ident>')
+    // std-ident 的每种组成部分至多一次（metadata.rng）：两个 doc-number 只导出 position 最小的“一”，“二”告警
+    const xml = stdMeta(meta)
+    expect(xml).toContain('<std-ident><originator>SAC</originator><doc-type>GB/T</doc-type><doc-number>一</doc-number><part-number>1</part-number><edition>2</edition><version>1<sup>a</sup></version></std-ident>')
+    expect(xml).not.toContain('二')
+  })
+
+  it('[M-4.3.2-05] [M-4.3.2-25] 同种组成部分有多个非空部件：按 position 排序只导出第一个，其余各报一处 meta-not-expressed（warning，合并为一条）', () => {
+    const meta = completeMeta({
+      identifiers: [{
+        id: 'i1', scheme: 'dated', value: 'GB/T 99999.1—2026',
+        parts: [
+          { id: 'n3', kind: 'doc-number', position: 3, content: [{ text: '三' }] },
+          { id: 'n2', kind: 'doc-number', position: 2, content: [{ text: '二' }] },
+          { id: 'n1', kind: 'doc-number', position: 1, content: [{ text: '一' }] },
+        ],
+      }],
+    })
+    const { xml, problems } = renderOk(docWith(meta))
+    expect(squash(xml)).toContain('<std-ident><doc-number>一</doc-number></std-ident>')
+    expect(xml).not.toContain('二')
+    expect(xml).not.toContain('三')
+    // 完整编号由 std-ref 表达（来自 identifier.value，不依赖 parts），不因重复部件丢失
+    expect(squash(xml)).toContain('<std-ref type="dated">GB/T 99999.1—2026</std-ref>')
+    const warnings = find(problems, 'meta-not-expressed').filter(problem => problem.severity === 'warning')
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]!.message).toContain('共 2 处')
+    expect(warnings[0]!.message).toContain('标准编号的组成部分「doc-number」重复，只导出第一个')
+    // 第一处被丢弃的是排序后的第二个（position 2 的 n2，书写次序里的第 2 个），而不是书写次序里的第一个
+    expect(warnings[0]!.path).toBe('doc.meta.identifiers[0].parts[1]')
+    expect(warnings[0]!.nodeId).toBe('n2')
+  })
+
+  it('[M-4.3.2-05] [M-4.3.2-27] 没有 position 时同种部件按书写次序取第一个；不同种的部件互不影响', () => {
+    const meta = completeMeta({
+      identifiers: [{
+        id: 'i1',
+        parts: [
+          { id: 'e1', kind: 'edition', content: [{ text: '2' }] },
+          { id: 'e2', kind: 'edition', content: [{ text: '3' }] },
+          { id: 'v1', kind: 'version', content: [{ text: '1' }] },
+        ],
+      }],
+    })
+    const { xml, problems } = renderOk(docWith(meta))
+    expect(squash(xml)).toContain('<std-ident><edition>2</edition><version>1</version></std-ident>')
+    expect(find(problems, 'meta-not-expressed').filter(problem => problem.severity === 'warning')).toHaveLength(1)
+  })
+
+  it('[M-4.3.2-05] [M-4.3.2-25] 空部件不占位：排序后第一个为空时取第二个，且不报重复', () => {
+    const meta = completeMeta({
+      identifiers: [{
+        id: 'i1', scheme: 'dated', value: 'GB/T 99999.1—2026',
+        parts: [
+          { id: 'n-empty', kind: 'doc-number', position: 1, content: [{ text: '' }] },
+          { id: 'n-none', kind: 'doc-number', position: 2, content: [] },
+          { id: 'n-real', kind: 'doc-number', position: 3, content: [{ text: '99999' }] },
+        ],
+      }],
+    })
+    const { xml, problems } = renderOk(docWith(meta))
+    expect(squash(xml)).toContain('<std-ident><doc-number>99999</doc-number></std-ident>')
+    expect(find(problems, 'meta-not-expressed').filter(problem => problem.severity === 'warning')).toHaveLength(0)
+  })
+
+  describe.skipIf(shouldSkipValidation())('同种组成部分重复：外部校验（validate.py --profile export）', () => {
+    it('[M-4.3.2-05] [M-4.3.2-25] 重复的 doc-number 只导出一个，输出对 metadata.rng 零错误', () => {
+      const meta = completeMeta({
+        identifiers: [{
+          id: 'i1', scheme: 'dated', value: 'GB/T 99999.1—2026',
+          parts: [
+            { id: 'p-type', kind: 'doc-type', content: [{ text: 'GB/T' }] },
+            { id: 'n2', kind: 'doc-number', position: 2, content: [{ text: '二' }] },
+            { id: 'n1', kind: 'doc-number', position: 1, content: [{ text: '一' }] },
+            { id: 'p-part', kind: 'part-number', content: [{ text: '1' }] },
+          ],
+        }],
+      })
+      const { xml } = renderOk(docWith(meta))
+      expect(xml.match(/<doc-number>/g)).toHaveLength(1)
+      const result = validateWithPython(xml, 'export')
+      expect(result.errors).toEqual([])
+      expect(result.valid).toBe(true)
+    })
   })
 
   it('std-ident 只写 IR 里有的组成部分；空组成部分不写；mark-dropped-in-text-only：纯文本组成部分里的格式 mark 被丢弃并告警', () => {
