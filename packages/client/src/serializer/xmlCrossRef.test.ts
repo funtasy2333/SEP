@@ -166,7 +166,7 @@ describe('生产 XML 交叉引用序列化', () => {
     expect(xrefRidFor(xml, '表格目标')).toBe('tab_1')
     expect(xrefRidFor(xml, '图片目标')).toBe('fig_1')
     expect(xrefRidFor(xml, '公式目标')).toBe('formula_1')
-    expect(xrefRidFor(xml, '文献目标')).toBe('bib_1')
+    expect(xrefRidFor(xml, '文献目标')).toBe('biblref_1')
     expect(xrefRidFor(xml, '脚注中的章节目标')).toBe('sec_1')
     expect(pm.toJSON()).toEqual(before)
     expect(xml).toContain('<app id="sec_A"')
@@ -174,7 +174,7 @@ describe('生产 XML 交叉引用序列化', () => {
     expect(xml).toContain('<table-wrap id="tab_1"')
     expect(xml).toContain('<fig id="fig_1"')
     expect(xml).toContain('<disp-formula id="formula_1"')
-    expect(xml).toContain('<ref id="bib_1">')
+    expect(xml).toContain('<ref id="biblref_1">')
   })
 
   it('优先用非空 targetId；targetId 为 null 时兼容稳定 nodeId 与唯一 attrs.id 别名', () => {
@@ -266,7 +266,7 @@ describe('生产 XML 交叉引用序列化', () => {
     const xml = serializeToXml(toProductionNode(doc))
     expectEveryXrefHasOneTarget(xml)
     expect(xrefRidFor(xml, '正文脚注目标')).toBe('fn_1')
-    expect(xrefRidFor(xml, '表脚注目标')).toMatch(/^tabfn_/)
+    expect(xrefRidFor(xml, '表脚注目标')).toBe('table-fn_1.1')
   })
 
   it('legacy refId 命中不同的 stable ID 与 emitted XML ID 时拒绝歧义', () => {
@@ -392,7 +392,7 @@ describe('生产 XML 交叉引用序列化', () => {
     expect(xml).toContain('<table-wrap id="tab_1"')
     expect(xml).toContain('<fig id="fig_1"')
     expect(xml).toContain('<disp-formula id="formula_1"')
-    expect(xml).toContain('<ref id="bib_1">')
+    expect(xml).toContain('<ref id="biblref_1">')
   })
 
   it('异常调用后不泄露引用上下文，后续有效文档仍生成完整 ID', () => {

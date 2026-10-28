@@ -48,8 +48,8 @@ describe('HTML/Vivliostyle 脚注', () => {
     expect(tableFooter.indexOf('<sup>a</sup></span><span class="ses-table-footnote-text">定义B')).toBeLessThan(
       tableFooter.indexOf('<sup>b</sup></span><span class="ses-table-footnote-text">定义A'),
     )
-    expect(tableFooter).toContain('id="tabfn_tab_1_a"')
-    expect(tableFooter).toContain('id="tabfn_tab_1_b"')
+    expect(tableFooter).toContain('id="table-fn_1.1"')
+    expect(tableFooter).toContain('id="table-fn_1.2"')
     expect(html).toContain('.ses-table-footnote { font-size: var(--ses-fs-xiaowu); margin-left: 2em; text-indent: -1em;')
     expect(html).toContain('.ses-table-footnote-marker { display: inline-block; width: calc(1em - 1pt);')
   })

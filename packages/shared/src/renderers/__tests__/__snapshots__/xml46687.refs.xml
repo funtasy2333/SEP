@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<standard xmlns:mml="http://www.w3.org/1998/Math/MathML" xmlns:tbx="urn:iso:std:iso:30042:ed-1" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <processing-meta base-tagset="interchange" mathml-version="3.0" table-model="xhtml" terminology-model="tbx" math-representation="mathml" tagset-family="sts">
+    <custom-meta-group>
+      <custom-meta>
+        <meta-name>基于XML的标准文档内容标记指南</meta-name>
+        <meta-value>2026</meta-value>
+      </custom-meta>
+    </custom-meta-group>
+  </processing-meta>
+  <front>
+    <std-meta>
+      <title-wrap xml:lang="zh">
+        <full>测试标准</full>
+      </title-wrap>
+      <std-org-group>
+        <std-org>
+          <std-org-name>测试发布机构</std-org-name>
+        </std-org>
+      </std-org-group>
+      <content-language>zh</content-language>
+      <release-date>2026-04-30</release-date>
+      <implementation-date>2026-11-01</implementation-date>
+    </std-meta>
+  </front>
+  <body>
+    <sec id="sec_1" sec-type="scope">
+      <label>1</label>
+      <title>范围</title>
+      <p>本文件引用<xref ref-type="bibr" rid="biblref_1">GB/T 15657</xref>和<xref ref-type="bibr" rid="biblref_2">《中医内科学》</xref>，索引见<xref ref-type="sec" rid="sec_index">索引</xref>。</p>
+    </sec>
+    <sec id="sec_2" sec-type="norm-refs">
+      <label>2</label>
+      <title>规范性引用文件</title>
+      <p>下列文件中的内容通过文中的规范性引用而构成本文件必不可少的条款。</p>
+      <ref-list content-type="norm-refs">
+        <ref id="ref_1">
+          <std><std-ref>GB/T 321</std-ref><title>优先数和优先数系</title></std>
+        </ref>
+        <ref id="ref_2">
+          <std><std-ref>GB/T 3102（所有部分）</std-ref><title>量和单位</title></std>
+        </ref>
+        <ref id="ref_3">
+          <mixed-citation>《中华人民共和国计量法》</mixed-citation>
+        </ref>
+      </ref-list>
+    </sec>
+    <sec id="sec_3">
+      <label>3</label>
+      <title>技术要求</title>
+      <sec id="sec_3.1">
+        <label>3.1</label>
+        <title>总体要求</title>
+        <p>总体要求。</p>
+      </sec>
+      <sec id="sec_3.2">
+        <label>3.2</label>
+        <title>具体要求</title>
+        <p>具体要求。</p>
+      </sec>
+    </sec>
+  </body>
+  <back>
+    <app-group>
+      <app id="sec_A" content-type="informative">
+        <label>附录 A</label>
+        <annex-type>（资料性）</annex-type>
+        <title>示例</title>
+        <p>附录正文。</p>
+      </app>
+    </app-group>
+    <ref-list id="sec_bibl" content-type="bibl">
+      <title>参考书目</title>
+      <ref id="biblref_1">
+        <label>[1]</label>
+        <std><std-ref>GB/T 15657—2021</std-ref><title>中医病证分类与代码</title></std>
+      </ref>
+      <ref id="biblref_2">
+        <label>[2]</label>
+        <mixed-citation xlink:type="simple">张伯奥.中医内科学[M].<break/>北京：人民卫生出版社，2020.</mixed-citation>
+      </ref>
+      <ref id="biblref_3">
+        <label>[3]</label>
+        <mixed-citation xlink:type="simple">Example Corp. Interface specification [EB/OL]. <uri>https://example.org/spec</uri></mixed-citation>
+      </ref>
+    </ref-list>
+    <index id="sec_index">
+      <index-title-group>
+        <title>索引</title>
+      </index-title-group>
+      <index-div>
+        <index-title-group>
+          <title>B</title>
+        </index-title-group>
+        <index-entry id="df_1">
+          <term>必备要素</term>
+          <see-entry>3.1</see-entry>
+          <see-entry>3.2</see-entry>
+        </index-entry>
+      </index-div>
+      <index-div>
+        <index-title-group>
+          <title>W</title>
+        </index-title-group>
+        <index-entry id="df_2">
+          <term>文献</term>
+          <see-entry>[2]</see-entry>
+        </index-entry>
+        <index-entry id="df_3">
+          <term>范围</term>
+          <see-entry>第1章</see-entry>
+        </index-entry>
+      </index-div>
+    </index>
+  </back>
+</standard>

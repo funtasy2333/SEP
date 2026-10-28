@@ -146,7 +146,7 @@ describe('[M-4.4.2.3-03] [M-4.4.2.3-04] [M-E-06] [M-10.2-01] [M-10.1.7-01] [M-4.
       ['', 'ref_1'], ['', 'ref_2'], ['', 'ref_3'], ['', 'ref_4'],
     ])
     expect(labels['g1-fn-nr']).toMatchObject({ label: '1)', xmlId: 'fn_1' })
-    expect(labels['g1-bib-1']).toMatchObject({ label: '[1]', xmlId: 'bib_1' })
+    expect(labels['g1-bib-1']).toMatchObject({ label: '[1]', xmlId: 'biblref_1' })
   })
 
   it('irToPm 后 Schema 校验通过，节点 ID、属性、标记与原文档逐节点相同；JSON 冷重开、再次 pmToIr 后 IR 深度相等', () => {
@@ -398,18 +398,23 @@ describe('[M-4.4.2.3-03] [M-E-06] 粘贴与编辑：nodeId 唯一性', () => {
   })
 })
 
-describe('[M-4.4.2.3-02] [M-10.2-01] [M-10.1.7-01] [M-4.5.3-02] 输出边界（来自生产 PM）：HTML、DOCX 放行，XML、XML46687 阻断', () => {
+describe('[M-4.4.2.3-02] [M-10.2-01] [M-10.1.7-01] [M-4.5.3-02] 输出边界（来自生产 PM）：HTML、DOCX 放行，XML 阻断，XML46687 放行（两个 mark 自 T2.4a-1、清单与标题自 T2.4c）', () => {
   const { doc } = pmToIr(normalized())
 
   it.each(['HTML', 'DOCX'] as const)('%s：没有 unsupported-output', format => {
     expect(getOutputSupportProblems(doc, format)).toEqual([])
   })
 
-  it.each(['XML', 'XML46687'] as const)('%s：清单（kind）、两个 mark（type）、标题各被阻断', format => {
-    const paths = getOutputSupportProblems(doc, format).map(problem => problem.path)
+  it('XML：清单（kind）、两个 mark（type）、标题各被阻断', () => {
+    const paths = getOutputSupportProblems(doc, 'XML').map(problem => problem.path)
     expect(paths).toContain('doc.body[1].children[1].kind')
     expect(paths).toContain('doc.bibliographyTitle')
     expect(paths.filter(path => path.endsWith('.marks[0].type') || path.endsWith('.marks[1].type'))).toHaveLength(6)
+  })
+
+  // WP8.2：两个 mark（stdRef / mixedCitation，T2.4a-1）、清单（kind）与标题（T2.4c）对 XML46687 放行（均为已声明差异）；旧 XML 的阻断断言（上一条）保持不变。
+  it('XML46687：两个 mark（type）、清单（kind）与标题都已放行，没有 unsupported-output', () => {
+    expect(getOutputSupportProblems(doc, 'XML46687')).toEqual([])
   })
 
   it('旧形态文档：四种格式都没有问题', () => {

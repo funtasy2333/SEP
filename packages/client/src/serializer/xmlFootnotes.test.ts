@@ -104,8 +104,8 @@ describe('脚注与表脚注 XML round trip', () => {
     expect(xml.match(/<xref ref-type="fn"/g)).toHaveLength(1)
     expect(xml.match(/<fn id="fn_1"/g)).toHaveLength(1)
     expect(xml).toContain('<p><bold>加粗说明</bold>内容</p>')
-    expect(xml.match(/<xref ref-type="table-fn" rid="tabfn_tab_1_a">a<\/xref>/g)).toHaveLength(2)
-    expect(xml).toContain('<fn fn-type="table" id="tabfn_tab_1_a">')
+    expect(xml.match(/<xref ref-type="table-fn" rid="table-fn_1\.1">a<\/xref>/g)).toHaveLength(2)
+    expect(xml).toContain('<fn fn-type="table" id="table-fn_1.1">')
     expect(xml).toContain('<p>旧式表注内容。</p>')
     expect(xml).toContain('<non-normative-note>')
 

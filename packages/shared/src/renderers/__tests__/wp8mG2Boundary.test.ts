@@ -2,7 +2,8 @@
  * WP8.M G2 输出边界：defList（M-10.1.4-01/-03/-04/-05）与 crossRef targetKind=abbreviation（M-10.1.1-04）。
  *
  * 设计 §3.4 原定四种格式全部阻断 defList；用户 2026-10-22 的决定（§7.1）把“缩略语表”列为“本阶段排版”：
- * HTML 与 DOCX 放行并排版，旧 XML 保持阻断，XML46687 的白名单留给 WP8.2。
+ * HTML 与 DOCX 放行并排版，旧 XML 保持阻断；XML46687 的白名单由 WP8.2 T2.4c 放行（写成 def-list[@list-content="abbreviation"]，
+ * 已声明差异 kind:defList），本文件保留旧 XML 的阻断断言。
  * crossRef 的 targetKind 是既有 mark 字段，四种格式的边界都不因它报问题（旧 XML 的目标检查在序列化器里，
  * 且含 defList 的文档已被整体阻断）。
  */
@@ -12,6 +13,7 @@ import { pmToIr } from '../../ir/pmToIr'
 import type { IRDefList, IRDoc } from '../../ir/types'
 import { abbrRef, defItem, g2IrDoc, g2MainList, g2PmDoc } from '../../ir/__tests__/wp8mG2Fixtures'
 import { getOutputSupportProblems, type OutputBoundaryFormat } from '../outputBoundary'
+import { findDeclaredDifference } from '../xml46687Boundary'
 
 const FORMATS: OutputBoundaryFormat[] = ['HTML', 'DOCX', 'XML', 'XML46687']
 
@@ -27,30 +29,30 @@ function withoutDefLists(doc: IRDoc): IRDoc {
 const defListProblems = (doc: IRDoc, format: OutputBoundaryFormat) =>
   getOutputSupportProblems(doc, format).filter(problem => problem.path.includes('defList') || problem.nodeId?.startsWith('g2-list'))
 
-describe('[M-10.1.4-01] 输出边界：defList 仅对 HTML、DOCX 放行', () => {
+describe('[M-10.1.4-01] 输出边界：defList 对 HTML、DOCX 放行，旧 XML 阻断，XML46687 自 T2.4c 起放行', () => {
   it('HTML 与 DOCX：含缩略语表与 abbreviation 引用的文档没有任何边界问题', () => {
     expect(getOutputSupportProblems(g2IrDoc(), 'HTML')).toEqual([])
     expect(getOutputSupportProblems(g2IrDoc(), 'DOCX')).toEqual([])
   })
 
-  it('旧 XML 与 XML46687：每个 defList 各报一条 unsupported-output（kind 不支持，含节点 id 与路径）', () => {
-    for (const format of ['XML', 'XML46687'] as const) {
-      const problems = getOutputSupportProblems(g2IrDoc(), format)
-      expect(problems.map(problem => [problem.nodeId, problem.path.endsWith('.kind')]), format).toEqual([
-        ['g2-list', true], ['g2-list-app', true],
-      ])
-      for (const problem of problems) {
-        expect(problem.code).toBe('unsupported-output')
-        expect(problem.message).toContain(format)
-        expect(problem.message).toContain('请保留 JSON 文档')
-      }
+  it('旧 XML：每个 defList 各报一条 unsupported-output（kind 不支持，含节点 id 与路径）', () => {
+    const problems = getOutputSupportProblems(g2IrDoc(), 'XML')
+    expect(problems.map(problem => [problem.nodeId, problem.path.endsWith('.kind')])).toEqual([
+      ['g2-list', true], ['g2-list-app', true],
+    ])
+    for (const problem of problems) {
+      expect(problem.code).toBe('unsupported-output')
+      expect(problem.message).toContain('XML')
+      expect(problem.message).toContain('请保留 JSON 文档')
     }
   })
 
-  it('XML46687 在 8.M 内不得放开：它与旧 XML 对 defList 的结果逐条相同', () => {
-    expect(getOutputSupportProblems(g2IrDoc(), 'XML46687')).toEqual(
-      getOutputSupportProblems(g2IrDoc(), 'XML').map(problem => ({ ...problem, message: problem.message.replace('XML ', 'XML46687 ') })),
-    )
+  it('XML46687（T2.4c）：defList 已放行——旧 XML 的两条 kind 问题恰是已声明差异，XML46687 没有任何问题', () => {
+    const doc = g2IrDoc()
+    expect(getOutputSupportProblems(doc, 'XML46687')).toEqual([])
+    const blocked = getOutputSupportProblems(doc, 'XML')
+    expect(blocked).toHaveLength(2)
+    for (const problem of blocked) expect(findDeclaredDifference(doc, problem.path)).toMatchObject({ kind: 'kind', name: 'defList', task: 'T2.4c' })
   })
 
   it('去掉缩略语表后，四种格式都没有 defList 相关问题（回归：放行与阻断都只由该块触发）', () => {
@@ -65,7 +67,7 @@ describe('[M-10.1.4-01] 输出边界：defList 仅对 HTML、DOCX 放行', () =>
     expect(getOutputSupportProblems(doc, 'HTML')).toEqual([])
     expect(getOutputSupportProblems(doc, 'DOCX')).toEqual([])
     expect(getOutputSupportProblems(doc, 'XML').map(problem => problem.nodeId)).toEqual(['g2-list', 'g2-list-app'])
-    expect(getOutputSupportProblems(doc, 'XML46687').map(problem => problem.nodeId)).toEqual(['g2-list', 'g2-list-app'])
+    expect(getOutputSupportProblems(doc, 'XML46687')).toEqual([])
   })
 })
 

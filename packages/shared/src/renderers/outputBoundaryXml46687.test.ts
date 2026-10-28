@@ -1,20 +1,39 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import * as shared from '../index'
 import {
   UnsupportedOutputError,
   assertOutputSupported,
   getOutputSupportProblems,
   type OutputBoundaryFormat,
-  type OutputSupportProblem,
 } from './outputBoundary'
-import type { IRDoc, IRInline } from '../ir/types'
+import {
+  XML46687_DECLARED_DIFFERENCES,
+  describeBoundaryDifference,
+  findDeclaredDifference,
+  stripPathIndices,
+  type Xml46687DeclaredDifference,
+} from './xml46687Boundary'
+import {
+  asXml, boundaryDifference, describeDeclared, expectDeclaredDifferences, expectReleased, pathsOf,
+} from './__tests__/xml46687BoundaryKit'
+import type { IRDoc, IRInline, IRMark, IRParagraph } from '../ir/types'
 
 /**
- * XML46687 在 WP8.1 支持矩阵确定前，允许表与特殊检查与 XML 完全相同（WP8.2 再放开）。
- * 本文件锁定这一点：任何一处让二者分叉的改动都必须同时更新这里。
+ * XML46687 输出边界（WP8.2 设计 §1.3.2～§1.3.4）。
  *
- * 已知例外（唯一一处）：小写罗马列项 `list.listType === 'roman'`（WP8.M G7，M-5.7-04）。旧 XML 序列化器会把它降为阿拉伯数字
- * （toXmlListType），为避免静默降级，`XML` 对它报 unsupported-output；`XML46687` 放行（GB/T 46687.2 5.7.2 有 roman-lower，
- * WP8.2 消费）。下面的「已知例外」用例显式列出这一差异；其余用例用的文档都不含罗马列项，一致性不受影响。
+ * 旧版本的前提是“XML46687 与 XML 完全一致，唯一例外是罗马列项”。WP8.2 逐步放行后这句话不再成立，**不能**靠放宽断言
+ * （例如把 `toEqual` 改成 `toContain`）来过关，所以改成显式的**差异集合**断言：
+ *
+ * 1. 常量 `XML46687_DECLARED_DIFFERENCES`（导出自 shared 的 `xml46687Boundary.ts`，由各领域文件里的分段常量拼成）穷举
+ *    XML46687 比 XML 多放行的全部字段/kind/mark 类型；
+ * 2. 差集（XML 阻断而 XML46687 不阻断）里每一条都落在某个已声明差异内；XML46687 不得比 XML 多阻断；
+ *    已声明的项必须被真正触发——新增放行而不登记，或登记了却没有真正放行，测试都失败；
+ * 3. 逐项正例（`it.each`，本文件覆盖 `task: 'T2.4a'` 的声明项；T2.4b/T2.4c 在各自的 `outputBoundaryXml46687.<域>.test.ts` 里覆盖自己的）；
+ * 4. 仍阻断清单：行内样式、`figure.groups`、`termEntry.nestedEntries` 等永久阻断项，路径精确；
+ * 5. 未声明差异的问题与 XML 逐字相同（只把格式名统一）。
+ *
+ * 差集一律是**计算值**，不写死个数。
  */
 
 const base = (): IRDoc => ({
@@ -67,40 +86,204 @@ function richDoc(): IRDoc {
   return doc
 }
 
-/** 把消息里的格式名统一成 XML，其余文字必须逐字相同。 */
-const asXml = (problems: OutputSupportProblem[]): OutputSupportProblem[] =>
-  problems.map(problem => ({ ...problem, message: problem.message.split('XML46687').join('XML') }))
+// ---------------------------------------------------------------------------
+// T2.4a 声明项的“安装器”：给 base() 加上恰好触发该声明项的最小内容
+// ---------------------------------------------------------------------------
 
-const paths = (problems: OutputSupportProblem[]): string[] => problems.map(problem => problem.path)
+type Install = (doc: IRDoc) => void
+const pushRun = (doc: IRDoc, text: string, ...marks: IRMark[]): void => {
+  ;(doc.body[0]!.children[0] as IRParagraph).content.push({ text, marks })
+}
+const linkRun = (doc: IRDoc, extra: Record<string, unknown>): void => pushRun(doc, '链接', { type: 'externalLink', href: 'https://example.org/', ...extra } as IRMark)
+const para = (id: string, text: string): IRParagraph => ({ kind: 'paragraph', id, content: [{ text }] })
 
-describe('XML46687 输出边界目前与 XML 完全一致', () => {
-  it('富文档：问题列表（含顺序、nodeId、path）在替换格式名后与 XML 逐项相同', () => {
+const INSTALLERS: Record<string, Install> = {
+  'field:titleParts': doc => { doc.meta.titleParts = [{ id: 'tp1', lang: 'zh', role: 'full', content: [{ text: '题名' }] }] },
+  'field:identifiers': doc => {
+    doc.meta.identifiers = [{ id: 'ident1', scheme: 'dated', value: 'GB/T 1—2026', parts: [{ id: 'identp1', kind: 'doc-type', position: 1, content: [{ text: 'GB/T' }] }] }]
+  },
+  'field:languages': doc => { doc.meta.languages = [{ id: 'lang1', tag: 'zh', usage: 'primary' }] },
+  'field:publishers': doc => { doc.meta.publishers = [{ id: 'pub1', name: [{ text: '机构' }], role: 'lead', identifier: 'SAC' }] },
+  'field:copyrights': doc => { doc.meta.copyrights = [{ id: 'cp1', statement: [{ text: '版权专有' }], year: '2026', holder: [{ text: '单位' }] }] },
+  'field:replacedStandards': doc => { doc.meta.replacedStandards = [{ id: 'rs1', reference: 'GB/T 2—2020', relation: 'replaces' }] },
+  'field:adoptions': doc => { doc.meta.adoptions = [{ id: 'ad1', reference: 'ISO 1', degree: 'IDT', language: 'en' }] },
+  'field:proposer': doc => { doc.meta.proposer = '提出单位' },
+  'field:technicalCommittee': doc => { doc.meta.technicalCommittee = '归口单位' },
+  'field:introductionClauses': doc => {
+    doc.front.introductionClauses = [{ kind: 'clause', id: 'ic1', level: 1, titled: true, title: [{ text: '背景' }], children: [para('ic1-p', '引言条')] }]
+  },
+  'kind:warning': doc => { pushChild(doc, { kind: 'warning', id: 'w1', content: [para('w1-p', '警告')] }) },
+  'kind:quote': doc => { pushChild(doc, { kind: 'quote', id: 'q1', content: [para('q1-p', '摘录')] }) },
+  'kind:code': doc => { pushChild(doc, { kind: 'code', id: 'c1', language: 'ts', text: 'a < b' }) },
+  'field:listType': doc => {
+    pushChild(doc, { kind: 'list', id: 'roman-list', listType: 'roman', items: [{ id: 'roman-item', content: [para('roman-item.p0', '项')] }] })
+  },
+  'markType:strike': doc => pushRun(doc, '删', { type: 'strike' }),
+  'markType:code': doc => pushRun(doc, 'x', { type: 'code' }),
+  'markType:variable': doc => pushRun(doc, 'x', { type: 'variable' }),
+  'markType:externalLink': doc => linkRun(doc, {}),
+  'markType:bibRef': doc => {
+    doc.bibliography = [{ kind: 'bibEntry', id: 'bib1', content: [{ text: '文献一' }] }]
+    pushRun(doc, '[1]', { type: 'bibRef', targetId: 'bib1' })
+  },
+  'markType:termRef': doc => {
+    doc.body.push({ kind: 'chapter', id: 'chapter-terms', secType: 'terms', title: [{ text: '术语' }], children: [
+      { kind: 'termEntry', id: 'term1', term: [{ text: '术语一' }], definition: [para('term1-def', '定义')], notes: [], examples: [] },
+    ] })
+    pushRun(doc, '术语一', { type: 'termRef', targetId: 'term1' })
+  },
+  'markType:stdRef': doc => pushRun(doc, 'GB/T 1', { type: 'stdRef' }),
+  'markType:mixedCitation': doc => pushRun(doc, '原有格式', { type: 'mixedCitation' }),
+  'field:href': doc => linkRun(doc, {}),
+  'field:title': doc => linkRun(doc, { title: '提示' }),
+  'field:target': doc => linkRun(doc, { target: '_blank' }),
+  'field:rel': doc => linkRun(doc, { rel: 'noopener' }),
+  'field:kind': doc => pushRun(doc, 'x', { type: 'variable', kind: 'quantity' }),
+  'field:name': doc => pushRun(doc, 'x', { type: 'variable', name: 'x' }),
+  'field:formula': doc => { (doc.body[0]!.children[0] as IRParagraph).content.push({ text: '', formula: { id: 'inline-f1', latex: 'x^2' } }) },
+}
+
+const keyOfEntry = (entry: Xml46687DeclaredDifference): string => `${entry.kind}:${entry.name}`
+const OWN = XML46687_DECLARED_DIFFERENCES.filter(entry => entry.task === 'T2.4a')
+
+/** 含全部 T2.4a 放行项的文档。 */
+function releasedDoc(): IRDoc {
+  const doc = base()
+  for (const entry of OWN) INSTALLERS[keyOfEntry(entry)]!(doc)
+  return doc
+}
+
+function installedDoc(entry: Xml46687DeclaredDifference): IRDoc {
+  const doc = base()
+  INSTALLERS[keyOfEntry(entry)]!(doc)
+  return doc
+}
+
+/** 差异对照函数的测试文档：段落里依次有删除线、带 kind 的变量，块里有警告。 */
+function releasedDocForHelpers(): IRDoc {
+  const doc = base()
+  INSTALLERS['markType:strike']!(doc)
+  INSTALLERS['field:kind']!(doc)
+  INSTALLERS['kind:warning']!(doc)
+  return doc
+}
+
+describe('[M-4.3.2-30] XML46687_DECLARED_DIFFERENCES：导出自 shared，登记完整', () => {
+  it('从 @ses/shared 的包入口可取到，且与边界模块是同一份常量', () => {
+    expect(shared.XML46687_DECLARED_DIFFERENCES).toBe(XML46687_DECLARED_DIFFERENCES)
+    expect(typeof shared.findDeclaredDifference).toBe('function')
+  })
+
+  it('每一项都有种类、名称、矩阵行、任务、原因；任务只能是 T2.4a/T2.4b/T2.4c；同一（种类，名称，后缀）不重复', () => {
+    const seen = new Set<string>()
+    for (const entry of XML46687_DECLARED_DIFFERENCES) {
+      expect(['field', 'kind', 'markType']).toContain(entry.kind)
+      expect(entry.name).not.toBe('')
+      expect(entry.pathSuffix).not.toBe('')
+      expect(entry.matrixIds.length, describeDeclared(entry)).toBeGreaterThan(0)
+      expect(['T2.4a', 'T2.4b', 'T2.4c']).toContain(entry.task)
+      expect(entry.reason).not.toBe('')
+      const key = `${entry.kind}|${entry.name}|${entry.pathSuffix}`
+      expect(seen.has(key), `重复的声明项 ${key}`).toBe(false)
+      seen.add(key)
+    }
+  })
+
+  it('声明项引用的矩阵行都存在于 docs/wp8.1 的矩阵（防笔误）', () => {
+    const ids = new Set<string>()
+    for (const file of ['matrix-S.json', 'matrix-T.json']) {
+      const rows = JSON.parse(readFileSync(new URL(`../../../../docs/wp8.1/${file}`, import.meta.url), 'utf8')) as Array<{ id: string }>
+      for (const row of rows) ids.add(row.id)
+    }
+    for (const entry of XML46687_DECLARED_DIFFERENCES) {
+      for (const id of entry.matrixIds) expect(ids.has(id), `${describeDeclared(entry)} 引用了不存在的矩阵行 ${id}`).toBe(true)
+    }
+  })
+
+  it('本文件为每个 T2.4a 声明项准备了安装器，也没有多余的安装器', () => {
+    expect(OWN.length).toBeGreaterThan(0)
+    expect(OWN.map(keyOfEntry).sort()).toEqual(Object.keys(INSTALLERS).sort())
+  })
+})
+
+describe('XML46687 输出边界：差集恰等于声明集合（计算值）', () => {
+  it('富文档（既有的 WP6 扩展字段、元数据与行内数据）：差集每条都已声明，XML46687 不比 XML 多阻断；共同阻断的问题逐条相同', () => {
     const doc = richDoc()
     const before = JSON.stringify(doc)
-    const xml = getOutputSupportProblems(doc, 'XML')
-    const xml46687 = getOutputSupportProblems(doc, 'XML46687')
-    expect(xml.length).toBeGreaterThan(10)
-    expect(asXml(xml46687)).toEqual(xml)
+    expect(getOutputSupportProblems(doc, 'XML').length).toBeGreaterThan(10)
+    const triggered = expectDeclaredDifferences(doc, [])
+    // 既有富文档里至少触发了提出单位、归口单位这两项
+    expect([...triggered].map(entry => entry.name)).toEqual(expect.arrayContaining(['proposer', 'technicalCommittee']))
     expect(JSON.stringify(doc)).toBe(before)
   })
 
-  it('富文档确实覆盖了各类阻断：元数据、扩展字段、行内样式、公式、表格、图、术语、类型错误引用', () => {
-    const found = paths(getOutputSupportProblems(richDoc(), 'XML46687'))
+  it('T2.4a 放行项的富文档：全部 T2.4a 声明项都被触发，差集没有任何未声明的项，XML46687 一条都不阻断', () => {
+    const doc = releasedDoc()
+    const triggered = expectDeclaredDifferences(doc, OWN)
+    expect([...triggered].filter(entry => entry.task === 'T2.4a')).toHaveLength(OWN.length)
+    expect(getOutputSupportProblems(doc, 'XML46687')).toEqual([])
+    expect(getOutputSupportProblems(doc, 'XML').length).toBeGreaterThanOrEqual(OWN.length)
+  })
+
+  it.each(OWN.map(entry => [describeDeclared(entry), entry] as const))('逐项正例 [%s]：最小文档里 XML 阻断，XML46687 放行', (_title, entry) => {
+    const doc = installedDoc(entry)
+    expectReleased(doc, entry)
+    expectDeclaredDifferences(doc, [entry])
+  })
+
+  it('新增放行而不登记会被发现：把一个已放行的字段从声明集合里去掉，差集断言失败', () => {
+    const doc = installedDoc(OWN.find(entry => entry.name === 'proposer')!)
+    const problem = boundaryDifference(doc).onlyXml[0]!
+    expect(findDeclaredDifference(doc, problem.path)?.name).toBe('proposer')
+    // 对照：没有声明项能覆盖一个“假想的”路径
+    expect(findDeclaredDifference(doc, 'doc.meta.notDeclared')).toBeUndefined()
+  })
+})
+
+describe('差异对照函数（describeBoundaryDifference / findDeclaredDifference / stripPathIndices）', () => {
+  const doc = releasedDocForHelpers()
+
+  it('stripPathIndices 去掉全部 [n] 下标', () => {
+    expect(stripPathIndices('doc.body[0].children[12].content[3].marks[1].type')).toBe('doc.body.children.content.marks.type')
+    expect(stripPathIndices('doc.meta.proposer')).toBe('doc.meta.proposer')
+  })
+
+  it('以 .kind 结尾且父对象不是 mark → 块 kind；以 marks[n].type 结尾 → mark 类型；mark 的 kind 字段仍是字段；其余按字段名', () => {
+    const blocks = doc.body[0]!.children
+    const warningIndex = blocks.findIndex(block => block.kind === 'warning')
+    expect(describeBoundaryDifference(doc, `doc.body[0].children[${warningIndex}].kind`)).toEqual({ kind: 'kind', name: 'warning' })
+    const runs = (blocks[0] as IRParagraph).content
+    const strikeIndex = runs.findIndex(entry => entry.marks?.some(mark => mark.type === 'strike'))
+    expect(describeBoundaryDifference(doc, `doc.body[0].children[0].content[${strikeIndex}].marks[0].type`)).toEqual({ kind: 'markType', name: 'strike' })
+    const variableIndex = runs.findIndex(entry => entry.marks?.some(mark => mark.type === 'variable' && 'kind' in mark))
+    expect(describeBoundaryDifference(doc, `doc.body[0].children[0].content[${variableIndex}].marks[0].kind`)).toEqual({ kind: 'field', name: 'kind' })
+    expect(describeBoundaryDifference(doc, 'doc.meta.proposer')).toEqual({ kind: 'field', name: 'proposer' })
+  })
+
+  it('路径解析不到时按字段名处理，不抛错；没有声明项覆盖时 findDeclaredDifference 返回 undefined', () => {
+    expect(describeBoundaryDifference(doc, 'resolver.problems[dangling-typed-ref]')).toEqual({ kind: 'field', name: 'problems[dangling-typed-ref]' })
+    expect(describeBoundaryDifference(doc, 'doc.nowhere[3].kind')).toEqual({ kind: 'field', name: 'kind' })
+    expect(findDeclaredDifference(doc, 'resolver.problems[dangling-typed-ref]')).toBeUndefined()
+  })
+})
+
+describe('XML46687 输出边界：既有检查与 XML 保持一致', () => {
+  it('富文档确实覆盖了各类阻断，永久阻断项在 XML46687 下仍精确报出', () => {
+    const found = pathsOf(getOutputSupportProblems(richDoc(), 'XML46687'))
     for (const expected of [
-      'doc.index',
-      'doc.meta.proposer', 'doc.meta.technicalCommittee', 'doc.meta.legacyExtra',
+      'doc.meta.legacyExtra',
       'doc.body[0].children[0].content[0].style',
-      'doc.body[0].children[0].content[2].marks[0].type',
-      'doc.body[0].children[1].mathml',
       'doc.body[0].children[1].sourceInlines',
       'doc.body[0].children[2].headerRowCount',
-      'doc.body[0].children[2].rows[0].cells[0].columnWidths',
       'doc.body[0].children[3].groups',
       'doc.body[0].children[4].tailOrder',
-      'doc.body[0].children[5].languageSets',
       'doc.body[0].children[0]',
       'resolver.problems[dangling-typed-ref]',
     ]) expect(found, expected).toContain(expected)
+    // 已放行的项不再出现
+    expect(found).not.toContain('doc.meta.proposer')
+    expect(found).not.toContain('doc.meta.technicalCommittee')
+    expect(found).not.toContain('doc.body[0].children[0].content[2].marks[0].type')
   })
 
   it('消息中使用的是调用时传入的格式名', () => {
@@ -120,28 +303,35 @@ describe('XML46687 输出边界目前与 XML 完全一致', () => {
     expect(paths(getOutputSupportProblems(richDoc(), 'HTML'))).toContain('doc.body[0].children[0].content[4].text')
   })
 
-  it('打印元数据 proposer/technicalCommittee 与 XML 一样被阻断，applicant 与 XML 一样放行；有数据时 HTML/DOCX 放行', () => {
+  it('打印元数据 proposer/technicalCommittee：HTML/DOCX 放行；XML46687 自 T2.4a-1 起放行（已声明），旧 XML 阻断；applicant 各格式一致', () => {
     for (const field of ['proposer', 'technicalCommittee'] as const) {
       const doc = base()
       doc.meta[field] = '单位'
       expect(getOutputSupportProblems(doc, 'HTML')).toEqual([])
       expect(getOutputSupportProblems(doc, 'DOCX')).toEqual([])
-      expect(getOutputSupportProblems(doc, 'XML46687')).toContainEqual(expect.objectContaining({ path: `doc.meta.${field}` }))
+      expect(getOutputSupportProblems(doc, 'XML46687')).toEqual([])
+      expect(paths(getOutputSupportProblems(doc, 'XML'))).toEqual([`doc.meta.${field}`])
+      expect(findDeclaredDifference(doc, `doc.meta.${field}`)).toMatchObject({ kind: 'field', name: field })
       doc.meta[field] = ''
       expect(getOutputSupportProblems(doc, 'XML46687')).toEqual([])
     }
     const doc = base()
     doc.meta.applicant = '起草单位'
     expect(getOutputSupportProblems(doc, 'XML46687')).toEqual([])
+    expect(getOutputSupportProblems(doc, 'XML')).toEqual([])
   })
 
-  it('单元格列宽仅 DOCX 放行；XML46687 与 XML 一样阻断', () => {
+  it('单元格列宽仅 DOCX 放行；XML46687 在领域放行（T2.4b 的声明项）之前与 XML 一样阻断', () => {
     const doc = pushChild(base(), {
       kind: 'table', id: 'width-table', caption: [], orientation: 'portrait', headerRowCount: 0, notes: [],
       rows: [{ id: 'r', cells: [{ id: 'c', colspan: 1, rowspan: 1, header: false, columnWidths: [70], content: [] }] }],
     })
+    const path = 'doc.body[0].children[1].rows[0].cells[0].columnWidths'
     expect(getOutputSupportProblems(doc, 'DOCX')).toEqual([])
-    expect(paths(getOutputSupportProblems(doc, 'XML46687'))).toEqual(['doc.body[0].children[1].rows[0].cells[0].columnWidths'])
+    expect(paths(getOutputSupportProblems(doc, 'XML'))).toEqual([path])
+    // 差异只由声明集合决定：登记了 columnWidths 才放行，否则与 XML 相同
+    const declared = XML46687_DECLARED_DIFFERENCES.some(entry => entry.name === 'columnWidths')
+    expect(paths(getOutputSupportProblems(doc, 'XML46687'))).toEqual(declared ? [] : [path])
   })
 
   it('headerRowCount 仅在与旧表头推断一致时放行（与 XML 相同），一致时无问题', () => {
@@ -150,6 +340,7 @@ describe('XML46687 输出边界目前与 XML 完全一致', () => {
       rows: [{ id: 'row', cells: [{ id: 'cell', colspan: 1, rowspan: 1, header: false, content: [] }] }],
     })
     expect(paths(getOutputSupportProblems(mismatch, 'XML46687'))).toEqual(['doc.body[0].children[1].headerRowCount'])
+    expect(asXml(getOutputSupportProblems(mismatch, 'XML46687'))).toEqual(getOutputSupportProblems(mismatch, 'XML'))
     expect(getOutputSupportProblems(mismatch, 'HTML')).toEqual([])
     const consistent = pushChild(base(), {
       kind: 'table', id: 'consistent', caption: [], orientation: 'portrait', headerRowCount: 1, notes: [],
@@ -177,37 +368,121 @@ describe('XML46687 输出边界目前与 XML 完全一致', () => {
     expect(caught).toBeInstanceOf(UnsupportedOutputError)
     expect((caught as UnsupportedOutputError).problems).toEqual(getOutputSupportProblems(doc, 'XML46687'))
     expect(() => assertOutputSupported(base(), 'XML46687')).not.toThrow()
+    expect(() => assertOutputSupported(releasedDoc(), 'XML46687')).not.toThrow()
   })
 
-  it('已知例外：罗马列项（roman-lower）——旧 XML 阻断（旧序列化器降为阿拉伯数字），XML46687 放行；去掉这一项后二者仍逐项相同', () => {
-    const doc = pushChild(richDoc(), {
-      kind: 'list', id: 'roman-list', listType: 'roman',
-      items: [{ id: 'roman-item', content: [{ kind: 'paragraph', id: 'roman-item.p0', content: [{ text: '项' }] }] }],
-    })
-    const romanPath = `doc.body[0].children[${doc.body[0]!.children.length - 1}].listType`
-    const xml = getOutputSupportProblems(doc, 'XML')
-    const xml46687 = getOutputSupportProblems(doc, 'XML46687')
-    expect(paths(xml)).toContain(romanPath)
-    expect(paths(xml46687)).not.toContain(romanPath)
-    expect(xml.find(problem => problem.path === romanPath)).toMatchObject({ code: 'unsupported-output', nodeId: 'roman-list' })
-    // 除这一条外，XML 与 XML46687 逐项相同（含顺序、nodeId、path、消息）
-    expect(asXml(xml46687)).toEqual(xml.filter(problem => problem.path !== romanPath))
-    // 只含罗马列项的最小文档：XML 一条、XML46687 为空
+  it('罗马列项（roman-lower，[M-5.7-04]）：旧 XML 阻断（旧序列化器降为阿拉伯数字），XML46687 放行并登记为已声明差异', () => {
     const minimal = pushChild(base(), {
       kind: 'list', id: 'only-roman', listType: 'roman',
       items: [{ id: 'only-roman-i', content: [{ kind: 'paragraph', id: 'only-roman-i.p0', content: [{ text: '项' }] }] }],
     })
     expect(paths(getOutputSupportProblems(minimal, 'XML'))).toEqual(['doc.body[0].children[1].listType'])
+    expect(getOutputSupportProblems(minimal, 'XML')[0]).toMatchObject({ code: 'unsupported-output', nodeId: 'only-roman' })
     expect(getOutputSupportProblems(minimal, 'XML46687')).toEqual([])
     expect(getOutputSupportProblems(minimal, 'HTML')).toEqual([])
     expect(getOutputSupportProblems(minimal, 'DOCX')).toEqual([])
     expect(() => assertOutputSupported(minimal, 'XML')).toThrow(UnsupportedOutputError)
     expect(() => assertOutputSupported(minimal, 'XML46687')).not.toThrow()
+    expect(findDeclaredDifference(minimal, 'doc.body[0].children[1].listType')).toMatchObject({ kind: 'field', name: 'listType' })
   })
 
   it('OutputBoundaryFormat 四个取值都可传入，旧的三个取值保持原样', () => {
     const formats: OutputBoundaryFormat[] = ['DOCX', 'HTML', 'XML', 'XML46687']
     for (const format of formats) expect(getOutputSupportProblems(base(), format)).toEqual([])
+  })
+})
+
+/** 仍阻断清单：永久阻断（丢弃会改变内容含义，或有用户已定决议），XML46687 精确报出路径。 */
+const XML46687_STILL_BLOCKED: ReadonlyArray<{ name: string; build: () => IRDoc; paths: string[]; xmlAlsoBlocksReleased?: true }> = [
+  {
+    name: '行内样式（颜色、字号……）：D-S-06，5.1 只允许七种格式',
+    build: () => setParagraph(base(), [{ text: '红字', style: { color: '#ff0000' } } as IRInline]),
+    paths: ['doc.body[0].children[0].content[0].style'],
+  },
+  {
+    name: 'figure.groups：多资源/分图本阶段不做（D-T-11、D-M-12）',
+    build: () => pushChild(base(), { kind: 'figure', id: 'fig-groups', caption: [], orientation: 'portrait', src: '', notes: [], groups: [{ id: 'g1', descriptions: [], resourceRefs: [] }] }),
+    paths: ['doc.body[0].children[1].groups'],
+  },
+  {
+    name: 'termEntry.nestedEntries：D-T-09 不拍平',
+    build: () => pushChild(base(), {
+      kind: 'termEntry', id: 'term-nested', term: [{ text: '术语' }], definition: [], notes: [], examples: [],
+      nestedEntries: [{ kind: 'termEntry', id: 'term-child', term: [{ text: '子术语' }], definition: [], notes: [], examples: [] }],
+    }),
+    paths: ['doc.body[0].children[1].nestedEntries'],
+  },
+  {
+    name: 'pmToIr 的 unsupportedContent：无法表达的内容不得静默丢弃',
+    build: () => { const doc = base(); doc.unsupportedContent = [{ nodeId: 'p1', path: 'doc.body[0].children[0]', nodeType: 'oddNode', reason: '无法映射' }]; return doc },
+    paths: ['doc.body[0].children[0]'],
+  },
+  {
+    name: '元数据里的未知字段',
+    build: () => { const doc = base(); Object.assign(doc.meta, { legacyExtra: '未知元数据' }); return doc },
+    paths: ['doc.meta.legacyExtra'],
+  },
+  {
+    name: '带 marks 的行内公式：公式 run 不得同时带 marks',
+    build: () => setParagraph(base(), [{ text: '', marks: [{ type: 'bold' }], formula: { id: 'f-marked', latex: 'x' } }]),
+    paths: ['doc.body[0].children[0].content[0].marks'],
+    xmlAlsoBlocksReleased: true,
+  },
+  {
+    name: '行内样式即使与已放行的 mark 同在一个 run 上',
+    build: () => setParagraph(base(), [{ text: '粗红', marks: [{ type: 'strike' }], style: { color: '#f00' } } as IRInline]),
+    paths: ['doc.body[0].children[0].content[0].style'],
+    xmlAlsoBlocksReleased: true,
+  },
+]
+
+describe('XML46687 输出边界：仍阻断清单', () => {
+  it.each(XML46687_STILL_BLOCKED.map(entry => [entry.name, entry] as const))('%s', (_title, entry) => {
+    const doc = entry.build()
+    expect(paths(getOutputSupportProblems(doc, 'XML46687'))).toEqual(entry.paths)
+    for (const problem of getOutputSupportProblems(doc, 'XML46687')) expect(problem.code).toBe('unsupported-output')
+    // 永久阻断项与旧 XML 完全相同（含顺序、nodeId、消息）；同一 run 上另有已放行项的，旧 XML 在别的路径上同样阻断
+    if (entry.xmlAlsoBlocksReleased) expect(getOutputSupportProblems(doc, 'XML').length).toBeGreaterThan(0)
+    else expect(asXml(getOutputSupportProblems(doc, 'XML46687'))).toEqual(getOutputSupportProblems(doc, 'XML'))
+  })
+})
+
+describe('XML46687 输出边界：两处实现陷阱的回归', () => {
+  it('[M-5.5-02] mark 对象的 kind 字段是数据，不是节点 kind：带 kind/name 的 variable mark 在 XML46687 下零问题', () => {
+    const doc = setParagraph(base(), [{ text: 'x', marks: [{ type: 'variable', kind: 'quantity', name: 'x' }] }])
+    expect(getOutputSupportProblems(doc, 'XML46687')).toEqual([])
+    // 旧 XML：variable 类型不放行，kind/name 字段也不放行——报的是 type/kind/name 三个字段，而不是把 mark 当成“kind 为 quantity 的节点”
+    expect(paths(getOutputSupportProblems(doc, 'XML'))).toEqual([
+      'doc.body[0].children[0].content[0].marks[0].type',
+      'doc.body[0].children[0].content[0].marks[0].kind',
+      'doc.body[0].children[0].content[0].marks[0].name',
+    ])
+    expect(paths(getOutputSupportProblems(doc, 'HTML'))).toContain('doc.body[0].children[0].content[0].marks[0].type')
+  })
+
+  it('[M-5.5-02] 被误读为节点 kind 的症状：mark 的 kind 取值恰好是块 kind（如 paragraph）也不改变结论', () => {
+    const doc = setParagraph(base(), [{ text: 'x', marks: [{ type: 'variable', kind: 'paragraph' }] }])
+    expect(getOutputSupportProblems(doc, 'XML46687')).toEqual([])
+  })
+
+  it('[M-7.1-04] 行内公式不再被 XML46687 提前拦截；旧 XML 仍一律阻断；HTML/DOCX 的容器限制不变', () => {
+    const inParagraph = setParagraph(base(), [{ text: '', formula: { id: 'inline-f', latex: 'x^2' } }])
+    expect(getOutputSupportProblems(inParagraph, 'XML46687')).toEqual([])
+    expect(paths(getOutputSupportProblems(inParagraph, 'XML'))).toEqual(['doc.body[0].children[0].content[0].formula'])
+    expect(getOutputSupportProblems(inParagraph, 'HTML')).toEqual([])
+    // 标题里的行内公式：HTML/DOCX 仍拒绝；XML46687 边界放行（纯文本型容器由渲染器报 formula-in-text-only，标题是 inline 容器本就可写）
+    const inTitle = base()
+    inTitle.body[0]!.title = [{ text: '', formula: { id: 'title-f', latex: 'x' } }]
+    expect(getOutputSupportProblems(inTitle, 'HTML').some(problem => problem.message.includes('行内公式'))).toBe(true)
+    expect(getOutputSupportProblems(inTitle, 'XML46687')).toEqual([])
+  })
+
+  it('[M-7.1-05] 行内公式在 XML46687 下不要求 latex（MathML 可用与否由渲染器核对）；同一 run 上的 marks/footnote 仍阻断', () => {
+    const noLatex = setParagraph(base(), [{ text: '', formula: { id: 'inline-f' } }])
+    expect(getOutputSupportProblems(noLatex, 'XML46687')).toEqual([])
+    expect(getOutputSupportProblems(noLatex, 'HTML').some(problem => problem.path.endsWith('.formula.latex'))).toBe(true)
+    const withFootnote = setParagraph(base(), [{ text: '', formula: { id: 'inline-f', latex: 'x' }, footnote: { id: 'fn1', content: [{ text: '注' }] } }])
+    expect(paths(getOutputSupportProblems(withFootnote, 'XML46687'))).toEqual(['doc.body[0].children[0].content[0].footnote'])
   })
 })
 
@@ -229,3 +504,7 @@ describe('DOCX/HTML/XML 的行为不因新增格式而改变', () => {
     expect(xml).toContain('doc.body[0].children[2].headerRowCount')
   })
 })
+
+function paths(problems: ReturnType<typeof getOutputSupportProblems>): string[] {
+  return pathsOf(problems)
+}

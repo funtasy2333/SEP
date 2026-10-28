@@ -16,6 +16,7 @@ import type {
   IRClauseChild,
   IRDoc,
   IRInline,
+  IRList,
   IRNormRef,
   IRNote,
   IRProblem,
@@ -62,11 +63,8 @@ class ResolveCtx {
   scopeParents = new Map<string, string>()
   /** 当前列项的有序祖先标记（嵌套列表的标记路径用）；无序祖先不贡献标记 */
   listMarkerPath: string[] = []
-  /**
-   * 当前所处的列表嵌套深度：0 = 不在任何列项内，1 = 位于一层列表的列项内……
-   * 显式记录而不是用 `listMarkerPath` 是否为空推断：无序父列表不产生标记，却同样使其子列表成为嵌套列表。
-   */
-  listDepth = 0
+  /** 渲染时确有标识的有序列项 → 标记（computeOrderedListMarkers，D-M-17）；resolve() 入口填入，visitBlock 只消费 */
+  orderedMarkers: Record<NodeId, string> = Object.create(null) as Record<NodeId, string>
   /** 规范性引用清单（WP8.M G1）：允许出现的清单 id（= 当前 norm-refs 章的直属清单）与已访问的清单数 */
   allowedNormRefLists = new Set<NodeId>()
   normRefListCount = 0
@@ -201,10 +199,13 @@ function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx, forb
           ctx.problems.push({ code: 'dangling-footnote', nodeId: fromId, severity: 'error', message: `表脚注上标的目标「${mark.targetId}」不在当前表中，或位于脚注内部` })
         } else if (!scope.referenced.has(mark.targetId)) {
           scope.referenced.add(mark.targetId)
-          let n = ++scope.seq
+          // 标签是字母（a、b…z、aa…），xmlId 的 k 是表内序号（X-24，R-2）：与标签字符无关，a→1、b→2。
+          const k = ++scope.seq
+          let n = k
           let label = ''
           while (n > 0) { n -= 1; label = String.fromCharCode(97 + n % 26) + label; n = Math.floor(n / 26) }
-          ctx.setLabel(mark.targetId, label, `tabfn_${ctx.labels[scope.tableId]!.xmlId}_${label}`, label)
+          // 表号 = 表 xmlId 去掉 tab_ 前缀（正文表 1、附录表 A.1）：table-fn_1.1、table-fn_A.1.2
+          ctx.setLabel(mark.targetId, label, `table-fn_${ctx.labels[scope.tableId]!.xmlId.replace(/^tab_/, '')}.${k}`, label)
         }
       }
     }
@@ -233,6 +234,86 @@ function warnTrailingPunctuation(entry: IRNormRef, ctx: ResolveCtx): void {
     code: 'trailing-punctuation', nodeId: entry.id, severity: 'warning',
     message: `规范性引用文件条目「${text.slice(0, 40)}」末尾有标点“${last}”：GB/T 1.1—2020 10.3.4 规定文件之后不加标点符号，请删除（输出时不会自动剥离）`,
   })
+}
+
+// ---------- 列项标记（D-M-17） ----------
+
+/**
+ * 一个列项在渲染时是否确有标识、标识是什么（D-M-17），判定只此一处：
+ * - 第一层的 alpha / number / roman：HTML 与 DOCX 都显示 a） / 1） / i）；
+ * - 嵌套（第二层）的 number：HTML 仍显示 1），DOCX 另起 A13 实例显示 1）；
+ * - 嵌套的 alpha / roman：HTML 显示间隔号“·”，DOCX 取父列表实例 ilvl 1（bullet“·”），都不是 b） / ii） 本身，不赋标记；
+ * - 第三层及以下：DOCX 只输出 SesListDot（并给出 list-too-deep 警告），没有编号，不赋标记；
+ * - 无序列项与 romanUpper 本来就没有标识。
+ * 返回空串表示没有标记。depth 为列表嵌套深度（1 = 不在任何列项内的列表），ordinal 从 1 起。
+ */
+function orderedListItemMarker(listType: IRList['listType'], depth: number, ordinal: number, strategy: NumberingStrategy): string {
+  const ordered = listType === 'alpha' || listType === 'number' || listType === 'roman'
+  const rendered = ordered && (depth === 1 || (depth === 2 && listType === 'number'))
+  if (!rendered) return ''
+  return strategy.listItem ? strategy.listItem(listType, ordinal) : builtinListItem(listType, ordinal)
+}
+
+/**
+ * 全文有序列项的标记（R-11，D-X-08）：key = 列项 id，value = 标记（"a）"、"1）"、"i）"）；
+ * 渲染时没有标识的列项（二层 alpha / roman、三层及以下、无序、romanUpper）不在结果里。
+ * 与 `labels` 不同，结果含**未被引用**的列项——`labels` 仍只给被引用者（li_<k>），内容不变。
+ * resolve() 自己用同一函数得到标记，XML 渲染器用默认策略调用它：「是否有标识」的判定只有这一份，
+ * 编号逻辑仍只在 Resolver 模块。纯函数，不修改入参。
+ */
+export function computeOrderedListMarkers(doc: IRDoc, strategy: NumberingStrategy = gbT11Strategy): Record<NodeId, string> {
+  const markers = Object.create(null) as Record<NodeId, string>
+  // depth = 当前所处的列表嵌套深度：0 = 不在任何列项内，1 = 位于一层列表的列项内……
+  // 无序父列表不产生标记，却同样使其子列表成为嵌套列表；表格单元格、注、示例、警告、摘录等容器不改变深度
+  // （列项内容类型上只能是段落与列表，所以深度只会随列表嵌套增加）。
+  const visitBlocks = (blocks: IRBlock[], depth: number): void => {
+    for (const block of blocks) visitBlock(block, depth)
+  }
+  const visitBlock = (block: IRBlock, depth: number): void => {
+    switch (block.kind) {
+      case 'list': {
+        const listDepth = depth + 1
+        block.items.forEach((item, index) => {
+          const marker = orderedListItemMarker(block.listType, listDepth, index + 1, strategy)
+          if (marker) markers[item.id] = marker
+          visitBlocks(item.content, listDepth)
+        })
+        break
+      }
+      case 'table':
+        for (const row of block.rows) for (const cell of row.cells) visitBlocks(cell.content, depth)
+        for (const note of block.notes) visitBlocks(note.content, depth)
+        break
+      case 'figure':
+        for (const note of block.notes) visitBlocks(note.content, depth)
+        for (const example of block.examples ?? []) visitBlocks(example.content, depth)
+        break
+      case 'warning': case 'quote': case 'note': case 'example':
+        visitBlocks(block.content, depth)
+        break
+      default:
+        break
+    }
+  }
+  const visitTermEntry = (entry: IRTermEntry): void => {
+    visitBlocks(entry.definition, 0)
+    for (const note of entry.notes) visitBlocks(note.content, 0)
+    for (const example of entry.examples) visitBlocks(example.content, 0)
+    for (const nested of entry.nestedEntries ?? []) visitTermEntry(nested)
+  }
+  const visitSectionChildren = (children: IRClauseChild[]): void => {
+    for (const child of children) {
+      if (child.kind === 'clause') visitSectionChildren(child.children)
+      else if (child.kind === 'termEntry') visitTermEntry(child)
+      else visitBlock(child, 0)
+    }
+  }
+  visitBlocks(doc.front.foreword, 0)
+  visitBlocks(doc.front.introduction, 0)
+  visitSectionChildren(doc.front.introductionClauses ?? [])
+  for (const chapter of doc.body) visitSectionChildren(chapter.children)
+  for (const appendix of doc.appendices) visitSectionChildren(appendix.children)
+  return markers
 }
 
 // ---------- 块级 ----------
@@ -285,29 +366,19 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
       break
     case 'list': {
       ctx.registerId(block.id)
-      // 只有「渲染时确有该标识」的列项才有标记（D-M-17）：
-      // - 第一层的 alpha / number / roman：HTML 与 DOCX 都显示 a） / 1） / i）；
-      // - 嵌套（第二层）的 number：HTML 仍显示 1），DOCX 另起 A13 实例显示 1）；
-      // - 嵌套的 alpha / roman：HTML 显示间隔号“·”，DOCX 取父列表实例 ilvl 1（bullet“·”），都不是 b） / ii） 本身，不赋标记；
-      // - 第三层及以下：DOCX 只输出 SesListDot（并给出 list-too-deep 警告），没有编号，不赋标记；
-      // - 无序列项与 romanUpper 本来就没有标识。
-      // 对没有标记的列项的引用照旧 dangling-xref（没有编号，无法生成引用文本），渲染器回退作者原文，不输出不存在的标识。
-      const depth = ctx.listDepth + 1
-      const ordered = block.listType === 'alpha' || block.listType === 'number' || block.listType === 'roman'
-      const rendered = ordered && (depth === 1 || (depth === 2 && block.listType === 'number'))
+      // 列项标记（D-M-17：只有「渲染时确有该标识」的列项才有标记）由 computeOrderedListMarkers 统一判定，
+      // 这里只消费结果；对没有标记的列项的引用照旧 dangling-xref（没有编号，无法生成引用文本），
+      // 渲染器回退作者原文，不输出不存在的标识。
       const inheritedPath = ctx.listMarkerPath
-      ctx.listDepth = depth
-      block.items.forEach((item, index) => {
+      block.items.forEach((item) => {
         ctx.registerId(item.id)
         ctx.kinds.set(item.id, 'listItem')
-        const marker = !rendered ? ''
-          : ctx.strategy.listItem ? ctx.strategy.listItem(block.listType, index + 1) : builtinListItem(block.listType, index + 1)
+        const marker = ctx.orderedMarkers[item.id] ?? ''
         ctx.listMarkerPath = marker ? [...inheritedPath, marker] : inheritedPath
         if (marker) ctx.listItems.push({ id: item.id, marker, markerPath: ctx.listMarkerPath.join(' '), scopeKey })
         for (const child of item.content) visitBlock(child, scopeKey, ctx, forbiddenContainer)
       })
       ctx.listMarkerPath = inheritedPath
-      ctx.listDepth = depth - 1
       break
     }
     case 'table': {
@@ -405,6 +476,10 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
         // extension scan preserves a kind registered here instead of assigning `entity`.
         ctx.kinds.set(note.id, 'note')
         visitInlines(note.content, note.id, ctx, '公式说明')
+        // R-10：公式注与表注、图注同一机制，作用域 = 该公式：label「注：/注n：」、xmlId note_<n>
+        // （C-T-23、M-7.2-02）。通用扫描（registerExtendedData）先补的 label:'' + ext_ 占位标签
+        // 由 labelNotesAndExamples 覆盖。
+        ctx.scope(block.id).notes.push({ id: note.id })
       }
       for (const item of block.whereList) {
         ctx.registerId(item.id)
@@ -651,20 +726,24 @@ function visitAppendix(appendix: IRAppendix, seq: number, ctx: ResolveCtx): void
 function labelScopeGroup(
   items: { id: NodeId }[],
   labelOf: (index: number, totalInScope: number) => string,
-  xmlPrefix: string,
-  nextSeq: () => number,
+  xmlIdOf: (index: number) => string,
   ctx: ResolveCtx,
 ): void {
   items.forEach(({ id }, i) => {
     const label = labelOf(i + 1, items.length)
-    ctx.setLabel(id, label, `${xmlPrefix}_${nextSeq()}`, label.replace(/：$/, ''))
+    ctx.setLabel(id, label, xmlIdOf(i + 1), label.replace(/：$/, ''))
   })
 }
 
 function labelNotesAndExamples(ctx: ResolveCtx): void {
-  for (const scope of ctx.scopes.values()) {
-    labelScopeGroup(scope.notes, (i, t) => ctx.strategy.note(i, t), 'note', () => ++ctx.noteSeq, ctx)
-    labelScopeGroup(scope.examples, (i, t) => ctx.strategy.example(i, t), 'example', () => ++ctx.exampleSeq, ctx)
+  for (const [key, scope] of ctx.scopes) {
+    // 术语条目作用域内的注：xmlId = nte_<术语编号>-<k>（X-13，R-4），k 为该术语内的注序号；
+    // 不占用全局 note_<n> 计数（D-X-19），其余作用域的 note_<n> 因此保持连续。
+    const termNumber = ctx.kinds.get(key) === 'term' ? ctx.labels[key]?.label : undefined
+    labelScopeGroup(scope.notes, (i, t) => ctx.strategy.note(i, t),
+      termNumber ? k => `nte_${termNumber}-${k}` : () => `note_${++ctx.noteSeq}`, ctx)
+    // 示例在术语内同样沿用全局 example_<n>（tbx:example 没有 id，渲染器不会输出它）
+    labelScopeGroup(scope.examples, (i, t) => ctx.strategy.example(i, t), () => `example_${++ctx.exampleSeq}`, ctx)
   }
 }
 
@@ -727,7 +806,7 @@ function resolveBibliography(doc: IRDoc, ctx: ResolveCtx): NodeId[] {
   }
   order.forEach((id, i) => {
     const label = ctx.strategy.bibEntry(i + 1)
-    ctx.setLabel(id, label, `bib_${i + 1}`, label)
+    ctx.setLabel(id, label, `biblref_${i + 1}`, label)
   })
   // 文献按引用顺序输出，文献中的脚注也必须按最终输出顺序编号。
   for (const id of order) {
@@ -904,6 +983,7 @@ function checkIndexTargets(
  */
 export function resolve(doc: IRDoc, strategy: NumberingStrategy = gbT11Strategy): ResolveResult {
   const ctx = new ResolveCtx(strategy)
+  ctx.orderedMarkers = computeOrderedListMarkers(doc, strategy)
 
   for (const source of doc.unmappedFootnotes ?? []) {
     const location = source.container === 'bibliographyTitle' ? '参考文献标题'

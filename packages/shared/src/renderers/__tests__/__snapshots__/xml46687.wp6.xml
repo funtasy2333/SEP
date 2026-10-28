@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<standard xmlns:mml="http://www.w3.org/1998/Math/MathML" xmlns:tbx="urn:iso:std:iso:30042:ed-1" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <processing-meta base-tagset="interchange" mathml-version="3.0" table-model="xhtml" terminology-model="tbx" math-representation="mathml" tagset-family="sts">
+    <custom-meta-group>
+      <custom-meta>
+        <meta-name>基于XML的标准文档内容标记指南</meta-name>
+        <meta-value>2026</meta-value>
+      </custom-meta>
+    </custom-meta-group>
+  </processing-meta>
+  <front>
+    <std-meta>
+      <title-wrap xml:lang="zh-Hans">
+        <main>标准机器语言表达</main>
+        <full>标准机器语言表达</full>
+      </title-wrap>
+      <title-wrap xml:lang="en">
+        <main>Machine-readable representation of standards</main>
+        <full>Machine-readable representation of standards</full>
+      </title-wrap>
+      <std-org-group>
+        <std-org std-org-role="publisher">
+          <std-org-name>国家市场监督管理总局</std-org-name>
+          <std-org-abbrev>SAMR</std-org-abbrev>
+        </std-org>
+      </std-org-group>
+      <content-language>zh-Hans</content-language>
+      <content-language>en</content-language>
+      <std-ref type="dated">GB/T 46687.2—2026</std-ref>
+      <release-date>2026-04-30</release-date>
+      <implementation-date>2026-11-01</implementation-date>
+      <comm-ref>全国标准化技术委员会</comm-ref>
+      <std-xref type="revises">
+        <std-ref>GB/T 46687.1—2026</std-ref>
+      </std-xref>
+      <permissions>
+        <copyright-statement>版权归发布机构所有</copyright-statement>
+        <copyright-year>2026</copyright-year>
+        <copyright-holder>国家市场监督管理总局</copyright-holder>
+      </permissions>
+      <custom-meta-group>
+        <custom-meta>
+          <meta-name>applicant</meta-name>
+          <meta-value>全国标准化技术委员会</meta-value>
+        </custom-meta>
+        <custom-meta>
+          <meta-name>proposer</meta-name>
+          <meta-value>标准化文件编制组</meta-value>
+        </custom-meta>
+      </custom-meta-group>
+    </std-meta>
+    <sec id="sec_foreword" sec-type="foreword">
+      <title>前言</title>
+      <p>本文件按照标准化文件编写规则起草。</p>
+    </sec>
+  </front>
+  <body>
+    <sec id="sec_1">
+      <label>1</label>
+      <title>测试要素</title>
+      <sec id="sec_1.1">
+        <label>1.1</label>
+        <title>基本表达</title>
+        <p>文本含完整样式、变量、外链、文献引用和术语引用。<named-content content-type="variable">x</named-content><ext-link ext-link-type="uri" xlink:href="https://example.org/spec"> 官方链接</ext-link><xref ref-type="bibr" rid="biblref_1"> 文献</xref><xref ref-type="custom" custom-type="term-entry" rid="term_2.1"> 术语</xref><xref ref-type="sec" rid="sec_1.1">1.1</xref><inline-formula><mml:math id="mml_m1"><mml:msup><mml:mi>x</mml:mi><mml:mn>2</mml:mn></mml:msup><mml:mo>+</mml:mo><mml:mn>1</mml:mn></mml:math></inline-formula></p>
+        <disp-formula id="formula_1">
+          <label>(1)</label>
+          <mml:math id="mml_m2" display="block">
+            <mml:mi>x</mml:mi>
+            <mml:mo>=</mml:mo>
+            <mml:mn>2</mml:mn>
+          </mml:math>
+          <non-normative-note>
+            <label>注：</label>
+            <p>公式注：等式中的变量取实数。</p>
+          </non-normative-note>
+          <legend>
+            <title>式中：</title>
+            <def-list list-content="formula">
+              <def-item>
+                <term>x</term>
+                <def>
+                  <p>自变量</p>
+                </def>
+              </def-item>
+            </def-list>
+          </legend>
+        </disp-formula>
+        <table-wrap id="tab_1">
+          <label>表1</label>
+          <caption>
+            <title>字段表</title>
+          </caption>
+          <table>
+            <thead>
+              <tr>
+                <th align="center">
+                  <p>名称</p>
+                  <p>mm</p>
+                </th>
+                <th>取值</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>宽度</td>
+                <td style="background-color: #F8F8F8">120</td>
+              </tr>
+            </tbody>
+          </table>
+          <table-wrap-foot>
+            <p content-type="dimension">mm</p>
+          </table-wrap-foot>
+        </table-wrap>
+        <fig id="fig_1">
+          <label>图1</label>
+          <caption>
+            <title>资源示意图</title>
+            <p content-type="dimension">mm</p>
+          </caption>
+          <graphic content-type="image" xlink:href="fig_1"/>
+          <p>该段说明与图题分开保存。</p>
+        </fig>
+        <non-normative-note content-type="warning">
+          <label>警告：</label>
+          <p>这是一个带稳定ID的警告块。</p>
+        </non-normative-note>
+        <disp-quote>
+          <p>这是一个独立表达的引文块。</p>
+        </disp-quote>
+        <code>key = value</code>
+      </sec>
+    </sec>
+    <sec id="sec_2" sec-type="terms">
+      <label>2</label>
+      <title>术语和定义</title>
+      <term-sec id="sec_2.1">
+        <label>2.1</label>
+        <tbx:termEntry id="term_2.1">
+          <tbx:langSet xml:lang="zh">
+            <tbx:subjectField>标准化</tbx:subjectField>
+            <tbx:definition>具有特定含义的表达。</tbx:definition>
+            <tbx:source>ISO vocabulary</tbx:source>
+            <tbx:tig>
+              <tbx:term>术语</tbx:term>
+            </tbx:tig>
+            <tbx:tig>
+              <tbx:term>规范化文档</tbx:term>
+              <tbx:partOfSpeech value="noun"/>
+            </tbx:tig>
+            <tbx:tig>
+              <tbx:term>规范文档</tbx:term>
+            </tbx:tig>
+            <tbx:tig>
+              <tbx:term>标准文档</tbx:term>
+              <tbx:termType value="abbreviation"/>
+            </tbx:tig>
+          </tbx:langSet>
+          <tbx:langSet xml:lang="en">
+            <tbx:tig>
+              <tbx:term>term</tbx:term>
+            </tbx:tig>
+            <tbx:tig>
+              <tbx:term>normalized document</tbx:term>
+            </tbx:tig>
+          </tbx:langSet>
+        </tbx:termEntry>
+      </term-sec>
+    </sec>
+  </body>
+  <back>
+    <ref-list id="sec_bibl" content-type="bibl">
+      <title>参考文献</title>
+      <ref id="biblref_1">
+        <label>[1]</label>
+        <mixed-citation xlink:type="simple">GB/T 46687.2—2026 标准机器语言表达<uri>https://example.org/bib</uri></mixed-citation>
+      </ref>
+    </ref-list>
+    <index id="sec_index">
+      <index-title-group>
+        <title>主题索引</title>
+      </index-title-group>
+      <index-div>
+        <index-title-group>
+          <title>规范化</title>
+        </index-title-group>
+        <index-entry id="df_1">
+          <term>术语条目</term>
+          <see-entry>2.1</see-entry>
+          <see-entry>1.1</see-entry>
+        </index-entry>
+      </index-div>
+    </index>
+  </back>
+</standard>

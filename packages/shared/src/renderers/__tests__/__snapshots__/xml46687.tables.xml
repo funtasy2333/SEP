@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<standard xmlns:mml="http://www.w3.org/1998/Math/MathML" xmlns:tbx="urn:iso:std:iso:30042:ed-1" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <processing-meta base-tagset="interchange" mathml-version="3.0" table-model="xhtml" terminology-model="tbx" math-representation="mathml" tagset-family="sts">
+    <custom-meta-group>
+      <custom-meta>
+        <meta-name>基于XML的标准文档内容标记指南</meta-name>
+        <meta-value>2026</meta-value>
+      </custom-meta>
+    </custom-meta-group>
+  </processing-meta>
+  <front>
+    <std-meta>
+      <title-wrap xml:lang="zh">
+        <full>测试标准</full>
+      </title-wrap>
+      <std-org-group>
+        <std-org>
+          <std-org-name>测试发布机构</std-org-name>
+        </std-org>
+      </std-org-group>
+      <content-language>zh</content-language>
+      <release-date>2026-04-30</release-date>
+      <implementation-date>2026-11-01</implementation-date>
+    </std-meta>
+  </front>
+  <body>
+    <sec id="sec_1" sec-type="scope">
+      <label>1</label>
+      <title>范围</title>
+      <p>见<xref ref-type="table" rid="tab_1">表1</xref>和<xref ref-type="custom" custom-type="note" rid="note_2">注2</xref>。</p>
+    </sec>
+    <sec id="sec_2">
+      <label>2</label>
+      <title>表</title>
+      <table-wrap id="tab_1">
+        <label>表1</label>
+        <caption>
+          <title>带表头、合并单元格、表注与表脚注的表</title>
+        </caption>
+        <table width="100%">
+          <col align="left" width="30%"/>
+          <col align="center" valign="middle" width="35%"/>
+          <col align="right" width="35%"/>
+          <thead>
+            <tr>
+              <th rowspan="2">项目</th>
+              <th colspan="2">测量结果</th>
+            </tr>
+            <tr>
+              <th>
+                <p>公称厚度(e)</p>
+                <p>mm</p>
+              </th>
+              <th>
+                <p>平均厚度偏差</p>
+                <p>%</p>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td align="left">样品 A</td>
+              <td align="center" style="border-left: solid 2px; border-top: solid 2px; background-color: #EFEFEF">1.5<xref ref-type="table-fn" rid="table-fn_1.1">a</xref></td>
+              <td align="right" style="border-right: none; border-bottom: dashed 1px">0.3</td>
+            </tr>
+            <tr valign="middle">
+              <td>样品 B</td>
+              <td colspan="2">x<sub>b</sub> = 2.0<xref ref-type="table-fn" rid="table-fn_1.2">b</xref><break/>（见注）</td>
+            </tr>
+            <tr>
+              <td>
+                <p>多段单元格</p>
+                <list list-type="dash">
+                  <list-item>
+                    <p>项一</p>
+                  </list-item>
+                </list>
+              </td>
+              <td><italic>斜体</italic></td>
+              <td>—</td>
+            </tr>
+          </tbody>
+        </table>
+        <table-wrap-foot>
+          <p content-type="dimension">单位为毫米</p>
+          <non-normative-note>
+            <label>注1：</label>
+            <p>表中数值为示例。</p>
+          </non-normative-note>
+          <non-normative-note id="note_2">
+            <label>注2：</label>
+            <p>另一条表注。</p>
+          </non-normative-note>
+          <fn id="table-fn_1.1">
+            <label><sup>a</sup></label>
+            <p>表脚注 a：C<sub>6</sub> 为参比值。</p>
+          </fn>
+          <fn id="table-fn_1.2">
+            <label><sup>b</sup></label>
+            <p>表脚注 b。</p>
+          </fn>
+        </table-wrap-foot>
+      </table-wrap>
+      <table-wrap id="tab_2" orientation="landscape">
+        <label>表2</label>
+        <caption>
+          <title>横向表</title>
+        </caption>
+        <table>
+          <tbody>
+            <tr>
+              <td>甲</td>
+              <td>乙</td>
+            </tr>
+          </tbody>
+        </table>
+      </table-wrap>
+      <table-wrap id="tab_3">
+        <label>表3</label>
+        <caption>
+          <title>简单表</title>
+        </caption>
+        <table>
+          <thead>
+            <tr>
+              <th>列 1</th>
+              <th>列 2</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>a</td>
+              <td>b</td>
+            </tr>
+          </tbody>
+        </table>
+      </table-wrap>
+    </sec>
+  </body>
+</standard>

@@ -19,6 +19,25 @@ export type {
 export { convertFormulaToOmml, convertFormulasToOmml, estimateFormulaWidth } from './formulaOmml'
 export type { FormulaConversionOptions, FormulaConversionWarning, FormulaOmmlResult } from './formulaOmml'
 
+export { convertFormulasToMathMl, convertLatexToMathMl } from './formulaMathMl'
+export type { ConvertFormulasToMathMlResult, ConvertLatexToMathMlOptions } from './formulaMathMl'
+
+export { collectXml46687Resources } from './xml46687Resources'
+export type { Xml46687ResourcesResult } from './xml46687Resources'
+
+export {
+  XML46687_PACKAGE_FORMAT,
+  XML46687_PACKAGE_XML_PATH,
+  buildXml46687Package,
+  packageXml46687,
+  prepareXml46687Input,
+} from './xml46687Package'
+export type {
+  BuildXml46687PackageOptions,
+  BuildXml46687PackageResult,
+  PreparedXml46687Input,
+} from './xml46687Package'
+
 export {
   checkExportGuard,
   formatFootnoteExportError,

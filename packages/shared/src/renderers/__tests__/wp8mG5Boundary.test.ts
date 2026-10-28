@@ -2,7 +2,8 @@
  * WP8.M G5 输出边界：`termEntry.subjectField`（M-9.2.9-01）。
  *
  * 设计 §3.4 原定四种格式全部阻断；用户 2026-10-22 的决定（§7.1）把“术语领域”列为“本阶段排版”：
- * HTML 与 DOCX 放行（并在定义前输出“〈领域〉”），旧 XML 保持阻断，XML46687 的白名单留给 WP8.2。
+ * HTML 与 DOCX 放行（并在定义前输出“〈领域〉”），旧 XML 保持阻断；XML46687 由 WP8.2 T2.4c 放行（写成首个 langSet 内的
+ * tbx:subjectField，已声明差异 field:subjectField），本文件保留旧 XML 的阻断断言。
  * 术语条目独立 id（M-9.2.1-05）是纯 Resolver 数据，不在 IR 内，因而不改变任何格式的边界结果。
  */
 
@@ -11,6 +12,7 @@ import { pmToIr } from '../../ir/pmToIr'
 import type { IRDoc, IRTermEntry } from '../../ir/types'
 import { g5IrDoc, g5PrintDoc, g5PmDoc } from '../../ir/__tests__/wp8mG5Fixtures'
 import { getOutputSupportProblems, type OutputBoundaryFormat } from '../outputBoundary'
+import { findDeclaredDifference } from '../xml46687Boundary'
 
 const FORMATS: OutputBoundaryFormat[] = ['HTML', 'DOCX', 'XML', 'XML46687']
 
@@ -33,28 +35,28 @@ function subjectFieldProblems(doc: IRDoc, format: OutputBoundaryFormat) {
   return getOutputSupportProblems(doc, format).filter(problem => problem.path.endsWith('.subjectField'))
 }
 
-describe('[M-9.2.9-01] 输出边界：subjectField 仅对 HTML、DOCX 放行', () => {
+describe('[M-9.2.9-01] 输出边界：subjectField 对 HTML、DOCX 放行，旧 XML 阻断，XML46687 自 T2.4c 起放行', () => {
   it('HTML 与 DOCX：含领域的术语文档没有任何边界问题', () => {
     expect(getOutputSupportProblems(g5PrintDoc(), 'HTML')).toEqual([])
     expect(getOutputSupportProblems(g5PrintDoc(), 'DOCX')).toEqual([])
   })
 
-  it('旧 XML 与 XML46687：每个带领域的术语条目各报一条 unsupported-output（含节点 id 与路径）', () => {
-    for (const format of ['XML', 'XML46687'] as const) {
-      const problems = subjectFieldProblems(g5PrintDoc(), format)
-      expect(problems.map(problem => problem.nodeId).sort(), format).toEqual(['g5-t-app', 'g5-t-iso', 'g5-t-marked', 'g5-t1'])
-      for (const problem of problems) {
-        expect(problem.code).toBe('unsupported-output')
-        expect(problem.message).toContain(format)
-        expect(problem.message).toContain('请保留 JSON 文档')
-      }
+  it('旧 XML：每个带领域的术语条目各报一条 unsupported-output（含节点 id 与路径）', () => {
+    const problems = subjectFieldProblems(g5PrintDoc(), 'XML')
+    expect(problems.map(problem => problem.nodeId).sort()).toEqual(['g5-t-app', 'g5-t-iso', 'g5-t-marked', 'g5-t1'])
+    for (const problem of problems) {
+      expect(problem.code).toBe('unsupported-output')
+      expect(problem.message).toContain('XML')
+      expect(problem.message).toContain('请保留 JSON 文档')
     }
   })
 
-  it('XML46687 在 8.M 内不得放开：它与旧 XML 对本字段的结果逐条相同', () => {
-    expect(subjectFieldProblems(g5PrintDoc(), 'XML46687')).toEqual(
-      subjectFieldProblems(g5PrintDoc(), 'XML').map(problem => ({ ...problem, message: problem.message.replace('XML ', 'XML46687 ') })),
-    )
+  it('XML46687（T2.4c）：subjectField 已放行——旧 XML 报的每一条都是已声明差异，XML46687 没有本字段相关问题', () => {
+    const doc = g5PrintDoc()
+    expect(subjectFieldProblems(doc, 'XML46687')).toEqual([])
+    for (const problem of subjectFieldProblems(doc, 'XML')) {
+      expect(findDeclaredDifference(doc, problem.path)).toMatchObject({ kind: 'field', name: 'subjectField', task: 'T2.4c' })
+    }
   })
 
   it('同一份文档去掉领域后，四种格式都没有本字段相关问题（回归：放行只由该字段触发）', () => {
@@ -91,7 +93,7 @@ describe('[M-9.2.9-01] 输出边界：subjectField 仅对 HTML、DOCX 放行', (
     expect(getOutputSupportProblems(doc, 'HTML')).toEqual([])
     expect(getOutputSupportProblems(doc, 'DOCX')).toEqual([])
     expect(subjectFieldProblems(doc, 'XML').map(problem => problem.nodeId)).toEqual(['g5-t1'])
-    expect(subjectFieldProblems(doc, 'XML46687').map(problem => problem.nodeId)).toEqual(['g5-t1'])
+    expect(subjectFieldProblems(doc, 'XML46687')).toEqual([])
   })
 })
 

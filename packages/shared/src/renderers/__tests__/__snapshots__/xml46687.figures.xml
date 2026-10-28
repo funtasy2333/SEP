@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<standard xmlns:mml="http://www.w3.org/1998/Math/MathML" xmlns:tbx="urn:iso:std:iso:30042:ed-1" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <processing-meta base-tagset="interchange" mathml-version="3.0" table-model="xhtml" terminology-model="tbx" math-representation="mathml" tagset-family="sts">
+    <custom-meta-group>
+      <custom-meta>
+        <meta-name>基于XML的标准文档内容标记指南</meta-name>
+        <meta-value>2026</meta-value>
+      </custom-meta>
+    </custom-meta-group>
+  </processing-meta>
+  <front>
+    <std-meta>
+      <title-wrap xml:lang="zh">
+        <full>测试标准</full>
+      </title-wrap>
+      <std-org-group>
+        <std-org>
+          <std-org-name>测试发布机构</std-org-name>
+        </std-org>
+      </std-org-group>
+      <content-language>zh</content-language>
+      <release-date>2026-04-30</release-date>
+      <implementation-date>2026-11-01</implementation-date>
+    </std-meta>
+  </front>
+  <body>
+    <sec id="sec_1" sec-type="scope">
+      <label>1</label>
+      <title>范围</title>
+      <p>见<xref ref-type="fig" rid="fig_1">图1</xref>，图注<xref ref-type="custom" custom-type="note" rid="note_2">注2</xref>。</p>
+      <p>状态图标<inline-graphic xlink:href="inl_1" specific-use="size:S"/>、<inline-graphic xlink:href="inl_2" specific-use="size:M"/>、<inline-graphic xlink:href="inl_3" specific-use="size:L"/>、<inline-graphic xlink:href="inl_4"/></p>
+    </sec>
+    <sec id="sec_2">
+      <label>2</label>
+      <title>图</title>
+      <fig id="fig_1">
+        <label>图1</label>
+        <caption>
+          <title>系统结构示意</title>
+          <p content-type="dimension">单位为毫米</p>
+        </caption>
+        <legend>
+          <title>标引序号说明：</title>
+          <def-list list-content="figure">
+            <def-item>
+              <term>1</term>
+              <def>
+                <p>驱动及控制模块；</p>
+              </def>
+            </def-item>
+            <def-item>
+              <term>2</term>
+              <def>
+                <p>传感模块，见<xref ref-type="fig" rid="fig_A.1">图A.1</xref>。</p>
+              </def>
+            </def-item>
+            <def-item>
+              <term>V<sub>o</sub></term>
+              <def>
+                <p><bold>输出电压</bold>。</p>
+              </def>
+            </def-item>
+          </def-list>
+        </legend>
+        <graphic content-type="image" xlink:href="fig_1"/>
+        <p>图形与图题之间的说明段落。</p>
+        <non-normative-note>
+          <label>注1：</label>
+          <p>图注一。</p>
+        </non-normative-note>
+        <non-normative-note id="note_2">
+          <label>注2：</label>
+          <p>图注二。</p>
+        </non-normative-note>
+        <non-normative-example>
+          <label>示例：</label>
+          <p>图中示例。</p>
+        </non-normative-example>
+      </fig>
+      <fig id="fig_2" orientation="landscape">
+        <label>图2</label>
+        <caption>
+          <title>横向图</title>
+        </caption>
+        <graphic content-type="image" xlink:href="fig_2"/>
+      </fig>
+    </sec>
+  </body>
+  <back>
+    <app-group>
+      <app id="sec_A" content-type="informative">
+        <label>附录 A</label>
+        <annex-type>（资料性）</annex-type>
+        <title>附录</title>
+        <fig id="fig_A.1">
+          <label>图A.1</label>
+          <caption>
+            <title>附录中的图</title>
+          </caption>
+          <graphic content-type="image" xlink:href="fig_A.1"/>
+          <non-normative-note>
+            <label>注：</label>
+            <p>附录图注。</p>
+          </non-normative-note>
+        </fig>
+      </app>
+    </app-group>
+  </back>
+</standard>

@@ -229,7 +229,7 @@ function renderRun(run: IRInline, ctx: RenderCtx): string {
   for (const mark of marks) {
     if (mark.type !== 'tableFootnoteRef') continue
     const resolved = ctx.labels[mark.targetId]
-    if (!resolved || !resolved.xmlId.startsWith('tabfn_')) {
+    if (!resolved || !resolved.xmlId.startsWith('table-fn_')) {
       throw new Error(`renderHtml: 表脚注 "${mark.targetId}" 缺少有效的 resolver 编号`)
     }
     const marker = `<sup class="ses-table-footnote-call">${escapeHtml(resolved.refText)}</sup>`

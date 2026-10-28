@@ -1,0 +1,715 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<standard xmlns:mml="http://www.w3.org/1998/Math/MathML" xmlns:tbx="urn:iso:std:iso:30042:ed-1" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <processing-meta base-tagset="interchange" mathml-version="3.0" table-model="xhtml" terminology-model="tbx" math-representation="mathml" tagset-family="sts">
+    <custom-meta-group>
+      <custom-meta>
+        <meta-name>基于XML的标准文档内容标记指南</meta-name>
+        <meta-value>2026</meta-value>
+      </custom-meta>
+    </custom-meta-group>
+  </processing-meta>
+  <front>
+    <std-meta>
+      <title-wrap xml:lang="zh">
+        <intro>信息技术</intro>
+        <main>网络设备安全要求</main>
+        <compl>第1部分：总则</compl>
+        <full>信息技术 网络设备安全要求 第1部分：总则</full>
+      </title-wrap>
+      <title-wrap xml:lang="en">
+        <main>Security requirements for network devices</main>
+        <full>Information technology Security requirements for network devices Part 1: General</full>
+      </title-wrap>
+      <std-ident>
+        <originator>SAC</originator>
+        <doc-type>GB/T</doc-type>
+        <doc-number>99999</doc-number>
+        <part-number>1</part-number>
+        <edition>2</edition>
+        <version>1<sup>a</sup></version>
+      </std-ident>
+      <std-org-group>
+        <std-org std-org-role="lead">
+          <std-org-name>国家市场监督管理总局</std-org-name>
+          <std-org-abbrev>SAMR</std-org-abbrev>
+        </std-org>
+        <std-org std-org-role="lead">
+          <std-org-name>国家标准化管理委员会</std-org-name>
+          <std-org-abbrev>SAC</std-org-abbrev>
+        </std-org>
+      </std-org-group>
+      <content-language>zh</content-language>
+      <content-language>en</content-language>
+      <std-ref type="dated">GB/T 99999.1—2026</std-ref>
+      <std-ref type="undated">GB/T 99999.1</std-ref>
+      <release-date>2026-04-30</release-date>
+      <implementation-date>2026-11-01</implementation-date>
+      <comm-ref>SAC/TC 28</comm-ref>
+      <ics>35.240.30</ics>
+      <ccs>L 72</ccs>
+      <std-supersedes>GB/T 99999.1—2020</std-supersedes>
+      <std-xref type="revises">
+        <std-ref>GB/T 88888</std-ref>
+      </std-xref>
+      <permissions>
+        <copyright-statement>版权专有 侵权必究</copyright-statement>
+        <copyright-year>2026</copyright-year>
+        <copyright-holder>国家标准化管理委员会</copyright-holder>
+      </permissions>
+      <custom-meta-group>
+        <custom-meta>
+          <meta-name>filing-no</meta-name>
+          <meta-value>2026-0001</meta-value>
+        </custom-meta>
+        <custom-meta>
+          <meta-name>industry-name</meta-name>
+          <meta-value>信息技术</meta-value>
+        </custom-meta>
+        <custom-meta>
+          <meta-name>region-name</meta-name>
+          <meta-value>全国</meta-value>
+        </custom-meta>
+        <custom-meta>
+          <meta-name>cover-designation</meta-name>
+          <meta-value>中华人民共和国国家标准</meta-value>
+        </custom-meta>
+        <custom-meta>
+          <meta-name>applicant</meta-name>
+          <meta-value>起草单位</meta-value>
+        </custom-meta>
+        <custom-meta>
+          <meta-name>proposer</meta-name>
+          <meta-value>提出单位</meta-value>
+        </custom-meta>
+      </custom-meta-group>
+    </std-meta>
+    <sec id="sec_foreword" sec-type="foreword">
+      <title>前言</title>
+      <p>本文件按照<std><std-ref>GB/T 1.1—2020</std-ref></std>的规定起草。</p>
+      <non-normative-note>
+        <label>注：</label>
+        <p>前言注的第一段。</p>
+        <list list-type="dash">
+          <list-item>
+            <p>前言注内的列项。</p>
+          </list-item>
+        </list>
+      </non-normative-note>
+    </sec>
+    <sec id="sec_0" sec-type="intro">
+      <title>引言</title>
+      <sec id="sec_0.1">
+        <label>0.1</label>
+        <title>背景</title>
+        <sec id="sec_0.1.1">
+          <label>0.1.1</label>
+          <title>起因</title>
+          <p>编制起因。</p>
+          <non-normative-note>
+            <label>注：</label>
+            <p>引言条内的注。</p>
+          </non-normative-note>
+        </sec>
+        <sec id="sec_0.1.2">
+          <label>0.1.2</label>
+          <title>说明</title>
+          <p>编制背景。</p>
+        </sec>
+      </sec>
+      <sec id="sec_0.2">
+        <label>0.2</label>
+        <title>目的</title>
+        <p>编制目的，见<xref ref-type="sec" rid="sec_0.1">0.1</xref>。</p>
+      </sec>
+      <sec id="sec_0.3" sec-type="numbered-paragraph">
+        <label>0.3</label>
+        <p>引言中的无标题条。</p>
+      </sec>
+    </sec>
+  </front>
+  <body>
+    <sec id="sec_1" sec-type="scope">
+      <label>1</label>
+      <title>范围</title>
+      <p>本文件的结构见<xref ref-type="sec" rid="sec_2">第2章</xref>、<xref ref-type="sec" rid="sec_5.1">5.1</xref>、<xref ref-type="sec" rid="sec_0.1">0.1</xref>，附录<xref ref-type="app" rid="sec_A">附录A</xref>，<xref ref-type="table" rid="tab_1">表1</xref>，<xref ref-type="fig" rid="fig_1">图1</xref>，<xref ref-type="disp-formula" rid="formula_1">公式(1)</xref>；见<xref ref-type="custom" custom-type="note" rid="note_4">注2</xref>与<xref ref-type="custom" custom-type="example" rid="example_2">示例1</xref>，术语注<xref ref-type="custom" custom-type="note" rid="nte_3.1-2">注2</xref>，列项<xref ref-type="list" rid="li_1">5.1 b）</xref>，缩略语<xref ref-type="abbreviation" rid="abb_1">ADC</xref>，图中注<xref ref-type="custom" custom-type="note" rid="note_10">注2</xref>，图中示例<xref ref-type="custom" custom-type="example" rid="example_4">示例</xref>，公式注<xref ref-type="custom" custom-type="note" rid="note_12">注2</xref>，文献<xref ref-type="bibr" rid="biblref_1">GB/T 7714</xref>与<xref ref-type="bibr" rid="biblref_2">[2]</xref>，术语<xref ref-type="custom" custom-type="term-entry" rid="term_3.1">防火墙</xref>与<xref ref-type="custom" custom-type="term-entry" rid="term_3.2">入侵检测</xref>，索引<xref ref-type="sec" rid="sec_index">索引</xref>。</p>
+      <p>格式有<bold>粗体</bold>、<italic>斜体</italic>、<underline>下划线</underline>、<strike>删除线</strike>、上标<sup>2</sup>、下标<sub>i</sub>，嵌套<bold><italic><underline>粗斜下划线</underline></italic></bold>，变量<named-content content-type="variable">x<sup>2</sup><sub>i</sub></named-content>，调用<inline-code>init(&amp;ctx)</inline-code>，加粗代码<bold><inline-code>ls</inline-code></bold>。参照<std><std-ref>GB/T 1.1—2020</std-ref></std>、加粗的<bold><std><std-ref>GB/T 20000.1</std-ref></std></bold>，另见<mixed-citation>Example Corp. Interface specification</mixed-citation>、<mixed-citation><italic>《计量法》</italic></mixed-citation>，访问<ext-link ext-link-type="uri" xlink:href="https://example.org/">示例网站</ext-link>与<ext-link ext-link-type="uri" xlink:href="mailto:sac@example.org"><bold>邮件</bold></ext-link>。脚注内容<xref ref-type="fn" rid="fn_1">1)</xref><fn id="fn_1"><label><sup>1)</sup></label><p>正文脚注的内容。</p></fn>；强制换行：第一行<break/>第二行，加粗换行<bold>甲</bold><break/><bold>乙</bold>。</p>
+      <p>行内公式<inline-formula><mml:math id="mml_m1"><mml:mi>m1</mml:mi></mml:math></inline-formula>与<inline-formula><mml:math id="mml_m2"><mml:msup><mml:mi>x</mml:mi><mml:mn>2</mml:mn></mml:msup></mml:math></inline-formula>；行内图<inline-graphic xlink:href="inl_1" specific-use="size:S"/><inline-graphic xlink:href="inl_2" specific-use="size:M"/><inline-graphic xlink:href="inl_3" specific-use="size:L"/><inline-graphic xlink:href="inl_4"/>。</p>
+    </sec>
+    <sec id="sec_2" sec-type="norm-refs">
+      <label>2</label>
+      <title>规范性引用文件</title>
+      <p>下列文件中的内容通过文中的规范性引用而构成本文件必不可少的条款。</p>
+      <ref-list content-type="norm-refs">
+        <ref id="ref_1">
+          <std><std-ref>GB/T 1.1—2020</std-ref><title>标准化工作导则 第1部分：标准化文件的结构和起草规则</title></std>
+        </ref>
+        <ref id="ref_2">
+          <std><std-ref>GB/T 3102（所有部分）</std-ref><title>量和单位</title></std>
+        </ref>
+        <ref id="ref_3">
+          <mixed-citation><italic>《中华人民共和国计量法》</italic></mixed-citation>
+        </ref>
+        <ref id="ref_4">
+          <mixed-citation>Example Corp. Interface specification<xref ref-type="fn" rid="fn_2">2)</xref><fn id="fn_2"><label><sup>2)</sup></label><p>规范性引用文件条目的脚注。</p></fn></mixed-citation>
+        </ref>
+      </ref-list>
+    </sec>
+    <sec id="sec_3" sec-type="terms">
+      <label>3</label>
+      <title>术语和定义</title>
+      <term-sec id="sec_3.1">
+        <label>3.1</label>
+        <tbx:termEntry id="term_3.1">
+          <tbx:langSet xml:lang="zh">
+            <tbx:subjectField>网络安全</tbx:subjectField>
+            <tbx:definition>在网络之间执行访问控制策略的系统，见<tbx:entailedTerm target="term_3.2">入侵检测</tbx:entailedTerm>。<break/>定义的续段。</tbx:definition>
+            <tbx:example>术语示例，不写 id。</tbx:example>
+            <tbx:note>没有被引用的术语注，不带 id。</tbx:note>
+            <tbx:note id="nte_3.1-2">被引用的术语注，带 nte_ id。</tbx:note>
+            <tbx:source>GB/T 1.1—2020，3.1</tbx:source>
+            <tbx:tig>
+              <tbx:term>防火墙</tbx:term>
+            </tbx:tig>
+            <tbx:tig>
+              <tbx:term>网络防火墙</tbx:term>
+              <tbx:partOfSpeech value="noun"/>
+              <tbx:grammaticalNumber value="singular"/>
+              <tbx:normativeAuthorization value="preferredTerm"/>
+              <tbx:termType value="fullForm"/>
+            </tbx:tig>
+            <tbx:tig>
+              <tbx:term>防护墙</tbx:term>
+              <tbx:partOfSpeech value="noun"/>
+              <tbx:normativeAuthorization value="deprecatedTerm"/>
+            </tbx:tig>
+          </tbx:langSet>
+          <tbx:langSet xml:lang="en">
+            <tbx:tig>
+              <tbx:term>firewall</tbx:term>
+            </tbx:tig>
+          </tbx:langSet>
+        </tbx:termEntry>
+      </term-sec>
+      <term-sec id="sec_3.2">
+        <label>3.2</label>
+        <tbx:termEntry id="term_3.2">
+          <tbx:langSet xml:lang="zh">
+            <tbx:subjectField>网络安全</tbx:subjectField>
+            <tbx:definition>对网络活动进行监视并识别攻击的过程。</tbx:definition>
+            <tbx:tig>
+              <tbx:term>入侵检测</tbx:term>
+            </tbx:tig>
+            <tbx:tig>
+              <tbx:term>入侵侦测</tbx:term>
+              <tbx:partOfSpeech value="noun"/>
+              <tbx:normativeAuthorization value="admittedTerm"/>
+            </tbx:tig>
+            <tbx:tig>
+              <tbx:term>入侵监测</tbx:term>
+              <tbx:partOfSpeech value="noun"/>
+              <tbx:normativeAuthorization value="admittedTerm"/>
+            </tbx:tig>
+          </tbx:langSet>
+        </tbx:termEntry>
+      </term-sec>
+      <sec id="sec_3.3">
+        <label>3.3</label>
+        <title>分类术语</title>
+        <term-sec id="sec_3.3.1">
+          <label>3.3.1</label>
+          <tbx:termEntry id="term_3.3.1">
+            <tbx:langSet xml:lang="zh">
+              <tbx:subjectField>信息安全</tbx:subjectField>
+              <tbx:definition>限制主体对客体访问的措施。</tbx:definition>
+              <tbx:tig>
+                <tbx:term>访问控制</tbx:term>
+              </tbx:tig>
+              <tbx:tig>
+                <tbx:term>访问管制</tbx:term>
+                <tbx:partOfSpeech value="noun"/>
+                <tbx:normativeAuthorization value="admittedTerm"/>
+              </tbx:tig>
+            </tbx:langSet>
+            <tbx:langSet xml:lang="en">
+              <tbx:tig>
+                <tbx:term>access control</tbx:term>
+              </tbx:tig>
+            </tbx:langSet>
+            <tbx:langSet xml:lang="fr">
+              <tbx:tig>
+                <tbx:term>contrôle d'accès</tbx:term>
+                <tbx:partOfSpeech value="noun"/>
+                <tbx:normativeAuthorization value="preferredTerm"/>
+              </tbx:tig>
+            </tbx:langSet>
+          </tbx:termEntry>
+        </term-sec>
+        <term-sec id="sec_3.3.2">
+          <label>3.3.2</label>
+          <tbx:termEntry id="term_3.3.2">
+            <tbx:langSet xml:lang="zh">
+              <tbx:subjectField>密码学</tbx:subjectField>
+              <tbx:definition>用密码算法变换数据的过程。</tbx:definition>
+              <tbx:tig>
+                <tbx:term>加密</tbx:term>
+              </tbx:tig>
+            </tbx:langSet>
+          </tbx:termEntry>
+        </term-sec>
+      </sec>
+    </sec>
+    <sec id="sec_4">
+      <label>4</label>
+      <title>符号和缩略语</title>
+      <p>下列缩略语适用于本文件。</p>
+      <def-list list-content="abbreviation">
+        <def-item id="abb_1">
+          <term>ADC</term>
+          <def>
+            <p>模数转换器（Analog-to-Digital Converter）</p>
+          </def>
+        </def-item>
+        <def-item>
+          <term>AGC</term>
+          <def>
+            <p>自动增益控制</p>
+          </def>
+        </def-item>
+        <def-item>
+          <term>CO<sub>2</sub></term>
+          <def>
+            <p><bold>二氧化碳</bold></p>
+          </def>
+        </def-item>
+      </def-list>
+    </sec>
+    <sec id="sec_5">
+      <label>5</label>
+      <title>技术要求</title>
+      <sec id="sec_5.1">
+        <label>5.1</label>
+        <title>列项、注与示例</title>
+        <p>各项要求应符合<xref ref-type="sec" rid="sec_5.3">5.3</xref>的规定；见<xref ref-type="list" rid="li_2">5.1 2）</xref>与<xref ref-type="list" rid="li_3">5.1 ii）</xref>。</p>
+        <list list-type="alpha-lower">
+          <list-item>
+            <label>a)</label>
+            <p>第一项；</p>
+          </list-item>
+          <list-item id="li_1">
+            <label>b)</label>
+            <p>第二项（被引用）；</p>
+          </list-item>
+          <list-item>
+            <label>c)</label>
+            <p>第三项。</p>
+          </list-item>
+        </list>
+        <list list-type="arabic">
+          <list-item>
+            <label>1)</label>
+            <p>壹；</p>
+          </list-item>
+          <list-item id="li_2">
+            <label>2)</label>
+            <p>贰（被引用）。</p>
+          </list-item>
+        </list>
+        <list list-type="roman-lower">
+          <list-item>
+            <label>i)</label>
+            <p>准备；</p>
+          </list-item>
+          <list-item id="li_3">
+            <label>ii)</label>
+            <p>实施（被引用）。</p>
+          </list-item>
+        </list>
+        <list list-type="dash">
+          <list-item>
+            <p>无序项一；</p>
+          </list-item>
+          <list-item>
+            <p>无序项二。</p>
+          </list-item>
+        </list>
+        <list list-type="bullet">
+          <list-item>
+            <p>圆点项。</p>
+          </list-item>
+        </list>
+        <list list-type="alpha-lower">
+          <list-item>
+            <label>a)</label>
+            <p>外层项，含嵌套列项：</p>
+            <list list-type="dash">
+              <list-item>
+                <p>嵌套项一；</p>
+              </list-item>
+              <list-item>
+                <p>嵌套项二。</p>
+              </list-item>
+            </list>
+            <list list-type="bullet">
+              <list-item>
+                <p>二层字母项甲；</p>
+              </list-item>
+              <list-item>
+                <p>二层字母项乙。</p>
+              </list-item>
+            </list>
+          </list-item>
+        </list>
+        <non-normative-note>
+          <label>注1：</label>
+          <p>没有被引用的注，不带 id。</p>
+        </non-normative-note>
+        <non-normative-note id="note_4">
+          <label>注2：</label>
+          <p>被引用的注，带 note_ id。</p>
+        </non-normative-note>
+        <non-normative-note>
+          <label>注3：</label>
+          <p>多块注的第一段。</p>
+          <list list-type="dash">
+            <list-item>
+              <p>注内列项。</p>
+            </list-item>
+          </list>
+        </non-normative-note>
+        <non-normative-example id="example_2">
+          <label>示例1：</label>
+          <p>被引用的示例，带 example_ id。</p>
+        </non-normative-example>
+        <non-normative-example>
+          <label>示例2：</label>
+          <p>没有被引用的示例，不带 id。</p>
+        </non-normative-example>
+        <non-normative-note content-type="warning">
+          <label>警告：</label>
+          <p>警告是带有警告标签的注，不写 id。</p>
+        </non-normative-note>
+        <disp-quote>
+          <p>被缩进的单段引文。</p>
+        </disp-quote>
+        <code>for (i = 0; i &lt; n; i++) {
+    total += a[i];
+}</code>
+      </sec>
+      <sec id="sec_5.2">
+        <label>5.2</label>
+        <title>子条与无标题条</title>
+        <sec id="sec_5.2.1">
+          <label>5.2.1</label>
+          <title>子条</title>
+          <p>子条正文。</p>
+        </sec>
+        <sec id="sec_5.2.2" sec-type="numbered-paragraph">
+          <label>5.2.2</label>
+          <p>无标题条，输出为 numbered-paragraph，没有 title。</p>
+        </sec>
+        <non-normative-note>
+          <label>注：</label>
+          <p>子条之后的尾部注：写在子条之后。</p>
+        </non-normative-note>
+      </sec>
+      <sec id="sec_5.3">
+        <label>5.3</label>
+        <title>表</title>
+        <p>见<xref ref-type="table" rid="tab_2">表2</xref>，其注见<xref ref-type="custom" custom-type="note" rid="note_8">注2</xref>。</p>
+        <table-wrap id="tab_1">
+          <label>表1</label>
+          <caption>
+            <title>性能<bold>指标</bold></title>
+          </caption>
+          <table width="66%">
+            <col align="left" width="20%"/>
+            <col width="50%"/>
+            <col align="center" valign="middle" width="30%"/>
+            <thead>
+              <tr>
+                <th rowspan="2">项目</th>
+                <th colspan="2" align="center">指标</th>
+              </tr>
+              <tr>
+                <th>下限</th>
+                <th>
+                  <p>上限</p>
+                  <p>单位为V</p>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr align="center" valign="middle">
+                <td><italic>电压</italic>U<sub>o</sub></td>
+                <td align="right" valign="top" style="border-left: dashed 2px; border-top: solid 3px; border-bottom: none; background-color: #EEEEEE">3.3</td>
+                <td>5.0<xref ref-type="table-fn" rid="table-fn_1.1">a</xref><xref ref-type="table-fn" rid="table-fn_1.2">b</xref></td>
+              </tr>
+              <tr>
+                <td>说明</td>
+                <td colspan="2">
+                  <p>第一段<break/>换行后继续</p>
+                  <list list-type="dash">
+                    <list-item>
+                      <p>单元格内列项。</p>
+                    </list-item>
+                  </list>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <table-wrap-foot>
+            <p content-type="dimension">单位为毫米</p>
+            <non-normative-note>
+              <label>注1：</label>
+              <p>表注（没有被引用）。</p>
+            </non-normative-note>
+            <non-normative-note id="note_8">
+              <label>注2：</label>
+              <p>表注（被引用）。</p>
+            </non-normative-note>
+            <fn id="table-fn_1.1">
+              <label><sup>a</sup></label>
+              <p>第一个表脚注。</p>
+            </fn>
+            <fn id="table-fn_1.2">
+              <label><sup>b</sup></label>
+              <p>第二个表脚注。</p>
+            </fn>
+          </table-wrap-foot>
+        </table-wrap>
+        <table-wrap id="tab_2" orientation="landscape">
+          <label>表2</label>
+          <caption>
+            <title>横向表</title>
+          </caption>
+          <table>
+            <tbody>
+              <tr>
+                <td>甲</td>
+                <td>乙</td>
+              </tr>
+            </tbody>
+          </table>
+        </table-wrap>
+      </sec>
+      <sec id="sec_5.4">
+        <label>5.4</label>
+        <title>图</title>
+        <p>见<xref ref-type="fig" rid="fig_2">图2</xref>。</p>
+        <fig id="fig_1">
+          <label>图1</label>
+          <caption>
+            <title>系统结构示意</title>
+            <p content-type="dimension">单位为毫米</p>
+          </caption>
+          <legend>
+            <title>图例</title>
+            <def-list list-content="figure">
+              <def-item>
+                <term>1</term>
+                <def>
+                  <p>主电路</p>
+                </def>
+              </def-item>
+              <def-item>
+                <term>V<sub>o</sub></term>
+                <def>
+                  <p><bold>输出电压</bold>，见<xref ref-type="table" rid="tab_1">表1</xref></p>
+                </def>
+              </def-item>
+            </def-list>
+          </legend>
+          <graphic content-type="image" xlink:href="fig_1"/>
+          <p>图的说明段一。</p>
+          <p>图的说明段二，含<bold>粗体</bold></p>
+          <non-normative-note>
+            <label>注1：</label>
+            <p>图注一（没有被引用）。</p>
+          </non-normative-note>
+          <non-normative-note id="note_10">
+            <label>注2：</label>
+            <p>图注二（被引用）。</p>
+          </non-normative-note>
+          <non-normative-example id="example_4">
+            <label>示例：</label>
+            <p>图中示例（被引用）。</p>
+          </non-normative-example>
+        </fig>
+        <fig id="fig_2" orientation="landscape">
+          <label>图2</label>
+          <caption>
+            <title>资源图（横向）</title>
+          </caption>
+          <graphic content-type="image" xlink:href="fig_2"/>
+        </fig>
+        <fig id="fig_3">
+          <label>图3</label>
+          <caption>
+            <title>SVG 图</title>
+          </caption>
+          <graphic content-type="image" xlink:href="fig_3"/>
+        </fig>
+      </sec>
+      <sec id="sec_5.5">
+        <label>5.5</label>
+        <title>公式</title>
+        <p>见<xref ref-type="disp-formula" rid="formula_2">公式(2)</xref>。</p>
+        <disp-formula id="formula_1">
+          <label>(1)</label>
+          <mml:math id="mml_m3" display="block">
+            <mml:mi>m3</mml:mi>
+          </mml:math>
+          <non-normative-note>
+            <label>注1：</label>
+            <p>公式注（没有被引用）。</p>
+          </non-normative-note>
+          <non-normative-note id="note_12">
+            <label>注2：</label>
+            <p>公式注（被引用）。</p>
+          </non-normative-note>
+          <legend>
+            <title>式中：</title>
+            <def-list list-content="formula">
+              <def-item>
+                <term>E</term>
+                <def>
+                  <p>能量</p>
+                </def>
+              </def-item>
+              <def-item>
+                <term>m</term>
+                <def>
+                  <p>质量，单位为 kg</p>
+                </def>
+              </def-item>
+              <def-item>
+                <term>c</term>
+                <def>
+                  <p>光速，约 3×10<sup>8</sup> m/s</p>
+                </def>
+              </def-item>
+            </def-list>
+          </legend>
+        </disp-formula>
+        <disp-formula>
+          <mml:math id="mml_m4" display="block">
+            <mml:mrow>
+              <mml:mi>c</mml:mi>
+              <mml:mo>=</mml:mo>
+              <mml:mi>a</mml:mi>
+              <mml:mo>+</mml:mo>
+              <mml:mi>b</mml:mi>
+            </mml:mrow>
+          </mml:math>
+        </disp-formula>
+        <disp-formula id="formula_2">
+          <label>(2)</label>
+          <mml:math id="mml_m5" display="block">
+            <mml:mi>m5</mml:mi>
+          </mml:math>
+        </disp-formula>
+      </sec>
+    </sec>
+  </body>
+  <back>
+    <app-group>
+      <app id="sec_A" content-type="informative">
+        <label>附录 A</label>
+        <annex-type>（资料性）</annex-type>
+        <title>资料性附录示例</title>
+        <sec id="sec_A.1">
+          <label>A.1</label>
+          <title>附录中的条</title>
+          <p>附录中的条沿用附录字母作编号前缀。</p>
+          <table-wrap id="tab_A.1">
+            <label>表A.1</label>
+            <caption>
+              <title>附录表</title>
+            </caption>
+            <table>
+              <thead>
+                <tr>
+                  <th>项</th>
+                  <th>值</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>x</td>
+                  <td>y</td>
+                </tr>
+              </tbody>
+            </table>
+          </table-wrap>
+          <fig id="fig_A.1">
+            <label>图A.1</label>
+            <caption>
+              <title>附录图</title>
+            </caption>
+            <graphic content-type="image" xlink:href="fig_A.1"/>
+          </fig>
+          <disp-formula id="formula_A.1">
+            <label>(A.1)</label>
+            <mml:math id="mml_m6" display="block">
+              <mml:mi>m6</mml:mi>
+            </mml:math>
+          </disp-formula>
+        </sec>
+      </app>
+      <app id="sec_B" content-type="normative">
+        <label>附录 B</label>
+        <annex-type>（规范性）</annex-type>
+        <title>规范性附录示例</title>
+        <p>规范性附录的正文。</p>
+        <def-list list-content="abbreviation">
+          <def-item>
+            <term>UTF-8</term>
+            <def>
+              <p>8位统一码转换格式</p>
+            </def>
+          </def-item>
+        </def-list>
+      </app>
+    </app-group>
+    <ref-list id="sec_bibl" content-type="bibl">
+      <title>参考文献</title>
+      <ref id="biblref_1">
+        <label>[1]</label>
+        <std><std-ref>GB/T 7714</std-ref><title>信息与文献 参考文献著录规则</title></std>
+      </ref>
+      <ref id="biblref_2">
+        <label>[2]</label>
+        <mixed-citation xlink:type="simple">张伯奥.中医内科学[M].北京:人民卫生出版社,2020.<uri>https://example.org/book</uri></mixed-citation>
+      </ref>
+      <ref id="biblref_3">
+        <label>[3]</label>
+        <mixed-citation xlink:type="simple">Example Corp. Interface specification[EB/OL]. <xref ref-type="fn" rid="fn_3">3)</xref><fn id="fn_3"><label><sup>3)</sup></label><p>参考文献条目的脚注。</p></fn></mixed-citation>
+      </ref>
+    </ref-list>
+    <index id="sec_index">
+      <index-title-group>
+        <title>索引</title>
+      </index-title-group>
+      <index-div>
+        <index-title-group>
+          <title>A</title>
+        </index-title-group>
+        <index-entry id="df_1">
+          <term>访问控制</term>
+          <see-entry>5.1</see-entry>
+          <see-entry>表1</see-entry>
+        </index-entry>
+        <index-entry id="df_2">
+          <term>ADC</term>
+          <see-entry>图1</see-entry>
+        </index-entry>
+      </index-div>
+      <index-div>
+        <index-entry id="df_3">
+          <term>防火墙<sup>2</sup></term>
+          <see-entry>第3章</see-entry>
+        </index-entry>
+      </index-div>
+    </index>
+  </back>
+</standard>

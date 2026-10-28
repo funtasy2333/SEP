@@ -499,7 +499,7 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 <p class="ses-term-head"><span class="ses-term-name">标准</span>　<span class="ses-term-name-en" lang="en">standard</span></p>
 <p class="ses-term-def" data-node-id="term-1.def0">通过标准化活动制定的文件。</p>
 <p class="ses-term-source">[来源：GB/T 20000.1—2014，5.3]</p>
-<div class="ses-note" data-type="note" data-node-id="term-1-note" id="note_2"><span class="ses-note-marker">注：</span>术语注。</div>
+<div class="ses-note" data-type="note" data-node-id="term-1-note" id="nte_3.1-1"><span class="ses-note-marker">注：</span>术语注。</div>
 <div class="ses-example" data-type="example" data-node-id="term-1-ex" id="example_1"><span class="ses-example-marker">示例：</span>术语示例。</div>
 </div>
 <div class="ses-term-entry" data-type="term-entry" data-node-id="term-2" id="sec_3.2">
@@ -521,8 +521,8 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 <span class="ses-list-item-text">第二项</span>
 </div>
 </div>
-<div class="ses-note" data-type="note" data-node-id="n-41a" id="note_3"><span class="ses-note-marker">注1：</span>第一条注。</div>
-<div class="ses-note" data-type="note" data-node-id="n-41b" id="note_4"><span class="ses-note-marker">注2：</span>第二条注。</div>
+<div class="ses-note" data-type="note" data-node-id="n-41a" id="note_2"><span class="ses-note-marker">注1：</span>第一条注。</div>
+<div class="ses-note" data-type="note" data-node-id="n-41b" id="note_3"><span class="ses-note-marker">注2：</span>第二条注。</div>
 <div class="ses-example" data-type="example" data-node-id="ex-41a" id="example_2"><span class="ses-example-marker">示例1：</span>第一个示例。</div>
 <div class="ses-example" data-type="example" data-node-id="ex-41b" id="example_3"><span class="ses-example-marker">示例2：</span>第二个示例。</div>
 </section>
@@ -549,7 +549,7 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 </tr>
 </tbody>
 <tfoot>
-<tr class="ses-table-notes"><td colspan="2"><div class="ses-note" data-type="note" data-node-id="tbl-1.note0" id="note_5"><span class="ses-note-marker">注：</span>表内的注。</div></td></tr>
+<tr class="ses-table-notes"><td colspan="2"><div class="ses-note" data-type="note" data-node-id="tbl-1.note0" id="note_4"><span class="ses-note-marker">注：</span>表内的注。</div></td></tr>
 </tfoot>
 </table>
 </div>
@@ -616,8 +616,8 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
 </section>
 <section class="ses-bibliography" data-type="bibliography" id="sec_bibliography" role="doc-bibliography">
 <h2 class="ses-bib-title">参考文献</h2>
-<div class="ses-bib-entry" data-node-id="bib-2" id="bib_1">[1]　ISO/IEC Directives, Part 2</div>
-<div class="ses-bib-entry" data-node-id="bib-1" id="bib_2">[2]　GB/T 20000.1—2014 标准化工作指南</div>
+<div class="ses-bib-entry" data-node-id="bib-2" id="biblref_1">[1]　ISO/IEC Directives, Part 2</div>
+<div class="ses-bib-entry" data-node-id="bib-1" id="biblref_2">[2]　GB/T 20000.1—2014 标准化工作指南</div>
 </section>
 <div class="ses-end-mark" role="presentation"></div>
 </div>
@@ -784,7 +784,7 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 <p class="ses-term-head"><span class="ses-term-name">标准</span>　<span class="ses-term-name-en" lang="en">standard</span></p>
 <p class="ses-term-def" data-node-id="term-1.def0">通过标准化活动制定的文件。</p>
 <p class="ses-term-source">[来源：GB/T 20000.1—2014，5.3]</p>
-<div class="ses-note" data-type="note" data-node-id="term-1-note" id="note_2"><span class="ses-note-marker">注：</span>术语注。</div>
+<div class="ses-note" data-type="note" data-node-id="term-1-note" id="nte_3.1-1"><span class="ses-note-marker">注：</span>术语注。</div>
 <div class="ses-example" data-type="example" data-node-id="term-1-ex" id="example_1"><span class="ses-example-marker">示例：</span>术语示例。</div>
 </div>
 <div class="ses-term-entry" data-type="term-entry" data-node-id="term-2" id="sec_3.2">
@@ -806,8 +806,8 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 <span class="ses-list-item-text">第二项</span>
 </div>
 </div>
-<div class="ses-note" data-type="note" data-node-id="n-41a" id="note_3"><span class="ses-note-marker">注1：</span>第一条注。</div>
-<div class="ses-note" data-type="note" data-node-id="n-41b" id="note_4"><span class="ses-note-marker">注2：</span>第二条注。</div>
+<div class="ses-note" data-type="note" data-node-id="n-41a" id="note_2"><span class="ses-note-marker">注1：</span>第一条注。</div>
+<div class="ses-note" data-type="note" data-node-id="n-41b" id="note_3"><span class="ses-note-marker">注2：</span>第二条注。</div>
 <div class="ses-example" data-type="example" data-node-id="ex-41a" id="example_2"><span class="ses-example-marker">示例1：</span>第一个示例。</div>
 <div class="ses-example" data-type="example" data-node-id="ex-41b" id="example_3"><span class="ses-example-marker">示例2：</span>第二个示例。</div>
 </section>
@@ -835,7 +835,7 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 </tr>
 </tbody>
 <tfoot>
-<tr class="ses-table-notes"><td colspan="2"><div class="ses-note" data-type="note" data-node-id="tbl-1.note0" id="note_5"><span class="ses-note-marker">注：</span>表内的注。</div></td></tr>
+<tr class="ses-table-notes"><td colspan="2"><div class="ses-note" data-type="note" data-node-id="tbl-1.note0" id="note_4"><span class="ses-note-marker">注：</span>表内的注。</div></td></tr>
 </tfoot>
 </table>
 </div>
@@ -856,7 +856,7 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 <dt data-node-id="f-1.w2">c</dt><dd><span class="ses-where-dash">——</span><span class="ses-where-text">光速。</span></dd>
 </dl>
 </div>
-<p class="ses-paragraph" data-type="paragraph" data-node-id="p-4221">引用文献<a class="ses-xref" href="#bib_1" data-ref-target="bib-2">[1]</a>。</p>
+<p class="ses-paragraph" data-type="paragraph" data-node-id="p-4221">引用文献<a class="ses-xref" href="#biblref_1" data-ref-target="bib-2">[1]</a>。</p>
 </section>
 </section>
 </section>
@@ -903,8 +903,8 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
 </section>
 <section class="ses-bibliography" data-type="bibliography" id="sec_bibliography" role="doc-bibliography">
 <h2 class="ses-bib-title">参考文献</h2>
-<div class="ses-bib-entry" data-node-id="bib-2" id="bib_1">[1]　ISO/IEC Directives, Part 2</div>
-<div class="ses-bib-entry" data-node-id="bib-1" id="bib_2">[2]　GB/T 20000.1—2014 标准化工作指南</div>
+<div class="ses-bib-entry" data-node-id="bib-2" id="biblref_1">[1]　ISO/IEC Directives, Part 2</div>
+<div class="ses-bib-entry" data-node-id="bib-1" id="biblref_2">[2]　GB/T 20000.1—2014 标准化工作指南</div>
 </section>
 <div class="ses-end-mark" role="presentation"></div>
 </div>

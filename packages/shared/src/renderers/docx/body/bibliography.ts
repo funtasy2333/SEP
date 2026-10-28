@@ -2,7 +2,7 @@
  * 参考文献渲染（docs/wp7-docx-delivery.md §5.12）。
  *
  * 按 Resolver 赋的序号输出：`renderDocx` 拿不到 `bibliographyOrder`，按 `labels[id].xmlId`
- * （`bib_<n>`）中的 n 升序排列 `doc.bibliography`，没有 label 的排在最后并保持原顺序。
+ * （`biblref_<n>`）中的 n 升序排列 `doc.bibliography`，没有 label 的排在最后并保持原顺序。
  * content 里已写了编号前缀（如「[9] 」）时先剥掉，避免排成「[1]　[9] ……」。
  *
  * 同构纯 TypeScript，不引用浏览器或 Node 专有 API。

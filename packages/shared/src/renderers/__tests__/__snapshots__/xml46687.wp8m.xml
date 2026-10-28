@@ -1,0 +1,582 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<standard xmlns:mml="http://www.w3.org/1998/Math/MathML" xmlns:tbx="urn:iso:std:iso:30042:ed-1" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <processing-meta base-tagset="interchange" mathml-version="3.0" table-model="xhtml" terminology-model="tbx" math-representation="mathml" tagset-family="sts">
+    <custom-meta-group>
+      <custom-meta>
+        <meta-name>基于XML的标准文档内容标记指南</meta-name>
+        <meta-value>2026</meta-value>
+      </custom-meta>
+    </custom-meta-group>
+  </processing-meta>
+  <front>
+    <std-meta>
+      <title-wrap xml:lang="zh">
+        <full>WP8.M 全要素样例</full>
+      </title-wrap>
+      <std-org-group>
+        <std-org>
+          <std-org-name>国家市场监督管理总局</std-org-name>
+        </std-org>
+      </std-org-group>
+      <content-language>zh</content-language>
+      <release-date>2026-04-30</release-date>
+      <implementation-date>2026-11-01</implementation-date>
+    </std-meta>
+    <sec id="sec_foreword" sec-type="foreword">
+      <title>前言</title>
+      <non-normative-note>
+        <label>注：</label>
+        <p>前言注的第一段。</p>
+        <p>前言注的第二段。</p>
+      </non-normative-note>
+    </sec>
+    <sec id="sec_0" sec-type="intro">
+      <title>引言</title>
+      <sec id="sec_0.1">
+        <label>0.1</label>
+        <title>背景</title>
+        <sec id="sec_0.1.1">
+          <label>0.1.1</label>
+          <title>起因</title>
+          <p>编制起因。</p>
+          <non-normative-note>
+            <label>注：</label>
+            <p>引言条内的注。</p>
+          </non-normative-note>
+        </sec>
+        <sec id="sec_0.1.2">
+          <label>0.1.2</label>
+          <title>说明</title>
+          <p>本文件的编制背景。<xref ref-type="fn" rid="fn_1">1)</xref><fn id="fn_1"><label><sup>1)</sup></label><p>引言条中的脚注。</p></fn></p>
+        </sec>
+      </sec>
+      <sec id="sec_0.2">
+        <label>0.2</label>
+        <title>目的</title>
+        <p>编制目的，见<xref ref-type="sec" rid="sec_0.1">0.1</xref>。</p>
+      </sec>
+      <sec id="sec_0.3" sec-type="numbered-paragraph">
+        <label>0.3</label>
+        <p>无标题条的条文。</p>
+      </sec>
+    </sec>
+  </front>
+  <body>
+    <sec id="sec_1" sec-type="scope">
+      <label>1</label>
+      <title>范围</title>
+      <p>本文件规定了引用的写法。</p>
+      <p>本文件使用缩略语<xref ref-type="abbreviation" rid="abb_1">ADC</xref>与<xref ref-type="abbreviation" rid="abb_3">CT</xref>。</p>
+      <p>本文件的符号<inline-graphic xlink:href="inl_1" specific-use="size:M"/>见<xref ref-type="fig" rid="fig_1">图1</xref>。</p>
+      <p>术语见<xref ref-type="custom" custom-type="term-entry" rid="term_3.1">协会</xref>，领域术语见<xref ref-type="custom" custom-type="term-entry" rid="term_3.3.1">技术规范</xref>。</p>
+      <p>见引言<xref ref-type="sec" rid="sec_0.1">0.1</xref>与<xref ref-type="sec" rid="sec_0.1.1">0.1.1</xref>。</p>
+    </sec>
+    <sec id="sec_2" sec-type="norm-refs">
+      <label>2</label>
+      <title>规范性引用文件</title>
+      <p>下列文件中的内容通过文中的规范性引用而构成本文件必不可少的条款。</p>
+      <ref-list content-type="norm-refs">
+        <ref id="ref_1">
+          <std><std-ref>GB/T 321</std-ref><title>优先数和优先数系</title></std>
+        </ref>
+        <ref id="ref_2">
+          <std><std-ref>GB/T 3102（所有部分）</std-ref><title>量和单位</title></std>
+        </ref>
+        <ref id="ref_3">
+          <std><std-ref>ISO 80000（所有部分）</std-ref><title>量和单位（Quantities and units）</title></std>
+        </ref>
+        <ref id="ref_4">
+          <mixed-citation>《中华人民共和国计量法》<xref ref-type="fn" rid="fn_2">2)</xref><fn id="fn_2"><label><sup>2)</sup></label><p>非标准化文件的脚注。</p></fn></mixed-citation>
+        </ref>
+      </ref-list>
+    </sec>
+    <sec id="sec_3" sec-type="terms">
+      <label>3</label>
+      <title>术语和定义</title>
+      <p>下列术语和定义适用于本文件。</p>
+      <term-sec id="sec_3.1">
+        <label>3.1</label>
+        <tbx:termEntry id="term_3.1">
+          <tbx:langSet xml:lang="zh">
+            <tbx:subjectField>顾客满意</tbx:subjectField>
+            <tbx:definition>由成员组织或个人组成的组织。</tbx:definition>
+            <tbx:tig>
+              <tbx:term>协会</tbx:term>
+            </tbx:tig>
+          </tbx:langSet>
+          <tbx:langSet xml:lang="en">
+            <tbx:tig>
+              <tbx:term>association</tbx:term>
+            </tbx:tig>
+          </tbx:langSet>
+        </tbx:termEntry>
+      </term-sec>
+      <term-sec id="sec_3.2">
+        <label>3.2</label>
+        <tbx:termEntry id="term_3.2">
+          <tbx:langSet xml:lang="zh">
+            <tbx:definition>没有领域字段的旧式术语条目。</tbx:definition>
+            <tbx:tig>
+              <tbx:term>无领域术语</tbx:term>
+            </tbx:tig>
+          </tbx:langSet>
+        </tbx:termEntry>
+      </term-sec>
+      <sec id="sec_3.3">
+        <label>3.3</label>
+        <title>分类术语</title>
+        <term-sec id="sec_3.3.1">
+          <label>3.3.1</label>
+          <tbx:termEntry id="term_3.3.1">
+            <tbx:langSet xml:lang="zh">
+              <tbx:subjectField>ISO 和/或 IEC 发布的</tbx:subjectField>
+              <tbx:definition>现阶段处在发展阶段的标准化文件。</tbx:definition>
+              <tbx:note>领域不影响注的编号。</tbx:note>
+              <tbx:source>GB/T 20000.1—2014，5.3</tbx:source>
+              <tbx:tig>
+                <tbx:term>技术规范</tbx:term>
+              </tbx:tig>
+            </tbx:langSet>
+            <tbx:langSet xml:lang="en">
+              <tbx:tig>
+                <tbx:term>technical specification</tbx:term>
+              </tbx:tig>
+            </tbx:langSet>
+          </tbx:termEntry>
+        </term-sec>
+        <term-sec id="sec_3.3.2">
+          <label>3.3.2</label>
+          <tbx:termEntry id="term_3.3.2">
+            <tbx:langSet xml:lang="zh">
+              <tbx:subjectField>化学</tbx:subjectField>
+              <tbx:definition>没有英文名、领域含粗体的术语条目。</tbx:definition>
+              <tbx:tig>
+                <tbx:term>仅领域术语</tbx:term>
+              </tbx:tig>
+            </tbx:langSet>
+          </tbx:termEntry>
+        </term-sec>
+      </sec>
+      <term-sec id="sec_3.4">
+        <label>3.4</label>
+        <tbx:termEntry id="term_3.4">
+          <tbx:langSet xml:lang="zh">
+            <tbx:subjectField>附录领域</tbx:subjectField>
+            <tbx:definition>附录中的术语。</tbx:definition>
+            <tbx:tig>
+              <tbx:term>附录术语</tbx:term>
+            </tbx:tig>
+          </tbx:langSet>
+        </tbx:termEntry>
+      </term-sec>
+    </sec>
+    <sec id="sec_4">
+      <label>4</label>
+      <title>符号和缩略语</title>
+      <p>下列缩略语适用于本文件。</p>
+      <def-list list-content="abbreviation">
+        <def-item id="abb_1">
+          <term>ADC</term>
+          <def>
+            <p>模数转换器（Analog-to-Digital Converter）</p>
+          </def>
+        </def-item>
+        <def-item>
+          <term>AGC</term>
+          <def>
+            <p>自动增益控制（Automatic Gain Control）</p>
+          </def>
+        </def-item>
+        <def-item id="abb_3">
+          <term>CT</term>
+          <def>
+            <p>计算机断层扫描，参见<xref ref-type="abbreviation" rid="abb_1">ADC</xref><bold>与</bold>电流互感器</p>
+          </def>
+        </def-item>
+      </def-list>
+      <sec id="sec_4.1">
+        <label>4.1</label>
+        <title>化学符号</title>
+        <def-list list-content="abbreviation">
+          <def-item id="abb_4">
+            <term>CO<sub>2</sub></term>
+            <def>
+              <p>二氧化碳</p>
+            </def>
+          </def-item>
+        </def-list>
+        <p>见<xref ref-type="abbreviation" rid="abb_4">CO2</xref>。</p>
+      </sec>
+    </sec>
+    <sec id="sec_5">
+      <label>5</label>
+      <title>总体要求</title>
+      <p>量的名称与符号应符合<std><std-ref>GB/T 3102.1</std-ref></std>的规定，并遵守<mixed-citation>《中华人民共和国计量法》</mixed-citation>。</p>
+      <p>加粗的标准引用：<bold><std><std-ref>GB/T 321</std-ref></std></bold>；见<xref ref-type="sec" rid="sec_2">第2章</xref><std><std-ref>GB/T 20000.1—2014</std-ref></std></p>
+      <list list-type="dash">
+        <list-item>
+          <p>符合<std><std-ref>GB/T 321</std-ref></std></p>
+        </list-item>
+      </list>
+      <non-normative-note>
+        <label>注：</label>
+        <p>注中引用<std><std-ref>GB/T 3102</std-ref></std></p>
+      </non-normative-note>
+    </sec>
+    <sec id="sec_6">
+      <label>6</label>
+      <title>图的说明</title>
+      <p>资源图：<inline-graphic xlink:href="inl_2" specific-use="size:S"/>，无尺寸图：<inline-graphic xlink:href="inl_3"/></p>
+      <fig id="fig_1">
+        <label>图1</label>
+        <caption>
+          <title>测试图</title>
+        </caption>
+        <legend>
+          <title>图例</title>
+          <def-list list-content="figure">
+            <def-item>
+              <term>1</term>
+              <def>
+                <p>主电路</p>
+              </def>
+            </def-item>
+            <def-item>
+              <term>2</term>
+              <def>
+                <p>控制器，见<xref ref-type="fig" rid="fig_B.1">图B.1</xref></p>
+              </def>
+            </def-item>
+            <def-item>
+              <term>V<sub>o</sub></term>
+              <def>
+                <p><bold>输出电压</bold></p>
+              </def>
+            </def-item>
+          </def-list>
+        </legend>
+        <graphic content-type="image" xlink:href="fig_1"/>
+        <non-normative-note>
+          <label>注1：</label>
+          <p>图注一。</p>
+        </non-normative-note>
+        <non-normative-note>
+          <label>注2：</label>
+          <p>图注二。</p>
+        </non-normative-note>
+        <non-normative-example>
+          <label>示例：</label>
+          <p>图中示例。</p>
+        </non-normative-example>
+      </fig>
+      <fig id="fig_2">
+        <label>图2</label>
+        <caption>
+          <title>第二幅图</title>
+        </caption>
+        <graphic content-type="image" xlink:href="fig_2"/>
+        <non-normative-note>
+          <label>注：</label>
+          <p>唯一图注。</p>
+        </non-normative-note>
+        <non-normative-example>
+          <label>示例：</label>
+          <p>唯一图示例。</p>
+        </non-normative-example>
+      </fig>
+      <list list-type="dash">
+        <list-item>
+          <p>列项中的图：<inline-graphic xlink:href="inl_4" specific-use="size:L"/></p>
+        </list-item>
+      </list>
+      <non-normative-note>
+        <label>注：</label>
+        <p>注中的图：<inline-graphic xlink:href="inl_5"/></p>
+      </non-normative-note>
+      <table-wrap id="tab_1">
+        <label>表1</label>
+        <caption>
+          <title>含行内图的表</title>
+        </caption>
+        <table>
+          <tbody>
+            <tr>
+              <td>单元格：<inline-graphic xlink:href="inl_6" specific-use="size:S"/></td>
+            </tr>
+          </tbody>
+        </table>
+      </table-wrap>
+    </sec>
+    <sec id="sec_7">
+      <label>7</label>
+      <title>技术要求</title>
+      <sec id="sec_7.1">
+        <label>7.1</label>
+        <title>列项</title>
+        <p>见<xref ref-type="list" rid="li_1">7.1 c）</xref>与<xref ref-type="list" rid="li_2">7.1 2）</xref></p>
+        <list list-type="alpha-lower">
+          <list-item>
+            <label>a)</label>
+            <p>甲</p>
+          </list-item>
+          <list-item>
+            <label>b)</label>
+            <p>乙</p>
+          </list-item>
+          <list-item id="li_1">
+            <label>c)</label>
+            <p>丙</p>
+          </list-item>
+        </list>
+        <list list-type="arabic">
+          <list-item>
+            <label>1)</label>
+            <p>壹</p>
+          </list-item>
+          <list-item id="li_2">
+            <label>2)</label>
+            <p>贰</p>
+          </list-item>
+        </list>
+        <list list-type="dash">
+          <list-item>
+            <p>一</p>
+          </list-item>
+          <list-item>
+            <p>二</p>
+          </list-item>
+        </list>
+      </sec>
+    </sec>
+    <sec id="sec_8">
+      <label>8</label>
+      <title>技术要求</title>
+      <sec id="sec_8.1">
+        <label>8.1</label>
+        <title>列项与注</title>
+        <p>分下列步骤，见<xref ref-type="list" rid="li_3">8.1 iii）</xref>，并见<xref ref-type="custom" custom-type="note" rid="note_10">注3</xref>。</p>
+        <list list-type="roman-lower">
+          <list-item>
+            <label>i)</label>
+            <p>准备</p>
+          </list-item>
+          <list-item>
+            <label>ii)</label>
+            <p>实施</p>
+          </list-item>
+          <list-item id="li_3">
+            <label>iii)</label>
+            <p>检查</p>
+          </list-item>
+          <list-item>
+            <label>iv)</label>
+            <p>处置</p>
+          </list-item>
+        </list>
+        <non-normative-note>
+          <label>注1：</label>
+          <p>旧式单段注。</p>
+        </non-normative-note>
+        <non-normative-note>
+          <label>注2：</label>
+          <p>多块注的第一段。</p>
+          <p>第二段带脚注<xref ref-type="fn" rid="fn_3">3)</xref><fn id="fn_3"><label><sup>3)</sup></label><p>注内段落的脚注。</p></fn>。</p>
+          <list list-type="dash">
+            <list-item>
+              <p>注内列项一</p>
+            </list-item>
+            <list-item>
+              <p>注内列项二</p>
+            </list-item>
+          </list>
+        </non-normative-note>
+        <non-normative-note id="note_10">
+          <label>注3：</label>
+          <p>单段但段落 id 非派生的注。</p>
+        </non-normative-note>
+        <non-normative-example>
+          <label>示例1：</label>
+          <p>旧式单段示例。</p>
+        </non-normative-example>
+        <non-normative-example>
+          <label>示例2：</label>
+          <p>多块示例的引语：</p>
+          <list list-type="roman-lower">
+            <list-item>
+              <label>i)</label>
+              <p>示例项甲</p>
+            </list-item>
+            <list-item>
+              <label>ii)</label>
+              <p>示例项乙</p>
+            </list-item>
+          </list>
+        </non-normative-example>
+      </sec>
+      <sec id="sec_8.2">
+        <label>8.2</label>
+        <title>表中的块注</title>
+        <table-wrap id="tab_2">
+          <label>表2</label>
+          <caption>
+            <title>块注示例表</title>
+          </caption>
+          <table>
+            <thead>
+              <tr>
+                <th>项目</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>取值</td>
+                <td>详见表注。</td>
+              </tr>
+            </tbody>
+          </table>
+          <table-wrap-foot>
+            <non-normative-note>
+              <label>注：</label>
+              <p>单元格内注的第一段。</p>
+              <p>单元格内注的第二段。</p>
+            </non-normative-note>
+          </table-wrap-foot>
+        </table-wrap>
+      </sec>
+    </sec>
+    <sec id="sec_9">
+      <label>9</label>
+      <title>表的版式</title>
+      <p>见<xref ref-type="table" rid="tab_3">表3</xref>。</p>
+      <table-wrap id="tab_3">
+        <label>表3</label>
+        <caption>
+          <title>两列表</title>
+        </caption>
+        <table>
+          <col align="center" valign="middle" width="40%"/>
+          <col width="60%"/>
+          <thead>
+            <tr>
+              <th>项目</th>
+              <th>要求</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="border-top: solid 5px; border-right: none; border-bottom: dashed 3px">甲</td>
+              <td style="border-left: dotted 2px; border-top: dotted 2px; border-right: dotted 2px; border-bottom: dotted 2px">乙</td>
+            </tr>
+          </tbody>
+        </table>
+      </table-wrap>
+      <table-wrap id="tab_4">
+        <label>表4</label>
+        <caption>
+          <title>合并单元格表</title>
+        </caption>
+        <table>
+          <col width="20%"/>
+          <col/>
+          <col align="right" valign="bottom" width="50%"/>
+          <thead>
+            <tr>
+              <th colspan="2">合并表头</th>
+              <th>单列表头</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td rowspan="2">跨行</td>
+              <td>b1</td>
+              <td>c1</td>
+            </tr>
+            <tr>
+              <td>b2</td>
+              <td>c2</td>
+            </tr>
+          </tbody>
+        </table>
+      </table-wrap>
+      <table-wrap id="tab_5">
+        <label>表5</label>
+        <caption>
+          <title>旧式表</title>
+        </caption>
+        <table>
+          <thead>
+            <tr>
+              <th>项</th>
+              <th>值</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>x</td>
+              <td>y</td>
+            </tr>
+          </tbody>
+        </table>
+      </table-wrap>
+    </sec>
+  </body>
+  <back>
+    <app-group>
+      <app id="sec_A" content-type="informative">
+        <label>附录 A</label>
+        <annex-type>（资料性）</annex-type>
+        <title>补充缩略语</title>
+        <p>下列缩略语适用于本附录。</p>
+        <def-list list-content="abbreviation">
+          <def-item>
+            <term>UTF-8</term>
+            <def>
+              <p>8位统一码转换格式（8-bit Unicode Transformation Format）</p>
+            </def>
+          </def-item>
+        </def-list>
+      </app>
+      <app id="sec_B" content-type="informative">
+        <label>附录 B</label>
+        <annex-type>（资料性）</annex-type>
+        <title>补充图</title>
+        <p>下图为补充说明。</p>
+        <fig id="fig_B.1">
+          <label>图B.1</label>
+          <caption>
+            <title>附录图</title>
+          </caption>
+          <legend>
+            <def-list list-content="figure">
+              <def-item>
+                <term>A</term>
+                <def>
+                  <p>甲</p>
+                </def>
+              </def-item>
+            </def-list>
+          </legend>
+          <graphic content-type="image" xlink:href="fig_B.1"/>
+          <non-normative-note>
+            <label>注：</label>
+            <p>附录图注。</p>
+          </non-normative-note>
+        </fig>
+      </app>
+      <app id="sec_C" content-type="normative">
+        <label>附录 C</label>
+        <annex-type>（规范性）</annex-type>
+        <title>附录术语</title>
+        <p>本附录的术语见术语和定义一章。</p>
+      </app>
+    </app-group>
+    <ref-list id="sec_bibl" content-type="bibl">
+      <title>参考书目</title>
+      <ref id="biblref_1">
+        <label>[1]</label>
+        <mixed-citation xlink:type="simple">张三.计量学基础[M].北京:出版社,2020.</mixed-citation>
+      </ref>
+    </ref-list>
+  </back>
+</standard>
