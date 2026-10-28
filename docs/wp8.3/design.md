@@ -12,7 +12,7 @@
 
 输入 UTF-8 文本；接受唯一 XML 1.0 声明且只能出现在文首（允许 BOM），声明编码仅 UTF-8。一个根、良构的开始/结束标签、唯一展开名属性、合法 XML 字符与 QName，拒绝未绑定前缀、重复 namespace 声明或非法 xml/xmlns 绑定。默认命名空间只作用于元素、不作用于无前缀属性；`xml` 固定 URI；所有匹配按 URI+local，`prefix` 仅写出提示。标准主体须无命名空间，TBX `urn:iso:std:iso:30042:ed-1`、MathML `http://www.w3.org/1998/Math/MathML`、XLink `http://www.w3.org/1999/xlink`；前缀任意，但其 URI 须正确。树复用 `packages/shared/src/xml46687/tree.ts`：元素、文本、注释均填起始 1-based 行列及同名兄弟序号路径；属性问题定位到所在元素（现有 `XmlAttr` 无 position）。CRLF/CR 按 XML 换行规则归一，CDATA 转 text，`xml:space` 继承 preserve/default；内容文本不 trim，结构间空白按内容模型识别，不全局折叠。解码数值字符引用与五种预定义实体，校验 Unicode 标量及 XML 合法字符。注释合法但不进入 IR；DOCTYPE、实体声明、外部实体、其余命名实体以及除 XML 声明以外任何 PI 一律 error，绝不联网。
 
-建议资源上限：XML UTF-8 16 MiB、元素深度 128、单连续文本节点解码后 1 MiB、总节点 500,000；字符引用累积计入解码长度，合并 CDATA/相邻 text 时重新检查；限制在分配前执行，流式扫描 O(n)，栈/namespace 表 O(depth)，树 O(n)，避免正则回溯及字符串重复拼接造成平方复杂度。数值是实现安全上限建议，须用真实样稿容量复核；超限报位置与阈值。JS 字符串输入用 UTF-8 字节计数而非 UTF-16 字符数，ZIP 解压也必须有独立上限。对 MathML 保存其安全的 XML 子树内容及语义，不承诺原始引号、实体、CDATA 或前缀字节原样；去除根 id 并由导出重新派生，保持结构、文本、属性。禁止脚本、事件属性及不安全 URI，与现有 MathML 检查和 V-10/V-11 同口径，不能把任意原始字符串直通输出。
+建议资源上限：XML UTF-8 16 MiB、元素深度 128、单连续文本节点解码后 1 MiB、总节点 500,000；字符引用累积计入解码长度，合并 CDATA/相邻 text 时重新检查；限制在分配前执行，流式扫描 O(n)，栈 O(depth)，namespace 存储 O(当前可见绑定数 + 所有未退出作用域的声明日志条数)，树 O(n)；用前缀当前绑定哈希表和每层声明变更日志，进入时逐条覆盖并记录旧值，退出时按逆序恢复，避免每层复制整张表。总绑定查找/增删期望 O(n)，内存依赖同时活动的绑定及未退出的覆盖日志；不得将哈希最坏情况称为严格 O(n)。避免正则回溯及字符串重复拼接造成平方复杂度。数值是实现安全上限建议，须用真实样稿容量复核；超限报位置与阈值。JS 字符串输入用 UTF-8 字节计数而非 UTF-16 字符数，ZIP 解压也必须有独立上限。对 MathML 保存其安全的 XML 子树内容及语义，不承诺原始引号、实体、CDATA 或前缀字节原样；去除根 id 并由导出重新派生，保持结构、文本、属性。禁止脚本、事件属性及不安全 URI，与现有 MathML 检查和 V-10/V-11 同口径，不能把任意原始字符串直通输出。
 
 ## 3. 结构、语义和问题
 
@@ -27,7 +27,7 @@
 - 元数据：`std-meta` 标识、分段多语言 title、语言、分类、发布机构、版权、日期映射 `IRDoc.meta` 对应字段；`release-date` 是发布日期，`implementation-date` 是实施日期；接收 `release-date` 的 published/implemented 异写并检测重复（4.1 印刷页 2、4.3.2 印刷页 6；C-S-12）。`processing-meta` 是处理信息，校验属性而不进 IR；无 IR 字段的信息仅在约定允许时忽略并报告。元数据顺序 import 宽容（V-12）。
 - `front` 的 foreword/intro → `IRDoc.front`；intro 子条 → `introductionClauses`，两种 id 形式均接受且 id 不作为结构语义。`body/sec` → `IRChapter`，子 `sec` → `IRClause`；`numbered-paragraph` 无 title，其他条标题入相应字段，附录 `app` → `IRAppendix`。`norm_refs` 规范化 `norm-refs`，异写给提示；无可保真结构时阻断。
 - 段落及样式 → `IRParagraph.content` / `IRInline` marks（bold、italic、underline、sup、sub、monospace 等依矩阵）；外链 URI 校验；换行按 IR 支持转换。`list` → `IRList.listType` / `items`，项含段落/列表；`roman-lower`→roman、`roman-upper` 拒绝。嵌套 PM 的限制与待决见 §9。注/示例在章条等块级位置转 `IRNote/IRExample.content` 多块；术语、表、图只存单段，多段拼接并 warning（WP8.M G7）。警告、摘录及代码按 `IRBlock` 的 `warning`、`quote`、`code` 对应内容保存，语言和来源只能按现有 IR 表达；无法保存的组合报 error。
-- `table-wrap` → `IRTable`：标题、编号、方向、宽度、`rows[].cells[]`、rowspan/colspan/header、边框样式；`colgroup/col` 展开为 `columns`，数量不符 error；非百分比宽度及不支持的列 style 告警。`thead` 决定 headerRowCount，`thead` 非 th 依标志处理并告警。`table-wrap-foot` 的 dimension、notes、footnotes 分别保存并处理原顺序与规范化；脚注引用必须指向本表。`tfoot` 依 C-T-02 拒绝，`td@scope` 忽略告警、`frame/rules` 根据单元格边框推断并告警（6.2.2/6.2.3 印刷页 20、6.4 印刷页 24–25；C-T-07/10）。
+- `table-wrap` → `IRTable`：缺表题映射 `caption=[]` 并告警；`tables.ts:303` 已支持导出空 `caption/title`（caption-empty warning），`resolve.ts:384` 仍对表统一编号。缺 label/无编号与缺题名不同：V-17 导入告警，重新导出 Resolver 生成编号，明确报告该规范化，不能声称保留无编号；其余标题、编号、方向、宽度、`rows[].cells[]`、rowspan/colspan/header、边框样式；`colgroup/col` 展开为 `columns`，数量不符 error；非百分比宽度及不支持的列 style 告警。`thead` 决定 headerRowCount，`thead` 非 th 依标志处理并告警。`table-wrap-foot` 的 dimension、notes、footnotes 分别保存并处理原顺序与规范化；脚注引用必须指向本表。`tfoot` 依 C-T-02 拒绝，`td@scope` 忽略告警、`frame/rules` 根据单元格边框推断并告警（6.2.2/6.2.3 印刷页 20、6.4 印刷页 24–25；C-T-07/10）。
 - `fig` → `IRFigure`，graphic 资源、caption、legend.title 与 `def-list[figure]` 项、notes、examples；图中注/示例交错归一为注在前并告警。`inline-graphic` → `IRInline.image`，仅 p 及其合法上下文；size:T 忽略并告警，资源缺失阻断（8.3、8.5 印刷页 31–32，C-T-27/31）。
 - `disp-formula`/`inline-formula` → `IRFormula`/对应行内公式，原生 MathML 保存至 `mathml`，不反译 LaTeX；导出时规范化根 id/display（7.4 印刷页 28–30，C-T-19）。
 - `term-sec/tbx:termEntry` → `IRTermEntry`，`langSet` → languageSets、`tig` → groups、term 及 partOfSpeech/termType/normativeAuthorization 等 → descriptors；definition、notes、examples、source 归条目级，非首语言集归并告警；多个 subjectField 合并并告警、写条目级。定义多于一个 error、零个 warning，多个 source 保首个并警告（9.2.1–9.2.9 印刷页 35–43，C-T-43/44；WP8.M G5）。
@@ -49,7 +49,7 @@
 
 ## 7. 基线样例与约定冲突
 
-2026-10-28 在本 worktree 调用 `validate.py --profile import --json`，用本地 xmllint 20914 + lxml，检查顶层 `results[]` 而非将汇总 `valid` 当每份结果：9 个 valid 全为格式有效，78 个 invalid 中 65 拒绝、13 接受。此为外部格式校验基线，**不证明 TS 导入实现**；`09-import-pending.xml` 含 `array`、`disp-formula-group` 和同脚注多引用，矩阵仍为 implementation reject（M-5.8-01/M-C.1-04、M-C.1-05、M-10.1.8-04），校验只告警而实际导入应阻断。用户所要求 valid 全能导入与现有拒绝项冲突，不能删样例或改警告掩盖。
+2026-10-28 在本 worktree 调用 `validate.py --profile import --json`，用本地 xmllint 20914 + lxml，检查顶层 `results[]` 而非将汇总 `valid` 当每份结果：9 个 valid 全为格式有效，78 个 invalid 中 65 拒绝、13 接受。此为外部格式校验基线，**不证明 TS 导入实现**；`09-import-pending.xml` 含 `array`、`disp-formula-group` 和同脚注多引用，矩阵仍为 implementation reject（M-5.8-01/M-C.1-04、M-C.1-05、M-10.1.8-04），校验只告警而实际导入应阻断。其他 valid 亦受保真限制：`03-structure.xml:93` 有 alpha 列项嵌套 dash，受 M-5.7-11 与生产 Schema 限制；`05-formulas-figures.xml:103-104` 同 fig 多 graphic，`:106` 起含 fig-group 和组级 legend；`08-original-forms-vs-sts.xml:88` 含表替代 graphic（M-6.1-04），现有 IR 无字段保存它与所属表的关联。按不静默丢弃原则，未决项决定前均应 error；既有格式 accept/允许警告不等于生产模型可保真。用户所要求 valid 全能导入与现有拒绝项冲突，不能删样例或改警告掩盖。
 
 13 个 import 接受的 invalid 文件逐项如下（`validate.py` 的既有行为；语义不能表达时导入器仍需按保真约束报告，不自动收紧格式约定）：
 
@@ -98,7 +98,8 @@ P2–P5 并行仅在 P1 约定冻结后，各自不同文件；均不得修改 s
 5. 附录 `term-sec`：V-2 目前将术语条限定 terms 章；建议保持拒绝。是否修改约定接受附录？
 6. server HTTP/MCP 是否提前：直接调用 io 必做；默认接口留 WP8.4。提前接入则需额外 API/MCP 契约、资源和事务测试，不改变本阶段 UI 边界。
 7. 9 valid 全导入与 09 的现有 implementation reject；78 invalid 全拒与其中 13 为 import 接受的 export 负例：建议分别定义格式有效、保真可导入和导出负例三类验收，保留样例/约定；如坚持全通过/全拒，先决定扩模型或改变 import 契约及相应既有测试。
-8. 四 golden 原版经生产 Schema 往返：建议最小补齐 Schema 对 `bold+code` 及嵌套列表的保真表达，并同步 PM↔IR 及两端测试；这超出原设计仅导入范围，需确认扩 scope。若不扩，原版对应输入必须 error 且验收记录明确未达成；不能用已裁剪变体充数。
+8. 表替代 graphic（`08-original-forms-vs-sts.xml:88`，M-6.1-04）：旧矩阵记为接收并 warning、保留资源引用，但 IR 无字段保存与表的关联。建议当前保真阻断；若要求接收，决定扩展 IR/生产 Schema 保存关联，或明确批准忽略替代图并 warning 的有损规范化。
+9. 四 golden 原版经生产 Schema 往返：建议最小补齐 Schema 对 `bold+code` 及嵌套列表的保真表达，并同步 PM↔IR 及两端测试；这超出原设计仅导入范围，需确认扩 scope。若不扩，原版对应输入必须 error 且验收记录明确未达成；不能用已裁剪变体充数。
 
 ## 10. 上限与基线证据
 
@@ -148,3 +149,5 @@ MathML 抽取基于已经展开 URI 的树，不截取可能依赖祖先 namespa
 | `python3 scripts/xml46687/test_validate.py` | exit 0，259 测试通过 |
 
 没有修改任何快照、黄金、锁定夹具、依赖清单或测试；安装生成的 workspace 配置占位已还原。不得用该设计任务的测试基线声称导入功能已实现。
+
+终审环境复核：以 `/tmp/wp83-viv-cache`、`--executable-browser /usr/bin/chromium` 并在探针进程中清除代理变量，最小 Vivliostyle PDF 能成功；保留原代理时 localhost viewer 返回 403。server 现有调用没有 executable-browser 参数，临时 cwd 下配置文件必须包含 `entry`，这会改变被测输入，空 entry 被校验拒绝；因此未用该配置冒充原测试，未重新宣称 server 全量通过。未下载浏览器或改 HOME、源码和测试。

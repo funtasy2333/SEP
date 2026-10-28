@@ -139,7 +139,7 @@
 | M-E-08 | E / 67 | tbx:termEntry/@id · tbx:termEntry@id | accept | 映射/保留至 （Resolver 尚无）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-37；与第 9 章正文 term_<编号> 冲突，选 term_（X-12，D-S-12）；需 Resolver 新增（R-3）。详见 T。 |
 | M-E-09 | E / 67 | tbx:note/@id · tbx:note@id（术语条目的注） | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-S-37；X-13：仅被引用时输出；需改派生形式（R-4）。详见 T。 |
 | M-E-10 | E / 67 | table-wrap/@id · table-wrap@id | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-S-37；X-19：Resolver 已一致（附录表 tab_A.1，原文隐含）。详见 T。 |
-| M-E-11 | E / 67 | table-wrap/@id（无标题） · table-wrap@id（无标题） | accept | 无标题表 IR 不支持；保真阻断，待模型决定 | C-S-37；“可使用任何与附录编号无关的字母”；IR 的表一律有编号，不适用。ISO 源指南 F.2 同。 |
+| M-E-11 | E / 67 | table-wrap/@id（无标题） · table-wrap@id（无标题） | accept | 无表题时存 IRTable.caption=[] 并告警；Resolver 重新派生编号。来源无 label/无编号与题名缺失分开：缺 label 依 V-17 导入 warning，重新导出生成编号，无法保持无编号时明确告警规范化 | C-S-37；“可使用任何与附录编号无关的字母”；IR 的表一律有编号，不适用。ISO 源指南 F.2 同。 |
 | M-E-12 | E / 67 | fig/@id · fig@id | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-S-37；X-20：Resolver 已一致。详见 T。 |
 | M-E-13 | E / 67 | disp-formula/@id · disp-formula@id | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-S-37；X-21：第 7 章示例写 Formula_1、Formula1，判为示例瑕疵；无编号公式不写 id（Resolver 现输出 ext_，R-5）。详见 T。 |
 | M-E-14 | E / 67 | inline-formula · inline-formula（无 id） | accept | 映射/保留至 IRInline.formula；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-37；“行内公式没有 ID”；id 编在 mml:math 上（mml_m<k>，7.4）。X-22、R-5。详见 T。 |
