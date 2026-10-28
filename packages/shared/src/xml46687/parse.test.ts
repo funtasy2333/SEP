@@ -31,6 +31,15 @@ describe('严格 XML 解析', () => {
     expect(root.children[1]).toMatchObject({ children: [{ name: { ns: 'u2' } }] })
     expect(root.children[2]).toMatchObject({ name: { ns: 'u1' }, position: { path: '/r[1]/x[2]' } })
   })
+  it('不同命名空间的同名兄弟具有唯一定位路径', () => {
+    const root = parseXml46687('<r xmlns:x="u1" xmlns:y="u2"><x:a/><y:a/></r>').tree!.root
+    expect(root.children[0].position!.path).toBe('/r[1]/a[1]')
+    expect(root.children[1].position!.path).toBe('/r[1]/a[2]')
+  })
+  it('跨行实体错误定位到引用开始', () => {
+    const result = parseXml46687('<r>one\n two &bad;</r>')
+    expect(result.problems[0]).toMatchObject({ code: 'xml-forbidden-entity', xml: { line: 2, column: 6, path: '/r[1]' } })
+  })
   it('处理数值引用、空白及 XML 换行和属性归一', () => {
     const root = parseXml46687('\ufeff<r a="x\r\ny&#xA;z"> \r甲&#x1F600;&#13;\r\n</r>').tree!.root
     expect(root.attrs[0].value).toBe('x y\nz')
