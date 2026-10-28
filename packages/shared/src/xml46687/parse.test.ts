@@ -48,6 +48,14 @@ describe('严格 XML 解析', () => {
     ['<?xml version="1.1"?><r/>', 'xml-encoding'], ['<?xml version="1.0" encoding="ISO-8859-1"?><r/>', 'xml-encoding'],
     ['<r/><?xml version="1.0"?>', 'xml-forbidden-pi'],
   ])('拒绝非法输入 %s', (xml, code) => failure(xml, code))
+  it.each([
+    ['<?XML version="1.0"?><r/>', 'xml-forbidden-pi'],
+    ['<?xml VERSION="1.0"?><r/>', 'xml-encoding'],
+    ['<r/> &amp;', 'xml-syntax'],
+    ['<r xmlns:xml="http://www.w3.org/XML/1998/namespace" xmlns:a="http://www.w3.org/XML/1998/namespace"/>', 'xml-namespace'],
+    ['<r xmlns="http://www.w3.org/2000/xmlns/"/>', 'xml-namespace'],
+    ['<r xmlns:p="u" p:2x="a"/>', 'xml-syntax'],
+  ])('拒绝额外的 XML 边界错误 %s', (xml, code) => failure(xml, code))
   it('在输入、深度、文本和节点增长前拒绝超限', () => {
     failure(' '.repeat(XML46687_PARSE_LIMITS.maxInputBytes + 1), 'xml-limit')
     failure('<x>'.repeat(129) + '</x>'.repeat(129), 'xml-limit')

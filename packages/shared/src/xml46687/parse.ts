@@ -31,27 +31,28 @@ export function parseXml46687(input: string): Xml46687ParseResult {
   const addNode = () => { if (nodeCount >= XML46687_PARSE_LIMITS.maxNodes) fail('xml-limit', 'XML 节点数超过上限'); nodeCount++ }
   const readName = (): string => {
     const start = i; let cp = s.codePointAt(i); if (cp === undefined || !nameStart.test(String.fromCodePoint(cp))) fail('xml-syntax', 'XML 名称无效')
-    take(cp > 0xffff ? 2 : 1)
+    take(cp! > 0xffff ? 2 : 1)
     while ((cp = s.codePointAt(i)) !== undefined && nameChar.test(String.fromCodePoint(cp))) take(cp > 0xffff ? 2 : 1)
     const result = s.slice(start, i); const pieces = result.split(':')
     if (pieces.length > 2 || pieces.some(p => !p || !nameStart.test(String.fromCodePoint(p.codePointAt(0)!)) || p[0] === ':')) fail('xml-syntax', '限定名称无效')
     return result
   }
   const checkChars = (v: string) => { for (const c of v) if (!validChar(c.codePointAt(0)!)) fail('xml-syntax', 'XML 包含非法字符') }
-  const decode = (v: string, attr: boolean): string => {
-    const parts: string[] = []; let from = 0
+  const decode = (v: string, attr: boolean, budget = Infinity): string => {
+    const parts: string[] = []; let from = 0, size = 0
+    const push = (part: string) => { size += bytes(part); if (size > budget) fail('xml-limit', '连续文本超过 1 MiB 上限'); parts.push(part) }
     while (from < v.length) {
       const amp = v.indexOf('&', from); const end = amp < 0 ? v.length : amp
-      const plain = v.slice(from, end); checkChars(plain); parts.push(attr ? plain.replace(/[\t\n]/g, ' ') : plain)
+      const plain = v.slice(from, end); checkChars(plain); push(attr ? plain.replace(/[\t\n]/g, ' ') : plain)
       if (amp < 0) break
       const semi = v.indexOf(';', amp + 1); if (semi < 0) fail('xml-syntax', '字符引用缺少分号')
-      const entity = v.slice(amp + 1, semi); let value: string
+      const entity = v.slice(amp + 1, semi); let value!: string
       const predefined: Record<string, string> = { amp: '&', lt: '<', gt: '>', apos: "'", quot: '"' }
       if (Object.prototype.hasOwnProperty.call(predefined, entity)) value = predefined[entity]
       else if (/^#(?:[0-9]+|x[0-9a-fA-F]+)$/.test(entity)) { const n = entity[1] === 'x' ? parseInt(entity.slice(2), 16) : parseInt(entity.slice(1), 10); if (!validChar(n)) fail('xml-syntax', '字符引用不是合法 XML 字符'); value = String.fromCodePoint(n) }
       else if (entity.startsWith('#')) fail('xml-syntax', '字符引用格式无效')
       else fail('xml-forbidden-entity', '禁止使用非预定义实体')
-      parts.push(value); from = semi + 1
+      push(value); from = semi + 1
     }
     return parts.join('')
   }
@@ -59,7 +60,7 @@ export function parseXml46687(input: string): Xml46687ParseResult {
     const parts = raw.split(':'); if (parts.length === 1) return { ns: attr ? null : bindings.get('') || null, local: raw }
     if (parts[0] === 'xmlns') fail('xml-namespace', '禁止使用 xmlns 前缀作为名称')
     const ns = bindings.get(parts[0]); if (!ns) fail('xml-namespace', '名称使用未绑定前缀')
-    return { ns, local: parts[1], prefix: parts[0] }
+    return { ns: ns!, local: parts[1], prefix: parts[0] }
   }
   const flushText = (frame: Frame) => { if (frame.textNode && frame.textParts) frame.textNode.value = frame.textParts.join(''); frame.textNode = null; frame.textParts = null }
   const appendText = (value: string, at: Position) => {
@@ -76,7 +77,7 @@ export function parseXml46687(input: string): Xml46687ParseResult {
     if (starts('<?xml') && /[ \t\n?]/.test(s[i + 5] || '')) {
       const end = s.indexOf('?>', i); if (end < 0) fail('xml-syntax', 'XML 声明未闭合')
       const declaration = s.slice(i, end + 2)
-      if (!/^<\?xml[ \t\n]+version[ \t\n]*=[ \t\n]*(['"])1\.0\1(?:[ \t\n]+encoding[ \t\n]*=[ \t\n]*(['"])UTF-8\2)?(?:[ \t\n]+standalone[ \t\n]*=[ \t\n]*(['"])(?:yes|no)\3)?[ \t\n]*\?>$/i.test(declaration) || !/^<\?xml[ \t\n]/.test(declaration)) fail('xml-encoding', '仅支持 XML 1.0 和 UTF-8 声明')
+      if (!/^<\?xml[ \t\n]+version[ \t\n]*=[ \t\n]*(['"])1\.0\1(?:[ \t\n]+encoding[ \t\n]*=[ \t\n]*(['"])[Uu][Tt][Ff]-8\2)?(?:[ \t\n]+standalone[ \t\n]*=[ \t\n]*(['"])(?:yes|no)\3)?[ \t\n]*\?>$/.test(declaration) || !/^<\?xml[ \t\n]/.test(declaration)) fail('xml-encoding', '仅支持 XML 1.0 和 UTF-8 声明')
       take(end + 2 - i)
     }
     while (i < s.length) {
@@ -116,9 +117,9 @@ export function parseXml46687(input: string): Xml46687ParseResult {
         addNode(); const el: XmlElement = { type: 'element', name, attrs, children: [], position: { ...at, path: itemPath } }; if (parent) parent.el.children.push(el); else root = el
         stack.push({ el, raw, changes, counts: new Map(), textBytes: 0, textParts: null, textNode: null, textCount: 0, commentCount: 0 }); if (selfClose) close(); continue
       }
-      const end = s.indexOf('<', i); const stop = end < 0 ? s.length : end; const value = s.slice(i, stop); if (value.includes(']]>')) fail('xml-syntax', '普通文本不能包含 CDATA 结束符'); appendText(decode(value, false), at); take(stop - i)
+      const end = s.indexOf('<', i); const stop = end < 0 ? s.length : end; const value = s.slice(i, stop); if (value.includes(']]>')) fail('xml-syntax', '普通文本不能包含 CDATA 结束符'); if (!stack.length && value.includes('&')) fail('xml-syntax', '根元素外不能包含引用', at); const budget = stack.length ? XML46687_PARSE_LIMITS.maxTextBytes - stack[stack.length - 1].textBytes : Infinity; appendText(decode(value, false, budget), at); take(stop - i)
     }
     if (stack.length || !root) fail('xml-syntax', 'XML 根元素缺失或未闭合')
-    return { tree: { root }, problems: [] }
+    return { tree: { root: root! }, problems: [] }
   } catch (e) { return { tree: null, problems: [e as Xml46687ParseProblem] } }
 }
