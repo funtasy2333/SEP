@@ -334,9 +334,6 @@ export function serializeToXml(doc: PMNode): string {
             if (child.type.name === 'note') addUnsupported(child, `${path}.content[${index}]`, 'XML 暂未支持图中的注。', node.attrs.nodeId ?? node.attrs.id)
           })
         }
-        if (node.type.name === 'termSource' && node.childCount > 0) {
-          addUnsupported(node, path, 'XML 暂未支持独立的术语来源节点。')
-        }
         if (node.type.name === 'formula') {
           node.forEach((child, _offset, index) => {
             if (child.type.name === 'whereList' && child.childCount > 0) {
@@ -873,6 +870,12 @@ function serializeBibliography(lines: string[], node: PMNode, depth: number) {
 /** 序列化通用块级节点 */
 function serializeBlockNode(lines: string[], node: PMNode, depth: number) {
   switch (node.type.name) {
+    case 'termSource': {
+      const content = serializeInlineContent(node)
+      const labelled = /^\s*[[［]?来源\s*[:：]/.test(node.textContent) ? content : `[来源：${content}]`
+      lines.push(`${indent(depth)}<p>${labelled}</p>`)
+      break
+    }
     case 'stdParagraph':
     case 'paragraph':
       lines.push(`${indent(depth)}<p>${serializeInlineContent(node)}</p>`)

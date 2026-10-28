@@ -180,6 +180,8 @@
         <!-- 插入：在光标处加入内容要素 -->
         <div class="tbar-group" aria-label="插入内容要素">
           <span class="tbar-label">插入</span>
+          <ReferenceControl :editor="editor" />
+          <SourceControl :editor="editor" />
           <el-dropdown trigger="click" @command="handleInsertNote">
             <button class="tbar-btn" title="设置注或插入脚注">注 <el-icon><ArrowDownIcon /></el-icon></button>
             <template #dropdown>
@@ -574,6 +576,8 @@ import { useDocumentStore } from '@/stores/document'
 import { useVersionStore } from '@/stores/version'
 import SesEditorContent from '@/components/editor/EditorContent.vue'
 import TableMenu from '@/components/editor/TableMenu.vue'
+import ReferenceControl from '@/components/editor/ReferenceControl.vue'
+import SourceControl from '@/components/editor/SourceControl.vue'
 import SesLogo from '@/components/SesLogo.vue'
 import DocumentOutline from '@/components/editor/DocumentOutline.vue'
 import DocumentSettingsPanel from '@/components/editor/DocumentSettingsPanel.vue'
@@ -957,6 +961,7 @@ onMounted(async () => {
   window.addEventListener(INLINE_FORMULA_EVENT, handleInlineFormulaEvent)
   window.addEventListener('ses:edit-footnote', handleFootnoteEditEvent)
   window.addEventListener('ses:paste-reference-error', handleAmbiguousPasteReference)
+  window.addEventListener('ses:reference-missing', handleMissingReference)
   window.addEventListener('beforeunload', guardUnsavedSettings)
   const id = Number(route.params.id)
   try {
@@ -1017,6 +1022,7 @@ onBeforeUnmount(() => {
   window.removeEventListener(INLINE_FORMULA_EVENT, handleInlineFormulaEvent)
   window.removeEventListener('ses:edit-footnote', handleFootnoteEditEvent)
   window.removeEventListener('ses:paste-reference-error', handleAmbiguousPasteReference)
+  window.removeEventListener('ses:reference-missing', handleMissingReference)
   window.removeEventListener('beforeunload', guardUnsavedSettings)
   changeSyncStopped = true
   changeSync?.stop()
@@ -1054,6 +1060,10 @@ function handleAmbiguousPasteReference(event: Event) {
     ? event.detail.message
     : '粘贴内容含重复引用目标，无法确定关联，请先修正源内容'
   ElMessage.error(message)
+}
+
+function handleMissingReference() {
+  ElMessage.warning('找不到被引用的内容，目标可能已删除；请重新选择引用目标')
 }
 
 onBeforeRouteLeave(async () => {
