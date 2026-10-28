@@ -16,22 +16,22 @@
 
 ## 3. 结构、语义和问题
 
-维护一个仅导入 profile 的 TS 内容模型表：根 `processing-meta? front body back?`，分上下文检查 `front/std-meta/sec`、`body/sec`、`back/app-group/ref-list/index`，以及 sec、list、table-wrap/table/thead/tbody/tr/cell/foot、fig、formula、TBX、ref/xref/fn 的允许子元素、次序、数量和属性值；未知元素、必需容器缺失、非法嵌套、错误引用类型、缺必要内容不能丢弃，报 error。表网格检查跨度正数、覆盖不重叠、列数一致；引言条后块级正文阻断；日期格式、真实日历日与语义重复检查，发布时间晚于实施给 warning。V-1…V-18 按 `scripts/xml46687/validate.py` 的 import profile 移植，包括 URL、MathML 安全、id/rid、角色与位置、列表、术语、公式上下文；区分 import warning 和 export error，不能把 export profile 的序号/必填口径直接套入。可在测试中用 REQUIRE_XML_VALIDATION=1 调用 `validate.py --profile import` 比较，外部裁判的 implementation warning 与实际导入拒绝须单独解释，不能假定二者完全相同。
+维护一个仅导入 profile 的 TS 内容模型表：根 `processing-meta? front body back?`，分上下文检查 `front/std-meta/sec`、`body/sec`、`back/app-group/ref-list/index`，以及 sec、list、table-wrap/table/thead/tbody/tr/cell/foot、fig、formula、TBX、ref/xref/fn 的允许子元素、次序、数量和属性值；未知元素、必需容器缺失、非法嵌套、错误引用类型、缺必要内容不能丢弃，报 error。表网格检查跨度正数、覆盖不重叠、列数一致；引言条后块级正文阻断；日期格式、真实日历日与语义重复检查，发布时间晚于实施给 warning。V-1…V-18 按 `scripts/xml46687/validate.py` 的 import profile 移植，包括 URL、MathML 安全、id/rid、角色与位置、列表、术语、公式上下文；区分 import warning 和 export error，不能把 export profile 的序号/必填口径直接套入。可在测试中用 REQUIRE_XML_VALIDATION=1 调用 `validate.py --profile import` 比较，同步已授权接收项对应的旧 implementation warning；测试仍须区分格式校验与资源/生产模型可导入结论。
 
 第一遍登记每个 XML id 的合法性和唯一性、目标种类、位置及生成的新 NodeId；第二遍解析所有 rid/target 并核对目标类型。XML id 是不透明关联键，绝不从 `sec_…` 等推断内部语义；未被引用、可忽略的 id 不必保留原值。重新导出由 Resolver 生成，生成器注入可确定性测试；每次导入的 id 在结果生命周期稳定，不保证跨导入相等。多目标 rid 见 §9。解析、旧格式、内容模型、日期、引用、保真、资源和 Schema 各有稳定码；单一 owner 维护共享 discriminated union，例如 `xml-syntax`、`xml-namespace`、`xml-forbidden-doctype`、`xml-limit`、`legacy-format`、`xml-content-model`、`xml-unsupported`、`xml-id-duplicate`、`xml-reference-dangling`、`xml-reference-kind`、`xml-date-invalid`、`xml-normalized`、`xml-resource-missing`、`xml-schema-invalid`、`xml-roundtrip-loss`。每个问题含中文 message、severity `error|warning|info`、XML `{line,column,path}` 或 nodeId（必要时附矩阵行），无正文泄露；对应规则测试固定码、级别和位置。
 
 ## 4. XML→IR 映射
 
-[逐行表](matrix-import.md)覆盖基线 391 行：accept 198、required 156、reject 30（format 24、implementation 6）、not-applicable 7。required 同 accept 均须消费；拒绝行以其上下文判定，不用仅按元素名一刀切。`M-4.3.4-02/03` 实现阶段依用户要求由 implementation reject 改 accept，删除 `validate.py` 中引言专属 W-IMPL-REJECT；原 reject 集合余下 28 行不动；M-4.1-02 则从基线 accept 改为 format reject，目标为 accept 199、required 156、reject 29（format 25 / implementation 4）、not-applicable 7，总数仍 391。本表原始 notes 可能描述导出口径，具体导入口径以下文和 WP8.M §6.1 优先；无 IR 路径不等于允许任意丢弃。
+[逐行表](matrix-import.md)覆盖基线 391 行：accept 198、required 156、reject 30（format 24、implementation 6）、not-applicable 7。目标：六个 implementation reject 全转 accept（M-4.3.4-02/03、M-5.8-01、M-C.1-04/05、M-10.1.8-04），M-4.1-02 DOCTYPE 从 accept 转 format reject；故 accept 203、required 156、reject 25（全为 format）、not-applicable 7，合计 391。shall/should 接收行由 186 增为 188。同步矩阵、相应约定、Python 的引言/array/公式组/多引用 implementation warning 和对应测试；format 拒绝须按上下文，不得误拒 09 的合法 array/colgroup。模型增量与输出契约见 [model-extension.md](model-extension.md)。
 
 - 元数据：`std-meta` 标识、分段多语言 title、语言、分类、发布机构、版权、日期映射 `IRDoc.meta` 对应字段；`release-date` 是发布日期，`implementation-date` 是实施日期；接收 `release-date` 的 published/implemented 异写并检测重复（4.1 印刷页 2、4.3.2 印刷页 6；C-S-12）。`processing-meta` 是处理信息，校验属性而不进 IR；无 IR 字段的信息仅在约定允许时忽略并报告。元数据顺序 import 宽容（V-12）。
 - `front` 的 foreword/intro → `IRDoc.front`；intro 子条 → `introductionClauses`，两种 id 形式均接受且 id 不作为结构语义。`body/sec` → `IRChapter`，子 `sec` → `IRClause`；`numbered-paragraph` 无 title，其他条标题入相应字段，附录 `app` → `IRAppendix`。`norm_refs` 规范化 `norm-refs`，异写给提示；无可保真结构时阻断。
-- 段落及样式 → `IRParagraph.content` / `IRInline` marks（bold、italic、underline、sup、sub、monospace 等依矩阵）；外链 URI 校验；换行按 IR 支持转换。`list` → `IRList.listType` / `items`，项含段落/列表；`roman-lower`→roman、`roman-upper` 拒绝。嵌套 PM 的限制与待决见 §9。注/示例在章条等块级位置转 `IRNote/IRExample.content` 多块；术语、表、图只存单段，多段拼接并 warning（WP8.M G7）。警告、摘录及代码按 `IRBlock` 的 `warning`、`quote`、`code` 对应内容保存，语言和来源只能按现有 IR 表达；无法保存的组合报 error。
+- 段落及样式 → `IRParagraph.content` / `IRInline` marks（bold、italic、underline、sup、sub、monospace 等依矩阵）；外链 URI 校验；换行按 IR 支持转换。`list` → `IRList.listType` / `items`，项含段落/列表；`roman-lower`→roman、`roman-upper` 拒绝。嵌套列表和 bold+code 保留层级/样式，依用户批准的 S0 生产 Schema 补齐。注/示例在章条等块级位置转 `IRNote/IRExample.content` 多块；术语、表、图只存单段，多段拼接并 warning（WP8.M G7）。警告、摘录及代码按 `IRBlock` 的 `warning`、`quote`、`code` 对应内容保存，语言和来源只能按现有 IR 表达；无法保存的组合报 error。
 - `table-wrap` → `IRTable`：缺表题映射 `caption=[]` 并告警；`tables.ts:303` 已支持导出空 `caption/title`（caption-empty warning），`resolve.ts:384` 仍对表统一编号。缺 label/无编号与缺题名不同：V-17 导入告警，重新导出 Resolver 生成编号，明确报告该规范化，不能声称保留无编号；其余标题、编号、方向、宽度、`rows[].cells[]`、rowspan/colspan/header、边框样式；`colgroup/col` 展开为 `columns`，数量不符 error；非百分比宽度及不支持的列 style 告警。`thead` 决定 headerRowCount，`thead` 非 th 依标志处理并告警。`table-wrap-foot` 的 dimension、notes、footnotes 分别保存并处理原顺序与规范化；脚注引用必须指向本表。`tfoot` 依 C-T-02 拒绝，`td@scope` 忽略告警、`frame/rules` 根据单元格边框推断并告警（6.2.2/6.2.3 印刷页 20、6.4 印刷页 24–25；C-T-07/10）。
-- `fig` → `IRFigure`，graphic 资源、caption、legend.title 与 `def-list[figure]` 项、notes、examples；图中注/示例交错归一为注在前并告警。`inline-graphic` → `IRInline.image`，仅 p 及其合法上下文；size:T 忽略并告警，资源缺失阻断（8.3、8.5 印刷页 31–32，C-T-27/31）。
-- `disp-formula`/`inline-formula` → `IRFormula`/对应行内公式，原生 MathML 保存至 `mathml`，不反译 LaTeX；导出时规范化根 id/display（7.4 印刷页 28–30，C-T-19）。
+- `fig` → `IRFigure`，主 graphic 与 additionalGraphics 按序保存；`fig-group` → `IRFigureSet` 保留组级 legend 与子图；graphic 资源、caption、legend.title 与 `def-list[figure]` 项、notes、examples；图中注/示例交错归一为注在前并告警。`inline-graphic` → `IRInline.image`，仅 p 及其合法上下文；size:T 忽略并告警，资源缺失阻断（8.3、8.5 印刷页 31–32，C-T-27/31）。
+- `array` → 无编号 `IRArray`，表替代图 → `IRTable.alternativeGraphic`；`disp-formula-group` → 保留组级编号和成员顺序的 `IRFormulaGroup`。`disp-formula`/`inline-formula` → `IRFormula`/对应行内公式，原生 MathML 保存至 `mathml`，不反译 LaTeX；导出时规范化根 id/display（7.4 印刷页 28–30，C-T-19）。
 - `term-sec/tbx:termEntry` → `IRTermEntry`，`langSet` → languageSets、`tig` → groups、term 及 partOfSpeech/termType/normativeAuthorization 等 → descriptors；definition、notes、examples、source 归条目级，非首语言集归并告警；多个 subjectField 合并并告警、写条目级。定义多于一个 error、零个 warning，多个 source 保首个并警告（9.2.1–9.2.9 印刷页 35–43，C-T-43/44；WP8.M G5）。
-- 规范性 `ref-list[norm-refs|norm_refs]` → `IRNormRefList`，`ref/std` 的 `std-ref` 与 title → std 项，`mixed-citation` → mixed；正文 `std`/`mixed-citation` → marks，正文 std 带 title 合并并告警；参考文献标题不同于默认时保存 `bibliographyTitle`。缩略语 `def-list` → `IRDefList`，多段 def 合并并告警；索引与参考文献按各 IR 对应集合保存。`xref` 按目标种类映射 crossRef，`entailedTerm` → termRef；正文 fn 一对一配对紧随同段 xref，表 fn 仅本表引用；多次引用同一正文 fn 当前阻断。`xref[other]` 指向缩略语时归类并警告。
+- 规范性 `ref-list[norm-refs|norm_refs]` → `IRNormRefList`，`ref/std` 的 `std-ref` 与 title → std 项，`mixed-citation` → mixed；正文 `std`/`mixed-citation` → marks，正文 std 带 title 合并并告警；参考文献标题不同于默认时保存 `bibliographyTitle`。缩略语 `def-list` → `IRDefList`，多段 def 合并并告警；索引与参考文献按各 IR 对应集合保存。`xref` 按目标种类映射 crossRef，`entailedTerm` → termRef；旧一对一正文 fn 保持兼容；多引用采用共享 `footnoteRef` 与唯一原位置 `footnoteDefinition`，不复制正文，支持定义位于两个引用之后；表 fn 仅本表引用。`xref[other]` 指向缩略语时归类并警告。
 
 仅接收 conventions 中确认的异写：`norm_refs`、`inform-annex`/`inform_annex`、`normativeAuthentication`、日期形式等，按各上下文处理；`tbx:Definition`、`term-entry`、`normative-Authorization`、`grammatical-Number` 依后续决定和矩阵拒绝，不扩成别名。旧格式先按 `conventions-S.md` §6 特征组合识别：37967 的 `xmlgb.org`、`basic_info`/`technology`/`edit`/`execute`、GB2312；SEP 的 `urn:csbts:std:xml:1.0`、body/foreword、旧术语结构、`pub-date`、`tex-math` 等；报告命中位置，不凭 `standard` 根单独判定。
 
@@ -45,11 +45,13 @@
 
 解析器覆盖 namespace 前缀重命名/默认/属性作用域、未绑定前缀、位置、CRLF、xml:space、CDATA/引用、重复属性、编码、DOCTYPE/实体/PI、超限与输入不变。每个 accept **和 required** 的 shall/should 行有实际运行、标题带 `[M-…]` 的测试，覆盖断言扫描真实测试名而非构造空标题；reject 每行有对应上下文测试。正负样例分别比对 TS 导入诊断与外部 import profile，同时记录允许差异；四份 WP8.2 XML → IR → 生产 Schema → PM→IR → export 字节或事先列出的规范化差异，再次往返幂等；不得修改 golden。验证不同前缀、顺序、id、CDATA/字符引用等规范化，并在问题中说明有损项目。资源负例覆盖缺文件、清单重复、歧义/路径穿越、大小上限与缺失 resolver；失败返回 null 且深比较输入不变。server Jest 从 io 直接导四 golden 和资源包，并与 client Vitest 共享预期、比较语义与问题，不访问数据库。两份锁定夹具和 JSON golden 不动；全部既有测试不得跳过/弱化。
 
-注意四 golden 中 wp82 源含 bold+inline-code 与嵌套列表；`docs/wp8.2/validation.md:123-124,163` 明示生产 PM 无法表达，既有端到端使用删去这两处的变体。原版四 golden 完整通过与不静默丢弃不可兼得，见 §9；不得将变体成功冒充原版通过。真实外部样稿未证实存在：`source-record.md` 是标准 PDF/OCR 来源并非机器可导入标准样稿；`schemas/gbt46687.2/samples` 及 WP8.2 fixtures 为项目自写，不能宣布真实互操作通过。WP8.1 source-record 对附录 F 的完整性修正了更早的 `wp8-xml46687.md` 缺页描述，见 source-record §4，不能重复旧的缺页断言。
+注意四 golden 中 wp82 源含 bold+inline-code 与嵌套列表；`docs/wp8.2/validation.md:123-124,163` 明示生产 PM 无法表达，既有端到端使用删去这两处的变体。用户已批准最小 Schema 扩展保留两者；原版四 golden 是验收目标，不得将变体成功冒充原版通过。真实外部样稿未证实存在：`source-record.md` 是标准 PDF/OCR 来源并非机器可导入标准样稿；`schemas/gbt46687.2/samples` 及 WP8.2 fixtures 为项目自写，不能宣布真实互操作通过。WP8.1 source-record 对附录 F 的完整性修正了更早的 `wp8-xml46687.md` 缺页描述，见 source-record §4，不能重复旧的缺页断言。
 
 ## 7. 基线样例与约定冲突
 
-2026-10-28 在本 worktree 调用 `validate.py --profile import --json`，用本地 xmllint 20914 + lxml，检查顶层 `results[]` 而非将汇总 `valid` 当每份结果：9 个 valid 全为格式有效，78 个 invalid 中 65 拒绝、13 接受。此为外部格式校验基线，**不证明 TS 导入实现**；`09-import-pending.xml` 含 `array`、`disp-formula-group` 和同脚注多引用，矩阵仍为 implementation reject（M-5.8-01/M-C.1-04、M-C.1-05、M-10.1.8-04），校验只告警而实际导入应阻断。其他 valid 亦受保真限制：`03-structure.xml:93` 有 alpha 列项嵌套 dash，受 M-5.7-11 与生产 Schema 限制；`05-formulas-figures.xml:103-104` 同 fig 多 graphic，`:106` 起含 fig-group 和组级 legend；`08-original-forms-vs-sts.xml:88` 含表替代 graphic（M-6.1-04），现有 IR 无字段保存它与所属表的关联。按不静默丢弃原则，未决项决定前均应 error；既有格式 accept/允许警告不等于生产模型可保真。用户所要求 valid 全能导入与现有拒绝项冲突，不能删样例或改警告掩盖。
+2026-10-28 在本 worktree 调用 `validate.py --profile import --json`，用本地 xmllint 20914 + lxml，检查顶层 `results[]` 而非将汇总 `valid` 当每份结果：9 个 valid 全为格式有效，78 个 invalid 中 65 拒绝、13 接受。此为外部格式校验基线，**不证明 TS 导入实现**。用户最后明确要求全部 valid 可导入优先，且已授权扩模型接收：03 的嵌套列项、05 的多 graphic/fig-group、08 的表替代图、09 的 array/公式组/同脚注多次引用，以及引言条。实现须保留每个内容及关联，详见 [模型增量](model-extension.md)；不得以删减样例、拆分结构或复制脚注正文冒充无损。
+
+样例范围实查：01 是最小 title-wrap；02 多语言/多机构与完整元数据；03 包含混合列表并有 alpha→dash 嵌套；04 含表格列项、两个表脚注；05 含单图、同 fig 两图和带 legend 的两子图组；06 含 TBX、脚注和单图；07 含已定异写、V-12 顺序告警和无 id 的规范性 ref；08 含表替代 graphic；09 含引言条、共享脚注、array 和两成员公式组。图片均须注入确定性资源。四份原始 golden 的 XML 只读盘点：wp82 有 2 个嵌套 list、1 处 bold+inline-code、8 个图引用与 6 个 MathML；fullRenderer 2 图/2 MathML；wp6 1 图/2 MathML；wp8m 9 图/0 MathML，后三者无上述嵌套样式。实际 roundtrip 仍须测试，不能用计数代替验收。
 
 13 个 import 接受的 invalid 文件逐项如下（`validate.py` 的既有行为；语义不能表达时导入器仍需按保真约束报告，不自动收紧格式约定）：
 
@@ -71,35 +73,21 @@
 
 已定覆盖旧记录：C-S-02、M-4.1-02 允许无内部子集 DOCTYPE，而本次用户明确要求全部拒绝；C-T-19 的字面 `mml:` 前缀要求与本次按 URI 判断冲突。实施任务须同步相应约定、矩阵和测试，按本次要求实现；`validate.py` 的 `check_rejects` 用 namespace URI 判断无命名空间 MathML 的 `_UNPREFIXED_MATHML`，不是对正确 URI 的所有替代前缀字面拒绝；须增加不同前缀和默认 MathML namespace 的实测，检查 RNG 是否还有限制。不得把无 namespace 的 `<mtext>` 当合法 MathML。其他冲突：matrix M-9.2.8-02 notes 写 warning 去包装，但 import=reject/format、`validate.py` 明确拒绝 `tbx:source/std`；依拒绝状态处理并登记修正 notes。C-T-38 旧表曾写接受异写，后续决定、矩阵和脚本明确拒绝四项，以上述后续决定为准。
 
+### 7.1 两种验收要求的直接冲突
+
+用户之前的“不区分”若解释为无条件拒绝全部 invalid，与最后要求全部 valid 可导入及既有导入约定冲突。`valid/07-import-variants.xml:13-17` 和 `invalid/std-meta-wrong-order.xml:2,18-19` 都明确触发同一 V-12 导入顺序告警；前者 V-12 实测与后者同规则。不能同时将“任何 V-12 顺序告警都拒绝”和 valid 07 接受作为统一规则。`valid/07-import-variants.xml:29` 规范性 ref 无 id；`invalid/missing-ref-id.xml:117` 参考文献 ref 无 id，二者上下文不同，但都证明无 id 的 ref 不可被无条件全局拒绝；01/09 的元数据亦只有 title-wrap，不可加全局必填以误拒 valid。它们不是字节完全相同的文档，不能据此声称对每个文件的一切可能分类均数学上不可能；若用其他字段或文件名区分，必须另有真实语义依据，不能凭夹具标签硬编码。
+
+因此保留上表 13 项现有 import 口径与警告，invalid 全拒作为未满足的冲突验收报告主导；不擅改这些规则。负例测试和 valid 图像样例都提供确定性的、有效且完整的资源映射，否则仅因资源缺失返回 null 会掩盖冲突；缺资源另写独立负例。用户最后的 valid 优先不等于授权任意扩展本表之外的异写。
+
 ## 8. 实现拆分和集成契约
 
-所有任务执行者：单独 worktree，首步 `git reset --hard <分支>` 并核对主导指定 SHA；无 node_modules 时 frozen install；只本地分阶段中文 commit、不 push、不 PR、不切主工作树；禁止派生子代理；不得修改 package manifest/lock、锁定夹具、JSON golden，不新增依赖、不弱化已有测试、shared 禁参数属性/enum/namespace。主导 cherry-pick、冲突取并集并跑全量验证。每项按原任务书完整列必跑命令、快照说明和未派生确认。若任务涉及用户未决项，先停在该边界并报告。
+公共规则与逐任务命令见 `/workspace/wp83-coordination/common.md`；所有代理独立 worktree、先核对 HEAD、分阶段本地提交、不再派生；不得修改依赖清单/lock、两份锁定夹具或 JSON golden，不弱化测试。主导 cherry-pick 并统筹验收。
 
-| 顺序/任务 | 唯一可写文件归属和接口 | 前置、交付 |
-|---|---|---|
-| P0 解析器 | shared 新增 `xml46687/parse.ts` 与专属测试；只导出 `parseXml46687` 结果树及 parser-local 诊断，公共 index 留 P1 合并 | 最先独立交付，安全/位置/复杂度测试；不改 MathML 渲染器 |
-| P1 契约与核心 | shared 新增 import 契约、问题联合、统一 facade/index、树校验调度、测试覆盖契约；公共问题码和测试计数唯一 owner | P0 后确定不可变接口、id 分配及问题规范；其他任务只提交各自模块，不写公共文件 |
-| P2 内容模型与判旧 | shared 独立 `import/validate.ts`、`legacy.ts` 与专属测试 | P1 契约后；依 conventions/V-1…18，包含前缀/DOCTYPE 更新；公共表与问题类型由 P1 集成 |
-| P3 结构和文本 | shared 独立 `import/structure.ts`、`inline.ts` 及测试 | P1 后；元数据、章条、段落、列表、注和基础 marks；调度由 P1 合并 |
-| P4 表、图、公式 | shared 独立 `import/table.ts`、`media.ts` 与测试 | P1 后可与 P3/P5 并行；资源查询只经契约接口，嵌套列表/多图选择不擅自裁决 |
-| P5 TBX、引用 | shared 独立 `import/terms.ts`、`refs.ts` 与测试 | P1 后可与 P3/P4 并行；只读共享 ID 索引；跨引用交 P1 集成 |
-| P6 io 与包 | io 新增导入编排/包模块和测试；io index 由此任务独占 | P1–P5 集成后；校验器注入、资源和 roundtrip 回检 |
-| P7 server 验证 | server 专属 Jest 测试、必要 Jest 配置；不触碰 db；client 专属一致性测试 | P6 后；生产 Schema 两端相同输入；HTTP/MCP 默认不接 |
-| P8 约定同步与收尾 | 唯一 owner 修改矩阵、`validate.py`、相关约定与测试、覆盖契约计数 | 用户决定后，含引言两行放开、DOCTYPE/URI 已定覆盖；主导整合、统一验证 |
+P0 严格解析器可与 S0（code+bold 与嵌套列表）并行，两者独占各自文件。S0 合入之后 M-core 单一 owner 顺序负责 `types.ts`、生产 Schema/扩展注册、`irToPm.ts`/`pmToIr.ts`、Resolver、outputBoundary、XML 导出和资源收集公共文件，合同及详细节点见 [模型增量](model-extension.md)；不得与 S0 同时写适配器。P1 统一导入合同/问题码/调度唯一 owner，在 P0/M-core 对应契约集成后冻结；P2 内容模型与判旧、P3 结构/文本、P4 表图公式、P5 TBX/引用仅各写独立模块和测试，可在合同冻结后并行，不能写公共文件。P6 io 与包在 P1–P5 后；P7 client/server 一致性；P8 唯一 owner 同步矩阵、约定、Python 及覆盖计数并验证全部样例。不同 owner 修改相同公共文件必须串行并通过主导集成，不直接跨工作树共享写入。
 
-P2–P5 并行仅在 P1 约定冻结后，各自不同文件；均不得修改 shared 的 `index.ts`、公共问题类型/合同测试/码数或其他任务文件。P1/P8 顺序处理共享文件；必要的 API 调整由主导转给唯一 owner。按基线 186 条 `shall/should` 且 import accept|required，放开两条引言后预期 188；覆盖器需按源矩阵实际集合动态断言，标题有多行引用时分别计数。
+## 9. 已定与需主导核实
 
-## 9. 用户待决与建议（不能静默更改既有约定）
-
-1. 嵌套列项 M-5.7-11：D-M-12 明确真实样稿后再决定。建议先以 error 保真阻断，或批准将可表达的嵌套压平为紧随的二级同类列表并报告丢失层级；需决定，并与 golden 的 Schema 扩展一并考虑。
-2. 一个 `rid` 多目标：IR 一次一个目标。建议 error 并定位，不截取第一个；若选拆成多个引用，需定义显示文本分配与往返规则。
-3. `tfoot` / `frame/rules` / `td@scope`：当前 C-T-02 拒 `tfoot`、C-T-07 接受 scope 后忽略并 warning，G-T-06 的 frame/rules 按边框推断并 warning。是否变更这些约定或扩模型？未决定之前保持既有口径。
-4. 同 fig 多 graphic / fig-group：D-M-12 暂留后续；建议保真阻断，若允许扩模型则需明确组级 legend、资源与编号。
-5. 附录 `term-sec`：V-2 目前将术语条限定 terms 章；建议保持拒绝。是否修改约定接受附录？
-6. server HTTP/MCP 是否提前：直接调用 io 必做；默认接口留 WP8.4。提前接入则需额外 API/MCP 契约、资源和事务测试，不改变本阶段 UI 边界。
-7. 9 valid 全导入与 09 的现有 implementation reject；78 invalid 全拒与其中 13 为 import 接受的 export 负例：建议分别定义格式有效、保真可导入和导出负例三类验收，保留样例/约定；如坚持全通过/全拒，先决定扩模型或改变 import 契约及相应既有测试。
-8. 表替代 graphic（`08-original-forms-vs-sts.xml:88`，M-6.1-04）：旧矩阵记为接收并 warning、保留资源引用，但 IR 无字段保存与表的关联。建议当前保真阻断；若要求接收，决定扩展 IR/生产 Schema 保存关联，或明确批准忽略替代图并 warning 的有损规范化。
-9. 四 golden 原版经生产 Schema 往返：建议最小补齐 Schema 对 `bold+code` 及嵌套列表的保真表达，并同步 PM↔IR 及两端测试；这超出原设计仅导入范围，需确认扩 scope。若不扩，原版对应输入必须 error 且验收记录明确未达成；不能用已裁剪变体充数。
+已定：保留嵌套列表、扩模型接收全部 valid 所需结构；多目标单个 rid、tfoot、附录 term-sec 继续拒绝，frame/rules 与 td@scope 按既有警告；server 直接调用 io，HTTP/MCP 与 UI 留 WP8.4。无损比较覆盖图组、表替代图、公式组、共享脚注身份与原位置。仅剩 13 个 export-only invalid 的“全部拒绝”要求和既有 import 宽容口径冲突，证据见 §7.1，交主导按最后的 valid 优先裁决；不能通过缺资源伪装拒绝。
 
 ## 10. 上限与基线证据
 

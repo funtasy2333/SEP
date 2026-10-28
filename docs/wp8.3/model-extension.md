@@ -54,3 +54,5 @@ XML 输出需要新增 `fig-group/legend/fig*`，`fig` 输出主图与 extras �
 4. 9 个 valid 全集导入（同资源的包和纯 XML）；四原版 golden 经生产 Schema → PM→IR → 导出及幂等，明确规范化仅限批准项。所有 import shall/should 行由真实 `[M-…]` 标题覆盖；异写、V-12 告警、无损规范化及全部原安全负例持续存在。server Jest 直接调用 io 与 client Vitest 比较，独立新空库、不触碰默认数据库。
 
 真实样稿未取得；自写 9 valid 的支持不能说明外部互操作通过。13 个 export-only invalid 冲突见 `design.md`，不能通过改文件名或删除测试制造结论。
+
+全部 valid 的正例与全部 invalid 的负例均注入完整且确定性的图像资源映射，测试输入 XML 本身；否则 13 个 export-only 负例会因缺资源意外失败而掩盖格式口径冲突。显式增加独立缺资源用例验证 error。JSON 与生产 Schema 的完整保存/重开为所有新节点的必测出口，XML46687 导出新增上述结构的保真输出任务；HTML/DOCX 的暂不支持以边界 error 结束，不得跳过或部分输出。

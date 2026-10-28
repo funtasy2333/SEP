@@ -1,6 +1,6 @@
 # WP8.3 导入矩阵逐行盘点
 
-基线 `65f8cdff`，391 行；`required` 与 `accept` 均为接收行。本表将基线状态、来源字段与 WP8.3 导入处理分开；具体判定优先本列及主设计，原矩阵 notes 中历史导出、旧 Resolver、旧引言和 DOCTYPE 文案不作为导入结论。条款与印刷页来自源矩阵，PDF 页 = 印刷页 + 4。重复行分别保留。映射列的路径来自矩阵 `irPath` 的 IR 侧，嵌入其对应父对象；id 均依主设计不透明映射而非解析 XML id。标记待决或与现有模型不符之行不得伪称已支持。
+基线 `65f8cdff`，391 行；`required` 与 `accept` 均为接收行。本表将基线状态、来源字段与 WP8.3 导入处理分开；具体判定优先本列及主设计，原矩阵 notes 中历史导出、旧 Resolver、旧引言和 DOCTYPE 文案不作为导入结论。条款与印刷页来自源矩阵，PDF 页 = 印刷页 + 4。重复行分别保留。映射列的路径来自矩阵 `irPath` 的 IR 侧，嵌入其对应父对象；id 均依主设计不透明映射而非解析 XML id。2026-10-28 用户决定覆盖历史拒绝与缺口，目标保真模型见 [模型增量](model-extension.md)；基线列不变，不代表已实现。
 
 | 行 | 条款/印刷页 | 输入 | 基线状态 | WP8.3 导入处理 | 依据/基线注记 |
 |---|---|---|---|---|---|
@@ -119,11 +119,11 @@
 | M-5.7-08 | 5.7.1 / 16 | list/list-item · list-item | required | 映射/保留至 IRList.items[]；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-32； |
 | M-5.7-09 | 5.7.2 / 16 | list-item/label · label（有序列项） | accept | 映射/保留至 （生成：按 listType 与序号，不存于 IR）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-32；有序条目必写 <label>（a)、1)…）；无序条目不写（示例中的空 <label/> 与缺失并存，视为示例笔误）。导入文本不作数据，与序号不一致则告警。 |
 | M-5.7-10 | 5.7.2 / 16 | list-item/p · p（列项文本） | required | 映射/保留至 IRList.items[].content[]: IRParagraph；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-32；“列项的文本内容标记在 <p> 中”；列项条目的 p 无 id（附录 E）。 |
-| M-5.7-11 | 5.7.3 / 18 | list-item/list · 嵌套列项 | accept | 映射/保留至 IRList.items[].content[]: IRList；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-32；示例 7.1 在列项条目内先 <p> 后嵌套 <list list-type="bullet">。irToPm 对嵌套 stdList 报“生产stdList不支持嵌套列表”，导入后无法保存。 |
+| M-5.7-11 | 5.7.3 / 18 | list-item/list · 嵌套列项 | accept | 保留嵌套 IRList.items[].content[] 的层级和顺序；S0 补齐 PM 生产 Schema，不压平 | C-S-32；示例 7.1 在列项条目内先 <p> 后嵌套 <list list-type="bullet">。irToPm 对嵌套 stdList 报“生产stdList不支持嵌套列表”，导入后无法保存。 |
 | M-5.7-12 | 5.7.3 / 18 | list/@id, list-item/@id · list@id、list-item@id（示例） | accept | id 仅用于关联目标；引用列项分配 NodeId，未引用 id 忽略 | C-S-37；附录 E：任何 <list> 或 <list-item> 中无 id 属性；示例中的 id 判为示例瑕疵（conventions-S.md 第 2.3 节），导入忽略，导出不写。 |
 | M-5.7-13 | D / 64 | list/@list-content · list-content（表 D.1 行 6） | not-applicable | 不适用；不构造 IR，若另有具体支持行按该行处理 | —；D.1 称其为 def-list、list 的可选属性，第 5 章列项不使用；def-list 的用法详见 T（公式“式中”、图例、缩略语）。 |
-| M-5.8-01 | 5.8 / 18 | array · array | reject/implementation | 拒绝 implementation；按输入上下文阻断，原因见原矩阵说明 | C-S-36；“按列对齐且没有列或行边框的文本使用包含一个 <table> 的 <array> 进行标记”。IR/PM 的表总有编号与题名，没有无框对齐文本块；导入拒绝并定位，不降级为带编号的表。 |
-| M-5.8-02 | 5.8 / 19 | array/table/(col-group&#124;col&#124;tbody&#124;tr&#124;td) · col-group、col、tbody、tr、td（array 内） | reject/format | 拒绝 format；按输入上下文阻断，原因见原矩阵说明 | C-S-36；示例写 col-group 与 colwidth，表 C.1 行 13 写 colgroup，D.1 行 19 与 6.3 写 width；align=center 缺引号（排印）。详见 T 的第 6 章分片。 |
+| M-5.8-01 | 5.8 / 18 | array · array | reject/implementation | 目标 accept：映射 IRArray（无编号）、保留 colgroup 与单元格内容，详见 model-extension.md | C-S-36；“按列对齐且没有列或行边框的文本使用包含一个 <table> 的 <array> 进行标记”。IR/PM 的表总有编号与题名，没有无框对齐文本块；导入拒绝并定位，不降级为带编号的表。 |
+| M-5.8-02 | 5.8 / 19 | array/table/(col-group&#124;col&#124;tbody&#124;tr&#124;td) · col-group、col、tbody、tr、td（array 内） | reject/format | 拒绝原文无效示例的 col-group、colwidth 等错写或不良构属性；允许样例 09 中合法 colgroup/col/tbody/tr/td 映射 IRArray，不能按局部名全拒 | C-S-36；示例写 col-group 与 colwidth，表 C.1 行 13 写 colgroup，D.1 行 19 与 6.3 写 width；align=center 缺引号（排印）。详见 T 的第 6 章分片。 |
 | M-5.9-01 | 5.9 / 19 | disp-quote · disp-quote | required | 映射/保留至 IRQuote；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-35；“被缩进的单段文本…使用 <disp-quote> 进行标记”。 |
 | M-5.9-02 | 5.9 / 19 | disp-quote/p · p（摘录内） | required | 映射/保留至 IRQuote.content: IRBlock[]（段落）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-35； |
 | M-5.9-03 | 5.9 / 19 | disp-quote/(attrib&#124;permissions) · attrib、permissions（摘录） | accept | 来源和权限无 IR 字段；忽略并警告 | C-S-35；“引用的来源可以使用 <attrib> 通过 @specific-use="source" 来标记，任何权限信息都可以使用 <disp-quote> 内的 <permissions> 标记”。IR 没有来源/权限字段；导入时提示“已忽略”。示例写成 <attrib @specific-use=…>（排印错误）。 |
@@ -193,7 +193,7 @@
 | M-C-02 | C / 60 | std-meta/release-version · release-version | accept | release-version 无字段；忽略并告警 | —；表 C.1 行 68：草案版本状态/生命周期阶段；IR 无数据（文档 stage 不属正文 IR）。 |
 | M-C-03 | C / 57 | std-meta/doc-ref · doc-ref | accept | doc-ref 无字段；忽略并告警 | —；表 C.1 行 28：预先构建的格式化引用；无示例，不导出。 |
 | M-C-04 | C / 60 | std-doc-meta · std-doc-meta | reject/format | 拒绝 format；按输入上下文阻断，原因见原矩阵说明 | C-S-20；表 C.1 行 73；附录 B（印刷页 54）：与 std-meta 功能重叠，仅保留 std-meta。导入拒绝。 |
-| M-C-05 | C / 56 | （表 C.1 缺项） · named-content、inline-code、index-title-group、index-div、index-entry、see-entry、fig-group 未列入表 C.1 | accept | 本行列举元素，不是统一容器：按各独立矩阵行映射；fig-group 待用户决定 | —；表 C.1 共 119 行，title 重复两行（行 112、113）；正文使用的上述元素不在其中，表 C.1 不能当元素白名单。 issue-agencies（M-4.3.2-12）、col-group（M-5.8-02）同样不在表 C.1 中，但它们的 import 为 reject，已从本行 element 移出，以免与 reject 行矛盾（2026-10-21 主导人审查）。 |
+| M-C-05 | C / 56 | （表 C.1 缺项） · named-content、inline-code、index-title-group、index-div、index-entry、see-entry、fig-group 未列入表 C.1 | accept | 本行列举元素，不是统一容器：按各独立矩阵行映射；fig-group 保留组级 legend 和子图到 IRFigureSet | —；表 C.1 共 119 行，title 重复两行（行 112、113）；正文使用的上述元素不在其中，表 C.1 不能当元素白名单。 issue-agencies（M-4.3.2-12）、col-group（M-5.8-02）同样不在表 C.1 中，但它们的 import 为 reject，已从本行 element 移出，以免与 reject 行矛盾（2026-10-21 主导人审查）。 |
 | M-D-01 | D / 64 | （属性 @id） · @id | required | 全局检查 id 合法唯一；仅作引用键映射 NodeId | C-S-37；表 D.1 行 5：元素内部唯一标识符，在标准化文件中必须是唯一的；备注“<target> 标签的必备属性”（target 元素不在表 C.1）。 |
 | M-D-02 | D / 64 | back/ref-list/@content-type · ref-list | required | 映射/保留至 IRDoc.bibliography[]；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-27；表 D.1 行 3 值域只列 bibl、index；本行宿主定为 ref-list（参考文献清单，取值 bibl，见 M-4.5.3-01；规范性引用文件清单取 norm-refs，见 M-4.4.2.3-02）。index 在原文中没有宿主依据（4.5.4 示例的 index 元素不带 content-type），schema 不收，已删除（2026-10-21 主导人审查）。正文还使用 informative、normative（app）、variable（named-content）、warning、dimension、disp_table、image 等，D 表不完整。 |
 | M-D-03 | D / 64 | （属性 @list-type） · @list-type | required | list-type 映射 IRList.listType；不支持取值拒绝 | C-S-32；表 D.1 行 7；第 5.7 节另给 alpha-lower、arabic、roman-lower。 |
@@ -241,10 +241,10 @@
 | M-6.2.3-09 | 6.2.3 / 21 | fn/p · p | required | 映射/保留至 IRFootnote.content；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-06；脚注正文。 |
 | M-6.2.3-10 | 6.2.3 / 21 | td//xref[@ref-type='table-fn'] · xref | required | 映射/保留至 IRMark{type:'tableFootnoteRef', targetId}；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-06；表脚注引用，限同一 table-wrap；p21 示例省略了该 xref。 |
 | M-6.2.4-02 | 6.2.4 / 22 | th/p (单位) · p | accept | 映射/保留至 IRTableRow.cells[].unit；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-04；各栏单位不同时在 th 内用单独 p；该 p 无标识属性，导入无法区分单位段与普通段，不回填 unit（往返有变化，G-T-22）。 |
-| M-6.1-04 | 6.1 / 20 | table-wrap/graphic · graphic | accept | 表替代图资源按约定保留引用并 warning；现有 IR 无承载，必须阻断或待模型决议，不可伪称已保存 | C-T-14；必要时的替代图（png，应以表 ID 命名），content-type 如 disp_table；IR/PM 无承载（G-T-04）；导入报 warning 并保留资源引用。 |
+| M-6.1-04 | 6.1 / 20 | table-wrap/graphic · graphic | accept | 映射 IRTable.alternativeGraphic，保留所属表、资源和 content-type；缺资源 error | C-T-14；必要时的替代图（png，应以表 ID 命名），content-type 如 disp_table；IR/PM 无承载（G-T-04）；导入报 warning 并保留资源引用。 |
 | M-6.1-05 | 6.1 / 20 | (电子文件 .xlsx/.xls) · (无标记) | reject/format | 拒绝 format；按输入上下文阻断，原因见原矩阵说明 | C-T-14；6.1 允许存放电子文件作替代方案，但原文没有任何标记方式；不导出，导入无从识别。 |
 | M-6.1-06 | 6.1 / 20 | td//table-wrap · table | reject/format | 拒绝 format；按输入上下文阻断，原因见原矩阵说明 | C-T-13；“不使用嵌套表”（应）；pmToIr 已对单元格内 table/stdTable 产出 unsupportedContent，导入遇嵌套表报 error 并阻止替换。 |
-| M-C.1-04 | C.1 / 56 | array · array | reject/implementation | 拒绝 implementation；按输入上下文阻断，原因见原矩阵说明 | —；附录 C 第 3 行“简短表格排列”，仅列名；本章不用，不导出，导入报 unsupported。 |
+| M-C.1-04 | C.1 / 56 | array · array | reject/implementation | 目标 accept：映射 IRArray，无编号保留独立网格 | —；附录 C 第 3 行“简短表格排列”，仅列名；本章不用，不导出，导入报 unsupported。 |
 | M-D.1-01 | D.1 / 64 | (任何带 @id 的元素) · (@id) | required | 映射/保留至 NodeId (IRDoc 各实体 id)；按 §3 校验，无法保真时 error；条件及例外见本行依据 | —；附录 D 第 5 行：@id 值在标准化文件中必须唯一；内部 nodeId 与导出 xmlId 分离，重复 ID 报 error。 |
 | M-7.1-01 | 7.1 / 27 | body/sec/disp-formula · disp-formula | required | 映射/保留至 IRFormula (kind='formula')；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-17；行间公式，与文字分开另行居中；一个 disp-formula 对应一个 mml:math。 |
 | M-7.1-02 | 7.1 / 27 | disp-formula/@id · disp-formula | accept | 映射/保留至 IRFormula.id；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-18；原文写法 Formula_1(p27)/Formula1(p28)/Formula5(p29)/formula_1(附录 E)；方案归 S；导入不解析 ID 语义。 |
@@ -276,7 +276,7 @@
 | M-7.3-07 | 7.3 / 28 | def/p · p | required | 映射/保留至 IRFormula.whereList[].definition (IRInline[])；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-22；含义文本，句末标点随文本；示例 p 带 id(p-183 等)，附录 E 称 p 无 id，导出不写。 |
 | M-7.3-08 | 7.3 / 28 | def/p (第二段起) · p | accept | 映射/保留至 IRFormula.whereList[].definition（只有一段）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-22；原文未禁止 def 含多个 p；IR/PM 仅单段（G-T-10）；导入拼接并 warning。 |
 | M-7.4-13 | 7.4 / 29 | disp-formula/graphic · graphic | accept | 公式替代 graphic 忽略并警告资源名；保留 MathML 本体 | C-T-24；SES 无 PDF 来源，导入忽略并告警。（原文：公式图 .png 命名 formula_XX_Y.png，XX=PDF 页码、Y=PDF 内图序；示例 content-type="disp-formula"、href="/graphics/formula_40_5.png"，位于 disp-formula 之后。SES 的公式一律走 MathML，不生成公式替代图；导入遇 graphic[content-type=disp-formula] 时报 warning 并在导入报告中写明被忽略的资源名，公式本体以 mml:math 为准。WP8.M 设计 §2.2、§7.1 D-M-13。） |
-| M-C.1-05 | C.1 / 57 | disp-formula-group · disp-formula-group | reject/implementation | 拒绝 implementation；按输入上下文阻断，原因见原矩阵说明 | C-T-17；附录 C 第 26 行列名，正文无用例；IR 无公式组，导入报 unsupported。 |
+| M-C.1-05 | C.1 / 57 | disp-formula-group · disp-formula-group | reject/implementation | 目标 accept：映射 IRFormulaGroup，保存组级编号和各公式、顺序与 MathML | C-T-17；附录 C 第 26 行列名，正文无用例；IR 无公式组，导入报 unsupported。 |
 | M-7.4-14 | 7.4 / 28 | tex-math · tex-math | reject/format | 拒绝 format；按输入上下文阻断，原因见原矩阵说明 | C-T-20；原文全文未出现（obligation 栏按“无要求”填写）；导出不写；导入遇到报 unsupported。 |
 | M-7.4-15 | 7.4 / 28 | alternatives · alternatives | reject/format | 拒绝 format；按输入上下文阻断，原因见原矩阵说明 | C-T-20；原文全文未出现；不使用；导入报 unsupported。 |
 | M-7.4-16 | 7.4 / 28 | mml:math//annotation · mml:annotation | accept | 映射/保留至 IRFormula.mathml（子元素原样保真，不逐元素建模）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-20；原文全文未出现；导出不补写；若导入的 mml:math 内部自带 semantics/annotation，属 MathML 内容，随字符串保真。 |
@@ -292,8 +292,8 @@
 | M-8.2-10 | 8.2 / 31 | graphic/@content-type (图) · graphic | accept | 映射/保留至 IRFigure（固定 image）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-28；图示例 content-type="image"(p31)，p32 示例省略；表为 disp_table，公式为 disp-formula；原文无完整取值表。 |
 | M-8.3-01 | 8.3 / 31 | graphic/@specific-use · graphic | accept | size:T/S/M/L 用于图宽约定；无法保存档位时警告，行内 T 忽略并告警 | C-T-28；表 2：size:T(仅 graphic，宽 20mm)、size:S(40mm)、size:M(80mm)、size:L(160mm)；IR 只有宽高度量，无档位字段（G-T-14）；导出不写，导入 warning。 |
 | M-8.3-02 | 8.3 / 31 | p/inline-graphic · inline-graphic | accept | 映射/保留至 IRInline.image（IRInlineImage：src / resourceId / alt / size）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-29；与文本同一行的图；@xlink:href 规则同 graphic，可选 @specific-use(size:S/M/L)。WP8.M G3：行内叶子，不另造实体 id；只允许出现在正文段落（含列项、注、单元格内的段落），Resolver 校验位置。设计 §7.1：本阶段 HTML/DOCX/XML 暂报 unsupported-output；xlink:href 命名 inl_<k>（D-M-08，WP8.2）；导入不得转块级。export 列：由 not-applicable 改为 optional（WP8.2 设计 §1.1 复核，D-X-01）。 |
-| M-8.4-01 | 8.4 / 31 | fig/graphic (多个) · graphic | accept | 同 fig 多 graphic 当前无法保真，error；扩模型待用户决定 | C-T-30；8.4 a)：单个 fig 内含多个独立 graphic，按出现顺序排列；IRFigure 只有一个主图像，pmToIr 对多图报 unsupported（G-T-12）。 |
-| M-8.4-02 | 8.4 / 32 | body/sec/fig-group · fig-group | accept | fig-group 目前不可保真，error；组级 legend 等待用户决定 | C-T-30；8.4 b)：fig-group 内含多个 fig；组级只能有一个 legend，图注和示例必须在分图 fig 层级；附录 C 无此条，附录 F 第 15 行有；自身 label/caption 原文未规定（G-T-13）。 |
+| M-8.4-01 | 8.4 / 31 | fig/graphic (多个) · graphic | accept | 映射主 graphic 与 IRFigure.additionalGraphics 有序列表，每项资源与大小保留 | C-T-30；8.4 a)：单个 fig 内含多个独立 graphic，按出现顺序排列；IRFigure 只有一个主图像，pmToIr 对多图报 unsupported（G-T-12）。 |
+| M-8.4-02 | 8.4 / 32 | body/sec/fig-group · fig-group | accept | 映射 IRFigureSet，保留组级 legend 和原子图的顺序、编号及资源 | C-T-30；8.4 b)：fig-group 内含多个 fig；组级只能有一个 legend，图注和示例必须在分图 fig 层级；附录 C 无此条，附录 F 第 15 行有；自身 label/caption 原文未规定（G-T-13）。 |
 | M-8.2-11 | 8.2 / 31 | fig/non-normative-note · non-normative-note | accept | 映射/保留至 IRFigure.notes[]（IRNote）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-32；图注在 graphic 后面的 non-normative-note 中。附录 E：non-normative-note 无 id。WP8.M G3：PM figure 增 note 子节点（irToPm 不再拒绝、pmToIr 不再恒为 []）；图中的注只支持单段；HTML/DOCX 放行（渲染器早已逐条输出），XML 家族字段表放行。 |
 | M-8.2-12 | 8.2 / 31 | fig/p · p | accept | 映射/保留至 IRFigure.descriptions[] (IRFigureDescription)；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-26；图形和图题之间的段落标记在 p 中；位置按 C-T-26 的项目约定。 |
 | M-8.5-01 | 8.5 / 32 | fig/legend · legend | accept | 映射/保留至 IRFigure.legend（IRLegend）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-31；图例；每个 fig 或 fig-group 至多一个。WP8.M G3：IRFigure.legend + PM figureLegend。设计 §7.1：本阶段只做模型与显示，HTML/DOCX/XML 暂报 unsupported-output（排版另立任务）。 |
@@ -382,7 +382,7 @@
 | M-10.1.8-01 | 10.1.8 / 48 | fn (正文脚注) · fn | required | 映射/保留至 IRInline.footnote (IRFootnote)；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-55；正文脚注定义：原文无规定其位置，也无 fn-group（D-T-10）；WP8.M D-M-01 已定案：行内 fn 紧随其 xref，放在同一 p 内（STS 1.2 允许）。ID 示例 fn_1、fn_2(符号型)。 |
 | M-10.1.8-02 | 10.1.8 / 48 | fn/label/sup · label | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-T-55；p48 示例 xref 内含 label>sup（与“样式不包含在 XML 中”矛盾），导出不写 sup。 |
 | M-10.1.8-03 | 10.1.8 / 48 | xref/label/sup (脚注上标) · sup | accept | 脚注显示 sup 忽略；fn 内容及目标保留 | C-T-55；上标样式在渲染过程中体现，不写入 XML；导入忽略。 |
-| M-10.1.8-04 | 10.1.8 / 48 | xref[@ref-type='fn'] (同一 fn 多次引用) · xref | reject/implementation | 拒绝 implementation；按输入上下文阻断，原因见原矩阵说明 | C-T-55；IR 脚注为原位且一一对应，同一 fn 被多个 xref 引用无法表达（G-T-19）；导入报 error。 |
+| M-10.1.8-04 | 10.1.8 / 48 | xref[@ref-type='fn'] (同一 fn 多次引用) · xref | reject/implementation | 目标 accept：多个单目标 xref 指同一 footnoteDefinition，保存每次引用与唯一定义位置/正文 | C-T-55；IR 脚注为原位且一一对应，同一 fn 被多个 xref 引用无法表达（G-T-19）；导入报 error。 |
 | M-10.1.8-05 | 10.1.8 / 48 | fn-group · fn-group | reject/format | 拒绝 format；按输入上下文阻断，原因见原矩阵说明 | C-T-55；原文全文无 fn-group（OCR 检索 0 命中）；WP8.M D-M-01 已定案不采用（正文 fn 为行内，紧随其 xref），schema 与 validate.py 拒绝。 |
 | M-10.1.9-01 | 10.1.9 / 48 | p/ext-link · ext-link | required | 映射/保留至 IRMark{type:'externalLink', href, title?, target?, rel?}；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-56；URL 用 ext-link，@ext-link-type="uri"，@xlink:href 为链接；示例缺 ext-link-type（笔误）；title/target/rel 无对应属性，导出非空时 warning（G-T-20）。 |
 | M-10.1.9-02 | 10.1.9 / 48 | ext-link/@xlink:href · ext-link | required | 映射/保留至 IRExternalLink.href；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-56；导入只接受 http/https/mailto/ftp 等白名单协议，其他（如 javascript:）报 error。 |
