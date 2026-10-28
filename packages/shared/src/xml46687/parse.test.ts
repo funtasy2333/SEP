@@ -65,6 +65,9 @@ describe('严格 XML 解析', () => {
     ['<r xmlns="http://www.w3.org/2000/xmlns/"/>', 'xml-namespace'],
     ['<r xmlns:p="u" p:2x="a"/>', 'xml-syntax'],
   ])('拒绝额外的 XML 边界错误 %s', (xml, code) => failure(xml, code))
+  it('根外注释也计入总节点预算', () => {
+    failure('<!-- -->'.repeat(XML46687_PARSE_LIMITS.maxNodes) + '<r/>', 'xml-limit')
+  })
   it('在输入、深度、文本和节点增长前拒绝超限', () => {
     failure(' '.repeat(XML46687_PARSE_LIMITS.maxInputBytes + 1), 'xml-limit')
     failure('<x>'.repeat(129) + '</x>'.repeat(129), 'xml-limit')

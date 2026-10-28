@@ -231,10 +231,10 @@ export function parseXml46687(input: string): Xml46687ParseResult {
         if (value.includes('--') || value.endsWith('-'))
           fail('xml-syntax', '注释包含非法连字符');
         checkChars(value, 4);
+        addNode();
         if (stack.length) {
           const f = stack[stack.length - 1];
           flushText(f);
-          addNode();
           f.el.children.push({ type: 'comment', value, position: { ...at, path: f.el.position!.path + '/comment()[' + (++f.commentCount) + ']' } });
         }
         take(end + 3 - i);
