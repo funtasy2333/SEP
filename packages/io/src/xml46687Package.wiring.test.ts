@@ -3,7 +3,7 @@
  *
  * `exportXml46687` 的渲染管线由 T2.4a-1 实现。这里把它换成可控的桩，验证 io 一侧的接线：
  * 并行准备的 MathML 与资源清单被交给渲染器、问题合并、有 error 不打包、成功时按固定布局打包且字节可复现。
- * 这不是端到端测试：真实渲染器的黄金样例、`validate.py`、`xlink:href` 与清单一一对应留给 T2.6。
+ * 这不是端到端测试：真实渲染器的黄金样例、`validate.py`、`xlink:href` 与清单一一对应见 `xml46687Package.e2e.test.ts`（T2.6）。
  */
 
 import JSZip from 'jszip'

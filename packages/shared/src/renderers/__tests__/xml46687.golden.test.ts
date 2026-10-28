@@ -8,8 +8,8 @@ import { skeletonDoc } from './xml46687SkeletonFixture'
  * 黄金样例（T2.4a-1，设计 §7.1③④）：骨架夹具（元数据、前言/引言/引言条、章/条/无标题条/附录、行内标记与引用、脚注、外链、
  * 列项、注/示例/警告/摘录/代码）的 XML 文件快照 + 幂等 + 外部校验。
  *
- * fullRendererFixture 含表、图、公式、术语与参考文献，T2.4a-1 的领域桩无法导出，所以它的黄金样例留给 T2.6
- * （xml46687.stubs.test.ts 钉住了“当前不能导出”）。更新快照：`pnpm --filter @ses/shared exec vitest run -u`。
+ * fullRendererFixture 含表、图、公式、术语与参考文献，T2.4a-1 的领域桩当时无法导出；领域实现后，它与 WP8.2 全要素夹具、
+ * WP8.M/WP6 派生夹具的黄金样例见 xml46687.goldenSamples.test.ts（T2.6）。更新快照：`pnpm --filter @ses/shared exec vitest run -u`。
  */
 
 const doc = skeletonDoc()

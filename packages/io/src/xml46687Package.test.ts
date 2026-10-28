@@ -5,7 +5,7 @@
  * 所以这里只覆盖：打包函数 `packageXml46687`（直接测试）、`prepareXml46687Input`，以及“有 error 不出包”路径
  * （用会触发入口断言的文档——入口断言已实现，不依赖渲染器）。
  * 成功路径的编排（把 MathML 与清单交给渲染器、合并问题、打包）见 `xml46687Package.wiring.test.ts`（替换渲染器），
- * 真实渲染器的端到端（含 `validate.py`、`xlink:href` 与清单一一对应）留给 T2.6。
+ * 真实渲染器的端到端（含 `validate.py`、`xlink:href` 与清单一一对应）见 `xml46687Package.e2e.test.ts`（T2.6）。
  */
 
 import JSZip from 'jszip'
