@@ -89,3 +89,25 @@ describe('[M-10.1.9-02] 语义和安全规则', () => {
     })
   }
 })
+
+describe('[M-4.1-04] 根和基本容器内容模型', () => {
+  const fixture = () => load('valid', '01-minimal.xml')
+  it('拒绝错误根名称', () => {
+    const tree = fixture(); tree.root.name.local = 'other'
+    expect(validateXml46687(tree).problems).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'xml-content-model', detail: expect.objectContaining({rule: 'ROOT'}) })]))
+  })
+  it('拒绝重复 body', () => {
+    const tree = fixture(); tree.root.children.push(structuredClone(tree.root.children.find(c => c.type === 'element' && c.name.local === 'body')!))
+    expect(validateXml46687(tree).problems).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'xml-content-model', detail: expect.objectContaining({rule: 'ROOT'}) })]))
+  })
+  it('拒绝未知顶层属性', () => {
+    const tree = fixture(); tree.root.attrs.push({name: {ns: null, local: 'unknown'}, value: 'x'})
+    expect(validateXml46687(tree).problems).toEqual(expect.arrayContaining([expect.objectContaining({code: 'xml-content-model', detail: expect.objectContaining({rule: 'ROOT'})})]))
+  })
+  it('拒绝 body 中的未知元素', () => {
+    const tree = fixture(); const body = tree.root.children.find(c => c.type === 'element' && c.name.local === 'body')!
+    if (body.type !== 'element') throw new Error('body missing')
+    body.children.push({type: 'element', name: {ns: null, local: 'unknown'}, attrs: [], children: []})
+    expect(validateXml46687(tree).problems).toEqual(expect.arrayContaining([expect.objectContaining({code: 'xml-content-model', detail: expect.objectContaining({rule: 'BODY'})})]))
+  })
+})
