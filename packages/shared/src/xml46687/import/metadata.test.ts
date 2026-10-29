@@ -109,3 +109,33 @@ it('[M-4.3.2-09] 可识别的中文类型与编号映射旧标准类型', () => 
     expect(mapMetadata(tree.root, ctx)?.standardType).toBe(expected)
   }
 })
+
+it('[M-4.3.2-13] 未确认的相关标准关系必须拒绝而非猜测', () => {
+  const tree = parseXml46687('<std-meta><std-ref type="dated">GB/T 1</std-ref><std-xref type="amends"><std-ref>GB/T 2</std-ref></std-xref></std-meta>').tree!
+  const ids = new Map<string, string>()
+  const visit = (el: XmlElement) => { ids.set(el.position!.path, `n${ids.size}`); el.children.forEach(c => { if (c.type === 'element') visit(c) }) }
+  visit(tree.root)
+  const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, { inline: mapCoreInline })
+  mapMetadata(tree.root, ctx)
+  expect(ctx.problems.some(p => p.severity === 'error' && p.xml?.path.includes('std-xref'))).toBe(true)
+})
+
+it('[M-4.3.2-13] 没有目标的相关标准关系必须报错', () => {
+  const tree = parseXml46687('<std-meta><std-ref type="dated">GB/T 1</std-ref><std-xref type="revises"/></std-meta>').tree!
+  const ids = new Map<string, string>()
+  const visit = (el: XmlElement) => { ids.set(el.position!.path, `n${ids.size}`); el.children.forEach(c => { if (c.type === 'element') visit(c) }) }
+  visit(tree.root)
+  const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, { inline: mapCoreInline })
+  mapMetadata(tree.root, ctx)
+  expect(ctx.problems.some(p => p.severity === 'error' && p.xml?.path.includes('std-xref'))).toBe(true)
+})
+
+it('[M-4.3.2-06] 空机构不可静默丢弃', () => {
+  const tree = parseXml46687('<std-meta><std-org-group><std-org std-org-role="lead"/></std-org-group><std-ref type="dated">GB/T 1</std-ref></std-meta>').tree!
+  const ids = new Map<string, string>()
+  const visit = (el: XmlElement) => { ids.set(el.position!.path, `n${ids.size}`); el.children.forEach(c => { if (c.type === 'element') visit(c) }) }
+  visit(tree.root)
+  const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, { inline: mapCoreInline })
+  mapMetadata(tree.root, ctx)
+  expect(ctx.problems.some(p => p.severity === 'error' && p.xml?.path.includes('std-org[1]'))).toBe(true)
+})

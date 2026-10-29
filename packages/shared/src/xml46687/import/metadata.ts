@@ -40,6 +40,7 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
     const identifier = abbreviation && text(abbreviation)
     const role = ctx.attr(org, null, 'std-org-role')
     if (names.length > 1) warn(org, '多个机构名称分别保存，机构组结构已规范化')
+    if (names.length === 0 && !abbreviation) warn(org, '机构缺少名称和缩写', 'error')
     if (names.length === 0 && abbreviation) {
       ;(meta.publishers ??= []).push({ id: id(org), name: inline(abbreviation), role, identifier })
       warn(org, '机构仅有缩写，以缩写作为名称')
@@ -100,6 +101,8 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
       case 'std-xref': {
         const reference = el.name.local === 'std-xref' ? (child(el, 'std-ref') ? text(child(el, 'std-ref')!) : text(el)) : text(el)
         const relation = el.name.local === 'std-xref' ? ctx.attr(el, null, 'type') : 'replaces'
+        if (el.name.local === 'std-xref' && relation !== 'revises') warn(el, '未知相关标准关系无法表达', 'error')
+        if (!reference) warn(el, '相关标准关系缺少目标', 'error')
         ;(meta.replacedStandards ??= []).push({ id: id(el), reference, relation })
         if (relation === 'replaces' && meta.replaces === undefined) meta.replaces = reference
         break
