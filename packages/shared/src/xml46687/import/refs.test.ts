@@ -96,3 +96,25 @@ it('[M-4.5.4-04] 无身份索引引用保留显示文本并提示无法自动更
   expect(mapIndex(root, ctx)?.groups[0]?.entries[0]).toMatchObject({ targets: [], seeAlso: [], sourceReferences: [{ type: 'see', content: [{ text: '5.1', marks: [{ type: 'italic' }] }] }] })
   expect(ctx.problems).toContainEqual(expect.objectContaining({ code: 'xml-normalized', severity: 'warning' }))
 })
+
+it('[M-4.4.2.3-02] valid07 的异写规范清单和缩略语引用可映射', () => {
+  const xml = readFileSync('../../schemas/gbt46687.2/samples/valid/07-import-variants.xml', 'utf8')
+  const { root, ctx } = setup(xml)
+  const list = findAll(root, 'ref-list').find(e => ctx.attr(e, null, 'content-type') === 'norm_refs')!
+  expect(mapReferenceBlock(list, ctx)?.[0]).toMatchObject({ kind: 'normRefList', entries: [{ entryType: 'std', ref: [{ text: 'GB/T 1.1—2020' }] }] })
+  const other = findAll(root, 'xref').find(e => ctx.attr(e, null, 'ref-type') === 'other')!
+  expect(mapReferenceInline(other, ctx)).toEqual([{ text: 'GPS', marks: [{ type: 'crossRef', targetId: ctx.xmlTargetID('abb-gps'), targetKind: 'abbreviation' }] }])
+  expect(ctx.problems.filter(p => p.severity === 'error')).toEqual([])
+})
+
+it('[M-4.5.3-08] 中途 URI 因无法保留来源形式而拒绝', () => {
+  const { root, ctx } = setup('<ref-list content-type="bibl"><ref id="r"><mixed-citation><uri>https://example.org</uri>后续</mixed-citation></ref></ref-list>')
+  mapBibliography(root, ctx)
+  expect(ctx.problems).toContainEqual(expect.objectContaining({ code: 'xml-unsupported', severity: 'error' }))
+})
+
+it('[M-4.4.2.3-04] 规范引用内 URI 无来源字段时明确拒绝', () => {
+  const { root, ctx } = setup('<ref-list content-type="norm-refs"><ref><mixed-citation>文本<uri>https://example.org</uri></mixed-citation></ref></ref-list>')
+  mapReferenceBlock(root, ctx)
+  expect(ctx.problems).toContainEqual(expect.objectContaining({ code: 'xml-unsupported', severity: 'error' }))
+})

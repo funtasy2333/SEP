@@ -53,8 +53,8 @@ export function mapReferenceInline(e: XmlElement, ctx: ImportContext): IRInline[
   }
   if (n === 'mixed-citation') return mark(readInlineChildren(e, ctx), { type: 'mixedCitation' })
   if (n === 'uri') {
-    const href = xmlTextContent(e)
-    return mark(readInlineChildren(e, ctx), { type: 'externalLink', href })
+    issue(e, ctx, '此处的 URI 无法保留来源形式')
+    return readInlineChildren(e, ctx)
   }
   if (n === 'fn') {
     const rid = ctx.attr(e, null, 'id') ?? ctx.attr(e, 'http://www.w3.org/XML/1998/namespace', 'id') ?? ''
