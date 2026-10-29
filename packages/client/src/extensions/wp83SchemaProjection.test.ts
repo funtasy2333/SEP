@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { DOMParser, DOMSerializer } from '@tiptap/pm/model'
 import { irToPm, pmToIr, type IRDoc, type IRParagraph, type PMJsonNode } from '@ses/shared'
+import { exportXml46687, resolve } from '@ses/shared'
 import { createEditorSchema } from './editorSchema'
 import { createWp82Doc } from '../../../shared/src/renderers/__tests__/xml46687Wp82Fixture'
 import { buildGoldenSamples } from '../../../shared/src/renderers/__tests__/xml46687GoldenSamples'
@@ -48,7 +49,7 @@ describe('WP8.3 生产 Schema 保存重开', () => {
     expect(findById(restored, 'w82-list-outer')).toEqual(findById(source, 'w82-list-outer'))
   })
 
-  it.each(buildGoldenSamples(createWp6Fixture()).filter(sample => sample.name !== 'wp8m'))('$name 黄金夹具通过生产 Schema 保存重开并保持 PM 投影幂等', ({ doc }) => {
+  it.each(buildGoldenSamples(createWp6Fixture()).filter(sample => sample.name !== 'wp8m'))('$name 黄金夹具通过生产 Schema 保存重开并保持 PM 投影幂等', ({ doc, options }) => {
     const schema = createEditorSchema()
     const first = schema.nodeFromJSON(irToPm(doc))
     first.check()
@@ -59,6 +60,7 @@ describe('WP8.3 生产 Schema 保存重开', () => {
     const second = schema.nodeFromJSON(irToPm(converted.doc))
     second.check()
     expect(second.toJSON()).toEqual(first.toJSON())
+    expect(exportXml46687(converted.doc, resolve(converted.doc).labels, options).xml).toEqual(exportXml46687(doc, resolve(doc).labels, options).xml)
   })
 
   it('块级列项的 HTML 和 nodeId 可保存并重开', () => {
