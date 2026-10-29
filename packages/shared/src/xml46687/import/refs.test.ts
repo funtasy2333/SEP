@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { parseXml46687 } from '../parse'
 import type { XmlElement } from '../tree'
 import { createImportContext } from './context'
@@ -54,5 +55,44 @@ it('[M-10.1.1-01] 规范文献目标的交叉引用明确拒绝', () => {
 it('[M-10.1.4-01] 多段缩略语释义保留并提示归一化', () => {
   const { root, ctx } = setup('<def-list list-content="abbreviation"><def-item id="x"><term>CPU</term><def><p>甲</p><p>乙</p></def></def-item></def-list>')
   expect(mapReferenceBlock(root, ctx)).toEqual([{ kind: 'defList', id: 'n0', items: [{ id: 'n1', term: [{ text: 'CPU' }], definition: [{ text: '甲' }, { text: '\n' }, { text: '乙' }] }] }])
+  expect(ctx.problems).toContainEqual(expect.objectContaining({ code: 'xml-normalized', severity: 'warning' }))
+})
+
+it('[M-4.5.4-04] 索引保留引用目标及参见目标', () => {
+  const { root, ctx } = setup('<root><sec id="s"/><index><index-title-group><title>索引</title></index-title-group><index-div><index-entry><term>词</term><see-entry><xref ref-type="sec" rid="s">1</xref></see-entry><see-also><xref ref-type="sec" rid="s">1</xref></see-also></index-entry></index-div></index></root>')
+  expect(mapIndex(child(root, 'index'), ctx)).toEqual({ id: 'n2', title: [{ text: '索引' }], groups: [{ id: 'n5', entries: [{ id: 'n6', term: [{ text: '词' }], targets: ['n1'], seeAlso: ['n1'] }] }] })
+})
+
+function findAll(e: XmlElement, name: string): XmlElement[] {
+  return [ ...(e.name.local === name ? [e] : []), ...e.children.flatMap(c => c.type === 'element' ? findAll(c, name) : []) ]
+}
+
+it('[M-10.1.8-04] valid09 双脚注引用指向同一原位定义', () => {
+  const xml = readFileSync('../../schemas/gbt46687.2/samples/valid/09-import-pending.xml', 'utf8')
+  const { root, ctx } = setup(xml)
+  const fn = findAll(root, 'fn')[0]!
+  const parent = ctx.index.parent.get(fn)!
+  const runs = readInlineChildren(parent, ctx)
+  const refs = runs.filter(r => r.footnoteRef).map(r => r.footnoteRef!.targetId)
+  const definitions = runs.filter(r => r.footnoteDefinition).map(r => r.footnoteDefinition!)
+  expect(refs).toEqual([ctx.elementId(fn), ctx.elementId(fn)])
+  expect(definitions).toEqual([{ id: ctx.elementId(fn), content: [{ text: '脚注内容。' }] }])
+})
+
+it('[M-4.4.2.3-03] 规范条目的未知文本不能悄悄丢弃', () => {
+  const { root, ctx } = setup('<ref-list content-type="norm-refs"><ref>丢失风险<std><std-ref>GB 1</std-ref><title>名称</title></std></ref></ref-list>')
+  mapReferenceBlock(root, ctx)
+  expect(ctx.problems).toContainEqual(expect.objectContaining({ code: 'xml-unsupported', severity: 'error' }))
+})
+
+it('[M-4.5.3-08] 尾部 URI 保留文献外链与位置之前的文本', () => {
+  const { root, ctx } = setup('<ref-list content-type="bibl"><ref id="r"><mixed-citation>文献<break/><uri>https://example.org/a</uri></mixed-citation></ref></ref-list>')
+  expect(mapBibliography(root, ctx)).toEqual([{ kind: 'bibEntry', id: 'n1', content: [{ text: '文献' }, { text: '\n' }], externalLink: { href: 'https://example.org/a', displayText: 'https://example.org/a' } }])
+  expect(ctx.problems).toEqual([])
+})
+
+it('[M-4.5.4-04] 无身份索引引用保留显示文本并提示无法自动更新', () => {
+  const { root, ctx } = setup('<index><index-div><index-entry><term>词</term><see-entry><italic>5.1</italic></see-entry></index-entry></index-div></index>')
+  expect(mapIndex(root, ctx)?.groups[0]?.entries[0]).toMatchObject({ targets: [], seeAlso: [], sourceReferences: [{ type: 'see', content: [{ text: '5.1', marks: [{ type: 'italic' }] }] }] })
   expect(ctx.problems).toContainEqual(expect.objectContaining({ code: 'xml-normalized', severity: 'warning' }))
 })

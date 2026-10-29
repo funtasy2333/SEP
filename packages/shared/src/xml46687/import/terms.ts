@@ -10,28 +10,39 @@ const els = (e: XmlElement) => e.children.filter(isXmlElement)
 function issue(e: XmlElement, ctx: ImportContext, message: string, warning = false, count = false) {
   ctx.report({ code: count ? 'xml-term-definition-count' : warning ? 'xml-normalized' : 'xml-unsupported', severity: warning ? 'warning' : 'error', message, xml: ctx.location(e) })
 }
+function structural(e: XmlElement, ctx: ImportContext) {
+  if (e.children.some(c => c.type === 'text' && c.value.trim())) issue(e, ctx, '术语结构包含无法映射的文本')
+}
 function id(e: XmlElement, ctx: ImportContext) { return ctx.elementId(e) ?? '' }
 function containsStd(e: XmlElement): boolean { return els(e).some(c => (c.name.ns === null && c.name.local === 'std') || containsStd(c)) }
 export function mapTerm(e: XmlElement, ctx: ImportContext): IRTermEntry | undefined {
   if (e.name.ns !== null || e.name.local !== 'term-sec') return undefined
+  structural(e, ctx)
   const entries = els(e).filter(c => c.name.ns === TBX && c.name.local === 'termEntry')
   if (entries.length !== 1 || els(e).some(c => c !== entries[0] && !(c.name.ns === null && c.name.local === 'label'))) issue(e, ctx, '术语条必须包含一个 TBX 条目')
   const entry = entries[0]
   const result: IRTermEntry = { kind: 'termEntry', id: id(e, ctx), term: [], definition: [], notes: [], examples: [], languageSets: [] }
   if (!entry) return result
+  structural(entry, ctx)
   const tail: IRTermTailOrderItem[] = []
   const subjects: IRInline[][] = []
   let definitionCount = 0
+  const languageKeys = new Set<string>()
   for (const set of els(entry)) {
     if (set.name.ns !== TBX || set.name.local !== 'langSet') { issue(set, ctx, '术语条目包含未知结构'); continue }
+    structural(set, ctx)
     const language = ctx.attr(set, XML, 'lang')
     if (!language) issue(set, ctx, '术语语言集缺少语言')
+    const key = language?.split('-')[0]?.toLowerCase()
+    if (key && languageKeys.has(key)) issue(set, ctx, '同一主语言的语言集在导出时会合并', true)
+    if (key) languageKeys.add(key)
     const groups: IRTermGroup[] = []
     const languageSet: IRTermLanguageSet = { id: id(set, ctx), language: language ?? '', groups }
     for (const part of els(set)) {
       if (part.name.ns !== TBX) { issue(part, ctx, '术语语言集包含未知结构'); continue }
       switch (part.name.local) {
         case 'tig': {
+          structural(part, ctx)
           const terms: IRTermGroup['terms'] = []
           for (const child of els(part)) {
             if (child.name.ns !== TBX) { issue(child, ctx, '术语组包含未知结构'); continue }

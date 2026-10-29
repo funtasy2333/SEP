@@ -10,6 +10,9 @@ const named = (e: XmlElement, n: string) => els(e).filter(c => c.name.ns === nul
 function issue(e: XmlElement, ctx: ImportContext, message: string, warning = false) {
   ctx.report({ code: warning ? 'xml-normalized' : 'xml-unsupported', severity: warning ? 'warning' : 'error', message, xml: ctx.location(e) })
 }
+function structural(e: XmlElement, ctx: ImportContext) {
+  if (e.children.some(c => c.type === 'text' && c.value.trim())) issue(e, ctx, '结构元素包含无法映射的文本')
+}
 function id(e: XmlElement, ctx: ImportContext): string { return ctx.elementId(e) ?? '' }
 function mark(runs: IRInline[], m: IRMark): IRInline[] { return runs.map(r => ({ ...r, marks: [m, ...(r.marks ?? [])] })) }
 function adjacent(ref: XmlElement, fn: XmlElement, ctx: ImportContext): boolean {
@@ -19,6 +22,7 @@ function adjacent(ref: XmlElement, fn: XmlElement, ctx: ImportContext): boolean 
   return p.children[i + 1] === fn
 }
 function footnote(fn: XmlElement, ctx: ImportContext) {
+  structural(fn, ctx)
   const children = els(fn)
   const paragraphs = named(fn, 'p')
   if (paragraphs.length !== 1 || children.some(c => c.name.ns !== null || !['label', 'p'].includes(c.name.local))) issue(fn, ctx, '脚注必须包含一个段落且不含未知结构')
@@ -39,6 +43,7 @@ export function mapReferenceInline(e: XmlElement, ctx: ImportContext): IRInline[
   }
   if (e.name.ns !== null) return undefined
   if (n === 'std') {
+    structural(e, ctx)
     const result: IRInline[] = []
     for (const c of els(e)) {
       if (c.name.ns !== null || !['std-ref', 'title'].includes(c.name.local)) issue(c, ctx, '标准引用包含未知结构')
@@ -86,13 +91,16 @@ export function mapReferenceInline(e: XmlElement, ctx: ImportContext): IRInline[
 export function mapReferenceBlock(e: XmlElement, ctx: ImportContext): IRBlock[] | undefined {
   if (e.name.ns !== null) return undefined
   if (e.name.local === 'ref-list' && ['norm-refs', 'norm_refs'].includes(ctx.attr(e, null, 'content-type') ?? '')) {
+    structural(e, ctx)
     const entries: IRNormRef[] = []
     for (const ref of els(e)) {
       if (ref.name.local !== 'ref' || ref.name.ns !== null) { issue(ref, ctx, '规范引用清单包含未知结构'); continue }
+      structural(ref, ctx)
       const body = els(ref).filter(c => c.name.local !== 'label')
       if (body.length !== 1) { issue(ref, ctx, '规范引用条目需要一个文献内容'); continue }
       const b = body[0]!
       if (b.name.local === 'std') {
+        structural(b, ctx)
         const refs = named(b, 'std-ref'), titles = named(b, 'title')
         if (refs.length !== 1 || titles.length !== 1 || els(b).length !== 2) { issue(b, ctx, '标准引用需要编号和标题'); continue }
         entries.push({ kind: 'normRef', id: id(ref, ctx), entryType: 'std', ref: readInlineChildren(refs[0]!, ctx), title: readInlineChildren(titles[0]!, ctx) })
@@ -102,9 +110,12 @@ export function mapReferenceBlock(e: XmlElement, ctx: ImportContext): IRBlock[] 
     return [{ kind: 'normRefList', id: id(e, ctx), entries }]
   }
   if (e.name.local !== 'def-list' || ![undefined, 'abbreviation'].includes(ctx.attr(e, null, 'list-content'))) return undefined
+  structural(e, ctx)
   const items = named(e, 'def-item').map(item => {
+    structural(item, ctx)
     const term = named(item, 'term')[0], def = named(item, 'def')[0]
     if (!term || !def || els(item).length !== 2) issue(item, ctx, '定义项必须包含术语和释义')
+    if (def) structural(def, ctx)
     const ps = def ? named(def, 'p') : []
     if (def && ps.length !== els(def).length) issue(def, ctx, '定义包含未知结构')
     if (ps.length > 1) issue(def!, ctx, '多段释义以换行合并', true)
@@ -115,42 +126,68 @@ export function mapReferenceBlock(e: XmlElement, ctx: ImportContext): IRBlock[] 
 }
 export function mapBibliography(e: XmlElement, ctx: ImportContext): IRBibEntry[] | undefined {
   if (e.name.ns !== null || e.name.local !== 'ref-list' || !['bibl', 'bibr'].includes(ctx.attr(e, null, 'content-type') ?? '')) return undefined
+  structural(e, ctx)
   const result: IRBibEntry[] = []
   for (const ref of els(e)) {
     if (ref.name.local === 'title') continue
     if (ref.name.local !== 'ref') { issue(ref, ctx, '参考文献包含未知结构'); continue }
+    structural(ref, ctx)
     const bodies = els(ref).filter(c => c.name.local !== 'label')
     if (bodies.length !== 1) { issue(ref, ctx, '参考文献需要一个内容'); continue }
     const b = bodies[0]!
     if (b.name.local === 'std') {
+      structural(b, ctx)
       const parts = els(b)
       if (parts.length !== 2 || parts[0]?.name.local !== 'std-ref' || parts[1]?.name.local !== 'title') { issue(b, ctx, '标准文献需要编号和标题'); continue }
       const fields = parts.map(part => ({ id: id(part, ctx), name: part.name.local, value: readInlineChildren(part, ctx) }))
       result.push({ kind: 'bibEntry', id: id(ref, ctx), content: fields.flatMap(f => f.value), entryType: 'standard', fields })
     } else if (b.name.local === 'mixed-citation') {
-      result.push({ kind: 'bibEntry', id: id(ref, ctx), content: readInlineChildren(b, ctx) })
+      const uris = named(b, 'uri')
+      const uri = uris[0]
+      if (uris.length && (uris.length !== 1 || b.children[b.children.length - 1] !== uri || els(uri!).length || uri!.attrs.length)) {
+        issue(b, ctx, '文献 URI 必须是单个无样式的末尾链接')
+        result.push({ kind: 'bibEntry', id: id(ref, ctx), content: readInlineChildren(b, ctx) })
+      } else if (uri) {
+        const content: IRInline[] = []
+        for (const c of b.children) {
+          if (c === uri) continue
+          if (c.type === 'text') content.push({ text: c.value })
+          else if (c.type === 'element') content.push(...(ctx.dispatchInline(c) ?? []))
+        }
+        const href = xmlTextContent(uri)
+        result.push({ kind: 'bibEntry', id: id(ref, ctx), content, externalLink: { href, displayText: href } })
+      } else result.push({ kind: 'bibEntry', id: id(ref, ctx), content: readInlineChildren(b, ctx) })
     } else issue(b, ctx, '未知文献类型')
   }
   return result
 }
 export function mapIndex(e: XmlElement, ctx: ImportContext): IRIndex | undefined {
   if (e.name.ns !== null || e.name.local !== 'index') return undefined
+  structural(e, ctx)
   const titleGroup = named(e, 'index-title-group')[0]
   const title = titleGroup && named(titleGroup, 'title')[0]
   const groups = named(e, 'index-div').map(group => {
+    structural(group, ctx)
     const tg = named(group, 'index-title-group')[0], label = tg && named(tg, 'title')[0]
     const entries = named(group, 'index-entry').map(entry => {
+      structural(entry, ctx)
       const term = named(entry, 'term')[0]
       const targets: string[] = [], seeAlso: string[] = []
+      const sourceReferences: Array<{ type: 'see' | 'seeAlso'; content: IRInline[] }> = []
       for (const c of els(entry)) {
         if (c === term) continue
-        if (c.name.local !== 'see-entry' && c.name.local !== 'see-also') { issue(c, ctx, '未知索引内容'); continue }
+        if (c.name.local !== 'see-entry' && c.name.local !== 'see-also' && c.name.local !== 'see-also-entry') { issue(c, ctx, '未知索引内容'); continue }
         const refs = named(c, 'xref')
-        if (!refs.length || refs.length !== els(c).length || c.children.some(n => n.type === 'text' && n.value.trim())) { issue(c, ctx, '索引目标缺少可解析的引用身份'); continue }
+        if (!refs.length) {
+          sourceReferences.push({ type: c.name.local === 'see-entry' ? 'see' : 'seeAlso', content: readInlineChildren(c, ctx) })
+          issue(c, ctx, '索引来源只有显示文字，编号变化时不会自动更新', true)
+          continue
+        }
+        if (refs.length !== els(c).length || c.children.some(n => n.type === 'text' && n.value.trim())) { issue(c, ctx, '索引目标混合引用与其他内容'); continue }
         for (const ref of refs) { const rid = ctx.attr(ref, null, 'rid') ?? ''; const target = ctx.xmlTargetID(rid); if (target) (c.name.local === 'see-entry' ? targets : seeAlso).push(target); else issue(ref, ctx, '索引引用目标不存在') }
       }
       if (!term) issue(entry, ctx, '索引项缺少术语')
-      return { id: id(entry, ctx), term: term ? readInlineChildren(term, ctx) : [], targets, seeAlso }
+      return { id: id(entry, ctx), term: term ? readInlineChildren(term, ctx) : [], targets, seeAlso, ...(sourceReferences.length ? { sourceReferences } : {}) }
     })
     if (els(group).some(c => c !== tg && c.name.local !== 'index-entry')) issue(group, ctx, '索引组包含未知结构')
     return { id: id(group, ctx), ...(label ? { label: readInlineChildren(label, ctx) } : {}), entries }
