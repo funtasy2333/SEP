@@ -129,6 +129,10 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
       default: warn(el, '未知元数据元素', 'error')
     }
   }
+  if (meta.publishDate && meta.implementDate && validDate(meta.publishDate) && validDate(meta.implementDate) && meta.publishDate > meta.implementDate) {
+    const published = elements(element).find(el => el.name.local === 'release-date' && ctx.attr(el, null, 'date-type') !== 'implemented')
+    warn(published ?? element, '发布日期晚于实施日期')
+  }
   for (const [lang, field] of [['zh', 'title'], ['en', 'titleEn']] as const) {
     if (meta[field] !== undefined) continue
     const parts = (meta.titleParts ?? []).filter(p => p.lang?.toLowerCase().split('-')[0] === lang)

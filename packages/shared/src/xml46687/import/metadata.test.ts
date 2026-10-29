@@ -139,3 +139,13 @@ it('[M-4.3.2-06] 空机构不可静默丢弃', () => {
   mapMetadata(tree.root, ctx)
   expect(ctx.problems.some(p => p.severity === 'error' && p.xml?.path.includes('std-org[1]'))).toBe(true)
 })
+
+it('[M-4.3.2-10] [M-4.3.2-11] 发布晚于实施时保留日期并提示', () => {
+  const tree = parseXml46687('<std-meta><std-ref type="dated">GB/T 1</std-ref><release-date>2026-12-01</release-date><implementation-date>2026-01-01</implementation-date></std-meta>').tree!
+  const ids = new Map<string, string>()
+  const visit = (el: XmlElement) => { ids.set(el.position!.path, `n${ids.size}`); el.children.forEach(c => { if (c.type === 'element') visit(c) }) }
+  visit(tree.root)
+  const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, { inline: mapCoreInline })
+  expect(mapMetadata(tree.root, ctx)).toMatchObject({ publishDate: '2026-12-01', implementDate: '2026-01-01' })
+  expect(ctx.problems.some(p => p.severity === 'warning' && p.xml?.path.includes('release-date'))).toBe(true)
+})
