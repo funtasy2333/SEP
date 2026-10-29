@@ -6,6 +6,14 @@ import { readInlineChildren } from './inline'
 
 const XML = 'http://www.w3.org/XML/1998/namespace'
 const elements = (el: XmlElement) => el.children.filter((x): x is XmlElement => x.type === 'element')
+function validDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return false
+  const year = Number(match[1]), month = Number(match[2]), day = Number(match[3])
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+  return year > 0 && month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1]!
+}
 
 export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta | undefined {
   if (element.name.ns !== null || element.name.local !== 'std-meta') return undefined
@@ -54,6 +62,7 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
       case 'content-language': (meta.languages ??= []).push({ id: id(el), tag: text(el) }); break
       case 'release-date':
       case 'implementation-date': {
+        if (!validDate(text(el))) ctx.report({ code: 'xml-date-invalid', severity: 'error', message: '日期必须是真实的 YYYY-MM-DD 日历日期', xml: ctx.location(el) })
         const field = el.name.local === 'implementation-date' || ctx.attr(el, null, 'date-type') === 'implemented' ? 'implementDate' : 'publishDate'
         if (meta[field] !== undefined) warn(el, '日期语义重复', 'error')
         else meta[field] = text(el)

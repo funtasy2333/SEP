@@ -32,3 +32,9 @@ it('[M-4.3.4-02] [M-4.3.4-03] [M-4.4.2.5-01] 构造引言条、无标题条并�
   expect(doc.body[0]?.children[0]).toMatchObject({ kind: 'clause', titled: false, level: 1 })
   expect(ctx.problems.some(p => p.severity === 'error' && p.xml?.path.includes('p[2]'))).toBe(true)
 })
+
+it('[M-4.2-03] 未知根级内容必须报告，不得静默丢弃', () => {
+  const { tree, ctx } = setup('<standard><front><std-meta/></front><body/><unexpected>丢失</unexpected></standard>')
+  mapStructure(tree, ctx)
+  expect(ctx.problems.some(p => p.severity === 'error' && p.xml?.path.includes('unexpected'))).toBe(true)
+})

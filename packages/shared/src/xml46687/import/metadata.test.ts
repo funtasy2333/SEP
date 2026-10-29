@@ -17,3 +17,13 @@ it('[M-4.3.2-04] [M-4.3.2-05] [M-4.3.2-06] [M-4.3.2-10] 保存分段题名、编
   expect(meta.publishers?.map(x => x.name[0]?.text)).toEqual(['甲', '乙'])
   expect(meta).toMatchObject({ title: '中文', titleEn: 'English', stdCode: 'GB/T 123', publishDate: '2020-01-01', implementDate: '2020-06-01' })
 })
+
+it('[M-4.3.2-10] [M-4.3.2-11] 重复日期与不存在的日期阻断导入', () => {
+  const tree = parseXml46687('<std-meta><release-date>2020-02-30</release-date><release-date date-type="published">2020-03-01</release-date></std-meta>').tree!
+  const ids = new Map<string, string>()
+  const visit = (el: XmlElement) => { ids.set(el.position!.path, `n${ids.size}`); el.children.forEach(c => { if (c.type === 'element') visit(c) }) }
+  visit(tree.root)
+  const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, { inline: mapCoreInline })
+  mapMetadata(tree.root, ctx)
+  expect(ctx.problems.filter(p => p.severity === 'error')).toHaveLength(2)
+})

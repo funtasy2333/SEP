@@ -74,6 +74,9 @@ function clause(element: XmlElement, ctx: ImportContext, level: number): IRClaus
 export function mapStructure(tree: XmlDocument, ctx: ImportContext): IRDoc | undefined {
   const root = tree.root
   if (!is(root, 'standard')) return undefined
+  for (const child of elements(root)) {
+    if (!['processing-meta', 'front', 'body', 'back'].some(name => is(child, name))) report(ctx, child, '未知文档根级内容')
+  }
   const front = ctx.child(root, null, 'front'), body = ctx.child(root, null, 'body')
   const metaElement = front && ctx.child(front, null, 'std-meta')
   if (!front || !body || !metaElement) { report(ctx, root, '缺少 front、std-meta 或 body'); return undefined }
