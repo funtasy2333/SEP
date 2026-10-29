@@ -61,7 +61,7 @@ function kindOf(el: XmlElement, parents: ReadonlyMap<XmlElement, XmlElement | un
   if (n === 'index') return 'index'
   if (n === 'list-item') return 'listItem'
   const p = parents.get(el)
-  if (n === 'def-item' && p && is(p, 'def-list') && getXmlAttr(p, null, 'list-content') === 'abbreviation') return 'abbreviation'
+  if (n === 'def-item' && p && is(p, 'def-list') && [undefined, 'abbreviation'].includes(getXmlAttr(p, null, 'list-content'))) return 'abbreviation'
   if (n === 'fn') return nearest(el, parents, 'table-wrap-foot') ? 'tableFootnote' : 'footnote'
   return undefined
 }
@@ -134,6 +134,13 @@ export function buildImportIndex(tree: XmlDocument, options: MappingOptions): Im
     if (!rid || /\s/.test(rid)) { issue(el, 'xml-reference-dangling', '引用必须指定一个目标 ID'); continue }
     if (getXmlAttr(el, null, 'ref-type') === 'fn' || getXmlAttr(el, null, 'ref-type') === 'table-fn') footnoteReferenceCounts.set(rid, (footnoteReferenceCounts.get(rid) ?? 0) + 1)
     const target = byXmlId.get(rid)
+    const sourceContainer = parent.get(el)
+    const sourceEntry = sourceContainer && parent.get(sourceContainer)
+    const indexEntry = elementsByXmlId.get(rid)
+    const targetGroup = indexEntry && parent.get(indexEntry)
+    const indexSee = sourceContainer && (is(sourceContainer, 'see-entry') || is(sourceContainer, 'see-also-entry')) && sourceEntry && is(sourceEntry, 'index-entry') && nearest(sourceEntry, parent, 'index')
+    const indexTarget = indexEntry && is(indexEntry, 'index-entry') && targetGroup && is(targetGroup, 'index-div') && nearest(indexEntry, parent, 'index')
+    if (indexSee && indexTarget) continue
     if (!elementsByXmlId.has(rid)) issue(el, 'xml-reference-dangling', '引用目标不存在')
     else if (!target || !accepted(el, target, parent)) issue(el, 'xml-reference-kind', '引用目标类型不匹配或无可引用实体')
   }
