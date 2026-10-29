@@ -19,7 +19,7 @@ it('[M-5.7-10] [M-5.7-11] 保留简单列项派生段落 ID 与嵌套列表层�
   const [list] = mapCoreBlock(tree.root, ctx)!
   expect(list?.kind).toBe('list')
   if (list?.kind !== 'list') throw new Error('list expected')
-  expect(list.items[0]!.content[0]!.id).toBe(`${list.items[0]!.id}.p0`)
+  expect(list.items[0]!.content[0]!.id).toBe('n2')
   expect(list.items[1]!.content.map(b => b.kind)).toEqual(['paragraph', 'list'])
   expect(ctx.problems).toEqual([])
 })

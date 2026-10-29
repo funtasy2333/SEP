@@ -20,13 +20,18 @@ export function mapCoreBlock(element: XmlElement, ctx: ImportContext): IRBlock[]
     const listType = listTypes[ctx.attr(element, null, 'list-type') ?? '']
     if (!listType) { report(ctx, element, '不支持的列项类型'); return [] }
     const items: IRList['items'] = []
-    for (const item of elements(element)) {
+    const listChildren = elements(element)
+    const simpleList = listChildren.every(item => {
+      const content = elements(item).filter(child => !is(child, 'label'))
+      return is(item, 'list-item') && content.length === 1 && is(content[0]!, 'p')
+    })
+    for (const item of listChildren) {
       if (!is(item, 'list-item')) { ctx.dispatchBlock(item); continue }
       const kids = elements(item).filter(e => !is(e, 'label'))
       const content: IRList['items'][number]['content'] = []
       for (const child of kids) {
         if (is(child, 'p')) {
-          const paragraphId = kids.length === 1 ? ctx.singleParagraphId(item) : ctx.elementId(child)
+          const paragraphId = simpleList ? ctx.singleParagraphId(item) : ctx.elementId(child)
           content.push({ kind: 'paragraph', id: paragraphId ?? '', content: readInlineChildren(child, ctx) })
         } else if (is(child, 'list')) {
           const nested = ctx.dispatchBlock(child) ?? []
