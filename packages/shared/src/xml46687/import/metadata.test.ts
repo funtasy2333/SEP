@@ -97,3 +97,15 @@ it('[M-4.3.2-07] [M-4.3.2-13] [M-4.3.2-14] [M-4.3.2-15] [M-4.3.2-16] [M-4.3.2-17
   expect(meta).toMatchObject({ replaces: 'GB/T 0', icsCode: '01.020', ccsCode: 'A 00', technicalCommittee: 'SAC/TC 1', proposer: '机构' })
   expect(ctx.problems).toEqual([])
 })
+
+it('[M-4.3.2-09] 可识别的中文类型与编号映射旧标准类型', () => {
+  const cases = [['GB/T 1', '', 'gb'], ['GB/Z 1', '', 'guide'], ['DB33/T 1', '', 'local'], ['T/ORG 1', '', 'group'], ['Q/ORG 1', '', 'enterprise'], ['', '行业标准', 'industry']] as const
+  for (const [code, kind, expected] of cases) {
+    const tree = parseXml46687(`<std-meta><std-type>${kind}</std-type><std-ref type="dated">${code}</std-ref></std-meta>`).tree!
+    const ids = new Map<string, string>()
+    const visit = (el: XmlElement) => { ids.set(el.position!.path, `n${ids.size}`); el.children.forEach(c => { if (c.type === 'element') visit(c) }) }
+    visit(tree.root)
+    const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, { inline: mapCoreInline })
+    expect(mapMetadata(tree.root, ctx)?.standardType).toBe(expected)
+  }
+})
