@@ -36,3 +36,13 @@ it('[M-5.1-06] [M-5.1-07] [M-5.1-08] 保留上下标与文字中的空格制表�
   expect(readInlineChildren(tree.root, ctx)).toEqual([{ text: ' x\t' }, { text: '2', marks: [{ type: 'sup' }] }, { text: 'i', marks: [{ type: 'sub' }] }, { text: ' ' }])
   expect(ctx.problems).toEqual([])
 })
+
+it('[M-4.5.3-07] 接受 break，未登记的 br 由上下文报告', () => {
+  const tree = parseXml46687('<p><break/><br/></p>').tree!
+  const ids = new Map<string, string>()
+  const visit = (el: XmlElement) => { ids.set(el.position!.path, `n${ids.size}`); el.children.forEach(c => { if (c.type === 'element') visit(c) }) }
+  visit(tree.root)
+  const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, { inline: mapCoreInline })
+  expect(readInlineChildren(tree.root, ctx)).toEqual([{ text: '\n' }])
+  expect(ctx.problems.some(p => p.code === 'xml-unsupported' && p.xml?.path.includes('/br[1]'))).toBe(true)
+})
