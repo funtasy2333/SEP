@@ -46,3 +46,36 @@ describe('导入索引与上下文', () => {
     expect(JSON.stringify(tree)).toBe(before)
   })
 })
+
+describe('索引边界', () => {
+  it('前言和引言容器无实体，引言子条有实体', () => {
+    const { tree, ids } = fixture('<standard><front><sec id="front" sec-type="foreword"/><sec id="intro" sec-type="intro"><sec id="child"/></sec></front></standard>')
+    const { index } = buildImportIndex(tree, { nodeIdsByPath: ids, resources: new Map() })
+    expect(index.byXmlId.has('front')).toBe(false)
+    expect(index.byXmlId.has('intro')).toBe(false)
+    expect(index.byXmlId.get('child')?.kind).toBe('clause')
+  })
+  it('同时索引 id 和 xml:id 并检测重复及术语 target 悬空', () => {
+    const { tree, ids } = fixture('<standard xmlns:t="urn:iso:std:iso:30042:ed-1"><body><sec id="a" xml:id="alias"/><sec id="alias"/><t:entailedTerm target="missing"/></body></standard>')
+    const { index, problems } = buildImportIndex(tree, { nodeIdsByPath: ids, resources: new Map() })
+    expect(index.byXmlId.get('a')?.nodeId).toBe(index.byXmlId.get('alias')?.nodeId)
+    expect(problems.map(p => p.code)).toEqual(expect.arrayContaining(['xml-id-duplicate', 'xml-reference-dangling']))
+  })
+})
+
+describe('派生段落身份', () => {
+  it('单段容器使用生产 Schema 的派生 ID，并拒绝与预分配 ID 冲突', () => {
+    const { tree, ids } = fixture('<standard><body><list-item/><p/></body></standard>')
+    const body = tree.root.children[0] as XmlElement
+    const item = body.children[0] as XmlElement
+    const paragraph = body.children[1] as XmlElement
+    ids.set(item.position!.path, 'item')
+    ids.set(paragraph.position!.path, 'item.p0')
+    const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, {})
+    expect(ctx.singleParagraphId(item)).toBeUndefined()
+    expect(ctx.problems.map(p => p.code)).toContain('xml-node-id-duplicate')
+    ids.set(paragraph.position!.path, 'other')
+    const clean = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, {})
+    expect(clean.singleParagraphId(item)).toBe('item.p0')
+  })
+})

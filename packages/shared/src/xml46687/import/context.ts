@@ -27,8 +27,8 @@ export function location(element: XmlElement): XmlLocation {
 function is(el: XmlElement, local: string, ns: string | null = null): boolean {
   return el.name.ns === ns && el.name.local === local
 }
-function xmlId(el: XmlElement): string | undefined {
-  return getXmlAttr(el, null, 'id') ?? getXmlAttr(el, XML, 'id')
+function xmlIds(el: XmlElement): string[] {
+  return [getXmlAttr(el, null, 'id'), getXmlAttr(el, XML, 'id')].filter((id): id is string => id !== undefined)
 }
 function nearest(el: XmlElement, parent: ReadonlyMap<XmlElement, XmlElement | undefined>, name: string): XmlElement | undefined {
   let current = parent.get(el)
@@ -43,7 +43,11 @@ function kindOf(el: XmlElement, parents: ReadonlyMap<XmlElement, XmlElement | un
   if (el.name.ns === TBX) return n === 'termEntry' ? 'term' : n === 'note' ? 'note' : n === 'example' ? 'example' : undefined
   if (el.name.ns !== null) return undefined
   if (n === 'sec') {
-    if (nearest(el, parents, 'front') && !nearest(el, parents, 'intro')) return undefined
+    if (nearest(el, parents, 'front')) {
+      const section = nearest(el, parents, 'sec')
+      if (!section || getXmlAttr(section, null, 'sec-type') === 'foreword') return undefined
+      return 'clause'
+    }
     return nearest(el, parents, 'sec') || nearest(el, parents, 'app') || nearest(el, parents, 'front') ? 'clause' : 'chapter'
   }
   if (n === 'term-sec') return 'term'
@@ -96,12 +100,11 @@ export function buildImportIndex(tree: XmlDocument, options: MappingOptions): Im
   }
   visit(tree.root, undefined)
   for (const el of elements) {
-    const id = xmlId(el)
-    if (id !== undefined) {
+    for (const id of xmlIds(el)) {
       if (!ncName.test(id)) { issue(el, 'xml-id-invalid', 'XML ID 不符合 NCName'); continue }
       if (elementsByXmlId.has(id)) { issue(el, 'xml-id-duplicate', 'XML ID 重复'); continue }
       elementsByXmlId.set(id, el)
-      let kind = kindOf(el, parent)
+      const kind = kindOf(el, parent)
       let owner = el
       if (is(el, 'termEntry', TBX)) {
         const container = nearest(el, parent, 'term-sec')
@@ -117,6 +120,10 @@ export function buildImportIndex(tree: XmlDocument, options: MappingOptions): Im
     }
   }
   for (const el of elements) {
+    if (is(el, 'entailedTerm', TBX)) {
+      const target = getXmlAttr(el, null, 'target')
+      if (target !== undefined && !elementsByXmlId.has(target)) issue(el, 'xml-reference-dangling', '术语关联目标不存在')
+    }
     if (!is(el, 'xref')) continue
     const rid = getXmlAttr(el, null, 'rid')?.trim()
     if (!rid || /\s/.test(rid)) { issue(el, 'xml-reference-dangling', '引用必须指定一个目标 ID'); continue }
@@ -138,6 +145,7 @@ export interface ImportContext {
   index: ImportIndex
   problems: ImportProblem[]
   elementId(element: XmlElement): NodeId | undefined
+  singleParagraphId(element: XmlElement): NodeId | undefined
   xmlTargetID(id: string): NodeId | undefined
   targetKind(id: string): ImportTargetKind | undefined
   requiredResource(element: XmlElement): Readonly<ResolvedResource> | undefined
@@ -154,10 +162,21 @@ export interface ImportContext {
 export function createImportContext(tree: XmlDocument, options: MappingOptions, handlers: ImportHandlers): ImportContext {
   const result = buildImportIndex(tree, options)
   const problems = [...result.problems]
+  const allocated = new Set(result.index.nodeIds.values())
   const missing = (element: XmlElement) => problems.push({ code: 'xml-unsupported', severity: 'error', message: '未注册此内容的映射处理器', xml: location(element) })
   const ctx: ImportContext = {
     index: result.index, problems,
     elementId: element => result.index.nodeIds.get(element),
+    singleParagraphId: element => {
+      const ownerId = result.index.nodeIds.get(element)
+      if (!ownerId) return undefined
+      const id = `${ownerId}.p0`
+      if (allocated.has(id)) {
+        problems.push({ code: 'xml-node-id-duplicate', severity: 'error', message: '派生段落 ID 与预分配节点 ID 冲突', xml: location(element) })
+        return undefined
+      }
+      return id
+    },
     xmlTargetID: id => result.index.byXmlId.get(id)?.nodeId,
     targetKind: id => result.index.byXmlId.get(id)?.kind,
     requiredResource: element => {
