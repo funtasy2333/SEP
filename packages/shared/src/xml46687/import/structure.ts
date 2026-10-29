@@ -58,11 +58,21 @@ export function mapCoreBlock(element: XmlElement, ctx: ImportContext): IRBlock[]
 
 function sectionChildren(element: XmlElement, ctx: ImportContext, level: number): IRClauseChild[] {
   const result: IRClauseChild[] = []
+  let afterSection = false
+  let afterTrailer = false
   for (const child of elements(element)) {
     if (is(child, 'label') || is(child, 'title') || is(child, 'annex-type')) continue
-    if (is(child, 'sec')) { const c = clause(child, ctx, level); if (c) result.push(c) }
-    else if (is(child, 'term-sec')) { const term = ctx.dispatchTerm(child); if (term) result.push(term) }
-    else result.push(...(ctx.dispatchBlock(child) ?? []))
+    if (is(child, 'sec') || is(child, 'term-sec')) {
+      if (afterTrailer) report(ctx, child, '尾部注或示例之后不能出现条')
+      afterSection = true
+      if (is(child, 'sec')) { const c = clause(child, ctx, level); if (c) result.push(c) }
+      else { const term = ctx.dispatchTerm(child); if (term) result.push(term) }
+    } else {
+      const blocks = ctx.dispatchBlock(child) ?? []
+      if (afterSection && blocks.some(block => !['note', 'example', 'normRefList'].includes(block.kind))) report(ctx, child, '子条之后的正文无法表示')
+      if (afterSection && blocks.length > 0 && blocks.every(block => ['note', 'example', 'normRefList'].includes(block.kind))) afterTrailer = true
+      result.push(...blocks)
+    }
   }
   return result
 }

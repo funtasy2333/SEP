@@ -64,3 +64,10 @@ it('[M-5.9-01] [M-5.9-02] [M-5.9-03] 摘录保留正文并提示无法表达的�
   expect(ctx.problems.filter(p => p.severity === 'error')).toEqual([])
   expect(ctx.problems.filter(p => p.severity === 'warning')).toHaveLength(2)
 })
+
+it('[M-4.4.2.1-01] 章中子条之后的正文以位置错误阻断', () => {
+  const { tree, ctx } = setup('<standard><front><std-meta/></front><body><sec><title>章</title><sec><title>条</title><p>内容</p></sec><p>悬置</p></sec></body></standard>')
+  const doc = mapStructure(tree, ctx)!
+  expect(doc.body[0]?.children.map(c => c.kind)).toEqual(['clause', 'paragraph'])
+  expect(ctx.problems.some(p => p.severity === 'error' && p.xml?.path.endsWith('/p[1]'))).toBe(true)
+})
