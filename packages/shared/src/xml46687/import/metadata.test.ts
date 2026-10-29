@@ -27,3 +27,38 @@ it('[M-4.3.2-10] [M-4.3.2-11] 重复日期与不存在的日期阻断导入', ()
   mapMetadata(tree.root, ctx)
   expect(ctx.problems.filter(p => p.severity === 'error')).toHaveLength(2)
 })
+
+it('[M-4.3.2-06] [M-G-01] 保留同一机构组多个名称和仅有缩写的机构', () => {
+  const tree = parseXml46687('<std-meta><std-org-group><std-org std-org-role="lead"><std-org-name>甲</std-org-name><std-org-name>乙</std-org-name><std-org-abbrev>GB</std-org-abbrev></std-org></std-org-group><std-org std-org-type="national"><std-org-abbrev>SAC</std-org-abbrev></std-org></std-meta>').tree!
+  const ids = new Map<string, string>()
+  const visit = (el: XmlElement) => { ids.set(el.position!.path, `n${ids.size}`); el.children.forEach(c => { if (c.type === 'element') visit(c) }) }
+  visit(tree.root)
+  const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, { inline: mapCoreInline })
+  const meta = mapMetadata(tree.root, ctx)!
+  expect(meta.publishers?.map(p => [p.name[0]?.text, p.role, p.identifier])).toEqual([['甲', 'lead', 'GB'], ['乙', 'lead', undefined], ['SAC', undefined, 'SAC']])
+  expect(ctx.problems.some(p => p.severity === 'error')).toBe(false)
+  expect(ctx.problems.some(p => p.severity === 'warning')).toBe(true)
+})
+
+it('[M-C-01] [M-C-02] [M-C-03] [M-G-04] [M-G-05] 可接收但无法表达的元数据给出提示', () => {
+  const tree = parseXml46687('<std-meta><proj-id>P</proj-id><release-version>draft</release-version><doc-ref>R</doc-ref><secretariat>S</secretariat><page-count count="8"/></std-meta>').tree!
+  const ids = new Map<string, string>()
+  const visit = (el: XmlElement) => { ids.set(el.position!.path, `n${ids.size}`); el.children.forEach(c => { if (c.type === 'element') visit(c) }) }
+  visit(tree.root)
+  const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, { inline: mapCoreInline })
+  mapMetadata(tree.root, ctx)
+  expect(ctx.problems.filter(p => p.severity === 'error')).toEqual([])
+  expect(ctx.problems.filter(p => p.severity === 'warning')).toHaveLength(6)
+})
+
+it('[M-4.3.2-04] 只有分段题名时保留完整分段并提供旧封面题名', () => {
+  const tree = parseXml46687('<std-meta><title-wrap xml:lang="zh"><intro>总</intro><main>主体</main><compl>部分</compl></title-wrap><std-ref type="dated">GB/Z 123</std-ref></std-meta>').tree!
+  const ids = new Map<string, string>()
+  const visit = (el: XmlElement) => { ids.set(el.position!.path, `n${ids.size}`); el.children.forEach(c => { if (c.type === 'element') visit(c) }) }
+  visit(tree.root)
+  const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, { inline: mapCoreInline })
+  const meta = mapMetadata(tree.root, ctx)!
+  expect(meta.titleParts?.map(p => p.role)).toEqual(['intro', 'main', 'compl'])
+  expect(meta.title).toBe('总 主体 部分')
+  expect(meta.standardType).toBe('guide')
+})

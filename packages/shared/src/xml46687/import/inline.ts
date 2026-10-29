@@ -15,7 +15,7 @@ export function readInlineChildren(element: XmlElement, ctx: ImportContext): IRI
 export function mapCoreInline(element: XmlElement, ctx: ImportContext): IRInline[] | undefined {
   if (element.name.ns !== null) return undefined
   const name = element.name.local
-  if (name === 'break' || name === 'br') return [{ text: '\n' }]
+  if (name === 'break') return [{ text: '\n' }]
   const types: Record<string, IRMark['type']> = {
     bold: 'bold', italic: 'italic', underline: 'underline', strike: 'strike',
     sup: 'sup', sub: 'sub', monospace: 'code', 'inline-code': 'code',

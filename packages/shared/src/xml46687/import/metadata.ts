@@ -5,6 +5,7 @@ import type { ImportContext } from './context'
 import { readInlineChildren } from './inline'
 
 const XML = 'http://www.w3.org/XML/1998/namespace'
+const isKnownOrgChild = (el: XmlElement) => el.name.ns === null && ['std-org-name', 'std-org-abbrev'].includes(el.name.local)
 const elements = (el: XmlElement) => el.children.filter((x): x is XmlElement => x.type === 'element')
 function validDate(value: string): boolean {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
@@ -23,6 +24,23 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
   const text = (el: XmlElement) => xmlTextContent(el).trim()
   const child = (el: XmlElement, name: string) => ctx.child(el, null, name)
   const inline = (el?: XmlElement) => el ? readInlineChildren(el, ctx) : []
+  let standardTypeText: string | undefined
+  const mapOrg = (org: XmlElement) => {
+    const names = ctx.children(org, null, 'std-org-name')
+    const abbreviation = child(org, 'std-org-abbrev')
+    const identifier = abbreviation && text(abbreviation)
+    const role = ctx.attr(org, null, 'std-org-role')
+    if (names.length === 0 && abbreviation) {
+      ;(meta.publishers ??= []).push({ id: id(org), name: inline(abbreviation), role, identifier })
+      warn(org, '机构仅有缩写，以缩写作为名称')
+    }
+    names.forEach((name, index) => {
+      ;(meta.publishers ??= []).push({ id: index === 0 ? id(org) : id(name), name: inline(name), role, identifier: index === 0 ? identifier : undefined })
+      if (meta.issuer === undefined) meta.issuer = xmlTextContent(name)
+    })
+    if (ctx.attr(org, null, 'std-org-level') || ctx.attr(org, null, 'std-org-type')) warn(org, '机构级别或类型无法表达')
+    for (const item of elements(org)) if (!isKnownOrgChild(item)) warn(item, '未知机构元素', 'error')
+  }
   for (const el of elements(element)) {
     if (el.name.ns !== null) { warn(el, '未知元数据元素', 'error'); continue }
     switch (el.name.local) {
@@ -51,14 +69,11 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
       }
       case 'std-org-group':
         for (const org of elements(el)) {
-          if (org.name.local !== 'std-org' || org.name.ns !== null) { warn(org, '未知机构元素', 'error'); continue }
-          const name = child(org, 'std-org-name')
-          const abbreviation = child(org, 'std-org-abbrev')
-          ;(meta.publishers ??= []).push({ id: id(org), name: inline(name), role: ctx.attr(org, null, 'std-org-role'), identifier: abbreviation && text(abbreviation) })
-          if (meta.issuer === undefined && name) meta.issuer = xmlTextContent(name)
-          if (ctx.attr(org, null, 'std-org-level') || ctx.attr(org, null, 'std-org-type')) warn(org, '机构级别或类型无法表达')
+          if (org.name.local !== 'std-org' || org.name.ns !== null) warn(org, '未知机构元素', 'error')
+          else mapOrg(org)
         }
         break
+      case 'std-org': mapOrg(el); break
       case 'content-language': (meta.languages ??= []).push({ id: id(el), tag: text(el) }); break
       case 'release-date':
       case 'implementation-date': {
@@ -94,12 +109,29 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
         }
         break
       }
-      case 'equivalence': case 'std-type': warn(el, '元数据没有已确认的语义映射'); break
+      case 'std-type': standardTypeText = text(el); warn(el, `标准类型原文「${standardTypeText}」没有完整语义映射`); break
+      case 'equivalence': warn(el, `采用关系无已确认内容模型：${text(el)}`); break
+      case 'proj-id': case 'release-version': case 'doc-ref': case 'secretariat': case 'page-count':
+        warn(el, `${el.name.local} 无对应字段，已忽略`); break
       default: warn(el, '未知元数据元素', 'error')
     }
   }
+  for (const [lang, field] of [['zh', 'title'], ['en', 'titleEn']] as const) {
+    if (meta[field] !== undefined) continue
+    const parts = (meta.titleParts ?? []).filter(p => p.lang?.toLowerCase().split('-')[0] === lang)
+    if (parts.length) {
+      meta[field] = parts.map(p => p.content.map(run => run.text).join('')).filter(Boolean).join(' ')
+      warn(element, `完整${lang}题名缺失，以分段生成封面题名`)
+    }
+  }
   const code = meta.stdCode ?? ''
-  if (/^GB(?:\/T|\/Z)?\s/i.test(code)) meta.standardType = 'gb'
+  const descriptor = standardTypeText ?? ''
+  if (/^GB\/Z(?:\s|$)/i.test(code) || descriptor.includes('指导性技术文件')) meta.standardType = 'guide'
+  else if (/^GB(?:\/T)?(?:\s|$)/i.test(code) || descriptor.includes('国家标准')) meta.standardType = 'gb'
+  else if (/^DB\d+(?:\/T)?(?:\s|$)/i.test(code) || descriptor.includes('地方标准')) meta.standardType = 'local'
+  else if (/^T\//i.test(code) || descriptor.includes('团体标准')) meta.standardType = 'group'
+  else if (/^Q\//i.test(code) || descriptor.includes('企业标准')) meta.standardType = 'enterprise'
+  else if (descriptor.includes('行业标准')) meta.standardType = 'industry'
   else warn(element, '标准类型缺少可确定的依据，暂用 gb')
   return meta
 }

@@ -38,3 +38,22 @@ it('[M-4.2-03] 未知根级内容必须报告，不得静默丢弃', () => {
   mapStructure(tree, ctx)
   expect(ctx.problems.some(p => p.severity === 'error' && p.xml?.path.includes('unexpected'))).toBe(true)
 })
+
+it('[M-5.6-01] [M-5.6-02] [M-5.6-03] [M-5.6-05] 保留注、示例、警告的多块内容', () => {
+  const { tree, ctx } = setup('<non-normative-note><label>注：</label><p>一</p><p>二</p></non-normative-note>')
+  expect(mapCoreBlock(tree.root, ctx)).toMatchObject([{ kind: 'note', content: [{ kind: 'paragraph', content: [{ text: '一' }] }, { kind: 'paragraph', content: [{ text: '二' }] }] }])
+  expect(ctx.problems).toEqual([])
+})
+
+it('[M-4.2-07] [M-4.2-08] [M-4.5.2-06] 附录异写和条的标题保留', () => {
+  const { tree, ctx } = setup('<standard><front><std-meta/></front><body/><back><app-group><app content-type="inform_annex"><title>附录</title><sec><title><italic>条</italic></title><p>内容</p></sec></app></app-group></back></standard>')
+  const doc = mapStructure(tree, ctx)!
+  expect(doc.appendices[0]).toMatchObject({ normative: false, title: [{ text: '附录' }], children: [{ kind: 'clause', title: [{ text: '条', marks: [{ type: 'italic' }] }] }] })
+  expect(ctx.problems.some(p => p.severity === 'warning' && p.xml?.path.includes('app[1]'))).toBe(true)
+})
+
+it('[M-4.4.2.1-04] 没有跨域处理器时引用内容明确报错', () => {
+  const { tree, ctx } = setup('<p>前<xref ref-type="sec" rid="missing">引用</xref>后</p>')
+  mapCoreBlock(tree.root, ctx)
+  expect(ctx.problems.some(p => p.code === 'xml-unsupported' && p.xml?.path.includes('xref'))).toBe(true)
+})
