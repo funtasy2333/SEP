@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getOutputSupportProblems, irToPm, pmToIr, type IRDoc, type PMJsonNode } from '@ses/shared'
+import { getOutputSupportProblems, irToPm, pmToIr, resolve, type IRDoc, type PMJsonNode } from '@ses/shared'
 import { createEditorSchema } from './editorSchema'
 
 describe('WP8.3 索引源文字', () => {
@@ -22,5 +22,13 @@ describe('WP8.3 索引源文字', () => {
     for (const format of ['XML', 'XML46687', 'HTML', 'DOCX'] as const) {
       expect(getOutputSupportProblems(result, format).some(problem => problem.path.includes('index'))).toBe(true)
     }
+  })
+
+  it('索引原文中的引用只检查一次', () => {
+    const doc: IRDoc = { schemaVersion: 1, meta: { standardType: 'gb' }, front: { foreword: [], introduction: [] },
+      body: [{ kind: 'chapter', id: 'c', secType: 'general', title: [], children: [] }], appendices: [], bibliography: [],
+      index: { id: 'index', groups: [{ id: 'group', entries: [{ id: 'entry', term: [{ text: '词' }], targets: [], seeAlso: [],
+        sourceReferences: [{ type: 'see', content: [{ text: '指向', marks: [{ type: 'termRef', targetId: 'missing' }] }] }] }] }] } }
+    expect(resolve(doc).problems.filter(problem => problem.code === 'dangling-typed-ref')).toHaveLength(1)
   })
 })

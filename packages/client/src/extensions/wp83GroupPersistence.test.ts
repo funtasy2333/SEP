@@ -87,6 +87,21 @@ describe('WP8.3 组节点保存', () => {
     expect(() => irToPm(doc)).toThrow()
   })
 
+  it('旧脚注与共享定义不得共用 ID，标题和表格禁止共享脚注', () => {
+    const reference = { text: '', footnoteRef: { targetId: 'same', refText: '1' } }
+    const doc: IRDoc = { schemaVersion: 1, meta: { standardType: 'gb' }, front: { foreword: [], introduction: [] },
+      body: [{ kind: 'chapter', id: 'c', secType: 'general', title: [reference], children: [
+        { kind: 'paragraph', id: 'p', content: [{ text: '', footnote: { id: 'same', content: [{ text: '旧' }] } }] },
+        { kind: 'table', id: 'table', caption: [], orientation: 'portrait', headerRowCount: 0, notes: [],
+          rows: [{ id: 'r', cells: [{ id: 'cell', colspan: 1, rowspan: 1, header: false, content: [
+            { kind: 'paragraph', id: 'cp', content: [{ text: '', footnoteDefinition: { id: 'same', content: [{ text: '共享' }] } }] },
+          ] }] }] },
+      ] }], appendices: [], bibliography: [] }
+    const issues = resolve(doc).problems
+    expect(issues.filter(issue => issue.code === 'invalid-footnote').length).toBeGreaterThanOrEqual(3)
+    expect(issues.some(issue => issue.code === 'duplicate-id' && issue.nodeId === 'same')).toBe(true)
+  })
+
   it('复制时共享脚注定义和两个引用一起重映射', () => {
     const schema = createEditorSchema()
     const doc = schema.nodeFromJSON({ type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'chapter' }, content: [

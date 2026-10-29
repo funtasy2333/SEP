@@ -936,7 +936,10 @@ function collectDeferredInlineArrays(doc: IRDoc): WeakSet<object> {
     defer(doc.index.title)
     for (const group of doc.index.groups) {
       defer(group.label)
-      for (const entry of group.entries) defer(entry.term)
+      for (const entry of group.entries) {
+        defer(entry.term)
+        for (const reference of entry.sourceReferences ?? []) defer(reference.content)
+      }
     }
   }
   return arrays
