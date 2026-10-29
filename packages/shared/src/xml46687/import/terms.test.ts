@@ -63,3 +63,13 @@ it('[M-9.2.1-06] 同一主语言的语言集合并风险有告警', () => {
   expect(term.languageSets).toHaveLength(2)
   expect(ctx.problems).toContainEqual(expect.objectContaining({ code: 'xml-normalized', severity: 'warning' }))
 })
+
+it('[M-9.2.1-06] 定义之前的尾项会明确告警', () => {
+  const tree = parseXml46687('<term-sec xmlns:t="urn:iso:std:iso:30042:ed-1"><t:termEntry><t:langSet xml:lang="zh"><t:note>注</t:note><t:definition>定义</t:definition><t:tig><t:term>甲</t:term></t:tig></t:langSet></t:termEntry></term-sec>').tree!
+  const ids = new Map<string, string>()
+  const visit = (e: XmlElement) => { ids.set(e.position!.path, `n${ids.size}`); e.children.forEach(c => { if (c.type === 'element') visit(c) }) }
+  visit(tree.root)
+  const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, { inline: mapCoreInline })
+  mapTerm(tree.root, ctx)
+  expect(ctx.problems).toContainEqual(expect.objectContaining({ code: 'xml-normalized', severity: 'warning' }))
+})

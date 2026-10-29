@@ -127,3 +127,9 @@ it('[M-4.5.4-05] 参见索引项通过其真实元素解析身份', () => {
 function resultTarget(root: XmlElement): XmlElement {
   return findAll(root, 'index-entry').find(e => e.attrs.some(a => a.name.local === 'id' && a.value === 'second'))!
 }
+
+it('[M-4.5.4-04] 交错的实名与显示文字索引目标不能保序时拒绝', () => {
+  const { root, ctx } = setup('<root><sec id="s"/><index><index-div><index-entry><term>词</term><see-entry>甲</see-entry><see-entry><xref ref-type="sec" rid="s">1</xref></see-entry></index-entry></index-div></index></root>')
+  mapIndex(child(root, 'index'), ctx)
+  expect(ctx.problems).toContainEqual(expect.objectContaining({ code: 'xml-unsupported', severity: 'error' }))
+})

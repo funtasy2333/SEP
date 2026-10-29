@@ -40,6 +40,7 @@ export function mapTerm(e: XmlElement, ctx: ImportContext): IRTermEntry | undefi
     const languageSet: IRTermLanguageSet = { id: id(set, ctx), language: language ?? '', groups }
     for (const part of els(set)) {
       if (part.name.ns !== TBX) { issue(part, ctx, '术语语言集包含未知结构'); continue }
+      if (!definitionCount && ['tig', 'source', 'note', 'example'].includes(part.name.local)) issue(part, ctx, '定义前的术语尾项会移至定义后', true)
       switch (part.name.local) {
         case 'tig': {
           structural(part, ctx)

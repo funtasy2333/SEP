@@ -193,6 +193,7 @@ export function mapIndex(e: XmlElement, ctx: ImportContext): IRIndex | undefined
         }
       }
       if (!term) issue(entry, ctx, '索引项缺少术语')
+      if (sourceReferences.length && (targets.length || seeAlso.length)) issue(entry, ctx, '混合索引目标无法保留原始顺序')
       return { id: id(entry, ctx), term: term ? readInlineChildren(term, ctx) : [], targets, seeAlso, ...(sourceReferences.length ? { sourceReferences } : {}) }
     })
     if (els(group).some(c => c !== tg && c.name.local !== 'index-entry')) issue(group, ctx, '索引组包含未知结构')
