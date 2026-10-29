@@ -25,6 +25,7 @@ export const NODE_ID_TYPES = [
   'figure',
   'figureSet',
   'alignedArray',
+  'sharedFootnoteDefinition',
   'formula',
   'formulaGroup',
   'stdList',
@@ -342,7 +343,7 @@ function collectSliceDefinitionCounts(slice: Slice): Map<string, number> {
   slice.content.descendants((node) => {
     addIdCount(counts, node.attrs.nodeId)
     visitGraphicAttrs(node, id => addIdCount(counts, id), () => {})
-    if (node.type.name === 'footnoteRef') {
+    if (node.type.name === 'footnoteRef' || node.type.name === 'sharedFootnoteDefinition') {
       visitTypedInlinePayload(node.attrs.content, id => addIdCount(counts, id), () => {})
     }
     if (node.type.name === 'coverPage') {
@@ -358,7 +359,7 @@ function collectDocDefinitionIds(doc: PMNode): Set<string> {
   doc.descendants((node) => {
     add(node.attrs.nodeId)
     visitGraphicAttrs(node, add, () => {})
-    if (node.type.name === 'footnoteRef') visitTypedInlinePayload(node.attrs.content, add, () => {})
+    if (node.type.name === 'footnoteRef' || node.type.name === 'sharedFootnoteDefinition') visitTypedInlinePayload(node.attrs.content, add, () => {})
     if (node.type.name === 'coverPage') visitMetadataFallback(node.attrs, add, () => {})
   })
   visitMetadataFallback(doc.attrs, add, () => {})
@@ -371,10 +372,11 @@ function collectSliceReferenceIds(slice: Slice): Set<string> {
   slice.content.descendants((node) => {
     visitGraphicAttrs(node, () => {}, addReference)
     for (const mark of node.marks) addReference(referencedId({ type: mark.type.name, attrs: mark.attrs }))
-    if (node.type.name === 'footnoteRef') visitTypedInlinePayload(node.attrs.content, () => {}, addReference)
+    if (node.type.name === 'footnoteRef' || node.type.name === 'sharedFootnoteDefinition') visitTypedInlinePayload(node.attrs.content, () => {}, addReference)
     if (node.type.name === 'coverPage') visitMetadataFallback(node.attrs, () => {}, addReference)
     const targetFields: Record<string, string[]> = {
       tableFootnoteRef: ['targetId'],
+      sharedFootnoteRef: ['targetId'],
       figureResourceRef: ['targetId'],
       indexTarget: ['targetId'],
       indexSeeAlso: ['targetId'],
@@ -487,6 +489,7 @@ function remapPastedNode(node: PMNode, remaps: PastedIdRemaps): PMNode {
 
   const referenceFields: Record<string, string[]> = {
     tableFootnoteRef: ['targetId'],
+    sharedFootnoteRef: ['targetId'],
     figureResourceRef: ['targetId'],
     indexTarget: ['targetId'],
     indexSeeAlso: ['targetId'],
@@ -497,7 +500,7 @@ function remapPastedNode(node: PMNode, remaps: PastedIdRemaps): PMNode {
     const mapped = remapId(node.attrs[field], remaps)
     if (mapped !== node.attrs[field]) attrs = { ...(attrs ?? node.attrs), [field]: mapped }
   }
-  if (node.type.name === 'footnoteRef') {
+  if (node.type.name === 'footnoteRef' || node.type.name === 'sharedFootnoteDefinition') {
     const payload = remapTypedInlinePayload(node.attrs.content, remaps)
     if (payload !== node.attrs.content) attrs = { ...(attrs ?? node.attrs), content: payload }
   }

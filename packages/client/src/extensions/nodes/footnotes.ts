@@ -56,6 +56,24 @@ function dispatchFootnoteEdit(nodeId: string, table = false) {
   window.dispatchEvent(new CustomEvent('ses:edit-footnote', { detail: { nodeId, table } }))
 }
 
+export const SharedFootnoteRef = Node.create({
+  name: 'sharedFootnoteRef', inline: true, group: 'inline', atom: true,
+  addAttributes() { return { targetId: { default: '' }, refText: { default: '' } } },
+  parseHTML() { return [{ tag: 'sup[data-type="shared-footnote-ref"]' }] },
+  renderHTML({ node, HTMLAttributes }) { return ['sup', mergeAttributes(HTMLAttributes, { 'data-type': 'shared-footnote-ref' }), node.attrs.refText || ''] },
+})
+
+export const SharedFootnoteDefinition = Node.create({
+  name: 'sharedFootnoteDefinition', inline: true, group: 'inline', atom: true,
+  addAttributes() { return { content: { default: [],
+    parseHTML: (element: HTMLElement) => { try { return JSON.parse(element.getAttribute('data-content') || '[]') } catch { return [] } },
+    renderHTML: (attrs: Record<string, unknown>) => ({ 'data-content': JSON.stringify(attrs.content ?? []) }),
+  } } },
+  parseHTML() { return [{ tag: 'span[data-type="shared-footnote-definition"]' }] },
+  renderHTML({ node, HTMLAttributes }) { return ['span', mergeAttributes(HTMLAttributes, { 'data-type': 'shared-footnote-definition' }),
+    (Array.isArray(node.attrs.content) ? node.attrs.content : []).map((item: { text?: string }) => item.text ?? '').join('')] },
+})
+
 /** 正文脚注引用。正文内容作为 attrs.content 保存，避免伪装成页底 block。 */
 export const FootnoteRef = Node.create({
   name: 'footnoteRef',

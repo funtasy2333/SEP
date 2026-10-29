@@ -74,6 +74,8 @@ class ResolveCtx {
   noteSeq = 0
   exampleSeq = 0
   footnoteSeq = 0
+  sharedFootnotes = new Set<string>()
+  sharedFootnoteRefs: { targetId: string; fromId: string }[] = []
   /** 缩略语项的 xmlId 全局序号（abb_<k>，文档序；D-M-02） */
   abbrSeq = 0
   footnoteDepth = 0
@@ -168,6 +170,29 @@ function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx, forb
       ctx.registerId(run.formula.id)
       ctx.kinds.set(run.formula.id, 'formula')
       ctx.setLabel(run.formula.id, '', stableExtensionXmlId(run.formula.id), '行内公式')
+    }
+    if (run.footnoteRef || run.footnoteDefinition) {
+      if (forbiddenContainer || ctx.inTerm || ctx.tableFootnotes || ctx.footnoteDepth) {
+        ctx.problems.push({ code: 'invalid-footnote', nodeId: fromId, severity: 'error', message: '当前位置不能包含共享脚注' })
+      }
+      if (run.footnoteRef) {
+        if (!run.footnoteRef.targetId || !run.footnoteRef.refText) ctx.problems.push({ code: 'invalid-footnote', nodeId: fromId, severity: 'error', message: '共享脚注引用必须具有目标及文本' })
+        ctx.sharedFootnoteRefs.push({ targetId: run.footnoteRef.targetId, fromId })
+      }
+      if (run.footnoteDefinition) {
+        const note = run.footnoteDefinition
+        if (ctx.seenIds.has(note.id) || note.id.startsWith(MISSING_ID_PREFIX)) ctx.problems.push({ code: 'invalid-footnote', nodeId: note.id, severity: 'error', message: '共享脚注定义必须具有文档内唯一 ID' })
+        ctx.registerId(note.id)
+        ctx.sharedFootnotes.add(note.id)
+        const seq = ++ctx.footnoteSeq
+        ctx.setLabel(note.id, `${seq})`, `fn_${seq}`, `${seq})`)
+        if (!note.content.some(inline => inline.text.trim())) ctx.problems.push({ code: 'invalid-footnote', nodeId: note.id, severity: 'error', message: '共享脚注内容不能为空' })
+        if (!ctx.footnoteDepth) {
+          ctx.footnoteDepth += 1
+          visitInlines(note.content, note.id, ctx)
+          ctx.footnoteDepth -= 1
+        }
+      }
     }
     if (run.footnote) {
       const note = run.footnote
@@ -1055,6 +1080,12 @@ export function resolve(doc: IRDoc, strategy: NumberingStrategy = gbT11Strategy)
   if (doc.bibliographyTitle) visitInlines(doc.bibliographyTitle, 'doc.bibliographyTitle', ctx, '标题')
   const bibliographyOrder = resolveBibliography(doc, ctx)
   visitIndexInlines(doc.index, ctx)
+  for (const ref of ctx.sharedFootnoteRefs) if (!ctx.sharedFootnotes.has(ref.targetId)) {
+    ctx.problems.push({ code: 'dangling-footnote', nodeId: ref.fromId, severity: 'error', message: `共享脚注目标「${ref.targetId}」不存在` })
+  }
+  for (const id of ctx.sharedFootnotes) if (!ctx.sharedFootnoteRefs.some(ref => ref.targetId === id)) {
+    ctx.problems.push({ code: 'unreferenced-footnote', nodeId: id, severity: 'error', message: '共享脚注定义没有引用' })
+  }
   checkIndexTargets(indexTargets, ctx)
   // 参考文献与索引内的引用此时都已进入 ctx.xrefs；必须先于 checkTypedReferences（见函数注释）。
   labelReferencedListItems(ctx)

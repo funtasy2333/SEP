@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { getOutputSupportProblems, IRToPmError, irToPm, pmToIr, resolve, type IRDoc, type PMJsonNode } from '@ses/shared'
+import { getOutputSupportProblems, irToPm, pmToIr, resolve, type IRDoc, type PMJsonNode } from '@ses/shared'
 import { createEditorSchema } from './editorSchema'
+import { Fragment, Slice } from '@tiptap/pm/model'
+import { remapPastedSliceIds } from './plugins/ensureNodeId'
 
 describe('WP8.3 组节点保存', () => {
   it('保留组级编号与成员公式的顺序和身份', () => {
@@ -37,12 +39,60 @@ describe('WP8.3 组节点保存', () => {
     expect(labels.two).toBeUndefined()
   })
 
-  it('尚未支持的共享脚注投影明确报错', () => {
+  it('两个引用和其后唯一脚注定义按原位保存并共用编号', () => {
     const doc: IRDoc = { schemaVersion: 1, meta: { standardType: 'gb' }, front: { foreword: [], introduction: [] },
       body: [{ kind: 'chapter', id: 'c', secType: 'general', title: [], children: [
-        { kind: 'paragraph', id: 'p', content: [{ text: '', footnoteRef: { targetId: 'fn', refText: '1' } }] },
+        { kind: 'paragraph', id: 'p', content: [
+          { text: '甲' }, { text: '', footnoteRef: { targetId: 'fn', refText: '1' } },
+          { text: '乙' }, { text: '', footnoteRef: { targetId: 'fn', refText: '1' } },
+          { text: '', footnoteDefinition: { id: 'fn', content: [{ text: '脚注内容' }] } },
+        ] },
       ] }], appendices: [], bibliography: [] }
-    expect(() => irToPm(doc)).toThrow(IRToPmError)
+    const schema = createEditorSchema()
+    const first = schema.nodeFromJSON(irToPm(doc))
+    first.check()
+    const reopened = schema.nodeFromJSON(JSON.parse(JSON.stringify(first.toJSON())))
+    reopened.check()
+    const result = pmToIr(reopened.toJSON() as PMJsonNode).doc
+    expect(result.body[0]!.children[0]).toEqual(doc.body[0]!.children[0])
+    expect(resolve(result).labels.fn?.xmlId).toBe('fn_1')
+    expect(resolve(result).problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(schema.nodeFromJSON(irToPm(result)).toJSON()).toEqual(first.toJSON())
+  })
+
+  it('共享脚注拒绝悬空、重复定义和脚注内嵌套', () => {
+    const para = { kind: 'paragraph' as const, id: 'p', content: [
+      { text: '', footnoteRef: { targetId: 'missing', refText: '1' } },
+      { text: '', footnoteRef: { targetId: 'same', refText: '2' } },
+      { text: '', footnoteDefinition: { id: 'same', content: [{ text: '第一' }] } },
+      { text: '', footnoteDefinition: { id: 'same', content: [{ text: '第二', footnote: { id: 'nested', content: [{ text: '嵌套' }] } }] } },
+    ] }
+    const doc: IRDoc = { schemaVersion: 1, meta: { standardType: 'gb' }, front: { foreword: [], introduction: [] },
+      body: [{ kind: 'chapter', id: 'c', secType: 'general', title: [], children: [para] }], appendices: [], bibliography: [] }
+    const problems = resolve(doc).problems
+    expect(problems).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'dangling-footnote', severity: 'error' }),
+      expect.objectContaining({ code: 'duplicate-id', severity: 'error' }),
+      expect.objectContaining({ code: 'invalid-footnote', severity: 'error' }),
+    ]))
+    expect(() => irToPm(doc)).toThrow()
+  })
+
+  it('复制时共享脚注定义和两个引用一起重映射', () => {
+    const schema = createEditorSchema()
+    const doc = schema.nodeFromJSON({ type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'chapter' }, content: [
+      { type: 'chapterTitle' }, { type: 'stdParagraph', attrs: { nodeId: 'p' }, content: [
+        { type: 'sharedFootnoteRef', attrs: { targetId: 'fn', refText: '1' } },
+        { type: 'sharedFootnoteRef', attrs: { targetId: 'fn', refText: '1' } },
+        { type: 'sharedFootnoteDefinition', attrs: { nodeId: 'fn', content: [{ type: 'text', text: '定义' }] } },
+      ] },
+    ] }] })
+    const copied = remapPastedSliceIds(new Slice(Fragment.from(doc.firstChild!), 0, 0), doc).content.firstChild!
+    const para = copied.child(1)
+    const id = para.child(2).attrs.nodeId
+    expect(id).not.toBe('fn')
+    expect(para.child(0).attrs.targetId).toBe(id)
+    expect(para.child(1).attrs.targetId).toBe(id)
   })
 
   it('图组保留组图例和各分图的顺序', () => {

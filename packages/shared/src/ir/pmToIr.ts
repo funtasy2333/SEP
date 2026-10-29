@@ -339,6 +339,18 @@ function convertInlines(content: PMJsonNode[] | undefined, ctx: Ctx): IRInline[]
       if (converted?.marks.length) inline.marks = converted.marks
       if (converted?.style) inline.style = converted.style
       out.push(inline)
+    } else if (child.type === 'sharedFootnoteRef') {
+      const targetId = child.attrs?.targetId
+      const refText = child.attrs?.refText
+      if (typeof targetId !== 'string' || !targetId || typeof refText !== 'string' || !refText || unsupportedFootnoteAtomMarks(child.marks)) {
+        ctx.unsupportedContent.push({ nodeId: ownerIdOf(child, ctx), path: ctx.path(child, '脚注引用'), nodeType: child.type, reason: '共享脚注引用属性无效' })
+      } else out.push({ text: '', footnoteRef: { targetId, refText } })
+    } else if (child.type === 'sharedFootnoteDefinition') {
+      const id = ctx.id(child)
+      const content = child.attrs?.content
+      const reason = !Array.isArray(content) ? '内容不是数组' : unsupportedFootnoteContent(content) ?? unsupportedFootnoteAtomMarks(child.marks)
+      if (reason) ctx.invalidFootnotePayloads.push({ nodeId: id, reason })
+      out.push({ text: '', footnoteDefinition: { id, content: convertInlines(Array.isArray(content) ? content as PMJsonNode[] : [], ctx) } })
     } else if (child.type === 'footnoteRef') {
       const raw = child.attrs?.content
       const content = Array.isArray(raw) ? raw as PMJsonNode[] : []

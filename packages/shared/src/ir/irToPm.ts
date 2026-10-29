@@ -114,6 +114,8 @@ function inlineToPm(run: IRInline): PMJsonNode[] {
       content: inlinesToPm(run.footnote.content),
     })))
   }
+  if (run.footnoteRef) result.push(node('sharedFootnoteRef', { ...run.footnoteRef }))
+  if (run.footnoteDefinition) result.push(node('sharedFootnoteDefinition', withId(run.footnoteDefinition.id, { content: inlinesToPm(run.footnoteDefinition.content) })))
   if (run.image) {
     // 行内图（M-8.3-02）：行内原子节点，无 nodeId；marks/style 无处可存（diagnoseInlineProjection 已报错）。
     result.push(node('inlineImage', {
@@ -153,7 +155,16 @@ function diagnoseFootnotePayloads(doc: unknown, errors: IRToPmDiagnostic[], root
     active.add(value)
 
     if (typeof value.text === 'string' && (value.footnoteRef != null || value.footnoteDefinition != null)) {
-      errors.push({ path, reason: '共享脚注的生产投影尚未实现' })
+      if (value.text !== '' || value.marks || value.style || value.footnote || value.formula || value.image || (value.footnoteRef && value.footnoteDefinition)) {
+        errors.push({ path, reason: '共享脚注原子不能与文本或其他载荷混合' })
+      }
+      if (isRecord(value.footnoteDefinition) && Array.isArray(value.footnoteDefinition.content)) {
+        if (value.footnoteDefinition.content.some(item => isRecord(item) && (item.footnote || item.footnoteRef || item.footnoteDefinition))) {
+          errors.push({ path: `${path}.footnoteDefinition.content`, reason: '共享脚注内容不能嵌套脚注' })
+        }
+        diagnoseFootnotePayload(value.footnoteDefinition.content as IRInline[], `${path}.footnoteDefinition.content`,
+          typeof value.footnoteDefinition.id === 'string' ? value.footnoteDefinition.id : undefined, errors)
+      }
     }
 
     if (typeof value.text === 'string' && isRecord(value.footnote) && Array.isArray(value.footnote.content)) {
