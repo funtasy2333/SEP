@@ -1,0 +1,116 @@
+import type { IRArray, IRBlock, IRCellStyle, IRGraphic, IRInline, IRMeasure, IRNote, IRTable, IRTableColumn, IRTableRow } from '../../ir/types'
+import type { XmlElement } from '../tree'
+import type { ImportContext } from './context'
+import { readInlineChildren } from './inline'
+
+function issue(el: XmlElement, ctx: ImportContext, message: string, severity: 'error' | 'warning' = 'error') { ctx.report({code: severity === 'error' ? 'xml-unsupported' : 'xml-normalized', severity, message, xml: ctx.location(el)}) }
+function measure(value: string | undefined, el: XmlElement, ctx: ImportContext): IRMeasure | undefined {
+  if (value === undefined) return undefined
+  const m = /^\s*(\d+(?:\.\d+)?)\s*(%|px|mm|cm|pt|em)\s*$/.exec(value)
+  if (!m) { issue(el, ctx, '无法保留的宽度或长度'); return undefined }
+  return { value: Number(m[1]), unit: m[2]! }
+}
+function align(el: XmlElement, ctx: ImportContext): {textAlign?: string; verticalAlign?: string} {
+  let a = ctx.attr(el, null, 'align'), v = ctx.attr(el, null, 'valign')
+  if (a === 'char') { issue(el, ctx, '字符对齐规范化为左对齐', 'warning'); a = 'left' }
+  if (v === 'center' || v === 'baseline') { issue(el, ctx, '垂直对齐规范化为居中', 'warning'); v = 'middle' }
+  if (a && !['left','center','right','justify'].includes(a)) issue(el, ctx, '未知水平对齐')
+  if (v && !['top','middle','bottom'].includes(v)) issue(el, ctx, '未知垂直对齐')
+  return {...(a ? {textAlign:a} : {}), ...(v ? {verticalAlign:v} : {})}
+}
+function styles(el: XmlElement, ctx: ImportContext): IRCellStyle | undefined {
+  const result: IRCellStyle = align(el, ctx), style = ctx.attr(el, null, 'style')
+  for (const declaration of style?.split(';') ?? []) {
+    if (!declaration.trim()) continue
+    const m = /^\s*([a-z-]+)\s*([:=])\s*(.*?)\s*$/.exec(declaration)
+    if (!m) { issue(el, ctx, '未知表格样式'); continue }
+    if (m[2] === '=') issue(el, ctx, '样式等号已规范化', 'warning')
+    if (m[1] === 'background-color') { result.backgroundColor = m[3]; continue }
+    const side = /^border-(top|right|bottom|left)$/.exec(m[1]!)
+    if (!side) { issue(el, ctx, '未知表格样式'); continue }
+    const border = /^(solid|dashed|dotted|none)(?:\s+(\d+(?:\.\d+)?(?:px|mm|pt)))?$/.exec(m[3]!)
+    if (!border) { issue(el, ctx, '无法保留的边框样式'); continue }
+    const key = `border${side[1]![0]!.toUpperCase()}${side[1]!.slice(1)}` as 'borderTop'|'borderRight'|'borderBottom'|'borderLeft'
+    result[`${key}Style`] = border[1]!
+    if (border[2]) result[key] = measure(border[2], el, ctx)
+  }
+  return Object.keys(result).length ? result : undefined
+}
+function paragraphs(el: XmlElement, ctx: ImportContext): IRInline[] {
+  const ps = ctx.children(el, null, 'p')
+  if (!ps.length) { issue(el, ctx, '缺少内容段落'); return [] }
+  if (ps.length > 1) issue(el, ctx, '多段内容以换行合并', 'warning')
+  return ps.flatMap((p,i) => i ? [{text:'\n'}, ...readInlineChildren(p,ctx)] : readInlineChildren(p,ctx))
+}
+function cellContent(el: XmlElement, ctx: ImportContext): IRBlock[] {
+  const blocks = el.children.filter((c): c is XmlElement => c.type === 'element' && c.name.ns === null && ['p','list'].includes(c.name.local))
+  if (blocks.length) {
+    if (el.children.some(c => (c.type === 'text' && c.value.trim()) || (c.type === 'element' && !blocks.includes(c)))) issue(el, ctx, '单元格行内与块级内容混排')
+    return blocks.flatMap(b => {
+      if (b.name.local === 'p') { const id = ctx.elementId(b); return id ? [{kind:'paragraph' as const, id, content:readInlineChildren(b,ctx)}] : [] }
+      return ctx.dispatchBlock(b) ?? []
+    })
+  }
+  const id = ctx.singleParagraphId(el)
+  return id ? [{kind:'paragraph', id, content:readInlineChildren(el,ctx)}] : []
+}
+function grid(table: XmlElement, ctx: ImportContext): {columns: IRTableColumn[]; rows: IRTableRow[]; groups: Array<{start:number;count:number}>; headerRowCount: number} {
+  const columns: IRTableColumn[] = [], groups: Array<{start:number;count:number}> = [], rows: IRTableRow[] = []
+  const column = (el: XmlElement) => { const width = measure(ctx.attr(el,null,'width'),el,ctx); if (ctx.attr(el,null,'style')) issue(el,ctx,'列样式无法保留'); columns.push({ ...(width ? {width} : {}), ...align(el,ctx) }) }
+  let headerRowCount = 0
+  const occupied: number[] = [], rowOccupancy: boolean[][] = []
+  for (const child of table.children) {
+    if (child.type !== 'element') continue
+    if (child.name.ns !== null) { issue(child,ctx,'未知表元素'); continue }
+    if (child.name.local === 'col') { column(child); continue }
+    if (child.name.local === 'colgroup') { const start = columns.length; ctx.children(child,null,'col').forEach(c => column(c)); groups.push({start,count:columns.length-start}); continue }
+    if (!['thead','tbody'].includes(child.name.local)) { issue(child,ctx,'未知或不支持的表结构'); continue }
+    const trs = ctx.children(child,null,'tr')
+    if (child.name.local === 'thead') headerRowCount += trs.length
+    for (const tr of trs) {
+      const id = ctx.elementId(tr); if (!id) continue
+      let cursor = 0
+      const cells: IRTableRow['cells'] = []
+      for (const td of tr.children) {
+        if (td.type !== 'element') continue
+        if (td.name.ns !== null || !['th','td'].includes(td.name.local)) { issue(td,ctx,'未知表格单元'); continue }
+        while ((occupied[cursor] ?? 0) > 0) cursor++
+        const parseSpan = (name: string) => { const value = ctx.attr(td,null,name); if (value === undefined) return 1; if (!/^[1-9]\d*$/.test(value) || Number(value) > 10000) { issue(td,ctx,'单元格跨度无效'); return 1 }; return Number(value) }
+        const colspan = parseSpan('colspan'), rowspan = parseSpan('rowspan')
+        for (let j=cursor;j<cursor+colspan;j++) { if ((occupied[j] ?? 0) > 0) issue(td,ctx,'单元格跨度重叠'); occupied[j] = rowspan }
+        cursor += colspan
+        const cid = ctx.elementId(td), style = styles(td,ctx), width = measure(ctx.attr(td,null,'width'),td,ctx)
+        if (ctx.attr(td,null,'scope')) issue(td,ctx,'单元格 scope 已忽略','warning')
+        if (child.name.local === 'thead' && td.name.local === 'td') issue(td,ctx,'表头包含 td','warning')
+        if (cid) cells.push({id:cid, colspan, rowspan, header:td.name.local === 'th', content:cellContent(td,ctx), ...(style ? {style} : {}), ...(width ? {width} : {})})
+      }
+      rowOccupancy.push(occupied.map(value => (value ?? 0) > 0))
+      for (let j=0;j<occupied.length;j++) if (occupied[j]) occupied[j]!--
+      const style = align(tr,ctx)
+      rows.push({id,cells,...(Object.keys(style).length ? {style} : {})})
+    }
+  }
+  const width = Math.max(0, ...rowOccupancy.map(row => row.length))
+  if (rowOccupancy.some(row => Array.from({length: width}, (_, i) => !!row[i]).some(used => !used)) || occupied.some(x => x > 0) || (columns.length && columns.length !== width)) issue(table,ctx,'表格网格列数或跨度不一致')
+  while (columns.length < width) columns.push({})
+  return { columns, rows, groups, headerRowCount }
+}
+export function mapTable(el: XmlElement, ctx: ImportContext, makeGraphic: (el: XmlElement, ctx: ImportContext) => IRGraphic | undefined): IRTable | IRArray | undefined {
+  const id = ctx.elementId(el), table = ctx.child(el,null,'table')
+  if (!id || !table) { issue(el,ctx,'缺少表主体'); return undefined }
+  const mapped = grid(table,ctx)
+  if (el.name.local === 'array') return {kind:'array',id,columns:mapped.columns,rows:mapped.rows,...(mapped.groups.length ? {columnGroups:mapped.groups} : {})}
+  const caption = ctx.child(el,null,'caption'), title = caption && ctx.child(caption,null,'title'), foot = ctx.child(el,null,'table-wrap-foot')
+  const notes: IRNote[] = [], footnotes: NonNullable<IRTable['footnotes']> = []
+  let unit: string | undefined
+  if (foot) for (const child of foot.children) if (child.type === 'element') {
+    if (child.name.ns !== null) { issue(child,ctx,'未知表脚内容'); continue }
+    if (child.name.local === 'p' && ctx.attr(child,null,'content-type') === 'dimension') { const content = readInlineChildren(child,ctx); if (content.some(x => x.marks || x.formula || x.image || x.footnoteRef)) issue(child,ctx,'单位说明包含无法保留的行内内容'); const text = content.map(x=>x.text).join(''); unit = unit === undefined ? text : `${unit}\n${text}`; continue }
+    if (child.name.local === 'non-normative-note') { const nid = ctx.elementId(child), pid = ctx.singleParagraphId(child); if (nid && pid) notes.push({kind:'note',id:nid,content:[{kind:'paragraph',id:pid,content:paragraphs(child,ctx)}]}); continue }
+    if (child.name.local === 'fn') { const nid = ctx.elementId(child); if (nid) footnotes.push({id:nid,content:paragraphs(child,ctx)}); continue }
+    issue(child,ctx,'未知表脚内容')
+  }
+  const alternative = ctx.child(el,null,'graphic'), alternativeGraphic = alternative && makeGraphic(alternative,ctx), width = measure(ctx.attr(table,null,'width'),table,ctx)
+  for (const c of el.children) if (c.type === 'element' && (c.name.ns !== null || !['label','caption','table','table-wrap-foot','graphic'].includes(c.name.local))) issue(c,ctx,'未知表容器内容')
+  return {kind:'table',id,caption:title ? readInlineChildren(title,ctx) : [],orientation:ctx.attr(el,null,'orientation') === 'landscape' ? 'landscape' : 'portrait',headerRowCount:mapped.headerRowCount,rows:mapped.rows,columns:mapped.columns,notes,...(footnotes.length ? {footnotes} : {}),...(unit !== undefined ? {unit} : {}),...(alternativeGraphic ? {alternativeGraphic} : {}),...(width ? {width} : {})}
+}

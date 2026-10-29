@@ -3,6 +3,7 @@ import { MATHML_NS, type XmlElement } from '../tree'
 import type { ImportContext } from './context'
 import { readInlineChildren } from './inline'
 import { readMathMl } from './mathml'
+import { mapTable } from './table'
 
 function error(el: XmlElement, ctx: ImportContext, message: string): void { ctx.report({ code: 'xml-unsupported', severity: 'error', message, xml: ctx.location(el) }) }
 function graphic(el: XmlElement, ctx: ImportContext): IRGraphic | undefined {
@@ -74,6 +75,7 @@ function figure(el: XmlElement, ctx: ImportContext): IRFigure | undefined {
 }
 export function mapMediaBlock(element: XmlElement, ctx: ImportContext): IRBlock[] | undefined {
   if (element.name.ns !== null) return undefined
+  if (element.name.local === 'table-wrap' || element.name.local === 'array') { const value = mapTable(element, ctx, graphic); return value ? [value] : [] }
   if (element.name.local === 'fig') { const result = figure(element, ctx); return result ? [result] : [] }
   if (element.name.local === 'fig-group') {
     const id = ctx.elementId(element), lg = ctx.child(element, null, 'legend')
