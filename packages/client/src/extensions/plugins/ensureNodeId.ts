@@ -24,6 +24,7 @@ export const NODE_ID_TYPES = [
   'tableFootnoteEntry',
   'figure',
   'formula',
+  'formulaGroup',
   'stdList',
   'note',
   'example',
@@ -325,10 +326,20 @@ function addIdCount(counts: Map<string, number>, id: unknown): void {
   if (typeof id === 'string' && id.length > 0) counts.set(id, (counts.get(id) ?? 0) + 1)
 }
 
+function visitGraphicAttrs(node: PMNode, definition: (id: unknown) => void, reference: (id: unknown) => void): void {
+  const values = node.type.name === 'figure' && Array.isArray(node.attrs.additionalGraphics)
+    ? node.attrs.additionalGraphics : node.type.name === 'stdTable' ? [node.attrs.alternativeGraphic] : []
+  for (const value of values) if (isRecord(value)) {
+    definition(value.nodeId)
+    reference(value.resourceId)
+  }
+}
+
 function collectSliceDefinitionCounts(slice: Slice): Map<string, number> {
   const counts = new Map<string, number>()
   slice.content.descendants((node) => {
     addIdCount(counts, node.attrs.nodeId)
+    visitGraphicAttrs(node, id => addIdCount(counts, id), () => {})
     if (node.type.name === 'footnoteRef') {
       visitTypedInlinePayload(node.attrs.content, id => addIdCount(counts, id), () => {})
     }
@@ -344,6 +355,7 @@ function collectDocDefinitionIds(doc: PMNode): Set<string> {
   const add = (id: unknown) => { if (typeof id === 'string' && id.length > 0) ids.add(id) }
   doc.descendants((node) => {
     add(node.attrs.nodeId)
+    visitGraphicAttrs(node, add, () => {})
     if (node.type.name === 'footnoteRef') visitTypedInlinePayload(node.attrs.content, add, () => {})
     if (node.type.name === 'coverPage') visitMetadataFallback(node.attrs, add, () => {})
   })
@@ -355,6 +367,7 @@ function collectSliceReferenceIds(slice: Slice): Set<string> {
   const references = new Set<string>()
   const addReference = (id: unknown) => { if (typeof id === 'string' && id.length > 0) references.add(id) }
   slice.content.descendants((node) => {
+    visitGraphicAttrs(node, () => {}, addReference)
     for (const mark of node.marks) addReference(referencedId({ type: mark.type.name, attrs: mark.attrs }))
     if (node.type.name === 'footnoteRef') visitTypedInlinePayload(node.attrs.content, () => {}, addReference)
     if (node.type.name === 'coverPage') visitMetadataFallback(node.attrs, () => {}, addReference)
@@ -454,6 +467,21 @@ function remapPastedNode(node: PMNode, remaps: PastedIdRemaps): PMNode {
   let attrs: Record<string, unknown> | null = null
   const mappedNodeId = remapId(node.attrs.nodeId, remaps)
   if (mappedNodeId !== node.attrs.nodeId) attrs = { ...node.attrs, nodeId: mappedNodeId }
+
+  const remapGraphic = (value: unknown): unknown => {
+    if (!isRecord(value)) return value
+    const id = remapId(value.nodeId, remaps)
+    const resource = remapId(value.resourceId, remaps)
+    return id === value.nodeId && resource === value.resourceId ? value : { ...value, nodeId: id, resourceId: resource }
+  }
+  if (node.type.name === 'figure' && Array.isArray(node.attrs.additionalGraphics)) {
+    const next = node.attrs.additionalGraphics.map(remapGraphic)
+    if (next.some((value: unknown, index: number) => value !== node.attrs.additionalGraphics[index])) attrs = { ...(attrs ?? node.attrs), additionalGraphics: next }
+  }
+  if (node.type.name === 'stdTable' && node.attrs.alternativeGraphic) {
+    const next = remapGraphic(node.attrs.alternativeGraphic)
+    if (next !== node.attrs.alternativeGraphic) attrs = { ...(attrs ?? node.attrs), alternativeGraphic: next }
+  }
 
   const referenceFields: Record<string, string[]> = {
     tableFootnoteRef: ['targetId'],

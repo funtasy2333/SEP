@@ -522,6 +522,8 @@ function renderBlock(block: IRBlock, ctx: RenderCtx): void {
     case 'normRefList':
       renderNormRefList(block, ctx)
       break
+    case 'formulaGroup': case 'figureSet': case 'array':
+      throw new Error(`HTML 尚未支持 ${block.kind}（节点 ${block.id}）`)
   }
 }
 

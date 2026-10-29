@@ -69,6 +69,9 @@ function blockHasTableFootnotes(block: IRBlock): boolean {
     case 'defList':
     case 'normRefList':
       return false
+    case 'formulaGroup': return block.formulas.some(blockHasTableFootnotes)
+    case 'figureSet': return block.figures.some(blockHasTableFootnotes)
+    case 'array': return block.rows.some(row => row.cells.some(cell => cell.content.some(blockHasTableFootnotes)))
   }
 }
 
@@ -93,6 +96,9 @@ function blockHasFootnoteSyntax(block: IRBlock): boolean {
       (block.legend !== undefined && (inlineHasFootnote(block.legend.title ?? []) ||
         block.legend.items.some((item) => inlineHasFootnote(item.term) || inlineHasFootnote(item.definition))))
     case 'formula': return inlineHasFootnote(block.sourceInlines ?? []) || block.whereList.some((item) => inlineHasFootnote(item.term) || inlineHasFootnote(item.definition))
+    case 'formulaGroup': return block.formulas.some(blockHasFootnoteSyntax)
+    case 'figureSet': return block.figures.some(blockHasFootnoteSyntax)
+    case 'array': return block.rows.some(row => row.cells.some(cell => cell.content.some(blockHasFootnoteSyntax)))
     case 'defList': return block.items.some((item) => inlineHasFootnote(item.term) || inlineHasFootnote(item.definition))
     case 'code': return false
     case 'normRefList': return block.entries.some((entry) => entry.entryType === 'std'

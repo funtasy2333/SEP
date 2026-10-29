@@ -61,6 +61,9 @@ function blockLines(block: IRBlock, capacity: number): number {
     case 'warning':
     case 'quote':
     case 'code':
+    case 'formulaGroup':
+    case 'figureSet':
+    case 'array':
       throw new Error(`DOCX 表格尚未支持 ${block.kind}（节点 ${block.id}）`)
   }
 }

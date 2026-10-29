@@ -103,6 +103,7 @@ export const StdTable = Node.create({
       unit: stringAttribute('unit'),
       /** 重复表头行数独立于单元格类型；null 兼容旧表格的自动推断。 */
       headerRowCount: { default: null },
+      alternativeGraphic: { default: null, rendered: false },
       /** 表格整体宽度与样式字段，均为JSON安全的标量。 */
       width: { default: null },
       widthUnit: stringAttribute('widthUnit'),

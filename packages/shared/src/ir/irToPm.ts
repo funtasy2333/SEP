@@ -12,6 +12,7 @@ import type {
 import type { PMJsonNode } from './pmToIr'
 import { hasSemanticExtensions, isInlineNoteContent } from './extensions'
 import { unsupportedFootnoteContent } from './footnotePayload'
+import { graphicAttributeProblem } from './graphicAttributes'
 import { diagnoseInlineProjection, findCrossRefRunProjectionIssues } from './inlineProjectionDiagnostics'
 import {
   describeAuthoringContext, fragmentContextRules, validateAuthoringContext,
@@ -150,6 +151,10 @@ function diagnoseFootnotePayloads(doc: unknown, errors: IRToPmDiagnostic[], root
     }
     if (!isRecord(value) || active.has(value)) return
     active.add(value)
+
+    if (typeof value.text === 'string' && (value.footnoteRef != null || value.footnoteDefinition != null)) {
+      errors.push({ path, reason: '共享脚注的生产投影尚未实现' })
+    }
 
     if (typeof value.text === 'string' && isRecord(value.footnote) && Array.isArray(value.footnote.content)) {
       diagnoseFootnotePayload(
@@ -434,10 +439,18 @@ function tableColumnsAttr(table: IRTable, path: string, errors: IRToPmDiagnostic
 }
 
 function tableToPm(table: IRTable, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+  if (table.alternativeGraphic) {
+    const reason = graphicAttributeProblem(table.alternativeGraphic)
+    if (reason) errors.push({ path: `${path}.alternativeGraphic`, nodeId: table.id, reason })
+  }
   if (table.rows.length === 0) {
     errors.push({ path: `${path}.rows`, nodeId: table.id, reason: '生产表格至少需要一个表格行' })
   }
   const attrs: PmAttrs = withId(table.id, { orientation: table.orientation, unit: table.unit ?? null, headerRowCount: table.headerRowCount })
+  if (table.alternativeGraphic) {
+    const { id, ...graphic } = table.alternativeGraphic
+    attrs.alternativeGraphic = { nodeId: id, ...graphic }
+  }
   measureAttrs(attrs, 'width', table.width)
   if (table.style) Object.assign(attrs, tableStyleAttrs(table.style))
   if (table.columns !== undefined) attrs.columns = tableColumnsAttr(table, path, errors)
@@ -489,6 +502,14 @@ function tableToPm(table: IRTable, path: string, errors: IRToPmDiagnostic[]): PM
 }
 
 function figureToPm(figure: Extract<IRBlock, { kind: 'figure' }>, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+  if (figure.primaryGraphic) {
+    const reason = graphicAttributeProblem(figure.primaryGraphic, true)
+    if (reason) errors.push({ path: `${path}.primaryGraphic`, nodeId: figure.id, reason })
+  }
+  if (figure.additionalGraphics) figure.additionalGraphics.forEach((graphic, index) => {
+    const reason = graphicAttributeProblem(graphic)
+    if (reason) errors.push({ path: `${path}.additionalGraphics[${index}]`, nodeId: figure.id, reason })
+  })
   const width = figure.imageWidth
   const height = figure.imageHeight
   const content: PMJsonNode[] = [
@@ -510,7 +531,10 @@ function figureToPm(figure: Extract<IRBlock, { kind: 'figure' }>, path: string, 
     ...figure.notes.map(note => node('note', withId(note.id), noteContent(note.id, note.content, `${path}.notes.${note.id}`, errors))),
     ...(figure.examples ?? []).map(example => node('example', withId(example.id), noteContent(example.id, example.content, `${path}.examples.${example.id}`, errors))),
   ]
-  return node('figure', withId(figure.id, { orientation: figure.orientation, unit: figure.unit ?? null }), content)
+  return node('figure', withId(figure.id, { orientation: figure.orientation, unit: figure.unit ?? null,
+    ...(figure.primaryGraphic ? { primaryGraphic: { ...figure.primaryGraphic } } : {}),
+    ...(figure.additionalGraphics ? { additionalGraphics: figure.additionalGraphics.map(({ id, ...graphic }) => ({ nodeId: id, ...graphic })) } : {}),
+  }), content)
 }
 
 /** 定义列表的项 → whereItem（whereTerm + whereDefinition）；公式 whereList 与缩略语 defList 共用（WP8.M / G2，P8）。 */
@@ -554,7 +578,14 @@ function blockToPm(block: IRBlock, path: string, errors: IRToPmDiagnostic[]): PM
     case 'list': return listToPm(block, path, errors)
     case 'table': return tableToPm(block, path, errors)
     case 'figure': return figureToPm(block, path, errors)
+    case 'figureSet': case 'array':
+      errors.push({ path, nodeId: block.id, reason: `生产模型尚未支持 ${block.kind}` })
+      return null
     case 'formula': return formulaToPm(block, path, errors)
+    case 'formulaGroup': {
+      if (!block.formulas.length) errors.push({ path, nodeId: block.id, reason: '公式组必须包含至少一个公式' })
+      return node('formulaGroup', withId(block.id, { numbered: block.numbered }), block.formulas.map((formula, index) => formulaToPm(formula, `${path}.formulas[${index}]`, errors)))
+    }
     case 'defList': return defListToPm(block, path, errors)
     case 'note': case 'example': {
       if (!isInlineNoteContent(block.id, block.content)) return noteBlockToPm(block, path, errors)
@@ -720,6 +751,20 @@ function indexToPm(index: NonNullable<IRDoc['index']>, errors: IRToPmDiagnostic[
 export function irToPm(doc: IRDoc, options: IRToPmOptions = {}): PMJsonNode {
   const rootType = options.rootType ?? 'doc'
   const errors: IRToPmDiagnostic[] = []
+  const resourceIds = new Set((doc.resources ?? []).map(resource => resource.id))
+  const checkGraphics = (value: unknown, path: string): void => {
+    if (Array.isArray(value)) { value.forEach((item, index) => checkGraphics(item, `${path}[${index}]`)); return }
+    if (!isRecord(value)) return
+    const graphics = value.kind === 'figure' && Array.isArray(value.additionalGraphics) ? value.additionalGraphics
+      : value.kind === 'table' && value.alternativeGraphic ? [value.alternativeGraphic] : []
+    graphics.forEach((graphic, index) => {
+      if (!isRecord(graphic) || typeof graphic.resourceId !== 'string' || resourceIds.has(graphic.resourceId)) return
+      errors.push({ path: `${path}.${value.kind === 'figure' ? `additionalGraphics[${index}]` : 'alternativeGraphic'}.resourceId`,
+        nodeId: typeof graphic.id === 'string' ? graphic.id : undefined, reason: `图片资源「${graphic.resourceId}」不存在` })
+    })
+    for (const [key, child] of Object.entries(value)) checkGraphics(child, `${path}.${key}`)
+  }
+  checkGraphics(doc, 'doc')
   diagnoseReferenceRunsWithoutCarrier(doc, 'doc', undefined, errors)
   diagnoseInlineProjection(doc, 'doc', undefined, errors)
   for (const issue of findCrossRefRunProjectionIssues(doc)) {

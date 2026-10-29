@@ -9,6 +9,7 @@
 import { toIrStandardType } from './meta'
 import { hasSemanticExtensions } from './extensions'
 import { unsupportedFootnoteAtomMarks, unsupportedFootnoteContent } from './footnotePayload'
+import { graphicAttributeProblem } from './graphicAttributes'
 import type {
   IRAdoption,
   IRAppendix,
@@ -633,6 +634,17 @@ function convertFigure(node: PMJsonNode, ctx: Ctx): IRFigure {
     ...(typeof image?.attrs?.title === 'string' ? { title: image.attrs.title } : {}),
     ...(typeof node.attrs?.unit === 'string' ? { unit: node.attrs.unit } : {}),
   }
+  if (node.attrs?.primaryGraphic != null) {
+    const reason = graphicAttributeProblem(node.attrs.primaryGraphic, true)
+    if (reason) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '图'), nodeType: node.type, reason: `primaryGraphic ${reason}` })
+    else fig.primaryGraphic = node.attrs.primaryGraphic as IRFigure['primaryGraphic']
+  }
+  if (node.attrs?.additionalGraphics != null) {
+    const value = node.attrs.additionalGraphics
+    const reason = !Array.isArray(value) ? '必须为数组' : value.map(item => graphicAttributeProblem(item, false, true)).find(Boolean)
+    if (reason) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '图'), nodeType: node.type, reason: `additionalGraphics ${reason}` })
+    else fig.additionalGraphics = (value as Array<Record<string, unknown>>).map(({ nodeId, ...graphic }) => ({ ...graphic, id: nodeId })) as IRFigure['additionalGraphics']
+  }
   const captionEn = node.content?.find((c) => c.type === 'figureCaptionEn')
   if (captionEn) fig.captionEn = convertInlines(captionEn.content, ctx)
   const unit = node.content?.find((c) => c.type === 'figureUnit')
@@ -858,6 +870,14 @@ function convertStdTable(node: PMJsonNode, ctx: Ctx): IRTable {
     rows,
     notes: [],
     ...(typeof node.attrs?.unit === 'string' ? { unit: node.attrs.unit } : {}),
+  }
+  if (node.attrs?.alternativeGraphic != null) {
+    const reason = graphicAttributeProblem(node.attrs.alternativeGraphic, false, true)
+    if (reason) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '表格'), nodeType: node.type, reason: `alternativeGraphic ${reason}` })
+    else {
+      const { nodeId, ...graphic } = node.attrs.alternativeGraphic as Record<string, unknown>
+      table.alternativeGraphic = { ...graphic, id: nodeId } as IRTable['alternativeGraphic']
+    }
   }
   const width = measure(node.attrs, 'width', 'widthUnit', ctx, node)
   if (width) table.width = width
@@ -1124,6 +1144,9 @@ function convertBlock(node: PMJsonNode, ctx: Ctx, where: string): IRBlock | null
       return convertFigure(node, ctx)
     case 'formula':
       return convertFormula(node, ctx)
+    case 'formulaGroup':
+      return { kind: 'formulaGroup', id: ctx.id(node), numbered: node.attrs?.numbered === true,
+        formulas: (node.content ?? []).filter(child => child.type === 'formula').map(child => convertFormula(child, ctx)) }
     case 'note':
       return convertNote(node, ctx)
     case 'example':

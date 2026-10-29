@@ -44,6 +44,8 @@ export const Figure = Node.create({
         }),
       },
       unit: stringAttribute('unit'),
+      primaryGraphic: { default: null, rendered: false },
+      additionalGraphics: { default: null, rendered: false },
     }
   },
 

@@ -454,6 +454,17 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
       }
       break
     }
+    case 'formulaGroup': {
+      ctx.registerId(block.id)
+      if (block.numbered) {
+        ctx.formulaSeq += 1
+        const label = ctx.strategy.formula(ctx.formulaSeq, ctx.appendixLetter)
+        const num = ctx.appendixLetter ? `${ctx.appendixLetter}.${ctx.formulaSeq}` : String(ctx.formulaSeq)
+        ctx.setLabel(block.id, label, `formula_${num}`, `公式${label}`)
+      }
+      for (const formula of block.formulas) visitBlock({ ...formula, numbered: false }, scopeKey, ctx, forbiddenContainer)
+      break
+    }
     case 'formula': {
       ctx.registerId(block.id)
       if (block.numbered) {
