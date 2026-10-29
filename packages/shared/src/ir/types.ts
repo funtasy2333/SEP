@@ -562,6 +562,8 @@ export interface IRIndexEntry {
   term: IRInline[]
   targets: NodeId[]
   seeAlso: NodeId[]
+  /** 源索引仅包含显示文本时原样保留；不推断目标身份。 */
+  sourceReferences?: Array<{ type: 'see' | 'seeAlso'; content: IRInline[] }>
 }
 
 export interface IRWarning {
