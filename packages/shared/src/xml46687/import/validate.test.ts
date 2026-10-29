@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { RNG_SOURCE_SHA256, validateRngModel } from './rng-model'
+import { validateTableGrids } from './table-grid'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parseXml46687 } from '../parse'
@@ -397,5 +398,13 @@ describe('[M-4.5.2-04] 附录属性与正文性质', () => {
   it('已允许的附录性质异写报告规范化', () => {
     const problems = validateXml46687(load('valid', '07-import-variants.xml')).problems
     expect(problems).toEqual(expect.arrayContaining([expect.objectContaining({code:'xml-normalized', severity:'warning', detail:expect.objectContaining({rule:'V-3'})})]))
+  })
+})
+
+
+describe('[M-6.4-02] 表格校验计算预算', () => {
+  it('跨度计算超限返回中文限额问题及位置', () => {
+    const tree = load('valid', '04-tables.xml')
+    expect(validateTableGrids(tree, 5)).toEqual(expect.arrayContaining([expect.objectContaining({code:'xml-limit', severity:'error', message:expect.stringMatching(/[\u4e00-\u9fff]/), xml:expect.objectContaining({line:expect.any(Number),column:expect.any(Number),path:expect.any(String)})})]))
   })
 })
