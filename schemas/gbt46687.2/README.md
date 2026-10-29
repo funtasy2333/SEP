@@ -21,7 +21,7 @@
 | `figure.rng` | fig、fig-group、graphic、inline-graphic、legend、def-list/def-item |
 | `math.rng` | disp-formula、disp-formula-group、inline-formula、mml:math（MathML 3 宽松子 schema） |
 | `tbx.rng` | tbx:termEntry/langSet/tig/term/definition/note/example/source/subjectField/entailedTerm/partOfSpeech/… |
-| `samples/valid/` | 9 个手写正例：01～06 选用形式；07 “仅导入接受”的异写汇总（含按原文 4.1 示例次序写的 std-meta）；08 原文明确写法与 STS 1.2 不一致的情形（国标扩展、示例冲突）；09 格式合法但导入暂拒的写法 |
+| `samples/valid/` | 9 个手写正例：01～06 选用形式；07 “仅导入接受”的异写汇总（含按原文 4.1 示例次序写的 std-meta）；08 原文明确写法与 STS 1.2 不一致的情形（国标扩展、示例冲突）；09 已授权导入的扩展结构 |
 | `samples/invalid/` | 77 个负例，每个由同一基底文档单点改动生成，文件开头的注释写明违反项 |
 | `../../scripts/xml46687/validate.py` | 校验工具（语法 + RELAX NG 双实现 + 语义规则） |
 | `../../scripts/xml46687/sts_compat.py` | 官方 NISO STS 1.2 DTD 兼容性检查（已知国标扩展白名单 + 未解释偏差） |
@@ -82,23 +82,18 @@
 7. **MathML 3**：只写了“结构宽松、命名空间严格”的子 schema：`mml:math` 根（`display` 取 block/inline，`id` 为 NCName），其内允许 MathML 命名空间中的任意元素、属性和文本。
    MathML 内容模型的严格校验由官方 DTD 兼容检查承担：NISO STS 1.2 Interchange（MathML3）DTD 已内嵌 MathML 3 的内容模型，
    `sts_compat.py` 对给定文件中的 `mml:math` 一并按该 DTD 校验。本项目不复刻官方 MathML schema。事件属性（`on*`）、`javascript:` 链接等由 `validate.py` V-10 检查。
-8. **import:reject 的两类（rejectKind，2026-10-21）**：矩阵里 `import` 为 `reject` 的 30 行都带 `rejectKind`——
-   `format`（24 行，格式层面不收：tex-math、alternatives、tfoot、fn-group、issue-agencies、std-doc-meta、tbx:see、term-display、target、col-group、
-   无前缀 mtext、四个术语异写元素名，以及“语境拒绝”：嵌套表、caption 内第二个 title、fig 内的 fn、tbx:source 内的 std、嵌套 termEntry、
-   `-admn-sts` 取值、`tbx:definition/@target`）：不出现在 schema 中，`validate.py` 报 `REJECT` 错误；
-   `implementation`（6 行，格式本身接受、导入器因 IR 缺口暂拒：引言中的条 M-4.3.4-02/03、5.8 的 `array` M-5.8-01/M-C.1-04、
-   `disp-formula-group` M-C.1-05、同一脚注多次引用 M-10.1.8-04）：**收入 schema**，`validate.py` 只告警 `W-IMPL-REJECT`/`W-FN-MULTIREF`（样例 09）。
+8. **import:reject（WP8.3）**：矩阵共 25 行 format reject，包括 DOCTYPE；原 6 行 implementation reject 已改为 accept：引言条、array、disp-formula-group 和共享脚注。格式拒绝包括整体不收与限定上下文拒绝，详见矩阵和 `matrix_coverage.py`。
 9. **schema 比标准窄的地方**（来自用户确认的约定，不是原文禁止）：表 C.1 列出的 `tfoot`、`std-doc-meta`、`tbx:see` 及 `issue-agencies`、`fn-group`、
    `tex-math`、`alternatives` 等 format 类 reject 元素不在 schema 中；`list-type` 不收表 D.1 的 `simple`/`symbol`；
    `std-xref/@type` 只收 `revises`；`td/@scope` 只收 `row`；`processing-meta` 六个属性必须齐全且取固定值（导入容忍度属导入器）；
    `ref-list/@content-type`、`title-wrap/@xml:lang`、`named-content/@content-type` 必备。
 10. **id**：`NCName`（无冒号的 Name，与 `xml:id` 一致）。约定表写“Name 产生式”，只差带冒号的 id，实际无影响。
-    **`id` 在 schema 里一律可选**（`common.rng` 的 `attr.id`）：第三方文件缺 id 仍应能导入（导入器自生成内部 nodeId；被引用的目标缺 id 由 V-1 的 `rid` 可解析性检查报悬空）。
-    “哪些元素导出必须写 id”放在语义规则 **V-13 `REQUIRED-ID`**（导出严格、导入宽容，与 std-meta 次序同一原则）：
+    **`id` 在 schema 里一律可选**（`common.rng` 的 `attr.id`）：语义层按 WP8.3 R5–R8 对直接公式 MathML、app、bibl/bibr ref 与 termEntry 要求 id；规范性引用 ref 允许缺 id。
+    “哪些元素导出必须写 id”放在语义规则 **V-13 `REQUIRED-ID`**（导出要求完整清单；导入只对 R6–R8 的上下文强制）：
     | 元素 | 何时要求 id | 依据 |
     |---|---|---|
     | `term-sec` | 一律 | 9.2.1（印刷页 35）；M-9.2.1-01/02（shall）；M-E-07 |
-    | `tbx:termEntry` | 一律（原文印刷页 38、39 的示例省略了 id，所以导入只告警） | 9.2.1；M-9.2.1-04/05（shall）；M-E-08 |
+    | `tbx:termEntry` | 一律（WP8.3 项目严格导入约定；原文印刷页 38、39 示例省略 id） | 9.2.1；M-9.2.1-04/05（shall）；M-E-08 |
     | `sec` | 有 `label`，或 `sec-type` 为 foreword/intro | 附录 E（印刷页 67）M-E-01/02/04；无 label 的条 id 可选 |
     | `app` | 一律 | M-E-04；M-4.5.2-02 |
     | `ref-list` | `content-type="bibl"`（norm-refs 清单不要求） | M-E-03；M-4.5.3-01 |
@@ -129,7 +124,7 @@
 
 统计结果（`python3 -I scripts/xml46687/matrix_coverage.py`）：矩阵 391 行，纳入覆盖 362 行；需要覆盖的元素 133 个全部定义（含 `mml:` 通配 7 个）；
 需要覆盖的（宿主, 属性）组合 107 个全部定义；枚举取值无遗漏；整体不收的 15 个 format 类元素均未混入。schema 共定义 124 个元素名。
-矩阵里的 21 个“非元素说明性条目”（XML 声明、DOCTYPE、空格版式、UTF-8 实体、`list-type=…` 取值行等）不是 XML 元素，schema 不表达；
+矩阵里的非元素说明性条目（XML 声明、DOCTYPE、空格版式、UTF-8 实体、`list-type=…` 取值行等）不是 XML 元素，schema 不表达；
 XML 声明/编码与 DOCTYPE 由 `validate.py` 的 SYN-2/SYN-3 检查。
 
 ## 5. 校验工具与规则
@@ -152,7 +147,7 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 |---|---|---|---|
 | SYN-1 | 语法 | 格式良好（禁止 DTD 加载、外部实体、联网：`resolve_entities=False, load_dtd=False, no_network=True`） | C-S-02、C-S-34 |
 | SYN-2 | 语法 | 编码必须是 UTF-8：①整个 XML 声明里的 `encoding`（不限长度；旧实现只看前 400 字节，声明里塞 401 个空格再写 `encoding="ISO-8859-1"` 就检查不到）；②UTF-16/UTF-32 的字节顺序标记；③解析器实际采用的编码（`docinfo.encoding`，兜底）。UTF-8 的 BOM 与 `utf8`/`UTF-8` 等写法接受；`US-ASCII` 也不接受 | C-S-02 |
-| SYN-3 | 语法 | DOCTYPE 含内部子集/实体声明 → 拒绝；外部 DOCTYPE 只告警（export 档为错误）；实体引用节点 → 拒绝。**按 XML 规则扫描序言来判断真实声明**（跳过注释与处理指令，进入 DOCTYPE 后跳过引号字面量与内部子集里的注释，数出真正的 `<!ENTITY`），所以注释、CDATA、处理指令或转义文本里写着的 `<!DOCTYPE`、`<!ENTITY` 字样不会误报，系统标识符里的 `[` 也不会被当成内部子集；序言扫描只认 ASCII 兼容编码，UTF-16 等由解析器的 `docinfo` 兜底。外部实体与外部 DTD 仍不被加载 | C-S-02、C-S-34 |
+| SYN-3 | 语法 | 任何 DOCTYPE → 拒绝；实体引用节点 → 拒绝。**按 XML 规则扫描序言来判断真实声明**（跳过注释与处理指令，进入 DOCTYPE 后跳过引号字面量与内部子集里的注释，数出真正的 `<!ENTITY`），所以注释、CDATA、处理指令或转义文本里写着的 `<!DOCTYPE`、`<!ENTITY` 字样不会误报，系统标识符里的 `[` 也不会被当成内部子集；序言扫描只认 ASCII 兼容编码，UTF-16 等由解析器的 `docinfo` 兜底。外部实体与外部 DTD 仍不被加载 | C-S-02、C-S-34 |
 | ROOT | 骨架 | 根元素必须是无命名空间的 standard | C-S-01、C-S-03 |
 | LEGACY | 旧格式 | GB/T 37967 与 SEP 早期自定义格式的判别特征，命中即拒绝并列出特征与位置，不尝试转换 | conventions-S 第 6 节 |
 | RNG | 结构 | lxml RELAX NG 校验（同时调用 xmllint，二者不一致报 CONSISTENCY） | 本 schema |
@@ -164,20 +159,20 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | V-5 | 语义 | `list-type` 取值；无序列项不带 label | C-S-32 |
 | V-6 | 语义 | `processing-meta` 六个固定属性值；`title-wrap` 带 `xml:lang` | C-S-04、C-S-13 |
 | V-7 | 语义 | 不得出现 `ext_`、`Formula…`、`id-<uuid>`、`p-<数字>` 形式的 id | 2.3、R-5 |
-| V-8 | 附加 | `xref/@ref-type`（及 `custom-type`、`table-fn` 须同表）与目标元素类型一致；`entailedTerm` 指向 termEntry。`ref-type="custom"` 一律校验目标：`rid` 必须指向术语条目（`tbx:termEntry` 或 `term-sec`）、注（`non-normative-note`、`tbx:note`）或示例（`non-normative-example`、`tbx:example`）之一，有 `custom-type` 时还须与目标一致（两档都是错误）；**缺 `custom-type`：export 档错误、import 档告警 `CUSTOM-TYPE`**（10.1.1 称“可选”，schema 保持可选；导入器按 `rid` 目标推断类型） | C-T-48、C-T-50 |
-| V-9 | 附加 | 每个术语条目有且仅有一个定义（跨 langSet）；多于一个两档都是错误，**没有定义：export 档错误、import 档告警 `W-TERM-NODEF`** | 附录 C 行 92、M-9.2.2-01 |
+| V-8 | 附加 | 引用类型须匹配目标；custom xref 必须有非空 custom-type，并匹配目标；悬空仍由 V-1 报错（项目严格约定） | C-T-48、C-T-50 |
+| V-9 | 附加 | 每个 TBX termEntry 的各 langSet 中合计恰好一个 definition（项目严格约定） | M-9.2.2-01、C-T-43 |
 | V-10 | 附加 | MathML 元素不得带事件属性（`on*`）；MathML 元素上的 URL 取值走统一的 URL 检查（见 V-11） | C-T-19 |
 | V-11 | 附加 | **所有 URL/URI 取值统一检查**（`url_value_problem`）：含任何 C0 控制字符（tab、换行、回车…）或 DEL 一律拒绝；协议（不分大小写，去掉首尾空格后）须是 http、https、mailto、ftp，相对地址不限。覆盖：任何元素上本地名为 `href`/`src`/`altimg` 的属性（`ext-link`、`graphic`、`inline-graphic`、MathML 的 `xlink:href` 等）和 `uri` 元素的文本；MathML 元素上的同类取值报 V-10 | C-T-56、C-T-19 |
-| V-12 | 次序 | `STD-META-ORDER`：`std-meta` 子元素次序须为“导出次序”（STS 1.2 DTD 次序 + 国标扩展的约定位置，第 3 节第 3 点）；`--profile export` 为错误，`--profile import` 为告警；RELAX NG 不限次序 | C-S-11 |
-| V-13 | 必备 id | `REQUIRED-ID`：矩阵（id 属性 obligation=shall）与附录 E（印刷页 67）要求导出必写 id 的元素缺 id；`--profile export` 为错误，`--profile import` 为告警；RELAX NG 里 id 一律可选。清单与依据见下表 | 附录 E、M-E-*、M-9.2.1-0x、M-4.5.3.1-01、M-6.2.3-07、C-S-37 |
-| V-14 | mml:math 的 id | `MML-ID`：每个 mml:math 根（不在另一个 mml:math 之内）须有 `id="mml_m<k>"`，k 为正整数且等于它在全文中的出现序号（行间与行内合并计数，从 1 起）；缺 id、`m1` 之类写法、序号不符：`--profile export` 为错误，`--profile import` 为告警（导入器去掉根上的 id 并重新生成） | M-7.4-02、M-7.1-05（export required）、C-T-18、7.4 |
-| V-15 | mml:math 的 display | `MML-DISPLAY`：disp-formula 内的 mml:math 导出须 `display="block"`，inline-formula 内的导出不得带 display；export 档错误；import 档只对反向值告警（disp-formula 内取 inline、inline-formula 内带 display），行间公式缺省 display 不告警（原文 7.1、7.3 示例就没有） | M-7.4-03、C-T-17/19/21 |
+| V-12 | 次序 | 导出须用次序 A；导入接受 A 或 4.1 示例次序 B（B 告警），其他逆序错误；RNG 不限制顺序 | C-S-11、WP8.3 R11 |
+| V-13 | 必备 id | 导出按清单要求；导入仅 app、TBX termEntry、bibl/bibr 直接 ref 缺 id 报错，norm-refs 的 ref 不要求 id | WP8.3 R6–R8 |
+| V-14 | MathML id | 导出按序写 mml_m&lt;k&gt;；导入公式直接 math 缺 id 报错，合法 id 为不透明键 | WP8.3 R5 |
+| V-15 | MathML display | 导入行间缺省可接受，显式只能为 block；行内不得带 display；导出行间须写 block | WP8.3 R4 |
 | V-16 | 导出外形 | `EXPORT-FORM`（**仅 export 档**，import 档不报告）：①以 `<?xml version="1.0" encoding="UTF-8"?>` 开头；②根 `standard` 上声明 `xmlns:xlink`、`xmlns:mml`、`xmlns:tbx`（URI 见主文件头）；③有 `processing-meta`（直接置于 `standard` 下） | M-4.1-01、M-4.1-03、M-4.1-T01/T02、M-4.3.2-30（export required） |
-| V-17 | 导出必备的部件 | `REQUIRED-PART`：矩阵 export required 的部件结构层放宽为可选，**export 档缺少即错误，import 档告警**（编号、标题由导入器重新派生）：`sec`（body/app 内）、`app`、`term-sec`、bibl 的 `ref`、`table-wrap`、`fig`、表脚注 `fn` 的 `label`；`app/annex-type`；bibl 参考文献表的 `title`；`table-wrap/caption/title`；`fig/graphic`；公式“式中”`def-list` 的 `list-content="formula"`；有序列项的 `label`（import 档沿用 `W-LIST-LABEL`）；`ext-link-type="uri"`（缺省 import 不报告，原文 10.1.9 示例就缺；非 uri 值 import 沿用 `W-EXTLINK-TYPE`）；`named-content` 的 `content-type` 只能是 variable（import 沿用 `W-NAMED-CONTENT`）；无标题的条须 `sec-type="numbered-paragraph"`（**仅 export 档**，4.4.2.1 的写法 import 不报告）；注/示例须有正文（p 或列项）；`std` 须有 `std-ref`，参考文献条目里的 `std` 还须有 `title` | M-4.4.2.1-02、M-4.5.2-03/04、M-9.2.1-03、M-4.5.3-02/04、M-5.7-09、M-6.2.1-03/05、M-8.2-04/08、M-6.2.3-08、M-7.3-03、M-10.1.9-01、M-5.5-01、M-4.4.2.5-01、M-6.2.3-06、M-5.6-05、M-4.5.3.1-04/05 |
-| V-18 | p 不带 id | `NO-ID`：附录 E“p 中无任何 id”；export 档错误，import 档告警（p 的 id 忽略，C-T-22） | M-E-25 |
+| V-17 | 必备部件 | 导入对 body/app 后代 sec 和 table-wrap 非空 label、app 的 annex-type、ext-link-type=uri 强制，其余沿用原告警；导出按矩阵要求 | WP8.3 R1、R3、R10、R12 |
+| V-18 | 段落 id | 无命名空间 p 的无命名空间 id 在导入和导出均报错（项目严格约定） | WP8.3 R9、M-E-25 |
 | IMPORT-ONLY | 档位 | 仅导入接受的异写（见第 3 节第 6 点）：import 档告警，export 档错误 | 各 C- 行 |
-| W-IMPL-REJECT 等 | 告警 | rejectKind=implementation：格式合法、导入暂拒（引言中的条、array、disp-formula-group），同一 fn 多引用为 W-FN-MULTIREF | 各 M- 行 |
-| W-* | 告警 | 不阻断：未知 sec-type、named-content/graphic/ext-link 的非常规取值、`size:T` 用于行内图、有序列项缺 label、annex-type 与 content-type 矛盾、发布日期晚于实施日期、多 rid、**脚注未被引用（`W-FN-UNREFERENCED`，正文脚注与表脚注都查，无 id 的 fn 按位置报告）**… | 各 C- 行 |
+| 已支持结构 | 接收 | 引言条、array、公式组、共享脚注不再报告旧实现拒绝告警 | 各 M- 行 |
+| W-* | 告警 | 不阻断：未知 sec-type、named-content/graphic 的非常规取值、`size:T` 用于行内图、有序列项缺 label、annex-type 与 content-type 矛盾、发布日期晚于实施日期、**脚注未被引用（`W-FN-UNREFERENCED`，正文脚注与表脚注都查，无 id 的 fn 按位置报告）**… | 各 C- 行 |
 
 ### “定义了但没引用 / 引用了但没定义”的配对检查
 
@@ -185,7 +180,7 @@ PR#55 审查后逐类核对，两个方向都要有结论：
 
 | 配对 | 引用了但没定义 | 定义了但没引用 | 依据 |
 |---|---|---|---|
-| 正文脚注 `fn` ↔ `xref[fn]` | V-1 悬空（`rid` 不存在）；V-8（目标类型不对） | **`W-FN-UNREFERENCED` 告警（本次新增）**：全部正文 `fn` 与全部 xref 的 `rid` 比对，没有 id 的 fn 同样告警；同一脚注多次引用 `W-FN-MULTIREF` | C-T-55 |
+| 正文脚注 `fn` ↔ `xref[fn]` | V-1 悬空（`rid` 不存在）；V-8（目标类型不对） | **`W-FN-UNREFERENCED` 告警（本次新增）**：全部正文 `fn` 与全部 xref 的 `rid` 比对，没有 id 的 fn 同样告警；同一脚注可有多个单目标引用 | C-T-55 |
 | 表脚注 `fn` ↔ `xref[table-fn]` | V-1；V-8（须指向同一 `table-wrap` 的表脚注） | **`W-FN-UNREFERENCED` 告警（本次新增）**；同一表脚注在多个单元格引用是正常的，不告警 | 6.2.3、C-T-06 |
 | 参考文献 `ref` ↔ `xref[bibr]` | V-1；V-8 | 不告警：原文与约定没有“参考文献必须被引用”的要求 | C-T-53 |
 | 术语条目 `tbx:termEntry` ↔ `tbx:entailedTerm`、`xref[custom term-entry]` | V-1；V-8 | 不告警：术语条目不必被引用 | C-T-45、9.2.6 |
@@ -229,7 +224,7 @@ PR#55 审查后逐类核对，两个方向都要有结论：
 | REJECT 嵌套 `tbx:termEntry` | 任意祖先 | M-9.1-03（原来就是祖先） |
 | REJECT 图内的 `fn`（`fig`、`fig-group`） | **任意祖先**（原来只看直接父元素，fn 放进 `caption/p` 就绕过） | M-8.6-02、C-T-32；图题、说明段、图注、图例里的 fn 都是图脚注 |
 | REJECT `tbx:source` 内的 `std` | **任意祖先**（原来只看直接父元素） | M-9.2.8-02 |
-| W-IMPL-REJECT 引言中的条 | **任意祖先** `sec[@sec-type=intro]`（原来只认第一层，`sec_0.1.1` 不告警） | M-4.3.4-02/03 |
+| 引言中的条 | 接受多级引言条 | M-4.3.4-02/03 |
 | 旧格式判别：`foreword`/`intro` 作为 `body`/`front`/`standard` 的子元素 | 直接父元素（有意） | 位置特征，用来识别 SEP 早期格式 |
 | V-2 `sec-type` 位置（front 内只能 foreword/intro，body 顶层只能 scope/norm-refs/terms…） | 直接父元素（有意） | 规则本身就是“位置”，C-S-06 |
 | V-2 `term-sec` 在术语和定义章之内 | 任意祖先（分组条可以嵌套）：祖先里有 body 顶层的 `sec-type=terms` | 9.1、C-S-25、C-T-37 |
@@ -371,45 +366,45 @@ xml:lang 取值、警告注、术语分组条。
 | schema：xref 必须有 ref-type | M-6.2.3-10、M-6.2.3-10#ref-type、M-9.2.6-02、M-9.2.6-02#ref-type、M-9.2.6-02#custom-type、M-9.2.6-02#rid、M-10.1.1-01、M-10.1.1-02、M-10.1.2-01、M-10.1.2-01#ref-type、M-9.2.7-02、M-9.2.7-02#ref-type、M-10.1.2-02、M-10.1.2-02#ref-type、M-10.1.2-03、M-10.1.2-03#ref-type、M-10.1.2-04、M-10.1.2-04#ref-type、M-10.1.6-01、M-10.1.6-01#ref-type、M-10.1.3-01、M-10.1.3-01#ref-type、M-10.1.3-01#custom-type、M-10.1.3-02、M-10.1.3-02#ref-type、M-10.1.3-02#custom-type、M-9.2.6-03、M-9.2.6-03#ref-type、M-9.2.6-03#custom-type、M-10.1.1-03、M-10.1.1-03#ref-type、M-10.1.5-01、M-10.1.5-01#ref-type、M-10.1.1-04、M-10.1.1-04#ref-type、M-6.2.3-11、M-6.2.3-11#ref-type |
 | schema：ref-type 只收 13 个取值 | M-6.2.3-10#ref-type、M-10.1.1-01、M-10.1.1-02、M-10.1.2-01、M-10.1.2-01#ref-type、M-9.2.7-02、M-9.2.7-02#ref-type、M-10.1.2-02、M-10.1.2-02#ref-type、M-10.1.2-03、M-10.1.2-03#ref-type、M-10.1.2-04、M-10.1.2-04#ref-type、M-10.1.6-01、M-10.1.6-01#ref-type、M-10.1.1-03#ref-type、M-10.1.5-01、M-10.1.5-01#ref-type、M-10.1.1-04、M-10.1.1-04#ref-type、M-6.2.3-11#ref-type |
 | schema：xref 必须有 rid | M-6.2.3-10、M-9.2.6-02、M-9.2.6-02#ref-type、M-9.2.6-02#custom-type、M-9.2.6-02#rid、M-10.1.1-01、M-10.1.1-02、M-10.1.2-01、M-9.2.7-02、M-10.1.2-02、M-10.1.2-03、M-10.1.2-04、M-10.1.6-01、M-10.1.3-01、M-10.1.3-01#ref-type、M-10.1.3-01#custom-type、M-10.1.3-02、M-10.1.3-02#ref-type、M-10.1.3-02#custom-type、M-9.2.6-03、M-9.2.6-03#ref-type、M-9.2.6-03#custom-type、M-10.1.1-03、M-10.1.5-01、M-10.1.1-04、M-6.2.3-11 |
-| V-17（import 告警）：app 的 annex-type | M-4.5.2-04 |
+| V-17（import 同为错误）：app 的 annex-type | M-4.5.2-04 |
 | V-3（import 同为错误）：bibl 参考文献表须在 back 直下 | M-4.5.3-01、M-4.5.3-01#content-type、M-10.1.6-02、M-10.1.6-02#content-type |
 | V-17（import 告警）：bibl 参考文献表的 title | M-4.5.3-02 |
-| V-8（import 告警）：custom 型 xref 的 custom-type | M-9.2.6-02、M-9.2.6-02#ref-type、M-9.2.6-02#custom-type、M-9.2.6-02#rid、M-10.1.3-01、M-10.1.3-01#ref-type、M-10.1.3-01#custom-type、M-10.1.3-02、M-10.1.3-02#ref-type、M-10.1.3-02#custom-type、M-9.2.6-03、M-9.2.6-03#ref-type、M-9.2.6-03#custom-type |
+| V-8（import 同为错误）：custom 型 xref 的 custom-type | M-9.2.6-02、M-9.2.6-02#ref-type、M-9.2.6-02#custom-type、M-9.2.6-02#rid、M-10.1.3-01、M-10.1.3-01#ref-type、M-10.1.3-01#custom-type、M-10.1.3-02、M-10.1.3-02#ref-type、M-10.1.3-02#custom-type、M-9.2.6-03、M-9.2.6-03#ref-type、M-9.2.6-03#custom-type |
 | V-1（import 同为错误）：rid 必须能解析到目标 | M-6.2.3-10、M-9.2.6-02、M-9.2.6-02#ref-type、M-9.2.6-02#custom-type、M-9.2.6-02#rid、M-10.1.1-01、M-10.1.1-02、M-10.1.2-01、M-9.2.7-02、M-10.1.2-02、M-10.1.2-03、M-10.1.2-04、M-10.1.6-01、M-10.1.3-01、M-10.1.3-01#ref-type、M-10.1.3-01#custom-type、M-10.1.3-02、M-10.1.3-02#ref-type、M-10.1.3-02#custom-type、M-9.2.6-03、M-9.2.6-03#ref-type、M-9.2.6-03#custom-type、M-10.1.1-03、M-10.1.5-01、M-10.1.1-04、M-6.2.3-11 |
 | V-16（import 不报告）：XML 声明 | M-4.1-01 |
-| V-9（import 告警）：术语条目的定义 | M-9.2.2-01 |
+| V-9（import 同为错误）：术语条目的定义 | M-9.2.2-01 |
 | V-1（import 同为错误）：id 唯一 | M-D-01、M-D.1-01 |
 | SYN-2（import 同为错误）：编码只收 UTF-8 | M-4.1-01、M-5.4-01 |
 | V-8（import 同为错误）：entailedTerm 指向术语条目 | M-9.2.6-01、M-9.2.6-01#target |
 | V-11（import 同为错误）：URL 协议白名单 | M-10.1.9-01、M-10.1.9-02 |
-| V-17（import 不报告）：ext-link-type=uri | M-10.1.9-01、M-10.1.9-01#ext-link-type |
+| V-17（import 同为错误）：ext-link-type=uri | M-10.1.9-01、M-10.1.9-01#ext-link-type |
 | V-17（import 告警）：fig 的 graphic | M-8.2-08 |
 | W-FN-UNREFERENCED（import 告警）：脚注须被引用 | M-10.1.1-03、M-10.1.8-01 |
-| V-13（import 告警）：app 必须有 id | M-4.5.2-02、M-E-04 |
+| V-13（import 同为错误）：app 必须有 id | M-4.5.2-02、M-E-04 |
 | V-13（import 告警）：fig 必须有 id | M-E-12、M-D-01、M-D.1-01、M-8.2-01、M-8.2-02 |
 | V-13（import 告警）：正文脚注必须有 id | M-E-15、M-E-16、M-10.1.8-01 |
 | V-13（import 告警）：表脚注必须有 id | M-E-18、M-6.2.3-07 |
 | V-13（import 告警）：带编号的行间公式必须有 id | M-E-13、M-7.1-01、M-7.1-02 |
 | V-13（import 告警）：index 必须有 id | M-E-03 |
-| V-13（import 告警）：bibl 的 ref 必须有 id | M-4.5.3-03、M-4.5.3-03#id、M-E-05、M-4.5.3.1-01、M-4.5.3.1-01#id |
+| V-13（import 同为错误）：bibl 的 ref 必须有 id | M-4.5.3-03、M-4.5.3-03#id、M-E-05、M-4.5.3.1-01、M-4.5.3.1-01#id |
 | V-13（import 告警）：bibl 参考文献表必须有 id | M-4.5.3-01、M-E-03、M-10.1.6-02 |
 | V-13（import 告警）：有编号的章条必须有 id | M-4.4.2.1-01、M-4.4.2.2-01、M-4.4.2.2-01#id、M-4.4.2.3-01、M-4.4.2.4-01、M-4.4.2.4-01#id、M-4.5.2-06、M-E-01、M-E-04、M-D-01、M-D.1-01、M-9.1-01 |
 | V-13（import 告警）：前言/引言必须有 id | M-4.2-01、M-4.2-02、M-4.2-02#id、M-4.3.4-01、M-4.3.4-01#id、M-E-02 |
 | V-13（import 告警）：带编号的表必须有 id | M-E-10、M-6.2.1-01、M-6.2.1-02 |
-| V-13（import 告警）：tbx:termEntry 必须有 id | M-E-08、M-9.2.1-04、M-9.2.1-04#id、M-9.2.1-05、M-9.2.1-05#id |
+| V-13（import 同为错误）：tbx:termEntry 必须有 id | M-E-08、M-9.2.1-04、M-9.2.1-04#id、M-9.2.1-05、M-9.2.1-05#id |
 | V-13（import 告警）：term-sec 必须有 id | M-E-07、M-9.2.1-01、M-9.2.1-01#id、M-9.2.1-02、M-9.2.1-02#id |
 | V-17（import 告警）：app 的 label | M-4.5.2-03 |
 | V-17（import 告警）：图的 label | M-5.2-01、M-8.2-04 |
 | V-17（import 告警）：表脚注的 label | M-6.2.3-08 |
 | V-17（import 告警）：有序列项的 label | M-5.2-01、M-5.7-09 |
 | V-17（import 告警）：bibl 的 ref 的 label | M-4.5.3-04、M-4.5.3.1-02 |
-| V-17（import 告警）：章条的 label | M-4.4.2.1-02、M-4.4.2.5-01、M-4.5.2-06、M-5.2-01 |
-| V-17（import 告警）：表的 label | M-6.2.1-03 |
+| V-17（import 同为错误）：章条的 label | M-4.4.2.1-02、M-4.4.2.5-01、M-4.5.2-06、M-5.2-01 |
+| V-17（import 同为错误）：表的 label | M-6.2.1-03 |
 | V-17（import 告警）：term-sec 的 label | M-9.2.1-03 |
 | V-17（import 告警）：公式“式中”列表的 list-content | M-7.3-03、M-7.3-03#list-content |
 | V-15（import 不报告）：行间 mml:math 的 display=block | M-7.4-03 |
-| V-15（import 告警）：行内 mml:math 不带 display | M-7.1-05 |
-| V-14（import 告警）：mml:math 的 id=mml_m<k> | M-7.4-01、M-7.4-02、M-7.4-02#id、M-7.1-05、M-7.1-05#id |
+| V-15（import 同为错误）：行内 mml:math 不带 display | M-7.1-05 |
+| V-14（import 同为错误）：mml:math 的 id=mml_m<k> | M-7.4-01、M-7.4-02、M-7.4-02#id、M-7.1-05、M-7.1-05#id |
 | V-17（import 告警）：named-content 只能是 variable | M-5.5-01、M-5.5-01#content-type |
 | V-3（import 同为错误）：norm-refs 清单须在 norm-refs 章内 | M-4.2-04、M-4.4.2.3-01、M-4.4.2.3-01#sec-type、M-4.4.2.3-02、M-4.4.2.3-02#content-type、M-4.4.2.4-01#sec-type、M-9.1-01#sec-type、M-4.4.2.3.2-01、M-4.4.2.3.2-01#content-type |
 | V-17（import 告警）：注/示例必须有正文（p 或列项） | M-5.6-01、M-5.6-02、M-5.6-03、M-5.6-05、M-5.6-06、M-6.2.3-06 |
@@ -417,7 +412,7 @@ xml:lang 取值、警告注、术语分组条。
 | V-16（import 不报告）：根上声明 tbx | M-4.1-T02 |
 | V-16（import 不报告）：根上声明 xlink | M-4.1-03 |
 | V-17（import 不报告）：无标题条须 numbered-paragraph | M-4.4.2.5-01、M-4.4.2.5-01#sec-type |
-| V-18（import 告警）：p 不带 id | M-E-25 |
+| V-18（import 同为错误）：p 不带 id | M-E-25 |
 | V-16（import 不报告）：processing-meta | M-4.3.2-30、M-4.3.2-T01、M-4.3.2-T02 |
 | V-6（import 同为错误）：processing-meta 六个属性取固定值 | M-4.3.2-T01、M-4.3.2-T02 |
 | V-17（import 告警）：std 必须含 std-ref | M-4.4.2.3-03、M-4.5.3-05、M-4.5.3.1-03、M-4.5.3.1-04、M-10.2-01、M-10.2-02 |
@@ -455,12 +450,12 @@ xml:lang 取值、警告注、术语分组条。
 | `06-terms-references.xml` | term-sec + tbx:termEntry（多 langSet、多 tig、描述符、subjectField、note/example、entailedTerm）、缩略语、各类 xref、行内 fn、std、mixed-citation |
 | `07-import-variants.xml` | 仅导入接受的异写汇总，以及按原文 4.1 示例次序写的 `std-meta`（`ics`、`ccs` 在 `title-wrap` 之前）、4.4.2.1 写法的无标题条（不带 `sec-type`）：import 档通过并告警（`IMPORT-ONLY`、V-12），export 档不通过（另有 V-17） |
 | `08-original-forms-vs-sts.xml` | 原文明确写法与 STS 1.2 不一致的情形（5 个国标扩展元素、std-org 多名、xref 内 label、langSet 内 note 在 tig 之后、graphic 在 table-wrap-foot 之后；正文 fn 写成行内、紧随其 xref）；两个档位都通过，`sts_compat.py` 列为已知偏差 |
-| `09-import-pending.xml` | 格式合法但导入暂拒（rejectKind=implementation）：引言中的条（含 `sec_0.1.1` 两层）、array、disp-formula-group、同一脚注多次引用；只告警 |
+| `09-import-pending.xml` | 引言条、array、disp-formula-group、同一脚注多次引用，均已授权接收 |
 
 `samples/invalid/` 的 78 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
 语法 4、旧格式/根 3、矩阵 format 类 reject 17（含 4 个术语异写元素名、1 个 fn 藏在 caption 段落里的图脚注）、D-M-01 定案的块级正文 fn 1（`block-level-fn.xml`）、V-1 3、V-2 4、V-3 3、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 11（含 2 个 custom 型 xref 的目标错误、2 个脚注/表脚注引用类型互串、3 个 URL 里的控制字符）、仅 RELAX NG 7
 （含按 STS 1.2 收紧后新增的含子条的条再放段落、partOfSpeech 取值、named-content 缺 content-type、空 table-wrap-foot）、
-**仅 export 档失败 13（`std-meta-wrong-order.xml`：结构层通过，import 档告警 V-12，export 档错误 V-12；`missing-term-entry-id.xml`、`missing-app-id.xml`、`missing-ref-id.xml`：缺必备 id，import 档告警 V-13，export 档错误 V-13；`custom-xref-no-type.xml`：custom 型 xref 缺 custom-type，import 档告警 V-8 CUSTOM-TYPE，export 档错误；`mathml-id-missing.xml`、`mathml-display-inline-in-disp-formula.xml`：mml:math 的 id/display，import 档告警 V-14/V-15，export 档错误；`sec-without-label`、`table-wrap-without-label`、`app-without-annex-type`、`ext-link-without-type`、`term-entry-without-definition`、`p-with-id`：矩阵 export required 的部件（V-17/V-9/V-18）；预期见 `EXPORT_ONLY_INVALID`）**。
+**历史 13 个仅 export 负例现按 WP8.3 严格导入约定在 import 档同样拒绝；语义及上下文详见 [R1–R13](../../docs/wp8.3/strict-import.md)。**
 
 ## 7. 官方 DTD 对照后：`[未核实]` 清单的复核结论（2026-10-21）
 
@@ -538,3 +533,7 @@ xml:lang 取值、警告注、术语分组条。
   同样零未解释偏差（MathML 内容除外，因 schema 对 MathML 故意宽松）。
 - 没有独立的第三个 RELAX NG 实现交叉核对（不引入 jing 等新依赖，主导人 2026-10-21 决定）。
 - 版本号 0.1.0；修改 schema 须同步修改样例与 `test_validate.py` 的预期。
+
+## WP8.3 勘误
+
+本节优先于上文历史导入口径：所有 DOCTYPE 拒绝；V-8、V-9、V-12–V-15、V-17、V-18 对 R1–R13 的上下文报 error，例外次序 B 接受并告警，norm-refs 的 ref 无 id 接受。RNG 仍保留可选结构，严格约定由语义检查实现。原六个 implementation reject 行改为 accept，不再输出 W-IMPL-REJECT/W-FN-MULTIREF。原表记载的标准出处与导出要求保留；本段只修订导入行为。

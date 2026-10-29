@@ -55,10 +55,11 @@
     "irPath": null,
     "pmNode": null,
     "export": "not-applicable",
-    "import": "accept",
+    "import": "reject",
     "status": "not-applicable",
     "conventionRef": "C-S-02",
-    "notes": "示例 DOCTYPE 文件名（extended/mathml2）与 processing-meta（interchange/3.0）冲突，导出不写 DOCTYPE；导入接受声明但不读取外部子集、不联网、不展开实体，含内部子集或实体声明则拒绝。"
+    "notes": "示例 DOCTYPE 文件名（extended/mathml2）与 processing-meta（interchange/3.0）冲突，导出不写 DOCTYPE；WP8.3 安全约定导入拒绝任何 DOCTYPE，不联网、不展开实体。",
+    "rejectKind": "format"
   },
   {
     "id": "M-4.1-03",
@@ -1252,11 +1253,10 @@
     "irPath": "IRDoc.front.introductionClauses[]（IRClause，兄弟字段）",
     "pmNode": "introduction > clause",
     "export": "optional",
-    "import": "reject",
-    "rejectKind": "implementation",
+    "import": "accept",
     "status": "mapped",
     "conventionRef": "C-S-10",
-    "notes": "设置条的引言 @id=\"sec_0\"，示例 3 为 <sec id=\"sec_0\" sec-type=\"intro\"><title>引言</title><sec id=\"sec_0.1\">…。WP8.M G6（D-M-10）：pmToIr 映射引言内的条；条之后再出现的正文块（悬置段）报 unsupportedContent。HTML/DOCX 按条标题排版（§7.1）；导入侧本行仍为 reject（WP8.3 再放开）。"
+    "notes": "设置条的引言 @id=\"sec_0\"，示例 3 为 <sec id=\"sec_0\" sec-type=\"intro\"><title>引言</title><sec id=\"sec_0.1\">…。WP8.M G6（D-M-10）：pmToIr 映射引言内的条；条之后再出现的正文块（悬置段）报 unsupportedContent。HTML/DOCX 按条标题排版（§7.1）；WP8.3 授权接收引言条。"
   },
   {
     "id": "M-4.3.4-03",
@@ -1281,11 +1281,10 @@
     "irPath": "IRClause（位于 introductionClauses 内；Resolver 编号 0.n、xmlId sec_0.n）",
     "pmNode": "clause（introduction 内）",
     "export": "optional",
-    "import": "reject",
-    "rejectKind": "implementation",
+    "import": "accept",
     "status": "mapped",
     "conventionRef": "C-S-10",
-    "notes": "引言中的条 @id=\"sec_0.1\"，label 为 0.1。示例 2 把引言写 sec_intro 却把后继条写 sec_0.1，与文字规则不符，不采用（D-S-10）。WP8.M G6：Resolver 对引言条按 [0,n,m] 路径编号，并参与悬置段与跳级检查。"
+    "notes": "引言中的条 @id=\"sec_0.1\"，label 为 0.1。示例 2 把引言写 sec_intro 却把后继条写 sec_0.1，与文字规则不符，不采用（D-S-10）。WP8.M G6：Resolver 对引言条按 [0,n,m] 路径编号，并参与悬置段与跳级检查。 WP8.3 接收并保留引言条层级和次序。"
   },
   {
     "id": "M-4.4.2.1-01",
@@ -2781,11 +2780,10 @@
     "irPath": null,
     "pmNode": null,
     "export": "not-applicable",
-    "import": "reject",
-    "rejectKind": "implementation",
+    "import": "accept",
     "status": "gap-both",
     "conventionRef": "C-S-36",
-    "notes": "“按列对齐且没有列或行边框的文本使用包含一个 <table> 的 <array> 进行标记”。IR/PM 的表总有编号与题名，没有无框对齐文本块；导入拒绝并定位，不降级为带编号的表。"
+    "notes": "“按列对齐且没有列或行边框的文本使用包含一个 <table> 的 <array> 进行标记”。WP8.3 授权 IRArray 保留无编号网格及列组。"
   },
   {
     "id": "M-5.8-02",

@@ -111,7 +111,7 @@ describe('buildXml46687Package：WP8.2 全要素夹具端到端', () => {
       const result = validateWithPython(await zip.file('standard.xml')!.async('string'), 'export')
       expect(result.errors).toEqual([])
       expect(result.valid).toBe(true)
-      expect(new Set(result.warnings.map((warning: { rule: string }) => warning.rule))).toEqual(new Set(['W-IMPL-REJECT']))
+      expect(new Set(result.warnings.map((warning: { rule: string }) => warning.rule))).toEqual(new Set())
     })
 
     it('sts_compat.py：退出码 0，零未解释偏差', async () => {
