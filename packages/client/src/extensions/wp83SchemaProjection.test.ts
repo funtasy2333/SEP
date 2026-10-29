@@ -4,6 +4,8 @@ import { DOMParser, DOMSerializer } from '@tiptap/pm/model'
 import { irToPm, pmToIr, type IRDoc, type IRParagraph, type PMJsonNode } from '@ses/shared'
 import { createEditorSchema } from './editorSchema'
 import { createWp82Doc } from '../../../shared/src/renderers/__tests__/xml46687Wp82Fixture'
+import { buildGoldenSamples } from '../../../shared/src/renderers/__tests__/xml46687GoldenSamples'
+import { createWp6Fixture } from './__fixtures__/wp6'
 import { nestedListDoc, xref } from '../../../shared/src/ir/__tests__/wp8mZdBFixtures'
 
 function reopen(source: IRDoc): IRDoc {
@@ -44,6 +46,19 @@ describe('WP8.3 生产 Schema 保存重开', () => {
     expect(paragraph.content.find(run => run.text === 'ls')).toEqual({ text: 'ls', marks: [{ type: 'bold' }, { type: 'code' }] })
     expect(paragraph.content.find(run => run.footnote)?.footnote).toEqual(original.content.find(run => run.footnote)?.footnote)
     expect(findById(restored, 'w82-list-outer')).toEqual(findById(source, 'w82-list-outer'))
+  })
+
+  it.each(buildGoldenSamples(createWp6Fixture()).filter(sample => sample.name !== 'wp8m'))('$name 黄金夹具通过生产 Schema 保存重开并保持 PM 投影幂等', ({ doc }) => {
+    const schema = createEditorSchema()
+    const first = schema.nodeFromJSON(irToPm(doc))
+    first.check()
+    const restored = schema.nodeFromJSON(JSON.parse(JSON.stringify(first.toJSON())))
+    restored.check()
+    const converted = pmToIr(restored.toJSON() as PMJsonNode)
+    expect(converted.doc.unsupportedContent ?? []).toEqual([])
+    const second = schema.nodeFromJSON(irToPm(converted.doc))
+    second.check()
+    expect(second.toJSON()).toEqual(first.toJSON())
   })
 
   it('块级列项的 HTML 和 nodeId 可保存并重开', () => {

@@ -71,12 +71,13 @@ describe('[M-5.7-04] 罗马列项：IR → PM（stdList listType=roman）→ IR'
     }))
   })
 
-  it('嵌套列项（项内含子列表）与段落 id 非派生仍无法投影为 stdList：沿用既有诊断，roman 没有例外', () => {
+  it('罗马嵌套列项保存重开保留内容；扁平列项的非派生段落 id 仍拒绝', () => {
     const nested: IRList = {
       kind: 'list', id: 'n', listType: 'roman',
       items: [{ id: 'n1', content: [para('n1.p0', t('外')), simpleList('n1-sub', 'dot', ['n1-s1', '内'])] }],
     }
-    expect(diagnosticsOf(docWithBlocks([nested])).some(item => item.nodeId === 'n' && item.reason.includes('嵌套'))).toBe(true)
+    const restored = pmToIr(JSON.parse(JSON.stringify(irToPm(docWithBlocks([nested])))) as PMJsonNode).doc
+    expect((restored.body[0]!.children[0] as { children: IRList[] }).children[0]).toEqual(nested)
     const mismatched = simpleList('m', 'roman', ['m1', '项'])
     mismatched.items[0]!.content[0]!.id = 'authored-id'
     expect(diagnosticsOf(docWithBlocks([mismatched]))).toContainEqual(expect.objectContaining({ nodeId: 'authored-id', reason: expect.stringContaining('无法保留') }))
