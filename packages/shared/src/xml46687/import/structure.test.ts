@@ -1,4 +1,6 @@
 import { expect, it } from 'vitest'
+import { irToPm } from '../../ir/irToPm'
+import { pmToIr } from '../../ir/pmToIr'
 import { parseXml46687 } from '../parse'
 import type { XmlElement } from '../tree'
 import { createImportContext } from './context'
@@ -129,5 +131,17 @@ it('[M-4.5.2-01] [M-4.5.2-02] [M-4.5.2-04] [M-4.5.2-05] 规范性附录保留标
   const { tree, ctx } = setup('<standard><front><std-meta><std-ref type="dated">GB/T 1</std-ref></std-meta></front><body/><back><app-group><app content-type="normative"><label>附录 A</label><annex-type>（规范性）</annex-type><title>规范内容</title><p>正文</p></app></app-group></back></standard>')
   const doc = mapStructure(tree, ctx)!
   expect(doc.appendices).toMatchObject([{ normative: true, title: [{ text: '规范内容' }], children: [{ kind: 'paragraph', content: [{ text: '正文' }] }] }])
+  expect(ctx.problems).toEqual([])
+})
+
+
+it('[M-5.7-11] 混合嵌套列表经生产 IR 转换后保留每个段落身份', () => {
+  const { tree, ctx } = setup('<standard><front><std-meta><std-ref type="dated">GB/T 1</std-ref></std-meta></front><body><sec><title>章</title><list list-type="bullet"><list-item><p>甲</p></list-item><list-item><p>乙</p><list list-type="dash"><list-item><p>丙</p></list-item></list></list-item></list></sec></body></standard>')
+  const doc = mapStructure(tree, ctx)!
+  const list = doc.body[0]!.children[0]!
+  const restored = pmToIr(irToPm(doc)).doc.body[0]!.children[0]
+  if (restored?.kind !== 'list' || list.kind !== 'list') throw new Error('list expected')
+  expect(restored.items).toEqual(list.items)
+  expect(restored.level).toBe(2)
   expect(ctx.problems).toEqual([])
 })
