@@ -1,6 +1,7 @@
 import { getXmlAttr, isXmlElement, MATHML_NS } from '../tree'
 import type { XmlDocument, XmlElement } from '../tree'
 import { buildImportIndex, location } from './context'
+import { validateSemantics } from './semantic'
 import type { ImportProblem, ValidationResult } from './contracts'
 
 const TBX = 'urn:iso:std:iso:30042:ed-1'
@@ -60,5 +61,6 @@ export function validateXml46687(tree: XmlDocument): ValidationResult {
   }
   visit(tree.root, undefined, [])
   problems.push(...buildImportIndex(tree, { nodeIdsByPath: ids, resources: new Map() }).problems)
+  problems.push(...validateSemantics(tree))
   return { problems }
 }
