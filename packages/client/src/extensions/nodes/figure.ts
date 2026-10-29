@@ -1,6 +1,7 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
 import { normalizePageOrientation, readPageOrientation } from '../../utils/orientation'
+import { jsonAttribute } from './json-attribute'
 
 function stringAttribute(name: string, defaultValue: string | null = null) {
   return { default: defaultValue, parseHTML: (element: HTMLElement) => element.getAttribute(name) ?? defaultValue }
@@ -50,8 +51,8 @@ export const Figure = Node.create({
         }),
       },
       unit: stringAttribute('unit'),
-      primaryGraphic: { default: null, rendered: false },
-      additionalGraphics: { default: null, rendered: false },
+      primaryGraphic: jsonAttribute('data-primary-graphic'),
+      additionalGraphics: jsonAttribute('data-additional-graphics'),
     }
   },
 

@@ -58,8 +58,11 @@ function dispatchFootnoteEdit(nodeId: string, table = false) {
 
 export const SharedFootnoteRef = Node.create({
   name: 'sharedFootnoteRef', inline: true, group: 'inline', atom: true,
-  addAttributes() { return { targetId: { default: '' }, refText: { default: '' } } },
-  parseHTML() { return [{ tag: 'sup[data-type="shared-footnote-ref"]' }] },
+  addAttributes() { return {
+    targetId: { default: '', parseHTML: (element: HTMLElement) => element.getAttribute('data-target-id') ?? '', renderHTML: (attrs: Record<string, unknown>) => ({ 'data-target-id': String(attrs.targetId ?? '') }) },
+    refText: { default: '', parseHTML: (element: HTMLElement) => element.getAttribute('data-ref-text') ?? '', renderHTML: (attrs: Record<string, unknown>) => ({ 'data-ref-text': String(attrs.refText ?? '') }) },
+  } },
+  parseHTML() { return [{ tag: 'sup[data-type="shared-footnote-ref"]', priority: 100 }] },
   renderHTML({ node, HTMLAttributes }) { return ['sup', mergeAttributes(HTMLAttributes, { 'data-type': 'shared-footnote-ref' }), node.attrs.refText || ''] },
 })
 

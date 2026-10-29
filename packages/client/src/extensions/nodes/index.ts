@@ -23,7 +23,7 @@ export {
   Adoption, BibExternalLink, BibField, BibIdentifier, BibStructured, Copyright,
   FigureDescription, FigureGroup, FigureResource, FigureResourceRef,
   FormulaInline, FormulaNote, IdentifierPart, IndexBlock, IndexEntry, IndexGroup,
-  IndexSeeAlso, IndexTarget, IndexTerm, MetadataBlock, MetadataFields,
+  IndexSeeAlso, IndexSourceReference, IndexTarget, IndexTerm, MetadataBlock, MetadataFields,
   MetadataLanguage, Publisher, QuoteBlock, ReplacedStandard, SemanticCodeBlock,
   StandardIdentifier, StandardTableCell, StandardTableHeader, StandardTableRow,
   TbxLangSet, TbxTerm, TbxTermDescriptor, TbxTermVariant, TbxTig, TitlePart,

@@ -1,8 +1,11 @@
+// @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
 import { getOutputSupportProblems, IRToPmError, irToPm, pmToIr, type IRDoc, type PMJsonNode } from '@ses/shared'
 import { createEditorSchema } from './editorSchema'
-import { Fragment, Slice } from '@tiptap/pm/model'
+import { DOMParser, DOMSerializer, Fragment, Slice } from '@tiptap/pm/model'
 import { remapPastedSliceIds } from './plugins/ensureNodeId'
+import { Editor } from '@tiptap/core'
+import { createEditorExtensions } from './editorExtensions'
 
 describe('WP8.3 图像关系保存', () => {
   it('保存同一图的有序附加图及表格的替代图', () => {
@@ -80,5 +83,58 @@ describe('WP8.3 图像关系保存', () => {
     expect(copied.child(1).attrs.additionalGraphics[0].nodeId).not.toBe('extra')
     expect(copied.child(2).attrs.alternativeGraphic).toMatchObject({ src: 'alt.png', resourceId: 'resource' })
     expect(copied.child(2).attrs.alternativeGraphic.nodeId).not.toBe('alt')
+  })
+
+  it('经 HTML 复制后仍保留附加图和替代图属性', () => {
+    const schema = createEditorSchema()
+    const source = schema.nodeFromJSON({ type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [
+      { type: 'chapterTitle' }, { type: 'figure', attrs: { nodeId: 'f', primaryGraphic: { specificUse: 'size:T' },
+        additionalGraphics: [{ nodeId: 'g', src: 'extra.png', resourceId: 'r' }] }, content: [
+        { type: 'figureImage', attrs: { src: 'main.png' } }, { type: 'figureCaption' },
+      ] }, { type: 'stdTable', attrs: { nodeId: 't', alternativeGraphic: { nodeId: 'alt', src: 'alt.png' } }, content: [
+        { type: 'tableCaption' }, { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }] },
+      ] },
+    ] }] })
+    const host = document.createElement('div')
+    host.appendChild(DOMSerializer.fromSchema(schema).serializeFragment(source.content))
+    const result = DOMParser.fromSchema(schema).parse(host)
+    expect(result.firstChild!.child(1).attrs.additionalGraphics).toEqual([{ nodeId: 'g', src: 'extra.png', resourceId: 'r' }])
+    expect(result.firstChild!.child(1).attrs.primaryGraphic).toEqual({ specificUse: 'size:T' })
+    expect(result.firstChild!.child(2).attrs.alternativeGraphic).toEqual({ nodeId: 'alt', src: 'alt.png' })
+  })
+
+  it('编辑视图展示全部附加图和所属表替代图', () => {
+    const editor = new Editor({ extensions: createEditorExtensions(), content: { type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [
+      { type: 'chapterTitle' }, { type: 'figure', attrs: { nodeId: 'f', additionalGraphics: [{ nodeId: 'g', src: 'extra.png' }] }, content: [
+        { type: 'figureImage', attrs: { src: 'main.png' } }, { type: 'figureCaption' },
+      ] }, { type: 'stdTable', attrs: { nodeId: 't', alternativeGraphic: { nodeId: 'alt', src: 'alt.png' } }, content: [
+        { type: 'tableCaption' }, { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }] },
+      ] },
+    ] }] } })
+    expect(editor.view.dom.querySelector('[data-graphic-id="g"]')?.getAttribute('src')).toBe('extra.png')
+    expect(editor.view.dom.querySelector('[data-graphic-id="alt"]')?.getAttribute('src')).toBe('alt.png')
+    editor.destroy()
+  })
+
+  it('HTML 粘贴保留公式组编号、数组列组和共享脚注关系', () => {
+    const schema = createEditorSchema()
+    const source = schema.nodeFromJSON({ type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [
+      { type: 'chapterTitle' }, { type: 'formulaGroup', attrs: { nodeId: 'fg', numbered: true }, content: [
+        { type: 'formula', attrs: { nodeId: 'f', numbered: false }, content: [{ type: 'formulaContent' }] },
+      ] }, { type: 'alignedArray', attrs: { nodeId: 'a', columns: [{}, {}], columnGroups: [{ start: 0, count: 2 }] }, content: [
+        { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }, { type: 'tableCell', content: [{ type: 'paragraph' }] }] }] },
+      ] }, { type: 'stdParagraph', attrs: { nodeId: 'p' }, content: [
+        { type: 'sharedFootnoteRef', attrs: { targetId: 'fn', refText: '1' } },
+        { type: 'sharedFootnoteDefinition', attrs: { nodeId: 'fn', content: [{ type: 'text', text: '脚注' }] } },
+      ] },
+    ] }] })
+    const host = document.createElement('div')
+    host.appendChild(DOMSerializer.fromSchema(schema).serializeFragment(source.content))
+    const result = DOMParser.fromSchema(schema).parse(host)
+    const chapter = result.firstChild!
+    expect(chapter.child(1).attrs.numbered).toBe(true)
+    expect(chapter.child(2).attrs.columnGroups).toEqual([{ start: 0, count: 2 }])
+    expect(chapter.child(3).child(0).attrs).toMatchObject({ targetId: 'fn', refText: '1' })
+    expect(chapter.child(3).child(1).attrs).toMatchObject({ nodeId: 'fn', content: [{ type: 'text', text: '脚注' }] })
   })
 })

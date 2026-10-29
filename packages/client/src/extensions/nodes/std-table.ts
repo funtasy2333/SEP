@@ -4,6 +4,7 @@ import type { DOMOutputSpec, Node as PMNode } from '@tiptap/pm/model'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { columnWidthProblem, generateNodeId, type PMJsonNode } from '@ses/shared'
 import { normalizePageOrientation, readPageOrientation } from '../../utils/orientation'
+import { jsonAttribute } from './json-attribute'
 
 function stringAttribute(name: string, defaultValue: string | null = null) {
   return { default: defaultValue, parseHTML: (element: HTMLElement) => element.getAttribute(name) ?? defaultValue }
@@ -103,7 +104,7 @@ export const StdTable = Node.create({
       unit: stringAttribute('unit'),
       /** 重复表头行数独立于单元格类型；null 兼容旧表格的自动推断。 */
       headerRowCount: { default: null },
-      alternativeGraphic: { default: null, rendered: false },
+      alternativeGraphic: jsonAttribute('data-alternative-graphic'),
       /** 表格整体宽度与样式字段，均为JSON安全的标量。 */
       width: { default: null },
       widthUnit: stringAttribute('widthUnit'),

@@ -154,7 +154,7 @@ function indexPmPaths(root: PMJsonNode, ctx: Ctx): void {
     ;(node.content ?? []).forEach((child, index) => {
       if (isPmJsonNode(child)) visit(child, `${path}.content[${index}]`, nextOwnerId)
     })
-    if (node.type === 'footnoteRef' && Array.isArray(node.attrs?.content)) {
+    if ((node.type === 'footnoteRef' || node.type === 'sharedFootnoteDefinition') && Array.isArray(node.attrs?.content)) {
       ;(node.attrs!.content as unknown[]).forEach((child, index) => {
         if (isPmJsonNode(child)) visit(child, `${path}.attrs.content[${index}]`, nextOwnerId)
       })
@@ -342,15 +342,26 @@ function convertInlines(content: PMJsonNode[] | undefined, ctx: Ctx): IRInline[]
     } else if (child.type === 'sharedFootnoteRef') {
       const targetId = child.attrs?.targetId
       const refText = child.attrs?.refText
-      if (typeof targetId !== 'string' || !targetId || typeof refText !== 'string' || !refText || unsupportedFootnoteAtomMarks(child.marks)) {
+      if (typeof targetId !== 'string' || !targetId || typeof refText !== 'string' || !refText || unsupportedFootnoteAtomMarks(child.marks)
+        || Object.keys(child.attrs ?? {}).some(key => !['targetId', 'refText'].includes(key))) {
         ctx.unsupportedContent.push({ nodeId: ownerIdOf(child, ctx), path: ctx.path(child, '脚注引用'), nodeType: child.type, reason: '共享脚注引用属性无效' })
-      } else out.push({ text: '', footnoteRef: { targetId, refText } })
+      } else {
+        const inline: IRInline = { text: '', footnoteRef: { targetId, refText } }
+        ctx.footnoteInlines.set(child, inline)
+        out.push(inline)
+      }
     } else if (child.type === 'sharedFootnoteDefinition') {
       const id = ctx.id(child)
       const content = child.attrs?.content
-      const reason = !Array.isArray(content) ? '内容不是数组' : unsupportedFootnoteContent(content) ?? unsupportedFootnoteAtomMarks(child.marks)
+      const reason = !Array.isArray(content) ? '内容不是数组'
+        : content.some(item => isPmJsonNode(item) && ['footnoteRef', 'sharedFootnoteRef', 'sharedFootnoteDefinition'].includes(item.type)) ? '不能嵌套脚注'
+          : !content.some(item => isPmJsonNode(item) && item.type === 'text' && typeof item.text === 'string' && item.text.trim()) ? '正文不能为空'
+            : Object.keys(child.attrs ?? {}).some(key => !['nodeId', 'content'].includes(key)) ? '包含未知属性'
+          : unsupportedFootnoteContent(content) ?? unsupportedFootnoteAtomMarks(child.marks)
       if (reason) ctx.invalidFootnotePayloads.push({ nodeId: id, reason })
-      out.push({ text: '', footnoteDefinition: { id, content: convertInlines(Array.isArray(content) ? content as PMJsonNode[] : [], ctx) } })
+      const inline: IRInline = { text: '', footnoteDefinition: { id, content: convertInlines(Array.isArray(content) ? content as PMJsonNode[] : [], ctx) } }
+      ctx.footnoteInlines.set(child, inline)
+      out.push(inline)
     } else if (child.type === 'footnoteRef') {
       const raw = child.attrs?.content
       const content = Array.isArray(raw) ? raw as PMJsonNode[] : []
@@ -1153,7 +1164,9 @@ function convertBlock(node: PMJsonNode, ctx: Ctx, where: string): IRBlock | null
     case 'stdTable':
       return convertStdTable(node, ctx)
     case 'alignedArray': {
-      const grid = (node.content ?? []).find(child => child.type === 'table')
+      const grids = (node.content ?? []).filter(child => child.type === 'table')
+      const grid = grids[0]
+      if (grids.length !== 1) ctx.unsupportedContent.push({ nodeId: typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : null, path: ctx.path(node, '数组'), nodeType: node.type, reason: '数组必须且只能包含一个网格' })
       for (const child of node.content ?? []) if (child.type !== 'table') ctx.unknown(child.type, '数组', child)
       const table = convertStdTable({ type: 'stdTable', attrs: { nodeId: node.attrs?.nodeId, columns: node.attrs?.columns },
         content: [{ type: 'tableCaption' }, ...(grid ? [grid] : [])] }, ctx)
@@ -1174,15 +1187,20 @@ function convertBlock(node: PMJsonNode, ctx: Ctx, where: string): IRBlock | null
     case 'figureSet': {
       const legends = (node.content ?? []).filter(child => child.type === 'figureLegend')
       for (const child of node.content ?? []) if (child.type !== 'figureLegend' && child.type !== 'figure') ctx.unknown(child.type, '图组', child)
-      if (legends.length > 1) ctx.unsupportedContent.push({ nodeId: ctx.id(node), path: ctx.path(node, '图组'), nodeType: node.type, reason: '图组不能包含多个图例' })
-      return { kind: 'figureSet', id: ctx.id(node), ...(legends[0] ? { legend: convertLegend(legends[0], ctx) } : {}),
-        figures: (node.content ?? []).filter(child => child.type === 'figure').map(child => convertFigure(child, ctx)) }
+      const id = ctx.id(node)
+      const figures = (node.content ?? []).filter(child => child.type === 'figure')
+      if (legends.length > 1 || figures.length === 0) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '图组'), nodeType: node.type, reason: '图组必须包含一个或多个图且最多一个图例' })
+      return { kind: 'figureSet', id, ...(legends[0] ? { legend: convertLegend(legends[0], ctx) } : {}), figures: figures.map(child => convertFigure(child, ctx)) }
     }
     case 'formula':
       return convertFormula(node, ctx)
-    case 'formulaGroup':
-      return { kind: 'formulaGroup', id: ctx.id(node), numbered: node.attrs?.numbered === true,
-        formulas: (node.content ?? []).filter(child => child.type === 'formula').map(child => convertFormula(child, ctx)) }
+    case 'formulaGroup': {
+      const id = ctx.id(node)
+      const formulas = (node.content ?? []).filter(child => child.type === 'formula')
+      for (const child of node.content ?? []) if (child.type !== 'formula') ctx.unknown(child.type, '公式组', child)
+      if (!formulas.length || typeof node.attrs?.numbered !== 'boolean') ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '公式组'), nodeType: node.type, reason: '公式组必须有公式且编号属性必须为布尔值' })
+      return { kind: 'formulaGroup', id, numbered: node.attrs?.numbered === true, formulas: formulas.map(child => convertFormula(child, ctx)) }
+    }
     case 'note':
       return convertNote(node, ctx)
     case 'example':
@@ -1574,6 +1592,14 @@ function convertIndex(node: PMJsonNode, ctx: Ctx): IRIndex {
       for (const child of entryNode.content ?? []) {
         if (child.type === 'indexTerm' && !termSeen) { entry.term = convertInlines(child.content, ctx); termSeen = true }
         else if (child.type === 'indexTerm') ctx.unsupportedContent.push({ nodeId: entry.id, path: ctx.path(child, '索引条目'), nodeType: child.type, reason: '索引项包含多个indexTerm，IR只允许一个' })
+        else if (child.type === 'indexSourceReference') {
+          const type = child.attrs?.referenceType
+          if (type !== 'see' && type !== 'seeAlso') ctx.unsupportedContent.push({ nodeId: entry.id, path: ctx.path(child, '索引原文'), nodeType: child.type, reason: '索引原文引用类型无效' })
+          else {
+            entry.sourceReferences ??= []
+            entry.sourceReferences.push({ type, content: convertInlines(child.content, ctx) })
+          }
+        }
         else if (child.type === 'indexTarget' || child.type === 'indexSeeAlso') {
           const targetId = typeof child.attrs?.targetId === 'string' ? child.attrs.targetId : ''
           if (!targetId) ctx.unknown(child.type, '索引目标', child)
@@ -1950,18 +1976,18 @@ function preserveUnmappedFootnotes(pmDoc: PMJsonNode, doc: IRDoc, ctx: Ctx): voi
   const visit = (value: unknown, container: string): void => {
     if (!isPmJsonNode(value)) return
     const node = value
-    if (node.type === 'footnoteRef' || node.type === 'tableFootnoteRef') {
+    if (['footnoteRef', 'tableFootnoteRef', 'sharedFootnoteRef', 'sharedFootnoteDefinition'].includes(node.type)) {
       let inline = ctx.footnoteInlines.get(node)
-      const mapped = inline?.footnote ?? inline?.marks?.find(mark => mark.type === 'tableFootnoteRef')
+      const mapped = inline?.footnote ?? inline?.footnoteRef ?? inline?.footnoteDefinition ?? inline?.marks?.find(mark => mark.type === 'tableFootnoteRef')
       if (!mapped || !represented.has(mapped)) {
         inline ??= convertInlines([node], ctx)[0]
-        pending.push({ container, nodeId: inline.footnote?.id ?? ctx.id(node), content: [inline] })
+        if (inline) pending.push({ container, nodeId: inline.footnote?.id ?? inline.footnoteDefinition?.id ?? inline.footnoteRef?.targetId ?? ctx.id(node), content: [inline] })
         // 原位脚注内容已随 atom 转换；避免把嵌套脚注重复登记为丢失节点。
         return
       }
     }
     for (const child of node.content ?? []) visit(child, node.type)
-    if (node.type === 'footnoteRef' && Array.isArray(node.attrs?.content)) {
+    if ((node.type === 'footnoteRef' || node.type === 'sharedFootnoteDefinition') && Array.isArray(node.attrs?.content)) {
       for (const child of node.attrs.content as PMJsonNode[]) visit(child, node.type)
     }
   }

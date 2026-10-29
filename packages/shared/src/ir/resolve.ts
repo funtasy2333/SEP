@@ -1023,7 +1023,10 @@ function visitIndexInlines(index: IRDoc['index'], ctx: ResolveCtx): void {
   if (index.title) visitInlines(index.title, index.id, ctx)
   for (const group of index.groups) {
     if (group.label) visitInlines(group.label, group.id, ctx)
-    for (const entry of group.entries) visitInlines(entry.term, entry.id, ctx)
+    for (const entry of group.entries) {
+      visitInlines(entry.term, entry.id, ctx)
+      for (const reference of entry.sourceReferences ?? []) visitInlines(reference.content, entry.id, ctx)
+    }
   }
 }
 

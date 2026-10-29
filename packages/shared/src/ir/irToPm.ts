@@ -158,7 +158,17 @@ function diagnoseFootnotePayloads(doc: unknown, errors: IRToPmDiagnostic[], root
       if (value.text !== '' || value.marks || value.style || value.footnote || value.formula || value.image || (value.footnoteRef && value.footnoteDefinition)) {
         errors.push({ path, reason: '共享脚注原子不能与文本或其他载荷混合' })
       }
+      if (value.footnoteRef && (!isRecord(value.footnoteRef) || typeof value.footnoteRef.targetId !== 'string' || !value.footnoteRef.targetId || typeof value.footnoteRef.refText !== 'string' || !value.footnoteRef.refText || Object.keys(value.footnoteRef).some(key => !['targetId', 'refText'].includes(key)))) {
+        errors.push({ path: `${path}.footnoteRef`, reason: '共享脚注引用必须具有非空目标和显示文本' })
+      }
+      if (value.footnoteDefinition && (!isRecord(value.footnoteDefinition) || typeof value.footnoteDefinition.id !== 'string' || !value.footnoteDefinition.id || !Array.isArray(value.footnoteDefinition.content)
+        || Object.keys(value.footnoteDefinition).some(key => !['id', 'content'].includes(key)))) {
+        errors.push({ path: `${path}.footnoteDefinition`, reason: '共享脚注定义必须具有 ID 和正文数组' })
+      }
       if (isRecord(value.footnoteDefinition) && Array.isArray(value.footnoteDefinition.content)) {
+        if (!value.footnoteDefinition.content.some(item => isRecord(item) && typeof item.text === 'string' && item.text.trim())) {
+          errors.push({ path: `${path}.footnoteDefinition.content`, reason: '共享脚注正文不能为空' })
+        }
         if (value.footnoteDefinition.content.some(item => isRecord(item) && (item.footnote || item.footnoteRef || item.footnoteDefinition))) {
           errors.push({ path: `${path}.footnoteDefinition.content`, reason: '共享脚注内容不能嵌套脚注' })
         }
@@ -771,6 +781,7 @@ function indexToPm(index: NonNullable<IRDoc['index']>, errors: IRToPmDiagnostic[
       node('indexTerm', undefined, inlinesToPm(entry.term)),
       ...entry.targets.map(targetId => node('indexTarget', { targetId })),
       ...entry.seeAlso.map(targetId => node('indexSeeAlso', { targetId })),
+      ...(entry.sourceReferences ?? []).map(reference => node('indexSourceReference', { referenceType: reference.type }, inlinesToPm(reference.content))),
     ])))
   })
   return node('indexBlock', withId(index.id, { title: index.title ? textOnlyField(index.title, 'index.title', index.id, errors) : null }), groups)

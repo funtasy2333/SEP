@@ -95,6 +95,41 @@ describe('WP8.3 组节点保存', () => {
     expect(para.child(1).attrs.targetId).toBe(id)
   })
 
+  it('拒绝无题条中丢失的共享脚注及非法定义载荷', () => {
+    const pm: PMJsonNode = { type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [
+      { type: 'chapterTitle' }, { type: 'clause', attrs: { nodeId: 'clause', titled: false, level: 1 }, content: [
+        { type: 'clauseTitle', content: [{ type: 'sharedFootnoteRef', attrs: { targetId: 'fn', refText: '1' } }] },
+        { type: 'stdParagraph', attrs: { nodeId: 'p' }, content: [{ type: 'sharedFootnoteDefinition', attrs: {
+          nodeId: 'fn', content: [{ type: 'footnoteRef', attrs: { nodeId: 'nested', content: [{ type: 'text', text: 'nested' }] } }],
+        } }] },
+      ] },
+    ] }] }
+    const result = pmToIr(pm).doc
+    expect(result.unmappedFootnotes?.length).toBeGreaterThan(0)
+    expect(resolve(result).problems.some(problem => problem.code === 'invalid-footnote' && problem.severity === 'error')).toBe(true)
+  })
+
+  it('缺少引用文字或定义正文的共享脚注不能转换为合法投影', () => {
+    const pm: PMJsonNode = { type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [
+      { type: 'chapterTitle' }, { type: 'stdParagraph', attrs: { nodeId: 'p' }, content: [
+        { type: 'sharedFootnoteRef', attrs: { targetId: 'fn', refText: '' } },
+        { type: 'sharedFootnoteDefinition', attrs: { nodeId: 'fn', content: [] } },
+      ] },
+    ] }] }
+    const doc = pmToIr(pm).doc
+    expect(resolve(doc).problems.filter(problem => problem.severity === 'error').length).toBeGreaterThan(0)
+    expect(() => irToPm(doc)).toThrow()
+  })
+
+  it('共享脚注的空正文不能投影为生产文档', () => {
+    const doc: IRDoc = { schemaVersion: 1, meta: { standardType: 'gb' }, front: { foreword: [], introduction: [] },
+      body: [{ kind: 'chapter', id: 'c', secType: 'general', title: [], children: [
+        { kind: 'paragraph', id: 'p', content: [{ text: '', footnoteRef: { targetId: 'fn', refText: '1' } },
+          { text: '', footnoteDefinition: { id: 'fn', content: [] } }] },
+      ] }], appendices: [], bibliography: [] }
+    expect(() => irToPm(doc)).toThrow()
+  })
+
   it('图组保留组图例和各分图的顺序', () => {
     const group = { kind: 'figureSet' as const, id: 'set', legend: { id: 'legend', items: [
       { id: 'item', term: [{ text: 'a' }], definition: [{ text: '说明' }] },
@@ -136,5 +171,24 @@ describe('WP8.3 组节点保存', () => {
     expect(result.doc.unsupportedContent ?? []).toEqual([])
     expect(resolve(result.doc).labels.table?.xmlId).toBe('tab_1')
     expect(schema.nodeFromJSON(irToPm(result.doc)).toJSON()).toEqual(first.toJSON())
+  })
+
+  it('非法数组列组和公式组多余节点不会被静默丢弃', () => {
+    const pm: PMJsonNode = { type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'chapter' }, content: [
+      { type: 'chapterTitle' },
+      { type: 'alignedArray', attrs: { nodeId: 'array', columns: [{}, {}], columnGroups: [{ start: 1, count: 2 }] }, content: [
+        { type: 'table', content: [{ type: 'tableRow', attrs: { nodeId: 'row' }, content: [
+          { type: 'tableCell', attrs: { nodeId: 'a' }, content: [{ type: 'paragraph', attrs: { nodeId: 'p1' } }] },
+          { type: 'tableCell', attrs: { nodeId: 'b' }, content: [{ type: 'paragraph', attrs: { nodeId: 'p2' } }] },
+        ] }] },
+      ] },
+      { type: 'formulaGroup', attrs: { nodeId: 'group', numbered: true }, content: [
+        { type: 'formula', attrs: { nodeId: 'formula', numbered: false }, content: [{ type: 'formulaContent' }] },
+        { type: 'stdParagraph', attrs: { nodeId: 'unexpected' }, content: [{ type: 'text', text: '不能丢' }] },
+      ] },
+    ] }] }
+    expect(pmToIr(pm).doc.unsupportedContent).toEqual(expect.arrayContaining([
+      expect.objectContaining({ nodeType: 'alignedArray' }), expect.objectContaining({ nodeType: 'stdParagraph' }),
+    ]))
   })
 })
