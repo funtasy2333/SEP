@@ -15,7 +15,7 @@ import type { XmlElement, XmlNode } from '../../xml46687/tree'
 import type { RenderXml46687Options, Xml46687Problem, Xml46687ProblemCode, Xml46687Severity } from '../xml46687'
 import { renderCode, renderExample, renderList, renderNote, renderParagraph, renderQuote, renderWarning } from './blocks'
 import { sub, type InlineContainer, type RenderContext, type RenderScope, type Site } from './context'
-import { renderFigure } from './figures'
+import { renderFigure, renderFigureSet } from './figures'
 import { renderFormula } from './formulas'
 import { createIdState, emitRef, registerPending, type IdState } from './ids'
 import { renderInlines } from './inline'
@@ -33,7 +33,8 @@ export function renderBlock(ctx: RenderContext, block: IRBlock, at: Site): XmlEl
     case 'table': return renderTable(block, at, ctx)
     case 'figure': return renderFigure(block, at, ctx)
     case 'formula': return renderFormula(block, at, ctx)
-    case 'formulaGroup': case 'figureSet': case 'array': throw new Error(`xml46687: ${block.kind} 尚未支持（${at.path}）`)
+    case 'figureSet': return renderFigureSet(block, at, ctx)
+    case 'formulaGroup': case 'array': throw new Error(`xml46687: ${block.kind} 尚未支持（${at.path}）`)
     case 'note': return renderNote(block, at, ctx)
     case 'example': return renderExample(block, at, ctx)
     case 'warning': return renderWarning(block, at, ctx)

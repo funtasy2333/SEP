@@ -371,3 +371,41 @@ describe.skipIf(shouldSkipValidation())('外部校验：python3 -I scripts/xml46
     expect(result.stdout).toContain('未解释偏差 0 个')
   })
 })
+
+describe('新增多图模型', () => {
+  it('[M-8.4-01] 一个 fig 保留主图属性和额外图的资源与顺序', () => {
+    const doc = docWith([figure('f1', '组合', {
+      primaryGraphic: { contentType: 'image', specificUse: 'size:T' },
+      additionalGraphics: [
+        { id: 'graphic-a', src: 'a.png', resourceId: 'ra', contentType: 'image', specificUse: 'size:M' },
+        { id: 'graphic-b', src: 'b.png', resourceId: 'rb', contentType: 'image' },
+      ],
+    })])
+    const {xml} = exportOk(doc)
+    expect(xml).toContain('<graphic content-type="image" xlink:href="fig_1" specific-use="size:T"/><graphic content-type="image" xlink:href="fig_1_g1" specific-use="size:M"/><graphic content-type="image" xlink:href="fig_1_g2"/>')
+    const options = stubOptions(doc)
+    options.resources.entries = options.resources.entries.filter(entry => entry.href !== 'fig_1_g2')
+    expect(exportXml46687(doc, labelsOf(doc), options).problems).toEqual(expect.arrayContaining([expect.objectContaining({code:'resource-missing', severity:'error'})]))
+  })
+})
+
+it('[M-8.4-02] 组合图的共用图例与子图独立编号和资源保留', () => {
+  const doc = docWith([{kind:'figureSet', id:'fs', legend:{id:'lg', title:[{text:'标引序号说明：'}], items:[item('i','1','部件')]}, figures:[figure('a','甲'), figure('b','乙')]}])
+  const {xml} = exportOk(doc)
+  expect(xml).toContain('<fig-group><legend><title>标引序号说明：</title><def-list list-content="figure"><def-item><term>1</term><def><p>部件</p></def></def-item></def-list></legend><fig id="fig_1">')
+  expect(xml).toContain('<fig id="fig_2"><label>图2</label>')
+  expect(xml).toContain('xlink:href="fig_1"')
+  expect(xml).toContain('xlink:href="fig_2"')
+  expect(xml).toContain('</fig></fig-group>')
+})
+
+it('[M-8.4-01] 未知图属性与无效尺寸不允许输出', () => {
+  const invalid = figure('f1', '图', {additionalGraphics:[{id:'g',src:'a',specificUse:'size:XL' as never, extra:'unknown'} as never]})
+  const doc = docWith([invalid])
+  const result = exportXml46687(doc,labelsOf(doc),stubOptions(doc))
+  expect(result.xml).toBeNull()
+  expect(result.problems.some(problem => problem.severity === 'error')).toBe(true)
+  const badSize = figure('f2','图',{primaryGraphic:{specificUse:'size:XL' as never}})
+  const badDoc = docWith([badSize])
+  expect(exportXml46687(badDoc,labelsOf(badDoc),stubOptions(badDoc)).xml).toBeNull()
+})

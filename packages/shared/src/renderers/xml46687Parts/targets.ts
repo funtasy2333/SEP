@@ -98,6 +98,10 @@ export function buildTargets(doc: IRDoc): Map<NodeId, TargetInfo> {
         for (const example of block.examples ?? []) { put(example.id, { kind: 'example' }); walkBlocks(example.content, false) }
         for (const item of block.legend?.items ?? []) put(item.id, { kind: 'legendItem' })
         break
+      case 'figureSet':
+        for (const item of block.legend?.items ?? []) put(item.id, { kind: 'legendItem' })
+        for (const figure of block.figures) walkBlock(figure, false)
+        break
       case 'formula':
         put(block.id, { kind: 'formula', numbered: block.numbered })
         for (const note of block.notes ?? []) put(note.id, { kind: 'note' })
