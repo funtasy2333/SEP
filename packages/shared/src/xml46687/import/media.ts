@@ -20,7 +20,7 @@ function flattened(el: XmlElement, ctx: ImportContext): IRInline[] {
   const parts: IRInline[][] = []
   const collect = (node: XmlElement) => {
     if (node.name.local === 'p') parts.push(readInlineChildren(node, ctx))
-    else { if (node.name.local === 'list-item' && ctx.attr(node,null,'id')) error(node,ctx,'无法保留说明列表项的引用身份'); for (const child of node.children) if (child.type === 'element') collect(child) }
+    else { if (node.name.local === 'list') error(node,ctx,'无法保留说明列表的层级与类型'); if (node.name.local === 'list-item' && ctx.attr(node,null,'id')) error(node,ctx,'无法保留说明列表项的引用身份'); for (const child of node.children) if (child.type === 'element') collect(child) }
 
   }
   blocks.forEach(collect)

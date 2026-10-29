@@ -66,6 +66,7 @@ function paragraphs(el: XmlElement, ctx: ImportContext): IRInline[] {
     if (node.name.local === 'p') { parts.push(readInlineChildren(node,ctx)); return }
     if (node.name.local === 'label') return
     if (!['list','list-item'].includes(node.name.local)) { issue(node,ctx,'未知说明内容'); return }
+    if (node.name.local === 'list') issue(node,ctx,'无法保留说明列表的层级与类型')
     if (node.name.local === 'list-item' && ctx.attr(node,null,'id')) issue(node,ctx,'无法保留说明列表项的引用身份')
     for (const child of node.children) if (child.type === 'element') walk(child)
   }

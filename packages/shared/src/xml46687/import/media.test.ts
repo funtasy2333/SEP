@@ -200,14 +200,14 @@ describe('媒体映射', () => {
     expect(ctx.problems.some(p=>p.severity === 'error')).toBe(true)
   })
 
-  test('[M-6.2.2-01] 多段和列表表注合并保留所有正文', () => {
+  test('[M-6.2.2-01] 列表表注无法保留结构时阻断并保留正文', () => {
     const {tree,ctx} = setup('<table-wrap><label>表1</label><table><tbody><tr><td>值</td></tr></tbody></table><table-wrap-foot><non-normative-note><p>一</p><list list-type="dash"><list-item><p>二</p></list-item></list><p>三</p></non-normative-note></table-wrap-foot></table-wrap>')
     const result = mapMediaBlock(tree.root,ctx)![0]!
     if (result.kind !== 'table') throw new Error('table')
     const paragraph = result.notes[0]!.content[0]!
     if (paragraph.kind !== 'paragraph') throw new Error('paragraph')
     expect(paragraph.content.map(x=>x.text).join('')).toBe('一\n二\n三')
-    expect(ctx.problems.some(p=>p.severity === 'warning')).toBe(true)
+    expect(ctx.problems.some(p=>p.severity === 'error')).toBe(true)
   })
 
   test('[M-7.3-01] 无法保存的式中标题须阻断', () => {
