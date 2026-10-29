@@ -3,7 +3,7 @@ import type { XmlDocument, XmlElement } from '../tree'
 import { location } from './context'
 import type { ImportProblem } from './contracts'
 
-/** 骨架规则；其他内容模型仍须逐域补齐。 */
+/** 骨架规则；完整元素和属性模型由 RNG 匹配器校验。 */
 export function validateSkeleton(tree: XmlDocument): ImportProblem[] {
   const problems: ImportProblem[] = []
   const issue = (el: XmlElement, rule: string) => problems.push({code: 'xml-content-model', severity: 'error', message: '文档结构、次序或属性不符合内容模型', xml: location(el), detail: {rule} } as ImportProblem)

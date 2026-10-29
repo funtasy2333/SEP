@@ -202,7 +202,7 @@ describe('[M-6.4-03] 网格空洞及 URI 安全', () => {
 
 describe('[M-4.4.2.1-04] 重复结构内容模型', () => {
   it('接受同一章的大量段落且不改变输入', () => {
-    const xml = '<standard><front><std-meta><title-wrap xml:lang="zh"><full>x</full></title-wrap></std-meta></front><body><sec><label>1</label><title>x</title>' + '<p>内容</p>'.repeat(500) + '</sec></body></standard>'
+    const xml = '<standard><front><std-meta><title-wrap xml:lang="zh"><full>x</full></title-wrap></std-meta></front><body><sec><label>1</label><title>x</title>' + '<p>内容</p>'.repeat(5000) + '</sec></body></standard>'
     const tree = parseXml46687(xml).tree!, before = JSON.stringify(tree)
     expect(validateXml46687(tree).problems.filter(p => p.severity === 'error')).toEqual([])
     expect(JSON.stringify(tree)).toBe(before)
@@ -270,5 +270,55 @@ describe('[M-10.1.1-01] 引用及剩余负例定位', () => {
     const parsed = parseXml46687(readFileSync(resolve(samples, 'invalid', name), 'utf8'))
     expect(parsed.tree).toBeNull()
     expect(parsed.problems).toEqual(expect.arrayContaining([expect.objectContaining({code, severity:'error'})]))
+  })
+})
+
+describe('[M-C.1-02] 各领域未知属性', () => {
+  const cases = [
+    ['02-full-metadata.xml', 'std-ident'], ['03-structure.xml', 'list-item'],
+    ['04-tables.xml', 'table'], ['04-tables.xml', 'td'], ['05-formulas-figures.xml', 'fig'],
+    ['05-formulas-figures.xml', 'disp-formula'], ['06-terms-references.xml', 'termEntry'],
+    ['06-terms-references.xml', 'ref'],
+  ] as const
+  for (const [filename, elementName] of cases) it(`拒绝 ${elementName} 上未知属性`, () => {
+    const tree = load('valid', filename)
+    let found = false
+    const visit = (el: import('../tree').XmlElement) => {
+      if (!found && el.name.local === elementName) { el.attrs.push({name:{ns:null,local:'unknown-field'},value:'x'}); found = true }
+      for (const c of el.children) if (c.type === 'element') visit(c)
+    }
+    visit(tree.root); expect(found).toBe(true)
+    expect(validateXml46687(tree).problems).toEqual(expect.arrayContaining([expect.objectContaining({code:'xml-content-model', detail:expect.objectContaining({rule:'RNG'})})]))
+  })
+  it('按命名空间 URI 而非前缀识别 TBX', () => {
+    const source = readFileSync(resolve(samples, 'valid', '06-terms-references.xml'), 'utf8').replaceAll('xmlns:tbx=', 'xmlns:termx=').replaceAll('tbx:', 'termx:')
+    const parsed = parseXml46687(source)
+    expect(parsed.problems).toEqual([])
+    expect(validateXml46687(parsed.tree!).problems.filter(p => p.severity === 'error')).toEqual([])
+  })
+  it('按命名空间 URI 而非前缀识别 MathML', () => {
+    const source = readFileSync(resolve(samples, 'valid', '05-formulas-figures.xml'), 'utf8').replaceAll('xmlns:mml=', 'xmlns:mathx=').replaceAll('mml:', 'mathx:')
+    const parsed = parseXml46687(source)
+    expect(parsed.problems).toEqual([])
+    expect(validateXml46687(parsed.tree!).problems.filter(p => p.severity === 'error')).toEqual([])
+  })
+
+})
+
+describe('[M-E-25] 段落 ID 与旧公式标记', () => {
+  for (const name of ['ext-id.xml', 'p-number-id.xml']) it(`按段落 ID 禁止规则拒绝 ${name}`, () => {
+    expect(validateXml46687(load('invalid', name)).problems).toEqual(expect.arrayContaining([expect.objectContaining({code:'xml-paragraph-id-forbidden', detail:expect.objectContaining({rule:'R9'})})]))
+  })
+  it('识别旧公式标记', () => {
+    expect(detectLegacyXml46687(load('invalid', 'tex-math.xml'))).toEqual(expect.arrayContaining([expect.objectContaining({code:'legacy-format'})]))
+  })
+})
+
+describe('[M-7.4-02] MathML 多属性的有界处理', () => {
+  it('接受多项 MathML 安全属性', () => {
+    const attrs = Array.from({length: 22}, (_, i) => `data${i}="x"`).join(' ')
+    const xml = `<standard xmlns:m="http://www.w3.org/1998/Math/MathML"><front><std-meta><title-wrap xml:lang="zh"><full>x</full></title-wrap></std-meta></front><body><sec><label>1</label><title>x</title><disp-formula><m:math id="m" ${attrs}><m:mi>x</m:mi></m:math></disp-formula></sec></body></standard>`
+    const tree = parseXml46687(xml).tree!
+    expect(validateXml46687(tree).problems.filter(p => p.severity === 'error')).toEqual([])
   })
 })

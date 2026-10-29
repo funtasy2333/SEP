@@ -1,4 +1,4 @@
-import { isXmlElement } from '../tree'
+import { isXmlElement, MATHML_NS } from '../tree'
 import type { XmlAttr, XmlDocument, XmlElement, XmlName } from '../tree'
 import { location } from './context'
 import type { ImportProblem } from './contracts'
@@ -193,6 +193,21 @@ export function validateRngModel(tree: XmlDocument): ImportProblem[] {
   const elementCache = new WeakMap<XmlElement, WeakMap<Pattern, boolean>>()
   const validateElement = (p: Pattern, el: XmlElement, depth: number): boolean => {
     if (!nameMatches(p, el.name)) return false
+    // math.rng 允许 MathML 后代的任意名称和属性；单次遍历避免通配属性的组合爆炸。
+    if (p.name === 'math' && p.ns === MATHML_NS) {
+      const id = el.attrs.find(a => a.name.ns === null && a.name.local === 'id')
+      const display = el.attrs.find(a => a.name.ns === null && a.name.local === 'display')
+      if ((id && !ncName.test(id.value)) || (display && !['block', 'inline'].includes(display.value))) {
+        failures.push({ element: el, depth }); return false
+      }
+      const pending = el.children.filter(isXmlElement)
+      while (pending.length) {
+        const child = pending.pop()!
+        if (child.name.ns !== MATHML_NS) { failures.push({ element: child, depth: depth + 1 }); return false }
+        for (const c of child.children) if (isXmlElement(c)) pending.push(c)
+      }
+      return true
+    }
     const cached = elementCache.get(el)?.get(p)
     if (cached !== undefined) return cached
     const tokens: Token[] = []
@@ -227,17 +242,20 @@ export function validateRngModel(tree: XmlDocument): ImportProblem[] {
               if (visited.has(k)) return false
               visited.add(k); return true
             })
-            all.push(...next); frontier = next
+            for (const item of next) all.push(item)
+            frontier = next
           }
           return all
         }
         case 'attribute': {
           const valuePatterns = cs.filter(c => !['anyName', 'nsName', 'name'].includes(c.k))
-          return attrs.flatMap((a: XmlAttr, i) => {
+          const matches = attrs.flatMap((a: XmlAttr, i) => {
             const bit = 1n << BigInt(i)
             if (!(state.mask & bit) || !nameMatches(pat, a.name) || !valuePatterns.every(c => scalar(c, a.value))) return []
             return [{ i: state.i, mask: state.mask & ~bit }]
           })
+          // 重复的 MathML 通配属性模型相同，按输入次序消费以避免子集枚举。
+          return pat.name === undefined ? matches.slice(0, 1) : matches
         }
         case 'element': {
           const token = input[state.i]
