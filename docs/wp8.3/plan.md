@@ -16,8 +16,8 @@
 - 所有实现子代理专属 worktree，首步 reset 自己分支并核对主导指定 SHA；先 frozen install，只本地中文 checkpoint，不 push、不 PR、不切主工作树、不派生。
 - 不改依赖清单、lockfile、JSON golden、`shared/src/ir/__tests__/fixtures.ts`、`client/src/extensions/__fixtures__/wp6.ts`；不删、跳过、弱化既有测试。shared 禁参数属性、enum、namespace。
 - 用户已批准最小 Schema/PM↔IR 补齐，保留嵌套列表层级、不压平，支持粗体与代码组合；不新增编辑菜单。
-- 用户已采纳：多目标 rid/tfoot/多 graphic/fig-group/附录 term-sec/无法保存关联的表替代图阻断；frame/rules/scope 沿用警告；HTTP/MCP 留 WP8.4。
-- 用户又要求样例验收“不区分”。这与前条冲突：合法样例 05/08/09 含拟拒绝结构，另有 13 个 invalid 属导出负例且既有 import 接受。已请求明确优先级，相关产品口径任务暂不执行。解析器与已批准的 Schema 不依赖该选择。
+- 用户最后裁定：全部 valid 可导入优先，扩模型接收多 graphic、fig-group、array、公式组、共享脚注及表替代图，按 [模型契约](model-extension.md) 保留内容与关联。多目标 rid/tfoot/附录 term-sec 仍阻断；frame/rules/scope 沿用警告；HTTP/MCP 留 WP8.4。
+- 样例验收“不区分”通过 [严格导入规则](strict-import.md) R1–R13 落地，统一校验而不按文件名特判。仅 UUID/formula ID 两个合法不透明 ID 负例与用户既有约定仍有冲突，等待明确裁定；不得用 ID 拼写偷推对象语义。
 - 固定主线基线 `65f8cdff6b6e6ea0c4e51fb44433a28a97711e5b`；集成树包含已审查设计三提交。
 - 全部问题中文，error 阻断；输入不变。运行时不联网加载 XML 外部内容，不依赖 Python。
 - 测试不得读写 `packages/server/data/ses.db`；服务仅新空库、非默认端口和 127.0.0.1，完毕停进程。
@@ -115,6 +115,12 @@
 - [ ] M-4.3.4-02/03 改 accept；DOCTYPE 全拒、URI 判断及其余状态根据最终用户裁决同步，测试动态计算 mandatory 接收行。
 - [ ] 全部必跑命令、样例错误码、快照差异、真实样稿未取得及所有失败如实入验收文档。
 - [ ] 主导在干净集成树审查、cherry-pick、全量验证、一个 draft PR；自动评审核实后处理，回复前 git log 核对提交号。
+
+## 2026-10-29 执行状态
+
+P0、S0、P1 基础契约、模型持久化和 P3/P4/P5 领域映射已分阶段审查集成；P2 内容模型、安全预算仍在终审。IO 导入及实际 shared facade 由原 P1 代理在独立分支实现；新模型 XML 输出由原 P4 代理在独立分支实现。上述集成状态不等于整文可导入或最终验收通过。跨端、矩阵覆盖及四 golden 完整往返仍待这两个入口完成。
+
+Node22 已成功运行 server 全套，曾报告 759/762：除既有 PDF 环境失败外，两个旧 PM JSON 默认属性兼容回归已通过生产 Schema 定向测试修复，待最终集成全套复验。环境只有 2 CPU/8 GiB，重型套件用统一 flock 串行，不能用各子树过期结果替代最终验证。
 
 ## 全任务必跑命令
 
