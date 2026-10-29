@@ -135,3 +135,14 @@ it('非法根结构不会令缩略语分类抛出异常', () => {
   const { index } = buildImportIndex(tree, { nodeIdsByPath: ids, resources: new Map() })
   expect(index.byXmlId.has('orphan')).toBe(false)
 })
+
+it('索引域可经回调分发，未接入时报错', () => {
+  const { tree, ids } = fixture('<standard><index id="idx"/></standard>')
+  const el = tree.root.children[0] as XmlElement
+  const options = { nodeIdsByPath: ids, resources: new Map() }
+  const ctx = createImportContext(tree, options, { index: element => ({ id: ids.get(element.position!.path)!, groups: [] }) })
+  expect(ctx.dispatchIndex(el)).toEqual({ id: ids.get(el.position!.path), groups: [] })
+  const missing = createImportContext(tree, options, {})
+  expect(missing.dispatchIndex(el)).toBeUndefined()
+  expect(missing.problems[0]?.code).toBe('xml-unsupported')
+})

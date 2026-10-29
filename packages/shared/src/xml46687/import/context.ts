@@ -1,4 +1,4 @@
-import type { IRBibEntry, IRBlock, IRInline, IRTermEntry, NodeId } from '../../ir/types'
+import type { IRBibEntry, IRBlock, IRIndex, IRInline, IRTermEntry, NodeId } from '../../ir/types'
 import { findXmlChild, findXmlChildren, getXmlAttr, XLINK_NS } from '../tree'
 import type { XmlDocument, XmlElement } from '../tree'
 import type { ImportProblem, MappingOptions, ResolvedResource, XmlLocation } from './contracts'
@@ -145,6 +145,7 @@ export interface ImportHandlers {
   block?: (element: XmlElement, context: ImportContext) => IRBlock[] | undefined
   term?: (element: XmlElement, context: ImportContext) => IRTermEntry | undefined
   references?: (element: XmlElement, context: ImportContext) => IRBibEntry[] | undefined
+  index?: (element: XmlElement, context: ImportContext) => IRIndex | undefined
 }
 export interface ImportContext {
   index: ImportIndex
@@ -163,6 +164,7 @@ export interface ImportContext {
   dispatchBlock(element: XmlElement): IRBlock[] | undefined
   dispatchTerm(element: XmlElement): IRTermEntry | undefined
   dispatchReferences(element: XmlElement): IRBibEntry[] | undefined
+  dispatchIndex(element: XmlElement): IRIndex | undefined
 }
 export function createImportContext(tree: XmlDocument, options: MappingOptions, handlers: ImportHandlers): ImportContext {
   const result = buildImportIndex(tree, options)
@@ -209,6 +211,7 @@ export function createImportContext(tree: XmlDocument, options: MappingOptions, 
     dispatchBlock: element => dispatch(element, handlers.block),
     dispatchTerm: element => dispatch(element, handlers.term),
     dispatchReferences: element => dispatch(element, handlers.references),
+    dispatchIndex: element => dispatch(element, handlers.index),
   }
   return ctx
 }
