@@ -1,4 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { RNG_SOURCE_SHA256, validateRngModel } from './rng-model'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parseXml46687 } from '../parse'
@@ -320,5 +322,61 @@ describe('[M-7.4-02] MathML 多属性的有界处理', () => {
     const xml = `<standard xmlns:m="http://www.w3.org/1998/Math/MathML"><front><std-meta><title-wrap xml:lang="zh"><full>x</full></title-wrap></std-meta></front><body><sec><label>1</label><title>x</title><disp-formula><m:math id="m" ${attrs}><m:mi>x</m:mi></m:math></disp-formula></sec></body></standard>`
     const tree = parseXml46687(xml).tree!
     expect(validateXml46687(tree).problems.filter(p => p.severity === 'error')).toEqual([])
+  })
+})
+
+
+describe('[M-4.1-04] 内容模型来源完整性', () => {
+  it('固定模型的来源与当前全部 RNG 源一致', () => {
+    const dir = resolve(process.cwd(), '../../schemas/gbt46687.2')
+    const hash = createHash('sha256')
+    for (const name of readdirSync(dir).filter(name => name.endsWith('.rng')).sort()) {
+      hash.update(name).update('\0').update(readFileSync(resolve(dir, name))).update('\0')
+    }
+    expect(hash.digest('hex')).toBe(RNG_SOURCE_SHA256)
+  })
+})
+
+
+describe('[M-4.1-04] 内容匹配预算', () => {
+  it('预算耗尽返回中文限额问题及元素位置', () => {
+    const tree = load('valid', '04-tables.xml')
+    expect(validateRngModel(tree, 20)).toEqual(expect.arrayContaining([expect.objectContaining({code:'xml-limit', severity:'error', message:expect.stringMatching(/[\u4e00-\u9fff]/), xml:expect.objectContaining({line:expect.any(Number),column:expect.any(Number),path:expect.any(String)})})]))
+  })
+})
+
+describe('[M-5.10-01] 空白与源内容模型', () => {
+  const wrap = (code: string) => `<standard><front><std-meta><title-wrap xml:lang="zh"><full>x</full></title-wrap></std-meta></front><body><sec><label>1</label><title>x</title>${code}</sec></body></standard>`
+  it('保留 code 文本空白且不修改输入', () => {
+    const tree = parseXml46687(wrap('<code>  a\n b  </code>')).tree!, before = JSON.stringify(tree)
+    expect(validateXml46687(tree).problems.filter(p => p.severity === 'error')).toEqual([])
+    expect(JSON.stringify(tree)).toBe(before)
+  })
+  it('源 RNG 不允许 code 带 xml:space 属性', () => {
+    const tree = parseXml46687(wrap('<code xml:space="preserve">  a  </code>')).tree!
+    expect(validateXml46687(tree).problems).toEqual(expect.arrayContaining([expect.objectContaining({code:'xml-content-model', detail:expect.objectContaining({rule:'RNG'})})]))
+  })
+})
+
+describe('[M-C.1-02] 定位非法属性所在元素', () => {
+  it('段落未知属性定位到该段落', () => {
+    const tree = load('valid', '01-minimal.xml')
+    const find = (el: import('../tree').XmlElement): import('../tree').XmlElement | undefined => {
+      if (el.name.local === 'p') return el
+      for (const c of el.children) if (c.type === 'element') { const hit = find(c); if (hit) return hit }
+      return undefined
+    }
+    const p = find(tree.root)!
+    p.attrs.push({name:{ns:null,local:'unknown'},value:'x'})
+    expect(validateXml46687(tree).problems).toEqual(expect.arrayContaining([expect.objectContaining({code:'xml-content-model', xml:expect.objectContaining({path:p.position!.path}), detail:expect.objectContaining({rule:'RNG'})})]))
+  })
+})
+
+describe('[M-C.1-01] 大量未知属性', () => {
+  it('大量未知属性必须以带位置的内容模型问题拒绝', () => {
+    const attrs = Array.from({length: 2000}, (_, i) => `u${i}="x"`).join(' ')
+    const xml = `<standard><front><std-meta><title-wrap xml:lang="zh"><full>x</full></title-wrap></std-meta></front><body><sec><label>1</label><title>x</title><p ${attrs}>内容</p></sec></body></standard>`
+    const tree = parseXml46687(xml).tree!
+    expect(validateXml46687(tree).problems).toEqual(expect.arrayContaining([expect.objectContaining({code:'xml-content-model', xml:expect.objectContaining({path:expect.stringContaining('/p[1]')}), detail:expect.objectContaining({rule:'RNG'})})]))
   })
 })

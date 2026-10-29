@@ -6,6 +6,8 @@ import type { ImportProblem } from './contracts'
 type Pattern = { k: string; name?: string; ns?: string; type?: string; v?: string; c?: Pattern[] }
 type Token = XmlElement | string
 type State = { i: number; mask: bigint }
+// 来源：按文件名字典序对全部 RNG 的文件名、NUL、文件字节、NUL 求 SHA-256。
+export const RNG_SOURCE_SHA256 = '5f52012ca15038266b4e6f3fa8b01998d6c6613c6c2aabf24efca980badfc4bf'
 // 从 schemas/gbt46687.2/*.rng 固定生成的导入内容模型。
 const grammar: Record<string, Pattern> = {
   "el.fig": {"k":"group","c":[{"k":"element","name":"fig","ns":"","c":[{"k":"ref","name":"attr.id"},{"k":"optional","c":[{"k":"attribute","name":"orientation","ns":"","c":[{"k":"ref","name":"dt.orientation"}]}]},{"k":"optional","c":[{"k":"ref","name":"el.label"}]},{"k":"ref","name":"el.caption"},{"k":"optional","c":[{"k":"ref","name":"el.legend"}]},{"k":"oneOrMore","c":[{"k":"choice","c":[{"k":"ref","name":"el.graphic"},{"k":"ref","name":"el.p"},{"k":"ref","name":"el.non-normative-note"},{"k":"ref","name":"el.non-normative-example"}]}]}]}]},
@@ -188,13 +190,25 @@ function unique(states: State[]): State[] {
   return states.filter(s => { const k = `${s.i}:${s.mask}`; if (seen.has(k)) return false; seen.add(k); return true })
 }
 /** 每个元素独立匹配 RNG，属性无序、子元素保持顺序。 */
-export function validateRngModel(tree: XmlDocument): ImportProblem[] {
+const DEFAULT_WORK_LIMIT = 4_000_000
+class MatchLimit extends Error {
+  element: XmlElement
+  constructor(element: XmlElement) { super('内容模型匹配超限'); this.element = element }
+}
+export function validateRngModel(tree: XmlDocument, maxWork = DEFAULT_WORK_LIMIT): ImportProblem[] {
+  let remaining = maxWork
+  const work = (amount: number, element: XmlElement) => {
+    remaining -= amount
+    if (remaining < 0) throw new MatchLimit(element)
+  }
   const failures: Array<{ element: XmlElement; depth: number }> = []
   const elementCache = new WeakMap<XmlElement, WeakMap<Pattern, boolean>>()
   const validateElement = (p: Pattern, el: XmlElement, depth: number): boolean => {
+    work(1, el)
     if (!nameMatches(p, el.name)) return false
     // math.rng 允许 MathML 后代的任意名称和属性；单次遍历避免通配属性的组合爆炸。
     if (p.name === 'math' && p.ns === MATHML_NS) {
+      work(el.attrs.length, el)
       const id = el.attrs.find(a => a.name.ns === null && a.name.local === 'id')
       const display = el.attrs.find(a => a.name.ns === null && a.name.local === 'display')
       if ((id && !ncName.test(id.value)) || (display && !['block', 'inline'].includes(display.value))) {
@@ -203,6 +217,7 @@ export function validateRngModel(tree: XmlDocument): ImportProblem[] {
       const pending = el.children.filter(isXmlElement)
       while (pending.length) {
         const child = pending.pop()!
+        work(1 + child.attrs.length, child)
         if (child.name.ns !== MATHML_NS) { failures.push({ element: child, depth: depth + 1 }); return false }
         for (const c of child.children) if (isXmlElement(c)) pending.push(c)
       }
@@ -216,9 +231,28 @@ export function validateRngModel(tree: XmlDocument): ImportProblem[] {
       else if (c.type === 'text' && c.value.trim()) tokens.push(c.value)
     }
     const attrs = el.attrs
+    work(attrs.length, el)
     const start = (1n << BigInt(attrs.length)) - 1n
-    const body = children(p).filter((c, i) => !['anyName', 'nsName', 'name'].includes(c.k) && !(i === 0 && p.name === undefined && c.k === 'choice' && children(c).every(n => n.k === 'name'))) 
+    const body = children(p).filter((c, i) => !['anyName', 'nsName', 'name'].includes(c.k) && !(i === 0 && p.name === undefined && c.k === 'choice' && children(c).every(n => n.k === 'name')))
+    const memo = new WeakMap<Pattern, WeakMap<Token[], Map<string, State[]>>>()
+    let memoEntries = 0
     const match = (pat: Pattern, input: Token[], state: State): State[] => {
+      work(1, el)
+      const stateKey = `${state.i}:${state.mask}`
+      const found = memo.get(pat)?.get(input)?.get(stateKey)
+      if (found) return found
+      const result = evaluate(pat, input, state)
+      // 缓存数量有上限，输入规模不能无限扩大单元素的缓存。
+      if (memoEntries < 8192) {
+        let byInput = memo.get(pat)
+        if (!byInput) { byInput = new WeakMap(); memo.set(pat, byInput) }
+        let byState = byInput.get(input)
+        if (!byState) { byState = new Map(); byInput.set(input, byState) }
+        byState.set(stateKey, result); memoEntries++
+      }
+      return result
+    }
+    const evaluate = (pat: Pattern, input: Token[], state: State): State[] => {
       const cs = children(pat)
       switch (pat.k) {
         case 'ref': return pat.name && grammar[pat.name] ? match(grammar[pat.name], input, state) : []
@@ -248,6 +282,7 @@ export function validateRngModel(tree: XmlDocument): ImportProblem[] {
           return all
         }
         case 'attribute': {
+          work(attrs.length, el)
           const valuePatterns = cs.filter(c => !['anyName', 'nsName', 'name'].includes(c.k))
           const matches = attrs.flatMap((a: XmlAttr, i) => {
             const bit = 1n << BigInt(i)
@@ -294,8 +329,13 @@ export function validateRngModel(tree: XmlDocument): ImportProblem[] {
     cache.set(p, result)
     return result
   }
-  const start = children(grammar['el.standard'])[0]
-  if (validateElement(start, tree.root, 0)) return []
-  const failure = failures.reduce((best, x) => x.depth > best.depth ? x : best, {element: tree.root, depth: 0})
-  return [{ code: 'xml-content-model', severity: 'error', message: '元素内容、属性、次序或数量不符合内容模型', xml: location(failure.element), detail: { rule: 'RNG' } }]
+  try {
+    const start = children(grammar['el.standard'])[0]
+    if (validateElement(start, tree.root, 0)) return []
+    const failure = failures.reduce((best, x) => x.depth > best.depth ? x : best, {element: tree.root, depth: 0})
+    return [{ code: 'xml-content-model', severity: 'error', message: '元素内容、属性、次序或数量不符合内容模型', xml: location(failure.element), detail: { rule: 'RNG' } }]
+  } catch (error) {
+    if (!(error instanceof MatchLimit)) throw error
+    return [{ code: 'xml-limit', severity: 'error', message: 'XML 内容模型匹配超过计算限额', xml: location(error.element), detail: { rule: 'RNG-LIMIT', maxWork } }]
+  }
 }
