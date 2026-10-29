@@ -79,3 +79,59 @@ describe('派生段落身份', () => {
     expect(clean.singleParagraphId(item)).toBe('item.p0')
   })
 })
+
+describe('纯资源与分发', () => {
+  it('按命名空间 URI 查资源，返回副本且分发持有独立问题状态', () => {
+    const { tree, ids } = fixture('<standard xmlns:alias="http://www.w3.org/1999/xlink"><graphic alias:href="img"/></standard>')
+    const resource = Object.freeze({ src: 'data:image/png;base64,AA==', mediaType: 'image/png', resourceId: 'r' })
+    const resources = new Map([['img', resource]])
+    const opts = { nodeIdsByPath: ids, resources }
+    const graphic = tree.root.children[0] as XmlElement
+    const first = createImportContext(tree, opts, { inline: () => [{ text: '内容' }] })
+    const second = createImportContext(tree, opts, {})
+    expect(first.requiredResource(graphic)).toEqual(resource)
+    expect(first.requiredResource(graphic)).not.toBe(resource)
+    expect(first.dispatchInline(graphic)).toEqual([{ text: '内容' }])
+    second.dispatchInline(graphic)
+    expect(first.problems).toEqual([])
+    expect(second.problems[0]?.code).toBe('xml-unsupported')
+    expect(resources.get('img')).toBe(resource)
+  })
+})
+
+it('注册处理器拒绝未知元素时必须报告错误', () => {
+  const { tree, ids } = fixture('<standard><unknown/></standard>')
+  const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, { block: () => undefined })
+  expect(ctx.dispatchBlock(tree.root.children[0] as XmlElement)).toBeUndefined()
+  expect(ctx.problems.map(p => p.code)).toContain('xml-unsupported')
+})
+
+it('构造术语时元素 ID 与双 XML ID 使用同一身份', () => {
+  const { tree, ids } = fixture('<standard xmlns:t="urn:iso:std:iso:30042:ed-1"><body><term-sec id="container"><t:termEntry id="entry"/></term-sec></body></standard>')
+  const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, {})
+  const entry = ctx.index.elementsByXmlId.get('entry')!
+  expect(ctx.elementId(entry)).toBe(ctx.xmlTargetID('container'))
+  expect(ctx.elementId(entry)).toBe(ctx.xmlTargetID('entry'))
+})
+
+it('无实体的容器不能冒充引用目标', () => {
+  const { tree, ids } = fixture('<standard><body><list id="l"><list-item id="item"/></list><fig-group id="group"/><ref-list id="refs"/><p><xref ref-type="list" rid="l"/><xref ref-type="list" rid="item"/><xref ref-type="fig" rid="group"/><xref ref-type="sec" rid="refs"/></p></body></standard>')
+  const { index, problems } = buildImportIndex(tree, { nodeIdsByPath: ids, resources: new Map() })
+  expect(index.byXmlId.has('l')).toBe(false)
+  expect(index.byXmlId.has('group')).toBe(false)
+  expect(index.byXmlId.has('refs')).toBe(false)
+  expect(index.byXmlId.get('item')?.kind).toBe('listItem')
+  expect(problems.filter(p => p.code === 'xml-reference-kind')).toHaveLength(3)
+})
+
+it('术语关联必须指向 TBX termEntry，不接受章或术语容器', () => {
+  const { tree, ids } = fixture('<standard xmlns:t="urn:iso:std:iso:30042:ed-1"><body><sec id="chapter"/><term-sec id="container"><t:termEntry id="entry"/></term-sec><t:entailedTerm target="chapter"/><t:entailedTerm target="container"/><t:entailedTerm target="entry"/></body></standard>')
+  const { problems } = buildImportIndex(tree, { nodeIdsByPath: ids, resources: new Map() })
+  expect(problems.filter(p => p.code === 'xml-reference-kind')).toHaveLength(2)
+})
+
+it('非法根结构不会令缩略语分类抛出异常', () => {
+  const { tree, ids } = fixture('<def-item id="orphan"/>')
+  const { index } = buildImportIndex(tree, { nodeIdsByPath: ids, resources: new Map() })
+  expect(index.byXmlId.has('orphan')).toBe(false)
+})

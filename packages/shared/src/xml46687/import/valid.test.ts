@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parseXml46687 } from '../parse'
+import { getXmlAttr, XLINK_NS } from '../tree'
 import type { XmlElement } from '../tree'
 import { buildImportIndex } from './context'
 
@@ -12,12 +13,15 @@ for (const name of readdirSync(dir).filter(name => name.endsWith('.xml'))) {
       const parsed = parseXml46687(readFileSync(resolve(dir, name), 'utf8'))
       expect(parsed.problems).toEqual([])
       const ids = new Map<string, string>()
+      const resources = new Map<string, { src: string; mediaType: string }>()
       const visit = (el: XmlElement) => {
         ids.set(el.position!.path, `id-${ids.size}`)
+        const href = getXmlAttr(el, XLINK_NS, 'href')
+        if (href) resources.set(href, { src: 'data:image/png;base64,AA==', mediaType: 'image/png' })
         for (const child of el.children) if (child.type === 'element') visit(child)
       }
       visit(parsed.tree!.root)
-      expect(buildImportIndex(parsed.tree!, { nodeIdsByPath: ids, resources: new Map() }).problems).toEqual([])
+      expect(buildImportIndex(parsed.tree!, { nodeIdsByPath: ids, resources }).problems).toEqual([])
     })
   })
 }

@@ -52,15 +52,16 @@ function kindOf(el: XmlElement, parents: ReadonlyMap<XmlElement, XmlElement | un
   }
   if (n === 'term-sec') return 'term'
   if (n === 'app') return 'appendix'
-  if (n === 'fig' || n === 'fig-group') return 'figure'
+  if (n === 'fig') return 'figure'
   if (n === 'table-wrap') return 'table'
   if (n === 'disp-formula' || n === 'disp-formula-group') return 'formula'
   if (n === 'non-normative-note') return 'note'
   if (n === 'non-normative-example') return 'example'
-  if (n === 'ref' || n === 'ref-list') return 'bibliography'
+  if (n === 'ref') return 'bibliography'
   if (n === 'index') return 'index'
-  if (n === 'list-item' || n === 'list') return 'listItem'
-  if (n === 'def-item' && getXmlAttr(parents.get(el)!, null, 'list-content') === 'abbreviation') return 'abbreviation'
+  if (n === 'list-item') return 'listItem'
+  const p = parents.get(el)
+  if (n === 'def-item' && p && is(p, 'def-list') && getXmlAttr(p, null, 'list-content') === 'abbreviation') return 'abbreviation'
   if (n === 'fn') return nearest(el, parents, 'table-wrap-foot') ? 'tableFootnote' : 'footnote'
   return undefined
 }
@@ -122,7 +123,11 @@ export function buildImportIndex(tree: XmlDocument, options: MappingOptions): Im
   for (const el of elements) {
     if (is(el, 'entailedTerm', TBX)) {
       const target = getXmlAttr(el, null, 'target')
-      if (target !== undefined && !elementsByXmlId.has(target)) issue(el, 'xml-reference-dangling', '术语关联目标不存在')
+      if (target !== undefined) {
+        const entry = elementsByXmlId.get(target)
+        if (!entry) issue(el, 'xml-reference-dangling', '术语关联目标不存在')
+        else if (!is(entry, 'termEntry', TBX)) issue(el, 'xml-reference-kind', '术语关联目标必须是术语条目')
+      }
     }
     if (!is(el, 'xref')) continue
     const rid = getXmlAttr(el, null, 'rid')?.trim()
@@ -164,9 +169,19 @@ export function createImportContext(tree: XmlDocument, options: MappingOptions, 
   const problems = [...result.problems]
   const allocated = new Set(result.index.nodeIds.values())
   const missing = (element: XmlElement) => problems.push({ code: 'xml-unsupported', severity: 'error', message: '未注册此内容的映射处理器', xml: location(element) })
+  const dispatch = <T>(element: XmlElement, handler: ((element: XmlElement, context: ImportContext) => T | undefined) | undefined): T | undefined => {
+    if (!handler) { missing(element); return undefined }
+    const errorsBefore = problems.filter(problem => problem.severity === 'error').length
+    const result = handler(element, ctx)
+    if (result === undefined && problems.filter(problem => problem.severity === 'error').length === errorsBefore) missing(element)
+    return result
+  }
   const ctx: ImportContext = {
     index: result.index, problems,
-    elementId: element => result.index.nodeIds.get(element),
+    elementId: element => {
+      const owner = is(element, 'termEntry', TBX) ? nearest(element, result.index.parent, 'term-sec') : undefined
+      return result.index.nodeIds.get(owner ?? element)
+    },
     singleParagraphId: element => {
       const ownerId = result.index.nodeIds.get(element)
       if (!ownerId) return undefined
@@ -190,10 +205,10 @@ export function createImportContext(tree: XmlDocument, options: MappingOptions, 
     },
     report: problem => { problems.push(problem) },
     location, child: findXmlChild, children: findXmlChildren, attr: getXmlAttr,
-    dispatchInline: element => { if (!handlers.inline) { missing(element); return undefined } return handlers.inline(element, ctx) },
-    dispatchBlock: element => { if (!handlers.block) { missing(element); return undefined } return handlers.block(element, ctx) },
-    dispatchTerm: element => { if (!handlers.term) { missing(element); return undefined } return handlers.term(element, ctx) },
-    dispatchReferences: element => { if (!handlers.references) { missing(element); return undefined } return handlers.references(element, ctx) },
+    dispatchInline: element => dispatch(element, handlers.inline),
+    dispatchBlock: element => dispatch(element, handlers.block),
+    dispatchTerm: element => dispatch(element, handlers.term),
+    dispatchReferences: element => dispatch(element, handlers.references),
   }
   return ctx
 }
