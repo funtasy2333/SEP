@@ -35,7 +35,13 @@ export function validateSemantics(tree: XmlDocument): ImportProblem[] {
       if ((plain(parent, 'front') && !['foreword', 'intro'].includes(type ?? '')) || (plain(parent, 'body') && ['foreword', 'intro', 'numbered-paragraph'].includes(type ?? '')) || (!plain(parent, 'front') && !plain(parent, 'body') && reserved.includes(type ?? '')) || (type === 'numbered-paragraph' && has('title')) || (plain(parent, 'body') && !has('title'))) report(el, 'xml-content-model', 'V-2', '章条类型或标题不符合所在上下文')
     }
     if (plain(el, 'term-sec') && !ancestors.some((a, i) => plain(a, 'sec') && attr(a, 'sec-type') === 'terms' && plain(ancestors[i - 1], 'body'))) report(el, 'xml-content-model', 'V-2', '术语条必须在术语和定义章内')
-    if (plain(el, 'app') && !['informative', 'normative', 'inform-annex', 'inform_annex'].includes(attr(el, 'content-type') ?? '')) report(el, 'xml-content-model', 'V-3', '附录性质无效')
+    if (plain(el, 'app')) {
+      const type = attr(el, 'content-type') ?? ''
+      if (!['informative', 'normative', 'inform-annex', 'inform_annex'].includes(type)) report(el, 'xml-content-model', 'V-3', '附录性质无效')
+      if (['inform-annex', 'inform_annex'].includes(type)) report(el, 'xml-normalized', 'V-3', '附录性质异写将规范化', 'warning')
+      const annex = kids(el).find(c => plain(c, 'annex-type'))
+      if (annex && ((type === 'informative' && text(annex).includes('规范性') && !text(annex).includes('资料性')) || (type === 'normative' && text(annex).includes('资料性')))) report(annex, 'xml-normalized', 'V-3', '附录性质文字与属性矛盾，以属性为准', 'warning')
+    }
     if (plain(el, 'ref-list')) {
       const type = attr(el, 'content-type') ?? ''
       if (!['norm-refs', 'norm_refs', 'bibl', 'bibr'].includes(type) || (['bibl', 'bibr'].includes(type) && !plain(parent, 'back')) || (['norm-refs', 'norm_refs'].includes(type) && (!plain(parent, 'sec') || !['norm-refs', 'norm_refs'].includes(attr(parent!, 'sec-type') ?? '')))) report(el, 'xml-content-model', 'V-3', '参考文献表类型或位置无效')

@@ -380,3 +380,22 @@ describe('[M-C.1-01] 大量未知属性', () => {
     expect(validateXml46687(tree).problems).toEqual(expect.arrayContaining([expect.objectContaining({code:'xml-content-model', xml:expect.objectContaining({path:expect.stringContaining('/p[1]')}), detail:expect.objectContaining({rule:'RNG'})})]))
   })
 })
+
+describe('[M-4.5.2-04] 附录属性与正文性质', () => {
+  it('性质文字与 content-type 矛盾时报可定位告警', () => {
+    const tree = load('valid', '03-structure.xml')
+    const visit = (el: import('../tree').XmlElement) => {
+      if (el.name.local === 'app' && el.attrs.some(a => a.name.local === 'content-type' && a.value === 'informative')) {
+        const annex = el.children.find(c => c.type === 'element' && c.name.local === 'annex-type')
+        if (annex?.type === 'element') annex.children = [{type:'text',value:'（规范性）'}]
+      }
+      for (const c of el.children) if (c.type === 'element') visit(c)
+    }
+    visit(tree.root)
+    expect(validateXml46687(tree).problems).toEqual(expect.arrayContaining([expect.objectContaining({code:'xml-normalized', severity:'warning', detail:expect.objectContaining({rule:'V-3'})})]))
+  })
+  it('已允许的附录性质异写报告规范化', () => {
+    const problems = validateXml46687(load('valid', '07-import-variants.xml')).problems
+    expect(problems).toEqual(expect.arrayContaining([expect.objectContaining({code:'xml-normalized', severity:'warning', detail:expect.objectContaining({rule:'V-3'})})]))
+  })
+})
