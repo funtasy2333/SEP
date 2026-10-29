@@ -189,4 +189,31 @@ describe('媒体映射', () => {
     expect(preserved.ctx.problems.some(p=>p.severity === 'error')).toBe(true)
   })
 
+  test('[M-6.1-03] 未建模的表格属性不能静默丢弃', () => {
+    const {tree,ctx} = setup('<table-wrap><label>表1</label><table unknown="value"><tbody><tr><td>值</td></tr></tbody></table></table-wrap>')
+    mapMediaBlock(tree.root,ctx)
+    expect(ctx.problems.some(p=>p.severity === 'error')).toBe(true)
+  })
+  test('[M-8.6-01] 混合样式单位说明不能降为纯文本', () => {
+    const {tree,ctx} = setup('<fig xmlns:xlink="http://www.w3.org/1999/xlink"><caption><p content-type="dimension">单位为<bold>毫米</bold></p></caption><graphic xlink:href="a"/></fig>',new Map([['a',{src:'A',mediaType:'image/png'}]]))
+    mapMediaBlock(tree.root,ctx)
+    expect(ctx.problems.some(p=>p.severity === 'error')).toBe(true)
+  })
+
+  test('[M-6.2.2-01] 多段和列表表注合并保留所有正文', () => {
+    const {tree,ctx} = setup('<table-wrap><label>表1</label><table><tbody><tr><td>值</td></tr></tbody></table><table-wrap-foot><non-normative-note><p>一</p><list list-type="dash"><list-item><p>二</p></list-item></list><p>三</p></non-normative-note></table-wrap-foot></table-wrap>')
+    const result = mapMediaBlock(tree.root,ctx)![0]!
+    if (result.kind !== 'table') throw new Error('table')
+    const paragraph = result.notes[0]!.content[0]!
+    if (paragraph.kind !== 'paragraph') throw new Error('paragraph')
+    expect(paragraph.content.map(x=>x.text).join('')).toBe('一\n二\n三')
+    expect(ctx.problems.some(p=>p.severity === 'warning')).toBe(true)
+  })
+
+  test('[M-7.3-01] 无法保存的式中标题须阻断', () => {
+    const {tree,ctx} = setup('<disp-formula xmlns:m="http://www.w3.org/1998/Math/MathML"><m:math id="m"><m:mi>x</m:mi></m:math><legend><title>自定义说明</title><def-list list-content="formula"><def-item><term>x</term><def><p>参数</p></def></def-item></def-list></legend></disp-formula>')
+    mapMediaBlock(tree.root,ctx)
+    expect(ctx.problems.some(p=>p.severity === 'error')).toBe(true)
+  })
+
 })

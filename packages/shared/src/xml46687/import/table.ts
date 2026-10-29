@@ -4,6 +4,13 @@ import type { ImportContext } from './context'
 import { readInlineChildren } from './inline'
 
 function issue(el: XmlElement, ctx: ImportContext, message: string, severity: 'error' | 'warning' = 'error') { ctx.report({code: severity === 'error' ? 'xml-unsupported' : 'xml-normalized', severity, message, xml: ctx.location(el)}) }
+function checkAttrs(el: XmlElement, ctx: ImportContext, allowed: string[]) {
+  for (const attr of el.attrs) {
+    if (attr.name.ns === null && allowed.includes(attr.name.local)) continue
+    if (attr.name.ns === 'http://www.w3.org/XML/1998/namespace' && attr.name.local === 'space') continue
+    issue(el,ctx,`无法保留属性 ${attr.name.local}`)
+  }
+}
 function measure(value: string | undefined, el: XmlElement, ctx: ImportContext): IRMeasure | undefined {
   if (value === undefined) return undefined
   const m = /^\s*(\d+(?:\.\d+)?)\s*(%|px|mm|cm|pt|em)\s*$/.exec(value)
@@ -53,10 +60,19 @@ function containerStyle(el: XmlElement, ctx: ImportContext, kind: 'table' | 'row
   return Object.keys(result).length ? result : undefined
 }
 function paragraphs(el: XmlElement, ctx: ImportContext): IRInline[] {
-  const ps = ctx.children(el, null, 'p')
-  if (!ps.length) { issue(el, ctx, '缺少内容段落'); return [] }
-  if (ps.length > 1) issue(el, ctx, '多段内容以换行合并', 'warning')
-  return ps.flatMap((p,i) => i ? [{text:'\n'}, ...readInlineChildren(p,ctx)] : readInlineChildren(p,ctx))
+  const parts: IRInline[][] = []
+  const walk = (node: XmlElement) => {
+    if (node.name.ns !== null) { issue(node,ctx,'未知说明内容'); return }
+    if (node.name.local === 'p') { parts.push(readInlineChildren(node,ctx)); return }
+    if (node.name.local === 'label') return
+    if (!['list','list-item'].includes(node.name.local)) { issue(node,ctx,'未知说明内容'); return }
+    if (node.name.local === 'list-item' && ctx.attr(node,null,'id')) issue(node,ctx,'无法保留说明列表项的引用身份')
+    for (const child of node.children) if (child.type === 'element') walk(child)
+  }
+  for (const child of el.children) if (child.type === 'element') walk(child)
+  if (!parts.length) { issue(el,ctx,'缺少内容段落'); return [] }
+  if (parts.length > 1 || ctx.child(el,null,'list')) issue(el,ctx,'多段或列表内容以换行合并','warning')
+  return parts.flatMap((part,i) => i ? [{text:'\n'},...part] : part)
 }
 function cellContent(el: XmlElement, ctx: ImportContext): IRBlock[] {
   const blocks = el.children.filter((c): c is XmlElement => c.type === 'element' && c.name.ns === null && ['p','list'].includes(c.name.local))
@@ -71,25 +87,29 @@ function cellContent(el: XmlElement, ctx: ImportContext): IRBlock[] {
   return id ? [{kind:'paragraph', id, content:readInlineChildren(el,ctx)}] : []
 }
 function grid(table: XmlElement, ctx: ImportContext): {columns: IRTableColumn[]; rows: IRTableRow[]; groups: Array<{start:number;count:number}>; headerRowCount: number} {
+  checkAttrs(table,ctx,['width','align','valign','style','border','frame','rules','cellpadding','cellspacing'])
+  for (const name of ['border','frame','rules','cellspacing']) if (ctx.attr(table,null,name) !== undefined) issue(table,ctx,`表属性 ${name} 已规范化`, 'warning')
   const columns: IRTableColumn[] = [], groups: Array<{start:number;count:number}> = [], rows: IRTableRow[] = []
-  const column = (el: XmlElement) => { const width = measure(ctx.attr(el,null,'width'),el,ctx); if (ctx.attr(el,null,'style')) issue(el,ctx,'列样式无法保留'); columns.push({ ...(width ? {width} : {}), ...align(el,ctx) }) }
+  const column = (el: XmlElement) => { checkAttrs(el,ctx,['width','align','valign','style']); const width = measure(ctx.attr(el,null,'width'),el,ctx); if (ctx.attr(el,null,'style')) issue(el,ctx,'列样式无法保留'); columns.push({ ...(width ? {width} : {}), ...align(el,ctx) }) }
   let headerRowCount = 0
   const occupied: number[] = [], rowOccupancy: boolean[][] = []
   for (const child of table.children) {
     if (child.type !== 'element') continue
     if (child.name.ns !== null) { issue(child,ctx,'未知表元素'); continue }
     if (child.name.local === 'col') { column(child); continue }
-    if (child.name.local === 'colgroup') { const start = columns.length; ctx.children(child,null,'col').forEach(c => column(c)); groups.push({start,count:columns.length-start}); continue }
+    if (child.name.local === 'colgroup') { checkAttrs(child,ctx,[]); const start = columns.length; ctx.children(child,null,'col').forEach(c => column(c)); groups.push({start,count:columns.length-start}); continue }
     if (!['thead','tbody'].includes(child.name.local)) { issue(child,ctx,'未知或不支持的表结构'); continue }
     const trs = ctx.children(child,null,'tr')
     if (child.name.local === 'thead') headerRowCount += trs.length
     for (const tr of trs) {
+      checkAttrs(tr,ctx,['align','valign','style'])
       const id = ctx.elementId(tr); if (!id) continue
       let cursor = 0
       const cells: IRTableRow['cells'] = []
       for (const td of tr.children) {
         if (td.type !== 'element') continue
         if (td.name.ns !== null || !['th','td'].includes(td.name.local)) { issue(td,ctx,'未知表格单元'); continue }
+        checkAttrs(td,ctx,['id','colspan','rowspan','align','valign','style','width','scope'])
         while ((occupied[cursor] ?? 0) > 0) cursor++
         const parseSpan = (name: string) => { const value = ctx.attr(td,null,name); if (value === undefined) return 1; if (!/^[1-9]\d*$/.test(value) || Number(value) > 10000) { issue(td,ctx,'单元格跨度无效'); return 1 }; return Number(value) }
         const colspan = parseSpan('colspan'), rowspan = parseSpan('rowspan')
@@ -128,6 +148,8 @@ export function mapTable(el: XmlElement, ctx: ImportContext, makeGraphic: (el: X
   }
   const alternative = ctx.child(el,null,'graphic'), alternativeGraphic = alternative && makeGraphic(alternative,ctx), width = measure(ctx.attr(table,null,'width'),table,ctx)
   for (const c of el.children) if (c.type === 'element' && (c.name.ns !== null || !['label','caption','table','table-wrap-foot','graphic'].includes(c.name.local))) issue(c,ctx,'未知表容器内容')
-  const tableStyle = containerStyle(table,ctx,'table') as IRTableStyle | undefined
-  return {kind:'table',id,...(tableStyle ? {style:tableStyle} : {}),caption:title ? readInlineChildren(title,ctx) : [],orientation:ctx.attr(el,null,'orientation') === 'landscape' ? 'landscape' : 'portrait',headerRowCount:mapped.headerRowCount,rows:mapped.rows,columns:mapped.columns,notes,...(footnotes.length ? {footnotes} : {}),...(unit !== undefined ? {unit} : {}),...(alternativeGraphic ? {alternativeGraphic} : {}),...(width ? {width} : {})}
+  const tableStyle = (containerStyle(table,ctx,'table') ?? {}) as IRTableStyle
+  const padding = measure(ctx.attr(table,null,'cellpadding'),table,ctx)
+  if (padding) tableStyle.cellPadding = padding
+  return {kind:'table',id,...(Object.keys(tableStyle).length ? {style:tableStyle} : {}),caption:title ? readInlineChildren(title,ctx) : [],orientation:ctx.attr(el,null,'orientation') === 'landscape' ? 'landscape' : 'portrait',headerRowCount:mapped.headerRowCount,rows:mapped.rows,columns:mapped.columns,notes,...(footnotes.length ? {footnotes} : {}),...(unit !== undefined ? {unit} : {}),...(alternativeGraphic ? {alternativeGraphic} : {}),...(width ? {width} : {})}
 }

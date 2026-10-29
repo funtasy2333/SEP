@@ -20,7 +20,8 @@ function flattened(el: XmlElement, ctx: ImportContext): IRInline[] {
   const parts: IRInline[][] = []
   const collect = (node: XmlElement) => {
     if (node.name.local === 'p') parts.push(readInlineChildren(node, ctx))
-    else for (const child of node.children) if (child.type === 'element') collect(child)
+    else { if (node.name.local === 'list-item' && ctx.attr(node,null,'id')) error(node,ctx,'无法保留说明列表项的引用身份'); for (const child of node.children) if (child.type === 'element') collect(child) }
+
   }
   blocks.forEach(collect)
   if (parts.length > 1) ctx.report({ code: 'xml-normalized', severity: 'warning', message: '多段内容以换行合并', xml: ctx.location(el) })
@@ -52,6 +53,8 @@ function formula(el: XmlElement, ctx: ImportContext): IRFormula | undefined {
   if (!mathml) return undefined
   const legends = ctx.children(el, null, 'legend')
   if (legends.length > 1) error(el, ctx, '公式含多个图例')
+  const title = legends[0] && ctx.child(legends[0], null, 'title')
+  if (title) { const runs = readInlineChildren(title,ctx); if (runs.some(run => run.marks || run.style || run.formula || run.image || run.footnoteRef) || runs.map(run => run.text).join('') !== '式中：') error(title,ctx,'公式图例标题无法保留') }
   const notes = ctx.children(el, null, 'non-normative-note').flatMap(n => { const nid = ctx.elementId(n); return nid ? [{id: nid, content: flattened(n, ctx)}] : [] })
   for (const c of el.children) if (c.type === 'element' && !(c.name.ns === MATHML_NS && c.name.local === 'math') && !(c.name.ns === null && ['label','legend','non-normative-note'].includes(c.name.local))) error(c, ctx, '公式包含无法保留的内容')
   return { kind: 'formula', id, latex: '', mathml, numbered: !!ctx.child(el, null, 'label'), whereList: legends[0] ? items(legends[0], ctx) : [], ...(notes.length ? { notes } : {}) }
@@ -60,7 +63,10 @@ function figure(el: XmlElement, ctx: ImportContext): IRFigure | undefined {
   const id = ctx.elementId(el), graphics = ctx.children(el, null, 'graphic').map(g => graphic(g, ctx))
   if (!id || !graphics[0]) { if (!graphics.length) error(el, ctx, '图缺少 graphic'); return undefined }
   const first = graphics[0], caption = ctx.child(el, null, 'caption'), title = caption && ctx.child(caption, null, 'title')
-  const dimension = caption && ctx.child(caption, null, 'p')
+  const dimensions = caption ? ctx.children(caption, null, 'p') : []
+  const units = dimensions.map(d => { const runs = readInlineChildren(d,ctx); if (ctx.attr(d,null,'content-type') !== 'dimension' || runs.some(r => r.marks || r.style || r.formula || r.image || r.footnoteRef || r.footnote)) error(d,ctx,'单位说明包含无法保留的内容'); return runs.map(r => r.text).join('') })
+  if (units.length > 1) ctx.report({code:'xml-normalized',severity:'warning',message:'多段单位说明以换行合并',xml:ctx.location(caption!)})
+  if (caption) for (const c of caption.children) if (c.type === 'element' && (c.name.ns !== null || !['title','p'].includes(c.name.local))) error(c,ctx,'图题包含无法保留的内容')
   const extra = graphics.slice(1).filter((g): g is IRGraphic => !!g)
   const lg = ctx.child(el, null, 'legend')
   const descriptions = ctx.children(el, null, 'p').flatMap(p => { const pid = ctx.elementId(p); return pid ? [{ id: pid, content: readInlineChildren(p, ctx) }] : [] })
@@ -72,7 +78,7 @@ function figure(el: XmlElement, ctx: ImportContext): IRFigure | undefined {
     if (c.name.local === 'non-normative-example') sawExample = true
     if (c.name.local === 'non-normative-note' && sawExample) ctx.report({code: 'xml-normalized', severity: 'warning', message: '图注与示例顺序已规范化', xml: ctx.location(c)})
   }
-  return { kind: 'figure', id, caption: title ? readInlineChildren(title, ctx) : [], orientation: ctx.attr(el, null, 'orientation') === 'landscape' ? 'landscape' : 'portrait', src: first.src, ...(first.resourceId ? { resourceId: first.resourceId } : {}), ...((first.contentType || first.specificUse) ? { primaryGraphic: { ...(first.contentType ? { contentType: first.contentType } : {}), ...(first.specificUse ? { specificUse: first.specificUse } : {}) } } : {}), ...(extra.length ? { additionalGraphics: extra } : {}), ...(dimension ? { unit: readInlineChildren(dimension, ctx).map(x => x.text).join('') } : {}), notes, ...(examples.length ? {examples} : {}), ...(descriptions.length ? {descriptions} : {}), ...(lg ? {legend: legend(lg, ctx)} : {}) }
+  return { kind: 'figure', id, caption: title ? readInlineChildren(title, ctx) : [], orientation: ctx.attr(el, null, 'orientation') === 'landscape' ? 'landscape' : 'portrait', src: first.src, ...(first.resourceId ? { resourceId: first.resourceId } : {}), ...((first.contentType || first.specificUse) ? { primaryGraphic: { ...(first.contentType ? { contentType: first.contentType } : {}), ...(first.specificUse ? { specificUse: first.specificUse } : {}) } } : {}), ...(extra.length ? { additionalGraphics: extra } : {}), ...(units.length ? { unit: units.join('\n') } : {}), notes, ...(examples.length ? {examples} : {}), ...(descriptions.length ? {descriptions} : {}), ...(lg ? {legend: legend(lg, ctx)} : {}) }
 }
 export function mapMediaBlock(element: XmlElement, ctx: ImportContext): IRBlock[] | undefined {
   if (element.name.ns !== null) return undefined
