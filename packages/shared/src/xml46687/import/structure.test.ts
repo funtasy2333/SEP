@@ -124,3 +124,10 @@ it('[M-4.2-04] [M-4.2-05] [M-4.2-06] [M-4.4.2.2-01] sec-type 决定章角色而�
   expect(doc.body.map(c => c.secType)).toEqual(['scope', 'norm-refs', 'terms', 'general'])
   expect(ctx.problems.filter(p => p.severity === 'warning' && p.xml?.path.includes('/body[1]/sec')).length).toBe(2)
 })
+
+it('[M-4.5.2-01] [M-4.5.2-02] [M-4.5.2-04] [M-4.5.2-05] 规范性附录保留标题及类型', () => {
+  const { tree, ctx } = setup('<standard><front><std-meta><std-ref type="dated">GB/T 1</std-ref></std-meta></front><body/><back><app-group><app content-type="normative"><label>附录 A</label><annex-type>（规范性）</annex-type><title>规范内容</title><p>正文</p></app></app-group></back></standard>')
+  const doc = mapStructure(tree, ctx)!
+  expect(doc.appendices).toMatchObject([{ normative: true, title: [{ text: '规范内容' }], children: [{ kind: 'paragraph', content: [{ text: '正文' }] }] }])
+  expect(ctx.problems).toEqual([])
+})
