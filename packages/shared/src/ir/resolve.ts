@@ -964,7 +964,7 @@ function registerExtendedData(
         ctx.problems.push({ code: 'duplicate-id', nodeId: id, severity: 'error', message: `节点 ID「${id}」在文档中重复出现（${path}）` })
       }
       definitions.add(id)
-      const kind = row.kind === 'termEntry' ? 'term' : row.kind === 'bibEntry' ? 'bibliography'
+      const kind = row.kind === 'termEntry' ? 'term' : row.kind === 'bibEntry' ? 'bibliography' : row.kind === 'formulaGroup' ? 'formula'
         : typeof row.kind === 'string' ? row.kind
           : path === 'doc.index' ? 'index' : path.startsWith('doc.resources[') ? 'resource' : 'entity'
       // Inline formula registration already supplied its specific kind.

@@ -39,6 +39,15 @@ describe('WP8.3 组节点保存', () => {
     expect(labels.two).toBeUndefined()
   })
 
+  it('公式引用可指向有编号的公式组', () => {
+    const doc: IRDoc = { schemaVersion: 1, meta: { standardType: 'gb' }, front: { foreword: [], introduction: [] },
+      body: [{ kind: 'chapter', id: 'c', secType: 'general', title: [], children: [
+        { kind: 'paragraph', id: 'p', content: [{ text: '公式', marks: [{ type: 'crossRef', targetId: 'group', targetKind: 'formula' }] }] },
+        { kind: 'formulaGroup', id: 'group', numbered: true, formulas: [{ kind: 'formula', id: 'child', latex: 'x', numbered: false, whereList: [] }] },
+      ] }], appendices: [], bibliography: [] }
+    expect(resolve(doc).problems.filter(problem => problem.severity === 'error')).toEqual([])
+  })
+
   it('两个引用和其后唯一脚注定义按原位保存并共用编号', () => {
     const doc: IRDoc = { schemaVersion: 1, meta: { standardType: 'gb' }, front: { foreword: [], introduction: [] },
       body: [{ kind: 'chapter', id: 'c', secType: 'general', title: [], children: [
