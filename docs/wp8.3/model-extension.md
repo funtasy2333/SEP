@@ -53,6 +53,6 @@ XML 输出需要新增 `fig-group/legend/fig*`，`fig` 输出主图与 extras �
 3. M-core 集成后 P1 公共合同唯一 owner、P2/P3/P4/P5 不共享可写文件；P4 消费扩展类型，P5 按两遍索引输出共享脚注，P8 唯一 owner 同步矩阵、schema/validate.py 及测试。调用方构造 05/08 图像所需 manifest；09 含 `array`、`disp-formula-group` 及共享脚注，先后定义位置、双引用与唯一正文必须一致。
 4. 9 个 valid 全集导入（同资源的包和纯 XML）；四原版 golden 经生产 Schema → PM→IR → 导出及幂等，明确规范化仅限批准项。所有 import shall/should 行由真实 `[M-…]` 标题覆盖；异写、V-12 告警、无损规范化及全部原安全负例持续存在。server Jest 直接调用 io 与 client Vitest 比较，独立新空库、不触碰默认数据库。
 
-真实样稿未取得；自写 9 valid 的支持不能说明外部互操作通过。13 个 export-only invalid 冲突见 `design.md`，不能通过改文件名或删除测试制造结论。
+真实样稿未取得；自写 9 valid 的支持不能说明外部互操作通过。历史 13 个 export-only invalid 的导入豁免已由 [严格契约](strict-import.md) R1–R13 取代，目标 78 invalid 均拒绝；不能通过改文件名或删除测试制造结论。
 
-全部 valid 的正例与全部 invalid 的负例均注入完整且确定性的图像资源映射，测试输入 XML 本身；否则 13 个 export-only 负例会因缺资源意外失败而掩盖格式口径冲突。显式增加独立缺资源用例验证 error。JSON 与生产 Schema 的完整保存/重开为所有新节点的必测出口，XML46687 导出新增上述结构的保真输出任务；HTML/DOCX 的暂不支持以边界 error 结束，不得跳过或部分输出。
+全部 valid 的正例与全部 invalid 的负例均注入完整且确定性的图像资源映射，测试输入 XML 本身；否则 13 个 export-only 负例会因缺资源意外失败而掩盖应命中的严格规则。显式增加独立缺资源用例验证 error。JSON 与生产 Schema 的完整保存/重开为所有新节点的必测出口，XML46687 导出新增上述结构的保真输出任务；HTML/DOCX 的暂不支持以边界 error 结束，不得跳过或部分输出。

@@ -24,13 +24,13 @@
 
 [逐行表](matrix-import.md)覆盖基线 391 行：accept 198、required 156、reject 30（format 24、implementation 6）、not-applicable 7。目标：六个 implementation reject 全转 accept（M-4.3.4-02/03、M-5.8-01、M-C.1-04/05、M-10.1.8-04），M-4.1-02 DOCTYPE 从 accept 转 format reject；故 accept 203、required 156、reject 25（全为 format）、not-applicable 7，合计 391。shall/should 接收行由 186 增为 188。同步矩阵、相应约定、Python 的引言/array/公式组/多引用 implementation warning 和对应测试；format 拒绝须按上下文，不得误拒 09 的合法 array/colgroup。模型增量与输出契约见 [model-extension.md](model-extension.md)。
 
-- 元数据：`std-meta` 标识、分段多语言 title、语言、分类、发布机构、版权、日期映射 `IRDoc.meta` 对应字段；`release-date` 是发布日期，`implementation-date` 是实施日期；接收 `release-date` 的 published/implemented 异写并检测重复（4.1 印刷页 2、4.3.2 印刷页 6；C-S-12）。`processing-meta` 是处理信息，校验属性而不进 IR；无 IR 字段的信息仅在约定允许时忽略并报告。元数据顺序 import 宽容（V-12）。
+- 元数据：`std-meta` 标识、分段多语言 title、语言、分类、发布机构、版权、日期映射 `IRDoc.meta` 对应字段；`release-date` 是发布日期，`implementation-date` 是实施日期；接收 `release-date` 的 published/implemented 异写并检测重复（4.1 印刷页 2、4.3.2 印刷页 6；C-S-12）。`processing-meta` 是处理信息，校验属性而不进 IR；无 IR 字段的信息仅在约定允许时忽略并报告。元数据顺序严格执行 [strict-import.md](strict-import.md) 的 A/B 两种上下文次序：仅原文 4.1 示例异写 B 可规范化告警，其他次序 error。
 - `front` 的 foreword/intro → `IRDoc.front`；intro 子条 → `introductionClauses`，两种 id 形式均接受且 id 不作为结构语义。`body/sec` → `IRChapter`，子 `sec` → `IRClause`；`numbered-paragraph` 无 title，其他条标题入相应字段，附录 `app` → `IRAppendix`。`norm_refs` 规范化 `norm-refs`，异写给提示；无可保真结构时阻断。
 - 段落及样式 → `IRParagraph.content` / `IRInline` marks（bold、italic、underline、sup、sub、monospace 等依矩阵）；外链 URI 校验；换行按 IR 支持转换。`list` → `IRList.listType` / `items`，项含段落/列表；`roman-lower`→roman、`roman-upper` 拒绝。嵌套列表和 bold+code 保留层级/样式，依用户批准的 S0 生产 Schema 补齐。注/示例在章条等块级位置转 `IRNote/IRExample.content` 多块；术语、表、图只存单段，多段拼接并 warning（WP8.M G7）。警告、摘录及代码按 `IRBlock` 的 `warning`、`quote`、`code` 对应内容保存，语言和来源只能按现有 IR 表达；无法保存的组合报 error。
-- `table-wrap` → `IRTable`：缺表题映射 `caption=[]` 并告警；`tables.ts:303` 已支持导出空 `caption/title`（caption-empty warning），`resolve.ts:384` 仍对表统一编号。缺 label/无编号与缺题名不同：V-17 导入告警，重新导出 Resolver 生成编号，明确报告该规范化，不能声称保留无编号；其余标题、编号、方向、宽度、`rows[].cells[]`、rowspan/colspan/header、边框样式；`colgroup/col` 展开为 `columns`，数量不符 error；非百分比宽度及不支持的列 style 告警。`thead` 决定 headerRowCount，`thead` 非 th 依标志处理并告警。`table-wrap-foot` 的 dimension、notes、footnotes 分别保存并处理原顺序与规范化；脚注引用必须指向本表。`tfoot` 依 C-T-02 拒绝，`td@scope` 忽略告警、`frame/rules` 根据单元格边框推断并告警（6.2.2/6.2.3 印刷页 20、6.4 印刷页 24–25；C-T-07/10）。
+- `table-wrap` → `IRTable`：缺表题映射 `caption=[]` 并告警；`tables.ts:303` 已支持导出空 `caption/title`（caption-empty warning），`resolve.ts:384` 仍对表统一编号。缺 label/无编号与缺题名不同：严格项目契约 R12 将缺 label 作为 error，缺题名仍可接受；其余标题、编号、方向、宽度、`rows[].cells[]`、rowspan/colspan/header、边框样式；`colgroup/col` 展开为 `columns`，数量不符 error；非百分比宽度及不支持的列 style 告警。`thead` 决定 headerRowCount，`thead` 非 th 依标志处理并告警。`table-wrap-foot` 的 dimension、notes、footnotes 分别保存并处理原顺序与规范化；脚注引用必须指向本表。`tfoot` 依 C-T-02 拒绝，`td@scope` 忽略告警、`frame/rules` 根据单元格边框推断并告警（6.2.2/6.2.3 印刷页 20、6.4 印刷页 24–25；C-T-07/10）。
 - `fig` → `IRFigure`，主 graphic 与 additionalGraphics 按序保存；`fig-group` → `IRFigureSet` 保留组级 legend 与子图；graphic 资源、caption、legend.title 与 `def-list[figure]` 项、notes、examples；图中注/示例交错归一为注在前并告警。`inline-graphic` → `IRInline.image`，仅 p 及其合法上下文；size:T 忽略并告警，资源缺失阻断（8.3、8.5 印刷页 31–32，C-T-27/31）。
 - `array` → 无编号 `IRArray`，表替代图 → `IRTable.alternativeGraphic`；`disp-formula-group` → 保留组级编号和成员顺序的 `IRFormulaGroup`。`disp-formula`/`inline-formula` → `IRFormula`/对应行内公式，原生 MathML 保存至 `mathml`，不反译 LaTeX；导出时规范化根 id/display（7.4 印刷页 28–30，C-T-19）。
-- `term-sec/tbx:termEntry` → `IRTermEntry`，`langSet` → languageSets、`tig` → groups、term 及 partOfSpeech/termType/normativeAuthorization 等 → descriptors；definition、notes、examples、source 归条目级，非首语言集归并告警；多个 subjectField 合并并告警、写条目级。定义多于一个 error、零个 warning，多个 source 保首个并警告（9.2.1–9.2.9 印刷页 35–43，C-T-43/44；WP8.M G5）。
+- `term-sec/tbx:termEntry` → `IRTermEntry`，`langSet` → languageSets、`tig` → groups、term 及 partOfSpeech/termType/normativeAuthorization 等 → descriptors；definition、notes、examples、source 归条目级，非首语言集归并告警；多个 subjectField 合并并告警、写条目级。定义必须恰好一个（零个或多个均 error），多个 source 保首个并警告（9.2.1–9.2.9 印刷页 35–43，C-T-43/44；WP8.M G5）。
 - 规范性 `ref-list[norm-refs|norm_refs]` → `IRNormRefList`，`ref/std` 的 `std-ref` 与 title → std 项，`mixed-citation` → mixed；正文 `std`/`mixed-citation` → marks，正文 std 带 title 合并并告警；参考文献标题不同于默认时保存 `bibliographyTitle`。缩略语 `def-list` → `IRDefList`，多段 def 合并并告警；索引与参考文献按各 IR 对应集合保存。`xref` 按目标种类映射 crossRef，`entailedTerm` → termRef；旧一对一正文 fn 保持兼容；多引用采用共享 `footnoteRef` 与唯一原位置 `footnoteDefinition`，不复制正文，支持定义位于两个引用之后；表 fn 仅本表引用。`xref[other]` 指向缩略语时归类并警告。
 
 仅接收 conventions 中确认的异写：`norm_refs`、`inform-annex`/`inform_annex`、`normativeAuthentication`、日期形式等，按各上下文处理；`tbx:Definition`、`term-entry`、`normative-Authorization`、`grammatical-Number` 依后续决定和矩阵拒绝，不扩成别名。旧格式先按 `conventions-S.md` §6 特征组合识别：37967 的 `xmlgb.org`、`basic_info`/`technology`/`edit`/`execute`、GB2312；SEP 的 `urn:csbts:std:xml:1.0`、body/foreword、旧术语结构、`pub-date`、`tex-math` 等；报告命中位置，不凭 `standard` 根单独判定。
@@ -53,7 +53,7 @@
 
 样例范围实查：01 是最小 title-wrap；02 多语言/多机构与完整元数据；03 包含混合列表并有 alpha→dash 嵌套；04 含表格列项、两个表脚注；05 含单图、同 fig 两图和带 legend 的两子图组；06 含 TBX、脚注和单图；07 含已定异写、V-12 顺序告警和无 id 的规范性 ref；08 含表替代 graphic；09 含引言条、共享脚注、array 和两成员公式组。图片均须注入确定性资源。四份原始 golden 的 XML 只读盘点：wp82 有 2 个嵌套 list、1 处 bold+inline-code、8 个图引用与 6 个 MathML；fullRenderer 2 图/2 MathML；wp6 1 图/2 MathML；wp8m 9 图/0 MathML，后三者无上述嵌套样式。实际 roundtrip 仍须测试，不能用计数代替验收。
 
-13 个 import 接受的 invalid 文件逐项如下（`validate.py` 的既有行为；语义不能表达时导入器仍需按保真约束报告，不自动收紧格式约定）：
+历史基线中 13 个 import 接受的 invalid 文件逐项如下（仅为现有代码的历史行为；**旧豁免已由严格项目契约取代**，目标全部 error，具体上下文见 [strict-import.md](strict-import.md)）：
 
 | 文件 | import 接受原因 / 告警 |
 |---|---|
@@ -73,21 +73,21 @@
 
 已定覆盖旧记录：C-S-02、M-4.1-02 允许无内部子集 DOCTYPE，而本次用户明确要求全部拒绝；C-T-19 的字面 `mml:` 前缀要求与本次按 URI 判断冲突。实施任务须同步相应约定、矩阵和测试，按本次要求实现；`validate.py` 的 `check_rejects` 用 namespace URI 判断无命名空间 MathML 的 `_UNPREFIXED_MATHML`，不是对正确 URI 的所有替代前缀字面拒绝；须增加不同前缀和默认 MathML namespace 的实测，检查 RNG 是否还有限制。不得把无 namespace 的 `<mtext>` 当合法 MathML。其他冲突：matrix M-9.2.8-02 notes 写 warning 去包装，但 import=reject/format、`validate.py` 明确拒绝 `tbx:source/std`；依拒绝状态处理并登记修正 notes。C-T-38 旧表曾写接受异写，后续决定、矩阵和脚本明确拒绝四项，以上述后续决定为准。
 
-### 7.1 两种验收要求的直接冲突
+### 7.1 严格导入策略
 
-用户之前的“不区分”若解释为无条件拒绝全部 invalid，与最后要求全部 valid 可导入及既有导入约定冲突。`valid/07-import-variants.xml:13-17` 和 `invalid/std-meta-wrong-order.xml:2,18-19` 都明确触发同一 V-12 导入顺序告警；前者 V-12 实测与后者同规则。不能同时将“任何 V-12 顺序告警都拒绝”和 valid 07 接受作为统一规则。`valid/07-import-variants.xml:29` 规范性 ref 无 id；`invalid/missing-ref-id.xml:117` 参考文献 ref 无 id，二者上下文不同，但都证明无 id 的 ref 不可被无条件全局拒绝；01/09 的元数据亦只有 title-wrap，不可加全局必填以误拒 valid。它们不是字节完全相同的文档，不能据此声称对每个文件的一切可能分类均数学上不可能；若用其他字段或文件名区分，必须另有真实语义依据，不能凭夹具标签硬编码。
+按用户“不区分”及最后的 valid 优先决定，目标为 9 个 valid 全部可导入、78 个 invalid 全部拒绝；采用 [strict-import.md](strict-import.md) 的 R1–R13 统一上下文规则取代上表旧 import 豁免。它们是为本项目验收收紧的导入规则，不是把标准中的所有示例或“宜/可”改称强制。有效资源映射必须同时供正反例使用，缺资源单独测试，不能以缺图伪装格式拒绝。原文 4.1 的 ics/ccs 在 title-wrap 前用 B 次序接受；bibl/ref 缺 id 与 norm-refs/ref 缺 id 按不同上下文处理。
 
-因此保留上表 13 项现有 import 口径与警告，invalid 全拒作为未满足的冲突验收报告主导；不擅改这些规则。负例测试和 valid 图像样例都提供确定性的、有效且完整的资源映射，否则仅因资源缺失返回 null 会掩盖冲突；缺资源另写独立负例。用户最后的 valid 优先不等于授权任意扩展本表之外的异写。
+已对 9 valid、13 目标 invalid 和四 golden 做 lxml 节点扫描：9 valid 与四 golden 对 R1–R13 均零命中，每个目标 invalid 仅命中相应规则。原 import profile 已拒的另外 65 个 invalid 仍须完整回归；这只是规则可行性证据，不是导入器或真实互操作通过。不得按文件名分类。
 
 ## 8. 实现拆分和集成契约
 
 公共规则与逐任务命令见 `/workspace/wp83-coordination/common.md`；所有代理独立 worktree、先核对 HEAD、分阶段本地提交、不再派生；不得修改依赖清单/lock、两份锁定夹具或 JSON golden，不弱化测试。主导 cherry-pick 并统筹验收。
 
-P0 严格解析器可与 S0（code+bold 与嵌套列表）并行，两者独占各自文件。S0 合入之后 M-core 单一 owner 顺序负责 `types.ts`、生产 Schema/扩展注册、`irToPm.ts`/`pmToIr.ts`、Resolver、outputBoundary、XML 导出和资源收集公共文件，合同及详细节点见 [模型增量](model-extension.md)；不得与 S0 同时写适配器。P1 统一导入合同/问题码/调度唯一 owner，在 P0/M-core 对应契约集成后冻结；P2 内容模型与判旧、P3 结构/文本、P4 表图公式、P5 TBX/引用仅各写独立模块和测试，可在合同冻结后并行，不能写公共文件。P6 io 与包在 P1–P5 后；P7 client/server 一致性；P8 唯一 owner 同步矩阵、约定、Python 及覆盖计数并验证全部样例。不同 owner 修改相同公共文件必须串行并通过主导集成，不直接跨工作树共享写入。
+P0 严格解析器可与 S0（code+bold 与嵌套列表）并行，两者独占各自文件。S0 合入之后 M-core 单一 owner 顺序负责 `types.ts`、生产 Schema/扩展注册、`irToPm.ts`/`pmToIr.ts`、Resolver、outputBoundary、XML 导出和资源收集公共文件，合同及详细节点见 [模型增量](model-extension.md)；不得与 S0 同时写适配器。P1 统一导入合同/问题码/调度唯一 owner，在 P0/M-core 对应契约集成后冻结；P2 内容模型、判旧及严格导入 R1–R13 的 TS 实现唯一 owner；P3 结构/文本、P4 表图公式、P5 TBX/引用仅各写独立模块和测试，可在合同冻结后并行，不能写公共文件。P6 io 与包在 P1–P5 后；P7 client/server 一致性；P8 唯一 owner 同步矩阵、约定、Python import profile、对应测试及覆盖计数并验证全部样例；P1 唯一 owner 负责共享问题码，P2/P8 分属独立文件且按同一契约检验。不同 owner 修改相同公共文件必须串行并通过主导集成，不直接跨工作树共享写入。
 
 ## 9. 已定与需主导核实
 
-已定：保留嵌套列表、扩模型接收全部 valid 所需结构；多目标单个 rid、tfoot、附录 term-sec 继续拒绝，frame/rules 与 td@scope 按既有警告；server 直接调用 io，HTTP/MCP 与 UI 留 WP8.4。无损比较覆盖图组、表替代图、公式组、共享脚注身份与原位置。仅剩 13 个 export-only invalid 的“全部拒绝”要求和既有 import 宽容口径冲突，证据见 §7.1，交主导按最后的 valid 优先裁决；不能通过缺资源伪装拒绝。
+已定：保留嵌套列表、扩模型接收全部 valid 所需结构；多目标单个 rid、tfoot、附录 term-sec 继续拒绝，frame/rules 与 td@scope 按既有警告；server 直接调用 io，HTTP/MCP 与 UI 留 WP8.4。无损比较覆盖图组、表替代图、公式组、共享脚注身份与原位置。历史 13 个 import 豁免已被严格契约 R1–R13 取代；完整 78 invalid 应拒绝，不能通过缺资源伪装拒绝。
 
 ## 10. 上限与基线证据
 

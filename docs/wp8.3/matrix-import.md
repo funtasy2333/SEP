@@ -1,6 +1,6 @@
 # WP8.3 导入矩阵逐行盘点
 
-基线 `65f8cdff`，391 行；`required` 与 `accept` 均为接收行。本表将基线状态、来源字段与 WP8.3 导入处理分开；具体判定优先本列及主设计，原矩阵 notes 中历史导出、旧 Resolver、旧引言和 DOCTYPE 文案不作为导入结论。条款与印刷页来自源矩阵，PDF 页 = 印刷页 + 4。重复行分别保留。映射列的路径来自矩阵 `irPath` 的 IR 侧，嵌入其对应父对象；id 均依主设计不透明映射而非解析 XML id。2026-10-28 用户决定覆盖历史拒绝与缺口，目标保真模型见 [模型增量](model-extension.md)；基线列不变，不代表已实现。
+基线 `65f8cdff`，391 行；`required` 与 `accept` 均为接收行。本表将基线状态、来源字段与 WP8.3 导入处理分开；具体判定优先本列及主设计，原矩阵 notes 中历史导出、旧 Resolver、旧引言和 DOCTYPE 文案不作为导入结论。[严格导入契约](strict-import.md) R1–R13 覆盖旧 notes 中 import 宽容的表述；基线状态计数不因这些行内条件收紧而改变。条款与印刷页来自源矩阵，PDF 页 = 印刷页 + 4。重复行分别保留。映射列的路径来自矩阵 `irPath` 的 IR 侧，嵌入其对应父对象；id 均依主设计不透明映射而非解析 XML id。2026-10-28 用户决定覆盖历史拒绝与缺口，目标保真模型见 [模型增量](model-extension.md)；基线列不变，不代表已实现。
 
 | 行 | 条款/印刷页 | 输入 | 基线状态 | WP8.3 导入处理 | 依据/基线注记 |
 |---|---|---|---|---|---|
@@ -10,7 +10,7 @@
 | M-4.1-04 | 4.3.1 / 5 | standard/front · front | required | 映射/保留至 IRDoc.meta + IRDoc.front；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-01；4.3.1 祈使陈述“前置页用 <front> 标记”，可含标准元数据、前言、引言。front 内顺序 std-meta、前言 sec、引言 sec。 |
 | M-4.1-05 | 4.4.1 / 8 | standard/body · body | required | 映射 IRDoc.body；body 无章因生产 Schema 无法表达而 error | C-S-01；4.4.1 祈使陈述“标记在 <body> 标签中”；生产 Schema 要求至少一个章，body 无章导入拒绝。 |
 | M-4.1-06 | 4.5.1 / 11 | standard/back · back | accept | 映射/保留至 IRDoc.appendices[] + IRDoc.bibliography[] + IRDoc.index；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-01；4.5.1“后置页是可选的”，可含附录、参考文献、索引；无内容时省略整个 back。back 内顺序 app-group、ref-list、index（4.5.3.1 与 4.5.4 对先后措辞不一致，取 4.5.4）。 |
-| M-4.1-07 | 4.3.2 / 5 | standard/front/std-meta · std-meta | required | 映射/保留至 IRDoc.meta；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-11；4.3.2“元数据宜使用 <std-meta> 标记”。子元素顺序三处来源不一致（4.1 示例 ics/ccs 在前，附录 G 与 ISO 源指南 title-wrap 在前），按 C-S-11：导出采用 NISO STS 1.2 DTD 次序（DTD 已核实对次序敏感，国标扩展插入位置见 schemas/gbt46687.2/README.md），导入不限次序、仅告警（validate.py V-12）。 |
+| M-4.1-07 | 4.3.2 / 5 | standard/front/std-meta · std-meta | required | 映射 IRDoc.meta；按严格 R11 验证 A/B 次序，B 可 warning，其余 error | C-S-11；4.3.2“元数据宜使用 <std-meta> 标记”。子元素顺序三处来源不一致（4.1 示例 ics/ccs 在前，附录 G 与 ISO 源指南 title-wrap 在前），按 C-S-11：导出采用 NISO STS 1.2 DTD 次序（DTD 已核实对次序敏感，国标扩展插入位置见 schemas/gbt46687.2/README.md），导入不限次序、仅告警（validate.py V-12）。 |
 | M-4.1-08 | 4.1 / 4 | (cover/toc/header/footer) · 封面、目次、页眉页脚 | not-applicable | 不适用；不构造 IR，若另有具体支持行按该行处理 | C-S-05；“以下前置页内容不在 XML 中标记：封面、目次、含有文件名称、页码等的页眉和页脚”；注 2：封面中除格式外的信息记录在 std-meta。IR 不含目次/页眉页脚。 |
 | M-4.3.2-30 | 4.3.2 / 6 | standard/processing-meta · processing-meta | accept | 校验处理属性及取值；不写 IR；MathML 2.0 告警 | C-S-04；“宜用 <processing-meta> 标记，直接置于 <standard> 标签下”，描述 XML 文件的处理信息而非标准本身。导出置于 standard 首个子元素（ISO 源指南旁证，原文示例 2 的“……”在其前，位置有歧义）；导入校验 tagset-family/table-model/terminology-model/math-representation，mathml-version 接受 3.0（及 C 行 54 同现的 2.0 并告警）。不进入 IR。 |
 | M-4.3.2-31 | 4.3.2 / 6 | standard/processing-meta/custom-meta-group/custom-meta · custom-meta-group, custom-meta, meta-name, meta-value | accept | 处理元数据校验并记录问题；不写 IR | C-S-04；指明标记所依据的编码指南名称（meta-name）和版本（meta-value）。示例值 基于XML的标准文档内容标记指南 / 2025；导出取 2026（项目实现约定，D-S-02）。 |
@@ -23,7 +23,7 @@
 | M-4.2-07 | 4.2 / 5 | back/app-group/app · app | required | 映射/保留至 IRAppendix.normative；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-07；4.2 文字、表 1、4.5.2.1 一致用 informative/normative；表 D.1 行 3 只列 bibl、index（D 表不完整）。 |
 | M-4.2-08 | 4.1 / 4 | back/app-group/app · app | accept | 映射/保留至 IRAppendix.normative=false；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-07；inform-annex 仅见 4.1 骨架（印刷页 4），inform_annex 仅见 4.5.2.2 示例（印刷页 12）。导出不用；导入接受并规范化为 informative。规范性附录的异写原文无，不接受。 |
 | M-4.2-09 | 4.2 / 5 | back/ref-list · ref-list | required | 映射/保留至 IRDoc.bibliography[]；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-27；10.1.6 示例 2（印刷页 47）写 content-type="bibr"，疑似排印错误，导入接受并告警。 |
-| M-4.3.2-01 | 4.3.2 / 5 | std-meta · std-meta（容器） | required | 映射/保留至 IRDoc.meta；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-11；同 M-4.1-07。 |
+| M-4.3.2-01 | 4.3.2 / 5 | std-meta · std-meta（容器） | required | 映射 IRDoc.meta；按严格 R11 验证 A/B 次序，其余 error | C-S-11；同 M-4.1-07。 |
 | M-4.3.2-02 | 4.3.2 / 5 | std-meta/ics · ics | accept | 映射 IRDoc.meta.icsCode；多个 ICS 无法保真时 error | C-S-17；表 C.1 行 39：多个 ICS 号时 ics 重复出现；IR 仅单值，多个 ics 导入拒绝并说明。 |
 | M-4.3.2-03 | 4.3.2 / 5 | std-meta/ccs · ccs | accept | 映射/保留至 IRDoc.meta.ccsCode；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-17；表 C.1 行 10 备注“中国标准特有”，需要国标扩展 schema。 |
 | M-4.3.2-04 | 4.3.2 / 5 | std-meta/title-wrap · title-wrap | required | 映射/保留至 IRDoc.meta.titleParts[]（兼容 title/titleEn）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-13；每种语言一个 title-wrap；子元素 intro?、main、compl?、full；full 必写，不拆分旧单字符串题名。 |
@@ -58,7 +58,7 @@
 | M-4.3.4-02 | 4.3.4 / 7 | front/sec[@sec-type=intro] · sec（引言，有条） | reject/implementation | 目标 accept：引言容器及正文映射 IRDoc.front.introduction；子条映射 introductionClauses；悬置段阻断 | C-S-10；设置条的引言 @id="sec_0"，示例 3 为 <sec id="sec_0" sec-type="intro"><title>引言</title><sec id="sec_0.1">…。WP8.M G6（D-M-10）：pmToIr 映射引言内的条；条之后再出现的正文块（悬置段）报 unsupportedContent。HTML/DOCX 按条标题排版（§7.1）；导入侧本行仍为 reject（WP8.3 再放开）。 |
 | M-4.3.4-03 | 4.3.4 / 8 | front/sec/sec · sec（引言中的条） | reject/implementation | 目标 accept：引言子条映射 IRDoc.front.introductionClauses；id 仅关联 | C-S-10；引言中的条 @id="sec_0.1"，label 为 0.1。示例 2 把引言写 sec_intro 却把后继条写 sec_0.1，与文字规则不符，不采用（D-S-10）。WP8.M G6：Resolver 对引言条按 [0,n,m] 路径编号，并参与悬置段与跳级检查。 |
 | M-4.4.2.1-01 | 4.4.2.1 / 8 | body/sec &#124; sec/sec · sec（章和条） | required | 映射/保留至 IRChapter &#124; IRClause；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-23；“章和条使用 <sec> 标记”，可含任何类型内容（文本、表、图）和条。条嵌套表示层级；IR 条最多 5 级，更深层级无法表示。 |
-| M-4.4.2.1-02 | 4.4.2.1 / 8 | sec/label · label | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-S-23；“章和条编号在 <sec> 中用 <label> 标记”。导出取 Resolver label；导入文本不作数据，与重新派生编号不一致则告警。 |
+| M-4.4.2.1-02 | 4.4.2.1 / 8 | sec/label · label | accept | 章条 label 文本不存 IR、Resolver 重派生；body/app 的 sec 缺非空 label 按严格 R10 error | C-S-23；“章和条编号在 <sec> 中用 <label> 标记”。导出取 Resolver label；导入文本不作数据，与重新派生编号不一致则告警。 |
 | M-4.4.2.1-03 | 4.4.2.1 / 8 | sec/title · title | required | 映射/保留至 IRChapter.title &#124; IRClause.title；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-23；标题内不写 <bold>（5.2：label/title 呈现时自动加粗）；导入时剥离标题内 bold 以保持往返幂等。 |
 | M-4.4.2.1-04 | 5.3 / 15 | sec/p · p | required | 映射/保留至 IRParagraph.content；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-23；5.3 前言、引言、正文及附录的文本在 <p> 中标记；附录 E：<p> 中无任何 id 或其他属性（导入忽略示例中的 p id）。 |
 | M-4.4.2.2-01 | 4.4.2.2 / 9 | body/sec[@sec-type=scope] · sec（范围） | required | 映射/保留至 IRChapter(secType='scope')；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-06；“宜按以下方式为 <sec> 的属性赋值”。 |
@@ -71,7 +71,7 @@
 | M-4.5.2-01 | 4.5.2.1 / 11 | back/app-group · app-group | required | 映射/保留至 IRDoc.appendices[]（容器）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-26；“所有附录都在 <app-group> 内使用 <app> 标记”。 |
 | M-4.5.2-02 | 4.5.2.1 / 11 | back/app-group/app · app | required | 映射/保留至 IRAppendix；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-07；附录类型用 @content-type 区分，值可为 informative 或 normative。 |
 | M-4.5.2-03 | 4.5.2.1 / 11 | app/label · label（附录） | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-S-07；“‘附录’二字和附录的编号使用 <label>（不包括其后的破折号）标记”；示例文本“附录 A”（含空格）。导出取“附录”+空格+字母；导入文本不作数据。 |
-| M-4.5.2-04 | 4.1 / 4 | app/annex-type · annex-type | accept | 映射/保留至 IRAppendix.normative；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-07；示例 <annex-type>（资料性）</annex-type>；全角/半角括号扫描字形难辨，未核实；4.5.2.1 正文未解释该元素，仅见示例（4.1 骨架、4.5.2.2 示例），故义务措辞按示例性对待。 |
+| M-4.5.2-04 | 4.1 / 4 | app/annex-type · annex-type | accept | 映射 IRAppendix.normative；缺直接 annex-type 按严格 R1 error | C-S-07；示例 <annex-type>（资料性）</annex-type>；全角/半角括号扫描字形难辨，未核实；4.5.2.1 正文未解释该元素，仅见示例（4.1 骨架、4.5.2.2 示例），故义务措辞按示例性对待。 |
 | M-4.5.2-05 | 4.5.2.1 / 11 | app/title · title（附录） | required | 映射/保留至 IRAppendix.title；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-26；“附录标题使用 <title> 标记”。 |
 | M-4.5.2-06 | 4.5.2.2 / 11 | app/sec · sec（附录中的条） | required | 映射/保留至 IRClause（IRAppendix.children）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-26；“附录中的条用 <sec> 标记；它们的 <label> 宜继承上一级附录的标签前缀，如 A.1、A.2、A.3”。 |
 | M-4.5.3-01 | 4.5.3.1 / 12 | back/ref-list · ref-list（参考文献） | required | 映射/保留至 IRDoc.bibliography[]；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-27；“按以下方式标记 <ref-list> 的属性：@content-type="bibl"”。参考文献通常是后置页最后一个元素，但 4.5.4 要求索引在其后。 |
@@ -132,14 +132,14 @@
 | M-E-01 | E / 67 | sec/@id（有编号章条） · sec@id | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-S-37；资料性附录。当前 Resolver 已派生 sec_<编号>，无需修改（X-01、X-02、X-03、X-11）。导入 id 不透明。 |
 | M-E-02 | E / 67 | front/sec/@id · sec@id（前言、引言） | accept | 映射/保留至 （渲染器常量；IR 前言/引言无容器 NodeId）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-37；X-04、X-05；引言有条时 sec_0（4.3.4），需 IR 扩展。 |
 | M-E-03 | E / 67 | ref-list/@id, index/@id · ref-list@id、index@id | accept | 映射/保留至 （渲染器常量）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-37；X-08、X-25；4.5.4 示例写 sec-index（异写，不采用）。 |
-| M-E-04 | E / 67 | app/@id, app/sec/@id · app@id、附录条 sec@id | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-S-37；X-06、X-07；Resolver 已一致。 |
+| M-E-04 | E / 67 | app/@id, app/sec/@id · app@id、附录条 sec@id | accept | app 的 id 按严格 R6 必填且唯一、仅作不透明关联，映射 NodeId；附录条按其对应规则 | C-S-37；X-06、X-07；Resolver 已一致。 |
 | M-E-05 | E / 67 | ref/@id · ref@id（有标签的参考文献） | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-S-37；X-09：Resolver 现输出 bib_N，须改 biblref_N（R-1）。 |
 | M-E-06 | E / 67 | ref/@id（无 label） · ref@id（无正文） | accept | 映射/保留至 IRNormRef.id（Resolver 赋 xmlId ref_<清单内序号>，label 为空）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-37；说明“如第 5 个引用的参考文献”；“无正文”字面含义不清，解读为没有 <label> 的条目（X-10，未核实）。WP8.M G1：规范性引用条目已结构化，Resolver 赋 ref_<清单内序号>（R-8）。 |
 | M-E-07 | E / 67 | term-sec/@id · term-sec@id | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-S-37；X-11；详见 T。 |
-| M-E-08 | E / 67 | tbx:termEntry/@id · tbx:termEntry@id | accept | 映射/保留至 （Resolver 尚无）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-37；与第 9 章正文 term_<编号> 冲突，选 term_（X-12，D-S-12）；需 Resolver 新增（R-3）。详见 T。 |
+| M-E-08 | E / 67 | tbx:termEntry/@id · tbx:termEntry@id | accept | TBX termEntry id 按严格 R8 必填且唯一、不透明映射到新 NodeId | C-S-37；与第 9 章正文 term_<编号> 冲突，选 term_（X-12，D-S-12）；需 Resolver 新增（R-3）。详见 T。 |
 | M-E-09 | E / 67 | tbx:note/@id · tbx:note@id（术语条目的注） | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-S-37；X-13：仅被引用时输出；需改派生形式（R-4）。详见 T。 |
 | M-E-10 | E / 67 | table-wrap/@id · table-wrap@id | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-S-37；X-19：Resolver 已一致（附录表 tab_A.1，原文隐含）。详见 T。 |
-| M-E-11 | E / 67 | table-wrap/@id（无标题） · table-wrap@id（无标题） | accept | 无表题时存 IRTable.caption=[] 并告警；Resolver 重新派生编号。来源无 label/无编号与题名缺失分开：缺 label 依 V-17 导入 warning，重新导出生成编号，无法保持无编号时明确告警规范化 | C-S-37；“可使用任何与附录编号无关的字母”；IR 的表一律有编号，不适用。ISO 源指南 F.2 同。 |
+| M-E-11 | E / 67 | table-wrap/@id（无标题） · table-wrap@id（无标题） | accept | 无表题存 IRTable.caption=[] 并告警；table-wrap 缺非空 label 按严格 R12 error，不能声称无编号表也可接受 | C-S-37；“可使用任何与附录编号无关的字母”；IR 的表一律有编号，不适用。ISO 源指南 F.2 同。 |
 | M-E-12 | E / 67 | fig/@id · fig@id | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-S-37；X-20：Resolver 已一致。详见 T。 |
 | M-E-13 | E / 67 | disp-formula/@id · disp-formula@id | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-S-37；X-21：第 7 章示例写 Formula_1、Formula1，判为示例瑕疵；无编号公式不写 id（Resolver 现输出 ext_，R-5）。详见 T。 |
 | M-E-14 | E / 67 | inline-formula · inline-formula（无 id） | accept | 映射/保留至 IRInline.formula；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-37；“行内公式没有 ID”；id 编在 mml:math 上（mml_m<k>，7.4）。X-22、R-5。详见 T。 |
@@ -153,7 +153,7 @@
 | M-E-22 | E / 68 | list, list-item · 列项的项（无 id） | accept | 映射/保留至 IRList / IRList.items[]；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-37；“任何 <list> 或 <list-item> 中无 id 属性”（a)、1、A）。X-17。 |
 | M-E-23 | E / 68 | non-normative-note · 注（无 id） | accept | 映射/保留至 IRNote；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-37；“常规注中无 id 属性”，但 10.1.3 的交叉引用示例需要注有 id：建议仅被引用时输出 note_<n>（X-14，D-S-09）。 |
 | M-E-24 | E / 68 | non-normative-example · 示例（无 id） | accept | 映射/保留至 IRExample；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-37；“示例中无 id 属性”；被引用时同 X-14（X-15）。 |
-| M-E-25 | E / 68 | p · 段（无 id 或其他属性） | accept | 映射/保留至 IRParagraph；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-37；“<p> 中无任何 id 或其他属性”（250 dpi 复核，150 dpi 下“无”字被遮）。第 5～10 章示例中的 p-125、p-490 等判为示例瑕疵。X-18。 |
+| M-E-25 | E / 68 | p · 段（无 id 或其他属性） | accept | p 映射 IRParagraph；带 id 按严格 R9 error | C-S-37；“<p> 中无任何 id 或其他属性”（250 dpi 复核，150 dpi 下“无”字被遮）。第 5～10 章示例中的 p-125、p-490 等判为示例瑕疵。X-18。 |
 | M-F-01 | F / 69 | standard · standard（根元素） | required | 映射/保留至 IRDoc；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-01；F 行 1：GB/T 37967 对应 basic_info，GB/T 22373、46687.1 无对应；basic_info 是旧格式特征（见第 6 节）。 |
 | M-F-02 | F / 69 | ics · ics | accept | 映射/保留至 IRDoc.meta.icsCode；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-17；F 行 2：37967 ics；22373 ICS number；46687.1 ics。 |
 | M-F-03 | F / 69 | ccs · ccs | accept | 映射/保留至 IRDoc.meta.ccsCode；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-S-17；F 行 3：37967 ccs；22373 CCS number；46687.1 ccs。 |
@@ -205,7 +205,7 @@
 | M-6.2.1-02 | 6.2.1 / 20 | table-wrap/@id · table-wrap | accept | 映射/保留至 IRTable.id；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-05；原文各处写法 tab_1/tab_3/tab_4/tab_a；导入不解析 ID 语义，仅作引用锚点；重复 ID 报 error。 |
 | M-6.6-01 | 6.6 / 25 | table-wrap/@orientation · table-wrap | required | 映射/保留至 IRTable.orientation；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-12；横向表必须写 landscape；portrait 为默认值，通常不显式标注，导出时省略。 |
 | M-C.1-01 | C.1 / 61 | table-wrap/@position · table-wrap | accept | table-wrap/position 未建模；忽略并告警 | —；附录 C 第 88 行仅列属性名，正文无取值与语义；不导出；导入忽略并 warning，不得静默。 |
-| M-6.2.1-03 | 6.2.1 / 20 | table-wrap/label · label | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-T-15；表编号，不加尾划线和空格；编号由 Resolver 派生，导入忽略文本内容。 |
+| M-6.2.1-03 | 6.2.1 / 20 | table-wrap/label · label | accept | label 文本不存 IR、Resolver 重派生；table-wrap 缺非空 label 按严格 R12 error | C-T-15；表编号，不加尾划线和空格；编号由 Resolver 派生，导入忽略文本内容。 |
 | M-6.2.1-04 | 6.2.1 / 20 | table-wrap/caption · caption | accept | 映射/保留至 IRTable.caption；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-15；caption 内用 title 标表题。附录 E 有“无标题”的表（id=tab_r，M-E-11），故 caption 可选（schema 中可选）；SES 导出的表总带 label 与 caption，该必填由导出器保证（2026-10-21 主导人审查）。 |
 | M-6.2.1-05 | 6.2.1 / 20 | table-wrap/caption/title · title | required | 映射/保留至 IRTable.caption；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-15；中文表题。 |
 | M-6.2.1-06 | 6.2.1 / 20 | table-wrap/caption/title (英文) · title | reject/format | 拒绝 format；按输入上下文阻断，原因见原矩阵说明 | C-T-15；原文无英文表题写法；IR/PM 可保存；本阶段不导出，caption 内多个 title 导入报 error（决定事项 D-T-03）。 |
@@ -250,8 +250,8 @@
 | M-7.1-02 | 7.1 / 27 | disp-formula/@id · disp-formula | accept | 映射/保留至 IRFormula.id；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-18；原文写法 Formula_1(p27)/Formula1(p28)/Formula5(p29)/formula_1(附录 E)；方案归 S；导入不解析 ID 语义。 |
 | M-7.1-03 | 7.1 / 27 | disp-formula/label · label | accept | label 存在与否决定 IRFormula.numbered；编号文本忽略，重派生不一致时告警 | C-T-25；括号数字编号，如 (1)、(A.1)；numbered=false 不输出 label；导入忽略文本，与 Resolver 编号不符仅 warning。 |
 | M-7.4-01 | 7.4 / 28 | disp-formula/mml:math · mml:math | required | 映射/保留至 IRFormula.mathml（缺失时由 client 适配层用 KaTeX 从 IRFormula.latex 转换后传入）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-19；命名空间 http://www.w3.org/1998/Math/MathML，前缀 mml:；一个 disp-formula 内多个单独排列的公式宜写在一个 mml:math 中；导入多个 mml:math 报 error（G-T-09）。 |
-| M-7.4-02 | 7.4 / 28 | mml:math/@id · mml:math | accept | 映射/保留至 IRFormula.mathml（子元素原样保真，不逐元素建模）；根元素 id 导出时重写、导入时去除；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-18；前缀 mml_m[number]，number 为文件内 mml:math 序列（行间与行内合并计数）；示例 m1(p27) 违反前缀，不采用。 |
-| M-7.4-03 | 7.4 / 29 | mml:math/@display · mml:math | accept | 映射/保留至 IRFormula.mathml（子元素原样保真，不逐元素建模）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-19；仅 p29 示例的行间 mml:math 带 display="block"；导出行间写 block、行内不写。 |
+| M-7.4-02 | 7.4 / 28 | mml:math/@id · mml:math | accept | 按严格 R5 公式直接 MathML 须有非空合法唯一 id；不解析 id 语义，保存 IRFormula.mathml 并重派生 | C-T-18；前缀 mml_m[number]，number 为文件内 mml:math 序列（行间与行内合并计数）；示例 m1(p27) 违反前缀，不采用。 |
+| M-7.4-03 | 7.4 / 29 | mml:math/@display · mml:math | accept | 按严格 R4 行间 MathML display 缺省或 block 接受，其余 error；保存 mathml | C-T-19；仅 p29 示例的行间 mml:math 带 display="block"；导出行间写 block、行内不写。 |
 | M-7.4-04 | 7.4 / 29 | mml:math//mml:mrow · mml:mrow | accept | 映射/保留至 IRFormula.mathml（子元素原样保真，不逐元素建模）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-19；仅 p29～30 示例出现；随 mml:math 字符串保真，导入校验命名空间与良构。 |
 | M-7.4-05 | 7.4 / 29 | mml:math//mml:mi · mml:mi | accept | 映射/保留至 IRFormula.mathml（子元素原样保真，不逐元素建模）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-19；仅 p29～30 示例出现；随 mml:math 字符串保真，导入校验命名空间与良构。 |
 | M-7.4-06 | 7.4 / 29 | mml:math//mml:mn · mml:mn | accept | 映射/保留至 IRFormula.mathml（子元素原样保真，不逐元素建模）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-19；仅 p29～30 示例出现；随 mml:math 字符串保真，导入校验命名空间与良构。 |
@@ -264,7 +264,7 @@
 | M-4.1-T01 | 4.1 / 2 | standard/@xmlns:mml · standard | required | 校验 MathML URI；前缀任意；不入 IR | C-T-19；根元素声明 xmlns:mml="http://www.w3.org/1998/Math/MathML"（p2，放大核实）；非 IR 数据，属导出模板。由 S 的根元素条目统一管理。 |
 | M-4.3.2-T01 | 4.3.2 / 6 | processing-meta/@mathml-version,@math-representation · processing-meta | accept | 复用 processing-meta 校验；不入 IR | C-T-19；p6 示例 mathml-version="3.0"、math-representation="mathml"；与 DOCTYPE mathml2 冲突见 D-T-04；映射由 S 的 processing-meta 条目承担，此处仅登记取值。 |
 | M-7.1-04 | 7.1 / 27 | p/inline-formula · inline-formula | required | 映射/保留至 IRInline.formula (IRInlineFormula)；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-21；行内公式；inline-formula 自身无 id（附录 E）；示例 2 位于 p 内。 |
-| M-7.1-05 | 7.1 / 27 | inline-formula/mml:math · mml:math | required | 映射/保留至 IRInlineFormula.mathml；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-21；行内 mml:math 带 id（mml_m<k>），不带 display；仅有 latex 时走 KaTeX 转换。 |
+| M-7.1-05 | 7.1 / 27 | inline-formula/mml:math · mml:math | required | 保存 IRInlineFormula.mathml；按严格 R4/R5 禁止行内 display 并要求非空合法唯一 id | C-T-21；行内 mml:math 带 id（mml_m<k>），不带 display；仅有 latex 时走 KaTeX 转换。 |
 | M-7.2-01 | 7.2 / 27 | disp-formula/non-normative-note · non-normative-note | accept | 映射/保留至 IRFormula.notes[] (IRFormulaNote)；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-23；公式注释宜在 mml:math 后面标记；原文无示例。 |
 | M-7.2-02 | 7.2 / 27 | formula non-normative-note/label · label | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-T-23；“注：/注1：”含在 label 内（依 5.6）；导入忽略。 |
 | M-7.3-01 | 7.3 / 27 | disp-formula/legend · legend | accept | 映射/保留至 IRFormula.whereList；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-22；“式中”说明；每个 disp-formula 只能有一个 legend。 |
@@ -311,7 +311,7 @@
 | M-9.2.1-02 | 9.2.1 / 35 | term-sec/@id · term-sec | accept | 映射/保留至 IRTermEntry.id；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-37；ID 派生自 label 内条目编号，同时用于 term-sec 与 tbx:termEntry；方案归 S。 |
 | M-9.2.1-03 | 9.2.1 / 34 | term-sec/label · label | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-T-37；条目编号，如 3.1.1；导入忽略文本。 |
 | M-9.2.1-04 | 9.2.1 / 35 | term-sec/tbx:termEntry · tbx:termEntry | required | 映射/保留至 IRTermEntry；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-37；术语条目容器；命名空间 urn:iso:std:iso:30042:ed-1，前缀 tbx:；p38、p39 示例无 id。 |
-| M-9.2.1-05 | 9.2.1 / 35 | tbx:termEntry/@id · tbx:termEntry | accept | 映射/保留至 IRTermEntry.id + ResolvedLabel.termEntryXmlId（term_<编号>）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-37；正文与 10 个示例用 term_<n>，附录 E 用 te_<n>（D-T-05 取 term_<n>）；entailedTerm@target 与 xref@rid 需要它。WP8.M G5：Resolver 为每个术语条目派生 termEntryXmlId，嵌套条目含完整路径（term_3.1.2），与 sec_<编号> 并存。 |
+| M-9.2.1-05 | 9.2.1 / 35 | tbx:termEntry/@id · tbx:termEntry | accept | 按严格 R8 termEntry id 必填且唯一、不透明映射为 IRTermEntry.id；导出 Resolver 重派生 | C-T-37；正文与 10 个示例用 term_<n>，附录 E 用 te_<n>（D-T-05 取 term_<n>）；entailedTerm@target 与 xref@rid 需要它。WP8.M G5：Resolver 为每个术语条目派生 termEntryXmlId，嵌套条目含完整路径（term_3.1.2），与 sec_<编号> 并存。 |
 | M-9.2.1-06 | 9.2.1 / 35 | tbx:termEntry/tbx:langSet · tbx:langSet | required | 映射/保留至 IRTermEntry.languageSets[] (IRTermLanguageSet)；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-43；每个语言一个 langSet；条目级 definition/source/example/note/subjectField 写入首个 langSet，其他只含 tig。 |
 | M-9.2.1-07 | 9.2.1 / 35 | tbx:langSet/@xml:lang · tbx:langSet | required | 映射/保留至 IRTermLanguageSet.language；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-43；语言标签；示例仅 zh、en；缺失导入报 error。 |
 | M-9.2.3-01 | 9.2.3 / 35 | tbx:langSet/tbx:tig · tbx:tig | required | 映射/保留至 IRTermGroup / IRTermVariant；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-43；每个术语及其描述性元素在一个单独的 tig 中；PM 的 tbxTig 可含多个变体，导出时一个变体一个 tig。 |
@@ -325,7 +325,7 @@
 | M-9.2.3-08 | 9.2.3 / 36 | tbx:tig/tbx:termType · tbx:termType | accept | 映射/保留至 IRTermEntry.languageSets[].groups[].terms[].descriptors[] (IRTermDescriptor: kind + value)，kind='termType'；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-42；p36 清单“必填”，后文“是可选的，fullForm 为默认值可省略”；每个术语至多一个（附录 C 第 104 行）；原样输出 IR 值。 |
 | M-9.2.3-09 | 9.2.3 / 36 | tbx:tig/tbx:grammaticalNumber · tbx:grammaticalNumber | accept | 映射/保留至 IRTermEntry.languageSets[].groups[].terms[].descriptors[] (IRTermDescriptor: kind + value)，kind='grammaticalNumber'；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-38；选填，仅限名词；全文无示例，取值未规定（附录 C 第 91 行：单数或复数）；值原样透传。 |
 | M-C.1-07 | C.1 / 61 | tbx:grammatical-Number (附录 C 断行写法) · tbx:grammatical-Number | reject/format | 拒绝 format；按输入上下文阻断，原因见原矩阵说明 | C-T-38；附录 C 第 91 行断行写作 grammatical- / Number，连字符是否真实存在未核实。2026-10-21 主导人决定：术语异写元素名只保留 tbx:normativeAuthentication（9.2.3 印刷页 37 三处真实出现，见 M-9.2.3-07）；本行元素只在说明文字或附录 C 断行处出现、示例代码从未使用，疑为原文笔误，导入 REJECT 并提示“疑为原文笔误”，不再作别名接受。 |
-| M-9.2.2-01 | 9.2.2 / 35 | tbx:langSet/tbx:definition · tbx:definition | required | 映射/保留至 IRTermEntry.definition (IRBlock[])；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-44；每个术语条目有且仅有一个定义（附录 C 第 92 行）；只容纳行内内容，多段用 break/ 连接，含非行内块报 error（D-T-07、G-T-21）。示例 definition 只在 zh langSet 内。 |
+| M-9.2.2-01 | 9.2.2 / 35 | tbx:langSet/tbx:definition · tbx:definition | required | 按严格 R13 每个 termEntry 跨 langSet 恰有一个 definition，否则 error；映射 IRTermEntry.definition | C-T-44；每个术语条目有且仅有一个定义（附录 C 第 92 行）；只容纳行内内容，多段用 break/ 连接，含非行内块报 error（D-T-07、G-T-21）。示例 definition 只在 zh langSet 内。 |
 | M-C.1-08 | C.1 / 61 | tbx:definition/@target · tbx:definition | reject/format | 拒绝 format；按输入上下文阻断，原因见原矩阵说明 | C-T-46；附录 C 第 92 行列出 @target，正文无解释；导入报 unsupported（D-T-08）。 |
 | M-9.2.2-02 | 9.2.2 / 35 | tbx:definition/break · break | accept | 映射/保留至 IRInline.text='\n'（多段定义以换行连接）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-44；必要时用 break/ 在定义中插入换行符。 |
 | M-9.2.8-01 | 9.2.8 / 43 | tbx:langSet/tbx:source · tbx:source | required | 映射/保留至 IRTermEntry.source；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-44；有明确来源文件时在 langSet 中标记，删去正文方括号与“来源”字样；内容如 GB/T 20000.1—2014,5.2；至多一个。 |
@@ -344,7 +344,7 @@
 | M-9.1-03 | 9.1 / 35 | tbx:termEntry (嵌套) · tbx:termEntry | reject/format | 拒绝 format；按输入上下文阻断，原因见原矩阵说明 | C-T-47；原文无嵌套术语条目写法；术语分组用嵌套 sec；含 nestedEntries 的条目导出报 error（D-T-09）。 |
 | M-10.1.4-01 | 10.1.4 / 45 | sec[@id='sec_3.2']/def-list[@list-content='abbreviation'] · def-list | accept | 映射/保留至 IRDefList (kind='defList').items[]（IRDefItem[]）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-51；缩略语不是 term-sec 而是 sec 内的 def-list（G-T-16）。WP8.M G2：块 IRDefList + PM defList；项类型与公式“式中”、图例共用（IRDefItem / whereItem）；导出恒写 list-content="abbreviation"。 |
 | M-B.1-01 | B.1 / 55 | term-display · term-display | reject/format | 拒绝 format；按输入上下文阻断，原因见原矩阵说明 | —；附录 B（p55）：相对 IEC/ISO 删除 term-display 表示方式；附录 C 第 22 行 def 的说明仍提及；不使用，导入报 unsupported。 |
-| M-10.1.1-01 | 10.1.1 / 44 | p//xref · xref | required | 引用类型/目标映射 IRMark 与 NodeId；显示文本按目标类型保留 refText 或由 Resolver 派生，见 WP8.M §6.1 | C-T-49；标准文档内部引用；属性 @ref-type（目标类型）、@rid（目标 ID）；内容文本由 Resolver 重新生成，导入忽略。 |
+| M-10.1.1-01 | 10.1.1 / 44 | p//xref · xref | required | 引用按目标映射 IRMark/NodeId；custom 引用按严格 R2 必填 custom-type 且须与目标一致 | C-T-49；标准文档内部引用；属性 @ref-type（目标类型）、@rid（目标 ID）；内容文本由 Resolver 重新生成，导入忽略。 |
 | M-10.1.1-02 | 10.1.1 / 44 | xref/@rid · xref | required | 映射/保留至 IRMark.targetId；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-49；目标 ID；附录 D 第 10 行称可为一个或多个标识符，示例均为单个，多个 rid 导入报 unsupported（G-T-15）。 |
 | M-10.1.2-01 | 10.1.2 / 44 | p//xref[@ref-type='sec'] · xref | required | 映射/保留至 IRMark{type:'crossRef', targetId, targetKind} (targetKind='chapter'&#124;'clause')；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-48；对章、条的引用，rid 取 sec 的 ID；10.1.2 无示例。 |
 | M-9.2.7-02 | 9.2.7 / 42 | p//xref[@ref-type='app'] · xref | required | 映射/保留至 IRMark{type:'crossRef', targetId, targetKind} (targetKind='appendix')；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-48；对附录的引用（10.1.1 清单有、附录 D 无）；9.2.7 示例 rid="sec_A"，内容“A”，“附录”在元素外。 |
@@ -356,7 +356,7 @@
 | M-10.1.3-01 | 10.1.3 / 45 | p//xref[@ref-type='custom'][@custom-type='note'] · xref | required | 映射/保留至 IRMark{type:'crossRef', targetId, targetKind} (targetKind='note')；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-50；对注的引用；示例 rid="note_1"，内容“注 1”；附录 E 称注无 id，故只给被引用的注写 id（C-T-50）。 |
 | M-10.1.3-02 | 10.1.3 / 45 | p//xref[@ref-type='custom'][@custom-type='example'] · xref | required | 映射/保留至 IRMark{type:'crossRef', targetId, targetKind} (targetKind='example')；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-50；对示例的引用；无示例代码；处理同注。 |
 | M-9.2.6-03 | 9.2.6 / 42 | p//xref[@ref-type='custom'][@custom-type='term-entry'] · xref | required | 映射/保留至 IRMark{type:'termRef'&#124;'crossRef', targetKind:'term'}；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-45；术语章之外对术语条目的引用（9.2.6）；同 M-9.2.6 行。 |
-| M-10.1.1-03 | 10.1.1 / 44 | p//xref[@ref-type='fn'] · xref | required | 映射/保留至 IRInline.footnote (IRFootnote)；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-55；正文脚注引用；内容为纯文本标签（如 1)），不含 label/sup；p44 示例内容“1”，p48 示例含 label>sup（矛盾）。 |
+| M-10.1.1-03 | 10.1.1 / 44 | p//xref[@ref-type='fn'] · xref | required | 旧单脚注用 IRInline.footnote；共享脚注使用 footnoteRef 和唯一原位置 footnoteDefinition | C-T-55；正文脚注引用；内容为纯文本标签（如 1)），不含 label/sup；p44 示例内容“1”，p48 示例含 label>sup（矛盾）。 |
 | M-10.1.5-01 | 10.1.5 / 46 | p//xref[@ref-type='list'] · xref | accept | 映射/保留至 IRMark crossRef.targetKind='listItem'；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-52；对有序列项的引用（10.1.1 清单无、附录 D 有）。WP8.M G4：Resolver 只给被引用的有序列项赋标签（a）/1）/i）），refText 如 5.2 c）（D-M-03，全角括号）；无序列项与 romanUpper 的引用报 dangling-xref。export 列：由 not-applicable 改为 required（WP8.2 设计 §1.1 复核，D-X-01）。 |
 | M-10.1.4-02 | 10.1.4 / 46 | p//xref[@ref-type='other'] · xref | accept | other 指缩略语时按目标归类为 crossRef abbreviation 并告警 | C-T-51；仅 10.1.4 示例用于缩略语引用（rid="abb-ct"）；导出改用 abbreviation；导入按目标类型归类并 warning。 |
 | M-10.1.1-04 | 10.1.1 / 44 | p//xref[@ref-type='abbreviation'] · xref | accept | 映射/保留至 IRMark crossRef.targetKind='abbreviation'；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-51；10.1.1 清单取值，指向 def-list[abbreviation]/def-item。WP8.M G2：IRReferenceTargetKind 增 abbreviation；refText 为缩略语文本。export 列：由 not-applicable 改为 required（WP8.2 设计 §1.1 复核，D-X-01）。 |
@@ -367,7 +367,7 @@
 | M-10.1.5-02 | 10.1.5 / 46 | list/list-item (被引用项) · list-item | accept | 映射/保留至 IRList.items[].id（Resolver 对被引用的有序列项赋 xmlId li_<k>）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-52；被引用的列项需 @id；示例 rid 为 id-<UUID 样式>；附录 E 称 list/list-item 无 id（矛盾）。WP8.M G4：xmlId li_<被引用列项的文档序>（D-M-02）；未被引用的列项不赋标签也不输出 id，既有快照不变。 |
 | M-10.1.6-02 | 10.1.6 / 47 | back/ref-list · ref-list | required | 映射/保留至 IRDoc.bibliography[]；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-53；参考文献列表；@content-type 取 bibl（4.2、4.5.3），p47 示例 bibr（笔误）；@id 示例 sec_bibl。 |
 | M-4.4.2.3.2-01 | 4.4.2.3.2 / 10 | sec[@sec-type='norm-refs']/ref-list · ref-list | required | 映射/保留至 IRNormRefList（所在章 secType='norm-refs'）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-54；规范性引用文件清单 @content-type 正文 norm-refs、示例 norm_refs（异写，归 S）。WP8.M G1：清单已是结构化条目（G-T-18 关闭）；导出恒写 norm-refs，导入另收 norm_refs（WP8.3）。 |
-| M-4.5.3.1-01 | 4.5.3.1 / 12 | ref-list/ref · ref | required | 映射/保留至 IRBibEntry (kind='bibEntry')；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-53；参考文献中每条用 ref；@id=biblref_[label 的值]；p47 示例同。 |
+| M-4.5.3.1-01 | 4.5.3.1 / 12 | ref-list/ref · ref | required | 映射 IRBibEntry；bibl/bibr 中 ref 按严格 R7 要求 id，norm-refs/ref 不强制 | C-T-53；参考文献中每条用 ref；@id=biblref_[label 的值]；p47 示例同。 |
 | M-4.5.3.1-02 | 4.5.3.1 / 12 | ref/label · label | accept | label 文本不写 IR；编号由 Resolver 重派生，不一致时告警 | C-T-53；文献编号 [1]；导入忽略文本。 |
 | M-4.5.3.1-03 | 4.5.3.1 / 12 | ref/std · std | required | 映射/保留至 IRBibEntry (entryType='standard') + fields；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-54；标准化文件用 std（含 std-ref 与 title）；字段名约定见 std-ref/title 行，需与 S 统一。 |
 | M-4.5.3.1-04 | 4.5.3.1 / 12 | std/std-ref · std-ref | required | 映射/保留至 IRBibEntry.fields[name='std-ref']（字段名为本分片建议）；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-54；标准编号；与 title 之间示例有逗号文本节点（p10、p13）或无（p12），导出不写。 |
@@ -384,7 +384,7 @@
 | M-10.1.8-03 | 10.1.8 / 48 | xref/label/sup (脚注上标) · sup | accept | 脚注显示 sup 忽略；fn 内容及目标保留 | C-T-55；上标样式在渲染过程中体现，不写入 XML；导入忽略。 |
 | M-10.1.8-04 | 10.1.8 / 48 | xref[@ref-type='fn'] (同一 fn 多次引用) · xref | reject/implementation | 目标 accept：多个单目标 xref 指同一 footnoteDefinition，保存每次引用与唯一定义位置/正文 | C-T-55；IR 脚注为原位且一一对应，同一 fn 被多个 xref 引用无法表达（G-T-19）；导入报 error。 |
 | M-10.1.8-05 | 10.1.8 / 48 | fn-group · fn-group | reject/format | 拒绝 format；按输入上下文阻断，原因见原矩阵说明 | C-T-55；原文全文无 fn-group（OCR 检索 0 命中）；WP8.M D-M-01 已定案不采用（正文 fn 为行内，紧随其 xref），schema 与 validate.py 拒绝。 |
-| M-10.1.9-01 | 10.1.9 / 48 | p/ext-link · ext-link | required | 映射/保留至 IRMark{type:'externalLink', href, title?, target?, rel?}；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-56；URL 用 ext-link，@ext-link-type="uri"，@xlink:href 为链接；示例缺 ext-link-type（笔误）；title/target/rel 无对应属性，导出非空时 warning（G-T-20）。 |
+| M-10.1.9-01 | 10.1.9 / 48 | p/ext-link · ext-link | required | 映射 externalLink；按严格 R3 必须 ext-link-type=uri，缺失或其他值 error，并校验 URI | C-T-56；URL 用 ext-link，@ext-link-type="uri"，@xlink:href 为链接；示例缺 ext-link-type（笔误）；title/target/rel 无对应属性，导出非空时 warning（G-T-20）。 |
 | M-10.1.9-02 | 10.1.9 / 48 | ext-link/@xlink:href · ext-link | required | 映射/保留至 IRExternalLink.href；按 §3 校验，无法保真时 error；条件及例外见本行依据 | C-T-56；导入只接受 http/https/mailto/ftp 等白名单协议，其他（如 javascript:）报 error。 |
 | M-10.1.9-03 | 10.1.9 / 48 | p/@style-type · p | accept | p/style-type 忽略并告警 | C-T-56；10.1.9 示例 p style-type="align-center"；附录 D 第 16 行取值 align-left/align-right/align-center 等；IRParagraph 无对齐字段，归 S 的 5.8，此处登记。 |
 | M-6.2.3-12 | 6.2.3 / 21 | td/italic · italic | required | 映射/保留至 IRMark{type:'italic'}；按 §3 校验，无法保真时 error；条件及例外见本行依据 | —；p21 示例 td 内 <italic>C</italic><sub><italic>3</italic></sub>=1.0；行内样式细则归 S（第 5 章）。 |
