@@ -117,3 +117,10 @@ it('[M-4.5.3-02] 带样式的默认文本仍须保留标题格式', () => {
   const doc = mapStructure(tree, ctx)!
   expect(doc.bibliographyTitle).toEqual([{ text: '参考文献', marks: [{ type: 'italic' }] }])
 })
+
+it('[M-4.2-04] [M-4.2-05] [M-4.2-06] [M-4.4.2.2-01] sec-type 决定章角色而非 XML id', () => {
+  const { tree, ctx } = setup('<standard><front><std-meta/></front><body><sec id="sec_3" sec-type="scope"><title>范围</title></sec><sec id="sec_1" sec-type="norm_refs"><title>引用</title></sec><sec id="sec_9" sec-type="terms"><title>术语</title></sec><sec id="sec_2" sec-type="other"><title>一般</title></sec></body></standard>')
+  const doc = mapStructure(tree, ctx)!
+  expect(doc.body.map(c => c.secType)).toEqual(['scope', 'norm-refs', 'terms', 'general'])
+  expect(ctx.problems.filter(p => p.severity === 'warning' && p.xml?.path.includes('/body[1]/sec')).length).toBe(2)
+})
