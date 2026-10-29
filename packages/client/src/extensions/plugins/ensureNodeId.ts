@@ -23,6 +23,8 @@ export const NODE_ID_TYPES = [
   'stdTable',
   'tableFootnoteEntry',
   'figure',
+  'figureSet',
+  'alignedArray',
   'formula',
   'formulaGroup',
   'stdList',

@@ -578,9 +578,27 @@ function blockToPm(block: IRBlock, path: string, errors: IRToPmDiagnostic[]): PM
     case 'list': return listToPm(block, path, errors)
     case 'table': return tableToPm(block, path, errors)
     case 'figure': return figureToPm(block, path, errors)
-    case 'figureSet': case 'array':
-      errors.push({ path, nodeId: block.id, reason: `生产模型尚未支持 ${block.kind}` })
-      return null
+    case 'figureSet': {
+      if (!block.figures.length) errors.push({ path, nodeId: block.id, reason: '图组必须包含至少一个图' })
+      return node('figureSet', withId(block.id), [
+        ...(block.legend ? [legendToPm(block.legend, `${path}.legend`, errors)] : []),
+        ...block.figures.map((figure, index) => figureToPm(figure, `${path}.figures[${index}]`, errors)),
+      ])
+    }
+    case 'array': {
+      let end = 0
+      for (const group of block.columnGroups ?? []) {
+        if (!Number.isInteger(group.start) || !Number.isInteger(group.count) || group.start < end || group.count < 1 || group.start + group.count > block.columns.length) {
+          errors.push({ path: `${path}.columnGroups`, nodeId: block.id, reason: '列组必须是非重叠且在列范围内的连续区间' })
+        }
+        end = group.start + group.count
+      }
+      const table = tableToPm({ kind: 'table', id: block.id, caption: [], orientation: 'portrait', headerRowCount: 0,
+        rows: block.rows, notes: [], columns: block.columns }, path, errors)
+      const grid = table.content?.find(child => child.type === 'table')
+      return node('alignedArray', withId(block.id, { columns: table.attrs?.columns ?? null,
+        columnGroups: block.columnGroups ?? null }), grid ? [grid] : [])
+    }
     case 'formula': return formulaToPm(block, path, errors)
     case 'formulaGroup': {
       if (!block.formulas.length) errors.push({ path, nodeId: block.id, reason: '公式组必须包含至少一个公式' })

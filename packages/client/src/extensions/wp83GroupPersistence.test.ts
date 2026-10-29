@@ -44,4 +44,47 @@ describe('WP8.3 组节点保存', () => {
       ] }], appendices: [], bibliography: [] }
     expect(() => irToPm(doc)).toThrow(IRToPmError)
   })
+
+  it('图组保留组图例和各分图的顺序', () => {
+    const group = { kind: 'figureSet' as const, id: 'set', legend: { id: 'legend', items: [
+      { id: 'item', term: [{ text: 'a' }], definition: [{ text: '说明' }] },
+    ] }, figures: [
+      { kind: 'figure' as const, id: 'f1', caption: [{ text: '一' }], orientation: 'portrait' as const, src: 'a.png', notes: [] },
+      { kind: 'figure' as const, id: 'f2', caption: [{ text: '二' }], orientation: 'portrait' as const, src: 'b.png', notes: [] },
+    ] }
+    const doc: IRDoc = { schemaVersion: 1, meta: { standardType: 'gb' }, front: { foreword: [], introduction: [] },
+      body: [{ kind: 'chapter', id: 'c', secType: 'general', title: [], children: [group] }], appendices: [], bibliography: [] }
+    const schema = createEditorSchema()
+    const first = schema.nodeFromJSON(irToPm(doc))
+    first.check()
+    const reopened = schema.nodeFromJSON(JSON.parse(JSON.stringify(first.toJSON())))
+    reopened.check()
+    const result = pmToIr(reopened.toJSON() as PMJsonNode)
+    expect(result.doc.body[0]!.children[0]).toMatchObject(group)
+    expect(result.doc.unsupportedContent ?? []).toEqual([])
+    expect(resolve(result.doc).labels.f1?.xmlId).toBe('fig_1')
+    expect(resolve(result.doc).labels.f2?.xmlId).toBe('fig_2')
+    expect(schema.nodeFromJSON(irToPm(result.doc)).toJSON()).toEqual(first.toJSON())
+  })
+
+  it('无编号数组保留列组、列属性和网格，后续表编号不受影响', () => {
+    const cell = (id: string, value: string) => ({ id, colspan: 1, rowspan: 1, header: false,
+      content: [{ kind: 'paragraph' as const, id: `${id}-p`, content: [{ text: value }] }] })
+    const array = { kind: 'array' as const, id: 'array', columns: [{ textAlign: 'center' }, {}], columnGroups: [{ start: 0, count: 2 }],
+      rows: [{ id: 'row1', cells: [cell('a', '1'), cell('b', '2')] }, { id: 'row2', cells: [cell('c', '3'), cell('d', '4')] }] }
+    const table = { kind: 'table' as const, id: 'table', caption: [], orientation: 'portrait' as const, headerRowCount: 0, notes: [],
+      rows: [{ id: 'tr', cells: [cell('tc', '表')] }] }
+    const doc: IRDoc = { schemaVersion: 1, meta: { standardType: 'gb' }, front: { foreword: [], introduction: [] },
+      body: [{ kind: 'chapter', id: 'chapter', secType: 'general', title: [], children: [array, table] }], appendices: [], bibliography: [] }
+    const schema = createEditorSchema()
+    const first = schema.nodeFromJSON(irToPm(doc))
+    first.check()
+    const reopened = schema.nodeFromJSON(JSON.parse(JSON.stringify(first.toJSON())))
+    reopened.check()
+    const result = pmToIr(reopened.toJSON() as PMJsonNode)
+    expect(result.doc.body[0]!.children[0]).toMatchObject(array)
+    expect(result.doc.unsupportedContent ?? []).toEqual([])
+    expect(resolve(result.doc).labels.table?.xmlId).toBe('tab_1')
+    expect(schema.nodeFromJSON(irToPm(result.doc)).toJSON()).toEqual(first.toJSON())
+  })
 })

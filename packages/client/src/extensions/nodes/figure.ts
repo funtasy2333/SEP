@@ -6,6 +6,12 @@ function stringAttribute(name: string, defaultValue: string | null = null) {
   return { default: defaultValue, parseHTML: (element: HTMLElement) => element.getAttribute(name) ?? defaultValue }
 }
 
+export const FigureSet = Node.create({
+  name: 'figureSet', group: 'block', content: 'figureLegend? figure+', defining: true,
+  parseHTML() { return [{ tag: 'div[data-type="figure-set"]' }] },
+  renderHTML({ HTMLAttributes }): DOMOutputSpec { return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'figure-set' }), 0] },
+})
+
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     figure: {

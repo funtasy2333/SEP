@@ -1140,8 +1140,32 @@ function convertBlock(node: PMJsonNode, ctx: Ctx, where: string): IRBlock | null
       return convertStarterList(node, ctx)
     case 'stdTable':
       return convertStdTable(node, ctx)
+    case 'alignedArray': {
+      const grid = (node.content ?? []).find(child => child.type === 'table')
+      for (const child of node.content ?? []) if (child.type !== 'table') ctx.unknown(child.type, '数组', child)
+      const table = convertStdTable({ type: 'stdTable', attrs: { nodeId: node.attrs?.nodeId, columns: node.attrs?.columns },
+        content: [{ type: 'tableCaption' }, ...(grid ? [grid] : [])] }, ctx)
+      const groups = node.attrs?.columnGroups
+      let end = 0
+      if (groups != null && (!Array.isArray(groups) || groups.some(group => {
+        if (!group || typeof group !== 'object') return true
+        const { start, count } = group as { start?: unknown; count?: unknown }
+        if (typeof start !== 'number' || typeof count !== 'number' || !Number.isInteger(start) || !Number.isInteger(count) || start < end || count < 1 || start + count > (table.columns?.length ?? 0)) return true
+        end = start + count
+        return false
+      }))) ctx.unsupportedContent.push({ nodeId: table.id, path: ctx.path(node, '数组'), nodeType: node.type, reason: '数组列组无效' })
+      return { kind: 'array', id: table.id, columns: table.columns ?? [], rows: table.rows,
+        ...(Array.isArray(groups) ? { columnGroups: groups as Array<{ start: number; count: number }> } : {}) }
+    }
     case 'figure':
       return convertFigure(node, ctx)
+    case 'figureSet': {
+      const legends = (node.content ?? []).filter(child => child.type === 'figureLegend')
+      for (const child of node.content ?? []) if (child.type !== 'figureLegend' && child.type !== 'figure') ctx.unknown(child.type, '图组', child)
+      if (legends.length > 1) ctx.unsupportedContent.push({ nodeId: ctx.id(node), path: ctx.path(node, '图组'), nodeType: node.type, reason: '图组不能包含多个图例' })
+      return { kind: 'figureSet', id: ctx.id(node), ...(legends[0] ? { legend: convertLegend(legends[0], ctx) } : {}),
+        figures: (node.content ?? []).filter(child => child.type === 'figure').map(child => convertFigure(child, ctx)) }
+    }
     case 'formula':
       return convertFormula(node, ctx)
     case 'formulaGroup':

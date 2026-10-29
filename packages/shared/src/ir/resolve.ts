@@ -414,6 +414,31 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
       ctx.tableFootnotes = previousTable
       break
     }
+    case 'array': {
+      ctx.registerId(block.id)
+      for (const row of block.rows) {
+        ctx.registerId(row.id)
+        for (const cell of row.cells) {
+          ctx.registerId(cell.id)
+          for (const child of cell.content) visitBlock(child, scopeKey, ctx, forbiddenContainer)
+        }
+      }
+      break
+    }
+    case 'figureSet': {
+      ctx.registerId(block.id)
+      if (block.legend) {
+        ctx.registerId(block.legend.id)
+        if (block.legend.title) visitInlines(block.legend.title, block.legend.id, ctx, '图')
+        for (const item of block.legend.items) {
+          ctx.registerId(item.id)
+          visitInlines(item.term, item.id, ctx, '图')
+          visitInlines(item.definition, item.id, ctx, '图')
+        }
+      }
+      for (const figure of block.figures) visitBlock(figure, scopeKey, ctx, forbiddenContainer)
+      break
+    }
     case 'figure': {
       // §4.7「遍历顺序」：DOCX 按 9.11.1 把图中的注排在图题之上（§5.8），Resolver 据此先遍历
       // 注、再给图编号、最后遍历图题，与 Word 按文档顺序的计数保持一致。
