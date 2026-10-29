@@ -118,3 +118,12 @@ it('[M-4.4.2.3-04] 规范引用内 URI 无来源字段时明确拒绝', () => {
   mapReferenceBlock(root, ctx)
   expect(ctx.problems).toContainEqual(expect.objectContaining({ code: 'xml-unsupported', severity: 'error' }))
 })
+
+it('[M-4.5.4-05] 参见索引项通过其真实元素解析身份', () => {
+  const { root, ctx } = setup('<index><index-div><index-entry id="first"><term>甲</term><see-also-entry><xref ref-type="other" rid="second">乙</xref></see-also-entry></index-entry><index-entry id="second"><term>乙</term></index-entry></index-div></index>')
+  const result = mapIndex(root, ctx)!
+  expect(result.groups[0]?.entries[0]?.seeAlso).toEqual([ctx.elementId(resultTarget(root))])
+})
+function resultTarget(root: XmlElement): XmlElement {
+  return findAll(root, 'index-entry').find(e => e.attrs.some(a => a.name.local === 'id' && a.value === 'second'))!
+}

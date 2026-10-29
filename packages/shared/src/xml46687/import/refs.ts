@@ -184,7 +184,13 @@ export function mapIndex(e: XmlElement, ctx: ImportContext): IRIndex | undefined
           continue
         }
         if (refs.length !== els(c).length || c.children.some(n => n.type === 'text' && n.value.trim())) { issue(c, ctx, '索引目标混合引用与其他内容'); continue }
-        for (const ref of refs) { const rid = ctx.attr(ref, null, 'rid') ?? ''; const target = ctx.xmlTargetID(rid); if (target) (c.name.local === 'see-entry' ? targets : seeAlso).push(target); else issue(ref, ctx, '索引引用目标不存在') }
+        for (const ref of refs) {
+          const rid = ctx.attr(ref, null, 'rid') ?? ''
+          const element = ctx.index.elementsByXmlId.get(rid)
+          const target = ctx.xmlTargetID(rid) ?? (element?.name.ns === null && element.name.local === 'index-entry' ? ctx.elementId(element) : undefined)
+          if (target) (c.name.local === 'see-entry' ? targets : seeAlso).push(target)
+          else issue(ref, ctx, '索引引用目标不存在')
+        }
       }
       if (!term) issue(entry, ctx, '索引项缺少术语')
       return { id: id(entry, ctx), term: term ? readInlineChildren(term, ctx) : [], targets, seeAlso, ...(sourceReferences.length ? { sourceReferences } : {}) }
