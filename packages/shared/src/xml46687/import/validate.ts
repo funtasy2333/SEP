@@ -3,6 +3,8 @@ import type { XmlDocument, XmlElement } from '../tree'
 import { buildImportIndex, location } from './context'
 import { validateSemantics } from './semantic'
 import { validateSkeleton } from './content-model'
+import { validateRngModel } from './rng-model'
+import { validateTableGrids } from './table-grid'
 import type { ImportProblem, ValidationResult } from './contracts'
 
 const TBX = 'urn:iso:std:iso:30042:ed-1'
@@ -62,6 +64,6 @@ export function validateXml46687(tree: XmlDocument): ValidationResult {
   }
   visit(tree.root, undefined, [])
   problems.push(...buildImportIndex(tree, { nodeIdsByPath: ids, resources: new Map() }).problems)
-  problems.push(...validateSkeleton(tree), ...validateSemantics(tree))
+  problems.push(...validateSkeleton(tree), ...validateRngModel(tree), ...validateTableGrids(tree), ...validateSemantics(tree))
   return { problems }
 }

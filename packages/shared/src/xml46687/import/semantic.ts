@@ -7,7 +7,8 @@ const XML = 'http://www.w3.org/XML/1998/namespace'
 const kids = (el: XmlElement) => el.children.filter(isXmlElement)
 const attr = (el: XmlElement, n: string) => getXmlAttr(el, null, n)
 const plain = (el: XmlElement | undefined, n: string) => el?.name.ns === null && el.name.local === n
-const text = (el: XmlElement): string => el.children.map(c => c.type === 'text' ? c.value : c.type === 'element' ? text(c) : '').join('').trim()
+const rawText = (el: XmlElement): string => el.children.map(c => c.type === 'text' ? c.value : c.type === 'element' ? rawText(c) : '').join('')
+const text = (el: XmlElement): string => rawText(el).trim()
 const processing: Record<string, string> = { 'base-tagset': 'interchange', 'mathml-version': '3.0', 'table-model': 'xhtml', 'terminology-model': 'tbx', 'math-representation': 'mathml', 'tagset-family': 'sts' }
 function unsafeUrl(value: string): boolean {
   if (/[\x00-\x1f\x7f]/.test(value)) return true
@@ -56,7 +57,7 @@ export function validateSemantics(tree: XmlDocument): ImportProblem[] {
       if (el.name.ns === MATHML_NS && key.startsWith('on')) report(el, 'xml-unsupported', 'V-10', 'MathML 不允许事件属性')
       if (['href', 'src', 'altimg'].includes(key) && unsafeUrl(a.value)) report(el, 'xml-unsupported', el.name.ns === MATHML_NS ? 'V-10' : 'V-11', '链接包含控制字符或不允许的协议')
     }
-    if (plain(el, 'uri') && unsafeUrl(text(el))) report(el, 'xml-unsupported', 'V-11', '链接包含控制字符或不允许的协议')
+    if (plain(el, 'uri') && unsafeUrl(rawText(el))) report(el, 'xml-unsupported', 'V-11', '链接包含控制字符或不允许的协议')
     if (isPlain && ['table', 'table-wrap'].includes(n) && (within('td') || within('th'))) report(el, 'xml-unsupported', 'M-6.1-06', '不支持嵌套表格')
     if (plain(el, 'std') && ancestors.some(a => a.name.ns === TBX && a.name.local === 'source')) report(el, 'xml-unsupported', 'M-9.2.8-02', '术语来源不能包含 std')
     if (plain(el, 'fn') && (within('fig') || within('fig-group'))) report(el, 'xml-unsupported', 'M-8.6-02', '不支持图脚注')
