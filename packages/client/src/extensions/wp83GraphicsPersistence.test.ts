@@ -137,4 +137,19 @@ describe('WP8.3 图像关系保存', () => {
     expect(chapter.child(3).child(0).attrs).toMatchObject({ targetId: 'fn', refText: '1' })
     expect(chapter.child(3).child(1).attrs).toMatchObject({ nodeId: 'fn', content: [{ type: 'text', text: '脚注' }] })
   })
+
+  it('旧单图和表的生产 JSON 不添加空扩展属性', () => {
+    const schema = createEditorSchema()
+    const node = schema.nodeFromJSON({ type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [
+      { type: 'chapterTitle' }, { type: 'figure', attrs: { nodeId: 'f' }, content: [
+        { type: 'figureImage', attrs: { src: 'main.png' } }, { type: 'figureCaption' },
+      ] }, { type: 'stdTable', attrs: { nodeId: 't' }, content: [
+        { type: 'tableCaption' }, { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }] },
+      ] },
+    ] }] })
+    const json = JSON.parse(JSON.stringify(node.toJSON()))
+    expect(json.content[0].content[1].attrs).not.toHaveProperty('primaryGraphic')
+    expect(json.content[0].content[1].attrs).not.toHaveProperty('additionalGraphics')
+    expect(json.content[0].content[2].attrs).not.toHaveProperty('alternativeGraphic')
+  })
 })
