@@ -309,6 +309,12 @@ export function computeOrderedListMarkers(doc: IRDoc, strategy: NumberingStrateg
         for (const row of block.rows) for (const cell of row.cells) visitBlocks(cell.content, depth)
         for (const note of block.notes) visitBlocks(note.content, depth)
         break
+      case 'array':
+        for (const row of block.rows) for (const cell of row.cells) visitBlocks(cell.content, depth)
+        break
+      case 'figureSet':
+        for (const figure of block.figures) visitBlock(figure, depth)
+        break
       case 'figure':
         for (const note of block.notes) visitBlocks(note.content, depth)
         for (const example of block.examples ?? []) visitBlocks(example.content, depth)
