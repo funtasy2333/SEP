@@ -105,3 +105,9 @@ it('[M-4.1-07] [M-4.2-01] [M-4.2-02] [M-4.2-03] 最小整文保留元数据、�
   expect(doc.body).toMatchObject([{ secType: 'scope', title: [{ text: '范围' }], children: [{ kind: 'paragraph', content: [{ text: '范围正文' }] }] }])
   expect(ctx.problems).toEqual([])
 })
+
+it('[M-4.3.3-01] 前言自定义标题无法表达时明确报告', () => {
+  const { tree, ctx } = setup('<standard><front><std-meta/><sec sec-type="foreword"><title>自定义前言</title><p>正文</p></sec></front><body/></standard>')
+  mapStructure(tree, ctx)
+  expect(ctx.problems.some(p => p.severity === 'error' && p.xml?.path.includes('title'))).toBe(true)
+})

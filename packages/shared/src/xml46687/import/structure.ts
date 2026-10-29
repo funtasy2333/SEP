@@ -102,7 +102,12 @@ export function mapStructure(tree: XmlDocument, ctx: ImportContext): IRDoc | und
     const blocks = type === 'foreword' ? doc.front.foreword : doc.front.introduction
     let seenClause = false
     for (const child of elements(sec)) {
-      if (is(child, 'title') || is(child, 'label')) continue
+      if (is(child, 'title')) {
+        const fixed = type === 'foreword' ? '前言' : '引言'
+        if (xmlTextContent(child) !== fixed || elements(child).length > 0) report(ctx, child, '前言或引言标题无法保真')
+        continue
+      }
+      if (is(child, 'label')) continue
       if (type === 'intro' && is(child, 'sec')) {
         seenClause = true
         const c = clause(child, ctx, 1)
