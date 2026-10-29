@@ -15,6 +15,21 @@ export type ImportProblemCode = Xml46687ParseProblem['code']
   | 'xml-reference-dangling' | 'xml-reference-kind' | 'xml-resource-missing'
   | 'xml-schema-invalid' | 'xml-roundtrip-loss' | 'xml-normalized'
 
+/** 稳定目录；领域诊断通过 rule 和 matrixId 细化，不扩充任意字符串码。 */
+export const IMPORT_PROBLEM_CODES = [
+  'xml-syntax', 'xml-namespace', 'xml-forbidden-doctype', 'xml-forbidden-entity',
+  'xml-forbidden-pi', 'xml-encoding', 'xml-limit',
+  'xml-annex-type-required', 'xml-xref-custom-type-required', 'xml-ext-link-type-invalid',
+  'xml-math-display-invalid', 'xml-math-id-required', 'xml-app-id-required',
+  'xml-bibl-ref-id-required', 'xml-term-id-required', 'xml-paragraph-id-forbidden',
+  'xml-section-label-required', 'xml-meta-order-invalid', 'xml-table-label-required',
+  'xml-term-definition-count', 'legacy-format', 'xml-content-model', 'xml-unsupported',
+  'xml-date-invalid', 'xml-id-invalid', 'xml-id-duplicate', 'xml-id-missing',
+  'xml-node-id-missing', 'xml-node-id-duplicate', 'xml-reference-dangling',
+  'xml-reference-kind', 'xml-resource-missing', 'xml-schema-invalid',
+  'xml-roundtrip-loss', 'xml-normalized',
+] as const satisfies readonly ImportProblemCode[]
+
 export interface XmlLocation { line: number; column: number; path: string }
 export interface ImportProblem {
   code: ImportProblemCode
