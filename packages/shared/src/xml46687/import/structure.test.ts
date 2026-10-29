@@ -95,3 +95,13 @@ it('[M-5.10-01] 代码块保留换行和空格', () => {
   expect(mapCoreBlock(tree.root, ctx)?.[0]).toMatchObject({ kind: 'code', text: '  x\n    y\n' })
   expect(ctx.problems).toEqual([])
 })
+
+it('[M-4.1-07] [M-4.2-01] [M-4.2-02] [M-4.2-03] 最小整文保留元数据、前置正文和章', () => {
+  const { tree, ctx } = setup('<standard><front><std-meta><title-wrap xml:lang="zh"><full>标准</full></title-wrap><std-ref type="dated">GB/T 1</std-ref></std-meta><sec sec-type="foreword"><title>前言</title><p>前言正文</p></sec><sec sec-type="intro"><title>引言</title><p>引言正文</p></sec></front><body><sec sec-type="scope"><title>范围</title><p>范围正文</p></sec></body></standard>')
+  const doc = mapStructure(tree, ctx)!
+  expect(doc.meta.title).toBe('标准')
+  expect(doc.front.foreword).toMatchObject([{ kind: 'paragraph', content: [{ text: '前言正文' }] }])
+  expect(doc.front.introduction).toMatchObject([{ kind: 'paragraph', content: [{ text: '引言正文' }] }])
+  expect(doc.body).toMatchObject([{ secType: 'scope', title: [{ text: '范围' }], children: [{ kind: 'paragraph', content: [{ text: '范围正文' }] }] }])
+  expect(ctx.problems).toEqual([])
+})

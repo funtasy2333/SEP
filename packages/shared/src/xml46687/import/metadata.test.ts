@@ -83,3 +83,17 @@ it('[M-4.3.2-32] 题名继承上层 xml:lang 并用于旧题名', () => {
   expect(meta.titleParts?.[0]?.lang).toBe('en')
   expect(meta.titleEn).toBe('Inherited')
 })
+
+it('[M-4.3.2-07] [M-4.3.2-13] [M-4.3.2-14] [M-4.3.2-15] [M-4.3.2-16] [M-4.3.2-17] [M-4.3.2-18] 保存语言、替代关系、版权与自定义字段', () => {
+  const tree = parseXml46687('<std-meta><content-language>zh</content-language><content-language>en</content-language><std-ref type="dated">GB/T 1</std-ref><ics>01.020</ics><ccs>A 00</ccs><comm-ref>SAC/TC 1</comm-ref><std-supersedes>GB/T 0</std-supersedes><std-xref type="revises"><std-ref>GB/T 2</std-ref></std-xref><permissions><copyright-statement>版权声明</copyright-statement><copyright-year>2026</copyright-year><copyright-holder>持有人</copyright-holder></permissions><custom-meta-group><custom-meta><meta-name>proposer</meta-name><meta-value>机构</meta-value></custom-meta></custom-meta-group></std-meta>').tree!
+  const ids = new Map<string, string>()
+  const visit = (el: XmlElement) => { ids.set(el.position!.path, `n${ids.size}`); el.children.forEach(c => { if (c.type === 'element') visit(c) }) }
+  visit(tree.root)
+  const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, { inline: mapCoreInline })
+  const meta = mapMetadata(tree.root, ctx)!
+  expect(meta.languages?.map(x => x.tag)).toEqual(['zh', 'en'])
+  expect(meta.replacedStandards?.map(x => [x.reference, x.relation])).toEqual([['GB/T 0', 'replaces'], ['GB/T 2', 'revises']])
+  expect(meta.copyrights?.[0]).toMatchObject({ statement: [{ text: '版权声明' }], year: '2026', holder: [{ text: '持有人' }] })
+  expect(meta).toMatchObject({ replaces: 'GB/T 0', icsCode: '01.020', ccsCode: 'A 00', technicalCommittee: 'SAC/TC 1', proposer: '机构' })
+  expect(ctx.problems).toEqual([])
+})
