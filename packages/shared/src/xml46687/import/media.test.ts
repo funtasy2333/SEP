@@ -152,4 +152,41 @@ describe('媒体映射', () => {
     expect(ctx.problems.some(p=>p.code === 'xml-resource-missing')).toBe(true)
   })
 
+  test('[M-6.3.1-01] 表与行的样式、对齐和尺寸保留', () => {
+    const {tree,ctx} = setup('<table-wrap><label>表1</label><table width="100%" align="center" style="background-color: #fff; border-width: 2px"><tbody><tr align="right" style="background-color: #eee; height: 12px"><td>值</td></tr></tbody></table></table-wrap>')
+    const result = mapMediaBlock(tree.root,ctx)![0]!
+    if (result.kind !== 'table') throw new Error('table')
+    expect(result.style).toEqual({textAlign:'center',backgroundColor:'#fff',borderWidth:{value:2,unit:'px'}})
+    expect(result.rows[0]!.style).toEqual({textAlign:'right',backgroundColor:'#eee',height:{value:12,unit:'px'}})
+    expect(ctx.problems.filter(p=>p.severity === 'error')).toEqual([])
+  })
+  test('[M-6.3.3.1-01] 未知单元格样式必须报错', () => {
+    const {tree,ctx} = setup('<table-wrap><label>表1</label><table><tbody><tr><td style="unknown: 1">值</td></tr></tbody></table></table-wrap>')
+    mapMediaBlock(tree.root,ctx)
+    expect(ctx.problems.some(p=>p.severity === 'error')).toBe(true)
+  })
+
+  test('[M-7.1-05] 多个 MathML 和未知公式内容不被静默忽略', () => {
+    const {tree,ctx} = setup('<inline-formula xmlns:m="http://www.w3.org/1998/Math/MathML"><m:math id="m1"><m:mi>a</m:mi></m:math><m:math id="m2"><m:mi>b</m:mi></m:math></inline-formula>')
+    mapMediaInline(tree.root,ctx)
+    expect(ctx.problems.some(p=>p.severity === 'error')).toBe(true)
+  })
+  test('[M-8.2-11] 注中未知内容不能丢弃', () => {
+    const {tree,ctx} = setup('<fig xmlns:xlink="http://www.w3.org/1999/xlink"><graphic xlink:href="a"/><non-normative-note><p>已知</p><unknown>应保留</unknown></non-normative-note></fig>',new Map([['a',{src:'A',mediaType:'image/png'}]]))
+    mapMediaBlock(tree.root,ctx)
+    expect(ctx.problems.some(p=>p.severity === 'error')).toBe(true)
+  })
+
+  test('[M-7.4-02] MathML 格式空白告警，显式保留的空白不能被输出器删除', () => {
+    const prefix = '<inline-formula xmlns:m="http://www.w3.org/1998/Math/MathML">'
+    const suffix = '</inline-formula>'
+    const normal = setup(`${prefix}<m:math id="m"> <m:mi>x</m:mi> </m:math>${suffix}`)
+    const value = mapMediaInline(normal.tree.root,normal.ctx)![0]!.formula!.mathml!
+    expect(value).toContain(' <mml:mi>x</mml:mi> ')
+    expect(normal.ctx.problems.some(p=>p.code === 'xml-normalized')).toBe(true)
+    const preserved = setup(`${prefix}<m:math id="m" xml:space="preserve"> <m:mi>x</m:mi> </m:math>${suffix}`)
+    mapMediaInline(preserved.tree.root,preserved.ctx)
+    expect(preserved.ctx.problems.some(p=>p.severity === 'error')).toBe(true)
+  })
+
 })

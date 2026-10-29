@@ -1,4 +1,4 @@
-import type { IRArray, IRBlock, IRCellStyle, IRGraphic, IRInline, IRMeasure, IRNote, IRTable, IRTableColumn, IRTableRow } from '../../ir/types'
+import type { IRArray, IRBlock, IRCellStyle, IRGraphic, IRInline, IRMeasure, IRNote, IRRowStyle, IRTable, IRTableColumn, IRTableRow, IRTableStyle } from '../../ir/types'
 import type { XmlElement } from '../tree'
 import type { ImportContext } from './context'
 import { readInlineChildren } from './inline'
@@ -33,6 +33,22 @@ function styles(el: XmlElement, ctx: ImportContext): IRCellStyle | undefined {
     const key = `border${side[1]![0]!.toUpperCase()}${side[1]!.slice(1)}` as 'borderTop'|'borderRight'|'borderBottom'|'borderLeft'
     result[`${key}Style`] = border[1]!
     if (border[2]) result[key] = measure(border[2], el, ctx)
+  }
+  return Object.keys(result).length ? result : undefined
+}
+function containerStyle(el: XmlElement, ctx: ImportContext, kind: 'table' | 'row'): IRTableStyle | IRRowStyle | undefined {
+  const result: Record<string, string | IRMeasure> = { ...align(el, ctx) }
+  const strings: Record<string, string> = { 'background-color':'backgroundColor', 'border-color':'borderColor', 'table-layout':'layout', 'border-collapse':'borderModel' }
+  const measures: Record<string, string> = { 'border-width':'borderWidth', 'cell-padding':'cellPadding', height:'height', 'border-top':'borderTop', 'border-right':'borderRight', 'border-bottom':'borderBottom', 'border-left':'borderLeft' }
+  for (const decl of (ctx.attr(el,null,'style') ?? '').split(';')) {
+    if (!decl.trim()) continue
+    const match = /^\s*([a-z-]+)\s*([:=])\s*(.*?)\s*$/.exec(decl)
+    if (!match) { issue(el,ctx,'未知表格样式'); continue }
+    if (match[2] === '=') issue(el,ctx,'样式等号已规范化','warning')
+    const key = match[1]!, value = match[3]!
+    if (strings[key] && !(kind === 'row' && ['table-layout','border-collapse'].includes(key))) result[strings[key]!] = value
+    else if (measures[key] && !(kind === 'table' && ['height','border-top','border-right','border-bottom','border-left'].includes(key)) && !(kind === 'row' && key === 'cell-padding')) { const m = measure(value,el,ctx); if (m) result[measures[key]!] = m }
+    else issue(el,ctx,'无法保留的表格样式')
   }
   return Object.keys(result).length ? result : undefined
 }
@@ -86,8 +102,8 @@ function grid(table: XmlElement, ctx: ImportContext): {columns: IRTableColumn[];
       }
       rowOccupancy.push(occupied.map(value => (value ?? 0) > 0))
       for (let j=0;j<occupied.length;j++) if (occupied[j]) occupied[j]!--
-      const style = align(tr,ctx)
-      rows.push({id,cells,...(Object.keys(style).length ? {style} : {})})
+      const style = containerStyle(tr,ctx,'row') as IRRowStyle | undefined
+      rows.push({id,cells,...(style ? {style} : {})})
     }
   }
   const width = Math.max(0, ...rowOccupancy.map(row => row.length))
@@ -112,5 +128,6 @@ export function mapTable(el: XmlElement, ctx: ImportContext, makeGraphic: (el: X
   }
   const alternative = ctx.child(el,null,'graphic'), alternativeGraphic = alternative && makeGraphic(alternative,ctx), width = measure(ctx.attr(table,null,'width'),table,ctx)
   for (const c of el.children) if (c.type === 'element' && (c.name.ns !== null || !['label','caption','table','table-wrap-foot','graphic'].includes(c.name.local))) issue(c,ctx,'未知表容器内容')
-  return {kind:'table',id,caption:title ? readInlineChildren(title,ctx) : [],orientation:ctx.attr(el,null,'orientation') === 'landscape' ? 'landscape' : 'portrait',headerRowCount:mapped.headerRowCount,rows:mapped.rows,columns:mapped.columns,notes,...(footnotes.length ? {footnotes} : {}),...(unit !== undefined ? {unit} : {}),...(alternativeGraphic ? {alternativeGraphic} : {}),...(width ? {width} : {})}
+  const tableStyle = containerStyle(table,ctx,'table') as IRTableStyle | undefined
+  return {kind:'table',id,...(tableStyle ? {style:tableStyle} : {}),caption:title ? readInlineChildren(title,ctx) : [],orientation:ctx.attr(el,null,'orientation') === 'landscape' ? 'landscape' : 'portrait',headerRowCount:mapped.headerRowCount,rows:mapped.rows,columns:mapped.columns,notes,...(footnotes.length ? {footnotes} : {}),...(unit !== undefined ? {unit} : {}),...(alternativeGraphic ? {alternativeGraphic} : {}),...(width ? {width} : {})}
 }

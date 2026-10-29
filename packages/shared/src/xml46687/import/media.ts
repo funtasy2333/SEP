@@ -16,6 +16,7 @@ function graphic(el: XmlElement, ctx: ImportContext): IRGraphic | undefined {
 function flattened(el: XmlElement, ctx: ImportContext): IRInline[] {
   const blocks = el.children.filter((c): c is XmlElement => c.type === 'element' && c.name.ns === null && (c.name.local === 'p' || c.name.local === 'list'))
   if (!blocks.length) return readInlineChildren(el, ctx)
+  for (const child of el.children) if (child.type === 'element' && !blocks.includes(child) && !(child.name.ns === null && child.name.local === 'label')) error(child, ctx, '说明包含无法保留的内容')
   const parts: IRInline[][] = []
   const collect = (node: XmlElement) => {
     if (node.name.local === 'p') parts.push(readInlineChildren(node, ctx))
@@ -95,8 +96,10 @@ export function mapMediaBlock(element: XmlElement, ctx: ImportContext): IRBlock[
 export function mapMediaInline(element: XmlElement, ctx: ImportContext): IRInline[] | undefined {
   if (element.name.ns !== null) return undefined
   if (element.name.local === 'inline-formula') {
-    const id = ctx.elementId(element), math = ctx.child(element, MATHML_NS, 'math')
-    if (!id || !math) { error(element, ctx, '行内公式缺少 MathML'); return [] }
+    const id = ctx.elementId(element), maths = ctx.children(element, MATHML_NS, 'math')
+    const others = element.children.filter(c => c.type === 'element' && !(c.name.ns === MATHML_NS && c.name.local === 'math'))
+    if (!id || maths.length !== 1 || others.length) { error(element, ctx, '行内公式必须恰有一个 MathML'); return [] }
+    const math = maths[0]!
     const mathml = readMathMl(math, ctx)
     return mathml ? [{ text: '', formula: { id, mathml, latex: '' } }] : []
   }
