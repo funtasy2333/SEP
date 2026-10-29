@@ -12,6 +12,7 @@ import { ABSTRACT_NUM_ID } from '../numbering'
 import { renderBlocks, type BlockCtx } from './block'
 import { emitParagraph, warn, type RenderContext } from './context'
 import { plainRun, renderInlines } from './inline'
+import { sourceWithLabel } from '../../sourceLabel'
 
 const SP = '　'
 
@@ -62,7 +63,7 @@ export function renderTermEntry(ctx: RenderContext, entry: IRTermEntry, bctx: Bl
   out += renderBlocks(ctx, entry.notes, innerBctx)
 
   if (entry.source && entry.source.length > 0) {
-    out += emitParagraph(ctx, 'SesTermSource', { runsXml: renderInlines(entry.source, ctx.labels) })
+    out += emitParagraph(ctx, 'SesTermSource', { runsXml: renderInlines(sourceWithLabel(entry.source), ctx.labels) })
   }
   return out
 }
