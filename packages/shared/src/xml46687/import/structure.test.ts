@@ -71,3 +71,27 @@ it('[M-4.4.2.1-01] 章中子条之后的正文以位置错误阻断', () => {
   expect(doc.body[0]?.children.map(c => c.kind)).toEqual(['clause', 'paragraph'])
   expect(ctx.problems.some(p => p.severity === 'error' && p.xml?.path.endsWith('/p[1]'))).toBe(true)
 })
+
+it('[M-5.7-01] [M-5.7-02] [M-5.7-03] [M-5.7-04] [M-5.7-05] [M-5.7-06] 五种列项类型和身份均保留', () => {
+  const cases = [['alpha-lower', 'alpha'], ['arabic', 'number'], ['roman-lower', 'roman'], ['dash', 'dash'], ['bullet', 'dot']] as const
+  for (const [xmlType, expected] of cases) {
+    const { tree, ctx } = setup(`<list list-type="${xmlType}"><list-item><p>文本</p></list-item></list>`)
+    const list = mapCoreBlock(tree.root, ctx)?.[0]
+    expect(list).toMatchObject({ kind: 'list', listType: expected, items: [{ id: 'n1', content: [{ id: 'n1.p0', content: [{ text: '文本' }] }] }] })
+    expect(ctx.problems).toEqual([])
+  }
+})
+
+it('[M-5.6-02] [M-5.6-03] 示例与警告保留各自种类和正文', () => {
+  for (const [xml, kind] of [['<non-normative-example><p>例</p></non-normative-example>', 'example'], ['<non-normative-note content-type="warning"><p>注意</p></non-normative-note>', 'warning']] as const) {
+    const { tree, ctx } = setup(xml)
+    expect(mapCoreBlock(tree.root, ctx)?.[0]).toMatchObject({ kind, content: [{ kind: 'paragraph' }] })
+    expect(ctx.problems).toEqual([])
+  }
+})
+
+it('[M-5.10-01] 代码块保留换行和空格', () => {
+  const { tree, ctx } = setup('<code xml:space="preserve">  x\n    y\n</code>')
+  expect(mapCoreBlock(tree.root, ctx)?.[0]).toMatchObject({ kind: 'code', text: '  x\n    y\n' })
+  expect(ctx.problems).toEqual([])
+})

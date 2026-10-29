@@ -24,6 +24,15 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
   const text = (el: XmlElement) => xmlTextContent(el).trim()
   const child = (el: XmlElement, name: string) => ctx.child(el, null, name)
   const inline = (el?: XmlElement) => el ? readInlineChildren(el, ctx) : []
+  const language = (el: XmlElement): string | undefined => {
+    let current: XmlElement | undefined = el
+    while (current) {
+      const lang = ctx.attr(current, XML, 'lang')
+      if (lang !== undefined) return lang
+      current = ctx.index.parent.get(current)
+    }
+    return undefined
+  }
   let standardTypeText: string | undefined
   const mapOrg = (org: XmlElement) => {
     const names = ctx.children(org, null, 'std-org-name')
@@ -46,7 +55,7 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
     if (el.name.ns !== null) { warn(el, '未知元数据元素', 'error'); continue }
     switch (el.name.local) {
       case 'title-wrap': {
-        const lang = ctx.attr(el, XML, 'lang')
+        const lang = language(el)
         for (const part of elements(el)) {
           if (!['intro', 'main', 'compl', 'full'].includes(part.name.local) || part.name.ns !== null) { warn(part, '未知题名分段', 'error'); continue }
           ;(meta.titleParts ??= []).push({ id: id(part), lang, role: part.name.local, content: inline(part) })
@@ -97,7 +106,7 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
       }
       case 'permissions': {
         const statement = child(el, 'copyright-statement'), holder = child(el, 'copyright-holder'), year = child(el, 'copyright-year')
-        ;(meta.copyrights ??= []).push({ id: id(el), statement: inline(statement), holder: holder && inline(holder), year: year && text(year), language: ctx.attr(el, XML, 'lang') })
+        ;(meta.copyrights ??= []).push({ id: id(el), statement: inline(statement), holder: holder && inline(holder), year: year && text(year), language: language(el) })
         break
       }
       case 'custom-meta-group': {

@@ -72,3 +72,14 @@ it('[M-4.3.2-06] 一个机构包含多个名称时提示结构已规范化', () 
   mapMetadata(tree.root, ctx)
   expect(ctx.problems.some(p => p.severity === 'warning' && p.xml?.path.includes('std-org[1]'))).toBe(true)
 })
+
+it('[M-4.3.2-32] 题名继承上层 xml:lang 并用于旧题名', () => {
+  const tree = parseXml46687('<std-meta xml:lang="en"><title-wrap><full>Inherited</full></title-wrap><std-ref type="dated">GB/T 1</std-ref></std-meta>').tree!
+  const ids = new Map<string, string>()
+  const visit = (el: XmlElement) => { ids.set(el.position!.path, `n${ids.size}`); el.children.forEach(c => { if (c.type === 'element') visit(c) }) }
+  visit(tree.root)
+  const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, { inline: mapCoreInline })
+  const meta = mapMetadata(tree.root, ctx)!
+  expect(meta.titleParts?.[0]?.lang).toBe('en')
+  expect(meta.titleEn).toBe('Inherited')
+})
