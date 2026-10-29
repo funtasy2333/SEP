@@ -57,3 +57,10 @@ it('[M-4.4.2.1-04] 没有跨域处理器时引用内容明确报错', () => {
   mapCoreBlock(tree.root, ctx)
   expect(ctx.problems.some(p => p.code === 'xml-unsupported' && p.xml?.path.includes('xref'))).toBe(true)
 })
+
+it('[M-5.9-01] [M-5.9-02] [M-5.9-03] 摘录保留正文并提示无法表达的来源和权限', () => {
+  const { tree, ctx } = setup('<disp-quote><p>正文</p><attrib specific-use="source">来源</attrib><permissions><copyright-statement>版权</copyright-statement></permissions></disp-quote>')
+  expect(mapCoreBlock(tree.root, ctx)).toMatchObject([{ kind: 'quote', content: [{ kind: 'paragraph', content: [{ text: '正文' }] }] }])
+  expect(ctx.problems.filter(p => p.severity === 'error')).toEqual([])
+  expect(ctx.problems.filter(p => p.severity === 'warning')).toHaveLength(2)
+})

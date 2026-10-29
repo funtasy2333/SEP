@@ -15,6 +15,7 @@ export function readInlineChildren(element: XmlElement, ctx: ImportContext): IRI
 export function mapCoreInline(element: XmlElement, ctx: ImportContext): IRInline[] | undefined {
   if (element.name.ns !== null) return undefined
   const name = element.name.local
+  if (name === 'monospace') ctx.report({ code: 'xml-normalized', severity: 'warning', message: '等宽文字已规范化为行内代码', xml: ctx.location(element), matrixId: 'M-5.1-05' })
   if (name === 'break') return [{ text: '\n' }]
   const types: Record<string, IRMark['type']> = {
     bold: 'bold', italic: 'italic', underline: 'underline', strike: 'strike',

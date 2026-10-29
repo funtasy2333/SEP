@@ -62,3 +62,13 @@ it('[M-4.3.2-04] 只有分段题名时保留完整分段并提供旧封面题名
   expect(meta.title).toBe('总 主体 部分')
   expect(meta.standardType).toBe('guide')
 })
+
+it('[M-4.3.2-06] 一个机构包含多个名称时提示结构已规范化', () => {
+  const tree = parseXml46687('<std-meta><std-org-group><std-org><std-org-name>甲</std-org-name><std-org-name>乙</std-org-name></std-org></std-org-group><std-ref type="dated">GB/T 1</std-ref></std-meta>').tree!
+  const ids = new Map<string, string>()
+  const visit = (el: XmlElement) => { ids.set(el.position!.path, `n${ids.size}`); el.children.forEach(c => { if (c.type === 'element') visit(c) }) }
+  visit(tree.root)
+  const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, { inline: mapCoreInline })
+  mapMetadata(tree.root, ctx)
+  expect(ctx.problems.some(p => p.severity === 'warning' && p.xml?.path.includes('std-org[1]'))).toBe(true)
+})

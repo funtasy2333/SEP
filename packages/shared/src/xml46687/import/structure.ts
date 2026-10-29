@@ -42,6 +42,7 @@ export function mapCoreBlock(element: XmlElement, ctx: ImportContext): IRBlock[]
     const children = elements(element).filter(e => !is(e, 'label'))
     const content: IRBlock[] = []
     for (const child of children) {
+      if (kind === 'quote' && (is(child, 'attrib') || is(child, 'permissions'))) { report(ctx, child, '摘录来源或权限没有对应字段，已忽略', 'warning'); continue }
       if ((kind === 'note' || kind === 'example') && children.length === 1 && is(child, 'p')) {
         content.push({ kind: 'paragraph', id: ctx.singleParagraphId(element) ?? '', content: readInlineChildren(child, ctx) })
       } else content.push(...(ctx.dispatchBlock(child) ?? []))

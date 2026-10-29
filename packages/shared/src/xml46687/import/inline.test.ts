@@ -16,3 +16,13 @@ it('[M-5.5-01] [M-5.5-02] 保留混合空白和变量嵌套样式', () => {
   ])
   expect(ctx.problems).toEqual([])
 })
+
+it('[M-5.1-01] [M-5.1-02] [M-5.1-03] [M-5.1-04] [M-5.1-05] [M-5.10-02] 样式映射并提示等宽文字规范化', () => {
+  const tree = parseXml46687('<p><bold>粗</bold><italic>斜</italic><underline>下</underline><strike>删</strike><monospace>等宽</monospace><inline-code>代码</inline-code></p>').tree!
+  const ids = new Map<string, string>()
+  const visit = (el: XmlElement) => { ids.set(el.position!.path, `n${ids.size}`); el.children.forEach(c => { if (c.type === 'element') visit(c) }) }
+  visit(tree.root)
+  const ctx = createImportContext(tree, { nodeIdsByPath: ids, resources: new Map() }, { inline: mapCoreInline })
+  expect(readInlineChildren(tree.root, ctx).map(x => x.marks?.[0]?.type)).toEqual(['bold', 'italic', 'underline', 'strike', 'code', 'code'])
+  expect(ctx.problems.some(p => p.severity === 'warning' && p.xml?.path.includes('monospace'))).toBe(true)
+})

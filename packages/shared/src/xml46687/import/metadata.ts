@@ -30,6 +30,7 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
     const abbreviation = child(org, 'std-org-abbrev')
     const identifier = abbreviation && text(abbreviation)
     const role = ctx.attr(org, null, 'std-org-role')
+    if (names.length > 1) warn(org, '多个机构名称分别保存，机构组结构已规范化')
     if (names.length === 0 && abbreviation) {
       ;(meta.publishers ??= []).push({ id: id(org), name: inline(abbreviation), role, identifier })
       warn(org, '机构仅有缩写，以缩写作为名称')
