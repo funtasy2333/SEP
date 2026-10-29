@@ -111,3 +111,9 @@ it('[M-4.3.3-01] 前言自定义标题无法表达时明确报告', () => {
   mapStructure(tree, ctx)
   expect(ctx.problems.some(p => p.severity === 'error' && p.xml?.path.includes('title'))).toBe(true)
 })
+
+it('[M-4.5.3-02] 带样式的默认文本仍须保留标题格式', () => {
+  const { tree, ctx } = setup('<standard><front><std-meta/></front><body/><back><ref-list content-type="bibl"><title><italic>参考文献</italic></title></ref-list></back></standard>')
+  const doc = mapStructure(tree, ctx)!
+  expect(doc.bibliographyTitle).toEqual([{ text: '参考文献', marks: [{ type: 'italic' }] }])
+})

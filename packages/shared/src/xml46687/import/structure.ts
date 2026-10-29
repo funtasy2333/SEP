@@ -140,7 +140,11 @@ export function mapStructure(tree: XmlDocument, ctx: ImportContext): IRDoc | und
     } else if (is(el, 'ref-list')) {
       doc.bibliography.push(...(ctx.dispatchReferences(el) ?? []))
       const t = ctx.child(el, null, 'title')
-      if (t && xmlTextContent(t) !== '参考文献') doc.bibliographyTitle = readInlineChildren(t, ctx)
+      if (t) {
+        const content = readInlineChildren(t, ctx)
+        const plainDefault = content.map(run => run.text).join('') === '参考文献' && content.every(run => Object.keys(run).every(key => key === 'text'))
+        if (!plainDefault) doc.bibliographyTitle = content
+      }
     } else if (is(el, 'index')) doc.index = ctx.dispatchIndex(el)
     else ctx.dispatchBlock(el)
   }
