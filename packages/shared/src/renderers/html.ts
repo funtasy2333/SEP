@@ -1,5 +1,6 @@
 import { assertOutputSupported } from './outputBoundary'
 import { fullWidthFormulaLabel } from './formulaLabel'
+import { sourceWithLabel } from './sourceLabel'
 /**
  * HTML 渲染器（Phase 5.5 / WP4）。
  *
@@ -556,7 +557,7 @@ function renderTermEntry(entry: IRTermEntry, ctx: RenderCtx): void {
     }
   })
   if (entry.source && entry.source.length > 0) {
-    ctx.push(`<p class="ses-term-source">${renderInlines(entry.source, ctx)}</p>`)
+    ctx.push(`<p class="ses-term-source">${renderInlines(sourceWithLabel(entry.source), ctx)}</p>`)
   }
   for (const note of entry.notes) renderNote(note, ctx)
   for (const example of entry.examples) renderExample(example, ctx)

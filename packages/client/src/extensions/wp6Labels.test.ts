@@ -8,6 +8,7 @@ import { semanticLabels } from '../utils/semanticLabels'
 import { docToText } from '../utils/docDiff'
 import { replaceEditorDocument } from '../utils/editorDocument'
 import { serializeToXml } from '../serializer/xmlSerializer'
+import { parseXmlToEditorJson } from '../serializer/xmlParser'
 
 it('编辑器DOM、版本差异与JSON共用Resolver，嵌套术语编号不受旧level计数器影响', () => {
   const editor = new Editor({ extensions: createEditorExtensions(), content: createWp6Fixture() })
@@ -51,7 +52,7 @@ it('缺少历史nodeId的编号投影不修改输入且使用Resolver的层级�
   expect(source).toEqual(before)
 })
 
-it('只含新术语来源carrier时旧XML不能把来源静默变成定义', () => {
+it('只含新术语来源carrier时旧XML保留来源标识，不把来源变成定义', () => {
   const editor = new Editor({ extensions: createEditorExtensions(), content: {
     type: 'doc', content: [{ type: 'chapter', attrs: {nodeId: 'c'}, content: [
       {type: 'chapterTitle', content: [{type: 'text', text: '术语'}]},
@@ -63,7 +64,13 @@ it('只含新术语来源carrier时旧XML不能把来源静默变成定义', () 
     ]}],
   }})
   const before = editor.getJSON()
-  expect(() => serializeToXml(editor.state.doc)).toThrow('XML 暂未支持独立的术语来源节点')
+  const xml = serializeToXml(editor.state.doc)
+  expect(xml).toContain('[来源：ISO vocabulary]')
+  const reopened = pmToIr(parseXmlToEditorJson(xml, editor.schema.topNodeType.name)).doc
+  expect(reopened.body[0]?.children[0]).toMatchObject({
+    kind: 'termEntry', source: [{ text: '[来源：ISO vocabulary]' }],
+    definition: [{ kind: 'paragraph', content: [{ text: '定义' }] }],
+  })
   expect(editor.getJSON()).toEqual(before)
   editor.destroy()
 })

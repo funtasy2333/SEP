@@ -227,6 +227,9 @@
   font-size: 14px;
 }
 
+.std-term-source::before { content: '['; }
+.std-term-source::after { content: ']'; }
+
 /* 术语条编号（CSS 计数器，与"条"共享编号序列） */
 .std-term-def.std-term-def-level-1 {
   counter-increment: std-clause-1;
