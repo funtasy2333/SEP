@@ -14,7 +14,7 @@
  * - IR 有数据而 XML 无表达的：表宽/列宽/样式 → warning（聚合）；`cellType/width` → info `cell-attr-not-expressed`；拖拽 px 列宽 → info `px-width-ignored`（D-X-03）。
  */
 
-import type { IRCellStyle, IRMeasure, IRTable, IRTableRow } from '../../ir/types'
+import type { IRArray, IRCellStyle, IRMeasure, IRTable, IRTableRow } from '../../ir/types'
 import type { XmlElement, XmlNode } from '../../xml46687/tree'
 import { orderTableFootnotes } from '../footnotes'
 import type { Xml46687BoundaryContribution } from '../xml46687Boundary'
@@ -28,7 +28,9 @@ import { el, inlineHasContent, sub, type RenderContext, type Site } from './cont
  */
 export const XML46687_TABLES_BOUNDARY: Xml46687BoundaryContribution = {
   fields: {
-    table: ['columns', 'unit', 'width', 'style'],
+    table: ['columns', 'unit', 'width', 'style', 'alternativeGraphic'],
+    array: ['kind', 'id', 'columns', 'rows', 'columnGroups'],
+    columnGroup: ['start', 'count'],
     row: ['style'],
     cell: ['style', 'cellType', 'width', 'unit', 'columnWidths'],
     column: ['width', 'textAlign', 'verticalAlign'],
@@ -44,6 +46,9 @@ export const XML46687_TABLES_BOUNDARY: Xml46687BoundaryContribution = {
   },
   shapes: [
     { parent: 'table', key: 'columns', shape: 'column' },
+    { parent: 'table', key: 'alternativeGraphic', shape: 'graphic' },
+    { parent: 'array', key: 'columns', shape: 'column' },
+    { parent: 'array', key: 'columnGroups', shape: 'columnGroup' },
     { parent: 'table', key: 'width', shape: 'measure' },
     { parent: 'table', key: 'style', shape: 'tableStyle' },
     { parent: 'row', key: 'style', shape: 'rowStyle' },
@@ -56,6 +61,8 @@ export const XML46687_TABLES_BOUNDARY: Xml46687BoundaryContribution = {
       .map((key) => ({ parent: 'cellStyle', key, shape: 'measure' })),
   ],
   declared: [
+    { pathSuffix: '.kind', kind: 'kind', name: 'array', matrixIds: ['M-5.8-01','M-C.1-04'], task: 'T2.4b', reason: '数组保留列组与行' },
+    { pathSuffix: '.alternativeGraphic', kind: 'field', name: 'alternativeGraphic', matrixIds: ['M-6.1-03'], task: 'T2.4b', reason: '表替代图关联表资源' },
     { pathSuffix: '.columns', kind: 'field', name: 'columns', matrixIds: ['M-6.1-03'], task: 'T2.4b', reason: '名义列宽写成 table 内 thead 之前的 col/@width（6.1；非百分数 warning 省略）' },
     { pathSuffix: 'cells.style', kind: 'field', name: 'style', matrixIds: ['M-6.3.3.1-01', 'M-6.3.4-01', 'M-6.3.2-01', 'M-6.3.2-02'], task: 'T2.4b', reason: '单元格边框与背景色写成 td/th 的 @style，对齐写成 @align/@valign（6.3；D-X-17 只写与表级默认不同的边）' },
     { pathSuffix: 'rows.style', kind: 'field', name: 'style', matrixIds: ['M-6.2.2-02', 'M-6.3.2-01', 'M-6.3.2-02'], task: 'T2.4b', reason: '行的对齐写成 tr/@align、tr/@valign；其余行样式放行并报 table-style-not-expressed（D-X-04）' },
@@ -247,11 +254,11 @@ function renderRow(row: IRTableRow, rowIndex: number, rowSite: Site, scope: Tabl
 // 列、表
 // ---------------------------------------------------------------------------
 
-function renderCols(block: IRTable, at: Site, scope: TableScope): XmlElement[] {
+function renderCols(block: Pick<IRTable, 'columns'>, at: Site, scope: TableScope, force = false): XmlElement[] {
   const columns = block.columns
   if (!columns || columns.length === 0) return []
   const nonEmpty = columns.some((column) => column && (column.width !== undefined || isPresent(column.textAlign) || isPresent(column.verticalAlign)))
-  if (!nonEmpty) return []
+  if (!nonEmpty && !force) return []
   return columns.map((column, index) => {
     const columnSite = sub(at, `.columns[${index}]`)
     const columnName = `第 ${index + 1} 列`
@@ -358,5 +365,47 @@ export function renderTable(block: IRTable, at: Site, ctx: RenderContext): XmlEl
     el('caption', undefined, [el('title', undefined, ctx.renderInlines(block.caption, sub(at, '.caption'), 'inline'))]),
     table,
     foot.length > 0 ? el('table-wrap-foot', undefined, foot) : null,
+    block.alternativeGraphic ? renderAlternativeGraphic(block.alternativeGraphic, sub(at, '.alternativeGraphic', block.alternativeGraphic.id), ctx) : null,
   ])]
+}
+
+function renderAlternativeGraphic(graphic: NonNullable<IRTable['alternativeGraphic']>, at: Site, ctx: RenderContext): XmlElement {
+  const ref = ctx.imageRefs.find(entry => entry.kind === 'table-alternative' && entry.path === at.path && entry.ownerId === graphic.id)
+  if (!ref) ctx.report('resource-missing', 'error', '表替代图缺少资源引用。', at)
+  if (graphic.contentType !== undefined && graphic.contentType !== 'disp_table') ctx.report('xml-write-failed','error','表替代图 content-type 必须为 disp_table。',at)
+  if (graphic.specificUse !== undefined && !['size:T','size:S','size:M','size:L'].includes(graphic.specificUse)) ctx.report('xml-write-failed','error','表替代图 specific-use 无效。',at)
+  return el('graphic', {'content-type':graphic.contentType ?? 'disp_table','specific-use':graphic.specificUse,'xlink:href':ref?.href})
+}
+
+export function renderArray(block: IRArray, at: Site, ctx: RenderContext): XmlElement[] {
+  const scope: TableScope = {ctx,name:'数组',defaultBorderPx:DEFAULT_BORDER_PX}
+  const columns = renderCols(block, at, scope, true)
+  const groups = block.columnGroups ?? []
+  const grouped: XmlElement[] = []
+  let cursor = 0
+  for (const group of groups) {
+    if (!Number.isInteger(group.start) || !Number.isInteger(group.count) || group.start < cursor || group.count < 1 || group.start + group.count > columns.length) {
+      ctx.report('xml-write-failed','error','数组列组区间无效或重叠。',sub(at,'.columnGroups'))
+      continue
+    }
+    grouped.push(...columns.slice(cursor,group.start),el('colgroup',undefined,columns.slice(group.start,group.start+group.count)))
+    cursor = group.start + group.count
+  }
+  grouped.push(...columns.slice(cursor))
+  if (!block.rows.length) ctx.report('xml-table-empty','error','数组必须包含表体行。',at)
+  const spans: number[] = []
+  for (const row of block.rows) {
+    let position = 0
+    for (const cell of row.cells) {
+      while ((spans[position] ?? 0) > 0) position++
+      if (!Number.isInteger(cell.colspan) || cell.colspan < 1 || !Number.isInteger(cell.rowspan) || cell.rowspan < 1 || position + cell.colspan > block.columns.length) { ctx.report('xml-cell-content','error','数组单元格跨度无效。',sub(at,'.rows',cell.id)); continue }
+      for (let i=position; i<position+cell.colspan; i++) { if ((spans[i] ?? 0) > 0) ctx.report('xml-cell-content','error','数组单元格跨度重叠。',sub(at,'.rows',cell.id)); spans[i] = cell.rowspan }
+      position += cell.colspan
+    }
+    if (Array.from({length:block.columns.length},(_,i)=>(spans[i] ?? 0) > 0).some(used=>!used)) ctx.report('xml-cell-content','error','数组网格列数不一致。',sub(at,'.rows',row.id))
+    for (let i=0;i<spans.length;i++) if (spans[i]) spans[i]!--
+  }
+  if (spans.some(span=>span>0)) ctx.report('xml-cell-content','error','数组行跨度超出表体。',at)
+  const rows = block.rows.map((row,i) => renderRow(row,i,sub(at,`.rows[${i}]`,row.id),scope))
+  return [el('array',undefined,[el('table',undefined,[...grouped,el('tbody',undefined,rows)])])]
 }

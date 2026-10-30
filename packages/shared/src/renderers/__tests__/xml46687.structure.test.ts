@@ -338,3 +338,12 @@ describe('整体容器', () => {
     expect(squash(bodyOf(xml))).toBe('<sec id="sec_1" sec-type="scope"><label>1</label><title>范围</title><p>甲<bold>乙</bold></p></sec>')
   })
 })
+
+it('[M-5.6-01] 子条之后的尾部警告保持原位输出', () => {
+  const warning: IRClauseChild = {kind:'warning',id:'w',content:[para('wp','安全提示')]}
+  const doc = makeDoc([chapter('c','技术要求',[clause('sub',1,'条',[para('p','内容')]),warning])])
+  const result = exportDoc(doc)
+  expect(result.problems.filter(p=>p.severity === 'error')).toEqual([])
+  const xml = squash(result.xml!)
+  expect(xml).toContain('</sec><non-normative-note content-type="warning"><label>警告：</label><p>安全提示</p></non-normative-note>')
+})

@@ -12,7 +12,7 @@
  * 编号只来自 Resolver：本文件不拼接、不推算任何编号。
  */
 
-import type { IRFormula, IRFormulaNote, IRInlineFormula } from '../../ir/types'
+import type { IRFormula, IRFormulaGroup, IRFormulaNote, IRInlineFormula } from '../../ir/types'
 import type { XmlElement } from '../../xml46687/tree'
 import type { Xml46687BoundaryContribution } from '../xml46687Boundary'
 import { el, inlineHasContent, removeAttr, setAttr, sub, type RenderContext, type Site } from './context'
@@ -27,6 +27,7 @@ import { MathMlParseError, parseMathMlDetailed } from './mathml'
 export const XML46687_FORMULAS_BOUNDARY: Xml46687BoundaryContribution = {
   fields: {
     formula: ['mathml', 'notes'],
+    formulaGroup: ['kind', 'id', 'numbered', 'formulas'],
     formulaNote: ['id', 'content'],
     inlineFormula: ['mathml', 'source'],
   },
@@ -34,6 +35,7 @@ export const XML46687_FORMULAS_BOUNDARY: Xml46687BoundaryContribution = {
     { parent: 'formula', key: 'notes', shape: 'formulaNote' },
   ],
   declared: [
+    { pathSuffix: '.kind', kind: 'kind', name: 'formulaGroup', matrixIds: ['M-C.1-05'], task: 'T2.4b', reason: '公式组占一个编号并保留子公式' },
     { pathSuffix: '.mathml', kind: 'field', name: 'mathml', matrixIds: ['M-7.4-01', 'M-7.4-02', 'M-7.4-03'], task: 'T2.4b', reason: '块公式的原始 MathML 写成 disp-formula/mml:math（不由 latex 重算，7.4）；行内公式的 mathml/source 随行内公式整体放行，不单列' },
     { pathSuffix: '.notes', kind: 'field', name: 'notes', matrixIds: ['M-7.2-01', 'M-7.2-02'], task: 'T2.4b', reason: '公式注写成 disp-formula 内的 non-normative-note，label 取 Resolver（7.2）' },
   ],
@@ -133,4 +135,17 @@ export function renderFormula(block: IRFormula, at: Site, ctx: RenderContext): X
 export function renderInlineFormula(formula: IRInlineFormula, at: Site, ctx: RenderContext): XmlElement {
   const math = mathElementOf(formula, at, ctx, 'inline')
   return el('inline-formula', undefined, [math ?? null])
+}
+
+export function renderFormulaGroup(block: IRFormulaGroup, at: Site, ctx: RenderContext): XmlElement[] {
+  const id = block.numbered ? ctx.xmlIdOf(block.id, at, '公式组') : undefined
+  const label = block.numbered ? ctx.labelOf(block.id) : undefined
+  if (block.numbered && label && !label.label) ctx.report('xml-label-missing', 'error', '公式组缺少编号文本。', at)
+  if (!block.formulas.length) ctx.report('xml-list-empty', 'error', '公式组必须包含公式。', at)
+  const formulas = block.formulas.flatMap((formula, i) => {
+    const here = sub(at, `.formulas[${i}]`, formula.id)
+    if (formula.numbered) ctx.report('xml-label-missing', 'error', '公式组成员编号无法保留。', here)
+    return renderFormula({ ...formula, numbered:false }, here, ctx)
+  })
+  return [el('disp-formula-group', {id}, [label?.label ? el('label', undefined, [label.label]) : null, ...formulas])]
 }
