@@ -33,7 +33,7 @@ describe('媒体映射', () => {
       expect(ctx.problems.some(p => p.severity === 'error')).toBe(true)
     }
   })
-  test('[M-8.1-01] 多个 graphic 按原顺序属于同一图并检查每个资源', () => {
+  test('[M-8.4-01] 多个 graphic 按原顺序属于同一图并检查每个资源', () => {
     const xml = '<fig xmlns:xlink="http://www.w3.org/1999/xlink"><caption><title>标题</title></caption><graphic xlink:href="a" content-type="image"/><graphic xlink:href="b" specific-use="size:M"/></fig>'
     const { tree, ctx } = setup(xml, new Map([['a', {src: 'a-data', mediaType: 'image/png'}], ['b', {src: 'b-data', mediaType: 'image/png', resourceId: 'rb'}]]))
     const figure = mapMediaBlock(tree.root, ctx)![0]!
@@ -146,13 +146,13 @@ describe('媒体映射', () => {
       expect(ctx.problems.some(p=>p.severity === 'error')).toBe(true)
     }
   })
-  test('[M-8.1-02] 额外图缺资源同样阻断', () => {
+  test('[M-8.2-09] 额外图缺资源同样阻断', () => {
     const {tree,ctx} = setup('<fig xmlns:xlink="http://www.w3.org/1999/xlink"><graphic xlink:href="a"/><graphic xlink:href="b"/></fig>',new Map([['a',{src:'A',mediaType:'image/png'}]]))
     mapMediaBlock(tree.root,ctx)
     expect(ctx.problems.some(p=>p.code === 'xml-resource-missing')).toBe(true)
   })
 
-  test('[M-6.3.1-01] 表与行的样式、对齐和尺寸保留', () => {
+  test('[M-6.2.2-02] 表与行的样式、对齐和尺寸保留', () => {
     const {tree,ctx} = setup('<table-wrap><label>表1</label><table width="100%" align="center" style="background-color: #fff; border-width: 2px"><tbody><tr align="right" style="background-color: #eee; height: 12px"><td>值</td></tr></tbody></table></table-wrap>')
     const result = mapMediaBlock(tree.root,ctx)![0]!
     if (result.kind !== 'table') throw new Error('table')
