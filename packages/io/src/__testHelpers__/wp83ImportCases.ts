@@ -1,0 +1,143 @@
+/** Identical unmodified WP8.2 XML and byte-exact test resources for both host runtimes. */
+import { getXmlAttr, parseXml46687, XLINK_NS, type IRDoc, type XmlElement } from '@ses/shared'
+import { packageXml46687 } from '../xml46687Package'
+
+export const GOLDEN_NAMES = ['wp82', 'fullRenderer', 'wp8m', 'wp6'] as const
+export type GoldenName = typeof GOLDEN_NAMES[number]
+export const PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL6UAAAAASUVORK5CYII='
+export const PNG_URL = `data:image/png;base64,${PNG_BASE64}`
+export const pngBytes = () => Uint8Array.from(atob(PNG_BASE64), char => char.charCodeAt(0))
+export const nextIds = () => { let sequence = 0; return () => `n${++sequence}` }
+
+export function makeCase(xml: string) {
+  const parsed = parseXml46687(xml)
+  if (!parsed.tree) throw new Error(JSON.stringify(parsed.problems))
+  const resources = new Map<string, { src: string; mediaType: string }>()
+  const xmlIds = new Map<string, string>()
+  const references: Array<{ rid: string; type: string; customType?: string }> = []
+  let sequence = 0
+  const visit = (element: XmlElement, parent?: { local: string; nodeId: string }) => {
+    const nodeId = `n${++sequence}`
+    const xmlId = getXmlAttr(element, null, 'id')
+    if (xmlId) xmlIds.set(xmlId, element.name.local === 'termEntry' && parent?.local === 'term-sec' ? parent.nodeId : nodeId)
+    if (element.name.ns === null && ['graphic', 'inline-graphic'].includes(element.name.local)) {
+      const href = getXmlAttr(element, XLINK_NS, 'href')
+      if (href) resources.set(href, { src: PNG_URL, mediaType: 'image/png' })
+    }
+    if (element.name.ns === null && element.name.local === 'xref') {
+      const rid = getXmlAttr(element, null, 'rid')
+      const type = getXmlAttr(element, null, 'ref-type')
+      if (rid && type && type !== 'fn' && type !== 'table-fn') references.push({ rid, type, customType: getXmlAttr(element, null, 'custom-type') })
+    }
+    for (const child of element.children) if (child.type === 'element') visit(child, { local: element.name.local, nodeId })
+  }
+  visit(parsed.tree.root)
+  return { xml, resources, xmlIds, references }
+}
+
+/** packageXml46687 是产品出包 API；不同运行时使用字节相同的输入。 */
+export async function packageCase(input: ReturnType<typeof makeCase>) {
+  const files: Record<string, Uint8Array> = {}
+  const entries = [...input.resources.keys()].map((href, index) => {
+    const fileName = `${href}.png`
+    files[fileName] = pngBytes()
+    return { href, key: `asset-${index + 1}`, fileName, mediaType: 'image/png', source: 'src' as const }
+  })
+  return packageXml46687(input.xml, { version: 1, entries }, files)
+}
+
+/** 原样保留所有 ID 和引用，供两端对完整 IR 做深比较。 */
+export function records(value: unknown): Record<string, unknown>[] {
+  if (Array.isArray(value)) return value.flatMap(records)
+  if (!value || typeof value !== 'object') return []
+  const object = value as Record<string, unknown>
+  return [object, ...Object.values(object).flatMap(records)]
+}
+
+/** 唯一批准的原文差异：表注多段以换行合并，并必须附有 xml-normalized warning。 */
+export function expectedGoldenXml(name: GoldenName, xml: string): string {
+  if (name !== 'wp8m') return xml
+  const original = '<p>单元格内注的第一段。</p>\n              <p>单元格内注的第二段。</p>'
+  if (!xml.includes(original)) throw new Error('WP8.M 原版表注与预期不符')
+  return xml.replace(original, '<p>单元格内注的第一段。<break/>单元格内注的第二段。</p>')
+}
+
+export function evidence(doc: IRDoc) {
+  const all = records(doc)
+  const ids = all.flatMap(entry => typeof entry.id === 'string' ? [entry.id] : [])
+  const targets = all.flatMap(entry => typeof entry.targetId === 'string' ? [entry.targetId] : [])
+  const mathml = all.flatMap(entry => typeof entry.mathml === 'string' && entry.mathml ? [entry.mathml] : [])
+  return { all, ids, targets, mathml, figures: all.filter(entry => entry.kind === 'figure'), tables: all.filter(entry => entry.kind === 'table'), terms: all.filter(entry => entry.kind === 'termEntry') }
+}
+
+/** Align only host-generated PM node IDs by identical tree position; stable input IDs and all references remain checked. */
+export function alignHostIds(candidate: unknown, reference: unknown): unknown {
+  const forward = new Map<string, string>()
+  const reverse = new Map<string, string>()
+  const walk = (a: unknown, b: unknown) => {
+    if (Array.isArray(a) && Array.isArray(b)) { a.forEach((item, i) => walk(item, b[i])); return }
+    if (!a || !b || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) || Array.isArray(b)) return
+    const left = a as Record<string, unknown>, right = b as Record<string, unknown>
+    if (left.type === right.type && left.attrs && right.attrs && typeof left.attrs === 'object' && typeof right.attrs === 'object') {
+      const from = (left.attrs as Record<string, unknown>).nodeId
+      const to = (right.attrs as Record<string, unknown>).nodeId
+      if (typeof from === 'string' && typeof to === 'string' && from !== to) {
+        if (/^n\d+(?:\.p\d+)?$/.test(from) || /^n\d+(?:\.p\d+)?$/.test(to)) throw new Error(`输入节点 ID 不一致：${from} / ${to}`)
+        if ((forward.has(from) && forward.get(from) !== to) || (reverse.has(to) && reverse.get(to) !== from)) throw new Error('节点 ID 对应不是一对一')
+        forward.set(from, to); reverse.set(to, from)
+      }
+    }
+    for (const key of Object.keys(left)) if (key in right) walk(left[key], right[key])
+  }
+  walk(candidate, reference)
+  const replace = (value: unknown): unknown => {
+    if (typeof value === 'string') return forward.get(value) ?? value
+    if (Array.isArray(value)) return value.map(replace)
+    if (!value || typeof value !== 'object') return value
+    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, replace(child)]))
+  }
+  return replace(candidate)
+}
+
+/** Compare MathML by namespace, element order, text, and attributes; only root id/display and indentation normalize. */
+export function mathShape(element: XmlElement): unknown {
+  const root = element.name.local === 'math'
+  const tokens = ['mi', 'mn', 'mo', 'mtext', 'ms', 'annotation']
+  return {
+    ns: element.name.ns,
+    local: element.name.local,
+    attrs: element.attrs.filter(attr => !(root && attr.name.ns === null && ['id', 'display'].includes(attr.name.local)))
+      .map(attr => ({ ns: attr.name.ns, local: attr.name.local, value: attr.value })).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+    children: element.children.flatMap(child => {
+      if (child.type === 'element') return [mathShape(child)]
+      if (child.type === 'text' && (tokens.includes(element.name.local) || child.value.trim())) return [child.value]
+      return []
+    }),
+  }
+}
+
+export function sourceMathShapes(xml: string): unknown[] {
+  const parsed = parseXml46687(xml)
+  if (!parsed.tree) throw new Error(JSON.stringify(parsed.problems))
+  const result: unknown[] = []
+  const walk = (element: XmlElement) => {
+    if (element.name.ns === 'http://www.w3.org/1998/Math/MathML' && element.name.local === 'math') { result.push(mathShape(element)); return }
+    for (const child of element.children) if (child.type === 'element') walk(child)
+  }
+  walk(parsed.tree.root)
+  return result
+}
+export function importedMathShapes(doc: IRDoc): unknown[] {
+  return evidence(doc).mathml.map(value => {
+    const parsed = parseXml46687(value)
+    if (!parsed.tree) throw new Error(JSON.stringify(parsed.problems))
+    return mathShape(parsed.tree.root)
+  })
+}
+
+/** Explicitly assert typed targets where the IR entity has a kind discriminant. */
+export function expectedTargetKind(type: string, customType?: string): string | undefined {
+  const kinds: Record<string, string> = { fig: 'figure', table: 'table', 'disp-formula': 'formula', bibr: 'bibEntry', app: 'appendix' }
+  if (type === 'custom') return customType === 'term-entry' ? 'termEntry' : customType === 'note' || customType === 'example' ? customType : undefined
+  return kinds[type]
+}
