@@ -355,6 +355,21 @@ describe('GET /api/documents/:id/export/ses', () => {
     }
   });
 
+  it('returns 422 with a clear message for a document whose content was never written', async () => {
+    const document = await testApp.documents.create({
+      title: '空正文',
+      meta: { titleCn: '空正文', standardType: 'national' },
+      stage: 'working_draft',
+    });
+
+    const response = await testApp.http
+      .get(EXPORT_PATH(document.id))
+      .expect(422);
+    expect((response.body as { message: string }).message).toBe(
+      '文档内容为空，无法导出 SES 文档包；请先在编辑器中打开该文档并保存正文',
+    );
+  });
+
   it('returns 404 for missing documents and documents in the trash', async () => {
     await testApp.http.get(EXPORT_PATH(999999)).expect(404);
     const document = await testApp.documents.create({

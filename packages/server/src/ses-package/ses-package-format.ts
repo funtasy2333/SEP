@@ -7,6 +7,7 @@ import type { DocumentEntity } from '../document/document.entity';
 import { parseDocumentMeta } from '../document/document-update';
 import { EditorContentError } from '../editor-schema/editor-content-error';
 import { normalizeContent } from '../editor-schema/editor-schema';
+import { SES_SERVER_VERSION } from '../common/app-version';
 import { schemaProblemDetails, unprocessable } from '../common/http-errors';
 import { parseCreatedAt } from '../export/export-http';
 import { MAX_CLIENT_LENGTH } from '../version/version.service';
@@ -238,7 +239,7 @@ export function buildSesPackage(
     format: SES_PACKAGE_FORMAT,
     formatVersion: SES_PACKAGE_FORMAT_VERSION,
     exportedAt: exportedAt.toISOString(),
-    generator: { name: 'SES', version: '0.1.0' },
+    generator: { name: 'SES', version: SES_SERVER_VERSION },
     document: {
       uid: document.uid,
       title: document.title,

@@ -9,6 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { WriteCoordinator } from '../common/write-coordinator';
 import { DocumentEntity } from '../document/document.entity';
+import { isEmptyContent } from '../document/document-content';
 import {
   revisionConflict,
   DocumentService,
@@ -190,6 +191,12 @@ export class SesPackageService {
       return { document, versions };
     });
 
+    // 与其他出件一致：新建后从未写入正文的文档没有可打包的正文（导入也要求合法正文）。
+    if (isEmptyContent(document.content)) {
+      throw unprocessable(
+        '文档内容为空，无法导出 SES 文档包；请先在编辑器中打开该文档并保存正文',
+      );
+    }
     const packageData = buildSesPackage(document, versions);
     const warnings = [
       ...collectImageWarnings(document.content),
