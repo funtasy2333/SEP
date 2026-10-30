@@ -1,4 +1,5 @@
 import type { IRBibEntry, IRBlock, IRIndex, IRInline, IRMark, IRNormRef } from '../../ir/types'
+import { urlProblem } from '../../renderers/xml46687Parts/inline'
 import { isXmlElement, xmlTextContent, XLINK_NS } from '../tree'
 import type { XmlElement } from '../tree'
 import type { ImportContext } from './context'
@@ -42,6 +43,26 @@ export function mapReferenceInline(e: XmlElement, ctx: ImportContext): IRInline[
     return mark(readInlineChildren(e, ctx), { type: 'termRef', targetId: item.nodeId })
   }
   if (e.name.ns !== null) return undefined
+  if (n === 'ext-link') {
+    const href = ctx.attr(e, XLINK_NS, 'href')
+    const linkType = ctx.attr(e, null, 'ext-link-type')
+    const xlinkType = ctx.attr(e, XLINK_NS, 'type')
+    if (e.attrs.some(a => !((a.name.ns === XLINK_NS && ['href', 'type'].includes(a.name.local)) || (a.name.ns === null && a.name.local === 'ext-link-type'))) || (xlinkType !== undefined && xlinkType !== 'simple')) {
+      issue(e, ctx, '外部链接包含无法保留的属性')
+      return []
+    }
+    if (!href?.trim() || urlProblem(href)) {
+      issue(e, ctx, '外部链接地址为空或使用了不安全的协议')
+      return []
+    }
+    if (linkType !== undefined && linkType !== 'uri') issue(e, ctx, '外部链接类型已归一化为 uri', true)
+    const runs = readInlineChildren(e, ctx)
+    if (!runs.length || runs.some(run => run.image || run.formula || run.footnote || run.footnoteRef || run.footnoteDefinition)) {
+      issue(e, ctx, '外部链接包含无法保留的行内内容')
+      return []
+    }
+    return mark(runs, { type: 'externalLink', href })
+  }
   if (n === 'std') {
     structural(e, ctx)
     const result: IRInline[] = []

@@ -133,3 +133,34 @@ it('[M-4.5.4-04] 交错的实名与显示文字索引目标不能保序时拒绝
   mapIndex(child(root, 'index'), ctx)
   expect(ctx.problems).toContainEqual(expect.objectContaining({ code: 'xml-unsupported', severity: 'error' }))
 })
+
+it.each([
+  ['valid03', '../../schemas/gbt46687.2/samples/valid/03-structure.xml', 'https://example.org/', '示例网站'],
+  ['wp82', 'src/renderers/__tests__/__snapshots__/xml46687.wp82.xml', 'mailto:sac@example.org', '邮件'],
+  ['wp6', 'src/renderers/__tests__/__snapshots__/xml46687.wp6.xml', 'https://example.org/spec', ' 官方链接'],
+])('[M-10.1.9-01] 完整样例 %s 的外链保留文本和样式', (_label, path, href, expectedText) => {
+  const { root, ctx } = setup(readFileSync(path, 'utf8'))
+  const links = findAll(root, 'ext-link')
+  const link = links.find(e => ctx.attr(e, 'http://www.w3.org/1999/xlink', 'href') === href)!
+  expect(link).toBeDefined()
+  const runs = mapReferenceInline(link, ctx)
+  expect(runs).toBeDefined()
+  if (!runs) return
+  const expectedHref = ctx.attr(link, 'http://www.w3.org/1999/xlink', 'href')!
+  expect(runs.map(r => r.text).join('')).toBe(expectedText)
+  expect(runs.every(r => r.marks?.some(m => m.type === 'externalLink' && m.href === expectedHref))).toBe(true)
+  if (expectedText === '邮件') expect(runs[0]?.marks).toContainEqual({ type: 'bold' })
+  expect(ctx.problems.filter(p => p.severity === 'error')).toEqual([])
+})
+
+it.each(['javascript:alert(1)', 'data:text/html,evil', 'java&#x9;script:evil'])('[M-10.1.9-02] 直接映射拒绝危险链接 %s', href => {
+  const { root, ctx } = setup(`<ext-link xmlns:x="http://www.w3.org/1999/xlink" x:href="${href}">链接</ext-link>`)
+  expect(mapReferenceInline(root, ctx)).toEqual([])
+  expect(ctx.problems).toContainEqual(expect.objectContaining({ severity: 'error' }))
+})
+
+it('[M-10.1.9-01] 直接映射拒绝无法保真的未知属性', () => {
+  const { root, ctx } = setup('<ext-link xmlns:x="http://www.w3.org/1999/xlink" x:href="https://example.org" title="丢失">链接</ext-link>')
+  expect(mapReferenceInline(root, ctx)).toEqual([])
+  expect(ctx.problems).toContainEqual(expect.objectContaining({ severity: 'error' }))
+})
