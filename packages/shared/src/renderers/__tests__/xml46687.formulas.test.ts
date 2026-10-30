@@ -414,3 +414,11 @@ it('[M-C.1-05] 公式组成员带编号时不能丢弃编号', () => {
   expect(result.xml).toBeNull()
   expect(result.problems.some(problem=>problem.severity === 'error')).toBe(true)
 })
+
+it('[M-C.1-05] 正文引用公式组指向组编号', () => {
+  const group: IRBlock = {kind:'formulaGroup',id:'group',numbered:true,formulas:[formula('f1',{numbered:false})]}
+  const doc = docWith([para('p','见',run('组',{type:'crossRef',targetId:'group',targetKind:'formula'})),group])
+  const {xml} = exportOk(doc,options({f1:stubMathMl()}))
+  expect(xml).toContain('<xref ref-type="disp-formula" rid="formula_1">公式(1)</xref>')
+  expect(xml).toContain('<disp-formula-group id="formula_1"><label>(1)</label>')
+})

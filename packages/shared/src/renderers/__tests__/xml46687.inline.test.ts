@@ -422,3 +422,16 @@ it('[M-10.1.8-04] 悬空共享脚注不能导出', () => {
   expect(result.xml).toBeNull()
   expect(result.problems.some(p=>p.severity === 'error')).toBe(true)
 })
+
+it('[M-10.1.8-04] 共享脚注重复定义、空正文及不同 labels 均阻断', () => {
+  const ref: IRInline = {text:'',footnoteRef:{targetId:'fn',refText:'1)'}}
+  const def: IRInline = {text:'',footnoteDefinition:{id:'fn',content:[{text:'正文'}]}}
+  for (const content of [[ref,def,def], [ref,{text:'',footnoteDefinition:{id:'fn',content:[]}}] as IRInline[]]) {
+    const source = makeDoc([chapter('c','范围',[para('p',...content)],'scope')])
+    expect(exportXml46687(source,labelsOf(source),EMPTY_OPTIONS).xml).toBeNull()
+  }
+  const source = makeDoc([chapter('c','范围',[para('p',ref,def)],'scope')])
+  const labels = labelsOf(source)
+  labels.fn = {...labels.fn!,xmlId:'fn_42'}
+  expect(exportXml46687(source,labels,EMPTY_OPTIONS).xml).toBeNull()
+})
