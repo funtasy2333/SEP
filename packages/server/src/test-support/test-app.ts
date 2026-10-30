@@ -23,6 +23,7 @@ import { McpModule } from '../mcp/mcp.module';
 import { VersionEntity } from '../version/version.entity';
 import { VersionModule } from '../version/version.module';
 import { VersionService } from '../version/version.service';
+import { SesPackageModule } from '../ses-package/ses-package.module';
 
 export interface TestApp {
   app: INestApplication;
@@ -61,6 +62,7 @@ export async function createTestApp(
       VersionModule,
       DocumentOpsModule,
       ExportModule,
+      SesPackageModule,
       McpModule,
     ],
   });
