@@ -35,3 +35,65 @@ it('无效 XML 和缺少校验器阻断导入', async () => {
   expect(missing.pmDoc).toBeNull()
   expect(missing.problems[0]?.code).toBe('xml-schema-invalid')
 })
+
+it('图片缺资源阻断；准备的 data URL 真实写入资源节点并在保存重开后保留', async () => {
+  const imageXml = xml.replace('</p>', '</p><fig id="opaque"><label>图1</label><caption><title>图题</title></caption><graphic content-type="image" xlink:href="picture"/></fig>')
+  let n = 0
+  const missing = await importXml46687(imageXml, { validateContent: validator, generateId: () => `a${++n}` })
+  expect(missing.pmDoc).toBeNull()
+  expect(missing.problems.map(p => p.code)).toContain('xml-resource-missing')
+  const data = 'data:image/png;base64,iVBORw0KGgo='
+  const resources = new Map([['picture', Object.freeze({ src: data, mediaType: 'image/png' })]])
+  n = 0
+  const result = await importXml46687(imageXml, { validateContent: validator, generateId: () => `a${++n}`, resources })
+  expect(result.problems.filter(p => p.severity === 'error')).toEqual([])
+  expect(result.problems).toContainEqual(expect.objectContaining({ code: 'xml-normalized', severity: 'warning', message: expect.stringContaining('空替代文字') }))
+  const doc = pmToIr(schema.nodeFromJSON(JSON.parse(JSON.stringify(result.pmDoc))).toJSON()).doc
+  expect(doc.resources).toEqual([expect.objectContaining({ encoding: 'dataUrl', data, mediaType: 'image/png' })])
+  expect(resources.get('picture')).toEqual({ src: data, mediaType: 'image/png' })
+})
+
+it('异步 resolver 获得原始 href，且缺失资源不会调用生产校验', async () => {
+  const imageXml = xml.replace('</p>', '</p><fig id="opaque"><label>图1</label><caption><title>图题</title></caption><graphic content-type="image" xlink:href="picture"/></fig>')
+  let calls = 0
+  let n = 0
+  const result = await importXml46687(imageXml, {
+    validateContent: validator,
+    generateId: () => `id${++n}`,
+    resolveResource: async request => {
+      calls++
+      expect(request).toMatchObject({ href: 'picture', basename: 'picture', kind: 'graphic' })
+      return { src: 'data:image/png;base64,iVBORw0KGgo=', mediaType: 'image/png' }
+    },
+  })
+  expect(result.pmDoc).not.toBeNull()
+  expect(calls).toBe(1)
+  let validatorCalls = 0
+  const missing = await importXml46687(imageXml, { validateContent: () => { validatorCalls++; return { ok: true } } })
+  expect(missing.pmDoc).toBeNull()
+  expect(validatorCalls).toBe(0)
+})
+
+it('临时 blob 地址不能作为可持久资源', async () => {
+  const imageXml = xml.replace('</p>', '</p><fig id="opaque"><label>图1</label><caption><title>图题</title></caption><graphic content-type="image" xlink:href="picture"/></fig>')
+  const result = await importXml46687(imageXml, { validateContent: validator, resources: new Map([['picture', { src: 'blob:temporary', mediaType: 'image/png' }]]) })
+  expect(result.pmDoc).toBeNull()
+  expect(result.problems.map(p => p.code)).toContain('xml-resource-missing')
+})
+
+it('生产校验更改引用身份时回检拒绝且不污染原始输入', async () => {
+  const altered: ContentValidator = content => {
+    const copy = JSON.parse(JSON.stringify(content))
+    const visit = (node: { attrs?: Record<string, unknown>; content?: unknown[] }) => {
+      if (node.attrs?.nodeId) node.attrs.nodeId = 'changed-id'
+      else node.content?.forEach(child => visit(child as typeof node))
+    }
+    visit(copy)
+    return { ok: true, content: copy }
+  }
+  const original = xml
+  const result = await importXml46687(xml, { validateContent: altered })
+  expect(result.pmDoc).toBeNull()
+  expect(result.problems.map(p => p.code)).toContain('xml-roundtrip-loss')
+  expect(xml).toBe(original)
+})
