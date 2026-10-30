@@ -64,6 +64,16 @@ describe('WP8.3 图像关系保存', () => {
     ]))
   })
 
+  it('生产 Schema 校验拒绝无效的结构化图像属性', () => {
+    const schema = createEditorSchema()
+    const input = { type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [
+      { type: 'chapterTitle' }, { type: 'figure', attrs: { nodeId: 'f', additionalGraphics: [{ nodeId: 'g', src: 42 }] }, content: [
+        { type: 'figureImage', attrs: { src: 'main.png' } }, { type: 'figureCaption' },
+      ] },
+    ] }] }
+    expect(() => schema.nodeFromJSON(input).check()).toThrow()
+  })
+
   it('复制图和表时重映射属性里的图像 ID 并保留外部资源引用', () => {
     const schema = createEditorSchema()
     const source = schema.nodeFromJSON({ type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'chapter' }, content: [

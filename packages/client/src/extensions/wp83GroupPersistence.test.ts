@@ -156,6 +156,18 @@ describe('WP8.3 组节点保存', () => {
     expect(() => irToPm(doc)).toThrow()
   })
 
+  it('生产 Schema 拒绝嵌套脚注的定义载荷', () => {
+    const schema = createEditorSchema()
+    const pm: PMJsonNode = { type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [
+      { type: 'chapterTitle' }, { type: 'stdParagraph', attrs: { nodeId: 'p' }, content: [
+        { type: 'sharedFootnoteDefinition', attrs: { nodeId: 'fn', content: [
+          { type: 'footnoteRef', attrs: { nodeId: 'nested', content: [{ type: 'text', text: '正文' }] } },
+        ] } },
+      ] },
+    ] }] }
+    expect(() => schema.nodeFromJSON(pm).check()).toThrow()
+  })
+
   it('共享脚注的空正文不能投影为生产文档', () => {
     const doc: IRDoc = { schemaVersion: 1, meta: { standardType: 'gb' }, front: { foreword: [], introduction: [] },
       body: [{ kind: 'chapter', id: 'c', secType: 'general', title: [], children: [

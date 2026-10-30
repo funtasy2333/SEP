@@ -1,7 +1,8 @@
 /** Preserve structured schema attributes through HTML copy/paste; malformed JSON stays visible to validation. */
-export function jsonAttribute(name: string) {
+export function jsonAttribute(name: string, validate?: (value: unknown) => void) {
   return {
     default: undefined,
+    validate,
     parseHTML: (element: HTMLElement): unknown => {
       const raw = element.getAttribute(name)
       if (raw === null) return undefined

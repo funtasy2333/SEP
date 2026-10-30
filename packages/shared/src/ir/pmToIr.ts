@@ -8,7 +8,7 @@
 
 import { toIrStandardType } from './meta'
 import { hasSemanticExtensions } from './extensions'
-import { unsupportedFootnoteAtomMarks, unsupportedFootnoteContent } from './footnotePayload'
+import { unsupportedFootnoteAtomMarks, unsupportedFootnoteContent, unsupportedSharedFootnoteContent } from './footnotePayload'
 import { graphicAttributeProblem } from './graphicAttributes'
 import type {
   IRAdoption,
@@ -353,11 +353,9 @@ function convertInlines(content: PMJsonNode[] | undefined, ctx: Ctx): IRInline[]
     } else if (child.type === 'sharedFootnoteDefinition') {
       const id = ctx.id(child)
       const content = child.attrs?.content
-      const reason = !Array.isArray(content) ? '内容不是数组'
-        : content.some(item => isPmJsonNode(item) && ['footnoteRef', 'sharedFootnoteRef', 'sharedFootnoteDefinition'].includes(item.type)) ? '不能嵌套脚注'
-          : !content.some(item => isPmJsonNode(item) && item.type === 'text' && typeof item.text === 'string' && item.text.trim()) ? '正文不能为空'
-            : Object.keys(child.attrs ?? {}).some(key => !['nodeId', 'content'].includes(key)) ? '包含未知属性'
-          : unsupportedFootnoteContent(content) ?? unsupportedFootnoteAtomMarks(child.marks)
+      const reason = unsupportedSharedFootnoteContent(content)
+        ?? (Object.keys(child.attrs ?? {}).some(key => !['nodeId', 'content'].includes(key)) ? '包含未知属性' : undefined)
+        ?? unsupportedFootnoteAtomMarks(child.marks)
       if (reason) ctx.invalidFootnotePayloads.push({ nodeId: id, reason })
       const inline: IRInline = { text: '', footnoteDefinition: { id, content: convertInlines(Array.isArray(content) ? content as PMJsonNode[] : [], ctx) } }
       ctx.footnoteInlines.set(child, inline)
