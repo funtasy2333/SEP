@@ -31,4 +31,14 @@ describe('WP8.3 索引源文字', () => {
         sourceReferences: [{ type: 'see', content: [{ text: '指向', marks: [{ type: 'termRef', targetId: 'missing' }] }] }] }] }] } }
     expect(resolve(doc).problems.filter(problem => problem.code === 'dangling-typed-ref')).toHaveLength(1)
   })
+
+  it('生产 Schema 拒绝未知的索引原文引用类型', () => {
+    const schema = createEditorSchema()
+    const input = { type: 'doc', content: [{ type: 'indexBlock', attrs: { nodeId: 'index' }, content: [
+      { type: 'indexGroup', attrs: { nodeId: 'group' }, content: [{ type: 'indexEntry', attrs: { nodeId: 'entry' }, content: [
+        { type: 'indexTerm' }, { type: 'indexSourceReference', attrs: { referenceType: 'unknown' }, content: [{ type: 'text', text: '原文' }] },
+      ] }] },
+    ] }] }
+    expect(() => schema.nodeFromJSON(input).check()).toThrow()
+  })
 })

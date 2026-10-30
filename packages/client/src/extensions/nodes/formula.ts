@@ -16,7 +16,7 @@ const formulaPluginKey = new PluginKey('formulaPreview')
 
 export const FormulaGroup = Node.create({
   name: 'formulaGroup', group: 'block', content: 'formula+', defining: true,
-  addAttributes() { return { numbered: { default: false, parseHTML: (element: HTMLElement) => element.getAttribute('data-numbered') === 'true',
+  addAttributes() { return { numbered: { default: false, validate: (value: unknown) => { if (typeof value !== 'boolean') throw new RangeError('公式组编号属性必须是布尔值') }, parseHTML: (element: HTMLElement) => element.getAttribute('data-numbered') === 'true',
     renderHTML: (attrs: Record<string, unknown>) => ({ 'data-numbered': String(attrs.numbered) }) } } },
   parseHTML() { return [{ tag: 'div[data-type="formula-group"]' }] },
   renderHTML({ HTMLAttributes }): DOMOutputSpec { return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'formula-group' }), 0] },

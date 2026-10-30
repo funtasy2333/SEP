@@ -985,7 +985,7 @@ export const IndexEntry = Node.create({
 
 export const IndexSourceReference = Node.create({
   name: 'indexSourceReference', group: 'block', content: 'inline*', defining: true,
-  addAttributes() { return { referenceType: { default: 'see', parseHTML: (element: HTMLElement) => element.getAttribute('data-reference-type') ?? 'see',
+  addAttributes() { return { referenceType: { default: 'see', validate: (value: unknown) => { if (value !== 'see' && value !== 'seeAlso') throw new RangeError('索引原文引用类型无效') }, parseHTML: (element: HTMLElement) => element.getAttribute('data-reference-type') ?? 'see',
     renderHTML: (attrs: Record<string, unknown>) => ({ 'data-reference-type': String(attrs.referenceType) }) } } },
   parseHTML() { return [{ tag: '[data-type="index-source-reference"]', priority: 51, contentElement: contentSlot('std-index-source-content') }] },
   renderHTML({ node, HTMLAttributes }): DOMOutputSpec {

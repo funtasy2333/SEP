@@ -238,4 +238,20 @@ describe('WP8.3 组节点保存', () => {
       expect.objectContaining({ nodeType: 'alignedArray' }), expect.objectContaining({ nodeType: 'stdParagraph' }),
     ]))
   })
+
+  it('生产 Schema 拒绝非布尔的公式组编号和畸形列组', () => {
+    const schema = createEditorSchema()
+    const group = { type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [
+      { type: 'chapterTitle' }, { type: 'formulaGroup', attrs: { nodeId: 'g', numbered: 'yes' }, content: [
+        { type: 'formula', attrs: { nodeId: 'f' }, content: [{ type: 'formulaContent' }] },
+      ] },
+    ] }] }
+    const array = { type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [
+      { type: 'chapterTitle' }, { type: 'alignedArray', attrs: { nodeId: 'a', columns: [{}], columnGroups: [{ start: -1, count: 1 }] }, content: [
+        { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }] },
+      ] },
+    ] }] }
+    expect(() => schema.nodeFromJSON(group).check()).toThrow()
+    expect(() => schema.nodeFromJSON(array).check()).toThrow()
+  })
 })
