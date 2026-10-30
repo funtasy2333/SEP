@@ -14,6 +14,33 @@ export interface Xml46687ImportOptions {
 export interface Xml46687ResourceRequest { href: string; basename: string; kind: 'graphic' | 'inline-graphic'; location: XmlLocation; bytes?: Uint8Array; mediaType?: string }
 export interface Xml46687ImportResult { pmDoc: PMJsonNode | null; problems: ImportProblem[] }
 
+const MAX_IMAGE_BYTES = 32 * 1024 * 1024
+const MAX_TOTAL_IMAGE_BYTES = 128 * 1024 * 1024
+// XML 资源导出支持的常见图片格式；别名沿用既有图片准备层。
+const IMAGE_TYPES = new Set(['image/png', 'image/x-png', 'image/jpeg', 'image/jpg', 'image/pjpeg', 'image/gif', 'image/webp', 'image/svg+xml'])
+const base64Alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+
+/** 增长前按编码长度计数，不分配解码后的大缓冲。 */
+function base64Size(value: string, start: number, remainingBudget: number): number | undefined {
+  const length = value.length - start
+  if (!length || length % 4 !== 0) return undefined
+  const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0
+  const size = length / 4 * 3 - padding
+  if (size <= 0 || size > MAX_IMAGE_BYTES || size > remainingBudget) return undefined
+  for (let i = start; i < value.length - padding; i++) if (base64Alphabet.indexOf(value[i]!) < 0) return undefined
+  const last = base64Alphabet.indexOf(value[value.length - padding - 1]!)
+  if ((padding === 2 && (last & 15) !== 0) || (padding === 1 && (last & 3) !== 0)) return undefined
+  return size
+}
+
+function safeExternalUrl(value: string): boolean {
+  if (/[\u0000-\u0020\u007f]/.test(value)) return false
+  try {
+    const url = new URL(value)
+    return (url.protocol === 'http:' || url.protocol === 'https:') && !!url.hostname && !url.username && !url.password
+  } catch { return false }
+}
+
 /** 比较完整 JSON 值，忽略对象键序与 JSON 中不存在的 undefined。 */
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical)
@@ -82,13 +109,19 @@ function firstDifference(a: unknown, b: unknown, path = 'doc'): string | undefin
 
 /** 解析、校验、映射及生产 Schema 往返。输入与提供的资源表保持不变。 */
 export async function importXml46687(xml: string, options: Xml46687ImportOptions): Promise<Xml46687ImportResult> {
-  if (typeof options.validateContent !== 'function') return { pmDoc: null, problems: [{ code: 'xml-schema-invalid', severity: 'error', message: '必须提供生产 Schema 校验器' }] }
+  if (!options || typeof options.validateContent !== 'function') return { pmDoc: null, problems: [{ code: 'xml-schema-invalid', severity: 'error', message: '必须提供生产 Schema 校验器' }] }
   const parsed = parseXml46687(xml)
   if (!parsed.tree) return { pmDoc: null, problems: parsed.problems.map(importParserProblem) }
   const legacy = detectLegacyXml46687(parsed.tree)
   if (legacy.some(p => p.severity === 'error')) return { pmDoc: null, problems: legacy }
   const validation = validateXml46687(parsed.tree).problems
   if (validation.some(p => p.severity === 'error')) return { pmDoc: null, problems: validation }
+  if ((options.resources !== undefined && (!options.resources || typeof options.resources.get !== 'function')) || (options.resolveResource !== undefined && typeof options.resolveResource !== 'function')) {
+    return { pmDoc: null, problems: [...validation, { code: 'xml-resource-missing', severity: 'error', message: '资源表或资源解析器无效' }] }
+  }
+  if (options.generateId !== undefined && typeof options.generateId !== 'function') {
+    return { pmDoc: null, problems: [...validation, { code: 'xml-node-id-missing', severity: 'error', message: '节点 ID 生成器无效' }] }
+  }
   const ids = new Map<string, string>()
   const seen = new Set<string>()
   const elementsByNodeId = new Map<string, XmlElement>()
@@ -115,26 +148,40 @@ export async function importXml46687(xml: string, options: Xml46687ImportOptions
   const irResources: IRResource[] = []
   const resourceIds = new Map<string, IRResource>()
   const reservedParagraphIds = new Set([...seen].map(id => `${id}.p0`))
+  let totalImageBytes = 0
   for (const graphic of graphics) {
     const href = getXmlAttr(graphic, XLINK_NS, 'href')
     if (!href || prepared.has(href)) continue
     const location = { line: graphic.position?.line ?? 1, column: graphic.position?.column ?? 1, path: graphic.position?.path ?? '/' }
     const supplied = options.resources?.get(href) ?? await options.resolveResource?.({ href, basename: href.split('/').pop() ?? href, kind: graphic.name.local as 'graphic' | 'inline-graphic', location })
-    if (!supplied || !supplied.src || !supplied.mediaType) continue
-    const data = /^data:([^;,]+);base64,([A-Za-z0-9+/]*={0,2})$/.exec(supplied.src)
-    if (supplied.src.startsWith('data:') && (!data || data[1]?.toLowerCase() !== supplied.mediaType.toLowerCase() || data[2]!.length % 4 !== 0)) {
-      idProblems.push({ code: 'xml-resource-missing', severity: 'error', message: '图片数据或媒体类型无效', xml: location })
+    if (supplied == null) continue
+    if (typeof supplied !== 'object' || typeof supplied.src !== 'string' || !supplied.src || typeof supplied.mediaType !== 'string' || !IMAGE_TYPES.has(supplied.mediaType.toLowerCase()) || (supplied.resourceId !== undefined && (typeof supplied.resourceId !== 'string' || !supplied.resourceId.trim()))) {
+      idProblems.push({ code: 'xml-resource-missing', severity: 'error', message: '图片资源或媒体类型无效', xml: location })
       continue
     }
-    if (!data && !/^https?:\/\//i.test(supplied.src)) {
-      idProblems.push({ code: 'xml-resource-missing', severity: 'error', message: '图片地址不是可持久的 HTTP 或 HTTPS 地址', xml: location })
+    const isData = supplied.src.startsWith('data:')
+    if (isData) {
+      const comma = supplied.src.indexOf(',')
+      const header = comma >= 0 && comma <= 256 ? supplied.src.slice(0, comma) : ''
+      const match = /^data:([^;,]+);base64$/i.exec(header)
+      const size = match && match[1]!.toLowerCase() === supplied.mediaType.toLowerCase() ? base64Size(supplied.src, comma + 1, MAX_TOTAL_IMAGE_BYTES - totalImageBytes) : undefined
+      if (size === undefined) {
+        idProblems.push({ code: 'xml-resource-missing', severity: 'error', message: '图片数据无效或超过资源大小上限', xml: location })
+        continue
+      }
+      totalImageBytes += size
+    } else {
+      if (!safeExternalUrl(supplied.src)) {
+        idProblems.push({ code: 'xml-resource-missing', severity: 'error', message: '图片地址不是可持久的 HTTP 或 HTTPS 地址', xml: location })
+        continue
+      }
+      if (supplied.resourceId !== undefined) {
+        idProblems.push({ code: 'xml-resource-missing', severity: 'error', message: '外部地址没有可保存的资源字节', xml: location })
+        continue
+      }
+      prepared.set(href, { src: supplied.src, mediaType: supplied.mediaType })
       continue
     }
-    if (!data && supplied.resourceId) {
-      idProblems.push({ code: 'xml-resource-missing', severity: 'error', message: '外部地址没有可保存的资源字节', xml: location })
-      continue
-    }
-    if (!data) { prepared.set(href, { src: supplied.src, mediaType: supplied.mediaType }); continue }
     const resourceId = supplied.resourceId ?? generate()
     const existing = resourceIds.get(resourceId)
     if (typeof resourceId !== 'string' || !resourceId.trim() || seen.has(resourceId) || reservedParagraphIds.has(resourceId) || (existing && (existing.data !== supplied.src || existing.mediaType !== supplied.mediaType))) {
