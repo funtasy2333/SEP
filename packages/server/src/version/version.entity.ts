@@ -47,7 +47,7 @@ export class VersionEntity {
   xml: string;
 
   @Column({ type: 'text', nullable: true })
-  note: string;
+  note: string | null;
 
   @Column({ type: 'varchar', default: 'human' })
   source: VersionSource;
