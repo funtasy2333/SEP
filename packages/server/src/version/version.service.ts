@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, IsNull, Repository } from 'typeorm';
 import { WriteCoordinator } from '../common/write-coordinator';
@@ -61,7 +62,8 @@ export class VersionService {
       const active = await this.documentRepo.exist({
         where: { id: documentId, deletedAt: IsNull() },
       });
-      if (!active) throw new NotFoundException(`Document #${documentId} not found`);
+      if (!active)
+        throw new NotFoundException(`Document #${documentId} not found`);
       return this.versionRepo.find({
         where: { documentId },
         order: { createdAt: 'DESC', id: 'DESC' },
@@ -127,6 +129,7 @@ export class VersionService {
     }
     // 仅复制 API 允许的字段，尤其忽略 id/createdAt/document，避免客户端显式 id 触发 upsert。
     const version = this.versionRepo.create({
+      uid: randomUUID(),
       documentId: data.documentId,
       versionNo: data.versionNo,
       stage: data.stage,
@@ -141,7 +144,8 @@ export class VersionService {
       const active = await this.documentRepo.exist({
         where: { id: data.documentId, deletedAt: IsNull() },
       });
-      if (!active) throw new NotFoundException(`Document #${data.documentId} not found`);
+      if (!active)
+        throw new NotFoundException(`Document #${data.documentId} not found`);
       return this.versionRepo.save(version);
     });
   }
@@ -166,6 +170,7 @@ export class VersionService {
       select: { id: true, versionNo: true },
     });
     const version = repo.create({
+      uid: randomUUID(),
       documentId: input.documentId,
       versionNo: nextVersionNo(latest?.versionNo),
       stage: input.stage,

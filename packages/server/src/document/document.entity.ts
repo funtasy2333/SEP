@@ -13,6 +13,10 @@ export class DocumentEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
+  /** 服务端生成的稳定身份；旧库启动时由 DocumentIdentityService 补齐。 */
+  @Column({ type: 'varchar', nullable: true })
+  uid: string | null;
+
   @Column()
   title: string;
 
