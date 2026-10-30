@@ -430,6 +430,11 @@
           <span class="ec-label">JSON</span>
           <span class="ec-sub">完整树形结构</span>
         </button>
+        <button class="export-card" :disabled="exportingFormat !== null" @click="handleExportFormat('ses')">
+          <span class="ec-glyph">SES</span>
+          <span class="ec-label">SES 文档包</span>
+          <span class="ec-sub">{{ exportingFormat === 'ses' ? '正在打包…' : '携带正文、文件设置与全部版本' }}</span>
+        </button>
       </div>
     </el-dialog>
 
@@ -660,7 +665,7 @@ const showOutline = ref(typeof window === 'undefined' || window.innerWidth > 960
 const documentId = computed(() => Number(route.params.id))
 const documentUnavailable = computed(() => store.isDocumentUnavailable(documentId.value))
 const unavailableMessage = ref('文档已移入回收站或当前页面已失效。')
-const exportingFormat = ref<'docx' | 'pdf' | null>(null)
+const exportingFormat = ref<'docx' | 'pdf' | 'ses' | null>(null)
 /** 导出对话框中的错误提示：概述一行；导出被阻止时另有逐条明细（每条一行），其他导出错误没有明细。 */
 const exportError = ref('')
 const exportErrorItems = ref<string[]>([])
@@ -1323,8 +1328,8 @@ function startChangeSync() {
     settle: waitForLocalWrites,
     onExternalChange: handleExternalChange,
     onEvent(event) {
-      // AI 写入会在同一事务里生成「AI 修改」版本记录；版本面板开着时立即刷新列表。
-      if (event.source !== 'ai' || !showVersionPanel.value) return
+      // AI 与 SES 导入都会在同一事务里追加版本记录；版本面板开着时立即刷新列表。
+      if ((event.source !== 'ai' && event.source !== 'import') || !showVersionPanel.value) return
       void useVersionStore().fetchVersions(id, { silent: true }).catch(() => undefined)
     },
   })
@@ -2230,7 +2235,7 @@ function buildDocMeta(): Partial<IRDocMeta> {
   return irMetaFromDocumentMeta(store.currentDocument?.meta)
 }
 
-async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'json') {
+async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'json' | 'ses') {
   if (!editor.value) return
   if (exportingFormat.value !== null) return
   if (persistenceOperation.value !== null) {
@@ -2241,6 +2246,60 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
     ElMessage.warning('文件设置有未保存修改，请先保存或重置')
     activeTab.value = 'settings'
     showExport.value = false
+    return
+  }
+
+  // SES 是完整文档包，不受 DOCX/XML/HTML 等单格式出件能力边界限制。
+  if (format === 'ses') {
+    const requestedDocumentId = documentId.value
+    const initialDocument = store.currentDocument
+    if (!initialDocument?.id || initialDocument.id !== requestedDocumentId || documentUnavailable.value) return
+
+    exportingFormat.value = 'ses'
+    clearExportError()
+    try {
+      if (dirty.value) {
+        const saved = await handleSave()
+        if (!saved) return
+      }
+      await waitForLocalWrites()
+
+      const currentDocument = store.currentDocument
+      if (
+        documentId.value !== requestedDocumentId
+        || currentDocument?.id !== requestedDocumentId
+        || documentUnavailable.value
+        || saveConflict.value
+      ) return
+      if (dirty.value) {
+        ElMessage.warning('正文仍有未保存修改，请保存后再导出')
+        return
+      }
+      if (settingsDirty.value) {
+        ElMessage.warning('文件设置有未保存修改，请先保存或重置')
+        activeTab.value = 'settings'
+        return
+      }
+
+      const currentTitle = buildDocMeta().title || currentDocument.meta?.titleCn || '标准文件'
+      const result = await documentApi.exportSesPackage(requestedDocumentId)
+      downloadBlob(result.blob, `${currentTitle}.ses`)
+      showExport.value = false
+      if (result.warningCount > 0) {
+        const details = result.warnings.map((warning) => warning.message).filter(Boolean)
+        const truncated = result.warningsTruncated ? '（部分告警明细未包含）' : ''
+        const detailText = details.length > 0 ? `：${details.join('；')}` : ''
+        ElMessage.warning(`SES 文档包已导出；${result.warningCount} 处外部图片引用未打包${detailText}${truncated}`)
+      } else {
+        ElMessage.success('SES 文档包已导出')
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      setExportError(exportErrorViewOfText(`SES 文档包导出失败：${detail}`))
+      ElMessage.error(exportError.value)
+    } finally {
+      exportingFormat.value = null
+    }
     return
   }
 

@@ -22,6 +22,7 @@
             >清空回收站</el-button>
           </template>
           <template v-else>
+            <el-button :disabled="sesImportBusy" @click="triggerSesImport">导入 .ses</el-button>
             <el-dropdown split-button type="primary" trigger="click" @click="openNewDoc()" @command="openNewDoc">
               <span class="new-doc-label"><el-icon><Plus /></el-icon>新建标准文件</span>
               <template #dropdown>
@@ -208,21 +209,61 @@
       </template>
     </main>
 
+    <input
+      ref="sesImportInput"
+      class="ses-import-input"
+      type="file"
+      accept=".ses"
+      hidden
+      @change="handleSesFileChange"
+    />
+
     <NewDocDialog v-model="newDocOpen" :initial-type="newDocType" @create="handleCreate" />
+
+    <el-dialog
+      v-model="sesImportDialogVisible"
+      :title="sesImportPrompt?.kind === 'trash' ? '文档位于回收站' : '发现本地已有同一文档'"
+      width="520px"
+      class="ses-import-dialog"
+      :close-on-click-modal="true"
+      :close-on-press-escape="true"
+      @close="finishSesImportChoice(null)"
+      @opened="focusDefaultSesImportAction"
+    >
+      <p v-if="sesImportPreview?.match" class="ses-import-title">
+        本地文档：<strong>{{ sesImportPreview.match.title }}</strong>
+      </p>
+      <p v-for="(detail, index) in sesImportPrompt?.details || []" :key="index" class="ses-import-detail">
+        {{ detail }}
+      </p>
+      <p v-if="sesImportPrompt?.kind === 'match'" class="ses-import-recommendation">推荐操作：更新现有文档。</p>
+      <template #footer>
+        <template v-if="sesImportPrompt?.kind === 'trash'">
+          <el-button :disabled="sesImportApplying" @click="finishSesImportChoice(null)">取消</el-button>
+          <el-button ref="sesImportCopyButton" type="primary" autofocus :disabled="sesImportApplying" @click="finishSesImportChoice('new')">另存为新文档</el-button>
+        </template>
+        <template v-else>
+          <el-button ref="sesImportUpdateButton" type="primary" autofocus :disabled="sesImportApplying" @click="finishSesImportChoice('update')">更新现有文档</el-button>
+          <el-button :disabled="sesImportApplying" @click="finishSesImportChoice('new')">另存为新文档</el-button>
+          <el-button :disabled="sesImportApplying" @click="finishSesImportChoice(null)">取消</el-button>
+        </template>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Grid, List, Document, Search } from '@element-plus/icons-vue'
 import type { InputInstance } from 'element-plus'
 
 import { useDocumentStore } from '@/stores/document'
-import type { DocumentData, TrashDocumentData } from '@/api/document'
+import { documentApi, type DocumentData, type SesImportPreview, type TrashDocumentData } from '@/api/document'
 import { createNewDocument, type NewDocForm } from '@/utils/newDocument'
 import { createDocumentDuplicate } from '@/utils/duplicateDocument'
+import { sesImportErrorMessage, sesImportPromptOf, sesImportStatus, type SesImportPrompt } from '@/utils/sesPackageImport'
 import { STAGES, STAGE_LABELS, TYPE_DEFS, TYPE_LABELS } from '@/constants/standards'
 
 import HomeNav from '@/components/home/HomeNav.vue'
@@ -248,6 +289,26 @@ const trashActionId = ref<number | null>(null)
 const trashAction = ref<'restore' | 'permanent' | null>(null)
 const emptyingTrash = ref(false)
 const isTrashView = computed(() => navTab.value === 'trash')
+const sesImportInput = ref<HTMLInputElement | null>(null)
+const sesImportBusy = ref(false)
+const sesImportApplying = ref(false)
+const sesImportDialogVisible = ref(false)
+const sesImportPreview = ref<SesImportPreview | null>(null)
+const sesImportPrompt = ref<SesImportPrompt | null>(null)
+let sesImportResolver: ((choice: 'update' | 'new' | null) => void) | null = null
+let sesImportStopped = false
+type FocusableButtonRef = { $el?: { focus?: () => void } }
+const sesImportUpdateButton = ref<FocusableButtonRef | null>(null)
+const sesImportCopyButton = ref<FocusableButtonRef | null>(null)
+
+watch(sesImportDialogVisible, (visible) => {
+  if (visible || !sesImportResolver) return
+  const resolve = sesImportResolver
+  sesImportResolver = null
+  sesImportPreview.value = null
+  sesImportPrompt.value = null
+  resolve(null)
+})
 
 const typeFilters = [
   { id: 'all', label: '全部' },
@@ -361,7 +422,11 @@ onMounted(() => {
   })
 })
 
-onBeforeUnmount(() => window.removeEventListener('keydown', focusSearchShortcut))
+onBeforeUnmount(() => {
+  sesImportStopped = true
+  window.removeEventListener('keydown', focusSearchShortcut)
+  if (sesImportResolver) finishSesImportChoice(null)
+})
 
 async function selectTab(tab: string) {
   navTab.value = tab
@@ -480,6 +545,90 @@ async function handleDuplicate(row: DocumentData) {
   const copy = await store.createDocument(createDocumentDuplicate(row))
   ElMessage.success('已复制')
   router.push({ name: 'editor', params: { id: copy.id! } })
+}
+
+function triggerSesImport() {
+  if (sesImportBusy.value || isTrashView.value || !sesImportInput.value) return
+  // 即使上一次文件选择器被取消，也允许再次选择同一个文件。
+  sesImportInput.value.value = ''
+  sesImportInput.value.click()
+}
+
+function askSesImportChoice(preview: SesImportPreview, prompt: SesImportPrompt): Promise<'update' | 'new' | null> {
+  sesImportPreview.value = preview
+  sesImportPrompt.value = prompt
+  sesImportDialogVisible.value = true
+  return new Promise((resolve) => { sesImportResolver = resolve })
+}
+
+function finishSesImportChoice(choice: 'update' | 'new' | null) {
+  const resolve = sesImportResolver
+  sesImportResolver = null
+  sesImportDialogVisible.value = false
+  if (!choice) {
+    sesImportPreview.value = null
+    sesImportPrompt.value = null
+  }
+  resolve?.(choice)
+}
+
+function focusDefaultSesImportAction() {
+  const button = sesImportPrompt.value?.kind === 'trash'
+    ? sesImportCopyButton.value
+    : sesImportUpdateButton.value
+  button?.$el?.focus?.()
+}
+
+async function completeSesImport(document: DocumentData) {
+  if (sesImportStopped) return
+  ElMessage.success('SES 文档包已导入')
+  router.push({ name: 'editor', params: { id: document.id! } })
+  // 导入已成功；列表刷新只更新首页摘要，失败不应改写导入结果。
+  void store.fetchDocuments().catch(async (error) => {
+    ElMessage.warning(`文档已导入，但标准库列表刷新失败：${await sesImportErrorMessage(error)}`)
+  })
+}
+
+async function handleSesFileChange(event: Event) {
+  const input = event.currentTarget as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || sesImportBusy.value || isTrashView.value) {
+    input.value = ''
+    return
+  }
+
+  sesImportBusy.value = true
+  try {
+    const preview = await documentApi.previewSesImport(file)
+    if (sesImportStopped) return
+    const prompt = sesImportPromptOf(preview)
+    if (prompt.kind === 'new') {
+      const imported = await documentApi.importSesPackage(file, 'new')
+      await completeSesImport(imported)
+      return
+    }
+
+    const choice = await askSesImportChoice(preview, prompt)
+    if (!choice || sesImportStopped) return
+    sesImportApplying.value = true
+    const target = choice === 'update' && preview.match
+      ? { targetId: preview.match.id, baseRevision: preview.match.revision }
+      : undefined
+    const imported = choice === 'new'
+      ? await documentApi.importSesPackage(file, 'new')
+      : await documentApi.importSesPackage(file, 'update', target!)
+    await completeSesImport(imported)
+  } catch (error) {
+    if (sesImportStatus(error) === 409) {
+      ElMessage.error('该文档在你确认期间被修改，请重新导入')
+    } else {
+      ElMessage.error(await sesImportErrorMessage(error))
+    }
+  } finally {
+    input.value = ''
+    sesImportBusy.value = false
+    sesImportApplying.value = false
+  }
 }
 
 function formatDate(s?: string) {
