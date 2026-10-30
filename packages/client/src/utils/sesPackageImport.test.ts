@@ -9,25 +9,24 @@ function preview(overrides: Partial<SesImportPreview>): SesImportPreview {
     newVersions: 1,
     localOnlyVersions: 0,
     contentDiffers: true,
-    createsSnapshot: true,
     versionNoCollisions: [],
     ...overrides,
   }
 }
 
 describe('sesImportPromptOf', () => {
-  it('正文不同且会建快照时提示自动快照', () => {
-    expect(sesImportPromptOf(preview({})).details).toContain('正文不同：包正文成为当前正文，本地正文会先自动保存为版本快照。')
+  it('正文不同时说明版本历史会记录本次导入', () => {
+    expect(sesImportPromptOf(preview({})).details)
+      .toContain('正文不同：包正文成为当前正文。版本历史会记录本次导入，可查看本次修改或回滚到导入前。')
   })
 
-  it('正文不同但本地正文已在版本历史中时提示不另建快照', () => {
-    const { details } = sesImportPromptOf(preview({ createsSnapshot: false }))
-    expect(details).toContain('正文不同：包正文成为当前正文；本地正文已保存在版本历史中，不另建快照。')
-    expect(details.join('')).not.toContain('自动保存为版本快照')
+  it('正文相同时说明只追加版本', () => {
+    expect(sesImportPromptOf(preview({ contentDiffers: false })).details)
+      .toContain('正文相同，导入只追加版本，不改动当前正文。')
   })
 
-  it('正文相同时不提示快照', () => {
-    expect(sesImportPromptOf(preview({ contentDiffers: false, createsSnapshot: false })).details)
-      .toContain('正文相同，不会创建本地正文自动快照。')
+  it('版本号冲突时列出冲突的版本号', () => {
+    expect(sesImportPromptOf(preview({ versionNoCollisions: ['1.0', '1.1'] })).details.join(''))
+      .toContain('版本号冲突：1.0、1.1')
   })
 })

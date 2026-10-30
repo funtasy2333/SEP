@@ -55,7 +55,7 @@
         <div class="version-actions">
           <el-button link size="small" @click.stop="previewVersion(version)">预览</el-button>
           <el-button link size="small" :disabled="readOnly" @click.stop="restoreVersion(version)">回滚</el-button>
-          <!-- 列表接口不返回 baseContent：探测到详情里有写入前内容的 AI 修改才提供这两个操作 -->
+          <!-- 列表接口不返回 baseContent：探测到详情里有修改前内容的 AI 修改或 .ses 导入才提供这两个操作 -->
           <template v-if="canInspectAiChange(version)">
             <el-button link size="small" type="primary" data-action="view-ai-change" @click.stop="viewAiChange(version)">查看本次修改</el-button>
             <el-button link size="small" type="warning" data-action="rollback-ai-change" :disabled="readOnly" @click.stop="rollbackAiChange(version)">回滚到修改前</el-button>
@@ -128,16 +128,16 @@
     <!-- 差异比对对话框 -->
     <el-dialog
       v-model="showDiff"
-      :title="aiChangeVersion ? '本次 AI 修改' : '版本差异比对'"
+      :title="aiChangeVersion ? (aiChangeVersion.source === 'import' ? '本次导入修改' : '本次 AI 修改') : '版本差异比对'"
       width="85%"
       append-to-body
       class="diff-dialog"
     >
-      <!-- 查看 AI 修改：baseContent（写入前）→ content（写入后），只含这一批修改 -->
+      <!-- 查看 AI 修改或 .ses 导入：baseContent（修改前）→ content（修改后），只含这一批修改 -->
       <div class="diff-header" v-if="aiChangeVersion" data-testid="ai-change-header">
         <div class="diff-version old">
           <span class="diff-label">修改前</span>
-          AI 写入前的内容
+          {{ aiChangeVersion.source === 'import' ? '导入前的本地正文' : 'AI 写入前的内容' }}
         </div>
         <span class="diff-arrow">→</span>
         <div class="diff-version new">
@@ -289,7 +289,7 @@ function hasBaseContent(version?: VersionData | null): boolean {
 
 async function probeAiVersions() {
   const queue = versionStore.sortedVersions
-    .filter((version) => version.source === 'ai' && version.id != null
+    .filter((version) => hasChangeRecord(version) && version.id != null
       && !hasBaseContent(version) && !(version.id in aiBaseAvailable.value) && !probingAiVersions.has(version.id))
     .map((version) => version.id!)
   queue.forEach((id) => probingAiVersions.add(id))
@@ -307,8 +307,20 @@ async function probeAiVersions() {
   await Promise.all([worker(), worker(), worker()])
 }
 
+/** AI 写入与 .ses 更新导入都留下「修改前 → 修改后」的版本记录。 */
+function hasChangeRecord(version: VersionData): boolean {
+  return version.source === 'ai' || version.source === 'import'
+}
+
+/** 提示里指称这条修改记录：「AI 修改（v1.3）」或「导入（v1.2）」，前者与「回滚到」之间留空格。 */
+function changeReference(version: VersionData): string {
+  return version.source === 'import'
+    ? `导入（v${version.versionNo}）`
+    : ` AI 修改（v${version.versionNo}）`
+}
+
 function canInspectAiChange(version: VersionData): boolean {
-  return version.source === 'ai' && (hasBaseContent(version) || aiBaseAvailable.value[version.id!] === true)
+  return hasChangeRecord(version) && (hasBaseContent(version) || aiBaseAvailable.value[version.id!] === true)
 }
 
 type DiffRow = DiffLine | { type: 'skipped'; count: number }
@@ -358,7 +370,7 @@ function stageLabel(stage: string): string {
 /** 非人工来源才显示标签；旧数据没有 source 时按 human 处理 */
 const sourceLabels: Partial<Record<VersionSource, string>> = {
   ai: 'AI 修改',
-  import: '导入',
+  import: '导入 .ses',
 }
 
 function sourceLabel(source?: VersionSource): string {
@@ -548,7 +560,7 @@ async function viewAiChange(version: VersionData) {
 async function rollbackAiChange(version: VersionData) {
   if (props.readOnly) return
   if (!await confirmRollback(
-    `确定要回滚到 AI 修改（v${version.versionNo}）之前的内容吗？`
+    `确定要回滚到${changeReference(version)}之前的内容吗？`
     + '编辑器内容将替换为修改前的版本，此后的所有修改（包括人工编辑）和当前未保存的内容都会丢失。',
   )) return
   if (props.readOnly) return
@@ -558,7 +570,7 @@ async function rollbackAiChange(version: VersionData) {
     if (!detail) return
     if (props.readOnly) return
     props.setContent(detail.baseContent)
-    ElMessage.success(`已回滚到 AI 修改（v${version.versionNo}）之前`)
+    ElMessage.success(`已回滚到${changeReference(version)}之前`)
     emit('close')
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)

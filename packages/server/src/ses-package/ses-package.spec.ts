@@ -107,7 +107,6 @@ interface PreviewBody {
   newVersions: number;
   localOnlyVersions: number;
   contentDiffers: boolean;
-  createsSnapshot: boolean;
   versionNoCollisions: string[];
 }
 
@@ -649,7 +648,6 @@ describe('SES 文档包 HTTP 服务端验收', () => {
         newVersions: 3,
         localOnlyVersions: 0,
         contentDiffers: false,
-        createsSnapshot: false,
         versionNoCollisions: [],
       });
       const importedB = await expectBody<ImportedDocument>(
@@ -763,7 +761,6 @@ describe('SES 文档包 HTTP 服务端验收', () => {
         newVersions: 1,
         localOnlyVersions: 1,
         contentDiffers: true,
-        createsSnapshot: true,
         versionNoCollisions: ['1.1'],
       });
 
@@ -821,21 +818,21 @@ describe('SES 文档包 HTTP 服务端验收', () => {
           versionsAfterUpdateA.map((version) => version.uid?.toLowerCase()),
         ).size,
       ).toBe(6);
-      const snapshot = versionsAfterUpdateA.find(
-        (version) => version.note === '导入 .ses 前的本地正文（自动快照）',
+      const importRecord = versionsAfterUpdateA.find(
+        (version) => version.note === '导入 .ses 文档包',
       );
-      expect(snapshot).toMatchObject({
+      expect(importRecord).toMatchObject({
         versionNo: '1.3',
-        stage: 'review_draft',
-        content: initialContent,
-        baseContent: null,
-        note: '导入 .ses 前的本地正文（自动快照）',
+        stage: 'send_for_review',
+        content: contentB,
+        baseContent: initialContent,
+        note: '导入 .ses 文档包',
         source: 'import',
         client: null,
         xml: null,
       });
-      expect(typeof snapshot?.uid).toBe('string');
-      expect(snapshot?.uid).not.toBe(A_VERSION_UID);
+      expect(typeof importRecord?.uid).toBe('string');
+      expect(importRecord?.uid).not.toBe(A_VERSION_UID);
       const importedBVersion = versionsAfterUpdateA.find(
         (version) => version.uid === B_VERSION_UID,
       );
@@ -891,7 +888,6 @@ describe('SES 文档包 HTTP 服务端验收', () => {
         newVersions: 2,
         localOnlyVersions: 0,
         contentDiffers: false,
-        createsSnapshot: false,
         versionNoCollisions: ['1.1'],
       });
       await postRaw(
@@ -921,7 +917,6 @@ describe('SES 文档包 HTTP 服务端验收', () => {
         newVersions: 0,
         localOnlyVersions: 0,
         contentDiffers: false,
-        createsSnapshot: false,
         versionNoCollisions: [],
       });
       const updatedASecondRound = await expectBody<ImportedDocument>(
@@ -948,12 +943,12 @@ describe('SES 文档包 HTTP 服务端验收', () => {
       );
       expect(inlineImage?.attrs?.src).toBe(INLINE_DATA_URL);
       expect(packageAfterB.document.content).toEqual(contentB);
-      const snapshottedOriginal = packageAfterB.versions.find(
+      const recordedOriginal = packageAfterB.versions.find(
         (version) =>
           version.source === 'import' &&
-          JSON.stringify(version.content).includes(EXTERNAL_IMAGE_URL),
+          JSON.stringify(version.baseContent).includes(EXTERNAL_IMAGE_URL),
       );
-      expect(snapshottedOriginal).toBeDefined();
+      expect(recordedOriginal).toBeDefined();
       expect(
         packageAfterB.versions.map((version) => version.uid?.toLowerCase()),
       ).toHaveLength(6);

@@ -17,11 +17,9 @@ export function sesImportPromptOf(preview: SesImportPreview): SesImportPrompt {
 
   const details = [
     `包中新增 ${preview.newVersions} 个版本；本地独有 ${preview.localOnlyVersions} 个版本。`,
-    !preview.contentDiffers
-      ? '正文相同，不会创建本地正文自动快照。'
-      : preview.createsSnapshot
-        ? '正文不同：包正文成为当前正文，本地正文会先自动保存为版本快照。'
-        : '正文不同：包正文成为当前正文；本地正文已保存在版本历史中，不另建快照。',
+    preview.contentDiffers
+      ? '正文不同：包正文成为当前正文。版本历史会记录本次导入，可查看本次修改或回滚到导入前。'
+      : '正文相同，导入只追加版本，不改动当前正文。',
   ]
   if (preview.versionNoCollisions.length > 0) {
     details.push(`版本号冲突：${preview.versionNoCollisions.join('、')}；导入时会续编并在说明中保留原版本号。`)

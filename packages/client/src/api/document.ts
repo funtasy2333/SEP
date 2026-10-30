@@ -55,8 +55,6 @@ export interface SesImportPreview {
   newVersions: number
   localOnlyVersions: number
   contentDiffers: boolean
-  /** update 时是否会先把本地正文存为自动快照（本地正文已在版本历史中时不建）。 */
-  createsSnapshot: boolean
   versionNoCollisions: string[]
 }
 

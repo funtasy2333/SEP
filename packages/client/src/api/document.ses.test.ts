@@ -49,7 +49,7 @@ describe('documentApi SES 文档包', () => {
       newVersions: 2,
       localOnlyVersions: 0,
       contentDiffers: false,
-      createsSnapshot: false,
+     
       versionNoCollisions: [],
     }
     mocks.post.mockResolvedValue({ data: preview })

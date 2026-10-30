@@ -42,7 +42,6 @@ interface ImportPreviewBody {
   newVersions: number;
   localOnlyVersions: number;
   contentDiffers: boolean;
-  createsSnapshot: boolean;
   versionNoCollisions: string[];
 }
 
@@ -223,7 +222,6 @@ describe('POST /api/documents/import/ses', () => {
       newVersions: 1,
       localOnlyVersions: 1,
       contentDiffers: false,
-      createsSnapshot: false,
       versionNoCollisions: ['1.0'],
     });
 
@@ -259,7 +257,6 @@ describe('POST /api/documents/import/ses', () => {
       newVersions: 2,
       localOnlyVersions: 0,
       contentDiffers: false,
-      createsSnapshot: false,
       versionNoCollisions: [],
     });
   });
@@ -396,7 +393,7 @@ describe('POST /api/documents/import/ses', () => {
     expect(response).not.toHaveProperty('unknown');
   });
 
-  it('update snapshots local content, appends only new versions, resolves collisions, increments revision, and publishes after commit', async () => {
+  it('update records the import with the local content as baseContent, appends only new versions, resolves collisions, increments revision, and publishes after commit', async () => {
     const localContent = content('导入前本地正文');
     const local = await testApp.documents.create({
       title: '旧标题',
@@ -509,21 +506,21 @@ describe('POST /api/documents/import/ses', () => {
       .orderBy('version.createdAt', 'ASC')
       .addOrderBy('version.id', 'ASC')
       .getMany();
-    const snapshot = versionsAfterFirst.find(
-      (version) => version.note === '导入 .ses 前的本地正文（自动快照）',
+    const importRecord = versionsAfterFirst.find(
+      (version) => version.note === '导入 .ses 文档包',
     );
-    expect(snapshot).toMatchObject({
+    expect(importRecord).toMatchObject({
       versionNo: '2.3',
-      stage: 'working_draft',
-      content: localContent,
-      baseContent: null,
-      note: '导入 .ses 前的本地正文（自动快照）',
+      stage: 'review_draft',
+      content: pkg.document.content,
+      baseContent: localContent,
+      note: '导入 .ses 文档包',
       source: 'import',
       client: null,
       xml: null,
     });
-    expect(typeof snapshot?.uid).toBe('string');
-    expect(snapshot?.uid).not.toBe(VERSION_UID);
+    expect(typeof importRecord?.uid).toBe('string');
+    expect(importRecord?.uid).not.toBe(VERSION_UID);
 
     const importedCollision = versionsAfterFirst.find(
       (version) => version.uid === ADDED_VERSION_UID,
@@ -614,13 +611,17 @@ describe('POST /api/documents/import/ses', () => {
     }
 
     async function versionsOf(documentId: number) {
-      return testApp.dataSource.getRepository(VersionEntity).find({
-        where: { documentId },
-        order: { id: 'ASC' },
-      });
+      // baseContent 是 select: false 列，需要显式取出。
+      return testApp.dataSource
+        .getRepository(VersionEntity)
+        .createQueryBuilder('version')
+        .addSelect('version.baseContent')
+        .where('version.documentId = :documentId', { documentId })
+        .orderBy('version.id', 'ASC')
+        .getMany();
     }
 
-    it('keeps the other side version number and adds no snapshot when local content is already a version', async () => {
+    it('keeps the other side version number and numbers the import record after it', async () => {
       const { local, pkg } = await setUp(content('导出时正文'));
 
       const preview = await expectBody<ImportPreviewBody>(
@@ -629,41 +630,6 @@ describe('POST /api/documents/import/ses', () => {
       );
       expect(preview).toMatchObject({
         contentDiffers: true,
-        createsSnapshot: false,
-        versionNoCollisions: [],
-      });
-
-      await expectBody<ImportedDocumentBody>(
-        postPackage(
-          testApp,
-          pkg,
-          `mode=update&targetId=${local.id}&baseRevision=${local.revision}`,
-        ),
-        200,
-      );
-      const versions = await versionsOf(local.id);
-      expect(
-        versions.map((version) => [version.versionNo, version.note]),
-      ).toEqual([
-        ['1.0', null],
-        ['1.1', 'B 新增版本'],
-      ]);
-      expect(versions.some((version) => version.source === 'import')).toBe(
-        false,
-      );
-    });
-
-    it('numbers the local snapshot after the imported versions when local content changed', async () => {
-      const localEdited = content('A 未存版本的本地修改');
-      const { local, pkg } = await setUp(localEdited);
-
-      const preview = await expectBody<ImportPreviewBody>(
-        postPackage(testApp, pkg, 'mode=preview'),
-        200,
-      );
-      expect(preview).toMatchObject({
-        contentDiffers: true,
-        createsSnapshot: true,
         versionNoCollisions: [],
       });
 
@@ -685,9 +651,47 @@ describe('POST /api/documents/import/ses', () => {
       ).toEqual([
         ['1.0', 'human', null],
         ['1.1', 'human', 'B 新增版本'],
-        ['1.2', 'import', '导入 .ses 前的本地正文（自动快照）'],
+        ['1.2', 'import', '导入 .ses 文档包'],
       ]);
-      expect(versions[2].content).toEqual(localEdited);
+      // 导入记录：baseContent → content 就是这次导入带来的修改。
+      expect(versions[2].baseContent).toEqual(content('导出时正文'));
+      expect(versions[2].content).toEqual(content('B 修改后正文'));
+    });
+
+    it('keeps unsaved local edits as the import record baseContent', async () => {
+      const localEdited = content('A 未存版本的本地修改');
+      const { local, pkg } = await setUp(localEdited);
+
+      const preview = await expectBody<ImportPreviewBody>(
+        postPackage(testApp, pkg, 'mode=preview'),
+        200,
+      );
+      expect(preview).toMatchObject({
+        contentDiffers: true,
+        versionNoCollisions: [],
+      });
+
+      await expectBody<ImportedDocumentBody>(
+        postPackage(
+          testApp,
+          pkg,
+          `mode=update&targetId=${local.id}&baseRevision=${local.revision}`,
+        ),
+        200,
+      );
+      const versions = await versionsOf(local.id);
+      expect(
+        versions.map((version) => [
+          version.versionNo,
+          version.source,
+          version.note,
+        ]),
+      ).toEqual([
+        ['1.0', 'human', null],
+        ['1.1', 'human', 'B 新增版本'],
+        ['1.2', 'import', '导入 .ses 文档包'],
+      ]);
+      expect(versions[2].baseContent).toEqual(localEdited);
     });
   });
 
@@ -735,7 +739,7 @@ describe('POST /api/documents/import/ses', () => {
     expect(imported.note).toContain('大整数碰撞');
   });
 
-  it('rolls back the snapshot and appended versions if the document update fails', async () => {
+  it('rolls back the import record and appended versions if the document update fails', async () => {
     const local = await testApp.documents.create({
       title: '写入前标题',
       meta: META,
@@ -778,7 +782,7 @@ describe('POST /api/documents/import/ses', () => {
     ).toEqual([]);
   });
 
-  it('returns 409 before snapshot validation for a stale revision and leaves all state unchanged', async () => {
+  it('returns 409 before local content validation for a stale revision and leaves all state unchanged', async () => {
     const local = await testApp.documents.create({
       title: '当前标题',
       meta: META,
@@ -825,7 +829,7 @@ describe('POST /api/documents/import/ses', () => {
     ).toEqual(beforeVersions);
   });
 
-  it('rejects an update that needs a snapshot for a non-document local body with 422 and no writes', async () => {
+  it('rejects an update whose non-document local body cannot be recorded as baseContent with 422 and no writes', async () => {
     const local = await testApp.documents.create({
       title: '空正文文档',
       meta: META,
@@ -849,7 +853,7 @@ describe('POST /api/documents/import/ses', () => {
       422,
     );
     expect(response.message).toContain(
-      '本地正文无法创建自动快照，请先在编辑器保存合法正文或另存为新文档',
+      '本地正文无法记录为导入前内容，请先在编辑器保存合法正文或另存为新文档',
     );
     expect(publish).not.toHaveBeenCalled();
     expect(

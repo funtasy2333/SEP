@@ -67,7 +67,6 @@ function activePreview(overrides: Record<string, unknown> = {}) {
     newVersions: 2,
     localOnlyVersions: 1,
     contentDiffers: true,
-    createsSnapshot: true,
     versionNoCollisions: ['1.0'],
     ...overrides,
   }
@@ -158,7 +157,7 @@ describe('HomeView SES 文档包导入', () => {
     const imported = activeDoc(31, '导入标准')
     mocks.api.previewSesImport.mockResolvedValue({
       match: null, inTrash: false, newVersions: 2, localOnlyVersions: 0,
-      contentDiffers: false, createsSnapshot: false, versionNoCollisions: [],
+      contentDiffers: false, versionNoCollisions: [],
     })
     mocks.api.importSesPackage.mockResolvedValue(imported)
     const view = await mountHome()
@@ -181,7 +180,7 @@ describe('HomeView SES 文档包导入', () => {
     }
   })
 
-  it('正文不同的活动匹配提示本地快照和包正文替换，更新使用 preview revision', async () => {
+  it('正文不同的活动匹配提示包正文替换并记录本次导入，更新使用 preview revision', async () => {
     const file = new File(['{}'], 'backup.ses')
     mocks.api.previewSesImport.mockResolvedValue(activePreview())
     mocks.api.importSesPackage.mockResolvedValue(activeDoc(12, '本地标准'))
@@ -191,7 +190,7 @@ describe('HomeView SES 文档包导入', () => {
       expect(document.body.textContent).toContain('本地标准')
       expect(document.body.textContent).toContain('新增 2 个版本')
       expect(document.body.textContent).toContain('本地独有 1 个版本')
-      expect(document.body.textContent).toContain('本地正文会先自动保存为版本快照')
+      expect(document.body.textContent).toContain('版本历史会记录本次导入，可查看本次修改或回滚到导入前')
       expect(document.body.textContent).toContain('包正文成为当前正文')
       expect(document.body.textContent).toContain('1.0')
       expect(button(view.root, '导入 .ses')?.disabled).toBe(true)
@@ -211,15 +210,15 @@ describe('HomeView SES 文档包导入', () => {
     }
   })
 
-  it('正文相同时明确不承诺创建本地快照；只选择另存才创建副本', async () => {
+  it('正文相同时说明只追加版本；只选择另存才创建副本', async () => {
     const file = new File(['{}'], 'backup.ses')
-    mocks.api.previewSesImport.mockResolvedValue(activePreview({ contentDiffers: false, createsSnapshot: false, versionNoCollisions: [] }))
+    mocks.api.previewSesImport.mockResolvedValue(activePreview({ contentDiffers: false, versionNoCollisions: [] }))
     mocks.api.importSesPackage.mockResolvedValue(activeDoc(32, '本地标准（导入副本）'))
     const view = await mountHome()
     try {
       if (!await chooseFile(view.root, file)) return
       expect(document.body.textContent).toContain('正文相同')
-      expect(document.body.textContent).toContain('不会创建本地正文自动快照')
+      expect(document.body.textContent).toContain('导入只追加版本，不改动当前正文')
 
       const copy = button(document.body, '另存为新文档')
       expect(copy).not.toBeNull()
@@ -305,7 +304,7 @@ describe('HomeView SES 文档包导入', () => {
     const file = new File(['{}'], 'backup.ses')
     mocks.api.previewSesImport.mockResolvedValue({
       match: null, inTrash: false, newVersions: 0, localOnlyVersions: 0,
-      contentDiffers: false, createsSnapshot: false, versionNoCollisions: [],
+      contentDiffers: false, versionNoCollisions: [],
     })
     mocks.api.importSesPackage.mockRejectedValue({
       response: { status: 422, data: { message: 'document.content.type 不符合当前 schema' } },
@@ -330,7 +329,7 @@ describe('HomeView SES 文档包导入', () => {
     view.unmount()
     preview.resolve({
       match: null, inTrash: false, newVersions: 1, localOnlyVersions: 0,
-      contentDiffers: false, createsSnapshot: false, versionNoCollisions: [],
+      contentDiffers: false, versionNoCollisions: [],
     })
     await flush()
 
@@ -344,7 +343,7 @@ describe('HomeView SES 文档包导入', () => {
     const imported = deferred<any>()
     mocks.api.previewSesImport.mockResolvedValue({
       match: null, inTrash: false, newVersions: 1, localOnlyVersions: 0,
-      contentDiffers: false, createsSnapshot: false, versionNoCollisions: [],
+      contentDiffers: false, versionNoCollisions: [],
     })
     mocks.api.importSesPackage.mockReturnValue(imported.promise)
     const view = await mountHome()
