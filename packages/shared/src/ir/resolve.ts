@@ -146,7 +146,7 @@ export function termTailOrderProblemMessage(reason: string): string {
 // ---------- 行内（收集交叉引用） ----------
 
 // 与编辑器 canInsertBodyFootnote 保持一致；图中的限制沿块级子树传递。
-type ForbiddenFootnoteContainer = '标题' | '图' | '公式主体' | '公式说明' | '定义列表'
+type ForbiddenFootnoteContainer = '标题' | '图' | '公式主体' | '公式说明' | '定义列表' | '数组网格'
 
 /**
  * `allowImage`：行内图（IRInline.image，M-8.3-02）只允许出现在 IRParagraph.content（visitBlock 的 paragraph 分支传 true），
@@ -451,7 +451,7 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
         ctx.registerId(row.id)
         for (const cell of row.cells) {
           ctx.registerId(cell.id)
-          for (const child of cell.content) visitBlock(child, scopeKey, ctx, forbiddenContainer)
+          for (const child of cell.content) visitBlock(child, scopeKey, ctx, '数组网格')
         }
       }
       break

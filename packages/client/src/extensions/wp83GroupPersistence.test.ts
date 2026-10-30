@@ -102,6 +102,17 @@ describe('WP8.3 组节点保存', () => {
     expect(issues.some(issue => issue.code === 'duplicate-id' && issue.nodeId === 'same')).toBe(true)
   })
 
+  it('数组网格内的共享脚注按受限网格容器拒绝', () => {
+    const doc: IRDoc = { schemaVersion: 1, meta: { standardType: 'gb' }, front: { foreword: [], introduction: [] },
+      body: [{ kind: 'chapter', id: 'c', secType: 'general', title: [], children: [
+        { kind: 'array', id: 'array', columns: [{}], rows: [{ id: 'r', cells: [{ id: 'cell', colspan: 1, rowspan: 1, header: false, content: [
+          { kind: 'paragraph', id: 'p', content: [{ text: '', footnoteRef: { targetId: 'fn', refText: '1' } },
+            { text: '', footnoteDefinition: { id: 'fn', content: [{ text: '正文' }] } }] },
+        ] }] }] },
+      ] }], appendices: [], bibliography: [] }
+    expect(resolve(doc).problems.filter(issue => issue.code === 'invalid-footnote').length).toBeGreaterThanOrEqual(2)
+  })
+
   it('复制时共享脚注定义和两个引用一起重映射', () => {
     const schema = createEditorSchema()
     const doc = schema.nodeFromJSON({ type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'chapter' }, content: [
