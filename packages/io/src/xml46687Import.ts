@@ -1,8 +1,8 @@
 import {
-  generateNodeId, hasSemanticExtensions, importParserProblem, irToPm, IRToPmError, mapXml46687,
+  canonicalTermTailOrder, sameTermTailOrder, generateNodeId, hasSemanticExtensions, importParserProblem, irToPm, IRToPmError, mapXml46687,
   parseXml46687, pmToIr, validateXml46687, detectLegacyXml46687, getXmlAttr, XLINK_NS,
 } from '@ses/shared'
-import type { ImportProblem, IRResource, PMJsonNode, PreparedResources, ResolvedResource, XmlElement, XmlLocation } from '@ses/shared'
+import type { ImportProblem, IRResource, IRTermEntry, PMJsonNode, PreparedResources, ResolvedResource, XmlElement, XmlLocation } from '@ses/shared'
 import type { ContentValidator } from './documentOps/types'
 
 export interface Xml46687ImportOptions {
@@ -24,6 +24,48 @@ function canonical(value: unknown): unknown {
   return value
 }
 
+/** 相邻且样式相同的非引用文本仅在比较时合并，原子和引用的边界保留。 */
+function mergeTextRuns(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    const result: unknown[] = []
+    for (const entry of value.map(mergeTextRuns)) {
+      const run = entry && typeof entry === 'object' && !Array.isArray(entry) ? entry as Record<string, unknown> : undefined
+      const previousValue = result[result.length - 1]
+      const previous = previousValue && typeof previousValue === 'object' && !Array.isArray(previousValue) ? previousValue as Record<string, unknown> : undefined
+      const eligible = (v: Record<string, unknown> | undefined): boolean => !!v && typeof v.text === 'string' && v.text !== '' && Object.keys(v).every(k => ['text', 'marks', 'style'].includes(k)) && (!Array.isArray(v.marks) || v.marks.every(mark => mark && typeof mark === 'object' && ['bold', 'italic', 'underline', 'sub', 'sup', 'strike', 'code'].includes((mark as { type?: string }).type ?? '')))
+      if (eligible(run) && eligible(previous) && JSON.stringify(canonical({ marks: run!.marks, style: run!.style })) === JSON.stringify(canonical({ marks: previous!.marks, style: previous!.style }))) {
+        result[result.length - 1] = { ...previous, text: String(previous!.text) + String(run!.text) }
+      } else result.push(entry)
+    }
+    return result
+  }
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, mergeTextRuns(child)]))
+  return value
+}
+
+/** 返回首个不一致字段的路径，不回显文档内容。 */
+function firstDifference(a: unknown, b: unknown, path = 'doc'): string | undefined {
+  if (Object.is(a, b)) return undefined
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return `${path}.length`
+    for (let index = 0; index < a.length; index++) {
+      const mismatch = firstDifference(a[index], b[index], `${path}[${index}]`)
+      if (mismatch) return mismatch
+    }
+    return undefined
+  }
+  if (a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b)) {
+    const left = a as Record<string, unknown>, right = b as Record<string, unknown>
+    const keys = [...new Set([...Object.keys(left), ...Object.keys(right)])].sort()
+    for (const key of keys) {
+      const mismatch = firstDifference(left[key], right[key], `${path}.${key}`)
+      if (mismatch) return mismatch
+    }
+    return undefined
+  }
+  return path
+}
+
 /** 解析、校验、映射及生产 Schema 往返。输入与提供的资源表保持不变。 */
 export async function importXml46687(xml: string, options: Xml46687ImportOptions): Promise<Xml46687ImportResult> {
   if (typeof options.validateContent !== 'function') return { pmDoc: null, problems: [{ code: 'xml-schema-invalid', severity: 'error', message: '必须提供生产 Schema 校验器' }] }
@@ -35,6 +77,7 @@ export async function importXml46687(xml: string, options: Xml46687ImportOptions
   if (validation.some(p => p.severity === 'error')) return { pmDoc: null, problems: validation }
   const ids = new Map<string, string>()
   const seen = new Set<string>()
+  const elementsByNodeId = new Map<string, XmlElement>()
   const graphics: XmlElement[] = []
   const idProblems: ImportProblem[] = []
   const generate = options.generateId ?? generateNodeId
@@ -43,15 +86,21 @@ export async function importXml46687(xml: string, options: Xml46687ImportOptions
     const id = generate()
     if (!path || typeof id !== 'string' || !id.trim()) idProblems.push({ code: 'xml-node-id-missing', severity: 'error', message: '节点 ID 分配失败', xml: { line: element.position?.line ?? 1, column: element.position?.column ?? 1, path: path ?? '/' } })
     else if (seen.has(id)) idProblems.push({ code: 'xml-node-id-duplicate', severity: 'error', message: '节点 ID 生成器产生重复值', xml: { line: element.position?.line ?? 1, column: element.position?.column ?? 1, path } })
-    else { seen.add(id); ids.set(path, id) }
+    else { seen.add(id); ids.set(path, id); elementsByNodeId.set(id, element) }
     if (element.name.ns === null && ['graphic', 'inline-graphic'].includes(element.name.local)) graphics.push(element)
     for (const child of element.children) if (child.type === 'element') visit(child)
   }
   visit(parsed.tree.root)
+  for (const id of seen) {
+    if (!seen.has(`${id}.p0`)) continue
+    const source = elementsByNodeId.get(id)!
+    idProblems.push({ code: 'xml-node-id-duplicate', severity: 'error', message: '节点 ID 与派生段落 ID 冲突', xml: { line: source.position?.line ?? 1, column: source.position?.column ?? 1, path: source.position?.path ?? '/' } })
+  }
   if (idProblems.length) return { pmDoc: null, problems: [...validation, ...idProblems] }
   const prepared = new Map<string, Readonly<ResolvedResource>>()
   const irResources: IRResource[] = []
-  const resourceIds = new Set<string>()
+  const resourceIds = new Map<string, IRResource>()
+  const reservedParagraphIds = new Set([...seen].map(id => `${id}.p0`))
   for (const graphic of graphics) {
     const href = getXmlAttr(graphic, XLINK_NS, 'href')
     if (!href || prepared.has(href)) continue
@@ -73,12 +122,16 @@ export async function importXml46687(xml: string, options: Xml46687ImportOptions
     }
     if (!data) { prepared.set(href, { src: supplied.src, mediaType: supplied.mediaType }); continue }
     const resourceId = supplied.resourceId ?? generate()
-    if (typeof resourceId !== 'string' || !resourceId.trim() || seen.has(resourceId) || resourceIds.has(resourceId) || [...seen].some(id => `${id}.p0` === resourceId)) {
+    const existing = resourceIds.get(resourceId)
+    if (typeof resourceId !== 'string' || !resourceId.trim() || seen.has(resourceId) || reservedParagraphIds.has(resourceId) || (existing && (existing.data !== supplied.src || existing.mediaType !== supplied.mediaType))) {
       idProblems.push({ code: 'xml-node-id-duplicate', severity: 'error', message: '图片资源 ID 无效或重复', xml: location })
       continue
     }
-    resourceIds.add(resourceId)
-    irResources.push({ id: resourceId, mediaType: supplied.mediaType, encoding: 'dataUrl', data: supplied.src })
+    if (!existing) {
+      const resource: IRResource = { id: resourceId, mediaType: supplied.mediaType, encoding: 'dataUrl', data: supplied.src }
+      resourceIds.set(resourceId, resource)
+      irResources.push(resource)
+    }
     prepared.set(href, { src: supplied.src, mediaType: supplied.mediaType, resourceId })
   }
   if (idProblems.length) return { pmDoc: null, problems: [...validation, ...idProblems] }
@@ -93,7 +146,32 @@ export async function importXml46687(xml: string, options: Xml46687ImportOptions
     if (record.kind === 'figure' && record.alt === undefined) {
       record.alt = ''
       const nodeId = typeof record.id === 'string' ? record.id : undefined
-      mapped.problems.push({ code: 'xml-normalized', severity: 'warning', message: '图片未指定替代文字，生产文档保存为空替代文字', ...(nodeId ? { nodeId } : {}) })
+      const source = nodeId ? elementsByNodeId.get(nodeId) : undefined
+      mapped.problems.push({ code: 'xml-normalized', severity: 'warning', message: '图片未指定替代文字，生产文档保存为空替代文字', ...(nodeId ? { nodeId } : {}), ...(source?.position ? { xml: { line: source.position.line ?? 1, column: source.position.column ?? 1, path: source.position.path } } : {}) })
+    }
+    if (record.kind === 'termEntry' && Array.isArray(record.tailOrder)) {
+      const entry = record as unknown as IRTermEntry
+      if (sameTermTailOrder(entry.tailOrder!, canonicalTermTailOrder(entry, 'pm')) && sameTermTailOrder(entry.tailOrder!, canonicalTermTailOrder(entry, 'resolver'))) {
+        delete record.tailOrder
+        const nodeId = typeof record.id === 'string' ? record.id : undefined
+        const source = nodeId ? elementsByNodeId.get(nodeId) : undefined
+        mapped.problems.push({ code: 'xml-normalized', severity: 'warning', message: '术语尾项顺序与生产默认顺序一致，按缺省保存', ...(nodeId ? { nodeId } : {}), ...(source?.position ? { xml: { line: source.position.line ?? 1, column: source.position.column ?? 1, path: source.position.path } } : {}) })
+      }
+    }
+    if (record.kind === 'termEntry' && record.level === undefined) {
+      record.level = 1
+      const nodeId = typeof record.id === 'string' ? record.id : undefined
+      const source = nodeId ? elementsByNodeId.get(nodeId) : undefined
+      mapped.problems.push({ code: 'xml-normalized', severity: 'warning', message: '缺省术语层级按生产 Schema 保存为一级', ...(nodeId ? { nodeId } : {}), ...(source?.position ? { xml: { line: source.position.line ?? 1, column: source.position.column ?? 1, path: source.position.path } } : {}) })
+    }
+    if (record.formula && typeof record.formula === 'object') {
+      const formula = record.formula as Record<string, unknown>
+      if (formula.latex === '' && typeof formula.mathml === 'string' && formula.mathml !== '') {
+        delete formula.latex
+        const nodeId = typeof formula.id === 'string' ? formula.id : undefined
+        const source = nodeId ? elementsByNodeId.get(nodeId) : undefined
+        mapped.problems.push({ code: 'xml-normalized', severity: 'warning', message: '原生 MathML 的空 LaTeX 备用文本按缺省保存', ...(nodeId ? { nodeId } : {}), ...(source?.position ? { xml: { line: source.position.line ?? 1, column: source.position.column ?? 1, path: source.position.path } } : {}) })
+      }
     }
     for (const child of Object.values(record)) normalizeFigureAlt(child)
   }
@@ -109,6 +187,9 @@ export async function importXml46687(xml: string, options: Xml46687ImportOptions
   if (!validated.ok) return { pmDoc: null, problems: [...mapped.problems, { code: 'xml-schema-invalid', severity: 'error', message: validated.message, path: validated.path, nodeId: validated.nodeId, detail: { hostCode: validated.code } }] }
   const pmDoc = validated.content ?? candidate
   const roundtrip = pmToIr(pmDoc)
-  if (roundtrip.warnings.length || JSON.stringify(canonical(mapped.ir)) !== JSON.stringify(canonical(roundtrip.doc))) return { pmDoc: null, problems: [...mapped.problems, { code: 'xml-roundtrip-loss', severity: 'error', message: '生产 Schema 往返未能保留全部语义' }] }
+  const originalDifference = firstDifference(canonical(mapped.ir), canonical(roundtrip.doc))
+  const difference = firstDifference(canonical(mergeTextRuns(mapped.ir)), canonical(mergeTextRuns(roundtrip.doc)))
+  if (originalDifference && !difference) mapped.problems.push({ code: 'xml-normalized', severity: 'warning', message: '相邻同样式文本片段在生产 Schema 中重新分段', path: originalDifference })
+  if (roundtrip.warnings.length || difference) return { pmDoc: null, problems: [...mapped.problems, { code: 'xml-roundtrip-loss', severity: 'error', message: '生产 Schema 往返未能保留全部语义', ...(difference ? { path: difference } : {}) }] }
   return { pmDoc, problems: mapped.problems }
 }

@@ -94,6 +94,30 @@ it('生产校验更改引用身份时回检拒绝且不污染原始输入', asyn
   const original = xml
   const result = await importXml46687(xml, { validateContent: altered })
   expect(result.pmDoc).toBeNull()
-  expect(result.problems.map(p => p.code)).toContain('xml-roundtrip-loss')
+  expect(result.problems).toContainEqual(expect.objectContaining({ code: 'xml-roundtrip-loss', path: expect.stringMatching(/id/) }))
   expect(xml).toBe(original)
+})
+
+it('生成器的重复值和派生段落 ID 冲突必须在生产校验前阻断', async () => {
+  let calls = 0
+  const validation: ContentValidator = () => { calls++; return { ok: true } }
+  const duplicate = await importXml46687(xml, { validateContent: validation, generateId: () => 'same' })
+  expect(duplicate.pmDoc).toBeNull()
+  expect(duplicate.problems.map(p => p.code)).toContain('xml-node-id-duplicate')
+  let sequence = 0
+  const collision = await importXml46687(xml, { validateContent: validation, generateId: () => ++sequence === 1 ? 'owner' : sequence === 2 ? 'owner.p0' : `id${sequence}` })
+  expect(collision.pmDoc).toBeNull()
+  expect(collision.problems.map(p => p.code)).toContain('xml-node-id-duplicate')
+  expect(calls).toBe(0)
+})
+
+it('同一资源 ID 对应同一内容的多个 href 共享资源身份，冲突内容则拒绝', async () => {
+  const imageXml = xml.replace('</p>', '</p><fig id="one"><label>图1</label><caption><title>甲</title></caption><graphic content-type="image" xlink:href="a"/></fig><fig id="two"><label>图2</label><caption><title>乙</title></caption><graphic content-type="image" xlink:href="b"/></fig>')
+  const item = { src: 'data:image/png;base64,iVBORw0KGgo=', mediaType: 'image/png', resourceId: 'shared-resource' }
+  const result = await importXml46687(imageXml, { validateContent: validator, resources: new Map([['a', item], ['b', item]]) })
+  expect(result.pmDoc).not.toBeNull()
+  expect(pmToIr(result.pmDoc!).doc.resources).toHaveLength(1)
+  const conflict = await importXml46687(imageXml, { validateContent: validator, resources: new Map([['a', item], ['b', { ...item, src: 'data:image/png;base64,AA==' }]]) })
+  expect(conflict.pmDoc).toBeNull()
+  expect(conflict.problems.map(p => p.code)).toContain('xml-node-id-duplicate')
 })
