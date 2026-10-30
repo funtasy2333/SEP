@@ -27,9 +27,19 @@ describe('toUpperRoman', () => {
 
 describe('findBodyStartPage', () => {
   it('按文件名称（去空白）定位正文起始页', () => {
-    const pages = ['目次 前言 引言', '前言内容', '引言内容', '某标准 名称 1 范围'];
+    const pages = [
+      '目次 前言 引言',
+      '前言内容',
+      '引言内容',
+      '某标准 名称 1 范围',
+    ];
     // normalize 后匹配 "某标准名称"
-    expect(findBodyStartPage(pages.map((p) => p.replace(/\s+/g, '')), '某标准 名称')).toBe(3);
+    expect(
+      findBodyStartPage(
+        pages.map((p) => p.replace(/\s+/g, '')),
+        '某标准 名称',
+      ),
+    ).toBe(3);
   });
   it('docTitle 为空且无哨兵返回 -1', () => {
     expect(findBodyStartPage(['a', 'b'], '')).toBe(-1);
@@ -90,20 +100,24 @@ describe('computeTocPageNumbers', () => {
   });
 
   it('未命中的目标不入表', () => {
-    const toc: TocTarget[] = [{ target: 'x', text: '不存在的标题', division: 'body' }];
+    const toc: TocTarget[] = [
+      { target: 'x', text: '不存在的标题', division: 'body' },
+    ];
     const m = computeTocPageNumbers(pages, toc, docTitle);
     expect(m.has('x')).toBe(false);
   });
 
   it('前置标题含全角字间隔被 pdftotext 拆分（前…言）仍按子序列命中真实页（item5 回归）', () => {
-    // 「前　言」居中后 pdftotext 把两字拆到不相邻位置（甚至跨页码），且该页正文不含连续“前言”，
+    // 「前\u3000言」居中后 pdftotext 把两字拆到不相邻位置（甚至跨页码），且该页正文不含连续“前言”，
     // 连续子串会漏命中而误回退到目次页（致 I）；字符按序匹配应命中前言真实页 → II。
     const split = [
       '目次 前言 1 范围', // 目次页
       '前 本文件按照…… II 言', // 前言页：标题被拆分，正文无连续“前言”
       'SESBODYSTARTANCHOR 示例标准名称 1 范围',
     ];
-    const toc: TocTarget[] = [{ target: 'front_foreword', text: '前言', division: 'front' }];
+    const toc: TocTarget[] = [
+      { target: 'front_foreword', text: '前言', division: 'front' },
+    ];
     const m = computeTocPageNumbers(split, toc, '示例标准名称');
     expect(m.get('front_foreword')).toBe('II');
   });
@@ -126,7 +140,9 @@ describe('computeTocPageNumbers', () => {
   });
 
   it('docTitle 未找到时正文页码降级为物理页序', () => {
-    const toc: TocTarget[] = [{ target: 'sec_1', text: '1　范围', division: 'body' }];
+    const toc: TocTarget[] = [
+      { target: 'sec_1', text: '1　范围', division: 'body' },
+    ];
     const m = computeTocPageNumbers(pages, toc, '不存在标题');
     // bodyStart=-1 → 范围首次出现在 page0(目次)，降级 0+1=1
     expect(m.get('sec_1')).toBe('1');
@@ -162,8 +178,12 @@ describe('injectTocPageNumbers', () => {
       ['front_foreword', 'II'],
     ]);
     const out = injectTocPageNumbers(html, numbers);
-    expect(out).toContain('<span class="ses-toc-page" data-target="sec_1">1</span>');
-    expect(out).toContain('<span class="ses-toc-page" data-target="front_foreword">II</span>');
+    expect(out).toContain(
+      '<span class="ses-toc-page" data-target="sec_1">1</span>',
+    );
+    expect(out).toContain(
+      '<span class="ses-toc-page" data-target="front_foreword">II</span>',
+    );
   });
 
   it('未提供页码的占位保持原样', () => {
