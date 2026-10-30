@@ -74,8 +74,8 @@ function sectionChildren(element: XmlElement, ctx: ImportContext, level: number)
       else { const term = ctx.dispatchTerm(child); if (term) result.push(term) }
     } else {
       const blocks = ctx.dispatchBlock(child) ?? []
-      if (afterSection && blocks.some(block => !['note', 'example', 'normRefList'].includes(block.kind))) report(ctx, child, '子条之后的正文无法表示')
-      if (afterSection && blocks.length > 0 && blocks.every(block => ['note', 'example', 'normRefList'].includes(block.kind))) afterTrailer = true
+      if (afterSection && blocks.some(block => !['note', 'example', 'warning', 'normRefList'].includes(block.kind))) report(ctx, child, '子条之后的正文无法表示')
+      if (afterSection && blocks.length > 0 && blocks.every(block => ['note', 'example', 'warning', 'normRefList'].includes(block.kind))) afterTrailer = true
       result.push(...blocks)
     }
   }

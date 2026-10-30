@@ -145,3 +145,12 @@ it('[M-5.7-11] 混合嵌套列表经生产 IR 转换后保留每个段落身份'
   expect(restored.level).toBe(2)
   expect(ctx.problems).toEqual([])
 })
+
+it('[M-5.6-03] 子条后的警告保留次序，不作为悬置正文', () => {
+  const { tree, ctx } = setup('<standard><front><std-meta><std-ref type="dated">GB/T 1</std-ref></std-meta></front><body><sec><title>章</title><sec><title>条</title><sec><p>子条</p></sec><non-normative-note content-type="warning"><label>警告：</label><p>注意</p></non-normative-note></sec></sec></body></standard>')
+  const doc = mapStructure(tree, ctx)!
+  const clause = doc.body[0]!.children[0]!
+  if (clause.kind !== 'clause') throw new Error('clause expected')
+  expect(clause.children.map(c => c.kind)).toEqual(['clause', 'warning'])
+  expect(ctx.problems.filter(p => p.severity === 'error')).toEqual([])
+})
