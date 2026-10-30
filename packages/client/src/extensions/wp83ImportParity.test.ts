@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs'
 import { resolve as pathResolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import * as io from '@ses/io'
-import { pmToIr, type PMJsonNode } from '@ses/shared'
+import { parseXml46687, pmToIr, type PMJsonNode } from '@ses/shared'
 import { createEditorSchema, normalizeNodeIds } from './editorSchema'
-import { GOLDEN_NAMES, PNG_URL, evidence, expectedGoldenXml, expectedTargetKind, importedMathShapes, makeCase, nextIds, packageCase, sourceMathShapes } from '../../../io/src/__testHelpers__/wp83ImportCases'
+import { GOLDEN_NAMES, PNG_URL, alignHostIds, evidence, expectedGoldenXml, expectedTargetKind, importedMathShapes, mathShape, makeCase, nextIds, packageCase, sourceMathShapes } from '../../../io/src/__testHelpers__/wp83ImportCases'
 
 const schema = createEditorSchema()
 const validateContent: io.ContentValidator = content => {
@@ -103,5 +103,25 @@ describe('WP8.3 client：原版黄金 XML 和资源包', () => {
     expect(invalid.pmDoc).toBeNull()
     expect(invalid.problems).toContainEqual(expect.objectContaining({ severity: 'error', code: expect.stringMatching(/^xml-/), message: expect.stringMatching(/[\u3400-\u9fff]/) }))
     expect([...bytes]).toEqual([1, 2, 3])
+  })
+})
+
+
+describe('跨端保真比较辅助函数', () => {
+  it('仅对齐节点身份与引用，不改与生成 ID 同值的正文及其他属性', () => {
+    const candidate = { type: 'paragraph', attrs: { nodeId: 'random-a', title: 'random-a', targetId: 'random-a', resourceRefs: ['random-a'] }, content: [{ type: 'text', text: 'random-a' }] }
+    const expected = { type: 'paragraph', attrs: { nodeId: 'random-b', title: 'random-a', targetId: 'random-b', resourceRefs: ['random-b'] }, content: [{ type: 'text', text: 'random-a' }] }
+    expect(alignHostIds(candidate, expected)).toEqual(expected)
+    expect(alignHostIds(candidate, expected)).not.toEqual({ ...expected, content: [{ type: 'text', text: 'random-b' }] })
+  })
+
+  it('MathML 比较保留继承的 xml:space 空白和内层 math 属性', () => {
+    const parse = (xml: string) => { const result = parseXml46687(xml); expect(result.tree).not.toBeNull(); return mathShape(result.tree!.root) }
+    const prefix = '<m:math xmlns:m="http://www.w3.org/1998/Math/MathML" xml:space="preserve"><m:mrow>'
+    const suffix = '</m:mrow></m:math>'
+    expect(parse(`${prefix} <m:mi>x</m:mi>${suffix}`)).not.toEqual(parse(`${prefix}<m:mi>x</m:mi>${suffix}`))
+    const outer = (space: string) => `<standard xml:space="${space}"><m:math xmlns:m="http://www.w3.org/1998/Math/MathML"><m:mrow> <m:mi>x</m:mi></m:mrow></m:math></standard>`
+    expect(sourceMathShapes(outer('preserve'))).not.toEqual(sourceMathShapes(outer('default')))
+    expect(parse(`${prefix}<m:math id="a" display="inline"><m:mi>x</m:mi></m:math>${suffix}`)).not.toEqual(parse(`${prefix}<m:math id="b" display="block"><m:mi>x</m:mi></m:math>${suffix}`))
   })
 })

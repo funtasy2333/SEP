@@ -90,18 +90,21 @@ export function alignHostIds(candidate: unknown, reference: unknown): unknown {
     for (const key of Object.keys(left)) if (key in right) walk(left[key], right[key])
   }
   walk(candidate, reference)
-  const replace = (value: unknown): unknown => {
-    if (typeof value === 'string') return forward.get(value) ?? value
-    if (Array.isArray(value)) return value.map(replace)
+  const idFields = new Set(['id', 'nodeId', 'targetId', 'resourceId'])
+  const idArrays = new Set(['resourceRefs', 'targets', 'seeAlso'])
+  const replace = (value: unknown, key = ''): unknown => {
+    if (typeof value === 'string') return idFields.has(key) || idArrays.has(key) ? forward.get(value) ?? value : value
+    if (Array.isArray(value)) return value.map(child => replace(child, key))
     if (!value || typeof value !== 'object') return value
-    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, replace(child)]))
+    return Object.fromEntries(Object.entries(value).map(([childKey, child]) => [childKey, replace(child, childKey)]))
   }
   return replace(candidate)
 }
 
 /** Compare MathML by namespace, element order, text, and attributes; only root id/display and indentation normalize. */
-export function mathShape(element: XmlElement): unknown {
-  const root = element.name.local === 'math'
+export function mathShape(element: XmlElement, root = true, inheritedPreserve = false): unknown {
+  const space = getXmlAttr(element, 'http://www.w3.org/XML/1998/namespace', 'space')
+  const preserve = space === 'preserve' ? true : space === 'default' ? false : inheritedPreserve
   const tokens = ['mi', 'mn', 'mo', 'mtext', 'ms', 'annotation']
   return {
     ns: element.name.ns,
@@ -109,8 +112,8 @@ export function mathShape(element: XmlElement): unknown {
     attrs: element.attrs.filter(attr => !(root && attr.name.ns === null && ['id', 'display'].includes(attr.name.local)))
       .map(attr => ({ ns: attr.name.ns, local: attr.name.local, value: attr.value })).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
     children: element.children.flatMap(child => {
-      if (child.type === 'element') return [mathShape(child)]
-      if (child.type === 'text' && (tokens.includes(element.name.local) || child.value.trim())) return [child.value]
+      if (child.type === 'element') return [mathShape(child, false, preserve)]
+      if (child.type === 'text' && (preserve || tokens.includes(element.name.local) || child.value.trim())) return [child.value]
       return []
     }),
   }
@@ -120,9 +123,11 @@ export function sourceMathShapes(xml: string): unknown[] {
   const parsed = parseXml46687(xml)
   if (!parsed.tree) throw new Error(JSON.stringify(parsed.problems))
   const result: unknown[] = []
-  const walk = (element: XmlElement) => {
-    if (element.name.ns === 'http://www.w3.org/1998/Math/MathML' && element.name.local === 'math') { result.push(mathShape(element)); return }
-    for (const child of element.children) if (child.type === 'element') walk(child)
+  const walk = (element: XmlElement, inheritedPreserve = false) => {
+    const space = getXmlAttr(element, 'http://www.w3.org/XML/1998/namespace', 'space')
+    const preserve = space === 'preserve' ? true : space === 'default' ? false : inheritedPreserve
+    if (element.name.ns === 'http://www.w3.org/1998/Math/MathML' && element.name.local === 'math') { result.push(mathShape(element, true, inheritedPreserve)); return }
+    for (const child of element.children) if (child.type === 'element') walk(child, preserve)
   }
   walk(parsed.tree.root)
   return result

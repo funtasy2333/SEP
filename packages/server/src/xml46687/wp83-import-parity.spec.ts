@@ -29,6 +29,8 @@ async function importCase(xml: string) {
   const node = getEditorSchema().nodeFromJSON(JSON.parse(JSON.stringify(server.pmDoc)));
   node.check();
   const doc = pmToIr(node.toJSON() as PMJsonNode);
+  const clientDoc = pmToIr(client.pmDoc!);
+  expect(clientDoc).toEqual(doc);
   expect(doc.warnings).toEqual([]);
   expect(doc.doc.unsupportedContent ?? []).toEqual([]);
   return { input, result: server, doc: doc.doc, pm: node.toJSON() as PMJsonNode };
