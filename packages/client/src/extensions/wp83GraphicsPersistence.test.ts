@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { getOutputSupportProblems, IRToPmError, irToPm, pmToIr, type IRDoc, type PMJsonNode } from '@ses/shared'
 import { createEditorSchema } from './editorSchema'
 import { DOMParser, DOMSerializer, Fragment, Slice } from '@tiptap/pm/model'
-import { remapPastedSliceIds } from './plugins/ensureNodeId'
+import { hasNodeIdIssues, normalizeNodeIds, remapPastedSliceIds } from './plugins/ensureNodeId'
 import { Editor } from '@tiptap/core'
 import { createEditorExtensions } from './editorExtensions'
 
@@ -83,6 +83,20 @@ describe('WP8.3 图像关系保存', () => {
     expect(copied.child(1).attrs.additionalGraphics[0].nodeId).not.toBe('extra')
     expect(copied.child(2).attrs.alternativeGraphic).toMatchObject({ src: 'alt.png', resourceId: 'resource' })
     expect(copied.child(2).attrs.alternativeGraphic.nodeId).not.toBe('alt')
+  })
+
+  it('保存重开时检测并修复属性中与节点重复的图像 ID', () => {
+    const schema = createEditorSchema()
+    const doc = schema.nodeFromJSON({ type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'chapter' }, content: [
+      { type: 'chapterTitle' }, { type: 'figure', attrs: { nodeId: 'figure', additionalGraphics: [
+        { nodeId: 'figure', src: 'extra.png', resourceId: 'resource' },
+      ] }, content: [{ type: 'figureImage', attrs: { src: 'main.png' } }, { type: 'figureCaption' }] },
+    ] }] })
+    expect(hasNodeIdIssues(doc)).toBe(true)
+    const repaired = normalizeNodeIds(doc)
+    expect(hasNodeIdIssues(repaired)).toBe(false)
+    expect(repaired.firstChild!.child(1).attrs.additionalGraphics[0]).toMatchObject({ src: 'extra.png', resourceId: 'resource' })
+    expect(repaired.firstChild!.child(1).attrs.additionalGraphics[0].nodeId).not.toBe('figure')
   })
 
   it('经 HTML 复制后仍保留附加图和替代图属性', () => {

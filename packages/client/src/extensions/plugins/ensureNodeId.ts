@@ -102,6 +102,40 @@ export interface NodeIdFix {
   nodeId: string
 }
 
+interface GraphicIdFix { pos: number; field: 'additionalGraphics' | 'alternativeGraphic'; value: unknown }
+
+/** Embedded graphic IDs are definitions too, although they are not ProseMirror nodes. */
+function graphicIdFixes(doc: PMNode, repair: boolean): GraphicIdFix[] {
+  const seen = new Set<string>()
+  doc.descendants(node => {
+    if (typeof node.attrs.nodeId === 'string' && node.attrs.nodeId) seen.add(node.attrs.nodeId)
+  })
+  const reserved = new Set(seen)
+  doc.descendants(node => visitGraphicAttrs(node, id => { if (typeof id === 'string' && id) reserved.add(id) }, () => {}))
+  const fixes: GraphicIdFix[] = []
+  doc.descendants((node, pos) => {
+    const field = node.type.name === 'figure' ? 'additionalGraphics' : node.type.name === 'stdTable' ? 'alternativeGraphic' : null
+    if (!field) return
+    const raw = node.attrs[field]
+    const values = field === 'additionalGraphics' && Array.isArray(raw) ? raw : field === 'alternativeGraphic' && raw ? [raw] : []
+    let changed = false
+    const next = values.map((value: unknown) => {
+      if (!isRecord(value)) return value
+      const id = value.nodeId
+      if (typeof id === 'string' && id && !seen.has(id)) { seen.add(id); return value }
+      changed = true
+      if (!repair) return value
+      let replacement = generateNodeId()
+      while (reserved.has(replacement)) replacement = generateNodeId()
+      reserved.add(replacement)
+      seen.add(replacement)
+      return { ...value, nodeId: replacement }
+    })
+    if (changed) fixes.push({ pos, field, value: field === 'additionalGraphics' ? next : next[0] })
+  })
+  return fixes
+}
+
 /**
  * 扫描文档，找出缺失或重复的 nodeId，返回待修复列表（pos → 新 ID）。
  * 重复时按文档顺序保留首个出现的 ID，后续重复者重新生成（同文档内唯一是硬约束）。
@@ -140,15 +174,17 @@ export function hasNodeIdIssues(doc: PMNode): boolean {
     }
     hasIssues = true
   })
-  return hasIssues
+  return hasIssues || graphicIdFixes(doc, false).length > 0
 }
 
 /** Normalize a detached candidate with the same ID policy used by the live plugin. */
 export function normalizeNodeIds(doc: PMNode): PMNode {
   const fixes = findNodeIdFixes(doc)
-  if (fixes.length === 0) return doc
   const transaction = EditorState.create({ doc }).tr
   for (const { pos, nodeId } of fixes) transaction.setNodeAttribute(pos, 'nodeId', nodeId)
+  const graphicFixes = graphicIdFixes(transaction.doc, true)
+  for (const fix of graphicFixes) transaction.setNodeAttribute(fix.pos, fix.field, fix.value)
+  if (fixes.length === 0 && graphicFixes.length === 0) return doc
   return transaction.doc
 }
 
@@ -668,7 +704,6 @@ export function ensureNodeIdPlugin(): Plugin {
       if (!transactions.some((tr) => tr.docChanged)) return null
       const fixes = findNodeIdFixes(newState.doc)
       const targetFixes = findCopiedTableFootnoteTargets(newState.doc, fixes)
-      if (fixes.length === 0 && targetFixes.length === 0) return null
       const tr = newState.tr
       // 仅改属性不改文档结构，pos 在本事务内保持有效
       for (const { pos, nodeId } of fixes) {
@@ -677,6 +712,9 @@ export function ensureNodeIdPlugin(): Plugin {
       for (const { pos, targetId } of targetFixes) {
         tr.setNodeAttribute(pos, 'targetId', targetId)
       }
+      const graphicFixes = graphicIdFixes(tr.doc, true)
+      for (const fix of graphicFixes) tr.setNodeAttribute(fix.pos, fix.field, fix.value)
+      if (fixes.length === 0 && targetFixes.length === 0 && graphicFixes.length === 0) return null
       tr.setMeta('addToHistory', false)
       return tr
     },
@@ -716,11 +754,13 @@ export const NodeId = Extension.create({
   onCreate() {
     const { state, view } = this.editor
     const fixes = findNodeIdFixes(state.doc)
-    if (fixes.length === 0) return
     const tr = state.tr
     for (const { pos, nodeId } of fixes) {
       tr.setNodeAttribute(pos, 'nodeId', nodeId)
     }
+    const graphicFixes = graphicIdFixes(tr.doc, true)
+    for (const fix of graphicFixes) tr.setNodeAttribute(fix.pos, fix.field, fix.value)
+    if (fixes.length === 0 && graphicFixes.length === 0) return
     tr.setMeta('addToHistory', false)
     view.dispatch(tr)
   },
