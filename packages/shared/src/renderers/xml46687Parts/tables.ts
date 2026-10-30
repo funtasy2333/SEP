@@ -380,6 +380,7 @@ function renderAlternativeGraphic(graphic: NonNullable<IRTable['alternativeGraph
 export function renderArray(block: IRArray, at: Site, ctx: RenderContext): XmlElement[] {
   const scope: TableScope = {ctx,name:'数组',defaultBorderPx:DEFAULT_BORDER_PX}
   const columns = renderCols(block, at, scope, true)
+  if (!columns.length) ctx.report('xml-table-empty','error','数组必须包含至少一列。',sub(at,'.columns'))
   const groups = block.columnGroups ?? []
   const grouped: XmlElement[] = []
   let cursor = 0
@@ -391,6 +392,7 @@ export function renderArray(block: IRArray, at: Site, ctx: RenderContext): XmlEl
     grouped.push(...columns.slice(cursor,group.start),el('colgroup',undefined,columns.slice(group.start,group.start+group.count)))
     cursor = group.start + group.count
   }
+  if (groups.length && (groups[0]?.start !== 0 || cursor !== columns.length || groups.some((group, i) => i > 0 && group.start !== groups[i-1]!.start + groups[i-1]!.count))) ctx.report('xml-write-failed','error','数组列组必须连续覆盖全部列，不能与单列混排。',sub(at,'.columnGroups'))
   grouped.push(...columns.slice(cursor))
   if (!block.rows.length) ctx.report('xml-table-empty','error','数组必须包含表体行。',at)
   const spans: number[] = []

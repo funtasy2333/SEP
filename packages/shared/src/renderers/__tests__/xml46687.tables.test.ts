@@ -634,3 +634,14 @@ it('[M-C.1-04] 数组列组重叠、越界及不规则表格不能输出', () =>
     expect(result.xml).toBeNull()
   }
 })
+
+it('[M-C.1-04] 数组列组必须覆盖全部列且至少有一列', () => {
+  const examples: IRBlock[] = [
+    {kind:'array',id:'a1',columns:[{},{},{}],columnGroups:[{start:1,count:1}],rows:[row('r1',[cell('x1','甲'),cell('x2','乙'),cell('x3','丙')])]},
+    {kind:'array',id:'a2',columns:[],rows:[row('r2',[cell('x4','甲')])]},
+  ]
+  for (const block of examples) {
+    const doc = docWith([block])
+    expect(exportXml46687(doc,labelsOf(doc),EMPTY_OPTIONS).xml).toBeNull()
+  }
+})

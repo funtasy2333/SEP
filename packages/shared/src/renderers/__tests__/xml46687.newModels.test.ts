@@ -1,12 +1,11 @@
-import { expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { IRBlock } from '../../ir/types'
 import { exportXml46687 } from '../xml46687'
 import { chapter, labelsOf, makeDoc, para } from './xml46687Kit'
 import { stubOptions } from './xml46687StubKit'
 import { shouldSkipValidation, validateWithPython } from './xml46687PythonValidation'
 
-it('[M-8.4-01] [M-8.4-02] [M-C.1-04] [M-C.1-05] [M-10.1.8-04] 新模型组合输出符合导入与导出校验', () => {
-  expect(shouldSkipValidation()).toBe(false)
+function renderCombined() {
   const src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/aQAAAABJRU5ErkJggg=='
   const formula = (id:string, text:string) => ({kind:'formula' as const,id,latex:'',numbered:false,whereList:[],mathml:`<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>${text}</mi></math>`})
   const fig = (id:string) => ({kind:'figure' as const,id,caption:[{text:id}],orientation:'portrait' as const,src,notes:[]})
@@ -21,9 +20,24 @@ it('[M-8.4-01] [M-8.4-02] [M-C.1-04] [M-C.1-05] [M-10.1.8-04] 新模型组合输
   const doc = makeDoc([chapter('ch','范围',blocks,'scope')])
   const result = exportXml46687(doc,labelsOf(doc),stubOptions(doc))
   expect(result.problems.filter(p=>p.severity === 'error')).toEqual([])
-  for (const profile of ['import','export']) {
-    const checked = validateWithPython(result.xml!,profile)
-    expect(checked.errors, `${profile}: ${JSON.stringify(checked.errors)}`).toEqual([])
-    expect(checked.valid).toBe(true)
-  }
+  return result.xml!
+}
+
+it('[M-8.4-01] [M-8.4-02] [M-C.1-04] [M-C.1-05] [M-10.1.8-04] 新模型组合输出保留结构与资源', () => {
+  const xml = renderCombined()
+  expect(xml).toContain('<fig-group>')
+  expect(xml).toContain('<disp-formula-group id="formula_1">')
+  expect(xml).toContain('xlink:href="tab_1_alt"')
+  expect(xml.match(/<xref ref-type="fn" rid="fn_1">/g)).toHaveLength(2)
+})
+
+describe.skipIf(shouldSkipValidation())('新模型组合外部校验', () => {
+  it('导入与导出 profile 均有效', () => {
+    const xml = renderCombined()
+    for (const profile of ['import','export']) {
+      const checked = validateWithPython(xml,profile)
+      expect(checked.errors, `${profile}: ${JSON.stringify(checked.errors)}`).toEqual([])
+      expect(checked.valid).toBe(true)
+    }
+  })
 })
