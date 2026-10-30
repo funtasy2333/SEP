@@ -9,6 +9,6 @@ export function graphicAttributeProblem(value: unknown, primary = false, pm = fa
   for (const key of ['resourceId', 'contentType']) {
     if (row[key] !== undefined && (typeof row[key] !== 'string' || !row[key])) return `${key} 必须是非空字符串`
   }
-  if (row.specificUse !== undefined && !['size:T', 'size:S', 'size:M', 'size:L'].includes(String(row.specificUse))) return 'specificUse 无效'
+  if (row.specificUse !== undefined && (typeof row.specificUse !== 'string' || !['size:T', 'size:S', 'size:M', 'size:L'].includes(row.specificUse))) return 'specificUse 无效'
   return null
 }
