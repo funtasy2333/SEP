@@ -1,5 +1,8 @@
 import { expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { irToPm } from '../../ir/irToPm'
+import { pmToIr } from '../../ir/pmToIr'
+import type { IRDoc, IRTable } from '../../ir/types'
 import { parseXml46687 } from '../parse'
 import type { XmlElement } from '../tree'
 import { createImportContext } from './context'
@@ -163,4 +166,42 @@ it('[M-10.1.9-01] 直接映射拒绝无法保真的未知属性', () => {
   const { root, ctx } = setup('<ext-link xmlns:x="http://www.w3.org/1999/xlink" x:href="https://example.org" title="丢失">链接</ext-link>')
   expect(mapReferenceInline(root, ctx)).toEqual([])
   expect(ctx.problems).toContainEqual(expect.objectContaining({ severity: 'error' }))
+})
+
+it('[M-6.2.3-08] valid04 表脚注引用使用单一原子并保留独立身份', () => {
+  const { root, ctx } = setup(readFileSync('../../schemas/gbt46687.2/samples/valid/04-tables.xml', 'utf8'))
+  const refs = findAll(root, 'xref').filter(e => ctx.attr(e, null, 'ref-type') === 'table-fn')
+  expect(refs).toHaveLength(2)
+  for (const ref of refs) {
+    const rid = ctx.attr(ref, null, 'rid')!
+    expect(mapReferenceInline(ref, ctx)).toEqual([{ text: '', marks: [{ type: 'tableFootnoteRef', targetId: ctx.xmlTargetID(rid), id: ctx.elementId(ref) }] }])
+  }
+  expect(ctx.problems.filter(p => p.severity === 'error')).toEqual([])
+})
+
+it('[M-6.2.3-08] 表脚注引用显示文字与定义不同则提示会重新编号', () => {
+  const xml = '<table-wrap><table><tr><td><xref ref-type="table-fn" rid="f">旧号</xref></td></tr></table><table-wrap-foot><fn id="f"><label>a</label><p>正文</p></fn></table-wrap-foot></table-wrap>'
+  const { root, ctx } = setup(xml)
+  mapReferenceInline(findAll(root, 'xref')[0]!, ctx)
+  expect(ctx.problems).toContainEqual(expect.objectContaining({ code: 'xml-normalized', severity: 'warning' }))
+})
+
+it('[M-6.2.3-08] 重复引用保留目标首次引用对应的编号', () => {
+  const xml = '<table-wrap><table><tr><td><xref ref-type="table-fn" rid="a">a</xref><xref ref-type="table-fn" rid="b">b</xref><xref ref-type="table-fn" rid="a">a</xref></td></tr></table><table-wrap-foot><fn id="a"><label>a</label><p>甲</p></fn><fn id="b"><label>b</label><p>乙</p></fn></table-wrap-foot></table-wrap>'
+  const { root, ctx } = setup(xml)
+  for (const ref of findAll(root, 'xref')) mapReferenceInline(ref, ctx)
+  expect(ctx.problems).toEqual([])
+})
+
+it('[M-6.2.3-08] 表脚注原子经生产 PM 往返保留引用与定义身份', () => {
+  const { root, ctx } = setup(readFileSync('../../schemas/gbt46687.2/samples/valid/04-tables.xml', 'utf8'))
+  const ref = findAll(root, 'xref').find(e => ctx.attr(e, null, 'ref-type') === 'table-fn')!
+  const rid = ctx.attr(ref, null, 'rid')!
+  const targetId = ctx.xmlTargetID(rid)!
+  const runs = mapReferenceInline(ref, ctx)!
+  const table: IRTable = { kind: 'table', id: 'table', caption: [], orientation: 'portrait', headerRowCount: 0, notes: [], footnotes: [{ id: targetId, content: [{ text: '内容' }] }], rows: [{ id: 'row', cells: [{ id: 'cell', colspan: 1, rowspan: 1, header: false, content: [{ kind: 'paragraph', id: 'paragraph', content: runs }] }] }] }
+  const doc: IRDoc = { schemaVersion: 1, meta: { standardType: 'gb' }, front: { foreword: [], introduction: [] }, body: [{ kind: 'chapter', id: 'chapter', secType: 'general', title: [], children: [table] }], appendices: [], bibliography: [] }
+  const reopened = pmToIr(irToPm(doc)).doc.body[0]!.children[0] as IRTable
+  expect(reopened.rows[0]!.cells[0]!.content[0]).toMatchObject({ kind: 'paragraph', content: runs })
+  expect(reopened.footnotes?.[0]?.id).toBe(targetId)
 })

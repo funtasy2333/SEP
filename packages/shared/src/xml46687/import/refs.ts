@@ -31,6 +31,38 @@ function footnote(fn: XmlElement, ctx: ImportContext) {
   if (content.some(r => r.footnote || r.footnoteRef || r.footnoteDefinition)) issue(fn, ctx, '脚注不能嵌套脚注')
   return { id: id(fn, ctx), content }
 }
+function tableOwner(e: XmlElement, ctx: ImportContext): XmlElement | undefined {
+  let current: XmlElement | undefined = e
+  while (current) {
+    if (current.name.ns === null && current.name.local === 'table-wrap') return current
+    current = ctx.index.parent.get(current)
+  }
+  return undefined
+}
+// 索引为只读，每个文档最多扫描一次，避免大量表脚注引用造成平方复杂度。
+const tableFootnoteLabels = new WeakMap<ImportContext['index'], WeakMap<XmlElement, string>>()
+function tableFootnoteLabel(e: XmlElement, ctx: ImportContext): string {
+  let labels = tableFootnoteLabels.get(ctx.index)
+  if (!labels) {
+    labels = new WeakMap<XmlElement, string>()
+    const tables = new Map<XmlElement, Map<string, number>>()
+    for (const candidate of ctx.index.parent.keys()) {
+      if (candidate.name.ns !== null || candidate.name.local !== 'xref' || ctx.attr(candidate, null, 'ref-type') !== 'table-fn') continue
+      const owner = tableOwner(candidate, ctx)
+      const rid = ctx.attr(candidate, null, 'rid')
+      if (!owner || !rid) continue
+      let targets = tables.get(owner)
+      if (!targets) { targets = new Map<string, number>(); tables.set(owner, targets) }
+      const key = ctx.xmlTargetID(rid) ?? rid
+      if (!targets.has(key)) targets.set(key, targets.size + 1)
+      let n = targets.get(key)!, label = ''
+      while (n > 0) { n -= 1; label = String.fromCharCode(97 + n % 26) + label; n = Math.floor(n / 26) }
+      labels.set(candidate, label)
+    }
+    tableFootnoteLabels.set(ctx.index, labels)
+  }
+  return labels.get(e) ?? ''
+}
 function isSingle(ref: XmlElement, fn: XmlElement, rid: string, ctx: ImportContext): boolean {
   return ctx.index.footnoteReferenceCounts.get(rid) === 1 && adjacent(ref, fn, ctx)
 }
@@ -98,9 +130,17 @@ export function mapReferenceInline(e: XmlElement, ctx: ImportContext): IRInline[
     return [{ text: '', footnoteRef: { targetId: item.nodeId, refText: xmlTextContent(e) } }]
   }
   if (type === 'custom' && ctx.attr(e, null, 'custom-type') === 'term-entry' && (item.element.name.ns !== TBX || item.element.name.local !== 'termEntry')) { issue(e, ctx, '术语引用必须指向 TBX 术语条目'); return [] }
+  if (type === 'table-fn') {
+    const owner = tableOwner(e, ctx)
+    if (item.kind !== 'tableFootnote' || !owner || tableOwner(item.element, ctx) !== owner) { issue(e, ctx, '表脚注引用必须指向当前表内的脚注'); return [] }
+    if (els(e).length) { issue(e, ctx, '表脚注引用的格式无法保留'); return [] }
+    if (xmlTextContent(e) !== tableFootnoteLabel(e, ctx)) issue(e, ctx, '表脚注引用文字将按当前表内首次引用顺序重新编号', true)
+    const refId = ctx.elementId(e)
+    if (!refId) { issue(e, ctx, '表脚注引用缺少节点 ID'); return [] }
+    return [{ text: '', marks: [{ type: 'tableFootnoteRef', targetId: item.nodeId, id: refId }] }]
+  }
   let m: IRMark
-  if (type === 'table-fn') m = { type: 'tableFootnoteRef', targetId: item.nodeId }
-  else if (type === 'bibr') m = { type: 'bibRef', targetId: item.nodeId }
+  if (type === 'bibr') m = { type: 'bibRef', targetId: item.nodeId }
   else if (type === 'custom' && ctx.attr(e, null, 'custom-type') === 'term-entry') m = { type: 'termRef', targetId: item.nodeId }
   else {
     if (type === 'other' || type === 'chem') issue(e, ctx, '引用类型已按目标归一化', true)
