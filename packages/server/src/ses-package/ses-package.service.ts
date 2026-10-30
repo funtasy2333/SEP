@@ -35,6 +35,8 @@ export interface SesImportPreview {
   newVersions: number;
   localOnlyVersions: number;
   contentDiffers: boolean;
+  /** update 时是否会先把本地正文存为自动快照；与 importUpdate 用同一判定。 */
+  createsSnapshot: boolean;
   versionNoCollisions: string[];
 }
 
@@ -57,6 +59,22 @@ function stableStringify(value: unknown): string {
       .join(',')}}`;
   }
   return JSON.stringify(value) ?? 'undefined';
+}
+
+/**
+ * update 是否需要先为本地正文建自动快照：本地正文与包正文不同，且没有任何已有版本（本地或包内）
+ * 保存着同样的正文。后一条避免「本地未改动、只是对方改了」的常见往返也多出一条重复快照。
+ */
+function needsLocalSnapshot(
+  localContent: unknown,
+  packageContent: unknown,
+  versions: ReadonlyArray<{ content: unknown }>,
+): boolean {
+  const localKey = stableStringify(localContent);
+  if (localKey === stableStringify(packageContent)) return false;
+  return !versions.some(
+    (version) => stableStringify(version.content) === localKey,
+  );
 }
 
 function isPortableDocumentContent(
@@ -211,6 +229,7 @@ export class SesPackageService {
           newVersions: pkg.versions.length,
           localOnlyVersions: 0,
           contentDiffers: false,
+          createsSnapshot: false,
           versionNoCollisions: [],
         };
       }
@@ -255,6 +274,11 @@ export class SesPackageService {
         contentDiffers:
           stableStringify(match.content) !==
           stableStringify(pkg.document.content),
+        createsSnapshot: needsLocalSnapshot(
+          match.content,
+          pkg.document.content,
+          [...localVersions, ...pkg.versions],
+        ),
         versionNoCollisions,
       };
     });
@@ -330,14 +354,27 @@ export class SesPackageService {
         throw new BadRequestException('目标文档 uid 与 SES 包不匹配');
       }
 
-      const contentDiffers =
-        stableStringify(current.content) !==
-        stableStringify(pkg.document.content);
       const versionRepo = manager.getRepository(VersionEntity);
       const localVersions = await versionRepo.find({
         where: { documentId: targetId },
         order: { createdAt: 'DESC', id: 'DESC' },
       });
+      const createsSnapshot = needsLocalSnapshot(
+        current.content,
+        pkg.document.content,
+        [...localVersions, ...pkg.versions],
+      );
+      // 快照要写入本地正文，先确认它可以成为版本，再做任何写入。
+      if (createsSnapshot && !isPortableDocumentContent(current.content)) {
+        const message =
+          '本地正文无法创建自动快照，请先在编辑器保存合法正文或另存为新文档';
+        throw unprocessable(message, {
+          source: 'schema',
+          detail: message,
+          problems: [],
+        });
+      }
+
       const usedUids = new Set(
         localVersions
           .map((version) => version.uid?.toLowerCase())
@@ -348,34 +385,8 @@ export class SesPackageService {
       );
       const versions = [...localVersions];
 
-      if (contentDiffers) {
-        if (!isPortableDocumentContent(current.content)) {
-          const message =
-            '本地正文无法创建自动快照，请先在编辑器保存合法正文或另存为新文档';
-          throw unprocessable(message, {
-            source: 'schema',
-            detail: message,
-            problems: [],
-          });
-        }
-        const snapshot = await versionRepo.save(
-          versionRepo.create({
-            uid: randomUUID(),
-            documentId: targetId,
-            versionNo: nextUnusedVersionNo(versions, usedVersionNos),
-            stage: current.stage,
-            content: current.content,
-            baseContent: null,
-            note: '导入 .ses 前的本地正文（自动快照）',
-            source: 'import',
-            client: null,
-          }),
-        );
-        versions.push(snapshot);
-        if (snapshot.uid !== null) usedUids.add(snapshot.uid.toLowerCase());
-        usedVersionNos.add(snapshot.versionNo);
-      }
-
+      // 先追加包内版本：它们的版本号只与本地已有版本比较（与 preview 的 versionNoCollisions 一致），
+      // 不会被本次导入才产生的快照占用，同一版本在两端保持同一编号。
       for (const imported of pkg.versions) {
         const normalizedUid = imported.uid.toLowerCase();
         if (usedUids.has(normalizedUid)) continue;
@@ -404,6 +415,23 @@ export class SesPackageService {
         versions.push(version);
         usedUids.add(normalizedUid);
         usedVersionNos.add(versionNo);
+      }
+
+      // 快照只存在于本地，最后分配版本号。
+      if (createsSnapshot) {
+        await versionRepo.save(
+          versionRepo.create({
+            uid: randomUUID(),
+            documentId: targetId,
+            versionNo: nextUnusedVersionNo(versions, usedVersionNos),
+            stage: current.stage,
+            content: current.content,
+            baseContent: null,
+            note: '导入 .ses 前的本地正文（自动快照）',
+            source: 'import',
+            client: null,
+          }),
+        );
       }
 
       return this.documents.updateWithin(manager, targetId, baseRevision, {

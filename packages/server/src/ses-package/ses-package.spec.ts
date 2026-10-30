@@ -107,6 +107,7 @@ interface PreviewBody {
   newVersions: number;
   localOnlyVersions: number;
   contentDiffers: boolean;
+  createsSnapshot: boolean;
   versionNoCollisions: string[];
 }
 
@@ -648,6 +649,7 @@ describe('SES 文档包 HTTP 服务端验收', () => {
         newVersions: 3,
         localOnlyVersions: 0,
         contentDiffers: false,
+        createsSnapshot: false,
         versionNoCollisions: [],
       });
       const importedB = await expectBody<ImportedDocument>(
@@ -761,6 +763,7 @@ describe('SES 文档包 HTTP 服务端验收', () => {
         newVersions: 1,
         localOnlyVersions: 1,
         contentDiffers: true,
+        createsSnapshot: true,
         versionNoCollisions: ['1.1'],
       });
 
@@ -822,7 +825,7 @@ describe('SES 文档包 HTTP 服务端验收', () => {
         (version) => version.note === '导入 .ses 前的本地正文（自动快照）',
       );
       expect(snapshot).toMatchObject({
-        versionNo: '1.2',
+        versionNo: '1.3',
         stage: 'review_draft',
         content: initialContent,
         baseContent: null,
@@ -837,7 +840,7 @@ describe('SES 文档包 HTTP 服务端验收', () => {
         (version) => version.uid === B_VERSION_UID,
       );
       expect(importedBVersion).toMatchObject({
-        versionNo: '1.3',
+        versionNo: '1.2',
         note: '原版本号 1.1；B 端新增版本',
         stage: 'send_for_review',
         content: contentB,
@@ -888,6 +891,7 @@ describe('SES 文档包 HTTP 服务端验收', () => {
         newVersions: 2,
         localOnlyVersions: 0,
         contentDiffers: false,
+        createsSnapshot: false,
         versionNoCollisions: ['1.1'],
       });
       await postRaw(
@@ -917,6 +921,7 @@ describe('SES 文档包 HTTP 服务端验收', () => {
         newVersions: 0,
         localOnlyVersions: 0,
         contentDiffers: false,
+        createsSnapshot: false,
         versionNoCollisions: [],
       });
       const updatedASecondRound = await expectBody<ImportedDocument>(

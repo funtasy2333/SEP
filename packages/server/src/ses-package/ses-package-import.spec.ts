@@ -42,6 +42,7 @@ interface ImportPreviewBody {
   newVersions: number;
   localOnlyVersions: number;
   contentDiffers: boolean;
+  createsSnapshot: boolean;
   versionNoCollisions: string[];
 }
 
@@ -222,6 +223,7 @@ describe('POST /api/documents/import/ses', () => {
       newVersions: 1,
       localOnlyVersions: 1,
       contentDiffers: false,
+      createsSnapshot: false,
       versionNoCollisions: ['1.0'],
     });
 
@@ -257,6 +259,7 @@ describe('POST /api/documents/import/ses', () => {
       newVersions: 2,
       localOnlyVersions: 0,
       contentDiffers: false,
+      createsSnapshot: false,
       versionNoCollisions: [],
     });
   });
@@ -510,7 +513,7 @@ describe('POST /api/documents/import/ses', () => {
       (version) => version.note === '导入 .ses 前的本地正文（自动快照）',
     );
     expect(snapshot).toMatchObject({
-      versionNo: '2.2',
+      versionNo: '2.3',
       stage: 'working_draft',
       content: localContent,
       baseContent: null,
@@ -525,7 +528,7 @@ describe('POST /api/documents/import/ses', () => {
     const importedCollision = versionsAfterFirst.find(
       (version) => version.uid === ADDED_VERSION_UID,
     );
-    expect(importedCollision?.versionNo).toBe('2.3');
+    expect(importedCollision?.versionNo).toBe('2.2');
     expect(importedCollision?.note).toContain('原版本号 1.0');
     expect(importedCollision?.note).toContain('新增版本备注');
     expect(
@@ -560,6 +563,132 @@ describe('POST /api/documents/import/ses', () => {
     expect(versionsAfterSecond).toHaveLength(versionsAfterFirst.length);
     expect(events).toHaveLength(2);
     subscription.unsubscribe();
+  });
+
+  describe('round trip where only the other side saved a new version', () => {
+    const B_VERSION_UID = 'a0000000-0000-4000-8000-000000000040';
+
+    /** A 有 1.0（正文与当前正文 localContent 相同）；包是 B 在 1.0 之后新增的 1.1。 */
+    async function setUp(localContent: Record<string, unknown>) {
+      const local = await testApp.documents.create({
+        title: '本地标题',
+        meta: META,
+        stage: 'working_draft',
+        content: localContent,
+      });
+      await testApp.dataSource
+        .getRepository(DocumentEntity)
+        .update(local.id, { uid: DOC_UID.toLowerCase() });
+      const repo = testApp.dataSource.getRepository(VersionEntity);
+      await repo.save(
+        repo.create({
+          uid: VERSION_UID.toLowerCase(),
+          documentId: local.id,
+          versionNo: '1.0',
+          stage: 'working_draft',
+          content: content('导出时正文'),
+          baseContent: null,
+          xml: null,
+          note: null,
+          source: 'human',
+          client: null,
+          createdAt: new Date('2024-01-01T00:00:00.000Z'),
+        }),
+      );
+      const bContent = content('B 修改后正文');
+      const pkg = packageFixture({
+        document: { ...packageFixture().document, content: bContent },
+        versions: [
+          packageVersion(VERSION_UID, '1.0', {
+            content: content('导出时正文'),
+            createdAt: '2024-01-01T00:00:00.000Z',
+          }),
+          packageVersion(B_VERSION_UID, '1.1', {
+            content: bContent,
+            note: 'B 新增版本',
+            createdAt: '2024-06-01T00:00:00.000Z',
+          }),
+        ],
+      });
+      return { local, pkg };
+    }
+
+    async function versionsOf(documentId: number) {
+      return testApp.dataSource.getRepository(VersionEntity).find({
+        where: { documentId },
+        order: { id: 'ASC' },
+      });
+    }
+
+    it('keeps the other side version number and adds no snapshot when local content is already a version', async () => {
+      const { local, pkg } = await setUp(content('导出时正文'));
+
+      const preview = await expectBody<ImportPreviewBody>(
+        postPackage(testApp, pkg, 'mode=preview'),
+        200,
+      );
+      expect(preview).toMatchObject({
+        contentDiffers: true,
+        createsSnapshot: false,
+        versionNoCollisions: [],
+      });
+
+      await expectBody<ImportedDocumentBody>(
+        postPackage(
+          testApp,
+          pkg,
+          `mode=update&targetId=${local.id}&baseRevision=${local.revision}`,
+        ),
+        200,
+      );
+      const versions = await versionsOf(local.id);
+      expect(
+        versions.map((version) => [version.versionNo, version.note]),
+      ).toEqual([
+        ['1.0', null],
+        ['1.1', 'B 新增版本'],
+      ]);
+      expect(versions.some((version) => version.source === 'import')).toBe(
+        false,
+      );
+    });
+
+    it('numbers the local snapshot after the imported versions when local content changed', async () => {
+      const localEdited = content('A 未存版本的本地修改');
+      const { local, pkg } = await setUp(localEdited);
+
+      const preview = await expectBody<ImportPreviewBody>(
+        postPackage(testApp, pkg, 'mode=preview'),
+        200,
+      );
+      expect(preview).toMatchObject({
+        contentDiffers: true,
+        createsSnapshot: true,
+        versionNoCollisions: [],
+      });
+
+      await expectBody<ImportedDocumentBody>(
+        postPackage(
+          testApp,
+          pkg,
+          `mode=update&targetId=${local.id}&baseRevision=${local.revision}`,
+        ),
+        200,
+      );
+      const versions = await versionsOf(local.id);
+      expect(
+        versions.map((version) => [
+          version.versionNo,
+          version.source,
+          version.note,
+        ]),
+      ).toEqual([
+        ['1.0', 'human', null],
+        ['1.1', 'human', 'B 新增版本'],
+        ['1.2', 'import', '导入 .ses 前的本地正文（自动快照）'],
+      ]);
+      expect(versions[2].content).toEqual(localEdited);
+    });
   });
 
   it('falls back to the first free number when a colliding huge minor version cannot advance', async () => {

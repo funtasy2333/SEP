@@ -67,6 +67,7 @@ function activePreview(overrides: Record<string, unknown> = {}) {
     newVersions: 2,
     localOnlyVersions: 1,
     contentDiffers: true,
+    createsSnapshot: true,
     versionNoCollisions: ['1.0'],
     ...overrides,
   }
@@ -157,7 +158,7 @@ describe('HomeView SES 文档包导入', () => {
     const imported = activeDoc(31, '导入标准')
     mocks.api.previewSesImport.mockResolvedValue({
       match: null, inTrash: false, newVersions: 2, localOnlyVersions: 0,
-      contentDiffers: false, versionNoCollisions: [],
+      contentDiffers: false, createsSnapshot: false, versionNoCollisions: [],
     })
     mocks.api.importSesPackage.mockResolvedValue(imported)
     const view = await mountHome()
@@ -212,7 +213,7 @@ describe('HomeView SES 文档包导入', () => {
 
   it('正文相同时明确不承诺创建本地快照；只选择另存才创建副本', async () => {
     const file = new File(['{}'], 'backup.ses')
-    mocks.api.previewSesImport.mockResolvedValue(activePreview({ contentDiffers: false, versionNoCollisions: [] }))
+    mocks.api.previewSesImport.mockResolvedValue(activePreview({ contentDiffers: false, createsSnapshot: false, versionNoCollisions: [] }))
     mocks.api.importSesPackage.mockResolvedValue(activeDoc(32, '本地标准（导入副本）'))
     const view = await mountHome()
     try {
@@ -304,7 +305,7 @@ describe('HomeView SES 文档包导入', () => {
     const file = new File(['{}'], 'backup.ses')
     mocks.api.previewSesImport.mockResolvedValue({
       match: null, inTrash: false, newVersions: 0, localOnlyVersions: 0,
-      contentDiffers: false, versionNoCollisions: [],
+      contentDiffers: false, createsSnapshot: false, versionNoCollisions: [],
     })
     mocks.api.importSesPackage.mockRejectedValue({
       response: { status: 422, data: { message: 'document.content.type 不符合当前 schema' } },
@@ -329,7 +330,7 @@ describe('HomeView SES 文档包导入', () => {
     view.unmount()
     preview.resolve({
       match: null, inTrash: false, newVersions: 1, localOnlyVersions: 0,
-      contentDiffers: false, versionNoCollisions: [],
+      contentDiffers: false, createsSnapshot: false, versionNoCollisions: [],
     })
     await flush()
 
@@ -343,7 +344,7 @@ describe('HomeView SES 文档包导入', () => {
     const imported = deferred<any>()
     mocks.api.previewSesImport.mockResolvedValue({
       match: null, inTrash: false, newVersions: 1, localOnlyVersions: 0,
-      contentDiffers: false, versionNoCollisions: [],
+      contentDiffers: false, createsSnapshot: false, versionNoCollisions: [],
     })
     mocks.api.importSesPackage.mockReturnValue(imported.promise)
     const view = await mountHome()
