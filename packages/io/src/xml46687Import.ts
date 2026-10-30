@@ -43,6 +43,20 @@ function mergeTextRuns(value: unknown): unknown {
   return value
 }
 
+/** IR 行内 marks 是集合；仅排序完整 mark 对象，保留重复和所有属性。 */
+function sortInlineMarks(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortInlineMarks)
+  if (!value || typeof value !== 'object') return value
+  const result = Object.fromEntries(Object.entries(value).map(([key, child]) => [key, sortInlineMarks(child)]))
+  if (typeof result.text === 'string' && Array.isArray(result.marks)) {
+    result.marks = [...result.marks].sort((a, b) => {
+      const left = JSON.stringify(canonical(a)), right = JSON.stringify(canonical(b))
+      return left < right ? -1 : left > right ? 1 : 0
+    })
+  }
+  return result
+}
+
 /** 返回首个不一致字段的路径，不回显文档内容。 */
 function firstDifference(a: unknown, b: unknown, path = 'doc'): string | undefined {
   if (Object.is(a, b)) return undefined
@@ -188,8 +202,10 @@ export async function importXml46687(xml: string, options: Xml46687ImportOptions
   const pmDoc = validated.content ?? candidate
   const roundtrip = pmToIr(pmDoc)
   const originalDifference = firstDifference(canonical(mapped.ir), canonical(roundtrip.doc))
-  const difference = firstDifference(canonical(mergeTextRuns(mapped.ir)), canonical(mergeTextRuns(roundtrip.doc)))
-  if (originalDifference && !difference) mapped.problems.push({ code: 'xml-normalized', severity: 'warning', message: '相邻同样式文本片段在生产 Schema 中重新分段', path: originalDifference })
+  const textDifference = firstDifference(canonical(mergeTextRuns(mapped.ir)), canonical(mergeTextRuns(roundtrip.doc)))
+  const difference = firstDifference(canonical(mergeTextRuns(sortInlineMarks(mapped.ir))), canonical(mergeTextRuns(sortInlineMarks(roundtrip.doc))))
+  if (originalDifference && originalDifference !== textDifference) mapped.problems.push({ code: 'xml-normalized', severity: 'warning', message: '相邻同样式文本片段在生产 Schema 中重新分段', path: originalDifference })
+  if (textDifference && !difference) mapped.problems.push({ code: 'xml-normalized', severity: 'warning', message: '生产 Schema 调整了行内标记顺序', path: textDifference })
   if (roundtrip.warnings.length || difference) return { pmDoc: null, problems: [...mapped.problems, { code: 'xml-roundtrip-loss', severity: 'error', message: '生产 Schema 往返未能保留全部语义', ...(difference ? { path: difference } : {}) }] }
   return { pmDoc, problems: mapped.problems }
 }

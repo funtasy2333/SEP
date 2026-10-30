@@ -37,6 +37,7 @@ describe.each(cases)('%s 完整样例', (_, path) => {
     let sequence = 0
     const result = await importXml46687(xml, { validateContent: validator, resources, generateId: () => `n${++sequence}` })
     expect(result.problems.filter(p => p.severity === 'error')).toEqual([])
+    if (path.endsWith('03-structure.xml') || path.endsWith('xml46687.wp82.xml')) expect(result.problems).toContainEqual(expect.objectContaining({ code: 'xml-normalized', message: expect.stringContaining('标记顺序') }))
     if (path.endsWith('05-formulas-figures.xml')) expect(result.problems).toContainEqual(expect.objectContaining({ code: 'xml-normalized', message: expect.stringContaining('空 LaTeX') }))
     if (path.endsWith('07-import-variants.xml')) {
       expect(result.problems).toContainEqual(expect.objectContaining({ code: 'xml-normalized', message: expect.stringContaining('术语层级') }))

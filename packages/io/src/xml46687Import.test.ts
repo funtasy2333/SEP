@@ -121,3 +121,19 @@ it('同一资源 ID 对应同一内容的多个 href 共享资源身份，冲突
   expect(conflict.pmDoc).toBeNull()
   expect(conflict.problems.map(p => p.code)).toContain('xml-node-id-duplicate')
 })
+
+it('标记排序比较仍会拒绝丢失或更改标记', async () => {
+  const marked = xml.replace('本文件给出一个只含必需结构的最小文档。', '<bold><italic>保留样式</italic></bold>')
+  const altered: ContentValidator = content => {
+    const copy = JSON.parse(JSON.stringify(content))
+    const visit = (node: { marks?: { type: string }[]; content?: unknown[] }): void => {
+      if (node.marks?.length) node.marks.pop()
+      else node.content?.forEach(child => visit(child as typeof node))
+    }
+    visit(copy)
+    return { ok: true, content: copy }
+  }
+  const result = await importXml46687(marked, { validateContent: altered })
+  expect(result.pmDoc).toBeNull()
+  expect(result.problems.map(p => p.code)).toContain('xml-roundtrip-loss')
+})
