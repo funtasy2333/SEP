@@ -40,7 +40,7 @@ export function mapCoreBlock(element: XmlElement, ctx: ImportContext): IRBlock[]
       }
       items.push({ id: id(ctx, item), content })
     }
-    return [{ kind: 'list', id: id(ctx, element), listType, items }]
+    return [{ kind: 'list', id: id(ctx, element), listType, ...(listType === 'number' || listType === 'dot' ? { level: 2 as const } : {}), items }]
   }
   if (name === 'non-normative-note' || name === 'non-normative-example' || name === 'disp-quote' || name === 'warning') {
     const kind = name === 'disp-quote' ? 'quote' : name === 'warning' || ctx.attr(element, null, 'content-type') === 'warning' ? 'warning' : name === 'non-normative-example' ? 'example' : 'note'

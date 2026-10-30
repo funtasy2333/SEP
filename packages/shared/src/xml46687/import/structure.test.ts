@@ -154,3 +154,14 @@ it('[M-5.6-03] 子条后的警告保留次序，不作为悬置正文', () => {
   expect(clause.children.map(c => c.kind)).toEqual(['clause', 'warning'])
   expect(ctx.problems.filter(p => p.severity === 'error')).toEqual([])
 })
+
+it('[M-5.7-03] [M-5.7-06] 数字和圆点列表经生产投影后保留级别', () => {
+  for (const listType of ['arabic', 'bullet']) {
+    const { tree, ctx } = setup(`<standard><front><std-meta><std-ref type="dated">GB/T 1</std-ref></std-meta></front><body><sec><title>章</title><list list-type="${listType}"><list-item><p>一</p></list-item></list></sec></body></standard>`)
+    const doc = mapStructure(tree, ctx)!
+    const original = doc.body[0]!.children[0]
+    const restored = pmToIr(irToPm(doc)).doc.body[0]!.children[0]
+    expect(restored).toEqual(original)
+    expect(ctx.problems.filter(p => p.severity === 'error')).toEqual([])
+  }
+})
