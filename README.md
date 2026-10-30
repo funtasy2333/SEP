@@ -39,6 +39,7 @@
 
 ### 文档导出
 
+- **SES 文档包**：导入与导出包含当前正文、文件设置和全部版本的 `.ses` 文件，格式与身份规则见 [SES 文档包格式](docs/ses-package-format.md)
 - **DOCX 测试版**：从零生成章条结构、编号、分节、页眉页脚、目次和终结线，支持图、表、公式、横排与封面；交付要求见 [WP7 DOCX 规格](docs/wp7-docx-delivery.md)
 - **PDF 版式预览**：由服务端 Vivliostyle 两遍排版生成，自动填充目次页码；无需 LibreOffice
 - DOCX 中的目次页码由 Word 更新；增删章条后需重新导出以更新目次条目（见 docs/wp7-docx-delivery.md）
