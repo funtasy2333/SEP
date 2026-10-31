@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import * as io from '@ses/io'
 import { parseXml46687, pmToIr, type PMJsonNode } from '@ses/shared'
 import { createEditorSchema, normalizeNodeIds } from './editorSchema'
-import { GOLDEN_NAMES, PNG_URL, alignHostIds, evidence, expectedGoldenXml, expectedTargetKind, importedMathShapes, mathShape, makeCase, nextIds, packageCase, sourceMathShapes } from '../../../io/src/__testHelpers__/wp83ImportCases'
+import { GOLDEN_NAMES, PNG_URL, alignHostIds, evidence, expectedGoldenXml, expectedTargetKind, importedMathShapes, mathShape, makeCase, nextIds, packageCase, sourceMathShapes, targetEntityKind } from '../../../io/src/__testHelpers__/wp83ImportCases'
 
 const schema = createEditorSchema()
 const validateContent: io.ContentValidator = content => {
@@ -39,7 +39,7 @@ describe('WP8.3 client：原版黄金 XML 和资源包', () => {
       expect(data.ids, reference.rid).toContain(target)
       expect(data.targets.filter(value => value === target).length, reference.rid).toBeGreaterThanOrEqual(input.references.filter(value => value.rid === reference.rid).length)
       const kind = expectedTargetKind(reference.type, reference.customType)
-      if (kind) expect(data.all.find(entry => entry.id === target)?.kind, reference.rid).toBe(kind)
+      if (kind) expect(targetEntityKind(doc, target!), reference.rid).toBe(kind)
     }
     for (const resource of doc.resources ?? []) expect(resource).toMatchObject({ mediaType: 'image/png', encoding: 'dataUrl', data: PNG_URL })
     expect(doc.resources?.length ?? 0).toBe(input.resources.size)

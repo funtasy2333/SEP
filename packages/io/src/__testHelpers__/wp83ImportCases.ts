@@ -169,3 +169,13 @@ export function expectedTargetKind(type: string, customType?: string): string | 
   if (type === 'custom') return customType === 'term-entry' ? 'termEntry' : customType === 'note' || customType === 'example' ? customType : undefined
   return kinds[type]
 }
+
+/** 公式注由公式的 notes 集合承载，它的对象本身没有 kind 字段。 */
+export function targetEntityKind(doc: IRDoc, id: string): unknown {
+  const all = records(doc)
+  const entity = all.find(entry => entry.id === id)
+  if (entity?.kind !== undefined) return entity.kind
+  const inFormulaNotes = all.some(entry => entry.kind === 'formula' && Array.isArray(entry.notes)
+    && entry.notes.some(note => note && typeof note === 'object' && (note as Record<string, unknown>).id === id))
+  return inFormulaNotes ? 'note' : undefined
+}

@@ -4,7 +4,7 @@ import * as io from '@ses/io';
 import { pmToIr, type PMJsonNode } from '@ses/shared';
 import { createEditorSchema, normalizeNodeIds } from '@client/editor-schema';
 import { editorContentValidator, getEditorSchema } from '../editor-schema/editor-schema';
-import { GOLDEN_NAMES, PNG_URL, alignHostIds, evidence, expectedGoldenXml, expectedTargetKind, importedMathShapes, makeCase, nextIds, packageCase, sourceMathShapes } from '../../../io/src/__testHelpers__/wp83ImportCases';
+import { GOLDEN_NAMES, PNG_URL, alignHostIds, evidence, expectedGoldenXml, expectedTargetKind, importedMathShapes, makeCase, nextIds, packageCase, sourceMathShapes, targetEntityKind } from '../../../io/src/__testHelpers__/wp83ImportCases';
 
 const clientSchema = createEditorSchema();
 const clientValidator: io.ContentValidator = (content) => {
@@ -46,7 +46,7 @@ describe('WP8.3 Node/client 生产 Schema 跨端导入', () => {
       expect(data.ids).toContain(target);
       expect(data.targets.filter(value => value === target).length).toBeGreaterThanOrEqual(input.references.filter(value => value.rid === reference.rid).length);
       const kind = expectedTargetKind(reference.type, reference.customType);
-      if (kind) expect(data.all.find(entry => entry.id === target)?.kind).toBe(kind);
+      if (kind) expect(targetEntityKind(doc, target!)).toBe(kind);
     }
     for (const resource of doc.resources ?? []) expect(resource).toMatchObject({ mediaType: 'image/png', encoding: 'dataUrl', data: PNG_URL });
     expect(doc.resources?.length ?? 0).toBe(input.resources.size);
