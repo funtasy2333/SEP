@@ -33,12 +33,14 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import ExitStack
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import date
 from pathlib import Path
 
@@ -434,6 +436,24 @@ def detect_legacy(tree, rep: Report) -> None:
 def load_relaxng(schema_path: Path):
     parser = etree.XMLParser(no_network=True, load_dtd=False, resolve_entities=False)
     return etree.RelaxNG(etree.parse(str(schema_path), parser))
+
+
+def make_import_mathml2_schema(schema_path: Path, directory: Path) -> Path:
+    """复制默认 schema 并仅在副本中允许 processing-meta 的 MathML 2.0。
+
+    校验器和 xmllint 对原始 XML 使用同一临时 schema，因此输入字节、元素行号和源 schema 均不改变。
+    对自定义 schema 不应用此项目兼容规则。
+    """
+    for source in schema_path.parent.glob("*.rng"):
+        shutil.copyfile(source, directory / source.name)
+    metadata = directory / "metadata.rng"
+    content = metadata.read_bytes()
+    old = b'<attribute name="mathml-version"><value>3.0</value></attribute>'
+    new = b'<attribute name="mathml-version"><choice><value>3.0</value><value>2.0</value></choice></attribute>'
+    if content.count(old) != 1:
+        raise ValueError("metadata.rng 中 MathML 版本约束不唯一，无法构造导入 schema")
+    metadata.write_bytes(content.replace(old, new, 1))
+    return directory / schema_path.name
 
 
 def run_lxml_relaxng(rng, tree) -> tuple[bool, list[dict]]:
@@ -1178,7 +1198,9 @@ def semantic_checks(tree, rep: Report) -> None:
         if local(el) == "processing-meta":
             for attr, expected in PROCESSING_META.items():
                 v = el.get(attr)
-                if v != expected:
+                if attr == "mathml-version" and v == "2.0" and rep.profile == "import":
+                    rep.warn("V-6", "processing-meta/@mathml-version=2.0：导入接受，导出规范化为 3.0（C-S-04）", el=el)
+                elif v != expected:
                     rep.error("V-6", "processing-meta/@%s=%r，应为 %r（C-S-04、D-S-03）" % (attr, v, expected), el=el)
             parent = el.getparent()
             if parent is not None and parent.index(el) != 0:
@@ -1358,41 +1380,58 @@ class Validator:
         check_syntax_raw(raw, rep, self.profile)
         tree = parse_secure(raw, rep)
 
-        # 结构：两个实现
-        lx_ok, lx_msgs = (False, [])
-        if tree is not None:
+        # 导入时仅为默认 schema 构造临时副本，保留原 XML 的字节与错误位置。
+        with ExitStack() as stack:
+            active_schema = self.schema_path
+            use_overlay = (self.profile == "import" and tree is not None
+                           and self.schema_path.resolve() == DEFAULT_SCHEMA.resolve()
+                           and tree.getroot().tag == "standard"
+                           and any(e.get("mathml-version") == "2.0" for e in tree.getroot().findall("processing-meta")))
             try:
-                lx_ok, lx_msgs = run_lxml_relaxng(self.rng, tree)
-            except etree.LxmlError as exc:  # 引擎自身出错：不得当作“通过”，也不能让异常把整批文件的报告吞掉
-                lx_ok, lx_msgs = False, [{"message": "lxml RELAX NG 校验器出错：%s" % exc}]
-                rep.error("ENGINE", "lxml 的 RELAX NG 校验器出错，无法给出结论：%s" % exc)
-        else:
-            lx_msgs = [{"message": "文件不是格式良好的 XML，未进入 RELAX NG 校验"}]
-        rep.engines["lxml"] = {
-            "implementation": "lxml %s / libxml2 %s" % (".".join(map(str, etree.LXML_VERSION)),
-                                                          ".".join(map(str, etree.LIBXML_VERSION))),
-            "valid": lx_ok,
-            "messages": lx_msgs,
-        }
-        if self.use_xmllint:
-            if not self.xmllint_exe:
-                rep.engines["xmllint"] = {"implementation": None, "valid": None,
-                                          "messages": [{"message": "找不到 xmllint；可用 --no-xmllint 显式跳过"}]}
-                rep.error("ENGINE", "找不到 xmllint，无法做第二实现交叉核对（--no-xmllint 可显式跳过）")
-            else:
-                if self._xmllint_version is None:
-                    self._xmllint_version = xmllint_version(self.xmllint_exe)
+                if use_overlay:
+                    tmp = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="ses-mathml2-")))
+                    active_schema = make_import_mathml2_schema(self.schema_path, tmp)
+                active_rng = None
+                if tree is not None:
+                    active_rng = load_relaxng(active_schema) if use_overlay else self.rng
+            except (OSError, ValueError, etree.LxmlError) as exc:
+                rep.error("ENGINE", "无法准备 RELAX NG 校验器：%s" % exc)
+                return rep
+            # 结构：两个实现
+            lx_ok, lx_msgs = (False, [])
+            if tree is not None:
                 try:
-                    xl_ok, xl_msgs = run_xmllint(self.xmllint_exe, self.schema_path, path)
-                except (OSError, subprocess.SubprocessError) as exc:  # 不可执行、被杀、超时
-                    xl_ok, xl_msgs = None, [{"message": "无法运行 xmllint：%s" % exc}]
-                    rep.error("ENGINE", "无法运行 xmllint（%s），第二实现未能给出结论：%s（--no-xmllint 可显式跳过）" % (self.xmllint_exe, exc))
-                rep.engines["xmllint"] = {"implementation": self._xmllint_version, "valid": xl_ok, "messages": xl_msgs}
-                if xl_ok is not None and xl_ok != lx_ok:
-                    rep.consistent = False
-                    rep.error("CONSISTENCY",
-                              "两个实现结论不一致：lxml=%s，xmllint=%s（schema 或实现版本问题，必须查明）"
-                              % ("通过" if lx_ok else "不通过", "通过" if xl_ok else "不通过"))
+                    lx_ok, lx_msgs = run_lxml_relaxng(active_rng, tree)
+                except etree.LxmlError as exc:  # 引擎自身出错：不得当作“通过”，也不能让异常把整批文件的报告吞掉
+                    lx_ok, lx_msgs = False, [{"message": "lxml RELAX NG 校验器出错：%s" % exc}]
+                    rep.error("ENGINE", "lxml 的 RELAX NG 校验器出错，无法给出结论：%s" % exc)
+            else:
+                lx_msgs = [{"message": "文件不是格式良好的 XML，未进入 RELAX NG 校验"}]
+            rep.engines["lxml"] = {
+                "implementation": "lxml %s / libxml2 %s" % (".".join(map(str, etree.LXML_VERSION)),
+                                                              ".".join(map(str, etree.LIBXML_VERSION))),
+                "valid": lx_ok,
+                "messages": lx_msgs,
+            }
+            if self.use_xmllint:
+                if not self.xmllint_exe:
+                    rep.engines["xmllint"] = {"implementation": None, "valid": None,
+                                              "messages": [{"message": "找不到 xmllint；可用 --no-xmllint 显式跳过"}]}
+                    rep.error("ENGINE", "找不到 xmllint，无法做第二实现交叉核对（--no-xmllint 可显式跳过）")
+                else:
+                    if self._xmllint_version is None:
+                        self._xmllint_version = xmllint_version(self.xmllint_exe)
+                    try:
+                        xl_ok, xl_msgs = run_xmllint(self.xmllint_exe, active_schema, path)
+                    except (OSError, subprocess.SubprocessError) as exc:  # 不可执行、被杀、超时
+                        xl_ok, xl_msgs = None, [{"message": "无法运行 xmllint：%s" % exc}]
+                        rep.error("ENGINE", "无法运行 xmllint（%s），第二实现未能给出结论：%s（--no-xmllint 可显式跳过）" % (self.xmllint_exe, exc))
+                    rep.engines["xmllint"] = {"implementation": self._xmllint_version, "valid": xl_ok, "messages": xl_msgs}
+                    if xl_ok is not None and xl_ok != lx_ok:
+                        rep.consistent = False
+                        rep.error("CONSISTENCY",
+                                  "两个实现结论不一致：lxml=%s，xmllint=%s（schema 或实现版本问题，必须查明）"
+                                  % ("通过" if lx_ok else "不通过", "通过" if xl_ok else "不通过"))
         if tree is not None and not lx_ok:
             at_line: dict[int, object] = {}
             for e in tree.getroot().iter():

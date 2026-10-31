@@ -2333,6 +2333,94 @@ class TestWp83StrictImport(unittest.TestCase):
         self.assertIn("SYN-3", {e["rule"] for e in rep.errors})
 
 
+class TestImportMathmlVersion(unittest.TestCase):
+    """C-S-04：仅导入 2.0 可用 warning 接收；两个引擎仍核对其他结构。"""
+
+    def _validate(self, source, validator):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "version.xml"
+            path.write_text(source, encoding="utf-8")
+            original = path.read_bytes()
+            report = validator.validate_file(path)
+            self.assertEqual(path.read_bytes(), original, "校验不得修改输入")
+        return report
+
+    def test_version_2_is_only_accepted_on_import_with_located_warning(self):
+        source = (VALID_DIR / "01-minimal.xml").read_text(encoding="utf-8")
+        source = source.replace('mathml-version="3.0"', 'mathml-version="2.0"')
+        imp = self._validate(source, VALIDATOR_IMPORT)
+        self.assertTrue(imp.valid, validate.format_human(imp))
+        self.assertTrue(imp.consistent)
+        self.assertIs(imp.engines["lxml"]["valid"], True)
+        self.assertIs(imp.engines["xmllint"]["valid"], True)
+        warning = [w for w in imp.warnings if w["rule"] == "V-6"]
+        self.assertEqual(len(warning), 1, validate.format_human(imp))
+        self.assertIn("2.0", warning[0]["message"])
+        self.assertEqual(warning[0]["line"], 6)
+        self.assertEqual(warning[0]["path"], "/standard/processing-meta")
+        exp = self._validate(source, VALIDATOR_EXPORT)
+        self.assertFalse(exp.valid, validate.format_human(exp))
+        self.assertIn("V-6", _rules(exp))
+        self.assertIs(exp.engines["lxml"]["valid"], False)
+        self.assertIs(exp.engines["xmllint"]["valid"], False)
+
+    def test_character_reference_in_version_is_accepted_without_changing_source(self):
+        source = (VALID_DIR / "01-minimal.xml").read_text(encoding="utf-8").replace('mathml-version="3.0"', 'mathml-version="2&#x2e;0"')
+        rep = self._validate(source, VALIDATOR_IMPORT)
+        self.assertTrue(rep.valid, validate.format_human(rep))
+        self.assertTrue(rep.consistent)
+        self.assertTrue(any(w["rule"] == "V-6" and w.get("line") == 6 for w in rep.warnings))
+
+    def test_external_doctype_is_still_rejected(self):
+        source = (VALID_DIR / "01-minimal.xml").read_text(encoding="utf-8").replace('mathml-version="3.0"', 'mathml-version="2.0"')
+        source = source.replace('?>', '?>\n<!DOCTYPE standard SYSTEM "http://127.0.0.1:9/forbidden.dtd">', 1)
+        rep = self._validate(source, VALIDATOR_IMPORT)
+        self.assertFalse(rep.valid, validate.format_human(rep))
+        self.assertIn("SYN-3", _rules(rep))
+
+    def test_explicit_custom_schema_is_not_rewritten(self):
+        source = (VALID_DIR / "01-minimal.xml").read_text(encoding="utf-8").replace('mathml-version="3.0"', 'mathml-version="2.0"')
+        with tempfile.TemporaryDirectory() as tmp:
+            schema_dir = Path(tmp) / "schema"
+            schema_dir.mkdir()
+            for path in SCHEMA_DIR.glob("*.rng"):
+                shutil.copyfile(path, schema_dir / path.name)
+            custom = validate.Validator(schema_dir / SCHEMA.name, profile="import")
+            rep = self._validate(source, custom)
+            self.assertFalse(rep.valid, validate.format_human(rep))
+            self.assertIs(rep.engines["lxml"]["valid"], False)
+            self.assertIs(rep.engines["xmllint"]["valid"], False)
+            self.assertTrue(rep.consistent)
+
+    def test_overlay_failure_is_an_engine_error(self):
+        from unittest import mock
+        source = (VALID_DIR / "01-minimal.xml").read_text(encoding="utf-8").replace('mathml-version="3.0"', 'mathml-version="2.0"')
+        with mock.patch.object(validate, "make_import_mathml2_schema", side_effect=OSError("fixture failure")):
+            rep = self._validate(source, VALIDATOR_IMPORT)
+        self.assertFalse(rep.valid)
+        self.assertIn("ENGINE", _rules(rep))
+
+    def test_other_version_is_rejected_in_both_profiles(self):
+        source = (VALID_DIR / "01-minimal.xml").read_text(encoding="utf-8").replace('mathml-version="3.0"', 'mathml-version="2.1"')
+        for validator in (VALIDATOR_IMPORT, VALIDATOR_EXPORT):
+            rep = self._validate(source, validator)
+            self.assertFalse(rep.valid, validate.format_human(rep))
+            self.assertIn("V-6", _rules(rep))
+            self.assertIs(rep.engines["lxml"]["valid"], False)
+            self.assertIs(rep.engines["xmllint"]["valid"], False)
+
+    def test_other_invalid_attributes_are_not_normalized_away(self):
+        source = (VALID_DIR / "01-minimal.xml").read_text(encoding="utf-8").replace('mathml-version="3.0"', 'mathml-version="2.0"').replace('table-model="xhtml"', 'table-model="wrong"')
+        rep = self._validate(source, VALIDATOR_IMPORT)
+        self.assertFalse(rep.valid, validate.format_human(rep))
+        self.assertTrue(rep.consistent)
+        self.assertIn("V-6", _rules(rep))
+        self.assertIs(rep.engines["lxml"]["valid"], False)
+        self.assertIs(rep.engines["xmllint"]["valid"], False)
+        self.assertTrue(any(e.get("line") == 6 for e in rep.errors if e["rule"] == "RNG"), validate.format_human(rep))
+        self.assertTrue(any(m.get("line") == 6 for m in rep.engines["xmllint"]["messages"]), validate.format_human(rep))
+
+
 class TestHelpers(unittest.TestCase):
     def test_ncname(self):
         for ok in ("sec_5.1", "table-fn_1.1", "biblref_1", "mml_m3", "条款_1"):

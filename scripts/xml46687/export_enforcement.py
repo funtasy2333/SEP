@@ -112,7 +112,7 @@ PROBES = {
     "R-ns-mml": _p(S01, ("replace", ' xmlns:mml="http://www.w3.org/1998/Math/MathML"', ""), R("V-16"), "根上声明 mml", "silent"),
     "R-ns-tbx": _p(S01, ("replace", ' xmlns:tbx="urn:iso:std:iso:30042:ed-1"', ""), R("V-16"), "根上声明 tbx", "silent"),
     "R-pm": _p(S01, ("remove", "//processing-meta"), R("V-16"), "processing-meta", "silent"),
-    "R-pm-values": _p(S01, ("set_attr", "//processing-meta", "mathml-version", "2.0"), R("V-6"), "processing-meta 六个属性取固定值", "error"),
+    "R-pm-values": _p(S01, ("set_attr", "//processing-meta", "mathml-version", "1.0"), R("V-6"), "processing-meta 六个属性取固定值", "error"),
     "R-encoding": _p(S01, ("replace", 'encoding="UTF-8"', 'encoding="ISO-8859-1"'), R("SYN-2"), "编码只收 UTF-8", "error"),
     "R-dup-id": _p(S03, ("set_attr", "(//body/sec)[2]", "id", "sec_1"), R("V-1"), "id 唯一", "error"),
     "R-id-sec": _p(S03, ("remove_id", "(//body/sec[label])[1]"), R("V-13"), "有编号的章条必须有 id"),
