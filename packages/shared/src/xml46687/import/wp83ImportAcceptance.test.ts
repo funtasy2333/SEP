@@ -7,7 +7,7 @@ import type { XmlElement } from '../tree'
 import { detectLegacyXml46687 } from './legacy'
 import { validateXml46687 } from './validate'
 import { mapXml46687 } from './facade'
-import type { IRArray, IRFigure, IRFigureSet, IRFormula, IRFormulaGroup, IRTable, IRNormRefList, IRTermEntry, IRDefList } from '../../ir/types'
+import type { IRArray, IRFigure, IRFigureSet, IRFormula, IRFormulaGroup, IRTable, IRNormRefList, IRTermEntry, IRDefList, IRDoc, IRInline, IRExample, IRList } from '../../ir/types'
 
 const sampleDir = resolve(process.cwd(), '../../schemas/gbt46687.2/samples')
 // 实际 1×1 PNG 的完整字节，固定为可持久化资源；一个 href 对应一个准备好的资源。
@@ -74,6 +74,35 @@ function collectKind<T>(value: unknown, kind: string): T[] {
   const object = value as Record<string, unknown>
   return [...(object.kind === kind ? [object as T] : []), ...Object.values(object).flatMap(item => collectKind<T>(item, kind))]
 }
+
+function allInlines(value: unknown): IRInline[] {
+  if (Array.isArray(value)) return value.flatMap(allInlines)
+  if (value === null || typeof value !== 'object') return []
+  const object = value as Record<string, unknown>
+  return [...(typeof object.text === 'string' ? [object as unknown as IRInline] : []), ...Object.values(object).flatMap(allInlines)]
+}
+function findMarkedInline(value: unknown, text: string): IRInline {
+  const runs = allInlines(value).filter(run => run.text === text && run.marks?.length)
+  expect(runs, `文本 ${text} 的带标记节点`).toHaveLength(1)
+  return runs[0]!
+}
+const referenceCases: Array<{title: string; text: string; mark: string; target: (doc: IRDoc) => string; targetKind?: string}> = [
+  {title:'[M-10.1.2-01] 章引用指向目标章',text:'第 1 章',mark:'crossRef',target:d => d.body[0]!.id,targetKind:'chapter'},
+  {title:'[M-9.2.7-02] 附录引用指向目标附录',text:'附录',mark:'crossRef',target:d => d.appendices[0]!.id,targetKind:'appendix'},
+  {title:'[M-10.1.2-02] 表引用指向目标表',text:'表1',mark:'crossRef',target:d => collectKind<IRTable>(d,'table')[0]!.id,targetKind:'table'},
+  {title:'[M-10.1.2-03] 图引用指向目标图',text:'图1',mark:'crossRef',target:d => collectKind<IRFigure>(d,'figure')[0]!.id,targetKind:'figure'},
+  {title:'[M-10.1.2-04] 公式引用指向目标公式',text:'(1)',mark:'crossRef',target:d => collectKind<IRFormula>(d,'formula')[0]!.id,targetKind:'formula'},
+  {title:'[M-10.1.6-01] 参考文献引用指向文献条目',text:'[1]',mark:'bibRef',target:d => d.bibliography[0]!.id},
+  {title:'[M-10.1.3-01] 注引用指向术语内的注',text:'注 1',mark:'crossRef',target:d => collectKind<IRTermEntry>(d,'termEntry')[0]!.notes[0]!.id,targetKind:'note'},
+  {title:'[M-10.1.3-02] 示例引用指向目标示例',text:'示例',mark:'crossRef',target:d => collectKind<IRExample>(d,'example').find(e => JSON.stringify(e).includes('被引用的示例带 id。'))!.id,targetKind:'example'},
+  {title:'[M-9.2.6-02] [M-9.2.6-03] 正文术语引用指向目标术语',text:'要求 (3.1.2)',mark:'termRef',target:d => collectKind<IRTermEntry>(d,'termEntry')[1]!.id},
+  {title:'[M-10.1.5-01] [M-10.1.5-02] 列项引用指向对应列项',text:'列项 b)',mark:'crossRef',target:d => collectKind<IRList>(d,'list').flatMap(l => l.items).find(item => JSON.stringify(item).includes('被引用的列项条目带 id。'))!.id,targetKind:'listItem'},
+  {title:'[M-10.1.1-04] 缩略语引用指向对应术语项',text:'GPS',mark:'crossRef',target:d => collectKind<IRDefList>(d,'defList')[0]!.items[1]!.id,targetKind:'abbreviation'},
+]
+for (const item of referenceCases) it(item.title, () => {
+  const doc = mapValid('06-terms-references.xml')
+  expect(findMarkedInline(doc, item.text).marks).toEqual([{type:item.mark, targetId:item.target(doc), ...(item.targetKind ? {targetKind:item.targetKind} : {})}])
+})
 
 describe('完整样例的映射关系', () => {
   it('[M-4.1-05] 正文各章保留顺序和标题', () => {
@@ -163,6 +192,44 @@ describe('完整样例的映射关系', () => {
       [[{text:'CPU'}],[{text:'中央处理器（Central Processing Unit）'}]],
       [[{text:'GPS'}],[{text:'全球定位系统（Global Positioning System）'}]],
     ])
+  })
+  it('[M-9.2.6-01] 术语定义中的关联术语指向另一条目的身份', () => {
+    const terms = collectKind<IRTermEntry>(mapValid('06-terms-references.xml'), 'termEntry')
+    const run = findMarkedInline(terms[0]!.definition, '要求')
+    expect(run.marks).toEqual([{type:'termRef', targetId:terms[1]!.id}])
+  })
+  it('[M-9.2.7-01] 术语注内的附录引用指向附录', () => {
+    const ir = mapValid('06-terms-references.xml')
+    const note = collectKind<IRTermEntry>(ir, 'termEntry')[0]!.notes[0]!
+    expect(findMarkedInline(note, '附录').marks).toEqual([{type:'crossRef',targetId:ir.appendices[0]!.id,targetKind:'appendix'}])
+  })
+  it('[M-9.2.2-01] 术语定义正文及其中格式按原次序保留', () => {
+    const term = collectKind<IRTermEntry>(mapValid('06-terms-references.xml'), 'termEntry')[1]!
+    expect(JSON.stringify(term.definition)).toContain('需要满足的条件，参见')
+    expect(findMarkedInline(term.definition, '文件 (3.1.1)').marks?.[0]?.type).toBe('termRef')
+  })
+  it('[M-10.1.8-01] [M-10.1.1-03] 正文脚注的正文和引用身份保留', () => {
+    const inlines = allInlines(mapValid('06-terms-references.xml'))
+    const footnotes = inlines.flatMap(run => run.footnote ? [run.footnote] : [])
+    expect(footnotes).toHaveLength(1)
+    expect(footnotes[0]!.id).toBeTruthy()
+    expect(footnotes[0]!.content).toEqual([{text:'脚注的内容。'}])
+  })
+  it('[M-6.2.3-10] [M-6.2.3-11] 单元格脚注引用指向同表的对应定义', () => {
+    const table = collectKind<IRTable>(mapValid('04-tables.xml'), 'table')[0]!
+    const refs = allInlines(table.rows).flatMap(run => (run.marks ?? []).filter(mark => mark.type === 'tableFootnoteRef'))
+    expect(refs).toHaveLength(2)
+    expect(refs).toEqual([
+      expect.objectContaining({type:'tableFootnoteRef',targetId:table.footnotes![0]!.id,id:expect.any(String)}),
+      expect.objectContaining({type:'tableFootnoteRef',targetId:table.footnotes![1]!.id,id:expect.any(String)}),
+    ])
+    expect(refs[0]!.id).not.toBe(refs[1]!.id)
+  })
+  it('[M-10.2-01] [M-10.2-02] 正文内标准号保留标准引用标记', () => {
+    expect(findMarkedInline(mapValid('06-terms-references.xml'), 'GB/T 1.1').marks).toEqual([{type:'stdRef'}])
+  })
+  it('[M-10.1.7-01] 正文混合引文的文本与标记保留', () => {
+    expect(findMarkedInline(mapValid('06-terms-references.xml'), 'Example Corp. Interface specification [EB/OL].').marks).toEqual([{type:'mixedCitation'}])
   })
   it('[M-6.2.1-04] [M-6.2.1-05] 表题和横纵方向分别属于各表', () => {
     const tables = collectKind<IRTable>(mapValid('04-tables.xml'), 'table')
