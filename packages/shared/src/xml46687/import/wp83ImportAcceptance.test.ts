@@ -375,6 +375,23 @@ describe('完整样例的映射关系', () => {
     expect(result.ir).toBeNull()
     expect(result.problems).toContainEqual(expect.objectContaining({code:'xml-unsupported',severity:'error',xml:expect.objectContaining({path:expect.stringContaining('/legend[1]/title[1]')})}))
   })
+  it('[M-4.5.4-01] 整文索引映射到文末索引对象', () => {
+    const index = mapValid('03-structure.xml').index!
+    expect(index.title).toEqual([{text:'索引'}])
+    expect(index.groups[0]!.entries.map(entry => entry.term)).toEqual([[{text:'无标题条'}],[{text:'变量'}]])
+  })
+  it('[M-7.4-02] 公式 MathML 的合法不透明 id 仅作为关联键并不污染公式内容', () => {
+    const original = readFileSync(resolve(sampleDir, 'valid', '05-formulas-figures.xml'), 'utf8')
+    const xml = original.replace('id="mml_m2"', 'id="数学甲"')
+    const formula = collectKind<IRFormula>(mapSource(xml), 'formula')[0]!
+    expect(formula.mathml).toContain('<mml:mfrac>')
+    expect(formula.mathml).not.toContain('数学甲')
+  })
+  it('[M-8.2-11] 图注正文属于图且不出现在相邻图', () => {
+    const figures = collectKind<IRFigure>(mapValid('05-formulas-figures.xml'), 'figure')
+    expect(figures[0]!.notes[0]).toMatchObject({kind:'note',content:[{kind:'paragraph',content:[{text:'图注位于图形之后。'}]}]})
+    expect(figures[1]!.notes).toEqual([])
+  })
   it('[M-6.2.1-04] [M-6.2.1-05] 表题和横纵方向分别属于各表', () => {
     const tables = collectKind<IRTable>(mapValid('04-tables.xml'), 'table')
     expect(tables).toHaveLength(2)
