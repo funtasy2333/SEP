@@ -286,7 +286,11 @@ export function validateRngModel(tree: XmlDocument, maxWork = DEFAULT_WORK_LIMIT
           const valuePatterns = cs.filter(c => !['anyName', 'nsName', 'name'].includes(c.k))
           const matches = attrs.flatMap((a: XmlAttr, i) => {
             const bit = 1n << BigInt(i)
-            if (!(state.mask & bit) || !nameMatches(pat, a.name) || !valuePatterns.every(c => scalar(c, a.value))) return []
+            // 导入约定 C-S-04 额外接受 processing-meta/@mathml-version="2.0"；
+            // 仅覆盖该元素和属性，固定 RNG 数据与导出规则保持不变。
+            const importMathml2 = p === children(grammar['el.processing-meta'])[0]
+              && pat.name === 'mathml-version' && pat.ns === '' && a.value === '2.0'
+            if (!(state.mask & bit) || !nameMatches(pat, a.name) || (!importMathml2 && !valuePatterns.every(c => scalar(c, a.value)))) return []
             return [{ i: state.i, mask: state.mask & ~bit }]
           })
           // 重复的 MathML 通配属性模型相同，按输入次序消费以避免子集枚举。

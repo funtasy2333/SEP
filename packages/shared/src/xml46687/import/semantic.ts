@@ -56,7 +56,12 @@ export function validateSemantics(tree: XmlDocument): ImportProblem[] {
       if (!['alpha-lower', 'arabic', 'roman-lower', 'dash', 'bullet'].includes(type)) report(el, 'xml-content-model', 'V-5', '列项类型无效')
       if (['dash', 'bullet'].includes(type)) for (const item of kids(el).filter(c => plain(c, 'list-item'))) if (kids(item).some(c => plain(c, 'label'))) report(item, 'xml-content-model', 'V-5', '无序列项不得带编号')
     }
-    if (plain(el, 'processing-meta')) for (const [key, expected] of Object.entries(processing)) if (attr(el, key) !== expected) report(el, 'xml-content-model', 'V-6', '处理元数据属性无效')
+    if (plain(el, 'processing-meta')) for (const [key, expected] of Object.entries(processing)) {
+      const value = attr(el, key)
+      if (key === 'mathml-version' && value === '2.0') {
+        problems.push({ code: 'xml-normalized', severity: 'warning', message: 'MathML 2.0 为兼容导入的处理版本', xml: location(el), matrixId: 'M-4.3.2-30', detail: { rule: 'V-6' } })
+      } else if (value !== expected) report(el, 'xml-content-model', 'V-6', '处理元数据属性无效')
+    }
     if (plain(el, 'title-wrap') && !getXmlAttr(el, XML, 'lang')) report(el, 'xml-content-model', 'V-6', '标题缺少语言')
     for (const a of el.attrs) {
       const key = a.name.local.toLowerCase()
