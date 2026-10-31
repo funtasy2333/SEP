@@ -1,3 +1,4 @@
+import { PNG_URL } from './__testHelpers__/wp83ImportCases'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -15,7 +16,7 @@ const validator: ContentValidator = content => {
 const root = resolve(process.cwd(), '../..')
 const validPath = resolve(root, 'schemas/gbt46687.2/samples/valid')
 const goldPath = resolve(root, 'packages/shared/src/renderers/__tests__/__snapshots__')
-const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL6UAAAAASUVORK5CYII='
+const png = PNG_URL
 const cases = [
   ...readdirSync(validPath).filter(name => name.endsWith('.xml')).map(name => [name, resolve(validPath, name)] as const),
   ...['wp82', 'fullRenderer', 'wp8m', 'wp6'].map(name => [name, resolve(goldPath, `xml46687.${name}.xml`)] as const),

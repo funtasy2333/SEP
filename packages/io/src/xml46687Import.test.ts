@@ -1,3 +1,4 @@
+import { PNG_URL } from './__testHelpers__/wp83ImportCases'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -42,7 +43,7 @@ it('图片缺资源阻断；准备的 data URL 真实写入资源节点并在保
   const missing = await importXml46687(imageXml, { validateContent: validator, generateId: () => `a${++n}` })
   expect(missing.pmDoc).toBeNull()
   expect(missing.problems.map(p => p.code)).toContain('xml-resource-missing')
-  const data = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL6UAAAAASUVORK5CYII='
+  const data = PNG_URL
   const resources = new Map([['picture', Object.freeze({ src: data, mediaType: 'image/png' })]])
   n = 0
   const result = await importXml46687(imageXml, { validateContent: validator, generateId: () => `a${++n}`, resources })
@@ -63,7 +64,7 @@ it('异步 resolver 获得原始 href，且缺失资源不会调用生产校验'
     resolveResource: async request => {
       calls++
       expect(request).toMatchObject({ href: 'picture', basename: 'picture', kind: 'graphic' })
-      return { src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL6UAAAAASUVORK5CYII=', mediaType: 'image/png' }
+      return { src: PNG_URL, mediaType: 'image/png' }
     },
   })
   expect(result.pmDoc).not.toBeNull()
@@ -113,7 +114,7 @@ it('生成器的重复值和派生段落 ID 冲突必须在生产校验前阻断
 
 it('同一资源 ID 对应同一内容的多个 href 共享资源身份，冲突内容则拒绝', async () => {
   const imageXml = xml.replace('</p>', '</p><fig id="one"><label>图1</label><caption><title>甲</title></caption><graphic content-type="image" xlink:href="a"/></fig><fig id="two"><label>图2</label><caption><title>乙</title></caption><graphic content-type="image" xlink:href="b"/></fig>')
-  const item = { src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL6UAAAAASUVORK5CYII=', mediaType: 'image/png', resourceId: 'shared-resource' }
+  const item = { src: PNG_URL, mediaType: 'image/png', resourceId: 'shared-resource' }
   const result = await importXml46687(imageXml, { validateContent: validator, resources: new Map([['a', item], ['b', item]]) })
   expect(result.pmDoc).not.toBeNull()
   expect(pmToIr(result.pmDoc!).doc.resources).toHaveLength(1)

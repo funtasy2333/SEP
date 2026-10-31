@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs'
+import { crc32, inflateSync } from 'node:zlib'
+import { pngBytes, pngWithLabel } from './__testHelpers__/wp83ImportCases'
 import { describe, expect, it } from 'vitest'
 import { exportXml46687, pmToIr, resolve } from '@ses/shared'
 import { createEditorSchema } from '../../client/src/extensions/editorSchema'
@@ -7,8 +9,34 @@ import { collectXml46687Resources } from './xml46687Resources'
 import { importXml46687 } from './xml46687Import'
 
 const schema = createEditorSchema()
-const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/aQAAAABJRU5ErkJggg==','base64')
-const imageBytes = (href: string) => Buffer.concat([pixel,Buffer.from(href)])
+const imageBytes = (href: string) => Buffer.from(pngWithLabel(href))
+it('正向图片夹具是 CRC 正确、可解压且无尾随字节的不同 PNG', () => {
+  const images = [Buffer.from(pngBytes()), imageBytes('fig_1'), imageBytes('fig_2')]
+  expect(new Set(images.map(image => image.toString('base64'))).size).toBe(3)
+  for (const bytes of images) {
+    expect(bytes.subarray(0, 8)).toEqual(Buffer.from('89504e470d0a1a0a', 'hex'))
+    let offset = 8
+    const idat: Buffer[] = []
+    const names: string[] = []
+    while (offset < bytes.length) {
+      const length = bytes.readUInt32BE(offset)
+      const end = offset + 12 + length
+      expect(end).toBeLessThanOrEqual(bytes.length)
+      const type = bytes.toString('ascii', offset + 4, offset + 8)
+      names.push(type)
+      const chunk = bytes.subarray(offset + 4, offset + 8 + length)
+      expect(bytes.readUInt32BE(offset + 8 + length), `${type} CRC`).toBe(crc32(chunk))
+      if (type === 'IHDR') expect([bytes.readUInt32BE(offset + 8), bytes.readUInt32BE(offset + 12)]).toEqual([1, 1])
+      if (type === 'IDAT') idat.push(bytes.subarray(offset + 8, offset + 8 + length))
+      offset = end
+      if (type === 'IEND') break
+    }
+    expect(names[0]).toBe('IHDR')
+    expect(names.at(-1)).toBe('IEND')
+    expect(offset).toBe(bytes.length)
+    expect(inflateSync(Buffer.concat(idat))).toHaveLength(5)
+  }
+})
 async function roundtrip(name: string) {
   const input = readFileSync(`../../schemas/gbt46687.2/samples/valid/${name}.xml`,'utf8')
   let n = 0

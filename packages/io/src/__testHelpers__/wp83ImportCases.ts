@@ -4,9 +4,32 @@ import { packageXml46687 } from '../xml46687Package'
 
 export const GOLDEN_NAMES = ['wp82', 'fullRenderer', 'wp8m', 'wp6'] as const
 export type GoldenName = typeof GOLDEN_NAMES[number]
-export const PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL6UAAAAASUVORK5CYII='
+export const PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg=='
 export const PNG_URL = `data:image/png;base64,${PNG_BASE64}`
 export const pngBytes = () => Uint8Array.from(atob(PNG_BASE64), char => char.charCodeAt(0))
+
+/** 给有效 PNG 增加合法 tEXt 元数据，使不同 href 的资源字节可区分。 */
+export function pngWithLabel(label: string): Uint8Array {
+  const original = pngBytes()
+  const type = new TextEncoder().encode('tEXt')
+  const content = new TextEncoder().encode(`source\0${label}`)
+  const chunk = new Uint8Array(12 + content.length)
+  const view = new DataView(chunk.buffer)
+  view.setUint32(0, content.length)
+  chunk.set(type, 4)
+  chunk.set(content, 8)
+  let crc = 0xffffffff
+  for (const byte of chunk.subarray(4, 8 + content.length)) {
+    crc ^= byte
+    for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1))
+  }
+  view.setUint32(8 + content.length, (crc ^ 0xffffffff) >>> 0)
+  const result = new Uint8Array(original.length + chunk.length)
+  result.set(original.subarray(0, -12))
+  result.set(chunk, original.length - 12)
+  result.set(original.subarray(-12), original.length - 12 + chunk.length)
+  return result
+}
 export const nextIds = () => { let sequence = 0; return () => `n${++sequence}` }
 
 export function makeCase(xml: string) {
