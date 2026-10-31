@@ -19,8 +19,11 @@ function collectedTitles(): CollectedTest[] {
   })
   return (JSON.parse(output) as CollectedTest[]).filter(t => /[\\/]xml46687[\\/]import[\\/]/.test(t.file))
 }
+const directTitle = (name: string): string => name.split(' > ').at(-1) ?? ''
 const matrixTags = (name: string): string[] =>
-  [...(name.split(' > ').at(-1) ?? '').matchAll(/\[(M-[A-Za-z0-9][A-Za-z0-9.-]*)\]/g)].map(m => m[1]!)
+  [...directTitle(name).matchAll(/\[(M-[A-Za-z0-9][A-Za-z0-9.-]*)\]/g)].map(m => m[1]!)
+// 负例验证拒绝，不证明该行合法写法可导入；保守排除，仅作初筛，仍需逐条审查断言。
+const isPositive = (name: string): boolean => !/拒绝|阻断|报错|错误|非法|不支持|无法保存/.test(directTitle(name))
 
 describe('WP8.3 导入矩阵标题收集', () => {
   it('每个真实导入测试标签都存在于矩阵', () => {
@@ -32,9 +35,9 @@ describe('WP8.3 导入矩阵标题收集', () => {
 
   it('动态计算的所有 shall/should 接收行均有真实导入测试标题引用', () => {
     const tests = collectedTitles()
-    const referenced = new Set(tests.flatMap(t => matrixTags(t.name)))
+    const referenced = new Set(tests.filter(t => isPositive(t.name)).flatMap(t => matrixTags(t.name)))
     const missing = required.filter(r => !referenced.has(r.id))
-    const summary = `需覆盖 ${required.length} 行，标题候选 ${required.length - missing.length} 行，缺 ${missing.length} 行`
+    const summary = `需覆盖 ${required.length} 行，正向标题候选 ${required.length - missing.length} 行，缺 ${missing.length} 行`
     expect(required.length).toBeGreaterThan(0)
     expect(missing.map(r => `${r.id} ${r.path}`), summary).toEqual([])
   }, 70000)

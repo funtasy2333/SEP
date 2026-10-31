@@ -7,7 +7,7 @@ import type { XmlElement } from '../tree'
 import { detectLegacyXml46687 } from './legacy'
 import { validateXml46687 } from './validate'
 import { mapXml46687 } from './facade'
-import type { IRArray, IRFigure, IRFigureSet, IRFormula, IRFormulaGroup, IRTable } from '../../ir/types'
+import type { IRArray, IRFigure, IRFigureSet, IRFormula, IRFormulaGroup, IRTable, IRNormRefList, IRTermEntry, IRDefList } from '../../ir/types'
 
 const sampleDir = resolve(process.cwd(), '../../schemas/gbt46687.2/samples')
 // 实际 1×1 PNG 的完整字节，固定为可持久化资源；一个 href 对应一个准备好的资源。
@@ -76,6 +76,94 @@ function collectKind<T>(value: unknown, kind: string): T[] {
 }
 
 describe('完整样例的映射关系', () => {
+  it('[M-4.1-05] 正文各章保留顺序和标题', () => {
+    const ir = mapValid('03-structure.xml')
+    expect(ir.body.map(c => c.title)).toEqual([[{text:'范围'}], [{text:'规范性引用文件'}], [{text:'术语和定义'}], [{text:'技术要求'}]])
+    expect(ir.body.map(c => c.secType)).toEqual(['scope','norm-refs','terms','general'])
+  })
+  it('[M-4.3.2-01] 标准元数据写入完整文档的元数据字段', () => {
+    const meta = mapValid('02-full-metadata.xml').meta
+    expect(meta).toMatchObject({title:'网络设备安全要求 第1部分：总则', stdCode:'GB/T 99999.1—2026', publishDate:'2026-04-30', implementDate:'2026-11-01'})
+    expect(meta.languages?.map(l => l.tag)).toEqual(['zh', 'en'])
+  })
+  it('[M-4.3.4-01] 不含子条的引言保留正文', () => {
+    const ir = mapValid('03-structure.xml')
+    expect(ir.front.introduction).toMatchObject([{kind:'paragraph', content:[{text:'引言可以只含段落。'}]}])
+    expect(ir.front.introductionClauses ?? []).toEqual([])
+  })
+  it('[M-4.4.2.3-01] [M-4.4.2.3.2-01] 规范性引用章和清单保持归属', () => {
+    const ir = mapValid('03-structure.xml')
+    const chapter = ir.body[1]!
+    expect(chapter.secType).toBe('norm-refs')
+    const lists = collectKind<IRNormRefList>(chapter, 'normRefList')
+    expect(lists).toHaveLength(1)
+    expect(lists[0]!.entries.map(e => e.entryType)).toEqual(['std','mixed'])
+  })
+  it('[M-4.5.3.1-03] [M-4.5.3.1-04] [M-4.5.3.1-05] 参考文献中标准号与题名分别保留', () => {
+    const entry = mapValid('03-structure.xml').bibliography[0]!
+    expect(entry.entryType).toBe('standard')
+    expect(entry.fields?.map(f => [f.name, f.value])).toEqual([
+      ['std-ref', [{text:'GB/T 7714—2015'}]], ['title', [{text:'信息与文献 参考文献著录规则'}]],
+    ])
+  })
+  it('[M-4.5.3.1-06] 参考文献的混合引文原文保留', () => {
+    const entry = mapValid('03-structure.xml').bibliography[1]!
+    expect(entry.content[0]).toEqual({text:'李四.标准数字化概论[M].北京:示例出版社,2024.'})
+    expect(entry.content[1]).toEqual({text:'\n'})
+  })
+  it('[M-4.5.3-01] [M-4.5.3-03] 参考文献表的两个条目按顺序保留', () => {
+    const ir = mapValid('03-structure.xml')
+    expect(ir.bibliography).toHaveLength(2)
+    expect(ir.bibliography[0]).toMatchObject({entryType:'standard', content:[{text:'GB/T 7714—2015'}, {text:'信息与文献 参考文献著录规则'}]})
+    expect(ir.bibliography[1]!.content[0]!.text).toBe('李四.标准数字化概论[M].北京:示例出版社,2024.')
+  })
+  it('[M-4.5.3.3-02] 文献中的 URI 保留地址和显示文本', () => {
+    expect(mapValid('03-structure.xml').bibliography[1]!.externalLink).toEqual({href:'https://example.org/book',displayText:'https://example.org/book'})
+  })
+  it('[M-4.5.4-02] [M-4.5.4-03] 索引标题、分组及词条按输入顺序保留', () => {
+    const index = mapValid('03-structure.xml').index!
+    expect(index.title).toEqual([{text:'索引'}])
+    expect(index.groups).toHaveLength(1)
+    expect(index.groups[0]!.label).toEqual([{text:'B'}])
+    expect(index.groups[0]!.entries.map(e => e.term)).toEqual([[{text:'无标题条'}], [{text:'变量'}]])
+  })
+  it('[M-4.5.4-06] 无目标 ID 的参见文字逐条保留而不猜测目标', () => {
+    const entry = mapValid('03-structure.xml').index!.groups[0]!.entries[0]!
+    expect(entry.targets).toEqual([])
+    expect(entry.sourceReferences).toEqual([{type:'see',content:[{text:'5.1'}]}, {type:'see',content:[{text:'5.2'}]}])
+  })
+  it('[M-4.4.2.4-01] 术语章与两个术语条目保持层级归属', () => {
+    const chapter = mapValid('06-terms-references.xml').body.find(c => c.secType === 'terms')!
+    expect(chapter.title).toEqual([{text:'术语和定义'}])
+    const terms = collectKind<IRTermEntry>(chapter, 'termEntry')
+    expect(terms).toHaveLength(2)
+    expect(terms[0]!.languageSets?.[0]?.groups[0]?.terms[0]?.content).toEqual([{text:'标准化文件'}])
+    expect(terms[1]!.languageSets?.[0]?.groups[0]?.terms[0]?.content).toEqual([{text:'要求'}])
+  })
+  it('[M-9.2.3-02] [M-9.2.3-03] [M-9.2.3-04] 术语词形和词性描述符保持关联', () => {
+    const term = collectKind<IRTermEntry>(mapValid('06-terms-references.xml'), 'termEntry')[0]!
+    const variants = term.languageSets![0]!.groups.flatMap(g => g.terms)
+    expect(variants.map(v => v.content)).toEqual([[{text:'标准化文件'}],[{text:'规范文件'}],[{text:'规格书'}]])
+    expect(variants[0]!.descriptors).toEqual(expect.arrayContaining([expect.objectContaining({kind:'partOfSpeech',value:[{text:'noun'}]})]))
+  })
+  it('[M-9.2.8-01] 术语来源原文属于对应条目', () => {
+    const terms = collectKind<IRTermEntry>(mapValid('06-terms-references.xml'), 'termEntry')
+    expect(terms[0]!.source).toEqual([{text:'GB/T 1.1—2020,3.1.2'}])
+    expect(terms[1]!.source).toBeUndefined()
+  })
+  it('[M-9.2.4-01] [M-9.2.5-01] 术语示例和注不混淆', () => {
+    const term = collectKind<IRTermEntry>(mapValid('06-terms-references.xml'), 'termEntry')[0]!
+    expect(JSON.stringify(term.examples)).toContain('电子文件和纸质文件。')
+    expect(JSON.stringify(term.notes)).toContain('必要时可附图。')
+    expect(term.notes).toHaveLength(2)
+  })
+  it('[M-10.1.4-03] [M-10.1.4-04] [M-10.1.4-05] 缩略语每项的术语和释义保持对应', () => {
+    const list = collectKind<IRDefList>(mapValid('06-terms-references.xml'), 'defList')[0]!
+    expect(list.items.map(item => [item.term, item.definition])).toEqual([
+      [[{text:'CPU'}],[{text:'中央处理器（Central Processing Unit）'}]],
+      [[{text:'GPS'}],[{text:'全球定位系统（Global Positioning System）'}]],
+    ])
+  })
   it('[M-6.2.1-04] [M-6.2.1-05] 表题和横纵方向分别属于各表', () => {
     const tables = collectKind<IRTable>(mapValid('04-tables.xml'), 'table')
     expect(tables).toHaveLength(2)
