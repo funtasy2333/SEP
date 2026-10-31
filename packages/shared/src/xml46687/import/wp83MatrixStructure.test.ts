@@ -159,3 +159,10 @@ it('[M-4.1-03] 根元素上的命名空间按 URI 而非前缀映射术语、公
   expect(formula?.mathml).toContain('≤')
   expect(image?.src).toMatch(/^data:image\/png;base64,/)
 })
+
+it('[M-4.3.2-30] MathML 2.0 处理元数据允许导入并给出兼容性提示', () => {
+  const xml = sample('01-minimal.xml').replace('mathml-version="3.0"', 'mathml-version="2.0"')
+  const { doc, problems } = mapComplete(xml)
+  expect(doc.body[0]!.title).toEqual([{ text: '范围' }])
+  expect(problems.some(p => p.severity === 'warning' && p.xml?.path.includes('processing-meta'))).toBe(true)
+})
