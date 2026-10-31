@@ -17,7 +17,8 @@
 - 不改依赖清单、lockfile、JSON golden、`shared/src/ir/__tests__/fixtures.ts`、`client/src/extensions/__fixtures__/wp6.ts`；不删、跳过、弱化既有测试。shared 禁参数属性、enum、namespace。
 - 用户已批准最小 Schema/PM↔IR 补齐，保留嵌套列表层级、不压平，支持粗体与代码组合；不新增编辑菜单。
 - 用户最后裁定：全部 valid 可导入优先，扩模型接收多 graphic、fig-group、array、公式组、共享脚注及表替代图，按 [模型契约](model-extension.md) 保留内容与关联。多目标 rid/tfoot/附录 term-sec 仍阻断；frame/rules/scope 沿用警告；HTTP/MCP 留 WP8.4。
-- 样例验收“不区分”通过 [严格导入规则](strict-import.md) R1–R13 落地，统一校验而不按文件名特判。仅 UUID/formula ID 两个合法不透明 ID 负例与用户既有约定仍有冲突，等待明确裁定；不得用 ID 拼写偷推对象语义。
+- 样例验收“不区分”通过 [严格导入规则](strict-import.md) R1–R13 落地，统一校验而不按文件名特判。2026-10-31 用户确认保留不透明 ID：UUID/formula ID 两个样例为导入正例、导出负例，其余 76 个 invalid 拒绝；不得用 ID 拼写偷推对象语义。
+- 用户 2026-10-31 将后续新代理模型改为 gpt-6-luna / max；已完成结果继续复用，原有中断任务先保存检查点，不为重跑另建替代实现。
 - 固定主线基线 `65f8cdff6b6e6ea0c4e51fb44433a28a97711e5b`；集成树包含已审查设计三提交。
 - 全部问题中文，error 阻断；输入不变。运行时不联网加载 XML 外部内容，不依赖 Python。
 - 测试不得读写 `packages/server/data/ses.db`；服务仅新空库、非默认端口和 127.0.0.1，完毕停进程。

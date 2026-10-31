@@ -1,6 +1,6 @@
-# WP8.3 GB/T 46687.2 XML 导入设计（待审）
+# WP8.3 GB/T 46687.2 XML 导入设计
 
-基线 `65f8cdff6b6e6ea0c4e51fb44433a28a97711e5b`；本文件是设计，不是实现或验收通过声明。依据 `docs/wp8-xml46687.md`、`docs/wp8.1/{README,conventions-S,conventions-T,source-record}.md`、两份支持矩阵、`docs/wp8.m/design.md` §6.1/7.1、`docs/wp8.2/{design,validation}.md`、`schemas/gbt46687.2/README.md` 和源码。原文引用用条款与印刷页；PDF 页 = 印刷页 + 4。每行出处、路径、约定、处理线索、rejectKind 在 [逐行表](matrix-import.md)。原文核验依赖矩阵的 `verifiedAgainstImage`，不把 OCR 当作独立证明。
+设计形成于基线 `65f8cdff6b6e6ea0c4e51fb44433a28a97711e5b`；集成已同步 main `419d334aa66e04706aef53feece8ef6fd742f39f`。本文件描述契约，实际验收结果见 [validation.md](validation.md)。依据 `docs/wp8-xml46687.md`、`docs/wp8.1/{README,conventions-S,conventions-T,source-record}.md`、两份支持矩阵、`docs/wp8.m/design.md` §6.1/7.1、`docs/wp8.2/{design,validation}.md`、`schemas/gbt46687.2/README.md` 和源码。原文引用用条款与印刷页；PDF 页 = 印刷页 + 4。每行出处、路径、约定、处理线索、rejectKind 在 [逐行表](matrix-import.md)。原文核验依赖矩阵的 `verifiedAgainstImage`，不把 OCR 当作独立证明。
 
 ## 1. 决策边界与流水线
 
@@ -75,7 +75,7 @@
 
 ### 7.1 严格导入策略
 
-按用户“不区分”及最后的 valid 优先决定，目标为 9 个 valid 全部可导入、78 个 invalid 全部拒绝；采用 [strict-import.md](strict-import.md) 的 R1–R13 统一上下文规则取代上表旧 import 豁免。它们是为本项目验收收紧的导入规则，不是把标准中的所有示例或“宜/可”改称强制。有效资源映射必须同时供正反例使用，缺资源单独测试，不能以缺图伪装格式拒绝。原文 4.1 的 ics/ccs 在 title-wrap 前用 B 次序接受；bibl/ref 缺 id 与 norm-refs/ref 缺 id 按不同上下文处理。
+按用户“不区分”及 valid 优先决定，9 个 valid 全部可导入；2026-10-31 用户确认保留不透明 ID，因此 `invalid/uuid-id.xml`、`invalid/formula-id.xml` 为导入正例、导出负例，其余 76 个 invalid 拒绝。产品不按文件名特判。采用 [strict-import.md](strict-import.md) 的 R1–R13 统一上下文规则取代上表旧 import 豁免。它们是项目导入规则，不是把标准中的所有示例或“宜/可”改称强制。有效资源映射同时供正反例使用，缺资源单独测试，不能以缺图伪装格式拒绝。原文 4.1 的 ics/ccs 在 title-wrap 前用 B 次序接受；bibl/ref 缺 id 与 norm-refs/ref 缺 id 按不同上下文处理。
 
 已对 9 valid、13 目标 invalid 和四 golden 做 lxml 节点扫描：9 valid 与四 golden 对 R1–R13 均零命中，每个目标 invalid 仅命中相应规则。原 import profile 已拒的另外 65 个 invalid 仍须完整回归；这只是规则可行性证据，不是导入器或真实互操作通过。不得按文件名分类。
 
@@ -87,7 +87,11 @@ P0 严格解析器可与 S0（code+bold 与嵌套列表）并行，两者独占�
 
 ## 9. 已定与需主导核实
 
-已定：保留嵌套列表、扩模型接收全部 valid 所需结构；多目标单个 rid、tfoot、附录 term-sec 继续拒绝，frame/rules 与 td@scope 按既有警告；server 直接调用 io，HTTP/MCP 与 UI 留 WP8.4。无损比较覆盖图组、表替代图、公式组、共享脚注身份与原位置。历史 13 个 import 豁免已被严格契约 R1–R13 取代；完整 78 invalid 应拒绝，不能通过缺资源伪装拒绝。
+已定：保留嵌套列表、扩模型接收全部 valid 所需结构；多目标单个 rid、tfoot、附录 term-sec 继续拒绝，frame/rules 与 td@scope 按既有警告；server 直接调用 io，HTTP/MCP 与 UI 留 WP8.4。无损比较覆盖图组、表替代图、公式组、共享脚注身份与原位置。历史 13 个 import 豁免已被严格契约 R1–R13 取代；ID 取值仅校验合法、唯一、引用可解析，导入不套用导出 ID 拼写。两个 ID 样例的档位差异见 §7.1，不能通过缺资源伪装拒绝。
+
+实现另接受已约定的 `processing-meta@mathml-version="2.0"` 并告警，导出仍为 3.0；原生公式的备选图在 MathML 和资源均有效时按 M-7.4-13 告警忽略。XML 资源沿既有导出层接受合法 `image/*`，不局限 PNG/JPEG 等短名单，非图片及无效 MIME 仍拒绝。
+
+ZIP 的 128 MiB 总量和 32 MiB 单资源限制约束留存与拼接；JSZip/pako 正处理的输入块在 pause 后可能继续同步产生输出，回调立即丢弃，不能声称解码器瞬时停产或进程 RSS 有同样硬上界。已核对 16 KiB 输入/输出块、32 KiB 解码窗口及不累计后续块的实现，并以伪报大小的 48 MiB 资源实测拒绝。具体证据与限制记录在验收文档。
 
 ## 10. 上限与基线证据
 
