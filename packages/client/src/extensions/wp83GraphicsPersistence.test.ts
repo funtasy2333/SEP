@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
-import { getOutputSupportProblems, IRToPmError, irToPm, pmToIr, type IRDoc, type PMJsonNode } from '@ses/shared'
+import { exportXml46687, getOutputSupportProblems, IRToPmError, irToPm, pmToIr, resolve, type IRDoc, type PMJsonNode } from '@ses/shared'
 import { createEditorSchema } from './editorSchema'
+import { completeMeta } from '../../../shared/src/renderers/__tests__/xml46687Kit'
+import { stubOptions } from '../../../shared/src/renderers/__tests__/xml46687StubKit'
 import { DOMParser, DOMSerializer, Fragment, Slice } from '@tiptap/pm/model'
 import { hasNodeIdIssues, normalizeNodeIds, remapPastedSliceIds } from './plugins/ensureNodeId'
 import { Editor } from '@tiptap/core'
@@ -14,11 +16,11 @@ describe('WP8.3 图像关系保存', () => {
       front: { foreword: [], introduction: [] },
       body: [{ kind: 'chapter', id: 'chapter', secType: 'general', title: [], children: [
         { kind: 'figure', id: 'fig', caption: [], orientation: 'portrait', src: 'first.png', notes: [],
-          primaryGraphic: { contentType: 'image/png', specificUse: 'size:T' },
-          additionalGraphics: [{ id: 'graphic2', src: 'second.png', resourceId: 'resource2', contentType: 'image/png', specificUse: 'size:S' }] },
+          primaryGraphic: { contentType: 'image', specificUse: 'size:T' },
+          additionalGraphics: [{ id: 'graphic2', src: 'second.png', resourceId: 'resource2', contentType: 'image', specificUse: 'size:S' }] },
         { kind: 'table', id: 'table1', caption: [], orientation: 'portrait', headerRowCount: 0, notes: [],
           rows: [{ id: 'row', cells: [{ id: 'cell', colspan: 1, rowspan: 1, header: false, content: [{ kind: 'paragraph', id: 'p', content: [{ text: '内容' }] }] }] }],
-          alternativeGraphic: { id: 'alt', src: 'alt.png', resourceId: 'resource3', contentType: 'image/png' } },
+          alternativeGraphic: { id: 'alt', src: 'alt.png', resourceId: 'resource3', contentType: 'disp_table' } },
       ] }], appendices: [], bibliography: [], resources: [
         { id: 'resource2', encoding: 'dataUrl', data: 'data:image/png;base64,AA==' },
         { id: 'resource3', encoding: 'dataUrl', data: 'data:image/png;base64,AA==' },
@@ -37,10 +39,20 @@ describe('WP8.3 图像关系保存', () => {
     expect(result.doc.body[0]!.children[0]).toMatchObject(source.body[0]!.children[0]!)
     expect(result.doc.body[0]!.children[1]).toMatchObject(source.body[0]!.children[1]!)
     expect(schema.nodeFromJSON(irToPm(result.doc)).toJSON()).toEqual(first.toJSON())
-    for (const format of ['HTML', 'DOCX', 'XML', 'XML46687'] as const) {
+    for (const format of ['HTML', 'DOCX', 'XML'] as const) {
       expect(getOutputSupportProblems(result.doc, format).some(problem => problem.path.includes('additionalGraphics'))).toBe(true)
       expect(getOutputSupportProblems(result.doc, format).some(problem => problem.path.includes('alternativeGraphic'))).toBe(true)
     }
+    const outputDoc = { ...result.doc, meta: completeMeta(), body: result.doc.body.map(chapter => ({ ...chapter, secType: 'scope' as const, title: [{ text: '范围' }] })) }
+    const options = stubOptions(outputDoc)
+    expect(options.resources.entries.map(({ href, key }) => ({ href, key }))).toEqual([
+      { href: 'fig_1', key: 'first.png' }, { href: 'fig_1_g1', key: 'resource2' }, { href: 'tab_1_alt', key: 'resource3' },
+    ])
+    const exported = exportXml46687(outputDoc, resolve(outputDoc).labels, options)
+    expect(exported.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    const xml = exported.xml!.replace(/>\s+</g, '><')
+    expect(xml).toContain('<graphic content-type="image" xlink:href="fig_1" specific-use="size:T"/><graphic content-type="image" xlink:href="fig_1_g1" specific-use="size:S"/>')
+    expect(xml).toContain('<graphic content-type="disp_table" xlink:href="tab_1_alt"/>')
   })
 
   it('缺少附加图所需资源时阻止投影', () => {

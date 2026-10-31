@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { getOutputSupportProblems, irToPm, pmToIr, resolve, type IRDoc, type PMJsonNode } from '@ses/shared'
+import { exportXml46687, getOutputSupportProblems, irToPm, pmToIr, resolve, type IRDoc, type PMJsonNode } from '@ses/shared'
 import { createEditorSchema } from './editorSchema'
+import { completeMeta } from '../../../shared/src/renderers/__tests__/xml46687Kit'
+import { stubOptions } from '../../../shared/src/renderers/__tests__/xml46687StubKit'
 import { Fragment, Slice } from '@tiptap/pm/model'
 import { remapPastedSliceIds } from './plugins/ensureNodeId'
 
 describe('WP8.3 组节点保存', () => {
   it('保留组级编号与成员公式的顺序和身份', () => {
     const group = { kind: 'formulaGroup', id: 'group', numbered: true, formulas: [
-      { kind: 'formula', id: 'one', latex: 'x', mathml: '<math><mi>x</mi></math>', numbered: false, whereList: [] },
-      { kind: 'formula', id: 'two', latex: 'y', mathml: '<math><mi>y</mi></math>', numbered: false, whereList: [] },
+      { kind: 'formula', id: 'one', latex: 'x', mathml: '<mml:math><mml:mi>x</mml:mi></mml:math>', numbered: false, whereList: [] },
+      { kind: 'formula', id: 'two', latex: 'y', mathml: '<mml:math><mml:mi>y</mml:mi></mml:math>', numbered: false, whereList: [] },
     ] }
     const source = { schemaVersion: 1, meta: { standardType: 'gb' }, front: { foreword: [], introduction: [] },
       body: [{ kind: 'chapter', id: 'chapter', secType: 'general', title: [], children: [group] }], appendices: [], bibliography: [] } as unknown as IRDoc
@@ -21,9 +23,14 @@ describe('WP8.3 组节点保存', () => {
     expect(result.doc.unsupportedContent ?? []).toEqual([])
     expect(result.doc.body[0]!.children[0]).toMatchObject(group)
     expect(schema.nodeFromJSON(irToPm(result.doc)).toJSON()).toEqual(first.toJSON())
-    for (const format of ['HTML', 'DOCX', 'XML', 'XML46687'] as const) {
+    for (const format of ['HTML', 'DOCX', 'XML'] as const) {
       expect(getOutputSupportProblems(result.doc, format).some(problem => problem.path.includes('children[0]'))).toBe(true)
     }
+    const outputDoc = { ...result.doc, meta: completeMeta(), body: result.doc.body.map(chapter => ({ ...chapter, secType: 'scope' as const, title: [{ text: '范围' }] })) }
+    const exported = exportXml46687(outputDoc, resolve(outputDoc).labels, stubOptions(outputDoc))
+    expect(exported.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    const xml = exported.xml!.replace(/>\s+</g, '><')
+    expect(xml).toContain('<disp-formula-group id="formula_1"><label>(1)</label><disp-formula><mml:math id="mml_m1" display="block"><mml:mi>x</mml:mi></mml:math></disp-formula><disp-formula><mml:math id="mml_m2" display="block"><mml:mi>y</mml:mi></mml:math></disp-formula></disp-formula-group>')
   })
 
   it('公式组只占一个编号，成员不改变之后公式的编号', () => {
@@ -67,6 +74,13 @@ describe('WP8.3 组节点保存', () => {
     expect(resolve(result).labels.fn?.xmlId).toBe('fn_1')
     expect(resolve(result).problems.filter(problem => problem.severity === 'error')).toEqual([])
     expect(schema.nodeFromJSON(irToPm(result)).toJSON()).toEqual(first.toJSON())
+    const outputDoc = { ...result, meta: completeMeta(), body: result.body.map(chapter => ({ ...chapter, secType: 'scope' as const, title: [{ text: '范围' }] })) }
+    const exported = exportXml46687(outputDoc, resolve(outputDoc).labels, stubOptions(outputDoc))
+    expect(exported.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    const xml = exported.xml!.replace(/>\s+</g, '><')
+    expect(xml.match(/<xref ref-type="fn" rid="fn_1">1<\/xref>/g)).toHaveLength(2)
+    expect(xml.match(/<fn id="fn_1">/g)).toHaveLength(1)
+    expect(xml.indexOf('<fn id="fn_1">')).toBeGreaterThan(xml.lastIndexOf('rid="fn_1"'))
   })
 
   it('共享脚注拒绝悬空、重复定义和脚注内嵌套', () => {
@@ -197,6 +211,14 @@ describe('WP8.3 组节点保存', () => {
     expect(resolve(result.doc).labels.f1?.xmlId).toBe('fig_1')
     expect(resolve(result.doc).labels.f2?.xmlId).toBe('fig_2')
     expect(schema.nodeFromJSON(irToPm(result.doc)).toJSON()).toEqual(first.toJSON())
+    const outputDoc = { ...result.doc, meta: completeMeta(), body: result.doc.body.map(chapter => ({ ...chapter, secType: 'scope' as const, title: [{ text: '范围' }] })) }
+    const options = stubOptions(outputDoc)
+    const exported = exportXml46687(outputDoc, resolve(outputDoc).labels, options)
+    expect(exported.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    const xml = exported.xml!.replace(/>\s+</g, '><')
+    expect(xml).toContain('<fig-group><legend><def-list list-content="figure"><def-item><term>a</term><def><p>说明</p></def></def-item></def-list></legend><fig id="fig_1">')
+    expect(xml).toContain('<fig id="fig_2">')
+    expect(options.resources.entries.map(({ href, key }) => ({ href, key }))).toEqual([{ href: 'fig_1', key: 'a.png' }, { href: 'fig_2', key: 'b.png' }])
   })
 
   it('无编号数组保留列组、列属性和网格，后续表编号不受影响', () => {
@@ -218,6 +240,12 @@ describe('WP8.3 组节点保存', () => {
     expect(result.doc.unsupportedContent ?? []).toEqual([])
     expect(resolve(result.doc).labels.table?.xmlId).toBe('tab_1')
     expect(schema.nodeFromJSON(irToPm(result.doc)).toJSON()).toEqual(first.toJSON())
+    const outputDoc = { ...result.doc, meta: completeMeta(), body: result.doc.body.map(chapter => ({ ...chapter, secType: 'scope' as const, title: [{ text: '范围' }] })) }
+    const exported = exportXml46687(outputDoc, resolve(outputDoc).labels, stubOptions(outputDoc))
+    expect(exported.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    const xml = exported.xml!.replace(/>\s+</g, '><')
+    expect(xml).toMatch(/<array><table><colgroup><col[^>]*\/><col[^>]*\/><\/colgroup><tbody><tr>.*?<\/tr><tr>.*?<\/tr><\/tbody><\/table><\/array>/)
+    expect(xml).toContain('<table-wrap id="tab_1">')
   })
 
   it('非法数组列组和公式组多余节点不会被静默丢弃', () => {

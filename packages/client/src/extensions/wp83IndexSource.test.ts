@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { getOutputSupportProblems, irToPm, pmToIr, resolve, type IRDoc, type PMJsonNode } from '@ses/shared'
+import { exportXml46687, getOutputSupportProblems, irToPm, pmToIr, resolve, type IRDoc, type PMJsonNode } from '@ses/shared'
 import { createEditorSchema } from './editorSchema'
+import { completeMeta } from '../../../shared/src/renderers/__tests__/xml46687Kit'
+import { stubOptions } from '../../../shared/src/renderers/__tests__/xml46687StubKit'
 
 describe('WP8.3 索引源文字', () => {
   it('按顺序保存 see 和 see-also 的富文本而不虚构目标', () => {
@@ -19,9 +21,20 @@ describe('WP8.3 索引源文字', () => {
     const result = pmToIr(reopened.toJSON() as PMJsonNode).doc
     expect(result.index?.groups[0]?.entries[0]).toEqual(entry)
     expect(schema.nodeFromJSON(irToPm(result)).toJSON()).toEqual(first.toJSON())
-    for (const format of ['XML', 'XML46687', 'HTML', 'DOCX'] as const) {
+    for (const format of ['XML', 'HTML', 'DOCX'] as const) {
       expect(getOutputSupportProblems(result, format).some(problem => problem.path.includes('index'))).toBe(true)
     }
+    const outputDoc = { ...result, meta: completeMeta(), body: result.body.map(chapter => ({ ...chapter, secType: 'scope' as const, title: [{ text: '范围' }] })) }
+    const unsupported = exportXml46687(outputDoc, resolve(outputDoc).labels, stubOptions(outputDoc))
+    expect(unsupported.xml).toBeNull()
+    expect(unsupported.problems).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'xml-write-failed', severity: 'error', path: expect.stringContaining('sourceReferences[1]') }),
+    ]))
+    const supported = structuredClone(outputDoc)
+    supported.index!.groups[0]!.entries[0]!.sourceReferences!.pop()
+    const exported = exportXml46687(supported, resolve(supported).labels, stubOptions(supported))
+    expect(exported.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(exported.xml!.replace(/>\s+</g, '><')).toContain('<term>索引词</term><see-entry><bold>见词</bold></see-entry>')
   })
 
   it('索引原文中的引用只检查一次', () => {
