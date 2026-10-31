@@ -145,6 +145,9 @@ describe('XML 资源包导入', () => {
   it.each([
     ['非图片 MIME', 'text/html'],
     ['语法无效的图片子类型', 'image/not valid'],
+    ['末尾 LF', 'image/png\n'],
+    ['末尾 CR', 'image/png\r'],
+    ['带参数的 MIME', 'image/png;charset=utf-8'],
   ])('资源包仍拒绝%s', async (_label, mediaType) => {
     const bytes = await make([{ ...entry, mediaType }])
     const result = await importXml46687Package(bytes, options())
