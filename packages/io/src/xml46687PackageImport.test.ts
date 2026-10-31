@@ -18,7 +18,8 @@ const validateContent: ContentValidator = content => {
 const options = () => { let i = 0; return { validateContent, generateId: () => `id${++i}` } }
 const imageXml = xml.replace('</p>', '</p><fig id="opaque"><label>图1</label><caption><title>图题</title></caption><graphic content-type="image" xlink:href="picture"/></fig>')
 const entry = { href: 'picture', key: 'image', fileName: 'picture.png', mediaType: 'image/png', source: 'resource' as const }
-const imageBytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])
+const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg=='
+const imageBytes = Uint8Array.from(atob(pngBase64), char => char.charCodeAt(0))
 const make = async (entries = [entry]) => packageXml46687(imageXml, { version: 1, entries }, { 'picture.png': imageBytes })
 
 describe('XML 资源包导入', () => {
@@ -40,7 +41,7 @@ describe('XML 资源包导入', () => {
       return null
     } })
     expect(result.problems.filter(p => p.severity === 'error')).toEqual([])
-    expect(pmToIr(schema.nodeFromJSON(result.pmDoc!).toJSON()).doc.resources).toEqual([expect.objectContaining({ data: 'data:image/png;base64,iVBORw0KGgo=', mediaType: 'image/png' })])
+    expect(pmToIr(schema.nodeFromJSON(result.pmDoc!).toJSON()).doc.resources).toEqual([expect.objectContaining({ data: `data:image/png;base64,${pngBase64}`, mediaType: 'image/png' })])
     expect(supplied.get('picture')!.src).toBe('https://example.org/wrong')
   })
   it('缺少元数据或资源时阻断', async () => {
