@@ -392,6 +392,53 @@ describe('完整样例的映射关系', () => {
     expect(figures[0]!.notes[0]).toMatchObject({kind:'note',content:[{kind:'paragraph',content:[{text:'图注位于图形之后。'}]}]})
     expect(figures[1]!.notes).toEqual([])
   })
+  it('[M-7.1-04] [M-7.4-01] 改变 MathML 前缀仍按 URI 保留行内和行间公式', () => {
+    const source = readFileSync(resolve(sampleDir, 'valid', '05-formulas-figures.xml'), 'utf8')
+    const xml = source.replace('xmlns:mml=', 'xmlns:q=').replaceAll('mml:', 'q:')
+    const ir = mapSource(xml)
+    const inline = allInlines(ir).flatMap(run => run.formula ? [run.formula] : [])
+    const block = collectKind<IRFormula>(ir, 'formula')
+    expect(inline[0]!.mathml).toContain('<mml:mi>x</mml:mi>')
+    expect(block[0]!.mathml).toContain('<mml:mfrac>')
+    expect(block[1]!.mathml).toContain('<mml:mi>b</mml:mi>')
+  })
+  it('[M-8.2-08] 一张图的附加资源缺失时整文映射失败且不返回部分结果', () => {
+    const source = readFileSync(resolve(sampleDir, 'valid', '05-formulas-figures.xml'), 'utf8')
+    const tree = parseXml46687(source).tree!
+    const options = prepare(tree.root)
+    expect(options.resources.delete('fig_2_b')).toBe(true)
+    const result = mapXml46687(tree, options)
+    expect(result.ir).toBeNull()
+    expect(result.problems).toContainEqual(expect.objectContaining({code:'xml-resource-missing',severity:'error',xml:expect.objectContaining({path:expect.stringContaining('/graphic[2]')})}))
+    expect(options.resources.has('fig_2')).toBe(true)
+  })
+  it('[M-6.1-03] XHTML 列声明的宽度、水平和垂直对齐逐列保留', () => {
+    const table = collectKind<IRTable>(mapValid('04-tables.xml'), 'table')[0]!
+    expect(table.columns).toEqual([
+      {width:{value:30,unit:'%'},textAlign:'left'},
+      {width:{value:35,unit:'%'},textAlign:'center',verticalAlign:'middle'},
+      {width:{value:35,unit:'%'},textAlign:'right'},
+    ])
+  })
+  it('[M-6.2.3-08] 表脚注上标编号从对应定义和引用重新派生', () => {
+    const doc = mapValid('04-tables.xml')
+    const table = collectKind<IRTable>(doc, 'table')[0]!
+    const labels = resolveIr(doc).labels
+    expect(table.footnotes?.map(fn => labels[fn.id]?.label)).toEqual(['a','b'])
+    expect(table.footnotes?.map(fn => labels[fn.id]?.xmlId)).toEqual(['table-fn_1.1','table-fn_1.2'])
+  })
+  it('[M-8.5-01] 图内图例与该图资源共同保留', () => {
+    const figure = collectKind<IRFigure>(mapValid('05-formulas-figures.xml'), 'figure')[0]!
+    expect(figure.resourceId).toBe('resource:fig_1')
+    expect(figure.legend?.items.map(item => item.term)).toEqual([[{text:'1'}],[{text:'2'}]])
+    expect(figure.legend?.items.map(item => item.definition)).toEqual([[{text:'驱动及控制模块；'}],[{text:'传感模块。'}]])
+  })
+  it('[M-8.6-01] 图题中的单位保留在原图上', () => {
+    const figures = collectKind<IRFigure>(mapValid('05-formulas-figures.xml'), 'figure')
+    expect(figures[0]!.caption).toEqual([{text:'系统结构示意'}])
+    expect(figures[0]!.unit).toBe('单位为毫米')
+    expect(figures[1]!.unit).toBeUndefined()
+  })
   it('[M-6.2.1-04] [M-6.2.1-05] 表题和横纵方向分别属于各表', () => {
     const tables = collectKind<IRTable>(mapValid('04-tables.xml'), 'table')
     expect(tables).toHaveLength(2)
