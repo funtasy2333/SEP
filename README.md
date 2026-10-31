@@ -85,12 +85,12 @@ SEP/
 
 ### 下载使用（推荐）
 
-当前版本为 [SES 0.1.0 Preview](https://github.com/funtasy2333/SEP/releases/tag/v0.1.0-preview)。请根据操作系统下载对应压缩包，**完整解压到可写的本地目录后再启动，不要直接在压缩包内运行脚本**。
+当前版本为 [SES 0.1.1 Preview](https://github.com/funtasy2333/SEP/releases/tag/v0.1.1-preview)。请根据操作系统下载对应压缩包，**完整解压到可写的本地目录后再启动，不要直接在压缩包内运行脚本**。
 
 | 操作系统 | 下载 | 启动 | 退出 |
 | -------- | ---- | ---- | ---- |
-| Windows 10/11（64 位） | [SES-0.1.0-preview-windows.zip](https://github.com/funtasy2333/SEP/releases/download/v0.1.0-preview/SES-0.1.0-preview-windows.zip) | 双击 `启动SES.cmd` | 双击 `退出SES.cmd` |
-| macOS | [SES-0.1.0-preview-macos.zip](https://github.com/funtasy2333/SEP/releases/download/v0.1.0-preview/SES-0.1.0-preview-macos.zip) | 双击 `启动SES.command` | 双击 `退出SES.command` |
+| Windows 10/11（64 位） | [SES-0.1.1-preview-windows.zip](https://github.com/funtasy2333/SEP/releases/download/v0.1.1-preview/SES-0.1.1-preview-windows.zip) | 双击 `启动SES.cmd` | 双击 `退出SES.cmd` |
+| macOS | [SES-0.1.1-preview-macos.zip](https://github.com/funtasy2333/SEP/releases/download/v0.1.1-preview/SES-0.1.1-preview-macos.zip) | 双击 `启动SES.command` | 双击 `退出SES.command` |
 
 压缩包包含 SES 程序源码、资源、启动文件和使用说明；不包含开发过程文档、测试、已有数据库或第三方依赖。直接使用压缩包无需安装 Git 或 Python，**首次启动需要联网安装依赖并构建项目**。
 

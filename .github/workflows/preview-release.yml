@@ -36,9 +36,10 @@ jobs:
           SES_NO_OPEN: '1'
           SES_NO_PAUSE: '1'
         run: |
+          $version = (python scripts/package-release.py --print-version).Trim()
           $destination = Join-Path $env:RUNNER_TEMP 'SES [preview] 中文 path'
-          Expand-Archive release/SES-0.1.0-preview-windows.zip $destination
-          $entry = Join-Path $destination 'SES-0.1.0-preview-windows/scripts/ses-windows.ps1'
+          Expand-Archive "release/SES-$version-windows.zip" $destination
+          $entry = Join-Path $destination "SES-$version-windows/scripts/ses-windows.ps1"
           try {
             & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $entry start
             if ($LASTEXITCODE -ne 0) { throw 'First startup failed' }
@@ -77,10 +78,11 @@ jobs:
         env:
           SES_NO_OPEN: '1'
         run: |
+          version="$(python3 scripts/package-release.py --print-version)"
           destination="$RUNNER_TEMP/SES 中文 path"
           mkdir -p "$destination"
-          unzip -q release/SES-0.1.0-preview-macos.zip -d "$destination"
-          entry="$destination/SES-0.1.0-preview-macos/scripts/ses-local.sh"
+          unzip -q "release/SES-$version-macos.zip" -d "$destination"
+          entry="$destination/SES-$version-macos/scripts/ses-local.sh"
           trap '/bin/bash "$entry" stop' EXIT
           /bin/bash "$entry" start
           curl --fail http://localhost:5173/api/documents
@@ -105,4 +107,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" release/SES-0.1.0-preview-windows.zip release/SES-0.1.0-preview-macos.zip --verify-tag --prerelease --title 'SES 0.1.0 (Preview)' --notes-file .github/preview-release-notes.md
+          version="$(python3 scripts/package-release.py --print-version)"
+          # 标签必须与打包脚本的版本一致，避免把旧版本号的压缩包发到新标签下。
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package version v$version" >&2
+            exit 1
+          fi
+          gh release create "$GITHUB_REF_NAME" "release/SES-$version-windows.zip" "release/SES-$version-macos.zip" --verify-tag --prerelease --title "SES ${version%-preview} (Preview)" --notes-file .github/preview-release-notes.md

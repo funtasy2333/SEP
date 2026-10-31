@@ -1,6 +1,6 @@
 {
   "name": "@ses/server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "SES Backend Service",
   "author": "",
   "private": true,

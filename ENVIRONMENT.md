@@ -1,6 +1,6 @@
 # 环境配置指南
 
-本文档说明 **SES 0.1.0 Preview** 的依赖要求。推荐先从 [Release](https://github.com/funtasy2333/SEP/releases/tag/v0.1.0-preview) 下载对应系统的压缩包；开发者可以使用 `git clone` 获取源码。下载链接和操作步骤见 [README：安装与启动](README.md#安装与启动)。
+本文档说明 **SES 0.1.1 Preview** 的依赖要求。推荐先从 [Release](https://github.com/funtasy2333/SEP/releases/tag/v0.1.1-preview) 下载对应系统的压缩包；开发者可以使用 `git clone` 获取源码。下载链接和操作步骤见 [README：安装与启动](README.md#安装与启动)。
 
 ## 1. 按使用方式准备环境
 
