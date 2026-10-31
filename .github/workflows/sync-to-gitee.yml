@@ -1,0 +1,21 @@
+name: Sync to Gitee
+
+on:
+  push:
+    branches:
+      - main
+      - main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to Gitee
+        run: |
+          git remote add gitee https://${{ secrets.GITEE_USERNAME }}:${{ secrets.GITEE_TOKEN }}@gitee.com/funtasy2333/standard-expert-agent.git
+          git push --force gitee main
