@@ -62,12 +62,24 @@ export function preflightZip(bytes: Uint8Array): Entry[] {
     const folded = name!.toLowerCase()
     if (names.has(folded)) invalid('ZIP 条目名称重复', name!)
     names.add(folded)
-    for (let x = p + 46 + nameLength; x < p + 46 + nameLength + extraLength;) {
-      if (x + 4 > p + 46 + nameLength + extraLength) invalid('ZIP 扩展字段无效', name!)
-      const id = u16(x), len = u16(x + 2); x += 4
-      if (x + len > p + 46 + nameLength + extraLength || id === 1 || id === 0x7075) invalid('不支持 ZIP64 或替代文件名', name!)
-      x += len
+    const checkExtra = (start: number, length: number) => {
+      const stop = start + length
+      let unicodePath = false
+      for (let x = start; x < stop;) {
+        if (x + 4 > stop) invalid('ZIP 扩展字段无效', name!)
+        const id = u16(x), len = u16(x + 2); x += 4
+        if (x + len > stop || id === 1) invalid('不支持 ZIP64 或截断的扩展字段', name!)
+        if (id === 0x7075) {
+          if (unicodePath || len < 5 || bytes[x] !== 1 || u32(x + 1) !== crc32(raw)) invalid('ZIP Unicode 文件名无效', name!)
+          unicodePath = true
+          let alternative: string
+          try { alternative = decoder.decode(bytes.subarray(x + 5, x + len)) } catch { invalid('ZIP Unicode 文件名无效', name!) }
+          if (alternative! !== name!) invalid('ZIP 替代文件名不一致', name!)
+        }
+        x += len
+      }
     }
+    checkExtra(p + 46 + nameLength, extraLength)
     if (uncompressed > maxFor(name!)) limit('ZIP 条目解压大小超过上限', name!)
     total += uncompressed
     if (total > XML46687_PACKAGE_LIMITS.uncompressedBytes) limit('ZIP 总解压大小超过上限')
@@ -76,9 +88,12 @@ export function preflightZip(bytes: Uint8Array): Entry[] {
     const localNameLength = u16(local + 26), localExtra = u16(local + 28)
     const start = local + 30 + localNameLength + localExtra, end = start + compressed
     need(local, end - local)
-    if (end > offset || flags !== u16(local + 6) || method !== u16(local + 8) || localNameLength !== nameLength) invalid('ZIP 本地头与目录不一致', name!)
+    if (end > offset || u16(local + 4) !== u16(p + 6) || flags !== u16(local + 6) || method !== u16(local + 8) || u16(local + 10) !== u16(p + 12) || u16(local + 12) !== u16(p + 14) || localNameLength !== nameLength) invalid('ZIP 本地头与目录不一致', name!)
+    checkExtra(local + 30 + localNameLength, localExtra)
     for (let j = 0; j < nameLength; j++) if (bytes[local + 30 + j] !== raw[j]) invalid('ZIP 本地文件名与目录不一致', name!)
-    if (!(flags & 8) && (u32(local + 14) !== crc || u32(local + 18) !== compressed || u32(local + 22) !== uncompressed)) invalid('ZIP 本地大小与目录不一致', name!)
+    const localCrc = u32(local + 14), localCompressed = u32(local + 18), localUncompressed = u32(local + 22)
+    const agrees = (actual: number, expected: number) => actual === expected || (!!(flags & 8) && actual === 0)
+    if (!agrees(localCrc, crc) || !agrees(localCompressed, compressed) || !agrees(localUncompressed, uncompressed)) invalid('ZIP 本地大小与目录不一致', name!)
     let recordEnd = end
     if (flags & 8) {
       if (u32(recordEnd) === 0x08074b50) recordEnd += 4
@@ -100,6 +115,12 @@ const crcTable = (() => {
   for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; table[n] = c >>> 0 }
   return table
 })()
+
+function crc32(bytes: Uint8Array): number {
+  let crc = 0xffffffff
+  for (const b of bytes) crc = crcTable[(crc ^ b) & 255]! ^ (crc >>> 8)
+  return (crc ^ 0xffffffff) >>> 0
+}
 
 /** 流式消费，每个 chunk 在保存前检查单项及全包实际字节预算。 */
 export async function openBoundedZip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {

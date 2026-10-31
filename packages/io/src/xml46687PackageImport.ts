@@ -78,6 +78,12 @@ async function prepare(bytes: Uint8Array): Promise<{ xml: string; resources: Res
 
 /** 包内资源优先；resolver 接收独立字节副本，返回 null 时回退到包内 data URL，异常直接传播。 */
 export async function importXml46687Package(bytes: Uint8Array, options: Xml46687ImportOptions): Promise<Xml46687ImportResult> {
+  if (!options || typeof options.validateContent !== 'function') {
+    return { pmDoc: null, problems: [{ code: 'xml-schema-invalid', severity: 'error', message: '必须提供生产 Schema 校验器' }] }
+  }
+  if ((options.resources !== undefined && (!options.resources || typeof options.resources.get !== 'function')) || (options.resolveResource !== undefined && typeof options.resolveResource !== 'function')) {
+    return { pmDoc: null, problems: [{ code: 'xml-resource-missing', severity: 'error', message: '资源表或资源解析器无效' }] }
+  }
   let prepared: Awaited<ReturnType<typeof prepare>>
   try { prepared = await prepare(bytes) }
   catch (error) {

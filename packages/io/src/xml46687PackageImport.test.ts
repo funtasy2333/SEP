@@ -58,6 +58,53 @@ describe('XML 资源包导入', () => {
     const invalid = new JSZip(); invalid.file('standard.xml', xml); invalid.file('manifest.json', '{"version":1,"entries":[]}')
     expect((await importXml46687Package(await invalid.generateAsync({ type: 'uint8array' }), options())).pmDoc).toBeNull()
   })
+  it('无效 options 返回中文错误，自定义 resolver 抛错继续向调用方传播', async () => {
+    const bytes = await make()
+    const absent = await importXml46687Package(bytes, undefined as never)
+    expect(absent.problems[0]?.code).toBe('xml-schema-invalid')
+    const badResolver = await importXml46687Package(bytes, { ...options(), resolveResource: 123 as never })
+    expect(badResolver.problems[0]?.code).toBe('xml-resource-missing')
+    const thrown = new Error('调用方失败')
+    await expect(importXml46687Package(bytes, { ...options(), resolveResource: async () => { throw thrown } })).rejects.toBe(thrown)
+  })
+  it('导出器生成 UTF-8 资源文件名仍可导入', async () => {
+    const chinese = { ...entry, fileName: '图.png' }
+    const bytes = await packageXml46687(imageXml, { version: 1, entries: [chinese] }, { '图.png': imageBytes })
+    const result = await importXml46687Package(bytes, options())
+    expect(result.problems.filter(p => p.severity === 'error')).toEqual([])
+    expect(result.pmDoc).not.toBeNull()
+  })
+  it('拒绝数据描述符模式下本地头与中央目录冲突', async () => {
+    const zip = new JSZip()
+    zip.file('standard.xml', xml)
+    zip.file('manifest.json', JSON.stringify({ format: 'GB/T 46687.2—2026 XML', version: 1, xml: 'standard.xml', entries: [] }))
+    const bytes = await zip.generateAsync({ type: 'uint8array', streamFiles: true })
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    view.setUint32(22, 123, true)
+    const result = await importXml46687Package(bytes, options())
+    expect(result.pmDoc).toBeNull()
+    expect(result.problems[0]?.code).toBe('xml-unsupported')
+  })
+  it('拒绝伪造 CRC 和重复的原始中央目录名称', async () => {
+    const zip = new JSZip()
+    zip.file('standard.xml', xml); zip.file('manifest.json', '{}')
+    const original = await zip.generateAsync({ type: 'uint8array' })
+    const corrupted = original.slice(), view = new DataView(corrupted.buffer)
+    const firstContent = 30 + view.getUint16(26, true) + view.getUint16(28, true)
+    corrupted[firstContent] ^= 1
+    expect((await importXml46687Package(corrupted, options())).pmDoc).toBeNull()
+    const dupZip = new JSZip(); dupZip.file('a.xml', xml); dupZip.file('b.xml', xml)
+    const duplicate = await dupZip.generateAsync({ type: 'uint8array' })
+    const dv = new DataView(duplicate.buffer)
+    for (let i = 0; i < duplicate.length - 46; i++) {
+      if (dv.getUint32(i, true) !== 0x02014b50 || new TextDecoder().decode(duplicate.subarray(i + 46, i + 51)) !== 'b.xml') continue
+      duplicate[i + 46] = 97
+      duplicate[dv.getUint32(i + 42, true) + 30] = 97
+    }
+    const result = await importXml46687Package(duplicate, options())
+    expect(result.pmDoc).toBeNull()
+    expect(result.problems[0]?.message).toContain('重复')
+  })
   it('拒绝压缩包声称小于实际解压量的资源', async () => {
     const z = new JSZip(); z.file('standard.xml', xml); z.file('manifest.json', JSON.stringify({ format: 'GB/T 46687.2—2026 XML', version: 1, xml: 'standard.xml', entries: [entry] })); z.file('resources/picture.png', new Uint8Array(33 * 1024 * 1024), { createFolders: false })
     const bytes = await z.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
