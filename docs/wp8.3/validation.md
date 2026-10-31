@@ -1,5 +1,41 @@
 # WP8.3 外部裁判与矩阵核对
 
+## 最终集成验证（2026-10-31）
+
+基于 main `419d334aa66e04706aef53feece8ef6fd742f39f`。七项检查在干净集成树 `ed0d801ab808b592f17c2a73148b37eb397d3382` 执行，检查期间 HEAD 与工作树均未变化；随后仅同步 ID 策略说明与测试命名。Node 22.23.4，外部 XML 校验使用 lxml 与本地 xmllint，shared/io 强制 `REQUIRE_XML_VALIDATION=1`。
+
+| 检查 | 结果 |
+|---|---|
+| shared 全套 | 137 文件、3509 项通过；含 188 行 shall/should 接收矩阵守护及 87 份 TS/Python 双引擎裁判对照 |
+| shared `tsc --noEmit` | 通过 |
+| io 全套 | 35 文件、520 项通过 |
+| client Vitest `--maxWorkers=2` | 1527 项通过、2 项既有跳过；126 文件通过、2 文件跳过 |
+| client build | 通过；保留既有大 chunk 提示 |
+| server Jest `--runInBand` | 826/827 通过；唯一失败为 `mcp-e2e.spec.ts` 的 PDF 5c 环境基线，未跳过或改写该测试 |
+| Python 全套 | 274 项通过 |
+
+PDF 基线在开工前即存在：可用性探测只发现 CLI/poppler，实际 Vivliostyle 浏览器运行在当前环境失败。它不属于 XML 导入链路；本次没有将 server 全套标成全绿。新增 server XML/ZIP 跨端测试 15/15 通过，client 对应 17/17 通过。没有访问默认 `packages/server/data/ses.db`。
+
+### 保真与样例
+
+- 9 份 `valid` 原文均经真实生产 Schema 导入、JSON 保存重开；另两份合法不透明 ID 样例接受导入，其余 76 份负例按指定错误码和中文 XML 位置拒绝。原样例文件未改动。
+- 四份原版 golden 全文进入同一 client/server IO 链路，核对引用目标身份、图表术语、MathML URI 树和资源字节，再导出并验证第二次往返固定点。
+- `wp82`、`fullRenderer`、`wp6` 再导出与原 XML 逐字节相同。`wp8m` 唯一约定差异：表格单元格注的两段“单元格内注的第一段。”和“单元格内注的第二段。”合成一个段落，以 `<break/>` 分隔，并返回 `xml-normalized` 告警；测试逐字节验证这项替换，未忽略其他差异。
+- 05/08 的各图片使用带有效 CRC 的可区分 PNG，核对多图、图组和表替代图的每份字节归属；BMP 等合法 `image/*` 也通过出包—导入—生产 Schema 保存重开，保持 MIME 与字节。未修改任何 JSON golden 或两份锁定夹具。
+- `processing-meta@mathml-version="2.0"` 在导入时接受并告警，导出仍严格 3.0；Python 两引擎用临时导入 schema 副本验证原 XML，源 RNG、自定义 schema 和输入行号保持不变。
+
+### 安全范围与限制
+
+XML 为纯 TS URI 感知解析，拒绝 DOCTYPE/实体声明、外部实体、非预定义命名实体和处理指令。上限为 UTF-8 16 MiB、深度 128、连续解码文本 1 MiB、节点 500000；RNG 匹配和表网格各有 400 万计算预算。运行时不依赖 Python，不读取 XML 的外部 DTD。
+
+ZIP 先检查原始中央目录、本地头、路径、唯一性、声明大小和描述符，再逐块计量、核对实际长度与 CRC。压缩输入 64 MiB、条目 1024、留存解压总量 128 MiB、单资源 32 MiB、XML 16 MiB、清单 1 MiB。拒绝遍历路径、大小写冲突、重叠、加密、多卷、ZIP64、缺文件和歧义资源。宿主 resolver 收到独立字节副本，包内字节优先；异常继续传播。
+
+48 MiB DEFLATE 资源伪报 1 字节的实测触发 `xml-limit`。JSZip 3.10.1/pako 1.0.11 在 pause 后仍同步产生 131072 字节，回调全部丢弃，不存储或拼接。源码核对输入/输出块各 16 KiB、解码窗口 32 KiB，默认累计输出的回调被覆盖；上限约束可达的留存和拼接数据，并非解码器瞬时停产或进程 RSS 的严格上界。
+
+项目未取得真实外部 XML/ZIP 样稿，因此只报告项目样例、原版 golden 和跨端生产 Schema 验收，未宣称真实互操作或真实规模验证通过。UI、旧入口删除、server HTTP/MCP 接入仍留 WP8.4。
+
+## 外部裁判规则
+
 外部裁判用于 XML 格式与语义回归，不执行产品导入、资源加载或生产 Schema 转换。本地自写样例与 lxml/xmllint 的结果不构成真实样稿互操作结论。
 
 严格导入约定与 P1 建议专码对应如下（Python 保留原 V 规则作为错误码）：
