@@ -3,6 +3,7 @@ import {
   InternalServerErrorException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { SES_SERVER_VERSION } from '../common/app-version';
 import type { DocumentEntity } from '../document/document.entity';
 import { canonical, sampleDocument } from '../test-support/sample-documents';
 import type { VersionEntity, VersionSource } from '../version/version.entity';
@@ -182,7 +183,7 @@ describe('SES package format', () => {
       format: SES_PACKAGE_FORMAT,
       formatVersion: 1,
       exportedAt: '2026-10-30T08:00:00.000Z',
-      generator: { name: 'SES', version: '0.1.0' },
+      generator: { name: 'SES', version: SES_SERVER_VERSION },
       document: {
         uid: DOCUMENT_UID,
         title: '测试标准',
