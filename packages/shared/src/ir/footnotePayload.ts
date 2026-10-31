@@ -97,3 +97,11 @@ export function unsupportedFootnoteContent(content: readonly unknown[]): string 
   }
   return undefined
 }
+
+/** Shared definitions have one nonempty body and cannot contain another footnote atom. */
+export function unsupportedSharedFootnoteContent(content: unknown): string | undefined {
+  if (!Array.isArray(content)) return '内容不是数组'
+  if (content.some(item => isFootnotePmNode(item) && ['footnoteRef', 'sharedFootnoteRef', 'sharedFootnoteDefinition'].includes(item.type))) return '不能嵌套脚注'
+  if (!content.some(item => isFootnotePmNode(item) && item.type === 'text' && typeof item.text === 'string' && item.text.trim())) return '正文不能为空'
+  return unsupportedFootnoteContent(content)
+}

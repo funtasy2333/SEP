@@ -31,15 +31,17 @@ describe('IR inline projection diagnostics', () => {
     ])
   })
 
-  it('rejects code combined with any emitted text mark or non-empty style', () => {
+  it('allows bold code but rejects other text marks and non-empty style', () => {
     const errors = inspect({ id: 'paragraph', content: [
       { text: 'code and bold', marks: [{ type: 'code' }, { type: 'bold' }] },
+      { text: 'code and italic', marks: [{ type: 'code' }, { type: 'italic' }] },
       { text: 'code and style', marks: [{ type: 'code' }], style: { color: 'red' } },
     ] })
 
+    expect(errors).toHaveLength(2)
     expect(errors).toEqual(expect.arrayContaining([
-      expect.objectContaining({ nodeId: 'paragraph', path: 'doc.content[0].marks[0]', reason: expect.stringContaining('code') }),
       expect.objectContaining({ nodeId: 'paragraph', path: 'doc.content[1].marks[0]', reason: expect.stringContaining('code') }),
+      expect.objectContaining({ nodeId: 'paragraph', path: 'doc.content[2].marks[0]', reason: expect.stringContaining('code') }),
     ]))
   })
 

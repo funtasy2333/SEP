@@ -96,9 +96,14 @@ describe('[M-10.1.5-01] PM crossRef.refType=listItem ↔ IR targetKind=listItem'
 })
 
 describe('[M-10.1.5-02] Resolver 对 IR 原生夹具（含嵌套/罗马）的整体结果', () => {
-  it('嵌套列表为 IR 原生结构，生产 PM 暂不能表达，irToPm 明确拒绝而不是静默丢弃', () => {
+  it('嵌套列表和指向内层项的引用经 JSON 保存重开后保持层级及内容', () => {
     const nested: IRBlock = list('l-outer', 'alpha', [item('o1', '外一', list('l-inner', 'number', [item('i1', '内一')], 2))])
-    expect(() => irToPm(docOf([chapter('ch1', 'general', '一般要求', clause('c1', 1, '条', nested))]))).toThrow()
+    const source = docOf([chapter('ch1', 'general', '一般要求', clause('c1', 1, '条', para('ref', xref('i1', 'listItem')), nested))])
+    const reopened = pmToIr(JSON.parse(JSON.stringify(irToPm(source))) as PMJsonNode).doc
+    const clauseNode = reopened.body[0]!.children[0] as IRClause
+    expect(clauseNode.children[1]).toEqual(nested)
+    expect((clauseNode.children[0] as IRParagraph).content).toEqual([{ text: '见列项', marks: [{ type: 'crossRef', targetId: 'i1', targetKind: 'listItem' }] }])
+    expect(resolve(reopened).problems.filter(problem => problem.severity === 'error')).toEqual([])
   })
 
   it('listItemDoc 夹具：全部标签与问题清单稳定', () => {

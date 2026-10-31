@@ -20,6 +20,14 @@ function table(id: string, refs: string[], definitions = refs, legacy = false): 
 const docOf = (...blocks: PMJsonNode[]) => pmToIr(fx.standardDoc({}, fx.chapter('chapter', '技术要求', ...blocks))).doc
 
 describe('脚注 IR 关联与 GB/T 1.1 编号', () => {
+  it('共享脚注定义按原位与旧脚注一起收集一次', () => {
+    const doc = docOf(fx.para('p', fn('old1'),
+      { type: 'sharedFootnoteRef', attrs: { targetId: 'shared', refText: '2' } },
+      { type: 'sharedFootnoteRef', attrs: { targetId: 'shared', refText: '2' } },
+      { type: 'sharedFootnoteDefinition', attrs: { nodeId: 'shared', content: [fx.text('共享正文')] } }, fn('old2')))
+    expect(collectFootnotes(doc).map(note => note.id)).toEqual(['old1', 'shared', 'old2'])
+    expect(['old1', 'shared', 'old2'].map(id => resolve(doc).labels[id]?.xmlId)).toEqual(['fn_1', 'fn_2', 'fn_3'])
+  })
   it('前言、引言、正文及附录连续编号，移动/删除后不持久化死编号，保留 marks', () => {
     const pm = fx.standardDoc({},
       { type: 'foreword', attrs: { nodeId: 'front' }, content: [fx.para('p0', fx.text('前言'), fn('f0'))] },

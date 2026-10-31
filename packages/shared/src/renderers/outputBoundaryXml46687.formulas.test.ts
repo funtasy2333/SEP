@@ -21,6 +21,7 @@ const formulaOf = (extra: Record<string, unknown> = {}) => ({ kind: 'formula', i
 const withFormula = (extra: Record<string, unknown> = {}): IRDoc => pushBlock(baseDoc(), formulaOf(extra))
 
 const INSTALLERS: Record<string, () => IRDoc> = {
+  'formulaGroup@.kind': () => pushBlock(baseDoc(), {kind:'formulaGroup',id:'fg',numbered:true,formulas:[formulaOf({id:'f2',numbered:false})]}),
   'mathml@.mathml': () => withFormula({ mathml: MML }),
   'notes@.notes': () => withFormula({ notes: [{ id: 'fn1', content: [{ text: '公式注' }] }] }),
 }
@@ -31,6 +32,7 @@ function richDoc(): IRDoc {
     mathml: MML, notes: [{ id: 'fn1', content: [{ text: '公式注', marks: [{ type: 'bold' }] }] }, { id: 'fn2', content: [{ text: '另一条' }] }],
     whereList: [{ id: 'w1', term: [{ text: 'x' }], definition: [{ text: '变量' }] }],
   }))
+  pushBlock(doc, {kind:'formulaGroup',id:'fg',numbered:true,formulas:[formulaOf({id:'f2',numbered:false})]})
   pushRun(doc, { text: '', formula: { id: 'i1', mathml: MML, source: '\\frac{1}{2}' } })
   return doc
 }

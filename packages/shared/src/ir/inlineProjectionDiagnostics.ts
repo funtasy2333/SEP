@@ -31,8 +31,9 @@ export function diagnoseInlineProjection(
   path: string,
   ownerId: string | undefined,
   errors: IRToPmDiagnostic[],
+  options: { rejectBoldCode?: boolean } = {},
 ): void {
-  visit(value, path, ownerId, errors)
+  visit(value, path, ownerId, errors, options)
 }
 
 /**
@@ -94,9 +95,10 @@ function visit(
   path: string,
   ownerId: string | undefined,
   errors: IRToPmDiagnostic[],
+  options: { rejectBoldCode?: boolean },
 ): void {
   if (Array.isArray(value)) {
-    value.forEach((child, index) => visit(child, `${path}[${index}]`, ownerId, errors))
+    value.forEach((child, index) => visit(child, `${path}[${index}]`, ownerId, errors, options))
     return
   }
   if (!isRecord(value)) return
@@ -107,7 +109,7 @@ function visit(
     const types = marks.map(markType)
 
     const codeIndex = types.findIndex(type => type === 'code')
-    const hasOtherTextMark = types.some(type => type !== undefined && type !== 'code' && !ATOM_MARKS.has(type))
+    const hasOtherTextMark = types.some(type => type !== undefined && type !== 'code' && (type !== 'bold' || options.rejectBoldCode) && !ATOM_MARKS.has(type))
     if (codeIndex >= 0 && (hasOtherTextMark || hasNonEmptyStyle(value.style))) {
       errors.push({
         path: `${path}.marks[${codeIndex}]`,
@@ -185,6 +187,6 @@ function visit(
 
   for (const [key, child] of Object.entries(value)) {
     if (key === 'id') continue
-    visit(child, `${path}.${key}`, currentOwnerId, errors)
+    visit(child, `${path}.${key}`, currentOwnerId, errors, options)
   }
 }

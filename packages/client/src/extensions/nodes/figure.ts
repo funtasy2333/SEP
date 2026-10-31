@@ -1,10 +1,18 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
 import { normalizePageOrientation, readPageOrientation } from '../../utils/orientation'
+import { jsonAttribute } from './json-attribute'
+import { graphicAttributeProblem } from '@ses/shared'
 
 function stringAttribute(name: string, defaultValue: string | null = null) {
   return { default: defaultValue, parseHTML: (element: HTMLElement) => element.getAttribute(name) ?? defaultValue }
 }
+
+export const FigureSet = Node.create({
+  name: 'figureSet', group: 'block', content: 'figureLegend? figure+', defining: true,
+  parseHTML() { return [{ tag: 'div[data-type="figure-set"]' }] },
+  renderHTML({ HTMLAttributes }): DOMOutputSpec { return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'figure-set' }), 0] },
+})
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -44,6 +52,17 @@ export const Figure = Node.create({
         }),
       },
       unit: stringAttribute('unit'),
+      primaryGraphic: jsonAttribute('data-primary-graphic', value => {
+        if (value == null) return
+        const problem = graphicAttributeProblem(value, true, true)
+        if (problem) throw new RangeError(`primaryGraphic ${problem}`)
+      }),
+      additionalGraphics: jsonAttribute('data-additional-graphics', value => {
+        if (value == null) return
+        if (!Array.isArray(value)) throw new RangeError('additionalGraphics 必须是数组')
+        const problem = value.map(graphic => graphicAttributeProblem(graphic, false, true)).find(Boolean)
+        if (problem) throw new RangeError(`additionalGraphics ${problem}`)
+      }),
     }
   },
 

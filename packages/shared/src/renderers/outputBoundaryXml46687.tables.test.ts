@@ -27,6 +27,8 @@ const measure = { value: 2, unit: 'px' }
 
 /** 声明项 → 恰好触发它的最小文档。键为 `${name}@${pathSuffix}`。 */
 const INSTALLERS: Record<string, () => IRDoc> = {
+  'array@.kind': () => pushBlock(baseDoc(), {kind:'array',id:'arr',columns:[{}],rows:[{id:'ar',cells:[cellOf()]}],columnGroups:[{start:0,count:1}]}),
+  'alternativeGraphic@.alternativeGraphic': () => withTable({alternativeGraphic:{id:'alt',src:'a.png',contentType:'disp_table'}}),
   'columns@.columns': () => withTable({ columns: [{ width: { value: 40, unit: '%' }, textAlign: 'center', verticalAlign: 'middle' }] }),
   'style@cells.style': () => withTable({}, { style: { textAlign: 'center', borderTop: measure, borderTopStyle: 'dashed', backgroundColor: '#EFEFEF' } }),
   'style@rows.style': () => withTable({}, {}, { style: { textAlign: 'center', verticalAlign: 'middle' } }),
@@ -44,7 +46,7 @@ const keyOf = (entry: Xml46687DeclaredDifference): string => `${entry.name}@${en
 function richDoc(): IRDoc {
   const doc = baseDoc()
   pushBlock(doc, {
-    kind: 'table', id: 'rich', caption: [{ text: '表' }], orientation: 'portrait', headerRowCount: 1, notes: [], unit: '单位为毫米',
+    kind: 'table', id: 'rich', alternativeGraphic:{id:'alt',src:'a.png',contentType:'disp_table'}, caption: [{ text: '表' }], orientation: 'portrait', headerRowCount: 1, notes: [], unit: '单位为毫米',
     width: { value: 66, unit: '%' }, style: { layout: 'fixed', borderModel: 'collapse', textAlign: 'left', verticalAlign: 'top', borderColor: '#000000', borderWidth: measure, backgroundColor: '#FFFFFF', cellPadding: measure },
     columns: [{ width: { value: 40, unit: '%' }, textAlign: 'center', verticalAlign: 'middle' }, {}],
     rows: [
@@ -63,6 +65,7 @@ function richDoc(): IRDoc {
       ] },
     ],
   })
+  pushBlock(doc, {kind:'array',id:'arr',columns:[{}],rows:[{id:'ar',cells:[cellOf({id:'ac',content:[{kind:'paragraph',id:'acp',content:[{text:'甲'}]}]})]}],columnGroups:[{start:0,count:1}]})
   return doc
 }
 

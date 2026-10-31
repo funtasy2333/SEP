@@ -110,3 +110,6 @@ export type {
   ReadNodeResult,
   ReplaceOperation,
 } from './documentOps'
+
+export * from './xml46687Import'
+export { importXml46687Package } from './xml46687PackageImport'

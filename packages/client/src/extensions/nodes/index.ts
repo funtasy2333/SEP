@@ -8,10 +8,10 @@ export { StdParagraph } from './std-paragraph'
 export { TermDef, TermName, TermNameEn, TermSubjectField, TermDefinition, TermSource } from './term-def'
 export { StdTable, TableCaption, TableCaptionEn, TableFootnote, TableNoteRow, TableFootnoteRow, TableFootnoteEntry } from './std-table'
 export { FootnoteRef, TableFootnoteRef, canInsertBodyFootnote } from './footnotes'
-export { Figure, FigureImage, FigureCaption, FigureCaptionEn } from './figure'
+export { Figure, FigureSet, FigureImage, FigureCaption, FigureCaptionEn } from './figure'
 export { FigureLegend, FigureLegendTitle } from './figure-legend'
 export { InlineImage } from './inline-image'
-export { Formula, FormulaContent, FormulaDescription } from './formula'
+export { Formula, FormulaGroup, FormulaContent, FormulaDescription } from './formula'
 export { Note, Example } from './note'
 export { NoteBlock, ExampleBlock } from './note-block'
 export { Appendix, AppendixLabel, AppendixTitle } from './appendix'
@@ -23,7 +23,7 @@ export {
   Adoption, BibExternalLink, BibField, BibIdentifier, BibStructured, Copyright,
   FigureDescription, FigureGroup, FigureResource, FigureResourceRef,
   FormulaInline, FormulaNote, IdentifierPart, IndexBlock, IndexEntry, IndexGroup,
-  IndexSeeAlso, IndexTarget, IndexTerm, MetadataBlock, MetadataFields,
+  IndexSeeAlso, IndexSourceReference, IndexTarget, IndexTerm, MetadataBlock, MetadataFields,
   MetadataLanguage, Publisher, QuoteBlock, ReplacedStandard, SemanticCodeBlock,
   StandardIdentifier, StandardTableCell, StandardTableHeader, StandardTableRow,
   TbxLangSet, TbxTerm, TbxTermDescriptor, TbxTermVariant, TbxTig, TitlePart,

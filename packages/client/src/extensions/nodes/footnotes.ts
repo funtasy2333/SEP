@@ -1,5 +1,5 @@
 import { Node, mergeAttributes } from '@tiptap/core'
-import { generateNodeId, type PMJsonNode } from '@ses/shared'
+import { generateNodeId, unsupportedSharedFootnoteContent, type PMJsonNode } from '@ses/shared'
 import { TextSelection } from '@tiptap/pm/state'
 import type { Selection } from '@tiptap/pm/state'
 import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model'
@@ -55,6 +55,28 @@ function dispatchFootnoteEdit(nodeId: string, table = false) {
   if (typeof window === 'undefined') return
   window.dispatchEvent(new CustomEvent('ses:edit-footnote', { detail: { nodeId, table } }))
 }
+
+export const SharedFootnoteRef = Node.create({
+  name: 'sharedFootnoteRef', inline: true, group: 'inline', atom: true,
+  addAttributes() { return {
+    targetId: { default: '', validate: (value: unknown) => { if (typeof value !== 'string' || !value) throw new RangeError('共享脚注目标不能为空') }, parseHTML: (element: HTMLElement) => element.getAttribute('data-target-id') ?? '', renderHTML: (attrs: Record<string, unknown>) => ({ 'data-target-id': String(attrs.targetId ?? '') }) },
+    refText: { default: '', validate: (value: unknown) => { if (typeof value !== 'string' || !value) throw new RangeError('共享脚注显示文字不能为空') }, parseHTML: (element: HTMLElement) => element.getAttribute('data-ref-text') ?? '', renderHTML: (attrs: Record<string, unknown>) => ({ 'data-ref-text': String(attrs.refText ?? '') }) },
+  } },
+  parseHTML() { return [{ tag: 'sup[data-type="shared-footnote-ref"]', priority: 100 }] },
+  renderHTML({ node, HTMLAttributes }) { return ['sup', mergeAttributes(HTMLAttributes, { 'data-type': 'shared-footnote-ref' }), node.attrs.refText || ''] },
+})
+
+export const SharedFootnoteDefinition = Node.create({
+  name: 'sharedFootnoteDefinition', inline: true, group: 'inline', atom: true,
+  addAttributes() { return { content: { default: [],
+    validate: (value: unknown) => { const reason = unsupportedSharedFootnoteContent(value); if (reason) throw new RangeError(`共享脚注${reason}`) },
+    parseHTML: (element: HTMLElement) => { try { return JSON.parse(element.getAttribute('data-content') || '[]') } catch { return [] } },
+    renderHTML: (attrs: Record<string, unknown>) => ({ 'data-content': JSON.stringify(attrs.content ?? []) }),
+  } } },
+  parseHTML() { return [{ tag: 'span[data-type="shared-footnote-definition"]' }] },
+  renderHTML({ node, HTMLAttributes }) { return ['span', mergeAttributes(HTMLAttributes, { 'data-type': 'shared-footnote-definition' }),
+    (Array.isArray(node.attrs.content) ? node.attrs.content : []).map((item: { text?: string }) => item.text ?? '').join('')] },
+})
 
 /** 正文脚注引用。正文内容作为 attrs.content 保存，避免伪装成页底 block。 */
 export const FootnoteRef = Node.create({

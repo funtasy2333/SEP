@@ -15,14 +15,14 @@ import type { XmlElement, XmlNode } from '../../xml46687/tree'
 import type { RenderXml46687Options, Xml46687Problem, Xml46687ProblemCode, Xml46687Severity } from '../xml46687'
 import { renderCode, renderExample, renderList, renderNote, renderParagraph, renderQuote, renderWarning } from './blocks'
 import { sub, type InlineContainer, type RenderContext, type RenderScope, type Site } from './context'
-import { renderFigure } from './figures'
-import { renderFormula } from './formulas'
+import { renderFigure, renderFigureSet } from './figures'
+import { renderFormula, renderFormulaGroup } from './formulas'
 import { createIdState, emitRef, registerPending, type IdState } from './ids'
 import { renderInlines } from './inline'
 import { renderNormRefList } from './refs'
 import { renderSectionContent } from './structure'
 import { buildTargets } from './targets'
-import { renderTable } from './tables'
+import { renderArray, renderTable } from './tables'
 import { renderDefList } from './terms'
 
 /** 块种类 → 渲染函数。`never` 检查保证 `IRBlock` 新增种类时这里必须补。 */
@@ -33,6 +33,9 @@ export function renderBlock(ctx: RenderContext, block: IRBlock, at: Site): XmlEl
     case 'table': return renderTable(block, at, ctx)
     case 'figure': return renderFigure(block, at, ctx)
     case 'formula': return renderFormula(block, at, ctx)
+    case 'figureSet': return renderFigureSet(block, at, ctx)
+    case 'formulaGroup': return renderFormulaGroup(block, at, ctx)
+    case 'array': return renderArray(block, at, ctx)
     case 'note': return renderNote(block, at, ctx)
     case 'example': return renderExample(block, at, ctx)
     case 'warning': return renderWarning(block, at, ctx)

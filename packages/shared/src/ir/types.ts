@@ -169,8 +169,8 @@ export interface IRAppendix {
 }
 
 export type IRBlock =
-  | IRParagraph | IRList | IRTable | IRFigure
-  | IRFormula | IRNote | IRExample | IRWarning | IRQuote | IRCodeBlock
+  | IRParagraph | IRList | IRTable | IRFigure | IRFigureSet | IRArray
+  | IRFormula | IRFormulaGroup | IRNote | IRExample | IRWarning | IRQuote | IRCodeBlock
   | IRDefList
   | IRNormRefList
 
@@ -221,6 +221,7 @@ export interface IRTable {
   notes: IRNote[]
   /** 表脚注；与表注分开，通过稳定 ID 与单元格上标关联。旧文稿可省略。 */
   footnotes?: IRFootnote[]
+  alternativeGraphic?: IRGraphic
   /** 表格宽度和已知版式字段；各数值携带显式单位。 */
   width?: IRMeasure
   style?: IRTableStyle
@@ -241,6 +242,13 @@ export interface IRTableColumn {
   textAlign?: string
   /** 取值 top | middle | bottom | baseline（6.3.2）。 */
   verticalAlign?: string
+}
+export interface IRArray {
+  kind: 'array'
+  id: NodeId
+  columns: IRTableColumn[]
+  rows: IRTableRow[]
+  columnGroups?: Array<{ start: number; count: number }>
 }
 export interface IRTableRow {
   id: NodeId
@@ -311,6 +319,14 @@ export interface IRCellStyle {
   paddingLeft?: IRMeasure
 }
 
+export interface IRGraphic {
+  id: NodeId
+  src: string
+  resourceId?: NodeId
+  contentType?: string
+  specificUse?: 'size:T' | 'size:S' | 'size:M' | 'size:L'
+}
+
 export interface IRFigure {
   kind: 'figure'
   id: NodeId
@@ -325,6 +341,8 @@ export interface IRFigure {
    */
   notes: IRNote[]
   resourceId?: NodeId
+  primaryGraphic?: { contentType?: string; specificUse?: IRGraphic['specificUse'] }
+  additionalGraphics?: IRGraphic[]
   imageWidth?: IRMeasure
   imageHeight?: IRMeasure
   alt?: string
@@ -339,6 +357,12 @@ export interface IRFigure {
    * 顺序固定在 notes 之后（D-M-09：PM 不保存注与示例的交错顺序）；每个示例必须是 id 为 `${example.id}.p0` 的单段落。
    */
   examples?: IRExample[]
+}
+export interface IRFigureSet {
+  kind: 'figureSet'
+  id: NodeId
+  legend?: IRLegend
+  figures: IRFigure[]
 }
 
 /**
@@ -383,6 +407,13 @@ export interface IRFormula {
   /** 「式中：」键值对（NISO STS: disp-formula > legend > def-list） */
   whereList: IRDefItem[]
   notes?: IRFormulaNote[]
+}
+
+export interface IRFormulaGroup {
+  kind: 'formulaGroup'
+  id: NodeId
+  numbered: boolean
+  formulas: IRFormula[]
 }
 
 /**
@@ -531,6 +562,8 @@ export interface IRIndexEntry {
   term: IRInline[]
   targets: NodeId[]
   seeAlso: NodeId[]
+  /** 源索引仅包含显示文本时原样保留；不推断目标身份。 */
+  sourceReferences?: Array<{ type: 'see' | 'seeAlso'; content: IRInline[] }>
 }
 
 export interface IRWarning {
@@ -567,6 +600,8 @@ export interface IRInline {
   formula?: IRInlineFormula
   /** 原位条文脚注：引用与内容共同移动/删除，编号由 Resolver 派生。 */
   footnote?: IRFootnote
+  footnoteRef?: { targetId: NodeId; refText: string }
+  footnoteDefinition?: IRFootnote
   /**
    * 行内图（NISO STS: inline-graphic，WP8.M / G3，M-8.3-02）：纯行内叶子，text 恒为空，不带 marks/style，不另造实体 id。
    * 只允许出现在 IRParagraph.content，且不在术语条目或脚注内（Resolver 校验）。

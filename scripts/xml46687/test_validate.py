@@ -85,7 +85,7 @@ EXPECTED_INVALID = {
     "fig-footnote-in-caption.xml": ("REJECT", {"REJECT"}, "图内"),
     # D-M-01（WP8.M 设计评审，方案 A）：正文 fn 是行内元素，sec/app 的直接子元素 fn（块级）不收
     "block-level-fn.xml": ("REJECT", {"REJECT", "RNG"}, "块级正文脚注"),
-    "nested-term-entry.xml": ("REJECT", {"REJECT", "RNG"}, "termEntry"),
+    "nested-term-entry.xml": ("REJECT", {"REJECT", "RNG", "V-9"}, "termEntry"),
     "definition-target.xml": ("REJECT", {"REJECT", "RNG"}, "target"),
     # V-1
     "dup-id.xml": ("V-1", {"V-1"}, "sec_5.1"),
@@ -110,10 +110,8 @@ EXPECTED_INVALID = {
     "bad-processing-meta.xml": ("V-6", {"V-6", "RNG"}, "table-model"),
     "title-wrap-no-lang.xml": ("V-6", {"V-6", "RNG"}, "xml:lang"),
     # V-7
-    "ext-id.xml": ("V-7", {"V-7"}, "ext_"),
-    "formula-id.xml": ("V-7", {"V-7"}, "Formula"),
-    "uuid-id.xml": ("V-7", {"V-7"}, "uuid"),
-    "p-number-id.xml": ("V-7", {"V-7"}, "p-"),
+    "ext-id.xml": ("V-18", {"V-18"}, "<p> 不应带 id"),
+    "p-number-id.xml": ("V-18", {"V-18"}, "<p> 不应带 id"),
     # V-8～V-11
     "wrong-xref-type.xml": ("V-8", {"V-8"}, "ref-type=fig"),
     "term-two-definitions.xml": ("V-9", {"V-9"}, "有且仅有一个"),
@@ -129,7 +127,7 @@ EXPECTED_INVALID = {
     "unknown-element.xml": ("RNG", {"RNG"}, "blink"),
     # 2026-10-21：术语异写元素名只保留 tbx:normativeAuthentication，其余四个疑为原文笔误，REJECT
     "tbx-term-entry-alias.xml": ("REJECT", {"REJECT", "RNG"}, "笔误"),
-    "tbx-definition-alias.xml": ("REJECT", {"REJECT", "RNG"}, "Definition"),
+    "tbx-definition-alias.xml": ("REJECT", {"REJECT", "RNG", "V-9"}, "Definition"),
     "tbx-normative-authorization-alias.xml": ("REJECT", {"REJECT", "RNG"}, "normative-Authorization"),
     "tbx-grammatical-number-alias.xml": ("REJECT", {"REJECT", "RNG"}, "grammatical-Number"),
     # 按 NISO STS 1.2 收紧后（2026-10-21）
@@ -168,6 +166,12 @@ EXPORT_ONLY_INVALID = {
     "p-with-id.xml": ("V-18", "NO-ID"),
 }
 
+# 语法合法且引用可解析的 opaque ID 样例：仅 export 档拒绝非规范字面形式。
+EXPORT_ONLY_OPAQUE_IDS = {
+    "formula-id.xml": "Formula",
+    "uuid-id.xml": "uuid",
+}
+
 # 矩阵中 import: reject 的行（rejectKind 见 docs/wp8.1/matrix-*.json）：
 # format 类中的“语境拒绝”行（元素本身接受，只在特定位置/取值/个数上拒绝）→ 对应的负例
 CONTEXT_REJECT_SAMPLES = {
@@ -191,7 +195,7 @@ IMPLEMENTATION_REJECT_ROWS = {
 }
 # format 类中整体不收的元素（不得出现在 schema 中）；该集合固定在这里，防止矩阵自相矛盾时悄悄改变
 WHOLESALE_FORMAT_REJECTS = {
-    "alternatives", "col-group", "fn-group", "issue-agencies", "mtext", "std-doc-meta", "target", "term-display",
+    "DOCTYPE", "alternatives", "col-group", "fn-group", "issue-agencies", "mtext", "std-doc-meta", "target", "term-display",
     "tex-math", "tfoot",
     "{urn:iso:std:iso:30042:ed-1}see", "{urn:iso:std:iso:30042:ed-1}term-entry",
     "{urn:iso:std:iso:30042:ed-1}Definition", "{urn:iso:std:iso:30042:ed-1}normative-Authorization",
@@ -218,8 +222,11 @@ class TestSampleInventory(unittest.TestCase):
 
     def test_every_invalid_sample_has_an_expectation_and_vice_versa(self):
         files = {p.name for p in INVALID_DIR.glob("*.xml")}
-        expected = set(EXPECTED_INVALID) | set(EXPORT_ONLY_INVALID)
+        expected = set(EXPECTED_INVALID) | set(EXPORT_ONLY_INVALID) | set(EXPORT_ONLY_OPAQUE_IDS)
         self.assertEqual(set(EXPECTED_INVALID) & set(EXPORT_ONLY_INVALID), set(), "同一负例不能有两种预期")
+        self.assertEqual(set(EXPECTED_INVALID) & set(EXPORT_ONLY_OPAQUE_IDS), set(), "opaque ID 正例不能列为导入负例")
+        self.assertEqual(len(EXPECTED_INVALID) + len(EXPORT_ONLY_INVALID), 76)
+        self.assertEqual(set(EXPORT_ONLY_OPAQUE_IDS), {"formula-id.xml", "uuid-id.xml"})
         self.assertEqual(files - expected, set(), "有负例没有写预期")
         self.assertEqual(expected - files, set(), "预期里的负例文件不存在")
 
@@ -339,14 +346,12 @@ def _make_export_only_test(name: str, spec):
         self.assertEqual(_rules(rep), {rule}, report)
         self.assertIn(keyword, _messages(rep), report)
         self.assertTrue(rep.consistent, report)
-        # import 档：通过（结构层不限次序），同一问题只作为告警
+        # import 档按严格项目约定拒绝，仍须命中同一语义规则
         rep = VALIDATOR_IMPORT.validate_file(path)
         report = validate.format_human(rep)
-        self.assertTrue(rep.valid, "%s 应在 import 档通过：\n%s" % (name, report))
-        self.assertEqual(rep.errors, [], report)
-        self.assertEqual({w["rule"] for w in rep.warnings}, {import_rule} if import_rule else set(), report)
-        if import_rule:
-            self.assertIn(keyword, "\n".join(w["message"] for w in rep.warnings), report)
+        self.assertFalse(rep.valid, report)
+        self.assertIn(rule, _rules(rep), report)
+        self.assertIn(keyword, _messages(rep), report)
         self.assertIs(rep.engines["lxml"]["valid"], True)
         self.assertIs(rep.engines["xmllint"]["valid"], True)
     return test
@@ -354,6 +359,77 @@ def _make_export_only_test(name: str, spec):
 
 for _name, _spec in EXPORT_ONLY_INVALID.items():
     setattr(TestInvalidSamples, "test_export_only_" + _slug(Path(_name)), _make_export_only_test(_name, _spec))
+
+
+class TestOpaqueIdImportPolicy(unittest.TestCase):
+    """ID 字面样式仅约束 export；import 依据 NCName、全局唯一性和实际引用解析。"""
+
+    def _source(self, name, replacements):
+        source = (VALID_DIR / name).read_text(encoding="utf-8")
+        for old, new in replacements:
+            self.assertEqual(source.count(old), 1, "替换点必须唯一：%s" % old)
+            source = source.replace(old, new, 1)
+        return source
+
+    def _validate_text(self, source, validator):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case.xml"
+            path.write_text(source, encoding="utf-8")
+            return validator.validate_file(path)
+
+    def test_uuid_and_formula_samples_are_import_positive_and_export_negative(self):
+        for name, keyword in EXPORT_ONLY_OPAQUE_IDS.items():
+            with self.subTest(sample=name):
+                imported = VALIDATOR_IMPORT.validate_file(INVALID_DIR / name)
+                self.assertTrue(imported.valid, validate.format_human(imported))
+                self.assertEqual(imported.errors, [])
+                self.assertTrue(imported.consistent)
+                self.assertIs(imported.engines["lxml"]["valid"], True)
+                self.assertIs(imported.engines["xmllint"]["valid"], True)
+
+                exported = VALIDATOR_EXPORT.validate_file(INVALID_DIR / name)
+                self.assertFalse(exported.valid, validate.format_human(exported))
+                self.assertEqual(_rules(exported), {"V-7"}, validate.format_human(exported))
+                self.assertIn(keyword, _messages(exported))
+                self.assertTrue(exported.consistent)
+
+    def test_legacy_spelling_variants_on_referenced_entities_are_import_positive(self):
+        cases = [
+            ("03-structure.xml", [("<app id=\"sec_A\"", "<app id=\"app_A\""), ("rid=\"sec_A\"", "rid=\"app_A\"")], "LEGACY", "app_A"),
+            ("03-structure.xml", [("<ref id=\"biblref_1\"", "<ref id=\"bib_1\""), ("rid=\"biblref_1\"", "rid=\"bib_1\"")], "LEGACY", "bib_1"),
+            ("04-tables.xml", [("<fn id=\"table-fn_1.1\"", "<fn id=\"tabfn_1_a\""), ("rid=\"table-fn_1.1\"", "rid=\"tabfn_1_a\"")], "LEGACY", "tabfn_1_a"),
+            ("05-formulas-figures.xml", [("<fig id=\"fig_1\">", "<fig id=\"ext_figure\">"), ("rid=\"fig_1\"", "rid=\"ext_figure\"")], "V-7", "ext_figure"),
+        ]
+        for name, replacements, export_rule, opaque_id in cases:
+            with self.subTest(sample=name, id=opaque_id):
+                source = self._source(name, replacements)
+                imported = self._validate_text(source, VALIDATOR_IMPORT)
+                self.assertTrue(imported.valid, validate.format_human(imported))
+                self.assertEqual(imported.errors, [])
+                self.assertTrue(imported.consistent)
+                self.assertIs(imported.engines["lxml"]["valid"], True)
+                self.assertIs(imported.engines["xmllint"]["valid"], True)
+
+                exported = self._validate_text(source, VALIDATOR_EXPORT)
+                self.assertFalse(exported.valid, validate.format_human(exported))
+                self.assertEqual(_rules(exported), {export_rule}, validate.format_human(exported))
+                self.assertIn(opaque_id, _messages(exported))
+                self.assertTrue(exported.consistent)
+
+    def test_import_still_rejects_illegal_ncname_duplicate_id_and_dangling_rid(self):
+        base = (VALID_DIR / "03-structure.xml").read_text(encoding="utf-8")
+        cases = [
+            ("非法 NCName", base.replace('id="sec_A"', 'id="1bad"').replace('rid="sec_A"', 'rid="1bad"'), "不是合法的 XML ID"),
+            ("重复 ID", base.replace('id="sec_5.2"', 'id="sec_5.1"').replace('rid="sec_5.2"', 'rid="sec_5.1"'), "重复的 id"),
+            ("悬空 rid", base.replace('rid="sec_5.2"', 'rid="not-there"'), "无法解析"),
+        ]
+        for why, source, message in cases:
+            with self.subTest(why=why):
+                imported = self._validate_text(source, VALIDATOR_IMPORT)
+                self.assertFalse(imported.valid, validate.format_human(imported))
+                self.assertIn("V-1", _rules(imported), validate.format_human(imported))
+                self.assertIn(message, _messages(imported), validate.format_human(imported))
+                self.assertTrue(imported.consistent)
 
 
 class TestGeneratedSamplesUpToDate(unittest.TestCase):
@@ -521,7 +597,7 @@ class TestSchemaConstraints(unittest.TestCase):
                 meta='<ics>33.040.40</ics><ccs>M 32</ccs>' + _META),
             "std-meta 次序不限：content-language 在 std-org-group 之前": _doc(meta=_META + '<content-language>zh</content-language><std-org-group><std-org/></std-org-group>'),
             "std-meta 次序不限：ics 在 comm-ref 之前": _doc(meta=_META + '<ics>1.2</ics><comm-ref>c</comm-ref>'),
-            "未知 sec-type 取值（表 D.1 行 13）": _doc(body='<sec id="sec_1"><title>t</title><sec id="sec_1_1" sec-type="custom-role"><title>u</title></sec></sec>'),
+            "未知 sec-type 取值（表 D.1 行 13）": _doc(body='<sec id="sec_1"><title>t</title><sec id="sec_1_1" sec-type="custom-role"><label>1.1</label><title>u</title></sec></sec>'),
             "std-meta 里没有 std-org-group 等 SES 必填项": _doc(),
             "单元格为空": _doc(body='<sec id="sec_1"><title>t</title><table-wrap><table><tbody><tr><td/></tr></tbody></table></table-wrap></sec>'),
             "表没有 caption（附录 E 的无标题表）": _doc(body='<sec id="sec_1"><title>t</title><table-wrap id="tab_r"><table><tbody><tr><td>a</td></tr></tbody></table></table-wrap></sec>'),
@@ -615,8 +691,7 @@ class TestStdMetaOrder(unittest.TestCase):
             name = "%s/%s" % (parts[i][0], parts[i + 1][0])
             with self.subTest(swap=name):
                 rep = self._run(VALIDATOR_IMPORT, parts)
-                self.assertEqual(rep.errors, [], validate.format_human(rep))
-                self.assertEqual(len(self._order_findings(rep.warnings)), 1)
+                self.assertEqual(len(self._order_findings(rep.errors)), 1, validate.format_human(rep))
                 rep = self._run(VALIDATOR_EXPORT, parts)
                 self.assertEqual({e["rule"] for e in rep.errors}, {"V-12"}, validate.format_human(rep))
 
@@ -631,10 +706,9 @@ class TestStdMetaOrder(unittest.TestCase):
             in_order = [rank[n] for n, _ in parts] == sorted(rank[n] for n, _ in parts)
             with self.subTest(order=[n for n, _ in parts]):
                 rep = self._run(VALIDATOR_IMPORT, parts)
-                self.assertEqual(rep.errors, [], validate.format_human(rep))
                 self.assertIs(rep.engines["lxml"]["valid"], True)
                 self.assertIs(rep.engines["xmllint"]["valid"], True)
-                self.assertEqual(len(self._order_findings(rep.warnings)), 0 if in_order else 1)
+                self.assertEqual(len(self._order_findings(rep.errors)), 0 if in_order else 1)
 
     def test_repeatable_children_keep_their_position_class(self):
         # 同类重复元素（release-date、ics）相邻出现、整体次序正确 -> 不告警
@@ -715,11 +789,11 @@ class TestRequiredId(unittest.TestCase):
                 self.assertEqual(self._findings(tpl.replace("{ID}", ' xml:id="x1"'), "export").errors, [], "xml:id 也算 id")
                 missing = tpl.replace("{ID}", "")
                 imp = self._findings(missing, "import")
-                self.assertEqual(imp.errors, [])
-                self.assertEqual([w["rule"] for w in imp.warnings], ["V-13"])
-                self.assertIn("REQUIRED-ID", imp.warnings[0]["message"])
-                self.assertIn("<%s>" % name, imp.warnings[0]["message"])
-                self.assertIn("导入接受", imp.warnings[0]["message"])
+                strict = name in ("tbx:termEntry", "app") or (name == "ref" and 'content-type="bibl"' in tpl)
+                found = imp.errors if strict else imp.warnings
+                self.assertEqual([w["rule"] for w in found], ["V-13"])
+                self.assertIn("REQUIRED-ID", found[0]["message"])
+                self.assertIn("<%s>" % name, found[0]["message"])
                 exp = self._findings(missing, "export")
                 self.assertEqual(exp.warnings, [])
                 self.assertEqual([e["rule"] for e in exp.errors], ["V-13"])
@@ -748,7 +822,8 @@ class TestRequiredId(unittest.TestCase):
         # 结构层不要求 id：缺 id 的文档两个 RELAX NG 实现都接受，import 档整体通过
         for name in ("missing-term-entry-id.xml", "missing-app-id.xml", "missing-ref-id.xml"):
             rep = VALIDATOR_IMPORT.validate_file(INVALID_DIR / name)
-            self.assertTrue(rep.valid, validate.format_human(rep))
+            self.assertFalse(rep.valid, validate.format_human(rep))
+            self.assertIn("V-13", _rules(rep))
             self.assertIs(rep.engines["lxml"]["valid"], True)
             self.assertIs(rep.engines["xmllint"]["valid"], True)
 
@@ -811,12 +886,11 @@ class TestCustomXref(unittest.TestCase):
         for rid, inferred in (("term_3.1", "term-entry"), ("sec_3.1", "term-entry"), ("note_1", "note"), ("ex_1", "example")):
             with self.subTest(rid=rid):
                 rep = self._run(self._x(rid), VALIDATOR_IMPORT)
-                self.assertEqual(rep.errors, [], validate.format_human(rep))
-                self.assertTrue(rep.valid)
-                found = [w for w in rep.warnings if w["rule"] == "V-8"]
+                self.assertFalse(rep.valid, validate.format_human(rep))
+                found = [w for w in rep.errors if w["rule"] == "V-8"]
                 self.assertEqual(len(found), 1, validate.format_human(rep))
                 self.assertIn("CUSTOM-TYPE", found[0]["message"])
-                self.assertIn("推断为 custom-type=%s" % inferred, found[0]["message"])
+                self.assertIn("项目严格", found[0]["message"])
                 self.assertIs(rep.engines["lxml"]["valid"], True)
                 self.assertIs(rep.engines["xmllint"]["valid"], True)
 
@@ -843,11 +917,11 @@ class TestCustomXref(unittest.TestCase):
                     rep = self._run(xref, validator)
                     self.assertFalse(rep.valid, why)
                     self.assertEqual({e["rule"] for e in rep.errors}, {"V-8"}, validate.format_human(rep))
-                    self.assertNotIn("CUSTOM-TYPE", _messages(rep), "目标不对时不再提示推断")
+                    self.assertNotIn("推断", _messages(rep), "目标不对时不推断类型")
 
-    def test_unresolved_rid_is_only_a_v1_error(self):
+    def test_unresolved_rid_and_missing_type_are_both_errors(self):
         rep = self._run(self._x("nowhere"), VALIDATOR_IMPORT)
-        self.assertEqual({e["rule"] for e in rep.errors}, {"V-1"})
+        self.assertEqual({e["rule"] for e in rep.errors}, {"V-1", "V-8"})
 
     def test_schema_keeps_custom_type_optional(self):
         # 结构层不要求 custom-type（10.1.1“可选”）；缺失由 V-8 按档位处理
@@ -931,7 +1005,7 @@ class TestContextRejectsUseAncestors(unittest.TestCase):
                 '<body><sec sec-type="scope"><label>1</label><title>范围</title><sec><label>1.1</label><title>d</title></sec></sec></body>')
         rep = self._rejects(frag)
         warned = [w for w in rep.warnings if w["rule"] == "W-IMPL-REJECT" and "引言中的条" in w["message"]]
-        self.assertEqual(len(warned), 3)  # 0.1、0.1.1、0.1.1.1；正文里的条和引言本身不报
+        self.assertEqual(warned, [])  # 三层引言条均为已支持结构
         self.assertEqual(rep.errors, [])
 
 
@@ -1457,18 +1531,18 @@ class TestUrlValues(unittest.TestCase):
 
     # 带 URL 的位置：(名称, 带 {V} 的片段, 应报的规则)
     POINTS = [
-        ("ext-link/xlink:href", '<p><ext-link xlink:href="{V}">x</ext-link></p>', "V-11"),
+        ("ext-link/xlink:href", '<p><ext-link ext-link-type="uri" xlink:href="{V}">x</ext-link></p>', "V-11"),
         ("graphic/xlink:href", '<fig id="f"><caption><title>c</title></caption><graphic xlink:href="{V}"/></fig>', "V-11"),
         ("inline-graphic/xlink:href", '<p><inline-graphic xlink:href="{V}"/></p>', "V-11"),
         ("uri 的文本", '<p><uri xlink:type="simple">{V}</uri></p>', "V-11"),
-        ("mml:math/href", '<p><inline-formula><mml:math href="{V}"><mml:mi>x</mml:mi></mml:math></inline-formula></p>', "V-10"),
-        ("mml:mi/xlink:href", '<p><inline-formula><mml:math><mml:mi xlink:href="{V}">x</mml:mi></mml:math></inline-formula></p>', "V-10"),
-        ("mml:math/altimg", '<p><inline-formula><mml:math altimg="{V}"><mml:mi>x</mml:mi></mml:math></inline-formula></p>', "V-10"),
-        ("mml:mi/src", '<p><inline-formula><mml:math><mml:mi src="{V}">x</mml:mi></mml:math></inline-formula></p>', "V-10"),
+        ("mml:math/href", '<p><inline-formula><mml:math id="m1" href="{V}"><mml:mi>x</mml:mi></mml:math></inline-formula></p>', "V-10"),
+        ("mml:mi/xlink:href", '<p><inline-formula><mml:math id="m1"><mml:mi xlink:href="{V}">x</mml:mi></mml:math></inline-formula></p>', "V-10"),
+        ("mml:math/altimg", '<p><inline-formula><mml:math id="m1" altimg="{V}"><mml:mi>x</mml:mi></mml:math></inline-formula></p>', "V-10"),
+        ("mml:mi/src", '<p><inline-formula><mml:math id="m1"><mml:mi src="{V}">x</mml:mi></mml:math></inline-formula></p>', "V-10"),
     ]
 
     def _semantic(self, fragment):
-        text = "<standard %s><body><sec id=\"s\"><title>t</title>%s</sec></body></standard>" % (self.NS, fragment)
+        text = "<standard %s><body><sec id=\"s\"><label>1</label><title>t</title>%s</sec></body></standard>" % (self.NS, fragment)
         tree = validate.etree.ElementTree(validate.etree.fromstring(text.encode("utf-8"), validate.secure_parser()))
         rep = validate.Report("case.xml", "import")
         validate.semantic_checks(tree, rep)
@@ -1498,10 +1572,10 @@ class TestUrlValues(unittest.TestCase):
                     self.assertEqual([e for e in rep.errors if e["rule"] in ("V-10", "V-11")], [], "%s: %s" % (point, why))
 
     def test_control_characters_are_named_in_the_message(self):
-        rep = self._semantic('<p><ext-link xlink:href="java&#x9;script:alert(1)">x</ext-link></p>')
-        self.assertIn("U+0009", rep.errors[0]["message"])
-        rep = self._semantic('<p><ext-link xlink:href="a&#x0A;b">x</ext-link></p>')
-        self.assertIn("U+000A", rep.errors[0]["message"])
+        rep = self._semantic('<p><ext-link ext-link-type="uri" xlink:href="java&#x9;script:alert(1)">x</ext-link></p>')
+        self.assertIn("U+0009", "\n".join(e["message"] for e in rep.errors if e["rule"] == "V-11"))
+        rep = self._semantic('<p><ext-link ext-link-type="uri" xlink:href="a&#x0A;b">x</ext-link></p>')
+        self.assertIn("U+000A", "\n".join(e["message"] for e in rep.errors if e["rule"] == "V-11"))
 
     def test_end_to_end_through_the_full_validator(self):
         for v in ("java&#x9;script:alert(1)", "java&#x0A;script:alert(1)", "&#x0D;javascript:alert(1)", " javascript:alert(1)", "JaVaScRiPt:alert(1)"):
@@ -1661,9 +1735,9 @@ class TestMathmlIdAndDisplay(unittest.TestCase):
         for why, frag in cases.items():
             with self.subTest(why=why):
                 imp, exp = self._both(frag)
-                self.assertEqual(imp.errors, [])
-                self.assertEqual([w["rule"] for w in imp.warnings], ["V-14"])
-                self.assertIn("导入接受", imp.warnings[0]["message"])
+                findings = imp.errors if why == "缺 id" else imp.warnings
+                self.assertEqual([w["rule"] for w in findings], ["V-14"])
+                self.assertIn("项目严格" if why == "缺 id" else "导入接受", findings[0]["message"])
                 self.assertEqual(exp.warnings, [])
                 self.assertEqual([e["rule"] for e in exp.errors], ["V-14"])
                 self.assertIn("导出必须写 id", exp.errors[0]["message"])
@@ -1692,12 +1766,12 @@ class TestMathmlIdAndDisplay(unittest.TestCase):
         self.assertEqual([e["rule"] for e in exp.errors], ["V-15"])
         self.assertIn("缺少 display", exp.errors[0]["message"])
         imp, exp = self._both(self._disp(' display="inline" id="mml_m1"'))
-        self.assertEqual([w["rule"] for w in imp.warnings], ["V-15"])
+        self.assertEqual([w["rule"] for w in imp.errors], ["V-15"])
         self.assertEqual([e["rule"] for e in exp.errors], ["V-15"])
         # 行内公式：export 不得带 display（block 或 inline 都不行）；导入告警
         for value in ("block", "inline"):
             imp, exp = self._both(self._inline(' display="%s" id="mml_m1"' % value))
-            self.assertEqual([w["rule"] for w in imp.warnings], ["V-15"], value)
+            self.assertEqual([w["rule"] for w in imp.errors], ["V-15"], value)
             self.assertEqual([e["rule"] for e in exp.errors], ["V-15"], value)
             self.assertIn("inline-formula", exp.errors[0]["message"])
 
@@ -1709,7 +1783,8 @@ class TestMathmlIdAndDisplay(unittest.TestCase):
                 path = Path(tmp) / "case.xml"
                 path.write_text(text, encoding="utf-8")
                 rep = VALIDATOR_IMPORT.validate_file(path)
-            self.assertTrue(rep.valid, validate.format_human(rep))
+            self.assertFalse(rep.valid, validate.format_human(rep))
+            self.assertTrue({"V-14", "V-15"} & _rules(rep))
             self.assertIs(rep.engines["lxml"]["valid"], True)
             self.assertIs(rep.engines["xmllint"]["valid"], True)
 
@@ -1769,8 +1844,8 @@ class TestExportStrictRules(unittest.TestCase):
         for why, frag, keyword in cases:
             with self.subTest(why=why):
                 imp, exp = self._both(frag)
-                self.assertEqual(imp.errors, [])
-                self.assertTrue([w for w in imp.warnings if w["rule"] == "V-17"], why)
+                findings = imp.errors if why in ("条缺 label", "无标题条缺 label", "表缺 label") else imp.warnings
+                self.assertTrue([w for w in findings if w["rule"] == "V-17"], why)
                 found = [e for e in exp.errors if e["rule"] == "V-17"]
                 self.assertTrue(found, why)
                 self.assertTrue(any(keyword in e["message"] for e in found), why)
@@ -1792,8 +1867,8 @@ class TestExportStrictRules(unittest.TestCase):
                                     ("缺 annex-type", full.replace("<annex-type>（资料性）</annex-type>", ""), "annex-type")):
             with self.subTest(why=why):
                 imp, exp = self._both(frag)
-                self.assertEqual(imp.errors, [])
-                self.assertEqual([w["rule"] for w in imp.warnings], ["V-17"])
+                findings = imp.errors if why == "缺 annex-type" else imp.warnings
+                self.assertEqual([w["rule"] for w in findings], ["V-17"])
                 self.assertIn(keyword, exp.errors[0]["message"])
 
     def test_untitled_sec_must_carry_numbered_paragraph_on_export_only(self):
@@ -1818,11 +1893,11 @@ class TestExportStrictRules(unittest.TestCase):
         self._assert_clean(ok)
         # 缺 ext-link-type：原文 10.1.9 示例就缺，导入不报告；导出必须写
         imp, exp = self._both(ok.replace(' ext-link-type="uri"', ""))
-        self.assertEqual((imp.errors, imp.warnings), ([], []))
+        self.assertEqual([e["rule"] for e in imp.errors], ["V-17"])
         self.assertEqual([e["rule"] for e in exp.errors], ["V-17"])
         # 取值不是 uri：导入告警 W-EXTLINK-TYPE，导出错误
         imp, exp = self._both(ok.replace('"uri"', '"doi"'))
-        self.assertEqual([w["rule"] for w in imp.warnings], ["W-EXTLINK-TYPE"])
+        self.assertEqual([e["rule"] for e in imp.errors], ["V-17"])
         self.assertEqual([e["rule"] for e in exp.errors], ["V-17"])
         nc = '<p><named-content content-type="%s">x</named-content></p>'
         self._assert_clean(nc % "variable")
@@ -1858,7 +1933,7 @@ class TestExportStrictRules(unittest.TestCase):
 
     def test_p_must_not_carry_id(self):
         imp, exp = self._both('<p id="para_1">x</p>')
-        self.assertEqual([w["rule"] for w in imp.warnings], ["V-18"])
+        self.assertEqual([e["rule"] for e in imp.errors], ["V-18"])
         self.assertEqual([e["rule"] for e in exp.errors], ["V-18"])
         self.assertIn("M-E-25", exp.errors[0]["message"])
         self._assert_clean("<p>x</p>")
@@ -1879,8 +1954,8 @@ class TestExportStrictRules(unittest.TestCase):
                 path.write_text(_doc(body=frag), encoding="utf-8")
                 rep = validator.validate_file(path)
             if key == "warn":
-                self.assertTrue(rep.valid, validate.format_human(rep))
-                self.assertIn("W-TERM-NODEF", {w["rule"] for w in rep.warnings})
+                self.assertFalse(rep.valid, validate.format_human(rep))
+                self.assertIn("V-9", _rules(rep))
             else:
                 self.assertFalse(rep.valid)
                 self.assertIn("V-9", _rules(rep))
@@ -1957,16 +2032,13 @@ class TestWarnings(unittest.TestCase):
         self.assertIn(expected_warning, {w["rule"] for w in rep.warnings}, validate.format_human(rep))
 
     def test_warning_cases(self):
-        sec = '<sec id="sec_1"><title>t</title>%s</sec>'
+        sec = '<sec id="sec_1"><label>1</label><title>t</title>%s</sec>'
         cases = [
             ("W-NAMED-CONTENT", _doc(body=sec % '<p><named-content content-type="foo">x</named-content></p>')),
             ("W-GRAPHIC-TYPE", _doc(body=sec % '<fig><caption><title>c</title></caption><graphic xlink:href="a" content-type="photo"/></fig>')),
-            ("W-EXTLINK-TYPE", _doc(body=sec % '<p><ext-link ext-link-type="doi" xlink:href="https://example.org/">x</ext-link></p>')),
-            ("W-SECTYPE", _doc(body=sec % '<sec id="sec_1_1" sec-type="custom-role"><title>u</title></sec>')),
+            ("W-SECTYPE", _doc(body=sec % '<sec id="sec_1_1" sec-type="custom-role"><label>1.1</label><title>u</title></sec>')),
             ("W-SIZE-T", _doc(body=sec % '<p><inline-graphic xlink:href="a" specific-use="size:T"/></p>')),
             ("W-LIST-LABEL", _doc(body=sec % '<list list-type="arabic"><list-item><p>x</p></list-item></list>')),
-            ("W-RID-MULTI", _doc(body=sec % '<p><xref ref-type="sec" rid="sec_1 sec_1">x</xref></p>')),
-            ("W-FN-MULTIREF", _doc(body=sec % '<p><xref ref-type="fn" rid="fn_1">1</xref><fn id="fn_1"><p>x</p></fn><xref ref-type="fn" rid="fn_1">1</xref></p>')),
             ("W-ANNEX-TYPE", _doc(back='<back><app-group><app content-type="normative" id="sec_A"><annex-type>（资料性）</annex-type><title>t</title></app></app-group></back>')),
             ("W-DATE-ORDER", _doc(meta=_META + "<release-date>2026-11-01</release-date><implementation-date>2026-04-30</implementation-date>")),
             ("V-14", _doc(body=sec % '<p><inline-formula><mml:math id="m1"><mml:mi>a</mml:mi></mml:math></inline-formula></p>')),
@@ -1974,6 +2046,16 @@ class TestWarnings(unittest.TestCase):
         for rule, text in cases:
             with self.subTest(rule=rule):
                 self._check(text, rule)
+        multi = _doc(body=sec % '<p><xref ref-type="sec" rid="sec_1 sec_1">x</xref></p>')
+        shared = _doc(body=sec % '<p><xref ref-type="fn" rid="fn_1">1</xref><fn id="fn_1"><p>x</p></fn><xref ref-type="fn" rid="fn_1">1</xref></p>')
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case.xml"
+            path.write_text(multi, encoding="utf-8")
+            self.assertIn("W-RID-MULTI", _rules(VALIDATOR_IMPORT.validate_file(path)))
+            path.write_text(shared, encoding="utf-8")
+            rep = VALIDATOR_IMPORT.validate_file(path)
+            self.assertTrue(rep.valid, validate.format_human(rep))
+            self.assertNotIn("W-FN-MULTIREF", {w["rule"] for w in rep.warnings})
 
 
 class TestStsCompat(unittest.TestCase):
@@ -2120,15 +2202,15 @@ class TestSchemaCoverage(unittest.TestCase):
 
     def test_reject_kind_is_filled_in_for_every_reject_row(self):
         self.assertEqual(self.res["reject_kind_problems"], [])
-        self.assertEqual(len(self.res["reject_rows_format"]) + len(self.res["reject_rows_implementation"]), 30)
-        self.assertEqual(set(self.res["reject_rows_implementation"]), set(IMPLEMENTATION_REJECT_ROWS))
+        self.assertEqual(len(self.res["reject_rows_format"]), 25)
+        self.assertEqual(self.res["reject_rows_implementation"], [])
 
     def test_validate_py_knows_every_wholesale_rejected_element(self):
         known = {k for k in validate.REJECT_ELEMENTS}
         known |= validate._UNPREFIXED_MATHML
         for e in self.res["reject_elements"]:
             plain = e.split("}")[-1] if e.startswith("{") else e
-            self.assertTrue(e in known or plain in known, "validate.py 的 REJECT 规则缺少 %s" % e)
+            self.assertTrue(e in known or plain in known or e == "DOCTYPE", "validate.py 的 REJECT 规则缺少 %s" % e)
 
     def test_format_context_reject_rows_are_all_accounted_for(self):
         self.assertEqual(set(self.res["context_reject_rows"]), set(CONTEXT_REJECT_SAMPLES))
@@ -2137,7 +2219,7 @@ class TestSchemaCoverage(unittest.TestCase):
         for row, (rule, sample) in IMPLEMENTATION_REJECT_ROWS.items():
             rep = VALIDATOR_IMPORT.validate_file(VALID_DIR / sample)
             self.assertTrue(rep.valid, (row, validate.format_human(rep)))
-            self.assertIn(rule, {w["rule"] for w in rep.warnings}, row)
+            self.assertNotIn(rule, {w["rule"] for w in rep.warnings}, row)
 
     def test_matrix_has_no_known_contradictions_any_more(self):
         rows = {}
@@ -2271,6 +2353,152 @@ class TestExportEnforcementAudit(unittest.TestCase):
             self.assertIn(rule, used)
 
 
+class TestWp83StrictImport(unittest.TestCase):
+    def test_all_thirteen_historical_invalids_are_rejected_by_their_rule(self):
+        for name, (rule, *_) in EXPORT_ONLY_INVALID.items():
+            with self.subTest(name=name):
+                rep = VALIDATOR_IMPORT.validate_file(INVALID_DIR / name)
+                self.assertFalse(rep.valid, validate.format_human(rep))
+                self.assertIn(rule, {e["rule"] for e in rep.errors})
+
+    def test_definition_outside_langset_does_not_satisfy_term_entry(self):
+        text = ('<standard xmlns:tbx="urn:iso:std:iso:30042:ed-1"><body>'
+                '<sec id="s" sec-type="terms"><label>3</label><title>t</title><term-sec>'
+                '<tbx:termEntry id="t"><tbx:definition>outside</tbx:definition>'
+                '<tbx:langSet xml:lang="zh"><tbx:tig><tbx:term>x</tbx:term></tbx:tig></tbx:langSet>'
+                '</tbx:termEntry></term-sec></sec></body></standard>')
+        tree = validate.etree.ElementTree(validate.etree.fromstring(text.encode(), validate.secure_parser()))
+        rep = validate.Report("case.xml", "import")
+        validate.semantic_checks(tree, rep)
+        self.assertIn("V-9", _rules(rep))
+
+    def test_custom_xref_missing_type_is_reported_even_with_dangling_target(self):
+        rep = TestCustomXref()._run(TestCustomXref._x("nowhere"), VALIDATOR_IMPORT)
+        self.assertIn("V-8", {e["rule"] for e in rep.errors})
+
+    def test_all_valid_samples_have_no_obsolete_implementation_warning(self):
+        for path in sorted(VALID_DIR.glob("*.xml")):
+            with self.subTest(name=path.name):
+                rep = VALIDATOR_IMPORT.validate_file(path)
+                self.assertTrue(rep.valid, validate.format_human(rep))
+                self.assertFalse({"W-IMPL-REJECT", "W-FN-MULTIREF"} & {w["rule"] for w in rep.warnings})
+
+    def test_mathml_prefix_is_selected_by_namespace_uri(self):
+        text = (VALID_DIR / "05-formulas-figures.xml").read_text(encoding="utf-8")
+        text = text.replace('xmlns:mml=', 'xmlns:maths=').replace('mml:', 'maths:')
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case.xml"
+            path.write_text(text, encoding="utf-8")
+            rep = VALIDATOR_IMPORT.validate_file(path)
+        self.assertTrue(rep.valid, validate.format_human(rep))
+        self.assertTrue(rep.consistent)
+
+    def test_default_mathml_namespace_is_accepted(self):
+        text = _doc(body='<sec id="s"><label>1</label><title>t</title><disp-formula><math xmlns="http://www.w3.org/1998/Math/MathML" id="arbitrary"><mi>x</mi></math></disp-formula></sec>')
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case.xml"
+            path.write_text(text, encoding="utf-8")
+            rep = VALIDATOR_IMPORT.validate_file(path)
+        self.assertTrue(rep.valid, validate.format_human(rep))
+        self.assertTrue(rep.consistent)
+
+    def test_external_doctype_is_rejected_on_import(self):
+        text = _doc().replace("?>", '?>\n<!DOCTYPE standard SYSTEM "http://127.0.0.1:9/x.dtd">', 1)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case.xml"
+            path.write_text(text, encoding="utf-8")
+            rep = VALIDATOR_IMPORT.validate_file(path)
+        self.assertIn("SYN-3", {e["rule"] for e in rep.errors})
+
+
+class TestImportMathmlVersion(unittest.TestCase):
+    """C-S-04：仅导入 2.0 可用 warning 接收；两个引擎仍核对其他结构。"""
+
+    def _validate(self, source, validator):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "version.xml"
+            path.write_text(source, encoding="utf-8")
+            original = path.read_bytes()
+            report = validator.validate_file(path)
+            self.assertEqual(path.read_bytes(), original, "校验不得修改输入")
+        return report
+
+    def test_version_2_is_only_accepted_on_import_with_located_warning(self):
+        source = (VALID_DIR / "01-minimal.xml").read_text(encoding="utf-8")
+        source = source.replace('mathml-version="3.0"', 'mathml-version="2.0"')
+        imp = self._validate(source, VALIDATOR_IMPORT)
+        self.assertTrue(imp.valid, validate.format_human(imp))
+        self.assertTrue(imp.consistent)
+        self.assertIs(imp.engines["lxml"]["valid"], True)
+        self.assertIs(imp.engines["xmllint"]["valid"], True)
+        warning = [w for w in imp.warnings if w["rule"] == "V-6"]
+        self.assertEqual(len(warning), 1, validate.format_human(imp))
+        self.assertIn("2.0", warning[0]["message"])
+        self.assertEqual(warning[0]["line"], 6)
+        self.assertEqual(warning[0]["path"], "/standard/processing-meta")
+        exp = self._validate(source, VALIDATOR_EXPORT)
+        self.assertFalse(exp.valid, validate.format_human(exp))
+        self.assertIn("V-6", _rules(exp))
+        self.assertIs(exp.engines["lxml"]["valid"], False)
+        self.assertIs(exp.engines["xmllint"]["valid"], False)
+
+    def test_character_reference_in_version_is_accepted_without_changing_source(self):
+        source = (VALID_DIR / "01-minimal.xml").read_text(encoding="utf-8").replace('mathml-version="3.0"', 'mathml-version="2&#x2e;0"')
+        rep = self._validate(source, VALIDATOR_IMPORT)
+        self.assertTrue(rep.valid, validate.format_human(rep))
+        self.assertTrue(rep.consistent)
+        self.assertTrue(any(w["rule"] == "V-6" and w.get("line") == 6 for w in rep.warnings))
+
+    def test_external_doctype_is_still_rejected(self):
+        source = (VALID_DIR / "01-minimal.xml").read_text(encoding="utf-8").replace('mathml-version="3.0"', 'mathml-version="2.0"')
+        source = source.replace('?>', '?>\n<!DOCTYPE standard SYSTEM "http://127.0.0.1:9/forbidden.dtd">', 1)
+        rep = self._validate(source, VALIDATOR_IMPORT)
+        self.assertFalse(rep.valid, validate.format_human(rep))
+        self.assertIn("SYN-3", _rules(rep))
+
+    def test_explicit_custom_schema_is_not_rewritten(self):
+        source = (VALID_DIR / "01-minimal.xml").read_text(encoding="utf-8").replace('mathml-version="3.0"', 'mathml-version="2.0"')
+        with tempfile.TemporaryDirectory() as tmp:
+            schema_dir = Path(tmp) / "schema"
+            schema_dir.mkdir()
+            for path in SCHEMA_DIR.glob("*.rng"):
+                shutil.copyfile(path, schema_dir / path.name)
+            custom = validate.Validator(schema_dir / SCHEMA.name, profile="import")
+            rep = self._validate(source, custom)
+            self.assertFalse(rep.valid, validate.format_human(rep))
+            self.assertIs(rep.engines["lxml"]["valid"], False)
+            self.assertIs(rep.engines["xmllint"]["valid"], False)
+            self.assertTrue(rep.consistent)
+
+    def test_overlay_failure_is_an_engine_error(self):
+        from unittest import mock
+        source = (VALID_DIR / "01-minimal.xml").read_text(encoding="utf-8").replace('mathml-version="3.0"', 'mathml-version="2.0"')
+        with mock.patch.object(validate, "make_import_mathml2_schema", side_effect=OSError("fixture failure")):
+            rep = self._validate(source, VALIDATOR_IMPORT)
+        self.assertFalse(rep.valid)
+        self.assertIn("ENGINE", _rules(rep))
+
+    def test_other_version_is_rejected_in_both_profiles(self):
+        source = (VALID_DIR / "01-minimal.xml").read_text(encoding="utf-8").replace('mathml-version="3.0"', 'mathml-version="2.1"')
+        for validator in (VALIDATOR_IMPORT, VALIDATOR_EXPORT):
+            rep = self._validate(source, validator)
+            self.assertFalse(rep.valid, validate.format_human(rep))
+            self.assertIn("V-6", _rules(rep))
+            self.assertIs(rep.engines["lxml"]["valid"], False)
+            self.assertIs(rep.engines["xmllint"]["valid"], False)
+
+    def test_other_invalid_attributes_are_not_normalized_away(self):
+        source = (VALID_DIR / "01-minimal.xml").read_text(encoding="utf-8").replace('mathml-version="3.0"', 'mathml-version="2.0"').replace('table-model="xhtml"', 'table-model="wrong"')
+        rep = self._validate(source, VALIDATOR_IMPORT)
+        self.assertFalse(rep.valid, validate.format_human(rep))
+        self.assertTrue(rep.consistent)
+        self.assertIn("V-6", _rules(rep))
+        self.assertIs(rep.engines["lxml"]["valid"], False)
+        self.assertIs(rep.engines["xmllint"]["valid"], False)
+        self.assertTrue(any(e.get("line") == 6 for e in rep.errors if e["rule"] == "RNG"), validate.format_human(rep))
+        self.assertTrue(any(m.get("line") == 6 for m in rep.engines["xmllint"]["messages"]), validate.format_human(rep))
+
+
 class TestHelpers(unittest.TestCase):
     def test_ncname(self):
         for ok in ("sec_5.1", "table-fn_1.1", "biblref_1", "mml_m3", "条款_1"):
@@ -2356,8 +2584,8 @@ class TestSecurity(unittest.TestCase):
                 '<body><sec id="sec_1" sec-type="scope"><label>1</label><title>范围</title><p>x</p></sec></body></standard>\n',
                 encoding="utf-8")
             rep = VALIDATOR_IMPORT.validate_file(doc)
-            self.assertTrue(rep.valid, validate.format_human(rep))
-            self.assertIn("SYN-3", {w["rule"] for w in rep.warnings})
+            self.assertFalse(rep.valid, validate.format_human(rep))
+            self.assertIn("SYN-3", {e["rule"] for e in rep.errors})
             rep_export = VALIDATOR_EXPORT.validate_file(doc)
             self.assertFalse(rep_export.valid)
 
@@ -2436,8 +2664,8 @@ class TestDoctypeDetection(unittest.TestCase):
         for why, prolog in cases.items():
             with self.subTest(why=why):
                 rep = self._run(prolog, VALIDATOR_IMPORT)
-                self.assertTrue(rep.valid, validate.format_human(rep))
-                self.assertEqual([i["rule"] for i in rep.warnings if i["rule"] == "SYN-3"], ["SYN-3"])
+                self.assertFalse(rep.valid, validate.format_human(rep))
+                self.assertEqual([i["rule"] for i in rep.errors if i["rule"] == "SYN-3"], ["SYN-3"])
                 rep = self._run(prolog, VALIDATOR_EXPORT)
                 self.assertFalse(rep.valid)
                 self.assertEqual([e["rule"] for e in rep.errors], ["SYN-3"])
