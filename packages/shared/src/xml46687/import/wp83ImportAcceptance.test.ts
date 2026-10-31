@@ -347,6 +347,34 @@ describe('完整样例的映射关系', () => {
     expect(resolveIr(formulaDoc).labels[formula.id]?.label).toBe('(1)')
     expect(resolveIr(formulaDoc).labels[figure.id]?.label).toBe('图1')
   })
+  it('[M-5.6-06] 表注、图注、公式注各自属于原容器', () => {
+    const table = collectKind<IRTable>(mapValid('04-tables.xml'), 'table')[0]!
+    const media = mapValid('05-formulas-figures.xml')
+    const figure = collectKind<IRFigure>(media, 'figure')[0]!
+    const formula = collectKind<IRFormula>(media, 'formula')[0]!
+    expect(JSON.stringify(table.notes)).toContain('表中数值为示例。')
+    expect(JSON.stringify(figure.notes)).toContain('图注位于图形之后。')
+    expect(formula.notes?.[0]?.content).toEqual([{text:'公式注紧跟在公式之后。'}])
+    expect(table.notes).toHaveLength(1)
+    expect(figure.notes).toHaveLength(1)
+    expect(formula.notes).toHaveLength(1)
+  })
+  it('[M-6.2.3-05] [M-7.2-02] 表注与公式注标签按各自容器重新派生', () => {
+    const tableDoc = mapValid('04-tables.xml'), mediaDoc = mapValid('05-formulas-figures.xml')
+    const table = collectKind<IRTable>(tableDoc, 'table')[0]!
+    const formula = collectKind<IRFormula>(mediaDoc, 'formula')[0]!
+    expect(resolveIr(tableDoc).labels[table.notes[0]!.id]?.label).toBe('注：')
+    expect(resolveIr(mediaDoc).labels[formula.notes![0]!.id]?.label).toBe('注：')
+  })
+  it('[M-7.3-02] 式中标题只接受可重新生成的固定文字', () => {
+    const original = readFileSync(resolve(sampleDir, 'valid', '05-formulas-figures.xml'), 'utf8')
+    expect(collectKind<IRFormula>(mapSource(original), 'formula')[0]!.whereList).toHaveLength(3)
+    const altered = original.replace('<title>式中：</title>', '<title>其他说明：</title>')
+    const tree = parseXml46687(altered).tree!
+    const result = mapXml46687(tree, prepare(tree.root))
+    expect(result.ir).toBeNull()
+    expect(result.problems).toContainEqual(expect.objectContaining({code:'xml-unsupported',severity:'error',xml:expect.objectContaining({path:expect.stringContaining('/legend[1]/title[1]')})}))
+  })
   it('[M-6.2.1-04] [M-6.2.1-05] 表题和横纵方向分别属于各表', () => {
     const tables = collectKind<IRTable>(mapValid('04-tables.xml'), 'table')
     expect(tables).toHaveLength(2)
