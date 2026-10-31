@@ -11,6 +11,7 @@ const missing = (message: string, path = '/'): never => { throw new ZipImportErr
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const safeName = (s: string) => !!s && s !== '.' && s !== '..' && !/[/\\\u0000]/.test(s)
 const base = (s: string) => s.slice(s.lastIndexOf('/') + 1)
+const IMAGE_TYPES = new Set(['image/png', 'image/x-png', 'image/jpeg', 'image/jpg', 'image/pjpeg', 'image/gif', 'image/webp', 'image/svg+xml'])
 const utf8 = (data: Uint8Array, name: string): string => {
   try { return new TextDecoder('utf-8', { fatal: true }).decode(data) }
   catch { throw new ZipImportError('xml-encoding', '资源包文本不是有效 UTF-8', name) }
@@ -34,7 +35,7 @@ function parseManifest(raw: string): ManifestEntry[] {
   const entries: ManifestEntry[] = []
   const hrefs = new Set<string>(), names = new Set<string>()
   for (const value of (parsed as { entries: unknown[] }).entries) {
-    if (!record(value) || typeof value.href !== 'string' || !value.href || typeof value.key !== 'string' || !value.key || typeof value.fileName !== 'string' || !safeName(value.fileName) || typeof value.mediaType !== 'string' || !/^image\/[a-z0-9][a-z0-9.+-]*$/i.test(value.mediaType) || !['resource', 'dataUrl', 'src'].includes(value.source as string)) fail('资源清单条目无效', 'manifest.json')
+    if (!record(value) || typeof value.href !== 'string' || !value.href || typeof value.key !== 'string' || !value.key || typeof value.fileName !== 'string' || !safeName(value.fileName) || typeof value.mediaType !== 'string' || !IMAGE_TYPES.has(value.mediaType.toLowerCase()) || !['resource', 'dataUrl', 'src'].includes(value.source as string)) fail('资源清单条目无效', 'manifest.json')
     const entry = value as ManifestEntry
     const href = entry.href.toLowerCase(), name = entry.fileName.toLowerCase()
     if (hrefs.has(href) || names.has(name)) fail('资源清单存在重复名称', 'manifest.json')
@@ -92,9 +93,8 @@ export async function importXml46687Package(bytes: Uint8Array, options: Xml46687
   }
   const resources = new Map<string, Readonly<ResolvedResource>>()
   for (const resource of prepared.resources) {
-    const fallback = { src: dataUrl(resource.bytes, resource.mediaType), mediaType: resource.mediaType }
     const resolved = await options.resolveResource?.({ ...resource.request, bytes: resource.bytes.slice(), mediaType: resource.mediaType })
-    resources.set(resource.request.href, resolved ?? fallback)
+    resources.set(resource.request.href, resolved ?? { src: dataUrl(resource.bytes, resource.mediaType), mediaType: resource.mediaType })
   }
   return importXml46687(prepared.xml, { ...options, resources, resolveResource: undefined })
 }

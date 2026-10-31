@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import JSZip from 'jszip'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { pmToIr } from '@ses/shared'
 import { createEditorSchema } from '../../client/src/extensions/editorSchema'
 import type { ContentValidator } from './documentOps/types'
@@ -105,15 +106,52 @@ describe('XML 资源包导入', () => {
     expect(result.pmDoc).toBeNull()
     expect(result.problems[0]?.message).toContain('重复')
   })
+  it('自定义 resolver 已返回持久资源时不分配多余的包 data URL', async () => {
+    const bytes = await make()
+    const encode = vi.spyOn(globalThis, 'btoa')
+    try {
+      const result = await importXml46687Package(bytes, { ...options(), resolveResource: async () => ({ src: 'https://example.org/image.png', mediaType: 'image/png' }) })
+      expect(result.pmDoc).not.toBeNull()
+      expect(encode).not.toHaveBeenCalled()
+    } finally { encode.mockRestore() }
+  })
+  it('拒绝不受支持的图片 MIME 类型', async () => {
+    const bytes = await make([{ ...entry, mediaType: 'image/unknown' }])
+    const result = await importXml46687Package(bytes, options())
+    expect(result.pmDoc).toBeNull()
+    expect(result.problems[0]?.code).toBe('xml-unsupported')
+  })
   it('拒绝压缩包声称小于实际解压量的资源', async () => {
-    const z = new JSZip(); z.file('standard.xml', xml); z.file('manifest.json', JSON.stringify({ format: 'GB/T 46687.2—2026 XML', version: 1, xml: 'standard.xml', entries: [entry] })); z.file('resources/picture.png', new Uint8Array(33 * 1024 * 1024), { createFolders: false })
+    const z = new JSZip(); z.file('standard.xml', xml); z.file('manifest.json', JSON.stringify({ format: 'GB/T 46687.2—2026 XML', version: 1, xml: 'standard.xml', entries: [entry] })); z.file('resources/picture.png', new Uint8Array(48 * 1024 * 1024), { createFolders: false })
     const bytes = await z.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
     for (let i = 0; i < bytes.length - 46; i++) if (view.getUint32(i, true) === 0x02014b50) {
       const n = view.getUint16(i + 28, true); const name = new TextDecoder().decode(bytes.subarray(i + 46, i + 46 + n))
       if (name === 'resources/picture.png') { view.setUint32(i + 24, 1, true); const local = view.getUint32(i + 42, true); view.setUint32(local + 22, 1, true) }
     }
-    const result = await importXml46687Package(bytes, options())
-    expect(result.pmDoc).toBeNull(); expect(result.problems[0].code).toBe('xml-limit')
+    // 观察真实 JSZip 流，而非替换解压；超过预算时必须调用 pause，且不把后续数据存入结果。
+    const req = createRequire(import.meta.url)
+    const helper = req('jszip/lib/stream/StreamHelper') as { prototype: { on: (...args: any[]) => any; pause: (...args: any[]) => any } }
+    const originalOn = helper.prototype.on
+    let emitted = 0, afterPause = 0, paused = false
+    const on = vi.spyOn(helper.prototype, 'on').mockImplementation(function (this: unknown, event: string, listener: (...args: any[]) => void) {
+      return originalOn.call(this, event, event === 'data' ? (chunk: Uint8Array, ...args: any[]) => {
+        emitted += chunk.length
+        if (paused) afterPause += chunk.length
+        listener(chunk, ...args)
+      } : listener)
+    })
+    const originalPause = helper.prototype.pause
+    const pause = vi.spyOn(helper.prototype, 'pause').mockImplementation(function (this: unknown) {
+      paused = true
+      return originalPause.call(this)
+    })
+    try {
+      const result = await importXml46687Package(bytes, options())
+      expect(result.pmDoc).toBeNull(); expect(result.problems[0].code).toBe('xml-limit')
+      expect(paused).toBe(true)
+      expect(emitted).toBeGreaterThan(32 * 1024 * 1024)
+      expect(afterPause).toBeLessThanOrEqual(17 * 1024 * 1024)
+    } finally { on.mockRestore(); pause.mockRestore() }
   })
 })
