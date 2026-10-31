@@ -15,7 +15,7 @@ it('[M-7.4-13] 行间公式替代图按已定约定提示并保留 MathML', () =
   const tree = parsed.tree!
   const nodeIdsByPath = new Map<string, string>()
   const resources = new Map<string, {src: string; mediaType: string}>()
-  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/aXcAAAAASUVORK5CYII='
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg=='
   function visit(el: XmlElement) {
     nodeIdsByPath.set(el.position!.path, `node-${nodeIdsByPath.size}`)
     if (el.name.ns === null && ['graphic', 'inline-graphic'].includes(el.name.local)) {

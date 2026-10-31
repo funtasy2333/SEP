@@ -12,7 +12,7 @@ import type { IRArray, IRFigure, IRFigureSet, IRFormula, IRFormulaGroup, IRTable
 
 const sampleDir = resolve(process.cwd(), '../../schemas/gbt46687.2/samples')
 // 实际 1×1 PNG 的完整字节，固定为可持久化资源；一个 href 对应一个准备好的资源。
-const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/aXcAAAAASUVORK5CYII='
+const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg=='
 function prepare(root: XmlElement) {
   const nodeIdsByPath = new Map<string, string>()
   const resources = new Map<string, { src: string; mediaType: string; resourceId: string }>()
