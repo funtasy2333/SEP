@@ -20,6 +20,19 @@ const imageXml = xml.replace('</p>', '</p><fig id="opaque"><label>图1</label><c
 const entry = { href: 'picture', key: 'image', fileName: 'picture.png', mediaType: 'image/png', source: 'resource' as const }
 const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg=='
 const imageBytes = Uint8Array.from(atob(pngBase64), char => char.charCodeAt(0))
+const bmpBytes = new Uint8Array(58)
+const bmpView = new DataView(bmpBytes.buffer)
+bmpBytes.set([0x42, 0x4d])
+bmpView.setUint32(2, bmpBytes.length, true)
+bmpView.setUint32(10, 54, true)
+bmpView.setUint32(14, 40, true)
+bmpView.setInt32(18, 1, true)
+bmpView.setInt32(22, 1, true)
+bmpView.setUint16(26, 1, true)
+bmpView.setUint16(28, 24, true)
+bmpView.setUint32(34, 4, true)
+bmpBytes.set([0x00, 0x00, 0xff, 0x00], 54)
+const bmpBase64 = btoa(String.fromCharCode(...bmpBytes))
 const make = async (entries = [entry]) => packageXml46687(imageXml, { version: 1, entries }, { 'picture.png': imageBytes })
 
 describe('XML 资源包导入', () => {
@@ -118,8 +131,22 @@ describe('XML 资源包导入', () => {
       expect(encode).not.toHaveBeenCalled()
     } finally { encode.mockRestore() }
   })
-  it('拒绝不受支持的图片 MIME 类型', async () => {
-    const bytes = await make([{ ...entry, mediaType: 'image/unknown' }])
+  it('合法 image/* 子类型经资源包导入、生产 Schema 保存重开后保留 MIME 和原始字节', async () => {
+    const bmpEntry = { ...entry, fileName: 'picture.bmp', mediaType: 'image/bmp' }
+    const bytes = await packageXml46687(imageXml, { version: 1, entries: [bmpEntry] }, { 'picture.bmp': bmpBytes })
+    const result = await importXml46687Package(bytes, options())
+    expect(result.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    const reopened = schema.nodeFromJSON(JSON.parse(JSON.stringify(result.pmDoc)))
+    reopened.check()
+    expect(pmToIr(reopened.toJSON()).doc.resources).toEqual([
+      expect.objectContaining({ encoding: 'dataUrl', data: `data:image/bmp;base64,${bmpBase64}`, mediaType: 'image/bmp' }),
+    ])
+  })
+  it.each([
+    ['非图片 MIME', 'text/html'],
+    ['语法无效的图片子类型', 'image/not valid'],
+  ])('资源包仍拒绝%s', async (_label, mediaType) => {
+    const bytes = await make([{ ...entry, mediaType }])
     const result = await importXml46687Package(bytes, options())
     expect(result.pmDoc).toBeNull()
     expect(result.problems[0]?.code).toBe('xml-unsupported')

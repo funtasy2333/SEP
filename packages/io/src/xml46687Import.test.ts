@@ -18,6 +18,20 @@ const validator: ContentValidator = content => {
     return { ok: false, message: '生产 Schema 不接受文档' }
   }
 }
+const bmpBytes = new Uint8Array(58)
+const bmpView = new DataView(bmpBytes.buffer)
+bmpBytes.set([0x42, 0x4d])
+bmpView.setUint32(2, bmpBytes.length, true)
+bmpView.setUint32(10, 54, true)
+bmpView.setUint32(14, 40, true)
+bmpView.setInt32(18, 1, true)
+bmpView.setInt32(22, 1, true)
+bmpView.setUint16(26, 1, true)
+bmpView.setUint16(28, 24, true)
+bmpView.setUint32(34, 4, true)
+bmpBytes.set([0x00, 0x00, 0xff, 0x00], 54)
+const bmpBase64 = btoa(String.fromCharCode(...bmpBytes))
+const bmpData = `data:image/bmp;base64,${bmpBase64}`
 it('最小 XML 经生产 Schema 保存重开并保留正文', async () => {
   let serial = 0
   const options = { validateContent: validator, generateId: () => `id${++serial}` }
@@ -52,6 +66,20 @@ it('图片缺资源阻断；准备的 data URL 真实写入资源节点并在保
   const doc = pmToIr(schema.nodeFromJSON(JSON.parse(JSON.stringify(result.pmDoc))).toJSON()).doc
   expect(doc.resources).toEqual([expect.objectContaining({ encoding: 'dataUrl', data, mediaType: 'image/png' })])
   expect(resources.get('picture')).toEqual({ src: data, mediaType: 'image/png' })
+})
+
+it('纯 XML 入口接受并保存合法的未列举 image/* 子类型', async () => {
+  const imageXml = xml.replace('</p>', '</p><fig id="opaque"><label>图1</label><caption><title>图题</title></caption><graphic content-type="image" xlink:href="picture"/></fig>')
+  const result = await importXml46687(imageXml, {
+    validateContent: validator,
+    resources: new Map([['picture', { src: bmpData, mediaType: 'image/bmp' }]]),
+  })
+  expect(result.problems.filter(problem => problem.severity === 'error')).toEqual([])
+  const reopened = schema.nodeFromJSON(JSON.parse(JSON.stringify(result.pmDoc)))
+  reopened.check()
+  expect(pmToIr(reopened.toJSON()).doc.resources).toEqual([
+    expect.objectContaining({ encoding: 'dataUrl', data: bmpData, mediaType: 'image/bmp' }),
+  ])
 })
 
 it('异步 resolver 获得原始 href，且缺失资源不会调用生产校验', async () => {

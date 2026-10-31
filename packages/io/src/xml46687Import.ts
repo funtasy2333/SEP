@@ -16,8 +16,6 @@ export interface Xml46687ImportResult { pmDoc: PMJsonNode | null; problems: Impo
 
 const MAX_IMAGE_BYTES = 32 * 1024 * 1024
 const MAX_TOTAL_IMAGE_BYTES = 128 * 1024 * 1024
-// XML 资源导出支持的常见图片格式；别名沿用既有图片准备层。
-const IMAGE_TYPES = new Set(['image/png', 'image/x-png', 'image/jpeg', 'image/jpg', 'image/pjpeg', 'image/gif', 'image/webp', 'image/svg+xml'])
 const base64Alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 
 /** 增长前按编码长度计数，不分配解码后的大缓冲。 */
@@ -155,7 +153,7 @@ export async function importXml46687(xml: string, options: Xml46687ImportOptions
     const location = { line: graphic.position?.line ?? 1, column: graphic.position?.column ?? 1, path: graphic.position?.path ?? '/' }
     const supplied = options.resources?.get(href) ?? await options.resolveResource?.({ href, basename: href.split('/').pop() ?? href, kind: graphic.name.local as 'graphic' | 'inline-graphic', location })
     if (supplied == null) continue
-    if (typeof supplied !== 'object' || typeof supplied.src !== 'string' || !supplied.src || typeof supplied.mediaType !== 'string' || !IMAGE_TYPES.has(supplied.mediaType.toLowerCase()) || (supplied.resourceId !== undefined && (typeof supplied.resourceId !== 'string' || !supplied.resourceId.trim()))) {
+    if (typeof supplied !== 'object' || typeof supplied.src !== 'string' || !supplied.src || typeof supplied.mediaType !== 'string' || !/^image\/[a-z0-9][a-z0-9!#$&^_.+-]*$/.test(supplied.mediaType.toLowerCase()) || (supplied.resourceId !== undefined && (typeof supplied.resourceId !== 'string' || !supplied.resourceId.trim()))) {
       idProblems.push({ code: 'xml-resource-missing', severity: 'error', message: '图片资源或媒体类型无效', xml: location })
       continue
     }
