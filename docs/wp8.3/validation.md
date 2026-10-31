@@ -2,19 +2,27 @@
 
 ## 最终集成验证（2026-10-31）
 
-基于 main `419d334aa66e04706aef53feece8ef6fd742f39f`。七项检查在干净的产品树 `711e109c97d4481a3db3a51e2b8f23648b490bee` 执行，检查期间 HEAD 与工作树均未变化；随后仅同步 ID 策略说明与测试命名。Node 22.23.4，外部 XML 校验使用 lxml 与本地 xmllint，shared/io 强制 `REQUIRE_XML_VALIDATION=1`。
+基于 main `f37eae5197074c0c1c10057c6aac8c8c76f19567`。评审修复集成提交 `db541eabdf7602b913955217deed621abf87128b` 后，七项检查在干净的产品树 `2a6e04ddc2090d682530d456d2f1775d76775f93` 执行，检查期间 HEAD 与工作树均未变化；随后仅更新验收文档。Node 22.23.4，外部 XML 校验使用 lxml 与本地 xmllint，shared/io 强制 `REQUIRE_XML_VALIDATION=1`。
 
 | 检查 | 结果 |
 |---|---|
-| shared 全套 | 137 文件、3509 项通过；含 188 行 shall/should 接收矩阵守护及 87 份 TS/Python 双引擎裁判对照 |
+| shared 全套 | 138 文件、3511 项通过；含 188 行 shall/should 接收矩阵守护及 87 份 TS/Python 双引擎裁判对照 |
 | shared `tsc --noEmit` | 通过 |
-| io 全套 | 35 文件、520 项通过 |
+| io 全套 | 35 文件、521 项通过 |
 | client Vitest `--maxWorkers=2` | 1527 项通过、2 项既有跳过；126 文件通过、2 文件跳过 |
 | client build | 通过；保留既有大 chunk 提示 |
 | server Jest `--runInBand` | 826/827 通过；唯一失败为 `mcp-e2e.spec.ts` 的 PDF 5c 环境基线，未跳过或改写该测试 |
 | Python 全套 | 274 项通过 |
 
 PDF 基线在开工前即存在：可用性探测只发现 CLI/poppler，实际 Vivliostyle 浏览器运行在当前环境失败。它不属于 XML 导入链路；本次没有将 server 全套标成全绿。新增 server XML/ZIP 跨端测试 15/15 通过，client 对应 17/17 通过。没有访问默认 `packages/server/data/ses.db`。
+
+### PR 与评审
+
+[Draft PR #67](https://github.com/funtasy2333/SEP/pull/67) 已创建，保持 draft、未合并。Codex 的两条 P2 已核实、修复并在线程回复后 resolve；回复前均用 `git log` 核对集成提交号。
+
+修复阻断同一 `permissions` 内重复的版权声明、年份或持有人，以及重复的 `comm-ref`；按 C-S-21 同时阻断同名 `custom-meta`（含未知名称）。整文回归先证明 XML 内容模型接受这些重复结构，再核对映射错误的行号和重复项路径。IO 回归确认返回 `pmDoc:null`、不调用生产 Schema 校验器、选项及资源表不变；单值和不同名称正例保留原行为。
+
+当前连接器没有 PR 事件订阅接口，GitHub CLI 认证不可用，因此未能核实通知订阅状态。Codex app 的 PR 附件工具两次调用及附件查询均超时；PR 本身与评审处理已通过 GitHub 连接器确认。没有将这些限制记为成功。
 
 ### 保真与样例
 

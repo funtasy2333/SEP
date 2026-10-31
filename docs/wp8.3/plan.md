@@ -115,13 +115,13 @@
 - [x] 4 原版 golden 经生产 Schema 完整往返并幂等，资源包两端一致；JSON golden 保持原样。
 - [x] M-4.3.4-02/03 改 accept；DOCTYPE 全拒、URI 判断及其余状态根据最终用户裁决同步，测试动态计算 mandatory 接收行。
 - [x] 全部必跑命令、样例错误码、快照差异、真实样稿未取得及所有失败如实入验收文档。
-- [ ] 主导在干净集成树审查、cherry-pick、全量验证、一个 draft PR；自动评审核实后处理，回复前 git log 核对提交号。
+- [x] 主导在干净集成树审查、cherry-pick、全量验证、一个 draft PR；自动评审核实后处理，回复前 git log 核对提交号。
 
 ## 2026-10-31 执行结果
 
-解析器、校验器、模型持久化、各领域映射、IO XML/ZIP 入口及跨端/矩阵验收均已审查集成。集成同步 main 419d334；9 valid、2 个合法不透明 ID 导入正例与其余76负例完成核对，四原版 golden 的有限规范化及第二次固定点由生产 Schema 测试覆盖。
+解析器、校验器、模型持久化、各领域映射、IO XML/ZIP 入口及跨端/矩阵验收均已审查集成。集成同步 main f37eae5；9 valid、2 个合法不透明 ID 导入正例与其余76负例完成核对，四原版 golden 的有限规范化及第二次固定点由生产 Schema 测试覆盖。
 
-最终七项命令已在干净产品树执行；shared3509、io520、client1527与Python274项通过，client另有2项既有跳过，类型与构建通过。server826/827，唯一PDF环境基线失败保留。具体证据、上限与真实样稿限制见 [validation.md](validation.md)。Draft PR和自动评审处理为剩余流程。
+评审修复后的七项命令已在干净产品树执行；shared3511、io521、client1527与Python274项通过，client另有2项既有跳过，类型与构建通过。server826/827，唯一PDF环境基线失败保留。[Draft PR #67](https://github.com/funtasy2333/SEP/pull/67) 已创建，两条 Codex P2 已核实修复、回复并 resolve，未合并。具体证据、上限、真实样稿及事件订阅工具限制见 [validation.md](validation.md)。
 
 ## 全任务必跑命令
 
