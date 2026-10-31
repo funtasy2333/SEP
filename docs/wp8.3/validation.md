@@ -24,4 +24,4 @@
 
 支持矩阵动态统计：391 行中 accept 203、required 156、format reject 25、not-applicable 7；shall/should 的 accept/required 为 188 行。M-4.1-02 从 accept 改 format reject；M-4.3.4-02、M-4.3.4-03、M-5.8-01、M-C.1-04、M-C.1-05、M-10.1.8-04 从 implementation reject 改 accept。原拒绝以外的矩阵行状态未变。
 
-旧 V-7 与旧格式检测仍按部分 ID 字面值拒绝；UUID 形 fig id 样例与 ID 为不透明关联键存在冲突，待主导及用户决定，不应将该兼容性争议称为已解决。
+ID 以不透明关联键导入：V-7 和 `app_A`、`bib_1`、`tabfn_…` 等仅凭 ID 字面值作出的旧式检测只用于 export；import 接受合法唯一且引用可解析的 NCName，不按拼写判断类型。`uuid-id.xml` 与 `formula-id.xml` 因此是 import 正例、export 负例；其余 76 个无效样例仍在 import 被拒。结构性旧格式（命名空间、元素及文档结构）继续在两个档位拒绝，V-18 仍拒绝无命名空间 `p@id`。样例 oracle 共 87 个：9 个标准正例、2 个 opaque ID import 正例及 76 个 import 负例。

@@ -579,10 +579,10 @@ const expectedInvalid: Record<string, string> = {
 }
 
 describe('WP8.3 负例的具体诊断与位置', () => {
-  const pendingOpaque = ['formula-id.xml', 'uuid-id.xml']
+  const exportOnlyOpaque = ['formula-id.xml', 'uuid-id.xml']
   const files = readdirSync(resolve(sampleDir, 'invalid')).filter(n => n.endsWith('.xml')).sort()
-  it('清单包含每个样例与待裁决的不透明 ID 样例', () => {
-    expect(files).toEqual([...Object.keys(expectedInvalid), ...pendingOpaque].sort())
+  it('清单包含每个负例与两份导入接受、仅导出拒绝的不透明 ID 样例', () => {
+    expect(files).toEqual([...Object.keys(expectedInvalid), ...exportOnlyOpaque].sort())
   })
   for (const [file, code] of Object.entries(expectedInvalid)) {
     it(`拒绝 ${file} 并给出 ${code} 和 XML 位置`, () => {
@@ -599,7 +599,7 @@ describe('WP8.3 负例的具体诊断与位置', () => {
       if (parsed.tree) expect(mapXml46687(parsed.tree, prepare(parsed.tree.root)).ir).toBeNull()
     })
   }
-  for (const file of pendingOpaque) it(`合法不透明 ID 当前可接受，等待裁定：${file}`, () => {
+  for (const file of exportOnlyOpaque) it(`导入接受关联可解析的不透明 ID（仅导出拒绝）：${file}`, () => {
     const parsed = parseXml46687(readFileSync(resolve(sampleDir, 'invalid', file), 'utf8'))
     expect(parsed.problems).toEqual([])
     const tree = parsed.tree!

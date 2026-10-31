@@ -77,17 +77,17 @@
 | C-S-34 | 字符、实体 | 5.4 15/19；3.2 2/6 | “特定符号使用 UTF-8 中相应的实体进行编码。”未说明是数字字符引用还是直接字符。 | UTF-8 直接字符；仅转义 `&`、`<`、`>`（属性另转义 `"`）；不用命名实体。 | 原文未规定实体集，且禁止外部实体 | XML 1.0 不允许的控制字符 → 报告，不输出。 | 接受数字字符引用与 XML 预定义实体；其他命名实体 → 拒绝（不加载 DTD）。 | 项目实现约定 |
 | C-S-35 | 摘录 | 5.9 19/23；表 C.1 行 4、27 | “被缩进的单段文本…使用 `<disp-quote>`。引用的来源可以使用 `<attrib>` 通过 `@specific-use="source"` 来标记，任何权限信息都可以使用 `<disp-quote>` 内的 `<permissions>` 标记。”示例把属性写成 `<attrib @specific-use="source">`（带 `@`，排印错误）。 | `IRQuote` → `<disp-quote>`，内含 `<p>`；来源写 `<attrib specific-use="source">`。 | 5.9 | IR 没有“来源/权限”字段（matrix `M-5.9-03`，gap-ir），不导出 attrib/permissions。 | `attrib`、`permissions` → 无处保存，告警“来源已忽略”，不静默。 | 原文明确 |
 | C-S-36 | 特殊文本对齐（array） | 5.8 18–19/22–23；表 C.1 行 3、12、13；表 D.1 行 19 | “按列对齐且没有列或行边框的文本使用包含一个 `<table>` 的 `<array>` 进行标记”，“没有 `<table-wrap>`、`<caption>`、`<title>`、`<label>`”；`@colwidth` 以百分比表示。示例：`<array><table><col-group><col align=center colwidth="40%"/>…</col-group><tbody><tr><td>…`。异写：示例写 `<col-group>`、`colwidth`，表 C.1 行 13 写 `colgroup`，D.1 行 19 与 6.1/6.3 写 `width`（见 T 的第 6 章分片）；`align=center` 缺引号（排印）。 | 不导出（IR 的表总有编号和题名，没有无框对齐文本块）。 | 5.8 | gap-both，状态见 matrix `M-5.8-01`。 | `array` → 拒绝并定位（不降级为带编号的表）。 | 项目实现约定（详见 T） |
-| C-S-37 | xmlId 总则与逐类目标 | 附录 E 67–68/71–72；4.3.4、4.4.2、4.5.3.1 等正文；示例见第 2.3 节 | 逐类原文写法、示例偏离及判断见第 2.2、2.3 节（X-01～X-26） | 附录 E 为主，正文文字规定为辅，示例偏离一律判为示例瑕疵；形式见第 2.2 节 | 附录 E 为资料性附录且来自 ISO 附录 F.2（旁证：“不建议基于语义 ID 做任何利用”） | Resolver 派生，按第 2.4 节 R-1～R-9 修改；XML 中不得出现 `ext_`、`id-<uuid>`、`p-<n>`、`Formula…` 等形式 | id 不透明：只检查合法 XML ID、唯一、`rid` 可解析；导入后重新生成内部 NodeId，重新导出时由 Resolver 重新派生 | 附录 E 部分：原文明确（资料性）；异写取舍与未规定项：项目实现约定 |
+| C-S-37 | xmlId 总则与逐类目标 | 附录 E 67–68/71–72；4.3.4、4.4.2、4.5.3.1 等正文；示例见第 2.3 节 | 逐类原文写法、示例偏离及判断见第 2.2、2.3 节（X-01～X-26） | 附录 E 为主，正文文字规定为辅，示例偏离一律判为示例瑕疵；形式见第 2.2 节 | 附录 E 为资料性附录且来自 ISO 附录 F.2（旁证：“不建议基于语义 ID 做任何利用”） | Resolver 派生；**导出 XML** 不得出现 `ext_`、`id-<uuid>`、`p-<n>`、`Formula…` 等非规范形式 | ID 不透明：只检查合法 XML ID、唯一、`rid` 可解析；不按字面值判断元素类型。导入后重新生成内部 NodeId，重新导出时由 Resolver 重新派生 | 附录 E 部分：原文明确（资料性）；异写取舍与未规定项：项目实现约定 |
 
 ## 2. xmlId 约定（附录 E 为主，正文示例为辅）
 
 ### 2.1 总原则
 
 1. **附录 E 是资料性附录**（“ID 方案用于在将标准化文件从 Word 类型转换为 XML 类型的过程中，于要素级别间建立联系”，67/71），其原型是 ISO 源指南附录 F.2。ISO 源指南明确写道：“IDs generated in OSD are arbitrary. It is therefore not recommended to base any exploitation of ISO or IEC XML on semantic IDs.”（旁证）。因此：**导出时按附录 E 派生 id；导入时 id 只当 XML 内部的关联键，不据字面值判断元素类型**。
-2. 导入：`id` 必须是合法的 XML `ID`（Name 产生式），文档内唯一，否则拒绝；`rid` 必须解析到文档内存在的 `id`，悬空 → 拒绝（D.1 行 10 允许 `rid` 含多个标识符，导入时逐个解析，IR 一次只能引用一个目标，多目标 → 拒绝并说明）。导入后每个被引用/被定义的元素分配新的稳定 `NodeId`，外部 id 只用于建立映射，重新导出时由 Resolver 重新派生。
+2. 导入：`id` 必须是合法的 XML NCName，文档内唯一，否则拒绝；`rid` 必须解析到文档内存在的 `id`，悬空 → 拒绝（D.1 行 10 允许 `rid` 含多个标识符，导入时逐个解析，IR 一次只能引用一个目标，多目标 → 拒绝并说明）。导入后每个被引用/被定义的元素分配新的稳定 `NodeId`，外部 id 只用于建立映射，重新导出时由 Resolver 重新派生。
 3. 导出：id 全局唯一，由 Resolver 派生，不得出现 `ext_…`（Resolver 里 `stableExtensionXmlId` 是 WP6 的内部占位，注释已说明“最终外部 XML ID 词表属于 WP8.1”）。**只有两类元素允许带 `id`**：附录 E 或第 4～10 章条文规定了 id 的元素，以及实际被 `xref`/`tbx:see`/`tbx:entailedTerm`/`see-entry` 引用的元素；其余元素一律不写 id。
 4. 派生规则里的“编号”取 Resolver 的最终编号：章 `5`，条 `5.1.2`，附录 `A`，附录条 `A.1.2`，附录内的表/图/公式 `A.1`。
-5. 对原文示例里偏离附录 E 的 id（UUID 形、`p-125` 形、`Formula1` 形等），**一律判为示例瑕疵或工具生成物，不采用**；逐处清单见 2.3。
+5. 导出不采用原文示例里偏离附录 E 的 id（UUID 形、`p-125` 形、`Formula1` 形等），**判为示例瑕疵或工具生成物**；导入仍把这些以及其他合法、唯一的 ID 当作不透明关联键；逐处清单见 2.3。
 
 ### 2.2 逐类目标：原文规定、当前 Resolver 产出与 WP8.2 修改
 
@@ -133,7 +133,7 @@
 | `sec-7.1`（5.7.3 示例中的章） | 17/21 | 示例瑕疵（与 `sec_<编号>` 不符） |
 | `p-125…p-135`、`p-183/184/185`、`p-105`、`p-65`、`p-490`，以及 `id-…` 形的 `p` | 17–18/21–22、28/32、42/46、46/50、48/52 | 与 E.1“`<p>` 中无任何 id”冲突，判为示例（疑为转换工具的自动 id）；不采用；WP8.3 项目严格约定拒绝无命名空间 p@id |
 | `list-7.1-L1`、`lis-7.1-L1-1…5`、`list-7.1-L1-3-sub`、`id-a6d8f5d0-e0c8-4387-d008-97f8a551bb16`（及另 4 个同形） | 18/22 | 与 E.1“list/list-item 无 id”冲突，判为示例；不采用 |
-| `id-2a2aa2f4-554c-4359-c583-24cfce9ff7ab`、`id-c9243a79-30ec-43f3-fc83-b051d6ea839a`、`id-484f-b7a1-c79f78fecb5b`、`id-41d5-89cd-bd228ade8bd0`、`id-4b9e-acd6-33d47ee4f357`、`id-d6dbd95d-2f55-412a-a2b1-f8a0ffeaceb4`、`id-975b481c-2dc1` | 32/36、33/37 | 工具生成（部分段落被截短，不是合法 UUID）；与 `fig_<编号>` 冲突，判为示例；不采用 |
+| `id-2a2aa2f4-554c-4359-c583-24cfce9ff7ab`、`id-c9243a79-30ec-43f3-fc83-b051d6ea839a`、`id-484f-b7a1-c79f78fecb5b`、`id-41d5-89cd-bd228ade8bd0`、`id-4b9e-acd6-33d47ee4f357`、`id-d6dbd95d-2f55-412a-a2b1-f8a0ffeaceb4`、`id-975b481c-2dc1` | 32/36、33/37 | 工具生成（部分段落被截短，不是合法 UUID）；导出不采用；导入仅按 XML ID 语法、唯一性与引用解析检查，不据此前缀判定类型 |
 | `id-6304d1e4-f20d-418b-cacb-4e2149bafb661`（`rid`，末段 13 位十六进制） | 46/50 | 示例，且自身格式不合 UUID；10.1.5 列项引用没有 id 方案 |
 | `bibrref_1`、`bibrref_4`（`rid`） | 9/13、47/51 | 疑似排印错误（目标应为 `biblref_N`）；不采用 |
 | `bibl_1`（`rid`） | 47/51（10.1.6 示例 1） | 与 `biblref_N` 冲突，判为示例瑕疵 |
@@ -220,7 +220,7 @@
    - V-4：`release-date`、`implementation-date` 为 `YYYY-MM-DD`，不得把实施日期放进 `release-date`，两者不得同时用 `date-type` 重复表达。
    - V-5：`list/@list-type` ∈ {alpha-lower, arabic, roman-lower, dash, bullet}；无序列项不带 `label`。
    - V-6：`processing-meta` 五个固定属性值符合 C-S-04；`std-meta` 内 `title-wrap` 均带 `xml:lang`。
-   - V-7：XML 内不得出现 `ext_` 开头的 id；不得出现 `Formula`、`id-<uuid>`、`p-<数字>` 形式的 id。
+   - V-7（仅 export）：导出的 XML 不得出现 `ext_` 开头的 id；不得出现 `Formula`、`id-<uuid>`、`p-<数字>` 形式的 id。import 不以 ID 字面样式判定旧格式或语义；仍检查合法性、唯一性、引用解析，且由 V-18 拒绝无命名空间 `p@id`。
 4. 往返与互操作：由 WP8.3/8.5 负责。
 
 ## 4. 原文自相矛盾与排印疑点清单（本分片范围）

@@ -22,7 +22,7 @@
 | `math.rng` | disp-formula、disp-formula-group、inline-formula、mml:math（MathML 3 宽松子 schema） |
 | `tbx.rng` | tbx:termEntry/langSet/tig/term/definition/note/example/source/subjectField/entailedTerm/partOfSpeech/… |
 | `samples/valid/` | 9 个手写正例：01～06 选用形式；07 “仅导入接受”的异写汇总（含按原文 4.1 示例次序写的 std-meta）；08 原文明确写法与 STS 1.2 不一致的情形（国标扩展、示例冲突）；09 已授权导入的扩展结构 |
-| `samples/invalid/` | 77 个负例，每个由同一基底文档单点改动生成，文件开头的注释写明违反项 |
+| `samples/invalid/` | 78 个导出负例；其中 76 个也被 import 拒绝，`formula-id.xml` 与 `uuid-id.xml` 是合法不透明 ID 的 import 正例。每个文件由同一基底文档单点改动生成，开头注释写明违反项 |
 | `../../scripts/xml46687/validate.py` | 校验工具（语法 + RELAX NG 双实现 + 语义规则） |
 | `../../scripts/xml46687/sts_compat.py` | 官方 NISO STS 1.2 DTD 兼容性检查（已知国标扩展白名单 + 未解释偏差） |
 | `../../scripts/xml46687/test_validate.py` | unittest 回归测试 |
@@ -158,7 +158,7 @@ unittest 把路径转成模块名 `scripts.xml46687.test_validate` 后找不到 
 | V-4 | 语义 | `release-date`/`implementation-date` 为有效的 YYYY-MM-DD；发布日期、实施日期不得用两种写法重复表达（含 `date-type`） | C-S-12、D-S-01 |
 | V-5 | 语义 | `list-type` 取值；无序列项不带 label | C-S-32 |
 | V-6 | 语义 | `processing-meta` 六个固定属性值；`title-wrap` 带 `xml:lang` | C-S-04、C-S-13 |
-| V-7 | 语义 | 不得出现 `ext_`、`Formula…`、`id-<uuid>`、`p-<数字>` 形式的 id | 2.3、R-5 |
+| V-7 | 语义（仅 export） | 导出不得出现 `ext_`、`Formula…`、`id-<uuid>`、`p-<数字>` 形式的 id；import 接受合法、唯一且引用可解析的不透明 ID，不判断其字面样式 | 2.3、R-5、C-S-37 |
 | V-8 | 附加 | 引用类型须匹配目标；custom xref 必须有非空 custom-type，并匹配目标；悬空仍由 V-1 报错（项目严格约定） | C-T-48、C-T-50 |
 | V-9 | 附加 | 每个 TBX termEntry 的各 langSet 中合计恰好一个 definition（项目严格约定） | M-9.2.2-01、C-T-43 |
 | V-10 | 附加 | MathML 元素不得带事件属性（`on*`）；MathML 元素上的 URL 取值走统一的 URL 检查（见 V-11） | C-T-19 |
@@ -452,10 +452,10 @@ xml:lang 取值、警告注、术语分组条。
 | `08-original-forms-vs-sts.xml` | 原文明确写法与 STS 1.2 不一致的情形（5 个国标扩展元素、std-org 多名、xref 内 label、langSet 内 note 在 tig 之后、graphic 在 table-wrap-foot 之后；正文 fn 写成行内、紧随其 xref）；两个档位都通过，`sts_compat.py` 列为已知偏差 |
 | `09-import-pending.xml` | 引言条、array、disp-formula-group、同一脚注多次引用，均已授权接收 |
 
-`samples/invalid/` 的 78 个负例按违反项分组（完整清单与预期规则见 `test_validate.py` 的 `EXPECTED_INVALID`）：
-语法 4、旧格式/根 3、矩阵 format 类 reject 17（含 4 个术语异写元素名、1 个 fn 藏在 caption 段落里的图脚注）、D-M-01 定案的块级正文 fn 1（`block-level-fn.xml`）、V-1 3、V-2 4、V-3 3、V-4 4、V-5 2、V-6 2、V-7 4、V-8～V-11 11（含 2 个 custom 型 xref 的目标错误、2 个脚注/表脚注引用类型互串、3 个 URL 里的控制字符）、仅 RELAX NG 7
+`samples/invalid/` 有 78 个导出负例：76 个在 import 档被拒绝，`formula-id.xml` 与 `uuid-id.xml` 因 ID 合法且引用可解析而只在 export 档被拒绝。76 个 import 拒绝样例按主要违反项分组（清单及预期见 `test_validate.py` 的 `EXPECTED_INVALID`、`EXPORT_ONLY_INVALID`）：
+语法 4、旧格式/根 3、矩阵 format 类 reject 17（含 4 个术语异写元素名、1 个 fn 藏在 caption 段落里的图脚注）、D-M-01 定案的块级正文 fn 1（`block-level-fn.xml`）、V-1 3、V-2 4、V-3 3、V-4 4、V-5 2、V-6 2、V-18 2（`ext-id.xml`、`p-number-id.xml` 的 `p@id`）、V-8～V-11 11（含 2 个 custom 型 xref 的目标错误、2 个脚注/表脚注引用类型互串、3 个 URL 里的控制字符）、仅 RELAX NG 7
 （含按 STS 1.2 收紧后新增的含子条的条再放段落、partOfSpeech 取值、named-content 缺 content-type、空 table-wrap-foot）、
-**历史 13 个仅 export 负例现按 WP8.3 严格导入约定在 import 档同样拒绝；语义及上下文详见 [R1–R13](../../docs/wp8.3/strict-import.md)。**
+**历史 13 个仅 export 负例现按 WP8.3 严格导入约定在 import 档同样拒绝；语义及上下文详见 [R1–R13](../../docs/wp8.3/strict-import.md)。** ID 字面值规则（V-7 与 `app_A`、`bib_1`、`tabfn_…` 旧式模式）仅限 export；import 仍在 V-1 检查 ID 合法 NCName、唯一性及引用解析，V-18 继续拒绝 `p@id`。9 个手写正例加 2 个 opaque ID import 正例与 76 个拒绝样例，共 87 个双实现/TS oracle 样例。
 
 ## 7. 官方 DTD 对照后：`[未核实]` 清单的复核结论（2026-10-21）
 
