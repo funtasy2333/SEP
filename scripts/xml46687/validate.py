@@ -411,11 +411,12 @@ def detect_legacy(tree, rep: Report) -> None:
             hits_sep.append(("sec/@content-type=\"untitled\"（SEP 早期格式的无标题条）", el.sourceline))
         if name == "custom-meta-group" and el.get("content-type") == "ses-cover":
             hits_sep.append(("custom-meta-group/@content-type=\"ses-cover\"（SEP 早期格式）", el.sourceline))
-        eid = el.get("id")
-        if eid:
-            for rx, why in _LEGACY_ID_RES:
-                if rx.search(eid):
-                    hits_sep.append(("%s：%s" % (why, eid), el.sourceline))
+        if rep.profile == "export":
+            eid = el.get("id")
+            if eid:
+                for rx, why in _LEGACY_ID_RES:
+                    if rx.search(eid):
+                        hits_sep.append(("%s：%s" % (why, eid), el.sourceline))
     for kind, hits in (("GB/T 37967—2019", hits_37967), ("SEP 早期自定义格式", hits_sep)):
         if not hits:
             continue
@@ -1225,15 +1226,16 @@ def semantic_checks(tree, rep: Report) -> None:
     check_required_parts(elems, rep)
 
     # ---------------- V-7 遗留 id 形式 ----------------
-    for el in elems:
-        for attr in ("id", _clark(NS_XML, "id")):
-            val = el.get(attr)
-            if not val:
-                continue
-            for rx, why in _LEGACY_ID_V7:
-                if rx.search(val):
-                    rep.error("V-7", "id=%r %s" % (val, why), el=el)
-                    break
+    if rep.profile == "export":
+        for el in elems:
+            for attr in ("id", _clark(NS_XML, "id")):
+                val = el.get(attr)
+                if not val:
+                    continue
+                for rx, why in _LEGACY_ID_V7:
+                    if rx.search(val):
+                        rep.error("V-7", "id=%r %s" % (val, why), el=el)
+                        break
 
     # ---------------- V-8 xref 与目标类型一致 ----------------
     for el in xrefs:

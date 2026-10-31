@@ -110,10 +110,8 @@ EXPECTED_INVALID = {
     "bad-processing-meta.xml": ("V-6", {"V-6", "RNG"}, "table-model"),
     "title-wrap-no-lang.xml": ("V-6", {"V-6", "RNG"}, "xml:lang"),
     # V-7
-    "ext-id.xml": ("V-7", {"V-7", "V-18"}, "ext_"),
-    "formula-id.xml": ("V-7", {"V-7"}, "Formula"),
-    "uuid-id.xml": ("V-7", {"V-7"}, "uuid"),
-    "p-number-id.xml": ("V-7", {"V-7", "V-18"}, "p-"),
+    "ext-id.xml": ("V-18", {"V-18"}, "<p> 不应带 id"),
+    "p-number-id.xml": ("V-18", {"V-18"}, "<p> 不应带 id"),
     # V-8～V-11
     "wrong-xref-type.xml": ("V-8", {"V-8"}, "ref-type=fig"),
     "term-two-definitions.xml": ("V-9", {"V-9"}, "有且仅有一个"),
@@ -168,6 +166,12 @@ EXPORT_ONLY_INVALID = {
     "p-with-id.xml": ("V-18", "NO-ID"),
 }
 
+# 语法合法且引用可解析的 opaque ID 样例：仅 export 档拒绝非规范字面形式。
+EXPORT_ONLY_OPAQUE_IDS = {
+    "formula-id.xml": "Formula",
+    "uuid-id.xml": "uuid",
+}
+
 # 矩阵中 import: reject 的行（rejectKind 见 docs/wp8.1/matrix-*.json）：
 # format 类中的“语境拒绝”行（元素本身接受，只在特定位置/取值/个数上拒绝）→ 对应的负例
 CONTEXT_REJECT_SAMPLES = {
@@ -218,8 +222,11 @@ class TestSampleInventory(unittest.TestCase):
 
     def test_every_invalid_sample_has_an_expectation_and_vice_versa(self):
         files = {p.name for p in INVALID_DIR.glob("*.xml")}
-        expected = set(EXPECTED_INVALID) | set(EXPORT_ONLY_INVALID)
+        expected = set(EXPECTED_INVALID) | set(EXPORT_ONLY_INVALID) | set(EXPORT_ONLY_OPAQUE_IDS)
         self.assertEqual(set(EXPECTED_INVALID) & set(EXPORT_ONLY_INVALID), set(), "同一负例不能有两种预期")
+        self.assertEqual(set(EXPECTED_INVALID) & set(EXPORT_ONLY_OPAQUE_IDS), set(), "opaque ID 正例不能列为导入负例")
+        self.assertEqual(len(EXPECTED_INVALID) + len(EXPORT_ONLY_INVALID), 76)
+        self.assertEqual(set(EXPORT_ONLY_OPAQUE_IDS), {"formula-id.xml", "uuid-id.xml"})
         self.assertEqual(files - expected, set(), "有负例没有写预期")
         self.assertEqual(expected - files, set(), "预期里的负例文件不存在")
 
@@ -352,6 +359,77 @@ def _make_export_only_test(name: str, spec):
 
 for _name, _spec in EXPORT_ONLY_INVALID.items():
     setattr(TestInvalidSamples, "test_export_only_" + _slug(Path(_name)), _make_export_only_test(_name, _spec))
+
+
+class TestOpaqueIdImportPolicy(unittest.TestCase):
+    """ID 字面样式仅约束 export；import 依据 NCName、全局唯一性和实际引用解析。"""
+
+    def _source(self, name, replacements):
+        source = (VALID_DIR / name).read_text(encoding="utf-8")
+        for old, new in replacements:
+            self.assertEqual(source.count(old), 1, "替换点必须唯一：%s" % old)
+            source = source.replace(old, new, 1)
+        return source
+
+    def _validate_text(self, source, validator):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "case.xml"
+            path.write_text(source, encoding="utf-8")
+            return validator.validate_file(path)
+
+    def test_uuid_and_formula_samples_are_import_positive_and_export_negative(self):
+        for name, keyword in EXPORT_ONLY_OPAQUE_IDS.items():
+            with self.subTest(sample=name):
+                imported = VALIDATOR_IMPORT.validate_file(INVALID_DIR / name)
+                self.assertTrue(imported.valid, validate.format_human(imported))
+                self.assertEqual(imported.errors, [])
+                self.assertTrue(imported.consistent)
+                self.assertIs(imported.engines["lxml"]["valid"], True)
+                self.assertIs(imported.engines["xmllint"]["valid"], True)
+
+                exported = VALIDATOR_EXPORT.validate_file(INVALID_DIR / name)
+                self.assertFalse(exported.valid, validate.format_human(exported))
+                self.assertEqual(_rules(exported), {"V-7"}, validate.format_human(exported))
+                self.assertIn(keyword, _messages(exported))
+                self.assertTrue(exported.consistent)
+
+    def test_legacy_spelling_variants_on_referenced_entities_are_import_positive(self):
+        cases = [
+            ("03-structure.xml", [("<app id=\"sec_A\"", "<app id=\"app_A\""), ("rid=\"sec_A\"", "rid=\"app_A\"")], "LEGACY", "app_A"),
+            ("03-structure.xml", [("<ref id=\"biblref_1\"", "<ref id=\"bib_1\""), ("rid=\"biblref_1\"", "rid=\"bib_1\"")], "LEGACY", "bib_1"),
+            ("04-tables.xml", [("<fn id=\"table-fn_1.1\"", "<fn id=\"tabfn_1_a\""), ("rid=\"table-fn_1.1\"", "rid=\"tabfn_1_a\"")], "LEGACY", "tabfn_1_a"),
+            ("05-formulas-figures.xml", [("<fig id=\"fig_1\">", "<fig id=\"ext_figure\">"), ("rid=\"fig_1\"", "rid=\"ext_figure\"")], "V-7", "ext_figure"),
+        ]
+        for name, replacements, export_rule, opaque_id in cases:
+            with self.subTest(sample=name, id=opaque_id):
+                source = self._source(name, replacements)
+                imported = self._validate_text(source, VALIDATOR_IMPORT)
+                self.assertTrue(imported.valid, validate.format_human(imported))
+                self.assertEqual(imported.errors, [])
+                self.assertTrue(imported.consistent)
+                self.assertIs(imported.engines["lxml"]["valid"], True)
+                self.assertIs(imported.engines["xmllint"]["valid"], True)
+
+                exported = self._validate_text(source, VALIDATOR_EXPORT)
+                self.assertFalse(exported.valid, validate.format_human(exported))
+                self.assertEqual(_rules(exported), {export_rule}, validate.format_human(exported))
+                self.assertIn(opaque_id, _messages(exported))
+                self.assertTrue(exported.consistent)
+
+    def test_import_still_rejects_illegal_ncname_duplicate_id_and_dangling_rid(self):
+        base = (VALID_DIR / "03-structure.xml").read_text(encoding="utf-8")
+        cases = [
+            ("非法 NCName", base.replace('id="sec_A"', 'id="1bad"').replace('rid="sec_A"', 'rid="1bad"'), "不是合法的 XML ID"),
+            ("重复 ID", base.replace('id="sec_5.2"', 'id="sec_5.1"').replace('rid="sec_5.2"', 'rid="sec_5.1"'), "重复的 id"),
+            ("悬空 rid", base.replace('rid="sec_5.2"', 'rid="not-there"'), "无法解析"),
+        ]
+        for why, source, message in cases:
+            with self.subTest(why=why):
+                imported = self._validate_text(source, VALIDATOR_IMPORT)
+                self.assertFalse(imported.valid, validate.format_human(imported))
+                self.assertIn("V-1", _rules(imported), validate.format_human(imported))
+                self.assertIn(message, _messages(imported), validate.format_human(imported))
+                self.assertTrue(imported.consistent)
 
 
 class TestGeneratedSamplesUpToDate(unittest.TestCase):
