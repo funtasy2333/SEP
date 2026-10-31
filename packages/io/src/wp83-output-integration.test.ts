@@ -7,10 +7,10 @@ import { collectXml46687Resources } from './xml46687Resources'
 import { importXml46687 } from './xml46687Import'
 
 const schema = createEditorSchema()
-async function roundtrip09() {
-  const input = readFileSync('../../schemas/gbt46687.2/samples/valid/09-import-pending.xml','utf8')
+async function roundtrip(name: string) {
+  const input = readFileSync(`../../schemas/gbt46687.2/samples/valid/${name}.xml`,'utf8')
   let n = 0
-  const result = await importXml46687(input, {generateId:()=>`n${++n}`, validateContent:content=>{
+  const result = await importXml46687(input, {resolveResource: async()=>({src:'data:image/png;base64,iVBORw0KGgo=',mediaType:'image/png'}),generateId:()=>`n${++n}`, validateContent:content=>{
     try { const node = schema.nodeFromJSON(content); node.check(); return {ok:true,content:node.toJSON()} }
     catch (error) { return {ok:false,message:String(error)} }
   }})
@@ -30,7 +30,7 @@ async function roundtrip09() {
 }
 
 it('[M-5.8-01] [M-C.1-05] [M-10.1.8-04] valid09 生产 Schema 保存重开后保留关系并输出', async () => {
-  const {doc,xml} = await roundtrip09()
+  const {doc,xml} = await roundtrip('09-import-pending')
   const blocks = doc.body[0]!.children
   const array = blocks.find(b=>b.kind === 'array')
   const group = blocks.find(b=>b.kind === 'formulaGroup')
@@ -48,7 +48,28 @@ it('[M-5.8-01] [M-C.1-05] [M-10.1.8-04] valid09 生产 Schema 保存重开后保
 
 describe.skipIf(shouldSkipValidation())('valid09 生产往返的 XML 外部校验', () => {
   it('import/export profile 均有效', async () => {
-    const {xml} = await roundtrip09()
+    const {xml} = await roundtrip('09-import-pending')
+    for (const profile of ['import','export']) {
+      const result = validateWithPython(xml,profile)
+      expect(result.errors, JSON.stringify(result.errors)).toEqual([])
+      expect(result.valid).toBe(true)
+    }
+  })
+})
+
+
+it.each([
+  ['[M-4.5.4-04]','03-structure', ['示例网站','index-entry','see-entry','警告是带有警告标签的注。']],
+  ['[M-8.4-01]','05-formulas-figures', ['fig-group','fig_2_g1','组合图的共用说明。','公式注紧跟在公式之后。']],
+  ['[M-6.1-04]','08-original-forms-vs-sts', ['tab_1_alt','单位为毫米','disp_table']],
+])('%s 完整样例 %s 导出保留主要内容与关系', async (_matrix, name, expected) => {
+  const {xml} = await roundtrip(name)
+  for (const value of expected) expect(xml).toContain(value)
+})
+
+describe.skipIf(shouldSkipValidation())('真实样例生产往返的 XML 外部校验', () => {
+  it.each(['03-structure','05-formulas-figures','08-original-forms-vs-sts'])('%s 的 import/export profile 均有效', async name => {
+    const {xml} = await roundtrip(name)
     for (const profile of ['import','export']) {
       const result = validateWithPython(xml,profile)
       expect(result.errors, JSON.stringify(result.errors)).toEqual([])
