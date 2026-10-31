@@ -233,4 +233,8 @@ pnpm build
 
 ## 许可证
 
-本项目为私有项目。
+本项目采用 [Apache License 2.0](LICENSE) 许可证。
+
+Copyright 2026 funtasy2333
+
+第三方依赖各自遵循其原有许可证。
