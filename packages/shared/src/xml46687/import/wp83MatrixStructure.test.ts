@@ -6,6 +6,7 @@ import { getXmlAttr, XLINK_NS } from '../tree'
 import type { XmlElement } from '../tree'
 import { mapXml46687 } from './facade'
 
+const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg=='
 const sample = (name: string) => readFileSync(new URL(`../../../../../schemas/gbt46687.2/samples/valid/${name}`, import.meta.url), 'utf8')
 function mapComplete(xml: string) {
   const parsed = parseXml46687(xml)
@@ -18,7 +19,7 @@ function mapComplete(xml: string) {
     const path = el.position!.path
     ids.set(path, `node:${path}`)
     const href = ['graphic', 'inline-graphic'].includes(el.name.local) ? getXmlAttr(el, XLINK_NS, 'href') : undefined
-    if (href) resources.set(href, { src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/aZkAAAAASUVORK5CYII=', mediaType: 'image/png', resourceId: `resource:${href}` })
+    if (href) resources.set(href, { src: png, mediaType: 'image/png', resourceId: `resource:${href}` })
     for (const child of el.children) if (child.type === 'element') visit(child)
   }
   visit(tree.root)
@@ -157,7 +158,8 @@ it('[M-4.1-03] 根元素上的命名空间按 URI 而非前缀映射术语、公
   const image = paragraph.content.find(run => run.image)?.image
   expect(formula?.mathml).toContain('http://www.w3.org/1998/Math/MathML')
   expect(formula?.mathml).toContain('≤')
-  expect(image?.src).toMatch(/^data:image\/png;base64,/)
+  expect(image?.src).toBe(png)
+  expect(image?.resourceId).toBe('resource:icon_1')
 })
 
 it('[M-4.3.2-30] MathML 2.0 处理元数据允许导入并给出兼容性提示', () => {
