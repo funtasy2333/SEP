@@ -7,6 +7,7 @@ import type { XmlElement } from '../tree'
 import { detectLegacyXml46687 } from './legacy'
 import { validateXml46687 } from './validate'
 import { mapXml46687 } from './facade'
+import { resolve as resolveIr } from '../../ir/resolve'
 import type { IRArray, IRFigure, IRFigureSet, IRFormula, IRFormulaGroup, IRTable, IRNormRefList, IRTermEntry, IRDefList, IRDoc, IRInline, IRExample, IRList } from '../../ir/types'
 
 const sampleDir = resolve(process.cwd(), '../../schemas/gbt46687.2/samples')
@@ -61,6 +62,15 @@ describe('WP8.3 完整有效样例的共享解析、校验与映射', () => {
 
 function mapValid(file: string) {
   const parsed = parseXml46687(readFileSync(resolve(sampleDir, 'valid', file), 'utf8'))
+  expect(parsed.problems).toEqual([])
+  const tree = parsed.tree!
+  const result = mapXml46687(tree, prepare(tree.root))
+  expect(result.problems.filter(p => p.severity === 'error'), JSON.stringify(result.problems)).toEqual([])
+  expect(result.ir).not.toBeNull()
+  return result.ir!
+}
+function mapSource(source: string) {
+  const parsed = parseXml46687(source)
   expect(parsed.problems).toEqual([])
   const tree = parsed.tree!
   const result = mapXml46687(tree, prepare(tree.root))
@@ -230,6 +240,112 @@ describe('完整样例的映射关系', () => {
   })
   it('[M-10.1.7-01] 正文混合引文的文本与标记保留', () => {
     expect(findMarkedInline(mapValid('06-terms-references.xml'), 'Example Corp. Interface specification [EB/OL].').marks).toEqual([{type:'mixedCitation'}])
+  })
+  it('[M-6.2.1-01] [M-6.1-01] 表容器及 XHTML 表格映射到所在章节', () => {
+    const doc = mapValid('04-tables.xml')
+    const chapter = doc.body.find(c => c.title[0]?.text === '表')!
+    const tables = collectKind<IRTable>(chapter, 'table')
+    expect(tables).toHaveLength(2)
+    expect(tables[0]!.rows[0]!.cells[0]!.content).toMatchObject([{kind:'paragraph',content:[{text:'项目'}]}])
+    expect(tables[1]!.rows[1]!.cells[1]!.content).toMatchObject([{kind:'paragraph',content:[{text:'b'}]}])
+  })
+  it('[M-6.6-01] 横向属性只改变对应表的方向', () => {
+    const tables = collectKind<IRTable>(mapValid('04-tables.xml'), 'table')
+    expect(tables.map(t => t.orientation)).toEqual(['portrait','landscape'])
+  })
+  it('[M-6.2.2-01] 表头与表体分界映射为表头行数', () => {
+    const tables = collectKind<IRTable>(mapValid('04-tables.xml'), 'table')
+    expect(tables.map(t => t.headerRowCount)).toEqual([2,1])
+    expect(tables[0]!.rows[1]!.cells.every(c => c.header)).toBe(true)
+    expect(tables[0]!.rows[2]!.cells.every(c => !c.header)).toBe(true)
+  })
+  it('[M-6.4-02] 正文单元格跨列数保持为二', () => {
+    const table = collectKind<IRTable>(mapValid('04-tables.xml'), 'table')[0]!
+    expect(table.rows[3]!.cells[1]!.colspan).toBe(2)
+    expect(table.rows[3]!.cells[1]!.rowspan).toBe(1)
+    expect(JSON.stringify(table.rows[3]!.cells[1]!.content)).toContain('2.0')
+  })
+  it('[M-6.4-03] 正文单元格跨行数及后续行位置不丢失', () => {
+    const minimal = readFileSync(resolve(sampleDir, 'valid', '01-minimal.xml'), 'utf8')
+    const xml = minimal.replace('</p>', '</p><table-wrap><label>表1</label><table><tbody><tr><td rowspan="2">甲</td><td>乙</td></tr><tr><td>丙</td></tr></tbody></table></table-wrap>')
+    const table = collectKind<IRTable>(mapSource(xml), 'table')[0]!
+    expect(table.rows.map(r => r.cells.map(c => c.rowspan))).toEqual([[2,1],[1]])
+    expect(JSON.stringify(table.rows[1]!.cells[0]!.content)).toContain('丙')
+  })
+  it('[M-6.3.3.1-01] 单元格四边的线型与宽度分别保留', () => {
+    const cell = collectKind<IRTable>(mapValid('04-tables.xml'), 'table')[0]!.rows[2]!.cells[1]!
+    expect(cell.style).toMatchObject({borderLeftStyle:'solid',borderTopStyle:'solid',borderRightStyle:'solid',borderBottomStyle:'solid',borderLeft:{value:2,unit:'px'},borderTop:{value:2,unit:'px'},borderRight:{value:1,unit:'px'},borderBottom:{value:1,unit:'px'}})
+  })
+  it('[M-6.3.4-01] 单元格背景色保留在原单元格', () => {
+    const cells = collectKind<IRTable>(mapValid('04-tables.xml'), 'table')[0]!.rows[2]!.cells
+    expect(cells[2]!.style?.backgroundColor).toBe('#EFEFEF')
+    expect(cells[1]!.style?.backgroundColor).toBeUndefined()
+  })
+  it('[M-6.2.3-03] [M-6.2.3-04] 表脚容器中的注和脚注属于同一张表', () => {
+    const tables = collectKind<IRTable>(mapValid('04-tables.xml'), 'table')
+    expect(JSON.stringify(tables[0]!.notes)).toContain('表中数值为示例。')
+    expect(tables[0]!.footnotes?.map(f => f.content)).toEqual([[{text:'第一个表脚注。'}],[{text:'第二个表脚注。'}]])
+    expect(tables[1]!.notes).toEqual([])
+  })
+  it('[M-6.2.4-02] 表头单位独立段落保留其原始顺序', () => {
+    const cell = collectKind<IRTable>(mapValid('04-tables.xml'), 'table')[0]!.rows[1]!.cells[0]!
+    expect(cell.content).toMatchObject([{kind:'paragraph',content:[{text:'标称尺寸(d)'}]}, {kind:'paragraph',content:[{text:'mm'}]}])
+  })
+  it('[M-7.1-04] 行内 MathML 保留于文本段落中', () => {
+    const inlines = allInlines(mapValid('05-formulas-figures.xml'))
+    const formulas = inlines.flatMap(r => r.formula ? [r.formula] : [])
+    expect(formulas).toHaveLength(1)
+    expect(formulas[0]!.mathml).toContain('<mml:mi>x</mml:mi>')
+    expect(formulas[0]!.mathml).toContain('≤')
+  })
+  it('[M-7.2-01] 公式注保留在对应公式及其正文', () => {
+    const formulas = collectKind<IRFormula>(mapValid('05-formulas-figures.xml'), 'formula')
+    expect(formulas[0]!.notes?.[0]?.content).toEqual([{text:'公式注紧跟在公式之后。'}])
+    expect(formulas[1]!.notes).toBeUndefined()
+  })
+  it('[M-7.3-01] [M-7.3-03] [M-7.3-04] [M-7.3-05] [M-7.3-06] [M-7.3-07] 公式图例保留每个符号、格式和对应解释', () => {
+    const formula = collectKind<IRFormula>(mapValid('05-formulas-figures.xml'), 'formula')[0]!
+    expect(formula.whereList?.map(x => [x.term, x.definition])).toEqual([
+      [[{text:'E',marks:[{type:'italic'}]}],[{text:'能量，单位为焦耳（J）；'}]],
+      [[{text:'m',marks:[{type:'italic'}]}],[{text:'质量，单位为千克（kg）；'}]],
+      [[{text:'v',marks:[{type:'italic'}]}],[{text:'速度，单位为米每秒（m/s）。'}]],
+    ])
+  })
+  it('[M-8.2-01] [M-8.2-05] [M-8.2-08] 图题和图形保留在原图所在章', () => {
+    const doc = mapValid('05-formulas-figures.xml')
+    const chapter = doc.body.find(c => c.title[0]?.text === '图')!
+    const figures = collectKind<IRFigure>(chapter, 'figure')
+    expect(figures[0]!.caption).toEqual([{text:'系统结构示意'}])
+    expect(figures[0]!.src).toBe(png)
+    expect(figures[0]!.resourceId).toBe('resource:fig_1')
+  })
+  it('[M-8.3-02] 行内图保留源资源和尺寸', () => {
+    const images = allInlines(mapValid('05-formulas-figures.xml')).flatMap(r => r.image ? [r.image] : [])
+    expect(images).toEqual([expect.objectContaining({src:png,resourceId:'resource:icon_1',size:'S'})])
+  })
+  it('[M-8.5-02] [M-8.5-03] [M-8.5-04] [M-8.5-05] [M-8.5-06] 图例标题、符号与说明保持关联顺序', () => {
+    const figure = collectKind<IRFigure>(mapValid('05-formulas-figures.xml'), 'figure')[0]!
+    expect(figure.legend?.title).toEqual([{text:'标引序号说明：'}])
+    expect(figure.legend?.items.map(x => [x.term,x.definition])).toEqual([
+      [[{text:'1'}],[{text:'驱动及控制模块；'}]],
+      [[{text:'2'}],[{text:'传感模块。'}]],
+    ])
+  })
+  it('[M-8.4-03] 图内示例属于原图且保留正文', () => {
+    const original = readFileSync(resolve(sampleDir, 'valid', '05-formulas-figures.xml'), 'utf8')
+    const xml = original.replace('</fig>', '<non-normative-example><label>示例：</label><p>图中示例正文。</p></non-normative-example></fig>')
+    const figures = collectKind<IRFigure>(mapSource(xml), 'figure')
+    expect(figures[0]!.examples?.[0]).toMatchObject({kind:'example',content:[{kind:'paragraph',content:[{text:'图中示例正文。'}]}]})
+    expect(figures[1]!.examples ?? []).toEqual([])
+  })
+  it('[M-6.2.1-03] [M-7.1-03] [M-8.2-04] 表、公式与图的编号从各自对象重新派生', () => {
+    const tableDoc = mapValid('04-tables.xml'), formulaDoc = mapValid('05-formulas-figures.xml')
+    const table = collectKind<IRTable>(tableDoc, 'table')[0]!
+    const formula = collectKind<IRFormula>(formulaDoc, 'formula')[0]!
+    const figure = collectKind<IRFigure>(formulaDoc, 'figure')[0]!
+    expect(resolveIr(tableDoc).labels[table.id]?.label).toBe('表1')
+    expect(resolveIr(formulaDoc).labels[formula.id]?.label).toBe('(1)')
+    expect(resolveIr(formulaDoc).labels[figure.id]?.label).toBe('图1')
   })
   it('[M-6.2.1-04] [M-6.2.1-05] 表题和横纵方向分别属于各表', () => {
     const tables = collectKind<IRTable>(mapValid('04-tables.xml'), 'table')
