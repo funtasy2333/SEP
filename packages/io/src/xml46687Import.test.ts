@@ -51,6 +51,31 @@ it('无效 XML 和缺少校验器阻断导入', async () => {
   expect(missing.problems[0]?.code).toBe('xml-schema-invalid')
 })
 
+it('重复委员会元数据在生产 Schema 调用前阻断且不修改导入选项和资源表', async () => {
+  let validatorCalls = 0
+  let generated = 0
+  const validateContent: ContentValidator = () => { validatorCalls++; return { ok: true } }
+  const generateId = () => `review-${++generated}`
+  const resources = new Map([['unused', Object.freeze({ src: PNG_URL, mediaType: 'image/png' })]])
+  const options = Object.freeze({ validateContent, generateId, resources })
+  const resourcesBefore = [...resources.entries()]
+  const invalid = xml.replace('    </std-meta>', '      <comm-ref>委员会甲</comm-ref>\n      <comm-ref>委员会乙</comm-ref>\n    </std-meta>')
+
+  const result = await importXml46687(invalid, options)
+
+  expect(result.pmDoc).toBeNull()
+  expect(result.problems).toContainEqual(expect.objectContaining({
+    code: 'xml-content-model',
+    severity: 'error',
+    xml: expect.objectContaining({ path: '/standard[1]/front[1]/std-meta[1]/comm-ref[2]' }),
+  }))
+  expect(validatorCalls).toBe(0)
+  expect(Object.isFrozen(options)).toBe(true)
+  expect(options.validateContent).toBe(validateContent)
+  expect(options.generateId).toBe(generateId)
+  expect([...resources.entries()]).toEqual(resourcesBefore)
+})
+
 it('图片缺资源阻断；准备的 data URL 真实写入资源节点并在保存重开后保留', async () => {
   const imageXml = xml.replace('</p>', '</p><fig id="opaque"><label>图1</label><caption><title>图题</title></caption><graphic content-type="image" xlink:href="picture"/></fig>')
   let n = 0

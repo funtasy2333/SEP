@@ -34,6 +34,15 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
     return undefined
   }
   let standardTypeText: string | undefined
+  const seenCustomMetaNames = new Set<string>()
+  const customMetaFields: Record<string, 'filingNo' | 'industryName' | 'regionName' | 'coverDesignation' | 'applicant' | 'proposer'> = {
+    'filing-no': 'filingNo',
+    'industry-name': 'industryName',
+    'region-name': 'regionName',
+    'cover-designation': 'coverDesignation',
+    applicant: 'applicant',
+    proposer: 'proposer',
+  }
   const mapOrg = (org: XmlElement) => {
     const names = ctx.children(org, null, 'std-org-name')
     const abbreviation = child(org, 'std-org-abbrev')
@@ -96,7 +105,10 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
       }
       case 'ics': if (meta.icsCode !== undefined) warn(el, '多个 ICS 无法保真', 'error'); else meta.icsCode = text(el); break
       case 'ccs': if (meta.ccsCode !== undefined) warn(el, '多个 CCS 无法保真', 'error'); else meta.ccsCode = text(el); break
-      case 'comm-ref': meta.technicalCommittee = text(el); break
+      case 'comm-ref':
+        if (meta.technicalCommittee !== undefined) warn(el, '委员会字段重复，无法保真', 'error')
+        else meta.technicalCommittee = text(el)
+        break
       case 'std-supersedes':
       case 'std-xref': {
         const reference = el.name.local === 'std-xref' ? (child(el, 'std-ref') ? text(child(el, 'std-ref')!) : text(el)) : text(el)
@@ -108,15 +120,25 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
         break
       }
       case 'permissions': {
-        const statement = child(el, 'copyright-statement'), holder = child(el, 'copyright-holder'), year = child(el, 'copyright-year')
+        const uniqueChild = (name: string) => {
+          const values = ctx.children(el, null, name)
+          for (const duplicate of values.slice(1)) warn(duplicate, `版权字段 ${name} 在 permissions 中重复，无法保真`, 'error')
+          return values[0]
+        }
+        const statement = uniqueChild('copyright-statement'), holder = uniqueChild('copyright-holder'), year = uniqueChild('copyright-year')
         ;(meta.copyrights ??= []).push({ id: id(el), statement: inline(statement), holder: holder && inline(holder), year: year && text(year), language: language(el) })
         break
       }
       case 'custom-meta-group': {
-        const fields: Record<string, 'filingNo' | 'industryName' | 'regionName' | 'coverDesignation' | 'applicant' | 'proposer'> = { 'filing-no': 'filingNo', 'industry-name': 'industryName', 'region-name': 'regionName', 'cover-designation': 'coverDesignation', applicant: 'applicant', proposer: 'proposer' }
         for (const item of elements(el)) {
           const name = child(item, 'meta-name'), value = child(item, 'meta-value')
-          const key = name && fields[text(name)]
+          const metaName = name ? text(name) : undefined
+          if (metaName !== undefined && seenCustomMetaNames.has(metaName)) {
+            warn(item, `自定义元数据名称 ${metaName} 重复，无法保真`, 'error')
+            continue
+          }
+          if (metaName !== undefined) seenCustomMetaNames.add(metaName)
+          const key = metaName !== undefined && Object.prototype.hasOwnProperty.call(customMetaFields, metaName) ? customMetaFields[metaName] : undefined
           if (key && value) meta[key] = text(value)
           else warn(item, '未知自定义元数据未表达')
         }
