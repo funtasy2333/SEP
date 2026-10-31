@@ -1,5 +1,5 @@
 import type { IRBlock, IRDefItem, IRFigure, IRFormula, IRGraphic, IRInline, IRLegend } from '../../ir/types'
-import { MATHML_NS, type XmlElement } from '../tree'
+import { MATHML_NS, XLINK_NS, type XmlElement } from '../tree'
 import type { ImportContext } from './context'
 import { readInlineChildren } from './inline'
 import { readMathMl } from './mathml'
@@ -56,7 +56,21 @@ function formula(el: XmlElement, ctx: ImportContext): IRFormula | undefined {
   const title = legends[0] && ctx.child(legends[0], null, 'title')
   if (title) { const runs = readInlineChildren(title,ctx); if (runs.some(run => run.marks || run.style || run.formula || run.image || run.footnoteRef) || runs.map(run => run.text).join('') !== '式中：') error(title,ctx,'公式图例标题无法保留') }
   const notes = ctx.children(el, null, 'non-normative-note').flatMap(n => { const nid = ctx.elementId(n); return nid ? [{id: nid, content: flattened(n, ctx)}] : [] })
-  for (const c of el.children) if (c.type === 'element' && !(c.name.ns === MATHML_NS && c.name.local === 'math') && !(c.name.ns === null && ['label','legend','non-normative-note'].includes(c.name.local))) error(c, ctx, '公式包含无法保留的内容')
+  for (const c of el.children) if (c.type === 'element') {
+    if (c.name.ns === MATHML_NS && c.name.local === 'math') continue
+    if (c.name.ns === null && ['label','legend','non-normative-note'].includes(c.name.local)) continue
+    if (c.name.ns === null && c.name.local === 'graphic' && ctx.attr(c,null,'content-type') === 'disp-formula') {
+      const knownAttributes = c.attrs.every(attr => (attr.name.ns === null && ['content-type','specific-use','id'].includes(attr.name.local)) || (attr.name.ns === XLINK_NS && attr.name.local === 'href'))
+      const size = ctx.attr(c,null,'specific-use')
+      const empty = c.children.every(child => child.type === 'comment' || (child.type === 'text' && !child.value.trim()))
+      if (!knownAttributes || !empty || (size !== undefined && !['size:T','size:S','size:M','size:L'].includes(size))) { error(c,ctx,'公式替代图包含无法保留的属性或内容'); continue }
+      const resource = ctx.requiredResource(c)
+      const href = ctx.attr(c,XLINK_NS,'href')
+      if (resource && href) ctx.report({code:'xml-normalized',severity:'warning',message:`已忽略公式替代图资源「${href}」，保留 MathML 公式。`,xml:ctx.location(c),matrixId:'M-7.4-13'})
+      continue
+    }
+    error(c, ctx, '公式包含无法保留的内容')
+  }
   return { kind: 'formula', id, latex: '', mathml, numbered: !!ctx.child(el, null, 'label'), whereList: legends[0] ? items(legends[0], ctx) : [], ...(notes.length ? { notes } : {}) }
 }
 function figure(el: XmlElement, ctx: ImportContext): IRFigure | undefined {
