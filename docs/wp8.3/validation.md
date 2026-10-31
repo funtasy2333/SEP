@@ -2,7 +2,7 @@
 
 ## 最终集成验证（2026-10-31）
 
-基于 main `419d334aa66e04706aef53feece8ef6fd742f39f`。七项检查在干净集成树 `ed0d801ab808b592f17c2a73148b37eb397d3382` 执行，检查期间 HEAD 与工作树均未变化；随后仅同步 ID 策略说明与测试命名。Node 22.23.4，外部 XML 校验使用 lxml 与本地 xmllint，shared/io 强制 `REQUIRE_XML_VALIDATION=1`。
+基于 main `419d334aa66e04706aef53feece8ef6fd742f39f`。七项检查在干净的产品树 `711e109c97d4481a3db3a51e2b8f23648b490bee` 执行，检查期间 HEAD 与工作树均未变化；随后仅同步 ID 策略说明与测试命名。Node 22.23.4，外部 XML 校验使用 lxml 与本地 xmllint，shared/io 强制 `REQUIRE_XML_VALIDATION=1`。
 
 | 检查 | 结果 |
 |---|---|

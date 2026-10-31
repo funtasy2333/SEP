@@ -1,6 +1,6 @@
 # WP8.3 XML 导入实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development. Steps use checkbox (`- [ ]`) syntax for tracking. 具体实现由子代理完成，主导负责任务书、审查、cherry-pick、PR 和评审；禁止子代理再派生。
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development. Steps use checkbox (`- [x]`) syntax for tracking. 具体实现由子代理完成，主导负责任务书、审查、cherry-pick、PR 和评审；禁止子代理再派生。
 
 **Goal:** XML/资源包经同构严格解析、结构/语义校验、纯 IR 映射和生产 Schema 校验后安全导入，失败返回 null，保留中文定位问题。
 
@@ -19,7 +19,7 @@
 - 用户最后裁定：全部 valid 可导入优先，扩模型接收多 graphic、fig-group、array、公式组、共享脚注及表替代图，按 [模型契约](model-extension.md) 保留内容与关联。多目标 rid/tfoot/附录 term-sec 仍阻断；frame/rules/scope 沿用警告；HTTP/MCP 留 WP8.4。
 - 样例验收“不区分”通过 [严格导入规则](strict-import.md) R1–R13 落地，统一校验而不按文件名特判。2026-10-31 用户确认保留不透明 ID：UUID/formula ID 两个样例为导入正例、导出负例，其余 76 个 invalid 拒绝；不得用 ID 拼写偷推对象语义。
 - 用户 2026-10-31 将后续新代理模型改为 gpt-6-luna / max；已完成结果继续复用，原有中断任务先保存检查点，不为重跑另建替代实现。
-- 固定主线基线 `65f8cdff6b6e6ea0c4e51fb44433a28a97711e5b`；集成树包含已审查设计三提交。
+- 设计基线 `65f8cdff6b6e6ea0c4e51fb44433a28a97711e5b`；最终集成同步 main `419d334aa66e04706aef53feece8ef6fd742f39f`。
 - 全部问题中文，error 阻断；输入不变。运行时不联网加载 XML 外部内容，不依赖 Python。
 - 测试不得读写 `packages/server/data/ses.db`；服务仅新空库、非默认端口和 127.0.0.1，完毕停进程。
 
@@ -37,11 +37,11 @@
 
 **Interfaces:** 消费既有 `tree.ts`，导出 `parseXml46687(xml: string): Xml46687ParseResult`、`XML46687_PARSE_LIMITS`。结果 `{ tree: XmlDocument | null, problems: Xml46687ParseProblem[] }`；诊断 `{ code: 'xml-syntax'|'xml-namespace'|'xml-forbidden-doctype'|'xml-forbidden-entity'|'xml-forbidden-pi'|'xml-encoding'|'xml-limit'; severity:'error'; message:string; xml:{line:number;column:number;path:string} }`。P1 facade 将 parser-local 诊断转换公共类型。
 
-- [ ] 先写失败测试：合法 namespace/实体/CDATA/注释/保留空白/位置；反例 QName/属性重复/未绑定前缀/非法字符/DOCTYPE/PI/实体及各限额。
-- [ ] 跑 `pnpm --filter @ses/shared exec vitest run src/xml46687/parse.test.ts`，确认功能缺失时真实失败。
-- [ ] 实现 XML 1.0 严格扫描，CRLF/CR 归一，URI+local 解析，xml/xmlns 规则；不预绑定 mml/tbx/xlink；树中元素/文本/注释均带位置。
-- [ ] 上限：UTF-8 16 MiB，元素深度 128，合并连续解码文本 UTF-8 1 MiB，总节点 500000。用增长前检查和 namespace 变更日志；不以复制整个 scope/累积字符串造成平方增长。
-- [ ] 定向测试、强制外部校验的 shared 套件和所有公共必跑命令；报告每项结果及既有 server PDF 基线失败；本地中文 checkpoint。
+- [x] 先写失败测试：合法 namespace/实体/CDATA/注释/保留空白/位置；反例 QName/属性重复/未绑定前缀/非法字符/DOCTYPE/PI/实体及各限额。
+- [x] 跑 `pnpm --filter @ses/shared exec vitest run src/xml46687/parse.test.ts`，确认功能缺失时真实失败。
+- [x] 实现 XML 1.0 严格扫描，CRLF/CR 归一，URI+local 解析，xml/xmlns 规则；不预绑定 mml/tbx/xlink；树中元素/文本/注释均带位置。
+- [x] 上限：UTF-8 16 MiB，元素深度 128，合并连续解码文本 UTF-8 1 MiB，总节点 500000。用增长前检查和 namespace 变更日志；不以复制整个 scope/累积字符串造成平方增长。
+- [x] 定向测试、强制外部校验的 shared 套件和所有公共必跑命令；报告每项结果及既有 server PDF 基线失败；本地中文 checkpoint。
 
 ## S0：生产 Schema 最小保真补齐（与 P0 并行）
 
@@ -49,11 +49,11 @@
 
 **Interfaces:** 维持 `irToPm(doc,options)`、`pmToIr(pm)` 和 `createEditorSchema()` 签名；旧扁平列表 JSON 不变。嵌套内容需以生产 Schema 可表达的结构存储，不混合 ProseMirror inline/block 内容表达式。若采用新增 block item，应明确类型和 nodeId/PM↔IR/显示链路，原扁平 stdListItem 保留。
 
-- [ ] 新失败测试：含 bold+code、alpha/roman 父列表含不同类型嵌套列表，经生产 Schema `nodeFromJSON().check()`、JSON 保存重开、PM→IR 后保留所有内容/顺序/引用。
-- [ ] 验证红灯，定位既有 code excludes 和 stdListItem.inline* 限制。
-- [ ] 最小实现：仅放开可保真组合；保留其他组合/无效内容的保护。保留嵌套深度/顺序，不压平；编号既有 D-M-17 不扩。
-- [ ] 若旧测试钉住本次明确取消的拒绝行为，转换为更强的完整保存重开正例并逐项说明；不删除覆盖或泛化放宽其他不支持结构。发现必须修改 JSON golden/锁定夹具则停止报告。
-- [ ] 定向及公共全部验证；原始四 golden 对应 IR 的生产 Schema 投影用真实夹具证明，不剪裁、不改 golden。提交中文 checkpoint。
+- [x] 新失败测试：含 bold+code、alpha/roman 父列表含不同类型嵌套列表，经生产 Schema `nodeFromJSON().check()`、JSON 保存重开、PM→IR 后保留所有内容/顺序/引用。
+- [x] 验证红灯，定位既有 code excludes 和 stdListItem.inline* 限制。
+- [x] 最小实现：仅放开可保真组合；保留其他组合/无效内容的保护。保留嵌套深度/顺序，不压平；编号既有 D-M-17 不扩。
+- [x] 若旧测试钉住本次明确取消的拒绝行为，转换为更强的完整保存重开正例并逐项说明；不删除覆盖或泛化放宽其他不支持结构。发现必须修改 JSON golden/锁定夹具则停止报告。
+- [x] 定向及公共全部验证；原始四 golden 对应 IR 的生产 Schema 投影用真实夹具证明，不剪裁、不改 golden。提交中文 checkpoint。
 
 ## P1：公共契约、索引与映射上下文（P0 后）
 
@@ -61,8 +61,8 @@
 
 **Interfaces:** 冻结设计 §10.1 的同步 `mapXml46687(tree,{nodeIdsByPath,resources})`、只读资源、XML 位置、纯 ID 索引；模块回调采用上下文注册以供 P3/P4/P5 相互消费。不预写未实施的成功桩；未接入域必须 error。
 
-- [ ] 索引/不透明 id/重复与悬空引用、目标类型测试先红后绿。
-- [ ] 冻结精确签名/文件归属，主导审查并集成后再派领域并行实现。
+- [x] 索引/不透明 id/重复与悬空引用、目标类型测试先红后绿。
+- [x] 冻结精确签名/文件归属，主导审查并集成后再派领域并行实现。
 
 ## P2：内容模型与旧格式（验收优先级明确后，P1 后可并行）
 
@@ -70,8 +70,8 @@
 
 **Interfaces:** `validateXml46687(tree): { problems: ImportProblem[] }`；引用索引消费 P1 类型。正文、表、图、TBX 等的语境/次序/基数及 V-1…V-18 依据最终确定口径。
 
-- [ ] 真实样例接受拒绝、中文错误码/行列、旧格式组合特征先测。
-- [ ] TS 运行时校验，不调用 Python；测试调用 import profile 对照并记录已批准差异。
+- [x] 真实样例接受拒绝、中文错误码/行列、旧格式组合特征先测。
+- [x] TS 运行时校验，不调用 Python；测试调用 import profile 对照并记录已批准差异。
 
 ## P3：结构/文本/元数据（P1 后，与 P2/P4/P5 不同文件）
 
@@ -79,8 +79,8 @@
 
 **Interfaces:** 消费 P1 上下文，向调度器提供域函数；IR 字段依据设计逐行表。保留多块注、引言条、样式组合和嵌套列表，所有 XML id 只作关联。
 
-- [ ] 各矩阵行带真实 `[M-…]` 测试名，先失败再实现，未知/非法内容不可静默丢弃。
-- [ ] 元数据/引言/无标题条、警告/引文/代码及保留空白的生产投影测试。
+- [x] 各矩阵行带真实 `[M-…]` 测试名，先失败再实现，未知/非法内容不可静默丢弃。
+- [x] 元数据/引言/无标题条、警告/引文/代码及保留空白的生产投影测试。
 
 ## P4：表、图、公式（P1 后）
 
@@ -88,8 +88,8 @@
 
 **Interfaces:** P1 context/资源表，表网格/colgroup、图例、行内图、独立安全 MathML 字符串；同步映射，无资源 I/O。
 
-- [ ] 跨行跨列、表脚注、缺图及不保真结构的负例；MathML URI 重建及原生内容保存。
-- [ ] 只实现用户最终批准的多图/替代图/组规则，未授权不扩模型。
+- [x] 跨行跨列、表脚注、缺图及不保真结构的负例；MathML URI 重建及原生内容保存。
+- [x] 只实现用户最终批准的多图/替代图/组规则，未授权不扩模型。
 
 ## P5：TBX、文献及引用（P1 后）
 
@@ -97,7 +97,7 @@
 
 **Interfaces:** P1 索引/上下文，条目级 subjectField、多语言/描述符、规范性文献、缩略语、xref/fn/index；不写公共文件。
 
-- [ ] 正反例先测，验证节点重映射及交叉引用保真，错误目标/多个 rid 按最终口径。
+- [x] 正反例先测，验证节点重映射及交叉引用保真，错误目标/多个 rid 按最终口径。
 
 ## P6：io 与资源包（P1–P5 集成后）
 
@@ -105,23 +105,23 @@
 
 **Interfaces:** 设计 §10.1 的 `importXml46687(xml,options)` / `importXml46687Package(bytes,options)`，生产 ContentValidator 必注入；资源与位置 NodeId 在 io 准备。
 
-- [ ] 真实 XML/包→IR→生产 Schema→PM→IR→重新导出；失败 null/输入不变。
-- [ ] ZIP 分块实际限额、重复名/路径穿越/基名歧义、manifest 对应、持久 dataURL；不修改依赖。
+- [x] 真实 XML/包→IR→生产 Schema→PM→IR→重新导出；失败 null/输入不变。
+- [x] ZIP 分块实际限额、重复名/路径穿越/基名歧义、manifest 对应、持久 dataURL；不修改依赖。
 
 ## P7/P8：跨端与验收收尾（集成后）
 
 **Files:** server Jest 专属导入测试、client Vitest 跨端测试、shared 矩阵覆盖；矩阵/Python/约定同步由单一 owner 修改。
 
-- [ ] 4 原版 golden 经生产 Schema 完整往返并幂等，资源包两端一致；JSON golden 保持原样。
-- [ ] M-4.3.4-02/03 改 accept；DOCTYPE 全拒、URI 判断及其余状态根据最终用户裁决同步，测试动态计算 mandatory 接收行。
-- [ ] 全部必跑命令、样例错误码、快照差异、真实样稿未取得及所有失败如实入验收文档。
+- [x] 4 原版 golden 经生产 Schema 完整往返并幂等，资源包两端一致；JSON golden 保持原样。
+- [x] M-4.3.4-02/03 改 accept；DOCTYPE 全拒、URI 判断及其余状态根据最终用户裁决同步，测试动态计算 mandatory 接收行。
+- [x] 全部必跑命令、样例错误码、快照差异、真实样稿未取得及所有失败如实入验收文档。
 - [ ] 主导在干净集成树审查、cherry-pick、全量验证、一个 draft PR；自动评审核实后处理，回复前 git log 核对提交号。
 
-## 2026-10-29 执行状态
+## 2026-10-31 执行结果
 
-P0、S0、P1 基础契约、模型持久化和 P3/P4/P5 领域映射已分阶段审查集成；P2 内容模型、安全预算仍在终审。IO 导入及实际 shared facade 由原 P1 代理在独立分支实现；新模型 XML 输出由原 P4 代理在独立分支实现。上述集成状态不等于整文可导入或最终验收通过。跨端、矩阵覆盖及四 golden 完整往返仍待这两个入口完成。
+解析器、校验器、模型持久化、各领域映射、IO XML/ZIP 入口及跨端/矩阵验收均已审查集成。集成同步 main 419d334；9 valid、2 个合法不透明 ID 导入正例与其余76负例完成核对，四原版 golden 的有限规范化及第二次固定点由生产 Schema 测试覆盖。
 
-Node22 已成功运行 server 全套，曾报告 759/762：除既有 PDF 环境失败外，两个旧 PM JSON 默认属性兼容回归已通过生产 Schema 定向测试修复，待最终集成全套复验。环境只有 2 CPU/8 GiB，重型套件用统一 flock 串行，不能用各子树过期结果替代最终验证。
+最终七项命令已在干净产品树执行；shared3509、io520、client1527与Python274项通过，client另有2项既有跳过，类型与构建通过。server826/827，唯一PDF环境基线失败保留。具体证据、上限与真实样稿限制见 [validation.md](validation.md)。Draft PR和自动评审处理为剩余流程。
 
 ## 全任务必跑命令
 
