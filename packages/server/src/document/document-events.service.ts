@@ -6,8 +6,9 @@ import { Observable, Subject, filter } from 'rxjs';
  * - human：编辑器自动保存（PUT）或 `source: 'human'` 的 operations；
  * - ai：`source: 'ai'` 的 operations；
  * - system：服务端自己做的写入（读取前补齐缺失或重复的 nodeId），不代表任何人修改了内容。
+ * - import：导入 SES 文档包并更新现有文档；
  */
-export type DocumentChangeSource = 'human' | 'ai' | 'system';
+export type DocumentChangeSource = 'human' | 'ai' | 'system' | 'import';
 
 /** 一次写入的来源与写入方标识（如 MCP 客户端名称）。 */
 export interface DocumentChangeOrigin {

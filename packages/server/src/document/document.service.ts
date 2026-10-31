@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   EntityManager,
@@ -143,6 +144,7 @@ export class DocumentService {
   async create(data: Partial<DocumentEntity>): Promise<DocumentEntity> {
     // 只接收文档内容字段：忽略 id / deletedAt / revision / timestamps / relations，避免 upsert 或复活旧行。
     const doc = this.docRepo.create({
+      uid: randomUUID(),
       title: data.title,
       meta: data.meta,
       stage: data.stage,
@@ -224,7 +226,9 @@ export class DocumentService {
       revision: doc.revision,
       source: origin.source,
       ...(origin.client === undefined ? {} : { client: origin.client }),
-      ...(origin.lifecycle === undefined ? {} : { lifecycle: origin.lifecycle }),
+      ...(origin.lifecycle === undefined
+        ? {}
+        : { lifecycle: origin.lifecycle }),
       at: new Date().toISOString(),
     });
   }
@@ -243,7 +247,8 @@ export class DocumentService {
           revision: current.revision,
         })
         .execute();
-      if (result.affected !== 1) throw new NotFoundException(`Document #${id} not found`);
+      if (result.affected !== 1)
+        throw new NotFoundException(`Document #${id} not found`);
       return { id, revision: current.revision + 1 };
     });
     this.publishChange(deleted, { source: 'human', lifecycle: 'deleted' });
@@ -259,13 +264,17 @@ export class DocumentService {
       const result = await this.docRepo
         .createQueryBuilder()
         .update(DocumentEntity)
-        .set({ deletedAt: null, revision: () => 'revision + 1' } as DocumentSetValues)
+        .set({
+          deletedAt: null,
+          revision: () => 'revision + 1',
+        } as DocumentSetValues)
         .where('id = :id AND revision = :revision AND deletedAt IS NOT NULL', {
           id,
           revision: current.revision,
         })
         .execute();
-      if (result.affected !== 1) throw new ConflictException(`Document #${id} changed while restoring`);
+      if (result.affected !== 1)
+        throw new ConflictException(`Document #${id} changed while restoring`);
       return this.findOneIn(this.docRepo, id);
     });
     this.publishChange(restored, { source: 'human', lifecycle: 'restored' });
@@ -311,7 +320,11 @@ export class DocumentService {
         const byId = new Map(current.map((doc) => [doc.id, doc]));
         for (const entry of snapshot) {
           const doc = byId.get(entry.id);
-          if (!doc || doc.deletedAt === null || doc.revision !== entry.revision) {
+          if (
+            !doc ||
+            doc.deletedAt === null ||
+            doc.revision !== entry.revision
+          ) {
             throw new ConflictException(
               `Trash snapshot is stale for document #${entry.id}`,
             );

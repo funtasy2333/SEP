@@ -15,7 +15,7 @@
  */
 
 /** 服务端事件里的来源。 */
-export type ChangeSource = 'human' | 'ai' | 'system'
+export type ChangeSource = 'human' | 'ai' | 'import' | 'system'
 
 /** `document-changed` 事件的 data。 */
 export interface DocumentChangeEventData {
@@ -80,7 +80,7 @@ export interface DocumentChangeSync {
 const SSE_CLOSED = 2
 const DEFAULT_RECONNECT_DELAYS_MS = [3_000, 6_000, 12_000, 30_000]
 const DEFAULT_MIN_RECHECK_INTERVAL_MS = 10_000
-const VALID_SOURCES: readonly string[] = ['human', 'ai', 'system']
+const VALID_SOURCES: readonly string[] = ['human', 'ai', 'import', 'system']
 const VALID_LIFECYCLES: readonly string[] = ['deleted', 'restored']
 
 export function documentEventsUrl(documentId: number): string {
@@ -120,8 +120,8 @@ interface PendingChange {
 }
 
 /**
- * 把本地 revision 之后收到的变更合并成一次外部修改。优先级 ai > human > unknown > system：
- * 只要其间有 AI 写入就按 AI 处理；全是 system 写入且 revision 连续覆盖（没有漏掉的写入）才算 system。
+ * 把本地 revision 之后收到的变更合并成一次外部修改。优先级 ai > import > human > unknown > system：
+ * 只要其间有 AI 写入就按 AI 处理，其次保留导入来源；全是 system 写入且 revision 连续覆盖（没有漏掉的写入）才算 system。
  */
 function summarize(changes: PendingChange[], floor: number): ExternalChange {
   const revision = changes.reduce((max, change) => Math.max(max, change.revision), floor)
@@ -142,6 +142,7 @@ function summarize(changes: PendingChange[], floor: number): ExternalChange {
   }
 
   if (changes.some((change) => change.source === 'ai')) return withClient('ai', latestWithClient('ai'))
+  if (changes.some((change) => change.source === 'import')) return withClient('import', latestWithClient('import'))
   if (changes.some((change) => change.source === 'human')) return withClient('human', latestWithClient('human'))
   if (changes.some((change) => change.source === 'unknown')) return withClient('unknown')
   const covered = new Set(changes.map((change) => change.revision))

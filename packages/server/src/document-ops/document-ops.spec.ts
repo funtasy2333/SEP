@@ -228,7 +228,10 @@ describe('文档操作层', () => {
 
       expect((await getDoc(id)).revision).toBe(0);
       expect(
-        await t.dataSource.query('SELECT id FROM versions WHERE documentId = ?', [id]),
+        await t.dataSource.query(
+          'SELECT id FROM versions WHERE documentId = ?',
+          [id],
+        ),
       ).toEqual([]);
       expect(events).toEqual([]);
     });
@@ -1395,19 +1398,24 @@ describe('文档操作层', () => {
     it('operations prepare 后文档移入回收站时，事务条件更新拒绝旧快照且不写 AI 版本', async () => {
       const id = await createDoc();
       const internals = t.ops as unknown as {
-        prepare: (docId: number, action: string) => Promise<{
+        prepare: (
+          docId: number,
+          action: string,
+        ) => Promise<{
           revision: number;
           content: Record<string, unknown>;
           stage: string;
         }>;
       };
-      const originalPrepare = internals.prepare.bind(t.ops);
-      jest.spyOn(internals, 'prepare').mockImplementationOnce(async (docId, action) => {
-        const prepared = await originalPrepare(docId, action);
-        // 精确模拟 prepare 返回之后、operations 开启事务之前发生的 DELETE。
-        await t.documents.remove(docId);
-        return prepared;
-      });
+      const originalPrepare = boundMethod(internals, 'prepare');
+      jest
+        .spyOn(internals, 'prepare')
+        .mockImplementationOnce(async (docId, action) => {
+          const prepared = await originalPrepare(docId, action);
+          // 精确模拟 prepare 返回之后、operations 开启事务之前发生的 DELETE。
+          await t.documents.remove(docId);
+          return prepared;
+        });
 
       await postOps(id, {
         baseRevision: 0,
@@ -1417,12 +1425,16 @@ describe('文档操作层', () => {
 
       await t.http.get(`/api/versions/document/${id}`).expect(404);
       expect(
-        await t.dataSource.query('SELECT id FROM versions WHERE documentId = ?', [id]),
+        await t.dataSource.query(
+          'SELECT id FROM versions WHERE documentId = ?',
+          [id],
+        ),
       ).toEqual([]);
-      const rows: Array<{ deletedAt: string | null }> = await t.dataSource.query(
-        'SELECT deletedAt FROM documents WHERE id = ?',
-        [id],
-      );
+      const rows: Array<{ deletedAt: string | null }> =
+        await t.dataSource.query(
+          'SELECT deletedAt FROM documents WHERE id = ?',
+          [id],
+        );
       expect(rows).toHaveLength(1);
       expect(rows[0]?.deletedAt).toEqual(expect.any(String));
     });
@@ -1572,7 +1584,10 @@ describe('文档操作层', () => {
       // 文档确实进入回收站（没有因为事务回滚而复活），AI 版本随它保留。
       await t.http.get(`/api/documents/${id}`).expect(404);
       expect(
-        await t.dataSource.query('SELECT id, documentId FROM versions WHERE documentId = ?', [id]),
+        await t.dataSource.query(
+          'SELECT id, documentId FROM versions WHERE documentId = ?',
+          [id],
+        ),
       ).toHaveLength(1);
     });
 

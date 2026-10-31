@@ -1,11 +1,16 @@
+import { SES_SERVER_VERSION } from '../common/app-version';
+
 /**
  * MCP 端点的路径（不带 `api` 前缀）。控制器路由与 `configureApp` 的前缀排除共用这一个值，
  * 两处不会写岔。
  */
 export const MCP_PATH = 'mcp';
 
-/** 服务端在 `initialize` 响应中报告的名称与版本（与 package.json 的版本保持一致）。 */
-export const MCP_SERVER_INFO = { name: 'ses', version: '0.1.0' } as const;
+/** 服务端在 `initialize` 响应中报告的名称与版本。 */
+export const MCP_SERVER_INFO = {
+  name: 'ses',
+  version: SES_SERVER_VERSION,
+} as const;
 
 /** 编辑器的默认地址（Vite 开发服务器）；部署时用环境变量 SES_EDITOR_BASE_URL 覆盖。 */
 export const DEFAULT_EDITOR_BASE_URL = 'http://localhost:5173';
