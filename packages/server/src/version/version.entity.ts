@@ -17,6 +17,10 @@ export class VersionEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
+  /** 服务端生成的稳定身份；旧库启动时由 DocumentIdentityService 补齐。 */
+  @Column({ type: 'varchar', nullable: true })
+  uid: string | null;
+
   @Column()
   documentId: number;
 
@@ -43,7 +47,7 @@ export class VersionEntity {
   xml: string;
 
   @Column({ type: 'text', nullable: true })
-  note: string;
+  note: string | null;
 
   @Column({ type: 'varchar', default: 'human' })
   source: VersionSource;

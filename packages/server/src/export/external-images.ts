@@ -9,7 +9,7 @@ export const EXTERNAL_IMAGE_REJECTED_MESSAGE =
   '服务端导出不访问网络资源，请使用内嵌（data URL）图片';
 
 /** 内嵌图片：只有 data URL 不会让渲染端发起任何请求。其余写法（含前导空白）一律视为外部资源。 */
-function isInlineImage(src: string): boolean {
+export function isInlineImage(src: string): boolean {
   return /^data:/i.test(src);
 }
 

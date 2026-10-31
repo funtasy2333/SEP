@@ -1,6 +1,7 @@
 {
   "name": "ses",
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "license": "Apache-2.0",
   "private": true,
   "description": "Standards Editor System - 标准化文件编辑系统",
   "scripts": {

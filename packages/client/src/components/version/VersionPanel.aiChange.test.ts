@@ -396,6 +396,59 @@ describe('回滚到修改前', () => {
   })
 })
 
+describe('.ses 导入记录', () => {
+  const beforeImport = docWith(...paragraphs)
+  const afterImport = docWith(...paragraphs.slice(0, 2), '对方修改后的第3段', ...paragraphs.slice(3))
+  const importItem = listItem(4, { source: 'import', note: '导入 .ses 文档包' })
+  const options = () => ({
+    versions: [importItem, listItem(2)],
+    details: { 4: { ...importItem, content: afterImport, baseContent: beforeImport } },
+  })
+
+  it('标签为「导入 .ses」，并提供「查看本次修改」「回滚到修改前」', async () => {
+    const panel = await mountPanel(options())
+    try {
+      const item = itemFor(panel, '1.4')
+      expect(item.querySelector('.version-source-tag')!.textContent!.trim()).toBe('导入 .ses')
+      expect(item.classList.contains('is-ai')).toBe(false)
+      expect(buttonLabels(item)).toEqual(['预览', '回滚', '查看本次修改', '回滚到修改前'])
+    } finally {
+      panel.unmount()
+    }
+  })
+
+  it('查看本次修改：导入前的本地正文 → 导入后的正文', async () => {
+    const panel = await mountPanel(options())
+    try {
+      clickIn(itemFor(panel, '1.4'), '查看本次修改')
+      await flushMicrotasks()
+      const dialog = diffDialog()!
+      expect(dialog.textContent).toContain('本次导入修改')
+      expect(dialog.querySelector('[data-testid="ai-change-header"]')!.textContent).toContain('导入前的本地正文')
+      expect(dialog.querySelectorAll('.diff-line.added')).toHaveLength(1)
+      expect(dialog.querySelectorAll('.diff-line.removed')).toHaveLength(1)
+      expect(dialog.querySelector('.diff-line.added')!.textContent).toContain('对方修改后的第3段')
+    } finally {
+      panel.unmount()
+    }
+  })
+
+  it('回滚到修改前：确认后把编辑器内容设为导入前的本地正文', async () => {
+    const success = vi.spyOn(ElMessage, 'success').mockImplementation(() => undefined as any)
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValueOnce(undefined as any)
+    const panel = await mountPanel(options())
+    try {
+      clickIn(itemFor(panel, '1.4'), '回滚到修改前')
+      await flushMicrotasks()
+      expect(String(confirm.mock.calls[0]![0])).toContain('回滚到导入（v1.4）之前')
+      expect(panel.setContent).toHaveBeenCalledWith(beforeImport)
+      expect(success).toHaveBeenCalledWith('已回滚到导入（v1.4）之前')
+    } finally {
+      panel.unmount()
+    }
+  })
+})
+
 describe('保存版本的版本号建议', () => {
   it('列表在面板打开期间被刷新后，没手动改过的版本号按最新列表重新建议；手动改过的保留', async () => {
     const panel = await mountPanel()

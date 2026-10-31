@@ -6,7 +6,7 @@ import stat
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.1.0-preview'
+VERSION = '0.1.1-preview'
 CONFIG = [
     'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc', 'tsconfig.base.json',
     'packages/server/nest-cli.json', 'packages/server/webpack.config.js',
@@ -41,7 +41,7 @@ def runtime_files(platform):
 
 
 def instructions(platform):
-    common = '''# SES 0.1.0 Preview
+    common = f'''# SES {VERSION.replace('-preview', '')} Preview
 
 标准化文件编辑系统。此包包含 SES 程序源码和启动文件，首次启动需要联网安装依赖并构建，未捆绑系统运行时或第三方依赖。
 请先完整解压到可写的本地目录，再启动；不要在压缩包内双击。Preview 为预览版本。
@@ -93,6 +93,10 @@ def build_archive(platform, output):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=ROOT / 'release')
+    parser.add_argument('--print-version', action='store_true', help='print the release version (e.g. 0.1.1-preview) and exit')
     args = parser.parse_args()
+    if args.print_version:
+        print(VERSION)
+        raise SystemExit(0)
     for platform in ('windows', 'macos'):
         build_archive(platform, args.output)

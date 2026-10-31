@@ -121,9 +121,32 @@ describe('parseChangeEvent', () => {
   ])('拒绝不合法的事件：%s', (_name, raw) => {
     expect(parseChangeEvent(raw, 17)).toBeNull()
   })
+
+  it('接受导入来源事件', () => {
+    expect(parseChangeEvent(JSON.stringify({ documentId: 17, revision: 5, source: 'import' }), 17))
+      .toEqual({ documentId: 17, revision: 5, source: 'import' })
+  })
 })
 
 describe('订阅与清理', () => {
+  it('合并来源时导入优先于人工修改，仍归因为外部修改', async () => {
+    const gate = deferred<void>()
+    const handled: ExternalChange[] = []
+    const { sync } = setup({
+      local: 4,
+      settle: () => gate.promise,
+      onExternalChange: (change) => { handled.push(change) },
+    })
+
+    latest().change({ revision: 5, source: 'import' })
+    latest().change({ revision: 6, source: 'human' })
+    gate.resolve()
+    await settleAll()
+
+    expect(handled).toEqual([{ revision: 6, source: 'import' }])
+    sync.stop()
+  })
+
   it('生命周期事件透传给外部修改处理器', async () => {
     const { sync, changes } = setup()
     latest().change({ revision: 5, source: 'human', lifecycle: 'deleted' })
