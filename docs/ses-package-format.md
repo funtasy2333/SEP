@@ -148,8 +148,9 @@ SES 文档包用于在不同 SES 数据库之间迁移、备份和恢复一份�
 | `formatVersion` | 必填正整数；当前只接受 `1` | 包格式版本。 |
 | `exportedAt` | 必填、带时区的 ISO 8601 时间字符串 | 本次生成包的时间，不用于覆盖文档时间。 |
 | `generator` | 必填对象，含字符串 `name`、`version` | 生成程序标识。SES 当前导出为 `SES`、`0.1.0`。 |
+| `versionScope` | 可选字符串：`all` 或 `latest` | 包的版本范围。`all` 表示 `versions` 含全部已保存版本；`latest` 表示只含最新稿，`versions` 为空数组。导出时总是写入；早期导出的包没有该字段，视为未标记。出现时必须是这两个值之一，否则返回 `400`。 |
 | `document` | 必填对象 | 当前文档身份、设置和正文。 |
-| `versions` | 必填数组，可以为空 | 全部已保存版本，导出时按 `createdAt`、数据库 id 升序排列。 |
+| `versions` | 必填数组，可以为空 | 导出为 `all` 时是全部已保存版本，按 `createdAt`、数据库 id 升序排列；导出为 `latest` 时为空数组。 |
 
 ### `document` 字段
 
@@ -201,6 +202,7 @@ SES 文档包用于在不同 SES 数据库之间迁移、备份和恢复一份�
 {
   "match": { "id": 12, "title": "示例标准", "revision": 4 },
   "inTrash": false,
+  "versionScope": "all",
   "newVersions": 1,
   "localOnlyVersions": 2,
   "contentDiffers": true,
@@ -208,7 +210,7 @@ SES 文档包用于在不同 SES 数据库之间迁移、备份和恢复一份�
 }
 ```
 
-`newVersions` 是包中 uid 尚未出现在本地的版本数；`localOnlyVersions` 是本地 uid 不在包中的版本数；`contentDiffers` 比较本地当前正文与包正文，JSON 对象的键顺序不影响结果，数组顺序仍影响结果；`versionNoCollisions` 列出将新增的包内版本号与本地版本号重复的值。
+`versionScope` 是包内 `versionScope` 的值（`all` / `latest`），没有该字段的旧包为 `null`。`newVersions` 是包中 uid 尚未出现在本地的版本数；`localOnlyVersions` 是本地 uid 不在包中的版本数；`contentDiffers` 比较本地当前正文与包正文，JSON 对象的键顺序不影响结果，数组顺序仍影响结果；`versionNoCollisions` 列出将新增的包内版本号与本地版本号重复的值。
 
 ### 新建或另存为新文档
 
@@ -234,7 +236,7 @@ SES 文档包用于在不同 SES 数据库之间迁移、备份和恢复一份�
 
 | 方法与路径 | 用途 | 成功响应 |
 | --- | --- | --- |
-| `GET /api/documents/:id/export/ses` | 导出活动文档及全部版本 | `200`，附件类型 `application/vnd.ses-package+json`。不存在或在回收站的文档返回 `404`。 |
+| `GET /api/documents/:id/export/ses[?versions=all\|none]` | 导出活动文档。`versions` 缺省为 `all`，带全部版本；`none` 只带当前最新稿（`versions` 为空，包内 `versionScope` 为 `latest`，不读取版本表，外部图片告警只扫描当前正文）。其他取值返回 `400` | `200`，附件类型 `application/vnd.ses-package+json`。不存在或在回收站的文档返回 `404`。 |
 | `POST /api/documents/import/ses?mode=preview` | 校验包并只读预览本地身份与版本差异 | `200`，返回上文的预览对象。 |
 | `POST /api/documents/import/ses?mode=new` | 新建文档或另存为副本 | `201`，返回新建的文档对象。 |
 | `POST /api/documents/import/ses?mode=update&targetId=…&baseRevision=…` | 更新匹配的活动文档 | `200`，返回更新后的文档对象。 |
@@ -258,4 +260,5 @@ SES 文档包用于在不同 SES 数据库之间迁移、备份和恢复一份�
 - 新建后从未写入正文的文档（正文为空）不能导出，接口返回 `422`，与其他出件一致；在编辑器中打开并保存正文后即可导出。导出时当前正文也须通过当前编辑器 schema 校验。
 - 导入记录的修改前内容只有正文（`baseContent`），版本表没有 `title`、`meta` 字段；「回滚到修改前」只恢复正文，文档 `title` 不随之恢复（封面字段随正文中的封面节点恢复）。
 - 导入记录的正文通常与对方最后保存的版本相同，版本列表中会多一条内容相同的记录；这是为了提供「查看本次修改」。
-- MCP 的 `export_document` 尚不提供 `.ses` 格式；标准库卡片菜单也没有 `.ses` 导出入口。导出入口位于编辑器的导出对话框。
+- MCP 的 `export_document` 尚不提供 `.ses` 格式；标准库卡片菜单也没有 `.ses` 导出入口。导出入口位于编辑器的导出对话框：点「SES 文档包」后可选择导出范围，默认「全部历史快照」（正文、文件设置与全部已保存版本，文件名 `题名.ses`）；也可选「最新稿」（仅当前已保存的正文和文件设置，不含版本历史，文件更小，文件名 `题名（最新稿）.ses`）。编辑器会记住上次的选择。
+- 最新稿包导入时：新建得到一份没有版本历史的文档；更新现有文档时，本地已有版本全部保留（包里没有版本不代表对方删除了它们），正文不同时仍按上文留一条导入记录。首页确认框会提示「此文档包只含最新稿，不含版本历史；本地已有版本全部保留」。最新稿包不能用来补全对方缺失的历史版本。

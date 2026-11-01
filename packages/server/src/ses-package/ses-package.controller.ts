@@ -19,7 +19,11 @@ import {
   buildWarningHeaders,
 } from '../export/export-http';
 import { parseBaseRevision } from '../document/document-update';
-import { parseSesPackage, SES_PACKAGE_MIME } from './ses-package-format';
+import {
+  parseSesPackage,
+  SES_PACKAGE_MIME,
+  type SesVersionScope,
+} from './ses-package-format';
 import { SesPackageService } from './ses-package.service';
 
 function parseIntegerQuery(
@@ -47,17 +51,29 @@ function parseIntegerQuery(
   return value;
 }
 
+/** versions=all|none：缺省 = all；none 对应包内 versionScope = latest。 */
+function parseVersionsQuery(raw: unknown): SesVersionScope {
+  if (raw === undefined || raw === 'all') return 'all';
+  if (raw === 'none') return 'latest';
+  throw new BadRequestException('versions 必须是 all 或 none');
+}
+
 @Controller('documents')
 export class SesPackageController {
   constructor(private readonly sesPackageService: SesPackageService) {}
 
-  /** GET /api/documents/:id/export/ses：下载完整 SES 文档包。 */
+  /**
+   * GET /api/documents/:id/export/ses：下载 SES 文档包。
+   * 默认含全部历史快照；?versions=none 只含最新稿。
+   */
   @Get(':id/export/ses')
   async exportPackage(
     @Param('id', ParseIntPipe) id: number,
+    @Query('versions') versions: unknown,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
-    const result = await this.sesPackageService.exportPackage(id);
+    const scope = parseVersionsQuery(versions);
+    const result = await this.sesPackageService.exportPackage(id, scope);
     res.set(buildWarningHeaders(result.warnings));
     return new StreamableFile(result.bytes, {
       type: SES_PACKAGE_MIME,

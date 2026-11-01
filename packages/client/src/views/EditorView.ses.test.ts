@@ -204,7 +204,34 @@ async function openSesExport(view: Awaited<ReturnType<typeof mountEditor>>) {
   return card
 }
 
+function sesScopeDialog() {
+  return document.body.querySelector<HTMLElement>('.ses-scope-dialog')
+}
+
+/** 在范围选择对话框里点按钮；scope 为 undefined 时保持默认选项。 */
+async function answerSesScope(action: 'confirm' | 'cancel', scope?: 'all' | 'latest') {
+  const dialog = sesScopeDialog()
+  expect(dialog).not.toBeNull()
+  if (scope) {
+    const radio = dialog!.querySelector<HTMLInputElement>(`input[type="radio"][value="${scope}"]`)
+    expect(radio).not.toBeNull()
+    radio!.click()
+    await flush()
+  }
+  const label = action === 'confirm' ? '导出' : '取消'
+  const button = [...dialog!.querySelectorAll<HTMLButtonElement>('.el-dialog__footer button')]
+    .find((candidate) => candidate.textContent?.trim() === label)
+  expect(button).toBeDefined()
+  button!.click()
+  await flush()
+}
+
+function checkedSesScope() {
+  return sesScopeDialog()?.querySelector<HTMLInputElement>('input[type="radio"]:checked')?.value
+}
+
 beforeEach(() => {
+  try { localStorage.removeItem('ses.export.sesVersionScope') } catch { /* 忽略 */ }
   vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:ses'), revokeObjectURL: vi.fn() })
 })
 
@@ -245,8 +272,11 @@ describe('EditorView SES 文档包导出', () => {
       await flush()
       const card = await openSesExport(view)
       if (!card) return
+      expect(order).toEqual([])
       card.click()
       await flush()
+      expect(order).toEqual([])
+      await answerSesScope('confirm')
 
       expect(order).toEqual(['save'])
       expect(mocks.store.waitForPendingUpdates).toHaveBeenCalledWith(17)
@@ -256,7 +286,7 @@ describe('EditorView SES 文档包导出', () => {
       localWrites.resolve(undefined)
       await flush()
       expect(order).toEqual(['save', 'export'])
-      expect(mocks.exportSesPackage).toHaveBeenCalledWith(17)
+      expect(mocks.exportSesPackage).toHaveBeenCalledWith(17, 'all')
       expect(anchorClick).toHaveBeenCalledOnce()
       expect(warning).toHaveBeenCalledOnce()
       expect(String(warning.mock.calls[0]?.[0])).toContain('3')
@@ -282,6 +312,7 @@ describe('EditorView SES 文档包导出', () => {
         if (!card) return
         card.click()
         await flush()
+        await answerSesScope('confirm')
         expect(mocks.store.updateDocument, error.message).toHaveBeenCalledOnce()
         expect(mocks.exportSesPackage).not.toHaveBeenCalled()
         expect(anchorClick).not.toHaveBeenCalled()
@@ -289,6 +320,100 @@ describe('EditorView SES 文档包导出', () => {
         view.unmount()
         vi.restoreAllMocks()
       }
+    }
+  })
+
+  it('点 SES 卡片先弹范围选择：默认全部历史快照，取消则不保存也不请求', async () => {
+    const view = await mountEditor()
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    try {
+      view.editor.commands.insertContent('未保存的正文')
+      await flush()
+      mocks.store.updateDocument.mockClear()
+      const card = await openSesExport(view)
+      if (!card) return
+      card.click()
+      await flush()
+
+      expect(sesScopeDialog()).not.toBeNull()
+      expect(sesScopeDialog()?.textContent).toContain('全部历史快照')
+      expect(sesScopeDialog()?.textContent).toContain('正文、文件设置与全部已保存版本')
+      expect(sesScopeDialog()?.textContent).toContain('最新稿')
+      expect(sesScopeDialog()?.textContent).toContain('不含版本历史，文件更小')
+      expect(checkedSesScope()).toBe('all')
+      expect(mocks.exportSesPackage).not.toHaveBeenCalled()
+
+      await answerSesScope('cancel')
+      expect(mocks.store.updateDocument).not.toHaveBeenCalled()
+      expect(mocks.exportSesPackage).not.toHaveBeenCalled()
+      expect(anchorClick).not.toHaveBeenCalled()
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('选择最新稿时请求 latest、文件名带（最新稿）后缀并记住选择，下次默认选中', async () => {
+    const view = await mountEditor()
+    const success = vi.spyOn(ElMessage, 'success').mockImplementation(() => undefined as any)
+    const downloads: string[] = []
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      downloads.push(this.download)
+    })
+    mocks.exportSesPackage.mockResolvedValue({
+      blob: new Blob(['{}']), warningCount: 0, warnings: [], warningsTruncated: false,
+    })
+    try {
+      const card = await openSesExport(view)
+      if (!card) return
+      card.click()
+      await flush()
+      await answerSesScope('confirm', 'latest')
+
+      expect(mocks.exportSesPackage).toHaveBeenCalledWith(17, 'latest')
+      expect(downloads).toEqual(['SES 导出回归（最新稿）.ses'])
+      expect(success).toHaveBeenCalledWith('SES 文档包（最新稿）已导出')
+      expect(localStorage.getItem('ses.export.sesVersionScope')).toBe('latest')
+
+      const again = await openSesExport(view)
+      again?.click()
+      await flush()
+      expect(checkedSesScope()).toBe('latest')
+      await answerSesScope('confirm', 'all')
+
+      expect(mocks.exportSesPackage).toHaveBeenLastCalledWith(17, 'all')
+      expect(downloads.at(-1)).toBe('SES 导出回归.ses')
+      expect(success).toHaveBeenLastCalledWith('SES 文档包已导出')
+      expect(localStorage.getItem('ses.export.sesVersionScope')).toBe('all')
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('localStorage 读写失败或值无效时回退到默认的全部历史快照，且不影响导出', async () => {
+    const view = await mountEditor()
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    mocks.exportSesPackage.mockResolvedValue({
+      blob: new Blob(['{}']), warningCount: 0, warnings: [], warningsTruncated: false,
+    })
+    try {
+      localStorage.setItem('ses.export.sesVersionScope', 'bogus')
+      const card = await openSesExport(view)
+      if (!card) return
+      card.click()
+      await flush()
+      expect(checkedSesScope()).toBe('all')
+      await answerSesScope('cancel')
+
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('denied') })
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('denied') })
+      const again = await openSesExport(view)
+      again?.click()
+      await flush()
+      expect(checkedSesScope()).toBe('all')
+      await answerSesScope('confirm', 'latest')
+      expect(mocks.exportSesPackage).toHaveBeenCalledWith(17, 'latest')
+    } finally {
+      view.unmount()
     }
   })
 

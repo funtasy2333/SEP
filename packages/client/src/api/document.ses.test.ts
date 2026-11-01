@@ -41,15 +41,29 @@ describe('documentApi SES 文档包', () => {
     expect(mocks.get).toHaveBeenCalledWith('/documents/42/export/ses', { responseType: 'blob' })
   })
 
+  it('导出 scope 缺省为全部历史快照，latest 时才带 versions=none', async () => {
+    const blob = new Blob(['{}'], { type: MIME })
+    mocks.get.mockResolvedValue({ data: blob, headers: {} })
+
+    await documentApi.exportSesPackage(42, 'all')
+    expect(mocks.get).toHaveBeenNthCalledWith(1, '/documents/42/export/ses', { responseType: 'blob' })
+
+    await documentApi.exportSesPackage(42, 'latest')
+    expect(mocks.get).toHaveBeenNthCalledWith(2, '/documents/42/export/ses', {
+      responseType: 'blob',
+      params: { versions: 'none' },
+    })
+  })
+
   it('以原始文件和 SES MIME 预览导入', async () => {
     const file = new File(['{}'], 'backup.ses', { type: MIME })
     const preview = {
       match: null,
       inTrash: false,
-      newVersions: 2,
+      versionScope: 'latest',
+      newVersions: 0,
       localOnlyVersions: 0,
       contentDiffers: false,
-     
       versionNoCollisions: [],
     }
     mocks.post.mockResolvedValue({ data: preview })
