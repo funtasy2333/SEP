@@ -8,20 +8,30 @@ Not part of the release package.
   create-doc    --root R                       create a document through the REST API and remember it
   assert-doc    --root R                       the remembered document is still there
   upgrade       --root R --platform P --zip Z --target-version V --expect succeeded|rolled-back --installed V
+                                               run the executor directly (used for the rollback scenario)
+  start-fake-github --root R --zip Z --platform P --version V
+                                               background fake GitHub serving package Z as release V; writes <root>/.env
+  stop-fake-github  --root R
+  api-upgrade   --root R --platform P --installed V
+                                               upgrade through /api/system (check, update, wait for the new version)
   make-broken   --zip IN --out OUT             inject a build error into the package's server entry
   shutdown-api  --platform P                   POST /api/system/shutdown and wait for both ports to close
   assert-stopped                               nothing listens on 3000/5173
 """
 import argparse
+import hashlib
+import http.server
 import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import socket
 import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 
@@ -199,6 +209,166 @@ def assert_stopped(_args):
     log('no listeners on 3000/5173')
 
 
+REPO_API = '/repos/funtasy2333/SEP/'
+
+
+def release_json(base, version, platform, zip_path):
+    name = f'SES-{version}-{platform}.zip'
+    data = Path(zip_path).read_bytes()
+    return [{
+        'tag_name': f'v{version}', 'draft': False, 'prerelease': True, 'body': 'upgrade e2e fixture',
+        'html_url': f'{base}/releases/v{version}', 'published_at': '2026-11-01T00:00:00Z',
+        'assets': [{'name': name, 'size': len(data), 'browser_download_url': f'{base}/dl/{name}',
+                    'digest': 'sha256:' + hashlib.sha256(data).hexdigest()}],
+    }], name, data
+
+
+def fake_commit(sha, message='upgrade e2e fixture'):
+    return {'sha': sha, 'commit': {'message': message, 'committer': {'date': '2026-11-01T00:00:00Z'},
+                                   'author': {'name': 'e2e', 'date': '2026-11-01T00:00:00Z'}}, 'author': {'login': 'e2e'}}
+
+
+def serve_fake_github(args):
+    """A tiny stand-in for GitHub: the endpoints the SES server calls (releases, commits, compare, asset download)."""
+    base = f'http://127.0.0.1:{args.port}'
+    releases, asset_name, data = release_json(base, args.version, args.platform, args.zip)
+    target_sha = hashlib.sha1(args.version.encode()).hexdigest()
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def reply(self, status, body, content_type='application/json'):
+            payload = body if isinstance(body, bytes) else json.dumps(body).encode('utf-8')
+            self.send_response(status)
+            self.send_header('Content-Type', content_type)
+            self.send_header('Content-Length', str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def do_GET(self):
+            path = urllib.parse.unquote(self.path.split('?')[0])
+            print(f'GET {path}', flush=True)
+            if path == f'/dl/{asset_name}' or path == f'/funtasy2333/SEP/zip/{target_sha}':
+                return self.reply(200, data, 'application/zip')
+            if not path.startswith(REPO_API):
+                return self.reply(404, {'message': 'Not Found'})
+            rest = path[len(REPO_API):]
+            if rest == 'releases':
+                return self.reply(200, releases)
+            if rest.startswith('commits/'):
+                ref = rest[len('commits/'):]
+                if ref in (f'v{args.version}', 'main', target_sha):
+                    return self.reply(200, fake_commit(target_sha))
+                return self.reply(404, {'message': 'Not Found'})
+            if rest.startswith('compare/'):
+                return self.reply(200, {'status': 'ahead', 'commits': [fake_commit(target_sha)]})
+            return self.reply(404, {'message': 'Not Found'})
+
+        def log_message(self, *_args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
+    print(f'fake github on {base}', flush=True)
+    server.serve_forever()
+
+
+def start_fake_github(args):
+    root = Path(args.root)
+    run = root / '.ses-run'
+    run.mkdir(parents=True, exist_ok=True)
+    with socket.socket() as probe:
+        probe.bind(('127.0.0.1', 0))
+        port = probe.getsockname()[1]
+    command = [sys.executable, str(Path(__file__).resolve()), 'fake-github-serve', '--port', str(port),
+               '--zip', str(Path(args.zip).resolve()), '--platform', args.platform, '--version', args.version]
+    kwargs = ({'creationflags': subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == 'nt'
+              else {'start_new_session': True})
+    with open(run / 'fake-github.log', 'ab') as out:
+        process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=out, stderr=out, **kwargs)
+    base = f'http://127.0.0.1:{port}'
+    for _ in range(50):
+        try:
+            if request(f'{base}{REPO_API}releases', timeout=2)[0] == 200:
+                break
+        except (urllib.error.URLError, OSError):
+            time.sleep(0.2)
+    else:
+        process.kill()
+        raise E2EError('fake GitHub did not start')
+    (run / 'fake-github.pid').write_text(str(process.pid), encoding='utf-8')
+    # The SES server reads <root>/.env at startup (variables that are already set win).
+    with open(root / '.env', 'a', encoding='utf-8', newline='\n') as env:
+        env.write(f'SES_GITHUB_API={base}\nSES_CODELOAD_BASE={base}\n')
+    log(f'fake GitHub listening on {base} (pid {process.pid}); wrote {root / ".env"}')
+
+
+def stop_fake_github(args):
+    pid_file = Path(args.root) / '.ses-run' / 'fake-github.pid'
+    if not pid_file.exists():
+        return
+    try:
+        os.kill(int(pid_file.read_text(encoding='utf-8')), signal.SIGTERM)
+    except (OSError, ValueError):
+        pass
+    pid_file.unlink()
+    log('stopped fake GitHub')
+
+
+def print_upgrade_log(root):
+    log_file = Path(root) / '.ses-run' / 'upgrade.log'
+    print('---- upgrade.log ----')
+    print(log_file.read_bytes().decode('utf-8', errors='replace') if log_file.exists() else '(missing)')
+    print('---------------------')
+
+
+def api_upgrade(args):
+    """The real path: the SES server downloads the package and launches the executor, which stops the server itself."""
+    root = Path(args.root).resolve()
+    status, body = request(f'{SERVER}/api/system/info')
+    info = json.loads(body)
+    log(f'info: {json.dumps(info, ensure_ascii=False)}')
+    require(info['canUpgrade'], f'canUpgrade is false: {info.get("upgradeBlockedReason")}')
+    require(info['launcher'] == args.platform, f'launcher is {info["launcher"]}')
+    status, body = request(f'{SERVER}/api/system/update/check?channel=stable')
+    check = json.loads(body)
+    log(f'check: {json.dumps(check, ensure_ascii=False)}')
+    require(check['available'], f'no update available: {check.get("reason")}')
+    require(check['latest']['version'] == args.installed, f'latest is {check["latest"]["version"]}')
+    status, body = request(f'{SERVER}/api/system/update', 'POST', {'channel': 'stable', 'commit': check['latest']['commit']},
+                           {'Origin': 'http://localhost:5173'})
+    require(status == 202, f'POST /api/system/update returned HTTP {status}')
+    log('upgrade accepted; waiting for the new version')
+    deadline = time.time() + args.timeout
+    last = None
+    while time.time() < deadline:
+        time.sleep(3)
+        try:
+            status, body = request(f'{SERVER}/api/system/info', timeout=5)
+            info = json.loads(body)
+        except (urllib.error.URLError, OSError, ValueError):
+            continue  # the server is down while the executor swaps files
+        download = info['upgrade']['download']
+        last = info['upgrade']['last']
+        if download['phase'] == 'error':
+            print_upgrade_log(root)
+            raise E2EError(f'download/hand-off failed: {download["error"]}')
+        if last and last['state'] in ('failed', 'rolled-back'):
+            print_upgrade_log(root)
+            raise E2EError(f'upgrade ended as {last["state"]}: {last.get("message")}')
+        if info['version'] == args.installed and last and last['state'] == 'succeeded':
+            break
+    else:
+        print_upgrade_log(root)
+        raise E2EError(f'timed out waiting for {args.installed}; last status: {last}')
+    print_upgrade_log(root)
+    log(f'upgrade status: {json.dumps(last, ensure_ascii=False)}')
+    build = read_json(root / 'ses-build.json')
+    require((build['version'], build['channel']) == (args.installed, 'stable'), f'unexpected ses-build.json: {build}')
+    require(not (root / '.ses-update' / 'lock').exists(), 'upgrade lock was not released')
+    require(list((root / 'output' / 'upgrade-backups').glob('ses-before-upgrade-*/ses.db')), 'no pre-upgrade database backup was kept')
+    assert_service(args.platform)
+    assert_doc(args)
+    log('upgrade through the API passed')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest='command', required=True)
@@ -216,6 +386,27 @@ def main():
     p.add_argument('--no-detached', dest='detached', action='store_false')
     p.add_argument('--timeout', type=int, default=1500)
     p.set_defaults(function=upgrade)
+    p = sub.add_parser('start-fake-github')
+    p.add_argument('--root', required=True)
+    p.add_argument('--zip', required=True)
+    p.add_argument('--platform', choices=('macos', 'windows'), required=True)
+    p.add_argument('--version', required=True)
+    p.set_defaults(function=start_fake_github)
+    p = sub.add_parser('fake-github-serve')
+    p.add_argument('--port', type=int, required=True)
+    p.add_argument('--zip', required=True)
+    p.add_argument('--platform', choices=('macos', 'windows'), required=True)
+    p.add_argument('--version', required=True)
+    p.set_defaults(function=serve_fake_github)
+    p = sub.add_parser('stop-fake-github')
+    p.add_argument('--root', required=True)
+    p.set_defaults(function=stop_fake_github)
+    p = sub.add_parser('api-upgrade')
+    p.add_argument('--root', required=True)
+    p.add_argument('--platform', choices=('macos', 'windows'), required=True)
+    p.add_argument('--installed', required=True, help='version the new server must report')
+    p.add_argument('--timeout', type=int, default=900)
+    p.set_defaults(function=api_upgrade)
     p = sub.add_parser('make-broken')
     p.add_argument('--zip', required=True)
     p.add_argument('--out', required=True)

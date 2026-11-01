@@ -203,6 +203,7 @@ SES 在「设置 → 升级 / 退出」中提供升级与退出。**关闭网页
 
 - 使用系统自带工具解压：macOS 使用 `ditto`，Windows 使用 PowerShell 5.1 的 `Expand-Archive`；脚本使用启动时记录的 Node.js 运行升级逻辑。
 - 数据库：停止服务后把 `packages/server/data/ses.db`（及存在的 `-wal`、`-shm`）复制到 `.ses-update/db-backup/`；升级成功后移动到 `output/upgrade-backups/ses-before-upgrade-<时间戳>/` 永久保留。
+- 替换文件与回滚优先使用升级包里新版本的 `scripts/apply-update.cjs`（先复制为 `.ses-update/apply-update.next.cjs` 并做语法检查，不可用则回退到当前版本），这样新版本新增的程序文件也会被安装；备份、恢复数据库、状态文件等仍由当前版本处理。
 - 整目录替换 `packages/{client,server,shared,io}/src`、`packages/client/public`、`packages/server/resources`，旧文件不会残留；其余程序文件逐个替换。
 - 绝不改动：`packages/server/data/`、任何层级的 `node_modules`、`.ses-tools/`、`.ses-run/`、`output/`、`.ses-update/`、`.env`。路径超出 SES 目录、落入上述目录或经符号链接逃出目录的升级包会被整体拒绝。
 - 任一步失败（包括新版本构建或启动失败）：回滚程序文件、恢复数据库、启动原版本，并在 `.ses-run/upgrade-status.json` 记录 `rolled-back`；原版本也无法启动时记录 `failed`，需要手动运行启动脚本。
