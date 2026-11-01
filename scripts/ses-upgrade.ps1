@@ -92,7 +92,9 @@ function Invoke-SesChild([string]$OverrideVariable, [string]$ScriptName, [string
         $psi.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + $scriptPath + '" ' + $Action
     }
     $psi.UseShellExecute = $false
-    $psi.CreateNoWindow = $true
+    # Share the executor's (already hidden) console so the child inherits its stdout/stderr and the
+    # start/stop output reaches upgrade.log; a separate console (CreateNoWindow) would swallow it.
+    $psi.CreateNoWindow = $false
     $p = [Diagnostics.Process]::Start($psi)
     $p.WaitForExit()
     $code = $p.ExitCode
