@@ -5,6 +5,7 @@ Static checks run anywhere. The PowerShell runtime checks need Windows PowerShel
 """
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -29,12 +30,25 @@ class Static(unittest.TestCase):
     def test_upgrade_script_follows_the_executor_contract(self):
         text = UPGRADE.read_text(encoding='ascii')
         for needle in ('[Parameter(Mandatory = $true)][string]$Root', 'plan.json', 'apply-update.cjs', "'backup-db'", "'apply'",
-                       "'rollback'", "'restore-db'", "'finalize'", 'Expand-Archive', "'stopping'", "'backing-up'", "'extracting'",
+                       "'rollback'", "'restore-db'", "'finalize'", 'ExtractToDirectory', 'Select-SesApplier', 'apply-update.next.cjs', '--check', "'stopping'", "'backing-up'", "'extracting'",
                        "'applying'", "'starting'", "'rolling-back'", "'rolled-back'", "'succeeded'", "'failed'",
                        'SES_NO_OPEN', 'SES_NO_PAUSE', 'SES_UPGRADE_STOP_CMD', 'SES_UPGRADE_START_CMD', "'lock'", 'ses-windows.ps1'):
             self.assertIn(needle, text)
         # The lock must be released in a finally block no matter how the upgrade ends.
         self.assertRegex(text, r"finally\s*\{[^}]*'lock'")
+
+    def test_install_root_with_brackets_is_never_treated_as_a_wildcard(self):
+        """Roots such as 'SES [preview] 中文' must be handled literally (Expand-Archive and -Path do not)."""
+        text = UPGRADE.read_text(encoding='ascii')
+        code = '\n'.join(line for line in text.splitlines() if not line.lstrip().startswith('#'))
+        self.assertNotIn('Expand-Archive', code)
+        self.assertNotIn('New-Item', code)
+        for match in re.finditer(r'(?<![A-Za-z])-Path\b', code):
+            self.fail(f'-Path used instead of -LiteralPath: {code[match.start():match.start() + 60]!r}')
+        # apply/rollback prefer the apply-update.cjs from the package; the other commands use the installed copy.
+        self.assertIn("Invoke-SesApplier @('apply'", text)
+        self.assertIn("Invoke-SesApplier @('rollback'", text)
+        self.assertIn("Invoke-SesApply @('backup-db'", text)
 
     def test_launcher_marks_the_server_as_started_by_the_windows_launcher(self):
         text = LAUNCHER.read_text(encoding='ascii')

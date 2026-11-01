@@ -18,11 +18,19 @@ json_get() { "$NODE_BIN" -e 'const v=JSON.parse(require("fs").readFileSync(proce
 contents() { cat "$1" 2>/dev/null || true; }
 
 # 构造新版本发布包（9.9.9-preview）：只包含升级需要识别的最少文件。
+# ZIP_APPLIER：none（包里没有 apply-update.cjs）、next（带记录的完整副本）、broken（语法错误）。
 make_zip() {
-  python3 - "$1" <<'PY'
+  python3 - "$1" "$SRC/scripts/apply-update.cjs" "${ZIP_APPLIER:-none}" <<'PY'
 import json, sys, zipfile
 with zipfile.ZipFile(sys.argv[1], 'w') as z:
     top = 'SES-9.9.9-preview-macos/'
+    mode = sys.argv[3]
+    if mode == 'next':
+        lines = open(sys.argv[2], encoding='utf-8').read().split('\n', 1)
+        hook = "require('fs').appendFileSync(process.env.SES_UPGRADE_ROOT + '/applier.log', process.argv[2] + '\\n');\n"
+        z.writestr(top + 'scripts/apply-update.cjs', lines[0] + '\n' + hook + lines[1])
+    elif mode == 'broken':
+        z.writestr(top + 'scripts/apply-update.cjs', 'this is { not javascript\n')
     z.writestr(top + 'ses-build.json', json.dumps({'version': '9.9.9-preview', 'channel': 'stable', 'commit': None, 'builtAt': '2026-11-01T00:00:00.000Z'}))
     z.writestr(top + 'scripts/ses-local.sh', '#!/bin/bash\necho new launcher\n')
     z.writestr(top + 'packages/server/src/main.ts', 'new')
@@ -131,10 +139,46 @@ run_case reexec "$STOP_OK" 'exit 1'
 [ "$rc" != 0 ] && pass "失败时退出码被转发" || fail "退出码应非 0"
 check "状态为 failed（旧版 start 也失败）" test "$(json_get "$STATUS" state)" = failed
 
+echo "== 升级包带有新版 apply-update.cjs：apply 使用它 =="
+ZIP_APPLIER=next run_case next_ok "$STOP_OK" "$START_RECORD" SES_UPGRADE_DETACHED=1
+[ "$rc" = 0 ] && pass "退出码为 0" || { fail "退出码 $rc"; cat "$TMP/next_ok.out"; }
+check "新版 applier 执行了 apply" test "$(contents "$ROOT/applier.log")" = apply
+check "日志说明使用了新版 applier" grep -q '使用升级包中的新版 apply-update.cjs' "$TMP/next_ok.out"
+check "状态 succeeded 且程序已替换" test "$(json_get "$STATUS" state)" = succeeded -a "$(contents "$ROOT/packages/server/src/main.ts")" = new
+check "临时的 apply-update.next.cjs 已清理" test ! -e "$ROOT/.ses-update/apply-update.next.cjs"
+
+echo "== 新版 applier 同时负责 rollback =="
+ZIP_APPLIER=next run_case next_rollback "$STOP_OK" "$START_NEW_FAILS" SES_UPGRADE_DETACHED=1
+[ "$rc" != 0 ] && pass "退出码非 0" || fail "退出码应非 0"
+check "新版 applier 依次执行 apply 与 rollback" test "$(contents "$ROOT/applier.log")" = "$(printf 'apply\nrollback')"
+check "状态 rolled-back" test "$(json_get "$STATUS" state)" = rolled-back
+check "程序文件与升级前一致" diff -r -x .ses-update -x .ses-run -x output -x calls.log -x applier.log "$TMP/next_rollback-before" "$ROOT"
+
+echo "== 新版 applier 语法错误：回退到当前版本 =="
+ZIP_APPLIER=broken run_case next_broken "$STOP_OK" "$START_RECORD" SES_UPGRADE_DETACHED=1
+[ "$rc" = 0 ] && pass "退出码为 0" || { fail "退出码 $rc"; cat "$TMP/next_broken.out"; }
+check "日志记录了回退" grep -q '回退到当前版本' "$TMP/next_broken.out"
+check "仍然升级成功" test "$(json_get "$STATUS" state)" = succeeded -a "$(json_get "$ROOT/ses-build.json" version)" = "9.9.9-preview"
+check "损坏的 applier 已清理" test ! -e "$ROOT/.ses-update/apply-update.next.cjs"
+
 echo "== 语法检查 =="
 for f in "$SRC"/scripts/*.sh "$SRC"/启动SES.command "$SRC"/退出SES.command; do
   check "bash -n $(basename "$f")" bash -n "$f"
 done
+# bash 3.2 会把紧跟在 $VAR 后的多字节 UTF-8 字节当作变量名的一部分（bash 5 不会），
+# 所以 $VAR 后面紧跟非 ASCII 字符必须写成 ${VAR}。
+check "没有 \$VAR 紧跟非 ASCII 字符的写法（bash 3.2）" python3 - "$SRC" <<'PY'
+import glob, re, sys
+root = sys.argv[1]
+pattern = re.compile(rb'\$[A-Za-z_][A-Za-z0-9_]*[\x80-\xff]')
+bad = []
+for path in glob.glob(root + '/scripts/*.sh') + glob.glob(root + '/*.command'):
+    for number, line in enumerate(open(path, 'rb').read().split(b'\n'), 1):
+        if pattern.search(line):
+            bad.append(f'{path}:{number}')
+if bad:
+    print('\n'.join(bad)); sys.exit(1)
+PY
 
 if [ "$failures" != 0 ]; then
   printf '\n%s 项失败\n' "$failures"

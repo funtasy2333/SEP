@@ -39,7 +39,7 @@ export SES_UPGRADE_ROOT="$ROOT"
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 
 # 无论怎样结束都释放服务端创建的升级锁。
-cleanup() { rm -rf "$UPD/lock"; }
+cleanup() { rm -f "$UPD/apply-update.next.cjs"; rm -rf "$UPD/lock"; }
 trap cleanup EXIT
 
 mkdir -p "$RUN"
@@ -77,6 +77,35 @@ write_status() {
 }
 
 apply_cmd() { "$NODE" "$APPLY" "$@"; }
+
+# apply / rollback 优先使用升级包里新版本的 apply-update.cjs（旧版本的文件清单可能已经过时）；
+# status、backup-db、restore-db、finalize、plan-get 仍用当前版本的副本。
+# 两者的子命令与参数是跨版本契约（见 apply-update.cjs 顶部注释）。
+APPLIER=""
+applier_cmd() { "$NODE" "${APPLIER:-$APPLY}" "$@"; }
+
+choose_applier() {
+  local entry top="" count=0 next="$UPD/apply-update.next.cjs"
+  APPLIER=""
+  rm -f "$next"
+  for entry in "$STAGING"/*; do
+    [ -d "$entry" ] || continue
+    [ "$(basename "$entry")" = "__MACOSX" ] && continue
+    top="$entry"
+    count=$((count + 1))
+  done
+  if [ "$count" = 1 ] && [ -f "$top/scripts/apply-update.cjs" ]; then
+    if cp "$top/scripts/apply-update.cjs" "$next" && "$NODE" --check "$next"; then
+      APPLIER="$next"
+      log "使用升级包中的新版 apply-update.cjs。"
+      return 0
+    fi
+    log "升级包中的 apply-update.cjs 无法使用，回退到当前版本。"
+    rm -f "$next"
+  else
+    log "升级包中没有 apply-update.cjs，使用当前版本。"
+  fi
+}
 
 run_stop() {
   if [ -n "${SES_UPGRADE_STOP_CMD:-}" ]; then
@@ -118,7 +147,7 @@ recover() {
   write_status running rolling-back "$reason"
   if [ "$APPLIED" = 1 ]; then
     log "回滚程序文件……"
-    if ! apply_cmd rollback --root "$ROOT"; then
+    if ! applier_cmd rollback --root "$ROOT"; then
       rollback_ok=0
       log "回滚程序文件失败，请查看 $UPD/rollback。"
     fi
@@ -150,16 +179,16 @@ recover() {
       apply_cmd finalize --root "$ROOT" --plan "$PLAN" || true
       exit 1
     fi
-    write_status failed rolling-back "升级失败（$reason），且原版本未能重新启动，请手动运行启动脚本，日志见 .ses-run/upgrade.log"
+    write_status failed rolling-back "升级失败（${reason}），且原版本未能重新启动，请手动运行启动脚本，日志见 .ses-run/upgrade.log"
     log "原版本启动失败。"
     exit 1
   fi
-  write_status failed rolling-back "升级失败（$reason），且未能完整恢复，请手动检查 .ses-update 目录并运行启动脚本"
+  write_status failed rolling-back "升级失败（${reason}），且未能完整恢复，请手动检查 .ses-update 目录并运行启动脚本"
   log "恢复未完成，需要手动处理。"
   exit 1
 }
 
-log "SES 升级开始（根目录：$ROOT）"
+log "SES 升级开始（根目录：${ROOT}）"
 if [ -z "$NODE" ] || [ ! -x "$NODE" ]; then
   write_status failed stopping "找不到 Node.js，无法执行升级"
   log "找不到 Node.js。"
@@ -190,8 +219,9 @@ extract_zip "$ZIP" "$STAGING" || recover "解压升级包失败"
 
 write_status running applying
 log "[4/5] 替换程序文件……"
+choose_applier
 APPLIED=1
-apply_cmd apply --root "$ROOT" --staging "$STAGING" --plan "$PLAN" || recover "替换程序文件失败"
+applier_cmd apply --root "$ROOT" --staging "$STAGING" --plan "$PLAN" || recover "替换程序文件失败"
 
 write_status running starting
 log "[5/5] 启动新版本……"

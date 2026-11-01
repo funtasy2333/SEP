@@ -11,6 +11,12 @@
 //   restore-db --root <root>
 //   finalize  --root <root> [--plan <plan.json>]
 //   plan-get  --plan <plan.json> --key <name>
+//
+// 跨版本契约：升级时，ses-upgrade.sh / ses-upgrade.ps1 会优先使用“升级包里新版本”的本文件执行
+// apply 与（apply 之后的）rollback，其余子命令仍用当前已安装版本的副本，所以新旧两个版本会互相配合。
+// 因此上面的子命令名、参数名与含义、plan.json 字段、.ses-update/ 与 .ses-run/upgrade-status.json
+// 的文件格式都是契约，后续版本不得破坏兼容（只能新增可选参数/字段）。新版 apply 写出的
+// rollback manifest 只会被同一个新版 rollback 读取，格式可以演进。
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
