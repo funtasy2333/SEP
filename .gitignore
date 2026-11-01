@@ -31,3 +31,6 @@ __pycache__/
 # Local portable Windows runtime and release archives
 .ses-tools/
 release/
+
+# Upgrade executor work area (staging, rollback, db backup, lock)
+.ses-update/
