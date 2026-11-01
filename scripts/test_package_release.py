@@ -42,6 +42,7 @@ class Packages(unittest.TestCase):
                         self.assertNotIn('启动SES.cmd', names)
                         self.assertIn('scripts/ses-upgrade.sh', names)
                         self.assertNotIn('scripts/ses-upgrade.ps1', names)
+                        self.assertNotIn('scripts/run-detached.cjs', names)
                         upgrade = next(i for i in z.infolist() if i.filename.endswith('scripts/ses-upgrade.sh'))
                         self.assertEqual((upgrade.external_attr >> 16) & 0o777, 0o755)
                         command = next(i for i in z.infolist() if i.filename.endswith('启动SES.command'))
@@ -51,6 +52,7 @@ class Packages(unittest.TestCase):
                         self.assertNotIn('启动SES.command', names)
                         self.assertIn('scripts/ses-windows.ps1', names)
                         self.assertIn('scripts/ses-upgrade.ps1', names)
+                        self.assertIn('scripts/run-detached.cjs', names)
                         self.assertNotIn('scripts/ses-upgrade.sh', names)
 
     def test_version_override_and_commit(self):

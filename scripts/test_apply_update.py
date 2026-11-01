@@ -146,6 +146,8 @@ class ArchiveStaging(unittest.TestCase):
         self.assertNotIn('scripts/ses-upgrade.ps1', macos)
         self.assertIn('scripts/ses-upgrade.ps1', windows)
         self.assertNotIn('scripts/ses-upgrade.sh', windows)
+        self.assertIn('scripts/run-detached.cjs', windows)
+        self.assertNotIn('scripts/run-detached.cjs', macos)
 
     def test_archive_apply_installs_exactly_the_runtime_set(self):
         for platform in ('macos', 'windows'):

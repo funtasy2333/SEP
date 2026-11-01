@@ -89,6 +89,7 @@ describe('GET /api/system/info', () => {
     ['macos', 'darwin', 'ses-upgrade.sh'],
     ['windows', 'win32', 'apply-update.cjs'],
     ['windows', 'win32', 'ses-upgrade.ps1'],
+    ['windows', 'win32', 'run-detached.cjs'],
   ] as const)(
     '%s 缺少 scripts/%s：不能升级并指明文件',
     async (launcher, platform, missing) => {
@@ -128,6 +129,24 @@ describe('GET /api/system/info', () => {
       expect(result.upgradeBlockedReason).toContain(launcher);
     },
   );
+
+  it('Windows 缺少 scripts/run-detached.cjs：不能退出', async () => {
+    t = await createSystemTestApp({
+      launcher: 'windows',
+      platform: 'win32',
+      omitScripts: ['run-detached.cjs'],
+    });
+    const result = await info();
+    expect(result.canShutdown).toBe(false);
+    expect(result.shutdownBlockedReason).toContain('run-detached.cjs');
+  });
+
+  it('macOS 缺少 run-detached.cjs：不受影响', async () => {
+    t = await createSystemTestApp({ omitScripts: ['run-detached.cjs'] });
+    const result = await info();
+    expect(result.canShutdown).toBe(true);
+    expect(result.canUpgrade).toBe(true);
+  });
 
   it('缺少退出脚本：不能退出', async () => {
     t = await createSystemTestApp({ omitScripts: ['ses-local.sh'] });
@@ -252,7 +271,7 @@ describe('POST /api/system/shutdown', () => {
     });
   });
 
-  it('Windows：用 powershell.exe 调 ses-windows.ps1 stop', async () => {
+  it('Windows：经 node 运行 run-detached.cjs 中转，用 powershell.exe 调 ses-windows.ps1 stop', async () => {
     t = await createSystemTestApp({
       launcher: 'windows',
       platform: 'win32',
@@ -263,8 +282,10 @@ describe('POST /api/system/shutdown', () => {
     );
     await waitFor(() => t.spawns.length === 1);
     expect(t.spawns[0]).toEqual({
-      command: 'powershell.exe',
+      command: t.config.nodePath,
       args: [
+        join(t.root, 'scripts', 'run-detached.cjs'),
+        'powershell.exe',
         '-NoLogo',
         '-NoProfile',
         '-ExecutionPolicy',

@@ -147,7 +147,7 @@ describe('升级：下载、校验与交接', () => {
       expect(lockExists()).toBe(true);
     });
 
-    it('Windows：复制 ses-upgrade.ps1 并以 powershell.exe 拉起，plan.platform 为 windows', async () => {
+    it('Windows：复制 ses-upgrade.ps1 与 run-detached.cjs，经 node 中转拉起 powershell.exe，plan.platform 为 windows', async () => {
       t = await createSystemTestApp(
         stableOptions({ launcher: 'windows', platform: 'win32' }),
       );
@@ -164,6 +164,7 @@ describe('升级：下载、校验与交接', () => {
           'download.zip',
           'lock',
           'plan.json',
+          'run-detached.cjs',
           'ses-upgrade.ps1',
         ].sort(),
       );
@@ -173,8 +174,10 @@ describe('升级：下载、校验与交接', () => {
       ).toBe('windows');
       expect(t.spawns).toEqual([
         {
-          command: 'powershell.exe',
+          command: t.config.nodePath,
           args: [
+            dir('run-detached.cjs'),
+            'powershell.exe',
             '-NoLogo',
             '-NoProfile',
             '-ExecutionPolicy',

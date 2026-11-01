@@ -39,7 +39,7 @@ const AUTHORING_SOURCE = 'docs/wp9-authoring-reference.md';
 const AUTHORING_TARGET = 'packages/server/resources/authoring-reference.md';
 const ENTRIES = {
   windows: ['启动SES.cmd', '退出SES.cmd', 'scripts/ses-windows.ps1', 'scripts/backup-db.cjs', 'scripts/check-sqlite.cjs',
-    'scripts/start-service.cjs', 'scripts/apply-update.cjs', 'scripts/ses-upgrade.ps1'],
+    'scripts/start-service.cjs', 'scripts/apply-update.cjs', 'scripts/ses-upgrade.ps1', 'scripts/run-detached.cjs'],
   macos: ['启动SES.command', '退出SES.command', 'scripts/ses-local.sh', 'scripts/apply-update.cjs', 'scripts/ses-upgrade.sh'],
 };
 const LAUNCHER_SCRIPT = { windows: 'scripts/ses-windows.ps1', macos: 'scripts/ses-local.sh' };

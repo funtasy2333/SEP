@@ -34,6 +34,7 @@ export const SCRIPT_FILES = [
   'ses-upgrade.ps1',
   'ses-local.sh',
   'ses-windows.ps1',
+  'run-detached.cjs',
 ];
 
 /** 起一个只含系统模块的应用：临时根目录（SES_ROOT）、假 GitHub、记录型 spawner。 */

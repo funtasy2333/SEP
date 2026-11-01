@@ -199,7 +199,7 @@ SES 在「设置 → 升级 / 退出」中提供升级与退出。**关闭网页
 
 ### 升级流程与数据安全
 
-升级由 `scripts/ses-upgrade.sh`（macOS）或 `scripts/ses-upgrade.ps1`（Windows）执行：服务端把它和 `scripts/apply-update.cjs` 复制到 `.ses-update/` 后以独立进程运行，因此替换 `scripts/` 目录时不会影响正在运行的脚本。流程为：停止服务 → 备份数据库 → 解压 → 替换程序文件 → 启动新版本 → 清理。
+升级由 `scripts/ses-upgrade.sh`（macOS）或 `scripts/ses-upgrade.ps1`（Windows）执行：服务端把它和 `scripts/apply-update.cjs` 复制到 `.ses-update/` 后以独立进程运行，因此替换 `scripts/` 目录时不会影响正在运行的脚本。Windows 上服务端不直接分离拉起 PowerShell（无控制台时 PowerShell 5.1 不能可靠运行），而是分离拉起 `node scripts/run-detached.cjs powershell.exe ...`（升级时同样使用复制到 `.ses-update/` 的副本），由它以子进程运行 PowerShell 并把输出写入日志；退出脚本同理。流程为：停止服务 → 备份数据库 → 解压 → 替换程序文件 → 启动新版本 → 清理。
 
 - 使用系统自带工具解压：macOS 使用 `ditto`，Windows 使用 PowerShell 5.1 的 `Expand-Archive`；脚本使用启动时记录的 Node.js 运行升级逻辑。
 - 数据库：停止服务后把 `packages/server/data/ses.db`（及存在的 `-wal`、`-shm`）复制到 `.ses-update/db-backup/`；升级成功后移动到 `output/upgrade-backups/ses-before-upgrade-<时间戳>/` 永久保留。

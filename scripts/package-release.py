@@ -40,7 +40,7 @@ def runtime_files(platform):
     files['packages/server/resources/authoring-reference.md'] = ROOT / 'docs/wp9-authoring-reference.md'
     # 升级执行器及其平台脚本；scripts/apply-update.cjs 中的同名清单必须保持一致（有测试比对）。
     entries = (['启动SES.cmd', '退出SES.cmd', 'scripts/ses-windows.ps1', 'scripts/backup-db.cjs', 'scripts/check-sqlite.cjs', 'scripts/start-service.cjs',
-                'scripts/apply-update.cjs', 'scripts/ses-upgrade.ps1'] if platform == 'windows'
+                'scripts/apply-update.cjs', 'scripts/ses-upgrade.ps1', 'scripts/run-detached.cjs'] if platform == 'windows'
                else ['启动SES.command', '退出SES.command', 'scripts/ses-local.sh', 'scripts/apply-update.cjs', 'scripts/ses-upgrade.sh'])
     files.update({name: ROOT / name for name in entries})
     return files

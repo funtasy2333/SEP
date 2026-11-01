@@ -42,11 +42,25 @@ const IDLE_STATUS: DownloadStatus = {
 
 /** 升级执行器与脚本文件名（与脚本开发者约定）。 */
 function upgradeScripts(launcher: Launcher) {
-  return [
-    'apply-update.cjs',
-    launcher === 'macos' ? 'ses-upgrade.sh' : 'ses-upgrade.ps1',
-  ];
+  return launcher === 'macos'
+    ? ['apply-update.cjs', 'ses-upgrade.sh']
+    : ['apply-update.cjs', 'ses-upgrade.ps1', RUN_DETACHED];
 }
+
+/**
+ * Windows 中转启动器：libuv 的 detached 子进程没有控制台，PowerShell 5.1 在这种情况下不能可靠运行，
+ * 所以先分离拉起 node 执行 run-detached.cjs，由它以普通子进程运行 powershell.exe。
+ */
+const RUN_DETACHED = 'run-detached.cjs';
+
+const POWERSHELL_ARGS = [
+  'powershell.exe',
+  '-NoLogo',
+  '-NoProfile',
+  '-ExecutionPolicy',
+  'Bypass',
+  '-File',
+];
 
 @Injectable()
 export class SystemService {
@@ -96,6 +110,13 @@ export class SystemService {
     if (!launcher) return '开发模式下请在终端停止 SES';
     const script = this.shutdownScript(launcher);
     if (!existsSync(script)) return `找不到退出脚本：${script}`;
+    if (launcher === 'windows') {
+      const relay = join(
+        systemPaths(this.config.root).scriptsDir,
+        RUN_DETACHED,
+      );
+      if (!existsSync(relay)) return `找不到退出脚本：${relay}`;
+    }
     return null;
   }
 
@@ -232,13 +253,10 @@ export class SystemService {
             logFile: paths.upgradeLog,
           }
         : {
-            command: 'powershell.exe',
+            command: this.config.nodePath,
             args: [
-              '-NoLogo',
-              '-NoProfile',
-              '-ExecutionPolicy',
-              'Bypass',
-              '-File',
+              join(paths.updateDir, RUN_DETACHED),
+              ...POWERSHELL_ARGS,
               script,
               '-Root',
               root,
@@ -280,13 +298,10 @@ export class SystemService {
         launcher === 'macos'
           ? { command: '/bin/bash', args: [script, 'stop'], cwd: root, logFile }
           : {
-              command: 'powershell.exe',
+              command: this.config.nodePath,
               args: [
-                '-NoLogo',
-                '-NoProfile',
-                '-ExecutionPolicy',
-                'Bypass',
-                '-File',
+                join(systemPaths(root).scriptsDir, RUN_DETACHED),
+                ...POWERSHELL_ARGS,
                 script,
                 'stop',
               ],
