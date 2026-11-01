@@ -178,6 +178,22 @@ describe('SystemOverlay', () => {
     ctx.unmount()
   })
 
+  it('旧服务仍在应答且下载失败：显示升级未开始，不再等待', async () => {
+    const info = makeInfo(null)
+    info.upgrade.download = { phase: 'error', receivedBytes: 0, totalBytes: null, error: '无法连接 GitHub', startedAt: null }
+    mocks.api.info.mockResolvedValue({ data: info })
+    const ctx = mountOverlay()
+    ctx.store.beginUpgrade(HANDOFF)
+    await advance(3000)
+    expect(ctx.root.querySelector('[data-test="upgrade-download-error"]')).not.toBeNull()
+    expect(ctx.root.textContent).toContain('无法连接 GitHub')
+    const calls = mocks.api.info.mock.calls.length
+    await advance(30000)
+    expect(mocks.api.info.mock.calls.length).toBe(calls)
+    expect(reload).not.toHaveBeenCalled()
+    ctx.unmount()
+  })
+
   it('超过 20 分钟仍无结果：提示查看日志，并继续轮询', async () => {
     mocks.api.info.mockRejectedValue(new Error('Network Error'))
     const ctx = mountOverlay()

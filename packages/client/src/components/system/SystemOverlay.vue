@@ -29,6 +29,13 @@
           <p class="hint">详细日志见 <code>{{ LOG_PATH }}</code>。请双击『启动SES』重新启动。</p>
         </template>
 
+        <template v-else-if="outcome === 'download-error'">
+          <h2>升级未开始</h2>
+          <p class="err" data-test="upgrade-download-error">下载升级包失败，SES 仍在运行原版本。</p>
+          <p v-if="downloadError" class="detail">{{ downloadError }}</p>
+          <div class="actions"><el-button type="primary" data-test="refresh-btn" @click="reloadNow">刷新页面</el-button></div>
+        </template>
+
         <template v-else>
           <h2>正在升级 SES</h2>
           <p>升级期间 SES 会停止，需要几分钟，请不要关闭此页面。完成后页面会自动刷新。</p>
@@ -68,7 +75,8 @@ const LOG_PATH = '.ses-run/upgrade.log'
 const STEPS = ['停止服务', '替换程序文件', '安装依赖', '构建', '启动']
 
 const store = useSystemStore()
-const outcome = ref<'waiting' | 'succeeded' | 'rolled-back' | 'failed'>('waiting')
+const outcome = ref<'waiting' | 'succeeded' | 'rolled-back' | 'failed' | 'download-error'>('waiting')
+const downloadError = ref<string | null>(null)
 const last = ref<UpgradeStatusFile | null>(null)
 const freshLast = ref(false)
 const timedOut = ref(false)
@@ -104,6 +112,13 @@ async function pollOnce() {
     // 只认交接之后产生的结果；之前升级留下的状态文件不算。
     const fresh = latest !== null && Number.isFinite(updatedAt) && updatedAt > (store.handoffAt ?? 0)
     freshLast.value = fresh
+    // 旧服务仍在应答且下载失败：说明并未交接给升级程序（例如下载期间偶发 5xx 被误判为已停止）。
+    if (!fresh && data.upgrade?.download?.phase === 'error') {
+      outcome.value = 'download-error'
+      downloadError.value = data.upgrade.download.error
+      clearTimers()
+      return
+    }
     if (!fresh || !latest) return
     last.value = latest
     if (latest.state === 'running') return
@@ -124,6 +139,7 @@ function startWaiting() {
   clearTimers()
   outcome.value = 'waiting'
   last.value = null
+  downloadError.value = null
   freshLast.value = false
   timedOut.value = false
   pollTimer = setInterval(() => void pollOnce(), props.pollIntervalMs)
