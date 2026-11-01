@@ -319,6 +319,27 @@ def print_upgrade_log(root):
     print('---------------------')
 
 
+def print_diagnostics(root, info):
+    """Dump everything needed to diagnose a stuck API upgrade: last /api/system/info, run logs, update dir."""
+    root = Path(root)
+    print('---- last /api/system/info ----')
+    print(json.dumps(info, ensure_ascii=False, indent=2) if info else '(none)')
+    for directory in (root / '.ses-run', root / '.ses-update'):
+        print(f'---- {directory} ----')
+        if not directory.exists():
+            print('(missing)')
+            continue
+        for path in sorted(directory.rglob('*')):
+            if path.is_dir():
+                continue
+            relative = path.relative_to(root)
+            print(f'{relative} ({path.stat().st_size} bytes)')
+            if path.suffix in ('.log', '.json') and path.stat().st_size < 200_000:
+                text = path.read_bytes().decode('utf-8', errors='replace')
+                print('\n'.join(text.splitlines()[-60:]))
+    print('-------------------------------')
+
+
 def api_upgrade(args):
     """The real path: the SES server downloads the package and launches the executor, which stops the server itself."""
     root = Path(args.root).resolve()
@@ -338,6 +359,9 @@ def api_upgrade(args):
     log('upgrade accepted; waiting for the new version')
     deadline = time.time() + args.timeout
     last = None
+    last_info = None
+    phase = None
+    handed_off_at = None
     while time.time() < deadline:
         time.sleep(3)
         try:
@@ -345,18 +369,29 @@ def api_upgrade(args):
             info = json.loads(body)
         except (urllib.error.URLError, OSError, ValueError):
             continue  # the server is down while the executor swaps files
+        last_info = info
         download = info['upgrade']['download']
         last = info['upgrade']['last']
+        if download['phase'] != phase:
+            phase = download['phase']
+            log(f'download phase: {phase} ({download["receivedBytes"]}/{download["totalBytes"]})')
+            if phase == 'handed-off' and handed_off_at is None:
+                handed_off_at = time.time()
         if download['phase'] == 'error':
-            print_upgrade_log(root)
+            print_diagnostics(root, info)
             raise E2EError(f'download/hand-off failed: {download["error"]}')
         if last and last['state'] in ('failed', 'rolled-back'):
-            print_upgrade_log(root)
+            print_diagnostics(root, info)
             raise E2EError(f'upgrade ended as {last["state"]}: {last.get("message")}')
         if info['version'] == args.installed and last and last['state'] == 'succeeded':
             break
+        # The executor stops the old server within seconds of the hand-off; an old server still answering
+        # with no executor status long after means the executor never ran.
+        if handed_off_at and last is None and time.time() - handed_off_at > 180:
+            print_diagnostics(root, info)
+            raise E2EError('the executor did not start: the old server still answers 180s after the hand-off')
     else:
-        print_upgrade_log(root)
+        print_diagnostics(root, last_info)
         raise E2EError(f'timed out waiting for {args.installed}; last status: {last}')
     print_upgrade_log(root)
     log(f'upgrade status: {json.dumps(last, ensure_ascii=False)}')
