@@ -19,11 +19,15 @@
         </button>
       </nav>
     </div>
+    <div class="nav-r">
+      <SettingsMenu />
+    </div>
   </header>
 </template>
 
 <script setup lang="ts">
 import SesLogo from '@/components/SesLogo.vue'
+import SettingsMenu from '@/components/home/SettingsMenu.vue'
 
 defineProps<{
   activeTab: string
@@ -42,6 +46,7 @@ defineEmits<{ (e: 'select-tab', id: string): void }>()
   border-bottom: 1px solid var(--ses-line);
 }
 .nav-l { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.nav-r { display: flex; align-items: center; flex-shrink: 0; margin-left: 12px; }
 .brand-sep { flex-shrink: 0; width: 1px; height: 18px; background: var(--ses-line-2); }
 
 .home-nav-tabs { display: flex; align-items: center; gap: 2px; min-width: 0; }
