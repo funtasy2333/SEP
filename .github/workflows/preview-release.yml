@@ -4,6 +4,15 @@ on:
   push:
     branches: ['codex/windows-preview-0.1.0']
     tags: ['v*-preview']
+  # 升级/退出相关改动在合并前就跑完整的升级 E2E；release 任务仍只在打标签时运行。
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - '启动SES.*'
+      - '退出SES.*'
+      - '.github/workflows/preview-release.yml'
+      - 'packages/server/src/system/**'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -11,7 +20,11 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
+    env:
+      PYTHONUTF8: '1'
+      SES_NO_OPEN: '1'
+      SES_NO_PAUSE: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,28 +41,56 @@ jobs:
         run: python scripts/test_service_spawn.py
       - name: Verify package contents
         run: python scripts/test_package_release.py
+      - name: Verify the upgrade executor (file replacement, rollback, path safety)
+        run: python scripts/test_apply_update.py
+      - name: Verify the Windows upgrade script with Windows PowerShell 5.1
+        env:
+          SES_PWSH: powershell.exe
+        run: python scripts/test_ses_upgrade_windows.py
       - name: Build runtime archives
         run: python scripts/package-release.py
-      - name: Start extracted Windows release, reuse services and stop
+      - name: Build the newer package (9.9.9-preview) and a package that fails to build
+        shell: bash
+        run: |
+          python scripts/package-release.py --version 9.9.9-preview --output release-next
+          python scripts/package-release.py --version 9.9.10-preview --output release-broken
+          python scripts/upgrade_e2e.py make-broken --zip release-broken/SES-9.9.10-preview-windows.zip --out release-broken/broken-windows.zip
+      - name: Start extracted Windows release and reuse services
         shell: pwsh
-        env:
-          SES_NO_OPEN: '1'
-          SES_NO_PAUSE: '1'
         run: |
           $version = (python scripts/package-release.py --print-version).Trim()
           $destination = Join-Path $env:RUNNER_TEMP 'SES [preview] 中文 path'
           Expand-Archive "release/SES-$version-windows.zip" $destination
-          $entry = Join-Path $destination "SES-$version-windows/scripts/ses-windows.ps1"
-          try {
-            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $entry start
-            if ($LASTEXITCODE -ne 0) { throw 'First startup failed' }
-            $before = Get-Content -LiteralPath (Join-Path (Split-Path $entry) '../.ses-run/server.json') -Raw
-            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $entry start
-            if ($LASTEXITCODE -ne 0) { throw 'Repeated startup failed' }
-            if ((Get-Content -LiteralPath (Join-Path (Split-Path $entry) '../.ses-run/server.json') -Raw) -ne $before) { throw 'Repeated startup replaced the server' }
-            Invoke-WebRequest http://127.0.0.1:5173/api/documents | Out-Null
-          } finally {
-            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $entry stop
+          $root = Join-Path $destination "SES-$version-windows"
+          Add-Content -LiteralPath $env:GITHUB_ENV -Value "SES_E2E_ROOT=$root" -Encoding utf8
+          $entry = Join-Path $root 'scripts/ses-windows.ps1'
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $entry start
+          if ($LASTEXITCODE -ne 0) { throw 'First startup failed' }
+          $before = Get-Content -LiteralPath (Join-Path $root '.ses-run/server.json') -Raw
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $entry start
+          if ($LASTEXITCODE -ne 0) { throw 'Repeated startup failed' }
+          if ((Get-Content -LiteralPath (Join-Path $root '.ses-run/server.json') -Raw) -ne $before) { throw 'Repeated startup replaced the server' }
+          Invoke-WebRequest http://127.0.0.1:5173/api/documents | Out-Null
+      - name: Upgrade E2E - create a document
+        run: python scripts/upgrade_e2e.py create-doc --root "$env:SES_E2E_ROOT"
+      - name: Upgrade E2E - upgrade to 9.9.9-preview (succeeds, document kept)
+        run: python scripts/upgrade_e2e.py upgrade --root "$env:SES_E2E_ROOT" --platform windows --zip release-next/SES-9.9.9-preview-windows.zip --target-version 9.9.9-preview --installed 9.9.9-preview --expect succeeded
+      - name: Upgrade E2E - upgrade to a package that fails to build (rolls back, document kept)
+        run: python scripts/upgrade_e2e.py upgrade --root "$env:SES_E2E_ROOT" --platform windows --zip release-broken/broken-windows.zip --target-version 9.9.10-preview --installed 9.9.9-preview --expect rolled-back --no-detached
+      - name: Exit through /api/system/shutdown
+        run: python scripts/upgrade_e2e.py shutdown-api --platform windows
+      - name: Start again
+        shell: pwsh
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:SES_E2E_ROOT 'scripts/ses-windows.ps1') start
+          if ($LASTEXITCODE -ne 0) { throw 'Startup after shutdown failed' }
+          Invoke-WebRequest http://127.0.0.1:5173/api/documents | Out-Null
+      - name: Stop with the exit script and verify no listeners remain
+        if: always()
+        shell: pwsh
+        run: |
+          if ($env:SES_E2E_ROOT) {
+            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:SES_E2E_ROOT 'scripts/ses-windows.ps1') stop
             if ($LASTEXITCODE -ne 0) { throw 'Shutdown failed' }
           }
           if (Get-NetTCPConnection -State Listen | Where-Object LocalPort -in @(3000, 5173)) { throw 'SES listeners remain after shutdown' }
@@ -58,11 +99,16 @@ jobs:
         with:
           name: windows-launcher-logs
           include-hidden-files: true
-          path: ${{ runner.temp }}/SES*/**/.ses-run/*.log
+          path: |
+            ${{ runner.temp }}/SES*/**/.ses-run/*.log
+            ${{ runner.temp }}/SES*/**/.ses-run/*.json
 
   macos:
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
+    env:
+      SES_NO_OPEN: '1'
+      SES_NO_PAUSE: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -72,26 +118,57 @@ jobs:
         run: npm install -g pnpm@10.33.0
       - name: Verify existing launcher version guards
         run: bash scripts/ses-local.runtime.test.sh
+      - name: Verify package contents
+        run: python3 scripts/test_package_release.py
+      - name: Verify the upgrade executor (file replacement, rollback, path safety)
+        run: python3 scripts/test_apply_update.py
+      - name: Verify the macOS upgrade script (success, rollback, failure paths)
+        run: bash scripts/ses-upgrade.test.sh
       - name: Build clean macOS archive
         run: python3 scripts/package-release.py
-      - name: Start extracted macOS release and stop
-        env:
-          SES_NO_OPEN: '1'
+      - name: Build the newer package (9.9.9-preview) and a package that fails to build
+        run: |
+          python3 scripts/package-release.py --version 9.9.9-preview --output release-next
+          python3 scripts/package-release.py --version 9.9.10-preview --output release-broken
+          python3 scripts/upgrade_e2e.py make-broken --zip release-broken/SES-9.9.10-preview-macos.zip --out release-broken/broken-macos.zip
+      - name: Start extracted macOS release
         run: |
           version="$(python3 scripts/package-release.py --print-version)"
           destination="$RUNNER_TEMP/SES 中文 path"
           mkdir -p "$destination"
           unzip -q "release/SES-$version-macos.zip" -d "$destination"
-          entry="$destination/SES-$version-macos/scripts/ses-local.sh"
-          trap '/bin/bash "$entry" stop' EXIT
-          /bin/bash "$entry" start
+          root="$destination/SES-$version-macos"
+          echo "SES_E2E_ROOT=$root" >> "$GITHUB_ENV"
+          /bin/bash "$root/scripts/ses-local.sh" start
           curl --fail http://localhost:5173/api/documents
+      - name: Upgrade E2E - create a document
+        run: python3 scripts/upgrade_e2e.py create-doc --root "$SES_E2E_ROOT"
+      - name: Upgrade E2E - upgrade to 9.9.9-preview (succeeds, document kept)
+        run: python3 scripts/upgrade_e2e.py upgrade --root "$SES_E2E_ROOT" --platform macos --zip release-next/SES-9.9.9-preview-macos.zip --target-version 9.9.9-preview --installed 9.9.9-preview --expect succeeded
+      - name: Upgrade E2E - upgrade to a package that fails to build (rolls back, document kept)
+        run: python3 scripts/upgrade_e2e.py upgrade --root "$SES_E2E_ROOT" --platform macos --zip release-broken/broken-macos.zip --target-version 9.9.10-preview --installed 9.9.9-preview --expect rolled-back --no-detached
+      - name: Exit through /api/system/shutdown
+        run: |
+          # 服务可能在回复前就退出，所以不用 --fail；是否真的退出由端口断言决定。
+          curl --silent --show-error --write-out '\nHTTP %{http_code}\n' -X POST -H 'Content-Type: application/json' -H 'Origin: http://localhost:5173' http://127.0.0.1:3000/api/system/shutdown -d '{}' || true
+          python3 scripts/upgrade_e2e.py assert-stopped
+      - name: Start again
+        run: |
+          /bin/bash "$SES_E2E_ROOT/scripts/ses-local.sh" start
+          curl --fail http://localhost:5173/api/documents
+      - name: Stop with the exit script and verify no listeners remain
+        if: always()
+        run: |
+          if [ -n "${SES_E2E_ROOT:-}" ]; then /bin/bash "$SES_E2E_ROOT/scripts/ses-local.sh" stop; fi
+          python3 scripts/upgrade_e2e.py assert-stopped
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: macos-launcher-logs
           include-hidden-files: true
-          path: ${{ runner.temp }}/SES*/**/.ses-run/*.log
+          path: |
+            ${{ runner.temp }}/SES*/**/.ses-run/*.log
+            ${{ runner.temp }}/SES*/**/.ses-run/*.json
 
   release:
     if: startsWith(github.ref, 'refs/tags/')
