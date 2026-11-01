@@ -51,6 +51,9 @@ class Static(unittest.TestCase):
         self.assertIn('UseShellExecute = $false', body)
         self.assertNotIn('RedirectStandard', body)
         self.assertIn('-EncodedCommand', body)
+        # A PSModulePath inherited from PowerShell 7 breaks built-in cmdlets in Windows PowerShell 5.1.
+        self.assertIn("EnvironmentVariables.Remove('PSModulePath')", body)
+        self.assertNotIn('CreateNoWindow = $true', body)
 
     def test_install_root_with_brackets_is_never_treated_as_a_wildcard(self):
         """Roots such as 'SES [preview] 中文' must be handled literally (Expand-Archive and -Path do not)."""

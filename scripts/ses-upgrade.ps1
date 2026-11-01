@@ -92,6 +92,9 @@ function Invoke-SesChild([string]$OverrideVariable, [string]$ScriptName, [string
         $psi.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + $scriptPath + '" ' + $Action
     }
     $psi.UseShellExecute = $false
+    # A PSModulePath inherited from PowerShell 7 makes Windows PowerShell 5.1 load the wrong module
+    # folders (built-in cmdlets such as Get-FileHash go missing); let 5.1 rebuild its default.
+    [void]$psi.EnvironmentVariables.Remove('PSModulePath')
     # Share the executor's (already hidden) console so the child inherits its stdout/stderr and the
     # start/stop output reaches upgrade.log; a separate console (CreateNoWindow) would swallow it.
     $psi.CreateNoWindow = $false
