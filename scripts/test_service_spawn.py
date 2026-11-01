@@ -72,6 +72,35 @@ class RunDetached(unittest.TestCase):
             self.assertIn('child err', text)
             self.assertIn('子进程退出：退出码 7', text)
 
+    def test_exits_when_child_exits_even_if_a_long_running_grandchild_holds_the_pipes(self):
+        # 子命令拉起一个继承 stdout/stderr 的长期运行孙进程后立即退出：管道永远不会 EOF，
+        # run-detached 不能再等 'close'，必须在子进程退出后几秒内结束。
+        with tempfile.TemporaryDirectory(prefix='SES [preview] 中文 ') as temp:
+            root = Path(temp)
+            pid_file = root / 'grandchild.pid'
+            script = root / 'parent.cjs'
+            script.write_text(
+                "const fs=require('node:fs');const {spawn}=require('node:child_process');"
+                "const g=spawn(process.execPath,['-e','setTimeout(()=>{},60000)'],{detached:true,stdio:'inherit',windowsHide:true});"
+                "fs.writeFileSync(process.argv[2],String(g.pid));g.unref();console.log('parent done');",
+                encoding='utf-8')
+            started = time.time()
+            try:
+                result = subprocess.run(['node', str(ROOT / 'scripts/run-detached.cjs'), 'node', str(script), str(pid_file)],
+                                        capture_output=True, text=True, timeout=10, cwd=root)
+            except subprocess.TimeoutExpired as error:
+                self.fail(f'run-detached hung on the inherited pipes: {error}')
+            finally:
+                if pid_file.exists():
+                    try:
+                        os.kill(int(pid_file.read_text()), signal.SIGTERM)
+                    except OSError:
+                        pass
+            self.assertLess(time.time() - started, 10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('parent done', result.stdout)
+            self.assertIn('子进程退出：退出码 0', result.stdout)
+
     def test_reports_spawn_failure_and_exits_nonzero(self):
         result = subprocess.run(['node', str(ROOT / 'scripts/run-detached.cjs'), 'ses-no-such-command-xyz'],
                                 capture_output=True, text=True, timeout=10)

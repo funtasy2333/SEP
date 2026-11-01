@@ -75,15 +75,29 @@ function Set-SesStatus([string]$State, [string]$Step, [string]$Message) {
     }
 }
 
+# Runs a child PowerShell and waits for the child process itself to exit. Do NOT pipe its output (| Out-Host) or
+# redirect it: the start script launches long-running server/client processes that inherit the pipe's write end,
+# so the pipe never reaches EOF and the pipeline would hang forever. Without redirection the child inherits this
+# process's own std handles (its output still lands in upgrade.log) and WaitForExit only waits for the child.
 function Invoke-SesChild([string]$OverrideVariable, [string]$ScriptName, [string]$Action) {
     $override = [Environment]::GetEnvironmentVariable($OverrideVariable)
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = 'powershell.exe'
     if ($override) {
-        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command $override | Out-Host
+        $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($override))
+        $psi.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand ' + $encoded
     }
     else {
-        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $script:Root "scripts\$ScriptName") $Action | Out-Host
+        $scriptPath = Join-Path $script:Root "scripts\$ScriptName"
+        $psi.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + $scriptPath + '" ' + $Action
     }
-    if ($LASTEXITCODE -ne 0) { throw "$Action exited with code $LASTEXITCODE" }
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $p = [Diagnostics.Process]::Start($psi)
+    $p.WaitForExit()
+    $code = $p.ExitCode
+    $p.Dispose()
+    if ($code -ne 0) { throw "$Action exited with code $code" }
 }
 
 function Stop-SesForUpgrade { Invoke-SesChild 'SES_UPGRADE_STOP_CMD' 'ses-windows.ps1' 'stop' }

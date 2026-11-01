@@ -6,6 +6,7 @@ Static checks run anywhere. The PowerShell runtime checks need Windows PowerShel
 import json
 import os
 import re
+import signal
 from pathlib import Path
 import shutil
 import subprocess
@@ -36,6 +37,20 @@ class Static(unittest.TestCase):
             self.assertIn(needle, text)
         # The lock must be released in a finally block no matter how the upgrade ends.
         self.assertRegex(text, r"finally\s*\{[^}]*'lock'")
+
+    def test_child_launcher_never_pipes_powershell_output(self):
+        """A piped child hangs forever when the start script leaves processes holding the pipe's write end."""
+        text = UPGRADE.read_text(encoding='ascii')
+        match = re.search(r'function Invoke-SesChild.*?\n}\n', text, re.S)
+        self.assertIsNotNone(match)
+        body = '\n'.join(line for line in match.group(0).splitlines() if not line.lstrip().startswith('#'))
+        self.assertNotIn('Out-Host', body)
+        self.assertNotIn('|', body)
+        self.assertIn('System.Diagnostics.ProcessStartInfo', body)
+        self.assertIn('WaitForExit()', body)
+        self.assertIn('UseShellExecute = $false', body)
+        self.assertNotIn('RedirectStandard', body)
+        self.assertIn('-EncodedCommand', body)
 
     def test_install_root_with_brackets_is_never_treated_as_a_wildcard(self):
         """Roots such as 'SES [preview] 中文' must be handled literally (Expand-Archive and -Path do not)."""
@@ -122,6 +137,44 @@ class Runtime(unittest.TestCase):
             self.assertFalse((root / 'packages/server/src/stale.ts').exists())
             self.assertEqual((root / 'packages/server/data/ses.db').read_text(encoding='utf-8'), 'the user documents')
             self.assertFalse((root / '.ses-update/lock').exists())
+
+    def test_start_command_leaving_a_long_running_child_does_not_hang_the_executor(self):
+        """The start script spawns the server, which keeps inheriting stdout after the script exits."""
+        with tempfile.TemporaryDirectory() as base:
+            root = self.install(base)
+            spawner = Path(base) / 'spawn-grandchild.cjs'
+            spawner.write_text(
+                "const fs=require('node:fs');const {spawn}=require('node:child_process');"
+                "const g=spawn(process.execPath,['-e','setTimeout(()=>{},60000)'],{detached:true,stdio:'inherit',windowsHide:true});"
+                "fs.writeFileSync(process.argv[2],String(g.pid));g.unref();",
+                encoding='utf-8')
+            pid_file = Path(base) / 'grandchild.pid'
+            start = "& $env:SES_TEST_NODE $env:SES_TEST_SPAWNER $env:SES_TEST_PID_FILE; exit 0"
+            stop = "Add-Content -LiteralPath (Join-Path $env:SES_UPGRADE_ROOT 'calls.log') 'stop'"
+            env = {**os.environ, 'SES_UPGRADE_STOP_CMD': stop, 'SES_UPGRADE_START_CMD': start, 'SES_TEST_NODE': NODE,
+                   'SES_TEST_SPAWNER': str(spawner), 'SES_TEST_PID_FILE': str(pid_file)}
+            # Write to a file, not a pipe: the grandchild would keep a pipe open and block subprocess.run as well.
+            log = Path(base) / 'executor.log'
+            try:
+                with open(log, 'wb') as out:
+                    process = subprocess.Popen([PWSH, '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+                                                '-File', str(root / '.ses-update/ses-upgrade.ps1'), '-Root', str(root)],
+                                               stdout=out, stderr=subprocess.STDOUT, env=env)
+                    try:
+                        code = process.wait(timeout=120)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        self.fail('the executor hung waiting for the start script output')
+                self.assertEqual(code, 0, log.read_text(encoding='utf-8', errors='replace'))
+                status = self.status(root)
+                self.assertEqual((status['state'], status['step']), ('succeeded', 'done'))
+                self.assertTrue(pid_file.exists(), 'the start command did not run')
+            finally:
+                if pid_file.exists():
+                    try:
+                        os.kill(int(pid_file.read_text()), signal.SIGTERM)
+                    except OSError:
+                        pass
 
     def test_failed_start_rolls_back_and_restarts_the_old_version(self):
         with tempfile.TemporaryDirectory() as base:

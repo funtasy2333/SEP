@@ -9,6 +9,11 @@
 // 命令是本脚本的普通子进程，会在本脚本存活期间运行；服务端被停掉不影响本脚本。
 // 本脚本把子进程的 stdout / stderr 原样转写到自己的 stdout / stderr（即日志文件），
 // 并以子进程的退出码退出。仅使用 Node 内置模块。
+//
+// 为什么不能等 'close'：'close' 要等子进程的 stdio 管道全部关闭才触发。而被拉起的命令（例如升级脚本里的
+// 启动脚本）会再拉起长期运行的服务端 / 前端进程，这些孙进程继承了管道的写端句柄，管道永远不会 EOF，
+// 'close' 也就永远不触发，本脚本会无限挂起。所以改为在 'exit'（子进程自身退出）时结束：
+// 再给管道最多 2 秒把剩余输出转写完，然后主动销毁管道并退出。
 const { spawn } = require('node:child_process');
 
 const [command, ...args] = process.argv.slice(2);
@@ -32,11 +37,26 @@ child.once('error', (error) => {
   process.exit(1);
 });
 
-// 用 'close'（而不是 'exit'）保证管道里的输出都已转写完再退出。
-child.once('close', (code, signal) => {
+// 以 'exit'（子进程自身退出）为准，不能无限等待 'close'：孙进程会继承管道，导致 'close' 永不触发。
+// 'exit' 后最多再等 2 秒让管道里的输出转写完；期间 'close' 触发则立即结束。
+let finished = false;
+function finish(code, signal) {
+  if (finished) return;
+  finished = true;
   const exitCode = typeof code === 'number' ? code : 1;
   process.stdout.write(
     `[${stamp()}] run-detached 子进程退出：退出码 ${exitCode}${signal ? `（信号 ${signal}）` : ''}\n`,
   );
-  process.exitCode = exitCode;
+  child.stdout.destroy();
+  child.stderr.destroy();
+  process.exit(exitCode);
+}
+
+let exitInfo = null;
+child.once('exit', (code, signal) => {
+  exitInfo = { code, signal };
+  setTimeout(() => finish(code, signal), 2000);
+});
+child.once('close', (code, signal) => {
+  finish(exitInfo ? exitInfo.code : code, exitInfo ? exitInfo.signal : signal);
 });
