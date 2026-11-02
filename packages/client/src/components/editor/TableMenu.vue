@@ -4,6 +4,7 @@
     <template #dropdown>
       <el-dropdown-menu>
         <el-dropdown-item command="insert">插入表格 (3×3)</el-dropdown-item>
+        <el-dropdown-item command="paragraphAfter" :disabled="!inTable">表格后插入段落（Ctrl/Cmd+Enter）</el-dropdown-item>
         <el-dropdown-item v-for="group in groups" :key="group.id" :command="group.id" :disabled="!inTable" :divided="group.id === 'rows'">
           <el-dropdown trigger="hover" placement="right-start" @command="selectCommand">
             <span class="table-submenu-trigger" tabindex="0" @mousedown.prevent>{{ group.label }} <el-icon><ArrowRight /></el-icon></span>
