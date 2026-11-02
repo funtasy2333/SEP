@@ -3,7 +3,7 @@ import { Editor, type JSONContent } from '@tiptap/core'
 import { TextSelection } from '@tiptap/pm/state'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createEditorExtensions } from '../editorExtensions'
-import { SES_CLIPBOARD_ATTR, isSesClipboardHtml } from './clipboardPolicy'
+import { SES_CLIPBOARD_ATTR, isSesClipboardHtml, joinPlainTextLines } from './clipboardPolicy'
 
 const editors: Editor[] = []
 afterEach(() => {
@@ -19,6 +19,9 @@ const doc = (): JSONContent => ({ type: 'doc', content: [{ type: 'chapter', attr
     { type: 'clauseTitle', attrs: { level: 1 }, content: [text('甲')] },
     p('src', text('面积为 1 m'), text('2', [{ type: 'superscript' }]), text('，'), text('加粗', [{ type: 'bold' }])),
     p('target', text('目标段')),
+    { type: 'stdList', attrs: { nodeId: 'list', listType: 'dash', level: 1 }, content: [
+      { type: 'stdListItem', attrs: { nodeId: 'item' }, content: [text('列项')] },
+    ] },
     { type: 'stdTable', attrs: { nodeId: 'T1' }, content: [
       { type: 'tableCaption', content: [text('表一')] },
       { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph', content: [text('单元格')] }] }] }] },
@@ -89,22 +92,41 @@ describe('SES 内复制：剪贴板带标记，粘贴保留格式', () => {
   })
 })
 
-describe('外部来源（Word、网页等）：按纯文本粘贴', () => {
+describe('外部来源（Word、网页等）：按纯文本插入光标所在段落', () => {
   const wordHtml = '<html><body><!--StartFragment--><p class="MsoNormal" style="font-family:宋体"><b>外部粗体</b>正文</p>'
-    + '<table><tr><td>外部单元格</td></tr></table><p>第二段</p><!--EndFragment--></body></html>'
-  const wordText = '外部粗体正文\r\n外部单元格\r\n\r\n第二段'
+    + '<table><tr><td>外部单元格</td><td>第二列</td></tr></table><p>第二段</p><!--EndFragment--></body></html>'
+  const wordText = '外部粗体正文\r\n外部单元格\t第二列\r\n\r\n第二段'
+  const joined = '外部粗体正文外部单元格 第二列第二段'
 
-  it.each(['start', 'end'] as const)('粘贴到段落%s：不带格式和表格，每行一个正文段', (where) => {
+  it.each([
+    ['start', `stdParagraph「${joined}目标段」`],
+    ['end', `stdParagraph「目标段${joined}」`],
+  ] as const)('粘贴到段落%s：不带格式和表格，全部并入该段，不新建段落', (where, expected) => {
     const e = editor()
+    const before = clauseBlocks(e)
     placeCursor(e, '目标段', where)
     paste(e, { html: wordHtml, text: wordText })
     const blocks = clauseBlocks(e)
-    expect(blocks.filter(block => block.includes('外部') || block.includes('第二段') || block.includes('目标段'))).toEqual(where === 'start'
-      ? ['stdParagraph「外部粗体正文」', 'stdParagraph「外部单元格」', 'stdParagraph「第二段目标段」']
-      : ['stdParagraph「目标段外部粗体正文」', 'stdParagraph「外部单元格」', 'stdParagraph「第二段」'])
-    expect(blocks.filter(block => block === 'stdTable')).toHaveLength(1) // 只有原有的表格
+    expect(blocks).toHaveLength(before.length)
+    expect(blocks[2]).toBe(expected)
     e.commands.undo()
-    expect(clauseBlocks(e)).toEqual(clauseBlocks(editor()))
+    expect(clauseBlocks(e)).toEqual(before)
+  })
+
+  it.each([
+    ['列项', '列项', 'stdList'],
+    ['条标题', '甲', 'clauseTitle'],
+    ['表格单元格', '单元格', 'paragraph'],
+  ])('粘贴到%s：沿用该处格式，不新建条目', (_name, target, parentType) => {
+    const e = editor()
+    placeCursor(e, target, 'end')
+    const before = JSON.stringify(e.getJSON()).match(/"type":"[a-zA-Z]+"/g)!.length
+    paste(e, { html: wordHtml, text: wordText })
+    const { $from } = e.state.selection
+    expect(parentType === 'stdList' ? $from.node(-1).type.name : $from.parent.type.name).toBe(parentType)
+    expect($from.parent.textContent).toBe(`${target}${joined}`)
+    // 节点数不变：没有新建段落、列项、条或表格（新增的只是文字）
+    expect(JSON.stringify(e.getJSON()).match(/"type":"[a-zA-Z]+"/g)!.length).toBe(before)
   })
 
   it('其他 ProseMirror 编辑器的内容（有 data-pm-slice 但无 SES 标记）也按纯文本粘贴', () => {
@@ -114,29 +136,30 @@ describe('外部来源（Word、网页等）：按纯文本粘贴', () => {
     expect(clauseBlocks(e)).toContain('stdParagraph「目标段别处」')
   })
 
-  it('只有纯文本的剪贴板：多行均为正文段，不产生普通 paragraph', () => {
+  it('只有纯文本的剪贴板：多行合并为一行插入', () => {
     const e = editor()
     placeCursor(e, '目标段', 'start')
     paste(e, { text: '第一行\n第二行\n第三行' })
-    expect(clauseBlocks(e).slice(2, 5)).toEqual(['stdParagraph「第一行」', 'stdParagraph「第二行」', 'stdParagraph「第三行目标段」'])
+    expect(clauseBlocks(e)[2]).toBe('stdParagraph「第一行第二行第三行目标段」')
+  })
+
+  it('合并规则：中文直接相连，英文、数字之间补空格，去掉空行和行首尾空白，单行原样', () => {
+    expect(joinPlainTextLines('甲\n\n  乙  \r\n丙')).toBe('甲乙丙')
+    expect(joinPlainTextLines('GB/T 1.1\n2020 edition')).toBe('GB/T 1.1 2020 edition')
+    expect(joinPlainTextLines('结论：\nok')).toBe('结论：ok')
+    expect(joinPlainTextLines('  单行  ')).toBe('  单行  ')
   })
 })
 
 describe('Ctrl/Cmd+Shift+V：始终按纯文本粘贴', () => {
-  it('SES 内复制的内容也去掉格式', () => {
+  it('SES 内复制的多段内容也去掉格式，并入光标所在段落', () => {
     const e = editor()
-    const clip = copy(e, '面积', '加粗')
+    const clip = copy(e, '面积', '目标段')
     placeCursor(e, '目标段', 'end')
+    const before = clauseBlocks(e).length
     // shift 粘贴时 ProseMirror 走纯文本路径（等同 view.pasteText）
     e.view.pasteText(clip.text)
-    expect(clauseBlocks(e)).toContain('stdParagraph「目标段面积为 1 m2，加粗」')
-  })
-
-  it('表格单元格内多行纯文本仍为单元格段落，不把正文段放进表格', () => {
-    const e = editor()
-    placeCursor(e, '单元格', 'end')
-    e.view.pasteText('甲\n乙')
-    const cell = e.state.doc.child(0).child(1).child(3).child(1).firstChild!.firstChild!
-    expect(cell.content.content.map(block => `${block.type.name}「${block.textContent}」`)).toEqual(['paragraph「单元格甲」', 'paragraph「乙」'])
+    expect(clauseBlocks(e)).toHaveLength(before)
+    expect(clauseBlocks(e)[2]).toBe('stdParagraph「目标段面积为 1 m2，加粗目标段」')
   })
 })

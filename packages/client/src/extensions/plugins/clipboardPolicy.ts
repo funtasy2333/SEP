@@ -1,5 +1,5 @@
 import { Extension } from '@tiptap/core'
-import { DOMSerializer, Fragment, Slice, type Node as PMNode, type ResolvedPos, type Schema } from '@tiptap/pm/model'
+import { DOMSerializer, Fragment, Slice, type ResolvedPos, type Schema } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
 
@@ -8,8 +8,8 @@ import type { EditorView } from '@tiptap/pm/view'
  * - SES 内复制、剪切的内容保留格式与结构（上下标、表格、公式、交叉引用、条……）：剪贴板 HTML 带 {@link SES_CLIPBOARD_ATTR} 标记；
  * - 来自 Word、网页、其他编辑器等外部来源的 HTML（没有该标记）一律按纯文本粘贴，不带入外部样式与结构；
  * - Ctrl/Cmd+Shift+V（ProseMirror 的 shift 粘贴）始终按纯文本粘贴，包括 SES 内复制的内容；
- * - 纯文本按行拆段：每行一个正文段（光标在表格单元格等普通 paragraph 中时为 paragraph），连续空行合并，
- *   第一行并入光标所在段落，与带格式粘贴的合并方式一致。
+ * - 纯文本一律插入光标所在的文本块，沿用该处格式（正文段、列项、注、条标题、单元格……都一样），不新建段落或条目；
+ *   多行内容合并为一行（见 {@link joinPlainTextLines}）。需要新段落、新条目时由用户按回车。
  */
 
 export const SES_CLIPBOARD_ATTR = 'data-ses-clipboard'
@@ -49,12 +49,27 @@ export function isSesClipboardHtml(html: string): boolean {
   return html.includes(SES_CLIPBOARD_ATTR)
 }
 
-/** 纯文本 → 段落切片：光标所在文本块是普通 paragraph（表格单元格等）时沿用 paragraph，其余位置用正文段 stdParagraph。 */
+const CJK = /[\u2E80-\u9FFF\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFFEF\u3000-\u303F]/u
+
+/**
+ * 多行纯文本合并为一行：每行去掉首尾空白、跳过空行；相邻两行在中文（含全角标点）一侧直接相连，
+ * 两侧都不是中文时（英文、数字）补一个空格。制表符（如 Word 表格复制出的列分隔）视为空格。单行文本原样保留。
+ */
+export function joinPlainTextLines(text: string): string {
+  if (!/[\r\n]/.test(text)) return text.replace(/\t/g, ' ')
+  const lines = text.split(/\r\n?|\n/).map(line => line.replace(/\t/g, ' ').trim()).filter(Boolean)
+  return lines.reduce((joined, line) => {
+    if (!joined) return line
+    const glue = CJK.test(joined[joined.length - 1]!) || CJK.test(line[0]!) ? '' : ' '
+    return joined + glue + line
+  }, '')
+}
+
+/** 纯文本 → 只含行内文字的切片：插入光标所在文本块，带上光标处的 marks（与输入文字一致）。 */
 export function plainTextSlice(text: string, $context: ResolvedPos, schema: Schema): Slice {
-  const type = $context.parent.type.name === 'paragraph' ? schema.nodes.paragraph! : schema.nodes.stdParagraph!
-  const marks = $context.marks()
-  const blocks: PMNode[] = text.split(/(?:\r\n?|\n)+/).map(line => type.create(null, line ? schema.text(line, marks) : null))
-  return new Slice(Fragment.from(blocks), 1, 1)
+  const joined = joinPlainTextLines(text)
+  if (!joined) return Slice.empty
+  return new Slice(Fragment.from(schema.text(joined, $context.marks())), 0, 0)
 }
 
 export const clipboardPolicyPluginKey = new PluginKey('clipboardPolicy')
