@@ -247,11 +247,17 @@
           <el-input
             v-model="searchText"
             size="small"
-            placeholder="查找正文，回车定位"
+            placeholder="查找正文，回车下一处"
+            title="回车：下一处；Shift+回车：上一处；Esc：回到正文"
             :prefix-icon="Search"
             clearable
-            @keyup.enter="handleSearch"
-          />
+            @keydown="handleSearchKeydown"
+            @clear="handleSearchClear"
+          >
+            <template v-if="searchStatus" #suffix>
+              <span class="tbar-search-count" data-testid="search-count">{{ searchStatus }}</span>
+            </template>
+          </el-input>
         </div>
       </div>
 
@@ -596,6 +602,7 @@ import ValidationPanel from '@/components/editor/ValidationPanel.vue'
 import { useEditor } from '@tiptap/vue-3'
 import { installRemoteDocument, replaceEditorDocument } from '@/utils/editorDocument'
 import { createEditorExtensions } from '@/extensions/editorExtensions'
+import { SearchHighlight, SEARCH_CURRENT_CLASS, clearSearch, getSearchState, stepSearch } from '@/extensions/plugins/searchHighlight'
 import { createDocumentValidationExtension } from '@/extensions/plugins/documentValidation'
 import { useDocumentValidation } from '@/composables/useDocumentValidation'
 import { hasNodeIdIssues, normalizeNodeIds } from '@/extensions/plugins/ensureNodeId'
@@ -653,6 +660,7 @@ const settingsSaveError = ref(false)
 const settingsDirty = computed(() => Boolean(settingsDraft.value)
   && JSON.stringify(settingsDraft.value) !== settingsBaseline.value)
 const searchText = ref('')
+const searchStatus = ref('')
 const showXmlCode = ref(false)
 const showHelp = ref(false)
 const showExport = ref(false)
@@ -756,8 +764,11 @@ function setActivePageOrientation(orientation: 'portrait' | 'landscape') {
 }
 
 const editor = useEditor({
-  extensions: [...createEditorExtensions(), createDocumentValidationExtension()],
+  extensions: [...createEditorExtensions(), createDocumentValidationExtension(), SearchHighlight],
   content: '',
+  onTransaction() {
+    syncSearchStatus()
+  },
   onUpdate() {
     if (!suppressEditorUpdate) scheduleAutoSave()
   },
@@ -2165,25 +2176,75 @@ function toggleUnderline() {
   editor.value?.chain().focus().toggleUnderline().run()
 }
 
-// === 搜索 ===
-function handleSearch() {
-  if (!editor.value || !searchText.value) return
+// === 查找 ===
+// 查找只用装饰高亮命中，焦点留在查找框，不改正文和选区（#76）；只有按 Esc 才回到正文。
+function syncSearchStatus() {
+  const currentEditor = editor.value
+  if (!currentEditor) { searchStatus.value = ''; return }
+  const state = getSearchState(currentEditor.state)
+  searchStatus.value = !state.query ? '' : state.matches.length === 0 ? '0/0' : `${state.current + 1}/${state.matches.length}`
+}
+
+function scrollToCurrentMatch() {
+  const element = editor.value?.view.dom.querySelector<HTMLElement>(`.${SEARCH_CURRENT_CLASS}`)
+  element?.scrollIntoView?.({ block: 'center' })
+}
+
+function runSearch(direction: 1 | -1) {
+  const currentEditor = editor.value
   const text = searchText.value
-  const { doc } = editor.value.state
-  let found = false
-  doc.descendants((node, pos) => {
-    if (found) return false
-    if (node.isText && node.text?.includes(text)) {
-      const start = pos + node.text.indexOf(text)
-      editor.value!.chain().focus().setTextSelection({ from: start, to: start + text.length }).run()
-      found = true
-      return false
-    }
-  })
-  if (!found) {
+  if (!currentEditor || !text) return
+  const { state, wrapped } = stepSearch(currentEditor.view, text, direction)
+  syncSearchStatus()
+  if (state.matches.length === 0) {
     ElMessage.info('未找到匹配内容')
+    return
+  }
+  scrollToCurrentMatch()
+  if (wrapped) {
+    ElMessage.info(state.matches.length === 1 ? '仅有 1 处匹配' : direction === 1 ? '已到最后一处，回到第一处' : '已到第一处，回到最后一处')
   }
 }
+
+function handleSearchKeydown(event: Event | KeyboardEvent) {
+  if (!(event instanceof KeyboardEvent)) return
+  // 中文输入法用回车确认候选词时不查找（isComposing / keyCode 229）。
+  if (event.isComposing || event.keyCode === 229) return
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    runSearch(event.shiftKey ? -1 : 1)
+  } else if (event.key === 'Escape') {
+    event.preventDefault()
+    returnToEditorFromSearch()
+  }
+}
+
+/** 明确回到正文：光标放在当前命中之后（不选中文字），再清除高亮。 */
+function returnToEditorFromSearch() {
+  const currentEditor = editor.value
+  if (!currentEditor) return
+  const state = getSearchState(currentEditor.state)
+  const match = state.current >= 0 ? state.matches[state.current] : null
+  clearSearch(currentEditor.view)
+  syncSearchStatus()
+  const chain = currentEditor.chain().focus()
+  if (match) chain.setTextSelection(match.to)
+  chain.run()
+}
+
+function handleSearchClear() {
+  if (editor.value) clearSearch(editor.value.view)
+  syncSearchStatus()
+}
+
+watch(searchText, (text) => {
+  // 查询词改了，旧高亮作废；下一次回车按新词从头查找。
+  const currentEditor = editor.value
+  if (currentEditor && getSearchState(currentEditor.state).query && getSearchState(currentEditor.state).query !== text) {
+    clearSearch(currentEditor.view)
+    syncSearchStatus()
+  }
+})
 
 // === 查看历史（占位） ===
 function handleViewHistory() {
@@ -2805,6 +2866,11 @@ function handleXmlFileImport(event: Event) {
 .tbar-search { width: 200px; margin-left: auto; flex-shrink: 0; }
 :deep(.tbar-search .el-input__wrapper) {
   border-radius: 6px;
+}
+.tbar-search-count {
+  font-size: 12px;
+  color: var(--ses-ink-3, #8a8a8a);
+  font-variant-numeric: tabular-nums;
 }
 
 /* === body === */

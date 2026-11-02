@@ -1124,6 +1124,20 @@
   content: none;
 }
 
+/* 查找命中（#76）：只用装饰高亮，不改选区；当前命中加深。 */
+.ProseMirror .ses-search-match {
+  background: oklch(0.88 0.12 90 / 0.55);
+  border-radius: 2px;
+}
+.ProseMirror .ses-search-current {
+  background: oklch(0.78 0.16 70 / 0.85);
+  box-shadow: 0 0 0 1px oklch(0.66 0.14 75);
+}
+@media print {
+  .ProseMirror .ses-search-match,
+  .ProseMirror .ses-search-current { background: none; box-shadow: none; }
+}
+
 /* ProseMirror selects cells as a rectangle; native text selection is collapsed. */
 .ProseMirror td,
 .ProseMirror th {
