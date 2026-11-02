@@ -204,6 +204,19 @@ describe('analyzeDocument', () => {
     expect(analyzeDocument(ir).validation.coverage.standardDatabase.status).toBe('deferred')
   })
 
+  it.each([
+    '下列文件中的内容通过文中的规范性引用而构成本文件必不可少的条款。其中，注日期的引用文件，仅该日期对应的版本适用于本文件；不注日期的引用文件，其最新版本（包括所有的修改单）适用于本文件。',
+    '本文件没有规范性引用文件。',
+  ])('treats the GB/T 1.1 8.6.2 lead statement as a lead, not as an unrecognized publication: %s', (lead) => {
+    const ir = doc([
+      chapter('scope', '范围', [para('scope-p', '范围。')], 'scope'),
+      chapter('norms', '规范性引用文件', [para('norm-lead', lead)], 'norm-refs'),
+    ])
+    const analysis = analyzeDocument(ir).validation
+    expect(analysis.issues.filter(issue => issue.ruleId.startsWith('normative-reference.'))).toEqual([])
+    expect(analysis.coverage.normativeReferences.reason).not.toContain('无法识别的出版物')
+  })
+
   it('retains structural and internal-reference diagnostics but filters footnote-only quality issues', () => {
     const ir = doc([
       chapter('c1', '要求', [
