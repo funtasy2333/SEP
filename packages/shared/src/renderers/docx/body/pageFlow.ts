@@ -104,7 +104,8 @@ export interface PageFlow {
   readonly availableMm: number | undefined
   readonly estimateUnavailable: boolean
   readonly isSuspended: boolean
-  startSection(): void
+  /** 新节从新页开始；`landscape` 为该节起始版面方向（横向附录整节横排，#75）。 */
+  startSection(landscape?: boolean): void
   setOrientation(landscape: boolean): void
   withElement<T>(landscape: boolean, render: () => T): T
   suspend<T>(render: () => T): T
@@ -245,7 +246,7 @@ export function createPageFlow(): PageFlow {
     get availableMm() { return projectedRemaining() },
     get estimateUnavailable() { return active && projectedRemaining() === undefined },
     get isSuspended() { return paused > 0 },
-    startSection() { pending = []; active = true; landscape = false; nextPage() },
+    startSection(startLandscape = false) { pending = []; active = true; landscape = startLandscape; nextPage() },
     setOrientation,
     setFootnoteHeights(heights) { definitionHeights = heights },
     withElement(value, render) {

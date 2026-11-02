@@ -1426,6 +1426,7 @@ function convertAppendix(node: PMJsonNode, ctx: Ctx): IRAppendix {
     title: childInlines(node, 'appendixTitle', ctx),
     // appendixLabel（「（规范性）」字样）由 Resolver/渲染器从 normative 派生，不入 IR
     children: convertClauseChildren(node.content, ctx, '附录', ['appendixLabel', 'appendixTitle']),
+    ...(node.attrs?.orientation === 'landscape' ? { orientation: 'landscape' as const } : {}),
   }
 }
 

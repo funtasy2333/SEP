@@ -166,6 +166,11 @@ export interface IRAppendix {
   normative: boolean
   title: IRInline[]
   children: IRClauseChild[]
+  /**
+   * 整个附录的版面方向（#75）。只有横向时写出；缺省即纵向，既有文档的 IR/JSON 不变。
+   * 横向时附录编号、性质、标题与全部内容都排在横页上，内部图表不再另行分节。
+   */
+  orientation?: 'landscape'
 }
 
 export type IRBlock =

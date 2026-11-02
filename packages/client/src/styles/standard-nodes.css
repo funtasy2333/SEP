@@ -833,6 +833,27 @@
   page-break-before: always;
 }
 
+/* 附录整体横页（#75）：编辑器内只做标识，版面在 PDF/HTML、DOCX 出件时生效。 */
+.std-appendix[data-orientation="landscape"] {
+  position: relative;
+  border-top: 1px dashed var(--ses-ink-4, #c4c4c4);
+  padding-top: 8px;
+}
+.std-appendix[data-orientation="landscape"]::before {
+  content: '横向页面';
+  position: absolute;
+  top: -10px;
+  right: 0;
+  padding: 0 6px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ses-ink-3, #8a8a8a);
+  background: var(--ses-surface, #fff);
+  border: 1px dashed var(--ses-ink-4, #c4c4c4);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
 /* 附录中的图编号：图A.1, 图A.2 等 */
 .std-appendix .std-figure-caption::before {
   content: '图' counter(std-appendix, upper-alpha) '.' counter(std-figure) '\2003';

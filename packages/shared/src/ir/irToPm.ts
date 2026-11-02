@@ -605,7 +605,8 @@ function chapterToPm(chapter: IRChapter, path: string, errors: IRToPmDiagnostic[
 }
 
 function appendixToPm(appendix: IRAppendix, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
-  return node('appendix', withId(appendix.id, { normative: appendix.normative }), [
+  const attrs: PmAttrs = { normative: appendix.normative, ...(appendix.orientation === 'landscape' ? { orientation: 'landscape' } : {}) }
+  return node('appendix', withId(appendix.id, attrs), [
     node('appendixLabel', undefined, [text(appendix.normative ? '（规范性）' : '（资料性）')]),
     node('appendixTitle', undefined, inlinesToPm(appendix.title)),
     ...childrenToPm(appendix.children, path, errors),

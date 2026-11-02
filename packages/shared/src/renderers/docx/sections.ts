@@ -113,7 +113,7 @@ export function createSectionManager(relIds: HeaderFooterRelIds): SectionManager
       const props = sectionPropsFor(kind)
       current = options?.continuation
         ? { ...props, type: 'nextPage', pgNumType: props.pgNumType && { fmt: props.pgNumType.fmt }, landscape: options.landscape }
-        : props
+        : options?.landscape ? { ...props, landscape: true } : props
       return closing
     },
     finalSectPr() {
