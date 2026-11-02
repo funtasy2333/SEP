@@ -18,6 +18,7 @@ import {
   type AuthoringContext, type FragmentContextRules, type IRFragmentNode,
 } from './fragmentContext'
 import { orderedTermTail } from './termTailOrder'
+import { isContinuableListType } from './listNumbering'
 import {
   CELL_BORDER_STYLES, CELL_BORDER_STYLE_KEYS, columnAlignProblem, columnWidthProblem, isCellBorderStyle, tableGridWidth,
 } from './tableColumns'
@@ -363,7 +364,9 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJso
   if (simple) {
     const typeByList = { dash: 'dash', number: 'numeric', alpha: 'alpha', roman: 'roman', boxed: 'boxedNumeric', dot: 'dot' } as const
     const rawType = typeByList[list.listType]
-    return node('stdList', withId(list.id, { listType: rawType, level: fixedLevel }), list.items.map((item, index) => {
+    // 继续编号（issue #70）只在为 true 时写出，既有文档投影出的 PM JSON 不变；无序类型没有序号可接续，不写。
+    const continued = list.continueNumbering === true && isContinuableListType(list.listType)
+    return node('stdList', withId(list.id, { listType: rawType, level: fixedLevel, ...(continued ? { continueNumbering: true } : {}) }), list.items.map((item, index) => {
       const content = item.content[0]
       if (content?.kind === 'paragraph' && content.id !== `${item.id}.p0`) {
         errors.push({
@@ -376,6 +379,9 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJso
     }))
   }
   if (list.listType === 'dash' || list.listType === 'number') {
+    if (list.continueNumbering === true && list.listType === 'number') {
+      errors.push({ path: `${path}.continueNumbering`, nodeId: list.id, reason: '含嵌套列表的列项投影为 StarterKit 列表，不支持继续编号，不能无损转换' })
+    }
     for (const [index, item] of list.items.entries()) {
       const first = item.content[0]
       if (first?.kind !== 'paragraph') {

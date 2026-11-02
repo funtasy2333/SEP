@@ -7,6 +7,7 @@
  */
 
 import { toIrStandardType } from './meta'
+import { isContinuableListType } from './listNumbering'
 import { hasSemanticExtensions } from './extensions'
 import { unsupportedFootnoteAtomMarks, unsupportedFootnoteContent } from './footnotePayload'
 import type {
@@ -519,7 +520,12 @@ function convertStdList(node: PMJsonNode, ctx: Ctx): IRList {
   }
   // 数字和间隔号列项固定为二级，兼容旧文档中仍写着 level=1 的数字列项。
   const level = rawType === 'numeric' || rawType === 'dot' ? 2 : 1
-  return level === 2 ? { kind: 'list', id, listType, level, items } : { kind: 'list', id, listType, items }
+  // 继续编号（issue #70）：只有有序类型有序号可接续；无序类型上残留的设置（例如改过类型）不进入 IR。
+  const continued = node.attrs?.continueNumbering === true && isContinuableListType(listType)
+  return {
+    kind: 'list', id, listType, ...(level === 2 ? { level: 2 as const } : {}),
+    ...(continued ? { continueNumbering: true } : {}), items,
+  }
 }
 
 /** StarterKit bulletList / orderedList → IRList（dash / number） */

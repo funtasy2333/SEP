@@ -118,6 +118,11 @@ const INSTALLERS: Record<string, Install> = {
   'field:listType': doc => {
     pushChild(doc, { kind: 'list', id: 'roman-list', listType: 'roman', items: [{ id: 'roman-item', content: [para('roman-item.p0', '项')] }] })
   },
+  // issue #70：继续前一列项编号（先放一个同类型列表作接续目标，避免 orphan 警告）
+  'field:continueNumbering': doc => {
+    pushChild(doc, { kind: 'list', id: 'cont-a', listType: 'alpha', items: [{ id: 'cont-a1', content: [para('cont-a1.p0', '甲')] }] })
+    pushChild(doc, { kind: 'list', id: 'cont-b', listType: 'alpha', continueNumbering: true, items: [{ id: 'cont-b1', content: [para('cont-b1.p0', '乙')] }] })
+  },
   'markType:strike': doc => pushRun(doc, '删', { type: 'strike' }),
   'markType:code': doc => pushRun(doc, 'x', { type: 'code' }),
   'markType:variable': doc => pushRun(doc, 'x', { type: 'variable' }),

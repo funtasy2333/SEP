@@ -204,6 +204,12 @@ export interface IRList {
   listType: 'dash' | 'number' | 'alpha' | 'roman' | 'romanUpper' | 'boxed' | 'dot'
   /** 同级列项的视觉层级；省略时为一级。 */
   level?: 1 | 2
+  /**
+   * 继续前一列项编号（issue #70）：true 时首项接续同一父节点内、位于其前的最近同类型列表的末项序号；
+   * 省略（或 false）为重新编号，从 a）/1）/i） 起，与既有文档行为相同。只对 alpha / number / roman 有意义，
+   * 判定见 listNumbering.ts。只在为 true 时写出，旧 JSON 不变。
+   */
+  continueNumbering?: boolean
   items: { id: NodeId; content: (IRParagraph | IRList)[] }[]
 }
 
@@ -624,6 +630,8 @@ export interface IRProblem {
       | 'dangling-typed-ref'
       /** 规范性引用文件条目末尾有标点（GB/T 1.1—2020 10.3.4，WP8.M G1）；仅 warning */
       | 'trailing-punctuation'
+      /** 列表设为继续编号，但同一父节点内前面没有同类型列表，已按重新编号处理（issue #70）；仅 warning */
+      | 'list-continue-orphan'
   nodeId: NodeId | null
   severity: 'error' | 'warning'
   /** 中文，面向最终用户 */

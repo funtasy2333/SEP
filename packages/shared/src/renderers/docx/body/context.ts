@@ -10,6 +10,7 @@
  */
 
 import type { NodeId, ResolvedLabel } from '../../../ir/types'
+import type { ListNumbering } from '../../../ir/listNumbering'
 import { createNumberingAllocator, type NumberingAllocator } from '../numbering'
 import { OWNER_STYLE_IDS, styleSpecs } from '../styles'
 import type { DocxBookmark, DocxPackage, DocxRenderOptions } from '../types'
@@ -38,6 +39,8 @@ export interface RenderContext {
   readonly resources: Pick<DocxRenderOptions, 'images' | 'formulaOmml' | 'formulaWidths'>
   readonly pageFlow: PageFlow
   readonly relatedParts: DocxRelatedPart[]
+  /** 列表编号起点（issue #70 继续编号），取自 Resolver 的 computeListNumbering；缺省时所有列表从 1 起。 */
+  readonly listNumbering: Readonly<Record<NodeId, ListNumbering<NodeId>>>
   allocateImage(): { relationshipId: string; mediaIndex: number }
 }
 
@@ -46,11 +49,12 @@ export function createRenderContext(
   bookmarksByNodeId: ReadonlyMap<NodeId, DocxBookmark> = new Map(),
   resources: Pick<DocxRenderOptions, 'images' | 'formulaOmml' | 'formulaWidths'> = { images: {}, formulaOmml: {} },
   allocateRelId: () => string = () => { throw new Error('DOCX 图片关系 ID 分配器尚未配置') },
+  listNumbering: Readonly<Record<NodeId, ListNumbering<NodeId>>> = {},
 ): RenderContext {
   let mediaIndex = 0
   return {
     labels, numbering: createNumberingAllocator(), warnings: [], numbered: [], bookmarksByNodeId,
-    resources, relatedParts: [], pageFlow: createPageFlow(),
+    resources, relatedParts: [], pageFlow: createPageFlow(), listNumbering,
     allocateImage() { return { relationshipId: allocateRelId(), mediaIndex: ++mediaIndex } },
   }
 }

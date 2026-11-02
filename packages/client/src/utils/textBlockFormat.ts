@@ -1,5 +1,6 @@
 import { Fragment, type Node as PMNode } from '@tiptap/pm/model'
 import { TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state'
+import { isContinuablePmListType } from '@ses/shared'
 
 const textBlocks = new Set(['paragraph', 'stdParagraph', 'note', 'example'])
 const children = (node: PMNode): PMNode[] => node.content.content.slice()
@@ -257,7 +258,8 @@ export function convertTextBlock(state: EditorState, tr: Transaction, targetName
     if (before.length) replacement.push(list.type.create(list.attrs, before, list.marks))
     replacement.push(...converted)
     // The second fragment is a new list; never duplicate the original stable anchor.
-    if (after.length) replacement.push(list.type.create({ ...list.attrs, ...(before.length ? { nodeId: null } : {}) }, after, list.marks))
+    // 列项中间的项改为段落等：后半截与前半截原是同一组，继续前一列项编号（issue #70），序号不因此改变。
+    if (after.length) replacement.push(list.type.create({ ...list.attrs, ...(before.length ? { nodeId: null, ...tailContinues(list) } : {}) }, after, list.marks))
     const parent = $from.node(depth - 1), index = $from.index(depth - 1)
     if (!parent.canReplace(index, index + 1, Fragment.fromArray(replacement))) return 'unsupported'
     const pos = $from.before(depth)
@@ -284,6 +286,14 @@ export function formatTextBlock(state: EditorState, tr: Transaction, targetName:
 }
 
 const listTypes = new Set(['dash', 'alpha', 'numeric', 'dot', 'boxedNumeric'])
+
+/**
+ * 拆开一个列表时，后半截的编号属性（issue #70）：有序列表的后半截继续前一列项编号，接在前半截之后；
+ * 无序列表没有序号，保持原属性。
+ */
+function tailContinues(list: PMNode): { continueNumbering?: true } {
+  return isContinuablePmListType(list.attrs.listType) ? { continueNumbering: true } : {}
+}
 /**
  * 列项在 Resolver 里有编号标记的 PM 列表类型（IR alpha / number / roman）；其余为无序类型。
  * 'roman' 自 WP8.M G7-a 起是生产 stdList 的受支持类型（导入的罗马列项可被引用）；格式命令本阶段不提供创建入口，
@@ -322,16 +332,21 @@ export function formatStdList(state: EditorState, tr: Transaction, listType: str
     const pos = $from.before(depth)
     // 只有有序列表（Resolver 的 alpha/number/roman）的列项有编号；改成无序类型会让被引用的列项失去编号。
     if (!numberedListTypes.has(listType) && items.slice(start, end).some(item => hasListItemReference(state.doc, item.attrs.nodeId))) return 'referenced-block'
+    // 改成另一种类型的列表不再接续原类型的序列（issue #70）：继续编号设置只在类型不变时保留，否则回到重新编号。
+    const numbering = (type: string) => type === list.attrs.listType ? {} : { continueNumbering: undefined }
     if (start === 0 && end === items.length) {
-      if (list.attrs.listType !== listType || list.attrs.level !== level) tr.setNodeMarkup(pos, undefined, { ...list.attrs, listType, level }, list.marks)
+      if (list.attrs.listType !== listType || list.attrs.level !== level) tr.setNodeMarkup(pos, undefined, { ...list.attrs, listType, level, ...numbering(listType) }, list.marks)
       return null
     }
     const before = items.slice(0, start), selected = items.slice(start, end), after = items.slice(end)
     const replacement: PMNode[] = []
     if (before.length) replacement.push(list.type.create(list.attrs, before, list.marks))
     // Only the first resulting list keeps the original stable anchor.
-    replacement.push(list.type.create({ ...list.attrs, listType, level, ...(before.length ? { nodeId: null } : {}) }, selected, list.marks))
-    if (after.length) replacement.push(list.type.create({ ...list.attrs, nodeId: null }, after, list.marks))
+    // 选中部分的类型不变（拆成同类型的几段）时，它同样接着前半截编号。
+    const selectedNumbering = listType !== list.attrs.listType ? numbering(listType) : before.length ? tailContinues(list) : {}
+    replacement.push(list.type.create({ ...list.attrs, listType, level, ...selectedNumbering, ...(before.length ? { nodeId: null } : {}) }, selected, list.marks))
+    // 后半截保留原类型：有前半截时二者原是同一组，继续前一列项编号，序号不因中间几项改了类型而重排。
+    if (after.length) replacement.push(list.type.create({ ...list.attrs, nodeId: null, ...(before.length ? tailContinues(list) : {}) }, after, list.marks))
     const parent = $from.node(depth - 1), index = $from.index(depth - 1)
     if (!parent.canReplace(index, index + 1, Fragment.fromArray(replacement))) return 'unsupported'
     tr.replaceWith(pos, $from.after(depth), replacement)

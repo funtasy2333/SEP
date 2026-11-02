@@ -61,6 +61,11 @@ interface ParentListInfo {
   numId?: number
 }
 
+/** 列表首项序号（issue #70）：取 Resolver 的 computeListNumbering；方框数字等无序号可接续的类型恒为 1。 */
+function listStart(ctx: RenderContext, list: IRList): number {
+  return ctx.listNumbering[list.id]?.start ?? 1
+}
+
 function planForList(ctx: RenderContext, list: IRList, depth: number, parent: ParentListInfo | undefined): ListLevelPlan {
   if (depth >= 3) {
     warn(ctx, 'list-too-deep', `列表 "${list.id}" 嵌套超过两层（第 ${depth} 层，GB/T 1.1 7.5.2 细分不宜超过两个层次）`, list.id)
@@ -77,7 +82,8 @@ function planForList(ctx: RenderContext, list: IRList, depth: number, parent: Pa
     if (list.listType === 'boxed') {
       warn(ctx, 'list-format-fallback', `列表 "${list.id}" 为方框编号（boxed），本系列按数字编号（A13）渲染`, list.id)
     }
-    const numId = ctx.numbering.allocListInstance(listAbstractNumId(list.listType))
+    // 继续前一列项编号（issue #70）：新实例从 Resolver 算出的首项序号起排，与编辑器、HTML、内部引用一致。
+    const numId = ctx.numbering.allocListInstance(listAbstractNumId(list.listType), listStart(ctx, list))
     const secondLevel = list.level === 2 || list.listType === 'number'
     return {
       firstStyleId: 'SesListItem',
@@ -89,7 +95,7 @@ function planForList(ctx: RenderContext, list: IRList, depth: number, parent: Pa
 
   // depth === 2
   if (list.listType === 'number') {
-    const numId = ctx.numbering.allocListInstance(ABSTRACT_NUM_ID.listNumber)
+    const numId = ctx.numbering.allocListInstance(ABSTRACT_NUM_ID.listNumber, listStart(ctx, list))
     return {
       firstStyleId: 'SesListItem',
       firstNumPr: { numId, ilvl: 0 },

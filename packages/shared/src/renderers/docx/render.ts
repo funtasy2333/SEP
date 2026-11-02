@@ -18,6 +18,7 @@ import { assertOutputSupported } from '../outputBoundary'
 
 import type { IRAppendix, IRDoc, IRFootnote, NodeId, ResolvedLabel } from '../../ir/types'
 import { appendixLetterOf as strategyAppendixLetterOf } from '../../ir/strategies'
+import { computeListNumbering } from '../../ir/resolve'
 import { renderAppendix } from './body/appendix'
 import { renderBibliography } from './body/bibliography'
 import { LANDSCAPE_END, LANDSCAPE_START } from './body/block'
@@ -171,7 +172,7 @@ export function renderDocxTraced(
 
   // 页眉页脚四个部件的关系 ID：按 header1、header2、footer1、footer2 的顺序申请（§2.3）
   const allocateRelId = createRelationshipIdAllocator()
-  const ctx = createRenderContext(labels, toc.bookmarksByNodeId, opts, allocateRelId)
+  const ctx = createRenderContext(labels, toc.bookmarksByNodeId, opts, allocateRelId, computeListNumbering(doc))
   if (toc.entries.length > 0) {
     ctx.warnings.push({
       code: 'toc-pages-pending',

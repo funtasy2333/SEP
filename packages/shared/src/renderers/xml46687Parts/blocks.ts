@@ -23,6 +23,7 @@ export const XML46687_BLOCKS_BOUNDARY: Xml46687BoundaryContribution = {
     warning: ['kind', 'id', 'content'],
     quote: ['kind', 'id', 'content'],
     code: ['kind', 'id', 'language', 'text'],
+    list: ['continueNumbering'],
   },
   declared: [
     { pathSuffix: '.kind', kind: 'kind', name: 'warning', matrixIds: ['M-5.6-03'], task: 'T2.4a', reason: '警告块写成 non-normative-note[@content-type="warning"]（5.6）' },
@@ -30,6 +31,8 @@ export const XML46687_BLOCKS_BOUNDARY: Xml46687BoundaryContribution = {
     { pathSuffix: '.kind', kind: 'kind', name: 'code', matrixIds: ['M-5.10-01'], task: 'T2.4a', reason: '代码块写成 code（5.10）' },
     // 唯一在字段表之外有意的分叉（outputBoundary.ts）：旧 XML 序列化器把罗马列项降为阿拉伯数字而阻断，XML46687 有 roman-lower
     { pathSuffix: '.listType', kind: 'field', name: 'listType', matrixIds: ['M-5.7-04'], task: 'T2.4a', reason: '小写罗马列项（roman）：旧 XML 阻断，XML46687 写成 list-type="roman-lower"（5.7.2）' },
+    // issue #70：继续前一列项编号。旧 XML 每个列表从头编号而阻断；XML46687 的 list-item/label 取 computeOrderedListMarkers，写接续后的序号（5.7「呈现宜基于标签」）
+    { pathSuffix: '.continueNumbering', kind: 'field', name: 'continueNumbering', matrixIds: ['M-5.7-09'], task: 'T2.4a', reason: '继续前一列项编号（issue #70）：旧 XML 阻断，XML46687 在 list-item/label 写接续后的序号（5.7）' },
   ],
 }
 
