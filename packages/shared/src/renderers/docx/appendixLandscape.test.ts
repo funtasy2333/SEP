@@ -128,4 +128,24 @@ describe('#75 附录整体横页（DOCX）', () => {
     const sections = sectionsOf(docxOutline(render(doc)))
     expect(sections.map((line) => line.match(/orient=([^ ]+)/)?.[1])).toEqual(['—', '—', '—', '—', 'landscape', '—'])
   })
+
+  it('标题与多段引导文字之后的长表：首段按横页余量切分，表题与表开头留在附录首页（用户反馈）', () => {
+    const long = table('tab-long', 'landscape', 49)
+    for (const row of long.rows.slice(1)) {
+      row.cells[0]!.content = [{ kind: 'paragraph', id: `${row.id}-long`, content: [{ text: '全氟辛烷磺酸及其盐类化合物与相关前体物质' }] }]
+    }
+    const doc = docWith([appendix('app-b', '49 种 PFAS LC-MS/MS 方法验证汇总', [
+      { kind: 'paragraph', id: 'lead1', content: [{ text: '49 种 PFAS 的 LC-MS/MS 方法参数及验证结果见表B.1。' }] },
+      { kind: 'paragraph', id: 'lead2', content: [{ text: '方法验证按附录A进行。' }] },
+      { kind: 'paragraph', id: 'lead3', content: [{ text: '各化合物的定量离子见表B.1。' }] },
+      long,
+    ], 'landscape')])
+    const xml = render(doc).parts['word/document.xml']!
+    const tables = [...xml.matchAll(/<w:tbl>[\s\S]*?<\/w:tbl>/g)].map((match) => match[0])
+    const rows = tables.map((tbl) => (tbl.match(/<w:tr>/g) ?? []).length)
+    // 首段之前已有附录编号、性质、标题和三段引导文字，占去横页的一部分：首段明显少于整页续段。
+    // 修复前页流在第一段落处被切回竖排（余量按 238 mm 估算），首段几乎排满整页，Word 放不下便整体推到下一页。
+    expect(rows.length).toBeGreaterThan(2)
+    expect(rows[0]!).toBeLessThanOrEqual(rows[1]! - 3)
+  })
 })

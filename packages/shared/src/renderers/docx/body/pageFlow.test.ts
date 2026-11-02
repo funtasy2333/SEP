@@ -259,4 +259,20 @@ describe('复审：同页链与有效列项缩进', () => {
     })
     expect(238 - ctx.pageFlow.availableMm!).toBeGreaterThanOrEqual(4 * 15.6 * 25.4 / 72 - 0.001)
   })
+
+  it('横向附录整节横排（#75）：节内正文段落按横排版心记账，不被切回竖排、不另起一页', () => {
+    const flow = createPageFlow()
+    flow.startSection(true)
+    expect(flow.availableMm).toBe(151)
+    flow.recordParagraph('SesPara', run('引导文字'), false)
+    const afterOne = flow.availableMm!
+    expect(afterOne).toBeLessThan(151)
+    expect(afterOne).toBeGreaterThan(130)
+    flow.recordParagraph('SesPara', run('第二段'), false)
+    expect(flow.availableMm!).toBeLessThan(afterOne)
+    // 竖排节保持原行为：正文段落按竖排版心记账。
+    const portrait = createPageFlow(); portrait.startSection()
+    portrait.recordParagraph('SesPara', run('引导文字'), false)
+    expect(portrait.availableMm!).toBeGreaterThan(200)
+  })
 })
