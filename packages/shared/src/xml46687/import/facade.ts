@@ -8,6 +8,7 @@ import { mapMediaBlock, mapMediaInline } from './media'
 import { mapBibliography, mapIndex, mapReferenceBlock, mapReferenceInline } from './refs'
 import { mapCoreBlock, mapStructure } from './structure'
 import { mapTerm } from './terms'
+import { inferListContinuation } from './listContinuation'
 import { validateXml46687 } from './validate'
 
 /** 同步纯映射；直接调用同样先验证，任何错误都不会返回部分文档。 */
@@ -27,6 +28,7 @@ export function mapXml46687(tree: XmlDocument, options: MappingOptions): Mapping
   const ir = mapStructure(tree, ctx)
   const problems = [...validation, ...ctx.problems]
   if (!ir || problems.some(p => p.severity === 'error')) return { ir: null, problems }
+  inferListContinuation(ir)
   if (hasSemanticExtensions(ir)) ir.extensionVersion = 1
   return { ir, problems }
 }
