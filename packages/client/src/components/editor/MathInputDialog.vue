@@ -49,7 +49,7 @@
       <span class="math-dlg-preview-label">预览：</span>
       <span class="math-dlg-preview-body" v-html="previewHtml" />
     </div>
-    <p v-if="complexHint" class="math-dlg-complex">该公式较高（分式、求和、根式等），放在行内会撑高所在行；复杂公式建议单独成行。</p>
+    <p v-if="complexHint" class="math-dlg-complex">该式较高（分式、求和、根式等），放在文字中会撑高所在行；运算式请用「公式」单独成行输入，这里只宜输入带上下标的符号。</p>
     <p v-if="error" class="math-dlg-error" role="alert">{{ error }}</p>
 
     <template #footer>

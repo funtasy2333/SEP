@@ -514,7 +514,7 @@ export const FormulaInline = Node.create({
   },
 
   renderHTML({ node, HTMLAttributes }): DOMOutputSpec {
-    const label = node.attrs.latex ?? (node.attrs.mathml ? '［MathML公式源］' : '［行内公式］')
+    const label = node.attrs.latex ?? (node.attrs.mathml ? '［MathML公式源］' : '［符号］')
     return ['span', mergeAttributes(HTMLAttributes, {
       'data-type': 'formula-inline',
       class: 'std-formula-inline',
@@ -539,7 +539,7 @@ export const FormulaInline = Node.create({
           dom.innerHTML = katex.renderToString(latex, { displayMode: false, throwOnError: true, output: 'html' })
           dom.classList.remove('is-invalid')
         } catch {
-          dom.textContent = latex || String(current.attrs.mathml ? '［MathML公式源］' : '［行内公式］')
+          dom.textContent = latex || String(current.attrs.mathml ? '［MathML公式源］' : '［符号］')
           dom.classList.add('is-invalid')
         }
       }
