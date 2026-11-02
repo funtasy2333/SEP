@@ -47,6 +47,8 @@ import type {
   ResolvedLabel,
 } from '../ir/types'
 import { MISSING_ID_PREFIX } from '../ir/pmToIr'
+import { computeListNumbering } from '../ir/resolve'
+import type { ListNumbering } from '../ir/listNumbering'
 import { printCss } from './printCss'
 import { assertFootnoteReferences, orderTableFootnotes, tableColumnCount } from './footnotes'
 
@@ -88,16 +90,20 @@ class RenderCtx {
   readonly variant: HtmlVariant
   readonly anchorCounts: Map<string, number>
   readonly collectingAnchors: boolean
+  /** 列表编号起点（issue #70 继续编号），取自 Resolver 的 computeListNumbering；渲染器不自行判定接续关系。 */
+  readonly listNumbering: Record<NodeId, ListNumbering<NodeId>>
   constructor(
     labels: Labels,
     variant: HtmlVariant,
     anchorCounts: Map<string, number> = new Map(),
     collectingAnchors = false,
+    listNumbering: Record<NodeId, ListNumbering<NodeId>> = {},
   ) {
     this.labels = labels
     this.variant = variant
     this.anchorCounts = anchorCounts
     this.collectingAnchors = collectingAnchors
+    this.listNumbering = listNumbering
   }
 
   push(line: string): void {
@@ -269,8 +275,11 @@ function renderParagraph(p: IRParagraph, ctx: RenderCtx): void {
 }
 
 function renderList(list: IRList, ctx: RenderCtx): void {
+  // 继续编号（issue #70）：CSS 计数器从「首项序号 − 1」起，首项即显示接续的序号；重新编号的列表输出不变。
+  const start = ctx.listNumbering[list.id]?.start ?? 1
+  const continued = start > 1 ? ` data-start="${start}" style="counter-reset: ses-li ${start - 1}"` : ''
   ctx.push(
-    `<div class="ses-list ses-list-${list.listType}" data-type="list" data-list-type="${list.listType}"${list.level === 2 ? ' data-level="2"' : ''}${idAttr(list.id)}${anchorAttr(ctx, list.id)}>`,
+    `<div class="ses-list ses-list-${list.listType}" data-type="list" data-list-type="${list.listType}"${list.level === 2 ? ' data-level="2"' : ''}${continued}${idAttr(list.id)}${anchorAttr(ctx, list.id)}>`,
   )
   for (const item of list.items) {
     ctx.push(`<div class="ses-list-item"${idAttr(item.id)}${anchorAttr(ctx, item.id)}>`)
@@ -921,10 +930,11 @@ export function renderHtml(doc: IRDoc, labels: Labels, opts: RenderHtmlOptions =
   assertFootnoteReferences(doc, labels)
   assertOutputSupported(doc, 'HTML')
   const variant: HtmlVariant = opts.variant ?? 'screen'
-  const anchorCollector = new RenderCtx(labels, variant, new Map(), true)
+  const listNumbering = computeListNumbering(doc)
+  const anchorCollector = new RenderCtx(labels, variant, new Map(), true, listNumbering)
   renderFront(doc, anchorCollector)
   renderBody(doc, anchorCollector)
-  const ctx = new RenderCtx(labels, variant, anchorCollector.anchorCounts)
+  const ctx = new RenderCtx(labels, variant, anchorCollector.anchorCounts, false, listNumbering)
 
   const css = variant === 'print' ? printCss({ standardNo: doc.meta.stdCode }) : screenStyles()
   const title = doc.meta.title ? escapeHtml(doc.meta.title) : '标准文件'

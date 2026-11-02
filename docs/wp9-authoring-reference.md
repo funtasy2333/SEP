@@ -197,6 +197,7 @@
 |---|---|---|---|
 | `listType` | 否 | `dash` | `dash`（破折号，一级）、`alpha`（a）b）…，一级）、`boxed`（方框数字，一级）、`number`（1）2）…，二级）、`dot`（间隔号，二级） |
 | `level` | 否 | 由 `listType` 决定 | `number`、`dot` 固定为 2 级，其余为 1 级；不要写，写了必须一致 |
+| `continueNumbering` | 否 | 重新编号 | 继续前一列项编号：`true` 时首项接续**同一父节点内、前面最近的同类型列项**（`alpha` 接 `alpha`，`number` 接 `number`）的末项序号；省略或 `false` 为重新编号（从 a）、1）起）。只用于 `alpha`、`number` |
 | `items` | 是 | | 至少一项；每项可以是字符串、行内数组或 `{ "content": …, "id": … }` |
 
 写作片段暂不支持罗马数字列项（模型已于 WP8.M G7 支持小写罗马 `roman`，写作入口留后续交互任务），也不支持列项嵌套列项：需要二级列项时，在一级列项之后再写一个 `number` 或 `dot` 列项。
@@ -207,6 +208,27 @@
   { "kind": "list", "listType": "alpha", "items": ["甲", { "content": ["乙，其中", { "text": "x", "marks": [{ "type": "variable" }] }] }] },
   { "kind": "list", "listType": "number", "items": ["一级列项之下的二级列项"] }
 ]
+```
+
+**继续编号与重新编号。** 一组列项被段落或二级列项隔开后要接着编号时，在后面的列表上写 `"continueNumbering": true`；新的一组列项不写（重新编号）。不要把 a）、b）、1） 这类序号写进文字。下例中一级字母列项显示为 a）、b），两组二级数字列项都从 1）开始：
+
+```json ses-example context=chapter
+[
+  { "kind": "paragraph", "content": "开展风险识别时，分析以下内部因素和外部因素。" },
+  { "kind": "list", "listType": "alpha", "items": ["内部因素，包括但不限于："] },
+  { "kind": "list", "listType": "number", "items": ["组织架构；", "管理制度；", "人员能力。"] },
+  { "kind": "list", "listType": "alpha", "continueNumbering": true, "items": ["外部因素，包括但不限于："] },
+  { "kind": "list", "listType": "number", "items": ["市场环境；", "监管要求；", "外部相关方情况。"] }
+]
+```
+
+- 接续目标只在同一父节点（同一章、条、附录、注或单元格）内查找；中间隔着段落、注或其他类型的列项不影响。
+- 前面没有同类型列项时无法接续：写入仍会成功，但按重新编号显示，文档校验给出 `list-continue-orphan` 警告（规则 `structure.list-continuation`），应改为重新编号或调整位置。
+- 读取节点（`readNode`）时，继续编号的列表带 `"continueNumbering": true`；重新编号的列表不带该字段。修改编号关系就用 `replace` 回传改过该字段的列表。
+- `dash`、`dot`、`boxed` 没有序号，写 `continueNumbering: true` 会被拒绝：
+
+```json ses-example context=chapter expect=error code=invalid-value path=fragment[0].continueNumbering
+[{ "kind": "list", "listType": "dash", "continueNumbering": true, "items": ["破折号列项没有序号"] }]
 ```
 
 ### 4.3 表 `table`
@@ -476,7 +498,7 @@
 
 - 章、条、附录的标题只写文字；编号、「附录A」「（规范性）」字样、图表公式的编号都由系统生成。
 - 条分层不跳级；有子条的容器不要同时直接放正文段。
-- 列项：同一层级用同一种列项类型；一级用 `dash`/`alpha`，其下的二级用 `number`/`dot`。
+- 列项：同一层级用同一种列项类型；一级用 `dash`/`alpha`，其下的二级用 `number`/`dot`。被隔开的同一组有序列项用 `continueNumbering: true` 接着编号（见 4.2），不要手写序号。
 - 术语和定义章：先写引导语段落，再写术语条目；定义写成可以替换术语的名词性短语。这类行文细节由作者把握，系统不检查。
 - 引用其他章条、图表、公式时用 `crossRef`，不要把「见5.2」之类编号写成死文本。`bibRef`、`termRef` 目前导不出 DOCX、HTML、PDF（见 2.2 的出件限制），需要出件时引用文献和术语先写成普通文字。
 - 需要被引用的节点先创建（写显式 `id`），再创建引用它的内容；同一批片段里先后顺序不限，目标是否存在由文档校验检查。

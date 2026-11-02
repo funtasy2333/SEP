@@ -21,6 +21,7 @@ import {
   type AuthoringContext, type FragmentContextRules, type FragmentLevel, type IRFragmentNode,
 } from './fragmentContext'
 import { generateNodeId } from './nodeId'
+import { isContinuableListType } from './listNumbering'
 import type {
   IRAppendix, IRBibEntry, IRBlock, IRChapter, IRClause, IRClauseChild, IRExample, IRFigure,
   IRFormula, IRInline, IRList, IRMark, IRNote, IRParagraph, IRReferenceTargetKind, IRTable,
@@ -127,7 +128,7 @@ const label = (kind: string): string => `${kind}（${KIND_LABELS[kind] ?? kind}�
 /** 各对象支持的字段；节点种类（有 `kind` 的对象）的字段表含 `kind` 与 `id`。 */
 const FIELDS = {
   paragraph: ['kind', 'id', 'content'],
-  list: ['kind', 'id', 'listType', 'level', 'items'],
+  list: ['kind', 'id', 'listType', 'level', 'continueNumbering', 'items'],
   listItem: ['id', 'content'],
   table: ['kind', 'id', 'caption', 'captionEn', 'orientation', 'headerRowCount', 'rows', 'notes'],
   row: ['id', 'cells'],
@@ -771,11 +772,20 @@ function parseList(obj: Obj, path: string, ctx: Ctx): IRList {
   if (level !== undefined && level !== fixedLevel) {
     ctx.issue(`${path}.level`, 'level-mismatch', `「${listType}」列项的层级固定为 ${fixedLevel} 级，level 应省略或为 ${fixedLevel}`)
   }
+  // 继续前一列项编号（issue #70）：只有 alpha、number 有序号可接续；接续同一父节点内前面最近的同类型列项，
+  // 缺省（false）为重新编号。找不到可接续的列项时，校验给出 list-continue-orphan 警告。
+  const continueNumbering = booleanField(obj, 'continueNumbering', path, ctx) === true
+  if (continueNumbering && !isContinuableListType(listType)) {
+    ctx.issue(`${path}.continueNumbering`, 'invalid-value', `只有字母（alpha）、数字（number）编号列项可以继续前一列项编号，「${listType}」没有序号可接续；请省略 continueNumbering`)
+  }
   const rawItems = arrayField(obj, 'items', path, ctx)
   if (rawItems === undefined && !has(obj, 'items')) ctx.issue(`${path}.items`, 'missing-field', '列项缺少 items')
   if (rawItems?.length === 0) ctx.issue(`${path}.items`, 'empty-value', '列项至少需要一个列项项')
   const items = (rawItems ?? []).map((item, index) => parseListItem(item, `${path}.items[${index}]`, ctx))
-  return { kind: 'list', id, listType, ...(fixedLevel === 2 ? { level: 2 as const } : {}), items }
+  return {
+    kind: 'list', id, listType, ...(fixedLevel === 2 ? { level: 2 as const } : {}),
+    ...(continueNumbering && isContinuableListType(listType) ? { continueNumbering: true } : {}), items,
+  }
 }
 
 // ---------- 注与示例 ----------

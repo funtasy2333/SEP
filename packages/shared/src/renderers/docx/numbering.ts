@@ -249,9 +249,10 @@ export interface NumberingAllocator {
   allocAppendixFigureInstance(appendixId: string, letter: string): number
   /** 附录表：同上，lvlText 覆盖为 "表{letter}.%1　" */
   allocAppendixTableInstance(appendixId: string, letter: string): number
-  /** 编号列表（A12–A15）：每次调用新建一个实例，ilvl 0 与 1 都写 startOverride=1（§4.3：按需实例对
-   * 该 abstractNum 的每个级别都写 startOverride，不论本次是否用到该级别） */
-  allocListInstance(abstractNumId: number): number
+  /** 编号列表（A12–A15）：每次调用新建一个实例，ilvl 0 与 1 都写 startOverride（§4.3：按需实例对
+   * 该 abstractNum 的每个级别都写 startOverride，不论本次是否用到该级别）。ilvl 0 的起始值为 `start`
+   * （缺省 1；继续前一列项编号时为 Resolver 算出的首项序号，issue #70），ilvl 1 恒为 1。 */
+  allocListInstance(abstractNumId: number, start?: number): number
   /**
    * 引言中的条（A17）：整份文档共用一个实例（引言只有一个，条编号连续），首次调用时才登记 A17 与实例，
    * ilvl 1..5 都写 startOverride=1（§4.3：按需实例对该 abstractNum 的每个级别都写）。
@@ -317,11 +318,11 @@ export function createNumberingAllocator(): NumberingAllocator {
       appendixTableIds.set(appendixId, id)
       return id
     },
-    allocListInstance(abstractNumId) {
+    allocListInstance(abstractNumId, start = 1) {
       const id = nextId(abstractNumId)
       dynamicNums.push(
         overrideOnlyNumXml(id, abstractNumId, [
-          { ilvl: 0, start: 1 },
+          { ilvl: 0, start: Number.isInteger(start) && start > 1 ? start : 1 },
           { ilvl: 1, start: 1 },
         ]),
       )
