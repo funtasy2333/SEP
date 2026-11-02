@@ -40,6 +40,7 @@ import {
   TableColumnsSync,
   StructuralPaste,
   TableExit,
+  ClipboardPolicy,
 } from './index' // 相对路径：服务端打包也会加载本文件，不认识 '@/' 别名（见 editorSchema.ts）
 
 /** The exact extension list used by EditorView's useEditor call. */
@@ -98,5 +99,7 @@ export function createEditorExtensions(): Extensions {
     StructuralPaste,
     // #73：表格内 Mod-Enter 在表格之后插入正文段。纯快捷键扩展，不新增节点。
     TableExit,
+    // 剪贴板：SES 内复制保留格式，外部来源与 Ctrl/Cmd+Shift+V 按纯文本粘贴（每行一个正文段）。不新增节点。
+    ClipboardPolicy,
   ]
 }
