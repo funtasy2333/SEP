@@ -51,7 +51,27 @@ export function createDefaultForeword(meta?: DocumentMeta): PMJsonNode {
   return { type: 'foreword', content: foreword }
 }
 
-/** 仅用于新建/空内容初始化；正文已有内容时不重新套用模板。 */
+/**
+ * 规范性引用文件章的引导语（GB/T 1.1—2020 8.6.2），用于有规范性引用文件清单的情形。
+ * 没有规范性引用文件时，应改为“本文件没有规范性引用文件。”。
+ */
+export const NORMATIVE_REFERENCES_LEAD = '下列文件中的内容通过文中的规范性引用而构成本文件必不可少的条款。'
+  + '其中，注日期的引用文件，仅该日期对应的版本适用于本文件；不注日期的引用文件，其最新版本（包括所有的修改单）适用于本文件。'
+
+/**
+ * 术语和定义章的引导语（GB/T 1.1—2020 8.7.2），用于仅本文件界定的术语和定义适用的情形。其他情形应改为：
+ * 没有需要界定的术语——“本文件没有需要界定的术语和定义。”；仅引用其他文件的术语——“……界定的术语和定义适用于本文件。”；
+ * 同时采用其他文件和本文件界定的术语——“……界定的以及下列术语和定义适用于本文件。”。
+ */
+export const TERMS_AND_DEFINITIONS_LEAD = '下列术语和定义适用于本文件。'
+
+const DEFAULT_CHAPTERS: ReadonlyArray<{ title: string; lead?: string }> = [
+  { title: '范围' },
+  { title: '规范性引用文件', lead: NORMATIVE_REFERENCES_LEAD },
+  { title: '术语和定义', lead: TERMS_AND_DEFINITIONS_LEAD },
+]
+
+/** 仅用于新建/空内容初始化；正文已有内容时不重新套用模板（不覆盖、不重复插入用户已写的引导语）。 */
 export function createDefaultDocumentContent(meta?: DocumentMeta): PMJsonNode & Record<string, unknown> {
   const content: PMJsonNode[] = []
   if (meta) {
@@ -64,10 +84,11 @@ export function createDefaultDocumentContent(meta?: DocumentMeta): PMJsonNode & 
     content.push({ type: 'coverPage', attrs, content: [{ type: 'paragraph' }] })
   }
   content.push(createDefaultForeword(meta))
-  for (const [index, title] of ['范围', '规范性引用文件', '术语和定义'].entries()) {
+  for (const [index, { title, lead }] of DEFAULT_CHAPTERS.entries()) {
     content.push({ type: 'chapter', attrs: { number: String(index + 1) }, content: [
       { type: 'chapterTitle', content: [{ type: 'text', text: title }] },
-      { type: 'stdParagraph' },
+      // 引导语是无编号的普通正文段，可编辑；后续清单、术语条目由用户在其后添加。
+      lead ? { type: 'stdParagraph', content: [{ type: 'text', text: lead }] } : { type: 'stdParagraph' },
     ] })
   }
   return { type: 'doc', content }

@@ -368,7 +368,8 @@
         </ul>
         <h4>文档结构</h4>
         <p>界面分三层：顶栏是整份文件的操作（源码、导入、版本历史、质量检查、导出）；工具栏只处理正文，「设为」改变当前段落的角色，「插入」加入新的内容要素；光标位于公式、图或表时，工具栏右侧会出现对应的上下文工具（添加式中、纵向/横向版面）。</p>
-        <p>使用左侧「文档结构」面板的「添加」按钮添加章节结构（前言、引言、章、附录、参考文献）；工具栏最左侧的按钮可隐藏或显示该面板。点击正文段落或选中其中的文字后，使用“条”“无题条”设置整段格式；新条之后的正文归入该条，直到下一个同级条。一级条置于章或附录内，其他级别置于上一级条内。含子条时保留原层级，可切换有题/无题；先调整子条结构再改层级或段落。需要新条时，先回车建立空段再设置格式。</p>
+        <p>使用左侧「文档结构」面板的「添加」按钮添加章节结构（前言、引言、章、附录、参考文献）；工具栏最左侧的按钮可隐藏或显示该面板。点击正文段落或选中其中的文字后，使用“条”“无题条”设置整段格式；新条之后的正文归入该条，直到下一个同级条。一级条置于章或附录内，其他级别置于上一级条内。含子条时保留原层级，可切换有题/无题；先调整子条结构再改层级或段落。需要新条时，先回车建立空段再设置格式；光标在表格内时选择“条”“无题条”，会在表格之后新建条，也可用“表格”菜单的“表格后插入段落”（Ctrl/Cmd+Enter）在表格后继续书写。</p>
+        <p>粘贴：在 SES 内复制的内容保留格式和结构；从 Word、网页等外部来源粘贴时自动转为纯文本，直接插入光标所在的段落并沿用该处格式，多行合并为一段，不会新建段落或条目（需要时按回车）。需要去掉格式时，用 Ctrl/Cmd+Shift+V 按纯文本粘贴。</p>
         <p>术语中英文名称同列显示：Tab 从中文名进入英文名，Enter 进入定义；在定义中 Enter 新建续段，末尾空续段再次 Enter 退出术语。使用工具栏「设为」设置列项，「插入」加入注、示例、术语、公式、表格、图片等内容要素。选中图或表后，可切换纵向或横向版面。</p>
         <p>行内公式：在正文、列项、注、示例、表格单元格、术语定义中按 Ctrl/Cmd+Shift+M（或工具栏「行内公式」）插入；先选中 q<sub>V</sub> 这类带上下标的文字再按，可把它转为公式。点击公式可重新编辑。</p>
       </div>
@@ -581,7 +582,7 @@ import {
   synchronizeCoverMetadata,
   type DocumentSettingsDraft,
 } from '@/utils/documentSettings'
-import { setClauseFormat, setListFormat, setParagraphFormat, structureFailureMessage, type StructureAction, type StructureResult } from '@/utils/structureEditing'
+import { insertParagraphAfterTable, setClauseFormat, setListFormat, setParagraphFormat, structureFailureMessage, type StructureAction, type StructureResult } from '@/utils/structureEditing'
 import { countLegacyUntitledClauses } from '@/utils/untitledClause'
 import { createDocumentDuplicate } from '@/utils/duplicateDocument'
 import { isRevisionConflict } from '@/utils/documentConflict'
@@ -1677,6 +1678,9 @@ function handleTableCommand(command: string) {
       }
       break
     }
+    case 'paragraphAfter':
+      warnStructureFailure(insertParagraphAfterTable(editor.value), 'table')
+      break
     case 'addRowBefore':
       chain.addRowBefore().run()
       break

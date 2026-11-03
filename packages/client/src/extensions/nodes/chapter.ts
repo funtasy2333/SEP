@@ -18,7 +18,7 @@ export const Chapter = Node.create({
   name: 'chapter',
   group: 'block',
   content: 'chapterTitle (clause | stdParagraph | stdTable | figure | formula | stdList | note | example | block)*',
-  defining: true,
+  // 粘贴时只作为上下文 defining（definingAsContext，由 StructuralPaste 补上），见 plugins/structuralPaste.ts（#71）
   isolating: true,
 
   addAttributes() {

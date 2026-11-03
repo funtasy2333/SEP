@@ -1,12 +1,16 @@
 // @vitest-environment happy-dom
 import JSZip from 'jszip'
-import { getSchema } from '@tiptap/core'
-import { expect, it } from 'vitest'
-import { UnsupportedOutputError } from '@ses/shared'
+import { Editor, getSchema } from '@tiptap/core'
+import { describe, expect, it } from 'vitest'
+import { analyzeDocument, pmToIr, UnsupportedOutputError, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from '../extensions/editorExtensions'
+import { NODE_ID_TYPES } from '../extensions/plugins/ensureNodeId'
+import { semanticLabels } from './semanticLabels'
 import { buildDocxBlob, prepareDocxInput } from '../serializer/docxExporter'
 import { parseXmlToEditorJson, serializeToXml } from '../serializer'
-import { createDefaultDocumentContent, createNewDocument, newDocumentStandardNo, type NewDocForm } from './newDocument'
+import {
+  createDefaultDocumentContent, createNewDocument, newDocumentStandardNo, NORMATIVE_REFERENCES_LEAD, TERMS_AND_DEFINITIONS_LEAD, type NewDocForm,
+} from './newDocument'
 
 const blankForm = (): NewDocForm => ({
   type: 'national', stage: 'working_draft', titleCn: '新建验收标准', titleEn: '', stdPrefix: '', stdNo: '',
@@ -123,3 +127,76 @@ it('未填写单位时省略空责任语句，仍保留专利提示且每份默�
   first.content![0]!.content![1]!.content![0]!.text = '用户已修改'
   expect(second.content![0]!.content![1]!.content![0]!.text).toBe(patent)
 })
+
+describe('默认章节的标准引导语（GB/T 1.1—2020 8.6.2、8.7.2）', () => {
+  const normLead = '下列文件中的内容通过文中的规范性引用而构成本文件必不可少的条款。其中，注日期的引用文件，仅该日期对应的版本适用于本文件；不注日期的引用文件，其最新版本（包括所有的修改单）适用于本文件。'
+  const termsLead = '下列术语和定义适用于本文件。'
+
+  it('新建文档的第2、3章各以一个无编号正文段给出完整引导语，第1章仍为空段', () => {
+    const schema = getSchema(createEditorExtensions())
+    const node = schema.nodeFromJSON(createNewDocument(blankForm()).content)
+    node.check()
+    const chapters = node.content.content.filter(child => child.type.name === 'chapter')
+    expect(chapters.map(chapter => chapter.firstChild!.textContent)).toEqual(['范围', '规范性引用文件', '术语和定义'])
+    expect(chapters.map(chapter => chapter.childCount)).toEqual([2, 2, 2])
+    expect(chapters.map(chapter => [chapter.child(1).type.name, chapter.child(1).textContent])).toEqual([
+      ['stdParagraph', ''], ['stdParagraph', normLead], ['stdParagraph', termsLead],
+    ])
+    expect(NORMATIVE_REFERENCES_LEAD).toBe(normLead)
+    expect(TERMS_AND_DEFINITIONS_LEAD).toBe(termsLead)
+  })
+
+  it('引导语不编号、不计为术语条目或引用文件，也不触发规范性引用文件格式提示', () => {
+    const content = assignTestNodeIds(createDefaultDocumentContent())
+    const { doc } = pmToIr(content)
+    const terms = doc.body[2]!
+    expect(terms.children.map(child => child.kind)).toEqual(['paragraph'])
+    const { labels } = semanticLabels(content)
+    const paragraphIds = doc.body.slice(1).map(chapter => (chapter.children[0] as { id: string }).id)
+    for (const id of paragraphIds) expect(labels[id]).toBeUndefined()
+    const validation = analyzeDocument(doc).validation
+    expect(validation.issues.filter(issue => issue.ruleId.startsWith('normative-reference.'))).toEqual([])
+    expect(validation.coverage.normativeReferences.reason).not.toContain('无法识别的出版物')
+  })
+
+  it('引导语可编辑并在保存重开、DOCX 导出后保留', async () => {
+    const created = createNewDocument(blankForm())
+    const schema = getSchema(createEditorExtensions())
+    const editor = new Editor({ extensions: createEditorExtensions(), content: JSON.parse(JSON.stringify(created.content)) })
+    try {
+      // 按“没有规范性引用文件”的情形改写第2章引导语
+      let leadPos = -1
+      editor.state.doc.descendants((child, pos) => {
+        if (leadPos < 0 && child.type.name === 'stdParagraph' && child.textContent === normLead) leadPos = pos
+      })
+      editor.view.dispatch(editor.state.tr.insertText('本文件没有规范性引用文件。', leadPos + 1, leadPos + 1 + normLead.length))
+      const reopened = schema.nodeFromJSON(JSON.parse(JSON.stringify(editor.getJSON())))
+      const texts = reopened.content.content.filter(child => child.type.name === 'chapter').map(chapter => chapter.child(1).textContent)
+      expect(texts).toEqual(['', '本文件没有规范性引用文件。', termsLead])
+      const zip = await JSZip.loadAsync(await (await buildDocxBlob({ pmDoc: reopened, documentMeta: created.meta })).blob.arrayBuffer())
+      const body = await zip.file('word/document.xml')!.async('string')
+      expect(body).toContain('本文件没有规范性引用文件。')
+      expect(body).toContain(termsLead)
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('只在空内容初始化时套用：每次生成独立副本，不向已有正文追加', () => {
+    const first = createDefaultDocumentContent()
+    const second = createDefaultDocumentContent()
+    const lead = (content: ReturnType<typeof createDefaultDocumentContent>) => content.content![2]!.content![1]!.content![0]!
+    lead(first).text = '用户已改写的引导语'
+    expect(lead(second).text).toBe(normLead)
+  })
+})
+
+function assignTestNodeIds<T extends PMJsonNode>(node: T): T {
+  let serial = 0
+  const visit = (current: PMJsonNode) => {
+    if (NODE_ID_TYPES.includes(current.type)) current.attrs = { ...current.attrs, nodeId: `n${++serial}` }
+    current.content?.forEach(visit)
+  }
+  visit(node)
+  return node
+}
