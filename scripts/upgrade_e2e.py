@@ -334,9 +334,13 @@ def print_diagnostics(root, info):
                 continue
             relative = path.relative_to(root)
             print(f'{relative} ({path.stat().st_size} bytes)')
-            if path.suffix in ('.log', '.json') and path.stat().st_size < 200_000:
+            if path.suffix in ('.log', '.json') and path.stat().st_size < 2_000_000:
                 text = path.read_bytes().decode('utf-8', errors='replace')
-                print('\n'.join(text.splitlines()[-60:]))
+                # Keep every line except Nest's route/module start-up noise, so a crash between two
+                # server starts (launchd restarts the job) stays visible.
+                noise = ('Mapped {', 'dependencies initialized', '[RoutesResolver]')
+                kept = [line for line in text.splitlines() if not any(n in line for n in noise)]
+                print('\n'.join(kept[-300:]))
     print('-------------------------------')
 
 
