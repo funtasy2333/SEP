@@ -184,6 +184,7 @@ describe('SES package format', () => {
       formatVersion: 1,
       exportedAt: '2026-10-30T08:00:00.000Z',
       generator: { name: 'SES', version: SES_SERVER_VERSION },
+      versionScope: 'all',
       document: {
         uid: DOCUMENT_UID,
         title: '测试标准',
@@ -244,6 +245,29 @@ describe('SES package format', () => {
     expect(result.document.content).toEqual(content);
   });
 
+  it('builds a latest-only package with versionScope latest and an empty versions list', () => {
+    const document = {
+      uid: DOCUMENT_UID,
+      title: '测试标准',
+      meta: { titleCn: '测试标准' },
+      stage: 'working_draft',
+      content: canonical(sampleDocument()),
+      createdAt: new Date('2026-10-01T09:30:00.000Z'),
+      updatedAt: new Date('2026-10-30T07:59:00.000Z'),
+    } as unknown as DocumentEntity;
+
+    const result = buildSesPackage(
+      document,
+      [],
+      new Date('2026-10-30T08:00:00.000Z'),
+      'latest',
+    );
+
+    expect(result.versionScope).toBe('latest');
+    expect(result.versions).toEqual([]);
+    expect(parseSesPackage(JSON.stringify(result))).toEqual(result);
+  });
+
   it('treats a missing document or version uid as an internal invariant failure', () => {
     const document = {
       uid: null,
@@ -285,6 +309,31 @@ describe('SES package format', () => {
     expect(parsed.document).not.toHaveProperty('futureDocumentField');
     expect(parsed.versions[0]).not.toHaveProperty('futureVersionField');
   });
+
+  it('parses a missing versionScope as unmarked and keeps a valid one', () => {
+    const unmarked = parseSesPackage(JSON.stringify(validPackage()));
+    expect(unmarked).not.toHaveProperty('versionScope');
+
+    for (const scope of ['all', 'latest'] as const) {
+      const input = { ...validPackage(), versionScope: scope };
+      expect(parseSesPackage(JSON.stringify(input)).versionScope).toBe(scope);
+    }
+  });
+
+  it.each([['full'], [''], [1], [null], [['all']]])(
+    'rejects the invalid versionScope %p with the field path',
+    (value) => {
+      const input = { ...validPackage(), versionScope: value };
+      let thrown: unknown;
+      try {
+        parseSesPackage(JSON.stringify(input));
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(BadRequestException);
+      expect(exceptionMessage(thrown)).toContain('versionScope');
+    },
+  );
 
   it('reports JSON syntax and invalid UTF-8 as bad requests', () => {
     expect(() => parseSesPackage('{')).toThrow(BadRequestException);

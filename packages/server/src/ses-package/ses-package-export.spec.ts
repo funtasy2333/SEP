@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { createTestApp, type TestApp } from '../test-support/test-app';
 import { VersionEntity } from '../version/version.entity';
 import { WARNING_COUNT_HEADER, WARNINGS_HEADER } from '../export/export-http';
+import { parseSesPackage } from './ses-package-format';
 
 const EXPORT_PATH = (id: number) => `/api/documents/${id}/export/ses`;
 const EXTERNAL_IMAGE_WARNING =
@@ -39,6 +40,7 @@ interface ExportedVersion extends Record<string, unknown> {
 interface ExportedPackage extends Record<string, unknown> {
   format: string;
   formatVersion: number;
+  versionScope?: string;
   document: ExportedDocument;
   versions: ExportedVersion[];
 }
@@ -353,6 +355,136 @@ describe('GET /api/documents/:id/export/ses', () => {
     } finally {
       fetchSpy.mockRestore();
     }
+  });
+
+  describe('versions query parameter', () => {
+    async function createWithVersions(
+      title: string,
+      content = fixtureContent(),
+    ) {
+      const document = await testApp.documents.create({
+        title,
+        meta: { titleCn: title, standardType: 'national' },
+        content,
+      });
+      const versionRepo = testApp.dataSource.getRepository(VersionEntity);
+      await versionRepo.save([
+        versionRepo.create({
+          uid: '30000000-0000-4000-8000-000000000001',
+          documentId: document.id,
+          versionNo: '1.0',
+          stage: 'working_draft',
+          content: fixtureContent(),
+          baseContent: null,
+          source: 'human',
+          createdAt: new Date('2021-01-01T00:00:00.000Z'),
+        }),
+        versionRepo.create({
+          uid: '30000000-0000-4000-8000-000000000002',
+          documentId: document.id,
+          versionNo: '2.0',
+          stage: 'working_draft',
+          content: fixtureContent(),
+          baseContent: fixtureContent(),
+          source: 'ai',
+          createdAt: new Date('2021-02-01T00:00:00.000Z'),
+        }),
+      ]);
+      return document;
+    }
+
+    it('defaults to every version and marks versionScope all', async () => {
+      const document = await createWithVersions('默认范围');
+      const implicit = await testApp.http
+        .get(EXPORT_PATH(document.id))
+        .expect(200);
+      const explicit = await testApp.http
+        .get(`${EXPORT_PATH(document.id)}?versions=all`)
+        .expect(200);
+      for (const response of [implicit, explicit]) {
+        const pack = JSON.parse(response.text) as ExportedPackage;
+        expect(pack.versionScope).toBe('all');
+        expect(pack.versions.map((version) => version.versionNo)).toEqual([
+          '1.0',
+          '2.0',
+        ]);
+        expect(response.headers['content-disposition']).toBe(
+          `attachment; filename*=UTF-8''${encodeURIComponent('默认范围.ses')}`,
+        );
+      }
+    });
+
+    it('versions=none exports only the current content with versionScope latest and no version query', async () => {
+      const content = fixtureContent();
+      const document = await createWithVersions('仅最新稿', content);
+      const versionRepo = testApp.dataSource.getRepository(VersionEntity);
+      const findSpy = jest.spyOn(versionRepo, 'find');
+      const builderSpy = jest.spyOn(versionRepo, 'createQueryBuilder');
+
+      const response = await testApp.http
+        .get(`${EXPORT_PATH(document.id)}?versions=none`)
+        .expect(200);
+      expect(builderSpy).not.toHaveBeenCalled();
+      expect(findSpy).not.toHaveBeenCalled();
+      builderSpy.mockRestore();
+      findSpy.mockRestore();
+
+      const pack = JSON.parse(response.text) as ExportedPackage;
+      expect(pack.versionScope).toBe('latest');
+      expect(pack.versions).toEqual([]);
+      expect(pack.document.content).toEqual(content);
+      expect(response.headers['content-disposition']).toBe(
+        `attachment; filename*=UTF-8''${encodeURIComponent('仅最新稿（最新稿）.ses')}`,
+      );
+      expect(parseSesPackage(response.text).versionScope).toBe('latest');
+    });
+
+    it.each(['', 'ALL', 'latest', 'true'])(
+      'rejects versions=%p with a Chinese 400 message',
+      async (value) => {
+        const document = await createWithVersions(`非法参数${value}`);
+        const response = await testApp.http
+          .get(`${EXPORT_PATH(document.id)}?versions=${value}`)
+          .expect(400);
+        expect((response.body as { message: string }).message).toBe(
+          'versions 必须是 all 或 none',
+        );
+      },
+    );
+
+    it('rejects a repeated versions parameter', async () => {
+      const document = await createWithVersions('重复参数');
+      await testApp.http
+        .get(`${EXPORT_PATH(document.id)}?versions=all&versions=none`)
+        .expect(400);
+    });
+
+    it('versions=none only warns about external images in the current content', async () => {
+      const document = await createWithVersions('告警范围');
+      const versionRepo = testApp.dataSource.getRepository(VersionEntity);
+      const external = fixtureContent();
+      const figureImage = findNode(external, 'figureImage');
+      figureImage!.attrs!.src = 'https://images.example.invalid/old.png';
+      await versionRepo.save(
+        versionRepo.create({
+          uid: '30000000-0000-4000-8000-000000000003',
+          documentId: document.id,
+          versionNo: '3.0',
+          stage: 'working_draft',
+          content: external,
+          baseContent: structuredClone(external),
+          source: 'human',
+          createdAt: new Date('2021-03-01T00:00:00.000Z'),
+        }),
+      );
+
+      const all = await testApp.http.get(EXPORT_PATH(document.id)).expect(200);
+      expect(all.headers[WARNING_COUNT_HEADER.toLowerCase()]).toBe('2');
+      const none = await testApp.http
+        .get(`${EXPORT_PATH(document.id)}?versions=none`)
+        .expect(200);
+      expect(none.headers[WARNING_COUNT_HEADER.toLowerCase()]).toBe('0');
+    });
   });
 
   it('returns 422 with a clear message for a document whose content was never written', async () => {

@@ -284,7 +284,8 @@ describe('失败原因码：不改文档、不改选区', () => {
     { name: '前文段落悬置', reason: 'hanging-paragraph', body: () => [p('pre', '前文'), p('target', '目标段')], pick: '目标段', run: e => setClauseFormat(e, 1) },
     { name: '升级后吞下同级后续条而自身有正文', reason: 'hanging-paragraph', body: () => [clause('one', '原一级条', [clause('target', '有正文的二级条', [p('body', '本条正文')], 2), clause('peer', '后续二级条', [], 2)])], pick: '有正文的二级条', run: e => setClauseFormat(e, 1) },
     { name: '含子条的条转无题', reason: 'untitled-with-children', body: () => [clause('a', '有子条', [clause('b', '子条', [], 2)])], pick: '有子条', run: e => setClauseFormat(e, 1, false) },
-    { name: '表格单元格中的段落', reason: 'invalid-location', body: () => [{ type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [p('cell', '单元格正文')] }] }] }], pick: '单元格正文', run: e => setClauseFormat(e, 1) },
+    // 光标在表格内时在表格之后新建条（#73）；这里表格是章的直属内容，其后新设一级条会让表格成为悬置段。
+    { name: '表格单元格中（表格为章的直属内容）', reason: 'hanging-paragraph', body: () => [{ type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [p('cell', '单元格正文')] }] }] }], pick: '单元格正文', run: e => setClauseFormat(e, 1) },
     { name: '术语定义', reason: 'invalid-location', body: () => [term('term', 1, '术语')], pick: '术语的定义', run: e => setClauseFormat(e, 1) },
     { name: '级别越界', reason: 'out-of-range', body: () => [p('target', '目标段')], pick: '目标段', run: e => setClauseFormat(e, 6) },
     { name: '级别为零', reason: 'out-of-range', body: () => [p('target', '目标段')], pick: '目标段', run: e => setClauseFormat(e, 0) },

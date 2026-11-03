@@ -64,6 +64,7 @@ function activePreview(overrides: Record<string, unknown> = {}) {
   return {
     match: { id: 12, title: '本地标准', revision: 7 },
     inTrash: false,
+    versionScope: 'all',
     newVersions: 2,
     localOnlyVersions: 1,
     contentDiffers: true,
@@ -226,6 +227,42 @@ describe('HomeView SES 文档包导入', () => {
       copy.click()
       await flush()
       expect(mocks.api.importSesPackage).toHaveBeenCalledWith(file, 'new')
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('最新稿包的确认框提示只含最新稿、本地版本全部保留，且不显示版本数量', async () => {
+    const file = new File(['{}'], 'backup.ses')
+    mocks.api.previewSesImport.mockResolvedValue(
+      activePreview({ versionScope: 'latest', newVersions: 0, localOnlyVersions: 4 }),
+    )
+    mocks.api.importSesPackage.mockResolvedValue(activeDoc(12, '本地标准'))
+    const view = await mountHome()
+    try {
+      if (!await chooseFile(view.root, file)) return
+      expect(document.body.textContent).toContain('此文档包只含最新稿，不含版本历史；本地已有版本全部保留。')
+      expect(document.body.textContent).not.toContain('本地独有')
+      expect(document.body.textContent).not.toContain('包中新增')
+
+      const update = button(document.body, '更新现有文档')
+      if (!update) return
+      update.click()
+      await flush()
+      expect(mocks.api.importSesPackage).toHaveBeenCalledWith(file, 'update', { targetId: 12, baseRevision: 7 })
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('全部历史快照的包不显示最新稿提示', async () => {
+    const file = new File(['{}'], 'backup.ses')
+    mocks.api.previewSesImport.mockResolvedValue(activePreview())
+    const view = await mountHome()
+    try {
+      if (!await chooseFile(view.root, file)) return
+      expect(document.body.textContent).not.toContain('只含最新稿')
+      expect(document.body.textContent).toContain('本地独有 1 个版本')
     } finally {
       view.unmount()
     }

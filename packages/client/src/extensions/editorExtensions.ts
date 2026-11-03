@@ -42,6 +42,9 @@ import {
   TermDef, TermDefinition, TermName, TermNameEn, TermSource, TermSubjectField,
   NormRefList, NormRefStd, NormRefStdRef, NormRefStdTitle, NormRefMixed, StdRef, MixedCitation,
   TableColumnsSync,
+  StructuralPaste,
+  TableExit,
+  ClipboardPolicy,
 } from './index' // 相对路径：服务端打包也会加载本文件，不认识 '@/' 别名（见 editorSchema.ts）
 
 /** The exact extension list used by EditorView's useEditor call. */
@@ -102,5 +105,11 @@ export function createEditorExtensions(): Extensions {
     TableColumnsSync,
     // G3：图例（M-8.5-01～06）与行内图（M-8.3-02）；图注、图中示例复用 figure 内的 note / example，无新节点。
     FigureLegend, FigureLegendTitle, InlineImage, StdListBlockItem, FormulaGroup, FigureSet, AlignedArray, SharedFootnoteRef, SharedFootnoteDefinition, GraphicPreviews,
+    // #71：章条容器只作上下文 defining，粘贴不重建左侧打开的章条外壳；拒绝把章/附录嵌进章条内部。不新增节点。
+    StructuralPaste,
+    // #73：表格内 Mod-Enter 在表格之后插入正文段。纯快捷键扩展，不新增节点。
+    TableExit,
+    // 剪贴板：SES 内复制保留格式；外部来源与 Ctrl/Cmd+Shift+V 按纯文本并入光标所在段落。不新增节点。
+    ClipboardPolicy,
   ]
 }

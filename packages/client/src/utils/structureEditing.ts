@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/core'
-import { TextSelection, type Transaction } from '@tiptap/pm/state'
+import { NodeSelection, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state'
 import {
   applyOutlineEdit, locateOutline, MAX_CLAUSE_LEVEL, MIN_CLAUSE_LEVEL,
   type OutlineFailureReason, type OutlineLeaf, type OutlineLocation,
@@ -7,8 +7,11 @@ import {
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { convertTextBlock, formatStdList, hasReferenceLostAsParagraph } from './textBlockFormat'
 
-/** 结构格式命令失败的原因：来自大纲核心的原因码，加上选区本身不能转换（invalid-selection）、被引用的块不能转换（referenced-block）。 */
-export type StructureFailureReason = OutlineFailureReason | 'invalid-selection' | 'referenced-block'
+/**
+ * 结构格式命令失败的原因：来自大纲核心的原因码，加上选区本身不能转换（invalid-selection）、被引用的块不能转换（referenced-block）、
+ * 需要表格而光标不在表格内（not-in-table）。
+ */
+export type StructureFailureReason = OutlineFailureReason | 'invalid-selection' | 'referenced-block' | 'not-in-table'
 export type StructureResult = { ok: true } | { ok: false; reason: StructureFailureReason }
 
 const ok: StructureResult = { ok: true }
@@ -66,6 +69,36 @@ function clauseTarget(tr: Transaction): ClauseTarget | { reason: StructureFailur
   return location ? { kind: 'block', leaf: 'paragraph', location, offsets } : { reason: 'invalid-location' }
 }
 
+/**
+ * 光标（或整表节点选择）所在的最内层表格的范围：标准表格 stdTable 整体，或未包在 stdTable 里的基础表格 table。
+ * 表格内的网格 table 属于外层 stdTable，返回外层范围。
+ */
+export function enclosingTable(state: EditorState): { from: number; to: number } | null {
+  const { selection } = state
+  const { $from } = selection
+  if (selection instanceof NodeSelection) {
+    const name = selection.node.type.name
+    if (name === 'stdTable' || (name === 'table' && $from.parent.type.name !== 'stdTable')) return { from: selection.from, to: selection.to }
+  }
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    const name = $from.node(depth).type.name
+    if (name === 'stdTable' || (name === 'table' && $from.node(depth - 1).type.name !== 'stdTable')) {
+      return { from: $from.before(depth), to: $from.after(depth) }
+    }
+  }
+  return null
+}
+
+/** 在表格之后（同一章/条内）插入一个空正文段；所在位置不允许正文段时返回 null。返回新段落之前的位置。 */
+function insertParagraphAt(tr: Transaction, pos: number): number | null {
+  const paragraph = tr.doc.type.schema.nodes.stdParagraph
+  if (!paragraph) return null
+  const $pos = tr.doc.resolve(pos)
+  if (!$pos.parent.canReplaceWith($pos.index(), $pos.index(), paragraph)) return null
+  tr.insert(pos, paragraph.create())
+  return pos
+}
+
 function commit(editor: Editor, tr: Transaction): StructureResult {
   editor.view.dispatch(tr.scrollIntoView())
   editor.view.focus()
@@ -83,6 +116,9 @@ function commit(editor: Editor, tr: Transaction): StructureResult {
 export function setClauseFormat(editor: Editor, level: number, hasTitle = true): StructureResult {
   if (!Number.isInteger(level) || level < MIN_CLAUSE_LEVEL || level > MAX_CLAUSE_LEVEL) return fail('out-of-range')
   const { state } = editor
+  // 光标在表格内（标题、单元格、表注……）：表格本身不能成为条，在表格之后新建条（#73）。
+  const table = enclosingTable(state)
+  if (table) return clauseAfterTable(editor, table.to, level, hasTitle)
   const { $from, $to } = state.selection
   if (!$from.sameParent($to)) return fail('invalid-selection')
   const tr = state.tr
@@ -99,6 +135,36 @@ export function setClauseFormat(editor: Editor, level: number, hasTitle = true):
   if (!outcome.ok) return outcome
   // 注/示例转成有题条（自身成为条）或被吸收进标题时仍有编号可指；最终留作无编号段落（无题条的正文）时，被引用就拒绝，事务不提交。
   if (source && losesNumbering(state.doc, source) && remainsParagraph(tr.doc, source.attrs.nodeId)) return fail('referenced-block')
+  return commit(editor, tr)
+}
+
+/**
+ * 在表格之后新建 level 级条：先在表格后插入空正文段，再按大纲方式把它设为条，二者在同一事务内，校验不通过则整体放弃。
+ * 新条与「把表格后的正文段设为条」完全一致：同级条（如在 3.1 的表格后设一级条得到 3.2）合法；
+ * 在仍有直属正文（含该表格）的章或条里设下一级条会留下悬置段，按 hanging-paragraph 拒绝。
+ */
+function clauseAfterTable(editor: Editor, tableEnd: number, level: number, hasTitle: boolean): StructureResult {
+  const tr = editor.state.tr
+  const pos = insertParagraphAt(tr, tableEnd)
+  if (pos === null) return fail('invalid-location')
+  const $paragraph = tr.doc.resolve(pos + 1)
+  const location = locateOutline($paragraph, $paragraph.depth)
+  if (!location) return fail('invalid-location')
+  const outcome = applyOutlineEdit(tr, location, { kind: 'make-clause', level, hasTitle }, 'paragraph', [0, 0])
+  return outcome.ok ? commit(editor, tr) : outcome
+}
+
+/**
+ * 在光标所在表格之后插入一个空正文段并把光标移入（表格菜单「表格后插入段落」、表格内 Mod-Enter），
+ * 用于表格位于章末、条末时继续书写；之后可用「条」「无题条」把该段设为新条。
+ */
+export function insertParagraphAfterTable(editor: Editor): StructureResult {
+  const table = enclosingTable(editor.state)
+  if (!table) return fail('not-in-table')
+  const tr = editor.state.tr
+  const pos = insertParagraphAt(tr, table.to)
+  if (pos === null) return fail('invalid-location')
+  tr.setSelection(TextSelection.create(tr.doc, pos + 1))
   return commit(editor, tr)
 }
 
@@ -163,23 +229,28 @@ export function setListFormat(editor: Editor, listType: string): StructureResult
   return editor.chain().focus().insertStdList({ listType }).run() ? ok : fail('invalid-selection')
 }
 
-export type StructureAction = 'clause' | 'paragraph' | 'list'
+export type StructureAction = 'clause' | 'paragraph' | 'list' | 'table'
 
 const clauseMessages: Record<StructureFailureReason, string> = {
   'missing-parent': '缺少上级条：须先有上一级条（第一个条必须是一级条），才能设置该级别',
   'level-skip': '会造成层级跳级：条的级别只能比前一条深一级，或与其后条的级别连续',
   'hanging-paragraph': '会留下悬置段落：章（条）内有子条时，不能再有直属正文，请先把正文并入某个条',
   'untitled-with-children': '无题条不能再分条（GB/T 1.1 的无题条不得再设子条）',
-  'invalid-location': '当前位置不允许设置条：条只能位于章或附录的正文中，不能用于表格、术语条目、前言等位置',
+  'invalid-location': '当前位置不允许设置条：条只能位于章或附录的正文中，不能用于术语条目、前言等位置',
   'out-of-range': '条的级别须为一至五级，术语条目平移后也不能超过五级',
   'invalid-selection': '请将光标放在单个段落、条标题或列项内；跨段选区不能设置条',
   'referenced-block': '该内容整体被交叉引用，转换后引用会失效；请先修改或删除引用',
+  'not-in-table': '请先将光标置于表格内',
 }
 const paragraphMessages: Partial<Record<StructureFailureReason, string>> = {
   'missing-parent': '该条含有子条，改为段落后子条会缺少上级条；请先调整子条级别',
   'level-skip': '改为段落后其后的子条会跳级；请先调整子条级别',
   'hanging-paragraph': '改为段落会在含子条的章（条）里留下悬置段落；请先把正文并入某个条',
   'referenced-block': '该条、注、示例、列项（或整个列表）被引用，转为段落会让引用失去目标；请先删除或改指引用',
+}
+
+const tableMessages: Partial<Record<StructureFailureReason, string>> = {
+  'invalid-location': '该表格之后不能插入正文段落',
 }
 
 const listMessages: Partial<Record<StructureFailureReason, string>> = {
@@ -189,6 +260,8 @@ const listMessages: Partial<Record<StructureFailureReason, string>> = {
 
 /** 把失败原因码转成面向用户的中文提示（不同原因给出不同提示）。 */
 export function structureFailureMessage(reason: StructureFailureReason, action: StructureAction = 'clause'): string {
-  const specific = action === 'paragraph' ? paragraphMessages[reason] : action === 'list' ? listMessages[reason] : undefined
+  const specific = action === 'paragraph' ? paragraphMessages[reason]
+    : action === 'list' ? listMessages[reason]
+      : action === 'table' ? tableMessages[reason] : undefined
   return specific ?? clauseMessages[reason]
 }

@@ -44,11 +44,17 @@ export interface SesPackageVersion {
   createdAt: string;
 }
 
+/** 版本范围：all = 含全部历史快照；latest = 仅当前最新稿（versions 为空）。 */
+export const SES_VERSION_SCOPES = ['all', 'latest'] as const;
+export type SesVersionScope = (typeof SES_VERSION_SCOPES)[number];
+
 export interface SesPackage {
   format: typeof SES_PACKAGE_FORMAT;
   formatVersion: typeof SES_PACKAGE_FORMAT_VERSION;
   exportedAt: string;
   generator: { name: string; version: string };
+  /** 可选；早期导出的包没有该字段，视为未标记。 */
+  versionScope?: SesVersionScope;
   document: SesPackageDocument;
   versions: SesPackageVersion[];
 }
@@ -214,11 +220,13 @@ function parseVersion(
 
 /**
  * 构建 SES v1 包，仅显式摘取允许出包的字段。版本顺序沿用调用方提供的顺序。
+ * versionScope 总是写入包内：最新稿导出时调用方传入 'latest' 与空版本数组。
  */
 export function buildSesPackage(
   document: DocumentEntity,
   versions: VersionEntity[],
   exportedAt: Date = new Date(),
+  versionScope: SesVersionScope = 'all',
 ): SesPackage {
   if (document.uid === null) {
     throw new InternalServerErrorException(
@@ -240,6 +248,7 @@ export function buildSesPackage(
     formatVersion: SES_PACKAGE_FORMAT_VERSION,
     exportedAt: exportedAt.toISOString(),
     generator: { name: 'SES', version: SES_SERVER_VERSION },
+    versionScope,
     document: {
       uid: document.uid,
       title: document.title,
@@ -310,6 +319,18 @@ export function parseSesPackage(input: Buffer | string): SesPackage {
   }
 
   const generator = requiredObject(root.generator, 'generator');
+  // versionScope 是可选字段：缺失 = 未标记；出现时必须是已知取值。
+  let versionScope: SesVersionScope | undefined;
+  if (root.versionScope !== undefined) {
+    const rawScope = requiredString(root.versionScope, 'versionScope');
+    if (!(SES_VERSION_SCOPES as readonly string[]).includes(rawScope)) {
+      throw badRequest(
+        'versionScope',
+        `必须是 ${SES_VERSION_SCOPES.map((scope) => `"${scope}"`).join(' / ')} 之一`,
+      );
+    }
+    versionScope = rawScope as SesVersionScope;
+  }
   const document = requiredObject(root.document, 'document');
   const rawContent = document.content;
   validateCurrentContent(rawContent);
@@ -331,6 +352,7 @@ export function parseSesPackage(input: Buffer | string): SesPackage {
       name: requiredString(generator.name, 'generator.name'),
       version: requiredString(generator.version, 'generator.version'),
     },
+    ...(versionScope === undefined ? {} : { versionScope }),
     document: {
       uid: requiredUid(document.uid, 'document.uid'),
       title: requiredString(document.title, 'document.title'),

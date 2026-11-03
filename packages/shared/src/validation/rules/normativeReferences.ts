@@ -27,6 +27,15 @@ function listEntries(block: IRBlock, path: string): { nodeId: string | null; pat
   return []
 }
 
+/**
+ * 规范性引用文件章的引导语（GB/T 1.1—2020 8.6.2）：“下列文件中的内容通过文中的规范性引用……”，
+ * 或没有规范性引用文件时的“本文件没有规范性引用文件。”。它们不是文件条目，不按文件标识检查，也不计为无法识别的出版物。
+ */
+function isLeadStatement(text: string): boolean {
+  const normalized = text.normalize('NFKC').replace(/[\s\u3000]/g, '')
+  return normalized.startsWith('下列文件') || /^本文件没有规范性引用文件[。.]?$/u.test(normalized)
+}
+
 function hasListPrefix(text: string): boolean {
   return /^\s*(?:\d+\s*[.、)]|[（(]\s*\d+\s*[）)]|[一二三四五六七八九十]+\s*[、.])/u.test(text.normalize('NFKC'))
 }
@@ -50,7 +59,7 @@ export function validateNormativeReferences(doc: IRDoc): NormativeReferenceAnaly
       if (child.kind !== 'paragraph' && child.kind !== 'list') return
       for (const entry of listEntries(child, childPath)) {
         const text = entry.text.trim()
-        if (!text) continue
+        if (!text || isLeadStatement(text)) continue
         if (hasListPrefix(text)) {
           issues.push(makeIssue({
             ruleId: 'normative-reference.list-prefix', severity: 'warning', category: 'references', nodeId: entry.nodeId, path: entry.path,
