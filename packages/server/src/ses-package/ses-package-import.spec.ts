@@ -39,6 +39,7 @@ interface ImportedDocumentBody {
 interface ImportPreviewBody {
   match: { id: number; title: string; revision: number } | null;
   inTrash: boolean;
+  versionScope: 'all' | 'latest' | null;
   newVersions: number;
   localOnlyVersions: number;
   contentDiffers: boolean;
@@ -219,6 +220,7 @@ describe('POST /api/documents/import/ses', () => {
         revision: beforeDoc.revision,
       },
       inTrash: false,
+      versionScope: null,
       newVersions: 1,
       localOnlyVersions: 1,
       contentDiffers: false,
@@ -254,6 +256,7 @@ describe('POST /api/documents/import/ses', () => {
     expect(response).toEqual({
       match: null,
       inTrash: false,
+      versionScope: null,
       newVersions: 2,
       localOnlyVersions: 0,
       contentDiffers: false,

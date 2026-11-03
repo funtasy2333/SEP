@@ -10,6 +10,7 @@ import { ExportModule } from './export/export.module';
 import { DocumentEntity } from './document/document.entity';
 import { VersionEntity } from './version/version.entity';
 import { SesPackageModule } from './ses-package/ses-package.module';
+import { SystemModule } from './system/system.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { SesPackageModule } from './ses-package/ses-package.module';
     ConvertModule,
     ExportModule,
     SesPackageModule,
+    SystemModule,
     McpModule,
   ],
 })

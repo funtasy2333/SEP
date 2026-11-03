@@ -42,6 +42,9 @@ export interface SesExportWarning {
   message: string
 }
 
+/** 导出 .ses 的版本范围：all = 含全部历史快照；latest = 仅最新稿。 */
+export type SesVersionScope = 'all' | 'latest'
+
 export interface SesPackageExport {
   blob: Blob
   warningCount: number
@@ -52,6 +55,8 @@ export interface SesPackageExport {
 export interface SesImportPreview {
   match: { id: number; title: string; revision: number } | null
   inTrash: boolean
+  /** 包的版本范围；早期导出的包没有标记，为 null。 */
+  versionScope: SesVersionScope | null
   newVersions: number
   localOnlyVersions: number
   contentDiffers: boolean
@@ -152,9 +157,12 @@ export const documentApi = {
   emptyTrash(documents: Array<{ id: number; revision: number }>) {
     return api.post('/documents/trash/empty', { documents })
   },
-  async exportSesPackage(id: number): Promise<SesPackageExport> {
+  async exportSesPackage(id: number, scope: SesVersionScope = 'all'): Promise<SesPackageExport> {
     try {
-      const { data, headers } = await api.get<Blob>(`/documents/${id}/export/ses`, { responseType: 'blob' })
+      const { data, headers } = await api.get<Blob>(`/documents/${id}/export/ses`, {
+        responseType: 'blob',
+        ...(scope === 'latest' ? { params: { versions: 'none' } } : {}),
+      })
       const rawCount = Number(headerValue(headers, 'X-SES-Export-Warning-Count'))
       return {
         blob: data,

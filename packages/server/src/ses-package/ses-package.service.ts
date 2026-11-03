@@ -22,7 +22,11 @@ import type { ExportWarning } from '../export/export-http';
 import { VersionEntity } from '../version/version.entity';
 import { nextVersionNo } from '../version/version.service';
 import { unprocessable } from '../common/http-errors';
-import { buildSesPackage, type SesPackage } from './ses-package-format';
+import {
+  buildSesPackage,
+  type SesPackage,
+  type SesVersionScope,
+} from './ses-package-format';
 
 export interface SesPackageExportResult {
   bytes: Buffer;
@@ -33,6 +37,8 @@ export interface SesPackageExportResult {
 export interface SesImportPreview {
   match: { id: number; title: string; revision: number } | null;
   inTrash: boolean;
+  /** 包的版本范围；旧包没有标记时为 null。 */
+  versionScope: SesVersionScope | null;
   newVersions: number;
   localOnlyVersions: number;
   contentDiffers: boolean;
@@ -154,8 +160,14 @@ export class SesPackageService {
     private readonly documents: DocumentService,
   ) {}
 
-  /** 读取一个活动文档及其完整版本历史，构建 UTF-8 SES 包，不修改库中数据。 */
-  async exportPackage(id: number): Promise<SesPackageExportResult> {
+  /**
+   * 读取一个活动文档，构建 UTF-8 SES 包，不修改库中数据。
+   * scope = 'all'（默认）带全部版本历史；'latest' 只带当前正文，不查询版本表。
+   */
+  async exportPackage(
+    id: number,
+    scope: SesVersionScope = 'all',
+  ): Promise<SesPackageExportResult> {
     const { document, versions } = await this.writes.run(async () => {
       const document = await this.documentRepo.findOne({
         where: { id, deletedAt: IsNull() },
@@ -164,13 +176,16 @@ export class SesPackageService {
         throw new NotFoundException(`Document #${id} not found`);
       }
 
-      const versions = await this.versionRepo
-        .createQueryBuilder('version')
-        .addSelect('version.baseContent')
-        .where('version.documentId = :id', { id })
-        .orderBy('version.createdAt', 'ASC')
-        .addOrderBy('version.id', 'ASC')
-        .getMany();
+      const versions =
+        scope === 'latest'
+          ? []
+          : await this.versionRepo
+              .createQueryBuilder('version')
+              .addSelect('version.baseContent')
+              .where('version.documentId = :id', { id })
+              .orderBy('version.createdAt', 'ASC')
+              .addOrderBy('version.id', 'ASC')
+              .getMany();
 
       return { document, versions };
     });
@@ -181,7 +196,7 @@ export class SesPackageService {
         '文档内容为空，无法导出 SES 文档包；请先在编辑器中打开该文档并保存正文',
       );
     }
-    const packageData = buildSesPackage(document, versions);
+    const packageData = buildSesPackage(document, versions, new Date(), scope);
     const warnings = [
       ...collectImageWarnings(document.content),
       ...versions.flatMap((version) => [
@@ -193,7 +208,7 @@ export class SesPackageService {
 
     return {
       bytes,
-      filename: `${document.title?.trim() || DEFAULT_FILE_TITLE}.ses`,
+      filename: `${document.title?.trim() || DEFAULT_FILE_TITLE}${scope === 'latest' ? '（最新稿）' : ''}.ses`,
       warnings,
     };
   }
@@ -201,6 +216,7 @@ export class SesPackageService {
   /** 只读预览；查询排在在途写入之后，整个读取仅持有一次共享写锁。 */
   async previewImport(pkg: SesPackage): Promise<SesImportPreview> {
     return this.writes.run(async () => {
+      const versionScope = pkg.versionScope ?? null;
       const matches = await this.documentRepo
         .createQueryBuilder('document')
         .where('LOWER(document.uid) = :uid', {
@@ -217,6 +233,7 @@ export class SesPackageService {
         return {
           match: null,
           inTrash: false,
+          versionScope,
           newVersions: pkg.versions.length,
           localOnlyVersions: 0,
           contentDiffers: false,
@@ -259,6 +276,7 @@ export class SesPackageService {
           revision: match.revision,
         },
         inTrash: match.deletedAt !== null,
+        versionScope,
         newVersions: newVersions.length,
         localOnlyVersions,
         contentDiffers:

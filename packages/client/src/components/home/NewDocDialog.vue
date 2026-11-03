@@ -223,7 +223,7 @@
       <div class="dlg-foot">
         <div class="foot-l">
           <el-icon><MagicStick /></el-icon>
-          将自动套用 GB/T 1.1 默认结构（前言 + 范围 + 规范性引用文件 + 术语和定义）
+          将自动套用 GB/T 1.1 默认结构（前言 + 范围 + 规范性引用文件 + 术语和定义，后两章含标准引导语）
         </div>
         <div class="foot-r">
           <el-button @click="visible = false">取消</el-button>

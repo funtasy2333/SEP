@@ -489,7 +489,7 @@ function parseRun(value: unknown, path: string, ctx: Ctx, allowFormula = false):
   }
   // 重复标记、code 与其他标记互斥等：复用投影阶段的同一套判定，路径天然对应（marks 数组原样保留）。
   const diagnostics: IRToPmDiagnostic[] = []
-  diagnoseInlineProjection(run, path, undefined, diagnostics)
+  diagnoseInlineProjection(run, path, undefined, diagnostics, { rejectBoldCode: true })
   for (const diagnostic of diagnostics) ctx.issue(diagnostic.path, 'inline-projection', diagnostic.reason)
   return diagnostics.length ? undefined : run
 }

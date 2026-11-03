@@ -15,12 +15,18 @@ export function sesImportPromptOf(preview: SesImportPreview): SesImportPrompt {
     }
   }
 
-  const details = [
-    `包中新增 ${preview.newVersions} 个版本；本地独有 ${preview.localOnlyVersions} 个版本。`,
+  // 最新稿包不含版本历史：本地「独有」版本只是包里没带，不是对方删除，所以不展示版本数量。
+  const latestOnly = preview.versionScope === 'latest'
+  const details = latestOnly
+    ? ['此文档包只含最新稿，不含版本历史；本地已有版本全部保留。']
+    : [`包中新增 ${preview.newVersions} 个版本；本地独有 ${preview.localOnlyVersions} 个版本。`]
+  details.push(
     preview.contentDiffers
       ? '正文不同：包正文成为当前正文。版本历史会记录本次导入，可查看本次修改或回滚到导入前。'
-      : '正文相同，导入只追加版本，不改动当前正文。',
-  ]
+      : latestOnly
+        ? '正文相同，导入不会追加版本，不改动当前正文。'
+        : '正文相同，导入只追加版本，不改动当前正文。',
+  )
   if (preview.versionNoCollisions.length > 0) {
     details.push(`版本号冲突：${preview.versionNoCollisions.join('、')}；导入时会续编并在说明中保留原版本号。`)
   }

@@ -2,6 +2,10 @@ import type { Extensions } from '@tiptap/core'
 import { Image } from '@tiptap/extension-image'
 import { Placeholder } from '@tiptap/extension-placeholder'
 import { EditorTable } from './nodes/editor-table'
+import { StdListBlockItem } from './nodes/std-list'
+import { AlignedArray } from './nodes/aligned-array'
+import { SharedFootnoteRef, SharedFootnoteDefinition } from './nodes/footnotes'
+import { GraphicPreviews } from './plugins/graphicPreviews'
 import StarterKit from '@tiptap/starter-kit'
 import {
   Adoption, Appendix, AppendixLabel, AppendixTitle,
@@ -16,11 +20,11 @@ import {
   Example, ExampleBlock,
   ExternalLink,
   FootnoteLabels,
-  Figure, FigureCaption, FigureCaptionEn, FigureDescription, FigureGroup, FigureImage, FigureLegend, FigureLegendTitle, FigureResource, FigureResourceRef,
+  Figure, FigureSet, FigureCaption, FigureCaptionEn, FigureDescription, FigureGroup, FigureImage, FigureLegend, FigureLegendTitle, FigureResource, FigureResourceRef,
   FootnoteRef,
   FormulaInline, FormulaNote,
-  Foreword, Formula, FormulaContent, FormulaDescription,
-  IdentifierPart, IndexBlock, IndexEntry, IndexGroup, IndexSeeAlso, IndexTarget, IndexTerm,
+  Foreword, Formula, FormulaGroup, FormulaContent, FormulaDescription,
+  IdentifierPart, IndexBlock, IndexEntry, IndexGroup, IndexSeeAlso, IndexSourceReference, IndexTarget, IndexTerm,
   InlineImage, Introduction,
   MetadataBlock, MetadataFields, MetadataLanguage, NodeId, Note, NoteBlock,
   Publisher, QuoteBlock,
@@ -38,13 +42,22 @@ import {
   TermDef, TermDefinition, TermName, TermNameEn, TermSource, TermSubjectField,
   NormRefList, NormRefStd, NormRefStdRef, NormRefStdTitle, NormRefMixed, StdRef, MixedCitation,
   TableColumnsSync,
+  StructuralPaste,
+  TableExit,
+  ClipboardPolicy,
 } from './index' // 相对路径：服务端打包也会加载本文件，不认识 '@/' 别名（见 editorSchema.ts）
 
 /** The exact extension list used by EditorView's useEditor call. */
 export function createEditorExtensions(): Extensions {
   return [
     // GB/T 标准文档不需要 blockquote/codeBlock/horizontalRule，禁用以免产生 IR 无法表达的内容
-    StarterKit.configure({ heading: false, blockquote: false, codeBlock: false, horizontalRule: false, gapcursor: false }),
+    StarterKit.extend({
+      addExtensions() {
+        return this.parent!().map(extension => extension.name === 'code'
+          ? extension.extend({ excludes: 'code italic underline subscript superscript strike variable externalLink crossRef bibRef termRef stdRef mixedCitation textStyle link' })
+          : extension)
+      },
+    }).configure({ heading: false, blockquote: false, codeBlock: false, horizontalRule: false, gapcursor: false }),
     EditorTable.configure({ resizable: true, allowTableNodeSelection: true }),
     StandardTableRow, StandardTableCell, StandardTableHeader,
     Image,
@@ -78,7 +91,7 @@ export function createEditorExtensions(): Extensions {
     FormulaNote, WhereList, WhereItem, WhereTerm, WhereDefinition, FormulaInline,
     FigureGroup, FigureDescription, FigureResource, FigureResourceRef,
     BibStructured, BibField, BibIdentifier, BibExternalLink,
-    IndexBlock, IndexGroup, IndexEntry, IndexTerm, IndexTarget, IndexSeeAlso,
+    IndexBlock, IndexGroup, IndexEntry, IndexTerm, IndexTarget, IndexSeeAlso, IndexSourceReference,
     WarningBlock, QuoteBlock, SemanticCodeBlock,
     TextStyle, Subscript, Superscript, Variable, ExternalLink, BibRef, TermRef,
     WhereListEditing, InlineFormulaEditing,
@@ -91,6 +104,12 @@ export function createEditorExtensions(): Extensions {
     // G8：列数变化时清空 stdTable.columns（M-6.1-03，D-M-11）。纯插件，不新增节点。
     TableColumnsSync,
     // G3：图例（M-8.5-01～06）与行内图（M-8.3-02）；图注、图中示例复用 figure 内的 note / example，无新节点。
-    FigureLegend, FigureLegendTitle, InlineImage,
+    FigureLegend, FigureLegendTitle, InlineImage, StdListBlockItem, FormulaGroup, FigureSet, AlignedArray, SharedFootnoteRef, SharedFootnoteDefinition, GraphicPreviews,
+    // #71：章条容器只作上下文 defining，粘贴不重建左侧打开的章条外壳；拒绝把章/附录嵌进章条内部。不新增节点。
+    StructuralPaste,
+    // #73：表格内 Mod-Enter 在表格之后插入正文段。纯快捷键扩展，不新增节点。
+    TableExit,
+    // 剪贴板：SES 内复制保留格式；外部来源与 Ctrl/Cmd+Shift+V 按纯文本并入光标所在段落。不新增节点。
+    ClipboardPolicy,
   ]
 }

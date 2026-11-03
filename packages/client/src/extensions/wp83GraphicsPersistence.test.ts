@@ -1,0 +1,201 @@
+// @vitest-environment happy-dom
+import { describe, expect, it } from 'vitest'
+import { exportXml46687, getOutputSupportProblems, IRToPmError, irToPm, pmToIr, resolve, type IRDoc, type PMJsonNode } from '@ses/shared'
+import { createEditorSchema } from './editorSchema'
+import { completeMeta } from '../../../shared/src/renderers/__tests__/xml46687Kit'
+import { stubOptions } from '../../../shared/src/renderers/__tests__/xml46687StubKit'
+import { DOMParser, DOMSerializer, Fragment, Slice } from '@tiptap/pm/model'
+import { hasNodeIdIssues, normalizeNodeIds, remapPastedSliceIds } from './plugins/ensureNodeId'
+import { Editor } from '@tiptap/core'
+import { createEditorExtensions } from './editorExtensions'
+
+describe('WP8.3 图像关系保存', () => {
+  it('保存同一图的有序附加图及表格的替代图', () => {
+    const source: IRDoc = {
+      schemaVersion: 1, meta: { standardType: 'gb' },
+      front: { foreword: [], introduction: [] },
+      body: [{ kind: 'chapter', id: 'chapter', secType: 'general', title: [], children: [
+        { kind: 'figure', id: 'fig', caption: [], orientation: 'portrait', src: 'first.png', notes: [],
+          primaryGraphic: { contentType: 'image', specificUse: 'size:T' },
+          additionalGraphics: [{ id: 'graphic2', src: 'second.png', resourceId: 'resource2', contentType: 'image', specificUse: 'size:S' }] },
+        { kind: 'table', id: 'table1', caption: [], orientation: 'portrait', headerRowCount: 0, notes: [],
+          rows: [{ id: 'row', cells: [{ id: 'cell', colspan: 1, rowspan: 1, header: false, content: [{ kind: 'paragraph', id: 'p', content: [{ text: '内容' }] }] }] }],
+          alternativeGraphic: { id: 'alt', src: 'alt.png', resourceId: 'resource3', contentType: 'disp_table' } },
+      ] }], appendices: [], bibliography: [], resources: [
+        { id: 'resource2', encoding: 'dataUrl', data: 'data:image/png;base64,AA==' },
+        { id: 'resource3', encoding: 'dataUrl', data: 'data:image/png;base64,AA==' },
+      ],
+    }
+    const schema = createEditorSchema()
+    const first = schema.nodeFromJSON(irToPm(source))
+    first.check()
+    const figure = first.firstChild!.child(1)
+    expect(figure.attrs.additionalGraphics[0]).toMatchObject({ nodeId: 'graphic2', src: 'second.png' })
+    expect(first.firstChild!.child(2).attrs.alternativeGraphic).toMatchObject({ nodeId: 'alt', src: 'alt.png' })
+    const restored = schema.nodeFromJSON(JSON.parse(JSON.stringify(first.toJSON())))
+    restored.check()
+    const result = pmToIr(restored.toJSON() as PMJsonNode)
+    expect(result.doc.unsupportedContent ?? []).toEqual([])
+    expect(result.doc.body[0]!.children[0]).toMatchObject(source.body[0]!.children[0]!)
+    expect(result.doc.body[0]!.children[1]).toMatchObject(source.body[0]!.children[1]!)
+    expect(schema.nodeFromJSON(irToPm(result.doc)).toJSON()).toEqual(first.toJSON())
+    for (const format of ['HTML', 'DOCX', 'XML'] as const) {
+      expect(getOutputSupportProblems(result.doc, format).some(problem => problem.path.includes('additionalGraphics'))).toBe(true)
+      expect(getOutputSupportProblems(result.doc, format).some(problem => problem.path.includes('alternativeGraphic'))).toBe(true)
+    }
+    const outputDoc = { ...result.doc, meta: completeMeta(), body: result.doc.body.map(chapter => ({ ...chapter, secType: 'scope' as const, title: [{ text: '范围' }] })) }
+    const options = stubOptions(outputDoc)
+    expect(options.resources.entries.map(({ href, key }) => ({ href, key }))).toEqual([
+      { href: 'fig_1', key: 'first.png' }, { href: 'fig_1_g1', key: 'resource2' }, { href: 'tab_1_alt', key: 'resource3' },
+    ])
+    const exported = exportXml46687(outputDoc, resolve(outputDoc).labels, options)
+    expect(exported.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    const xml = exported.xml!.replace(/>\s+</g, '><')
+    expect(xml).toContain('<graphic content-type="image" xlink:href="fig_1" specific-use="size:T"/><graphic content-type="image" xlink:href="fig_1_g1" specific-use="size:S"/>')
+    expect(xml).toContain('<graphic content-type="disp_table" xlink:href="tab_1_alt"/>')
+  })
+
+  it('缺少附加图所需资源时阻止投影', () => {
+    const source: IRDoc = { schemaVersion: 1, meta: { standardType: 'gb' }, front: { foreword: [], introduction: [] },
+      body: [{ kind: 'chapter', id: 'chapter', secType: 'general', title: [], children: [
+        { kind: 'figure', id: 'fig', caption: [], orientation: 'portrait', src: 'main.png', notes: [],
+          additionalGraphics: [{ id: 'extra', src: 'extra.png', resourceId: 'missing' }] },
+      ] }], appendices: [], bibliography: [] }
+    expect(() => irToPm(source)).toThrow(IRToPmError)
+  })
+
+  it('拒绝损坏的附加图载荷而不静默接受', () => {
+    const source: PMJsonNode = { type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [
+      { type: 'chapterTitle' },
+      { type: 'figure', attrs: { nodeId: 'f', additionalGraphics: [{ id: 'g', src: 42 }] }, content: [
+        { type: 'figureImage', attrs: { src: 'main.png' } }, { type: 'figureCaption' },
+      ] },
+    ] }] }
+    expect(pmToIr(source).doc.unsupportedContent).toEqual(expect.arrayContaining([
+      expect.objectContaining({ nodeType: 'figure', reason: expect.stringContaining('additionalGraphics') }),
+    ]))
+  })
+
+  it('生产 Schema 校验拒绝无效的结构化图像属性', () => {
+    const schema = createEditorSchema()
+    const input = { type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [
+      { type: 'chapterTitle' }, { type: 'figure', attrs: { nodeId: 'f', additionalGraphics: [{ nodeId: 'g', src: 42 }] }, content: [
+        { type: 'figureImage', attrs: { src: 'main.png' } }, { type: 'figureCaption' },
+      ] },
+    ] }] }
+    expect(() => schema.nodeFromJSON(input).check()).toThrow()
+  })
+
+  it('图片尺寸用途必须是规范字符串而不是可字符串化的数组', () => {
+    const schema = createEditorSchema()
+    const input = { type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [
+      { type: 'chapterTitle' }, { type: 'figure', attrs: { nodeId: 'f', primaryGraphic: { specificUse: ['size:T'] } }, content: [
+        { type: 'figureImage', attrs: { src: 'main.png' } }, { type: 'figureCaption' },
+      ] },
+    ] }] }
+    expect(() => schema.nodeFromJSON(input).check()).toThrow()
+  })
+
+  it('复制图和表时重映射属性里的图像 ID 并保留外部资源引用', () => {
+    const schema = createEditorSchema()
+    const source = schema.nodeFromJSON({ type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'chapter' }, content: [
+      { type: 'chapterTitle' },
+      { type: 'figure', attrs: { nodeId: 'fig', additionalGraphics: [{ nodeId: 'extra', src: 'extra.png', resourceId: 'resource' }] }, content: [
+        { type: 'figureImage', attrs: { src: 'main.png' } }, { type: 'figureCaption' },
+      ] },
+      { type: 'stdTable', attrs: { nodeId: 'tbl', alternativeGraphic: { nodeId: 'alt', src: 'alt.png', resourceId: 'resource' } }, content: [
+        { type: 'tableCaption' }, { type: 'table', content: [{ type: 'tableRow', attrs: { nodeId: 'row' }, content: [
+          { type: 'tableCell', attrs: { nodeId: 'cell' }, content: [{ type: 'paragraph' }] },
+        ] }] },
+      ] },
+    ] }] })
+    const slice = new Slice(Fragment.from(source.firstChild!), 0, 0)
+    const copied = remapPastedSliceIds(slice, source).content.firstChild!
+    expect(copied.child(1).attrs.additionalGraphics[0]).toMatchObject({ src: 'extra.png', resourceId: 'resource' })
+    expect(copied.child(1).attrs.additionalGraphics[0].nodeId).not.toBe('extra')
+    expect(copied.child(2).attrs.alternativeGraphic).toMatchObject({ src: 'alt.png', resourceId: 'resource' })
+    expect(copied.child(2).attrs.alternativeGraphic.nodeId).not.toBe('alt')
+  })
+
+  it('保存重开时检测并修复属性中与节点重复的图像 ID', () => {
+    const schema = createEditorSchema()
+    const doc = schema.nodeFromJSON({ type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'chapter' }, content: [
+      { type: 'chapterTitle' }, { type: 'figure', attrs: { nodeId: 'figure', additionalGraphics: [
+        { nodeId: 'figure', src: 'extra.png', resourceId: 'resource' },
+      ] }, content: [{ type: 'figureImage', attrs: { src: 'main.png' } }, { type: 'figureCaption' }] },
+    ] }] })
+    expect(hasNodeIdIssues(doc)).toBe(true)
+    const repaired = normalizeNodeIds(doc)
+    expect(hasNodeIdIssues(repaired)).toBe(false)
+    expect(repaired.firstChild!.child(1).attrs.additionalGraphics[0]).toMatchObject({ src: 'extra.png', resourceId: 'resource' })
+    expect(repaired.firstChild!.child(1).attrs.additionalGraphics[0].nodeId).not.toBe('figure')
+  })
+
+  it('经 HTML 复制后仍保留附加图和替代图属性', () => {
+    const schema = createEditorSchema()
+    const source = schema.nodeFromJSON({ type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [
+      { type: 'chapterTitle' }, { type: 'figure', attrs: { nodeId: 'f', primaryGraphic: { specificUse: 'size:T' },
+        additionalGraphics: [{ nodeId: 'g', src: 'extra.png', resourceId: 'r' }] }, content: [
+        { type: 'figureImage', attrs: { src: 'main.png' } }, { type: 'figureCaption' },
+      ] }, { type: 'stdTable', attrs: { nodeId: 't', alternativeGraphic: { nodeId: 'alt', src: 'alt.png' } }, content: [
+        { type: 'tableCaption' }, { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }] },
+      ] },
+    ] }] })
+    const host = document.createElement('div')
+    host.appendChild(DOMSerializer.fromSchema(schema).serializeFragment(source.content))
+    const result = DOMParser.fromSchema(schema).parse(host)
+    expect(result.firstChild!.child(1).attrs.additionalGraphics).toEqual([{ nodeId: 'g', src: 'extra.png', resourceId: 'r' }])
+    expect(result.firstChild!.child(1).attrs.primaryGraphic).toEqual({ specificUse: 'size:T' })
+    expect(result.firstChild!.child(2).attrs.alternativeGraphic).toEqual({ nodeId: 'alt', src: 'alt.png' })
+  })
+
+  it('编辑视图展示全部附加图和所属表替代图', () => {
+    const editor = new Editor({ extensions: createEditorExtensions(), content: { type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [
+      { type: 'chapterTitle' }, { type: 'figure', attrs: { nodeId: 'f', additionalGraphics: [{ nodeId: 'g', src: 'extra.png' }] }, content: [
+        { type: 'figureImage', attrs: { src: 'main.png' } }, { type: 'figureCaption' },
+      ] }, { type: 'stdTable', attrs: { nodeId: 't', alternativeGraphic: { nodeId: 'alt', src: 'alt.png' } }, content: [
+        { type: 'tableCaption' }, { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }] },
+      ] },
+    ] }] } })
+    expect(editor.view.dom.querySelector('[data-graphic-id="g"]')?.getAttribute('src')).toBe('extra.png')
+    expect(editor.view.dom.querySelector('[data-graphic-id="alt"]')?.getAttribute('src')).toBe('alt.png')
+    editor.destroy()
+  })
+
+  it('HTML 粘贴保留公式组编号、数组列组和共享脚注关系', () => {
+    const schema = createEditorSchema()
+    const source = schema.nodeFromJSON({ type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [
+      { type: 'chapterTitle' }, { type: 'formulaGroup', attrs: { nodeId: 'fg', numbered: true }, content: [
+        { type: 'formula', attrs: { nodeId: 'f', numbered: false }, content: [{ type: 'formulaContent' }] },
+      ] }, { type: 'alignedArray', attrs: { nodeId: 'a', columns: [{}, {}], columnGroups: [{ start: 0, count: 2 }] }, content: [
+        { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }, { type: 'tableCell', content: [{ type: 'paragraph' }] }] }] },
+      ] }, { type: 'stdParagraph', attrs: { nodeId: 'p' }, content: [
+        { type: 'sharedFootnoteRef', attrs: { targetId: 'fn', refText: '1' } },
+        { type: 'sharedFootnoteDefinition', attrs: { nodeId: 'fn', content: [{ type: 'text', text: '脚注' }] } },
+      ] },
+    ] }] })
+    const host = document.createElement('div')
+    host.appendChild(DOMSerializer.fromSchema(schema).serializeFragment(source.content))
+    const result = DOMParser.fromSchema(schema).parse(host)
+    const chapter = result.firstChild!
+    expect(chapter.child(1).attrs.numbered).toBe(true)
+    expect(chapter.child(2).attrs.columnGroups).toEqual([{ start: 0, count: 2 }])
+    expect(chapter.child(3).child(0).attrs).toMatchObject({ targetId: 'fn', refText: '1' })
+    expect(chapter.child(3).child(1).attrs).toMatchObject({ nodeId: 'fn', content: [{ type: 'text', text: '脚注' }] })
+  })
+
+  it('旧单图和表的生产 JSON 不添加空扩展属性', () => {
+    const schema = createEditorSchema()
+    const node = schema.nodeFromJSON({ type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [
+      { type: 'chapterTitle' }, { type: 'figure', attrs: { nodeId: 'f' }, content: [
+        { type: 'figureImage', attrs: { src: 'main.png' } }, { type: 'figureCaption' },
+      ] }, { type: 'stdTable', attrs: { nodeId: 't' }, content: [
+        { type: 'tableCaption' }, { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }] },
+      ] },
+    ] }] })
+    const json = JSON.parse(JSON.stringify(node.toJSON()))
+    expect(json.content[0].content[1].attrs).not.toHaveProperty('primaryGraphic')
+    expect(json.content[0].content[1].attrs).not.toHaveProperty('additionalGraphics')
+    expect(json.content[0].content[2].attrs).not.toHaveProperty('alternativeGraphic')
+  })
+})

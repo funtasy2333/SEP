@@ -392,7 +392,8 @@
         </ul>
         <h4>文档结构</h4>
         <p>界面分三层：顶栏是整份文件的操作（源码、导入、版本历史、质量检查、导出）；工具栏只处理正文，「设为」改变当前段落的角色，「插入」加入新的内容要素；光标位于公式、图或表时，工具栏右侧会出现对应的上下文工具（添加式中、纵向/横向版面）；光标位于附录内时，可用「附录版面」把整个附录设为横向页面。</p>
-        <p>使用左侧「文档结构」面板的「添加」按钮添加章节结构（前言、引言、章、附录、参考文献）；工具栏最左侧的按钮可隐藏或显示该面板。点击正文段落或选中其中的文字后，使用“条”“无题条”设置整段格式；新条之后的正文归入该条，直到下一个同级条。一级条置于章或附录内，其他级别置于上一级条内。含子条时保留原层级，可切换有题/无题；先调整子条结构再改层级或段落。需要新条时，先回车建立空段再设置格式。</p>
+        <p>使用左侧「文档结构」面板的「添加」按钮添加章节结构（前言、引言、章、附录、参考文献）；工具栏最左侧的按钮可隐藏或显示该面板。点击正文段落或选中其中的文字后，使用“条”“无题条”设置整段格式；新条之后的正文归入该条，直到下一个同级条。一级条置于章或附录内，其他级别置于上一级条内。含子条时保留原层级，可切换有题/无题；先调整子条结构再改层级或段落。需要新条时，先回车建立空段再设置格式；光标在表格内时选择“条”“无题条”，会在表格之后新建条，也可用“表格”菜单的“表格后插入段落”（Ctrl/Cmd+Enter）在表格后继续书写。</p>
+        <p>粘贴：在 SES 内复制的内容保留格式和结构；从 Word、网页等外部来源粘贴时自动转为纯文本，直接插入光标所在的段落并沿用该处格式，多行合并为一段，不会新建段落或条目（需要时按回车）。需要去掉格式时，用 Ctrl/Cmd+Shift+V 按纯文本粘贴。</p>
         <p>术语中英文名称同列显示：Tab 从中文名进入英文名，Enter 进入定义；在定义中 Enter 新建续段，末尾空续段再次 Enter 退出术语。使用工具栏「设为」设置列项，「插入」加入注、示例、术语、公式、表格、图片等内容要素。选中图或表后，可切换纵向或横向版面；宽表所在的附录可整体设为横向，附录标题、引导文字与图表同在横页，不再单独占一张竖页。</p>
         <p>行内公式：在正文、列项、注、示例、表格单元格、术语定义中按 Ctrl/Cmd+Shift+M（或工具栏「行内公式」）插入；先选中 q<sub>V</sub> 这类带上下标的文字再按，可把它转为公式。点击公式可重新编辑。</p>
       </div>
@@ -457,9 +458,34 @@
         <button class="export-card" :disabled="exportingFormat !== null" @click="handleExportFormat('ses')">
           <span class="ec-glyph">SES</span>
           <span class="ec-label">SES 文档包</span>
-          <span class="ec-sub">{{ exportingFormat === 'ses' ? '正在打包…' : '携带正文、文件设置与全部版本' }}</span>
+          <span class="ec-sub">{{ exportingFormat === 'ses' ? '正在打包…' : '携带正文与文件设置，可选是否包含全部版本' }}</span>
         </button>
       </div>
+    </el-dialog>
+
+    <!-- =====================  SES VERSION SCOPE DIALOG  ===================== -->
+    <el-dialog
+      v-model="sesScopeDialogVisible"
+      title="SES 文档包包含哪些内容"
+      width="460px"
+      class="ses-scope-dialog"
+      :close-on-click-modal="false"
+      @close="finishSesScopeChoice(null)"
+    >
+      <el-radio-group v-model="sesScopeDraft" class="ses-scope-options">
+        <el-radio value="all" class="ses-scope-option">
+          <span class="ses-scope-title">全部历史快照</span>
+          <span class="ses-scope-desc">正文、文件设置与全部已保存版本</span>
+        </el-radio>
+        <el-radio value="latest" class="ses-scope-option">
+          <span class="ses-scope-title">最新稿</span>
+          <span class="ses-scope-desc">仅当前已保存的正文和文件设置，不含版本历史，文件更小</span>
+        </el-radio>
+      </el-radio-group>
+      <template #footer>
+        <el-button @click="finishSesScopeChoice(null)">取消</el-button>
+        <el-button type="primary" @click="finishSesScopeChoice(sesScopeDraft)">导出</el-button>
+      </template>
     </el-dialog>
 
     <!-- =====================  SAVE CONFLICT DIALOG  ===================== -->
@@ -580,7 +606,7 @@ import {
   synchronizeCoverMetadata,
   type DocumentSettingsDraft,
 } from '@/utils/documentSettings'
-import { setClauseFormat, setListFormat, setParagraphFormat, structureFailureMessage, type StructureAction, type StructureResult } from '@/utils/structureEditing'
+import { insertParagraphAfterTable, setClauseFormat, setListFormat, setParagraphFormat, structureFailureMessage, type StructureAction, type StructureResult } from '@/utils/structureEditing'
 import { countLegacyUntitledClauses } from '@/utils/untitledClause'
 import { createDocumentDuplicate } from '@/utils/duplicateDocument'
 import { isRevisionConflict } from '@/utils/documentConflict'
@@ -600,7 +626,7 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 // Underline is included in StarterKit (tiptap v3)
 import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon, Clock, Download, WarningFilled, Upload, CircleCheck, QuestionFilled, Memo, DArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { documentApi, type DocumentData } from '@/api/document'
+import { documentApi, type DocumentData, type SesVersionScope } from '@/api/document'
 import { useDocumentStore } from '@/stores/document'
 import { useVersionStore } from '@/stores/version'
 import SesEditorContent from '@/components/editor/EditorContent.vue'
@@ -683,6 +709,10 @@ const searchStatus = ref('')
 const showXmlCode = ref(false)
 const showHelp = ref(false)
 const showExport = ref(false)
+const SES_SCOPE_STORAGE_KEY = 'ses.export.sesVersionScope'
+const sesScopeDialogVisible = ref(false)
+const sesScopeDraft = ref<SesVersionScope>('all')
+let sesScopeResolver: ((scope: SesVersionScope | null) => void) | null = null
 const codeViewFormat = ref<'xml' | 'json' | 'html' | 'raw'>('xml')
 const xmlFileInput = ref<HTMLInputElement | null>(null)
 const showVersionPanel = ref(false)
@@ -1082,6 +1112,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  finishSesScopeChoice(null)
   window.removeEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
   window.removeEventListener(INLINE_FORMULA_EVENT, handleInlineFormulaEvent)
   window.removeEventListener('ses:edit-footnote', handleFootnoteEditEvent)
@@ -1706,6 +1737,9 @@ function handleTableCommand(command: string) {
       }
       break
     }
+    case 'paragraphAfter':
+      warnStructureFailure(insertParagraphAfterTable(editor.value), 'table')
+      break
     case 'addRowBefore':
       chain.addRowBefore().run()
       break
@@ -2344,9 +2378,43 @@ function buildDocMeta(): Partial<IRDocMeta> {
   return irMetaFromDocumentMeta(store.currentDocument?.meta)
 }
 
+/** 读取上次选择的 SES 导出范围；localStorage 不可用或值不认识时回退为全部历史快照。 */
+function readStoredSesScope(): SesVersionScope {
+  try {
+    return localStorage.getItem(SES_SCOPE_STORAGE_KEY) === 'latest' ? 'latest' : 'all'
+  } catch {
+    return 'all'
+  }
+}
+
+function rememberSesScope(scope: SesVersionScope) {
+  try {
+    localStorage.setItem(SES_SCOPE_STORAGE_KEY, scope)
+  } catch {
+    // 忽略：下次仍使用默认选项
+  }
+}
+
+/** 弹出 SES 导出范围选择；返回 null 表示用户取消。 */
+function askSesVersionScope(): Promise<SesVersionScope | null> {
+  sesScopeDraft.value = readStoredSesScope()
+  sesScopeDialogVisible.value = true
+  return new Promise((resolve) => { sesScopeResolver = resolve })
+}
+
+function finishSesScopeChoice(scope: SesVersionScope | null) {
+  const resolve = sesScopeResolver
+  sesScopeResolver = null
+  sesScopeDialogVisible.value = false
+  if (!resolve) return
+  if (scope) rememberSesScope(scope)
+  resolve(scope)
+}
+
 async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'json' | 'ses') {
   if (!editor.value) return
   if (exportingFormat.value !== null) return
+  if (sesScopeResolver) return
   if (persistenceOperation.value !== null) {
     ElMessage.warning('文档保存或导入完成后再导出')
     return
@@ -2363,6 +2431,10 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
     const requestedDocumentId = documentId.value
     const initialDocument = store.currentDocument
     if (!initialDocument?.id || initialDocument.id !== requestedDocumentId || documentUnavailable.value) return
+
+    // 未保存检查已在上面完成，再让用户选范围，避免选完才被告知有未保存修改。
+    const scope = await askSesVersionScope()
+    if (!scope || documentId.value !== requestedDocumentId || documentUnavailable.value) return
 
     exportingFormat.value = 'ses'
     clearExportError()
@@ -2391,16 +2463,18 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
       }
 
       const currentTitle = buildDocMeta().title || currentDocument.meta?.titleCn || '标准文件'
-      const result = await documentApi.exportSesPackage(requestedDocumentId)
-      downloadBlob(result.blob, `${currentTitle}.ses`)
+      const result = await documentApi.exportSesPackage(requestedDocumentId, scope)
+      const latestOnly = scope === 'latest'
+      downloadBlob(result.blob, `${currentTitle}${latestOnly ? '（最新稿）' : ''}.ses`)
       showExport.value = false
+      const packageLabel = latestOnly ? 'SES 文档包（最新稿）' : 'SES 文档包'
       if (result.warningCount > 0) {
         const details = result.warnings.map((warning) => warning.message).filter(Boolean)
         const truncated = result.warningsTruncated ? '（部分告警明细未包含）' : ''
         const detailText = details.length > 0 ? `：${details.join('；')}` : ''
-        ElMessage.warning(`SES 文档包已导出；${result.warningCount} 处外部图片引用未打包${detailText}${truncated}`)
+        ElMessage.warning(`${packageLabel}已导出；${result.warningCount} 处外部图片引用未打包${detailText}${truncated}`)
       } else {
-        ElMessage.success('SES 文档包已导出')
+        ElMessage.success(`${packageLabel}已导出`)
       }
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
@@ -3107,6 +3181,19 @@ function handleXmlFileImport(event: Event) {
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
+.ses-scope-options { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; }
+.ses-scope-option {
+  display: flex; align-items: flex-start;
+  height: auto; margin-right: 0;
+  padding: 10px 12px;
+  border: 1.5px solid var(--ses-line);
+  border-radius: var(--ses-r-md);
+  white-space: normal;
+}
+.ses-scope-option.is-checked { border-color: var(--ses-accent); background: var(--ses-accent-soft); }
+.ses-scope-option :deep(.el-radio__label) { display: flex; flex-direction: column; gap: 2px; white-space: normal; line-height: 1.45; }
+.ses-scope-title { font-size: 13px; font-weight: 600; color: var(--ses-ink); }
+.ses-scope-desc { font-size: 12px; color: var(--ses-ink-3); }
 .ec-sub {
   font-size: 10.5px;
   color: var(--ses-ink-3);

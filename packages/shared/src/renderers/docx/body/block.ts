@@ -460,6 +460,9 @@ function renderBlockContent(ctx: RenderContext, block: IRBlock, bctx: BlockCtx):
     case 'warning':
     case 'quote':
     case 'code':
+    case 'formulaGroup':
+    case 'figureSet':
+    case 'array':
       throw new Error(`DOCX 尚未支持 ${block.kind}（节点 ${block.id}）`)
   }
 }

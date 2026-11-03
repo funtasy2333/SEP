@@ -7,7 +7,7 @@
     python3 -I scripts/xml46687/validate.py [--json] [--profile import|export] <file.xml> [...]
 
 校验层次（对应 docs/wp8.1/conventions-S.md 第 3.5 节）：
-  1. 语法    格式良好；禁止 DTD 加载、外部实体与网络访问；UTF-8；DOCTYPE 不得带内部子集（SYN-1～SYN-3）
+  1. 语法    格式良好；禁止 DTD 加载、外部实体与网络访问；UTF-8；任何 DOCTYPE 均拒绝（SYN-1～SYN-3）
              （SYN-3 用 XML 感知的序言扫描判断真实 DOCTYPE，不被注释/CDATA/处理指令里的字样误导）
   2. 旧格式  GB/T 37967 与 SEP 早期自定义格式的判别特征（LEGACY），命中即拒绝，不尝试转换
   3. 结构    项目自写 schema：lxml（RELAX NG）与 xmllint 两个实现同时校验，结果不一致即报告（RNG / CONSISTENCY）
@@ -16,12 +16,12 @@
   5. 语义    V-1 id/rid；V-2 sec-type 与位置；V-3 app/ref-list 的 content-type；V-4 日期；V-5 列项；
              V-6 processing-meta 与 title-wrap；V-7 遗留 id 形式；
              附加：V-8 xref 的 ref-type 与目标一致；V-9 术语条目定义个数；V-10 MathML 安全；V-11 外链协议；
-             V-12 std-meta 子元素次序（STD-META-ORDER：导出为错误，导入为告警；结构层不限次序）；
-             V-13 必备 id（REQUIRED-ID：导出为错误，导入为告警；结构层 id 一律可选）；
-             V-14 mml:math 的 id（MML-ID）；V-15 mml:math 的 display 按上下文（MML-DISPLAY）：均为导出错误、导入告警；
+             V-12 std-meta 子元素次序（导入接受次序 A/B，其余错误；结构层不限次序）；
+             V-13 必备 id（导出按清单，导入按 R6–R8 上下文）；
+             V-14 mml:math 的 id、V-15 display 按公式上下文（WP8.3 R4/R5）；
              V-16 导出文件的固定外形（XML 声明、根上的命名空间声明、processing-meta：仅导出档）；
              V-17 导出必备的部件（label、title、annex-type、graphic、ext-link-type 等：导出错误、导入告警）；
-             V-18 p 不带 id（导出错误、导入告警）
+             V-18 p 不带 id（导出及严格导入均为错误）
 
 说明：lxml 与 xmllint 都基于 libxml2 的 RELAX NG 实现（版本不同、构建独立），不是两个互相独立的算法；
 它们能发现构建/版本差异，但不能替代 jing 之类独立实现（本机没有）。
@@ -33,12 +33,14 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import ExitStack
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import date
 from pathlib import Path
 
@@ -271,7 +273,7 @@ def _report_doctype(rep: Report, rejected: bool, detail: str = "") -> None:
     elif rep.profile == "export":
         rep.error("SYN-3", "导出文件不得写 DOCTYPE（D-S-03、C-S-02）")
     else:
-        rep.warn("SYN-3", "存在 DOCTYPE 声明：只记录，不读取外部子集；本格式导出不写 DOCTYPE（C-S-02）")
+        rep.error("SYN-3", "项目严格约定禁止 DOCTYPE，不读取外部子集（C-S-02）")
 
 
 def check_syntax_raw(raw: bytes, rep: Report, profile: str) -> None:
@@ -409,11 +411,12 @@ def detect_legacy(tree, rep: Report) -> None:
             hits_sep.append(("sec/@content-type=\"untitled\"（SEP 早期格式的无标题条）", el.sourceline))
         if name == "custom-meta-group" and el.get("content-type") == "ses-cover":
             hits_sep.append(("custom-meta-group/@content-type=\"ses-cover\"（SEP 早期格式）", el.sourceline))
-        eid = el.get("id")
-        if eid:
-            for rx, why in _LEGACY_ID_RES:
-                if rx.search(eid):
-                    hits_sep.append(("%s：%s" % (why, eid), el.sourceline))
+        if rep.profile == "export":
+            eid = el.get("id")
+            if eid:
+                for rx, why in _LEGACY_ID_RES:
+                    if rx.search(eid):
+                        hits_sep.append(("%s：%s" % (why, eid), el.sourceline))
     for kind, hits in (("GB/T 37967—2019", hits_37967), ("SEP 早期自定义格式", hits_sep)):
         if not hits:
             continue
@@ -434,6 +437,24 @@ def detect_legacy(tree, rep: Report) -> None:
 def load_relaxng(schema_path: Path):
     parser = etree.XMLParser(no_network=True, load_dtd=False, resolve_entities=False)
     return etree.RelaxNG(etree.parse(str(schema_path), parser))
+
+
+def make_import_mathml2_schema(schema_path: Path, directory: Path) -> Path:
+    """复制默认 schema 并仅在副本中允许 processing-meta 的 MathML 2.0。
+
+    校验器和 xmllint 对原始 XML 使用同一临时 schema，因此输入字节、元素行号和源 schema 均不改变。
+    对自定义 schema 不应用此项目兼容规则。
+    """
+    for source in schema_path.parent.glob("*.rng"):
+        shutil.copyfile(source, directory / source.name)
+    metadata = directory / "metadata.rng"
+    content = metadata.read_bytes()
+    old = b'<attribute name="mathml-version"><value>3.0</value></attribute>'
+    new = b'<attribute name="mathml-version"><choice><value>3.0</value><value>2.0</value></choice></attribute>'
+    if content.count(old) != 1:
+        raise ValueError("metadata.rng 中 MathML 版本约束不唯一，无法构造导入 schema")
+    metadata.write_bytes(content.replace(old, new, 1))
+    return directory / schema_path.name
 
 
 def run_lxml_relaxng(rng, tree) -> tuple[bool, list[dict]]:
@@ -506,11 +527,6 @@ REJECT_ELEMENTS = {
     _clark(NS_TBX, "normative-Authorization"): ("M-C.1-06", "C-T-39", "疑为原文笔误：附录 C 断行处的写法，正式名为 tbx:normativeAuthorization"),
     _clark(NS_TBX, "grammatical-Number"): ("M-C.1-07", "C-T-38", "疑为原文笔误：附录 C 断行处的写法，正式名为 tbx:grammaticalNumber"),
 }
-# rejectKind=implementation 的矩阵行：格式本身接受（schema 收入），只是导入器暂时无法保存，因此只告警，不算格式错误
-IMPL_REJECT_ELEMENTS = {
-    "array": ("M-5.8-01、M-C.1-04", "C-S-36", "5.8 无框对齐文本：IR/PM 的表总有编号与题名，暂无法保存，导入器会拒绝"),
-    "disp-formula-group": ("M-C.1-05", "C-T-17", "IR 无公式组，暂无法保存，导入器会拒绝"),
-}
 # 无前缀的 MathML 元素名（7.4 示例 <mtext> 笔误，M-7.4-12）
 _UNPREFIXED_MATHML = {
     "math", "mtext", "mi", "mn", "mo", "mrow", "mfrac", "msub", "msup", "mspace", "msubsup", "msqrt", "mroot",
@@ -536,15 +552,6 @@ def check_rejects(tree, rep: Report) -> None:
             continue
         key = _clark(nsuri(el), local(el))
         name = label(el)
-        if nsuri(el) is None and local(el) in IMPL_REJECT_ELEMENTS:
-            mid, conv, why = IMPL_REJECT_ELEMENTS[local(el)]
-            rep.warn("W-IMPL-REJECT", "<%s> 格式上合法，但导入暂拒（%s，%s，rejectKind=implementation）：%s" % (name, mid, conv, why), el=el)
-        if key == "sec" and any(
-            is_element(a) and nsuri(a) is None and local(a) == "sec" and a.get("sec-type") == "intro"
-            and a.getparent() is not None and nsuri(a.getparent()) is None and local(a.getparent()) == "front"
-            for a in el.iterancestors()
-        ):  # 引言中的条，任意深度（sec_0.1、sec_0.1.1 …）
-            rep.warn("W-IMPL-REJECT", "引言中的条：格式上合法（4.3.4），但导入暂拒（M-4.3.4-02/03，rejectKind=implementation，IR 缺口）", el=el)
         if key in REJECT_ELEMENTS:
             mid, conv, why = REJECT_ELEMENTS[key]
             rep.error("REJECT", "<%s> 在支持矩阵中为 import: reject（rejectKind=format；%s，%s）：%s" % (name, mid, conv, why), el=el)
@@ -709,7 +716,7 @@ def _import_only(rep: Report, msg: str, el) -> None:
 # V-12 STD-META-ORDER：std-meta 子元素的“导出次序”= 官方 STS 1.2 DTD 的次序；国标特有元素按
 # schemas/gbt46687.2/metadata.rng 文件头的约定插入（std-type 最前；ccs 紧随 ics；implementation-date 紧随 release-date；
 # equivalence 紧随 implementation-date；std-supersedes 在 std-xref 之前）。原文没有规定次序，4.1 示例自己把 ics、ccs 写在
-# title-wrap 之前，所以结构层（RELAX NG）不限次序，导入只告警，导出才算错误。
+# title-wrap 之前；结构层不限次序，导入接受次序 A 或 B，其他逆序为错误。
 STD_META_EXPORT_ORDER = (
     ("std-type",), ("title-wrap",), ("proj-id",), ("release-version",), ("std-ident",), ("std-org", "std-org-group"),
     ("content-language",), ("std-ref",), ("doc-ref",), ("release-date",), ("implementation-date",), ("equivalence",),
@@ -738,15 +745,19 @@ def check_std_meta_order(el, rep: Report) -> None:
     expected = ", ".join(local(c) for c in sorted(kids, key=lambda c: STD_META_RANK[local(c)]))
     msg = ("STD-META-ORDER：std-meta 的子元素次序不是导出次序：<%s>（行 %s）出现在 <%s>（行 %s）之后。实际次序：%s；导出次序：%s"
            % (local(bad), bad.sourceline, local(after), after.sourceline, actual, expected))
-    if rep.profile == "export":
-        rep.error(STD_META_ORDER_RULE, msg + "（导出须按 STS 1.2 次序，C-S-11）", el=el)
+    b_order = (STD_META_EXPORT_ORDER[:1] + (("ics",), ("ccs",))
+               + tuple(g for g in STD_META_EXPORT_ORDER[1:] if g not in (("ics",), ("ccs",))))
+    b_rank = {name: i for i, group in enumerate(b_order) for name in group}
+    ranks = [b_rank[local(c)] for c in kids]
+    if rep.profile == "import" and ranks == sorted(ranks):
+        rep.warn(STD_META_ORDER_RULE, msg + "（项目严格约定接受 4.1 示例次序，导出规范化，C-S-11）", el=el)
     else:
-        rep.warn(STD_META_ORDER_RULE, msg + "（原文条文没有规定次序，4.1 示例自己就把 ics、ccs 写在 title-wrap 之前，导入接受；导出须规范化，C-S-11）", el=el)
+        rep.error(STD_META_ORDER_RULE, msg + "（项目严格约定要求次序 A 或 B，C-S-11）", el=el)
 
 
 # V-13 REQUIRED-ID：矩阵与附录 E 要求导出必须写 id 的元素。RELAX NG 里 id 一律可选（第三方文件缺 id 仍应可导入，
 # 导入器自生成内部 nodeId；被引用的目标缺 id 由 V-1 的 rid 可解析性检查捕获），所以必备性放在这里：
-# export 档为错误，import 档为告警。依据逐项来自 docs/wp8.1/matrix-*.json 的 id 属性行（obligation=shall）与附录 E（印刷页 67，M-E-*）。
+# export 档为错误，import 对 R6–R8 上下文为错误，其余仍告警。依据逐项来自 docs/wp8.1/matrix-*.json 的 id 属性行（obligation=shall）与附录 E（印刷页 67，M-E-*）。
 REQUIRED_ID_RULE = "V-13"
 
 
@@ -761,7 +772,7 @@ def _has_text_label(el) -> bool:
 def _in_bibl_ref_list(el) -> bool:
     parent = el.getparent()
     return parent is not None and is_element(parent) and nsuri(parent) is None and local(parent) == "ref-list" \
-        and parent.get("content-type") == "bibl"
+        and parent.get("content-type") in ("bibl", "bibr")
 
 
 def _in_table_wrap_foot(el) -> bool:
@@ -778,7 +789,7 @@ REQUIRED_ID_ELEMENTS = [
      "每个 term-sec 必须有 id（9.2.1 印刷页 35“ID 同时用于 term-sec 和 tbx:termEntry”，矩阵 M-9.2.1-01/02 obligation=shall；附录 E M-E-07）"),
     (NS_TBX, "termEntry", None,
      "每个 tbx:termEntry 必须有 id（9.2.1 印刷页 35，矩阵 M-9.2.1-04/05 obligation=shall；附录 E M-E-08）；"
-     "原文印刷页 38、39 的示例省略了 id，所以导入只告警"),
+     "原文印刷页 38、39 的示例省略了 id；WP8.3 按项目严格约定要求"),
     (None, "sec", lambda e: _has_text_label(e) or e.get("sec-type") in ("foreword", "intro"),
      "有编号的章条（带 label）、前言、引言的 sec 导出必须写 id（附录 E 印刷页 67，M-E-01/02/04，C-S-37）"),
     (None, "app", None, "app 导出必须写 id（附录 E 印刷页 67，M-E-04；M-4.5.2-02）"),
@@ -814,8 +825,10 @@ def check_required_ids(elems, rep: Report) -> None:
             msg = "REQUIRED-ID：<%s> 缺少 id。%s" % (label(el), why)
             if rep.profile == "export":
                 rep.error(REQUIRED_ID_RULE, msg + "（导出必须写 id）", el=el)
+            elif (ns == NS_TBX and name == "termEntry") or (ns is None and name == "app") or (ns is None and name == "ref" and _in_bibl_ref_list(el)):
+                rep.error(REQUIRED_ID_RULE, msg + "（项目严格导入约定）", el=el)
             else:
-                rep.warn(REQUIRED_ID_RULE, msg + "（导入接受：第三方文件缺 id 仍可导入，导入器自生成内部 nodeId；被引用时由 V-1 报悬空）", el=el)
+                rep.warn(REQUIRED_ID_RULE, msg + "（导入接受：导入器自生成内部 nodeId）", el=el)
             break
 
 
@@ -841,9 +854,12 @@ def check_mml_math(elems, rep: Report) -> None:
         ex_id = "导出必须写 id=\"mml_m%d\"" % n
         im_id = "导入接受：导入器去掉 mml:math 根上的 id 并重新生成；导出须写 mml_m<k>"
         mid = el.get("id")
-        if mid is None:
-            strict_on_export(rep, "V-14", "MML-ID：第 %d 个 mml:math 缺少 id（7.4 印刷页 28；矩阵 M-7.4-02、M-7.1-05 export required；C-T-18）" % n,
-                             el, ex_id, im_id)
+        if mid is None or not mid.strip():
+            msg = "MML-ID：第 %d 个 mml:math 缺少 id（7.4 印刷页 28；矩阵 M-7.4-02、M-7.1-05；C-T-18）" % n
+            if rep.profile == "import" and _is_plain_child_of(el, "disp-formula", "inline-formula"):
+                rep.error("V-14", msg + "（项目严格导入约定）", el=el)
+            else:
+                strict_on_export(rep, "V-14", msg, el, ex_id, im_id)
         else:
             m = MML_ID_RE.fullmatch(mid)
             if m is None:
@@ -857,14 +873,14 @@ def check_mml_math(elems, rep: Report) -> None:
         disp = el.get("display")
         if in_inline:
             if disp is not None:
-                strict_on_export(rep, "V-15", "MML-DISPLAY：inline-formula 内的 mml:math 不应带 display（现为 display=%r；7.1、C-T-19、C-T-21、M-7.1-05）" % disp,
+                rep.error("V-15", "MML-DISPLAY：inline-formula 内的 mml:math 不得带 display（项目严格约定）", el=el) if rep.profile == "import" else strict_on_export(rep, "V-15", "MML-DISPLAY：inline-formula 内的 mml:math 不应带 display（现为 display=%r；7.1、C-T-19、C-T-21、M-7.1-05）" % disp,
                                  el, "行内公式导出不得写 display", "导入接受：按所在的 inline-formula 当作行内公式")
         elif disp != "block":
             if disp is None:
                 if rep.profile == "export":  # 原文 7.1、7.3 的行间公式示例没有 display，所以导入对缺省不告警
                     rep.error("V-15", "MML-DISPLAY：disp-formula 内的 mml:math 缺少 display=\"block\"（7.4 印刷页 29、C-T-19、M-7.4-03；导出必须写）", el=el)
-            else:
-                strict_on_export(rep, "V-15", "MML-DISPLAY：disp-formula 内的 mml:math 取 display=%r，行间公式应为 display=\"block\"（C-T-19、C-T-17、M-7.4-03）" % disp,
+            elif _is_plain_child_of(el, "disp-formula"):
+                rep.error("V-15", "MML-DISPLAY：disp-formula 内的 mml:math 的 display 须为 block（项目严格约定）", el=el) if rep.profile == "import" else strict_on_export(rep, "V-15", "MML-DISPLAY：disp-formula 内的 mml:math 取 display=%r，行间公式应为 display=\"block\"（C-T-19、C-T-17、M-7.4-03）" % disp,
                                  el, "导出必须写 block", "导入接受：按所在的 disp-formula 当作行间公式")
 
 
@@ -893,7 +909,11 @@ def check_required_parts(elems, rep: Report) -> None:
     结构层把它们都放宽为可选（第三方文件常缺 label、title 等，导入时编号由 Resolver 重新派生），所以导出严格、导入宽容。"""
     def need(el, what, basis):
         msg = "REQUIRED-PART：<%s> 缺少 %s（%s）" % (label(el), what, basis)
-        _export_error_or_import(rep, "V-17", "V-17", msg, el, msg + "（导入接受：编号/标题由导入器重新派生；导出须写）")
+        strict = (label(el) == "sec" and what.startswith("label") and (has_ancestor(el, "body") or has_ancestor(el, "app"))) or (label(el) == "app" and what.startswith("annex-type")) or (label(el) == "table-wrap" and what.startswith("label"))
+        if rep.profile == "import" and strict:
+            rep.error("V-17", msg + "（项目严格导入约定）", el=el)
+        else:
+            _export_error_or_import(rep, "V-17", "V-17", msg, el, msg + "（导入接受）")
 
     for el in elems:
         if nsuri(el) is not None:
@@ -954,14 +974,8 @@ def check_required_parts(elems, rep: Report) -> None:
                 need(el, "list-content=\"formula\"（“式中”说明列表）", "7.3 印刷页 28；矩阵 M-7.3-03 shall，C-T-22")
         elif name == "ext-link":
             lt = el.get("ext-link-type")
-            if lt is None:  # 原文 10.1.9 示例缺该属性（笔误），导入接受缺省
-                if rep.profile == "export":
-                    rep.error("V-17", "REQUIRED-PART：<ext-link> 缺少 ext-link-type=\"uri\"（10.1.9 印刷页 48；矩阵 M-10.1.9-01 shall，C-T-56；导出必须如此）", el=el)
-            elif lt != "uri":
-                if rep.profile == "export":
-                    rep.error("V-17", "REQUIRED-PART：<ext-link> 的 ext-link-type=%r，导出只能是 uri（10.1.9；矩阵 M-10.1.9-01，C-T-56）" % lt, el=el)
-                else:
-                    rep.warn("W-EXTLINK-TYPE", "ext-link/@ext-link-type=%r：10.1.9 要求 uri，其他取值导入时告警（C-T-56）" % lt, el=el)
+            if lt != "uri":
+                rep.error("V-17", "REQUIRED-PART：<ext-link> 缺少 ext-link-type=\"uri\" 或取值非法（项目严格约定；M-10.1.9-01，C-T-56）", el=el)
         elif name == "named-content":
             ct = el.get("content-type")
             if ct is not None and ct != "variable":
@@ -981,7 +995,10 @@ def check_required_parts(elems, rep: Report) -> None:
                 need(el, "title（标准名称）", "4.4.2.3.2、4.5.3.1 印刷页 10、12；矩阵 M-4.4.2.3-03、M-4.5.3.1-05 shall，C-T-54")
         elif name == "p" and (el.get("id") is not None or el.get(_clark(NS_XML, "id")) is not None):
             msg = "NO-ID：<p> 不应带 id（附录 E 印刷页 67“p 中无任何 id 或其他属性”；矩阵 M-E-25 export required，C-T-22）"
-            _export_error_or_import(rep, "V-18", "V-18", msg, el, msg + "（导入接受：p 的 id 忽略）")
+            if rep.profile == "import" and el.get("id") is None:
+                rep.warn("V-18", msg + "（xml:id 导入接受）", el=el)
+            else:
+                rep.error("V-18", msg + "（项目严格约定）", el=el)
 
 
 def semantic_checks(tree, rep: Report) -> None:
@@ -1007,27 +1024,20 @@ def semantic_checks(tree, rep: Report) -> None:
 
     xrefs = [e for e in elems if nsuri(e) is None and local(e) == "xref"]
     entailed = [e for e in elems if nsuri(e) == NS_TBX and local(e) == "entailedTerm"]
-    fn_refs: dict[str, int] = {}
     for el in xrefs:
         rid = el.get("rid")
         if rid is None:
             continue
         tokens = rid.split()
         if len(tokens) > 1:
-            rep.warn("W-RID-MULTI", "xref/@rid 含多个标识符 %r：IR 一次只能引用一个目标，导入时会拒绝（G-T-15）" % rid, el=el)
+            rep.error("W-RID-MULTI", "xref/@rid 含多个标识符 %r：项目不支持多目标（G-T-15）" % rid, el=el)
         for t in tokens:
             if t not in id_map:
                 rep.error("V-1", "xref 的 rid=%r 无法解析：文档中没有该 id（悬空引用）" % t, el=el)
-        if el.get("ref-type") == "fn" and tokens:
-            fn_refs[tokens[0]] = fn_refs.get(tokens[0], 0) + 1
     for el in entailed:
         t = el.get("target")
         if t is not None and t not in id_map:
             rep.error("V-1", "tbx:entailedTerm 的 target=%r 无法解析：文档中没有该 id（悬空引用）" % t, el=el)
-    for fid, cnt in fn_refs.items():
-        if cnt > 1:
-            rep.warn("W-FN-MULTIREF", "脚注 %r 被 %d 处 xref 引用：IR 是原位脚注，导入时会拒绝（M-10.1.8-04，G-T-19）" % (fid, cnt))
-
     # 脚注“被定义但未被引用”：以全部 fn（含没有 id 的，按位置报告）与全部 xref 的 rid 比对（C-T-55：无引用的 fn 报告警）。
     # 任何 ref-type 的 xref 都算引用——引用类型用错另由 V-8 报错，这里不再重复提示“未被引用”。
     referenced = {t for x in xrefs for t in (x.get("rid") or "").split()}
@@ -1189,7 +1199,9 @@ def semantic_checks(tree, rep: Report) -> None:
         if local(el) == "processing-meta":
             for attr, expected in PROCESSING_META.items():
                 v = el.get(attr)
-                if v != expected:
+                if attr == "mathml-version" and v == "2.0" and rep.profile == "import":
+                    rep.warn("V-6", "processing-meta/@mathml-version=2.0：导入接受，导出规范化为 3.0（C-S-04）", el=el)
+                elif v != expected:
                     rep.error("V-6", "processing-meta/@%s=%r，应为 %r（C-S-04、D-S-03）" % (attr, v, expected), el=el)
             parent = el.getparent()
             if parent is not None and parent.index(el) != 0:
@@ -1214,20 +1226,23 @@ def semantic_checks(tree, rep: Report) -> None:
     check_required_parts(elems, rep)
 
     # ---------------- V-7 遗留 id 形式 ----------------
-    for el in elems:
-        for attr in ("id", _clark(NS_XML, "id")):
-            val = el.get(attr)
-            if not val:
-                continue
-            for rx, why in _LEGACY_ID_V7:
-                if rx.search(val):
-                    rep.error("V-7", "id=%r %s" % (val, why), el=el)
-                    break
+    if rep.profile == "export":
+        for el in elems:
+            for attr in ("id", _clark(NS_XML, "id")):
+                val = el.get(attr)
+                if not val:
+                    continue
+                for rx, why in _LEGACY_ID_V7:
+                    if rx.search(val):
+                        rep.error("V-7", "id=%r %s" % (val, why), el=el)
+                        break
 
     # ---------------- V-8 xref 与目标类型一致 ----------------
     for el in xrefs:
         rid = el.get("rid")
         rt = el.get("ref-type")
+        if rep.profile == "import" and rt == "custom" and not (el.get("custom-type") or "").strip():
+            rep.error("V-8", "CUSTOM-TYPE：xref[ref-type=custom] 缺少 custom-type（项目严格导入约定；C-T-48、C-T-50）", el=el)
         if not rid or rt is None:
             continue
         custom_type_reported = False
@@ -1251,8 +1266,7 @@ def semantic_checks(tree, rep: Report) -> None:
                     base = ("CUSTOM-TYPE：xref[ref-type=custom] 缺少 custom-type（10.1.1：term-entry、note、example 三选一；C-T-48、C-T-50）")
                     if rep.profile == "export":
                         rep.error("V-8", base + "（导出必须写 custom-type=%s）" % inferred, el=el)
-                    else:
-                        rep.warn("V-8", base + "（导入接受：导入器按 rid 目标元素 <%s> 推断为 custom-type=%s；导出须写出）" % (label(target), inferred), el=el)
+
                 continue
             rule = XREF_TARGET_RULES.get(rt)
             if rule is None:
@@ -1273,14 +1287,16 @@ def semantic_checks(tree, rep: Report) -> None:
     for el in elems:
         if nsuri(el) != NS_TBX or local(el) != "termEntry":
             continue
-        defs = [d for d in el.iter() if is_element(d) and nsuri(d) == NS_TBX and local(d) == "definition"]
+        langsets = [c for c in el if is_element(c) and nsuri(c) == NS_TBX and local(c) == "langSet"]
+        defs = [d for langset in langsets for d in langset
+                if is_element(d) and nsuri(d) == NS_TBX and local(d) == "definition"]
         if len(defs) > 1:
             rep.error("V-9", "术语条目含 %d 个 tbx:definition：“每个术语条目必须有且仅有一个定义”（附录 C 行 92）" % len(defs), el=el)
         elif not defs:
             if rep.profile == "export":
                 rep.error("V-9", "术语条目没有 tbx:definition：“每个术语条目必须有且仅有一个定义”（附录 C 行 92；矩阵 M-9.2.2-01 shall，C-T-37；导出必须如此）", el=el)
             else:
-                rep.warn("W-TERM-NODEF", "术语条目没有 tbx:definition（附录 C 行 92 要求有且仅有一个；导入接受）", el=el)
+                rep.error("V-9", "术语条目没有 tbx:definition（附录 C 行 92；项目严格导入约定）", el=el)
     for el in elems:
         if nsuri(el) == NS_TBX and local(el) == "normativeAuthentication":
             _import_only(rep, "元素 <tbx:normativeAuthentication> 是 9.2.3 印刷页 37 说明文字中的异写（正式名 tbx:normativeAuthorization，D-T-06）", el)
@@ -1366,41 +1382,58 @@ class Validator:
         check_syntax_raw(raw, rep, self.profile)
         tree = parse_secure(raw, rep)
 
-        # 结构：两个实现
-        lx_ok, lx_msgs = (False, [])
-        if tree is not None:
+        # 导入时仅为默认 schema 构造临时副本，保留原 XML 的字节与错误位置。
+        with ExitStack() as stack:
+            active_schema = self.schema_path
+            use_overlay = (self.profile == "import" and tree is not None
+                           and self.schema_path.resolve() == DEFAULT_SCHEMA.resolve()
+                           and tree.getroot().tag == "standard"
+                           and any(e.get("mathml-version") == "2.0" for e in tree.getroot().findall("processing-meta")))
             try:
-                lx_ok, lx_msgs = run_lxml_relaxng(self.rng, tree)
-            except etree.LxmlError as exc:  # 引擎自身出错：不得当作“通过”，也不能让异常把整批文件的报告吞掉
-                lx_ok, lx_msgs = False, [{"message": "lxml RELAX NG 校验器出错：%s" % exc}]
-                rep.error("ENGINE", "lxml 的 RELAX NG 校验器出错，无法给出结论：%s" % exc)
-        else:
-            lx_msgs = [{"message": "文件不是格式良好的 XML，未进入 RELAX NG 校验"}]
-        rep.engines["lxml"] = {
-            "implementation": "lxml %s / libxml2 %s" % (".".join(map(str, etree.LXML_VERSION)),
-                                                          ".".join(map(str, etree.LIBXML_VERSION))),
-            "valid": lx_ok,
-            "messages": lx_msgs,
-        }
-        if self.use_xmllint:
-            if not self.xmllint_exe:
-                rep.engines["xmllint"] = {"implementation": None, "valid": None,
-                                          "messages": [{"message": "找不到 xmllint；可用 --no-xmllint 显式跳过"}]}
-                rep.error("ENGINE", "找不到 xmllint，无法做第二实现交叉核对（--no-xmllint 可显式跳过）")
-            else:
-                if self._xmllint_version is None:
-                    self._xmllint_version = xmllint_version(self.xmllint_exe)
+                if use_overlay:
+                    tmp = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="ses-mathml2-")))
+                    active_schema = make_import_mathml2_schema(self.schema_path, tmp)
+                active_rng = None
+                if tree is not None:
+                    active_rng = load_relaxng(active_schema) if use_overlay else self.rng
+            except (OSError, ValueError, etree.LxmlError) as exc:
+                rep.error("ENGINE", "无法准备 RELAX NG 校验器：%s" % exc)
+                return rep
+            # 结构：两个实现
+            lx_ok, lx_msgs = (False, [])
+            if tree is not None:
                 try:
-                    xl_ok, xl_msgs = run_xmllint(self.xmllint_exe, self.schema_path, path)
-                except (OSError, subprocess.SubprocessError) as exc:  # 不可执行、被杀、超时
-                    xl_ok, xl_msgs = None, [{"message": "无法运行 xmllint：%s" % exc}]
-                    rep.error("ENGINE", "无法运行 xmllint（%s），第二实现未能给出结论：%s（--no-xmllint 可显式跳过）" % (self.xmllint_exe, exc))
-                rep.engines["xmllint"] = {"implementation": self._xmllint_version, "valid": xl_ok, "messages": xl_msgs}
-                if xl_ok is not None and xl_ok != lx_ok:
-                    rep.consistent = False
-                    rep.error("CONSISTENCY",
-                              "两个实现结论不一致：lxml=%s，xmllint=%s（schema 或实现版本问题，必须查明）"
-                              % ("通过" if lx_ok else "不通过", "通过" if xl_ok else "不通过"))
+                    lx_ok, lx_msgs = run_lxml_relaxng(active_rng, tree)
+                except etree.LxmlError as exc:  # 引擎自身出错：不得当作“通过”，也不能让异常把整批文件的报告吞掉
+                    lx_ok, lx_msgs = False, [{"message": "lxml RELAX NG 校验器出错：%s" % exc}]
+                    rep.error("ENGINE", "lxml 的 RELAX NG 校验器出错，无法给出结论：%s" % exc)
+            else:
+                lx_msgs = [{"message": "文件不是格式良好的 XML，未进入 RELAX NG 校验"}]
+            rep.engines["lxml"] = {
+                "implementation": "lxml %s / libxml2 %s" % (".".join(map(str, etree.LXML_VERSION)),
+                                                              ".".join(map(str, etree.LIBXML_VERSION))),
+                "valid": lx_ok,
+                "messages": lx_msgs,
+            }
+            if self.use_xmllint:
+                if not self.xmllint_exe:
+                    rep.engines["xmllint"] = {"implementation": None, "valid": None,
+                                              "messages": [{"message": "找不到 xmllint；可用 --no-xmllint 显式跳过"}]}
+                    rep.error("ENGINE", "找不到 xmllint，无法做第二实现交叉核对（--no-xmllint 可显式跳过）")
+                else:
+                    if self._xmllint_version is None:
+                        self._xmllint_version = xmllint_version(self.xmllint_exe)
+                    try:
+                        xl_ok, xl_msgs = run_xmllint(self.xmllint_exe, active_schema, path)
+                    except (OSError, subprocess.SubprocessError) as exc:  # 不可执行、被杀、超时
+                        xl_ok, xl_msgs = None, [{"message": "无法运行 xmllint：%s" % exc}]
+                        rep.error("ENGINE", "无法运行 xmllint（%s），第二实现未能给出结论：%s（--no-xmllint 可显式跳过）" % (self.xmllint_exe, exc))
+                    rep.engines["xmllint"] = {"implementation": self._xmllint_version, "valid": xl_ok, "messages": xl_msgs}
+                    if xl_ok is not None and xl_ok != lx_ok:
+                        rep.consistent = False
+                        rep.error("CONSISTENCY",
+                                  "两个实现结论不一致：lxml=%s，xmllint=%s（schema 或实现版本问题，必须查明）"
+                                  % ("通过" if lx_ok else "不通过", "通过" if xl_ok else "不通过"))
         if tree is not None and not lx_ok:
             at_line: dict[int, object] = {}
             for e in tree.getroot().iter():

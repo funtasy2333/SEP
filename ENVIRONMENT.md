@@ -170,9 +170,47 @@ macOS 启动脚本以及手动执行的 `npm`、`pnpm` 命令沿用各自已有�
 | MCP | `http://127.0.0.1:3000/mcp` |
 | 文档数据库 | `packages/server/data/ses.db` |
 | 启动前数据库备份 | `output/startup-backups/` |
+| 应用内升级前数据库备份 | `output/upgrade-backups/` |
 | 启动脚本日志 | `.ses-run/` |
+| 升级日志与结果 | `.ses-run/upgrade.log`、`.ses-run/upgrade-status.json` |
+| 升级临时目录（含升级锁） | `.ses-update/` |
 | Windows 本地运行环境 | `.ses-tools/` |
 
 文件位置均相对于 SES 目录。关闭启动脚本窗口后，后台服务仍会运行；使用对应的退出脚本停止服务，文档数据会保留。端口 `3000`、`5173` 被其他程序占用时，请先停止占用程序。
 
 后端默认只监听本机 `127.0.0.1`。需要从局域网访问时，可设置 `SES_LISTEN_HOST`（例如 `0.0.0.0`）；REST 接口没有鉴权，此时局域网设备可以读写文档。配置方式及 MCP 接入见 [本地接入 MCP](docs/wp9-mcp-local-setup.md)。
+
+## 7. 应用内升级与退出
+
+SES 在「设置 → 升级 / 退出」中提供升级与退出。**关闭网页不会退出 SES**；退出需要点击「退出 SES」或运行退出脚本。
+
+### 可用条件
+
+启动脚本在启动后端时设置环境变量 `SES_LAUNCHER`（macOS 为 `macos`，Windows 为 `windows`），服务端据此判断是否由官方启动脚本管理。只有这种方式启动的 SES 才允许应用内升级与退出；`pnpm dev`、手动运行 `node dist/main.js` 等方式不提供。不要手动设置这个变量。
+
+### 升级通道与联网
+
+| 通道 | 来源 | 说明 |
+| ---- | ---- | ---- |
+| 稳定版 | GitHub Release 的发布包 | 默认通道 |
+| 每次提交 | main 分支最新提交的源码归档 | 可能不稳定 |
+
+检查和下载新版本需要能访问 GitHub。升级后的首次启动会按锁文件补装依赖并重新构建，也需要联网（Windows 同样优先官方来源、失败再重试 npmmirror 镜像）。不修改全局 npm 源。
+
+### 升级流程与数据安全
+
+升级由 `scripts/ses-upgrade.sh`（macOS）或 `scripts/ses-upgrade.ps1`（Windows）执行：服务端把它和 `scripts/apply-update.cjs` 复制到 `.ses-update/` 后以独立进程运行，因此替换 `scripts/` 目录时不会影响正在运行的脚本。Windows 上服务端不直接分离拉起 PowerShell（无控制台时 PowerShell 5.1 不能可靠运行），而是分离拉起 `node scripts/run-detached.cjs powershell.exe ...`（升级时同样使用复制到 `.ses-update/` 的副本），由它以子进程运行 PowerShell 并把输出写入日志；退出脚本同理。流程为：停止服务 → 备份数据库 → 解压 → 替换程序文件 → 启动新版本 → 清理。
+
+- 使用系统自带工具解压：macOS 使用 `ditto`，Windows 使用 PowerShell 5.1 的 `Expand-Archive`；脚本使用启动时记录的 Node.js 运行升级逻辑。
+- 数据库：停止服务后把 `packages/server/data/ses.db`（及存在的 `-wal`、`-shm`）复制到 `.ses-update/db-backup/`；升级成功后移动到 `output/upgrade-backups/ses-before-upgrade-<时间戳>/` 永久保留。
+- 替换文件与回滚优先使用升级包里新版本的 `scripts/apply-update.cjs`（先复制为 `.ses-update/apply-update.next.cjs` 并做语法检查，不可用则回退到当前版本），这样新版本新增的程序文件也会被安装；备份、恢复数据库、状态文件等仍由当前版本处理。
+- 整目录替换 `packages/{client,server,shared,io}/src`、`packages/client/public`、`packages/server/resources`，旧文件不会残留；其余程序文件逐个替换。
+- 绝不改动：`packages/server/data/`、任何层级的 `node_modules`、`.ses-tools/`、`.ses-run/`、`output/`、`.ses-update/`、`.env`。路径超出 SES 目录、落入上述目录或经符号链接逃出目录的升级包会被整体拒绝。
+- 任一步失败（包括新版本构建或启动失败）：回滚程序文件、恢复数据库、启动原版本，并在 `.ses-run/upgrade-status.json` 记录 `rolled-back`；原版本也无法启动时记录 `failed`，需要手动运行启动脚本。
+- 不支持降级：TypeORM 会随版本同步表结构，降级可能丢失列数据。
+
+### 排查
+
+- 过程日志：`.ses-run/upgrade.log`；最终状态：`.ses-run/upgrade-status.json`（`state` 为 `running`、`succeeded`、`rolled-back` 或 `failed`）。
+- `.ses-update/lock` 是升级锁，升级结束时自动删除。如果升级进程被强制终止导致残留，确认没有升级在进行后可手动删除该目录。
+- 失败时 `.ses-update/db-backup/` 和 `.ses-update/rollback/` 会保留，可用于手动恢复。

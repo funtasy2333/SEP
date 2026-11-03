@@ -608,3 +608,40 @@ describe.skipIf(shouldSkipValidation())('外部校验：python3 -I scripts/xml46
     expect(result.stdout).toContain('未解释偏差 0 个')
   })
 })
+
+it('[M-C.1-04] 数组不占表编号并保留列组与行单元格', () => {
+  const array: IRBlock = {kind:'array', id:'arr', columns:[{width:{value:40,unit:'%'}},{width:{value:60,unit:'%'}}], columnGroups:[{start:0,count:2}], rows:[row('ar',[cell('a','甲'),cell('b','乙')])]}
+  const doc = docWith([array,simple('later')])
+  const {xml} = renderOk(doc)
+  const normalized = norm(xml)
+  expect(normalized).toContain('<array><table><colgroup><col width="40%"/><col width="60%"/></colgroup><tbody><tr><td>甲</td><td>乙</td></tr></tbody></table></array>')
+  expect(normalized).toContain('<table-wrap id="tab_1"><label>表1</label>')
+})
+
+it('[M-6.1-03] 表替代图跟在表脚后且使用独立资源', async () => {
+  const {stubOptions} = await import('./xml46687StubKit')
+  const doc = docWith([simple('t1',{unit:'单位为毫米',alternativeGraphic:{id:'alt',src:'alt.png',resourceId:'alt-res',contentType:'disp_table'}})])
+  const result = exportXml46687(doc,labelsOf(doc),stubOptions(doc))
+  expect(result.problems.filter(p=>p.severity === 'error')).toEqual([])
+  expect(norm(result.xml!)).toContain('<table-wrap-foot><p content-type="dimension">单位为毫米</p></table-wrap-foot><graphic content-type="disp_table" xlink:href="tab_1_alt"/></table-wrap>')
+})
+
+it('[M-C.1-04] 数组列组重叠、越界及不规则表格不能输出', () => {
+  const rows = [row('r0',[cell('a','甲'),cell('b','乙')]),row('r1',[cell('c','丙')])]
+  for (const columnGroups of [[{start:0,count:2},{start:1,count:1}], [{start:1,count:2}], []]) {
+    const doc = docWith([{kind:'array',id:'arr',columns:[{},{}],columnGroups,rows}])
+    const result = exportXml46687(doc,labelsOf(doc),EMPTY_OPTIONS)
+    expect(result.xml).toBeNull()
+  }
+})
+
+it('[M-C.1-04] 数组列组必须覆盖全部列且至少有一列', () => {
+  const examples: IRBlock[] = [
+    {kind:'array',id:'a1',columns:[{},{},{}],columnGroups:[{start:1,count:1}],rows:[row('r1',[cell('x1','甲'),cell('x2','乙'),cell('x3','丙')])]},
+    {kind:'array',id:'a2',columns:[],rows:[row('r2',[cell('x4','甲')])]},
+  ]
+  for (const block of examples) {
+    const doc = docWith([block])
+    expect(exportXml46687(doc,labelsOf(doc),EMPTY_OPTIONS).xml).toBeNull()
+  }
+})

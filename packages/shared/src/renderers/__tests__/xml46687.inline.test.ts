@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { resolve } from '../../ir/resolve'
 import type { IRInline, IRMark } from '../../ir/types'
+import { exportXml46687 } from '../xml46687'
+import { EMPTY_OPTIONS, labelsOf } from './xml46687Kit'
 import { urlProblem } from '../xml46687Parts/inline'
 import { codesOf, find, makeDoc, chapter, para, renderRuns, run } from './xml46687Kit'
 import { targetsDoc } from './xml46687TargetsFixture'
@@ -401,4 +403,35 @@ describe('tbx 容器', () => {
   it('tbx 容器是 inline 加 tbx:entailedTerm，其余 mark 照常写出', () => {
     expect(renderRuns(doc, [run('粗', { type: 'bold' }), run('2', { type: 'sup' })], 'tbx').xml).toBe('<bold>粗</bold><sup>2</sup>')
   })
+})
+
+
+it('[M-10.1.8-04] 两个共享脚注引用在定义之前，原位保留显示文本与唯一正文', () => {
+  const content: IRInline[] = [{text:'首'}, {text:'',footnoteRef:{targetId:'shared',refText:'甲'}}, {text:'再次'}, {text:'',footnoteRef:{targetId:'shared',refText:'乙'}}, {text:'后'}, {text:'',footnoteDefinition:{id:'shared',content:[{text:'共享正文'}]}}]
+  const source = makeDoc([chapter('c','范围',[para('p',...content)],'scope')])
+  const result = exportXml46687(source,labelsOf(source),EMPTY_OPTIONS)
+  expect(result.problems.filter(p=>p.severity === 'error')).toEqual([])
+  const xml = result.xml!.replace(/>\s+</g,'><')
+  expect(xml).toContain('首<xref ref-type="fn" rid="fn_1">甲</xref>再次<xref ref-type="fn" rid="fn_1">乙</xref>后<fn id="fn_1"><label><sup>1)</sup></label><p>共享正文</p></fn>')
+  expect(xml.match(/<fn id="fn_1">/g)).toHaveLength(1)
+})
+
+it('[M-10.1.8-04] 悬空共享脚注不能导出', () => {
+  const source = makeDoc([chapter('c','范围',[para('p',{text:'',footnoteRef:{targetId:'missing',refText:'1)'}})],'scope')])
+  const result = exportXml46687(source,labelsOf(source),EMPTY_OPTIONS)
+  expect(result.xml).toBeNull()
+  expect(result.problems.some(p=>p.severity === 'error')).toBe(true)
+})
+
+it('[M-10.1.8-04] 共享脚注重复定义、空正文及不同 labels 均阻断', () => {
+  const ref: IRInline = {text:'',footnoteRef:{targetId:'fn',refText:'1)'}}
+  const def: IRInline = {text:'',footnoteDefinition:{id:'fn',content:[{text:'正文'}]}}
+  for (const content of [[ref,def,def], [ref,{text:'',footnoteDefinition:{id:'fn',content:[]}}] as IRInline[]]) {
+    const source = makeDoc([chapter('c','范围',[para('p',...content)],'scope')])
+    expect(exportXml46687(source,labelsOf(source),EMPTY_OPTIONS).xml).toBeNull()
+  }
+  const source = makeDoc([chapter('c','范围',[para('p',ref,def)],'scope')])
+  const labels = labelsOf(source)
+  labels.fn = {...labels.fn!,xmlId:'fn_42'}
+  expect(exportXml46687(source,labels,EMPTY_OPTIONS).xml).toBeNull()
 })
