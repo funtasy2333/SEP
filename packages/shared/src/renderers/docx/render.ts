@@ -232,10 +232,13 @@ export function renderDocxTraced(
   finalContentLandscape = renderedBody.endsLandscape
 
   // 5. 每个附录一节
+  //    横向附录（#75）整节横排：附录另起一页即从横页开始，编号、标题、引导文字与图表同节，跨页保持横向。
   doc.appendices.forEach((appendix, i) => {
-    body += sectionManager.startSection('appendix')
-    ctx.pageFlow.startSection()
-    const rendered = insertLandscapeSections(renderAppendix(ctx, appendix, appendixLetterFor(ctx, appendix, i)), 'appendix', sectionManager)
+    const landscapeAppendix = appendix.orientation === 'landscape'
+    body += sectionManager.startSection('appendix', landscapeAppendix ? { landscape: true } : undefined)
+    ctx.pageFlow.startSection(landscapeAppendix)
+    const xml = renderAppendix(ctx, appendix, appendixLetterFor(ctx, appendix, i))
+    const rendered = landscapeAppendix ? { xml, endsLandscape: true } : insertLandscapeSections(xml, 'appendix', sectionManager)
     body += rendered.xml
     finalContentLandscape = rendered.endsLandscape
   })

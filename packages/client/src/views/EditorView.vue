@@ -242,16 +242,40 @@
             >横向</button>
           </div>
         </template>
+        <template v-if="activeAppendixPos() !== undefined">
+          <span class="tbar-sep" />
+          <div class="tbar-group tbar-context" aria-label="附录版面方向" data-testid="appendix-orientation">
+            <span class="tbar-label">附录版面</span>
+            <button
+              class="tbar-btn"
+              :class="{ 'is-active': activeAppendixOrientation() === 'portrait' }"
+              title="整个附录排在纵向页面上"
+              @click="setActiveAppendixOrientation('portrait')"
+            >纵向</button>
+            <button
+              class="tbar-btn"
+              :class="{ 'is-active': activeAppendixOrientation() === 'landscape' }"
+              title="整个附录（编号、标题、引导文字和图表）从横向页面起排；仅用于 PDF/HTML 与 DOCX，XML 无法表达附录方向"
+              @click="setActiveAppendixOrientation('landscape')"
+            >横向</button>
+          </div>
+        </template>
 
         <div class="tbar-search">
           <el-input
             v-model="searchText"
             size="small"
-            placeholder="查找正文，回车定位"
+            placeholder="查找正文，回车下一处"
+            title="回车：下一处；Shift+回车：上一处；Esc：回到正文"
             :prefix-icon="Search"
             clearable
-            @keyup.enter="handleSearch"
-          />
+            @keydown="handleSearchKeydown"
+            @clear="handleSearchClear"
+          >
+            <template v-if="searchStatus" #suffix>
+              <span class="tbar-search-count" data-testid="search-count">{{ searchStatus }}</span>
+            </template>
+          </el-input>
         </div>
       </div>
 
@@ -367,10 +391,10 @@
           <li><kbd>/</kbd> 智能插入菜单</li>
         </ul>
         <h4>文档结构</h4>
-        <p>界面分三层：顶栏是整份文件的操作（源码、导入、版本历史、质量检查、导出）；工具栏只处理正文，「设为」改变当前段落的角色，「插入」加入新的内容要素；光标位于公式、图或表时，工具栏右侧会出现对应的上下文工具（添加式中、纵向/横向版面）。</p>
+        <p>界面分三层：顶栏是整份文件的操作（源码、导入、版本历史、质量检查、导出）；工具栏只处理正文，「设为」改变当前段落的角色，「插入」加入新的内容要素；光标位于公式、图或表时，工具栏右侧会出现对应的上下文工具（添加式中、纵向/横向版面）；光标位于附录内时，可用「附录版面」把整个附录设为横向页面。</p>
         <p>使用左侧「文档结构」面板的「添加」按钮添加章节结构（前言、引言、章、附录、参考文献）；工具栏最左侧的按钮可隐藏或显示该面板。点击正文段落或选中其中的文字后，使用“条”“无题条”设置整段格式；新条之后的正文归入该条，直到下一个同级条。一级条置于章或附录内，其他级别置于上一级条内。含子条时保留原层级，可切换有题/无题；先调整子条结构再改层级或段落。需要新条时，先回车建立空段再设置格式；光标在表格内时选择“条”“无题条”，会在表格之后新建条，也可用“表格”菜单的“表格后插入段落”（Ctrl/Cmd+Enter）在表格后继续书写。</p>
         <p>粘贴：在 SES 内复制的内容保留格式和结构；从 Word、网页等外部来源粘贴时自动转为纯文本，直接插入光标所在的段落并沿用该处格式，多行合并为一段，不会新建段落或条目（需要时按回车）。需要去掉格式时，用 Ctrl/Cmd+Shift+V 按纯文本粘贴。</p>
-        <p>术语中英文名称同列显示：Tab 从中文名进入英文名，Enter 进入定义；在定义中 Enter 新建续段，末尾空续段再次 Enter 退出术语。使用工具栏「设为」设置列项，「插入」加入注、示例、术语、公式、表格、图片等内容要素。选中图或表后，可切换纵向或横向版面。</p>
+        <p>术语中英文名称同列显示：Tab 从中文名进入英文名，Enter 进入定义；在定义中 Enter 新建续段，末尾空续段再次 Enter 退出术语。使用工具栏「设为」设置列项，「插入」加入注、示例、术语、公式、表格、图片等内容要素。选中图或表后，可切换纵向或横向版面；宽表所在的附录可整体设为横向，附录标题、引导文字与图表同在横页，不再单独占一张竖页。</p>
         <p>行内公式：在正文、列项、注、示例、表格单元格、术语定义中按 Ctrl/Cmd+Shift+M（或工具栏「行内公式」）插入；先选中 q<sub>V</sub> 这类带上下标的文字再按，可把它转为公式。点击公式可重新编辑。</p>
       </div>
     </el-dialog>
@@ -622,6 +646,8 @@ import ValidationPanel from '@/components/editor/ValidationPanel.vue'
 import { useEditor } from '@tiptap/vue-3'
 import { installRemoteDocument, replaceEditorDocument } from '@/utils/editorDocument'
 import { createEditorExtensions } from '@/extensions/editorExtensions'
+import { normalizePageOrientation } from '@/utils/orientation'
+import { SearchHighlight, SEARCH_CURRENT_CLASS, clearSearch, getSearchState, stepSearch } from '@/extensions/plugins/searchHighlight'
 import { createDocumentValidationExtension } from '@/extensions/plugins/documentValidation'
 import { useDocumentValidation } from '@/composables/useDocumentValidation'
 import { hasNodeIdIssues, normalizeNodeIds } from '@/extensions/plugins/ensureNodeId'
@@ -679,6 +705,7 @@ const settingsSaveError = ref(false)
 const settingsDirty = computed(() => Boolean(settingsDraft.value)
   && JSON.stringify(settingsDraft.value) !== settingsBaseline.value)
 const searchText = ref('')
+const searchStatus = ref('')
 const showXmlCode = ref(false)
 const showHelp = ref(false)
 const showExport = ref(false)
@@ -773,6 +800,35 @@ function activeOrientationNodeType(): 'figure' | 'stdTable' | undefined {
   return undefined
 }
 
+/** 光标所在附录的位置（#75 附录整体横页）；不在附录内时为 undefined。 */
+function activeAppendixPos(): number | undefined {
+  const currentEditor = editor.value
+  if (!currentEditor) return undefined
+  const { $from } = currentEditor.state.selection
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    if ($from.node(depth).type.name === 'appendix') return $from.before(depth)
+  }
+  const selected = currentEditor.state.selection instanceof NodeSelection ? currentEditor.state.selection.node : null
+  return selected?.type.name === 'appendix' ? currentEditor.state.selection.from : undefined
+}
+
+function activeAppendixOrientation(): 'portrait' | 'landscape' | undefined {
+  const pos = activeAppendixPos()
+  if (pos === undefined || !editor.value) return undefined
+  return normalizePageOrientation(editor.value.state.doc.nodeAt(pos)?.attrs.orientation)
+}
+
+function setActiveAppendixOrientation(orientation: 'portrait' | 'landscape') {
+  const currentEditor = editor.value
+  const pos = activeAppendixPos()
+  if (!currentEditor || pos === undefined || activeAppendixOrientation() === orientation) return
+  // 纵向存为 null（缺省值），与未设置的旧文档完全一致。
+  currentEditor.chain().focus().command(({ tr }) => {
+    tr.setNodeAttribute(pos, 'orientation', orientation === 'landscape' ? 'landscape' : null)
+    return true
+  }).run()
+}
+
 function isActivePageOrientation(orientation: 'portrait' | 'landscape'): boolean {
   const nodeType = activeOrientationNodeType()
   const currentEditor = editor.value
@@ -786,8 +842,11 @@ function setActivePageOrientation(orientation: 'portrait' | 'landscape') {
 }
 
 const editor = useEditor({
-  extensions: [...createEditorExtensions(), createDocumentValidationExtension()],
+  extensions: [...createEditorExtensions(), createDocumentValidationExtension(), SearchHighlight],
   content: '',
+  onTransaction() {
+    syncSearchStatus()
+  },
   onUpdate() {
     if (!suppressEditorUpdate) scheduleAutoSave()
   },
@@ -2199,25 +2258,75 @@ function toggleUnderline() {
   editor.value?.chain().focus().toggleUnderline().run()
 }
 
-// === 搜索 ===
-function handleSearch() {
-  if (!editor.value || !searchText.value) return
+// === 查找 ===
+// 查找只用装饰高亮命中，焦点留在查找框，不改正文和选区（#76）；只有按 Esc 才回到正文。
+function syncSearchStatus() {
+  const currentEditor = editor.value
+  if (!currentEditor) { searchStatus.value = ''; return }
+  const state = getSearchState(currentEditor.state)
+  searchStatus.value = !state.query ? '' : state.matches.length === 0 ? '0/0' : `${state.current + 1}/${state.matches.length}`
+}
+
+function scrollToCurrentMatch() {
+  const element = editor.value?.view.dom.querySelector<HTMLElement>(`.${SEARCH_CURRENT_CLASS}`)
+  element?.scrollIntoView?.({ block: 'center' })
+}
+
+function runSearch(direction: 1 | -1) {
+  const currentEditor = editor.value
   const text = searchText.value
-  const { doc } = editor.value.state
-  let found = false
-  doc.descendants((node, pos) => {
-    if (found) return false
-    if (node.isText && node.text?.includes(text)) {
-      const start = pos + node.text.indexOf(text)
-      editor.value!.chain().focus().setTextSelection({ from: start, to: start + text.length }).run()
-      found = true
-      return false
-    }
-  })
-  if (!found) {
+  if (!currentEditor || !text) return
+  const { state, wrapped } = stepSearch(currentEditor.view, text, direction)
+  syncSearchStatus()
+  if (state.matches.length === 0) {
     ElMessage.info('未找到匹配内容')
+    return
+  }
+  scrollToCurrentMatch()
+  if (wrapped) {
+    ElMessage.info(state.matches.length === 1 ? '仅有 1 处匹配' : direction === 1 ? '已到最后一处，回到第一处' : '已到第一处，回到最后一处')
   }
 }
+
+function handleSearchKeydown(event: Event | KeyboardEvent) {
+  if (!(event instanceof KeyboardEvent)) return
+  // 中文输入法用回车确认候选词时不查找（isComposing / keyCode 229）。
+  if (event.isComposing || event.keyCode === 229) return
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    runSearch(event.shiftKey ? -1 : 1)
+  } else if (event.key === 'Escape') {
+    event.preventDefault()
+    returnToEditorFromSearch()
+  }
+}
+
+/** 明确回到正文：光标放在当前命中之后（不选中文字），再清除高亮。 */
+function returnToEditorFromSearch() {
+  const currentEditor = editor.value
+  if (!currentEditor) return
+  const state = getSearchState(currentEditor.state)
+  const match = state.current >= 0 ? state.matches[state.current] : null
+  clearSearch(currentEditor.view)
+  syncSearchStatus()
+  const chain = currentEditor.chain().focus()
+  if (match) chain.setTextSelection(match.to)
+  chain.run()
+}
+
+function handleSearchClear() {
+  if (editor.value) clearSearch(editor.value.view)
+  syncSearchStatus()
+}
+
+watch(searchText, (text) => {
+  // 查询词改了，旧高亮作废；下一次回车按新词从头查找。
+  const currentEditor = editor.value
+  if (currentEditor && getSearchState(currentEditor.state).query && getSearchState(currentEditor.state).query !== text) {
+    clearSearch(currentEditor.view)
+    syncSearchStatus()
+  }
+})
 
 // === 查看历史（占位） ===
 function handleViewHistory() {
@@ -2879,6 +2988,11 @@ function handleXmlFileImport(event: Event) {
 .tbar-search { width: 200px; margin-left: auto; flex-shrink: 0; }
 :deep(.tbar-search .el-input__wrapper) {
   border-radius: 6px;
+}
+.tbar-search-count {
+  font-size: 12px;
+  color: var(--ses-ink-3, #8a8a8a);
+  font-variant-numeric: tabular-nums;
 }
 
 /* === body === */

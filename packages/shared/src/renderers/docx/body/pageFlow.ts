@@ -104,7 +104,8 @@ export interface PageFlow {
   readonly availableMm: number | undefined
   readonly estimateUnavailable: boolean
   readonly isSuspended: boolean
-  startSection(): void
+  /** 新节从新页开始；`landscape` 为该节起始版面方向（横向附录整节横排，#75）。 */
+  startSection(landscape?: boolean): void
   setOrientation(landscape: boolean): void
   withElement<T>(landscape: boolean, render: () => T): T
   suspend<T>(render: () => T): T
@@ -126,6 +127,8 @@ export function createPageFlow(): PageFlow {
   let active = false
   let known = true
   let landscape = false
+  /** 本节的基准方向：横向附录（#75）整节为横排，节内不在横排图表里的段落回到它，而不是固定回到竖排。 */
+  let sectionLandscape = false
   let used = 0
   let previousAfter = 0
   let paused = 0
@@ -245,7 +248,7 @@ export function createPageFlow(): PageFlow {
     get availableMm() { return projectedRemaining() },
     get estimateUnavailable() { return active && projectedRemaining() === undefined },
     get isSuspended() { return paused > 0 },
-    startSection() { pending = []; active = true; landscape = false; nextPage() },
+    startSection(startLandscape = false) { pending = []; active = true; sectionLandscape = startLandscape; landscape = startLandscape; nextPage() },
     setOrientation,
     setFootnoteHeights(heights) { definitionHeights = heights },
     withElement(value, render) {
@@ -259,7 +262,7 @@ export function createPageFlow(): PageFlow {
     },
     recordParagraph(styleId, runsXml, numbered, options = {}) {
       if (!active || paused > 0) return false
-      if (elementDepth === 0) setOrientation(false)
+      if (elementDepth === 0) setOrientation(sectionLandscape)
       // OMML's physical height depends on its layout. Do not turn an unknown formula into
       // a made-up page position; the next table falls back to Word's natural pagination.
       if (styleId === 'SesFormula' || runsXml.includes('<m:oMath')) { flushPending(); known = false; return false }
