@@ -127,11 +127,6 @@ describe('IR inline projection against the production editor schema', () => {
 
   it.each([
     {
-      name: 'code with bold',
-      content: [{ text: 'x', marks: [{ type: 'code' }, { type: 'bold' }] }],
-      path: 'doc.body[0].children[0].content[0].marks[0]',
-    },
-    {
       name: 'code with style',
       content: [{ text: 'x', marks: [{ type: 'code' }], style: { color: 'red' } }],
       path: 'doc.body[0].children[0].content[0].marks[0]',
@@ -177,10 +172,6 @@ describe('IR inline projection against the production editor schema', () => {
   })
 
   it.each([
-    {
-      name: 'code and bold',
-      marks: [{ type: 'code' }, { type: 'bold' }],
-    },
     {
       name: 'code and textStyle',
       marks: [{ type: 'code' }, { type: 'textStyle', attrs: { color: 'red' } }],
@@ -231,6 +222,7 @@ describe('IR inline projection against the production editor schema', () => {
     const authored = docWithChildren([
       paragraph([
         { text: '单独代码', marks: [{ type: 'code' }] },
+        { text: '粗体代码', marks: [{ type: 'bold' }, { type: 'code' }] },
         { text: '粗斜体', marks: [{ type: 'bold' }, { type: 'italic' }] },
         { text: '带外链文字', marks: [{ type: 'externalLink', href: 'https://example.test' }] },
         { text: '引用文字', marks: [{ type: 'crossRef', targetId: 'target-chapter', targetKind: 'chapter' }, { type: 'italic' }] },
@@ -251,6 +243,7 @@ describe('IR inline projection against the production editor schema', () => {
     expect(first.kind).toBe('paragraph')
     if (first.kind !== 'paragraph') throw new Error('Expected paragraph')
     expect(first.content.find(run => run.marks?.some(mark => mark.type === 'code'))).toMatchObject({ text: '单独代码' })
+    expect(first.content.find(run => run.text === '粗体代码')?.marks).toEqual([{ type: 'bold' }, { type: 'code' }])
     expect(first.content.find(run => run.text === '粗斜体')?.marks).toEqual([{ type: 'bold' }, { type: 'italic' }])
     expect(first.content.find(run => run.text === '带外链文字')?.marks).toEqual([{ type: 'externalLink', href: 'https://example.test' }])
     expect(first.content.find(run => run.marks?.some(mark => mark.type === 'crossRef'))?.marks).toEqual(expect.arrayContaining([

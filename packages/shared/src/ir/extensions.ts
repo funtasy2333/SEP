@@ -6,10 +6,10 @@ const semanticKeys = new Set([
   'index', 'fields', 'entryType', 'externalLink', 'proposer', 'technicalCommittee',
   'imageWidth', 'imageHeight', 'alt', 'targetKind', 'subjectField', 'introductionClauses', 'bibliographyTitle', 'columns',
   // WP8.M G3：图例（IRFigure.legend）与行内图（IRInline.image）；键名在 IR 内唯一，可走通用扫描。
-  'legend', 'image',
+  'legend', 'image', 'primaryGraphic', 'additionalGraphics', 'alternativeGraphic', 'footnoteRef', 'footnoteDefinition', 'sourceReferences',
 ])
 const semanticMarks = new Set(['strike', 'code', 'variable', 'externalLink', 'bibRef', 'termRef', 'stdRef', 'mixedCitation'])
-const semanticKinds = new Set(['warning', 'quote', 'code', 'defList', 'normRefList'])
+const semanticKinds = new Set(['warning', 'quote', 'code', 'defList', 'normRefList', 'formulaGroup', 'figureSet', 'array'])
 
 function present(value: unknown): boolean {
   if (value === undefined || value === null || value === '') return false

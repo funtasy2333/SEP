@@ -74,6 +74,8 @@ class ResolveCtx {
   noteSeq = 0
   exampleSeq = 0
   footnoteSeq = 0
+  sharedFootnotes = new Set<string>()
+  sharedFootnoteRefs: { targetId: string; fromId: string }[] = []
   /** 缩略语项的 xmlId 全局序号（abb_<k>，文档序；D-M-02） */
   abbrSeq = 0
   footnoteDepth = 0
@@ -144,7 +146,7 @@ export function termTailOrderProblemMessage(reason: string): string {
 // ---------- 行内（收集交叉引用） ----------
 
 // 与编辑器 canInsertBodyFootnote 保持一致；图中的限制沿块级子树传递。
-type ForbiddenFootnoteContainer = '标题' | '图' | '公式主体' | '公式说明' | '定义列表'
+type ForbiddenFootnoteContainer = '标题' | '图' | '公式主体' | '公式说明' | '定义列表' | '数组网格'
 
 /**
  * `allowImage`：行内图（IRInline.image，M-8.3-02）只允许出现在 IRParagraph.content（visitBlock 的 paragraph 分支传 true），
@@ -168,6 +170,29 @@ function visitInlines(inlines: IRInline[], fromId: NodeId, ctx: ResolveCtx, forb
       ctx.registerId(run.formula.id)
       ctx.kinds.set(run.formula.id, 'formula')
       ctx.setLabel(run.formula.id, '', stableExtensionXmlId(run.formula.id), '行内公式')
+    }
+    if (run.footnoteRef || run.footnoteDefinition) {
+      if (forbiddenContainer || ctx.inTerm || ctx.tableFootnotes || ctx.footnoteDepth) {
+        ctx.problems.push({ code: 'invalid-footnote', nodeId: fromId, severity: 'error', message: '当前位置不能包含共享脚注' })
+      }
+      if (run.footnoteRef) {
+        if (!run.footnoteRef.targetId || !run.footnoteRef.refText) ctx.problems.push({ code: 'invalid-footnote', nodeId: fromId, severity: 'error', message: '共享脚注引用必须具有目标及文本' })
+        ctx.sharedFootnoteRefs.push({ targetId: run.footnoteRef.targetId, fromId })
+      }
+      if (run.footnoteDefinition) {
+        const note = run.footnoteDefinition
+        if (ctx.seenIds.has(note.id) || note.id.startsWith(MISSING_ID_PREFIX)) ctx.problems.push({ code: 'invalid-footnote', nodeId: note.id, severity: 'error', message: '共享脚注定义必须具有文档内唯一 ID' })
+        ctx.registerId(note.id)
+        ctx.sharedFootnotes.add(note.id)
+        const seq = ++ctx.footnoteSeq
+        ctx.setLabel(note.id, `${seq})`, `fn_${seq}`, `${seq})`)
+        if (!note.content.some(inline => inline.text.trim())) ctx.problems.push({ code: 'invalid-footnote', nodeId: note.id, severity: 'error', message: '共享脚注内容不能为空' })
+        if (!ctx.footnoteDepth) {
+          ctx.footnoteDepth += 1
+          visitInlines(note.content, note.id, ctx)
+          ctx.footnoteDepth -= 1
+        }
+      }
     }
     if (run.footnote) {
       const note = run.footnote
@@ -283,6 +308,12 @@ export function computeOrderedListMarkers(doc: IRDoc, strategy: NumberingStrateg
       case 'table':
         for (const row of block.rows) for (const cell of row.cells) visitBlocks(cell.content, depth)
         for (const note of block.notes) visitBlocks(note.content, depth)
+        break
+      case 'array':
+        for (const row of block.rows) for (const cell of row.cells) visitBlocks(cell.content, depth)
+        break
+      case 'figureSet':
+        for (const figure of block.figures) visitBlock(figure, depth)
         break
       case 'figure':
         for (const note of block.notes) visitBlocks(note.content, depth)
@@ -414,6 +445,31 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
       ctx.tableFootnotes = previousTable
       break
     }
+    case 'array': {
+      ctx.registerId(block.id)
+      for (const row of block.rows) {
+        ctx.registerId(row.id)
+        for (const cell of row.cells) {
+          ctx.registerId(cell.id)
+          for (const child of cell.content) visitBlock(child, scopeKey, ctx, '数组网格')
+        }
+      }
+      break
+    }
+    case 'figureSet': {
+      ctx.registerId(block.id)
+      if (block.legend) {
+        ctx.registerId(block.legend.id)
+        if (block.legend.title) visitInlines(block.legend.title, block.legend.id, ctx, '图')
+        for (const item of block.legend.items) {
+          ctx.registerId(item.id)
+          visitInlines(item.term, item.id, ctx, '图')
+          visitInlines(item.definition, item.id, ctx, '图')
+        }
+      }
+      for (const figure of block.figures) visitBlock(figure, scopeKey, ctx, forbiddenContainer)
+      break
+    }
     case 'figure': {
       // §4.7「遍历顺序」：DOCX 按 9.11.1 把图中的注排在图题之上（§5.8），Resolver 据此先遍历
       // 注、再给图编号、最后遍历图题，与 Word 按文档顺序的计数保持一致。
@@ -452,6 +508,17 @@ function visitBlock(block: IRBlock, scopeKey: string, ctx: ResolveCtx, forbidden
         for (const child of example.content) visitBlock(child, example.id, ctx, '图')
         ctx.scope(block.id).examples.push({ id: example.id })
       }
+      break
+    }
+    case 'formulaGroup': {
+      ctx.registerId(block.id)
+      if (block.numbered) {
+        ctx.formulaSeq += 1
+        const label = ctx.strategy.formula(ctx.formulaSeq, ctx.appendixLetter)
+        const num = ctx.appendixLetter ? `${ctx.appendixLetter}.${ctx.formulaSeq}` : String(ctx.formulaSeq)
+        ctx.setLabel(block.id, label, `formula_${num}`, `公式${label}`)
+      }
+      for (const formula of block.formulas) visitBlock({ ...formula, numbered: false }, scopeKey, ctx, forbiddenContainer)
       break
     }
     case 'formula': {
@@ -869,7 +936,10 @@ function collectDeferredInlineArrays(doc: IRDoc): WeakSet<object> {
     defer(doc.index.title)
     for (const group of doc.index.groups) {
       defer(group.label)
-      for (const entry of group.entries) defer(entry.term)
+      for (const entry of group.entries) {
+        defer(entry.term)
+        for (const reference of entry.sourceReferences ?? []) defer(reference.content)
+      }
     }
   }
   return arrays
@@ -903,7 +973,7 @@ function registerExtendedData(
         ctx.problems.push({ code: 'duplicate-id', nodeId: id, severity: 'error', message: `节点 ID「${id}」在文档中重复出现（${path}）` })
       }
       definitions.add(id)
-      const kind = row.kind === 'termEntry' ? 'term' : row.kind === 'bibEntry' ? 'bibliography'
+      const kind = row.kind === 'termEntry' ? 'term' : row.kind === 'bibEntry' ? 'bibliography' : row.kind === 'formulaGroup' ? 'formula'
         : typeof row.kind === 'string' ? row.kind
           : path === 'doc.index' ? 'index' : path.startsWith('doc.resources[') ? 'resource' : 'entity'
       // Inline formula registration already supplied its specific kind.
@@ -962,7 +1032,10 @@ function visitIndexInlines(index: IRDoc['index'], ctx: ResolveCtx): void {
   if (index.title) visitInlines(index.title, index.id, ctx)
   for (const group of index.groups) {
     if (group.label) visitInlines(group.label, group.id, ctx)
-    for (const entry of group.entries) visitInlines(entry.term, entry.id, ctx)
+    for (const entry of group.entries) {
+      visitInlines(entry.term, entry.id, ctx)
+      for (const reference of entry.sourceReferences ?? []) visitInlines(reference.content, entry.id, ctx)
+    }
   }
 }
 
@@ -1019,6 +1092,12 @@ export function resolve(doc: IRDoc, strategy: NumberingStrategy = gbT11Strategy)
   if (doc.bibliographyTitle) visitInlines(doc.bibliographyTitle, 'doc.bibliographyTitle', ctx, '标题')
   const bibliographyOrder = resolveBibliography(doc, ctx)
   visitIndexInlines(doc.index, ctx)
+  for (const ref of ctx.sharedFootnoteRefs) if (!ctx.sharedFootnotes.has(ref.targetId)) {
+    ctx.problems.push({ code: 'dangling-footnote', nodeId: ref.fromId, severity: 'error', message: `共享脚注目标「${ref.targetId}」不存在` })
+  }
+  for (const id of ctx.sharedFootnotes) if (!ctx.sharedFootnoteRefs.some(ref => ref.targetId === id)) {
+    ctx.problems.push({ code: 'unreferenced-footnote', nodeId: id, severity: 'error', message: '共享脚注定义没有引用' })
+  }
   checkIndexTargets(indexTargets, ctx)
   // 参考文献与索引内的引用此时都已进入 ctx.xrefs；必须先于 checkTypedReferences（见函数注释）。
   labelReferencedListItems(ctx)

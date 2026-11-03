@@ -12,6 +12,7 @@ import type {
 import type { PMJsonNode } from './pmToIr'
 import { hasSemanticExtensions, isInlineNoteContent } from './extensions'
 import { unsupportedFootnoteContent } from './footnotePayload'
+import { graphicAttributeProblem } from './graphicAttributes'
 import { diagnoseInlineProjection, findCrossRefRunProjectionIssues } from './inlineProjectionDiagnostics'
 import {
   describeAuthoringContext, fragmentContextRules, validateAuthoringContext,
@@ -113,6 +114,8 @@ function inlineToPm(run: IRInline): PMJsonNode[] {
       content: inlinesToPm(run.footnote.content),
     })))
   }
+  if (run.footnoteRef) result.push(node('sharedFootnoteRef', { ...run.footnoteRef }))
+  if (run.footnoteDefinition) result.push(node('sharedFootnoteDefinition', withId(run.footnoteDefinition.id, { content: inlinesToPm(run.footnoteDefinition.content) })))
   if (run.image) {
     // 行内图（M-8.3-02）：行内原子节点，无 nodeId；marks/style 无处可存（diagnoseInlineProjection 已报错）。
     result.push(node('inlineImage', {
@@ -150,6 +153,29 @@ function diagnoseFootnotePayloads(doc: unknown, errors: IRToPmDiagnostic[], root
     }
     if (!isRecord(value) || active.has(value)) return
     active.add(value)
+
+    if (typeof value.text === 'string' && (value.footnoteRef != null || value.footnoteDefinition != null)) {
+      if (value.text !== '' || value.marks || value.style || value.footnote || value.formula || value.image || (value.footnoteRef && value.footnoteDefinition)) {
+        errors.push({ path, reason: '共享脚注原子不能与文本或其他载荷混合' })
+      }
+      if (value.footnoteRef && (!isRecord(value.footnoteRef) || typeof value.footnoteRef.targetId !== 'string' || !value.footnoteRef.targetId || typeof value.footnoteRef.refText !== 'string' || !value.footnoteRef.refText || Object.keys(value.footnoteRef).some(key => !['targetId', 'refText'].includes(key)))) {
+        errors.push({ path: `${path}.footnoteRef`, reason: '共享脚注引用必须具有非空目标和显示文本' })
+      }
+      if (value.footnoteDefinition && (!isRecord(value.footnoteDefinition) || typeof value.footnoteDefinition.id !== 'string' || !value.footnoteDefinition.id || !Array.isArray(value.footnoteDefinition.content)
+        || Object.keys(value.footnoteDefinition).some(key => !['id', 'content'].includes(key)))) {
+        errors.push({ path: `${path}.footnoteDefinition`, reason: '共享脚注定义必须具有 ID 和正文数组' })
+      }
+      if (isRecord(value.footnoteDefinition) && Array.isArray(value.footnoteDefinition.content)) {
+        if (!value.footnoteDefinition.content.some(item => isRecord(item) && typeof item.text === 'string' && item.text.trim())) {
+          errors.push({ path: `${path}.footnoteDefinition.content`, reason: '共享脚注正文不能为空' })
+        }
+        if (value.footnoteDefinition.content.some(item => isRecord(item) && (item.footnote || item.footnoteRef || item.footnoteDefinition))) {
+          errors.push({ path: `${path}.footnoteDefinition.content`, reason: '共享脚注内容不能嵌套脚注' })
+        }
+        diagnoseFootnotePayload(value.footnoteDefinition.content as IRInline[], `${path}.footnoteDefinition.content`,
+          typeof value.footnoteDefinition.id === 'string' ? value.footnoteDefinition.id : undefined, errors)
+      }
+    }
 
     if (typeof value.text === 'string' && isRecord(value.footnote) && Array.isArray(value.footnote.content)) {
       diagnoseFootnotePayload(
@@ -336,7 +362,7 @@ function termToPm(entry: IRTermEntry, path: string, errors: IRToPmDiagnostic[]):
   return node('termDef', withId(entry.id, { level: entry.level ?? 1 }), content)
 }
 
-function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[], nested = false): PMJsonNode {
   if (list.items.length === 0) {
     errors.push({ path: `${path}.items`, nodeId: list.id, reason: '生产列表至少需要一个列项' })
   }
@@ -351,7 +377,7 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJso
   }
 
   const fixedLevel = list.listType === 'number' || list.listType === 'dot' ? 2 : 1
-  if (list.level !== undefined && list.level !== fixedLevel) {
+  if (list.level !== undefined && list.level !== fixedLevel && !(nested && list.level === 2)) {
     errors.push({
       path: `${path}.level`,
       nodeId: list.id,
@@ -363,7 +389,7 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJso
   if (simple) {
     const typeByList = { dash: 'dash', number: 'numeric', alpha: 'alpha', roman: 'roman', boxed: 'boxedNumeric', dot: 'dot' } as const
     const rawType = typeByList[list.listType]
-    return node('stdList', withId(list.id, { listType: rawType, level: fixedLevel }), list.items.map((item, index) => {
+    return node('stdList', withId(list.id, { listType: rawType, level: nested ? (list.level ?? fixedLevel) : fixedLevel }), list.items.map((item, index) => {
       const content = item.content[0]
       if (content?.kind === 'paragraph' && content.id !== `${item.id}.p0`) {
         errors.push({
@@ -390,11 +416,18 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[]): PMJso
     return node(type, withId(list.id), list.items.map(item => node('listItem', withId(item.id), [
       ...item.content.flatMap((block, index) => block.kind === 'paragraph'
         ? [paragraph(block.id, block.content, 'paragraph')]
-        : [listToPm(block, `${path}.${item.id}[${index}]`, errors)]),
+        : [listToPm(block, `${path}.${item.id}[${index}]`, errors, true)]),
     ])))
   }
-  errors.push({ path, nodeId: list.id, reason: '生产stdList不支持嵌套列表；当前IR列项结构不能无损映射' })
-  return node('stdList', withId(list.id, { listType: 'dash', level: list.level ?? 1 }), [])
+  const typeByList = { alpha: 'alpha', roman: 'roman', boxed: 'boxedNumeric', dot: 'dot' } as const
+  return node('stdList', withId(list.id, { listType: typeByList[list.listType], level: nested ? (list.level ?? fixedLevel) : fixedLevel }), list.items.map((item, index) => {
+    if (item.content[0]?.kind !== 'paragraph') {
+      errors.push({ path: `${path}.items[${index}].content[0]`, nodeId: item.id, reason: '标准块级列项必须以段落开头' })
+    }
+    return node('stdListBlockItem', withId(item.id), item.content.map((block, childIndex) => block.kind === 'paragraph'
+      ? paragraph(block.id, block.content, 'paragraph')
+      : listToPm(block, `${path}.items[${index}].content[${childIndex}]`, errors, true)))
+  }))
 }
 
 /** `IRTable.columns` → `stdTable.attrs.columns`（WP8.M G8）：每列四个键齐全（缺省为 null），与生产 Schema 的属性形状一致。 */
@@ -427,10 +460,18 @@ function tableColumnsAttr(table: IRTable, path: string, errors: IRToPmDiagnostic
 }
 
 function tableToPm(table: IRTable, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+  if (table.alternativeGraphic) {
+    const reason = graphicAttributeProblem(table.alternativeGraphic)
+    if (reason) errors.push({ path: `${path}.alternativeGraphic`, nodeId: table.id, reason })
+  }
   if (table.rows.length === 0) {
     errors.push({ path: `${path}.rows`, nodeId: table.id, reason: '生产表格至少需要一个表格行' })
   }
   const attrs: PmAttrs = withId(table.id, { orientation: table.orientation, unit: table.unit ?? null, headerRowCount: table.headerRowCount })
+  if (table.alternativeGraphic) {
+    const { id, ...graphic } = table.alternativeGraphic
+    attrs.alternativeGraphic = { nodeId: id, ...graphic }
+  }
   measureAttrs(attrs, 'width', table.width)
   if (table.style) Object.assign(attrs, tableStyleAttrs(table.style))
   if (table.columns !== undefined) attrs.columns = tableColumnsAttr(table, path, errors)
@@ -482,6 +523,14 @@ function tableToPm(table: IRTable, path: string, errors: IRToPmDiagnostic[]): PM
 }
 
 function figureToPm(figure: Extract<IRBlock, { kind: 'figure' }>, path: string, errors: IRToPmDiagnostic[]): PMJsonNode {
+  if (figure.primaryGraphic) {
+    const reason = graphicAttributeProblem(figure.primaryGraphic, true)
+    if (reason) errors.push({ path: `${path}.primaryGraphic`, nodeId: figure.id, reason })
+  }
+  if (figure.additionalGraphics) figure.additionalGraphics.forEach((graphic, index) => {
+    const reason = graphicAttributeProblem(graphic)
+    if (reason) errors.push({ path: `${path}.additionalGraphics[${index}]`, nodeId: figure.id, reason })
+  })
   const width = figure.imageWidth
   const height = figure.imageHeight
   const content: PMJsonNode[] = [
@@ -503,7 +552,10 @@ function figureToPm(figure: Extract<IRBlock, { kind: 'figure' }>, path: string, 
     ...figure.notes.map(note => node('note', withId(note.id), noteContent(note.id, note.content, `${path}.notes.${note.id}`, errors))),
     ...(figure.examples ?? []).map(example => node('example', withId(example.id), noteContent(example.id, example.content, `${path}.examples.${example.id}`, errors))),
   ]
-  return node('figure', withId(figure.id, { orientation: figure.orientation, unit: figure.unit ?? null }), content)
+  return node('figure', withId(figure.id, { orientation: figure.orientation, unit: figure.unit ?? null,
+    ...(figure.primaryGraphic ? { primaryGraphic: { ...figure.primaryGraphic } } : {}),
+    ...(figure.additionalGraphics ? { additionalGraphics: figure.additionalGraphics.map(({ id, ...graphic }) => ({ nodeId: id, ...graphic })) } : {}),
+  }), content)
 }
 
 /** 定义列表的项 → whereItem（whereTerm + whereDefinition）；公式 whereList 与缩略语 defList 共用（WP8.M / G2，P8）。 */
@@ -547,7 +599,32 @@ function blockToPm(block: IRBlock, path: string, errors: IRToPmDiagnostic[]): PM
     case 'list': return listToPm(block, path, errors)
     case 'table': return tableToPm(block, path, errors)
     case 'figure': return figureToPm(block, path, errors)
+    case 'figureSet': {
+      if (!block.figures.length) errors.push({ path, nodeId: block.id, reason: '图组必须包含至少一个图' })
+      return node('figureSet', withId(block.id), [
+        ...(block.legend ? [legendToPm(block.legend, `${path}.legend`, errors)] : []),
+        ...block.figures.map((figure, index) => figureToPm(figure, `${path}.figures[${index}]`, errors)),
+      ])
+    }
+    case 'array': {
+      let end = 0
+      for (const group of block.columnGroups ?? []) {
+        if (!Number.isInteger(group.start) || !Number.isInteger(group.count) || group.start < end || group.count < 1 || group.start + group.count > block.columns.length) {
+          errors.push({ path: `${path}.columnGroups`, nodeId: block.id, reason: '列组必须是非重叠且在列范围内的连续区间' })
+        }
+        end = group.start + group.count
+      }
+      const table = tableToPm({ kind: 'table', id: block.id, caption: [], orientation: 'portrait', headerRowCount: 0,
+        rows: block.rows, notes: [], columns: block.columns }, path, errors)
+      const grid = table.content?.find(child => child.type === 'table')
+      return node('alignedArray', withId(block.id, { columns: table.attrs?.columns ?? null,
+        columnGroups: block.columnGroups ?? null }), grid ? [grid] : [])
+    }
     case 'formula': return formulaToPm(block, path, errors)
+    case 'formulaGroup': {
+      if (!block.formulas.length) errors.push({ path, nodeId: block.id, reason: '公式组必须包含至少一个公式' })
+      return node('formulaGroup', withId(block.id, { numbered: block.numbered }), block.formulas.map((formula, index) => formulaToPm(formula, `${path}.formulas[${index}]`, errors)))
+    }
     case 'defList': return defListToPm(block, path, errors)
     case 'note': case 'example': {
       if (!isInlineNoteContent(block.id, block.content)) return noteBlockToPm(block, path, errors)
@@ -704,6 +781,7 @@ function indexToPm(index: NonNullable<IRDoc['index']>, errors: IRToPmDiagnostic[
       node('indexTerm', undefined, inlinesToPm(entry.term)),
       ...entry.targets.map(targetId => node('indexTarget', { targetId })),
       ...entry.seeAlso.map(targetId => node('indexSeeAlso', { targetId })),
+      ...(entry.sourceReferences ?? []).map(reference => node('indexSourceReference', { referenceType: reference.type }, inlinesToPm(reference.content))),
     ])))
   })
   return node('indexBlock', withId(index.id, { title: index.title ? textOnlyField(index.title, 'index.title', index.id, errors) : null }), groups)
@@ -713,6 +791,20 @@ function indexToPm(index: NonNullable<IRDoc['index']>, errors: IRToPmDiagnostic[
 export function irToPm(doc: IRDoc, options: IRToPmOptions = {}): PMJsonNode {
   const rootType = options.rootType ?? 'doc'
   const errors: IRToPmDiagnostic[] = []
+  const resourceIds = new Set((doc.resources ?? []).map(resource => resource.id))
+  const checkGraphics = (value: unknown, path: string): void => {
+    if (Array.isArray(value)) { value.forEach((item, index) => checkGraphics(item, `${path}[${index}]`)); return }
+    if (!isRecord(value)) return
+    const graphics = value.kind === 'figure' && Array.isArray(value.additionalGraphics) ? value.additionalGraphics
+      : value.kind === 'table' && value.alternativeGraphic ? [value.alternativeGraphic] : []
+    graphics.forEach((graphic, index) => {
+      if (!isRecord(graphic) || typeof graphic.resourceId !== 'string' || resourceIds.has(graphic.resourceId)) return
+      errors.push({ path: `${path}.${value.kind === 'figure' ? `additionalGraphics[${index}]` : 'alternativeGraphic'}.resourceId`,
+        nodeId: typeof graphic.id === 'string' ? graphic.id : undefined, reason: `图片资源「${graphic.resourceId}」不存在` })
+    })
+    for (const [key, child] of Object.entries(value)) checkGraphics(child, `${path}.${key}`)
+  }
+  checkGraphics(doc, 'doc')
   diagnoseReferenceRunsWithoutCarrier(doc, 'doc', undefined, errors)
   diagnoseInlineProjection(doc, 'doc', undefined, errors)
   for (const issue of findCrossRefRunProjectionIssues(doc)) {

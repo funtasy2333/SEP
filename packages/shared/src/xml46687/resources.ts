@@ -35,7 +35,7 @@ export interface Xml46687ImageRef {
   href: string
   /** IR 资源键：`resourceId ?? src`（图与行内图同口径）。 */
   key: string
-  kind: 'figure' | 'inline'
+  kind: 'figure' | 'inline' | 'figure-extra' | 'table-alternative'
   /** 块图为图自身的 NodeId；行内图为最近一层带 `id` 的祖先（通常是所在段落）。 */
   ownerId: NodeId
   /** IR 路径，与 `getOutputSupportProblems` 同写法（以 `doc` 起头）：块图指向图块，行内图指向所在 run。 */
@@ -78,6 +78,20 @@ export function collectXml46687ImageRefs(doc: IRDoc, labels: Record<NodeId, Reso
       if (typeof label?.xmlId === 'string' && label.xmlId !== '') {
         const key = typeof value.resourceId === 'string' ? value.resourceId : typeof value.src === 'string' ? value.src : ''
         refs.push({ href: label.xmlId, key, kind: 'figure', ownerId: value.id, path })
+        if (Array.isArray(value.additionalGraphics)) value.additionalGraphics.forEach((graphic, index) => {
+          if (!isRecord(graphic) || typeof graphic.id !== 'string' || typeof graphic.src !== 'string') return
+          refs.push({ href: `${label.xmlId}_g${index + 1}`, key: typeof graphic.resourceId === 'string' ? graphic.resourceId : graphic.src,
+            kind: 'figure-extra', ownerId: graphic.id, path: `${path}.additionalGraphics[${index}]` })
+        })
+      }
+    }
+
+    if (value.kind === 'table' && typeof value.id === 'string' && isRecord(value.alternativeGraphic)) {
+      const label = Object.prototype.hasOwnProperty.call(labels, value.id) ? labels[value.id] : undefined
+      const graphic = value.alternativeGraphic
+      if (typeof label?.xmlId === 'string' && label.xmlId !== '' && typeof graphic.id === 'string' && typeof graphic.src === 'string') {
+        refs.push({ href: `${label.xmlId}_alt`, key: typeof graphic.resourceId === 'string' ? graphic.resourceId : graphic.src,
+          kind: 'table-alternative', ownerId: graphic.id, path: `${path}.alternativeGraphic` })
       }
     }
 

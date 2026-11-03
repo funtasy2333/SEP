@@ -46,6 +46,7 @@ export const KIND_LABELS: Record<NodeKind, string> = {
   example: '示例', warning: '警告块', quote: '引文块', code: '代码块', defList: '缩略语表',
   // 规范性引用文件清单（WP8.M G1）：可读成 IR 块，但不可单独寻址/创建（不在 BLOCK_KINDS 与 BLOCK_BY_PM_TYPE 内），这里只供提示文案。
   normRefList: '规范性引用文件清单',
+  figureSet: '图组', array: '数组', formulaGroup: '公式组',
 }
 
 export const CONTAINER_LABELS: Record<DocumentContainer, string> = {

@@ -33,7 +33,8 @@ export const XML46687_REFS_BOUNDARY: Xml46687BoundaryContribution = {
     bibExternalLink: ['href', 'title', 'target', 'rel', 'displayText'],
     index: ['id', 'title', 'groups'],
     indexGroup: ['id', 'label', 'entries'],
-    indexEntry: ['id', 'term', 'targets', 'seeAlso'],
+    indexEntry: ['id', 'term', 'targets', 'seeAlso', 'sourceReferences'],
+    indexSourceReference: ['type','content'],
   },
   shapes: [
     { parent: 'bibEntry', key: 'fields', shape: 'bibField' },
@@ -42,6 +43,7 @@ export const XML46687_REFS_BOUNDARY: Xml46687BoundaryContribution = {
     { parent: 'doc', key: 'index', shape: 'index' },
     { parent: 'index', key: 'groups', shape: 'indexGroup' },
     { parent: 'indexGroup', key: 'entries', shape: 'indexEntry' },
+    { parent: 'indexEntry', key: 'sourceReferences', shape: 'indexSourceReference' },
   ],
   declared: [
     { pathSuffix: 'doc.bibliographyTitle', kind: 'field', name: 'bibliographyTitle', matrixIds: ['M-4.5.3-02'], task: 'T2.4c', reason: '自定义参考文献标题写成 ref-list/title（4.5.3）' },
@@ -242,6 +244,11 @@ function renderIndexEntry(entry: IRIndexEntry, at: Site, ctx: RenderContext): Xm
       seeEntries.push(el('see-entry', undefined, [label.refText]))
     }
   })
+  for (const [index, reference] of (entry.sourceReferences ?? []).entries()) {
+    const referenceSite = sub(at, `.sourceReferences[${index}]`)
+    if (reference.type !== 'see') ctx.report('xml-write-failed','error','索引参见类型无法在当前 XML 模型中保留。', referenceSite)
+    else seeEntries.push(el('see-entry',undefined,ctx.renderInlines(reference.content,sub(referenceSite,'.content'),'term')))
+  }
   if (entry.seeAlso.length > 0) {
     ctx.report('index-seealso-not-expressed', 'warning', `索引条目的“参见”（${entry.seeAlso.length} 项）在 GB/T 46687.2 中没有写法，未导出。`, sub(at, '.seeAlso'))
   }

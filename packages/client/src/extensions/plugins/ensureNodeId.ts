@@ -23,7 +23,11 @@ export const NODE_ID_TYPES = [
   'stdTable',
   'tableFootnoteEntry',
   'figure',
+  'figureSet',
+  'alignedArray',
+  'sharedFootnoteDefinition',
   'formula',
+  'formulaGroup',
   'stdList',
   'note',
   'example',
@@ -70,6 +74,7 @@ export const NODE_ID_TYPES = [
   // 块级容器内的可引用子节点（IR 类型中带 id，需稳定锚点供 WP3 pmToIr 使用）；
   // 表格行/单元格与公式 whereList 项的 ID 来源策略在 WP3 设计时确定
   'stdListItem',
+  'stdListBlockItem',
   'bibEntry',
   // 规范性引用文件清单及其条目（IR 的 IRNormRefList / IRNormRef 带 id；子节点 normRefStdRef/normRefStdTitle 无 id）。
   'normRefList',
@@ -95,6 +100,40 @@ export const NODE_ID_TYPES = [
 export interface NodeIdFix {
   pos: number
   nodeId: string
+}
+
+interface GraphicIdFix { pos: number; field: 'additionalGraphics' | 'alternativeGraphic'; value: unknown }
+
+/** Embedded graphic IDs are definitions too, although they are not ProseMirror nodes. */
+function graphicIdFixes(doc: PMNode, repair: boolean): GraphicIdFix[] {
+  const seen = new Set<string>()
+  doc.descendants(node => {
+    if (typeof node.attrs.nodeId === 'string' && node.attrs.nodeId) seen.add(node.attrs.nodeId)
+  })
+  const reserved = new Set(seen)
+  doc.descendants(node => visitGraphicAttrs(node, id => { if (typeof id === 'string' && id) reserved.add(id) }, () => {}))
+  const fixes: GraphicIdFix[] = []
+  doc.descendants((node, pos) => {
+    const field = node.type.name === 'figure' ? 'additionalGraphics' : node.type.name === 'stdTable' ? 'alternativeGraphic' : null
+    if (!field) return
+    const raw = node.attrs[field]
+    const values = field === 'additionalGraphics' && Array.isArray(raw) ? raw : field === 'alternativeGraphic' && raw ? [raw] : []
+    let changed = false
+    const next = values.map((value: unknown) => {
+      if (!isRecord(value)) return value
+      const id = value.nodeId
+      if (typeof id === 'string' && id && !seen.has(id)) { seen.add(id); return value }
+      changed = true
+      if (!repair) return value
+      let replacement = generateNodeId()
+      while (reserved.has(replacement)) replacement = generateNodeId()
+      reserved.add(replacement)
+      seen.add(replacement)
+      return { ...value, nodeId: replacement }
+    })
+    if (changed) fixes.push({ pos, field, value: field === 'additionalGraphics' ? next : next[0] })
+  })
+  return fixes
 }
 
 /**
@@ -135,15 +174,17 @@ export function hasNodeIdIssues(doc: PMNode): boolean {
     }
     hasIssues = true
   })
-  return hasIssues
+  return hasIssues || graphicIdFixes(doc, false).length > 0
 }
 
 /** Normalize a detached candidate with the same ID policy used by the live plugin. */
 export function normalizeNodeIds(doc: PMNode): PMNode {
   const fixes = findNodeIdFixes(doc)
-  if (fixes.length === 0) return doc
   const transaction = EditorState.create({ doc }).tr
   for (const { pos, nodeId } of fixes) transaction.setNodeAttribute(pos, 'nodeId', nodeId)
+  const graphicFixes = graphicIdFixes(transaction.doc, true)
+  for (const fix of graphicFixes) transaction.setNodeAttribute(fix.pos, fix.field, fix.value)
+  if (fixes.length === 0 && graphicFixes.length === 0) return doc
   return transaction.doc
 }
 
@@ -324,11 +365,21 @@ function addIdCount(counts: Map<string, number>, id: unknown): void {
   if (typeof id === 'string' && id.length > 0) counts.set(id, (counts.get(id) ?? 0) + 1)
 }
 
+function visitGraphicAttrs(node: PMNode, definition: (id: unknown) => void, reference: (id: unknown) => void): void {
+  const values = node.type.name === 'figure' && Array.isArray(node.attrs.additionalGraphics)
+    ? node.attrs.additionalGraphics : node.type.name === 'stdTable' ? [node.attrs.alternativeGraphic] : []
+  for (const value of values) if (isRecord(value)) {
+    definition(value.nodeId)
+    reference(value.resourceId)
+  }
+}
+
 function collectSliceDefinitionCounts(slice: Slice): Map<string, number> {
   const counts = new Map<string, number>()
   slice.content.descendants((node) => {
     addIdCount(counts, node.attrs.nodeId)
-    if (node.type.name === 'footnoteRef') {
+    visitGraphicAttrs(node, id => addIdCount(counts, id), () => {})
+    if (node.type.name === 'footnoteRef' || node.type.name === 'sharedFootnoteDefinition') {
       visitTypedInlinePayload(node.attrs.content, id => addIdCount(counts, id), () => {})
     }
     if (node.type.name === 'coverPage') {
@@ -343,7 +394,8 @@ function collectDocDefinitionIds(doc: PMNode): Set<string> {
   const add = (id: unknown) => { if (typeof id === 'string' && id.length > 0) ids.add(id) }
   doc.descendants((node) => {
     add(node.attrs.nodeId)
-    if (node.type.name === 'footnoteRef') visitTypedInlinePayload(node.attrs.content, add, () => {})
+    visitGraphicAttrs(node, add, () => {})
+    if (node.type.name === 'footnoteRef' || node.type.name === 'sharedFootnoteDefinition') visitTypedInlinePayload(node.attrs.content, add, () => {})
     if (node.type.name === 'coverPage') visitMetadataFallback(node.attrs, add, () => {})
   })
   visitMetadataFallback(doc.attrs, add, () => {})
@@ -354,11 +406,13 @@ function collectSliceReferenceIds(slice: Slice): Set<string> {
   const references = new Set<string>()
   const addReference = (id: unknown) => { if (typeof id === 'string' && id.length > 0) references.add(id) }
   slice.content.descendants((node) => {
+    visitGraphicAttrs(node, () => {}, addReference)
     for (const mark of node.marks) addReference(referencedId({ type: mark.type.name, attrs: mark.attrs }))
-    if (node.type.name === 'footnoteRef') visitTypedInlinePayload(node.attrs.content, () => {}, addReference)
+    if (node.type.name === 'footnoteRef' || node.type.name === 'sharedFootnoteDefinition') visitTypedInlinePayload(node.attrs.content, () => {}, addReference)
     if (node.type.name === 'coverPage') visitMetadataFallback(node.attrs, () => {}, addReference)
     const targetFields: Record<string, string[]> = {
       tableFootnoteRef: ['targetId'],
+      sharedFootnoteRef: ['targetId'],
       figureResourceRef: ['targetId'],
       indexTarget: ['targetId'],
       indexSeeAlso: ['targetId'],
@@ -454,8 +508,24 @@ function remapPastedNode(node: PMNode, remaps: PastedIdRemaps): PMNode {
   const mappedNodeId = remapId(node.attrs.nodeId, remaps)
   if (mappedNodeId !== node.attrs.nodeId) attrs = { ...node.attrs, nodeId: mappedNodeId }
 
+  const remapGraphic = (value: unknown): unknown => {
+    if (!isRecord(value)) return value
+    const id = remapId(value.nodeId, remaps)
+    const resource = remapId(value.resourceId, remaps)
+    return id === value.nodeId && resource === value.resourceId ? value : { ...value, nodeId: id, resourceId: resource }
+  }
+  if (node.type.name === 'figure' && Array.isArray(node.attrs.additionalGraphics)) {
+    const next = node.attrs.additionalGraphics.map(remapGraphic)
+    if (next.some((value: unknown, index: number) => value !== node.attrs.additionalGraphics[index])) attrs = { ...(attrs ?? node.attrs), additionalGraphics: next }
+  }
+  if (node.type.name === 'stdTable' && node.attrs.alternativeGraphic) {
+    const next = remapGraphic(node.attrs.alternativeGraphic)
+    if (next !== node.attrs.alternativeGraphic) attrs = { ...(attrs ?? node.attrs), alternativeGraphic: next }
+  }
+
   const referenceFields: Record<string, string[]> = {
     tableFootnoteRef: ['targetId'],
+    sharedFootnoteRef: ['targetId'],
     figureResourceRef: ['targetId'],
     indexTarget: ['targetId'],
     indexSeeAlso: ['targetId'],
@@ -466,7 +536,7 @@ function remapPastedNode(node: PMNode, remaps: PastedIdRemaps): PMNode {
     const mapped = remapId(node.attrs[field], remaps)
     if (mapped !== node.attrs[field]) attrs = { ...(attrs ?? node.attrs), [field]: mapped }
   }
-  if (node.type.name === 'footnoteRef') {
+  if (node.type.name === 'footnoteRef' || node.type.name === 'sharedFootnoteDefinition') {
     const payload = remapTypedInlinePayload(node.attrs.content, remaps)
     if (payload !== node.attrs.content) attrs = { ...(attrs ?? node.attrs), content: payload }
   }
@@ -634,7 +704,6 @@ export function ensureNodeIdPlugin(): Plugin {
       if (!transactions.some((tr) => tr.docChanged)) return null
       const fixes = findNodeIdFixes(newState.doc)
       const targetFixes = findCopiedTableFootnoteTargets(newState.doc, fixes)
-      if (fixes.length === 0 && targetFixes.length === 0) return null
       const tr = newState.tr
       // 仅改属性不改文档结构，pos 在本事务内保持有效
       for (const { pos, nodeId } of fixes) {
@@ -643,6 +712,9 @@ export function ensureNodeIdPlugin(): Plugin {
       for (const { pos, targetId } of targetFixes) {
         tr.setNodeAttribute(pos, 'targetId', targetId)
       }
+      const graphicFixes = graphicIdFixes(tr.doc, true)
+      for (const fix of graphicFixes) tr.setNodeAttribute(fix.pos, fix.field, fix.value)
+      if (fixes.length === 0 && targetFixes.length === 0 && graphicFixes.length === 0) return null
       tr.setMeta('addToHistory', false)
       return tr
     },
@@ -682,11 +754,13 @@ export const NodeId = Extension.create({
   onCreate() {
     const { state, view } = this.editor
     const fixes = findNodeIdFixes(state.doc)
-    if (fixes.length === 0) return
     const tr = state.tr
     for (const { pos, nodeId } of fixes) {
       tr.setNodeAttribute(pos, 'nodeId', nodeId)
     }
+    const graphicFixes = graphicIdFixes(tr.doc, true)
+    for (const fix of graphicFixes) tr.setNodeAttribute(fix.pos, fix.field, fix.value)
+    if (fixes.length === 0 && graphicFixes.length === 0) return
     tr.setMeta('addToHistory', false)
     view.dispatch(tr)
   },

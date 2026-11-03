@@ -115,7 +115,7 @@ export function renderSectionContent(ctx: RenderContext, children: readonly IRCl
       afterSubsection = true
       if (child.kind === 'clause') out.push(renderClause(child, childSite, ctx))
       else out.push(...renderTermEntry(child, childSite, ctx))
-    } else if (afterSubsection && child.kind !== 'note' && child.kind !== 'example' && child.kind !== 'normRefList') {
+    } else if (afterSubsection && child.kind !== 'note' && child.kind !== 'example' && child.kind !== 'warning' && child.kind !== 'normRefList') {
       ctx.report('xml-block-after-subsec', 'error', `子条之后不能再出现「${child.kind}」块（sec 内容为：块、子条、尾部的注/示例/清单）。`, childSite)
     } else {
       if (afterSubsection) inTrailer = true

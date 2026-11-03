@@ -97,7 +97,15 @@ const pushRun = (doc: IRDoc, text: string, ...marks: IRMark[]): void => {
 const linkRun = (doc: IRDoc, extra: Record<string, unknown>): void => pushRun(doc, '链接', { type: 'externalLink', href: 'https://example.org/', ...extra } as IRMark)
 const para = (id: string, text: string): IRParagraph => ({ kind: 'paragraph', id, content: [{ text }] })
 
+const installSharedFootnote = (doc: IRDoc) => {
+  const content = (doc.body[0]!.children[0] as IRParagraph).content
+  if (content.some(run => run.footnoteDefinition?.id === 'shared-fn')) return
+  content.push({text:'',footnoteRef:{targetId:'shared-fn',refText:'1)'}},{text:'',footnoteDefinition:{id:'shared-fn',content:[{text:'脚注'}]}})
+}
+
 const INSTALLERS: Record<string, Install> = {
+  'field:footnoteRef': installSharedFootnote,
+  'field:footnoteDefinition': installSharedFootnote,
   'field:titleParts': doc => { doc.meta.titleParts = [{ id: 'tp1', lang: 'zh', role: 'full', content: [{ text: '题名' }] }] },
   'field:identifiers': doc => {
     doc.meta.identifiers = [{ id: 'ident1', scheme: 'dated', value: 'GB/T 1—2026', parts: [{ id: 'identp1', kind: 'doc-type', position: 1, content: [{ text: 'GB/T' }] }] }]
@@ -228,7 +236,8 @@ describe('XML46687 输出边界：差集恰等于声明集合（计算值）', (
   it.each(OWN.map(entry => [describeDeclared(entry), entry] as const))('逐项正例 [%s]：最小文档里 XML 阻断，XML46687 放行', (_title, entry) => {
     const doc = installedDoc(entry)
     expectReleased(doc, entry)
-    expectDeclaredDifferences(doc, [entry])
+    const paired = ['footnoteRef','footnoteDefinition'].includes(entry.name) ? OWN.filter(x => ['footnoteRef','footnoteDefinition'].includes(x.name)) : [entry]
+    expectDeclaredDifferences(doc, paired)
   })
 
   it('新增放行而不登记会被发现：把一个已放行的字段从声明集合里去掉，差集断言失败', () => {
