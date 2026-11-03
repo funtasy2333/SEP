@@ -193,7 +193,8 @@ describe('[M-8.5-01] 生产 Schema：figure 尾部追加 figureLegend? note* exa
     expect(names.slice(start, start + 3)).toEqual(['figureLegend', 'figureLegendTitle', 'inlineImage'])
     // 基线：figure 用旧内容表达式、不含 G3 三个扩展；其余扩展（含其它组追加者）不变。block 组默认填充节点不应因 G3 改变。
     const baseline = getSchema(extensions
-      .filter(extension => !['figureLegend', 'figureLegendTitle', 'inlineImage'].includes(extension.name))
+      // figureSet 依赖 figureLegend；它属于后续 WP8.3 组，基线去掉图例时也须去掉依赖者。
+      .filter(extension => !['figureLegend', 'figureLegendTitle', 'inlineImage', 'figureSet'].includes(extension.name))
       .map(extension => extension.name === 'figure'
         ? Figure.extend({ content: 'figureImage figureCaption figureCaptionEn? figureDescription* figureGroup*' })
         : extension))

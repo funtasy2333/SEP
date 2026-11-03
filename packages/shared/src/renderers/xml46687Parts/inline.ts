@@ -31,8 +31,11 @@ import { TARGET_DESCRIPTION, resolverKindOf, xrefTypeOf, xrefUsesRunText } from 
  */
 export const XML46687_INLINE_BOUNDARY: Xml46687BoundaryContribution = {
   marks: ['strike', 'code', 'variable', 'externalLink', 'bibRef', 'termRef', 'stdRef', 'mixedCitation'],
-  fields: { mark: ['href', 'title', 'target', 'rel', 'kind', 'name'] },
+  fields: { mark: ['href', 'title', 'target', 'rel', 'kind', 'name'], inline:['footnoteRef','footnoteDefinition'], sharedFootnoteRef:['targetId','refText'] },
+  shapes: [ {parent:'inline',key:'footnoteRef',shape:'sharedFootnoteRef'}, {parent:'inline',key:'footnoteDefinition',shape:'footnote'} ],
   declared: [
+    {pathSuffix:'.footnoteRef',kind:'field',name:'footnoteRef',matrixIds:['M-10.1.8-04'],task:'T2.4a',reason:'共享脚注引用保留各自显示文本'},
+    {pathSuffix:'.footnoteDefinition',kind:'field',name:'footnoteDefinition',matrixIds:['M-10.1.8-04'],task:'T2.4a',reason:'共享脚注在原位置唯一输出'},
     { pathSuffix: 'marks.type', kind: 'markType', name: 'strike', matrixIds: ['M-5.1-04'], task: 'T2.4a', reason: '删除线写成 strike（5.1）' },
     { pathSuffix: 'marks.type', kind: 'markType', name: 'code', matrixIds: ['M-5.10-02'], task: 'T2.4a', reason: '行内代码写成 inline-code（5.10）' },
     { pathSuffix: 'marks.type', kind: 'markType', name: 'variable', matrixIds: ['M-5.5-01', 'M-5.5-02'], task: 'T2.4a', reason: '变量符号写成 named-content[@content-type="variable"]（5.5）' },
@@ -331,6 +334,19 @@ function processRun(ctx: RenderContext, run: IRInline, at: Site, container: Inli
     else combination(`行内容器「${container}」不允许行内公式（设计 §2.3.3）。`)
   }
   if (run.footnote) atoms.push(...renderFootnoteAtom(ctx, run, at, caps))
+  if (run.footnoteRef) {
+    const here = sub(at,'.footnoteRef',run.footnoteRef.targetId)
+    const label = ctx.labelOf(run.footnoteRef.targetId)
+    if (!caps.footnote) ctx.report('xml-footnote-position','error','共享脚注不能出现在此位置。',here)
+    else if (!label?.xmlId) ctx.report('xml-label-missing','error','共享脚注引用缺少目标编号。',here)
+    else { ctx.emitRef(run.footnoteRef.targetId); atoms.push(el('xref',{'ref-type':'fn',rid:label.xmlId},[run.footnoteRef.refText])) }
+  }
+  if (run.footnoteDefinition) {
+    const footnote = run.footnoteDefinition, here = sub(at,'.footnoteDefinition',footnote.id), label = ctx.labelOf(footnote.id)
+    if (!caps.footnote) ctx.report('xml-footnote-position','error','共享脚注不能出现在此位置。',here)
+    else if (!label?.xmlId) ctx.report('xml-label-missing','error','共享脚注定义缺少编号。',here)
+    else atoms.push(el('fn',{id:label.xmlId},[el('label',undefined,[el('sup',undefined,[label.refText])]),el('p',undefined,ctx.renderInlines(footnote.content,sub(here,'.content',footnote.id),'inline'))]))
+  }
   for (const mark of marks) {
     if (mark.type !== 'tableFootnoteRef') continue
     if (!permit(caps.xref, 'tableFootnoteRef')) continue

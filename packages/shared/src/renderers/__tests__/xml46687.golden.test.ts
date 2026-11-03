@@ -66,7 +66,7 @@ describe.skipIf(shouldSkipValidation())('外部校验：python3 -I scripts/xml46
     const result = validateWithPython(xml, 'export')
     expect(result.errors).toEqual([])
     expect(result.valid).toBe(true)
-    expect(result.warnings.map((warning: { rule: string }) => warning.rule)).toEqual(['W-IMPL-REJECT', 'W-IMPL-REJECT', 'W-IMPL-REJECT'])
+    expect(result.warnings.map((warning: { rule: string }) => warning.rule)).toEqual([])
     expect(result.warnings.every((warning: { message: string }) => warning.message.includes('引言中的条'))).toBe(true)
   })
 

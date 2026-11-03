@@ -88,7 +88,9 @@ export function normalizeContentDetailed(content: unknown): NormalizedContent {
   const doc = validateContent(content);
   const normalized = normalizeNodeIds(doc);
   return {
-    content: normalized.toJSON() as PMJsonNode,
+    // ProseMirror can retain undefined defaults in attrs; return the exact JSON
+    // representation that storage and HTTP will use, including omitted keys.
+    content: JSON.parse(JSON.stringify(normalized.toJSON())) as PMJsonNode,
     // normalizeNodeIds 在无需修复时返回原对象。
     nodeIdsRepaired: normalized !== doc,
   };

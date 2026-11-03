@@ -5,7 +5,7 @@ export function collectFootnotes(doc: IRDoc, bibliographyOrder?: string[]): IRFo
   const out: IRFootnote[] = []
   const represented = new WeakSet<IRInline>()
   const inlines = (runs: IRInline[]) => {
-    for (const run of runs) { represented.add(run); if (run.footnote) out.push(run.footnote) }
+    for (const run of runs) { represented.add(run); if (run.footnote) out.push(run.footnote); if (run.footnoteDefinition) out.push(run.footnoteDefinition) }
   }
   const block = (node: IRBlock): void => {
     switch (node.kind) {
@@ -23,6 +23,12 @@ export function collectFootnotes(doc: IRDoc, bibliographyOrder?: string[]): IRFo
         for (const row of node.rows) for (const cell of row.cells) cell.content.forEach(block)
         node.notes.forEach(block)
         break
+      case 'array': for (const row of node.rows) for (const cell of row.cells) cell.content.forEach(block); break
+      case 'figureSet':
+        if (node.legend) { inlines(node.legend.title ?? []); for (const item of node.legend.items) { inlines(item.term); inlines(item.definition) } }
+        node.figures.forEach(block)
+        break
+      case 'formulaGroup': node.formulas.forEach(block); break
       case 'figure':
         node.notes.forEach(block); inlines(node.caption); inlines(node.captionEn ?? [])
         // 图例与图中示例（WP8.M G3）：其中的条文脚注由 Resolver 报 invalid-footnote，这里照常收集以便渲染入口的脚注核对看见它们
@@ -51,7 +57,7 @@ export function collectFootnotes(doc: IRDoc, bibliographyOrder?: string[]): IRFo
     const row = value as Record<string, unknown>
     if (typeof row.text === 'string' && !row.kind && !represented.has(row as unknown as IRInline)) inlines([row as unknown as IRInline])
     for (const [key, child] of Object.entries(row)) {
-      if (key !== 'footnote' && key !== 'unmappedFootnotes' && key !== 'unsupportedContent' && !(row.kind === 'bibEntry' && key === 'content')) extras(child)
+      if (key !== 'footnote' && key !== 'footnoteDefinition' && key !== 'unmappedFootnotes' && key !== 'unsupportedContent' && !(row.kind === 'bibEntry' && key === 'content')) extras(child)
     }
   }
   // 自定义参考文献标题（M-4.5.3-02）先于 extras 登记为已收集，否则会被通用扫描再收一次；其脚注由 Resolver 报错

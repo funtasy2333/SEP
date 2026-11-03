@@ -82,8 +82,8 @@ const EXPECTED_PROBLEMS: Record<GoldenSampleName, string[]> = {
   ],
 }
 
-/** `validate.py --profile export` 的 warning 规则集合：引言条“导入暂拒”（M-4.3.4-02/03 的 import 仍为 reject，WP8.3 改 accept）。 */
-const INTRO_CLAUSE_REJECT = ['W-IMPL-REJECT', 'W-IMPL-REJECT', 'W-IMPL-REJECT', 'W-IMPL-REJECT', 'W-IMPL-REJECT']
+/** 引言条已接收，不应产生过期的实现拒绝告警。 */
+const INTRO_CLAUSE_REJECT: string[] = []
 const EXPECTED_VALIDATOR_WARNINGS: Record<GoldenSampleName, string[]> = {
   wp82: INTRO_CLAUSE_REJECT,
   fullRenderer: [],

@@ -48,6 +48,11 @@ const fixture = JSON.parse(
   ),
 ) as PMJsonNode;
 
+it('规范化结果与 JSON 存储重开严格一致', () => {
+  const normalized = normalizeContentDetailed(fixture).content;
+  expect(normalized).toStrictEqual(JSON.parse(JSON.stringify(normalized)));
+});
+
 /** 抛出的 EditorContentError；没有抛出时让用例失败。 */
 function failure(content: unknown): EditorContentError {
   try {

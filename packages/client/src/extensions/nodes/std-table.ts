@@ -2,8 +2,9 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import { Fragment } from '@tiptap/pm/model'
 import type { DOMOutputSpec, Node as PMNode } from '@tiptap/pm/model'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
-import { columnWidthProblem, generateNodeId, type PMJsonNode } from '@ses/shared'
+import { columnWidthProblem, generateNodeId, graphicAttributeProblem, type PMJsonNode } from '@ses/shared'
 import { normalizePageOrientation, readPageOrientation } from '../../utils/orientation'
+import { jsonAttribute } from './json-attribute'
 
 function stringAttribute(name: string, defaultValue: string | null = null) {
   return { default: defaultValue, parseHTML: (element: HTMLElement) => element.getAttribute(name) ?? defaultValue }
@@ -103,6 +104,11 @@ export const StdTable = Node.create({
       unit: stringAttribute('unit'),
       /** 重复表头行数独立于单元格类型；null 兼容旧表格的自动推断。 */
       headerRowCount: { default: null },
+      alternativeGraphic: jsonAttribute('data-alternative-graphic', value => {
+        if (value == null) return
+        const problem = graphicAttributeProblem(value, false, true)
+        if (problem) throw new RangeError(`alternativeGraphic ${problem}`)
+      }),
       /** 表格整体宽度与样式字段，均为JSON安全的标量。 */
       width: { default: null },
       widthUnit: stringAttribute('widthUnit'),

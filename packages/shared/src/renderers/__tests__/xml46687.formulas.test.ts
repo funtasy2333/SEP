@@ -399,3 +399,26 @@ describe.skipIf(shouldSkipValidation())('外部校验：python3 -I scripts/xml46
     expect(result.stdout).toContain('未解释偏差 0 个')
   })
 })
+
+it('[M-C.1-05] 公式组只占一个编号并保留两个成员', () => {
+  const group: IRBlock = {kind:'formulaGroup', id:'group', numbered:true, formulas:[formula('f1',{numbered:false}),formula('f2',{numbered:false})]}
+  const doc = docWith([group,formula('after')])
+  const {xml} = exportOk(doc,options({f1:stubMathMl('a'),f2:stubMathMl('b'),after:stubMathMl('c')}))
+  expect(xml).toContain('<disp-formula-group id="formula_1"><label>(1)</label><disp-formula><mml:math id="mml_m1" display="block"><mml:mi>a</mml:mi></mml:math></disp-formula><disp-formula><mml:math id="mml_m2" display="block"><mml:mi>b</mml:mi></mml:math></disp-formula></disp-formula-group>')
+  expect(xml).toContain('<disp-formula id="formula_2"><label>(2)</label>')
+})
+
+it('[M-C.1-05] 公式组成员带编号时不能丢弃编号', () => {
+  const doc = docWith([{kind:'formulaGroup',id:'group',numbered:true,formulas:[formula('child')]}])
+  const result = exportXml46687(doc,labelsOf(doc),options({child:stubMathMl()}))
+  expect(result.xml).toBeNull()
+  expect(result.problems.some(problem=>problem.severity === 'error')).toBe(true)
+})
+
+it('[M-C.1-05] 正文引用公式组指向组编号', () => {
+  const group: IRBlock = {kind:'formulaGroup',id:'group',numbered:true,formulas:[formula('f1',{numbered:false})]}
+  const doc = docWith([para('p','见',run('组',{type:'crossRef',targetId:'group',targetKind:'formula'})),group])
+  const {xml} = exportOk(doc,options({f1:stubMathMl()}))
+  expect(xml).toContain('<xref ref-type="disp-formula" rid="formula_1">公式(1)</xref>')
+  expect(xml).toContain('<disp-formula-group id="formula_1"><label>(1)</label>')
+})

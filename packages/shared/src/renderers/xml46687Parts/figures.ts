@@ -11,7 +11,7 @@
  *   由 `collectXml46687ImageRefs`（`ctx.imageRefs`）给出，与 T2.5 准备层共用同一份；`at.path` = 所在 run 的路径 + `.image`。
  */
 
-import type { IRFigure, IRInlineImage } from '../../ir/types'
+import type { IRFigure, IRFigureSet, IRInlineImage, IRLegend } from '../../ir/types'
 import type { XmlElement } from '../../xml46687/tree'
 import type { Xml46687BoundaryContribution } from '../xml46687Boundary'
 import { el, inlineHasContent, sub, type RenderContext, type Site } from './context'
@@ -25,7 +25,10 @@ import { el, inlineHasContent, sub, type RenderContext, type Site } from './cont
  */
 export const XML46687_FIGURES_BOUNDARY: Xml46687BoundaryContribution = {
   fields: {
-    figure: ['resourceId', 'descriptions', 'unit', 'alt', 'title', 'imageWidth', 'imageHeight', 'legend', 'examples'],
+    figure: ['resourceId', 'descriptions', 'unit', 'alt', 'title', 'imageWidth', 'imageHeight', 'legend', 'examples', 'primaryGraphic', 'additionalGraphics'],
+    figureSet: ['kind', 'id', 'legend', 'figures'],
+    primaryGraphic: ['contentType', 'specificUse'],
+    graphic: ['id', 'src', 'resourceId', 'contentType', 'specificUse'],
     legend: ['id', 'title', 'items'],
     figureDescription: ['id', 'content'],
     inline: ['image'],
@@ -36,6 +39,9 @@ export const XML46687_FIGURES_BOUNDARY: Xml46687BoundaryContribution = {
   },
   shapes: [
     { parent: 'figure', key: 'legend', shape: 'legend' },
+    { parent: 'figureSet', key: 'legend', shape: 'legend' },
+    { parent: 'figure', key: 'primaryGraphic', shape: 'primaryGraphic' },
+    { parent: 'figure', key: 'additionalGraphics', shape: 'graphic' },
     { parent: 'legend', key: 'items', shape: 'where' },
     { parent: 'figure', key: 'descriptions', shape: 'figureDescription' },
     { parent: 'figure', key: 'imageWidth', shape: 'measure' },
@@ -44,6 +50,9 @@ export const XML46687_FIGURES_BOUNDARY: Xml46687BoundaryContribution = {
     { parent: 'doc', key: 'resources', shape: 'resource' },
   ],
   declared: [
+    { pathSuffix: '.kind', kind: 'kind', name: 'figureSet', matrixIds: ['M-8.4-02'], task: 'T2.4b', reason: '组合图保留组级图例和子图' },
+    { pathSuffix: '.primaryGraphic', kind: 'field', name: 'primaryGraphic', matrixIds: ['M-8.2-08', 'M-8.2-10'], task: 'T2.4b', reason: '主图属性写入 graphic' },
+    { pathSuffix: '.additionalGraphics', kind: 'field', name: 'additionalGraphics', matrixIds: ['M-8.4-01'], task: 'T2.4b', reason: '额外 graphic 按顺序输出并对应各自资源' },
     { pathSuffix: '.legend', kind: 'field', name: 'legend', matrixIds: ['M-8.5-01', 'M-8.5-02', 'M-8.5-03', 'M-8.5-04', 'M-8.5-05', 'M-8.5-06'], task: 'T2.4b', reason: '图例写成 fig/legend/def-list[@list-content="figure"]（8.5）' },
     { pathSuffix: '.examples', kind: 'field', name: 'examples', matrixIds: ['M-8.4-03'], task: 'T2.4b', reason: '图中示例写成 fig 内的 non-normative-example（8.4，D-M-09）' },
     { pathSuffix: '.image', kind: 'field', name: 'image', matrixIds: ['M-8.3-02'], task: 'T2.4b', reason: '行内图写成 inline-graphic[@xlink:href=inl_<k>]（8.3）' },
@@ -63,8 +72,7 @@ function attributeNote(ctx: RenderContext, what: string, at: Site): void {
   ctx.reportMerged('figure-attr-not-expressed', 'warning', NOT_EXPRESSED_TITLE, what, at)
 }
 
-function renderLegend(figure: IRFigure, at: Site, ctx: RenderContext): XmlElement | null {
-  const legend = figure.legend
+function renderLegend(legend: IRLegend | undefined, at: Site, ctx: RenderContext): XmlElement | null {
   if (!legend) return null
   const legendSite = sub(at, '.legend')
   if (legend.items.length === 0) {
@@ -87,6 +95,11 @@ function renderLegend(figure: IRFigure, at: Site, ctx: RenderContext): XmlElemen
   return el('legend', undefined, [title, el('def-list', { 'list-content': 'figure' }, items)])
 }
 
+function checkGraphic(value: { specificUse?: string; contentType?: string }, at: Site, ctx: RenderContext): void {
+  if (value.specificUse !== undefined && !['size:T', 'size:S', 'size:M', 'size:L'].includes(value.specificUse)) ctx.report('xml-write-failed', 'error', '图片 specific-use 无效。', at)
+  if (value.contentType !== undefined && (typeof value.contentType !== 'string' || value.contentType.trim() === '')) ctx.report('xml-write-failed', 'error', '图片 content-type 无效。', at)
+}
+
 export function renderFigure(block: IRFigure, at: Site, ctx: RenderContext): XmlElement[] {
   const xmlId = ctx.xmlIdOf(block.id, at, '图')
   const label = ctx.labelOf(block.id)
@@ -107,11 +120,19 @@ export function renderFigure(block: IRFigure, at: Site, ctx: RenderContext): Xml
   if (typeof block.title === 'string' && block.title !== '') attributeNote(ctx, `${shown} 的标题属性「${block.title}」`, sub(at, '.title'))
   if (block.imageWidth || block.imageHeight) attributeNote(ctx, `${shown} 的宽高`, sub(at, block.imageWidth ? '.imageWidth' : '.imageHeight'))
 
+  if (block.primaryGraphic) checkGraphic(block.primaryGraphic, sub(at, '.primaryGraphic'), ctx)
   const children: Array<XmlElement | null> = [
     label && label.label !== '' ? el('label', undefined, [label.label]) : null,
     caption,
-    renderLegend(block, at, ctx),
-    el('graphic', { 'content-type': 'image', 'xlink:href': xmlId }),
+    renderLegend(block.legend, at, ctx),
+    el('graphic', { 'content-type': block.primaryGraphic?.contentType ?? 'image', 'specific-use': block.primaryGraphic?.specificUse, 'xlink:href': xmlId }),
+    ...(block.additionalGraphics ?? []).map((graphic, index) => {
+      const here = sub(at, `.additionalGraphics[${index}]`, graphic.id)
+      checkGraphic(graphic, here, ctx)
+      const ref = ctx.imageRefs.find(entry => entry.kind === 'figure-extra' && entry.path === here.path && entry.ownerId === graphic.id)
+      if (!ref) ctx.report('resource-missing', 'error', '额外图片缺少资源引用', here)
+      return el('graphic', { 'content-type': graphic.contentType, 'specific-use': graphic.specificUse, 'xlink:href': ref?.href })
+    }),
   ]
   ;(block.descriptions ?? []).forEach((description, index) => {
     children.push(el('p', undefined, ctx.renderInlines(description.content, sub(at, `.descriptions[${index}].content`, description.id), 'inline')))
@@ -136,4 +157,9 @@ export function renderInlineImage(image: IRInlineImage, at: Site, ctx: RenderCon
     'xlink:href': ref?.href,
     'specific-use': image.size === 'S' || image.size === 'M' || image.size === 'L' ? `size:${image.size}` : undefined,
   })
+}
+
+export function renderFigureSet(block: IRFigureSet, at: Site, ctx: RenderContext): XmlElement[] {
+  if (!block.figures.length) ctx.report('xml-list-empty', 'error', '组合图必须包含子图。', at)
+  return [el('fig-group', undefined, [renderLegend(block.legend, at, ctx), ...block.figures.flatMap((figure, i) => renderFigure(figure, sub(at, `.figures[${i}]`, figure.id), ctx))])]
 }

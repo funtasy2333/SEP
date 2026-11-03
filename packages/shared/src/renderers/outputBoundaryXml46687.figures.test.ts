@@ -25,6 +25,9 @@ const resource = { id: 'res1', mediaType: 'image/png', name: 'a.png', encoding: 
 
 /** 声明项 → 恰好触发它的最小文档。键为 `${name}@${pathSuffix}`。 */
 const INSTALLERS: Record<string, () => IRDoc> = {
+  'figureSet@.kind': () => pushBlock(baseDoc(), {kind:'figureSet',id:'set1',figures:[figureOf()]}),
+  'primaryGraphic@.primaryGraphic': () => withFigure({primaryGraphic:{contentType:'image',specificUse:'size:T'}}),
+  'additionalGraphics@.additionalGraphics': () => withFigure({additionalGraphics:[{id:'g1',src:'a.png',specificUse:'size:M'}]}),
   'legend@.legend': () => withFigure({ legend: { id: 'lg1', title: [{ text: '标引序号说明：' }], items: [item('li1')] } }),
   'examples@.examples': () => withFigure({ examples: [{ kind: 'example', id: 'ex1', content: [para('ex1.p0', '图中示例')] }] }),
   'image@.image': () => pushRun(baseDoc(), { text: '', image: { src: 'inline.png', resourceId: 'res1', alt: '箭头', size: 'M' } }),
@@ -41,12 +44,14 @@ const keyOf = (entry: Xml46687DeclaredDifference): string => `${entry.name}@${en
 function richDoc(): IRDoc {
   const doc = pushRun(baseDoc(), { text: '', image: { src: 'inline.png', alt: '箭头', size: 'S' } })
   pushBlock(doc, figureOf({
+    primaryGraphic: {contentType:'image'}, additionalGraphics:[{id:'extra',src:'extra.png'}],
     unit: '单位为毫米', resourceId: 'res1', alt: '替代文字', title: '悬停提示', imageWidth: measure, imageHeight: measure,
     legend: { id: 'lg1', title: [{ text: '标引序号说明：' }], items: [item('li1'), item('li2')] },
     descriptions: [{ id: 'd1', content: [{ text: '说明段' }] }],
     notes: [{ kind: 'note', id: 'n1', content: [para('n1.p0', '图注')] }],
     examples: [{ kind: 'example', id: 'ex1', content: [para('ex1.p0', '图中示例')] }],
   }))
+  pushBlock(doc, {kind:'figureSet',id:'set',figures:[{...figureOf(),id:'fig2'}]})
   ;(doc as IRDoc & { resources?: unknown }).resources = [resource]
   return doc
 }
