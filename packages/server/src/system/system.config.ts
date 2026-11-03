@@ -1,3 +1,6 @@
+import type { ClientRequest, RequestOptions } from 'http';
+import { get as httpGet } from 'http';
+import { get as httpsGet } from 'https';
 import { resolve } from 'path';
 import { SES_SERVER_VERSION } from '../common/app-version';
 import type { Launcher } from './system.types';
@@ -29,7 +32,14 @@ export interface SystemConfig {
   shutdownDelayMs: number;
   /** 陈旧升级锁的判定时长（毫秒）。 */
   staleLockMs: number;
+  /** GitHub JSON API 调用使用（体积小，走 Node 内置 fetch）。 */
   fetch: typeof fetch;
+  /**
+   * 下载升级包时发起 GET 请求，按 URL 协议选择 http / https。
+   * 不用 fetch：Node v24.22.1 的 undici 在服务器发完响应即关闭连接且解析器因背压暂停时，
+   * 会在 Parser.finish 里 assert(!this.paused) 失败并抛出无法捕获的异常，导致整个进程退出。
+   */
+  httpGet: (url: URL, options: RequestOptions) => ClientRequest;
   now: () => number;
 }
 
@@ -60,6 +70,10 @@ export function createSystemConfig(
     staleLockMs: 60 * 60 * 1000,
     fetch: (input: string | URL | Request, init?: RequestInit) =>
       globalThis.fetch(input, init),
+    httpGet: (url, options) =>
+      url.protocol === 'https:'
+        ? httpsGet(url, options)
+        : httpGet(url, options),
     now: () => Date.now(),
   };
 }

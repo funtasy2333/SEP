@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { closeSync, openSync, readSync, rmSync } from 'fs';
 import { open } from 'fs/promises';
+import type { IncomingMessage } from 'http';
 import { describeNetworkError, GithubClient } from './github-client';
 import { SYSTEM_CONFIG, type SystemConfig } from './system.config';
 import type { DownloadTarget } from './system.types';
@@ -19,6 +20,9 @@ export interface DownloadHooks {
   /** 数据收完、开始校验时调用。 */
   onVerifying: () => void;
 }
+
+const MAX_REDIRECTS = 5;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
 
@@ -78,50 +82,101 @@ export class UpdateDownloader {
     };
 
     const file = await open(partialFile, 'w');
+    let response: IncomingMessage | undefined;
     try {
-      arm();
-      let response: Response;
       try {
-        response = await this.config.fetch(target.url, {
-          headers: this.github.headers('application/octet-stream'),
-          redirect: 'follow',
-          signal: controller.signal,
-        });
-      } catch (error) {
-        return fail(error);
-      } finally {
-        disarm();
-      }
-      if (!response.ok || !response.body) {
-        await response.body?.cancel().catch(() => undefined);
-        throw new DownloadError(`下载失败：服务器返回 HTTP ${response.status}`);
-      }
-      const length = Number(response.headers.get('content-length'));
-      const total =
-        target.size ?? (Number.isFinite(length) && length > 0 ? length : null);
-      const hash = createHash('sha256');
-      let received = 0;
-      hooks.onProgress(0, total);
-      const reader = response.body.getReader();
-      try {
+        arm();
+        response = await this.openResponse(target.url, controller.signal, arm);
+        const length = Number(response.headers['content-length']);
+        const expected = Number.isFinite(length) && length > 0 ? length : null;
+        const total = target.size ?? expected;
+        const hash = createHash('sha256');
+        let received = 0;
+        hooks.onProgress(0, total);
+        // 只有等待网络数据时才计停滞；写盘期间不计
+        const iterator = response[Symbol.asyncIterator]();
         for (;;) {
           arm();
-          const { done, value } = await reader.read().finally(disarm);
-          if (done) break;
-          hash.update(value);
-          await writeFully(file, value);
-          received += value.length;
+          const next = await iterator.next().finally(disarm);
+          if (next.done) break;
+          const chunk = next.value as Buffer;
+          hash.update(chunk);
+          await writeFully(file, chunk);
+          received += chunk.length;
           hooks.onProgress(received, total);
         }
+        if (expected !== null && received !== expected) {
+          throw new DownloadError(
+            `下载不完整（收到 ${received} 字节，应为 ${expected} 字节），请重试`,
+          );
+        }
+        return { receivedBytes: received, sha256: hash.digest('hex') };
       } catch (error) {
-        await reader.cancel().catch(() => undefined);
         return fail(error);
       }
-      return { receivedBytes: received, sha256: hash.digest('hex') };
     } finally {
       disarm();
+      response?.destroy();
       await file.close();
     }
+  }
+
+  /** 发起 GET 并跟随重定向，返回最终的 2xx 响应；所有失败都以 reject 传出。 */
+  private async openResponse(
+    startUrl: string,
+    signal: AbortSignal,
+    arm: () => void,
+  ): Promise<IncomingMessage> {
+    let current = new URL(startUrl);
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      if (current.protocol !== 'http:' && current.protocol !== 'https:') {
+        throw new DownloadError(
+          `下载失败：不支持的下载地址协议 ${current.protocol}`,
+        );
+      }
+      arm();
+      const response = await this.requestOnce(current, signal);
+      const status = response.statusCode ?? 0;
+      if (REDIRECT_STATUSES.has(status)) {
+        const location = response.headers.location;
+        response.destroy();
+        if (!location) {
+          throw new DownloadError(
+            `下载失败：服务器返回 HTTP ${status} 但没有给出跳转地址`,
+          );
+        }
+        if (hop === MAX_REDIRECTS) {
+          throw new DownloadError(
+            `下载失败：重定向次数过多（超过 ${MAX_REDIRECTS} 次）`,
+          );
+        }
+        current = new URL(location, current);
+        continue;
+      }
+      if (status < 200 || status >= 300) {
+        response.destroy();
+        throw new DownloadError(`下载失败：服务器返回 HTTP ${status}`);
+      }
+      return response;
+    }
+    /* istanbul ignore next */
+    throw new DownloadError('下载失败：重定向次数过多');
+  }
+
+  private requestOnce(url: URL, signal: AbortSignal): Promise<IncomingMessage> {
+    return new Promise<IncomingMessage>((resolve, reject) => {
+      const request = this.config.httpGet(url, {
+        headers: this.github.headers('application/octet-stream'),
+        signal,
+      });
+      // 常驻的 error 监听：响应到达之后请求上再出错也不能变成未捕获异常
+      request.on('error', reject);
+      request.once('response', (response) => {
+        // 同理：响应流的错误在迭代器接管之前也要有人接
+        response.on('error', () => undefined);
+        resolve(response);
+      });
+    });
   }
 
   private verify(
