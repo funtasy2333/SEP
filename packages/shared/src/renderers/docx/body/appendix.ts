@@ -7,11 +7,23 @@
  * 同构纯 TypeScript，不引用浏览器或 Node 专有 API。
  */
 
-import type { IRAppendix } from '../../../ir/types'
+import type { IRAppendix, IRClauseChild } from '../../../ir/types'
 import { renderAppendixChildren } from './clause'
 import type { BlockCtx } from './block'
 import { emitParagraph, type RenderContext } from './context'
 import { plainRun, renderInlines } from './inline'
+
+/**
+ * 横向附录中的表、图按横排版心计算列宽、图宽与分页预算（与 HTML/PDF 中占满横页版心一致）。
+ * 只改渲染用的副本，不改传入的 IR。
+ */
+function landscapeChildren(children: readonly IRClauseChild[]): IRClauseChild[] {
+  return children.map((child) => {
+    if (child.kind === 'clause') return { ...child, children: landscapeChildren(child.children) }
+    if (child.kind === 'table' || child.kind === 'figure') return { ...child, orientation: 'landscape' }
+    return child
+  })
+}
 
 /**
  * @param letter 本附录的字母（Resolver 已算好，如 "A"、"B"），用于 A5/A6 按附录分配实例的 lvlText
@@ -27,7 +39,12 @@ export function renderAppendix(ctx: RenderContext, appendix: IRAppendix, letter:
   })
   out += emitParagraph(ctx, 'SesAppendixKind', { runsXml: plainRun(kindText) })
   out += emitParagraph(ctx, 'SesAppendixTitle', { runsXml: renderInlines(appendix.title, ctx.labels) })
-  const bctx: BlockCtx = { scopeKey: appendix.id, appendix: { id: appendix.id, letter } }
-  out += renderAppendixChildren(ctx, appendix.children, bctx)
+  // 横向附录（#75）整节已是横页：内部横排图表不得再插分节标记，否则会拆出新节并在其后回到竖页。
+  const bctx: BlockCtx = {
+    scopeKey: appendix.id,
+    appendix: { id: appendix.id, letter },
+    ...(appendix.orientation === 'landscape' ? { suppressLandscape: true } : {}),
+  }
+  out += renderAppendixChildren(ctx, appendix.orientation === 'landscape' ? landscapeChildren(appendix.children) : appendix.children, bctx)
   return out
 }

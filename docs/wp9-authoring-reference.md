@@ -406,11 +406,28 @@
 |---|---|---|---|
 | `title` | 是 | | 附录标题，不能为空（不要写「附录A」，也不要写「（规范性）」） |
 | `normative` | 否 | `false` | `true` 为规范性附录，`false` 为资料性附录 |
+| `orientation` | 否 | 纵向（读出时不含此字段） | `portrait` 或 `landscape`。`landscape` 时整个附录（编号、性质、标题、引导文字和图表）从横页起排，跨页保持横向；附录内的表、图不必再单独设为横排。只影响 HTML/PDF 与 DOCX；XML 无法表达附录方向，横向附录导出 XML 时会被拒绝 |
 | `children` | 否 | `[]` | 块、1 级条、术语条目 |
 
 ```json ses-example context=appendices
 [
   { "kind": "appendix", "title": "试验方法", "normative": true, "children": ["……"] }
+]
+```
+
+宽表所在的附录整体横排，避免附录标题和一两行引导文字单独占一张竖页：
+
+```json ses-example context=appendices
+[
+  {
+    "kind": "appendix",
+    "title": "方法验证汇总",
+    "orientation": "landscape",
+    "children": [
+      "方法参数及验证结果见表B.1。",
+      { "kind": "table", "caption": "方法参数及验证结果", "rows": [["化合物", "定量限", "回收率"], ["PFOA", "0.5", "95%"]] }
+    ]
+  }
 ]
 ```
 

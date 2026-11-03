@@ -79,6 +79,11 @@ const GROUP_G1: Readonly<Record<string, readonly string[]>> = {
  * BASE_FIELDS 中不存在的 kind 视为该格式新放行的整个 kind（缺省不在表内的 kind 一律报 unsupported-output）。
  */
 const NO_EXTRA_FIELDS: Readonly<Record<string, readonly string[]>> = {}
+/**
+ * 附录整体横页（#75）：HTML/PDF、DOCX 按横页排版。GB/T 46687.2 的 `app` 与旧 XML 都没有方向属性，
+ * 无法表达，按本表的通则报 unsupported-output，不静默丢弃（改回纵向即可导出 XML）。
+ */
+const APPENDIX_PRINT_FIELDS = ['orientation'] as const
 const EXTRA_FIELDS: Record<OutputBoundaryFormat, Readonly<Record<string, readonly string[]>>> = {
   // WP8.M §7.1 本阶段排版，仅 HTML、DOCX 放行；XML46687 留给 WP8.2：
   // - termEntry.subjectField（M-9.2.9-01，G5）：定义前输出“〈领域〉”；
@@ -89,8 +94,8 @@ const EXTRA_FIELDS: Record<OutputBoundaryFormat, Readonly<Record<string, readonl
   // - doc.bibliographyTitle（M-4.5.3-02，G1）：自定义参考文献标题替换默认标题。
   // - list.continueNumbering（issue #70）：继续前一列项编号，HTML 写计数器起点、DOCX 写编号实例的 startOverride；
   //   旧 XML 序列化器按每个列表从头编号、不能表达接续，继续阻断（不静默改号）；XML46687 由 blocks.ts 登记（label 写接续后的序号）。
-  DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'], termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'], list: ['continueNumbering'] },
-  HTML: { meta: PRINT_META_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'], list: ['continueNumbering'] },
+  DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'], appendix: APPENDIX_PRINT_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'], list: ['continueNumbering'] },
+  HTML: { meta: PRINT_META_FIELDS, appendix: APPENDIX_PRINT_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'], list: ['continueNumbering'] },
   XML: NO_EXTRA_FIELDS,
   // XML46687 比 XML 多放行的字段/kind/mark 由各领域文件登记（renderers/xml46687Parts/*.ts 的 XML46687_*_BOUNDARY），
   // 汇总在 xml46687Boundary.ts；XML46687_DECLARED_DIFFERENCES 逐项列出差异，outputBoundaryXml46687.test.ts 据此断言。

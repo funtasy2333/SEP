@@ -1,5 +1,6 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
+import { normalizePageOrientation, readPageOrientation } from '../../utils/orientation'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -32,6 +33,15 @@ export const Appendix = Node.create({
       letter: { default: null },
       /** 是否为规范性附录，false 为资料性附录 */
       normative: { default: false },
+      /** 整个附录的版面方向（#75）：landscape 时附录从横页起排，标题、引导文字与图表同在横页 */
+      // 缺省 null 即纵向：序列化时 null 属性被剔除，既有文档的 JSON 不变；只保存 'landscape'。
+      orientation: {
+        default: null,
+        parseHTML: (element: HTMLElement) => readPageOrientation(element) === 'landscape' ? 'landscape' : null,
+        renderHTML: (attributes: Record<string, unknown>) => normalizePageOrientation(attributes.orientation) === 'landscape'
+          ? { 'data-orientation': 'landscape' }
+          : {},
+      },
     }
   },
 

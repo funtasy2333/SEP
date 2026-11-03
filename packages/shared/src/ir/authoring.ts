@@ -141,7 +141,7 @@ const FIELDS = {
   clause: ['kind', 'id', 'level', 'titled', 'title', 'children'],
   termEntry: ['kind', 'id', 'level', 'term', 'termEn', 'definition', 'source', 'notes', 'examples'],
   chapter: ['kind', 'id', 'secType', 'title', 'children'],
-  appendix: ['kind', 'id', 'normative', 'title', 'children'],
+  appendix: ['kind', 'id', 'normative', 'title', 'orientation', 'children'],
   bibEntry: ['kind', 'id', 'content'],
   run: ['text', 'marks', 'formula'],
   inlineFormula: ['id', 'latex'],
@@ -1157,8 +1157,9 @@ function parseAppendix(obj: Obj, path: string, ctx: Ctx): IRAppendix {
   const id = ctx.idOf(obj, path)
   const normative = booleanField(obj, 'normative', path, ctx) ?? false
   const title = inlineField(obj, 'title', path, ctx, { nonBlank: true, what: '附录标题' })
+  const orientation = enumField(obj, 'orientation', path, ['portrait', 'landscape'], 'portrait', ctx)
   const children = parseChildren(obj, path, { parent: 'appendix' }, ctx)
-  return { kind: 'appendix', id, normative, title, children }
+  return { kind: 'appendix', id, normative, title, children, ...(orientation === 'landscape' ? { orientation } : {}) }
 }
 
 function parseBibEntry(value: unknown, path: string, ctx: Ctx): IRBibEntry {

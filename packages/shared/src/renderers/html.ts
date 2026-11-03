@@ -624,7 +624,9 @@ function renderChapter(chapter: IRChapter, ctx: RenderCtx): void {
 
 function renderAppendix(appendix: IRAppendix, ctx: RenderCtx): void {
   ctx.push(
-    `<section class="ses-appendix" data-type="appendix" data-normative="${appendix.normative}"${idAttr(appendix.id)}${anchorAttr(ctx, appendix.id)} role="doc-appendix">`,
+    // 附录整体横页（#75）：section 本身进入横排命名页，附录从横页起排，编号、标题、引导文字与图表同在横页；
+    // 内部横排图表的 .ses-landscape 与之同名，不会再触发换页。
+    `<section class="ses-appendix${appendix.orientation === 'landscape' ? ' ses-landscape' : ''}" data-type="appendix" data-normative="${appendix.normative}"${appendix.orientation === 'landscape' ? ' data-orientation="landscape"' : ''}${idAttr(appendix.id)}${anchorAttr(ctx, appendix.id)} role="doc-appendix">`,
   )
   ctx.push(`<div class="ses-appendix-label">${escapeHtml(ctx.label(appendix.id))}</div>`)
   ctx.push(`<div class="ses-appendix-kind">（${appendix.normative ? '规范性' : '资料性'}）</div>`)
@@ -768,7 +770,7 @@ function lastChildBlock(children: IRClauseChild[]): IRBlock | undefined {
 }
 
 /**
- * 文档最后一个要素是否为横排（landscape）表/图。
+ * 文档最后一个要素是否为横排（landscape）表/图，或位于横向附录内。
  * 渲染顺序：正文章 → 附录 → 参考文献；参考文献条目非块级、恒为竖排。
  * 终结线据此决定是否包入横排命名页上下文，避免回到竖排 body 页另起空白终结线页。
  */
@@ -781,6 +783,8 @@ function lastBlockIsLandscape(doc: IRDoc): boolean {
         ? doc.body[doc.body.length - 1]
         : undefined
   if (!container) return false
+  // 横向附录（#75）整体在横排命名页上，终结线同样留在横页。
+  if (container.kind === 'appendix' && container.orientation === 'landscape') return true
   const last = lastChildBlock(container.children)
   return (
     !!last &&
