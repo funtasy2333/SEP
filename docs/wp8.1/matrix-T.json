@@ -1188,11 +1188,10 @@
     "irPath": null,
     "pmNode": null,
     "export": "not-applicable",
-    "import": "reject",
-    "rejectKind": "implementation",
+    "import": "accept",
     "status": "not-applicable",
     "conventionRef": null,
-    "notes": "附录 C 第 3 行“简短表格排列”，仅列名；本章不用，不导出，导入报 unsupported。"
+    "notes": "附录 C 第 3 行“简短表格排列”，仅列名；WP8.3 授权 IRArray 保留合法网格。"
   },
   {
     "id": "M-D.1-01",
@@ -1915,11 +1914,10 @@
     "irPath": null,
     "pmNode": null,
     "export": "not-applicable",
-    "import": "reject",
-    "rejectKind": "implementation",
+    "import": "accept",
     "status": "not-applicable",
     "conventionRef": "C-T-17",
-    "notes": "附录 C 第 26 行列名，正文无用例；IR 无公式组，导入报 unsupported。"
+    "notes": "附录 C 第 26 行列名，正文无用例；WP8.3 授权 IRFormulaGroup 保留公式组及次序。"
   },
   {
     "id": "M-7.4-14",
@@ -4604,11 +4602,10 @@
     "irPath": null,
     "pmNode": null,
     "export": "not-applicable",
-    "import": "reject",
-    "rejectKind": "implementation",
+    "import": "accept",
     "status": "gap-both",
     "conventionRef": "C-T-55",
-    "notes": "IR 脚注为原位且一一对应，同一 fn 被多个 xref 引用无法表达（G-T-19）；导入报 error。"
+    "notes": "10.1.8 印刷页 48：WP8.3 授权保留同一脚注的多个单目标引用及唯一正文（C-T-55）。"
   },
   {
     "id": "M-10.1.8-05",

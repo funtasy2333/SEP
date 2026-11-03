@@ -31,3 +31,6 @@ __pycache__/
 # Local portable Windows runtime and release archives
 .ses-tools/
 release/
+
+# Local Gitee sync workflow
+/.github/workflows/sync-to-gitee.yml

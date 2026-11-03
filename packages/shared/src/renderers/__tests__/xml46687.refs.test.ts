@@ -600,3 +600,15 @@ describe('域快照与外部校验', () => {
     })
   })
 })
+
+it('[M-4.5.4-06] 索引源显示文本保留格式和顺序', () => {
+  const index: IRIndex = {id:'idx',groups:[{id:'g',entries:[{id:'e',term:[{text:'术语'}],targets:[],seeAlso:[],sourceReferences:[{type:'see',content:[{text:'5.'},{text:'1',marks:[{type:'bold'}]}]},{type:'see',content:[{text:'5.2'}]}]}]}]}
+  const doc = makeDoc([chapter('c','范围',[para('p','正文')],'scope')],{index})
+  expect(compact(renderOk(doc).xml)).toContain('<term>术语</term><see-entry>5.<bold>1</bold></see-entry><see-entry>5.2</see-entry>')
+})
+
+it('[M-4.5.4-06] 索引 sourceReferences 中无法表达的类型不得静默丢弃', () => {
+  const index: IRIndex = {id:'idx',groups:[{id:'g',entries:[{id:'e',term:[{text:'词'}],targets:[],seeAlso:[],sourceReferences:[{type:'seeAlso',content:[{text:'其他'}]}]}]}]}
+  const doc = makeDoc([chapter('c','范围',[para('p','正文')],'scope')],{index})
+  expect(exportDoc(doc).xml).toBeNull()
+})

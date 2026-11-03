@@ -8,7 +8,8 @@
 
 import { toIrStandardType } from './meta'
 import { hasSemanticExtensions } from './extensions'
-import { unsupportedFootnoteAtomMarks, unsupportedFootnoteContent } from './footnotePayload'
+import { unsupportedFootnoteAtomMarks, unsupportedFootnoteContent, unsupportedSharedFootnoteContent } from './footnotePayload'
+import { graphicAttributeProblem } from './graphicAttributes'
 import type {
   IRAdoption,
   IRAppendix,
@@ -153,7 +154,7 @@ function indexPmPaths(root: PMJsonNode, ctx: Ctx): void {
     ;(node.content ?? []).forEach((child, index) => {
       if (isPmJsonNode(child)) visit(child, `${path}.content[${index}]`, nextOwnerId)
     })
-    if (node.type === 'footnoteRef' && Array.isArray(node.attrs?.content)) {
+    if ((node.type === 'footnoteRef' || node.type === 'sharedFootnoteDefinition') && Array.isArray(node.attrs?.content)) {
       ;(node.attrs!.content as unknown[]).forEach((child, index) => {
         if (isPmJsonNode(child)) visit(child, `${path}.attrs.content[${index}]`, nextOwnerId)
       })
@@ -338,6 +339,27 @@ function convertInlines(content: PMJsonNode[] | undefined, ctx: Ctx): IRInline[]
       if (converted?.marks.length) inline.marks = converted.marks
       if (converted?.style) inline.style = converted.style
       out.push(inline)
+    } else if (child.type === 'sharedFootnoteRef') {
+      const targetId = child.attrs?.targetId
+      const refText = child.attrs?.refText
+      if (typeof targetId !== 'string' || !targetId || typeof refText !== 'string' || !refText || unsupportedFootnoteAtomMarks(child.marks)
+        || Object.keys(child.attrs ?? {}).some(key => !['targetId', 'refText'].includes(key))) {
+        ctx.unsupportedContent.push({ nodeId: ownerIdOf(child, ctx), path: ctx.path(child, '脚注引用'), nodeType: child.type, reason: '共享脚注引用属性无效' })
+      } else {
+        const inline: IRInline = { text: '', footnoteRef: { targetId, refText } }
+        ctx.footnoteInlines.set(child, inline)
+        out.push(inline)
+      }
+    } else if (child.type === 'sharedFootnoteDefinition') {
+      const id = ctx.id(child)
+      const content = child.attrs?.content
+      const reason = unsupportedSharedFootnoteContent(content)
+        ?? (Object.keys(child.attrs ?? {}).some(key => !['nodeId', 'content'].includes(key)) ? '包含未知属性' : undefined)
+        ?? unsupportedFootnoteAtomMarks(child.marks)
+      if (reason) ctx.invalidFootnotePayloads.push({ nodeId: id, reason })
+      const inline: IRInline = { text: '', footnoteDefinition: { id, content: convertInlines(Array.isArray(content) ? content as PMJsonNode[] : [], ctx) } }
+      ctx.footnoteInlines.set(child, inline)
+      out.push(inline)
     } else if (child.type === 'footnoteRef') {
       const raw = child.attrs?.content
       const content = Array.isArray(raw) ? raw as PMJsonNode[] : []
@@ -507,18 +529,26 @@ function convertStdList(node: PMJsonNode, ctx: Ctx): IRList {
   }
   const items: IRList['items'] = []
   for (const item of node.content ?? []) {
-    if (item.type !== 'stdListItem') {
+    if (item.type !== 'stdListItem' && item.type !== 'stdListBlockItem') {
       ctx.unknown(item.type, '标准列表', item)
       continue
     }
     const itemId = ctx.id(item)
     items.push({
       id: itemId,
-      content: [wrapParagraph(itemId, 'p0', convertInlines(item.content, ctx))],
+      content: item.type === 'stdListItem'
+        ? [wrapParagraph(itemId, 'p0', convertInlines(item.content, ctx))]
+        : (item.content ?? []).flatMap<IRParagraph | IRList>(child => {
+          if (child.type === 'paragraph') return [{ kind: 'paragraph' as const, id: ctx.id(child), content: convertInlines(child.content, ctx) }]
+          if (child.type === 'stdList') return [convertStdList(child, ctx)]
+          if (child.type === 'bulletList' || child.type === 'orderedList') return [convertStarterList(child, ctx)]
+          ctx.unknown(child.type, '标准块级列表项', child)
+          return []
+        }),
     })
   }
   // 数字和间隔号列项固定为二级，兼容旧文档中仍写着 level=1 的数字列项。
-  const level = rawType === 'numeric' || rawType === 'dot' ? 2 : 1
+  const level = rawType === 'numeric' || rawType === 'dot' || node.attrs?.level === 2 ? 2 : 1
   return level === 2 ? { kind: 'list', id, listType, level, items } : { kind: 'list', id, listType, items }
 }
 
@@ -624,6 +654,17 @@ function convertFigure(node: PMJsonNode, ctx: Ctx): IRFigure {
     ...(typeof image?.attrs?.alt === 'string' ? { alt: image.attrs.alt } : {}),
     ...(typeof image?.attrs?.title === 'string' ? { title: image.attrs.title } : {}),
     ...(typeof node.attrs?.unit === 'string' ? { unit: node.attrs.unit } : {}),
+  }
+  if (node.attrs?.primaryGraphic != null) {
+    const reason = graphicAttributeProblem(node.attrs.primaryGraphic, true)
+    if (reason) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '图'), nodeType: node.type, reason: `primaryGraphic ${reason}` })
+    else fig.primaryGraphic = node.attrs.primaryGraphic as IRFigure['primaryGraphic']
+  }
+  if (node.attrs?.additionalGraphics != null) {
+    const value = node.attrs.additionalGraphics
+    const reason = !Array.isArray(value) ? '必须为数组' : value.map(item => graphicAttributeProblem(item, false, true)).find(Boolean)
+    if (reason) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '图'), nodeType: node.type, reason: `additionalGraphics ${reason}` })
+    else fig.additionalGraphics = (value as Array<Record<string, unknown>>).map(({ nodeId, ...graphic }) => ({ ...graphic, id: nodeId })) as IRFigure['additionalGraphics']
   }
   const captionEn = node.content?.find((c) => c.type === 'figureCaptionEn')
   if (captionEn) fig.captionEn = convertInlines(captionEn.content, ctx)
@@ -850,6 +891,14 @@ function convertStdTable(node: PMJsonNode, ctx: Ctx): IRTable {
     rows,
     notes: [],
     ...(typeof node.attrs?.unit === 'string' ? { unit: node.attrs.unit } : {}),
+  }
+  if (node.attrs?.alternativeGraphic != null) {
+    const reason = graphicAttributeProblem(node.attrs.alternativeGraphic, false, true)
+    if (reason) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '表格'), nodeType: node.type, reason: `alternativeGraphic ${reason}` })
+    else {
+      const { nodeId, ...graphic } = node.attrs.alternativeGraphic as Record<string, unknown>
+      table.alternativeGraphic = { ...graphic, id: nodeId } as IRTable['alternativeGraphic']
+    }
   }
   const width = measure(node.attrs, 'width', 'widthUnit', ctx, node)
   if (width) table.width = width
@@ -1112,10 +1161,44 @@ function convertBlock(node: PMJsonNode, ctx: Ctx, where: string): IRBlock | null
       return convertStarterList(node, ctx)
     case 'stdTable':
       return convertStdTable(node, ctx)
+    case 'alignedArray': {
+      const grids = (node.content ?? []).filter(child => child.type === 'table')
+      const grid = grids[0]
+      if (grids.length !== 1) ctx.unsupportedContent.push({ nodeId: typeof node.attrs?.nodeId === 'string' ? node.attrs.nodeId : null, path: ctx.path(node, '数组'), nodeType: node.type, reason: '数组必须且只能包含一个网格' })
+      for (const child of node.content ?? []) if (child.type !== 'table') ctx.unknown(child.type, '数组', child)
+      const table = convertStdTable({ type: 'stdTable', attrs: { nodeId: node.attrs?.nodeId, columns: node.attrs?.columns },
+        content: [{ type: 'tableCaption' }, ...(grid ? [grid] : [])] }, ctx)
+      const groups = node.attrs?.columnGroups
+      let end = 0
+      if (groups != null && (!Array.isArray(groups) || groups.some(group => {
+        if (!group || typeof group !== 'object') return true
+        const { start, count } = group as { start?: unknown; count?: unknown }
+        if (typeof start !== 'number' || typeof count !== 'number' || !Number.isInteger(start) || !Number.isInteger(count) || start < end || count < 1 || start + count > (table.columns?.length ?? 0)) return true
+        end = start + count
+        return false
+      }))) ctx.unsupportedContent.push({ nodeId: table.id, path: ctx.path(node, '数组'), nodeType: node.type, reason: '数组列组无效' })
+      return { kind: 'array', id: table.id, columns: table.columns ?? [], rows: table.rows,
+        ...(Array.isArray(groups) ? { columnGroups: groups as Array<{ start: number; count: number }> } : {}) }
+    }
     case 'figure':
       return convertFigure(node, ctx)
+    case 'figureSet': {
+      const legends = (node.content ?? []).filter(child => child.type === 'figureLegend')
+      for (const child of node.content ?? []) if (child.type !== 'figureLegend' && child.type !== 'figure') ctx.unknown(child.type, '图组', child)
+      const id = ctx.id(node)
+      const figures = (node.content ?? []).filter(child => child.type === 'figure')
+      if (legends.length > 1 || figures.length === 0) ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '图组'), nodeType: node.type, reason: '图组必须包含一个或多个图且最多一个图例' })
+      return { kind: 'figureSet', id, ...(legends[0] ? { legend: convertLegend(legends[0], ctx) } : {}), figures: figures.map(child => convertFigure(child, ctx)) }
+    }
     case 'formula':
       return convertFormula(node, ctx)
+    case 'formulaGroup': {
+      const id = ctx.id(node)
+      const formulas = (node.content ?? []).filter(child => child.type === 'formula')
+      for (const child of node.content ?? []) if (child.type !== 'formula') ctx.unknown(child.type, '公式组', child)
+      if (!formulas.length || typeof node.attrs?.numbered !== 'boolean') ctx.unsupportedContent.push({ nodeId: id, path: ctx.path(node, '公式组'), nodeType: node.type, reason: '公式组必须有公式且编号属性必须为布尔值' })
+      return { kind: 'formulaGroup', id, numbered: node.attrs?.numbered === true, formulas: formulas.map(child => convertFormula(child, ctx)) }
+    }
     case 'note':
       return convertNote(node, ctx)
     case 'example':
@@ -1507,6 +1590,14 @@ function convertIndex(node: PMJsonNode, ctx: Ctx): IRIndex {
       for (const child of entryNode.content ?? []) {
         if (child.type === 'indexTerm' && !termSeen) { entry.term = convertInlines(child.content, ctx); termSeen = true }
         else if (child.type === 'indexTerm') ctx.unsupportedContent.push({ nodeId: entry.id, path: ctx.path(child, '索引条目'), nodeType: child.type, reason: '索引项包含多个indexTerm，IR只允许一个' })
+        else if (child.type === 'indexSourceReference') {
+          const type = child.attrs?.referenceType
+          if (type !== 'see' && type !== 'seeAlso') ctx.unsupportedContent.push({ nodeId: entry.id, path: ctx.path(child, '索引原文'), nodeType: child.type, reason: '索引原文引用类型无效' })
+          else {
+            entry.sourceReferences ??= []
+            entry.sourceReferences.push({ type, content: convertInlines(child.content, ctx) })
+          }
+        }
         else if (child.type === 'indexTarget' || child.type === 'indexSeeAlso') {
           const targetId = typeof child.attrs?.targetId === 'string' ? child.attrs.targetId : ''
           if (!targetId) ctx.unknown(child.type, '索引目标', child)
@@ -1883,18 +1974,18 @@ function preserveUnmappedFootnotes(pmDoc: PMJsonNode, doc: IRDoc, ctx: Ctx): voi
   const visit = (value: unknown, container: string): void => {
     if (!isPmJsonNode(value)) return
     const node = value
-    if (node.type === 'footnoteRef' || node.type === 'tableFootnoteRef') {
+    if (['footnoteRef', 'tableFootnoteRef', 'sharedFootnoteRef', 'sharedFootnoteDefinition'].includes(node.type)) {
       let inline = ctx.footnoteInlines.get(node)
-      const mapped = inline?.footnote ?? inline?.marks?.find(mark => mark.type === 'tableFootnoteRef')
+      const mapped = inline?.footnote ?? inline?.footnoteRef ?? inline?.footnoteDefinition ?? inline?.marks?.find(mark => mark.type === 'tableFootnoteRef')
       if (!mapped || !represented.has(mapped)) {
         inline ??= convertInlines([node], ctx)[0]
-        pending.push({ container, nodeId: inline.footnote?.id ?? ctx.id(node), content: [inline] })
+        if (inline) pending.push({ container, nodeId: inline.footnote?.id ?? inline.footnoteDefinition?.id ?? inline.footnoteRef?.targetId ?? ctx.id(node), content: [inline] })
         // 原位脚注内容已随 atom 转换；避免把嵌套脚注重复登记为丢失节点。
         return
       }
     }
     for (const child of node.content ?? []) visit(child, node.type)
-    if (node.type === 'footnoteRef' && Array.isArray(node.attrs?.content)) {
+    if ((node.type === 'footnoteRef' || node.type === 'sharedFootnoteDefinition') && Array.isArray(node.attrs?.content)) {
       for (const child of node.attrs.content as PMJsonNode[]) visit(child, node.type)
     }
   }

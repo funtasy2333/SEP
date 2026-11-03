@@ -228,6 +228,9 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
       })
     }
     if (!allowed) { report('kind'); return }
+    if (format === 'XML46687' && shape === 'inline' && (present(object.footnoteRef) || present(object.footnoteDefinition))) {
+      if (object.text !== '' || present(object.marks) || present(object.style) || present(object.footnote) || present(object.formula) || present(object.image) || (present(object.footnoteRef) && present(object.footnoteDefinition))) report('footnoteRef')
+    }
     for (const [key, child] of Object.entries(object)) {
       if (kind === 'table' && key === 'headerRowCount' && isXmlFormat(format)
         && typeof child === 'number' && child !== inferredLegacyHeaderRowCount(object.rows)) {
@@ -304,6 +307,10 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
       path: 'resolver.problems[dangling-typed-ref]',
       message: `${format} 不能输出类型错误的引用：${issue.message}。请修正引用目标；如需保留原稿，请导出 JSON。`,
     })
+  }
+
+  if (format === 'XML46687') for (const issue of resolution.problems) {
+    if (issue.severity === 'error' && ['dangling-footnote','unreferenced-footnote','invalid-footnote'].includes(issue.code)) problems.push({code:'unsupported-output', ...(issue.nodeId !== null ? {nodeId:issue.nodeId} : {}), path:'resolver.problems[footnote]', message:`XML46687 不能输出无效脚注：${issue.message}`})
   }
 
   // WP8.M M-Z-a（设计 §7.1，主导人 2026-10-26）：Resolver 产生的 `unsupported-content` error 一律阻断非 JSON 出口。

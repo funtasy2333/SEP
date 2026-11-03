@@ -45,6 +45,19 @@ const countInlineImagesInJson = (value: unknown): number => (JSON.stringify(valu
 const summary = (refs: Xml46687ImageRef[]) => refs.map((ref) => `${ref.kind}:${ref.href}@${ref.ownerId}`)
 
 describe('collectXml46687ImageRefs：块图', () => {
+  it('附加图和表替代图各自保留归属、资源键及确定性 href', () => {
+    const doc = makeDoc({ chapters: [[
+      fig('f1', 'main.png', { additionalGraphics: [{ id: 'g2', src: 'extra.png', resourceId: 'shared' }, { id: 'g3', src: 'other.png', resourceId: 'shared' }] }),
+      { kind: 'table', id: 't1', caption: [], orientation: 'portrait', headerRowCount: 0, rows: [], notes: [],
+        alternativeGraphic: { id: 'a1', src: 'alt.png', resourceId: 'shared' } },
+    ]] })
+    expect(collectXml46687ImageRefs(doc, { f1: label('fig_1'), t1: label('table_1') })).toEqual([
+      { href: 'fig_1', key: 'main.png', kind: 'figure', ownerId: 'f1', path: 'doc.body[0].children[0]' },
+      { href: 'fig_1_g1', key: 'shared', kind: 'figure-extra', ownerId: 'g2', path: 'doc.body[0].children[0].additionalGraphics[0]' },
+      { href: 'fig_1_g2', key: 'shared', kind: 'figure-extra', ownerId: 'g3', path: 'doc.body[0].children[0].additionalGraphics[1]' },
+      { href: 'table_1_alt', key: 'shared', kind: 'table-alternative', ownerId: 'a1', path: 'doc.body[0].children[1].alternativeGraphic' },
+    ])
+  })
   it('href 取所属 fig 的 xmlId，key 取 resourceId，缺省回退 src，ownerId 为图自身', () => {
     const doc = makeDoc({
       chapters: [[fig('f1', 'data:image/png;base64,AAAA', { resourceId: 'res-1' }), fig('f2', 'pics/b.png')]],
