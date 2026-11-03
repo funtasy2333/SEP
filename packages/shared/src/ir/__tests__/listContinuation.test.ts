@@ -153,6 +153,45 @@ describe('保存与往返：继续编号随 PM / IR / JSON 保留，旧数据不
   })
 })
 
+describe('块级列项（stdListBlockItem）', () => {
+  /** 一级字母列项的列项里含说明段落与嵌套二级数字列项（WP8.3 嵌套列项）。 */
+  const blockList = (id: string, lead: string, sub: [string, string][], continueNumbering?: boolean): PMJsonNode => ({
+    type: 'stdList',
+    attrs: { nodeId: id, listType: 'alpha', level: 1, ...(continueNumbering ? { continueNumbering } : {}) },
+    content: [{ type: 'stdListBlockItem', attrs: { nodeId: `${id}-i` }, content: [
+      { type: 'paragraph', attrs: { nodeId: `${id}-p` }, content: [text(lead)] },
+      list(`${id}-n`, 'numeric', sub),
+    ] }],
+  })
+
+  const doc = () => standardDoc({}, chapter('ch1', '范围',
+    blockList('B1', '内部因素：', [['b1-1', '组织架构；'], ['b1-2', '管理制度。']]),
+    para('mid', text('说明。')),
+    blockList('B2', '外部因素：', [['b2-1', '市场环境；']], true),
+  ))
+
+  it('irToPm → pmToIr 往返保留继续编号，一级仍为 b）', () => {
+    const ir = irOf(doc())
+    expect(markersOf(ir, ['B1-i', 'B2-i'])).toEqual(['a）', 'b）'])
+    const again = irOf(irToPm(JSON.parse(JSON.stringify(ir)) as IRDoc))
+    expect(listsIn(again).filter(l => l.listType === 'alpha').map(l => l.continueNumbering ?? false)).toEqual([false, true])
+    expect(markersOf(again, ['B1-i', 'B2-i'])).toEqual(['a）', 'b）'])
+  })
+
+  it('同一块级列项内的两组嵌套数字列项：后一组可继续前一组', () => {
+    const nested = standardDoc({}, chapter('ch1', '范围', {
+      type: 'stdList', attrs: { nodeId: 'O', listType: 'alpha', level: 1 },
+      content: [{ type: 'stdListBlockItem', attrs: { nodeId: 'O-i' }, content: [
+        { type: 'paragraph', attrs: { nodeId: 'O-p' }, content: [text('因素：')] },
+        list('N1', 'numeric', [['n1', '一'], ['n2', '二']]),
+        { type: 'paragraph', attrs: { nodeId: 'O-p2' }, content: [text('另外：')] },
+        list('N2', 'numeric', [['n3', '三']], true),
+      ] }],
+    }))
+    expect(computeListNumbering(irOf(nested))['N2']).toMatchObject({ start: 3, continued: true, previous: 'N1' })
+  })
+})
+
 describe('校验：找不到接续目标时给出提示', () => {
   it('orphan 产生 list-continue-orphan 警告与 structure.list-continuation 校验项；正常接续无提示', () => {
     const orphanDoc = irOf(standardDoc({}, chapter('ch1', '范围',

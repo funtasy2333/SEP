@@ -386,13 +386,14 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[], nested
     })
   }
 
+  // 继续编号（issue #70）只在为 true 时写出，既有文档投影出的 PM JSON 不变；无序类型没有序号可接续，不写。
+  // 单段列项（stdListItem）与块级列项（stdListBlockItem）两种 stdList 投影都要带上。
+  const continuedAttr = list.continueNumbering === true && isContinuableListType(list.listType) ? { continueNumbering: true } : {}
   const simple = list.items.every(item => item.content.length === 1 && item.content[0]?.kind === 'paragraph')
   if (simple) {
     const typeByList = { dash: 'dash', number: 'numeric', alpha: 'alpha', roman: 'roman', boxed: 'boxedNumeric', dot: 'dot' } as const
     const rawType = typeByList[list.listType]
-    // 继续编号（issue #70）只在为 true 时写出，既有文档投影出的 PM JSON 不变；无序类型没有序号可接续，不写。
-    const continued = list.continueNumbering === true && isContinuableListType(list.listType)
-    return node('stdList', withId(list.id, { listType: rawType, level: nested ? (list.level ?? fixedLevel) : fixedLevel, ...(continued ? { continueNumbering: true } : {}) }), list.items.map((item, index) => {
+    return node('stdList', withId(list.id, { listType: rawType, level: nested ? (list.level ?? fixedLevel) : fixedLevel, ...continuedAttr }), list.items.map((item, index) => {
       const content = item.content[0]
       if (content?.kind === 'paragraph' && content.id !== `${item.id}.p0`) {
         errors.push({
@@ -426,7 +427,7 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[], nested
     ])))
   }
   const typeByList = { alpha: 'alpha', roman: 'roman', boxed: 'boxedNumeric', dot: 'dot' } as const
-  return node('stdList', withId(list.id, { listType: typeByList[list.listType], level: nested ? (list.level ?? fixedLevel) : fixedLevel }), list.items.map((item, index) => {
+  return node('stdList', withId(list.id, { listType: typeByList[list.listType], level: nested ? (list.level ?? fixedLevel) : fixedLevel, ...continuedAttr }), list.items.map((item, index) => {
     if (item.content[0]?.kind !== 'paragraph') {
       errors.push({ path: `${path}.items[${index}].content[0]`, nodeId: item.id, reason: '标准块级列项必须以段落开头' })
     }

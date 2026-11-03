@@ -35,6 +35,15 @@
 | 旧 XML | 明确拒绝 | 旧序列化器每个列表从头编号，含继续编号的文档导出旧 XML 时报「暂未支持」，不静默改号（与罗马列项相同处理） |
 | 既有文档不受影响 | 通过 | 语义 JSON golden（SHA 固定）未变；未设置时 IR/PM 均不出现该字段 |
 
+## 合并 main 后的评审修复（2026-11-03）
+
+#67 引入块级列项（`stdListBlockItem`：多段内容、嵌套二级列项）后，Codex 评审指出两处遗漏，均已修复并以「去掉修复即失败」的用例确认：
+
+| 问题 | 修复 | 用例 |
+| --- | --- | --- |
+| `irToPm` 投影块级 `stdList` 时丢掉 `continueNumbering`：继续编号的块级字母列项往返后从 b） 变回 a）；含这种列表的 XML 导入报 `xml-roundtrip-loss` 被拒绝 | 单段与块级两种 `stdList` 投影都写出该属性 | shared `listContinuation.test.ts`「块级列项」；io `xml46687ListContinuation.test.ts` 块级往返（修复前即报 `xml-roundtrip-loss`） |
+| 编辑器计算编号时不进入列表内部：同一块级列项里的第二组嵌套数字列项设为继续编号，编辑器仍显示 1），而 Resolver/导出为 3） | 记录列表自身后继续深入其列项，每个块级列项自成兄弟序列（与 Resolver 一致）；命令的「所在列表」改为取光标最内层的列表，块级列项段落中也能设置 | client `listNumbering.test.ts`「块级列项内的嵌套列表」 |
+
 ## 已知限制
 
 - 在列项中间的空项上连按两次回车会把列表拆成两个（既有行为，未改动），后半截按重新编号显示；需要时对后半截选「继续前一列项编号」。
@@ -42,8 +51,10 @@
 
 ## 验证命令
 
-- `pnpm --filter @ses/shared test`：2929 passed
-- `pnpm --filter @ses/io test`：453 passed
-- `pnpm --filter @ses/client test`：1490 passed，2 skipped（既有）
-- `pnpm --filter @ses/server test`：811 passed
-- `vue-tsc --noEmit`（client）、`tsc --noEmit`（shared、io）、`git diff --check`：通过
+合并 main（含 #67）并修复评审意见后（2026-11-03）：
+
+- `pnpm --filter @ses/shared test`：3539 passed
+- `pnpm --filter @ses/io test`：528 passed
+- `pnpm --filter @ses/client test`：1624 passed，2 skipped（既有）。与 server 测试并行跑时有 4 个 EditorView 用例 5 秒超时，单独重跑全部通过
+- `pnpm --filter @ses/server test`：962 passed
+- `vue-tsc -b`（client）、`tsc --noEmit`（shared、io）、`git diff --check`：通过

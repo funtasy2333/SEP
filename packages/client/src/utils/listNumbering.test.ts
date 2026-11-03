@@ -206,3 +206,36 @@ describe('保存与重新打开', () => {
     expect(listDom(e, 'B').classList.contains('std-list-continue-orphan')).toBe(true)
   })
 })
+
+describe('块级列项（stdListBlockItem）内的嵌套列表', () => {
+  /** 一级字母列项「因素」的列项里有两组二级数字列项，中间隔一段说明。 */
+  const nestedDoc = (secondContinues = false): JSONContent[] => [{
+    type: 'stdList', attrs: { nodeId: 'O', listType: 'alpha', level: 1 }, content: [{
+      type: 'stdListBlockItem', attrs: { nodeId: 'O-i' }, content: [
+        { type: 'paragraph', attrs: { nodeId: 'O-p' }, content: [{ type: 'text', text: '因素，包括：' }] },
+        list('N1', 'numeric', [item('n1', '组织架构；'), item('n2', '管理制度；')]),
+        { type: 'paragraph', attrs: { nodeId: 'O-p2' }, content: [{ type: 'text', text: '以及：' }] },
+        { ...list('N2', 'numeric', [item('n3', '人员能力。')]), ...(secondContinues ? { attrs: { nodeId: 'N2', listType: 'numeric', level: 2, continueNumbering: true } } : {}) },
+      ],
+    }],
+  }]
+
+  it('后一组设为继续编号：编辑器装饰与 Resolver 都从 3）起', () => {
+    const e = editor(nestedDoc(true))
+    expect(markers(e, ['n1', 'n2', 'n3'])).toEqual(['1）', '2）', '3）'])
+    expect(listDom(e, 'N2').style.counterReset).toBe('numeric-counter 2')
+    expect(listDom(e, 'N2').getAttribute('data-numbering')).toBe('continue')
+  })
+
+  it('光标在嵌套列表的列项里：命令作用于该嵌套列表；在外层块级列项的段落里：作用于外层列表', () => {
+    const e = editor(nestedDoc())
+    caretIn(e, 'n3', 1)
+    expect(apply(e, 'continue')).toMatchObject({ ok: true, changed: true, start: 3, listType: 'numeric' })
+    expect(attrOf(e, 'N2')).toBe(true)
+    expect(listDom(e, 'N2').style.counterReset).toBe('numeric-counter 2')
+
+    caretIn(e, 'O-p', 1)
+    // 外层字母列表前面没有同类型列表：拒绝，而不是误判为不在列项内
+    expect(apply(e, 'continue')).toEqual({ ok: false, reason: 'no-previous', listType: 'alpha' })
+  })
+})

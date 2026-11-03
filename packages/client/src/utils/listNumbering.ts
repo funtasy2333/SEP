@@ -21,8 +21,9 @@ export function computeEditorListNumbering(doc: PMNode): Map<number, ListNumberi
       if (child.type.name === 'stdList') {
         sequence ??= new ListSequence<number>()
         result.set(pos, sequence.next(pmListTypeKey(child.attrs.listType), child.attrs.continueNumbering === true, child.childCount, pos))
-        return
       }
+      // 列表本身也要深入：块级列项（stdListBlockItem）里的嵌套列表各以所在列项为父节点，自成兄弟序列，
+      // 与 Resolver 把每个 item.content 当作一个块数组相同。单段列项（stdListItem）是文本块，不会进入。
       if (!child.isTextblock && !child.isLeaf && child.childCount > 0) visit(child, pos + 1)
     })
   }
@@ -47,11 +48,15 @@ export type ListNumberingResult =
 /** 选区所在的单个 stdList（选区必须落在同一个列表的列项里）。 */
 export function selectedStdList(state: EditorState): { node: PMNode; pos: number } | null {
   const { $from, $to } = state.selection
-  if ($from.parent.type.name !== 'stdListItem' || $to.parent.type.name !== 'stdListItem') return null
-  const depth = $from.depth - 1
-  const list = $from.node(depth)
-  if (list.type.name !== 'stdList' || $to.depth !== $from.depth || $to.node(depth) !== list) return null
-  return { node: list, pos: $from.before(depth) }
+  // 光标所在的最内层列表：单段列项的文字直接在 stdListItem 里；块级列项（stdListBlockItem）的文字在其中的段落里。
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    if ($from.node(depth).type.name !== 'stdList') continue
+    const list = $from.node(depth)
+    // 选区两端须在同一个列表内（同一列表的列项中），否则无法确定要设置哪一组。
+    if ($to.depth < depth || $to.node(depth) !== list || $from.depth === depth || $to.depth === depth) return null
+    return { node: list, pos: $from.before(depth) }
+  }
+  return null
 }
 
 /** 列表首项序号在当前文档中的值（未在文档中时为 1）。 */

@@ -53,4 +53,28 @@ describe('继续编号列表的 XML46687 往返', () => {
     expect(lists.map(list => list.continueNumbering === true)).toEqual([false, true])
     expect(listLabels(await exportDoc(reimported))).toEqual(['a)', 'b)', 'c)'])
   })
+
+  it('块级列项（含多段与嵌套二级列项）设为继续编号：导出 b)，再导入不报 xml-roundtrip-loss，仍为继续编号', async () => {
+    const base = await importDoc(readFileSync('../../schemas/gbt46687.2/samples/valid/01-minimal.xml', 'utf8'))
+    const number = (id: string, texts: string[]): IRList => ({
+      kind: 'list', id, listType: 'number', level: 2,
+      items: texts.map((text, index) => ({ id: `${id}-${index}`, content: [para(`${id}-${index}.p0`, text)] })),
+    })
+    const block = (id: string, text: string, sub: IRList, continueNumbering?: boolean): IRList => ({
+      kind: 'list', id, listType: 'alpha', ...(continueNumbering ? { continueNumbering } : {}),
+      items: [{ id: `${id}-0`, content: [para(`${id}-0.p0`, text), sub] }],
+    })
+    base.body[0]!.children.push(
+      block('ba', '内部因素，包括但不限于：', number('na', ['组织架构；', '管理制度。'])),
+      para('mid', '说明段落。'),
+      block('bb', '外部因素，包括但不限于：', number('nb', ['市场环境；', '监管要求。']), true),
+    )
+    const xml = await exportDoc(base)
+    expect(listLabels(xml)).toEqual(['a)', '1)', '2)', 'b)', '1)', '2)'])
+
+    const reimported = await importDoc(xml)
+    const lists = reimported.body[0]!.children.filter((child): child is IRList => child.kind === 'list')
+    expect(lists.map(list => list.continueNumbering === true)).toEqual([false, true])
+    expect(listLabels(await exportDoc(reimported))).toEqual(['a)', '1)', '2)', 'b)', '1)', '2)'])
+  })
 })
