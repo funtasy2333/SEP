@@ -11,6 +11,19 @@ import {
  * 设为继续编号的 stdList 接续其前最近的同类型 stdList；所以编辑器显示、内部引用文字和各出口的编号相同。
  */
 
+/**
+ * 一个块节点在列项兄弟序列中的类型键（与 Resolver 的 IR 类型一致），不是列表时为 undefined。
+ * 除 stdList 外，StarterKit 的 orderedList / bulletList 也是 IR 列表：含多段或嵌套列表的数字列项由 irToPm
+ * 投影为 orderedList，pmToIr 再读回 IR `number`。Resolver 把它算作前一个数字列表，编辑器必须同样计入，
+ * 否则其后设为继续编号的数字列项在编辑器里从 1）起，而导出接着它编号。它们自身没有继续编号设置。
+ */
+function sequenceKey(node: PMNode): string | undefined {
+  if (node.type.name === 'stdList') return pmListTypeKey(node.attrs.listType)
+  if (node.type.name === 'orderedList') return 'number'
+  if (node.type.name === 'bulletList') return 'dash'
+  return undefined
+}
+
 /** 文档中每个 stdList（按其位置）的编号起点。 */
 export function computeEditorListNumbering(doc: PMNode): Map<number, ListNumbering<number>> {
   const result = new Map<number, ListNumbering<number>>()
@@ -18,9 +31,13 @@ export function computeEditorListNumbering(doc: PMNode): Map<number, ListNumberi
     let sequence: ListSequence<number> | undefined
     parent.forEach((child, offset) => {
       const pos = parentPos + offset
-      if (child.type.name === 'stdList') {
+      const key = sequenceKey(child)
+      if (key !== undefined) {
         sequence ??= new ListSequence<number>()
-        result.set(pos, sequence.next(pmListTypeKey(child.attrs.listType), child.attrs.continueNumbering === true, child.childCount, pos))
+        const isStd = child.type.name === 'stdList'
+        const info = sequence.next(key, isStd && child.attrs.continueNumbering === true, child.childCount, pos)
+        // 只给 stdList 记录（装饰与命令只作用于它）；StarterKit 列表只参与序列计数。
+        if (isStd) result.set(pos, info)
       }
       // 列表本身也要深入：块级列项（stdListBlockItem）里的嵌套列表各以所在列项为父节点，自成兄弟序列，
       // 与 Resolver 把每个 item.content 当作一个块数组相同。单段列项（stdListItem）是文本块，不会进入。
@@ -82,7 +99,7 @@ export function setListNumbering(state: EditorState, tr: Transaction, mode: List
     let hasPrevious = false
     for (let index = $pos.index() - 1; index >= 0 && !hasPrevious; index -= 1) {
       const sibling = parent.child(index)
-      hasPrevious = sibling.type.name === 'stdList' && pmListTypeKey(sibling.attrs.listType) === key
+      hasPrevious = sequenceKey(sibling) === key
     }
     if (!hasPrevious) return { ok: false, reason: 'no-previous', listType }
   }

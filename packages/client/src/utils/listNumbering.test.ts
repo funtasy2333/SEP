@@ -239,3 +239,30 @@ describe('块级列项（stdListBlockItem）内的嵌套列表', () => {
     expect(apply(e, 'continue')).toEqual({ ok: false, reason: 'no-previous', listType: 'alpha' })
   })
 })
+
+describe('StarterKit 有序列表（orderedList）作为前一组数字列项', () => {
+  /** irToPm 把含多段内容的数字列项投影为 orderedList；其后的数字 stdList 设为继续编号时应接着它编号。 */
+  const starterDoc = (continues: boolean): JSONContent[] => [
+    { type: 'orderedList', attrs: { nodeId: 'OL' }, content: [
+      { type: 'listItem', attrs: { nodeId: 'ol1' }, content: [
+        { type: 'paragraph', attrs: { nodeId: 'ol1-p1' }, content: [{ type: 'text', text: '第一段' }] },
+        { type: 'paragraph', attrs: { nodeId: 'ol1-p2' }, content: [{ type: 'text', text: '第二段' }] },
+      ] },
+    ] },
+    p('mid', '说明。'),
+    { ...list('N', 'numeric', [item('n1', '后一组')]), ...(continues ? { attrs: { nodeId: 'N', listType: 'numeric', level: 2, continueNumbering: true } } : {}) },
+  ]
+
+  it('编辑器装饰与 Resolver 一致：从 2）起，不标为找不到目标', () => {
+    const e = editor(starterDoc(true))
+    expect(markers(e, ['ol1', 'n1'])).toEqual(['1）', '2）'])
+    expect(listDom(e, 'N').style.counterReset).toBe('numeric-counter 1')
+    expect(listDom(e, 'N').classList.contains('std-list-continue-orphan')).toBe(false)
+  })
+
+  it('命令：前面只有 orderedList 时也允许继续编号', () => {
+    const e = editor(starterDoc(false))
+    caretIn(e, 'n1', 1)
+    expect(apply(e, 'continue')).toMatchObject({ ok: true, changed: true, start: 2, listType: 'numeric' })
+  })
+})

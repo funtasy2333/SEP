@@ -37,12 +37,13 @@
 
 ## 合并 main 后的评审修复（2026-11-03）
 
-#67 引入块级列项（`stdListBlockItem`：多段内容、嵌套二级列项）后，Codex 评审指出两处遗漏，均已修复并以「去掉修复即失败」的用例确认：
+#67 引入块级列项（`stdListBlockItem`：多段内容、嵌套二级列项）后，Codex 两轮评审共指出三处遗漏，均已修复并以「去掉修复即失败」的用例确认：
 
 | 问题 | 修复 | 用例 |
 | --- | --- | --- |
 | `irToPm` 投影块级 `stdList` 时丢掉 `continueNumbering`：继续编号的块级字母列项往返后从 b） 变回 a）；含这种列表的 XML 导入报 `xml-roundtrip-loss` 被拒绝 | 单段与块级两种 `stdList` 投影都写出该属性 | shared `listContinuation.test.ts`「块级列项」；io `xml46687ListContinuation.test.ts` 块级往返（修复前即报 `xml-roundtrip-loss`） |
 | 编辑器计算编号时不进入列表内部：同一块级列项里的第二组嵌套数字列项设为继续编号，编辑器仍显示 1），而 Resolver/导出为 3） | 记录列表自身后继续深入其列项，每个块级列项自成兄弟序列（与 Resolver 一致）；命令的「所在列表」改为取光标最内层的列表，块级列项段落中也能设置 | client `listNumbering.test.ts`「块级列项内的嵌套列表」 |
+| 编辑器不把 StarterKit `orderedList` 算作前一组数字列项：含多段内容的数字列项由 irToPm 投影为 `orderedList`，Resolver 把它读回 IR `number` 并接续，编辑器却从 1）起、标为找不到目标，命令也拒绝 | 编辑器的兄弟序列同样计入 `orderedList`（数字）与 `bulletList`（无序），它们只参与计数、不加装饰 | client `listNumbering.test.ts`「StarterKit 有序列表」（第二轮评审） |
 
 ## 已知限制
 
@@ -51,10 +52,10 @@
 
 ## 验证命令
 
-合并 main（含 #67）并修复评审意见后（2026-11-03）：
+合并最新 main（含 #67、横向附录、查找修复）并修复三处评审意见后（2026-11-03）：
 
-- `pnpm --filter @ses/shared test`：3539 passed
+- `pnpm --filter @ses/shared test`：3555 passed
 - `pnpm --filter @ses/io test`：528 passed
-- `pnpm --filter @ses/client test`：1624 passed，2 skipped（既有）。与 server 测试并行跑时有 4 个 EditorView 用例 5 秒超时，单独重跑全部通过
+- `pnpm --filter @ses/client test`：1642 passed，2 skipped（既有）；单独运行（与 server 并行时 EditorView 用例会因负载超时）
 - `pnpm --filter @ses/server test`：962 passed
 - `vue-tsc -b`（client）、`tsc --noEmit`（shared、io）、`git diff --check`：通过
