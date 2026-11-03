@@ -1,6 +1,6 @@
 <template>
-  <button class="tbar-btn" title="选择并引用本文件中的章、条、术语或图表" @mousedown.prevent @click="open">引用</button>
-  <el-dialog v-model="visible" title="引用本文件内容" width="640px" append-to-body>
+  <button class="tbar-btn" title="插入对本文件章、条、术语、图、表等的引用（如“见5.2”），编号自动更新" @mousedown.prevent @click="open">交叉引用</button>
+  <el-dialog v-model="visible" title="交叉引用本文件内容" width="640px" append-to-body>
     <div class="reference-filters">
       <el-select v-model="type" aria-label="引用类型" placeholder="全部类型">
         <el-option label="全部类型" value="" />
@@ -17,7 +17,7 @@
     </div>
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :disabled="!filtered.some(target => target.id === selected)" @click="insert">插入引用</el-button>
+      <el-button type="primary" :disabled="!filtered.some(target => target.id === selected)" @click="insert">插入交叉引用</el-button>
     </template>
   </el-dialog>
 </template>

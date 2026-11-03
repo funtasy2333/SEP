@@ -4,6 +4,7 @@ import type { XmlDocument, XmlElement } from '../tree'
 import type { ImportContext } from './context'
 import { readInlineChildren } from './inline'
 import { mapMetadata } from './metadata'
+import { recordFirstListLabel } from './listContinuation'
 
 const elements = (el: XmlElement) => el.children.filter((c): c is XmlElement => c.type === 'element')
 const is = (el: XmlElement, name: string) => el.name.ns === null && el.name.local === name
@@ -40,7 +41,11 @@ export function mapCoreBlock(element: XmlElement, ctx: ImportContext): IRBlock[]
       }
       items.push({ id: id(ctx, item), content })
     }
-    return [{ kind: 'list', id: id(ctx, element), listType, ...(listType === 'number' || listType === 'dot' ? { level: 2 as const } : {}), items }]
+    const list: IRList = { kind: 'list', id: id(ctx, element), listType, ...(listType === 'number' || listType === 'dot' ? { level: 2 as const } : {}), items }
+    const firstItem = listChildren.find(item => is(item, 'list-item'))
+    const firstLabel = firstItem ? elements(firstItem).find(child => is(child, 'label')) : undefined
+    recordFirstListLabel(list, firstLabel ? xmlTextContent(firstLabel) : undefined)
+    return [list]
   }
   if (name === 'non-normative-note' || name === 'non-normative-example' || name === 'disp-quote' || name === 'warning') {
     const kind = name === 'disp-quote' ? 'quote' : name === 'warning' || ctx.attr(element, null, 'content-type') === 'warning' ? 'warning' : name === 'non-normative-example' ? 'example' : 'note'

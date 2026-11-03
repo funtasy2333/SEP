@@ -1059,6 +1059,12 @@
   min-width: 3em;
 }
 
+/* 继续前一列项编号（issue #70）：起点由 stdList 的编号装饰写入 counter-reset；
+ * 设为继续编号却找不到可接续的同类型列项时，按重新编号显示，并在左侧标出提示（悬停可见原因）。 */
+.std-list-continue-orphan {
+  box-shadow: inset 3px 0 0 #e6a23c;
+}
+
 /* 兼容嵌套 DOM：数字子列项保留编号，其他历史嵌套类型使用间隔号。 */
 .std-list .std-list:not(.std-list-numeric) .std-list-item {
   counter-increment: none;

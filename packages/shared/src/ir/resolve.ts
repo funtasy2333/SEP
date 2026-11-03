@@ -28,6 +28,7 @@ import type {
 } from './types'
 import { MISSING_ID_PREFIX } from './pmToIr'
 import { gbT11Strategy, listItem as builtinListItem } from './strategies'
+import { ListSequence, listTypeLabel, type ListNumbering } from './listNumbering'
 import { orderedTermTail } from './termTailOrder'
 
 // ---------- 内部上下文 ----------
@@ -287,19 +288,44 @@ function orderedListItemMarker(listType: IRList['listType'], depth: number, ordi
  * 编号逻辑仍只在 Resolver 模块。纯函数，不修改入参。
  */
 export function computeOrderedListMarkers(doc: IRDoc, strategy: NumberingStrategy = gbT11Strategy): Record<NodeId, string> {
+  return walkOrderedLists(doc, strategy).markers
+}
+
+/**
+ * 全文每个列表的编号起点（issue #70「继续前一列项编号／重新编号」）：key = 列表 id。
+ * `start` 为首项序号；`continued` 表示按继续编号接续了 `previous`（同一父节点内前一个同类型列表的 id）；
+ * `orphan` 表示设置了继续编号却没有可接续的列表（已按重新编号处理）。接续规则见 listNumbering.ts，
+ * 与 computeOrderedListMarkers 同一次遍历，HTML/DOCX 渲染器与校验都从这里取值。纯函数，不修改入参。
+ */
+export function computeListNumbering(doc: IRDoc): Record<NodeId, ListNumbering<NodeId>> {
+  return walkOrderedLists(doc, gbT11Strategy).numbering
+}
+
+function walkOrderedLists(doc: IRDoc, strategy: NumberingStrategy): {
+  markers: Record<NodeId, string>
+  numbering: Record<NodeId, ListNumbering<NodeId>>
+  orphans: { id: NodeId; listType: IRList['listType'] }[]
+} {
   const markers = Object.create(null) as Record<NodeId, string>
+  const numbering = Object.create(null) as Record<NodeId, ListNumbering<NodeId>>
+  const orphans: { id: NodeId; listType: IRList['listType'] }[] = []
   // depth = 当前所处的列表嵌套深度：0 = 不在任何列项内，1 = 位于一层列表的列项内……
   // 无序父列表不产生标记，却同样使其子列表成为嵌套列表；表格单元格、注、示例、警告、摘录等容器不改变深度
   // （列项内容类型上只能是段落与列表，所以深度只会随列表嵌套增加）。
+  // 每个块数组（同一父节点的直接子节点）各有一个 ListSequence：继续编号只接续同一父节点内的前一个同类型列表。
   const visitBlocks = (blocks: IRBlock[], depth: number): void => {
-    for (const block of blocks) visitBlock(block, depth)
+    const sequence = new ListSequence<NodeId>()
+    for (const block of blocks) visitBlock(block, depth, sequence)
   }
-  const visitBlock = (block: IRBlock, depth: number): void => {
+  const visitBlock = (block: IRBlock, depth: number, sequence: ListSequence<NodeId>): void => {
     switch (block.kind) {
       case 'list': {
         const listDepth = depth + 1
+        const info = sequence.next(block.listType, block.continueNumbering === true, block.items.length, block.id)
+        numbering[block.id] = info
+        if (info.orphan) orphans.push({ id: block.id, listType: block.listType })
         block.items.forEach((item, index) => {
-          const marker = orderedListItemMarker(block.listType, listDepth, index + 1, strategy)
+          const marker = orderedListItemMarker(block.listType, listDepth, info.start + index, strategy)
           if (marker) markers[item.id] = marker
           visitBlocks(item.content, listDepth)
         })
@@ -313,7 +339,7 @@ export function computeOrderedListMarkers(doc: IRDoc, strategy: NumberingStrateg
         for (const row of block.rows) for (const cell of row.cells) visitBlocks(cell.content, depth)
         break
       case 'figureSet':
-        for (const figure of block.figures) visitBlock(figure, depth)
+        for (const figure of block.figures) visitBlock(figure, depth, sequence)
         break
       case 'figure':
         for (const note of block.notes) visitBlocks(note.content, depth)
@@ -333,10 +359,11 @@ export function computeOrderedListMarkers(doc: IRDoc, strategy: NumberingStrateg
     for (const nested of entry.nestedEntries ?? []) visitTermEntry(nested)
   }
   const visitSectionChildren = (children: IRClauseChild[]): void => {
+    const sequence = new ListSequence<NodeId>()
     for (const child of children) {
       if (child.kind === 'clause') visitSectionChildren(child.children)
       else if (child.kind === 'termEntry') visitTermEntry(child)
-      else visitBlock(child, 0)
+      else visitBlock(child, 0, sequence)
     }
   }
   visitBlocks(doc.front.foreword, 0)
@@ -344,7 +371,19 @@ export function computeOrderedListMarkers(doc: IRDoc, strategy: NumberingStrateg
   visitSectionChildren(doc.front.introductionClauses ?? [])
   for (const chapter of doc.body) visitSectionChildren(chapter.children)
   for (const appendix of doc.appendices) visitSectionChildren(appendix.children)
-  return markers
+  return { markers, numbering, orphans }
+}
+
+/**
+ * 设为继续编号却找不到接续目标的列表（issue #70）：已按重新编号处理，给 warning，避免误接其他组而不自知。
+ */
+function reportOrphanContinuations(orphans: readonly { id: NodeId; listType: IRList['listType'] }[], ctx: ResolveCtx): void {
+  for (const { id, listType } of orphans) {
+    ctx.problems.push({
+      code: 'list-continue-orphan', nodeId: id, severity: 'warning',
+      message: `${listTypeLabel(listType)}设为「继续前一列项编号」，但同一位置前面没有同类型的列项可以接续，已按重新编号处理；请改为重新编号，或检查列项是否放错了位置`,
+    })
+  }
 }
 
 // ---------- 块级 ----------
@@ -1056,7 +1095,9 @@ function checkIndexTargets(
  */
 export function resolve(doc: IRDoc, strategy: NumberingStrategy = gbT11Strategy): ResolveResult {
   const ctx = new ResolveCtx(strategy)
-  ctx.orderedMarkers = computeOrderedListMarkers(doc, strategy)
+  const lists = walkOrderedLists(doc, strategy)
+  ctx.orderedMarkers = lists.markers
+  reportOrphanContinuations(lists.orphans, ctx)
 
   for (const source of doc.unmappedFootnotes ?? []) {
     const location = source.container === 'bibliographyTitle' ? '参考文献标题'

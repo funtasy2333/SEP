@@ -19,6 +19,7 @@ import {
   type AuthoringContext, type FragmentContextRules, type IRFragmentNode,
 } from './fragmentContext'
 import { orderedTermTail } from './termTailOrder'
+import { isContinuableListType } from './listNumbering'
 import {
   CELL_BORDER_STYLES, CELL_BORDER_STYLE_KEYS, columnAlignProblem, columnWidthProblem, isCellBorderStyle, tableGridWidth,
 } from './tableColumns'
@@ -385,11 +386,14 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[], nested
     })
   }
 
+  // 继续编号（issue #70）只在为 true 时写出，既有文档投影出的 PM JSON 不变；无序类型没有序号可接续，不写。
+  // 单段列项（stdListItem）与块级列项（stdListBlockItem）两种 stdList 投影都要带上。
+  const continuedAttr = list.continueNumbering === true && isContinuableListType(list.listType) ? { continueNumbering: true } : {}
   const simple = list.items.every(item => item.content.length === 1 && item.content[0]?.kind === 'paragraph')
   if (simple) {
     const typeByList = { dash: 'dash', number: 'numeric', alpha: 'alpha', roman: 'roman', boxed: 'boxedNumeric', dot: 'dot' } as const
     const rawType = typeByList[list.listType]
-    return node('stdList', withId(list.id, { listType: rawType, level: nested ? (list.level ?? fixedLevel) : fixedLevel }), list.items.map((item, index) => {
+    return node('stdList', withId(list.id, { listType: rawType, level: nested ? (list.level ?? fixedLevel) : fixedLevel, ...continuedAttr }), list.items.map((item, index) => {
       const content = item.content[0]
       if (content?.kind === 'paragraph' && content.id !== `${item.id}.p0`) {
         errors.push({
@@ -402,6 +406,9 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[], nested
     }))
   }
   if (list.listType === 'dash' || list.listType === 'number') {
+    if (list.continueNumbering === true && list.listType === 'number') {
+      errors.push({ path: `${path}.continueNumbering`, nodeId: list.id, reason: '含嵌套列表的列项投影为 StarterKit 列表，不支持继续编号，不能无损转换' })
+    }
     for (const [index, item] of list.items.entries()) {
       const first = item.content[0]
       if (first?.kind !== 'paragraph') {
@@ -420,7 +427,7 @@ function listToPm(list: IRList, path: string, errors: IRToPmDiagnostic[], nested
     ])))
   }
   const typeByList = { alpha: 'alpha', roman: 'roman', boxed: 'boxedNumeric', dot: 'dot' } as const
-  return node('stdList', withId(list.id, { listType: typeByList[list.listType], level: nested ? (list.level ?? fixedLevel) : fixedLevel }), list.items.map((item, index) => {
+  return node('stdList', withId(list.id, { listType: typeByList[list.listType], level: nested ? (list.level ?? fixedLevel) : fixedLevel, ...continuedAttr }), list.items.map((item, index) => {
     if (item.content[0]?.kind !== 'paragraph') {
       errors.push({ path: `${path}.items[${index}].content[0]`, nodeId: item.id, reason: '标准块级列项必须以段落开头' })
     }

@@ -92,8 +92,10 @@ const EXTRA_FIELDS: Record<OutputBoundaryFormat, Readonly<Record<string, readonl
   //   项与公式“式中”项同形，沿用 where 形状（见 childShape）。
   // - 规范性引用文件清单（M-4.4.2.3-02/-03/-04，G1）：新 kind normRefList / normRef，按 10.3.4 排版；
   // - doc.bibliographyTitle（M-4.5.3-02，G1）：自定义参考文献标题替换默认标题。
-  DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'], appendix: APPENDIX_PRINT_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'] },
-  HTML: { meta: PRINT_META_FIELDS, appendix: APPENDIX_PRINT_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'] },
+  // - list.continueNumbering（issue #70）：继续前一列项编号，HTML 写计数器起点、DOCX 写编号实例的 startOverride；
+  //   旧 XML 序列化器按每个列表从头编号、不能表达接续，继续阻断（不静默改号）；XML46687 由 blocks.ts 登记（label 写接续后的序号）。
+  DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'], appendix: APPENDIX_PRINT_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'], list: ['continueNumbering'] },
+  HTML: { meta: PRINT_META_FIELDS, appendix: APPENDIX_PRINT_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'], list: ['continueNumbering'] },
   XML: NO_EXTRA_FIELDS,
   // XML46687 比 XML 多放行的字段/kind/mark 由各领域文件登记（renderers/xml46687Parts/*.ts 的 XML46687_*_BOUNDARY），
   // 汇总在 xml46687Boundary.ts；XML46687_DECLARED_DIFFERENCES 逐项列出差异，outputBoundaryXml46687.test.ts 据此断言。
