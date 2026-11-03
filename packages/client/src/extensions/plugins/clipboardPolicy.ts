@@ -1,7 +1,8 @@
-import { Extension } from '@tiptap/core'
+import { Extension, getTextBetween, getTextSerializersFromSchema } from '@tiptap/core'
 import { DOMSerializer, Fragment, Slice, type ResolvedPos, type Schema } from '@tiptap/pm/model'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
+import { visibleBlockRange } from '../../utils/selectionRange'
 
 /**
  * 剪贴板策略：
@@ -10,6 +11,8 @@ import type { EditorView } from '@tiptap/pm/view'
  * - Ctrl/Cmd+Shift+V（ProseMirror 的 shift 粘贴）始终按纯文本粘贴，包括 SES 内复制的内容；
  * - 纯文本一律插入光标所在的文本块，沿用该处格式（正文段、列项、注、条标题、单元格……都一样），不新建段落或条目；
  *   多行内容合并为一行（见 {@link joinPlainTextLines}）。需要新段落、新条目时由用户按回车。
+ * - 复制（剪切、拖动）的选区终点落在下一块开头、或起点落在上一块末尾时，那一块屏幕上没有被选中，
+ *   不放进剪贴板（见 {@link visibleCopiedSlice}）：否则会带上一个空的列项/段落，粘贴后多出空白条目。
  */
 
 export const SES_CLIPBOARD_ATTR = 'data-ses-clipboard'
@@ -72,6 +75,31 @@ export function plainTextSlice(text: string, $context: ResolvedPos, schema: Sche
   return new Slice(Fragment.from(schema.text(joined, $context.marks())), 0, 0)
 }
 
+/**
+ * 复制当前文本选区时，按用户看到的范围（{@link visibleBlockRange}）生成切片。
+ * 只处理由当前选区生成的切片；其他来源（节点选区、单元格选区、调用方自给的切片）原样返回。
+ */
+export function visibleCopiedSlice(slice: Slice, view: EditorView): Slice {
+  const { selection, doc } = view.state
+  if (!(selection instanceof TextSelection) || selection.empty) return slice
+  const range = visibleBlockRange(doc, selection.from, selection.to)
+  if (range.from === selection.from && range.to === selection.to) return slice
+  if (!slice.eq(selection.content())) return slice
+  return doc.slice(range.from, range.to, true)
+}
+
+/**
+ * 与 {@link visibleCopiedSlice} 一致的纯文本：Tiptap 自带的剪贴板纯文本按原选区取文字，会多出一个空行。
+ * 选区不需要裁剪时返回 undefined。
+ */
+export function visibleCopiedText(view: EditorView): string | undefined {
+  const { selection, doc, schema } = view.state
+  if (!(selection instanceof TextSelection) || selection.empty) return undefined
+  const range = visibleBlockRange(doc, selection.from, selection.to)
+  if (range.from === selection.from && range.to === selection.to) return undefined
+  return getTextBetween(doc, range, { textSerializers: getTextSerializersFromSchema(schema) })
+}
+
 export const clipboardPolicyPluginKey = new PluginKey('clipboardPolicy')
 
 export function clipboardPolicyPlugin(schema: Schema): Plugin {
@@ -79,6 +107,9 @@ export function clipboardPolicyPlugin(schema: Schema): Plugin {
     key: clipboardPolicyPluginKey,
     props: {
       clipboardSerializer: clipboardSerializer(schema),
+      transformCopied: visibleCopiedSlice,
+      // 返回空串（不需要裁剪）时 ProseMirror 继续询问下一个插件，即 Tiptap 自带的序列化。
+      clipboardTextSerializer: (_slice, view) => visibleCopiedText(view) ?? '',
       clipboardTextParser(text, $context, _plain, view) {
         return plainTextSlice(text, $context, view.state.schema)
       },

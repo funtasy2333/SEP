@@ -1,6 +1,7 @@
 import { Fragment, type Node as PMNode } from '@tiptap/pm/model'
 import { TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state'
 import { isContinuablePmListType } from '@ses/shared'
+import { visibleBlockRange } from './selectionRange'
 
 const textBlocks = new Set(['paragraph', 'stdParagraph', 'note', 'example'])
 const children = (node: PMNode): PMNode[] => node.content.content.slice()
@@ -319,7 +320,9 @@ const listBodyContainers = new Set(['chapter', 'clause', 'appendix', 'foreword',
 export function formatStdList(state: EditorState, tr: Transaction, listType: string): TextBlockFailure | 'nothing-to-convert' | null {
   if (!listTypes.has(listType)) return 'unsupported'
   const level = listType === 'numeric' || listType === 'dot' ? 2 : 1
-  const { $from, $to } = state.selection
+  // 选区终点落在下一块开头（或起点落在上一块末尾）时，那一块屏幕上没有被选中，不参与转换（否则会多出空白列项）。
+  const range = visibleBlockRange(state.doc, state.selection.from, state.selection.to)
+  const $from = state.doc.resolve(range.from), $to = state.doc.resolve(range.to)
   const { stdList, stdListItem } = state.schema.nodes
   if (!stdList || !stdListItem) return 'unsupported'
 

@@ -514,3 +514,62 @@ describe('文本块格式转换对无类型引用的处理（审查 P2：只有 
     expect(snapshot(e)).toEqual(original)
   })
 })
+
+describe('选区端点落在相邻块的边界：只转换屏幕上选中的块，不多出空白列项', () => {
+  /** 选区从 nodeId=a 文本块的 aOffset 到 nodeId=b 文本块的 bOffset（模拟拖选到行尾、Shift+↓ 选中整行）。 */
+  const selectAcross = (e: ReturnType<typeof editor>, a: string, aOffset: number, b: string, bOffset: number) => {
+    const from = nodeById(e, a).pos + 1 + aOffset, to = nodeById(e, b).pos + 1 + bOffset
+    e.commands.setTextSelection({ from, to })
+  }
+
+  it('复现：选中整段（终点落在下一个空段落开头）改列项，不再把空段落变成空白列项', () => {
+    const e = editor([p('a', '甲'), p('b', '')])
+    selectAcross(e, 'a', 0, 'b', 0)
+    expect(setListFormat(e, 'dash')).toEqual({ ok: true })
+    expect(listsOf(e).map(entry => [entry.type, entry.ids, entry.texts])).toEqual([['dash', ['a'], ['甲']]])
+    expect(nodeById(e, 'b').node.type.name).toBe('stdParagraph')
+    expect(e.state.selection.$from.parent.attrs.nodeId).toBe('a')
+    expect(e.state.selection.$to.parent.attrs.nodeId).toBe('a')
+  })
+
+  it('终点落在下一个非空段落开头：下一段保持正文段落', () => {
+    const e = editor([p('a', '甲'), p('b', '乙')])
+    selectAcross(e, 'a', 0, 'b', 0)
+    expect(setListFormat(e, 'alpha')).toEqual({ ok: true })
+    expect(listsOf(e).map(entry => [entry.type, entry.ids])).toEqual([['alpha', ['a']]])
+    expect(nodeById(e, 'b').node.type.name).toBe('stdParagraph')
+  })
+
+  it('起点落在上一段末尾：上一段保持正文段落', () => {
+    const e = editor([p('a', '甲'), p('b', '乙')])
+    selectAcross(e, 'a', 1, 'b', 1)
+    expect(setListFormat(e, 'dash')).toEqual({ ok: true })
+    expect(listsOf(e).map(entry => [entry.type, entry.ids])).toEqual([['dash', ['b']]])
+    expect(nodeById(e, 'a').node.type.name).toBe('stdParagraph')
+  })
+
+  it('列项改类型：终点落在下一项开头时只改选中的一项', () => {
+    const e = editor([dash()])
+    selectAcross(e, 'i1', 0, 'i2', 0)
+    expect(setListFormat(e, 'alpha')).toEqual({ ok: true })
+    expect(listsOf(e).map(entry => [entry.type, entry.texts])).toEqual([['alpha', ['甲']], ['dash', ['乙', '丙']]])
+  })
+
+  it('选中空段落、终点落在下一段开头：空段落换成新列表，下一段不动', () => {
+    const e = editor([p('a', ''), p('b', '乙')])
+    selectAcross(e, 'a', 0, 'b', 0)
+    expect(setListFormat(e, 'dash')).toEqual({ ok: true })
+    const body = e.state.doc.child(0)
+    expect([...Array(body.childCount).keys()].slice(1).map(index => body.child(index).type.name)).toEqual(['stdList', 'stdParagraph'])
+    expect(listsOf(e).map(entry => [entry.type, entry.texts])).toEqual([['dash', ['']]])
+    expect(nodeById(e, 'b').node.textContent).toBe('乙')
+    expect(e.state.selection.$from.parent.type.name).toBe('stdListItem')
+  })
+
+  it('真正跨到下一块（终点在下一段文字中间）时仍一起转换', () => {
+    const e = editor([p('a', '甲'), p('b', '乙')])
+    selectAcross(e, 'a', 0, 'b', 1)
+    expect(setListFormat(e, 'dash')).toEqual({ ok: true })
+    expect(listsOf(e).map(entry => [entry.type, entry.ids])).toEqual([['dash', ['a', 'b']]])
+  })
+})
