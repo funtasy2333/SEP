@@ -104,6 +104,7 @@ interface ImportedDocument extends Record<string, unknown> {
 interface PreviewBody {
   match: { id: number; title: string; revision: number } | null;
   inTrash: boolean;
+  versionScope: 'all' | 'latest' | null;
   newVersions: number;
   localOnlyVersions: number;
   contentDiffers: boolean;
@@ -243,8 +244,11 @@ async function expectBody<T>(test: request.Test, status: number): Promise<T> {
 async function exportPackage(
   testApp: TestApp,
   id: number,
+  query = '',
 ): Promise<{ response: request.Response; package: ExportedPackage }> {
-  const response = await testApp.http.get(EXPORT_PATH(id)).expect(200);
+  const response = await testApp.http
+    .get(`${EXPORT_PATH(id)}${query}`)
+    .expect(200);
   return {
     response,
     package: JSON.parse(response.text) as ExportedPackage,
@@ -645,6 +649,7 @@ describe('SES 文档包 HTTP 服务端验收', () => {
       expect(previewOnB).toEqual({
         match: null,
         inTrash: false,
+        versionScope: 'all',
         newVersions: 3,
         localOnlyVersions: 0,
         contentDiffers: false,
@@ -758,6 +763,7 @@ describe('SES 文档包 HTTP 服务端验收', () => {
           revision: 0,
         },
         inTrash: false,
+        versionScope: 'all',
         newVersions: 1,
         localOnlyVersions: 1,
         contentDiffers: true,
@@ -885,6 +891,7 @@ describe('SES 文档包 HTTP 服务端验收', () => {
           revision: updatedB.revision,
         },
         inTrash: false,
+        versionScope: 'all',
         newVersions: 2,
         localOnlyVersions: 0,
         contentDiffers: false,
@@ -914,6 +921,7 @@ describe('SES 文档包 HTTP 服务端验收', () => {
           revision: 1,
         },
         inTrash: false,
+        versionScope: 'all',
         newVersions: 0,
         localOnlyVersions: 0,
         contentDiffers: false,
@@ -1242,6 +1250,157 @@ describe('SES 文档包 HTTP 服务端验收', () => {
     expect(await loadState(testApp, local.id)).toEqual(before);
     expect(events).toEqual([]);
     subscription.unsubscribe();
+  });
+
+  it('最新稿包（versions=none）可另存为新文档，也可更新导入且本地版本一个不少', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ses-package-latest-'));
+    let appA: TestApp | undefined;
+    let appB: TestApp | undefined;
+    try {
+      appA = await createTestApp({ database: join(dir, 'A.db') });
+      appB = await createTestApp({ database: join(dir, 'B.db') });
+      const docA = await appA.documents.create({
+        title: 'A 端文档标题',
+        meta: { ...META },
+        stage: 'review_draft',
+        content: documentContent('A 端最新正文'),
+      });
+      await appA.dataSource
+        .getRepository(DocumentEntity)
+        .update(docA.id, { uid: DOCUMENT_UID });
+      await addVersion(appA, docA.id, {
+        uid: SHARED_VERSION_UID,
+        versionNo: '1.0',
+        createdAt: new Date('2021-05-06T07:08:09.123Z'),
+      });
+      await addVersion(appA, docA.id, {
+        uid: AI_VERSION_UID,
+        versionNo: '2.0',
+        source: 'ai',
+        createdAt: new Date('2022-05-06T07:08:09.456Z'),
+      });
+
+      const { package: latest } = await exportPackage(
+        appA,
+        docA.id,
+        '?versions=none',
+      );
+      expect(latest.versionScope).toBe('latest');
+      expect(latest.versions).toEqual([]);
+
+      // 预览：B 端没有该文档，新增版本为 0，范围标记为 latest。
+      expect(
+        await expectBody<PreviewBody>(
+          postRaw(appB, 'mode=preview', bodyBuffer(latest)),
+          200,
+        ),
+      ).toEqual({
+        match: null,
+        inTrash: false,
+        versionScope: 'latest',
+        newVersions: 0,
+        localOnlyVersions: 0,
+        contentDiffers: false,
+        versionNoCollisions: [],
+      });
+
+      // 新建：正文、元数据一致，没有任何版本。
+      const importedB = await expectBody<ImportedDocument>(
+        postRaw(appB, 'mode=new', bodyBuffer(latest)),
+        201,
+      );
+      expect(importedB).toMatchObject({
+        uid: DOCUMENT_UID,
+        title: 'A 端文档标题',
+        meta: META,
+        stage: 'review_draft',
+        content: documentContent('A 端最新正文'),
+        revision: 0,
+      });
+      expect(await loadVersions(appB, importedB.id)).toEqual([]);
+
+      // 全部历史包导入 B 之后，B 再收到只含最新稿的更新包。
+      const { package: full } = await exportPackage(appA, docA.id);
+      expect(full.versionScope).toBe('all');
+      const fullOnB = await expectBody<ImportedDocument>(
+        postRaw(
+          appB,
+          `mode=update&targetId=${importedB.id}&baseRevision=${importedB.revision}`,
+          bodyBuffer(full),
+        ),
+        200,
+      );
+      const beforeUpdate = await loadVersions(appB, importedB.id);
+      expect(beforeUpdate.map((version) => version.uid)).toEqual([
+        SHARED_VERSION_UID,
+        AI_VERSION_UID,
+      ]);
+
+      // A 端改了正文再导出最新稿；B 端更新导入后：本地版本一个不少，并留一条导入记录。
+      const currentA = await appA.dataSource
+        .getRepository(DocumentEntity)
+        .findOneByOrFail({ id: docA.id });
+      const newerContent = documentContent('A 端修改后的最新正文');
+      await appA.documents.update(docA.id, currentA.revision, {
+        content: newerContent,
+      });
+      const { package: newerLatest } = await exportPackage(
+        appA,
+        docA.id,
+        '?versions=none',
+      );
+      expect(newerLatest.versions).toEqual([]);
+
+      const previewUpdate = await expectBody<PreviewBody>(
+        postRaw(appB, 'mode=preview', bodyBuffer(newerLatest)),
+        200,
+      );
+      expect(previewUpdate).toMatchObject({
+        match: { id: importedB.id },
+        versionScope: 'latest',
+        newVersions: 0,
+        localOnlyVersions: 2,
+        contentDiffers: true,
+      });
+      const updated = await expectBody<ImportedDocument>(
+        postRaw(
+          appB,
+          `mode=update&targetId=${importedB.id}&baseRevision=${fullOnB.revision}`,
+          bodyBuffer(newerLatest),
+        ),
+        200,
+      );
+      expect(updated.content).toEqual(newerContent);
+      const afterUpdate = await loadVersions(appB, importedB.id);
+      expect(afterUpdate).toHaveLength(beforeUpdate.length + 1);
+      expect(afterUpdate.slice(0, beforeUpdate.length)).toEqual(beforeUpdate);
+      const importRecord = afterUpdate[afterUpdate.length - 1];
+      expect(importRecord).toMatchObject({
+        source: 'import',
+        content: newerContent,
+        baseContent: documentContent('A 端最新正文'),
+      });
+
+      // 正文相同的最新稿包更新导入：不新增任何版本。
+      const { package: sameLatest } = await exportPackage(
+        appB,
+        importedB.id,
+        '?versions=none',
+      );
+      const sameState = await loadState(appB, importedB.id);
+      await postRaw(
+        appB,
+        `mode=update&targetId=${importedB.id}&baseRevision=${sameState.document.revision}`,
+        bodyBuffer(sameLatest),
+      ).expect(200);
+      expect(await loadVersions(appB, importedB.id)).toHaveLength(
+        afterUpdate.length,
+      );
+    } finally {
+      await appA?.app.close();
+      await appB?.app.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('版本号冲突续编，活动/回收站 uid 都占用，并可另存为副本', async () => {

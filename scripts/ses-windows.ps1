@@ -274,10 +274,13 @@ function Invoke-SesMain([string]$Mode) {
             Invoke-SesCommand $script:SesNode @((Join-Path $script:SesRoot 'scripts/backup-db.cjs'))
             $savedPort = $env:PORT
             $savedHost = $env:SES_LISTEN_HOST
+            $savedLauncher = $env:SES_LAUNCHER
             $env:PORT = '3000'
             $env:SES_LISTEN_HOST = '127.0.0.1'
+            # The server only offers in-app upgrade/exit when it was started by this launcher.
+            $env:SES_LAUNCHER = 'windows'
             try { Start-SesService 'server' (Join-Path $script:SesRoot 'packages/server/dist/main.js') @() 'http://127.0.0.1:3000/api/documents' }
-            finally { $env:PORT = $savedPort; $env:SES_LISTEN_HOST = $savedHost }
+            finally { $env:PORT = $savedPort; $env:SES_LISTEN_HOST = $savedHost; $env:SES_LAUNCHER = $savedLauncher }
         }
         if (!(Get-SesListeners 5173).Count) {
             $vite = Join-Path $script:SesRoot 'packages/client/node_modules/vite/bin/vite.js'

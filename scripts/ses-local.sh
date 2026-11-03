@@ -124,7 +124,7 @@ JS
     server_job="$LABEL.server"
     launchctl remove "$server_job" 2>/dev/null || true
     launchctl submit -l "$server_job" -o "$RUN/server.log" -e "$RUN/server.log" -- \
-      /usr/bin/env "PATH=$PATH" /bin/bash -c 'cd "$1" && exec env PORT=3000 SES_LISTEN_HOST=127.0.0.1 "$2" dist/main.js' \
+      /usr/bin/env "PATH=$PATH" /bin/bash -c 'cd "$1" && exec env PORT=3000 SES_LISTEN_HOST=127.0.0.1 SES_LAUNCHER=macos "$2" dist/main.js' \
       ses-server "$ROOT/packages/server" "$(command -v node)"
     wait_ready "$server_job" http://127.0.0.1:3000/api/documents "$RUN/server.log"
   fi

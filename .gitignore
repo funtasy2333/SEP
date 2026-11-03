@@ -32,5 +32,8 @@ __pycache__/
 .ses-tools/
 release/
 
+# Upgrade executor work area (staging, rollback, db backup, lock)
+.ses-update/
+
 # Local Gitee sync workflow
 /.github/workflows/sync-to-gitee.yml
