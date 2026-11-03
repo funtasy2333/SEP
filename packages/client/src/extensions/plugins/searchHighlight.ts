@@ -27,11 +27,16 @@ type SearchMeta =
 
 export const searchHighlightKey = new PluginKey<SearchState>('sesSearchHighlight')
 
-/** 行内原子节点（脚注引用、行内公式、行内图等）在拼接文字里占一个不可匹配的位置，避免把两侧文字误连成一次命中。 */
-const LEAF_PLACEHOLDER = '￼'
+/**
+ * 不可匹配的占位字符：行内叶子节点（脚注引用、行内公式、行内图、文献外链等）占一个位置；
+ * 行内容器（结构化参考文献 bibStructured、字段 bibField）的起止各占一个位置，
+ * 使命中不会把叶子两侧或相邻字段的文字拼在一起。
+ */
+const BOUNDARY = '\uFFFC'
 
 /**
- * 在每个文本块内查找 query，匹配可以跨越不同标记（粗体、上下标等）分隔的文本节点，不跨段落。
+ * 在每个文本块内查找 query，匹配可以跨越不同标记（粗体、上下标等）分隔的文本节点，不跨段落、不跨行内容器边界。
+ * 行内容器（非叶子的行内节点）递归收集其中的文字，位置按文档实际偏移计算。
  * 返回按文档顺序排列、互不重叠的命中区间。
  */
 export function findTextMatches(doc: PMNode, query: string): SearchMatch[] {
@@ -41,21 +46,30 @@ export function findTextMatches(doc: PMNode, query: string): SearchMatch[] {
     if (!node.isTextblock) return true
     let text = ''
     const offsets: number[] = []
-    node.forEach((child, offset) => {
-      const start = pos + 1 + offset
-      if (child.isText) {
-        const value = child.text ?? ''
-        for (let index = 0; index < value.length; index += 1) offsets.push(start + index)
-        text += value
-      } else {
-        offsets.push(start)
-        text += LEAF_PLACEHOLDER
-      }
-    })
+    const collect = (parent: PMNode, contentStart: number) => {
+      parent.forEach((child, offset) => {
+        const start = contentStart + offset
+        if (child.isText) {
+          const value = child.text ?? ''
+          for (let index = 0; index < value.length; index += 1) offsets.push(start + index)
+          text += value
+        } else if (child.isLeaf) {
+          offsets.push(start)
+          text += BOUNDARY
+        } else {
+          offsets.push(start)
+          text += BOUNDARY
+          collect(child, start + 1)
+          offsets.push(start + child.nodeSize - 1)
+          text += BOUNDARY
+        }
+      })
+    }
+    collect(node, pos + 1)
     let index = text.indexOf(query)
     while (index !== -1) {
       const last = index + query.length - 1
-      matches.push({ from: offsets[index], to: offsets[last] + 1 })
+      matches.push({ from: offsets[index]!, to: offsets[last]! + 1 })
       index = text.indexOf(query, index + query.length)
     }
     return false

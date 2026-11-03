@@ -45,6 +45,45 @@ describe('findTextMatches', () => {
   })
 })
 
+describe('findTextMatches：行内容器（结构化参考文献）', () => {
+  const bibDoc = () => ({
+    type: 'doc', content: [
+      chapter('c1', '范围', 'scope', paragraph('p1', text('正文。'))),
+      { type: 'bibliography', content: [
+        { type: 'bibliographyTitle' },
+        { type: 'bibEntry', attrs: { nodeId: 'bib-1' }, content: [
+          { type: 'bibStructured', content: [
+            { type: 'bibField', attrs: { nodeId: 'f-author', name: 'author' }, content: [text('张三')] },
+            { type: 'bibField', attrs: { nodeId: 'f-title', name: 'title' }, content: [text('全氟化合物'), text('检测', [{ type: 'bold' }]), text('方法研究')] },
+            { type: 'bibExternalLink', attrs: { href: 'https://example.org/bib', displayText: '在线来源' } },
+          ] },
+        ] },
+      ] },
+    ],
+  })
+
+  it('能查到 bibField 内的文字（含跨标记），命中区间对应正确的文档位置', () => {
+    const editor = createEditor(bibDoc())
+    for (const query of ['张三', '全氟化合物检测方法']) {
+      const matches = findTextMatches(editor.state.doc, query)
+      expect(matches, query).toHaveLength(1)
+      expect(editor.state.doc.textBetween(matches[0]!.from, matches[0]!.to)).toBe(query)
+    }
+  })
+
+  it('不跨越相邻字段的边界拼出命中', () => {
+    const editor = createEditor(bibDoc())
+    expect(findTextMatches(editor.state.doc, '张三全氟')).toEqual([])
+  })
+
+  it('高亮渲染在字段文字上', () => {
+    const editor = createEditor(bibDoc())
+    stepSearch(editor.view, '检测方法')
+    const current = [...editor.view.dom.querySelectorAll(`.${SEARCH_CURRENT_CLASS}`)].map((element) => element.textContent).join('')
+    expect(current).toBe('检测方法')
+  })
+})
+
 describe('stepSearch (#76)', () => {
   it('steps forward through matches with wrap-around and never changes the document or selection', () => {
     const editor = createEditor(riskDoc())
