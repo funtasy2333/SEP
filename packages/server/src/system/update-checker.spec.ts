@@ -249,14 +249,14 @@ describe('GET /api/system/update/check', () => {
     });
 
     describe('当前提交未知：按 x.y.z 比较', () => {
-      const run = async (version: string | undefined) => {
+      const run = async (version: string | undefined, latest = '0.1.2') => {
         t = await createSystemTestApp(
           version === undefined
             ? {}
             : { build: { version, channel: null, commit: null } },
         );
-        t.github.releases = [release('0.1.2')];
-        seedCommits(t.github);
+        t.github.releases = [release(latest)];
+        seedCommits(t.github, `v${latest}-preview`);
         return check('stable');
       };
 
@@ -268,8 +268,8 @@ describe('GET /api/system/update/check', () => {
         });
       });
 
-      it('没有 ses-build.json：用服务端版本号（0.1.1 < 0.1.2）', async () => {
-        const result = await run(undefined);
+      it('没有 ses-build.json：用服务端版本号与更新的发布版本比较', async () => {
+        const result = await run(undefined, '999.0.0');
         expect(result.current).toEqual({
           version: SES_SERVER_VERSION,
           commit: null,
