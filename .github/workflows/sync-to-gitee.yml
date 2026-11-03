@@ -1,0 +1,27 @@
+name: Sync to Gitee
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    if: github.repository == 'funtasy2333/SEP'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to Gitee
+        env:
+          GITEE_USERNAME: ${{ secrets.GITEE_USERNAME }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          git remote add gitee "https://${GITEE_USERNAME}:${GITEE_TOKEN}@gitee.com/funtasy2333/standard-expert-agent.git"
+          git push --force gitee main

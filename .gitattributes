@@ -1,0 +1,2 @@
+# Keep the upstream sync workflow out of source archives.
+.github/workflows/sync-to-gitee.yml export-ignore
