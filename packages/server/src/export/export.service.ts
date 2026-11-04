@@ -342,14 +342,14 @@ export class ExportService {
   }
 
   /**
-   * 按文档 id 导出 PDF，与编辑器 handleExportFormat('pdf') 等价：
-   * 同步封面元数据 → 校验生产 schema → 导出前检查 → buildPdfExportRequest（print HTML + 目次目标，meta 取
-   * irMetaFromDocumentMeta(文档库 meta)）→ 现有 IR→HTML→PDF 两遍构建管线。
+   * 按文档 id 导出 PDF（编辑器「导出 PDF」调用的就是这个接口，先保存再导出）：
+   * 同步封面元数据 → 校验生产 schema → 导出前检查 → 屏蔽外部图片 → buildPdfExportRequest（print HTML + 目次目标，
+   * meta 取 irMetaFromDocumentMeta(文档库 meta)）→ IR→HTML→PDF 两遍构建管线。
    *
    * 校验顺序：404 → 422（内容为空、不符合生产 schema、导出前检查）→ 503（管线缺依赖，响应体列出缺少的依赖）→ 生成（失败 500）。
-   * 管线本身与 POST /api/convert/html-to-pdf 相同，不另设并发限制。
-   * 与 DOCX 一致，服务端不抓取外部图片（见 external-images.ts）：这是与编辑器路径唯一的有意差异，
-   * 只在文档含非 data URL 图片时出现；其余文档交给管线的 html、toc、docTitle 与编辑器路径逐字相同。
+   * 管线不另设并发限制。
+   * 与 DOCX 一致，服务端不抓取外部图片（见 external-images.ts）：非 data URL 的图片留空并返回告警。
+   * 这是 PDF 唯一的出口：不再有接受任意 HTML 的转换接口，渲染用的无头浏览器只会看到本方法构建的 HTML。
    */
   async exportPdf(id: number): Promise<PdfExportResult> {
     const { meta, pmDoc, filenameBase } = await this.prepareForExport(

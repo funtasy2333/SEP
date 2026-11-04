@@ -3,6 +3,7 @@ import type { DOMOutputSpec } from '@tiptap/pm/model'
 import { normalizePageOrientation, readPageOrientation } from '../../utils/orientation'
 import { jsonAttribute } from './json-attribute'
 import { graphicAttributeProblem } from '@ses/shared'
+import { guardImageAttributes, readImageSrc, readImageTitle } from '../../utils/imageSource'
 
 function stringAttribute(name: string, defaultValue: string | null = null) {
   return { default: defaultValue, parseHTML: (element: HTMLElement) => element.getAttribute(name) ?? defaultValue }
@@ -113,7 +114,8 @@ export const FigureImage = Node.create({
 
   addAttributes() {
     return {
-      src: stringAttribute('src', ''),
+      // 外部图片在编辑器里显示占位图，真实地址在 data-external-src（见 utils/imageSource.ts）：解析时以它为准。
+      src: { default: '', parseHTML: (element: HTMLElement) => readImageSrc(element, '') },
       alt: stringAttribute('alt', ''),
       width: { default: null },
       height: { default: null },
@@ -122,7 +124,7 @@ export const FigureImage = Node.create({
       /** Dimensions default to CSS pixels for legacy width/height attrs. */
       widthUnit: stringAttribute('widthUnit'),
       heightUnit: stringAttribute('heightUnit'),
-      title: stringAttribute('title'),
+      title: { default: null, parseHTML: (element: HTMLElement) => readImageTitle(element) },
     }
   },
 
@@ -134,7 +136,7 @@ export const FigureImage = Node.create({
   renderHTML({ HTMLAttributes }): DOMOutputSpec {
     return [
       'img',
-      mergeAttributes(HTMLAttributes, {
+      mergeAttributes(guardImageAttributes(HTMLAttributes), {
         'data-type': 'figure-image',
         class: 'std-figure-image',
       }),

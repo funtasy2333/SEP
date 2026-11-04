@@ -7,7 +7,7 @@ import {
   SES_PACKAGE_MIME,
 } from './ses-package/ses-package-format';
 
-/** JSON 请求体上限：IR→HTML→PDF 端点接收完整 print HTML，可能远超默认的 100kb。 */
+/** JSON 请求体上限：文档正文内嵌 data URL 图片，保存文档的请求可能远超默认的 100kb。 */
 export const JSON_BODY_LIMIT = '25mb';
 
 /**
