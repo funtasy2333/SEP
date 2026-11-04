@@ -286,7 +286,9 @@ export function renderCover(ctx: RenderContext, meta: IRDocMeta, stage: Document
 
   // 正文首页名称会为缺失的 meta.title 记录 cover-field-missing；封面保留空段但不重复告警。
   xml += frameText(ctx, 'SesCoverName', wrapTitleAtSeparator(meta.title ?? '', 18), FRAME_TITLE_FLOW)
-  if (meta.titleEn && ['gb', 'guide', 'industry', 'group'].includes(meta.standardType)) {
+  // GB/T 1.1 8.1 只强制国家标准、行业标准标英文译名；地方标准不强制，但用户填写了英文名称时照常输出，
+  // 与编辑器封面预览一致，避免导出时静默丢失。企业标准模板不含英文译名，保持不输出。
+  if (meta.titleEn && ['gb', 'guide', 'industry', 'local', 'group'].includes(meta.standardType)) {
     xml += frameText(ctx, 'SesCoverEnglish', meta.titleEn, FRAME_TITLE_FLOW)
   }
   if (meta.consistency) xml += frameText(ctx, 'SesCoverConsistency', meta.consistency, FRAME_TITLE_FLOW)

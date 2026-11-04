@@ -161,7 +161,7 @@ const TYPE_CASES = [
     designationStyle: 'SesCoverDesignationOther',
     designation: '浙江省地方标准',
     designationFrame: [25, 40.12, 170],
-    english: false,
+    english: true,
   },
   {
     standardType: 'group',
