@@ -14,7 +14,10 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    # 固定 24.04：XML 外部校验脚本（scripts/xml46687/sts_compat.py）按 libxml2 2.9.x 的 xmllint 输出格式解析 DTD 报错，
+    # ubuntu-latest 已是 26.04（libxml2 2.15），其 xmllint 的报错输出无法被脚本识别，脚本按设计判为“引擎失败”。
+    # 适配新版 xmllint 前不要改成 ubuntu-latest。
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
