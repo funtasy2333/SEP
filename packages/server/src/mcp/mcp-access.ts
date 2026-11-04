@@ -6,6 +6,15 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import {
+  isAllowedHost,
+  LOCAL_HOSTNAME,
+  LOOPBACK_IPV4,
+  matchesLocalAuthority,
+} from '../common/allowed-host';
+
+// 判断 Host 的纯函数在 common/allowed-host.ts（全局 Host 检查也用它）；这里转出，保持原有导入路径可用。
+export { isAllowedHost };
 
 /**
  * MCP 端点的访问控制（本地部署没有鉴权，改为只接受本机连接；浏览器发来的请求还必须来自本机页面）。三条都必须满足：
@@ -21,27 +30,12 @@ import type { Request } from 'express';
  * `127.0.0.1.nip.io` 必须被拒绝）。
  */
 
-const IPV4_OCTET = '(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)';
-/** 127.0.0.0/8；每段是不带前导零的 0~255。 */
-const LOOPBACK_IPV4 = new RegExp(`^127(?:\\.${IPV4_OCTET}){3}$`);
 const IPV4_MAPPED_PREFIX = '::ffff:';
 
-const LOCAL_HOSTNAME = '(?:localhost|127\\.0\\.0\\.1|\\[::1\\])';
-/** 主机名（大小写不敏感）加可选端口。端口范围另行检查。 */
-const HOST_PATTERN = new RegExp(`^${LOCAL_HOSTNAME}(?::(\\d{1,5}))?$`, 'i');
 const ORIGIN_PATTERN = new RegExp(
   `^http://${LOCAL_HOSTNAME}(?::(\\d{1,5}))?$`,
   'i',
 );
-
-const MAX_PORT = 65535;
-
-function matchesLocalAuthority(value: string, pattern: RegExp): boolean {
-  const match = pattern.exec(value);
-  if (!match) return false;
-  const port = match[1];
-  return port === undefined || Number(port) <= MAX_PORT;
-}
 
 /**
  * 套接字的对端地址是否为回环地址：127.0.0.0/8、`::1`，或 IPv4 映射形式（`::ffff:127.x.x.x`，
@@ -55,11 +49,6 @@ export function isLoopbackAddress(address: string | undefined): boolean {
     ? lower.slice(IPV4_MAPPED_PREFIX.length)
     : lower;
   return LOOPBACK_IPV4.test(ipv4);
-}
-
-/** Host 头是否为 localhost、127.0.0.1 或 [::1]（端口任意，主机名大小写不敏感）。缺失视为不合法。 */
-export function isAllowedHost(host: string | undefined): boolean {
-  return host !== undefined && matchesLocalAuthority(host, HOST_PATTERN);
 }
 
 /**
