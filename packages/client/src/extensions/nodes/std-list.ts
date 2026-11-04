@@ -5,6 +5,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { listOrdinalLabel, listTypeLabel, pmListTypeKey } from '@ses/shared'
 import { formatStdList } from '../../utils/textBlockFormat'
 import { computeEditorListNumbering, setListNumbering, type ListNumberingMode } from '../../utils/listNumbering'
+import { visibleBlockRange } from '../../utils/selectionRange'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -143,8 +144,9 @@ export const StdList = Node.create({
           // （不论空光标还是选区：条标题、章标题、术语名、表格单元格…）都失败，文档与选区保持原样：
           // 在那里插入会拆开 defining 的条/章/术语条目，把后半截文字移进新生成的节点。
           if (failure !== 'nothing-to-convert') return false
+          // 与 formatStdList 相同的可见范围：选中空段落、终点落在下一段开头时，列表替换的是这个空段落，下一段不动。
           return chain()
-            .insertContent({
+            .insertContentAt(visibleBlockRange(state.doc, state.selection.from, state.selection.to), {
               type: 'stdList',
               attrs: {
                 listType: attrs?.listType || 'dash',

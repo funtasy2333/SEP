@@ -163,3 +163,71 @@ describe('Ctrl/Cmd+Shift+V：始终按纯文本粘贴', () => {
     expect(clauseBlocks(e)[2]).toBe('stdParagraph「目标段面积为 1 m2，加粗目标段」')
   })
 })
+
+describe('复制整条列项：选区终点落在下一项开头时，粘贴不多出空白列项', () => {
+  const listDoc = (): JSONContent => ({ type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'ch' }, content: [
+    { type: 'chapterTitle', content: [text('要求')] },
+    { type: 'clause', attrs: { nodeId: 'c1', level: 1 }, content: [
+      { type: 'clauseTitle', attrs: { level: 1 }, content: [text('甲')] },
+      { type: 'stdList', attrs: { nodeId: 'list', listType: 'dash', level: 1 }, content: [
+        { type: 'stdListItem', attrs: { nodeId: 'i1' }, content: [text('第一项')] },
+        { type: 'stdListItem', attrs: { nodeId: 'i2' }, content: [text('第二项')] },
+      ] },
+      p('after', text('后文')),
+      p('blank'),
+    ] },
+  ] }] })
+  const listEditor = () => {
+    const e = new Editor({ extensions: createEditorExtensions(), content: listDoc() })
+    editors.push(e)
+    return e
+  }
+  /** 浏览器拖选整行：起点在第一项开头，终点落在第二项开头（偏移 0），按真实复制流程（当前选区）生成剪贴板。 */
+  const copyWholeFirstItem = (e: Editor) => {
+    const start = textPos(e, '第一项'), end = textPos(e, '第二项')
+    e.view.dispatch(e.state.tr.setSelection(TextSelection.create(e.state.doc, start, end)))
+    const { dom, text: plain } = e.view.serializeForClipboard(e.state.selection.content())
+    return { html: dom.innerHTML, text: plain }
+  }
+  const items = (e: Editor) => {
+    const texts: string[] = []
+    e.state.doc.descendants(node => { if (node.type.name === 'stdListItem') texts.push(node.textContent) })
+    return texts
+  }
+
+  it('复现：回车新建空列项后粘贴，只得到复制的那一项', () => {
+    const e = listEditor()
+    const clip = copyWholeFirstItem(e)
+    expect(clip.text).toBe('第一项')
+    placeCursor(e, '第二项', 'end')
+    e.commands.enter()
+    paste(e, clip)
+    expect(items(e)).toEqual(['第一项', '第二项', '第一项'])
+  })
+
+  it('粘贴到列项末尾：文字接在光标处，不新增空白列项', () => {
+    const e = listEditor()
+    const clip = copyWholeFirstItem(e)
+    placeCursor(e, '第二项', 'end')
+    paste(e, clip)
+    expect(items(e)).toEqual(['第一项', '第二项第一项'])
+  })
+
+  it('粘贴到空正文段：仍作为列项粘贴（保留列项结构）', () => {
+    const e = listEditor()
+    const clip = copyWholeFirstItem(e)
+    let blank = -1
+    e.state.doc.descendants((node, pos) => { if (node.attrs.nodeId === 'blank') blank = pos + 1 })
+    e.view.dispatch(e.state.tr.setSelection(TextSelection.create(e.state.doc, blank)))
+    paste(e, clip)
+    expect(items(e)).toEqual(['第一项', '第二项', '第一项'])
+    expect(clauseBlocks(e)).toEqual(['clauseTitle「甲」', 'stdList', 'stdParagraph「后文」', 'stdList'])
+  })
+
+  it('剪切同一选区：整条第一项被移除，第二项保留', () => {
+    const e = listEditor()
+    copyWholeFirstItem(e)
+    e.commands.deleteSelection()
+    expect(items(e)).toEqual(['第二项'])
+  })
+})
