@@ -45,11 +45,20 @@ export interface SesExportWarning {
 /** 导出 .ses 的版本范围：all = 含全部历史快照；latest = 仅最新稿。 */
 export type SesVersionScope = 'all' | 'latest'
 
-export interface SesPackageExport {
-  blob: Blob
+/** 导出响应的告警信息（X-SES-Export-Warning* 响应头）：总数、明细（可能被截断）与是否截断。 */
+export interface ExportWarningInfo {
   warningCount: number
   warnings: SesExportWarning[]
   warningsTruncated: boolean
+}
+
+export interface SesPackageExport extends ExportWarningInfo {
+  blob: Blob
+}
+
+/** 服务端按文档 id 导出的 PDF。 */
+export interface PdfExport extends ExportWarningInfo {
+  blob: Blob
 }
 
 export interface SesImportPreview {
@@ -90,7 +99,16 @@ function parseExportWarnings(raw: string | undefined): SesExportWarning[] {
   }
 }
 
-async function readableExportError(error: unknown): Promise<Error> {
+function exportWarningInfo(headers: unknown): ExportWarningInfo {
+  const rawCount = Number(headerValue(headers, 'X-SES-Export-Warning-Count'))
+  return {
+    warningCount: Number.isSafeInteger(rawCount) && rawCount >= 0 ? rawCount : 0,
+    warnings: parseExportWarnings(headerValue(headers, 'X-SES-Export-Warnings')),
+    warningsTruncated: headerValue(headers, 'X-SES-Export-Warnings-Truncated')?.toLowerCase() === 'true',
+  }
+}
+
+async function readableExportError(error: unknown, fallback = 'SES 文档包导出失败'): Promise<Error> {
   const response = typeof error === 'object' && error !== null
     ? (error as { response?: { data?: unknown } }).response
     : undefined
@@ -105,7 +123,7 @@ async function readableExportError(error: unknown): Promise<Error> {
     }
   }
   const message = readableMessage(data)
-    ?? (error instanceof Error && error.message ? error.message : 'SES 文档包导出失败')
+    ?? (error instanceof Error && error.message ? error.message : fallback)
   return new Error(message)
 }
 
@@ -163,15 +181,21 @@ export const documentApi = {
         responseType: 'blob',
         ...(scope === 'latest' ? { params: { versions: 'none' } } : {}),
       })
-      const rawCount = Number(headerValue(headers, 'X-SES-Export-Warning-Count'))
-      return {
-        blob: data,
-        warningCount: Number.isSafeInteger(rawCount) && rawCount >= 0 ? rawCount : 0,
-        warnings: parseExportWarnings(headerValue(headers, 'X-SES-Export-Warnings')),
-        warningsTruncated: headerValue(headers, 'X-SES-Export-Warnings-Truncated')?.toLowerCase() === 'true',
-      }
+      return { blob: data, ...exportWarningInfo(headers) }
     } catch (error) {
       throw await readableExportError(error)
+    }
+  },
+  /**
+   * 服务端按文档 id 导出 PDF（库中已保存的内容，调用前需先保存）。服务端不访问网络资源，
+   * 非内嵌图片留空并记入告警头。422（导出前检查未通过）、503（缺依赖）、500 的消息从响应体读出。
+   */
+  async exportPdf(id: number): Promise<PdfExport> {
+    try {
+      const { data, headers } = await api.get<Blob>(`/documents/${id}/export/pdf`, { responseType: 'blob' })
+      return { blob: data, ...exportWarningInfo(headers) }
+    } catch (error) {
+      throw await readableExportError(error, 'PDF 导出失败')
     }
   },
   async previewSesImport(file: SesImportFile): Promise<SesImportPreview> {

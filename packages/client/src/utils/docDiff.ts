@@ -287,6 +287,12 @@ function nodeToText(
         for (const c of content) {
           if ((c.type as string) === 'stdListItem') {
             lines.push(`${indent}— ${extractText(c)}`)
+          } else if ((c.type as string) === 'stdListBlockItem') {
+            // 块级列项：第一段与普通列项同样以“— ”开头，其后的段落与嵌套列表缩进一级。
+            // 不输出的话，块级列项里的文字在版本对比和版本预览中完全看不到，改动也看不出来。
+            const [first, ...rest] = (c.content as Array<Record<string, unknown>> | undefined) ?? []
+            lines.push(`${indent}— ${first ? extractText(first) : ''}`)
+            for (const child of rest) listItemChildToText(child, lines, depth + 1, ctx)
           }
         }
       }
@@ -301,6 +307,33 @@ function nodeToText(
       break
     }
   }
+}
+
+/**
+ * 块级列项 / 列表项内部的子节点：段落与嵌套 stdList 走 nodeToText；
+ * bulletList / orderedList 按层级逐项输出（nodeToText 的默认分支会把整个列表拼成一行再重复输出子项）。
+ */
+function listItemChildToText(
+  node: Record<string, unknown>,
+  lines: string[],
+  depth: number,
+  ctx: NumberingContext,
+) {
+  const type = node.type as string
+  if (type !== 'bulletList' && type !== 'orderedList') {
+    nodeToText(node, lines, depth, ctx)
+    return
+  }
+  const indent = '  '.repeat(depth)
+  const rawStart = Number((node.attrs as Record<string, unknown> | undefined)?.start)
+  const start = Number.isInteger(rawStart) ? rawStart : 1
+  const items = (node.content as Array<Record<string, unknown>> | undefined) ?? []
+  items.forEach((item, index) => {
+    const [first, ...rest] = (item.content as Array<Record<string, unknown>> | undefined) ?? []
+    const marker = type === 'orderedList' ? `${start + index}. ` : '• '
+    lines.push(`${indent}${marker}${first ? extractText(first) : ''}`)
+    for (const child of rest) listItemChildToText(child, lines, depth + 1, ctx)
+  })
 }
 
 /** 从 content 数组中提取指定类型节点的文本 */

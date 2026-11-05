@@ -157,8 +157,12 @@ describe('WP8.3 图像关系保存', () => {
         { type: 'tableCaption' }, { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }] },
       ] },
     ] }] } })
-    expect(editor.view.dom.querySelector('[data-graphic-id="g"]')?.getAttribute('src')).toBe('extra.png')
-    expect(editor.view.dom.querySelector('[data-graphic-id="alt"]')?.getAttribute('src')).toBe('alt.png')
+    // 相对路径属于外部图片：编辑器默认不加载，显示占位图，真实地址在 data-external-src（点击才加载，见 externalImages.test.ts）。
+    for (const [graphicId, address] of [['g', 'extra.png'], ['alt', 'alt.png']] as const) {
+      const preview = editor.view.dom.querySelector(`[data-graphic-id="${graphicId}"]`)
+      expect(preview?.getAttribute('data-external-src')).toBe(address)
+      expect(preview?.getAttribute('src')).toMatch(/^data:image\/svg\+xml/)
+    }
     editor.destroy()
   })
 

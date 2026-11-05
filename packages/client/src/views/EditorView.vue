@@ -667,7 +667,7 @@ import {
   serializeToXml, parseXmlToEditorJson,
   prepareXmlImportDocumentUpdate,
   exportSemanticJson, exportSemanticHtml,
-  buildPdfExportRequest, buildDocxBlob,
+  buildDocxBlob,
 } from '@/serializer'
 import { irMetaFromDocumentMeta, pmToIr, resolve, type DocumentMeta, type IRDocMeta, type PMJsonNode } from '@ses/shared'
 import { checkExportGuard, getFootnoteExportError } from '@ses/io'
@@ -2544,24 +2544,46 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
   }
 
   if (format === 'pdf') {
-    exportingFormat.value = format
+    // PDF 由服务端按文档 id 导出库中已保存的内容（不再把浏览器生成的 HTML 交给服务端渲染），
+    // 所以与 SES 一样：正文有未保存修改时先保存，再导出。
+    const requestedDocumentId = documentId.value
+    const initialDocument = store.currentDocument
+    if (!initialDocument?.id || initialDocument.id !== requestedDocumentId || documentUnavailable.value) return
+
+    exportingFormat.value = 'pdf'
     clearExportError()
-    // IR→HTML→服务端两遍构建（GB/T 1.1 版式，KaTeX 预渲染 + 目次页码注入）
     try {
-      const req = buildPdfExportRequest(doc, meta)
-      const resp = await fetch('/api/convert/html-to-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(req),
-      })
-      if (!resp.ok) {
-        const errText = await resp.text().catch(() => resp.statusText)
-        throw new Error(`服务器转换失败 (${resp.status}): ${errText}`)
+      if (dirty.value) {
+        const saved = await handleSave()
+        if (!saved) return
       }
-      const pdfBlob = await resp.blob()
-      downloadBlob(pdfBlob, `${docTitle}.pdf`)
-      ElMessage.success('PDF 文件已导出')
+      await waitForLocalWrites()
+
+      const currentDocument = store.currentDocument
+      if (
+        documentId.value !== requestedDocumentId
+        || currentDocument?.id !== requestedDocumentId
+        || documentUnavailable.value
+        || saveConflict.value
+      ) return
+      if (dirty.value) {
+        ElMessage.warning('正文仍有未保存修改，请保存后再导出')
+        return
+      }
+      if (settingsDirty.value) {
+        ElMessage.warning('文件设置有未保存修改，请先保存或重置')
+        activeTab.value = 'settings'
+        return
+      }
+
+      const result = await documentApi.exportPdf(requestedDocumentId)
+      downloadBlob(result.blob, `${docTitle}.pdf`)
       showExport.value = false
+      if (result.warningCount > 0) {
+        ElMessage.warning(`PDF 已导出；${result.warningCount} 张外部图片未嵌入（服务端导出不访问网络资源）`)
+      } else {
+        ElMessage.success('PDF 文件已导出')
+      }
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
       setExportError(exportErrorViewOfText(`PDF 导出失败：${detail}`))

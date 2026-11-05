@@ -84,7 +84,7 @@ Claude Code 对 MCP 工具默认逐次询问是否允许。`export_document` 可
 
 因此不能通过 `http://<本机局域网地址>:3000/mcp` 或域名反向代理访问。没有登录鉴权意味着**本机上任何进程都能调用这些工具**，请只在自己的机器上使用。
 
-注意：访问守卫只限制 `/mcp`。REST 接口（`/api/...`，包括 `downloadUrl` 指向的下载地址）没有鉴权，防护只有第一层（默认只监听 127.0.0.1）；改了 `SES_LISTEN_HOST` 就不要把服务端暴露在不可信的网络里。
+注意：上面三条访问守卫只限制 `/mcp`。REST 接口（`/api/...`，包括 `downloadUrl` 指向的下载地址）也检查 `Host` 头（同样只接受 `localhost`、`127.0.0.1`、`[::1]`，另可用 `SES_ALLOWED_HOSTS` 追加，见 [ENVIRONMENT.md](../ENVIRONMENT.md)），用来防 DNS 重绑定，但没有鉴权；改了 `SES_LISTEN_HOST` 就不要把服务端暴露在不可信的网络里。
 
 ### 4.2 `outputPath`：把文件写到本机的允许目录
 
