@@ -11,6 +11,7 @@ import { isContinuableListType } from './listNumbering'
 import { hasSemanticExtensions } from './extensions'
 import { unsupportedFootnoteAtomMarks, unsupportedFootnoteContent, unsupportedSharedFootnoteContent } from './footnotePayload'
 import { graphicAttributeProblem } from './graphicAttributes'
+import { legacyBibliographyPrefixLength } from './bibliography'
 import type {
   IRAdoption,
   IRAppendix,
@@ -1548,7 +1549,19 @@ function convertBibliography(node: PMJsonNode, ctx: Ctx): IRBibEntry[] {
       ctx.unknown(child.type, '参考文献', child)
       continue
     }
-    const entryInlineContent = child.content?.filter((item) => item.type !== 'bibStructured') ?? []
+    // Display numbers belong to Resolver, including entries saved by the old
+    // editor with a literal "[1] " prefix. Preserve the source JSON and marks.
+    let prefixLength = legacyBibliographyPrefixLength(child.content)
+    const entryInlineContent: PMJsonNode[] = []
+    for (const item of child.content ?? []) {
+      if (item.type === 'bibStructured') continue
+      if (prefixLength > 0 && item.type === 'text') {
+        const removed = Math.min(prefixLength, item.text?.length ?? 0)
+        prefixLength -= removed
+        const text = item.text?.slice(removed)
+        if (text) entryInlineContent.push({ ...item, text })
+      } else entryInlineContent.push(item)
+    }
     const entry: IRBibEntry = { kind: 'bibEntry', id: ctx.id(child), content: convertInlines(entryInlineContent, ctx) }
     if (typeof child.attrs?.entryType === 'string') entry.entryType = child.attrs.entryType
     const structuredNodes = child.content?.filter((item) => item.type === 'bibStructured') ?? []

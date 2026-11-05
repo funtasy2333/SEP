@@ -410,7 +410,8 @@ exports[`renderHtml — 全要素 fixture > print 变体快照 1`] = `
   margin: 12pt auto 0;
   border-top: 1.5pt solid #000;
   break-before: avoid;
-}</style>
+}
+.ses-formula-inline .katex { font-size: 1em; }</style>
 </head>
 <body>
 <article class="ses-standard" data-type="standard-doc" data-standard-no="GB/T 12345—2026" data-ics="35.240" data-ccs="L 70" data-title-cn="标准化文件编辑系统" data-title-en="Standardization document editing system" data-standard-type="gb">
@@ -707,7 +708,7 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
     .ses-bib-title { font-family: "SimHei", "黑体", sans-serif; text-align: center; font-size: 17px; margin: 20px 0 12px; }
     .ses-bib-entry { padding-left: 2em; text-indent: -2em; margin: 4px 0; }
     .ses-xref { color: #0066cc; }
-  </style>
+.ses-formula-inline .katex { font-size: 1em; }</style>
 </head>
 <body>
 <article class="ses-standard" data-type="standard-doc" data-standard-no="GB/T 12345—2026" data-ics="35.240" data-ccs="L 70" data-title-cn="标准化文件编辑系统" data-title-en="Standardization document editing system" data-standard-type="gb">

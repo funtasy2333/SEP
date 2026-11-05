@@ -720,6 +720,11 @@
   border-radius: 2px;
 }
 
+/* KaTeX defaults to 1.21em; inline symbols follow the surrounding text size. */
+.std-formula-inline .katex {
+  font-size: 1em;
+}
+
 .std-formula-inline:hover,
 .std-formula-inline.ProseMirror-selectednode {
   background: #e8f0fe;
@@ -1150,6 +1155,10 @@
 }
 .tiptap [data-resolved-label].std-example::before {
   content: attr(data-resolved-label);
+}
+
+.tiptap [data-resolved-label].std-bib-entry::before {
+  content: attr(data-resolved-label) '\2003';
 }
 
 .tiptap .std-chapter-title[data-resolved-label] > .std-chapter-number::before {

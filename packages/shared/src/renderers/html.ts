@@ -953,7 +953,9 @@ export function renderHtml(doc: IRDoc, labels: Labels, opts: RenderHtmlOptions =
     const value = doc.meta[field]
     if (value) ctx.push(`<meta name="ses-${field}" content="${escapeAttr(value).replace(/\r/g, '&#13;').replace(/\n/g, '&#10;').replace(/\t/g, '&#9;')}" />`)
   }
-  ctx.push(`<style>${css}</style>`)
+  // KaTeX's stylesheet may be loaded after this one by the PDF pipeline.
+  // The scoped selector keeps inline math at the paragraph's size in either order.
+  ctx.push(`<style>${css.trimEnd()}\n.ses-formula-inline .katex { font-size: 1em; }</style>`)
   ctx.push('</head>')
   ctx.push('<body>')
   ctx.push(`<article class="ses-standard" data-type="standard-doc"${metaAttrs(doc.meta)}>`)
