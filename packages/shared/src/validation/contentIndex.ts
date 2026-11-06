@@ -1,5 +1,5 @@
 import type {
-  IRAppendix, IRBlock, IRChapter, IRClauseChild, IRDoc, IRInline, IRMark, IRTermEntry, ResolveResult,
+  IRAppendix, IRBlock, IRChapter, IRClauseChild, IRDoc, IRInline, IRList, IRMark, IRTermEntry, ResolveResult,
 } from '../ir/types'
 import { STANDARD_IDENTIFIER_FAMILY_SOURCE } from './standardIdentifier'
 
@@ -81,6 +81,7 @@ export interface IndexedSequenceItem {
   objectAncestors?: string[]
   text?: IndexedText
   objectKind?: 'figure' | 'table'
+  list?: IRList
 }
 
 export interface ContentIndex {
@@ -285,6 +286,7 @@ function visitChildren(
         const text = addInlines(index, child.content, { nodeId: child.id, path: childPath, area, role: nestedRole ?? (area === 'terms' ? 'termDefinition' : 'paragraph'), ...context })
         item.text = text
       }
+      if (child.kind === 'list') item.list = child
       addSequenceItem(index, key, item)
       if (child.kind === 'figure' || child.kind === 'table') {
         const kind = child.kind

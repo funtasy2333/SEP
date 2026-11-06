@@ -1,3 +1,4 @@
+import { ListSequence } from '../../ir/listNumbering'
 import { makeIssue } from '../issues'
 import type { ContentIndex, IndexedSequenceItem, IndexedText } from '../contentIndex'
 import type { ValidationEvidence, ValidationIssue } from '../types'
@@ -49,10 +50,25 @@ export function analyzeIntroductions(index: ContentIndex): IntroductionAnalysis 
   const issues: ValidationIssue[] = []
   const objectIntroductions = new Map<string, ObjectIntroduction>()
   for (const sequence of index.sequences.values()) {
+    const numbering = new ListSequence<string>()
     sequence.forEach((item, itemIndex) => {
       if (item.kind !== 'list' || !item.nodeId) return
       const previous = sequence[itemIndex - 1]
-      const candidate = previous?.kind === 'paragraph' ? previous.text : undefined
+      const list = item.list
+      const continued = list && numbering.next(list.listType, list.continueNumbering === true, list.items.length, item.path).continued
+      // 同一组的续编号片段沿用该组引出语，不因穿插二级列项而另报缺失。
+      if (continued) return
+      let candidate = previous?.kind === 'paragraph' ? previous.text : undefined
+      const parentList = previous?.list
+      const level = list?.level ?? (list?.listType === 'number' || list?.listType === 'dot' ? 2 : 1)
+      const parentLevel = parentList?.level ?? (parentList?.listType === 'number' || parentList?.listType === 'dot' ? 2 : 1)
+      if (parentList && level > parentLevel) {
+        // 视觉多层列项可能是兄弟列表：仅取上层最后一项的直接末段，避免借用深层文字。
+        const lastItem = parentList.items.length - 1
+        const content = index.sequences.get(`${previous.path}.items[${lastItem}].content`)
+        const tail = content?.[content.length - 1]
+        candidate = tail?.kind === 'paragraph' ? tail.text : undefined
+      }
       const candidateText = candidate?.text ?? ''
       if (isListIntroduction(candidateText)) return
       const path = item.path

@@ -30,6 +30,24 @@ describe('Phase 6: production PM → IR → manual quality acceptance', () => {
     expect(report.coverage.standardDatabase.status).toBe('deferred')
   })
 
+  it('recognizes introductions across editable flat multilevel list fragments', () => {
+    const pm = phase6Fixture()
+    const list = (nodeId: string, listType: string, value: string, continued = false): PMJsonNode => ({
+      type: 'stdList', attrs: { nodeId, listType, level: listType === 'numeric' ? 2 : 1, continueNumbering: continued },
+      content: [{ type: 'stdListItem', attrs: { nodeId: `${nodeId}-item` }, content: [text(value)] }],
+    })
+    requirement(pm).content = [requirement(pm).content![0]!,
+      paragraph('lead', text('应考虑以下因素：')),
+      list('internal', 'alpha', '内部因素，包括但不限于：'),
+      list('internal-details', 'numeric', '机构的组织架构；'),
+      list('external', 'alpha', '外部因素，包括但不限于：', true),
+      list('external-details', 'numeric', '经济形势、产业政策。'),
+    ]
+    expect(issuesFor(pm, 'list.introduction')).toEqual([])
+    requirement(pm).content![4]!.content![0]!.content = [text('外部因素')]
+    expect(issuesFor(pm, 'list.introduction').map(issue => issue.nodeId)).toEqual(['external-details'])
+  })
+
   it('reports absent introductions and appendix mention against the actual PM owner IDs', () => {
     const pm = phase6Fixture()
     requirement(pm).content = requirement(pm).content!.filter(n => !['objects-lead', 'list-lead'].includes(String(n.attrs?.nodeId)))
