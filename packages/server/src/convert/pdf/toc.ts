@@ -17,7 +17,7 @@
  * （目次文本中 U+3000 之后的部分），标题文本在 pdftotext 中通常仍连续。
  */
 
-import { BODY_START_SENTINEL } from '@ses/shared';
+import { BODY_START_SENTINEL, FRONT_START_SENTINEL } from '@ses/shared';
 
 export type TocDivision = 'front' | 'body';
 
@@ -138,6 +138,7 @@ export function computeTocPageNumbers(
 ): Map<string, string> {
   const normPages = pages.map(normalize);
   const bodyStart = findBodyStartPage(normPages, docTitle);
+  const frontStart = Math.max(0, normPages.findIndex(page => page.includes(FRONT_START_SENTINEL)));
   const result = new Map<string, string>();
 
   for (const item of toc) {
@@ -156,10 +157,10 @@ export function computeTocPageNumbers(
       // 前置目标（前言/引言）：同文本既在目次又在其真实页，真实页在后，
       // 故在正文之前的范围内取「最后一次」命中。
       const end = bodyStart >= 0 ? bodyStart : normPages.length;
-      const idx = lastIndexOfWithin(normPages, candidates, end);
+      const idx = lastIndexOfWithin(normPages, candidates, end, frontStart);
       if (idx < 0) continue;
-      // 前置部分页码从物理第 1 页起编（无 counter-reset），故罗马数 = 物理页序
-      result.set(item.target, toUpperRoman(idx + 1));
+      // 封面不计入页码；目次首页起为 I，兼容没有前置哨兵的旧 HTML。
+      result.set(item.target, toUpperRoman(idx - frontStart + 1));
     }
   }
   return result;
@@ -180,7 +181,7 @@ function indexOfFrom(
 }
 
 /**
- * 在 [0, end) 中按候选优先级取最后一次命中页（前置标题用）。
+ * 在 [from, end) 中按候选优先级取最后一次命中页（前置标题用，不扫描封面）。
  * 前置标题（前言/引言）因全角字间隔被 pdftotext 拆分，故用字符按序子序列匹配而非连续子串，
  * 避免漏命中其真实所在页而误回退到目次页（致页码偏小）。
  */
@@ -188,9 +189,10 @@ function lastIndexOfWithin(
   normPages: string[],
   candidates: string[],
   end: number,
+  from = 0,
 ): number {
   for (const needle of candidates) {
-    for (let i = Math.min(end, normPages.length) - 1; i >= 0; i--) {
+    for (let i = Math.min(end, normPages.length) - 1; i >= from; i--) {
       if (includesInOrder(normPages[i], needle)) return i;
     }
   }
@@ -198,7 +200,7 @@ function lastIndexOfWithin(
 }
 
 /**
- * 移除正文首页隐藏哨兵锚点元素。
+ * 移除正文和目次首页的隐藏哨兵锚点元素。
  * 哨兵仅供第一遍 pdftotext 定位正文起始物理页；最终（第二遍）HTML/PDF 不应保留此内部
  * 定位文本，否则会污染最终 PDF 的文本层（搜索/复制/无障碍）。两遍构建在注入目次页码后、
  * 第二遍构建前调用本函数剥离哨兵；剥离不改变版式（哨兵透明零高度），不影响分页。
@@ -209,6 +211,9 @@ export function stripBodyAnchor(html: string): string {
       `<span class="ses-body-anchor"[^>]*>${BODY_START_SENTINEL}</span>`,
       'g',
     ),
+    '',
+  ).replace(
+    new RegExp(`<span class="ses-front-anchor"[^>]*>${FRONT_START_SENTINEL}</span>`, 'g'),
     '',
   );
 }

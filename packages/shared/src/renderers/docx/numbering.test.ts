@@ -142,10 +142,10 @@ describe('numbering.ts：静态部分（16 个 abstractNum + 8 个固定实例�
     expect(lvlAttr(lv.get(0)!, 'w:suff')).toBe('nothing')
     expect(lvlInd(lv.get(0)!)).toEqual({ 'w:left': '840', 'w:hanging': '420' })
     expect(lvlRFontsAttrs(lv.get(0)!)).toEqual({
-      'w:ascii': '宋体',
-      'w:eastAsia': '宋体',
-      'w:hAnsi': '宋体',
-      'w:cs': '宋体',
+      'w:ascii': 'Times New Roman',
+      'w:eastAsia': 'Times New Roman',
+      'w:hAnsi': 'Times New Roman',
+      'w:cs': 'Times New Roman',
     })
     expect(lvlAttr(lv.get(1)!, 'w:lvlText')).toBe('·')
     expect(lvlAttr(lv.get(1)!, 'w:suff')).toBe('tab')

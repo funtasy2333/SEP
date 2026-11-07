@@ -171,6 +171,20 @@ describe('extractPdfTocTargets', () => {
 })
 
 describe('buildPdfExportRequest', () => {
+  it('PDF 封面按传入的完整元数据和文档阶段输出', () => {
+    const request = buildPdfExportRequest(fullDoc(), {
+      title: '地方标准', standardType: 'local', stdCode: 'DB33/T 12—2026',
+      regionName: '浙江省', issuer: '地方发布单位', publishDate: '2026-11-07',
+    }, { stage: 'published' })
+    const cover = /<section class="ses-cover"[\s\S]*?<\/section>/.exec(request.html)?.[0] ?? ''
+    expect(cover).toContain('浙江省地方标准')
+    expect(cover).toContain('地方发布单位')
+    expect(cover).toContain('2026-11-07')
+    expect(cover).not.toContain('工作草案')
+    const draft = buildPdfExportRequest(fullDoc(), {}, { stage: 'comment_draft' })
+    expect(draft.html).toContain('（征求意见稿）')
+  })
+
   it('生成 print 变体 HTML，目次由 HTML 提取，面板 meta 覆盖标题与编号字段', () => {
     const request = buildPdfExportRequest(fullDoc(), {
       title: '面板标题',

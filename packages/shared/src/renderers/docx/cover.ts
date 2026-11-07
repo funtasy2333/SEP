@@ -52,7 +52,7 @@ const IMAGE_NAMESPACES =
   'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
 const IMAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image'
 
-const STAGE_LABELS: Record<DocumentStage, string | undefined> = {
+export const STAGE_LABELS: Record<DocumentStage, string | undefined> = {
   working_draft: '（工作草案）',
   comment_draft: '（征求意见稿）',
   review_discussion_draft: '（送审讨论稿）',
@@ -155,7 +155,7 @@ function designation(meta: IRDocMeta): { text: string; styleId: string } {
 }
 
 // 新建草案使用显式 XXXXX—XXXX 占位编号；已填写的家族/地区/机构代码仍应显示。
-function industryLogoFamily(meta: IRDocMeta): string | undefined {
+export function industryLogoFamily(meta: IRDocMeta): string | undefined {
   const code = normalizeCoverStdCode(meta.stdCode)
   const family = /^([A-Z]{2,6})(?:\/T)?\s+(?:\d+(?:\.\d+)*|XXXXX)(?:—(?:\d{4}|XXXX))?$/i.exec(code)?.[1]?.toUpperCase()
   // GB is national and DB is local; neither is an industry-family mark. Require a complete
@@ -167,12 +167,12 @@ function warnMissingMarkCode(ctx: RenderContext, meta: IRDocMeta, code: string, 
   if (meta.stdCode?.trim() && !code) warn(ctx, 'cover-field-missing', message)
 }
 
-function localRegionCode(meta: IRDocMeta): string {
+export function localRegionCode(meta: IRDocMeta): string {
   const code = normalizeCoverStdCode(meta.stdCode)
   return /^DB(\d{2}|\d{4}|XX)(?:\/T)?\s+(?:\d+(?:\.\d+)*|XXXXX)(?:—(?:\d{4}|XXXX))?$/i.exec(code)?.[1] ?? ''
 }
 
-function typeMarkCode(meta: IRDocMeta, type: 'T' | 'Q'): string {
+export function typeMarkCode(meta: IRDocMeta, type: 'T' | 'Q'): string {
   const code = normalizeCoverStdCode(meta.stdCode)
   const match = /^([TQ])\/([^\s]+)\s+(?:\d+(?:\.\d+)*|X{4,5})(?:—(?:\d{4}|XXXX))?$/i.exec(code)
   return match?.[1]?.toUpperCase() === type ? match[2]! : ''

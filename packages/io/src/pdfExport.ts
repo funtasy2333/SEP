@@ -10,6 +10,11 @@
  */
 
 import { pmToIr, renderHtml, resolve, type IRDocMeta, type PMJsonNode } from '@ses/shared'
+import { resolveDocumentStage } from './docx'
+
+export interface PdfExportOptions {
+  stage?: string
+}
 
 export interface PdfTocTarget {
   target: string
@@ -81,18 +86,14 @@ export function extractPdfTocTargets(html: string): PdfTocTarget[] {
  * @param pmJson 编辑器文档的 ProseMirror JSON（`doc.toJSON()` / `editor.getJSON()` 的形态）
  * @param meta   导出面板元数据（覆盖 IR meta，保证书眉/正文首页名称与 DOCX 导出一致）
  */
-export function buildPdfExportRequest(pmJson: PMJsonNode, meta: Partial<IRDocMeta>): PdfExportRequest {
+export function buildPdfExportRequest(pmJson: PMJsonNode, meta: Partial<IRDocMeta>, options: PdfExportOptions = {}): PdfExportRequest {
   const { doc: ir } = pmToIr(pmJson)
 
-  // 用面板 meta 覆盖书眉/标题相关字段（standardType 等仍沿用 pmToIr 推断结果）
-  if (meta.title !== undefined) ir.meta.title = meta.title
-  if (meta.titleEn !== undefined) ir.meta.titleEn = meta.titleEn
-  if (meta.stdCode !== undefined) ir.meta.stdCode = meta.stdCode
-  if (meta.icsCode !== undefined) ir.meta.icsCode = meta.icsCode
-  if (meta.ccsCode !== undefined) ir.meta.ccsCode = meta.ccsCode
+  // 所有已提供的封面设置都覆盖文档值，空字符串保留，undefined 不覆盖。
+  Object.assign(ir.meta, Object.fromEntries(Object.entries(meta).filter(([, value]) => value !== undefined)))
 
   const { labels } = resolve(ir)
-  const html = renderHtml(ir, labels, { variant: 'print' })
+  const html = renderHtml(ir, labels, { variant: 'print', stage: resolveDocumentStage(options.stage) })
 
   return {
     html,

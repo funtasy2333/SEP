@@ -352,7 +352,7 @@ export class ExportService {
    * 这是 PDF 唯一的出口：不再有接受任意 HTML 的转换接口，渲染用的无头浏览器只会看到本方法构建的 HTML。
    */
   async exportPdf(id: number): Promise<PdfExportResult> {
-    const { meta, pmDoc, filenameBase } = await this.prepareForExport(
+    const { meta, stage, pmDoc, filenameBase } = await this.prepareForExport(
       id,
       'pdf',
     );
@@ -376,6 +376,7 @@ export class ExportService {
       const request = buildPdfExportRequest(
         pmDoc,
         irMetaFromDocumentMeta(meta),
+        { stage },
       );
       const bytes = await this.convertService.convertHtmlToPdf({
         html: request.html,

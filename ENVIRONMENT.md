@@ -86,6 +86,10 @@ Vue、NestJS、TypeScript、`better-sqlite3` 等项目依赖由启动脚本或 `
 
 ## 3. 可选依赖
 
+### 导出字体
+
+PDF 由 SES 后端所在的机器排版。要输出指定字体，该机器需要安装 **Times New Roman** 以及宋体、黑体等文档字体；列项破折号单独使用 Times New Roman。缺少字体时，浏览器会使用系统替代字体。DOCX 保存字体名称，打开文件的机器也需要具备对应字体。
+
 ### Poppler：PDF 版式预览
 
 PDF 版式预览使用 `@vivliostyle/cli` 排版，并通过 Poppler 的 `pdftotext`、`pdfinfo` 定位目次页码和核对页数。**编辑文档、导出 DOCX 无需安装 Poppler。**
