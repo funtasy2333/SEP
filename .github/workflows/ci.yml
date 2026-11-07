@@ -1,0 +1,72 @@
+name: CI
+
+# 每次推送和 PR 都跑类型检查与单元测试（不含 lint：server 仍有历史遗留的 lint 问题，另行处理）。
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    # 固定 24.04：XML 外部校验脚本（scripts/xml46687/sts_compat.py）按 libxml2 2.9.x 的 xmllint 输出格式解析 DTD 报错，
+    # ubuntu-latest 已是 26.04（libxml2 2.15），其 xmllint 的报错输出无法被脚本识别，脚本按设计判为“引擎失败”。
+    # 适配新版 xmllint 前不要改成 ubuntu-latest。
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+          cache: pnpm
+
+      # XML 外部校验测试需要 python3 + lxml + xmllint（packages/shared/src/renderers/__tests__/xml46687PythonValidation.ts）。
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install XML validation tools
+        run: |
+          pip install lxml
+          sudo apt-get update
+          sudo apt-get install -y libxml2-utils
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck shared
+        run: pnpm --filter @ses/shared exec tsc --noEmit -p .
+      - name: Typecheck io
+        run: pnpm --filter @ses/io exec tsc --noEmit -p .
+      - name: Typecheck client
+        run: pnpm --filter @ses/client exec vue-tsc -b --noEmit
+      - name: Typecheck server
+        run: pnpm --filter @ses/server exec tsc --noEmit -p tsconfig.build.json
+
+      # REQUIRE_XML_VALIDATION=1：缺少校验工具时测试失败，而不是悄悄跳过。
+      - name: Test shared
+        env:
+          REQUIRE_XML_VALIDATION: '1'
+        run: pnpm --filter @ses/shared exec vitest run
+      - name: Test io
+        env:
+          REQUIRE_XML_VALIDATION: '1'
+        run: pnpm --filter @ses/io exec vitest run
+      - name: Test client
+        env:
+          REQUIRE_XML_VALIDATION: '1'
+        run: pnpm --filter @ses/client exec vitest run
+      - name: Test server
+        env:
+          REQUIRE_XML_VALIDATION: '1'
+        run: pnpm --filter @ses/server test

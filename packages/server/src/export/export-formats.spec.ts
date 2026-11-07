@@ -822,6 +822,48 @@ describe('GET /api/documents/:id/export/{pdf,html,json}', () => {
         );
       });
 
+      it('行内图、附加图形、表格替代图形目前被输出边界检查拦下（422），外部地址到不了管线；blockExternalImages 对它们仍作防御性清空', async () => {
+        const extFigure = figure('fig-ext', 'http://127.0.0.1:9/main.png');
+        extFigure.attrs = {
+          ...extFigure.attrs,
+          additionalGraphics: [
+            { nodeId: 'g-1', src: 'https://127.0.0.1:9/g.png' },
+          ],
+        };
+        const extTable = table('t-ext');
+        extTable.attrs = {
+          ...extTable.attrs,
+          alternativeGraphic: { nodeId: 'tg-1', src: '//127.0.0.1:9/alt.png' },
+        };
+        const inlineParagraph: PMJsonNode = {
+          type: 'stdParagraph',
+          attrs: { nodeId: 'p-inline' },
+          content: [
+            text('行内'),
+            { type: 'inlineImage', attrs: { src: 'http://127.0.0.1:9/i.png' } },
+          ],
+        };
+        const id = await createDoc({
+          content: chapterOnlyDoc(extFigure, extTable, inlineParagraph),
+        });
+        const res = await download(EXPORT_PATH(id, 'pdf'));
+        expect(res.status).toBe(422);
+        expect(errorBody(res).source).toBe('output-boundary');
+        expect(convertStub.convertHtmlToPdf).not.toHaveBeenCalled();
+      });
+
+      it('POST /api/convert/html-to-pdf 已删除（不再接受任意 HTML 转 PDF）', async () => {
+        const res = await http.post('/api/convert/html-to-pdf').send({
+          html: '<img src="http://127.0.0.1:9/x.png">',
+          toc: [],
+          docTitle: 't',
+        });
+        expect(res.status).toBe(404);
+        expect(convertStub.convertHtmlToPdf).not.toHaveBeenCalled();
+        // 能力探测接口仍在。
+        await http.get('/api/convert/capabilities').expect(200);
+      });
+
       it('只含 data URL 图片的文档没有告警', async () => {
         const id = await createDoc();
         const res = await download(EXPORT_PATH(id, 'pdf'));

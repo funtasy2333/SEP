@@ -57,7 +57,7 @@ export class ExportController {
 
   /**
    * GET /api/documents/:id/export/pdf
-   * 导出库中该文档的 PDF（与编辑器导出等价，见 ExportService.exportPdf）：封面同步 → 导出前检查 →
+   * 导出库中该文档的 PDF（编辑器「导出 PDF」调用的就是它，见 ExportService.exportPdf）：封面同步 → 导出前检查 →
    * print HTML 与目次目标 → 现有 IR→HTML→PDF 两遍构建管线。
    * 文档不存在 404；内容为空或导出前检查未通过 422（响应体同 DOCX 接口）；
    * 管线缺依赖（/api/convert/capabilities 的 htmlToPdf 为 false）503，响应体列出缺少的依赖。

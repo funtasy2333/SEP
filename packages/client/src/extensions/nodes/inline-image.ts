@@ -1,5 +1,6 @@
 import { mergeAttributes, Node } from '@tiptap/core'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
+import { guardImageAttributes, readImageSrc } from '../../utils/imageSource'
 
 /** Tiptap 的隐式解析会把形如 007 / true 的字符串转型；这些属性都是文本。 */
 function stringAttribute(name: string, defaultValue: string | null = null) {
@@ -26,7 +27,8 @@ export const InlineImage = Node.create({
 
   addAttributes() {
     return {
-      src: stringAttribute('src', ''),
+      // 外部图片在编辑器里显示占位图，真实地址在 data-external-src（见 utils/imageSource.ts）：解析时以它为准。
+      src: { default: '', parseHTML: (element: HTMLElement) => readImageSrc(element, '') },
       resourceId: stringAttribute('resourceId'),
       alt: stringAttribute('alt', ''),
       size: {
@@ -43,7 +45,7 @@ export const InlineImage = Node.create({
   },
 
   renderHTML({ HTMLAttributes }): DOMOutputSpec {
-    return ['img', mergeAttributes(HTMLAttributes, {
+    return ['img', mergeAttributes(guardImageAttributes(HTMLAttributes), {
       'data-type': 'inline-image',
       class: 'std-inline-image',
     })]

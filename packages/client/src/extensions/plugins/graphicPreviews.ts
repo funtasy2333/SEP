@@ -2,6 +2,7 @@ import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { Node as PMNode } from '@tiptap/pm/model'
+import { setImageSource } from '../../utils/imageSource'
 
 function safeImageSource(value: unknown): string | null {
   if (typeof value !== 'string' || !value || /[\u0000-\u0020\u007f]/.test(value)) return null
@@ -24,10 +25,11 @@ function previews(doc: PMNode): DecorationSet {
       if (!src || typeof value.nodeId !== 'string') return
       decorations.push(Decoration.widget(insertAt, () => {
         const image = document.createElement('img')
-        image.src = src
         image.dataset.graphicId = value.nodeId as string
         image.alt = node.type.name === 'figure' ? '附加图' : '表替代图'
         image.className = 'std-graphic-preview'
+        // 外部地址显示占位图，点击后才加载（见 utils/imageSource.ts）；要在 className 之后设置，占位类才不会被覆盖。
+        setImageSource(image, src)
         image.contentEditable = 'false'
         return image
       }, { key: `${node.type.name}:${value.nodeId}:${index}:${src}`, side: 1 }))

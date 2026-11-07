@@ -4,6 +4,9 @@ import { BlockList, isIP } from 'node:net';
  * 服务端监听地址：本地部署默认只接受本机请求（127.0.0.1），REST 接口没有鉴权，
  * 监听局域网地址等于把全部文档开放给同一网络里的所有设备。
  *
+ * 监听非本机地址后，局域网设备访问时 Host 头不是 localhost，会被全局 Host 检查（common/host-check.ts）拒绝：
+ * 需要用 `SES_ALLOWED_HOSTS` 加入访问地址；`SES_LISTEN_HOST` 本身是具体地址时会自动放行。
+ *
  * 环境变量用 `SES_LISTEN_HOST`，**不要用 `HOST`**：有些环境把 `HOST` 设成机器名，服务端会因此意外绑到局域网地址。
  */
 
@@ -15,7 +18,8 @@ export const DEFAULT_LISTEN_HOST = '127.0.0.1';
 
 /** 监听的不是本机地址时打在启动日志里的警告。 */
 export const NON_LOOPBACK_WARNING =
-  '已监听非本机地址，REST 接口没有鉴权，局域网内的设备可以读写全部文档';
+  '已监听非本机地址，REST 接口没有鉴权，局域网内的设备可以读写全部文档；' +
+  '另外服务端只接受 Host 为 localhost / 127.0.0.1 / [::1] 的请求，局域网访问需要在 SES_ALLOWED_HOSTS 中加入访问地址（逗号分隔，如 192.168.1.20:3000）';
 
 export interface ListenAddress {
   host: string;

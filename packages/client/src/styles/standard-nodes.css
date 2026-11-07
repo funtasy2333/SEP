@@ -581,6 +581,11 @@
   outline-offset: 1px;
 }
 
+/* 外部图片默认不加载，显示占位图，点击后才请求真实地址（utils/imageSource.ts） */
+.is-external-image {
+  cursor: pointer;
+}
+
 /* 公式 */
 .std-formula {
   margin: 16px 0;

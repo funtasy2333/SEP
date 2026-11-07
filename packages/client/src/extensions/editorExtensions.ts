@@ -1,11 +1,12 @@
 import type { Extensions } from '@tiptap/core'
-import { Image } from '@tiptap/extension-image'
 import { Placeholder } from '@tiptap/extension-placeholder'
 import { EditorTable } from './nodes/editor-table'
 import { StdListBlockItem } from './nodes/std-list'
 import { AlignedArray } from './nodes/aligned-array'
 import { SharedFootnoteRef, SharedFootnoteDefinition } from './nodes/footnotes'
 import { GraphicPreviews } from './plugins/graphicPreviews'
+import { ExternalImages } from './plugins/externalImages'
+import { GuardedImage } from './nodes/guarded-image'
 import StarterKit from '@tiptap/starter-kit'
 import {
   Adoption, Appendix, AppendixLabel, AppendixTitle,
@@ -60,7 +61,7 @@ export function createEditorExtensions(): Extensions {
     }).configure({ heading: false, blockquote: false, codeBlock: false, horizontalRule: false, gapcursor: false }),
     EditorTable.configure({ resizable: true, allowTableNodeSelection: true }),
     StandardTableRow, StandardTableCell, StandardTableHeader,
-    Image,
+    GuardedImage,
     Placeholder.configure({ placeholder: '开始编写标准内容...' }),
     // 自定义节点
     Chapter, ChapterTitle,
@@ -111,5 +112,7 @@ export function createEditorExtensions(): Extensions {
     TableExit,
     // 剪贴板：SES 内复制保留格式；外部来源与 Ctrl/Cmd+Shift+V 按纯文本并入光标所在段落。不新增节点。
     ClipboardPolicy,
+    // 外部图片点击才加载：纯插件，不新增节点。
+    ExternalImages,
   ]
 }
