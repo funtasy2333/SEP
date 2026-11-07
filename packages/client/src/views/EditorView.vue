@@ -1659,7 +1659,7 @@ function handleAddStructure(command: string) {
         type: 'bibliography',
         content: [
           { type: 'bibliographyTitle', content: [{ type: 'text', text: '参考文献' }] },
-          { type: 'bibEntry', content: [{ type: 'text', text: '[1] ' }] },
+          { type: 'bibEntry' },
         ],
       }).run()
       break

@@ -64,6 +64,20 @@ describe('findBodyStartPage', () => {
 });
 
 describe('computeTocPageNumbers', () => {
+  it('封面不计入前置罗马页码；封面和正文同名时仍按正文哨兵定位', () => {
+    const result = computeTocPageNumbers([
+      '测试标准 封面 2026-11-07 发布',
+      'SESFRONTSTARTANCHOR 目次 前言 1 范围',
+      '前言 本文件按照规则起草',
+      `${BODY_START_SENTINEL}测试标准 1 范围`,
+    ], [
+      { target: 'front_foreword', text: '前言', division: 'front' },
+      { target: 'sec_1', text: '1　范围', division: 'body' },
+    ], '测试标准')
+    expect(result.get('front_foreword')).toBe('II')
+    expect(result.get('sec_1')).toBe('1')
+  })
+
   // 物理页：0=目次, 1=前言, 2=引言, 3=正文首页(范围), 4=术语, 5=附录A
   const pages = [
     '目次 前言 引言 1 范围 2 术语和定义 附录A',
@@ -200,6 +214,11 @@ describe('injectTocPageNumbers', () => {
 });
 
 describe('stripBodyAnchor（item9：最终 PDF 文本层去哨兵）', () => {
+  it('移除目次首页哨兵，保留前置内容和正文', () => {
+    const html = '<div class="ses-front-matter"><span class="ses-front-anchor" aria-hidden="true">SESFRONTSTARTANCHOR</span><h1>目次</h1></div>'
+    expect(stripBodyAnchor(html)).toBe('<div class="ses-front-matter"><h1>目次</h1></div>')
+  })
+
   it('移除哨兵 span，最终 HTML 文本层不含定位文本', () => {
     const html =
       '<div class="ses-body-content"><span class="ses-body-anchor" aria-hidden="true">' +

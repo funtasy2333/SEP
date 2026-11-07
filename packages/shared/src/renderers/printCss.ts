@@ -13,6 +13,8 @@
  * 同构纯 TypeScript：不引用任何浏览器/Node API，仅返回字符串。
  */
 
+import { COVER_PRINT_CSS } from './coverHtml'
+
 export interface PrintCssOptions {
   /** 书眉文件编号（如 "GB/T 12345—2026"）；缺省则书眉为空。 */
   standardNo?: string
@@ -153,7 +155,7 @@ function pageRules(standardNo: string): string {
 /** 正文/前置/横排内容容器与分区页码绑定。 */
 const PAGE_CONTEXT = `
 /* 前置部分（目次→前言→引言）：罗马页码命名页 */
-.ses-front-matter { page: front; }
+.ses-front-matter { page: front; counter-reset: page 1; }
 /* 正文（含附录、参考文献）：阿拉伯页码，从 1 起编。
  * 电子出版 PDF 只要求正文页码从阿拉伯 1 起编，不要求正文落在物理单数页/右页，
  * 故用 break-before: page（普通另起页）而非 right，避免在前置部分后插入空白物理页。 */
@@ -216,7 +218,7 @@ const CONTENT = `
 }
 
 /* 正文首页隐藏哨兵锚点：透明 + 零高度，仅供 pdftotext 提取以定位正文起始页，不占版式空间 */
-.ses-body-anchor { display: block; height: 0; line-height: 0; color: transparent; font-size: 5pt; }
+.ses-body-anchor, .ses-front-anchor { display: block; height: 0; line-height: 0; color: transparent; font-size: 5pt; }
 
 /* —— 章标题：五号黑体（与正文同字号）；上下各空一行（10.2.1）—— */
 .ses-chapter-title {
@@ -290,7 +292,7 @@ const CONTENT = `
   left: 0;
   counter-increment: ses-li;
 }
-.ses-list-dash > .ses-list-item::before { content: "——"; counter-increment: none; }
+.ses-list-dash > .ses-list-item::before { content: "——"; counter-increment: none; font-family: "Times New Roman", serif; }
 .ses-list-dot > .ses-list-item::before { content: "·"; counter-increment: none; }
 .ses-list-number > .ses-list-item::before { content: counter(ses-li) "） "; }
 .ses-list-alpha > .ses-list-item::before { content: counter(ses-li, lower-alpha) "） "; }
@@ -432,5 +434,5 @@ const CONTENT = `
  */
 export function printCss(opts: PrintCssOptions = {}): string {
   const standardNo = opts.standardNo ?? ''
-  return [TOKENS, pageRules(standardNo), PAGE_CONTEXT, CONTENT].join('\n')
+  return [TOKENS, pageRules(standardNo), COVER_PRINT_CSS, PAGE_CONTEXT, CONTENT].join('\n')
 }
