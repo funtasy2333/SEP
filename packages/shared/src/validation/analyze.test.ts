@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { analyzeDocument } from './analyze'
-import type { IRAppendix, IRBlock, IRChapter, IRClause, IRDoc, IRInline, IRParagraph, IRTermEntry } from '../ir/types'
+import type { IRAppendix, IRBlock, IRChapter, IRClause, IRDoc, IRInline, IRList, IRParagraph, IRTermEntry } from '../ir/types'
 import { createParagraphDocument } from './__fixtures__/documents'
 
 const inline = (text: string, marks?: IRInline['marks']): IRInline => marks ? { text, marks } : { text }
@@ -70,6 +70,36 @@ describe('analyzeDocument', () => {
     expect(issues.map(issue => issue.nodeId)).toEqual(['list-bad-1', 'list-bad-2'])
     expect(issues[0]?.evidence?.[0]?.text).toBe('')
     expect(issues[0]?.suggestion).toContain('引出语')
+  })
+
+  it('recognizes parent list item introductions and continued outer lists in a flat multilevel sequence', () => {
+    const alpha = (id: string, text: string, continued = false): IRList => ({
+      ...list(id, text) as IRList, listType: 'alpha', continueNumbering: continued,
+    })
+    const numeric = (id: string): IRList => ({ ...list(id) as IRList, listType: 'number', level: 2 })
+    const ir = doc([chapter('c1', '要求', [
+      para('lead', '应考虑以下因素：'),
+      alpha('internal', '内部因素，包括但不限于：'), numeric('internal-details'),
+      alpha('external', '外部因素，包括但不限于：', true), numeric('external-details'),
+      alpha('no-intro-parent', '无引出文字'), numeric('missing-intro'),
+      numeric('same-level-missing'),
+    ])])
+
+    expect(issuesFor(ir, 'list.introduction').map(issue => issue.nodeId))
+      .toEqual(['no-intro-parent', 'missing-intro', 'same-level-missing'])
+  })
+
+  it('does not borrow introductions from another container or from deeper item text', () => {
+    const ir = doc([chapter('c1', '要求', [
+      para('lead', '应考虑以下因素：'),
+      { kind: 'list', id: 'outer', listType: 'alpha', items: [
+        { id: 'a', content: [para('a-p', '内部因素，包括但不限于：'), list('nested-ok')] },
+        { id: 'b', content: [list('nested-missing')] },
+      ] },
+      { ...list('flat-missing') as IRList, listType: 'number', level: 2 },
+    ])])
+    expect(issuesFor(ir, 'list.introduction').map(issue => issue.nodeId))
+      .toEqual(['nested-missing', 'flat-missing'])
   })
 
   it('checks figure and table introductions separately from body mentions in one combined issue', () => {
