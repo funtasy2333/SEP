@@ -731,6 +731,15 @@ describe('GET /api/documents/:id/export/{pdf,html,json}', () => {
       );
     });
 
+    it.each(['published', 'comment_draft'])('PDF 封面读取文档库实际阶段 %s', async (stage) => {
+      const id = await createDoc({ stage });
+      await download(EXPORT_PATH(id, 'pdf'));
+      const input = convertStub.convertHtmlToPdf.mock.calls[0][0] as { html: string };
+      expect(input.html).toContain('data-type="cover"');
+      expect(input.html).not.toContain('（工作草案）');
+      if (stage === 'comment_draft') expect(input.html).toContain('（征求意见稿）');
+    });
+
     it('docTitle 取文档库 meta 的标题（覆盖文档内旧值），而不是封面里的旧标题', async () => {
       const id = await createDoc({
         meta: { ...fixtureMeta, titleCn: '新标题 & "更新"' },

@@ -126,7 +126,7 @@
         </li>
       </ul>
     </details>
-    <footer class="panel-footnote">术语权威性、引用文件有效性和准确性未检查；脚注、表脚注、参考文献提醒不在本期范围。</footer>
+    <footer class="panel-footnote">术语使用次数按名称字面匹配及结构化术语引用统计；正文使用缩略语、简称等形式时可能漏计，相关提醒需结合上下文人工核对。术语权威性、引用文件有效性和准确性未检查；脚注、表脚注、参考文献提醒不在本期范围。</footer>
   </aside>
 </template>
 

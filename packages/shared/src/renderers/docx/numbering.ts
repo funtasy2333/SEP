@@ -70,6 +70,7 @@ const HEI_RFONTS = '<w:rFonts w:ascii="黑体" w:eastAsia="黑体" w:hAnsi="黑�
 const RPR_HEI = rPr([['rFonts', HEI_RFONTS]])
 const SONG_RFONTS = '<w:rFonts w:ascii="宋体" w:eastAsia="宋体" w:hAnsi="宋体" w:cs="宋体"/>'
 export const RPR_SONG = rPr([['rFonts', SONG_RFONTS]])
+const RPR_DASH_LABEL = rPr([['rFonts', '<w:rFonts w:ascii="Times New Roman" w:eastAsia="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>']])
 /**
  * A14 L0（小写罗马标识 i） ii） iii）…）：ASCII 字母用 Times New Roman，全角右括号仍用宋体（eastAsia）。
  * 宋体的 ASCII 字母是半角等宽（0.5 em），`ii）`（1+1 em）已占满 2 字的悬挂量、`iii）`（1.5+1 em）超出，
@@ -169,7 +170,7 @@ const ABSTRACT_NUM_DEFS: readonly AbstractNumSpec[] = [
     id: ABSTRACT_NUM_ID.listDash,
     multilevel: true,
     levels: [
-      { ilvl: 0, numFmt: 'bullet', lvlText: '——', suff: 'nothing', ind: IND_LIST_L0, rPr: RPR_SONG },
+      { ilvl: 0, numFmt: 'bullet', lvlText: '——', suff: 'nothing', ind: IND_LIST_L0, rPr: RPR_DASH_LABEL },
       { ilvl: 1, numFmt: 'bullet', lvlText: '·', suff: 'tab', ind: IND_LIST_L1, rPr: RPR_SONG },
     ],
   },

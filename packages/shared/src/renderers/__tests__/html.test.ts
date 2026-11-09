@@ -302,9 +302,9 @@ describe('电子出版交付订正（PDF 级，item1-4）', () => {
     expect(print).not.toContain('>前言</h1>')
   })
 
-  it('item4：print 不渲染封面（本期范围差距，coverPage 仅入元数据）', () => {
-    // 首个可见区块为目次，非封面；不含封面正文文本
-    expect(print).not.toContain('data-type="cover"')
+  it('item4：print 首先渲染封面，再输出目次和正文', () => {
+    expect(print).toContain('data-type="cover"')
+    expect(print.indexOf('data-type="cover"')).toBeLessThan(print.indexOf('id="front_toc"'))
     expect(print.indexOf('id="front_toc"')).toBeLessThan(print.indexOf('<div class="ses-body-content">'))
     const firstSection = print.indexOf('data-type="toc"')
     expect(firstSection).toBeGreaterThan(-1)

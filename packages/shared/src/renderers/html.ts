@@ -50,6 +50,8 @@ import { MISSING_ID_PREFIX } from '../ir/pmToIr'
 import { computeListNumbering } from '../ir/resolve'
 import type { ListNumbering } from '../ir/listNumbering'
 import { printCss } from './printCss'
+import type { DocumentStage } from '../types/document'
+import { renderCoverHtml } from './coverHtml'
 import { assertFootnoteReferences, orderTableFootnotes, tableColumnCount } from './footnotes'
 
 export type HtmlVariant = 'screen' | 'print'
@@ -57,6 +59,8 @@ export type HtmlVariant = 'screen' | 'print'
 export interface RenderHtmlOptions {
   /** 渲染变体，默认 'screen' */
   variant?: HtmlVariant
+  /** PDF 封面阶段，默认工作草案。 */
+  stage?: DocumentStage
 }
 
 type Labels = Record<NodeId, ResolvedLabel>
@@ -68,6 +72,8 @@ type Labels = Record<NodeId, ResolvedLabel>
  * 修改此值即同步两端，不再各存一份字符串。
  */
 export const BODY_START_SENTINEL = 'SESBODYSTARTANCHOR'
+/** 目次首页的第一遍定位标记：封面不计入前置罗马页码。 */
+export const FRONT_START_SENTINEL = 'SESFRONTSTARTANCHOR'
 
 // ---------- 转义 ----------
 
@@ -740,6 +746,7 @@ function renderToc(doc: IRDoc, ctx: RenderCtx): void {
 
 function renderFront(doc: IRDoc, ctx: RenderCtx): void {
   ctx.push('<div class="ses-front-matter">')
+  if (ctx.variant === 'print') ctx.push(`<span class="ses-front-anchor" aria-hidden="true">${FRONT_START_SENTINEL}</span>`)
   renderToc(doc, ctx)
   if (doc.front.foreword.length > 0) {
     ctx.push('<section class="ses-foreword" data-type="foreword"' + ctx.anchorIdAttr('front_foreword') + ' role="doc-foreword">')
@@ -953,11 +960,14 @@ export function renderHtml(doc: IRDoc, labels: Labels, opts: RenderHtmlOptions =
     const value = doc.meta[field]
     if (value) ctx.push(`<meta name="ses-${field}" content="${escapeAttr(value).replace(/\r/g, '&#13;').replace(/\n/g, '&#10;').replace(/\t/g, '&#9;')}" />`)
   }
-  ctx.push(`<style>${css}</style>`)
+  // KaTeX's stylesheet may be loaded after this one by the PDF pipeline.
+  // The scoped selector keeps inline math at the paragraph's size in either order.
+  ctx.push(`<style>${css.trimEnd()}\n.ses-formula-inline .katex { font-size: 1em; }</style>`)
   ctx.push('</head>')
   ctx.push('<body>')
   ctx.push(`<article class="ses-standard" data-type="standard-doc"${metaAttrs(doc.meta)}>`)
 
+  if (variant === 'print') ctx.push(renderCoverHtml(doc.meta, opts.stage ?? 'working_draft'))
   renderFront(doc, ctx)
   renderBody(doc, ctx)
 
