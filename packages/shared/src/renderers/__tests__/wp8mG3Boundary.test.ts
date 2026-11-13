@@ -99,43 +99,32 @@ describe('[M-8.4-03] 输出边界：figure.examples 四种格式都报 unsupport
   })
 })
 
-describe('[M-8.3-02] 输出边界：IRInline.image 四种格式都报 unsupported-output', () => {
-  it('段落内的行内图：（HTML、DOCX、旧 XML）每个图一条，路径是 content[n].image；XML46687 自 WP8.2 T2.4b 起放行（已声明差异）', () => {
+describe('[M-8.3-02] 输出边界：IRInline.image 仅旧 XML 报 unsupported-output，HTML、DOCX 与 XML46687 放行', () => {
+  it('段落内的行内图：旧 XML 每个图一条，路径是 content[n].image；HTML、DOCX、XML46687 放行', () => {
     const doc = docWith(g3Figure('b-fig', '图'), [para('b-p', { text: '见' }, inlineImage({ size: 'M' }), { text: '与' }, inlineImage())])
-    for (const format of BLOCKING_FORMATS) {
-      const problems = getOutputSupportProblems(doc, format)
-      expect(problems.map(problem => problem.path), format).toEqual([
-        'doc.body[0].children[0].content[1].image', 'doc.body[0].children[0].content[3].image',
-      ])
-      expect(problems[0]).toMatchObject({ code: 'unsupported-output', nodeId: 'b-p' })
-      expect(problems[0]!.message).toContain(format)
+    const problems = getOutputSupportProblems(doc, 'XML')
+    expect(problems.map(problem => problem.path)).toEqual([
+      'doc.body[0].children[0].content[1].image', 'doc.body[0].children[0].content[3].image',
+    ])
+    expect(problems[0]).toMatchObject({ code: 'unsupported-output', nodeId: 'b-p' })
+    expect(problems[0]!.message).toContain('XML')
+    for (const format of ['HTML', 'DOCX', 'XML46687'] as const) {
+      expect(getOutputSupportProblems(doc, format), format).toEqual([])
     }
-    expect(getOutputSupportProblems(doc, 'XML46687')).toEqual([])
     expect(findDeclaredDifference(doc, 'doc.body[0].children[0].content[1].image')).toMatchObject({ kind: 'field', name: 'image', task: 'T2.4b' })
   })
 
-  it('列项、注、单元格里的行内图同样被报（不会因为嵌套较深而漏报）；XML46687 一个也不报', () => {
-    for (const format of BLOCKING_FORMATS) {
-      const reported = paths(g3IrDoc(), format).filter(path => path.endsWith('.image'))
-      expect(reported.length, format).toBe(6) // 范围章 1 + 资源图段 2 + 列项 1 + 注 1 + 单元格 1
+  it('列项、注、单元格里的行内图在旧 XML 中同样被报（不会因为嵌套较深而漏报）；HTML、DOCX、XML46687 一个也不报', () => {
+    expect(paths(g3IrDoc(), 'XML').filter(path => path.endsWith('.image'))).toHaveLength(6) // 范围章 1 + 资源图段 2 + 列项 1 + 注 1 + 单元格 1
+    for (const format of ['HTML', 'DOCX', 'XML46687'] as const) {
+      expect(paths(g3IrDoc(), format).filter(path => path.endsWith('.image')), format).toEqual([])
     }
-    expect(paths(g3IrDoc(), 'XML46687').filter(path => path.endsWith('.image'))).toEqual([])
   })
 
-  it('不报的是 image 以外的东西：去掉所有行内图后，g3IrDoc 在 HTML/DOCX 只剩 legend 与 examples 两类问题', () => {
+  it('g3IrDoc 在 HTML/DOCX 中（排除 doc.resources）只剩 legend 与 examples 两类问题', () => {
     const doc = g3IrDoc()
-    const strip = (value: unknown): void => {
-      if (Array.isArray(value)) { value.forEach(strip); return }
-      if (!value || typeof value !== 'object') return
-      const row = value as Record<string, unknown>
-      if (Array.isArray(row.content) && row.content.some(item => item && typeof item === 'object' && 'image' in item)) {
-        row.content = (row.content as Array<Record<string, unknown>>).filter(item => !('image' in item))
-      }
-      Object.values(row).forEach(strip)
-    }
-    strip(doc.body)
-    // doc.resources（行内图 / 图所引用的文档级资源）本就不在 doc 字段表内：这是 WP6 起的既有限制，G3 不改，单独排除后再比较。
-    for (const format of BLOCKING_FORMATS) {
+    // doc.resources（行内图 / 图所引用的文档级资源）本就不在 doc 字段表内：这是 WP6 起的既有限制，单独排除后再比较。
+    for (const format of ['HTML', 'DOCX'] as const) {
       expect(paths(doc, format).filter(path => path !== 'doc.resources').every(path => /\.(legend|examples)$/.test(path)), format).toBe(true)
       expect(paths(doc, format)).toContain('doc.resources')
     }
@@ -154,12 +143,12 @@ describe('[M-8.2-11] 输出边界：figure.notes 放行（唯一的新放行，�
     }
   })
 
-  it('图注内的内容走既有字段表：注内行内图仍被报（image 不在 inline 字段表），其余内容放行', () => {
+  it('图注内的内容走既有字段表：注内行内图仅旧 XML 报，HTML、DOCX、XML46687 放行', () => {
     const figure = g3Figure('b-fig', '图', { notes: [g3Note('b-n1', { text: '图注。' }, inlineImage())] })
-    for (const format of BLOCKING_FORMATS) {
-      expect(paths(docWith(figure), format), format).toEqual(['doc.body[0].children[0].notes[0].content[0].content[1].image'])
+    expect(paths(docWith(figure), 'XML')).toEqual(['doc.body[0].children[0].notes[0].content[0].content[1].image'])
+    for (const format of ['HTML', 'DOCX', 'XML46687'] as const) {
+      expect(paths(docWith(figure), format), format).toEqual([])
     }
-    expect(paths(docWith(figure), 'XML46687')).toEqual([])
   })
 
   it('来自生产 PM 文档的路径一致：pmToIr 得到的 IR 与手写 IR 的边界结论相同（g3-fig-1 同时含图例、图注、示例）', () => {
@@ -169,13 +158,13 @@ describe('[M-8.2-11] 输出边界：figure.notes 放行（唯一的新放行，�
     }
   })
 
-  it('完整 G3 文档：HTML、DOCX、XML 都因 legend / examples / image 被阻断（三类各自出现）；XML46687 全部放行', () => {
+  it('完整 G3 文档：HTML、DOCX 因 legend / examples 被阻断，行内图放行；旧 XML 仍阻断 image；XML46687 全部放行', () => {
     expect(paths(g3IrDoc(), 'XML46687')).toEqual([])
     for (const format of BLOCKING_FORMATS) {
       const reported = paths(g3IrDoc(), format)
       expect(reported.some(path => path.endsWith('.legend')), format).toBe(true)
       expect(reported.some(path => path.endsWith('.examples')), format).toBe(true)
-      expect(reported.some(path => path.endsWith('.image')), format).toBe(true)
+      expect(reported.some(path => path.endsWith('.image')), format).toBe(format === 'XML')
       expect(reported.some(path => path.includes('.notes')), format).toBe(false)
     }
   })

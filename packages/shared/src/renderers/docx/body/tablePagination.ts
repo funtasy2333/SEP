@@ -38,8 +38,17 @@ function textLines(value: string, capacity: number): number {
 
 function blockLines(block: IRBlock, capacity: number): number {
   switch (block.kind) {
-    case 'paragraph':
-      return textLines(block.content.map((run) => run.text).join(''), capacity)
+    case 'paragraph': {
+      const base = textLines(block.content.map((run) => run.text).join(''), capacity)
+      const imageExtra = block.content.reduce((max, run) => {
+        if (!run.image) return max
+        if (run.image.size === 'S') return max
+        if (run.image.size === 'M') return Math.max(max, 1)
+        if (run.image.size === 'L') return Math.max(max, 2)
+        return Math.max(max, 3)
+      }, 0)
+      return base + imageExtra
+    }
     case 'list':
       return block.items.reduce((sum, item) =>
         sum + Math.max(1, item.content.reduce((part, child) => part + blockLines(child, capacity), 0)), 0)

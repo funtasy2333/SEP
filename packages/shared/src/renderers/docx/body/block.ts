@@ -13,7 +13,7 @@ import { emitParagraph, formulaSink, warn, type RenderContext } from './context'
 import { plainRun, renderInlines, renderRun, superscriptRun, tabRun } from './inline'
 import { renderFigureImage } from './figure'
 import { renderTableGrid, type TableGridRenderOptions } from './table'
-import { resolveTableColumnWidths } from './tableColumnWidths'
+import { resolveTableColumnWidths, TABLE_CELL_SIDE_MARGIN_TWIPS } from './tableColumnWidths'
 import type { TableFlowBudget } from './pageFlow'
 import { paginateTable, SMALL_TABLE_MM } from './tablePagination'
 import { renderFormula } from './formula'
@@ -38,6 +38,8 @@ export interface BlockCtx {
   introduction?: boolean
   /** 表格/图注等完整要素内部不得插入分节。 */
   suppressLandscape?: boolean
+  /** 当前容器（如表格单元格）允许行内图片占用的最大宽度（mm），未设置时默认版心宽度 165mm。 */
+  maxWidthMm?: number
 }
 
 function withScope(bctx: BlockCtx, scopeKey: NodeId): BlockCtx {
@@ -119,7 +121,7 @@ function renderListItemRest(ctx: RenderContext, blocks: (IRParagraph | IRList)[]
   let out = ''
   for (const block of blocks) {
     if (block.kind === 'paragraph') {
-      out += emitParagraph(ctx, plan.contStyleId, { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx)) })
+      out += emitParagraph(ctx, plan.contStyleId, { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx, block.id, bctx.maxWidthMm)) })
     } else {
       out += renderListLevel(ctx, block, bctx, depth + 1, { type: list.listType, numId: plan.firstNumPr?.numId })
     }
@@ -139,7 +141,7 @@ function renderListLevel(ctx: RenderContext, list: IRList, bctx: BlockCtx, depth
       out += emitParagraph(ctx, plan.firstStyleId, {
         numPr: plan.firstNumPr,
         indent: plan.firstIndent,
-        runsXml: renderInlines((first as IRParagraph).content, ctx.labels, formulaSink(ctx)),
+        runsXml: renderInlines((first as IRParagraph).content, ctx.labels, formulaSink(ctx, (first as IRParagraph).id, bctx.maxWidthMm)),
         numbered,
       })
       out += renderListItemRest(ctx, item.content.slice(1), bctx, depth, list, plan)
@@ -165,8 +167,9 @@ function renderList(ctx: RenderContext, list: IRList, bctx: BlockCtx): string {
 function renderDefList(ctx: RenderContext, list: IRDefList): string {
   let out = ''
   for (const item of list.items) {
-    const runs = renderInlines(item.term, ctx.labels, formulaSink(ctx)) + plainRun('：')
-      + renderInlines(item.definition, ctx.labels, formulaSink(ctx))
+    const sink = formulaSink(ctx, item.id)
+    const runs = renderInlines(item.term, ctx.labels, sink) + plainRun('：')
+      + renderInlines(item.definition, ctx.labels, sink)
     out += emitParagraph(ctx, 'SesPara', { runsXml: runs })
   }
   return out
@@ -194,7 +197,7 @@ function renderContentBlocks(ctx: RenderContext, blocks: IRBlock[], bctx: BlockC
   let out = ''
   for (const block of blocks) {
     if (block.kind === 'paragraph') {
-      out += emitParagraph(ctx, contStyleId, { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx)) })
+      out += emitParagraph(ctx, contStyleId, { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx, block.id, bctx.maxWidthMm)) })
     } else {
       out += renderBlock(ctx, block, bctx)
     }
@@ -214,7 +217,7 @@ function renderNote(ctx: RenderContext, note: IRNote, bctx: BlockCtx, inTable = 
 
   const [first, ...rest] = note.content
   if (first && first.kind === 'paragraph') {
-    let out = emitParagraph(ctx, firstStyleId, { numPr: firstNumPr, runsXml: renderInlines(first.content, ctx.labels, formulaSink(ctx)), numbered })
+    let out = emitParagraph(ctx, firstStyleId, { numPr: firstNumPr, runsXml: renderInlines(first.content, ctx.labels, formulaSink(ctx, first.id, bctx.maxWidthMm)), numbered })
     out += renderContentBlocks(ctx, rest, innerBctx, contStyleId)
     return out
   }
@@ -290,20 +293,23 @@ function tableGridContent(
       const resolved = ctx.labels[footnote.id]
       if (!resolved) throw new Error(`renderTable: 表脚注 "${footnote.id}" 在 labels 中没有编号`)
       return emitParagraph(ctx, 'SesTableFootnote', {
-        runsXml: superscriptRun(resolved.refText) + tabRun() + renderInlines(footnote.content, ctx.labels, formulaSink(ctx)),
+        runsXml: superscriptRun(resolved.refText) + tabRun() + renderInlines(footnote.content, ctx.labels, formulaSink(ctx, footnote.id)),
       })
     }).join(''),
     renderCell(cell, styleId, meta) {
       if (cell.content.length === 0 || cell.content.every((block) => block.kind === 'paragraph' &&
-        // Empty source text may still render a footnote or a resolved cross-reference.
-        block.content.every((run) => !run.formula && renderRun({ ...run, text: run.text.trim() }, ctx.labels) === ''))) return ''
+        // Empty source text may still render a footnote, inline image, or a resolved cross-reference.
+        block.content.every((run) => !run.formula && !run.image && renderRun({ ...run, text: run.text.trim() }, ctx.labels) === ''))) return ''
+      const cellWidthTwips = columnLayout.cellWidths.get(cell.id) ?? (columnLayout.pageWidthTwips / Math.max(1, columnLayout.widths.length))
+      const cellMaxWidthMm = Math.max(5, ((cellWidthTwips - 2 * TABLE_CELL_SIDE_MARGIN_TWIPS) * 25.4) / 1440)
+      const cellBctx: BlockCtx = { ...tableBctx, maxWidthMm: cellMaxWidthMm }
       return cell.content.map((block) => {
-        if (block.kind !== 'paragraph') return renderBlock(ctx, block, tableBctx)
+        if (block.kind !== 'paragraph') return renderBlock(ctx, block, cellBctx)
         // 表头统一使用常规字重；源稿导入的直接粗体也要清除，但不能改写编辑器/IR 数据。
         const content = meta.header ? block.content.map(run => ({
           ...run, marks: run.marks?.filter(mark => mark.type !== 'bold'),
         })) : block.content
-        return emitParagraph(ctx, styleId, { runsXml: renderInlines(content, ctx.labels, formulaSink(ctx)) })
+        return emitParagraph(ctx, styleId, { runsXml: renderInlines(content, ctx.labels, formulaSink(ctx, block.id, cellMaxWidthMm)) })
       }).join('')
     },
   }
@@ -446,7 +452,7 @@ function renderBlockContent(ctx: RenderContext, block: IRBlock, bctx: BlockCtx):
   }
   switch (block.kind) {
     case 'paragraph':
-      return emitParagraph(ctx, 'SesPara', { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx)) })
+      return emitParagraph(ctx, 'SesPara', { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx, block.id, bctx.maxWidthMm)) })
     case 'list':
       return renderList(ctx, block, bctx)
     case 'table':

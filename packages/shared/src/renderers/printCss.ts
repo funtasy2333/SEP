@@ -379,6 +379,11 @@ const CONTENT = `
 /* 图题英文（.ses-figure-caption-en）print 不输出（仅 screen），故 print CSS 不含其样式（F8） */
 /* 图中数字和文字：宋体六号（占位说明，实际作用于 SVG/位图内文本时由资源自带）*/
 .ses-figure-image text { font-size: var(--ses-fs-liu); }
+/* 行内图（M-8.3-02）：默认按原图尺寸自适应且不超出容器宽度；指定 size:S/M/L 时按 1/2/3 倍行高缩放 */
+.ses-inline-image { display: inline-block; vertical-align: middle; max-width: 100%; height: auto; }
+.ses-inline-image[data-size="S"] { height: 1.2em; }
+.ses-inline-image[data-size="M"] { height: 2.4em; }
+.ses-inline-image[data-size="L"] { height: 3.6em; }
 
 /* —— 公式：编号右端对齐 + 点线引导；式中键值列表 —— */
 /* 公式另行居中；编号右端对齐，公式与编号之间由点线连接（GB/T 1.1 10.4.3、9.9.2 示例）。

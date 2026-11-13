@@ -5,7 +5,7 @@
  * 不解码图片、不使用浏览器或 Node API。图注及图内注由块分发器按 IR 顺序输出。
  */
 
-import type { IRFigure, NodeId } from '../../../ir/types'
+import type { IRFigure, IRInlineImage, NodeId } from '../../../ir/types'
 import { emitParagraph, warn, type RenderContext } from './context'
 import { plainRun } from './inline'
 import { mmToEmu } from '../units'
@@ -14,6 +14,14 @@ import type { DocxRenderOptions } from '../types'
 import { escapeXmlAttr } from '../xml'
 
 export type DocxImage = DocxRenderOptions['images'][NodeId]
+
+/**
+ * 段落内第 `imageIndex`（从 0 起）个行内图在 `DocxRenderOptions.images` 中的资源键。
+ * 与 io `collectImageResources` 保持同一约定，避免与图块 `figure.id` 冲突。
+ */
+export function inlineImageResourceKey(paragraphId: NodeId, imageIndex: number): string {
+  return `${paragraphId}#img${imageIndex}`
+}
 
 export interface FigureImageOptions {
   /** 写入 document.xml.rels 的关系 ID，必须由 renderDocx 的公共分配器提供。 */
@@ -38,6 +46,9 @@ const IMAGE_NAMESPACES =
   'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" ' +
   'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
 
+/** 五号字（10.5pt）单倍行高 1.2em = 12.6pt = 4.445mm，用于行内图 size:S/M/L 的 1/2/3 倍行高换算。 */
+const INLINE_IMAGE_LINE_HEIGHT_MM = 12.6 * (25.4 / 72)
+
 function extensionFor(contentType: DocxImage['contentType']): 'png' | 'jpg' | 'gif' {
   switch (contentType) {
     case 'image/png': return 'png'
@@ -57,16 +68,42 @@ function isValidImage(image: DocxImage): boolean {
     Number.isFinite((image.heightPx * 914400) / dpi)
 }
 
-function drawingXml(figure: IRFigure, image: DocxImage, relationshipId: string, mediaIndex: number, maxWidthMm: number): string {
+function computeDrawingExtentEmu(
+  image: DocxImage,
+  maxWidthMm: number,
+  size?: IRInlineImage['size'],
+): { widthEmu: number; heightEmu: number } {
+  const maxWidthEmu = mmToEmu(maxWidthMm)
+  if (size === 'S' || size === 'M' || size === 'L') {
+    const mult = size === 'S' ? 1 : size === 'M' ? 2 : 3
+    const baseHeightEmu = mmToEmu(mult * INLINE_IMAGE_LINE_HEIGHT_MM)
+    const baseWidthEmu = baseHeightEmu * (image.widthPx / image.heightPx)
+    const scale = baseWidthEmu > maxWidthEmu ? maxWidthEmu / baseWidthEmu : 1
+    return {
+      widthEmu: Math.max(1, Math.round(baseWidthEmu * scale)),
+      heightEmu: Math.max(1, Math.round(baseHeightEmu * scale)),
+    }
+  }
   const dpi = image.dpi ?? 96
   const naturalWidthEmu = (image.widthPx * 914400) / dpi
   const naturalHeightEmu = (image.heightPx * 914400) / dpi
-  const maxWidthEmu = mmToEmu(maxWidthMm)
   const scale = naturalWidthEmu > maxWidthEmu ? maxWidthEmu / naturalWidthEmu : 1
-  const widthEmu = Math.round(naturalWidthEmu * scale)
-  const heightEmu = Math.round(naturalHeightEmu * scale)
+  return {
+    widthEmu: Math.round(naturalWidthEmu * scale),
+    heightEmu: Math.round(naturalHeightEmu * scale),
+  }
+}
+
+function drawingXml(
+  alt: string,
+  image: DocxImage,
+  relationshipId: string,
+  mediaIndex: number,
+  maxWidthMm: number,
+  size?: IRInlineImage['size'],
+): string {
+  const { widthEmu, heightEmu } = computeDrawingExtentEmu(image, maxWidthMm, size)
   const name = `Image ${mediaIndex}`
-  const alt = figure.caption.map((run) => run.text).join('')
   const rid = escapeXmlAttr(relationshipId)
   const safeName = escapeXmlAttr(name)
   const safeAlt = escapeXmlAttr(alt)
@@ -116,9 +153,10 @@ export function renderFigureImage(
   if (!Number.isFinite(maxWidthMm) || maxWidthMm <= 0) throw new Error('renderFigureImage: maxWidthMm 必须为正数')
   const extension = extensionFor(image.contentType)
   const target = `word/media/image${mediaIndex}.${extension}`
+  const alt = figure.caption.map((run) => run.text).join('')
   return {
     xml: emitParagraph(ctx, 'SesFigure', {
-      runsXml: `<w:r>${drawingXml(figure, image, relationshipId, mediaIndex, maxWidthMm)}</w:r>`,
+      runsXml: `<w:r>${drawingXml(alt, image, relationshipId, mediaIndex, maxWidthMm)}</w:r>`,
     }),
     relatedPart: {
       id: relationshipId,
@@ -128,4 +166,42 @@ export function renderFigureImage(
       binary: true,
     },
   }
+}
+
+/**
+ * 渲染段落内的行内图（`IRInline.image`）为 `<w:r><w:drawing>...</w:drawing></w:r>`，
+ * 并将对应的图片关系部件登记到 `ctx.relatedParts`。缺图或尺寸无效时回退为 `〔图片缺失〕` 并记录 warning。
+ */
+export function renderInlineImageRun(
+  ctx: RenderContext,
+  inlineImage: IRInlineImage,
+  ownerId: NodeId | undefined,
+  imageIndex: number,
+  maxWidthMm = 165,
+): string {
+  const key = ownerId ? inlineImageResourceKey(ownerId, imageIndex) : undefined
+  const image = (key ? ctx.resources.images[key] : undefined)
+    ?? (inlineImage.resourceId ? ctx.resources.images[inlineImage.resourceId] : undefined)
+    ?? (inlineImage.src ? ctx.resources.images[inlineImage.src] : undefined)
+  const labelId = ownerId ?? inlineImage.resourceId ?? 'inlineImage'
+  if (!image) {
+    warn(ctx, 'image-missing', `行内图片 "${labelId}" 未提供资源，输出图片缺失提示`, ownerId)
+    return plainRun('〔图片缺失〕')
+  }
+  if (!isValidImage(image)) {
+    warn(ctx, 'image-invalid', `行内图片 "${labelId}" 的字节或尺寸元数据无效，输出图片缺失提示`, ownerId)
+    return plainRun('〔图片缺失〕')
+  }
+  if (!Number.isFinite(maxWidthMm) || maxWidthMm <= 0) throw new Error('renderInlineImageRun: maxWidthMm 必须为正数')
+  const { relationshipId, mediaIndex } = ctx.allocateImage()
+  const extension = extensionFor(image.contentType)
+  const target = `word/media/image${mediaIndex}.${extension}`
+  ctx.relatedParts.push({
+    id: relationshipId,
+    target,
+    relationshipType: REL_IMAGE,
+    content: image.base64,
+    binary: true,
+  })
+  return `<w:r>${drawingXml(inlineImage.alt ?? '', image, relationshipId, mediaIndex, maxWidthMm, inlineImage.size)}</w:r>`
 }

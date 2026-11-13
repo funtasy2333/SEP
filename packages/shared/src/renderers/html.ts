@@ -223,6 +223,10 @@ function renderRun(run: IRInline, ctx: RenderCtx): string {
     ? `<span class="ses-formula-inline" data-latex="${escapeAttr(run.formula.latex)}"></span>`
     : ''
 
+  const imageAtom = run.image
+    ? `<img class="ses-inline-image" src="${escapeAttr(run.image.src)}" alt="${escapeAttr(run.image.alt ?? '')}"${run.image.size ? ` data-size="${escapeAttr(run.image.size)}"` : ''} />`
+    : ''
+
   let footnoteAtom = ''
   if (run.footnote) {
     const resolved = ctx.labels[run.footnote.id]
@@ -250,7 +254,7 @@ function renderRun(run: IRInline, ctx: RenderCtx): string {
       ? `<a class="ses-table-footnote-ref" href="#${escapeAttr(resolved.xmlId)}">${marker}</a>`
       : marker
   }
-  return `${body}${formulaAtom}${footnoteAtom}${tableFootnoteAtoms}`
+  return `${body}${formulaAtom}${imageAtom}${footnoteAtom}${tableFootnoteAtoms}`
 }
 
 function renderInlines(inlines: IRInline[], ctx: RenderCtx): string {
@@ -898,6 +902,10 @@ function screenStyles(): string {
     .ses-table-block td > .ses-paragraph, .ses-table-block th > .ses-paragraph { text-indent: 0; }
     .ses-figure-block { text-align: center; margin: 16px 0; }
     .ses-figure-image { max-width: 100%; }
+    .ses-inline-image { display: inline-block; vertical-align: middle; max-width: 100%; height: auto; }
+    .ses-inline-image[data-size="S"] { height: 1.2em; }
+    .ses-inline-image[data-size="M"] { height: 2.4em; }
+    .ses-inline-image[data-size="L"] { height: 3.6em; }
     .ses-figure-caption { font-family: "SimHei", "黑体", sans-serif; font-weight: bold; margin-top: 8px; }
     .ses-figure-caption-en { font-style: italic; color: #555; }
     .ses-formula-block { display: flex; align-items: center; margin: 16px 0 6px; }

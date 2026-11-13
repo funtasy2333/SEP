@@ -271,10 +271,10 @@ export function createPageFlow(): PageFlow {
       const text = [...runsXml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:br\b[^>]*\/>|<w:tab\/>/g)]
         .map(match => match[0].startsWith('<w:br') ? '\n' : match[0] === '<w:tab/>' ? '　' : decode(match[1] ?? '')).join('')
       const { lineCount, contentHeight, before, after } = measureText(spec, text, numbered, landscape, options)
-      const imageHeight = Number(/<wp:extent\b[^>]*\bcy="([0-9]+)"/.exec(runsXml)?.[1] ?? 0) / 36000
+      const imageHeight = Math.max(0, ...[...runsXml.matchAll(/<wp:extent\b[^>]*\bcy="([0-9]+)"/g)].map(match => Number(match[1] ?? 0) / 36000))
       const ids = [...runsXml.matchAll(/<w:footnoteReference\b[^>]*w:id="([0-9]+)"/g)].map(match => Number(match[1]))
       pending.push({
-        contentHeight: imageHeight > 0 ? imageHeight + 3 : contentHeight,
+        contentHeight: imageHeight > 0 ? Math.max(contentHeight, imageHeight + 3) : contentHeight,
         lineCount,
         before, after, ids,
         atomic: spec.keepLines === true || imageHeight > 0,

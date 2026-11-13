@@ -59,7 +59,7 @@ export function renderClause(ctx: RenderContext, clause: IRClause, bctx: BlockCt
   const numPr = { numId, ilvl: level }
   const [first, ...rest] = clause.children
   if (first && first.kind === 'paragraph') {
-    let out = emitParagraph(ctx, noTitleStyleId, { numPr, runsXml: renderInlines(first.content, ctx.labels, formulaSink(ctx)), numbered })
+    let out = emitParagraph(ctx, noTitleStyleId, { numPr, runsXml: renderInlines(first.content, ctx.labels, formulaSink(ctx, first.id, bctx.maxWidthMm)), numbered })
     out += renderContainerChildren(ctx, rest, innerBctx, level, inTermsChapter)
     return out
   }
