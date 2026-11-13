@@ -1189,3 +1189,10 @@ v10（2026-09-25，`probe_v10.py`）补第五条：**编号计数按 abstractNum
 - `w:numbering`：numPicBullet*, abstractNum*, num*, numIdMacAtCleanup（WP7.2 补）
 - `w:styles`：docDefaults, latentStyles, style*；`w:docDefaults`：rPrDefault, pPrDefault（WP7.2 补）
 - `w:pBdr`：top, left, bottom, right, between, bar（WP7.2 补）
+
+
+## 2026-11-13 Word 导出字体更新
+
+正文宋体类样式、文档默认值、目录、来源、脚注、公式编号及列项标识统一指定“方正书宋简体”（用户字体文件为 `FZSSJW.TTF`）；列项破折号由 Times New Roman 改为方正书宋简体。字体名集中在 `packages/shared/src/renderers/docx/fonts.ts`，`word/fontTable.xml` 同步登记。
+
+标题黑体和数学公式字体沿用现有设置。罗马列项的西文字母及封面西文模板保留 Times New Roman 的既有度量，中文部分使用方正书宋简体。此更新只影响 DOCX；HTML/PDF 的字体配置不变。DOCX 不嵌入字体，打开文件的电脑需安装对应字体；未安装时由 Word 选择系统替代字体。

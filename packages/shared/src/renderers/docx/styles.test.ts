@@ -260,10 +260,10 @@ describe('styles.ts：显式缩进值（不依赖编号级别的样式）', () =
     expect(indOf(styles.get('SesTermHead')!)?.attrs).toEqual({ 'w:left': '0', 'w:firstLine': '420' })
   })
 
-  it('SesTermSource：来源中英文字母、数字及中文均用宋体，保持正文首行缩进', () => {
+  it('SesTermSource：来源中英文字母、数字及中文均用方正书宋简体，保持正文首行缩进', () => {
     expect(indOf(styles.get('SesTermSource')!)?.attrs).toEqual({ 'w:left': '0', 'w:firstLine': '420' })
     expect(rFontsOf(styles.get('SesTermSource')!)?.attrs).toEqual({
-      'w:ascii': '宋体', 'w:eastAsia': '宋体', 'w:hAnsi': '宋体', 'w:cs': '宋体',
+      'w:ascii': '方正书宋简体', 'w:eastAsia': '方正书宋简体', 'w:hAnsi': '方正书宋简体', 'w:cs': '方正书宋简体',
     })
   })
 
@@ -332,21 +332,21 @@ describe('styles.ts：显式缩进值（不依赖编号级别的样式）', () =
     expect(indOf(styles.get('TOC1')!)).toBeUndefined()
   })
 
-  it('TOC1/TOC2 的编号与正文文字均指定宋体，不让 ASCII 数字回退到 Times New Roman', () => {
+  it('TOC1/TOC2 的编号与正文文字均指定方正书宋简体，不让 ASCII 数字回退到 Times New Roman', () => {
     for (const id of ['TOC1', 'TOC2']) {
       expect(rFontsOf(styles.get(id)!)?.attrs).toEqual({
-        'w:ascii': '宋体', 'w:eastAsia': '宋体', 'w:hAnsi': '宋体', 'w:cs': '宋体',
+        'w:ascii': '方正书宋简体', 'w:eastAsia': '方正书宋简体', 'w:hAnsi': '方正书宋简体', 'w:cs': '方正书宋简体',
       })
     }
   })
 
-  it('段与正文/附录无标题条的中英文均显式使用宋体', () => {
+  it('段与正文/附录无标题条的中英文均显式使用方正书宋简体', () => {
     const ids = ['SesPara', ...[1, 2, 3, 4, 5].flatMap((level) => [
       `SesNoTitle${level}`, `SesAppNoTitle${level}`,
     ])]
     for (const id of ids) {
       expect(rFontsOf(styles.get(id)!)?.attrs).toEqual({
-        'w:ascii': '宋体', 'w:eastAsia': '宋体', 'w:hAnsi': '宋体', 'w:cs': '宋体',
+        'w:ascii': '方正书宋简体', 'w:eastAsia': '方正书宋简体', 'w:hAnsi': '方正书宋简体', 'w:cs': '方正书宋简体',
       })
     }
   })
@@ -363,8 +363,10 @@ describe('styles.ts：字体字号（黑体/宋体、五号/小五等）', () =>
     return rPr && findChild(rPr, 'w:sz')?.attrs['w:val']
   }
 
-  it('SesNormal：Times New Roman/宋体，五号 21', () => {
-    expect(rFontsAscii('SesNormal')).toBe('Times New Roman')
+  it('SesNormal：中英文、数字均使用方正书宋简体，五号 21', () => {
+    expect(rFontsOf(styles.get('SesNormal')!)?.attrs).toEqual({
+      'w:ascii': '方正书宋简体', 'w:eastAsia': '方正书宋简体', 'w:hAnsi': '方正书宋简体', 'w:cs': '方正书宋简体',
+    })
     expect(szVal('SesNormal')).toBe('21')
   })
 
@@ -419,7 +421,7 @@ describe('styles.ts：字体字号（黑体/宋体、五号/小五等）', () =>
       const rFonts = findChild(rPr, 'w:rFonts')!
       expect(rFonts?.attrs['w:ascii'], id).toBe('Times New Roman')
       expect(rFonts?.attrs['w:hAnsi'], id).toBe('Times New Roman')
-      expect(rFonts?.attrs['w:eastAsia'], id).toBe('宋体')
+      expect(rFonts?.attrs['w:eastAsia'], id).toBe('方正书宋简体')
       expect(findChild(rPr, 'w:b'), id).toBeDefined()
       expect(findChild(rPr, 'w:sz')?.attrs['w:val'], id).toBe('96')
       expect(findChild(rPr, 'w:w')?.attrs['w:val'], id).toBe('130')
@@ -429,12 +431,14 @@ describe('styles.ts：字体字号（黑体/宋体、五号/小五等）', () =>
 })
 
 describe('styles.ts：docDefaults', () => {
-  it('rPrDefault 为宋体 + lang，pPrDefault 为空 pPr', () => {
+  it('rPrDefault 为方正书宋简体 + lang，pPrDefault 为空 pPr', () => {
     const root = parseXml(buildStylesXml())
     const docDefaults = findChild(root, 'w:docDefaults')!
     const rPrDefault = findChild(docDefaults, 'w:rPrDefault')!
     const rPr = findChild(rPrDefault, 'w:rPr')!
-    expect(findChild(rPr, 'w:rFonts')?.attrs['w:ascii']).toBe('Times New Roman')
+    expect(findChild(rPr, 'w:rFonts')?.attrs).toEqual({
+      'w:ascii': '方正书宋简体', 'w:eastAsia': '方正书宋简体', 'w:hAnsi': '方正书宋简体', 'w:cs': '方正书宋简体',
+    })
     expect(findChild(rPr, 'w:lang')?.attrs['w:val']).toBe('en-US')
     const pPrDefault = findChild(docDefaults, 'w:pPrDefault')!
     const emptyPPr = findChild(pPrDefault, 'w:pPr')
