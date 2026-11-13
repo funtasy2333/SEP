@@ -335,7 +335,6 @@ section.ses-cover { page: cover; break-after: page; }
 .ses-table-block thead { display: table-header-group; }
 .ses-table-block tfoot { display: table-row-group; }
 .ses-table-block th, .ses-table-block td {
-  border: 0.5pt solid #000;
   padding: 1.5mm 3mm;
   vertical-align: top;
 }
@@ -343,12 +342,12 @@ section.ses-cover { page: cover; break-after: page; }
 .ses-table-block td { text-align: left; }
 .ses-table-block td > .ses-paragraph, .ses-table-block th > .ses-paragraph { text-indent: 0; }
 .ses-table-block tr { break-inside: avoid; }
-.ses-table-notes td, .ses-table-footnotes td { border-left-width: 0.75pt; border-right-width: 0.75pt; }
-.ses-table-notes td { border-top-width: 0.75pt; }
-.ses-table-notes:not(:last-child) td { border-bottom-width: 0.25pt; }
-.ses-table-notes:last-child td, .ses-table-footnotes td { border-bottom-width: 0.75pt; }
-.ses-table-footnotes td { border-top-width: 0.25pt; }
-.ses-table-footnotes:first-child td { border-top-width: 0.75pt; }
+
+.ses-table-block table { border: 1pt solid #000; }
+.ses-table-block th, .ses-table-block td { border: 0.5pt solid #000; }
+.ses-table-block thead th, .ses-table-block thead td, .ses-table-block th { border: 1pt solid #000; }
+.ses-table-block .ses-table-notes td, .ses-table-block .ses-table-footnotes td { border: 1pt solid #000; }
+
 .ses-table-footnote { font-size: var(--ses-fs-xiaowu); margin-left: 2em; text-indent: -1em; break-inside: avoid; }
 .ses-table-footnote-marker { display: inline-block; width: calc(1em - 1pt); text-indent: 0; }
 .ses-table-footnote-marker sup { font-size: 0.75em; vertical-align: super; }
@@ -720,7 +719,13 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
     .ses-table-caption { font-family: "SimHei", "黑体", sans-serif; font-weight: normal; text-align: center; margin: 8px 0 4px; }
     .ses-table-caption-en { text-align: center; font-style: italic; color: #555; }
     .ses-table-block table { border-collapse: collapse; width: 100%; }
-    .ses-table-block th, .ses-table-block td { border: 1px solid #333; padding: 6px 8px; }
+    .ses-table-block th, .ses-table-block td { padding: 6px 8px; }
+
+.ses-table-block table { border: 1pt solid #000; }
+.ses-table-block th, .ses-table-block td { border: 0.5pt solid #000; }
+.ses-table-block thead th, .ses-table-block thead td, .ses-table-block th { border: 1pt solid #000; }
+.ses-table-block .ses-table-notes td, .ses-table-block .ses-table-footnotes td { border: 1pt solid #000; }
+
     .ses-table-block th { background: #f5f5f5; }
     .ses-table-block td > .ses-paragraph, .ses-table-block th > .ses-paragraph { text-indent: 0; }
     .ses-figure-block { text-align: center; margin: 16px 0; }

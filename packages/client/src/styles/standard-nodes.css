@@ -406,15 +406,12 @@
 .ProseMirror .std-table-footnote-row {
   margin: 8px 0;
   padding: 8px 14px 10px;
-  border: 1px solid #d7e4ef;
-  border-left: 3px solid #6288aa;
+  border: 1pt solid #000;
   border-radius: 6px;
   background: #f5f9fc;
 }
 
 .ProseMirror .std-table-footnote-row {
-  border-color: #ded8ee;
-  border-left-color: #8870b4;
   background: #f8f6fc;
 }
 
