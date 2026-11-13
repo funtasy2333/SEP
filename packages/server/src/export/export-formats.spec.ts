@@ -831,7 +831,41 @@ describe('GET /api/documents/:id/export/{pdf,html,json}', () => {
         );
       });
 
-      it('行内图、附加图形、表格替代图形目前被输出边界检查拦下（422），外部地址到不了管线；blockExternalImages 对它们仍作防御性清空', async () => {
+      it('行内图非 data URL 的图片同样在交给管线前被清空并记告警；附加图形、表格替代图形目前被输出边界检查拦下（422）', async () => {
+        const inlineDoc = chapterOnlyDoc({
+          type: 'stdParagraph',
+          attrs: { nodeId: 'p-inline' },
+          content: [
+            text('行内'),
+            {
+              type: 'inlineImage',
+              attrs: { nodeId: 'img-ext', src: 'http://127.0.0.1:9/i.png' },
+            },
+            {
+              type: 'inlineImage',
+              attrs: { nodeId: 'img-data', src: DATA_URL, size: 'S' },
+            },
+          ],
+        });
+        const inlineId = await createDoc({ content: inlineDoc });
+        const inlineRes = await download(EXPORT_PATH(inlineId, 'pdf'));
+        expect(inlineRes.status).toBe(200);
+        const inlineHtml = (
+          convertStub.convertHtmlToPdf.mock.calls[0][0] as { html: string }
+        ).html;
+        expect(inlineHtml).not.toContain('http://127.0.0.1:9/i.png');
+        expect(inlineHtml).toContain(
+          `<img class="ses-inline-image" src="${DATA_URL}" alt="" data-size="S" />`,
+        );
+        expect(warningsOf(inlineRes)).toEqual([
+          {
+            code: 'image-resource-failed',
+            nodeId: 'img-ext',
+            message: EXTERNAL_IMAGE_REJECTED_MESSAGE,
+          },
+        ]);
+
+        convertStub.convertHtmlToPdf.mockClear();
         const extFigure = figure('fig-ext', 'http://127.0.0.1:9/main.png');
         extFigure.attrs = {
           ...extFigure.attrs,
@@ -844,16 +878,8 @@ describe('GET /api/documents/:id/export/{pdf,html,json}', () => {
           ...extTable.attrs,
           alternativeGraphic: { nodeId: 'tg-1', src: '//127.0.0.1:9/alt.png' },
         };
-        const inlineParagraph: PMJsonNode = {
-          type: 'stdParagraph',
-          attrs: { nodeId: 'p-inline' },
-          content: [
-            text('行内'),
-            { type: 'inlineImage', attrs: { src: 'http://127.0.0.1:9/i.png' } },
-          ],
-        };
         const id = await createDoc({
-          content: chapterOnlyDoc(extFigure, extTable, inlineParagraph),
+          content: chapterOnlyDoc(extFigure, extTable),
         });
         const res = await download(EXPORT_PATH(id, 'pdf'));
         expect(res.status).toBe(422);
