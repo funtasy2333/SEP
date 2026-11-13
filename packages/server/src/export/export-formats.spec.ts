@@ -839,11 +839,11 @@ describe('GET /api/documents/:id/export/{pdf,html,json}', () => {
             text('行内'),
             {
               type: 'inlineImage',
-              attrs: { nodeId: 'img-ext', src: 'http://127.0.0.1:9/i.png' },
+              attrs: { src: 'http://127.0.0.1:9/i.png' },
             },
             {
               type: 'inlineImage',
-              attrs: { nodeId: 'img-data', src: DATA_URL, size: 'S' },
+              attrs: { src: DATA_URL, size: 'S' },
             },
           ],
         });
@@ -860,7 +860,6 @@ describe('GET /api/documents/:id/export/{pdf,html,json}', () => {
         expect(warningsOf(inlineRes)).toEqual([
           {
             code: 'image-resource-failed',
-            nodeId: 'img-ext',
             message: EXTERNAL_IMAGE_REJECTED_MESSAGE,
           },
         ]);
