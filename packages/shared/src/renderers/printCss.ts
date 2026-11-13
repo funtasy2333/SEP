@@ -1,3 +1,5 @@
+import { tableBordersCss } from './tableBordersCss'
+
 /**
  * GB/T 1.1-2020 打印样式（Phase 5.5 / WP4）。
  *
@@ -323,7 +325,6 @@ const CONTENT = `
 .ses-table-block thead { display: table-header-group; }
 .ses-table-block tfoot { display: table-row-group; }
 .ses-table-block th, .ses-table-block td {
-  border: 0.5pt solid #000;
   padding: 1.5mm 3mm;
   vertical-align: top;
 }
@@ -331,12 +332,7 @@ const CONTENT = `
 .ses-table-block td { text-align: left; }
 .ses-table-block td > .ses-paragraph, .ses-table-block th > .ses-paragraph { text-indent: 0; }
 .ses-table-block tr { break-inside: avoid; }
-.ses-table-notes td, .ses-table-footnotes td { border-left-width: 0.75pt; border-right-width: 0.75pt; }
-.ses-table-notes td { border-top-width: 0.75pt; }
-.ses-table-notes:not(:last-child) td { border-bottom-width: 0.25pt; }
-.ses-table-notes:last-child td, .ses-table-footnotes td { border-bottom-width: 0.75pt; }
-.ses-table-footnotes td { border-top-width: 0.25pt; }
-.ses-table-footnotes:first-child td { border-top-width: 0.75pt; }
+${tableBordersCss}
 .ses-table-footnote { font-size: var(--ses-fs-xiaowu); margin-left: 2em; text-indent: -1em; break-inside: avoid; }
 .ses-table-footnote-marker { display: inline-block; width: calc(1em - 1pt); text-indent: 0; }
 .ses-table-footnote-marker sup { font-size: 0.75em; vertical-align: super; }

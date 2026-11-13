@@ -152,8 +152,8 @@ describe('[M-5.7-04] DOCX：A14 抽象编号为 lowerRoman，罗马列项一级�
     expect(a14).toContain('<w:lvlText w:val="·"/>')
     // 与 A12（字母列项）的区别只有 L0 的 numFmt 与标识 ASCII 字体：Times New Roman（宋体的 ASCII 字母半角等宽，
     // `iii）` 就超出 2 字悬挂量，Word 会把文字推到下一个制表位；Times 的 i 窄，i）～vi） 都落在 2 字内）
-    const songLabel = '<w:rFonts w:ascii="宋体" w:eastAsia="宋体" w:hAnsi="宋体" w:cs="宋体"/>'
-    const romanLabel = '<w:rFonts w:ascii="Times New Roman" w:eastAsia="宋体" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>'
+    const songLabel = '<w:rFonts w:ascii="方正书宋简体" w:eastAsia="方正书宋简体" w:hAnsi="方正书宋简体" w:cs="方正书宋简体"/>'
+    const romanLabel = '<w:rFonts w:ascii="Times New Roman" w:eastAsia="方正书宋简体" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>'
     const a12 = abstractNumXml(numberingXml, 12)
     expect(a12.split(songLabel)).toHaveLength(3) // L0、L1 各一次
     expect(a14.replace('lowerRoman', 'lowerLetter').replace(romanLabel, songLabel)).toBe(a12.replace('w:abstractNumId="12"', 'w:abstractNumId="14"'))

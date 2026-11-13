@@ -32,7 +32,7 @@ export interface TableGridRenderOptions {
    * 末个数据行不与表注/表脚注分离，其余行可在任意行边界跨页（表头行逐页重复）。
    */
   keepEdges?: boolean
-  /** 首行（表头第 1 行）单元格显式写粗上边框，使跨页重复的表头保留外框；表题在表外，表格首行即首个表头行。 */
+  /** 首行单元格显式写粗上边框（即使没有表头），使续表保留外框；表头格的各边始终为粗实线。 */
   strongTopBorder?: boolean
   /** 分段续表沿用原表的完整列数，避免不同片段列宽变化。 */
   columnCount?: number
@@ -45,6 +45,10 @@ export interface TableGridRenderOptions {
   /** 已按 SesTableFootnote 输出的表脚注；独立合并行为表尾末行。 */
   footnotesXml?: string | (() => string)
 }
+
+// OOXML 边框单位为 1/8 磅。
+const STRONG_BORDER = 8
+const INNER_BORDER = 4
 
 const NUMERIC_CELL_TEXT = /^[\d\s.,±%~—-]+$/
 
@@ -68,11 +72,11 @@ function borderXml(size: number): string {
   ]
   return tblBorders([
     border('top', size), border('left', size), border('bottom', size), border('right', size),
-    border('insideH', 2), border('insideV', 2),
+    border('insideH', INNER_BORDER), border('insideV', INNER_BORDER),
   ])
 }
 
-function cellBorderXml(sides: Array<'top' | 'bottom'>, size: number): string {
+function cellBorderXml(sides: Array<'top' | 'left' | 'bottom' | 'right'>, size: number): string {
   return tcBorders(sides.map((side) => [side, `<w:${side} w:val="single" w:sz="${size}" w:space="0" w:color="auto"/>`]))
 }
 
@@ -97,10 +101,12 @@ function cellXml(
   if (gridCell.kind === 'continuation') tcPrChildren.push(['vMerge', '<w:vMerge/>'])
   else if (gridCell.kind === 'origin' && gridCell.origin!.rowspan > 1) tcPrChildren.push(['vMerge', '<w:vMerge w:val="restart"/>'])
 
-  const strongBorders: Array<'top' | 'bottom'> = []
+  const strongBorders: Array<'top' | 'left' | 'bottom' | 'right'> = []
   if (options.strongTopBorder && rowIndex === 0) strongBorders.push('top')
-  if (headerRowCount > 0 && rowIndex === headerRowCount - 1) strongBorders.push('bottom')
-  if (strongBorders.length > 0) tcPrChildren.push(['tcBorders', cellBorderXml(strongBorders, 6)])
+  if (rowIndex < headerRowCount || gridCell.origin?.cell.header) {
+    strongBorders.push('top', 'left', 'bottom', 'right')
+  }
+  if (strongBorders.length > 0) tcPrChildren.push(['tcBorders', cellBorderXml([...new Set(strongBorders)], STRONG_BORDER)])
 
   let contentXml: string
   if (gridCell.kind === 'continuation') {
@@ -126,12 +132,12 @@ function cellXml(
   return `<w:tc>${tcPr(tcPrChildren)}${contentXml}</w:tc>`
 }
 
-function noteRowXml(widths: number[], columnCount: number, notesXml: string, kind: 'notes' | 'footnotes', topBorderSize: 2 | 6): string {
+function noteRowXml(widths: number[], columnCount: number, notesXml: string, kind: 'notes' | 'footnotes'): string {
   const width = widths.reduce((sum, value) => sum + value, 0)
   const tcPrXml = tcPr([
     ['tcW', `<w:tcW w:w="${width}" w:type="dxa"/>`],
     ...(columnCount > 1 ? [['gridSpan', `<w:gridSpan w:val="${columnCount}"/>`] as const] : []),
-    ['tcBorders', cellBorderXml(['top'], topBorderSize)],
+    ['tcBorders', cellBorderXml(['top', 'left', 'bottom', 'right'], STRONG_BORDER)],
     // The table's 0.18 cm cell inset shifts the footnote paragraph away from the table frame.
     // Zero only the footnote row's left inset so its 9pt fourth-character tab aligns to that frame.
     ...(kind === 'footnotes' ? [['tcMar', '<w:tcMar><w:left w:w="0" w:type="dxa"/></w:tcMar>'] as const] : []),
@@ -171,7 +177,7 @@ export function renderTableGrid(ctx: RenderContext, table: IRTable, options: Tab
       ? `<w:tblW w:w="${widths.reduce((sum, width) => sum + width, 0)}" w:type="dxa"/>`
       : '<w:tblW w:w="5000" w:type="pct"/>'],
     ['jc', '<w:jc w:val="center"/>'],
-    ['tblBorders', borderXml(6)],
+    ['tblBorders', borderXml(STRONG_BORDER)],
     ['tblLayout', '<w:tblLayout w:type="fixed"/>'],
     ['tblCellMar', `<w:tblCellMar><w:left w:w="${TABLE_CELL_SIDE_MARGIN_TWIPS}" w:type="dxa"/>` +
       `<w:right w:w="${TABLE_CELL_SIDE_MARGIN_TWIPS}" w:type="dxa"/></w:tblCellMar>`],
@@ -188,8 +194,8 @@ export function renderTableGrid(ctx: RenderContext, table: IRTable, options: Tab
   })
   const notes = (typeof options.notesXml === 'function' ? options.notesXml() : options.notesXml)?.trim() ?? ''
   const footnotes = (typeof options.footnotesXml === 'function' ? options.footnotesXml() : options.footnotesXml)?.trim() ?? ''
-  const tableNotesRow = notes.length > 0 ? noteRowXml(widths, grid.columnCount, notes, 'notes', 6) : ''
-  const tableFootnotesRow = footnotes.length > 0 ? noteRowXml(widths, grid.columnCount, footnotes, 'footnotes', tableNotesRow ? 2 : 6) : ''
+  const tableNotesRow = notes.length > 0 ? noteRowXml(widths, grid.columnCount, notes, 'notes') : ''
+  const tableFootnotesRow = footnotes.length > 0 ? noteRowXml(widths, grid.columnCount, footnotes, 'footnotes') : ''
   const allRows = [...rowsXml,
     ...(tableNotesRow ? [tableNotesRow] : []), ...(tableFootnotesRow ? [tableFootnotesRow] : [])]
   // keepEdges（自然分页）逐行决定是否与下一行同页：表头行、被合并单元格贯穿的行必须与下一行相连；
