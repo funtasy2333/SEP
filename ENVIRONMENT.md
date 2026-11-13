@@ -88,7 +88,7 @@ Vue、NestJS、TypeScript、`better-sqlite3` 等项目依赖由启动脚本或 `
 
 ### 导出字体
 
-PDF 由 SES 后端所在的机器排版。要输出指定字体，该机器需要安装 **Times New Roman** 以及宋体、黑体等文档字体；列项破折号单独使用 Times New Roman。缺少字体时，浏览器会使用系统替代字体。DOCX 保存字体名称，打开文件的机器也需要具备对应字体。
+PDF 由 SES 后端所在的机器排版。要输出指定字体，该机器需要安装 **Times New Roman** 以及宋体、黑体等文档字体；列项破折号单独使用 Times New Roman。缺少字体时，浏览器会使用系统替代字体。DOCX 正文及列项破折号优先指定 **方正书宋简体**（字体文件通常为 `FZSSJW.TTF`），并在字体表登记该名称；打开文件的机器需安装该字体，否则由 Word 使用系统替代字体。DOCX 不嵌入字体文件。
 
 ### Poppler：PDF 版式预览
 

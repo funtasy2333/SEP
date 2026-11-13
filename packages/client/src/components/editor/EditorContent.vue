@@ -123,13 +123,14 @@ defineProps<{
 
 .editor-content :deep(.tiptap table) {
   border-collapse: collapse;
+  border: 1pt solid #000;
   width: 100%;
   margin: 16px 0;
 }
 
 .editor-content :deep(.tiptap table td),
 .editor-content :deep(.tiptap table th) {
-  border: 1px solid oklch(0.7 0.014 270);
+  border: 0.5pt solid #000;
   padding: 8px 12px;
   min-width: 60px;
   font-family: var(--ses-font-ui);
@@ -144,6 +145,7 @@ defineProps<{
 }
 
 .editor-content :deep(.tiptap table th) {
+  border: 1pt solid #000;
   background: var(--ses-surface-2);
   font-weight: 400;
   text-align: center;

@@ -52,6 +52,7 @@ import type { ListNumbering } from '../ir/listNumbering'
 import { printCss } from './printCss'
 import type { DocumentStage } from '../types/document'
 import { renderCoverHtml } from './coverHtml'
+import { tableBordersCss } from './tableBordersCss'
 import { assertFootnoteReferences, orderTableFootnotes, tableColumnCount } from './footnotes'
 
 export type HtmlVariant = 'screen' | 'print'
@@ -897,7 +898,8 @@ function screenStyles(): string {
     .ses-table-caption { font-family: "SimHei", "黑体", sans-serif; font-weight: normal; text-align: center; margin: 8px 0 4px; }
     .ses-table-caption-en { text-align: center; font-style: italic; color: #555; }
     .ses-table-block table { border-collapse: collapse; width: 100%; }
-    .ses-table-block th, .ses-table-block td { border: 1px solid #333; padding: 6px 8px; }
+    .ses-table-block th, .ses-table-block td { padding: 6px 8px; }
+${tableBordersCss}
     .ses-table-block th { background: #f5f5f5; }
     .ses-table-block td > .ses-paragraph, .ses-table-block th > .ses-paragraph { text-indent: 0; }
     .ses-figure-block { text-align: center; margin: 16px 0; }

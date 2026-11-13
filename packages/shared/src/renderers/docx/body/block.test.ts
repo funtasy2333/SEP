@@ -12,10 +12,10 @@ import { buildStylesXml } from '../styles'
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
 const SONG_FONT_ATTRS = {
-  'w:ascii': '宋体',
-  'w:eastAsia': '宋体',
-  'w:hAnsi': '宋体',
-  'w:cs': '宋体',
+  'w:ascii': '方正书宋简体',
+  'w:eastAsia': '方正书宋简体',
+  'w:hAnsi': '方正书宋简体',
+  'w:cs': '方正书宋简体',
 }
 
 function renderFormula(label?: string): { xml: string; warnings: ReturnType<typeof createRenderContext>['warnings'] } {
@@ -141,7 +141,7 @@ describe('renderFormula：编号标签', () => {
     { resolverLabel: '(1)', expected: '（1）' },
     { resolverLabel: '(A.1)', expected: '（A.1）' },
     { resolverLabel: '（1）', expected: '（1）' },
-  ])('将 Resolver 的 $resolverLabel 输出为 $expected，并在编号 run 上显式指定宋体', ({ resolverLabel, expected }) => {
+  ])('将 Resolver 的 $resolverLabel 输出为 $expected，并在编号 run 上显式指定方正书宋简体', ({ resolverLabel, expected }) => {
     const { xml, warnings } = renderFormula(resolverLabel)
     const runs = paragraph(xml).children.filter(
       (child): child is XmlElement => child.kind === 'element' && child.name === 'w:r',

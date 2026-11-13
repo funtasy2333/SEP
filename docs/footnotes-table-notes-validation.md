@@ -143,3 +143,8 @@ Codex 针对 `ec819134` 新增一条 P2：空单元格中插入的表脚注 atom
 本轮共享35文件791项、客户端23文件142项、完整 `pnpm build` 与 `git diff --check` 通过，保留既有大 chunk 警告。日志为 `/private/tmp/sep-pr42-emptycell-{before,targeted,shared,client,build}.log`。当前构建的客户端导出包另生成 `tmp-e2e/footnotes/footnote-only-cell-review.docx`（对应 JSON 同名），OfficeCLI 1.0.152 严格 OOXML 校验零错误。样稿为测试 fixture，模板素材来源限制保留。本轮没有重跑 Word/PDF 人工验收、服务端测试或 Vivliostyle 管线，不能复用前轮 PDF 作为本次人工验收证据。
 
 连续复审暴露了首轮检查对特殊输入与转换边界的覆盖不足；测试总数和手动 resolved 都不能代替最新提交的复审结论。本次修复与同类检查完成，最新 Codex 复审仍需单独确认。WP7.6 真实稿件、嵌套表导出、横排条文脚注分隔线与上一轮新样稿空白页的既有未完成项保持明确，PR 未合并。
+
+
+## 2026-11-09 表格线宽调整
+
+按用户测试结果统一线宽：表格外框、表头各边、表注和表脚注区域各边（含两区之间的分隔线）均为 1 pt 实线，普通内框线为 0.5 pt 实线。DOCX 对应 `w:sz=8` 和 `w:sz=4`；HTML 屏幕预览与打印/PDF 共用线宽样式。此约定替代上文历史验证中的 0.75 pt / 0.25 pt 线宽。

@@ -10,6 +10,7 @@
  * erasableSyntaxOnly 约束），改用工厂函数 + 闭包（同 package.ts 的 createRelationshipIdAllocator）。
  */
 
+import { SONG_ALL_RFONTS, SONG_MIXED_RFONTS } from './fonts'
 import { abstractNum, escapeXmlAttr, joinOrderedChildren, lvl, num, numbering, pPr, rPr, wrapElement, type XmlChild } from './xml'
 
 const SP = '　' // 全角空格（标识后「空一个汉字」，§4.2）
@@ -68,17 +69,14 @@ export function listAbstractNumId(listType: string): number {
 
 const HEI_RFONTS = '<w:rFonts w:ascii="黑体" w:eastAsia="黑体" w:hAnsi="黑体" w:cs="黑体"/>'
 const RPR_HEI = rPr([['rFonts', HEI_RFONTS]])
-const SONG_RFONTS = '<w:rFonts w:ascii="宋体" w:eastAsia="宋体" w:hAnsi="宋体" w:cs="宋体"/>'
-export const RPR_SONG = rPr([['rFonts', SONG_RFONTS]])
-const RPR_DASH_LABEL = rPr([['rFonts', '<w:rFonts w:ascii="Times New Roman" w:eastAsia="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>']])
+export const RPR_SONG = rPr([['rFonts', SONG_ALL_RFONTS]])
 /**
- * A14 L0（小写罗马标识 i） ii） iii）…）：ASCII 字母用 Times New Roman，全角右括号仍用宋体（eastAsia）。
+ * A14 L0（小写罗马标识 i） ii） iii）…）：ASCII 字母用 Times New Roman，全角右括号用方正书宋简体（eastAsia）。
  * 宋体的 ASCII 字母是半角等宽（0.5 em），`ii）`（1+1 em）已占满 2 字的悬挂量、`iii）`（1.5+1 em）超出，
  * Word 会把标识之后的文字推到下一个默认制表位（再右移 2 字），第 2 项起就与回行不对齐；Times 的 i 只有 0.28 em，
  * `i）`～`vi）` 都能落在 2 字之内，文字保持在第五字位（GB/T 1.1—2020 10.2.2）。
  */
-const ROMAN_LABEL_RFONTS = '<w:rFonts w:ascii="Times New Roman" w:eastAsia="宋体" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>'
-const RPR_ROMAN_LABEL = rPr([['rFonts', ROMAN_LABEL_RFONTS]])
+const RPR_ROMAN_LABEL = rPr([['rFonts', SONG_MIXED_RFONTS]])
 /** A2 L0「附录%1」专用：黑体 + 字符间距 210（§3.3 标题字距偏差登记） */
 const RPR_HEI_SPACING = rPr([
   ['rFonts', HEI_RFONTS],
@@ -170,7 +168,7 @@ const ABSTRACT_NUM_DEFS: readonly AbstractNumSpec[] = [
     id: ABSTRACT_NUM_ID.listDash,
     multilevel: true,
     levels: [
-      { ilvl: 0, numFmt: 'bullet', lvlText: '——', suff: 'nothing', ind: IND_LIST_L0, rPr: RPR_DASH_LABEL },
+      { ilvl: 0, numFmt: 'bullet', lvlText: '——', suff: 'nothing', ind: IND_LIST_L0, rPr: RPR_SONG },
       { ilvl: 1, numFmt: 'bullet', lvlText: '·', suff: 'tab', ind: IND_LIST_L1, rPr: RPR_SONG },
     ],
   },

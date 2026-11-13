@@ -57,6 +57,17 @@ function childrenNamed(element: XmlElement, name: string): XmlElement[] {
 }
 
 describe('renderTableGrid', () => {
+  it('外框为 1 磅实线，普通内框为 0.5 磅实线', () => {
+    const tblEl = findChild(root(render(table()).xml), 'w:tbl')!
+    const borders = findChild(findChild(tblEl, 'w:tblPr')!, 'w:tblBorders')!
+    for (const side of ['top', 'left', 'bottom', 'right']) {
+      expect(findChild(borders, `w:${side}`)?.attrs).toMatchObject({ 'w:val': 'single', 'w:sz': '8' })
+    }
+    for (const side of ['insideH', 'insideV']) {
+      expect(findChild(borders, `w:${side}`)?.attrs).toMatchObject({ 'w:val': 'single', 'w:sz': '4' })
+    }
+  })
+
   it('扩展 colspan + rowspan 并在续行补齐带 gridSpan 的 vMerge 占位格', () => {
     const result = render(table())
     const tblEl = findChild(root(result.xml), 'w:tbl')!
@@ -100,7 +111,7 @@ describe('renderTableGrid', () => {
     expect(findChild(findChild(childrenNamed(tblEl, 'w:tr')[0]!, 'w:trPr')!, 'w:tblHeader')).toBeDefined()
   })
 
-  it('多个表头行都会重复，只有表头末行画粗下边框', () => {
+  it('多个表头行都会重复，各表头格的四边均为 1 磅实线', () => {
     const result = render(table({
       headerRowCount: 2,
       rows: [
@@ -112,7 +123,12 @@ describe('renderTableGrid', () => {
     const rows = childrenNamed(findChild(root(result.xml), 'w:tbl')!, 'w:tr')
     expect(rows.map((row) => findChild(findChild(row, 'w:trPr')!, 'w:tblHeader') !== undefined)).toEqual([true, true, false])
     expect(rows.every((row) => findChild(findChild(row, 'w:trPr')!, 'w:cantSplit') !== undefined)).toBe(true)
-    expect(findChild(findChild(childrenNamed(rows[0]!, 'w:tc')[0]!, 'w:tcPr')!, 'w:tcBorders')).toBeUndefined()
+    for (const row of rows.slice(0, 2)) {
+      const borders = findChild(findChild(childrenNamed(row, 'w:tc')[0]!, 'w:tcPr')!, 'w:tcBorders')!
+      for (const side of ['top', 'left', 'bottom', 'right']) {
+        expect(findChild(borders, `w:${side}`)?.attrs).toMatchObject({ 'w:val': 'single', 'w:sz': '8' })
+      }
+    }
     expect(findChild(findChild(childrenNamed(rows[1]!, 'w:tc')[0]!, 'w:tcPr')!, 'w:tcBorders')).toBeDefined()
   })
 
@@ -128,7 +144,7 @@ describe('renderTableGrid', () => {
     expect(xml).not.toContain('SesTblCap')
   })
 
-  it('strongTopBorder 给第 1 行（首个表头行）写粗上边框，使跨页重复的表头保留外框；缺省不写', () => {
+  it('表头始终带粗上边框，strongTopBorder 也可为无表头的首行补粗上边框', () => {
     const topBorder = (xml: string) => {
       const rows = childrenNamed(findChild(root(xml), 'w:tbl')!, 'w:tr')
       return childrenNamed(rows[0]!, 'w:tc').map((tc) => {
@@ -138,9 +154,9 @@ describe('renderTableGrid', () => {
     }
     const strong = topBorder(render(table(), undefined, undefined, true).xml)
     expect(strong).toHaveLength(2)
-    expect(strong.every((attrs) => attrs?.['w:sz'] === '6' && attrs['w:val'] === 'single')).toBe(true)
-    // 缺省时首行没有上边框覆盖（沿用 tblBorders 外框）。
-    const plain = topBorder(render(table(), undefined, undefined, false).xml)
+    expect(strong.every((attrs) => attrs?.['w:sz'] === '8' && attrs['w:val'] === 'single')).toBe(true)
+    // 无表头且未要求显式上边框时，沿用 tblBorders 外框。
+    const plain = topBorder(render(table({ headerRowCount: 0, rows: [{ id: 'body', cells: [cell('plain', '正文')] }] }), undefined, undefined, false).xml)
     expect(plain.every((attrs) => attrs === undefined)).toBe(true)
   })
 
@@ -151,15 +167,13 @@ describe('renderTableGrid', () => {
     const rows = childrenNamed(tblEl, 'w:tr')
     expect(rows).toHaveLength(3)
     const lastHeaderCellPr = findChild(childrenNamed(rows[0]!, 'w:tc')[1]!, 'w:tcPr')!
-    expect(findChild(lastHeaderCellPr, 'w:tcBorders')?.children[0]).toMatchObject({
-      kind: 'element', name: 'w:bottom', attrs: { 'w:sz': '6' },
-    })
+    expect(findChild(findChild(lastHeaderCellPr, 'w:tcBorders')!, 'w:bottom')?.attrs).toMatchObject({ 'w:sz': '8' })
     const noteCells = childrenNamed(rows[2]!, 'w:tc')
     expect(noteCells).toHaveLength(1)
     const notePr = findChild(noteCells[0]!, 'w:tcPr')!
     expect(findChild(notePr, 'w:gridSpan')?.attrs).toEqual({ 'w:val': '3' })
     expect(findChild(notePr, 'w:tcBorders')?.children[0]).toMatchObject({
-      kind: 'element', name: 'w:top', attrs: { 'w:sz': '6' },
+      kind: 'element', name: 'w:top', attrs: { 'w:sz': '8' },
     })
     expect(noteCells[0]!.children.some((child) => child.kind === 'element' && child.name === 'w:p')).toBe(true)
   })
@@ -176,12 +190,18 @@ describe('renderTableGrid', () => {
     const footnotePr = findChild(footnoteCell, 'w:tcPr')!
     expect(findChild(notePr, 'w:gridSpan')?.attrs).toEqual({ 'w:val': '3' })
     expect(findChild(notePr, 'w:tcMar')).toBeUndefined()
+    for (const cellPr of [notePr, footnotePr]) {
+      const borders = findChild(cellPr, 'w:tcBorders')!
+      for (const side of ['top', 'left', 'bottom', 'right']) {
+        expect(findChild(borders, `w:${side}`)?.attrs).toMatchObject({ 'w:val': 'single', 'w:sz': '8' })
+      }
+    }
     expect(findChild(footnotePr, 'w:gridSpan')?.attrs).toEqual({ 'w:val': '3' })
     expect(findChild(findChild(footnotePr, 'w:tcMar')!, 'w:left')?.attrs).toEqual({ 'w:w': '0', 'w:type': 'dxa' })
     expect(xml.indexOf('表注')).toBeLessThan(xml.indexOf('表脚注内容'))
   })
 
-  it.each(['absent', 'whitespace', 'empty-callback', 'with-notes'])('表脚注上边框按实际前置表注决定粗细：%s', (scenario) => {
+  it.each(['absent', 'whitespace', 'empty-callback', 'with-notes'])('表脚注上边框始终为 1 磅实线：%s', (scenario) => {
     const note = '<w:p><w:r><w:t>表注</w:t></w:r></w:p>'
     const footnote = '<w:p><w:pPr><w:pStyle w:val="SesTableFootnote"/></w:pPr><w:r><w:t>表脚注</w:t></w:r></w:p>'
     const notesXml = scenario === 'with-notes' ? note : scenario === 'whitespace' ? '  \n  ' : scenario === 'empty-callback' ? () => ' \n ' : undefined
@@ -193,7 +213,7 @@ describe('renderTableGrid', () => {
     expect(rows).toHaveLength(scenario === 'with-notes' ? 4 : 3)
     const finalCellPr = findChild(childrenNamed(rows[rows.length - 1]!, 'w:tc')[0]!, 'w:tcPr')!
     expect(findChild(findChild(finalCellPr, 'w:tcBorders')!, 'w:top')?.attrs).toMatchObject({
-      'w:val': 'single', 'w:sz': scenario === 'with-notes' ? '2' : '6',
+      'w:val': 'single', 'w:sz': '8',
     })
     expect(findChild(finalCellPr, 'w:gridSpan')?.attrs).toEqual({ 'w:val': '3' })
     expect(findChild(findChild(finalCellPr, 'w:tcMar')!, 'w:left')?.attrs).toEqual({ 'w:w': '0', 'w:type': 'dxa' })

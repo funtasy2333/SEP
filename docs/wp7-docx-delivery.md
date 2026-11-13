@@ -274,7 +274,7 @@ export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, op
 | 标题字距 | WP4-fix D3 定为插一个全角空格（PDF 已如此实现） | **用字符间距（`rPr/w:spacing` 加宽）实现，文字本身不插空格**：目次/前言/引言两字间 2 个字宽（三号，`w:spacing w:val="640"`，只加在前一个字上）；参考文献逐字 1 个字宽（五号，210，最后一个字不加）；附录标识「附录A」由编号生成，在 A2 L0 的标识 rPr 上加 210。目次条目由渲染器单独生成纯文字，不继承标题 run 的字距 | 原件出版物实测（字间约 2 em / 1 em）；图 E.8 目次条目不带字距。PDF 已冻结，不回改 |
 | 终结线 | dev-plan 定稿表要求用 `docs/素材/终结线.jpg` | 段落下边框（1 磅），Word 16.113 实测把左右缩进设为 3532 twips 时线长约 41.3 mm（当前版心 165 mm 的四分之一）；原件版心较窄，实测线长 40.3 mm | 原图 117×25 px、72 dpi，黑线仅底部 1 像素，约 1 磅；改粗边框以复现，并避免图片白边 |
 | GB 标志 | `docs/素材/GB标志.png`（152×77 px，印刷约 96 dpi） | 原件封面内嵌的 948×474 px、1 位、600 dpi 位图 | `pdfimages -f 1 -l 1` 提取 |
-| 表格线 | — | 粗 sz=6（0.75 磅）、细 sz=2（0.25 磅） | 原件实测：外框/表头 0.25 mm，内线约 0.1 mm |
+| 表格线 | — | 粗 sz=8（1 磅）、细 sz=4（0.5 磅） | 2026-11-09 调整：外框、表头各边、表注和表脚注各边均为粗实线；普通内框为细实线 |
 
 ---
 
@@ -1189,3 +1189,10 @@ v10（2026-09-25，`probe_v10.py`）补第五条：**编号计数按 abstractNum
 - `w:numbering`：numPicBullet*, abstractNum*, num*, numIdMacAtCleanup（WP7.2 补）
 - `w:styles`：docDefaults, latentStyles, style*；`w:docDefaults`：rPrDefault, pPrDefault（WP7.2 补）
 - `w:pBdr`：top, left, bottom, right, between, bar（WP7.2 补）
+
+
+## 2026-11-13 Word 导出字体更新
+
+正文宋体类样式、文档默认值、目录、来源、脚注、公式编号及列项标识统一指定“方正书宋简体”（用户字体文件为 `FZSSJW.TTF`）；列项破折号由 Times New Roman 改为方正书宋简体。字体名集中在 `packages/shared/src/renderers/docx/fonts.ts`，`word/fontTable.xml` 同步登记。
+
+标题黑体和数学公式字体沿用现有设置。罗马列项的西文字母及封面西文模板保留 Times New Roman 的既有度量，中文部分使用方正书宋简体。此更新只影响 DOCX；HTML/PDF 的字体配置不变。DOCX 不嵌入字体，打开文件的电脑需安装对应字体；未安装时由 Word 选择系统替代字体。
