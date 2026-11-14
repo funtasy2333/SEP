@@ -46,47 +46,67 @@ function blockLines(
 ): number {
   switch (block.kind) {
     case 'paragraph': {
-      const base = textLines(block.content.map((run) => run.text).join(''), capacity)
+      if (!block.content.some((run) => Boolean(run.image))) {
+        return textLines(block.content.map((run) => run.text).join(''), capacity)
+      }
+      const safeCapacity = Math.max(1, capacity)
+      const unitWidthMm = maxWidthMm / safeCapacity
       let imageIndex = 0
       let usedWidthMm = 0
-      let currentLineHeightMm = 0
-      let extraLines = 0
-      let hasImageOnLine = false
-      const flushImageLine = (firstLine: boolean) => {
-        if (!hasImageOnLine) return
-        const linesForHeight = Math.max(1, Math.ceil(currentLineHeightMm / 4.2))
-        extraLines += firstLine ? Math.max(0, linesForHeight - 1) : linesForHeight
+      let currentLineHeightMm = 4.2
+      let totalLines = 0
+      const flushLine = () => {
+        totalLines += Math.max(1, Math.ceil(currentLineHeightMm / 4.2))
         usedWidthMm = 0
-        currentLineHeightMm = 0
-        hasImageOnLine = false
+        currentLineHeightMm = 4.2
       }
-      let isFirstImageLine = true
+      const appendText = (text: string) => {
+        const segments = text.split(/\r?\n/)
+        for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+          if (segIdx > 0) flushLine()
+          for (const ch of segments[segIdx]!) {
+            const charWidthMm = (ch.charCodeAt(0) < 128 ? 0.55 : 1) * unitWidthMm
+            if (usedWidthMm > 0 && usedWidthMm + charWidthMm > maxWidthMm + 1e-6) {
+              flushLine()
+            }
+            usedWidthMm += charWidthMm
+          }
+        }
+      }
       for (const run of block.content) {
-        if (!run.image) continue
+        if (!run.image) {
+          if (run.text) appendText(run.text)
+          continue
+        }
         const currentIndex = imageIndex++
         const extent = inlineImageExtentMm(images, run.image, block.id, currentIndex, maxWidthMm)
         if (extent !== undefined) {
-          if (hasImageOnLine && usedWidthMm + extent.widthMm > maxWidthMm) {
-            flushImageLine(isFirstImageLine)
-            isFirstImageLine = false
+          if (usedWidthMm > 0 && usedWidthMm + extent.widthMm > maxWidthMm + 1e-6) {
+            flushLine()
           }
           usedWidthMm += extent.widthMm
           currentLineHeightMm = Math.max(currentLineHeightMm, extent.heightMm)
-          hasImageOnLine = true
           continue
         }
-        // 已提供 images 但未命中有效图片时，实际渲染为单行文本「〔图片缺失〕」，不额外增加行高；
+        // 已提供 images 但未命中有效图片时，实际渲染为文本「〔图片缺失〕」；
         // 未传 images（如独立调用 paginateTable）时按 S/M/L 或默认 4 行高保守估算。
-        if (images !== undefined) continue
+        if (images !== undefined) {
+          appendText('〔图片缺失〕')
+          continue
+        }
         const fallbackHeightMm = run.image.size === 'S' ? 4.2
           : run.image.size === 'M' ? 8.4
           : run.image.size === 'L' ? 12.6
           : 16.8
+        const fallbackWidthMm = Math.min(maxWidthMm, fallbackHeightMm)
+        if (usedWidthMm > 0 && usedWidthMm + fallbackWidthMm > maxWidthMm + 1e-6) {
+          flushLine()
+        }
+        usedWidthMm += fallbackWidthMm
         currentLineHeightMm = Math.max(currentLineHeightMm, fallbackHeightMm)
-        hasImageOnLine = true
       }
-      flushImageLine(isFirstImageLine)
-      return base + extraLines
+      flushLine()
+      return totalLines
     }
     case 'list':
       return block.items.reduce((sum, item) =>

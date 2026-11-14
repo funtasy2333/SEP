@@ -86,6 +86,79 @@ export function paragraphHeightMm(
   return measured.before + measured.contentHeight + measured.after
 }
 
+function measureInlineImages(
+  spec: ReturnType<typeof styleSpecs>[number], runsXml: string, numbered: boolean, landscape: boolean,
+  options: ParagraphFlowOptions = {},
+): TextMeasure {
+  const fontMm = ((spec.sz ?? 21) / 2) * MM_PER_POINT
+  const effective = (name: string) => {
+    const source = options.numberingIndent?.includes(`w:${name}=`) ? options.numberingIndent : spec.ind
+    return attr(source, name)
+  }
+  const left = options.indent?.left ?? effective('left')
+  const right = effective('right')
+  const firstIndent = (options.indent ? 0 : effective('firstLine')) / 20 * MM_PER_POINT
+  const width = (landscape ? 252 : 165) - (left + right) / 20 * MM_PER_POINT
+  const capacityUnits = Math.max(4, width / fontMm)
+  const firstUnits = Math.max(4, (width - firstIndent) / fontMm - (numbered ? 5 : 0))
+  const firstMaxWidthMm = firstUnits * fontMm
+  const lineMaxWidthMm = capacityUnits * fontMm
+  const exactLine = attr(spec.spacing, 'line') / 20 * MM_PER_POINT
+  const lineHeight = exactLine || (spec.snapToGridOff ? fontMm * 1.25 : GRID_LINE_MM)
+
+  let lineCount = 0
+  let contentHeight = 0
+  let usedWidthMm = 0
+  let currentLineHeight = lineHeight
+  const flushLine = () => {
+    lineCount += 1
+    contentHeight += currentLineHeight
+    usedWidthMm = 0
+    currentLineHeight = lineHeight
+  }
+  const appendText = (text: string) => {
+    const segments = text.split('\n')
+    for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+      if (segIdx > 0) flushLine()
+      for (const ch of segments[segIdx]!) {
+        const charW = (ch.charCodeAt(0) < 128 ? 0.55 : 1) * fontMm
+        const maxW = lineCount === 0 ? firstMaxWidthMm : lineMaxWidthMm
+        if (usedWidthMm > 0 && usedWidthMm + charW > maxW + 1e-6) {
+          flushLine()
+        }
+        usedWidthMm += charW
+      }
+    }
+  }
+  const tokenRe = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:br\b[^>]*\/>|<w:tab\/>|<wp:extent\b[^>]*\bcx="([0-9]+)"[^>]*\bcy="([0-9]+)"[^>]*\/>/g
+  for (const match of runsXml.matchAll(tokenRe)) {
+    const token = match[0]
+    if (token.startsWith('<w:br')) {
+      flushLine()
+    } else if (token === '<w:tab/>') {
+      appendText('　')
+    } else if (token.startsWith('<wp:extent')) {
+      const imgW = Number(match[2] ?? 0) / 36000
+      const imgH = Number(match[3] ?? 0) / 36000
+      const maxW = lineCount === 0 ? firstMaxWidthMm : lineMaxWidthMm
+      if (usedWidthMm > 0 && usedWidthMm + imgW > maxW + 1e-6) {
+        flushLine()
+      }
+      usedWidthMm += imgW
+      currentLineHeight = Math.max(currentLineHeight, imgH + 3)
+    } else {
+      appendText(decode(match[1] ?? ''))
+    }
+  }
+  flushLine()
+  return {
+    lineCount,
+    contentHeight,
+    before: attr(spec.spacing, 'before') / 20 * MM_PER_POINT,
+    after: attr(spec.spacing, 'after') / 20 * MM_PER_POINT,
+  }
+}
+
 interface ParagraphMeasure {
   contentHeight: number
   lineCount: number
@@ -93,6 +166,7 @@ interface ParagraphMeasure {
   after: number
   atomic: boolean
   ids: number[]
+  hasInlineImage?: boolean
 }
 
 /** 表前预算。`positionUnknown` 时调用方不得再按估算拆表，应整表交给 Word 自然分页（不写强制分页）。 */
@@ -187,7 +261,7 @@ export function createPageFlow(): PageFlow {
     // Do not infer the final page by moving a chain containing such a paragraph.
     // Chains made only of single-line or explicitly atomic members still relocate.
     if (height + reserve > remaining() &&
-        ((chain.length > 1 && chain.some(canSplit)) || (!atomic && ids.length > 0))) {
+        ((chain.length > 1 && chain.some(canSplit)) || (!atomic && (ids.length > 0 || chain.some(paragraph => paragraph.hasInlineImage))))) {
       known = false
       previousAfter = terminal.after
       return
@@ -268,11 +342,23 @@ export function createPageFlow(): PageFlow {
       if (styleId === 'SesFormula' || runsXml.includes('<m:oMath')) { flushPending(); known = false; return false }
       const spec = specs.get(styleId)
       if (!spec) { flushPending(); known = false; return false }
+      const ids = [...runsXml.matchAll(/<w:footnoteReference\b[^>]*w:id="([0-9]+)"/g)].map(match => Number(match[1]))
+      if (styleId !== 'SesFigure' && runsXml.includes('<wp:extent')) {
+        const { lineCount, contentHeight, before, after } = measureInlineImages(spec, runsXml, numbered, landscape, options)
+        pending.push({
+          contentHeight,
+          lineCount,
+          before, after, ids,
+          atomic: spec.keepLines === true || lineCount === 1,
+          hasInlineImage: true,
+        })
+        if (!spec.keepNext) { flushPending(); return false }
+        return true
+      }
       const text = [...runsXml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:br\b[^>]*\/>|<w:tab\/>/g)]
         .map(match => match[0].startsWith('<w:br') ? '\n' : match[0] === '<w:tab/>' ? '　' : decode(match[1] ?? '')).join('')
       const { lineCount, contentHeight, before, after } = measureText(spec, text, numbered, landscape, options)
       const imageHeight = Math.max(0, ...[...runsXml.matchAll(/<wp:extent\b[^>]*\bcy="([0-9]+)"/g)].map(match => Number(match[1] ?? 0) / 36000))
-      const ids = [...runsXml.matchAll(/<w:footnoteReference\b[^>]*w:id="([0-9]+)"/g)].map(match => Number(match[1]))
       pending.push({
         contentHeight: imageHeight > 0 ? Math.max(contentHeight, imageHeight + 3) : contentHeight,
         lineCount,

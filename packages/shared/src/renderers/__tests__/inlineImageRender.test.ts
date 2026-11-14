@@ -357,4 +357,67 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
     const outline = docxOutline(pkg)
     expect(outline).toContain('SesTblCapCont │ — │ 表1　大图续表测试（续）')
   })
+
+  it('单元格内由换行符分隔的多张高窄行内图片按分行累加高度并正确切分续表', () => {
+    // 2 行数据，每行单元格含两张由 "\n" 分隔的高窄图（80×380px @ 96dpi ≈ 21.2mm 宽 × 100.5mm 高），
+    // 单行高度约 201mm，2 行合计超过 400mm，必须拆分为两段并输出续表题。
+    const doc = makeDoc([
+      {
+        kind: 'table',
+        id: 'tbl-br-img',
+        caption: [{ text: '换行双图续表测试' }],
+        orientation: 'portrait',
+        headerRowCount: 1,
+        rows: [
+          {
+            id: 'tr-h',
+            cells: [
+              { id: 'tc-h0', colspan: 1, rowspan: 1, header: true, content: [{ kind: 'paragraph', id: 'tc-h0-p', content: [{ text: '图形列' }] }] },
+            ],
+          },
+          ...([1, 2] as const).map((i) => ({
+            id: `tr-${i}`,
+            cells: [
+              {
+                id: `tc-${i}`,
+                colspan: 1,
+                rowspan: 1,
+                header: false,
+                content: [{
+                  kind: 'paragraph' as const,
+                  id: `tc-${i}-p`,
+                  content: [
+                    { text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: `上图${i}` } },
+                    { text: '\n' },
+                    { text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: `下图${i}` } },
+                  ],
+                }],
+              },
+            ],
+          })),
+        ],
+        notes: [],
+      },
+    ])
+    const { labels } = resolve(doc)
+    const narrowTallImage = {
+      base64: SAMPLE_PNG_B64,
+      contentType: 'image/png' as const,
+      widthPx: 80,
+      heightPx: 380,
+    }
+    const pkg = renderDocx(doc, labels, {
+      formulaOmml: {},
+      images: {
+        [inlineImageResourceKey('tc-1-p', 0)]: narrowTallImage,
+        [inlineImageResourceKey('tc-1-p', 1)]: narrowTallImage,
+        [inlineImageResourceKey('tc-2-p', 0)]: narrowTallImage,
+        [inlineImageResourceKey('tc-2-p', 1)]: narrowTallImage,
+      },
+      stage: 'approval_draft',
+      createdAt: '2026-11-13T00:00:00.000Z',
+    })
+    const outline = docxOutline(pkg)
+    expect(outline).toContain('SesTblCapCont │ — │ 表1　换行双图续表测试（续）')
+  })
 })
