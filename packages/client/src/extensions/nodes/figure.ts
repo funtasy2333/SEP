@@ -88,19 +88,37 @@ export const Figure = Node.create({
           const { $from } = state.selection
           const schema = state.schema
 
-          // 1. 表格单元格（tableCell / tableHeader）内：只插入行内图片 inlineImage，不添加图编号和图题
+          // 1. 表格单元格（tableCell / tableHeader）及表注（tableNoteRow / tableFootnote）内：只插入行内图片 inlineImage，不添加图编号和图题；表脚注内禁止插图
           for (let d = $from.depth; d > 0; d--) {
             const typeName = $from.node(d).type.name
-            if (typeName === 'tableCell' || typeName === 'tableHeader') {
+            if (
+              typeName === 'tableFootnoteRow' ||
+              typeName === 'tableFootnoteEntry'
+            ) {
+              return false
+            }
+            if (
+              typeName === 'tableCell' ||
+              typeName === 'tableHeader' ||
+              typeName === 'tableNoteRow' ||
+              typeName === 'tableFootnote'
+            ) {
               const inlineImageType = schema.nodes.inlineImage
               if (!inlineImageType) return false
+              if (
+                '$anchorCell' in state.selection ||
+                !$from.parent.inlineContent ||
+                !$from.parent.canReplaceWith($from.index(), $from.index(), inlineImageType)
+              ) {
+                return false
+              }
               const inlineNode = inlineImageType.create({
                 src: attrs?.src || '',
                 alt: attrs?.alt || '',
                 size: null,
               })
               if (dispatch) {
-                tr.replaceSelectionWith(inlineNode)
+                tr.replaceSelectionWith(inlineNode, false)
                 dispatch(tr.scrollIntoView())
               }
               return true
@@ -143,18 +161,29 @@ export const Figure = Node.create({
           // 3. 非空段落或其他块内（表格外）：在当前块之后插入带图编号和图题的 figure
           let insertPos: number | null = null
           for (let d = $from.depth; d > 0; d--) {
-            const parentName = $from.node(d).type.name
+            const parentNode = $from.node(d)
+            const parentName = parentNode.type.name
             if (['chapter', 'clause', 'foreword', 'introduction', 'appendix'].includes(parentName)) {
               const childIndex = $from.index(d)
               const hasNodeAfter = !state.selection.empty && $from.nodeAfter !== null
-              const insertIndex = d < $from.depth ? childIndex + 1 : hasNodeAfter ? childIndex + 1 : childIndex
-              const candidatePos =
+              let insertIndex = d < $from.depth ? childIndex + 1 : hasNodeAfter ? childIndex + 1 : childIndex
+              let candidatePos =
                 d < $from.depth
                   ? $from.after(d + 1)
                   : hasNodeAfter
                     ? $from.pos + $from.nodeAfter!.nodeSize
                     : $from.pos
-              if ($from.node(d).canReplaceWith(insertIndex, insertIndex, figureType)) {
+              if (
+                parentName === 'clause' &&
+                parentNode.attrs.hasTitle === false &&
+                insertIndex === 1 &&
+                parentNode.childCount > 1
+              ) {
+                insertIndex = 2
+                candidatePos =
+                  $from.before(d) + 1 + parentNode.child(0).nodeSize + parentNode.child(1).nodeSize
+              }
+              if (parentNode.canReplaceWith(insertIndex, insertIndex, figureType)) {
                 insertPos = candidatePos
                 break
               }
@@ -184,8 +213,11 @@ export const Figure = Node.create({
             return true
           }
 
+          if (!$from.parent.canReplaceWith($from.index(), $from.index(), figureType)) {
+            return false
+          }
           if (dispatch) {
-            tr.replaceSelectionWith(figureNode)
+            tr.replaceSelectionWith(figureNode, false)
             dispatch(tr.scrollIntoView())
           }
           return true

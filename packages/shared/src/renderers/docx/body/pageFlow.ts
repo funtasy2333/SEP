@@ -145,7 +145,7 @@ function measureInlineImages(
         flushLine()
       }
       usedWidthMm += imgW
-      currentLineHeight = Math.max(currentLineHeight, imgH + 3)
+      currentLineHeight = Math.max(currentLineHeight, imgH)
     } else {
       appendText(decode(match[1] ?? ''))
     }
@@ -349,7 +349,7 @@ export function createPageFlow(): PageFlow {
           contentHeight,
           lineCount,
           before, after, ids,
-          atomic: spec.keepLines === true || lineCount === 1,
+          atomic: spec.keepLines === true || (lineCount === 1 && ids.length === 0),
           hasInlineImage: true,
         })
         if (!spec.keepNext) { flushPending(); return false }

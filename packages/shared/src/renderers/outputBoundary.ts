@@ -271,6 +271,18 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
         const formula = child as Record<string, unknown>
         if (format !== 'XML46687' && (typeof formula.latex !== 'string' || formula.latex.trim() === '')) report(`${key}.latex`)
       }
+      if (shape === 'inline' && key === 'image' && present(child)) {
+        if (format !== 'XML') {
+          if (object.text !== '' && present(object.text)) report('text')
+          if (present(object.marks)) report('marks')
+          if (present(object.footnote)) report('footnote')
+          if (present(object.formula)) report('formula')
+          const image = child as Record<string, unknown>
+          if (format !== 'XML46687' && present(image.size) && image.size !== 'S' && image.size !== 'M' && image.size !== 'L') {
+            report('image.size')
+          }
+        }
+      }
       if (key === 'unsupportedContent') continue
       if (key === 'tailOrder') continue
       const defaultShape = key === 'meta' ? 'meta' : key === 'front' ? 'front'

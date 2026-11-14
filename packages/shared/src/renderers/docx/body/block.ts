@@ -164,10 +164,10 @@ function renderList(ctx: RenderContext, list: IRList, bctx: BlockCtx): string {
  * （GB/T 46687.2—2026 印刷页 2 的 3.2 缩略语实排；冒号只在渲染时添加，IR 与 PM 中不存；与 HTML 一致）。沿用 SesPara（首行空两个汉字起排、回行顶格，GB/T 1.1-2020 条文段落式排版），
  * 不新增样式、不进入任何编号（缩略语项没有序号；其 abb_<k> 只用于 crossRef 的目标）。
  */
-function renderDefList(ctx: RenderContext, list: IRDefList): string {
+function renderDefList(ctx: RenderContext, list: IRDefList, bctx: BlockCtx): string {
   let out = ''
   for (const item of list.items) {
-    const sink = formulaSink(ctx, item.id)
+    const sink = formulaSink(ctx, item.id, bctx.maxWidthMm)
     const runs = renderInlines(item.term, ctx.labels, sink) + plainRun('：')
       + renderInlines(item.definition, ctx.labels, sink)
     out += emitParagraph(ctx, 'SesPara', { runsXml: runs })
@@ -285,10 +285,12 @@ type TableGridContent = Pick<TableGridRenderOptions,
 function tableGridContent(
   ctx: RenderContext, table: IRTable, tableBctx: BlockCtx, columnLayout: ReturnType<typeof resolveTableColumnWidths>,
 ): TableGridContent {
+  const widthScale = columnLayout.custom ? columnLayout.widths.reduce((sum, value) => sum + value, 0) / columnLayout.pageWidthTwips : 1
+  const noteMaxWidthMm = Math.max(5, (((columnLayout.pageWidthTwips * widthScale) - 2 * TABLE_CELL_SIDE_MARGIN_TWIPS) * 25.4) / 1440)
   return {
     columnCount: columnLayout.widths.length,
     ...(columnLayout.custom ? { gridWidthsTwips: columnLayout.widths } : {}),
-    notesXml: () => table.notes.map((note) => renderNote(ctx, note, tableBctx, true)).join(''),
+    notesXml: () => table.notes.map((note) => renderNote(ctx, note, { ...tableBctx, maxWidthMm: noteMaxWidthMm }, true)).join(''),
     footnotesXml: () => orderTableFootnotes(table.footnotes ?? [], ctx.labels).map((footnote) => {
       const resolved = ctx.labels[footnote.id]
       if (!resolved) throw new Error(`renderTable: 表脚注 "${footnote.id}" 在 labels 中没有编号`)
@@ -462,7 +464,7 @@ function renderBlockContent(ctx: RenderContext, block: IRBlock, bctx: BlockCtx):
     case 'formula':
       return renderFormula(ctx, block, ctx.resources.formulaOmml[block.id])
     case 'defList':
-      return renderDefList(ctx, block)
+      return renderDefList(ctx, block, bctx)
     case 'note':
       return renderNote(ctx, block, bctx)
     case 'example':

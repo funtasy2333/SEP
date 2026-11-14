@@ -224,8 +224,9 @@ function renderRun(run: IRInline, ctx: RenderCtx): string {
     ? `<span class="ses-formula-inline" data-latex="${escapeAttr(run.formula.latex)}"></span>`
     : ''
 
+  const imageSize = run.image?.size === 'S' || run.image?.size === 'M' || run.image?.size === 'L' ? run.image.size : undefined
   const imageAtom = run.image
-    ? `<img class="ses-inline-image" src="${escapeAttr(run.image.src)}" alt="${escapeAttr(run.image.alt ?? '')}"${run.image.size ? ` data-size="${escapeAttr(run.image.size)}"` : ''} />`
+    ? `<img class="ses-inline-image" src="${escapeAttr(run.image.src)}" alt="${escapeAttr(run.image.alt ?? '')}"${imageSize ? ` data-size="${escapeAttr(imageSize)}"` : ''} />`
     : ''
 
   let footnoteAtom = ''

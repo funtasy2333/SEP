@@ -1081,5 +1081,176 @@ describe('图片插入逻辑（空白段落自动添加图编号和图题，表�
       editor.destroy()
     }
   })
+
+  it('在表格单元格内带粗体/斜体格式文本或激活 storedMarks 时插入图片：inlineImage 不继承 marks，不产生 unsupportedContent，且导出守卫放行', () => {
+    const initial: PMJsonNode = {
+      type: 'doc',
+      content: [{
+        type: 'chapter',
+        attrs: { nodeId: 'ch-1' },
+        content: [
+          { type: 'chapterTitle', content: [{ type: 'text', text: '符号要求' }] },
+          {
+            type: 'stdTable',
+            attrs: { id: 'tbl-1', nodeId: 'tbl-1' },
+            content: [
+              { type: 'tableCaption', content: [{ type: 'text', text: '设备符号表' }] },
+              {
+                type: 'table',
+                content: [
+                  {
+                    type: 'tableRow',
+                    content: [
+                      {
+                        type: 'tableCell',
+                        attrs: { nodeId: 'td-formatted' },
+                        content: [{
+                          type: 'paragraph',
+                          attrs: { nodeId: 'td-formatted-p' },
+                          content: [{
+                            type: 'text',
+                            text: '加粗斜体文字',
+                            marks: [{ type: 'bold' }, { type: 'italic' }],
+                          }],
+                        }],
+                      },
+                      {
+                        type: 'tableCell',
+                        attrs: { nodeId: 'td-stored' },
+                        content: [{
+                          type: 'paragraph',
+                          attrs: { nodeId: 'td-stored-p' },
+                          content: [],
+                        }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }],
+    }
+    const editor = mountEditor(initial as unknown as Record<string, unknown>)
+    try {
+      // 1) 光标位于粗体+斜体文本内部
+      const formattedParaPos = findPosInsideNode(editor.state.doc, 'td-formatted-p')
+      editor.chain().focus().setTextSelection(formattedParaPos + 2).insertFigure({ src: SAMPLE_PNG, alt: '行内图1' }).run()
+
+      // 2) 空单元格段落内显式激活 storedMarks（bold + italic）
+      const storedParaPos = findPosInsideNode(editor.state.doc, 'td-stored-p')
+      editor.view.dispatch(
+        editor.state.tr
+          .setSelection(TextSelection.create(editor.state.doc, storedParaPos))
+          .setStoredMarks([
+            editor.schema.marks.bold!.create(),
+            editor.schema.marks.italic!.create(),
+          ]),
+      )
+      editor.commands.insertFigure({ src: SAMPLE_PNG, alt: '行内图2' })
+
+      const json = editor.getJSON() as PMJsonNode
+      const inlineImages = nodesOfType(json, 'inlineImage')
+      expect(inlineImages).toHaveLength(2)
+      for (const img of inlineImages) {
+        expect(img.marks).toBeUndefined()
+      }
+
+      const { doc: irDoc, warnings } = pmToIr(json)
+      expect(warnings).toEqual([])
+      expect(irDoc.unsupportedContent ?? []).toEqual([])
+
+      for (const format of ['html', 'pdf', 'docx'] as const) {
+        expect(checkExportGuard(json, format), format).toBeNull()
+      }
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('在表注（tableNoteRow）内插图只插入 inlineImage；在表脚注内插图返回 false；在无标题条（hasTitle=false）的 clauseTitle 内插图插入在首段之后', () => {
+    const initial: PMJsonNode = {
+      type: 'doc',
+      content: [{
+        type: 'chapter',
+        attrs: { nodeId: 'ch-1' },
+        content: [
+          { type: 'chapterTitle', content: [{ type: 'text', text: '要求' }] },
+          {
+            type: 'clause',
+            attrs: { nodeId: 'cl-untitled', hasTitle: false, level: 1 },
+            content: [
+              { type: 'clauseTitle', content: [] },
+              { type: 'stdParagraph', attrs: { nodeId: 'cl-first-p' }, content: [{ type: 'text', text: '无标题条首段' }] },
+            ],
+          },
+          {
+            type: 'stdTable',
+            attrs: { id: 'tbl-notes', nodeId: 'tbl-notes' },
+            content: [
+              { type: 'tableCaption', content: [{ type: 'text', text: '带表注和表脚注的表' }] },
+              {
+                type: 'table',
+                content: [
+                  {
+                    type: 'tableRow',
+                    content: [
+                      { type: 'tableCell', attrs: { nodeId: 'td-1' }, content: [{ type: 'paragraph', attrs: { nodeId: 'td-1-p' }, content: [{ type: 'text', text: '数据' }] }] },
+                    ],
+                  },
+                ],
+              },
+              {
+                type: 'tableNoteRow',
+                content: [
+                  {
+                    type: 'note',
+                    attrs: { nodeId: 'tn-1' },
+                    content: [{ type: 'text', text: '表注文字' }],
+                  },
+                ],
+              },
+              {
+                type: 'tableFootnoteRow',
+                content: [
+                  {
+                    type: 'tableFootnoteEntry',
+                    attrs: { nodeId: 'tfn-1', label: 'a' },
+                    content: [{ type: 'text', text: '表脚注文字' }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }],
+    }
+    const editor = mountEditor(initial as unknown as Record<string, unknown>)
+    try {
+      // 1) 表脚注内禁止插图
+      const tfnPos = findPosInsideNode(editor.state.doc, 'tfn-1')
+      editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, tfnPos)))
+      expect(editor.commands.insertFigure({ src: SAMPLE_PNG })).toBe(false)
+
+      // 2) 表注（tableNoteRow）内插入 inlineImage
+      const tnPos = findPosInsideNode(editor.state.doc, 'tn-1')
+      editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, tnPos)))
+      expect(editor.commands.insertFigure({ src: SAMPLE_PNG, alt: '表注行内图' })).toBe(true)
+      expect(nodesOfType(editor.getJSON() as PMJsonNode, 'inlineImage')).toHaveLength(1)
+
+      // 3) 无标题条的 clauseTitle 内插图：插在首段（cl-first-p）之后，不插在 clauseTitle 与首段之间
+      const clausePos = findPosInsideNode(editor.state.doc, 'cl-untitled')
+      // clausePos 是 clauseTitle 的起始位置，clausePos + 1 在空的 clauseTitle 内部
+      editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, clausePos + 1)))
+      expect(editor.commands.insertFigure({ src: SAMPLE_PNG })).toBe(true)
+
+      const json = editor.getJSON() as PMJsonNode
+      const untitledClause = byId(json, 'clause', 'cl-untitled')
+      expect(untitledClause.content?.map(c => c.type)).toEqual(['clauseTitle', 'stdParagraph', 'figure'])
+    } finally {
+      editor.destroy()
+    }
+  })
 })
 

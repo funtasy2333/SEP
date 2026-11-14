@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest'
 import { resolve } from '../../ir/resolve'
 import type { IRBlock, IRDoc } from '../../ir/types'
 import { renderHtml } from '../html'
+import { getOutputSupportProblems } from '../outputBoundary'
 import { printCss } from '../printCss'
 import { inlineImageResourceKey, renderDocx } from '../docx'
 import { assertChildOrder, assertNumberingIntegrity, assertWellFormed } from '../docx/__tests__/helpers/checks'
@@ -123,6 +124,42 @@ describe('HTML 与 printCss 行内图片及表格单元格内图片渲染', () =
     expect(pdfCss).toContain('.ses-inline-image[data-size="S"] { max-height: 1.2em; }')
     expect(pdfCss).toContain('.ses-inline-image[data-size="M"] { max-height: 2.4em; }')
     expect(pdfCss).toContain('.ses-inline-image[data-size="L"] { max-height: 3.6em; }')
+  })
+
+  it('outputBoundary 阻断混合了 text/marks/footnote/formula 或非法 size 的行内图 run，HTML 不输出非法 data-size', () => {
+    const invalidDoc = makeDoc([
+      {
+        kind: 'paragraph',
+        id: 'p-bad',
+        content: [
+          {
+            text: '多余文字',
+            marks: [{ type: 'bold' }],
+            footnote: { id: 'fn-1', content: [{ text: '注' }] },
+            formula: { id: 'fm-1', latex: 'x' },
+            image: { src: SAMPLE_PNG_DATA_URL, size: 'XL' as never },
+          },
+        ],
+      },
+    ])
+    for (const format of ['HTML', 'DOCX'] as const) {
+      const paths = getOutputSupportProblems(invalidDoc, format).map((p) => p.path)
+      expect(paths).toContain('doc.body[0].children[0].content[0].text')
+      expect(paths).toContain('doc.body[0].children[0].content[0].marks')
+      expect(paths).toContain('doc.body[0].children[0].content[0].footnote')
+      expect(paths).toContain('doc.body[0].children[0].content[0].formula')
+      expect(paths).toContain('doc.body[0].children[0].content[0].image.size')
+    }
+
+    const sizeDoc = makeDoc([
+      {
+        kind: 'paragraph',
+        id: 'p-size',
+        content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL, size: 'XL' as never } }],
+      },
+    ])
+    const { labels } = resolve(sizeDoc)
+    expect(() => renderHtml(sizeDoc, labels, { variant: 'screen' })).toThrow(/image\.size/)
   })
 })
 
@@ -420,4 +457,43 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
     const outline = docxOutline(pkg)
     expect(outline).toContain('SesTblCapCont │ — │ 表1　换行双图续表测试（续）')
   })
+
+  it('横向附录内的行内图片按横排版心宽度（252mm）上限缩放，不被截断在竖排 165mm', () => {
+    const doc: IRDoc = {
+      ...makeDoc([]),
+      appendices: [
+        {
+          kind: 'appendix',
+          id: 'app-land',
+          normative: false,
+          orientation: 'landscape',
+          title: [{ text: '横向附录' }],
+          children: [
+            {
+              kind: 'paragraph',
+              id: 'app-p',
+              content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: '横排宽图' } }],
+            },
+          ],
+        },
+      ],
+    }
+    const { labels } = resolve(doc)
+    // 756px @ 96dpi = 200.025mm > 165mm 且 < 252mm，在横向附录中应保持原始 200.025mm 宽（7200900 EMU）
+    const pkg = renderDocx(doc, labels, {
+      formulaOmml: {},
+      images: {
+        [inlineImageResourceKey('app-p', 0)]: {
+          base64: SAMPLE_PNG_B64,
+          contentType: 'image/png',
+          widthPx: 756,
+          heightPx: 96,
+        },
+      },
+      stage: 'approval_draft',
+      createdAt: '2026-11-13T00:00:00.000Z',
+    })
+    expect(pkg.parts['word/document.xml']).toContain('<wp:extent cx="7200900" cy="914400"/>')
+  })
 })
+

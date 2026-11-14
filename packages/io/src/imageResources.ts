@@ -110,8 +110,8 @@ function visitBlock(block: IRBlock, visitTarget: (target: ImageTarget) => void):
 
 function visitTermEntry(entry: IRTermEntry, visitTarget: (target: ImageTarget) => void): void {
   visitBlocks(entry.definition, visitTarget)
-  for (const note of entry.notes) visitBlocks(note.content, visitTarget)
   for (const example of entry.examples) visitBlocks(example.content, visitTarget)
+  for (const note of entry.notes) visitBlocks(note.content, visitTarget)
 }
 
 function visitStructuredChild(child: IRChapterChild, visitTarget: (target: ImageTarget) => void): void {
@@ -314,17 +314,29 @@ export async function collectImageResources(doc: IRDoc, options: ImageResourceOp
   const resolved = await Promise.all(targets.map(async (target) => {
     try {
       const trimmedSrc = target.src.trim()
-      const embeddedResource = !trimmedSrc && target.resourceId
+      const embeddedResource = target.resourceId
         ? doc.resources?.find((r) => r.id === target.resourceId && (r.encoding === 'dataUrl' || r.encoding === 'base64'))
         : undefined
       const effectiveSource = trimmedSrc || (embeddedResource ? embeddedResource.data : (target.resourceId ?? ''))
-      const cacheKey = `${trimmedSrc ? 'src' : 'res'}:${effectiveSource}`
+      const cacheKey = `${trimmedSrc ? 'src' : 'res'}:${effectiveSource}:${target.resourceId ?? ''}`
       let pending = sourceCache.get(cacheKey)
       if (!pending) {
         pending = (async () => {
-          const bytes = embeddedResource && embeddedResource.encoding === 'base64'
-            ? { bytes: decodeBase64(embeddedResource.data), contentType: embeddedResource.mediaType }
-            : await resolveSource(effectiveSource, options, fetcher)
+          const decodeEmbedded = async (res: NonNullable<typeof embeddedResource>): Promise<ImageBytes> =>
+            res.encoding === 'base64'
+              ? { bytes: decodeBase64(res.data), contentType: res.mediaType }
+              : resolveSource(res.data, options, fetcher)
+          let bytes: ImageBytes
+          if (!trimmedSrc && embeddedResource) {
+            bytes = await decodeEmbedded(embeddedResource)
+          } else {
+            try {
+              bytes = await resolveSource(effectiveSource, options, fetcher)
+            } catch (err) {
+              if (!embeddedResource) throw err
+              bytes = await decodeEmbedded(embeddedResource)
+            }
+          }
           const info = inspectImage(bytes.bytes)
           return {
             base64: bytesToBase64(bytes.bytes),
