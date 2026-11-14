@@ -905,9 +905,9 @@ ${tableBordersCss}
     .ses-figure-block { text-align: center; margin: 16px 0; }
     .ses-figure-image { max-width: 100%; }
     .ses-inline-image { display: inline-block; vertical-align: middle; max-width: 100%; height: auto; }
-    .ses-inline-image[data-size="S"] { height: 1.2em; }
-    .ses-inline-image[data-size="M"] { height: 2.4em; }
-    .ses-inline-image[data-size="L"] { height: 3.6em; }
+    .ses-inline-image[data-size="S"] { max-height: 1.2em; }
+    .ses-inline-image[data-size="M"] { max-height: 2.4em; }
+    .ses-inline-image[data-size="L"] { max-height: 3.6em; }
     .ses-figure-caption { font-family: "SimHei", "黑体", sans-serif; font-weight: bold; margin-top: 8px; }
     .ses-figure-caption-en { font-style: italic; color: #555; }
     .ses-formula-block { display: flex; align-items: center; margin: 16px 0 6px; }

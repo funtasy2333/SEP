@@ -333,7 +333,7 @@ function renderTableContent(ctx: RenderContext, table: IRTable, bctx: BlockCtx, 
  */
 function renderSplitTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx, budget: TableFlowBudget): string {
   const captionRuns = renderInlines(table.caption, ctx.labels)
-  const pagination = paginateTable(table, budget)
+  const pagination = paginateTable(table, { ...budget, images: ctx.resources.images })
   const label = ctx.labels[table.id]?.label
   const ref = tableRef(ctx, table)
   if (pagination.oversizedGroup) {
@@ -401,7 +401,7 @@ type NaturalReason = 'unknown-position' | 'nested'
  */
 function renderNaturalTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx, reason: NaturalReason): string {
   // 只借用估算：判断是否可能跨页、有没有超高合并组；不使用其分段。
-  const plan = paginateTable(table)
+  const plan = paginateTable(table, { images: ctx.resources.images })
   const label = ctx.labels[table.id]?.label
   const ref = tableRef(ctx, table)
   const continuationName = label ? `「${label}（续）」表题` : '续表表题'

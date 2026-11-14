@@ -168,6 +168,39 @@ export function renderFigureImage(
   }
 }
 
+function resolveInlineImageResource(
+  images: DocxRenderOptions['images'] | undefined,
+  inlineImage: IRInlineImage,
+  ownerId: NodeId | undefined,
+  imageIndex: number,
+): DocxImage | undefined {
+  if (!images) return undefined
+  const key = ownerId ? inlineImageResourceKey(ownerId, imageIndex) : undefined
+  return (key ? images[key] : undefined)
+    ?? (inlineImage.resourceId ? images[inlineImage.resourceId] : undefined)
+    ?? (inlineImage.src ? images[inlineImage.src] : undefined)
+}
+
+/**
+ * 计算段落内行内图在给定可用宽度下的实际渲染宽高（单位 mm），供表格分页与行高估算复用。
+ * 资源缺失或尺寸元数据无效时返回 `undefined`。
+ */
+export function inlineImageExtentMm(
+  images: DocxRenderOptions['images'] | undefined,
+  inlineImage: IRInlineImage,
+  ownerId: NodeId | undefined,
+  imageIndex: number,
+  maxWidthMm: number,
+): { widthMm: number; heightMm: number } | undefined {
+  const image = resolveInlineImageResource(images, inlineImage, ownerId, imageIndex)
+  if (!image || !isValidImage(image) || !Number.isFinite(maxWidthMm) || maxWidthMm <= 0) return undefined
+  const { widthEmu, heightEmu } = computeDrawingExtentEmu(image, maxWidthMm, inlineImage.size)
+  return {
+    widthMm: widthEmu / 36000,
+    heightMm: heightEmu / 36000,
+  }
+}
+
 /**
  * 渲染段落内的行内图（`IRInline.image`）为 `<w:r><w:drawing>...</w:drawing></w:r>`，
  * 并将对应的图片关系部件登记到 `ctx.relatedParts`。缺图或尺寸无效时回退为 `〔图片缺失〕` 并记录 warning。
@@ -179,10 +212,7 @@ export function renderInlineImageRun(
   imageIndex: number,
   maxWidthMm = 165,
 ): string {
-  const key = ownerId ? inlineImageResourceKey(ownerId, imageIndex) : undefined
-  const image = (key ? ctx.resources.images[key] : undefined)
-    ?? (inlineImage.resourceId ? ctx.resources.images[inlineImage.resourceId] : undefined)
-    ?? (inlineImage.src ? ctx.resources.images[inlineImage.src] : undefined)
+  const image = resolveInlineImageResource(ctx.resources.images, inlineImage, ownerId, imageIndex)
   const labelId = ownerId ?? inlineImage.resourceId ?? 'inlineImage'
   if (!image) {
     warn(ctx, 'image-missing', `行内图片 "${labelId}" 未提供资源，输出图片缺失提示`, ownerId)

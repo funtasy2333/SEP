@@ -114,13 +114,15 @@ describe('HTML 与 printCss 行内图片及表格单元格内图片渲染', () =
 
     const screenHtml = renderHtml(doc, labels, { variant: 'screen' })
     expect(screenHtml).toContain('.ses-inline-image')
-    expect(screenHtml).toContain('.ses-inline-image[data-size="S"]')
+    expect(screenHtml).toContain('.ses-inline-image[data-size="S"] { max-height: 1.2em; }')
+    expect(screenHtml).toContain('.ses-inline-image[data-size="M"] { max-height: 2.4em; }')
+    expect(screenHtml).toContain('.ses-inline-image[data-size="L"] { max-height: 3.6em; }')
 
     const pdfCss = printCss()
     expect(pdfCss).toContain('.ses-inline-image')
-    expect(pdfCss).toContain('.ses-inline-image[data-size="S"]')
-    expect(pdfCss).toContain('.ses-inline-image[data-size="M"]')
-    expect(pdfCss).toContain('.ses-inline-image[data-size="L"]')
+    expect(pdfCss).toContain('.ses-inline-image[data-size="S"] { max-height: 1.2em; }')
+    expect(pdfCss).toContain('.ses-inline-image[data-size="M"] { max-height: 2.4em; }')
+    expect(pdfCss).toContain('.ses-inline-image[data-size="L"] { max-height: 3.6em; }')
   })
 })
 
@@ -296,5 +298,63 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
     expect(pkg.parts['word/document.xml']).toContain('缺失示例：')
     expect(pkg.parts['word/document.xml']).toContain('〔图片缺失〕')
     expect(pkg.warnings.some((w) => w.code === 'image-missing' && w.nodeId === 'p-missing')).toBe(true)
+  })
+
+  it('表格分页按单元格宽度与自然尺寸图片的实际渲染高度切分续表', () => {
+    // 3 行数据，每行含一张 400×400px（96dpi 下 105.83mm，单列宽 ~161mm 下保持 105.83mm 高）的自然尺寸图片，
+    // 3 行合计超过 300mm，必须按实际图片高度切分出续表并生成 SesTblCapCont「表1　大图续表测试（续）」。
+    const doc = makeDoc([
+      {
+        kind: 'table',
+        id: 'tbl-tall-img',
+        caption: [{ text: '大图续表测试' }],
+        orientation: 'portrait',
+        headerRowCount: 1,
+        rows: [
+          {
+            id: 'tr-h',
+            cells: [
+              { id: 'tc-h0', colspan: 1, rowspan: 1, header: true, content: [{ kind: 'paragraph', id: 'tc-h0-p', content: [{ text: '图形列' }] }] },
+            ],
+          },
+          ...([1, 2, 3] as const).map((i) => ({
+            id: `tr-${i}`,
+            cells: [
+              {
+                id: `tc-${i}`,
+                colspan: 1,
+                rowspan: 1,
+                header: false,
+                content: [{
+                  kind: 'paragraph' as const,
+                  id: `tc-${i}-p`,
+                  content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: `大图${i}` } }],
+                }],
+              },
+            ],
+          })),
+        ],
+        notes: [],
+      },
+    ])
+    const { labels } = resolve(doc)
+    const tallImage = {
+      base64: SAMPLE_PNG_B64,
+      contentType: 'image/png' as const,
+      widthPx: 400,
+      heightPx: 400,
+    }
+    const pkg = renderDocx(doc, labels, {
+      formulaOmml: {},
+      images: {
+        [inlineImageResourceKey('tc-1-p', 0)]: tallImage,
+        [inlineImageResourceKey('tc-2-p', 0)]: tallImage,
+        [inlineImageResourceKey('tc-3-p', 0)]: tallImage,
+      },
+      stage: 'approval_draft',
+      createdAt: '2026-11-13T00:00:00.000Z',
+    })
+    const outline = docxOutline(pkg)
+    expect(outline).toContain('SesTblCapCont │ — │ 表1　大图续表测试（续）')
   })
 })
