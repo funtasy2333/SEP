@@ -13,7 +13,7 @@
 import JSZip from 'jszip'
 import { Editor, getSchema } from '@tiptap/core'
 import { DOMParser, DOMSerializer, Fragment, Slice, type Node as PMNode } from '@tiptap/pm/model'
-import { TextSelection } from '@tiptap/pm/state'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { describe, expect, it } from 'vitest'
 import { checkExportGuard } from '@ses/io'
 import { irToPm, pmToIr, resolve, UnsupportedOutputError, type IRDoc, type IRFigure, type PMJsonNode } from '@ses/shared'
@@ -968,6 +968,35 @@ describe('图片插入逻辑（空白段落自动添加图编号和图题，表�
       const chapterChildren = json.content![0]!.content!
       expect(chapterChildren.map(c => c.type)).toEqual(['chapterTitle', 'stdParagraph', 'figure'])
       expect(chapterChildren[1]!.content![0]!.text).toBe('已有正文内容')
+      expect(chapterChildren[2]!.content![1]!.content ?? []).toEqual([])
+      expect(editor.state.selection.$from.parent.type.name).toBe('figureCaption')
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('在最后一章选中已有图或表（NodeSelection）时插入图片：紧随所选块之后在章内插入新 figure，不越界抛错', () => {
+    const initial: PMJsonNode = {
+      type: 'doc',
+      content: [{
+        type: 'chapter',
+        attrs: { nodeId: 'ch-last' },
+        content: [
+          { type: 'chapterTitle', content: [{ type: 'text', text: '附则' }] },
+          figure('fig-existing', '既有图'),
+        ],
+      }],
+    }
+    const editor = mountEditor(initial as unknown as Record<string, unknown>)
+    try {
+      const figPos = findPosInsideNode(editor.state.doc, 'fig-existing') - 1
+      editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, figPos)))
+      expect(() => editor.commands.insertFigure({ src: SAMPLE_PNG })).not.toThrow()
+
+      const json = editor.getJSON() as PMJsonNode
+      const chapterChildren = json.content![0]!.content!
+      expect(chapterChildren.map(c => c.type)).toEqual(['chapterTitle', 'figure', 'figure'])
+      expect(chapterChildren[1]!.attrs?.nodeId).toBe('fig-existing')
       expect(chapterChildren[2]!.content![1]!.content ?? []).toEqual([])
       expect(editor.state.selection.$from.parent.type.name).toBe('figureCaption')
     } finally {

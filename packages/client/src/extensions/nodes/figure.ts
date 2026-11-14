@@ -145,18 +145,33 @@ export const Figure = Node.create({
           for (let d = $from.depth; d > 0; d--) {
             const parentName = $from.node(d).type.name
             if (['chapter', 'clause', 'foreword', 'introduction', 'appendix'].includes(parentName)) {
-              const childDepth = d + 1 <= $from.depth ? d + 1 : d
               const childIndex = $from.index(d)
-              if ($from.node(d).canReplaceWith(childIndex + 1, childIndex + 1, figureType)) {
-                insertPos = $from.after(childDepth)
+              const hasNodeAfter = !state.selection.empty && $from.nodeAfter !== null
+              const insertIndex = d < $from.depth ? childIndex + 1 : hasNodeAfter ? childIndex + 1 : childIndex
+              const candidatePos =
+                d < $from.depth
+                  ? $from.after(d + 1)
+                  : hasNodeAfter
+                    ? $from.pos + $from.nodeAfter!.nodeSize
+                    : $from.pos
+              if ($from.node(d).canReplaceWith(insertIndex, insertIndex, figureType)) {
+                insertPos = candidatePos
                 break
               }
             }
           }
-          if (insertPos === null && $from.depth >= 1) {
-            const rootIndex = $from.index(0)
-            if (state.doc.canReplaceWith(rootIndex + 1, rootIndex + 1, figureType)) {
-              insertPos = $from.after(1)
+          if (insertPos === null) {
+            const hasRootNodeAfter = !state.selection.empty && $from.nodeAfter !== null
+            const rootInsertIndex =
+              $from.depth > 0 ? $from.index(0) + 1 : hasRootNodeAfter ? $from.index(0) + 1 : $from.index(0)
+            const rootCandidatePos =
+              $from.depth > 0
+                ? $from.after(1)
+                : hasRootNodeAfter
+                  ? $from.pos + $from.nodeAfter!.nodeSize
+                  : $from.pos
+            if (state.doc.canReplaceWith(rootInsertIndex, rootInsertIndex, figureType)) {
+              insertPos = rootCandidatePos
             }
           }
           if (insertPos !== null) {
