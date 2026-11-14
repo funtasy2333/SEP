@@ -5,7 +5,7 @@
  * resource key；shared 只接收 base64、MIME 与像素尺寸，不访问网络或浏览器 API。
  */
 
-import type { IRBlock, IRChapterChild, IRDoc, IRFigure, IRTermEntry, NodeId, DocxRenderOptions } from '@ses/shared'
+import { inlineImageResourceKey, type IRBlock, type IRChapterChild, type IRDoc, type IRTermEntry, type NodeId, type DocxRenderOptions } from '@ses/shared'
 
 export type DocxImageResource = DocxRenderOptions['images'][NodeId]
 
@@ -42,60 +42,97 @@ interface ImageInfo {
   heightPx: number
 }
 
-function visitBlocks(blocks: IRBlock[], visitFigure: (figure: IRFigure) => void): void {
-  for (const block of blocks) visitBlock(block, visitFigure)
+interface ImageTarget {
+  /** Key in `DocxRenderOptions.images` (`figure.id` or `inlineImageResourceKey(paragraph.id, imageIndex)`). */
+  key: string
+  /** Diagnostic node ID (`figure.id` or `paragraph.id`). */
+  nodeId: NodeId
+  src: string
+  resourceId?: string
 }
 
-function visitBlock(block: IRBlock, visitFigure: (figure: IRFigure) => void): void {
+function visitBlocks(blocks: IRBlock[], visitTarget: (target: ImageTarget) => void): void {
+  for (const block of blocks) visitBlock(block, visitTarget)
+}
+
+function visitBlock(block: IRBlock, visitTarget: (target: ImageTarget) => void): void {
   switch (block.kind) {
     case 'figure':
-      visitFigure(block)
-      for (const note of block.notes) visitBlocks(note.content, visitFigure)
+      visitTarget({ key: block.id, nodeId: block.id, src: block.src, resourceId: block.resourceId })
+      for (const note of block.notes) visitBlocks(note.content, visitTarget)
       break
     case 'table':
-      for (const row of block.rows) for (const cell of row.cells) visitBlocks(cell.content, visitFigure)
-      for (const note of block.notes) visitBlocks(note.content, visitFigure)
+      for (const row of block.rows) for (const cell of row.cells) visitBlocks(cell.content, visitTarget)
+      for (const note of block.notes) visitBlocks(note.content, visitTarget)
       break
     case 'list':
       for (const item of block.items) {
-        for (const child of item.content) if (child.kind === 'list') visitBlock(child, visitFigure)
+        visitBlocks(item.content, visitTarget)
       }
       break
     case 'note':
     case 'example':
-      visitBlocks(block.content, visitFigure)
+      visitBlocks(block.content, visitTarget)
       break
-    case 'paragraph':
+    case 'paragraph': {
+      let imageIndex = 0
+      for (const run of block.content) {
+        if (!run.image) continue
+        const idx = imageIndex++
+        visitTarget({
+          key: inlineImageResourceKey(block.id, idx),
+          nodeId: block.id,
+          src: run.image.src,
+          resourceId: run.image.resourceId,
+        })
+      }
+      break
+    }
+    case 'defList':
+      for (const item of block.items) {
+        let imageIndex = 0
+        for (const run of [...item.term, ...item.definition]) {
+          if (!run.image) continue
+          const idx = imageIndex++
+          visitTarget({
+            key: inlineImageResourceKey(item.id, idx),
+            nodeId: item.id,
+            src: run.image.src,
+            resourceId: run.image.resourceId,
+          })
+        }
+      }
+      break
     case 'formula':
       break
   }
 }
 
-function visitTermEntry(entry: IRTermEntry, visitFigure: (figure: IRFigure) => void): void {
-  visitBlocks(entry.definition, visitFigure)
-  for (const note of entry.notes) visitBlocks(note.content, visitFigure)
-  for (const example of entry.examples) visitBlocks(example.content, visitFigure)
+function visitTermEntry(entry: IRTermEntry, visitTarget: (target: ImageTarget) => void): void {
+  visitBlocks(entry.definition, visitTarget)
+  for (const example of entry.examples) visitBlocks(example.content, visitTarget)
+  for (const note of entry.notes) visitBlocks(note.content, visitTarget)
 }
 
-function visitStructuredChild(child: IRChapterChild, visitFigure: (figure: IRFigure) => void): void {
+function visitStructuredChild(child: IRChapterChild, visitTarget: (target: ImageTarget) => void): void {
   if (child.kind === 'clause') {
-    for (const nested of child.children) visitStructuredChild(nested, visitFigure)
+    for (const nested of child.children) visitStructuredChild(nested, visitTarget)
   } else if (child.kind === 'termEntry') {
-    visitTermEntry(child, visitFigure)
+    visitTermEntry(child, visitTarget)
   } else {
-    visitBlock(child, visitFigure)
+    visitBlock(child, visitTarget)
   }
 }
 
-function collectFigures(doc: IRDoc): IRFigure[] {
-  const figures: IRFigure[] = []
-  const visitFigure = (figure: IRFigure) => figures.push(figure)
-  visitBlocks(doc.front.foreword, visitFigure)
-  visitBlocks(doc.front.introduction, visitFigure)
-  for (const clause of doc.front.introductionClauses ?? []) visitStructuredChild(clause, visitFigure)
-  for (const chapter of doc.body) for (const child of chapter.children) visitStructuredChild(child, visitFigure)
-  for (const appendix of doc.appendices) for (const child of appendix.children) visitStructuredChild(child, visitFigure)
-  return figures
+function collectImageTargets(doc: IRDoc): ImageTarget[] {
+  const targets: ImageTarget[] = []
+  const visitTarget = (target: ImageTarget) => targets.push(target)
+  visitBlocks(doc.front.foreword, visitTarget)
+  visitBlocks(doc.front.introduction, visitTarget)
+  for (const clause of doc.front.introductionClauses ?? []) visitStructuredChild(clause, visitTarget)
+  for (const chapter of doc.body) for (const child of chapter.children) visitStructuredChild(child, visitTarget)
+  for (const appendix of doc.appendices) for (const child of appendix.children) visitStructuredChild(child, visitTarget)
+  return targets
 }
 
 export function isFetchableUrl(value: string): boolean {
@@ -264,22 +301,42 @@ async function resolveSource(
 }
 
 /**
- * 按文档顺序收集 IR 中所有图（包括表格单元格、图/表/注/示例及术语内容中的嵌套图），
+ * 按文档顺序收集 IR 中所有图与段落行内图片（包括表格单元格、列表项、图/表/注/示例及术语内容中的图片），
  * 将成功读取的图片整理成 shared `DocxRenderOptions.images` 所需 map。
  */
 export async function collectImageResources(doc: IRDoc, options: ImageResourceOptions = {}): Promise<ImageResourcesResult> {
-  const figures = collectFigures(doc)
+  const targets = collectImageTargets(doc)
   const images: Record<NodeId, DocxImageResource> = Object.create(null) as Record<NodeId, DocxImageResource>
   const diagnostics: ImageResourceDiagnostic[] = []
   const sourceCache = new Map<string, Promise<DocxImageResource>>()
   const fetcher = options.fetcher ?? globalThis.fetch
 
-  const resolved = await Promise.all(figures.map(async (figure) => {
+  const resolved = await Promise.all(targets.map(async (target) => {
     try {
-      let pending = sourceCache.get(figure.src)
+      const trimmedSrc = target.src.trim()
+      const embeddedResource = target.resourceId
+        ? doc.resources?.find((r) => r.id === target.resourceId && (r.encoding === 'dataUrl' || r.encoding === 'base64'))
+        : undefined
+      const effectiveSource = trimmedSrc || (embeddedResource ? embeddedResource.data : (target.resourceId ?? ''))
+      const cacheKey = `${trimmedSrc ? 'src' : 'res'}:${effectiveSource}:${target.resourceId ?? ''}`
+      let pending = sourceCache.get(cacheKey)
       if (!pending) {
         pending = (async () => {
-          const bytes = await resolveSource(figure.src, options, fetcher)
+          const decodeEmbedded = async (res: NonNullable<typeof embeddedResource>): Promise<ImageBytes> =>
+            res.encoding === 'base64'
+              ? { bytes: decodeBase64(res.data), contentType: res.mediaType }
+              : resolveSource(res.data, options, fetcher)
+          let bytes: ImageBytes
+          if (!trimmedSrc && embeddedResource) {
+            bytes = await decodeEmbedded(embeddedResource)
+          } else {
+            try {
+              bytes = await resolveSource(effectiveSource, options, fetcher)
+            } catch (err) {
+              if (!embeddedResource) throw err
+              bytes = await decodeEmbedded(embeddedResource)
+            }
+          }
           const info = inspectImage(bytes.bytes)
           return {
             base64: bytesToBase64(bytes.bytes),
@@ -288,12 +345,12 @@ export async function collectImageResources(doc: IRDoc, options: ImageResourceOp
             heightPx: info.heightPx,
           }
         })()
-        sourceCache.set(figure.src, pending)
+        sourceCache.set(cacheKey, pending)
       }
-      return { ok: true as const, nodeId: figure.id, image: await pending }
+      return { ok: true as const, key: target.key, image: await pending }
     } catch (error) {
       return { ok: false as const, diagnostic: {
-        nodeId: figure.id,
+        nodeId: target.nodeId,
         message: error instanceof Error ? error.message : String(error),
       } }
     }
@@ -301,7 +358,7 @@ export async function collectImageResources(doc: IRDoc, options: ImageResourceOp
 
   // 资源请求并发完成，但资源表和告警始终按 IR 文档顺序输出。
   for (const result of resolved) {
-    if (result.ok) images[result.nodeId] = result.image
+    if (result.ok) images[result.key] = result.image
     else diagnostics.push(result.diagnostic)
   }
 

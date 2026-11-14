@@ -8,10 +8,12 @@
  */
 
 import type { IRDoc, NodeId, ResolvedLabel } from '../../ir/types'
+import { inlineImageResourceKey } from './body/figure'
 import { renderDocxTraced } from './render'
 import type { DocxPackage, DocxRenderOptions } from './types'
 
 export type { DocxPackage, DocxRenderOptions }
+export { inlineImageResourceKey }
 
 /** `renderDocx` = `renderDocxTraced(...).pkg`（§1.2） */
 export function renderDocx(doc: IRDoc, labels: Record<NodeId, ResolvedLabel>, opts: DocxRenderOptions): DocxPackage {

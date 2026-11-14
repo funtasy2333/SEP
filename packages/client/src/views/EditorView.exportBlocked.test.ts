@@ -142,7 +142,7 @@ afterEach(() => {
 })
 
 describe('导出被阻止的提示分行显示', () => {
-  it('全要素文档导出 DOCX：一行概述，15 处阻断逐条各占一行，格式卡片仍在对话框内', async () => {
+  it('全要素文档导出 DOCX：一行概述，9 处阻断逐条各占一行，格式卡片仍在对话框内', async () => {
     const view = await mountEditor(canonicalFixture())
     const error = vi.spyOn(ElMessage, 'error')
     try {
@@ -154,25 +154,25 @@ describe('导出被阻止的提示分行显示', () => {
       // 仍是 el-alert：概述与明细都在 .el-alert__title 内（WP6 的集成审计也按此读取诊断文字）
       expect(alert!.classList.contains('el-alert')).toBe(true)
       expect(alert!.querySelector('.el-alert__title .export-error-text')).not.toBeNull()
-      expect(alert!.querySelectorAll('.el-alert__title .export-error-items > li')).toHaveLength(15)
+      expect(alert!.querySelectorAll('.el-alert__title .export-error-items > li')).toHaveLength(9)
 
       // 概述：一行，不含任何明细
       const summary = alert!.querySelector('.export-error-text')!
-      expect(summary.textContent).toBe('导出被阻止：DOCX 有 15 处内容暂不能导出')
+      expect(summary.textContent).toBe('导出被阻止：DOCX 有 9 处内容暂不能导出')
 
       // 明细：一个问题一条 <li>，没有被连成一段
       const items = [...alert!.querySelectorAll('.export-error-items > li')].map((li) => li.textContent ?? '')
-      expect(items).toHaveLength(15)
+      expect(items).toHaveLength(9)
       for (const item of items) {
         expect(item).toMatch(/^DOCX /)
         expect(item).toContain('请保留 JSON 文档。')
         expect(item).toMatch(/【(节点 [^】，]+，)?位置 [^】]+】$/)
         expect(item).not.toContain('；DOCX')
       }
-      // 与 WP8.M 的暂不排版结构对应：图例、行内图、图中示例、单元格边框、列宽
+      // 与 WP8.M 的暂不排版结构对应：图例、图中示例、单元格边框、列宽（行内图已支持）
       const all = items.join('\n')
       expect(all).toContain('legend')
-      expect(all).toContain('image')
+      expect(all).not.toContain('.image')
       expect(all).toContain('examples')
       expect(all).toContain('style')
       expect(all).toContain('columns')
@@ -191,7 +191,7 @@ describe('导出被阻止的提示分行显示', () => {
 
       // 弹出的简短提示保持原样（概述 + 另有 N 项）
       expect(error).toHaveBeenCalledTimes(1)
-      expect(String(error.mock.calls[0]![0])).toMatch(/^导出被阻止：DOCX 暂未支持此信息：.*（另有 14 项，详见导出详情）$/)
+      expect(String(error.mock.calls[0]![0])).toMatch(/^导出被阻止：DOCX 暂未支持此信息：.*（另有 8 项，详见导出详情）$/)
     } finally {
       view.unmount()
     }
@@ -202,7 +202,7 @@ describe('导出被阻止的提示分行显示', () => {
     vi.spyOn(ElMessage, 'error')
     try {
       await openExportAndChoose('DOCX')
-      expect(document.body.querySelectorAll('.export-error-items > li')).toHaveLength(15)
+      expect(document.body.querySelectorAll('.export-error-items > li')).toHaveLength(9)
 
       // 再次点工具栏“导出”会重置对话框状态：旧提示不应残留
       clickByText('button', '导出')

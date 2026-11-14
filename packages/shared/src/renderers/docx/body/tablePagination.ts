@@ -6,6 +6,8 @@
  * 这里的高度是布局估计，用户继续编辑单元格内容后可能需要重新导出或手调分段。
  */
 import type { IRBlock, IRTable, IRTableRow } from '../../../ir/types'
+import type { DocxRenderOptions } from '../types'
+import { inlineImageExtentMm } from './figure'
 import { paragraphHeightMm } from './pageFlow'
 import { resolveTableColumnWidths, TABLE_CELL_SIDE_MARGIN_TWIPS, type TableColumnLayout } from './tableColumnWidths'
 
@@ -36,20 +38,90 @@ function textLines(value: string, capacity: number): number {
   return value.split(/\r?\n/).reduce((sum, line) => sum + Math.max(1, Math.ceil(textUnits(line) / capacity)), 0)
 }
 
-function blockLines(block: IRBlock, capacity: number): number {
+function blockLines(
+  block: IRBlock,
+  capacity: number,
+  maxWidthMm = 165,
+  images?: DocxRenderOptions['images'],
+): number {
   switch (block.kind) {
-    case 'paragraph':
-      return textLines(block.content.map((run) => run.text).join(''), capacity)
+    case 'paragraph': {
+      if (!block.content.some((run) => Boolean(run.image))) {
+        return textLines(block.content.map((run) => run.text).join(''), capacity)
+      }
+      const safeCapacity = Math.max(1, capacity)
+      const unitWidthMm = maxWidthMm / safeCapacity
+      let imageIndex = 0
+      let usedWidthMm = 0
+      let currentLineHeightMm = 4.2
+      let totalLines = 0
+      const flushLine = () => {
+        totalLines += Math.max(1, Math.ceil(currentLineHeightMm / 4.2))
+        usedWidthMm = 0
+        currentLineHeightMm = 4.2
+      }
+      const appendText = (text: string) => {
+        const segments = text.split(/\r?\n/)
+        for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+          if (segIdx > 0) flushLine()
+          for (const ch of segments[segIdx]!) {
+            const charWidthMm = (ch.charCodeAt(0) < 128 ? 0.55 : 1) * unitWidthMm
+            if (usedWidthMm > 0 && usedWidthMm + charWidthMm > maxWidthMm + 1e-6) {
+              flushLine()
+            }
+            usedWidthMm += charWidthMm
+          }
+        }
+      }
+      for (const run of block.content) {
+        if (!run.image) {
+          if (run.text) appendText(run.text)
+          continue
+        }
+        const currentIndex = imageIndex++
+        const extent = inlineImageExtentMm(images, run.image, block.id, currentIndex, maxWidthMm)
+        if (extent !== undefined) {
+          if (usedWidthMm > 0 && usedWidthMm + extent.widthMm > maxWidthMm + 1e-6) {
+            flushLine()
+          }
+          usedWidthMm += extent.widthMm
+          currentLineHeightMm = Math.max(currentLineHeightMm, extent.heightMm)
+          continue
+        }
+        // 已提供 images 但未命中有效图片时，实际渲染为文本「〔图片缺失〕」；
+        // 未传 images（如独立调用 paginateTable）时按 S/M/L 或默认 4 行高保守估算。
+        if (images !== undefined) {
+          appendText('〔图片缺失〕')
+          continue
+        }
+        const fallbackHeightMm = run.image.size === 'S' ? 4.2
+          : run.image.size === 'M' ? 8.4
+          : run.image.size === 'L' ? 12.6
+          : 16.8
+        const fallbackWidthMm = Math.min(maxWidthMm, fallbackHeightMm)
+        if (usedWidthMm > 0 && usedWidthMm + fallbackWidthMm > maxWidthMm + 1e-6) {
+          flushLine()
+        }
+        usedWidthMm += fallbackWidthMm
+        currentLineHeightMm = Math.max(currentLineHeightMm, fallbackHeightMm)
+      }
+      flushLine()
+      return totalLines
+    }
     case 'list':
       return block.items.reduce((sum, item) =>
-        sum + Math.max(1, item.content.reduce((part, child) => part + blockLines(child, capacity), 0)), 0)
+        sum + Math.max(1, item.content.reduce((part, child) => part + blockLines(child, capacity, maxWidthMm, images), 0)), 0)
     case 'note':
     case 'example':
-      return 1 + block.content.reduce((sum, child) => sum + blockLines(child, capacity), 0)
+      return 1 + block.content.reduce((sum, child) => sum + blockLines(child, capacity, maxWidthMm, images), 0)
     case 'defList':
       // 缩略语表：每项一个条文段落（缩略语与释义同一行，可回行）
       return block.items.reduce((sum, item) =>
-        sum + textLines(`${item.term.map((run) => run.text).join('')}：${item.definition.map((run) => run.text).join('')}`, capacity), 0)
+        sum + blockLines({
+          kind: 'paragraph',
+          id: item.id,
+          content: [...item.term, { text: '：' }, ...item.definition],
+        }, capacity, maxWidthMm, images), 0)
     case 'figure':
     case 'formula':
       return 6
@@ -68,13 +140,21 @@ function blockLines(block: IRBlock, capacity: number): number {
   }
 }
 
-function rowHeightMm(row: IRTableRow, columnCount: number, landscape: boolean, layout: TableColumnLayout): number {
+function rowHeightMm(
+  row: IRTableRow,
+  columnCount: number,
+  landscape: boolean,
+  layout: TableColumnLayout,
+  images?: DocxRenderOptions['images'],
+): number {
   const fullWidthUnits = landscape ? 73 : 48
   const lines = Math.max(1, ...row.cells.map((cell) => {
+    const cellWidthTwips = layout.cellWidths.get(cell.id) ?? (layout.pageWidthTwips * cell.colspan / Math.max(1, columnCount))
+    const cellMaxWidthMm = Math.max(5, ((cellWidthTwips - 2 * TABLE_CELL_SIDE_MARGIN_TWIPS) * 25.4) / 1440)
     const capacity = layout.custom
       ? Math.max(1, fullWidthUnits * Math.max(1, (layout.cellWidths.get(cell.id) ?? 0) - 2 * TABLE_CELL_SIDE_MARGIN_TWIPS) / layout.pageWidthTwips)
       : Math.max(4, fullWidthUnits * cell.colspan / columnCount)
-    return Math.max(1, cell.content.reduce((sum, block) => sum + blockLines(block, capacity), 0))
+    return Math.max(1, cell.content.reduce((sum, block) => sum + blockLines(block, capacity, cellMaxWidthMm, images), 0))
   }))
   // Word 9 pt 表格单行约 4.2 mm、两行约 8.2 mm；保留少量边框/取整余量。
   // 不能继续把短记录的单行下限设为 6 mm，否则会平白增加续表页数。
@@ -103,6 +183,8 @@ export interface TablePaginationOptions {
   firstPageHeightMm?: number
   /** 表前待定同页链移到新页后，首段仍须预留的高度（含脚注）。 */
   firstPageReservedMm?: number
+  /** 已解析的图片资源表，用于按单元格宽度与图片实际尺寸估算行内图高度。 */
+  images?: DocxRenderOptions['images']
 }
 
 /** 切分时不穿过 rowspan，且每段以相同的表头行开头。 */
@@ -115,10 +197,11 @@ export function paginateTable(table: IRTable, options: TablePaginationOptions = 
   const widthScale = layout.custom ? layout.widths.reduce((sum, value) => sum + value, 0) / layout.pageWidthTwips : 1
   const landscape = table.orientation === 'landscape'
   const headerHeight = table.rows.slice(0, headerRowCount)
-    .reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape, layout), 0)
+    .reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape, layout, options.images), 0)
   const noteCapacity = Math.max(layout.custom ? 1 : 8, (landscape ? 73 : 48) * widthScale - 4)
+  const noteMaxWidthMm = Math.max(5, (((layout.pageWidthTwips * widthScale) - 2 * TABLE_CELL_SIDE_MARGIN_TWIPS) * 25.4) / 1440)
   const noteHeight = table.notes.length > 0 ? 1.2 + table.notes.reduce((sum, note) => sum +
-    note.content.reduce((height, block) => height + blockLines(block, noteCapacity) *
+    note.content.reduce((height, block) => height + blockLines(block, noteCapacity, noteMaxWidthMm, options.images) *
       (block.kind === 'paragraph' ? 4.2 : 5.5), 0), 0) : 0
   const footnoteCapacity = Math.max(layout.custom ? 1 : 8, (landscape ? 73 : 48) * widthScale - 4)
   const tableFootnoteHeight = (table.footnotes ?? []).reduce((sum, footnote) => {
@@ -140,7 +223,7 @@ export function paginateTable(table: IRTable, options: TablePaginationOptions = 
   const finalDataBudget = Math.max(0, dataBudget - footerHeight)
   const groups = bodyGroups(table.rows, headerRowCount)
   const groupHeights = groups.map((group) =>
-    group.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape, layout), 0))
+    group.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape, layout, options.images), 0))
   const totalHeight = captionHeight + headerHeight + footerHeight + groupHeights.reduce((sum, height) => sum + height, 0)
   const footerTooTall = captionHeight + headerHeight + footerHeight > pageBudget
   const oversizedGroup = groupHeights.some(height => height > dataBudget)
@@ -157,7 +240,7 @@ export function paginateTable(table: IRTable, options: TablePaginationOptions = 
   const result = (bodySegments: IRTableRow[][], startOnNewPage: boolean, oversizedGroup: boolean): TablePagination => ({
     bodySegments, startOnNewPage, totalHeightMm: totalHeight, oversizedGroup, finalSegmentOverflow, footerTooTall,
     segmentHeightsMm: bodySegments.map((rows, index) => captionHeight + headerHeight +
-      rows.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape, layout), 0) +
+      rows.reduce((sum, row) => sum + rowHeightMm(row, columnCount, landscape, layout, options.images), 0) +
       (index === bodySegments.length - 1 ? footerHeight : 0)),
   })
   // A complete table that fits needs no first-group safety allowance. Preserve the
