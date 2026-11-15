@@ -43,6 +43,8 @@ jobs:
         run: python scripts/test_package_release.py
       - name: Verify the upgrade executor (file replacement, rollback, path safety)
         run: python scripts/test_apply_update.py
+      - name: Verify startup build-state and backup retention
+        run: python scripts/test_startup_state.py
       - name: Verify the Windows upgrade script with Windows PowerShell 5.1
         env:
           SES_PWSH: powershell.exe
@@ -126,6 +128,8 @@ jobs:
         run: python3 scripts/test_package_release.py
       - name: Verify the upgrade executor (file replacement, rollback, path safety)
         run: python3 scripts/test_apply_update.py
+      - name: Verify startup build-state and backup retention
+        run: python3 scripts/test_startup_state.py
       - name: Verify the macOS upgrade script (success, rollback, failure paths)
         run: bash scripts/ses-upgrade.test.sh
       - name: Build clean macOS archive

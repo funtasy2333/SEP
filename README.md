@@ -162,14 +162,14 @@ macOS 启动脚本沿用原有依赖来源配置，不包含 Windows 的自动�
 | 内容 | 保存位置（相对于 SES 目录） |
 | ---- | ------------------------- |
 | 文档数据库 | `packages/server/data/ses.db` |
-| 启动前的数据库备份 | `output/startup-backups/` |
-| 应用内升级前的数据库备份 | `output/upgrade-backups/` |
+| 启动前的数据库备份 | `output/startup-backups/`（默认保留最近 10 份） |
+| 应用内升级前的数据库备份 | `output/upgrade-backups/`（默认保留最近 5 份） |
 | 服务日志 | `.ses-run/` |
 | 升级日志与结果 | `.ses-run/upgrade.log`、`.ses-run/upgrade-status.json` |
 | 升级临时文件 | `.ses-update/`（升级结束后自动清理，可忽略） |
 | Windows 本地 Node.js 与 pnpm | `.ses-tools/` |
 
-启动脚本会在启动后端前备份已有数据库。手动升级或移动 SES 前，请先退出服务并备份原目录，避免丢失文档。
+启动脚本只在源码、依赖或 Node 版本变化时重新构建后端（需要强制重建可设置 `SES_FORCE_BUILD=1`），并在启动后端前按需备份已有数据库（自上次备份后未变化则跳过，最多保留最近 10 份，可通过 `SES_STARTUP_BACKUP_KEEP` 调整）。手动升级或移动 SES 前，请先退出服务并备份原目录，避免丢失文档。
 
 ### 升级
 
@@ -180,7 +180,7 @@ macOS 启动脚本沿用原有依赖来源配置，不包含 Windows 的自动�
 | 稳定版 | GitHub Release | 正式发布的预览版本，默认通道 |
 | 每次提交 | main 分支最新提交 | 可能不稳定，仅建议想尽早试用新功能时选择 |
 
-升级过程由 SES 自动完成：停止服务 → 备份数据库到 `output/upgrade-backups/` → 解压并替换程序文件 → 重新启动（必要时补装依赖并重新构建，需要联网）。新版本无法启动时，会自动恢复升级前的程序文件和数据库，并重新启动原版本；结果和原因会显示在设置页，详细日志在 `.ses-run/upgrade.log`。升级只替换程序源码，不会改动文档数据（`packages/server/data/`）、`node_modules`、`.ses-tools/`、`output/` 和 `.env`。
+升级过程由 SES 自动完成：停止服务 → 备份数据库到 `output/upgrade-backups/`（默认保留最近 5 份，可通过 `SES_UPGRADE_BACKUP_KEEP` 调整） → 解压并替换程序文件 → 重新启动（必要时补装依赖并重新构建，需要联网）。新版本无法启动时，会自动恢复升级前的程序文件和数据库，并重新启动原版本；结果和原因会显示在设置页，详细日志在 `.ses-run/upgrade.log`。升级只替换程序源码，不会改动文档数据（`packages/server/data/`）、`node_modules`、`.ses-tools/`、`output/` 和 `.env`。
 
 - 不支持降级：只能升级到比当前更新的版本，旧版本无法读取新版本改过的数据库结构。
 - 应用内升级与「退出 SES」仅在通过启动脚本启动的 SES 上可用；用 `pnpm dev` 启动的开发服务不提供。

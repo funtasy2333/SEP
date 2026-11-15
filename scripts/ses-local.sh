@@ -102,24 +102,15 @@ start() {
   fi
 
   if [ -z "$(listener 3000)" ]; then
-    echo "正在构建 SES……"
-    pnpm build
-    # 启动会同步数据库表结构，因此在启动前保存 SQLite 一致性备份。
-    if [ -f packages/server/data/ses.db ]; then
-      node <<'JS'
-const fs = require('node:fs');
-const path = require('node:path');
-const { createRequire } = require('node:module');
-const Database = createRequire(path.resolve('packages/server/package.json'))('better-sqlite3');
-const dir = 'output/startup-backups';
-fs.mkdirSync(dir, { recursive: true });
-const target = path.resolve(dir, `ses-before-start-${new Date().toISOString().replace(/[:.]/g, '-')}.db`);
-const db = new Database('packages/server/data/ses.db', { readonly: true });
-db.backup(target).then(() => {
-  db.close(); console.log(`数据库已备份：${target}`);
-}).catch(error => { db.close(); console.error(error); process.exitCode = 1; });
-JS
+    if [ "${SES_FORCE_BUILD:-0}" = 1 ] || ! node scripts/build-state.cjs check; then
+      echo "正在构建 SES 后端……"
+      pnpm --filter @ses/server build
+      node scripts/build-state.cjs record
+    else
+      echo "代码未变化，跳过构建。"
     fi
+    # 启动会同步数据库表结构，因此在启动前保存 SQLite 一致性备份，并自动裁剪旧的启动/升级备份。
+    node scripts/backup-db.cjs
     echo "正在启动后端……"
     server_job="$LABEL.server"
     launchctl remove "$server_job" 2>/dev/null || true

@@ -39,9 +39,9 @@ def runtime_files(platform):
     # This user-facing MCP reference is an actual build input, not a development document.
     files['packages/server/resources/authoring-reference.md'] = ROOT / 'docs/wp9-authoring-reference.md'
     # 升级执行器及其平台脚本；scripts/apply-update.cjs 中的同名清单必须保持一致（有测试比对）。
-    entries = (['启动SES.cmd', '退出SES.cmd', 'scripts/ses-windows.ps1', 'scripts/backup-db.cjs', 'scripts/check-sqlite.cjs', 'scripts/start-service.cjs',
+    entries = (['启动SES.cmd', '退出SES.cmd', 'scripts/ses-windows.ps1', 'scripts/backup-db.cjs', 'scripts/build-state.cjs', 'scripts/check-sqlite.cjs', 'scripts/start-service.cjs',
                 'scripts/apply-update.cjs', 'scripts/ses-upgrade.ps1', 'scripts/run-detached.cjs'] if platform == 'windows'
-               else ['启动SES.command', '退出SES.command', 'scripts/ses-local.sh', 'scripts/apply-update.cjs', 'scripts/ses-upgrade.sh'])
+               else ['启动SES.command', '退出SES.command', 'scripts/ses-local.sh', 'scripts/backup-db.cjs', 'scripts/build-state.cjs', 'scripts/apply-update.cjs', 'scripts/ses-upgrade.sh'])
     files.update({name: ROOT / name for name in entries})
     return files
 
@@ -92,7 +92,7 @@ macOS 使用现有官方安装来源，不包含 Windows 的自动镜像切换�
 
 启动后打开 http://localhost:5173/（Windows 也可使用 http://127.0.0.1:5173/）。关闭启动窗口后 SES 继续运行；退出脚本只停止其登记的服务。
 端口 3000、5173 被其他程序占用时，请先退出该程序。不要与 `pnpm dev` 同时启动。
-文档保存在 `packages/server/data/ses.db`；启动前的数据库备份位于 `output/startup-backups/`，日志位于 `.ses-run/`。退出后备份整个 SES 目录可保留文档。
+文档保存在 `packages/server/data/ses.db`；启动前的数据库备份位于 `output/startup-backups/`（数据库未变化时不重复备份，默认保留最近 10 份，可通过 `SES_STARTUP_BACKUP_KEEP` 调整），日志位于 `.ses-run/`。退出后备份整个 SES 目录可保留文档。
 
 ## 设置 → 升级 / 退出
 
@@ -101,7 +101,7 @@ macOS 使用现有官方安装来源，不包含 Windows 的自动镜像切换�
 - **升级**：检查并安装新版本，无需手动下载或覆盖文件。提供两个通道：
   - 稳定版（默认）：GitHub Release 发布的正式预览版本。
   - 每次提交：main 分支的最新提交，可能不稳定，仅建议想尽早试用新功能时选择。
-  升级时 SES 会先停止服务，自动备份数据库到 `output/upgrade-backups/`，替换程序文件，再重新启动。新版本无法启动时会自动恢复到升级前的程序和数据。文档数据（`packages/server/data/`）、`.ses-tools/`、`output/` 和 `.env` 不会被改动。
+  升级时 SES 会先停止服务，自动备份数据库到 `output/upgrade-backups/`（默认保留最近 5 份，可通过 `SES_UPGRADE_BACKUP_KEEP` 调整），替换程序文件，再重新启动。新版本无法启动时会自动恢复到升级前的程序和数据。文档数据（`packages/server/data/`）、`.ses-tools/`、`output/` 和 `.env` 不会被改动。
   不支持降级：只能升级到比当前更新的版本。升级过程和结果记录在 `.ses-run/upgrade.log`。
 - **退出 SES**：停止后台服务，作用与「退出SES」脚本相同。
 

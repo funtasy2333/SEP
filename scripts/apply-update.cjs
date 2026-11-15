@@ -38,9 +38,9 @@ const SKIP_SUFFIXES = ['.test.ts', '.spec.ts', '.snap', '.md', '.tsbuildinfo'];
 const AUTHORING_SOURCE = 'docs/wp9-authoring-reference.md';
 const AUTHORING_TARGET = 'packages/server/resources/authoring-reference.md';
 const ENTRIES = {
-  windows: ['启动SES.cmd', '退出SES.cmd', 'scripts/ses-windows.ps1', 'scripts/backup-db.cjs', 'scripts/check-sqlite.cjs',
+  windows: ['启动SES.cmd', '退出SES.cmd', 'scripts/ses-windows.ps1', 'scripts/backup-db.cjs', 'scripts/build-state.cjs', 'scripts/check-sqlite.cjs',
     'scripts/start-service.cjs', 'scripts/apply-update.cjs', 'scripts/ses-upgrade.ps1', 'scripts/run-detached.cjs'],
-  macos: ['启动SES.command', '退出SES.command', 'scripts/ses-local.sh', 'scripts/apply-update.cjs', 'scripts/ses-upgrade.sh'],
+  macos: ['启动SES.command', '退出SES.command', 'scripts/ses-local.sh', 'scripts/backup-db.cjs', 'scripts/build-state.cjs', 'scripts/apply-update.cjs', 'scripts/ses-upgrade.sh'],
 };
 const LAUNCHER_SCRIPT = { windows: 'scripts/ses-windows.ps1', macos: 'scripts/ses-local.sh' };
 // 归档里没有这些文件说明压缩包不是 SES，直接拒绝；其余缺失的配置文件仅告警并跳过。
@@ -536,21 +536,51 @@ function cmdRestoreDb(args) {
   process.stdout.write('数据库已恢复到升级前状态。\n');
 }
 
+const DEFAULT_UPGRADE_BACKUP_KEEP = 5;
+
+function parseKeepCount(value, fallback) {
+  if (value === undefined || value === null) return fallback;
+  const trimmed = String(value).trim();
+  return /^[1-9]\d*$/.test(trimmed) ? Number(trimmed) : fallback;
+}
+
+function pruneUpgradeBackups(base, keep) {
+  if (!fs.existsSync(base)) return 0;
+  const dirs = fs.readdirSync(base, { withFileTypes: true })
+    .filter(entry => entry.isDirectory() && entry.name.startsWith('ses-before-upgrade-'))
+    .filter(entry => fs.existsSync(path.join(base, entry.name, 'manifest.json')))
+    .map(entry => entry.name)
+    .sort((a, b) => (a > b ? -1 : a < b ? 1 : 0));
+  let removed = 0;
+  for (const name of dirs.slice(keep)) {
+    rmrf(path.join(base, name));
+    removed++;
+  }
+  return removed;
+}
+
 function cmdFinalize(args) {
   const root = path.resolve(need(args, 'root'));
   const upd = updDir(root);
   const backup = path.join(upd, 'db-backup');
+  const upgradeBase = path.join(root, 'output', 'upgrade-backups');
   let kept = null;
   if (fs.existsSync(path.join(backup, 'manifest.json'))) {
     const record = readJson(path.join(backup, 'manifest.json'), '数据库备份清单');
     if (record.existed && DB_FILES.some(name => record.existed[name])) {
-      const base = path.join(root, 'output', 'upgrade-backups');
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-      let target = path.join(base, `ses-before-upgrade-${stamp}`);
-      for (let n = 1; exists(target); n++) target = path.join(base, `ses-before-upgrade-${stamp}-${n}`);
+      let target = path.join(upgradeBase, `ses-before-upgrade-${stamp}`);
+      for (let n = 1; exists(target); n++) target = path.join(upgradeBase, `ses-before-upgrade-${stamp}-${n}`);
       moveEntry(backup, target);
       kept = target;
     }
+  }
+  let pruned = 0;
+  const keep = parseKeepCount(process.env.SES_UPGRADE_BACKUP_KEEP, DEFAULT_UPGRADE_BACKUP_KEEP);
+  try {
+    pruned = pruneUpgradeBackups(upgradeBase, keep);
+  } catch (error) {
+    process.stdout.write(`清理旧升级备份失败：${error && error.message ? error.message : error}\n`);
   }
   rmrf(backup);
   rmrf(path.join(upd, 'staging'));
@@ -563,6 +593,9 @@ function cmdFinalize(args) {
     } catch { /* 清理是尽力而为 */ }
   }
   process.stdout.write(kept ? `升级前数据库备份：${kept}\n` : '升级收尾完成。\n');
+  if (pruned > 0) {
+    process.stdout.write(`已清理 ${pruned} 份旧升级备份（保留最近 ${keep} 份）。\n`);
+  }
 }
 
 function cmdPlanGet(args) {
