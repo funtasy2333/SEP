@@ -362,15 +362,9 @@ describe('[M-Z] 输出边界：全要素文档的 getOutputSupportProblems 与�
 
   /** §7.1 暂报 unsupported-output 的结构（HTML 与 DOCX 的全部问题只能是这些）。 */
   const G3_BLOCKED = [
-    'g3-scope-p body[0].children[2].content[1].image',
-    'g3-ch-p body[5].children[0].content[1].image',
-    'g3-ch-p body[5].children[0].content[3].image',
     'g3-fig-1 body[5].children[1].legend',
     'g3-fig-1 body[5].children[1].examples',
     'g3-fig-2 body[5].children[2].examples',
-    'g3-list-i1.p0 body[5].children[3].items[0].content[0].content[1].image',
-    'g3-note.p0 body[5].children[4].content[0].content[1].image',
-    'g3-tab-r1c1.p0 body[5].children[5].rows[0].cells[0].content[0].content[1].image',
     'g3-fig-a1 appendices[1].children[1].legend',
     // 行内图通过 resourceId 引用的文档级资源：doc.resources 本就不在任何格式的 doc 字段表内
     '- resources',
@@ -382,7 +376,7 @@ describe('[M-Z] 输出边界：全要素文档的 getOutputSupportProblems 与�
     'g8-tbl-merged body[8].children[2].columns',
   ]
 
-  it.each(['HTML', 'DOCX'] as const)('%s：G1、G2、G5、G6、G7 与 figure.notes 放行；只有图例、图中示例、行内图（G3）与列宽、边框样式（G8）被阻断', format => {
+  it.each(['HTML', 'DOCX'] as const)('%s：G1、G2、G5、G6、G7、figure.notes 与行内图放行；只有图例、图中示例（G3）与列宽、边框样式（G8）被阻断', format => {
     expect(pairs(problemsOf(format)).sort()).toEqual([...G3_BLOCKED, ...G8_BLOCKED].sort())
   })
 

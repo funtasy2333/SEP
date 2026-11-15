@@ -2,26 +2,233 @@ name: Sync to Gitee
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  release:
+    types: [published, edited]
+  workflow_run:
+    workflows: ['SES Preview release']
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要同步的 GitHub Release 标签，例如 v0.1.0-preview'
+        required: true
+        type: string
 
 permissions:
   contents: read
 
+concurrency:
+  group: gitee-${{ github.event.release.tag_name || github.event.workflow_run.head_branch || inputs.tag || 'main' }}
+  cancel-in-progress: false
+
 jobs:
   sync:
-    if: github.repository == 'funtasy2333/SEP'
+    if: >-
+      github.repository == 'funtasy2333/SEP' &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push'))
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - name: Checkout
+      - name: Resolve GitHub Release
+        id: release
+        if: github.event_name != 'push'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const repo = context.repo;
+            let release;
+            if (context.eventName === 'release') {
+              release = context.payload.release;
+            } else {
+              const run = context.payload.workflow_run;
+              const tag = run ? run.head_branch : context.payload.inputs.tag;
+              // 预览工作流也会因分支推送运行；仅处理其标签发布。
+              if (run && !/^v.*-preview$/.test(tag || '')) return;
+              release = (await github.rest.repos.getReleaseByTag({
+                ...repo, tag
+              })).data;
+            }
+            if (release.draft) return;
+            core.setOutput('tag', release.tag_name);
+            core.setOutput('id', String(release.id));
+
+      - name: Checkout trusted main
+        if: github.event_name == 'push' || steps.release.outputs.tag != ''
         uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Push to Gitee
+      - name: Push code or release tag to Gitee
+        id: push
+        if: github.event_name == 'push' || steps.release.outputs.tag != ''
         env:
           GITEE_USERNAME: ${{ secrets.GITEE_USERNAME }}
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
         run: |
-          git remote add gitee "https://${GITEE_USERNAME}:${GITEE_TOKEN}@gitee.com/funtasy2333/standard-expert-agent.git"
-          git push --force gitee main
+          set -euo pipefail
+          : "${GITEE_USERNAME:?Missing GITEE_USERNAME}"
+          : "${GITEE_TOKEN:?Missing GITEE_TOKEN}"
+          cat > "$RUNNER_TEMP/gitee-askpass.sh" <<'SH'
+          #!/bin/sh
+          case "$1" in
+            *Username*) printf '%s\n' "$GITEE_USERNAME" ;;
+            *) printf '%s\n' "$GITEE_TOKEN" ;;
+          esac
+          SH
+          chmod 700 "$RUNNER_TEMP/gitee-askpass.sh"
+          export GIT_ASKPASS="$RUNNER_TEMP/gitee-askpass.sh"
+          export GIT_TERMINAL_PROMPT=0
+          git remote add gitee https://gitee.com/funtasy2333/standard-expert-agent.git
+          if [ -z "$RELEASE_TAG" ]; then
+            git push --force gitee refs/heads/main:refs/heads/main
+          else
+            sha=$(git rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")
+            if [ -n "$EXPECTED_SHA" ] && [ "$sha" != "$EXPECTED_SHA" ]; then
+              echo 'Release tag does not match the completed workflow commit' >&2
+              exit 1
+            fi
+            git push gitee "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+            printf 'sha=%s\n' "$sha" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sync Release and attachments
+        if: steps.release.outputs.tag != ''
+        uses: actions/github-script@v7
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          RELEASE_ID: ${{ steps.release.outputs.id }}
+          RELEASE_SHA: ${{ steps.push.outputs.sha }}
+        with:
+          script: |
+            const token = process.env.GITEE_TOKEN;
+            const base = 'https://gitee.com/api/v5/repos/funtasy2333/standard-expert-agent';
+
+            async function api(path, method = 'GET', data, missingOK = false) {
+              const url = new URL(base + path);
+              const options = {
+                method,
+                redirect: 'error',
+                signal: AbortSignal.timeout(300000)
+              };
+
+              if (method === 'GET') {
+                url.searchParams.set('access_token', token);
+              } else if (data instanceof FormData) {
+                data.set('access_token', token);
+                options.body = data;
+              } else if (method === 'PATCH') {
+                options.body = new URLSearchParams({
+                  ...data, access_token: token
+                });
+              } else {
+                options.headers = { 'Content-Type': 'application/json' };
+                options.body = JSON.stringify({
+                  ...data, access_token: token
+                });
+              }
+
+              let response;
+              try {
+                response = await fetch(url, options);
+              } catch {
+                throw new Error(`Gitee network error: ${method} ${path}`);
+              }
+
+              if (missingOK && response.status === 404) return null;
+              if (!response.ok) {
+                throw new Error(
+                  `Gitee HTTP ${response.status}: ${method} ${path}`
+                );
+              }
+              return response.json();
+            }
+
+            const release = (await github.rest.repos.getRelease({
+              ...context.repo,
+              release_id: Number(process.env.RELEASE_ID)
+            })).data;
+
+            if (release.draft) {
+              throw new Error('Release is now a draft; refusing to publish');
+            }
+
+            const payload = {
+              tag_name: release.tag_name,
+              name: release.name || release.tag_name,
+              body: release.body || '',
+              prerelease: release.prerelease
+            };
+
+            let target = await api(
+              '/releases/tags/' + encodeURIComponent(release.tag_name),
+              'GET', undefined, true
+            );
+
+            if (target) {
+              target = await api('/releases/' + target.id, 'PATCH', payload);
+            } else {
+              target = await api('/releases', 'POST', {
+                ...payload,
+                target_commitish: process.env.RELEASE_SHA
+              });
+            }
+
+            const existing = [];
+            for (let page = 1; ; page++) {
+              const items = await api(
+                `/releases/${target.id}/attach_files?per_page=100&page=${page}`
+              );
+              if (!items.length) break;
+              existing.push(...items);
+            }
+
+            const assets = await github.paginate(
+              github.rest.repos.listReleaseAssets,
+              { ...context.repo, release_id: release.id, per_page: 100 }
+            );
+
+            for (const asset of assets) {
+              const old = existing.find(item => item.name === asset.name);
+              if (old) {
+                if (Number(old.size) !== asset.size) {
+                  throw new Error(
+                    `Attachment size differs: ${asset.name}; remove it from Gitee before retrying`
+                  );
+                }
+                core.info(`Skip existing attachment: ${asset.name}`);
+                continue;
+              }
+
+              const downloaded = await github.request(
+                'GET /repos/{owner}/{repo}/releases/assets/{asset_id}',
+                {
+                  ...context.repo,
+                  asset_id: asset.id,
+                  headers: { accept: 'application/octet-stream' }
+                }
+              );
+
+              const blob = new Blob([downloaded.data], {
+                type: asset.content_type || 'application/octet-stream'
+              });
+              if (blob.size !== asset.size) {
+                throw new Error(`Download size differs: ${asset.name}`);
+              }
+
+              const form = new FormData();
+              form.set('file', blob, asset.name);
+              await api(
+                `/releases/${target.id}/attach_files`, 'POST', form
+              );
+              core.info(`Uploaded: ${asset.name}`);
+            }
+
+            core.info(`Synced Release: ${release.tag_name}`);

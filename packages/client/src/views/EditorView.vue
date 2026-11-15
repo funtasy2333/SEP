@@ -2228,15 +2228,7 @@ function handleMathConfirm(latex: string) {
 
 // === 图片 ===
 function handleInsertFigure() {
-  const pos = getInsertAfterCurrentBlock()
-  if (pos === null) return
-  editor.value!.chain().focus().insertContentAt(pos, {
-    type: 'figure',
-    content: [
-      { type: 'figureImage', attrs: { src: '' } },
-      { type: 'figureCaption' },
-    ],
-  }).run()
+  editor.value?.chain().focus().insertFigure().run()
 }
 
 // === Slash Command ===

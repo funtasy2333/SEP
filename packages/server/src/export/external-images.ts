@@ -37,7 +37,8 @@ function isExternalSrc(value: unknown): value is string {
  * - figureImage / inlineImage / Tiptap 通用 image 节点的 `attrs.src`；
  * - 任意节点 `attrs.additionalGraphics[].src`（figure 的附加图形）；
  * - 任意节点 `attrs.alternativeGraphic.src`（stdTable 的替代图形）。
- * 目前 print HTML（shared renderers/html.ts）实际只输出 figure 主图的 `<img src>`（来自 figureImage.attrs.src），
+ * 目前 print HTML（shared renderers/html.ts）输出 figure 主图的 `<img src>`（来自 figureImage.attrs.src）
+ * 与段落行内图的 `<img src>`（来自 inlineImage.attrs.src），
  * 其余位置现在不进入 HTML，这里仍然清空，作为防御。
  *
  * 就地修改传入的文档（调用方持有的是 synchronizeCoverMetadata 返回的私有副本）。

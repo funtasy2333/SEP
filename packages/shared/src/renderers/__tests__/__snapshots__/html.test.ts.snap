@@ -390,6 +390,11 @@ section.ses-cover { page: cover; break-after: page; }
 /* 图题英文（.ses-figure-caption-en）print 不输出（仅 screen），故 print CSS 不含其样式（F8） */
 /* 图中数字和文字：宋体六号（占位说明，实际作用于 SVG/位图内文本时由资源自带）*/
 .ses-figure-image text { font-size: var(--ses-fs-liu); }
+/* 行内图（M-8.3-02）：默认按原图尺寸自适应且不超出容器宽度；指定 size:S/M/L 时按 1/2/3 倍行高约束，超宽时宽高同步等比缩小 */
+.ses-inline-image { display: inline-block; vertical-align: middle; max-width: 100%; height: auto; }
+.ses-inline-image[data-size="S"] { max-height: 1.2em; }
+.ses-inline-image[data-size="M"] { max-height: 2.4em; }
+.ses-inline-image[data-size="L"] { max-height: 3.6em; }
 
 /* —— 公式：编号右端对齐 + 点线引导；式中键值列表 —— */
 /* 公式另行居中；编号右端对齐，公式与编号之间由点线连接（GB/T 1.1 10.4.3、9.9.2 示例）。
@@ -730,6 +735,10 @@ exports[`renderHtml — 全要素 fixture > screen 变体快照 1`] = `
     .ses-table-block td > .ses-paragraph, .ses-table-block th > .ses-paragraph { text-indent: 0; }
     .ses-figure-block { text-align: center; margin: 16px 0; }
     .ses-figure-image { max-width: 100%; }
+    .ses-inline-image { display: inline-block; vertical-align: middle; max-width: 100%; height: auto; }
+    .ses-inline-image[data-size="S"] { max-height: 1.2em; }
+    .ses-inline-image[data-size="M"] { max-height: 2.4em; }
+    .ses-inline-image[data-size="L"] { max-height: 3.6em; }
     .ses-figure-caption { font-family: "SimHei", "黑体", sans-serif; font-weight: bold; margin-top: 8px; }
     .ses-figure-caption-en { font-style: italic; color: #555; }
     .ses-formula-block { display: flex; align-items: center; margin: 16px 0 6px; }

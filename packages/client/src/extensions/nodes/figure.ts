@@ -1,5 +1,6 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
+import { TextSelection } from '@tiptap/pm/state'
 import { normalizePageOrientation, readPageOrientation } from '../../utils/orientation'
 import { jsonAttribute } from './json-attribute'
 import { graphicAttributeProblem } from '@ses/shared'
@@ -18,7 +19,7 @@ export const FigureSet = Node.create({
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     figure: {
-      insertFigure: (attrs?: { src?: string; captionCn?: string }) => ReturnType
+      insertFigure: (attrs?: { src?: string; alt?: string; captionCn?: string }) => ReturnType
     }
   }
 }
@@ -83,22 +84,143 @@ export const Figure = Node.create({
     return {
       insertFigure:
         (attrs) =>
-        ({ chain }) => {
-          return chain()
-            .insertContent({
-              type: 'figure',
-              content: [
-                {
-                  type: 'figureImage',
-                  attrs: { src: attrs?.src || '' },
-                },
-                {
-                  type: 'figureCaption',
-                  content: attrs?.captionCn ? [{ type: 'text', text: attrs.captionCn }] : [],
-                },
-              ],
-            })
-            .run()
+        ({ state, tr, dispatch }) => {
+          const { $from } = state.selection
+          const schema = state.schema
+
+          // 1. 表格单元格（tableCell / tableHeader）及表注（tableNoteRow / tableFootnote）内：只插入行内图片 inlineImage，不添加图编号和图题；表脚注内禁止插图
+          for (let d = $from.depth; d > 0; d--) {
+            const typeName = $from.node(d).type.name
+            if (
+              typeName === 'tableFootnoteRow' ||
+              typeName === 'tableFootnoteEntry'
+            ) {
+              return false
+            }
+            if (
+              typeName === 'tableCell' ||
+              typeName === 'tableHeader' ||
+              typeName === 'tableNoteRow' ||
+              typeName === 'tableFootnote'
+            ) {
+              const inlineImageType = schema.nodes.inlineImage
+              if (!inlineImageType) return false
+              if (
+                '$anchorCell' in state.selection ||
+                !$from.parent.inlineContent ||
+                !$from.parent.canReplaceWith($from.index(), $from.index(), inlineImageType)
+              ) {
+                return false
+              }
+              const inlineNode = inlineImageType.create({
+                src: attrs?.src || '',
+                alt: attrs?.alt || '',
+                size: null,
+              })
+              if (dispatch) {
+                tr.replaceSelectionWith(inlineNode, false)
+                dispatch(tr.scrollIntoView())
+              }
+              return true
+            }
+          }
+
+          const figureType = schema.nodes.figure
+          const figureImageType = schema.nodes.figureImage
+          const figureCaptionType = schema.nodes.figureCaption
+          if (!figureType || !figureImageType || !figureCaptionType) return false
+
+          const captionContent = attrs?.captionCn ? [schema.text(attrs.captionCn)] : []
+          const figureImageNode = figureImageType.create({ src: attrs?.src || '', alt: attrs?.alt || '' })
+          const figureCaptionNode = figureCaptionType.create(null, captionContent)
+          const figureNode = figureType.create(null, [figureImageNode, figureCaptionNode])
+
+          // 2. 空白段落（stdParagraph / paragraph）且不在表格内：原地替换为带图编号和图题的 figure
+          const parent = $from.parent
+          const isEmptyParagraph =
+            (parent.type.name === 'stdParagraph' || parent.type.name === 'paragraph') &&
+            parent.content.size === 0
+          if (isEmptyParagraph && $from.depth >= 1) {
+            const container = $from.node($from.depth - 1)
+            const index = $from.index($from.depth - 1)
+            const isUntitledClauseFirstPara =
+              container.type.name === 'clause' && container.attrs.hasTitle === false && index === 1
+            if (!isUntitledClauseFirstPara && container.canReplaceWith(index, index + 1, figureType)) {
+              const from = $from.before($from.depth)
+              const to = $from.after($from.depth)
+              if (dispatch) {
+                tr.replaceWith(from, to, figureNode)
+                const captionCursorPos = from + 1 + figureImageNode.nodeSize + figureCaptionNode.nodeSize - 1
+                tr.setSelection(TextSelection.create(tr.doc, captionCursorPos))
+                dispatch(tr.scrollIntoView())
+              }
+              return true
+            }
+          }
+
+          // 3. 非空段落或其他块内（表格外）：在当前块之后插入带图编号和图题的 figure
+          let insertPos: number | null = null
+          for (let d = $from.depth; d > 0; d--) {
+            const parentNode = $from.node(d)
+            const parentName = parentNode.type.name
+            if (['chapter', 'clause', 'foreword', 'introduction', 'appendix'].includes(parentName)) {
+              const childIndex = $from.index(d)
+              const hasNodeAfter = !state.selection.empty && $from.nodeAfter !== null
+              let insertIndex = d < $from.depth ? childIndex + 1 : hasNodeAfter ? childIndex + 1 : childIndex
+              let candidatePos =
+                d < $from.depth
+                  ? $from.after(d + 1)
+                  : hasNodeAfter
+                    ? $from.pos + $from.nodeAfter!.nodeSize
+                    : $from.pos
+              if (
+                parentName === 'clause' &&
+                parentNode.attrs.hasTitle === false &&
+                insertIndex === 1 &&
+                parentNode.childCount > 1
+              ) {
+                insertIndex = 2
+                candidatePos =
+                  $from.before(d) + 1 + parentNode.child(0).nodeSize + parentNode.child(1).nodeSize
+              }
+              if (parentNode.canReplaceWith(insertIndex, insertIndex, figureType)) {
+                insertPos = candidatePos
+                break
+              }
+            }
+          }
+          if (insertPos === null) {
+            const hasRootNodeAfter = !state.selection.empty && $from.nodeAfter !== null
+            const rootInsertIndex =
+              $from.depth > 0 ? $from.index(0) + 1 : hasRootNodeAfter ? $from.index(0) + 1 : $from.index(0)
+            const rootCandidatePos =
+              $from.depth > 0
+                ? $from.after(1)
+                : hasRootNodeAfter
+                  ? $from.pos + $from.nodeAfter!.nodeSize
+                  : $from.pos
+            if (state.doc.canReplaceWith(rootInsertIndex, rootInsertIndex, figureType)) {
+              insertPos = rootCandidatePos
+            }
+          }
+          if (insertPos !== null) {
+            if (dispatch) {
+              tr.insert(insertPos, figureNode)
+              const captionCursorPos = insertPos + 1 + figureImageNode.nodeSize + figureCaptionNode.nodeSize - 1
+              tr.setSelection(TextSelection.create(tr.doc, captionCursorPos))
+              dispatch(tr.scrollIntoView())
+            }
+            return true
+          }
+
+          if (!$from.parent.canReplaceWith($from.index(), $from.index(), figureType)) {
+            return false
+          }
+          if (dispatch) {
+            tr.replaceSelectionWith(figureNode, false)
+            dispatch(tr.scrollIntoView())
+          }
+          return true
         },
     }
   },

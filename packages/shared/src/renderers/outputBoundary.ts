@@ -59,6 +59,7 @@ const MARKS = new Set(['bold', 'italic', 'underline', 'sub', 'sup', 'crossRef', 
 const INLINE_FORMULA_CONTAINERS = new Set(['paragraph.content', 'where.term', 'where.definition', 'footnote.content'])
 
 const DEF_LIST_FIELDS = ['kind', 'id', 'items'] as const
+const INLINE_IMAGE_FIELDS = ['src', 'resourceId', 'alt', 'size'] as const
 
 /** G1 新增的块 kind：整体登记（BASE_FIELDS 中没有它们，见 buildFields）。 */
 const GROUP_G1: Readonly<Record<string, readonly string[]>> = {
@@ -67,9 +68,9 @@ const GROUP_G1: Readonly<Record<string, readonly string[]>> = {
 }
 
 /*
- * WP8.M G3（设计 §7.1）：图例 figure.legend（M-8.5-01～06）、图中示例 figure.examples（M-8.4-03）、行内图 IRInline.image
- * （M-8.3-02）本阶段只做模型、Schema 与显示，不排版——它们既不在 BASE_FIELDS.figure / BASE_FIELDS.inline 里，也不进任何
- * EXTRA_FIELDS，因此 HTML、DOCX、XML、XML46687 四种格式都自动按 `report(field)` 报 unsupported-output（测试：wp8mG3Boundary.test.ts）。
+ * WP8.M G3（设计 §7.1）：图例 figure.legend（M-8.5-01～06）、图中示例 figure.examples（M-8.4-03）
+ * 本阶段只做模型、Schema 与显示，HTML、DOCX、旧 XML 报 unsupported-output；行内图 IRInline.image（M-8.3-02）
+ * 在 HTML、DOCX、XML46687 中放行，仅旧 XML 报 unsupported-output（测试：wp8mG3Boundary.test.ts）。
  * figure.notes（M-8.2-11）是 BASE_FIELDS.figure 早有的字段，HTML 与 DOCX 渲染器早已逐条输出，随 PM 现可保存而首次到达渲染器，
  * 无需改动本表（回归：wp8mG3Render.test.ts）；旧 XML 序列化器不输出图中注，由其自身的 PM 层检查拒绝（xmlSerializer.ts）。
  */
@@ -94,8 +95,9 @@ const EXTRA_FIELDS: Record<OutputBoundaryFormat, Readonly<Record<string, readonl
   // - doc.bibliographyTitle（M-4.5.3-02，G1）：自定义参考文献标题替换默认标题。
   // - list.continueNumbering（issue #70）：继续前一列项编号，HTML 写计数器起点、DOCX 写编号实例的 startOverride；
   //   旧 XML 序列化器按每个列表从头编号、不能表达接续，继续阻断（不静默改号）；XML46687 由 blocks.ts 登记（label 写接续后的序号）。
-  DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'], appendix: APPENDIX_PRINT_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'], list: ['continueNumbering'] },
-  HTML: { meta: PRINT_META_FIELDS, appendix: APPENDIX_PRINT_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'], list: ['continueNumbering'] },
+  // - inline.image / inlineImage（M-8.3-02，G3）：段落内行内图（含表格单元格、列项、注、示例内的段落），HTML/PDF 与 DOCX 排版输出。
+  DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'], appendix: APPENDIX_PRINT_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'], list: ['continueNumbering'], inline: ['image'], inlineImage: INLINE_IMAGE_FIELDS },
+  HTML: { meta: PRINT_META_FIELDS, appendix: APPENDIX_PRINT_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'], list: ['continueNumbering'], inline: ['image'], inlineImage: INLINE_IMAGE_FIELDS },
   XML: NO_EXTRA_FIELDS,
   // XML46687 比 XML 多放行的字段/kind/mark 由各领域文件登记（renderers/xml46687Parts/*.ts 的 XML46687_*_BOUNDARY），
   // 汇总在 xml46687Boundary.ts；XML46687_DECLARED_DIFFERENCES 逐项列出差异，outputBoundaryXml46687.test.ts 据此断言。
@@ -269,6 +271,18 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
         const formula = child as Record<string, unknown>
         if (format !== 'XML46687' && (typeof formula.latex !== 'string' || formula.latex.trim() === '')) report(`${key}.latex`)
       }
+      if (shape === 'inline' && key === 'image' && present(child)) {
+        if (format !== 'XML') {
+          if (object.text !== '' && present(object.text)) report('text')
+          if (present(object.marks)) report('marks')
+          if (present(object.footnote)) report('footnote')
+          if (present(object.formula)) report('formula')
+          const image = child as Record<string, unknown>
+          if (format !== 'XML46687' && present(image.size) && image.size !== 'S' && image.size !== 'M' && image.size !== 'L') {
+            report('image.size')
+          }
+        }
+      }
       if (key === 'unsupportedContent') continue
       if (key === 'tailOrder') continue
       const defaultShape = key === 'meta' ? 'meta' : key === 'front' ? 'front'
@@ -276,6 +290,7 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
         : key === 'rows' ? 'row' : key === 'cells' ? 'cell' : key === 'items' ? (kind === 'defList' ? 'where' : 'item')
         : key === 'whereList' ? 'where' : key === 'unmappedFootnotes' ? 'unmappedFootnote'
         : key === 'formula' && shape === 'inline' ? 'inlineFormula'
+        : key === 'image' && shape === 'inline' ? 'inlineImage'
         : 'inline'
       // XML46687：领域登记的 childShape（没有 kind 的对象类型，如 titlePart/identifier）优先于上面的默认链
       const childShape = format === 'XML46687'

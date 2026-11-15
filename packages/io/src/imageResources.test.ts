@@ -183,4 +183,78 @@ describe('collectImageResources', () => {
     expect(images.good).toMatchObject({ contentType: 'image/gif', widthPx: 6, heightPx: 4 })
     expect(diagnostics.map(({ nodeId }) => nodeId)).toEqual(['broken', 'unresolved'])
   })
+
+  it('收集段落、表格单元格、列表项与注中的行内图片（按 paragraphId#imgN 键存储）及 doc.resources 回退', async () => {
+    const pngDataUrl = `data:image/png;base64,${base64(pngBytes(24, 12))}`
+    const gifRawBase64 = base64(gifBytes(16, 8))
+    const tableWithInlineImg: IRTable = {
+      kind: 'table',
+      id: 'tbl-1',
+      caption: [],
+      orientation: 'portrait',
+      headerRowCount: 1,
+      rows: [
+        {
+          id: 'r0',
+          cells: [{
+            id: 'c0',
+            colspan: 1,
+            rowspan: 1,
+            header: true,
+            content: [{
+              kind: 'paragraph',
+              id: 'cell-p0',
+              content: [{ text: '', image: { src: pngDataUrl, alt: '单元格图' } }],
+            }],
+          }],
+        },
+      ],
+      notes: [],
+    }
+    const { images, diagnostics } = await collectImageResources({
+      ...doc([
+        {
+          kind: 'paragraph',
+          id: 'body-p1',
+          content: [
+            { text: '前文' },
+            { text: '', image: { src: pngDataUrl, size: 'S' } },
+            { text: '中' },
+            { text: '', image: { src: '', resourceId: 'res-gif', size: 'M' } },
+          ],
+        },
+        tableWithInlineImg,
+        {
+          kind: 'list',
+          id: 'list-1',
+          listType: 'dash',
+          items: [{
+            id: 'li-1',
+            content: [{
+              kind: 'paragraph',
+              id: 'li-1.p0',
+              content: [{ text: '', image: { src: pngDataUrl } }],
+            }],
+          }],
+        },
+      ]),
+      resources: [{
+        id: 'res-gif',
+        mediaType: 'image/gif',
+        encoding: 'base64',
+        data: gifRawBase64,
+      }],
+    })
+
+    expect(diagnostics).toEqual([])
+    expect(Object.keys(images).sort()).toEqual([
+      'body-p1#img0',
+      'body-p1#img1',
+      'cell-p0#img0',
+      'li-1.p0#img0',
+    ])
+    expect(images['body-p1#img0']).toMatchObject({ contentType: 'image/png', widthPx: 24, heightPx: 12 })
+    expect(images['body-p1#img1']).toMatchObject({ contentType: 'image/gif', widthPx: 16, heightPx: 8 })
+    expect(images['cell-p0#img0']).toMatchObject({ contentType: 'image/png', widthPx: 24, heightPx: 12 })
+  })
 })

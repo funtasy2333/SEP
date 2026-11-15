@@ -43,7 +43,7 @@ export function renderAppendix(ctx: RenderContext, appendix: IRAppendix, letter:
   const bctx: BlockCtx = {
     scopeKey: appendix.id,
     appendix: { id: appendix.id, letter },
-    ...(appendix.orientation === 'landscape' ? { suppressLandscape: true } : {}),
+    ...(appendix.orientation === 'landscape' ? { suppressLandscape: true, maxWidthMm: 252 } : {}),
   }
   out += renderAppendixChildren(ctx, appendix.orientation === 'landscape' ? landscapeChildren(appendix.children) : appendix.children, bctx)
   return out
