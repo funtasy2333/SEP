@@ -86,7 +86,7 @@ jobs:
           chmod 700 "$RUNNER_TEMP/gitee-askpass.sh"
           export GIT_ASKPASS="$RUNNER_TEMP/gitee-askpass.sh"
           export GIT_TERMINAL_PROMPT=0
-          git remote add gitee https://gitee.com/funtasy2333/standard-expert-agent.git
+          git remote add gitee https://gitee.com/funtasy2333/SEP.git
           if [ -z "$RELEASE_TAG" ]; then
             git push --force gitee refs/heads/main:refs/heads/main
           else
@@ -109,7 +109,7 @@ jobs:
         with:
           script: |
             const token = process.env.GITEE_TOKEN;
-            const base = 'https://gitee.com/api/v5/repos/funtasy2333/standard-expert-agent';
+            const base = 'https://gitee.com/api/v5/repos/funtasy2333/SEP';
 
             async function api(path, method = 'GET', data, missingOK = false) {
               const url = new URL(base + path);
