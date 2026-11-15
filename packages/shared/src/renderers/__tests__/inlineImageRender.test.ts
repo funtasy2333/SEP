@@ -14,6 +14,7 @@ import { renderHtml } from '../html'
 import { getOutputSupportProblems } from '../outputBoundary'
 import { printCss } from '../printCss'
 import { inlineImageResourceKey, renderDocx } from '../docx'
+import { paginateTable } from '../docx/body/tablePagination'
 import { assertChildOrder, assertNumberingIntegrity, assertWellFormed } from '../docx/__tests__/helpers/checks'
 import { docxOutline } from '../docx/__tests__/helpers/outline'
 
@@ -160,6 +161,90 @@ describe('HTML 与 printCss 行内图片及表格单元格内图片渲染', () =
     ])
     const { labels } = resolve(sizeDoc)
     expect(() => renderHtml(sizeDoc, labels, { variant: 'screen' })).toThrow(/image\.size/)
+  })
+})
+
+describe('DOCX 列表行内图宽度', () => {
+  it('正文注首段及续段按单条或多条注的缩进限制图片宽度', () => {
+    const para = (id: string) => ({ kind: 'paragraph' as const, id, content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: id } }] })
+    const note = (id: string) => ({ kind: 'note' as const, id, content: [para(`${id}-first`), para(`${id}-rest`)] })
+    const image = { base64: SAMPLE_PNG_B64, contentType: 'image/png', widthPx: 1200, heightPx: 600 }
+    const drawings = [makeDoc([note('single')]), makeDoc([note('multi1'), note('multi2')])].flatMap(doc => {
+      const { labels } = resolve(doc)
+      const xml = renderDocx(doc, labels, { formulaOmml: {}, images: { [SAMPLE_PNG_DATA_URL]: image }, stage: 'approval_draft', createdAt: '2026-11-13T00:00:00.000Z' }).parts['word/document.xml']!
+      return [...xml.matchAll(/<wp:inline\b[^>]*><wp:extent cx="(\d+)" cy="(\d+)"\/>[^<]*<wp:effectExtent[^>]*\/><wp:docPr[^>]*descr="([^"]+)"/g)]
+    })
+    for (const id of ['single', 'multi1', 'multi2']) for (const part of ['first', 'rest']) {
+      const drawing = drawings.find(m => m[3] === `${id}-${part}`)
+      expect(drawing).toBeDefined()
+      const expected = (165 - (id === 'single' ? 780 : 870) * 25.4 / 1440) * 36000
+      expect(Number(drawing![1])).toBeCloseTo(expected, -1)
+    }
+  })
+
+  it.each([['dash', 1, 840], ['dot', 1, 1260], ['alpha', 2, 1260], ['number', 1, 1260]] as const)('%s 列表的图片按实际缩进缩放', (listType, level, indent) => {
+    const doc = makeDoc([{ kind: 'list', id: 'variants', listType, level, items: [{ id: 'variant-item', content: [{ kind: 'paragraph', id: 'variant-p', content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: 'variant' } }] }] }] }])
+    const { labels } = resolve(doc)
+    const image = { base64: SAMPLE_PNG_B64, contentType: 'image/png', widthPx: 1200, heightPx: 600 }
+    const xml = renderDocx(doc, labels, { formulaOmml: {}, images: { [SAMPLE_PNG_DATA_URL]: image }, stage: 'approval_draft', createdAt: '2026-11-13T00:00:00.000Z' }).parts['word/document.xml']!
+    const drawing = /<wp:inline\b[^>]*><wp:extent cx="(\d+)" cy="(\d+)"\/>[^<]*<wp:effectExtent[^>]*\/><wp:docPr[^>]*descr="variant"/.exec(xml)!
+    expect(Number(drawing[1])).toBeCloseTo((165 - indent * 25.4 / 1440) * 36000, -1)
+  })
+
+  it('表格分页估算使用扣除列表缩进后的图片高度', () => {
+    const table = { kind: 'table' as const, id: 'page-table', caption: [], orientation: 'portrait' as const, headerRowCount: 0, notes: [], rows: [{ id: 'page-row', cells: [{ id: 'page-cell', colspan: 1, rowspan: 1, header: false, columnWidths: [200], content: [{ kind: 'list' as const, id: 'page-list', listType: 'alpha' as const, items: [{ id: 'page-item', content: [{ kind: 'paragraph' as const, id: 'page-p', content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL } }] }] }] }] }] }] }
+    const image = { base64: SAMPLE_PNG_B64, contentType: 'image/png', widthPx: 1200, heightPx: 600 }
+    const result = paginateTable(table, { images: { [SAMPLE_PNG_DATA_URL]: image } })
+    const width = (3000 - 204 - 840) * 25.4 / 1440
+    const empty = paginateTable({ ...table, rows: [] }, { images: {} })
+    expect(result.totalHeightMm - empty.totalHeightMm).toBeCloseTo(Math.ceil(width / 2 / 4.2) * 4.2 + 0.2, 5)
+  })
+
+  it('注内列表使用容器的绝对缩进，极窄单元格输出正数图片尺寸', () => {
+    const imageRun = (id: string) => ({ text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: id } })
+    const list = (id: string) => ({ kind: 'list' as const, id: `${id}-list`, listType: 'alpha' as const, items: [{ id: `${id}-item`, content: [{ kind: 'paragraph' as const, id, content: [imageRun(id)] }] }] })
+    const doc = makeDoc([
+      { kind: 'note', id: 'note-list', content: [{ kind: 'paragraph', id: 'note-text', content: [{ text: '注' }] }, list('nested') ] },
+      { kind: 'table', id: 'narrow-table', caption: [], orientation: 'portrait', headerRowCount: 0, notes: [], rows: [{ id: 'narrow-row', cells: [{ id: 'narrow-cell', colspan: 1, rowspan: 1, header: false, columnWidths: [10], content: [list('narrow')] }] }] },
+    ])
+    const { labels } = resolve(doc)
+    const image = { base64: SAMPLE_PNG_B64, contentType: 'image/png', widthPx: 1200, heightPx: 600 }
+    const xml = renderDocx(doc, labels, { formulaOmml: {}, images: { [SAMPLE_PNG_DATA_URL]: image }, stage: 'approval_draft', createdAt: '2026-11-13T00:00:00.000Z' }).parts['word/document.xml']!
+    const drawings = [...xml.matchAll(/<wp:inline\b[^>]*><wp:extent cx="(\d+)" cy="(\d+)"\/>[^<]*<wp:effectExtent[^>]*\/><wp:docPr[^>]*descr="([^"]+)"/g)]
+    const nested = drawings.find(m => m[3] === 'nested')!
+    expect(Number(nested[1])).toBeCloseTo((165 - 840 * 25.4 / 1440) * 36000, -1)
+    const narrow = drawings.find(m => m[3] === 'narrow')!
+    expect(Number(narrow[1])).toBeGreaterThan(0)
+    expect(Number(narrow[2])).toBeGreaterThan(0)
+  })
+
+  it('按正文和单元格的列表层级扣除缩进，首段和续段均等比缩放', () => {
+    const paragraph = (id: string) => ({ kind: 'paragraph' as const, id, content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: id } }] })
+    const list = (prefix: string) => ({
+      kind: 'list' as const, id: `${prefix}-list`, listType: 'alpha' as const,
+      items: [{ id: `${prefix}-item`, content: [paragraph(`${prefix}-first`), paragraph(`${prefix}-rest`), {
+        kind: 'list' as const, id: `${prefix}-nested`, listType: 'number' as const,
+        items: [{ id: `${prefix}-nested-item`, content: [paragraph(`${prefix}-nested-first`), paragraph(`${prefix}-nested-rest`)] }],
+      }] }],
+    })
+    const doc = makeDoc([list('body'), {
+      kind: 'table', id: 'table-list', caption: [{ text: '列表' }], orientation: 'portrait', headerRowCount: 0, notes: [],
+      rows: [{ id: 'row-list', cells: [{ id: 'cell-list', colspan: 1, rowspan: 1, header: false, columnWidths: [200], content: [list('cell')] }] }],
+    }])
+    const { labels } = resolve(doc)
+    const image = { base64: SAMPLE_PNG_B64, contentType: 'image/png', widthPx: 1200, heightPx: 600 }
+    const pkg = renderDocx(doc, labels, { formulaOmml: {}, images: { [SAMPLE_PNG_DATA_URL]: image }, stage: 'approval_draft', createdAt: '2026-11-13T00:00:00.000Z' })
+    const xml = pkg.parts['word/document.xml']!
+    for (const prefix of ['body', 'cell']) for (const part of ['first', 'rest', 'nested-first', 'nested-rest']) {
+      // Match the extent adjacent to this particular drawing, not an earlier drawing.
+      const drawing = [...xml.matchAll(/<wp:inline\b[^>]*><wp:extent cx="(\d+)" cy="(\d+)"\/>[^<]*<wp:effectExtent[^>]*\/><wp:docPr[^>]*descr="([^"]+)"/g)].find(m => m[3] === `${prefix}-${part}`)
+      expect(drawing).toBeDefined()
+      const cx = Number(drawing![1]), cy = Number(drawing![2])
+      const containerMm = prefix === 'body' ? 165 : (3000 - 204) * 25.4 / 1440
+      const indentTwips = part.startsWith('nested') ? 1260 : 840
+      expect(cx).toBeCloseTo(Math.round((containerMm - indentTwips * 25.4 / 1440) * 36000), -1)
+      expect(Math.abs(cx - cy * 2)).toBeLessThanOrEqual(2)
+    }
   })
 })
 

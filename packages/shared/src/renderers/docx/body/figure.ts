@@ -89,8 +89,8 @@ function computeDrawingExtentEmu(
   const naturalHeightEmu = (image.heightPx * 914400) / dpi
   const scale = naturalWidthEmu > maxWidthEmu ? maxWidthEmu / naturalWidthEmu : 1
   return {
-    widthEmu: Math.round(naturalWidthEmu * scale),
-    heightEmu: Math.round(naturalHeightEmu * scale),
+    widthEmu: Math.max(1, Math.round(naturalWidthEmu * scale)),
+    heightEmu: Math.max(1, Math.round(naturalHeightEmu * scale)),
   }
 }
 

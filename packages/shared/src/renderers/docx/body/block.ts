@@ -15,6 +15,7 @@ import { renderFigureImage } from './figure'
 import { renderTableGrid, type TableGridRenderOptions } from './table'
 import { resolveTableColumnWidths, TABLE_CELL_SIDE_MARGIN_TWIPS } from './tableColumnWidths'
 import type { TableFlowBudget } from './pageFlow'
+import { indentedWidthMm, listContentWidthMm } from './listWidth'
 import { paginateTable, SMALL_TABLE_MM } from './tablePagination'
 import { renderFormula } from './formula'
 import { renderNormRefList } from './normRef'
@@ -121,7 +122,7 @@ function renderListItemRest(ctx: RenderContext, blocks: (IRParagraph | IRList)[]
   let out = ''
   for (const block of blocks) {
     if (block.kind === 'paragraph') {
-      out += emitParagraph(ctx, plan.contStyleId, { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx, block.id, bctx.maxWidthMm)) })
+      out += emitParagraph(ctx, plan.contStyleId, { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx, block.id, listContentWidthMm(list, depth, bctx.maxWidthMm ?? 165))) })
     } else {
       out += renderListLevel(ctx, block, bctx, depth + 1, { type: list.listType, numId: plan.firstNumPr?.numId })
     }
@@ -141,7 +142,7 @@ function renderListLevel(ctx: RenderContext, list: IRList, bctx: BlockCtx, depth
       out += emitParagraph(ctx, plan.firstStyleId, {
         numPr: plan.firstNumPr,
         indent: plan.firstIndent,
-        runsXml: renderInlines((first as IRParagraph).content, ctx.labels, formulaSink(ctx, (first as IRParagraph).id, bctx.maxWidthMm)),
+        runsXml: renderInlines((first as IRParagraph).content, ctx.labels, formulaSink(ctx, (first as IRParagraph).id, listContentWidthMm(list, depth, bctx.maxWidthMm ?? 165))),
         numbered,
       })
       out += renderListItemRest(ctx, item.content.slice(1), bctx, depth, list, plan)
@@ -193,11 +194,11 @@ function resolveGroupLabel(
   return { isSingle: false, ordinal: Number(m[1]) }
 }
 
-function renderContentBlocks(ctx: RenderContext, blocks: IRBlock[], bctx: BlockCtx, contStyleId: string): string {
+function renderContentBlocks(ctx: RenderContext, blocks: IRBlock[], bctx: BlockCtx, contStyleId: string, paragraphMaxWidthMm = bctx.maxWidthMm): string {
   let out = ''
   for (const block of blocks) {
     if (block.kind === 'paragraph') {
-      out += emitParagraph(ctx, contStyleId, { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx, block.id, bctx.maxWidthMm)) })
+      out += emitParagraph(ctx, contStyleId, { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx, block.id, paragraphMaxWidthMm)) })
     } else {
       out += renderBlock(ctx, block, bctx)
     }
@@ -214,15 +215,17 @@ function renderNote(ctx: RenderContext, note: IRNote, bctx: BlockCtx, inTable = 
     : isSingle ? undefined : { numId: ctx.numbering.allocNoteInstance(bctx.scopeKey, ordinal!), ilvl: 0 }
   const numbered = { nodeId: note.id, kind: 'note' as const }
   const innerBctx = withScope(bctx, note.id) // §5.7：注内容中的块，作用域 = 该注的 id
+  const firstWidthMm = indentedWidthMm(bctx.maxWidthMm ?? 165, isSingle ? 780 : 870)
+  const restWidthMm = inTable ? bctx.maxWidthMm : firstWidthMm
 
   const [first, ...rest] = note.content
   if (first && first.kind === 'paragraph') {
-    let out = emitParagraph(ctx, firstStyleId, { numPr: firstNumPr, runsXml: renderInlines(first.content, ctx.labels, formulaSink(ctx, first.id, bctx.maxWidthMm)), numbered })
-    out += renderContentBlocks(ctx, rest, innerBctx, contStyleId)
+    let out = emitParagraph(ctx, firstStyleId, { numPr: firstNumPr, runsXml: renderInlines(first.content, ctx.labels, formulaSink(ctx, first.id, firstWidthMm)), numbered })
+    out += renderContentBlocks(ctx, rest, innerBctx, contStyleId, restWidthMm)
     return out
   }
   let out = emitParagraph(ctx, firstStyleId, { numPr: firstNumPr, numbered })
-  out += renderContentBlocks(ctx, note.content, innerBctx, contStyleId)
+  out += renderContentBlocks(ctx, note.content, innerBctx, contStyleId, restWidthMm)
   return out
 }
 

@@ -8,6 +8,7 @@
 import type { IRBlock, IRTable, IRTableRow } from '../../../ir/types'
 import type { DocxRenderOptions } from '../types'
 import { inlineImageExtentMm } from './figure'
+import { listContentWidthMm } from './listWidth'
 import { paragraphHeightMm } from './pageFlow'
 import { resolveTableColumnWidths, TABLE_CELL_SIDE_MARGIN_TWIPS, type TableColumnLayout } from './tableColumnWidths'
 
@@ -43,6 +44,7 @@ function blockLines(
   capacity: number,
   maxWidthMm = 165,
   images?: DocxRenderOptions['images'],
+  listDepth = 0,
 ): number {
   switch (block.kind) {
     case 'paragraph': {
@@ -108,9 +110,15 @@ function blockLines(
       flushLine()
       return totalLines
     }
-    case 'list':
-      return block.items.reduce((sum, item) =>
-        sum + Math.max(1, item.content.reduce((part, child) => part + blockLines(child, capacity, maxWidthMm, images), 0)), 0)
+    case 'list': {
+      const depth = listDepth + 1
+      const width = listContentWidthMm(block, depth, maxWidthMm)
+      const listCapacity = Math.max(1, capacity * width / maxWidthMm)
+      return block.items.reduce((sum, item) => sum + Math.max(1, item.content.reduce((part, child) =>
+        part + (child.kind === 'list'
+          ? blockLines(child, capacity, maxWidthMm, images, depth)
+          : blockLines(child, listCapacity, width, images)), 0)), 0)
+    }
     case 'note':
     case 'example':
       return 1 + block.content.reduce((sum, child) => sum + blockLines(child, capacity, maxWidthMm, images), 0)
