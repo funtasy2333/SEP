@@ -137,6 +137,16 @@ defineProps<{
   font-size: 13px;
 }
 
+/* 合并单元格的最小宽度不能按每个可见单元格叠加：
+   导入表可能有很多逻辑列。保留 TableView 的列宽与拖拽设置，
+   让浏览器在正文宽度内按内容分配空间。 */
+.editor-content :deep(.tiptap .std-table-wrapper table td),
+.editor-content :deep(.tiptap .std-table-wrapper table th) {
+  min-width: 0;
+  padding-inline: 4px;
+  overflow-wrap: anywhere;
+}
+
 /* 表格内普通段落不继承正文首行两字缩进。 */
 .editor-content :deep(.tiptap table td > p),
 .editor-content :deep(.tiptap table th > p),
