@@ -26,6 +26,6 @@ SES 标准化文件编辑系统 0.1.3 预览版。
 
 从 0.1.1 及更早版本手动升级：先双击退出脚本停止旧版本，将旧目录中的 `packages/server/data/ses.db` 复制到新目录的同一位置后再启动新版本；升级前请备份整个旧目录。
 
-访问 http://localhost:5173/。文档保存在 `packages/server/data/ses.db`，日志在 `.ses-run/`，启动前的数据库备份在 `output/startup-backups/`。PDF 预览需要另装 Poppler，DOCX 编辑与导出不需要。详见包内 `使用说明.md`。
+访问 http://localhost:5173/。文档保存在 `packages/server/data/ses.db`，日志在 `.ses-run/`，启动前的数据库备份在 `output/startup-backups/`（数据库未变化时不重复备份，默认保留最近 10 份；升级备份默认保留最近 5 份）。PDF 预览需要另装 Poppler，DOCX 编辑与导出不需要。详见包内 `使用说明.md`。
 
 这是 Preview 版本，欢迎试用反馈。

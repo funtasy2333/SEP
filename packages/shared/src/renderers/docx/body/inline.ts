@@ -9,7 +9,7 @@
  * 同构纯 TypeScript，不引用浏览器或 Node 专有 API。
  */
 
-import type { IRInline, NodeId, ResolvedLabel } from '../../../ir/types'
+import type { IRInline, IRInlineImage, NodeId, ResolvedLabel } from '../../../ir/types'
 import { escapeXmlText, rPr, type XmlChild } from '../xml'
 
 type Labels = Record<NodeId, ResolvedLabel>
@@ -65,15 +65,16 @@ function textRunsXml(text: string, rprXml: string): string {
 }
 
 /**
- * 行内公式的 OMML 来源（docs/phase7-inline-formula.md）。只有正文类位置会传入；
- * 缺失时由调用方记 warning，这里回退为 LaTeX 源码文本。
+ * 行内公式与行内图的渲染入口（docs/phase7-inline-formula.md、M-8.3-02）。只有正文类位置会传入；
+ * 公式缺失 OMML 时由调用方记 warning 并回退为 LaTeX 源码文本；行内图由调用方生成 DrawingML run。
  */
 export interface InlineFormulaSink {
   omml: Record<string, string>
   missing(id: string, latex: string): void
+  image?: (image: IRInlineImage) => string
 }
 
-/** 渲染一个 IRInline：crossRef 换成 refText，其余 marks 正常应用，\n 拆成 br；行内公式按 irToPm 顺序排在文字之后 */
+/** 渲染一个 IRInline：crossRef 换成 refText，其余 marks 正常应用，\n 拆成 br；行内公式/行内图按 irToPm 顺序排在文字之后 */
 export function renderRun(run: IRInline, labels: Labels, formulas?: InlineFormulaSink): string {
   const marks = run.marks ?? []
   const textMarks = marks.filter((mark) => mark.type !== 'tableFootnoteRef')
@@ -99,6 +100,12 @@ export function renderRun(run: IRInline, labels: Labels, formulas?: InlineFormul
       formulaXml = textRunsXml(latex, '')
       formulas.missing(run.formula.id, latex)
     }
+  }
+
+  let imageXml = ''
+  if (run.image) {
+    if (!formulas?.image) throw new Error('renderRun: 行内图片所在位置没有提供图片渲染入口')
+    imageXml = formulas.image(run.image)
   }
 
   let footnoteAtom = ''
@@ -127,9 +134,9 @@ export function renderRun(run: IRInline, labels: Labels, formulas?: InlineFormul
     tableFootnoteAtoms += textRunsXml(resolved.refText, tableFootnoteRpr)
   }
 
-  // Keep the same order as irToPm: source body, body footnote atom, then all
+  // Keep the same order as irToPm: source body, formula/image atom, body footnote atom, then all
   // table-footnote reference atoms carried by this IR run.
-  return `${body}${formulaXml}${footnoteAtom}${tableFootnoteAtoms}`
+  return `${body}${formulaXml}${imageXml}${footnoteAtom}${tableFootnoteAtoms}`
 }
 
 /** 渲染一组 IRInline；数组为空时返回空串（段落层再据此决定是否输出不含 run 的段落） */

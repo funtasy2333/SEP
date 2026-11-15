@@ -15,6 +15,7 @@ import { emitParagraph, warn, type RenderContext } from './body/context'
 import { plainRun, tabRun, wrapTitleAtSeparator } from './body/inline'
 import { escapeXmlAttr } from './xml'
 import { buildCoverReleaseRunPr } from './styles'
+import { SONG_ALL_RFONTS } from './fonts'
 
 type CoverFrame = NonNullable<Parameters<typeof emitParagraph>[2]>['framePr']
 type CoverAsset = typeof COVER_ASSETS[keyof typeof COVER_ASSETS]
@@ -98,7 +99,7 @@ function frameRuns(ctx: RenderContext, styleId: string, runsXml: string, framePr
 function smallMarkGap(chineseFont = false): string {
   // 模板 DB/T 图片后的空格使用中文字体度量；Q 的斜杠后保持西文字体度量。
   const rPr = chineseFont
-    ? SMALL_MARK_GAP_RPR.replace('<w:rPr>', '<w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体"/>')
+    ? SMALL_MARK_GAP_RPR.replace('<w:rPr>', `<w:rPr>${SONG_ALL_RFONTS}`)
     : SMALL_MARK_GAP_RPR
   return plainRun(' ', rPr)
 }

@@ -13,7 +13,7 @@
 import JSZip from 'jszip'
 import { Editor, getSchema } from '@tiptap/core'
 import { DOMParser, DOMSerializer, Fragment, Slice, type Node as PMNode } from '@tiptap/pm/model'
-import { TextSelection } from '@tiptap/pm/state'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { describe, expect, it } from 'vitest'
 import { checkExportGuard } from '@ses/io'
 import { irToPm, pmToIr, resolve, UnsupportedOutputError, type IRDoc, type IRFigure, type PMJsonNode } from '@ses/shared'
@@ -802,10 +802,10 @@ describe('[M-8.5-01][M-8.3-02] 粘贴重映射：图例换新 nodeId，行内图
   })
 })
 
-describe('[M-8.5-01][M-8.4-03][M-8.3-02][M-8.2-11] 导出链路：图例、图中示例、行内图本阶段阻断；图注放行', () => {
+describe('[M-8.5-01][M-8.4-03][M-8.3-02][M-8.2-11] 导出链路：图例、图中示例本阶段阻断；行内图与图注放行（旧 XML 仍阻断行内图）', () => {
   const guard = (doc: PMJsonNode, format: 'html' | 'pdf' | 'docx' | 'xml' | 'json') => checkExportGuard(schema.nodeFromJSON(doc).toJSON() as PMJsonNode, format)
 
-  it('checkExportGuard：完整 G3 文档在 html/pdf/docx/xml 全部被输出边界阻止，json 通过', () => {
+  it('checkExportGuard：完整 G3 文档在 html/pdf/docx/xml 被图例与图中示例阻止（xml 同时阻断行内图），json 通过', () => {
     const doc = createWp8mG3Fixture()
     expect(guard(doc, 'json')).toBeNull()
     for (const format of ['html', 'pdf', 'docx', 'xml'] as const) {
@@ -814,24 +814,28 @@ describe('[M-8.5-01][M-8.4-03][M-8.3-02][M-8.2-11] 导出链路：图例、图�
       const paths = failure!.problems.map(problem => problem.path ?? '')
       expect(paths.some(path => path.endsWith('.legend')), format).toBe(true)
       expect(paths.some(path => path.endsWith('.examples')), format).toBe(true)
-      expect(paths.some(path => path.endsWith('.image')), format).toBe(true)
+      expect(paths.some(path => path.endsWith('.image')), format).toBe(format === 'xml')
       expect(paths.some(path => path.includes('.notes')), format).toBe(false)
     }
   })
 
-  it('逐项：只有图例 → 阻断并指向 legend；只有图中示例 → 指向 examples；只有行内图 → 指向 image', () => {
+  it('逐项：只有图例 → 阻断并指向 legend；只有图中示例 → 指向 examples；只有行内图 → html/pdf/docx 放行、xml 指向 image', () => {
     const base = (...extra: PMJsonNode[]): PMJsonNode => ({
       type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [{ type: 'chapterTitle', content: [{ type: 'text', text: '章' }] }, ...extra] }],
     })
     const onlyLegend = base(figure('f', '图', figureLegend('lg', null, legendItem('i', 'a', '甲'))))
     const onlyExample = base(figure('f', '图', figureExample('e', '例')))
     const onlyImage = base({ type: 'stdParagraph', attrs: { nodeId: 'p' }, content: [{ type: 'text', text: '见' }, inlineImage()] })
-    for (const [doc, suffix] of [[onlyLegend, '.legend'], [onlyExample, '.examples'], [onlyImage, '.image']] as const) {
+    for (const [doc, suffix] of [[onlyLegend, '.legend'], [onlyExample, '.examples']] as const) {
       for (const format of ['html', 'pdf', 'docx', 'xml'] as const) {
         const failure = guard(doc, format)
         expect(failure?.problems.map(problem => problem.path), `${suffix} ${format}`).toEqual([expect.stringMatching(new RegExp(`${suffix.replace('.', '\\.')}$`))])
       }
     }
+    for (const format of ['html', 'pdf', 'docx'] as const) {
+      expect(guard(onlyImage, format), `onlyImage ${format}`).toBeNull()
+    }
+    expect(guard(onlyImage, 'xml')?.problems.map(problem => problem.path)).toEqual([expect.stringMatching(/\.image$/)])
   })
 
   const notesOnly = (): PMJsonNode => ({
@@ -886,3 +890,367 @@ describe('[M-8.5-01][M-8.4-03][M-8.3-02][M-8.2-11] 导出链路：图例、图�
     editor.destroy()
   })
 })
+
+describe('图片插入逻辑（空白段落自动添加图编号和图题，表格内仅插入图片）与导出完整性', () => {
+  const SAMPLE_PNG =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+
+  function findPosInsideNode(doc: import('@tiptap/pm/model').Node, nodeId: string): number {
+    let found = -1
+    doc.descendants((node, pos) => {
+      if (node.attrs?.nodeId === nodeId || node.attrs?.id === nodeId) {
+        found = pos + 1
+        return false
+      }
+      return true
+    })
+    if (found < 0) throw new Error(`未找到节点 ${nodeId}`)
+    return found
+  }
+
+  it('在空白段落中插入图片：原地替换为带图编号和空图题的 figure，光标落入 figureCaption', () => {
+    const initial: PMJsonNode = {
+      type: 'doc',
+      content: [{
+        type: 'chapter',
+        attrs: { nodeId: 'ch-1' },
+        content: [
+          { type: 'chapterTitle', content: [{ type: 'text', text: '总则' }] },
+          { type: 'stdParagraph', attrs: { nodeId: 'empty-p' }, content: [] },
+        ],
+      }],
+    }
+    const editor = mountEditor(initial as unknown as Record<string, unknown>)
+    try {
+      const pos = findPosInsideNode(editor.state.doc, 'empty-p')
+      editor.chain().focus().setTextSelection(pos).insertFigure({ src: SAMPLE_PNG }).run()
+
+      const json = editor.getJSON() as PMJsonNode
+      const chapterChildren = json.content![0]!.content!
+      // 原空白段落已被替换为 figure（chapterTitle + figure）
+      expect(chapterChildren.map(c => c.type)).toEqual(['chapterTitle', 'figure'])
+      const figNode = chapterChildren[1]!
+      expect(figNode.content?.map(c => c.type)).toEqual(['figureImage', 'figureCaption'])
+      expect(figNode.content![0]!.attrs?.src).toBe(SAMPLE_PNG)
+      // 图题默认留空
+      expect(figNode.content![1]!.content ?? []).toEqual([])
+      // 光标位于 figureCaption 内部
+      expect(editor.state.selection.$from.parent.type.name).toBe('figureCaption')
+
+      // Resolver 自动分配“图1”编号
+      const { doc: irDoc } = pmToIr(json)
+      const { labels } = resolve(irDoc)
+      const figId = (figNode.attrs?.id ?? figNode.attrs?.nodeId) as string
+      expect(labels[figId]?.label).toBe('图1')
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('在非空段落中插入图片：保留原段落并在其后插入带图编号和空图题的 figure，光标落入 figureCaption', () => {
+    const initial: PMJsonNode = {
+      type: 'doc',
+      content: [{
+        type: 'chapter',
+        attrs: { nodeId: 'ch-1' },
+        content: [
+          { type: 'chapterTitle', content: [{ type: 'text', text: '总则' }] },
+          { type: 'stdParagraph', attrs: { nodeId: 'text-p' }, content: [{ type: 'text', text: '已有正文内容' }] },
+        ],
+      }],
+    }
+    const editor = mountEditor(initial as unknown as Record<string, unknown>)
+    try {
+      const pos = findPosInsideNode(editor.state.doc, 'text-p')
+      editor.chain().focus().setTextSelection(pos + 2).insertFigure({ src: SAMPLE_PNG }).run()
+
+      const json = editor.getJSON() as PMJsonNode
+      const chapterChildren = json.content![0]!.content!
+      expect(chapterChildren.map(c => c.type)).toEqual(['chapterTitle', 'stdParagraph', 'figure'])
+      expect(chapterChildren[1]!.content![0]!.text).toBe('已有正文内容')
+      expect(chapterChildren[2]!.content![1]!.content ?? []).toEqual([])
+      expect(editor.state.selection.$from.parent.type.name).toBe('figureCaption')
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('在最后一章选中已有图或表（NodeSelection）时插入图片：紧随所选块之后在章内插入新 figure，不越界抛错', () => {
+    const initial: PMJsonNode = {
+      type: 'doc',
+      content: [{
+        type: 'chapter',
+        attrs: { nodeId: 'ch-last' },
+        content: [
+          { type: 'chapterTitle', content: [{ type: 'text', text: '附则' }] },
+          figure('fig-existing', '既有图'),
+        ],
+      }],
+    }
+    const editor = mountEditor(initial as unknown as Record<string, unknown>)
+    try {
+      const figPos = findPosInsideNode(editor.state.doc, 'fig-existing') - 1
+      editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, figPos)))
+      expect(() => editor.commands.insertFigure({ src: SAMPLE_PNG })).not.toThrow()
+
+      const json = editor.getJSON() as PMJsonNode
+      const chapterChildren = json.content![0]!.content!
+      expect(chapterChildren.map(c => c.type)).toEqual(['chapterTitle', 'figure', 'figure'])
+      expect(chapterChildren[1]!.attrs?.nodeId).toBe('fig-existing')
+      expect(chapterChildren[2]!.content![1]!.content ?? []).toEqual([])
+      expect(editor.state.selection.$from.parent.type.name).toBe('figureCaption')
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('在表格单元格中插入图片：仅插入 inlineImage，不添加图编号和图题，且可完整导出 HTML/PDF 与 DOCX', async () => {
+    const initial: PMJsonNode = {
+      type: 'doc',
+      content: [{
+        type: 'chapter',
+        attrs: { nodeId: 'ch-1' },
+        content: [
+          { type: 'chapterTitle', content: [{ type: 'text', text: '符号要求' }] },
+          {
+            type: 'stdTable',
+            attrs: { id: 'tbl-1', nodeId: 'tbl-1' },
+            content: [
+              { type: 'tableCaption', content: [{ type: 'text', text: '设备符号表' }] },
+              {
+                type: 'table',
+                content: [
+                  {
+                    type: 'tableRow',
+                    content: [
+                      { type: 'tableHeader', attrs: { nodeId: 'th-1' }, content: [{ type: 'paragraph', attrs: { nodeId: 'th-1-p' }, content: [{ type: 'text', text: '项目' }] }] },
+                      { type: 'tableHeader', attrs: { nodeId: 'th-2' }, content: [{ type: 'paragraph', attrs: { nodeId: 'th-2-p' }, content: [{ type: 'text', text: '图形' }] }] },
+                    ],
+                  },
+                  {
+                    type: 'tableRow',
+                    content: [
+                      { type: 'tableCell', attrs: { nodeId: 'td-1' }, content: [{ type: 'paragraph', attrs: { nodeId: 'td-1-p' }, content: [{ type: 'text', text: '开关' }] }] },
+                      { type: 'tableCell', attrs: { nodeId: 'td-2' }, content: [{ type: 'paragraph', attrs: { nodeId: 'td-2-p' }, content: [] }] },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }],
+    }
+    const editor = mountEditor(initial as unknown as Record<string, unknown>)
+    try {
+      const cellParaPos = findPosInsideNode(editor.state.doc, 'td-2-p')
+      editor.chain().focus().setTextSelection(cellParaPos).insertFigure({ src: SAMPLE_PNG, alt: '开关图形' }).run()
+
+      const json = editor.getJSON() as PMJsonNode
+      const docStr = JSON.stringify(json)
+      // 没有产生 figure 或 figureCaption
+      expect(docStr).not.toContain('"type":"figure"')
+      expect(docStr).not.toContain('"type":"figureCaption"')
+      expect(docStr).toContain('"type":"inlineImage"')
+
+      // 导出守卫对 html / pdf / docx 均放行
+      for (const format of ['html', 'pdf', 'docx'] as const) {
+        expect(checkExportGuard(json, format), format).toBeNull()
+      }
+
+      // Resolver 中没有任何“图N”编号，只有“表1”
+      const { doc: irDoc } = pmToIr(json)
+      const { labels } = resolve(irDoc)
+      expect(Object.values(labels).map(l => l.label)).toEqual(['1', '表1'])
+
+      // HTML 导出：表格单元格内含 <img class="ses-inline-image" ...>，无图题
+      const html = exportSemanticHtml(editor.state.doc)
+      expect(html).toContain(`<img class="ses-inline-image" src="${SAMPLE_PNG}" alt="开关图形" />`)
+      expect(html).not.toContain('data-type="figure"')
+
+      // DOCX 导出：表格单元格内生成 <w:drawing><wp:inline ...>，二进制部件含 word/media/image1.png
+      const { blob, warnings } = await buildDocxBlob({ pmDoc: json, createdAt: '2026-11-13T00:00:00Z' })
+      expect(warnings.filter(w => w.code === 'image-missing')).toEqual([])
+      const zip = await JSZip.loadAsync(await blob.arrayBuffer())
+      const documentXml = await zip.file('word/document.xml')!.async('string')
+      expect(documentXml).toContain('<wp:inline')
+      expect(documentXml).toContain('descr="开关图形"')
+      expect(documentXml).not.toContain('SesFigCap')
+      expect(zip.file('word/media/image1.png')).not.toBeNull()
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('在表格单元格内带粗体/斜体格式文本或激活 storedMarks 时插入图片：inlineImage 不继承 marks，不产生 unsupportedContent，且导出守卫放行', () => {
+    const initial: PMJsonNode = {
+      type: 'doc',
+      content: [{
+        type: 'chapter',
+        attrs: { nodeId: 'ch-1' },
+        content: [
+          { type: 'chapterTitle', content: [{ type: 'text', text: '符号要求' }] },
+          {
+            type: 'stdTable',
+            attrs: { id: 'tbl-1', nodeId: 'tbl-1' },
+            content: [
+              { type: 'tableCaption', content: [{ type: 'text', text: '设备符号表' }] },
+              {
+                type: 'table',
+                content: [
+                  {
+                    type: 'tableRow',
+                    content: [
+                      {
+                        type: 'tableCell',
+                        attrs: { nodeId: 'td-formatted' },
+                        content: [{
+                          type: 'paragraph',
+                          attrs: { nodeId: 'td-formatted-p' },
+                          content: [{
+                            type: 'text',
+                            text: '加粗斜体文字',
+                            marks: [{ type: 'bold' }, { type: 'italic' }],
+                          }],
+                        }],
+                      },
+                      {
+                        type: 'tableCell',
+                        attrs: { nodeId: 'td-stored' },
+                        content: [{
+                          type: 'paragraph',
+                          attrs: { nodeId: 'td-stored-p' },
+                          content: [],
+                        }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }],
+    }
+    const editor = mountEditor(initial as unknown as Record<string, unknown>)
+    try {
+      // 1) 光标位于粗体+斜体文本内部
+      const formattedParaPos = findPosInsideNode(editor.state.doc, 'td-formatted-p')
+      editor.chain().focus().setTextSelection(formattedParaPos + 2).insertFigure({ src: SAMPLE_PNG, alt: '行内图1' }).run()
+
+      // 2) 空单元格段落内显式激活 storedMarks（bold + italic）
+      const storedParaPos = findPosInsideNode(editor.state.doc, 'td-stored-p')
+      editor.view.dispatch(
+        editor.state.tr
+          .setSelection(TextSelection.create(editor.state.doc, storedParaPos))
+          .setStoredMarks([
+            editor.schema.marks.bold!.create(),
+            editor.schema.marks.italic!.create(),
+          ]),
+      )
+      editor.commands.insertFigure({ src: SAMPLE_PNG, alt: '行内图2' })
+
+      const json = editor.getJSON() as PMJsonNode
+      const inlineImages = nodesOfType(json, 'inlineImage')
+      expect(inlineImages).toHaveLength(2)
+      for (const img of inlineImages) {
+        expect(img.marks).toBeUndefined()
+      }
+
+      const { doc: irDoc, warnings } = pmToIr(json)
+      expect(warnings).toEqual([])
+      expect(irDoc.unsupportedContent ?? []).toEqual([])
+
+      for (const format of ['html', 'pdf', 'docx'] as const) {
+        expect(checkExportGuard(json, format), format).toBeNull()
+      }
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('在表注（tableNoteRow）内插图只插入 inlineImage；在表脚注内插图返回 false；在无标题条（hasTitle=false）的 clauseTitle 内插图插入在首段之后', () => {
+    const initial: PMJsonNode = {
+      type: 'doc',
+      content: [{
+        type: 'chapter',
+        attrs: { nodeId: 'ch-1' },
+        content: [
+          { type: 'chapterTitle', content: [{ type: 'text', text: '要求' }] },
+          {
+            type: 'clause',
+            attrs: { nodeId: 'cl-untitled', hasTitle: false, level: 1 },
+            content: [
+              { type: 'clauseTitle', content: [] },
+              { type: 'stdParagraph', attrs: { nodeId: 'cl-first-p' }, content: [{ type: 'text', text: '无标题条首段' }] },
+            ],
+          },
+          {
+            type: 'stdTable',
+            attrs: { id: 'tbl-notes', nodeId: 'tbl-notes' },
+            content: [
+              { type: 'tableCaption', content: [{ type: 'text', text: '带表注和表脚注的表' }] },
+              {
+                type: 'table',
+                content: [
+                  {
+                    type: 'tableRow',
+                    content: [
+                      { type: 'tableCell', attrs: { nodeId: 'td-1' }, content: [{ type: 'paragraph', attrs: { nodeId: 'td-1-p' }, content: [{ type: 'text', text: '数据' }] }] },
+                    ],
+                  },
+                ],
+              },
+              {
+                type: 'tableNoteRow',
+                content: [
+                  {
+                    type: 'note',
+                    attrs: { nodeId: 'tn-1' },
+                    content: [{ type: 'text', text: '表注文字' }],
+                  },
+                ],
+              },
+              {
+                type: 'tableFootnoteRow',
+                content: [
+                  {
+                    type: 'tableFootnoteEntry',
+                    attrs: { nodeId: 'tfn-1', label: 'a' },
+                    content: [{ type: 'text', text: '表脚注文字' }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }],
+    }
+    const editor = mountEditor(initial as unknown as Record<string, unknown>)
+    try {
+      // 1) 表脚注内禁止插图
+      const tfnPos = findPosInsideNode(editor.state.doc, 'tfn-1')
+      editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, tfnPos)))
+      expect(editor.commands.insertFigure({ src: SAMPLE_PNG })).toBe(false)
+
+      // 2) 表注（tableNoteRow）内插入 inlineImage
+      const tnPos = findPosInsideNode(editor.state.doc, 'tn-1')
+      editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, tnPos)))
+      expect(editor.commands.insertFigure({ src: SAMPLE_PNG, alt: '表注行内图' })).toBe(true)
+      expect(nodesOfType(editor.getJSON() as PMJsonNode, 'inlineImage')).toHaveLength(1)
+
+      // 3) 无标题条的 clauseTitle 内插图：插在首段（cl-first-p）之后，不插在 clauseTitle 与首段之间
+      const clausePos = findPosInsideNode(editor.state.doc, 'cl-untitled')
+      // clausePos 是 clauseTitle 的起始位置，clausePos + 1 在空的 clauseTitle 内部
+      editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, clausePos + 1)))
+      expect(editor.commands.insertFigure({ src: SAMPLE_PNG })).toBe(true)
+
+      const json = editor.getJSON() as PMJsonNode
+      const untitledClause = byId(json, 'clause', 'cl-untitled')
+      expect(untitledClause.content?.map(c => c.type)).toEqual(['clauseTitle', 'stdParagraph', 'figure'])
+    } finally {
+      editor.destroy()
+    }
+  })
+})
+

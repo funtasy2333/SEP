@@ -396,6 +396,29 @@ class Database(unittest.TestCase):
             self.assertTrue((upd / 'lock').exists())
             self.assertEqual((root / 'packages/server/data/ses.db').read_bytes(), original)
 
+    def test_finalize_prunes_old_upgrade_backups(self):
+        with tempfile.TemporaryDirectory() as base:
+            root = fake_install(base)
+            upgrade_dir = root / 'output/upgrade-backups'
+            old_stamps = [f'ses-before-upgrade-2026-10-0{i}T00-00-00-000Z' for i in range(1, 7)]
+            for stamp in old_stamps:
+                write(upgrade_dir / stamp / 'manifest.json', '{}')
+                write(upgrade_dir / stamp / 'ses.db', stamp)
+            write(upgrade_dir / 'ses-before-upgrade-manual-no-manifest/ses.db', 'keep')
+            write(upgrade_dir / 'custom-backup/ses.db', 'keep')
+            run_apply('backup-db', '--root', root)
+            run_apply('finalize', '--root', root)
+            remaining = sorted(p.name for p in upgrade_dir.iterdir()
+                               if p.is_dir() and p.name.startswith('ses-before-upgrade-')
+                               and (p / 'manifest.json').exists())
+            self.assertEqual(len(remaining), 5)
+            for old in old_stamps[:2]:
+                self.assertFalse((upgrade_dir / old).exists(), old)
+            for kept in old_stamps[2:]:
+                self.assertTrue((upgrade_dir / kept).exists(), kept)
+            self.assertTrue((upgrade_dir / 'ses-before-upgrade-manual-no-manifest/ses.db').exists())
+            self.assertTrue((upgrade_dir / 'custom-backup/ses.db').exists())
+
 
 class Status(unittest.TestCase):
     def read(self, root):

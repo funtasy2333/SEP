@@ -142,19 +142,19 @@ describe('numbering.ts：静态部分（16 个 abstractNum + 8 个固定实例�
     expect(lvlAttr(lv.get(0)!, 'w:suff')).toBe('nothing')
     expect(lvlInd(lv.get(0)!)).toEqual({ 'w:left': '840', 'w:hanging': '420' })
     expect(lvlRFontsAttrs(lv.get(0)!)).toEqual({
-      'w:ascii': 'Times New Roman',
-      'w:eastAsia': 'Times New Roman',
-      'w:hAnsi': 'Times New Roman',
-      'w:cs': 'Times New Roman',
+      'w:ascii': '方正书宋简体',
+      'w:eastAsia': '方正书宋简体',
+      'w:hAnsi': '方正书宋简体',
+      'w:cs': '方正书宋简体',
     })
     expect(lvlAttr(lv.get(1)!, 'w:lvlText')).toBe('·')
     expect(lvlAttr(lv.get(1)!, 'w:suff')).toBe('tab')
     expect(lvlInd(lv.get(1)!)).toEqual({ 'w:left': '1260', 'w:hanging': '420' })
     expect(lvlRFontsAttrs(lv.get(1)!)).toEqual({
-      'w:ascii': '宋体',
-      'w:eastAsia': '宋体',
-      'w:hAnsi': '宋体',
-      'w:cs': '宋体',
+      'w:ascii': '方正书宋简体',
+      'w:eastAsia': '方正书宋简体',
+      'w:hAnsi': '方正书宋简体',
+      'w:cs': '方正书宋简体',
     })
   })
 
@@ -179,26 +179,26 @@ describe('numbering.ts：静态部分（16 个 abstractNum + 8 个固定实例�
       expect(lvlAttr(lv.get(1)!, 'w:suff')).toBe('tab')
       expect(lvlInd(lv.get(1)!)).toEqual({ 'w:left': '1260', 'w:hanging': '420' })
       for (const ilvl of [0, 1]) {
-        // WP8.M G7-c：A14 L0 的标识 ASCII 用 Times New Roman（宋体的 ASCII 字母半角等宽，iii） 就超出 2 字悬挂量）；全角括号仍是宋体
+        // WP8.M G7-c：A14 L0 的标识 ASCII 用 Times New Roman（宋体的 ASCII 字母半角等宽，iii） 就超出 2 字悬挂量）；全角括号使用方正书宋简体
         const romanLabel = id === '14' && ilvl === 0
         expect(lvlRFontsAttrs(lv.get(ilvl)!)).toEqual(romanLabel
-          ? { 'w:ascii': 'Times New Roman', 'w:eastAsia': '宋体', 'w:hAnsi': 'Times New Roman', 'w:cs': 'Times New Roman' }
-          : { 'w:ascii': '宋体', 'w:eastAsia': '宋体', 'w:hAnsi': '宋体', 'w:cs': '宋体' })
+          ? { 'w:ascii': 'Times New Roman', 'w:eastAsia': '方正书宋简体', 'w:hAnsi': 'Times New Roman', 'w:cs': 'Times New Roman' }
+          : { 'w:ascii': '方正书宋简体', 'w:eastAsia': '方正书宋简体', 'w:hAnsi': '方正书宋简体', 'w:cs': '方正书宋简体' })
       }
     }
     expect(xml.match(/w:val="lowerRoman"/g)).toHaveLength(1)
     expect(xml).not.toMatch(/w:val="upperRoman"/)
   })
 
-  it('A16 参考文献：编号标识为宋体，ASCII、East Asia、HAnsi 和复杂文字均明确指定', () => {
+  it('A16 参考文献：编号标识为方正书宋简体，ASCII、East Asia、HAnsi 和复杂文字均明确指定', () => {
     const l0 = levels(abs.get('16')!).get(0)!
     expect(lvlAttr(l0, 'w:lvlText')).toBe('[%1]　')
     expect(lvlInd(l0)).toEqual({ 'w:left': '0', 'w:firstLine': '420' })
     expect(lvlRFontsAttrs(l0)).toEqual({
-      'w:ascii': '宋体',
-      'w:eastAsia': '宋体',
-      'w:hAnsi': '宋体',
-      'w:cs': '宋体',
+      'w:ascii': '方正书宋简体',
+      'w:eastAsia': '方正书宋简体',
+      'w:hAnsi': '方正书宋简体',
+      'w:cs': '方正书宋简体',
     })
   })
 

@@ -52,6 +52,7 @@ import type { ListNumbering } from '../ir/listNumbering'
 import { printCss } from './printCss'
 import type { DocumentStage } from '../types/document'
 import { renderCoverHtml } from './coverHtml'
+import { tableBordersCss } from './tableBordersCss'
 import { assertFootnoteReferences, orderTableFootnotes, tableColumnCount } from './footnotes'
 
 export type HtmlVariant = 'screen' | 'print'
@@ -223,6 +224,11 @@ function renderRun(run: IRInline, ctx: RenderCtx): string {
     ? `<span class="ses-formula-inline" data-latex="${escapeAttr(run.formula.latex)}"></span>`
     : ''
 
+  const imageSize = run.image?.size === 'S' || run.image?.size === 'M' || run.image?.size === 'L' ? run.image.size : undefined
+  const imageAtom = run.image
+    ? `<img class="ses-inline-image" src="${escapeAttr(run.image.src)}" alt="${escapeAttr(run.image.alt ?? '')}"${imageSize ? ` data-size="${escapeAttr(imageSize)}"` : ''} />`
+    : ''
+
   let footnoteAtom = ''
   if (run.footnote) {
     const resolved = ctx.labels[run.footnote.id]
@@ -250,7 +256,7 @@ function renderRun(run: IRInline, ctx: RenderCtx): string {
       ? `<a class="ses-table-footnote-ref" href="#${escapeAttr(resolved.xmlId)}">${marker}</a>`
       : marker
   }
-  return `${body}${formulaAtom}${footnoteAtom}${tableFootnoteAtoms}`
+  return `${body}${formulaAtom}${imageAtom}${footnoteAtom}${tableFootnoteAtoms}`
 }
 
 function renderInlines(inlines: IRInline[], ctx: RenderCtx): string {
@@ -893,11 +899,16 @@ function screenStyles(): string {
     .ses-table-caption { font-family: "SimHei", "黑体", sans-serif; font-weight: normal; text-align: center; margin: 8px 0 4px; }
     .ses-table-caption-en { text-align: center; font-style: italic; color: #555; }
     .ses-table-block table { border-collapse: collapse; width: 100%; }
-    .ses-table-block th, .ses-table-block td { border: 1px solid #333; padding: 6px 8px; }
+    .ses-table-block th, .ses-table-block td { padding: 6px 8px; }
+${tableBordersCss}
     .ses-table-block th { background: #f5f5f5; }
     .ses-table-block td > .ses-paragraph, .ses-table-block th > .ses-paragraph { text-indent: 0; }
     .ses-figure-block { text-align: center; margin: 16px 0; }
     .ses-figure-image { max-width: 100%; }
+    .ses-inline-image { display: inline-block; vertical-align: middle; max-width: 100%; height: auto; }
+    .ses-inline-image[data-size="S"] { max-height: 1.2em; }
+    .ses-inline-image[data-size="M"] { max-height: 2.4em; }
+    .ses-inline-image[data-size="L"] { max-height: 3.6em; }
     .ses-figure-caption { font-family: "SimHei", "黑体", sans-serif; font-weight: bold; margin-top: 8px; }
     .ses-figure-caption-en { font-style: italic; color: #555; }
     .ses-formula-block { display: flex; align-items: center; margin: 16px 0 6px; }

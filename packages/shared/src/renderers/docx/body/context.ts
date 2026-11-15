@@ -15,6 +15,7 @@ import { createNumberingAllocator, type NumberingAllocator } from '../numbering'
 import { OWNER_STYLE_IDS, styleSpecs } from '../styles'
 import type { DocxBookmark, DocxPackage, DocxRenderOptions } from '../types'
 import type { DocxRelatedPart } from '../package'
+import { renderInlineImageRun } from './figure'
 import type { InlineFormulaSink } from './inline'
 import { escapeXmlAttr, numPr as numPrXml, pPr, type XmlChild } from '../xml'
 import { mmToTwips } from '../units'
@@ -60,11 +61,13 @@ export function createRenderContext(
 }
 
 /** `label` 必须来自 Resolver 的 labels（如「表3」），渲染器不得自行编号。 */
-/** 正文类位置的行内公式来源：OMML 取自宿主注入的资源表，缺失时记 `formula-missing-omml`。 */
-export function formulaSink(ctx: RenderContext): InlineFormulaSink {
+/** 正文类位置的行内公式与行内图来源：OMML 与图片取自宿主注入的资源表。 */
+export function formulaSink(ctx: RenderContext, ownerId?: NodeId, maxWidthMm = 165): InlineFormulaSink {
+  let imageIndex = 0
   return {
     omml: ctx.resources.formulaOmml,
     missing: (id, latex) => warn(ctx, 'formula-missing-omml', `行内公式 "${id}" 缺少 OMML，已回退为 LaTeX 源码文本：${latex}`, id),
+    image: (image) => renderInlineImageRun(ctx, image, ownerId, imageIndex++, maxWidthMm),
   }
 }
 

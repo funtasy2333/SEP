@@ -157,11 +157,12 @@ describe('仍阻断 / 与旧 XML 相同', () => {
     }
   })
 
-  it('HTML 与 DOCX 的结论不受影响：图例、示例、行内图对它们仍阻断', () => {
+  it('HTML 与 DOCX：图例、示例对它们仍阻断，行内图放行', () => {
     const doc = richDoc()
     for (const format of ['HTML', 'DOCX'] as const) {
       const found = getOutputSupportProblems(doc, format).map((problem) => problem.path.replace(/\[\d+\]/g, ''))
-      for (const suffix of ['.legend', '.examples', '.image']) expect(found.some((path) => path.endsWith(suffix)), `${format} ${suffix}`).toBe(true)
+      for (const suffix of ['.legend', '.examples']) expect(found.some((path) => path.endsWith(suffix)), `${format} ${suffix}`).toBe(true)
+      expect(found.some((path) => path.endsWith('.image')), `${format} .image`).toBe(false)
     }
   })
 })

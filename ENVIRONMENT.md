@@ -88,7 +88,7 @@ Vue、NestJS、TypeScript、`better-sqlite3` 等项目依赖由启动脚本或 `
 
 ### 导出字体
 
-PDF 由 SES 后端所在的机器排版。要输出指定字体，该机器需要安装 **Times New Roman** 以及宋体、黑体等文档字体；列项破折号单独使用 Times New Roman。缺少字体时，浏览器会使用系统替代字体。DOCX 保存字体名称，打开文件的机器也需要具备对应字体。
+PDF 由 SES 后端所在的机器排版。要输出指定字体，该机器需要安装 **Times New Roman** 以及宋体、黑体等文档字体；列项破折号单独使用 Times New Roman。缺少字体时，浏览器会使用系统替代字体。DOCX 正文及列项破折号优先指定 **方正书宋简体**（字体文件通常为 `FZSSJW.TTF`），并在字体表登记该名称；打开文件的机器需安装该字体，否则由 Word 使用系统替代字体。DOCX 不嵌入字体文件。
 
 ### Poppler：PDF 版式预览
 
@@ -149,7 +149,7 @@ pnpm dev:server   # 后端
 pnpm build
 ```
 
-双击启动脚本使用构建后的后端代码；修改后端代码后，请先退出服务再重新启动。使用双击启动方式前，应先停止原终端中的开发服务。
+双击启动脚本仅构建后端并在源码、依赖或 Node 版本变化时才重新构建（设置 `SES_FORCE_BUILD=1` 可强制重建）；修改后端代码后，请先退出服务再重新启动。使用双击启动方式前，应先停止原终端中的开发服务。
 
 ## 5. 下载来源与联网要求
 
@@ -173,8 +173,8 @@ macOS 启动脚本以及手动执行的 `npm`、`pnpm` 命令沿用各自已有�
 | 后端 API | `http://127.0.0.1:3000/api` |
 | MCP | `http://127.0.0.1:3000/mcp` |
 | 文档数据库 | `packages/server/data/ses.db` |
-| 启动前数据库备份 | `output/startup-backups/` |
-| 应用内升级前数据库备份 | `output/upgrade-backups/` |
+| 启动前数据库备份 | `output/startup-backups/`（自上次备份后未变化则跳过，默认保留最近 10 份，`SES_STARTUP_BACKUP_KEEP` 可调） |
+| 应用内升级前数据库备份 | `output/upgrade-backups/`（默认保留最近 5 份，`SES_UPGRADE_BACKUP_KEEP` 可调） |
 | 启动脚本日志 | `.ses-run/` |
 | 升级日志与结果 | `.ses-run/upgrade.log`、`.ses-run/upgrade-status.json` |
 | 升级临时目录（含升级锁） | `.ses-update/` |
@@ -206,7 +206,7 @@ SES 在「设置 → 升级 / 退出」中提供升级与退出。**关闭网页
 升级由 `scripts/ses-upgrade.sh`（macOS）或 `scripts/ses-upgrade.ps1`（Windows）执行：服务端把它和 `scripts/apply-update.cjs` 复制到 `.ses-update/` 后以独立进程运行，因此替换 `scripts/` 目录时不会影响正在运行的脚本。Windows 上服务端不直接分离拉起 PowerShell（无控制台时 PowerShell 5.1 不能可靠运行），而是分离拉起 `node scripts/run-detached.cjs powershell.exe ...`（升级时同样使用复制到 `.ses-update/` 的副本），由它以子进程运行 PowerShell 并把输出写入日志；退出脚本同理。流程为：停止服务 → 备份数据库 → 解压 → 替换程序文件 → 启动新版本 → 清理。
 
 - 使用系统自带工具解压：macOS 使用 `ditto`，Windows 使用 PowerShell 5.1 的 `Expand-Archive`；脚本使用启动时记录的 Node.js 运行升级逻辑。
-- 数据库：停止服务后把 `packages/server/data/ses.db`（及存在的 `-wal`、`-shm`）复制到 `.ses-update/db-backup/`；升级成功后移动到 `output/upgrade-backups/ses-before-upgrade-<时间戳>/` 永久保留。
+- 数据库：停止服务后把 `packages/server/data/ses.db`（及存在的 `-wal`、`-shm`）复制到 `.ses-update/db-backup/`；升级成功后移动到 `output/upgrade-backups/ses-before-upgrade-<时间戳>/`，并自动裁剪只保留最近 5 份（可通过 `SES_UPGRADE_BACKUP_KEEP` 调整；启动脚本也会同步裁剪）。
 - 替换文件与回滚优先使用升级包里新版本的 `scripts/apply-update.cjs`（先复制为 `.ses-update/apply-update.next.cjs` 并做语法检查，不可用则回退到当前版本），这样新版本新增的程序文件也会被安装；备份、恢复数据库、状态文件等仍由当前版本处理。
 - 整目录替换 `packages/{client,server,shared,io}/src`、`packages/client/public`、`packages/server/resources`，旧文件不会残留；其余程序文件逐个替换。
 - 绝不改动：`packages/server/data/`、任何层级的 `node_modules`、`.ses-tools/`、`.ses-run/`、`output/`、`.ses-update/`、`.env`。路径超出 SES 目录、落入上述目录或经符号链接逃出目录的升级包会被整体拒绝。

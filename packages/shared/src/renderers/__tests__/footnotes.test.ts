@@ -54,14 +54,12 @@ describe('HTML/Vivliostyle 脚注', () => {
     expect(html).toContain('.ses-table-footnote-marker { display: inline-block; width: calc(1em - 1pt);')
   })
 
-  it('表注脚注外框为 0.75pt，二者之间的分隔线保持 0.25pt', () => {
-    const { html } = render(footnoteFixture())
-    expect(html).toContain('.ses-table-notes td, .ses-table-footnotes td { border-left-width: 0.75pt; border-right-width: 0.75pt; }')
-    expect(html).toContain('.ses-table-notes td { border-top-width: 0.75pt; }')
-    expect(html).toContain('.ses-table-notes:not(:last-child) td { border-bottom-width: 0.25pt; }')
-    expect(html).toContain('.ses-table-footnotes td { border-top-width: 0.25pt; }')
-    expect(html).toContain('.ses-table-footnotes:first-child td { border-top-width: 0.75pt; }')
-    expect(html).toContain('.ses-table-notes:last-child td, .ses-table-footnotes td { border-bottom-width: 0.75pt; }')
+  it.each(['screen', 'print'] as const)('%s 表格外框、表头和注区为 1pt，普通内框为 0.5pt', (variant) => {
+    const { html } = render(footnoteFixture(), variant)
+    expect(html).toContain('.ses-table-block table { border: 1pt solid #000; }')
+    expect(html).toContain('.ses-table-block th, .ses-table-block td { border: 0.5pt solid #000; }')
+    expect(html).toContain('.ses-table-block thead th, .ses-table-block thead td, .ses-table-block th { border: 1pt solid #000; }')
+    expect(html).toContain('.ses-table-block .ses-table-notes td, .ses-table-block .ses-table-footnotes td { border: 1pt solid #000; }')
   })
 
   it('跨表引用即使全局 labels 有目标也拒绝渲染', () => {

@@ -1,3 +1,5 @@
+import { tableBordersCss } from './tableBordersCss'
+
 /**
  * GB/T 1.1-2020 打印样式（Phase 5.5 / WP4）。
  *
@@ -323,7 +325,6 @@ const CONTENT = `
 .ses-table-block thead { display: table-header-group; }
 .ses-table-block tfoot { display: table-row-group; }
 .ses-table-block th, .ses-table-block td {
-  border: 0.5pt solid #000;
   padding: 1.5mm 3mm;
   vertical-align: top;
 }
@@ -331,12 +332,7 @@ const CONTENT = `
 .ses-table-block td { text-align: left; }
 .ses-table-block td > .ses-paragraph, .ses-table-block th > .ses-paragraph { text-indent: 0; }
 .ses-table-block tr { break-inside: avoid; }
-.ses-table-notes td, .ses-table-footnotes td { border-left-width: 0.75pt; border-right-width: 0.75pt; }
-.ses-table-notes td { border-top-width: 0.75pt; }
-.ses-table-notes:not(:last-child) td { border-bottom-width: 0.25pt; }
-.ses-table-notes:last-child td, .ses-table-footnotes td { border-bottom-width: 0.75pt; }
-.ses-table-footnotes td { border-top-width: 0.25pt; }
-.ses-table-footnotes:first-child td { border-top-width: 0.75pt; }
+${tableBordersCss}
 .ses-table-footnote { font-size: var(--ses-fs-xiaowu); margin-left: 2em; text-indent: -1em; break-inside: avoid; }
 .ses-table-footnote-marker { display: inline-block; width: calc(1em - 1pt); text-indent: 0; }
 .ses-table-footnote-marker sup { font-size: 0.75em; vertical-align: super; }
@@ -379,6 +375,11 @@ const CONTENT = `
 /* 图题英文（.ses-figure-caption-en）print 不输出（仅 screen），故 print CSS 不含其样式（F8） */
 /* 图中数字和文字：宋体六号（占位说明，实际作用于 SVG/位图内文本时由资源自带）*/
 .ses-figure-image text { font-size: var(--ses-fs-liu); }
+/* 行内图（M-8.3-02）：默认按原图尺寸自适应且不超出容器宽度；指定 size:S/M/L 时按 1/2/3 倍行高约束，超宽时宽高同步等比缩小 */
+.ses-inline-image { display: inline-block; vertical-align: middle; max-width: 100%; height: auto; }
+.ses-inline-image[data-size="S"] { max-height: 1.2em; }
+.ses-inline-image[data-size="M"] { max-height: 2.4em; }
+.ses-inline-image[data-size="L"] { max-height: 3.6em; }
 
 /* —— 公式：编号右端对齐 + 点线引导；式中键值列表 —— */
 /* 公式另行居中；编号右端对齐，公式与编号之间由点线连接（GB/T 1.1 10.4.3、9.9.2 示例）。

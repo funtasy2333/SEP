@@ -274,7 +274,7 @@ describe('页位置已知：自动续表', () => {
       expect(rowText(tbl)).not.toContain('连续记录表')
       expect(rowText(tbl)).not.toContain('（续）')
       const borders = findChild(findChild(findChild(rows[0]!, 'w:tc')!, 'w:tcPr')!, 'w:tcBorders')!
-      expect(findChild(borders, 'w:top')?.attrs).toMatchObject({ 'w:val': 'single', 'w:sz': '6' })
+      expect(findChild(borders, 'w:top')?.attrs).toMatchObject({ 'w:val': 'single', 'w:sz': '8' })
       expect(rowText(tbl).includes('表注仅在表末')).toBe(index === tables.length - 1)
     })
     // 表题 + 各续表题各一次，全部在表外段落。

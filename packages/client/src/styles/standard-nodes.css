@@ -406,15 +406,12 @@
 .ProseMirror .std-table-footnote-row {
   margin: 8px 0;
   padding: 8px 14px 10px;
-  border: 1px solid #d7e4ef;
-  border-left: 3px solid #6288aa;
+  border: 1pt solid #000;
   border-radius: 6px;
   background: #f5f9fc;
 }
 
 .ProseMirror .std-table-footnote-row {
-  border-color: #ded8ee;
-  border-left-color: #8870b4;
   background: #f8f6fc;
 }
 
@@ -574,6 +571,19 @@
 .std-inline-image[data-size='L'] {
   height: 3.6em;
   max-height: none;
+}
+
+.std-table td .std-inline-image:not([data-size]),
+.std-table th .std-inline-image:not([data-size]) {
+  max-height: none;
+}
+
+.std-inline-image[src=''],
+.std-inline-image:not([src]) {
+  min-width: 60px;
+  min-height: 36px;
+  background: #f5f5f5;
+  border: 1px dashed #ccc;
 }
 
 .std-inline-image.ProseMirror-selectednode {

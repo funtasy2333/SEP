@@ -12,6 +12,7 @@
  */
 
 import { CHAR_WIDTH_TWIPS } from './units'
+import { SONG_FONT_NAME } from './fonts'
 import { escapeXmlAttr, escapeXmlText, joinOrderedChildren, wrapElement, type XmlChild } from './xml'
 import type { DocxPackage } from './types'
 
@@ -177,13 +178,13 @@ function settingsXml(includeFootnotes: boolean): string {
   return XML_DECL + el
 }
 
-/** word/fontTable.xml：登记宋体、黑体、Times New Roman、Cambria Math */
+/** word/fontTable.xml：登记方正书宋简体、宋体、黑体、Times New Roman、Cambria Math */
 function fontTableXml(): string {
   const font = (name: string, charset: string, family: string) =>
     `<w:font w:name="${escapeXmlAttr(name)}"><w:charset w:val="${charset}"/>` +
     `<w:family w:val="${family}"/><w:pitch w:val="variable"/></w:font>`
   const fonts =
-    font('宋体', '86', 'auto') + font('黑体', '86', 'auto') + font('Times New Roman', '00', 'roman') + font('Cambria Math', '00', 'roman')
+    font(SONG_FONT_NAME, '86', 'auto') + font('宋体', '86', 'auto') + font('黑体', '86', 'auto') + font('Times New Roman', '00', 'roman') + font('Cambria Math', '00', 'roman')
   const NS =
     'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
     'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
