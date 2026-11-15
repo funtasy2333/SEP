@@ -269,8 +269,18 @@ function Invoke-SesMain([string]$Mode) {
         Initialize-SesRuntime
         Install-SesDependencies
         if (!(Get-SesListeners 3000).Count) {
-            Write-Host 'Building SES...'
-            Invoke-SesCommand $script:SesNode @($script:SesPnpm, '-r', 'run', 'build')
+            $needBuild = ($env:SES_FORCE_BUILD -eq '1')
+            if (-not $needBuild) {
+                & $script:SesNode (Join-Path $script:SesRoot 'scripts/build-state.cjs') 'check'
+                $needBuild = ($LASTEXITCODE -ne 0)
+            }
+            if ($needBuild) {
+                Write-Host 'Building SES server...'
+                Invoke-SesCommand $script:SesNode @($script:SesPnpm, '--filter', '@ses/server', 'run', 'build')
+                Invoke-SesCommand $script:SesNode @((Join-Path $script:SesRoot 'scripts/build-state.cjs'), 'record')
+            } else {
+                Write-Host 'Build is up to date, skipping.'
+            }
             Invoke-SesCommand $script:SesNode @((Join-Path $script:SesRoot 'scripts/backup-db.cjs'))
             $savedPort = $env:PORT
             $savedHost = $env:SES_LISTEN_HOST
