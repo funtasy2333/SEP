@@ -294,11 +294,16 @@ function onStandardTypeUpdate(type: string) {
 }
 
 let sectionObserver: IntersectionObserver | null = null
+let resizeObserver: ResizeObserver | null = null
+let lastBottomMargin: number | null = null
 const visibleSectionIds = new Set<string>()
 
-onMounted(() => {
-  const root = scrollContainerRef.value
-  if (!root || typeof IntersectionObserver === 'undefined') return
+function syncSectionObserver(root: HTMLElement, rootHeight: number): void {
+  const bottomMargin = rootHeight > 0 ? Math.max(0, Math.floor(rootHeight * 0.75)) : 0
+  if (sectionObserver && bottomMargin === lastBottomMargin) return
+  lastBottomMargin = bottomMargin
+  sectionObserver?.disconnect()
+  visibleSectionIds.clear()
   sectionObserver = new IntersectionObserver((entries) => {
     for (const entry of entries) {
       if (entry.isIntersecting) visibleSectionIds.add(entry.target.id)
@@ -308,18 +313,34 @@ onMounted(() => {
     activeSection.value = lastVisible ? lastVisible.id : sections[0].id
   }, {
     root,
-    rootMargin: '0px 0px -75% 0px',
+    rootMargin: `0px 0px -${bottomMargin}px 0px`,
     threshold: 0,
   })
   for (const section of sections) {
-    const element = document.getElementById(section.id)
+    const element = root.querySelector<HTMLElement>(`#${section.id}`) ?? document.getElementById(section.id)
     if (element) sectionObserver.observe(element)
+  }
+}
+
+onMounted(() => {
+  const root = scrollContainerRef.value
+  if (!root || typeof IntersectionObserver === 'undefined') return
+  syncSectionObserver(root, root.clientHeight)
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver((entries) => {
+      const nextHeight = root.clientHeight || entries[0]?.contentRect.height || 0
+      syncSectionObserver(root, nextHeight)
+    })
+    resizeObserver.observe(root)
   }
 })
 
 onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
   sectionObserver?.disconnect()
   sectionObserver = null
+  lastBottomMargin = null
   visibleSectionIds.clear()
 })
 </script>
