@@ -11,12 +11,13 @@
  */
 
 import { ABSTRACT_NUM_ID } from './numbering'
-import { SONG_ALL_RFONTS, SONG_MIXED_RFONTS as SONG_RFONTS } from './fonts'
 import { CHAR_WIDTH_TWIPS as CH } from './units'
 import { docDefaults, escapeXmlAttr, numPr, pPr, rPr, style, styles as stylesEl, wrapElement, type XmlAttrs, type XmlChild } from './xml'
 
 // ---------------- 字体、字号 ----------------
 
+const SONG_RFONTS = '<w:rFonts w:ascii="Times New Roman" w:eastAsia="宋体" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>'
+const SONG_ALL_RFONTS = '<w:rFonts w:ascii="宋体" w:eastAsia="宋体" w:hAnsi="宋体" w:cs="宋体"/>'
 const HEI_RFONTS = '<w:rFonts w:ascii="黑体" w:eastAsia="黑体" w:hAnsi="黑体" w:cs="黑体"/>'
 
 function szChildren(halfPoint: number): XmlChild[] {
@@ -202,7 +203,7 @@ const STYLE_SPECS: readonly StyleSpec[] = [
     name: 'SES_正文基础',
     basedOn: null,
     isDefault: true,
-    rFonts: 'songAll',
+    rFonts: 'song',
     sz: 21,
     jc: 'both',
     widowControl: true,
@@ -360,7 +361,7 @@ const FOOTNOTE_STYLE_IDS = new Set(['SesFootnoteText', 'SesTableFootnote'])
 /** docDefaults：rPrDefault 为宋体类 rFonts + lang，pPrDefault 为空 pPr（§3.1，同 gen_spike.py） */
 function buildDocDefaultsXml(): string {
   const rPrDefaultInner = rPr([
-    ['rFonts', SONG_ALL_RFONTS],
+    ['rFonts', SONG_RFONTS],
     ['lang', '<w:lang w:val="en-US" w:eastAsia="zh-CN"/>'],
   ])
   const children: XmlChild[] = [
