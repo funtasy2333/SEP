@@ -360,6 +360,7 @@ watch(
   overflow-y: auto;
   padding: 8px 8px 24px;
   scrollbar-width: thin;
+  scrollbar-gutter: stable;
 }
 .outline-body::-webkit-scrollbar { width: 8px; }
 .outline-body::-webkit-scrollbar-thumb {

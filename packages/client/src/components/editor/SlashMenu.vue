@@ -4,6 +4,7 @@
       v-if="visible"
       ref="menuRef"
       class="slash-menu"
+      :class="{ 'is-positioned': positioned }"
       :style="{ left: position.left + 'px', top: position.top + 'px' }"
     >
       <div class="slash-menu-search">
@@ -50,6 +51,7 @@ const emit = defineEmits<{
 }>()
 
 const visible = ref(false)
+const positioned = ref(false)
 const position = ref({ left: 0, top: 0 })
 const items = ref<SlashMenuItem[]>([])
 const searchQuery = ref('')
@@ -100,30 +102,38 @@ function executeItem(item: SlashMenuItem) {
 
 function close() {
   visible.value = false
+  positioned.value = false
   searchQuery.value = ''
   selectedIndex.value = 0
 }
 
-function onSlashCommand(e: Event) {
+async function onSlashCommand(e: Event) {
   const detail = (e as CustomEvent).detail
   items.value = detail.items
   position.value = detail.coords
   searchQuery.value = ''
   selectedIndex.value = 0
+  positioned.value = false
   visible.value = true
-  nextTick(() => {
-    searchInputRef.value?.focus()
-    // 调整位置防止超出视口
-    if (menuRef.value) {
-      const rect = menuRef.value.getBoundingClientRect()
-      if (rect.bottom > window.innerHeight) {
-        position.value = { ...position.value, top: position.value.top - rect.height - 30 }
-      }
-      if (rect.right > window.innerWidth) {
-        position.value = { ...position.value, left: window.innerWidth - rect.width - 8 }
-      }
+  await nextTick()
+  if (!visible.value) return
+  // 先在隐藏态测量尺寸并钳制到视口内，再显示与聚焦，避免菜单闪现后再瞬移或触发滚动
+  if (menuRef.value) {
+    const rect = menuRef.value.getBoundingClientRect()
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+    let { left, top } = position.value
+    if (rect.bottom > viewportHeight) {
+      top = Math.max(8, top - rect.height - 30)
     }
-  })
+    if (rect.right > viewportWidth) {
+      left = Math.max(8, viewportWidth - rect.width - 8)
+    }
+    position.value = { left, top }
+  }
+  positioned.value = true
+  await nextTick()
+  searchInputRef.value?.focus({ preventScroll: true })
 }
 
 function onClickOutside(e: MouseEvent) {
@@ -151,6 +161,7 @@ onBeforeUnmount(() => {
 .slash-menu {
   position: fixed;
   z-index: 9999;
+  contain: layout style;
   background: var(--ses-surface);
   border: 1px solid var(--ses-line-2);
   border-radius: 10px;
@@ -161,6 +172,9 @@ onBeforeUnmount(() => {
   flex-direction: column;
   padding: 6px;
   overflow: hidden;
+}
+.slash-menu:not(.is-positioned) {
+  visibility: hidden;
 }
 
 .slash-menu-search {

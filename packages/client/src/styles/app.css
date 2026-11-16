@@ -121,6 +121,7 @@ kbd {
 }
 
 /* ============== Generic scrollbars ============== */
+.ses-scroll { scrollbar-gutter: stable; }
 .ses-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
 .ses-scroll::-webkit-scrollbar-thumb {
   background: var(--ses-line-2);

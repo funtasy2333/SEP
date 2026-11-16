@@ -228,6 +228,7 @@ function coverageStatusLabel(status: string): string {
   display: flex;
   flex-direction: column;
   overflow: auto;
+  scrollbar-gutter: stable;
   background: var(--ses-surface, #fff);
   color: var(--ses-ink, #20222a);
   border-left: 1px solid var(--ses-line, #e4e6ed);

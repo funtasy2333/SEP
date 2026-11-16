@@ -218,17 +218,16 @@
           <button class="tbar-btn" title="在当前段落后插入图" @click="handleInsertFigure()">图片</button>
         </div>
 
-        <!-- 上下文工具：只在光标位于公式、图或表时出现 -->
-        <template v-if="cursorInFormula">
-          <span class="tbar-sep" />
-          <div class="tbar-group tbar-context" aria-label="公式">
+        <!-- 上下文工具：脱离文档流浮在工具栏右下侧，避免光标进出公式/图表/附录时撑高工具栏导致正文跳动 -->
+        <div
+          v-if="cursorInFormula || activeOrientationNodeType() || activeAppendixPos() !== undefined"
+          class="tbar-context-shelf"
+        >
+          <div v-if="cursorInFormula" class="tbar-group tbar-context" aria-label="公式">
             <span class="tbar-label">公式</span>
             <button class="tbar-btn" title="为光标所在公式添加一条式中符号说明" @click="handleAddWhereItem()">添加式中</button>
           </div>
-        </template>
-        <template v-if="activeOrientationNodeType()">
-          <span class="tbar-sep" />
-          <div class="tbar-group tbar-context" aria-label="图表版面方向">
+          <div v-if="activeOrientationNodeType()" class="tbar-group tbar-context" aria-label="图表版面方向">
             <span class="tbar-label">版面</span>
             <button
               class="tbar-btn"
@@ -243,10 +242,7 @@
               @click="setActivePageOrientation('landscape')"
             >横向</button>
           </div>
-        </template>
-        <template v-if="activeAppendixPos() !== undefined">
-          <span class="tbar-sep" />
-          <div class="tbar-group tbar-context" aria-label="附录版面方向" data-testid="appendix-orientation">
+          <div v-if="activeAppendixPos() !== undefined" class="tbar-group tbar-context" aria-label="附录版面方向" data-testid="appendix-orientation">
             <span class="tbar-label">附录版面</span>
             <button
               class="tbar-btn"
@@ -261,7 +257,7 @@
               @click="setActiveAppendixOrientation('landscape')"
             >横向</button>
           </div>
-        </template>
+        </div>
 
         <div class="tbar-search">
           <el-input
@@ -3010,11 +3006,27 @@ function handleXmlFileImport(event: Event) {
 .tbar-btn.icon-btn { width: 28px; padding: 0; justify-content: center; }
 .tbar-group :deep(.tbar-btn.icon-btn .el-icon) { font-size: 15px; color: inherit; }
 
-/* 上下文工具：浅色底与常驻工具区分，提示它们只作用于当前公式、图或表 */
+/* 上下文工具：脱离文档流浮在工具栏右下侧，与常驻工具区分且不撑高工具栏 */
+.tbar-context-shelf {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 16px;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: calc(100% - 32px);
+  pointer-events: none;
+}
 .tbar-context {
-  padding: 0 4px;
+  pointer-events: auto;
+  padding: 0 6px;
+  border: 1px solid color-mix(in oklch, var(--ses-accent) 24%, var(--ses-line));
   border-radius: 8px;
-  background: var(--ses-accent-soft);
+  background: color-mix(in oklch, var(--ses-surface) 92%, var(--ses-accent-soft));
+  box-shadow: var(--ses-shadow-2);
+  backdrop-filter: blur(8px);
 }
 .tbar-context .tbar-label { color: var(--ses-accent); }
 
