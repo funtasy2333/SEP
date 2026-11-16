@@ -86,14 +86,51 @@ const meta = {
   regionName: '', coverDesignation: '',
 }
 
+function sampleTable(id: string, cellText: string, orientation: 'portrait' | 'landscape' = 'portrait') {
+  return {
+    type: 'stdTable',
+    attrs: { nodeId: id, orientation },
+    content: [
+      { type: 'tableCaption', content: [text(`表-${id}`)] },
+      {
+        type: 'table',
+        content: [
+          {
+            type: 'tableRow',
+            content: [{ type: 'tableCell', content: [paragraph(`${id}-p`, text(cellText))] }],
+          },
+        ],
+      },
+    ],
+  }
+}
+
+function sampleFigure(id: string, captionText: string, orientation: 'portrait' | 'landscape' = 'portrait') {
+  return {
+    type: 'figure',
+    attrs: { nodeId: id, orientation },
+    content: [
+      { type: 'figureImage', attrs: { src: 'data:image/png;base64,AA==', alt: captionText } },
+      { type: 'figureCaption', content: [text(captionText)] },
+    ],
+  }
+}
+
 function riskDocument() {
   return {
     type: 'doc', content: [
-      chapter('c1', '范围', 'scope', paragraph('p1', text('本文件规定了检验方法。'))),
+      chapter('c1', '范围', 'scope',
+        paragraph('p1', text('本文件规定了检验方法。')),
+        sampleTable('body-t1', '正文表内容'),
+        sampleFigure('body-f1', '正文图题'),
+      ),
       { type: 'appendix', attrs: { nodeId: 'app-b', normative: false }, content: [
         { type: 'appendixLabel', content: [text('（资料性）')] },
         { type: 'appendixTitle', content: [text('方法验证汇总')] },
         paragraph('lead', text('方法参数及验证结果见表B.1。')),
+        sampleTable('app-t1', '附录纵表内容', 'portrait'),
+        sampleTable('app-t2', '附录横表内容', 'landscape'),
+        sampleFigure('app-f1', '附录图题', 'portrait'),
       ] },
     ],
   }
@@ -160,10 +197,26 @@ function group(root: HTMLElement) {
   return root.querySelector<HTMLElement>('[data-testid="appendix-orientation"]')
 }
 
-function button(root: HTMLElement, label: string) {
-  const found = [...(group(root)?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find((item) => item.textContent?.trim() === label)
+function nodeGroup(root: HTMLElement) {
+  return root.querySelector<HTMLElement>('[data-testid="node-orientation"]')
+}
+
+function buttonIn(container: HTMLElement | null, label: string) {
+  const found = [...(container?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find((item) => item.textContent?.trim() === label)
   if (!found) throw new Error(`button missing: ${label}`)
   return found
+}
+
+function button(root: HTMLElement, label: string) {
+  return buttonIn(group(root), label)
+}
+
+function nodeAttrsById(editor: any, nodeId: string) {
+  let attrs: any = null
+  editor.state.doc.descendants((node: any) => {
+    if (node.attrs?.nodeId === nodeId) attrs = node.attrs
+  })
+  return attrs
 }
 
 function appendixAttrs(editor: any) {
@@ -182,10 +235,12 @@ describe('EditorView 附录版面（#75）', () => {
       editor.commands.setTextSelection(positionOf(editor, '本文件规定'))
       await flush()
       expect(group(view.root)).toBeNull()
+      expect(nodeGroup(view.root)).toBeNull()
 
       editor.commands.setTextSelection(positionOf(editor, '方法参数'))
       await flush()
       expect(group(view.root)).not.toBeNull()
+      expect(group(view.root)?.querySelector('.tbar-label')?.textContent?.trim()).toBe('整篇附录')
       expect(button(view.root, '纵向').classList.contains('is-active')).toBe(true)
 
       button(view.root, '横向').click()
@@ -205,6 +260,73 @@ describe('EditorView 附录版面（#75）', () => {
       await flush()
       expect(appendixAttrs(editor).orientation).toBeNull()
       expect(Object.prototype.hasOwnProperty.call(pmToIr(editor.getJSON()).doc.appendices[0]!, 'orientation')).toBe(false)
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('明确区分当前图/当前表与整篇附录，并在横向附录内锁定子图表方向且保留原值', async () => {
+    const view = await mountEditor()
+    try {
+      const editor = view.editor
+
+      // 1. 正文表与正文图：显示当前表 / 当前图，不显示整篇附录
+      editor.commands.setTextSelection(positionOf(editor, '正文表内容'))
+      await flush()
+      expect(group(view.root)).toBeNull()
+      expect(nodeGroup(view.root)?.querySelector('.tbar-label')?.textContent?.trim()).toBe('当前表')
+      expect(buttonIn(nodeGroup(view.root), '纵向').classList.contains('is-active')).toBe(true)
+      buttonIn(nodeGroup(view.root), '横向').click()
+      await flush()
+      expect(nodeAttrsById(editor, 'body-t1').orientation).toBe('landscape')
+
+      editor.commands.setTextSelection(positionOf(editor, '正文图题'))
+      await flush()
+      expect(group(view.root)).toBeNull()
+      expect(nodeGroup(view.root)?.querySelector('.tbar-label')?.textContent?.trim()).toBe('当前图')
+
+      // 2. 纵向附录内的表：两者同时存在但作用域标签清晰，各自可独立切换
+      editor.commands.setTextSelection(positionOf(editor, '附录纵表内容'))
+      await flush()
+      expect(nodeGroup(view.root)?.querySelector('.tbar-label')?.textContent?.trim()).toBe('当前表')
+      expect(group(view.root)?.querySelector('.tbar-label')?.textContent?.trim()).toBe('整篇附录')
+      expect(buttonIn(nodeGroup(view.root), '纵向').disabled).toBe(false)
+      expect(buttonIn(nodeGroup(view.root), '纵向').classList.contains('is-active')).toBe(true)
+
+      // 3. 将整篇附录切换为横向：内部图表锁定为随附录横排，但保留自身原属性
+      button(view.root, '横向').click()
+      await flush()
+      expect(appendixAttrs(editor).orientation).toBe('landscape')
+      expect(buttonIn(nodeGroup(view.root), '纵向').disabled).toBe(true)
+      expect(buttonIn(nodeGroup(view.root), '横向').disabled).toBe(true)
+      expect(buttonIn(nodeGroup(view.root), '纵向').classList.contains('is-active')).toBe(false)
+      expect(buttonIn(nodeGroup(view.root), '横向').classList.contains('is-active')).toBe(true)
+      expect(view.root.querySelector('[data-testid="orientation-locked-hint"]')?.textContent?.trim()).toBe('随附录')
+
+      // 点击已禁用的纵向按钮不会改写子表属性
+      buttonIn(nodeGroup(view.root), '纵向').click()
+      await flush()
+      expect(nodeAttrsById(editor, 'app-t1').orientation).toBe('portrait')
+
+      // 附录内的图同样锁定
+      editor.commands.setTextSelection(positionOf(editor, '附录图题'))
+      await flush()
+      expect(nodeGroup(view.root)?.querySelector('.tbar-label')?.textContent?.trim()).toBe('当前图')
+      expect(buttonIn(nodeGroup(view.root), '纵向').disabled).toBe(true)
+      expect(buttonIn(nodeGroup(view.root), '横向').classList.contains('is-active')).toBe(true)
+
+      // 4. 切回纵向附录：解锁并恢复各子图表原有方向（app-t1 保持纵向，app-t2 保持横向）
+      button(view.root, '纵向').click()
+      await flush()
+      editor.commands.setTextSelection(positionOf(editor, '附录纵表内容'))
+      await flush()
+      expect(buttonIn(nodeGroup(view.root), '纵向').disabled).toBe(false)
+      expect(buttonIn(nodeGroup(view.root), '纵向').classList.contains('is-active')).toBe(true)
+
+      editor.commands.setTextSelection(positionOf(editor, '附录横表内容'))
+      await flush()
+      expect(buttonIn(nodeGroup(view.root), '横向').disabled).toBe(false)
+      expect(buttonIn(nodeGroup(view.root), '横向').classList.contains('is-active')).toBe(true)
     } finally {
       view.unmount()
     }

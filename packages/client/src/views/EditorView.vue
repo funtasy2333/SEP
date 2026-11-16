@@ -218,36 +218,51 @@
           <button class="tbar-btn" title="在当前段落后插入图" @click="handleInsertFigure()">图片</button>
         </div>
 
-        <!-- 上下文工具：只在光标位于公式、图或表时出现 -->
-        <template v-if="cursorInFormula">
-          <span class="tbar-sep" />
-          <div class="tbar-group tbar-context" aria-label="公式">
+        <!-- 上下文工具：脱离文档流浮在工具栏右下侧，避免光标进出公式/图表/附录时撑高工具栏导致正文跳动 -->
+        <div
+          v-if="cursorInFormula || activeOrientationNodeType() || activeAppendixPos() !== undefined"
+          class="tbar-context-shelf"
+        >
+          <div v-if="cursorInFormula" class="tbar-group tbar-context" aria-label="公式">
             <span class="tbar-label">公式</span>
             <button class="tbar-btn" title="为光标所在公式添加一条式中符号说明" @click="handleAddWhereItem()">添加式中</button>
           </div>
-        </template>
-        <template v-if="activeOrientationNodeType()">
-          <span class="tbar-sep" />
-          <div class="tbar-group tbar-context" aria-label="图表版面方向">
-            <span class="tbar-label">版面</span>
+          <div
+            v-if="activeOrientationNodeType()"
+            class="tbar-group tbar-context"
+            :class="{ 'is-locked': isOrientationLockedByAppendix() }"
+            :aria-label="activeOrientationLabel()"
+            data-testid="node-orientation"
+          >
+            <span class="tbar-label">{{ activeOrientationShortLabel() }}</span>
             <button
               class="tbar-btn"
               :class="{ 'is-active': isActivePageOrientation('portrait') }"
-              title="将所选图或表设为纵向页面"
+              :disabled="isOrientationLockedByAppendix()"
+              :title="orientationButtonTitle('portrait')"
               @click="setActivePageOrientation('portrait')"
             >纵向</button>
             <button
               class="tbar-btn"
               :class="{ 'is-active': isActivePageOrientation('landscape') }"
-              title="将所选图或表设为横向页面"
+              :disabled="isOrientationLockedByAppendix()"
+              :title="orientationButtonTitle('landscape')"
               @click="setActivePageOrientation('landscape')"
             >横向</button>
+            <span
+              v-if="isOrientationLockedByAppendix()"
+              class="tbar-context-hint"
+              data-testid="orientation-locked-hint"
+              :title="orientationLockedHint()"
+            >随附录</span>
           </div>
-        </template>
-        <template v-if="activeAppendixPos() !== undefined">
-          <span class="tbar-sep" />
-          <div class="tbar-group tbar-context" aria-label="附录版面方向" data-testid="appendix-orientation">
-            <span class="tbar-label">附录版面</span>
+          <div
+            v-if="activeAppendixPos() !== undefined"
+            class="tbar-group tbar-context tbar-context-section"
+            aria-label="附录版面方向"
+            data-testid="appendix-orientation"
+          >
+            <span class="tbar-label" title="控制整个附录的导出页面方向（仅用于 PDF/HTML 与 DOCX，不支持 XML）">整篇附录</span>
             <button
               class="tbar-btn"
               :class="{ 'is-active': activeAppendixOrientation() === 'portrait' }"
@@ -260,8 +275,13 @@
               title="整个附录（编号、标题、引导文字和图表）从横向页面起排；仅用于 PDF/HTML 与 DOCX，XML 无法表达附录方向"
               @click="setActiveAppendixOrientation('landscape')"
             >横向</button>
+            <span
+              v-if="activeAppendixOrientation() === 'landscape'"
+              class="tbar-context-hint"
+              title="整节横向仅用于 PDF/HTML 与 DOCX；如需导出 XML 请改回纵向"
+            >仅PDF/DOCX</span>
           </div>
-        </template>
+        </div>
 
         <div class="tbar-search">
           <el-input
@@ -393,7 +413,7 @@
           <li><kbd>/</kbd> 智能插入菜单</li>
         </ul>
         <h4>文档结构</h4>
-        <p>界面分三层：顶栏是整份文件的操作（源码、导入、版本历史、质量检查、导出）；工具栏只处理正文，「设为」改变当前段落的角色，「插入」加入新的内容要素；光标位于公式、图或表时，工具栏右侧会出现对应的上下文工具（添加式中、纵向/横向版面）；光标位于附录内时，可用「附录版面」把整个附录设为横向页面。</p>
+        <p>界面分三层：顶栏是整份文件的操作（源码、导入、版本历史、质量检查、导出）；工具栏只处理正文，「设为」改变当前段落的角色，「插入」加入新的内容要素；光标位于公式、图或表时，工具栏右下侧会出现对应的上下文工具（公式、当前图/当前表方向）；光标位于附录内时，可用「整篇附录」把整个附录设为横向页面（仅用于 PDF/HTML 与 DOCX，此时内部图表随附录统一横排）。</p>
         <p>使用左侧「文档结构」面板的「添加」按钮添加章节结构（前言、引言、章、附录、参考文献）；工具栏最左侧的按钮可隐藏或显示该面板。点击正文段落或选中其中的文字后，使用“条”“无题条”设置整段格式；新条之后的正文归入该条，直到下一个同级条。一级条置于章或附录内，其他级别置于上一级条内。含子条时保留原层级，可切换有题/无题；先调整子条结构再改层级或段落。需要新条时，先回车建立空段再设置格式；光标在表格内时选择“条”“无题条”，会在表格之后新建条，也可用“表格”菜单的“表格后插入段落”（Ctrl/Cmd+Enter）在表格后继续书写。</p>
         <p>粘贴：在 SES 内复制的内容保留格式和结构；从 Word、网页等外部来源粘贴时自动转为纯文本，直接插入光标所在的段落并沿用该处格式，多行合并为一段，不会新建段落或条目（需要时按回车）。需要去掉格式时，用 Ctrl/Cmd+Shift+V 按纯文本粘贴。</p>
         <p>术语中英文名称同列显示：Tab 从中文名进入英文名，Enter 进入定义；在定义中 Enter 新建续段，末尾空续段再次 Enter 退出术语。使用工具栏「设为」设置列项，「插入」加入注、示例、术语、公式、表格、图片等内容要素。一组列项被段落或二级列项隔开后，在「列项」菜单中选「继续前一列项编号」接着编号（如 a）、b） 后从 c） 起），选「重新编号」则从头开始。选中图或表后，可切换纵向或横向版面；宽表所在的附录可整体设为横向，附录标题、引导文字与图表同在横页，不再单独占一张竖页。</p>
@@ -833,14 +853,41 @@ function setActiveAppendixOrientation(orientation: 'portrait' | 'landscape') {
   }).run()
 }
 
+function isOrientationLockedByAppendix(): boolean {
+  return Boolean(activeOrientationNodeType() && activeAppendixOrientation() === 'landscape')
+}
+
+function activeOrientationShortLabel(): string {
+  return activeOrientationNodeType() === 'figure' ? '当前图' : '当前表'
+}
+
+function activeOrientationLabel(): string {
+  return activeOrientationNodeType() === 'figure' ? '当前图版面方向' : '当前表版面方向'
+}
+
+function orientationLockedHint(): string {
+  const target = activeOrientationNodeType() === 'figure' ? '图' : '表'
+  return `当前附录已设为整节横排，内部图表统一按横向排版（仅 PDF/HTML 与 DOCX 生效）；如需仅此${target}横排，请先将整篇附录切回纵向`
+}
+
+function orientationButtonTitle(orientation: 'portrait' | 'landscape'): string {
+  if (isOrientationLockedByAppendix()) return orientationLockedHint()
+  const target = activeOrientationNodeType() === 'figure' ? '图' : '表'
+  return orientation === 'landscape'
+    ? `将当前${target}设为横向页面`
+    : `将当前${target}设为纵向页面`
+}
+
 function isActivePageOrientation(orientation: 'portrait' | 'landscape'): boolean {
   const nodeType = activeOrientationNodeType()
   const currentEditor = editor.value
   if (!nodeType || !currentEditor) return false
-  return currentEditor.getAttributes(nodeType).orientation === orientation
+  if (isOrientationLockedByAppendix()) return orientation === 'landscape'
+  return normalizePageOrientation(currentEditor.getAttributes(nodeType).orientation) === orientation
 }
 
 function setActivePageOrientation(orientation: 'portrait' | 'landscape') {
+  if (isOrientationLockedByAppendix()) return
   const nodeType = activeOrientationNodeType()
   if (nodeType) editor.value?.chain().focus().updateAttributes(nodeType, { orientation }).run()
 }
@@ -3010,13 +3057,48 @@ function handleXmlFileImport(event: Event) {
 .tbar-btn.icon-btn { width: 28px; padding: 0; justify-content: center; }
 .tbar-group :deep(.tbar-btn.icon-btn .el-icon) { font-size: 15px; color: inherit; }
 
-/* 上下文工具：浅色底与常驻工具区分，提示它们只作用于当前公式、图或表 */
+/* 上下文工具：脱离文档流浮在工具栏右下侧，与常驻工具区分且不撑高工具栏 */
+.tbar-context-shelf {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 16px;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: calc(100% - 32px);
+  pointer-events: none;
+}
 .tbar-context {
-  padding: 0 4px;
+  pointer-events: auto;
+  padding: 0 6px;
+  border: 1px solid color-mix(in oklch, var(--ses-accent) 24%, var(--ses-line));
   border-radius: 8px;
-  background: var(--ses-accent-soft);
+  background: color-mix(in oklch, var(--ses-surface) 92%, var(--ses-accent-soft));
+  box-shadow: var(--ses-shadow-2);
+  backdrop-filter: blur(8px);
 }
 .tbar-context .tbar-label { color: var(--ses-accent); }
+.tbar-context-section {
+  border-color: var(--ses-line-2);
+  background: color-mix(in oklch, var(--ses-surface) 94%, var(--ses-surface-2));
+}
+.tbar-context-section .tbar-label { color: var(--ses-ink-2); }
+.tbar-context.is-locked .tbar-btn.is-active[disabled] {
+  opacity: 0.72;
+}
+.tbar-context-hint {
+  margin: 0 2px 0 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--ses-surface-2);
+  color: var(--ses-ink-3);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  user-select: none;
+}
 
 .format-group strong, .format-group em, .format-group u, .format-group s {
   font-family: var(--ses-font-zh-hei);
