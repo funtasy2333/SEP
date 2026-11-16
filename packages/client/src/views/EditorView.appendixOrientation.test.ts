@@ -270,9 +270,11 @@ describe('EditorView 附录版面（#75）', () => {
     try {
       const editor = view.editor
 
-      // 1. 正文表与正文图：显示当前表 / 当前图，不显示整篇附录
+      // 1. 正文表与正文图：显示当前表 / 当前图，不显示整篇附录，且上下文浮架锚定在编辑区 .ed-main 内（不遮挡右侧栏）
       editor.commands.setTextSelection(positionOf(editor, '正文表内容'))
       await flush()
+      expect(view.root.querySelector('.ed-main > .tbar-context-shelf')).not.toBeNull()
+      expect(view.root.querySelector('.ed-toolbar .tbar-context-shelf')).toBeNull()
       expect(group(view.root)).toBeNull()
       expect(nodeGroup(view.root)?.querySelector('.tbar-label')?.textContent?.trim()).toBe('当前表')
       expect(buttonIn(nodeGroup(view.root), '纵向').classList.contains('is-active')).toBe(true)
