@@ -347,7 +347,7 @@ const STYLE_SPECS: readonly StyleSpec[] = [
   { id: 'SesCoverReplaces', name: 'SES_封面代替文件编号', rFonts: 'hei', sz: 21, jc: 'right' },
   { id: 'SesCoverRule', name: 'SES_封面横线', pBdr: PBDR_COVER_RULE },
   { id: 'SesCoverName', name: 'SES_封面文件名称', rFonts: 'hei', sz: 52, jc: 'center', snapToGridOff: true, spacing: SPACING_COVER_TITLE },
-  { id: 'SesCoverEnglish', name: 'SES_封面英文译名', rFonts: 'hei', sz: 28, jc: 'center', snapToGridOff: true, spacing: SPACING_COVER_ENGLISH },
+  { id: 'SesCoverEnglish', name: 'SES_封面英文译名', rFonts: 'song', sz: 28, jc: 'center', snapToGridOff: true, spacing: SPACING_COVER_ENGLISH },
   { id: 'SesCoverConsistency', name: 'SES_封面一致性程度', rFonts: 'hei', sz: 28, jc: 'center', snapToGridOff: true, spacing: SPACING_COVER_CONSISTENCY },
   { id: 'SesCoverStage', name: 'SES_封面阶段标识', rFonts: 'hei', sz: 28, jc: 'center' },
   { id: 'SesCoverPatent', name: 'SES_封面专利说明', rFonts: 'song', sz: 21, jc: 'center' },

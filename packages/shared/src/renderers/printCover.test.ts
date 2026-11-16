@@ -34,6 +34,7 @@ describe('PDF 打印封面', () => {
     expect(cover).toContain('data:image/png;base64,')
     expect(html.indexOf('data-type="cover"')).toBeLessThan(html.indexOf('data-type="toc"'))
     expect(html.indexOf('data-type="toc"')).toBeLessThan(html.indexOf('<div class="ses-body-content">'))
+    expect(html).toContain('.ses-cover-english { font-family: var(--ses-song); }')
   })
 
   it.each([

@@ -402,6 +402,16 @@ describe('styles.ts：字体字号（黑体/宋体、五号/小五等）', () =>
     expect(findChild(pPr, 'w:jc')?.attrs['w:val']).toBe('right')
   })
 
+  it('SesCoverEnglish：Times New Roman（西文）/宋体 四号 28，居中', () => {
+    const rPr = findChild(styles.get('SesCoverEnglish')!, 'w:rPr')!
+    const rFonts = findChild(rPr, 'w:rFonts')!
+    expect(rFonts.attrs['w:ascii']).toBe('Times New Roman')
+    expect(rFonts.attrs['w:hAnsi']).toBe('Times New Roman')
+    expect(rFonts.attrs['w:cs']).toBe('Times New Roman')
+    expect(rFonts.attrs['w:eastAsia']).toBe('宋体')
+    expect(szVal('SesCoverEnglish')).toBe('28')
+  })
+
   it('非国标发布机构按黑体 14 磅普通字，不沿用宋体小二粗体', () => {
     const rPr = findChild(styles.get('SesCoverIssuer')!, 'w:rPr')!
     const rFonts = findChild(rPr, 'w:rFonts')
