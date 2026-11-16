@@ -106,6 +106,7 @@ it('文件设置在横屏容器（1200x600）下按容器高度计算像素 root
 
   let rootWidth = 1200
   let rootHeight = 600
+  let pageHeight = 500
   let sectionTops: Record<string, number> = {
     'settings-basic': 100,
     'settings-classification': 520,
@@ -172,11 +173,20 @@ it('文件设置在横屏容器（1200x600）下按容器高度计算像素 root
     unobserve() {}
   }
 
+  let isMobile = false
+  let mediaChange: (() => void) | null = null
+  const mediaQuery = {
+    get matches() { return isMobile },
+    addEventListener: vi.fn((_event: string, handler: () => void) => { mediaChange = handler }),
+    removeEventListener: vi.fn(),
+  }
+  vi.stubGlobal('matchMedia', vi.fn(() => mediaQuery))
+
   vi.stubGlobal('IntersectionObserver', SpecIntersectionObserver)
   vi.stubGlobal('ResizeObserver', MockResizeObserver)
 
   const clientHeightSpy = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) {
-    return this.classList.contains('settings-scroll') ? rootHeight : 0
+    return this.classList.contains('settings-scroll') ? rootHeight : this.classList.contains('settings-page') ? pageHeight : 0
   })
 
   const root = document.createElement('div')
@@ -258,8 +268,27 @@ it('文件设置在横屏容器（1200x600）下按容器高度计算像素 root
     await nextTick()
     expect(links[3]?.classList.contains('is-active')).toBe(true)
 
-    app.unmount()
+    // 移动布局由外层页面滚动，切换断点时必须观察外层并重新计算其高度。
+    const pageEl = root.querySelector('.settings-page')!
+    isMobile = true
+    mediaChange!()
     expect(observers[1]!.disconnected).toBe(true)
+    expect(observers[2]!.options.root).toBe(pageEl)
+    expect(observers[2]!.targets).toHaveLength(4)
+    expect(observers[2]!.options.rootMargin).toBe('0px 0px -375px 0px')
+    pageHeight = 600
+    settingsResize!.callback([{ target: pageEl, contentRect: { height: 600 } } as unknown as ResizeObserverEntry], {} as ResizeObserver)
+    expect(observers[2]!.disconnected).toBe(true)
+    expect(observers[3]!.options.root).toBe(pageEl)
+    expect(observers[3]!.options.rootMargin).toBe('0px 0px -450px 0px')
+    isMobile = false
+    mediaChange!()
+    expect(observers[3]!.disconnected).toBe(true)
+    expect(observers[4]!.options.root).toBe(scrollEl)
+
+    app.unmount()
+    expect(observers[4]!.disconnected).toBe(true)
+    expect(mediaQuery.removeEventListener).toHaveBeenCalled()
     expect(settingsResize!.disconnected).toBe(true)
   } finally {
     clientHeightSpy.mockRestore()

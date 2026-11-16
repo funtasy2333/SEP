@@ -9,3 +9,8 @@ pnpm --filter @ses/client dev --host 127.0.0.1 --port 5175 --strictPort
 另开终端运行 `pnpm --filter @ses/client test:table-layout`。需要本机可运行项目服务端依赖的 Playwright Chromium。可用 `SES_TEST_URL` 指向其他 Vite 地址下的 `/browser-tests/`，用 `SES_SCREENSHOT` 指定截图路径。
 
 测试使用脱敏且仅保留布局相关字段的 15 列合并表结构，不连接或改写业务文档；检查不同正文宽度、跨列结构、名义列宽、鼠标拖拽以及超宽像素列的保留行为。超宽显式列宽仍可能超出正文，属于既有拖拽语义。
+
+
+# 上下文工具与侧栏回归
+
+以上述命令启动 Vite 后，运行 `pnpm --filter @ses/client test:context-shelf`。测试在真实编辑器中打开附录公式、版本与质量检查面板，验证工具并存、画布位置和侧栏按钮；使用拦截的内存文档，不连接业务文档。可通过 `SES_TEST_ORIGIN` 指定 Vite 地址，通过 `CHROMIUM_PATH` 指定系统 Chromium。
