@@ -95,6 +95,15 @@ const mathfieldRef = ref<MathfieldLike | null>(null)
 
 const { nextZIndex } = useZIndex()
 
+let keyboardAdjustFrame: number | null = null
+
+function cancelKeyboardAdjustFrame(): void {
+  if (keyboardAdjustFrame !== null) {
+    cancelAnimationFrame(keyboardAdjustFrame)
+    keyboardAdjustFrame = null
+  }
+}
+
 /**
  * MathLive 的屏幕键盘挂在 body 上，默认 z-index 105，低于 el-dialog 的遮罩（2000 起）：
  * 键盘被遮罩盖住，点按键实际点在遮罩上，弹窗随之关闭。打开时把键盘层级抬到弹窗之上。
@@ -105,6 +114,7 @@ function raiseVirtualKeyboard(): void {
 }
 
 function releaseVirtualKeyboard(): void {
+  cancelKeyboardAdjustFrame()
   const keyboard = window.mathVirtualKeyboard
   keyboard?.removeEventListener('geometrychange', fitDialogAboveKeyboard)
   keyboard?.hide()
@@ -112,8 +122,8 @@ function releaseVirtualKeyboard(): void {
 }
 
 /**
- * 键盘从底部弹出会盖住弹窗下半部（含「确定」）。给遮罩留出键盘高度的底部空间，
- * 并把弹窗上移到底部露出；弹窗放不下时以输入框不被移出视口为限。
+ * 键盘从底部弹出会盖住弹窗下半部（含「确定」）。先集中读取几何信息，再写入样式，
+ * 并把 scrollTop 调整放到下一帧，避免「先写后读再写」触发强制同步回流。
  */
 function fitDialogAboveKeyboard(): void {
   const field = mathfieldRef.value
@@ -121,12 +131,21 @@ function fitDialogAboveKeyboard(): void {
   const dialog = field?.closest<HTMLElement>('.el-dialog')
   const keyboard = window.mathVirtualKeyboard
   if (!field || !overlay || !dialog || !keyboard) return
+  cancelKeyboardAdjustFrame()
   const height = keyboard.visible ? keyboard.boundingRect.height : 0
+  let shift = 0
+  if (height > 0) {
+    const viewportHeight = window.innerHeight
+    const covered = dialog.getBoundingClientRect().bottom - (viewportHeight - height)
+    shift = Math.min(covered, field.getBoundingClientRect().top - 8)
+  }
   overlay.style.paddingBottom = height > 0 ? `${height}px` : ''
-  if (height <= 0) return
-  const covered = dialog.getBoundingClientRect().bottom - (window.innerHeight - height)
-  const shift = Math.min(covered, field.getBoundingClientRect().top - 8)
-  if (shift > 0) overlay.scrollTop += shift
+  if (shift > 0) {
+    keyboardAdjustFrame = requestAnimationFrame(() => {
+      keyboardAdjustFrame = null
+      overlay.scrollTop += shift
+    })
+  }
 }
 
 const complexHint = computed(() => isComplexInlineLatex(source.value))

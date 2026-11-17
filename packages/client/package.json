@@ -9,7 +9,8 @@
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:table-layout": "node browser-tests/table-fit.mjs"
+    "test:table-layout": "node browser-tests/table-fit.mjs",
+    "test:context-shelf": "node browser-tests/context-shelf.mjs"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",

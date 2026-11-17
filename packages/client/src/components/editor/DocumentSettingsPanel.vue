@@ -1,5 +1,5 @@
 <template>
-  <main class="settings-page ses-scroll" aria-label="文件设置">
+  <main ref="pageRef" class="settings-page ses-scroll" aria-label="文件设置">
     <div class="settings-layout">
       <aside class="settings-rail">
         <div class="rail-heading">
@@ -26,7 +26,7 @@
         </div>
       </aside>
 
-      <div class="settings-scroll" @scroll="onScroll">
+      <div ref="scrollContainerRef" class="settings-scroll">
         <header class="settings-heading">
           <div>
             <div class="settings-eyebrow">DOCUMENT PROFILE</div>
@@ -215,7 +215,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   ArrowRight, Calendar, CircleCheckFilled, CircleCloseFilled, CollectionTag,
   Grid, InfoFilled, OfficeBuilding, Select, Setting,
@@ -247,6 +247,8 @@ const sections = [
   { id: 'settings-organizations', number: '04', label: '单位信息' },
 ]
 const activeSection = ref(sections[0].id)
+const scrollContainerRef = ref<HTMLElement | null>(null)
+const pageRef = ref<HTMLElement | null>(null)
 const knownTypes = new Set<string>(TYPE_DEFS.map((type) => type.id))
 const knownStages = new Set<string>(STAGES)
 const supportsCustomCoverDesignation = computed(() => getCoverDesignationParts(props.draft.standardType) !== undefined)
@@ -292,15 +294,68 @@ function onStandardTypeUpdate(type: string) {
   designationDraft.changeType(type)
 }
 
-function onScroll(event: Event) {
-  const container = event.currentTarget as HTMLElement
-  let current = sections[0].id
+let sectionObserver: IntersectionObserver | null = null
+let resizeObserver: ResizeObserver | null = null
+let lastBottomMargin: number | null = null
+let lastRoot: HTMLElement | null = null
+let mobileQuery: MediaQueryList | null = null
+const visibleSectionIds = new Set<string>()
+
+function syncSectionObserver(root: HTMLElement, rootHeight: number): void {
+  const bottomMargin = rootHeight > 0 ? Math.max(0, Math.floor(rootHeight * 0.75)) : 0
+  if (sectionObserver && root === lastRoot && bottomMargin === lastBottomMargin) return
+  lastRoot = root
+  lastBottomMargin = bottomMargin
+  sectionObserver?.disconnect()
+  visibleSectionIds.clear()
+  sectionObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) visibleSectionIds.add(entry.target.id)
+      else visibleSectionIds.delete(entry.target.id)
+    }
+    const lastVisible = [...sections].reverse().find((section) => visibleSectionIds.has(section.id))
+    activeSection.value = lastVisible ? lastVisible.id : sections[0].id
+  }, {
+    root,
+    rootMargin: `0px 0px -${bottomMargin}px 0px`,
+    threshold: 0,
+  })
   for (const section of sections) {
-    const element = document.getElementById(section.id)
-    if (element && element.getBoundingClientRect().top <= container.getBoundingClientRect().top + 150) current = section.id
+    const element = scrollContainerRef.value?.querySelector<HTMLElement>(`#${section.id}`)
+    if (element) sectionObserver.observe(element)
   }
-  activeSection.value = current
 }
+
+function refreshSectionObserver(): void {
+  const root = mobileQuery?.matches ? pageRef.value : scrollContainerRef.value
+  if (root) syncSectionObserver(root, root.clientHeight)
+}
+
+onMounted(() => {
+  const scrollContainer = scrollContainerRef.value
+  const page = pageRef.value
+  if (!scrollContainer || !page || typeof IntersectionObserver === 'undefined') return
+  mobileQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 760px)') : null
+  mobileQuery?.addEventListener('change', refreshSectionObserver)
+  refreshSectionObserver()
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(refreshSectionObserver)
+    resizeObserver.observe(scrollContainer)
+    resizeObserver.observe(page)
+  }
+})
+
+onBeforeUnmount(() => {
+  mobileQuery?.removeEventListener('change', refreshSectionObserver)
+  mobileQuery = null
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  sectionObserver?.disconnect()
+  sectionObserver = null
+  lastBottomMargin = null
+  lastRoot = null
+  visibleSectionIds.clear()
+})
 </script>
 
 <style scoped>
@@ -322,7 +377,7 @@ function onScroll(event: Event) {
 .rail-note { display: flex; gap: 8px; margin: 12px 2px 0; padding: 11px 10px; border: 1px solid var(--ses-line); border-radius: 9px; background: var(--ses-surface); }
 .note-icon { flex: 0 0 auto; margin-top: 1px; color: var(--ses-accent); font-size: 14px; }
 .rail-note p { margin: 0; color: var(--ses-ink-3); font-size: 10.5px; line-height: 1.65; }
-.settings-scroll { min-width: 0; min-height: 0; max-height: 100%; overflow: auto; padding: 30px clamp(18px, 4vw, 56px) 28px; scroll-behavior: smooth; }
+.settings-scroll { min-width: 0; min-height: 0; max-height: 100%; overflow: auto; scrollbar-gutter: stable; padding: 30px clamp(18px, 4vw, 56px) 28px; scroll-behavior: smooth; }
 .settings-heading { max-width: 940px; display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; margin: 0 auto 20px; }
 .settings-eyebrow { color: var(--ses-accent); font: 650 9.5px var(--ses-font-mono); letter-spacing: .11em; }
 .settings-heading h1 { margin: 5px 0 4px; color: var(--ses-ink); font-size: 23px; letter-spacing: -.025em; }

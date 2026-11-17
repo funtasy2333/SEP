@@ -656,6 +656,7 @@ async function compareSelected() {
 .version-list {
   flex: 1;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: 8px;
 }
 
