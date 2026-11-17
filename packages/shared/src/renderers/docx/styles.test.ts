@@ -363,8 +363,10 @@ describe('styles.ts：字体字号（黑体/宋体、五号/小五等）', () =>
     return rPr && findChild(rPr, 'w:sz')?.attrs['w:val']
   }
 
-  it('SesNormal：Times New Roman/宋体，五号 21', () => {
-    expect(rFontsAscii('SesNormal')).toBe('Times New Roman')
+  it('SesNormal：中英文、数字均使用宋体，五号 21', () => {
+    expect(rFontsOf(styles.get('SesNormal')!)?.attrs).toEqual({
+      'w:ascii': '宋体', 'w:eastAsia': '宋体', 'w:hAnsi': '宋体', 'w:cs': '宋体',
+    })
     expect(szVal('SesNormal')).toBe('21')
   })
 
@@ -439,12 +441,14 @@ describe('styles.ts：字体字号（黑体/宋体、五号/小五等）', () =>
 })
 
 describe('styles.ts：docDefaults', () => {
-  it('rPrDefault 为宋体 + lang，pPrDefault 为空 pPr', () => {
+  it('rPrDefault 为宋体（中英文均宋体）+ lang，pPrDefault 为空 pPr', () => {
     const root = parseXml(buildStylesXml())
     const docDefaults = findChild(root, 'w:docDefaults')!
     const rPrDefault = findChild(docDefaults, 'w:rPrDefault')!
     const rPr = findChild(rPrDefault, 'w:rPr')!
-    expect(findChild(rPr, 'w:rFonts')?.attrs['w:ascii']).toBe('Times New Roman')
+    expect(findChild(rPr, 'w:rFonts')?.attrs).toEqual({
+      'w:ascii': '宋体', 'w:eastAsia': '宋体', 'w:hAnsi': '宋体', 'w:cs': '宋体',
+    })
     expect(findChild(rPr, 'w:lang')?.attrs['w:val']).toBe('en-US')
     const pPrDefault = findChild(docDefaults, 'w:pPrDefault')!
     const emptyPPr = findChild(pPrDefault, 'w:pPr')

@@ -203,7 +203,7 @@ const STYLE_SPECS: readonly StyleSpec[] = [
     name: 'SES_正文基础',
     basedOn: null,
     isDefault: true,
-    rFonts: 'song',
+    rFonts: 'songAll',
     sz: 21,
     jc: 'both',
     widowControl: true,
@@ -361,7 +361,7 @@ const FOOTNOTE_STYLE_IDS = new Set(['SesFootnoteText', 'SesTableFootnote'])
 /** docDefaults：rPrDefault 为宋体类 rFonts + lang，pPrDefault 为空 pPr（§3.1，同 gen_spike.py） */
 function buildDocDefaultsXml(): string {
   const rPrDefaultInner = rPr([
-    ['rFonts', SONG_RFONTS],
+    ['rFonts', SONG_ALL_RFONTS],
     ['lang', '<w:lang w:val="en-US" w:eastAsia="zh-CN"/>'],
   ])
   const children: XmlChild[] = [
