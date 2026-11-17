@@ -11,12 +11,13 @@
  */
 
 import { ABSTRACT_NUM_ID } from './numbering'
-import { SONG_ALL_RFONTS, SONG_MIXED_RFONTS as SONG_RFONTS } from './fonts'
 import { CHAR_WIDTH_TWIPS as CH } from './units'
 import { docDefaults, escapeXmlAttr, numPr, pPr, rPr, style, styles as stylesEl, wrapElement, type XmlAttrs, type XmlChild } from './xml'
 
 // ---------------- 字体、字号 ----------------
 
+const SONG_RFONTS = '<w:rFonts w:ascii="Times New Roman" w:eastAsia="宋体" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>'
+const SONG_ALL_RFONTS = '<w:rFonts w:ascii="宋体" w:eastAsia="宋体" w:hAnsi="宋体" w:cs="宋体"/>'
 const HEI_RFONTS = '<w:rFonts w:ascii="黑体" w:eastAsia="黑体" w:hAnsi="黑体" w:cs="黑体"/>'
 
 function szChildren(halfPoint: number): XmlChild[] {
@@ -346,7 +347,7 @@ const STYLE_SPECS: readonly StyleSpec[] = [
   { id: 'SesCoverReplaces', name: 'SES_封面代替文件编号', rFonts: 'hei', sz: 21, jc: 'right' },
   { id: 'SesCoverRule', name: 'SES_封面横线', pBdr: PBDR_COVER_RULE },
   { id: 'SesCoverName', name: 'SES_封面文件名称', rFonts: 'hei', sz: 52, jc: 'center', snapToGridOff: true, spacing: SPACING_COVER_TITLE },
-  { id: 'SesCoverEnglish', name: 'SES_封面英文译名', rFonts: 'hei', sz: 28, jc: 'center', snapToGridOff: true, spacing: SPACING_COVER_ENGLISH },
+  { id: 'SesCoverEnglish', name: 'SES_封面英文译名', rFonts: 'song', sz: 28, jc: 'center', snapToGridOff: true, spacing: SPACING_COVER_ENGLISH },
   { id: 'SesCoverConsistency', name: 'SES_封面一致性程度', rFonts: 'hei', sz: 28, jc: 'center', snapToGridOff: true, spacing: SPACING_COVER_CONSISTENCY },
   { id: 'SesCoverStage', name: 'SES_封面阶段标识', rFonts: 'hei', sz: 28, jc: 'center' },
   { id: 'SesCoverPatent', name: 'SES_封面专利说明', rFonts: 'song', sz: 21, jc: 'center' },

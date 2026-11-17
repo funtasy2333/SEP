@@ -75,6 +75,7 @@ section.ses-cover { page: cover; break-after: page; }
 .ses-cover-rule { position: absolute; left: 25mm; right: 15mm; top: 69.16mm; border-top: 0.75pt solid black; }
 .ses-cover-titles { position: absolute; left: 25mm; right: 15mm; top: 112.55mm; text-align: center; overflow-wrap: anywhere; }
 .ses-cover-title { font-size: 26pt; line-height: 1.4; margin-bottom: 8mm; }
+.ses-cover-english { font-family: var(--ses-song); }
 .ses-cover-english, .ses-cover-consistency, .ses-cover-stage { font-size: 14pt; line-height: 1.5; margin-bottom: 5mm; }
 .ses-cover-patent { font-family: var(--ses-song); font-size: 10.5pt; line-height: 1.5; margin-top: 8mm; }
 .ses-cover-dates { position: absolute; left: 25mm; right: 15mm; top: 249.6mm; display: flex; justify-content: space-between; padding-bottom: 4mm; border-bottom: 0.75pt solid black; font-size: 14pt; }

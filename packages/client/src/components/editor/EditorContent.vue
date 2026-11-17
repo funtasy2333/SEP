@@ -129,6 +129,23 @@ defineProps<{
   margin: 16px 0;
 }
 
+/* 超宽表与横向表在自身 .tableWrapper 内局部横向滚动，保持 810px 编辑纸张与表题/表注宽度一致。 */
+.editor-content :deep(.tiptap .std-table-wrapper > .tableWrapper) {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  margin: 12px 0;
+  padding: 1px;
+}
+.editor-content :deep(.tiptap .std-table-wrapper > .tableWrapper > table) {
+  margin: 0;
+}
+.editor-content :deep(.tiptap .std-table-wrapper[data-orientation="landscape"] > .tableWrapper > table),
+.editor-content :deep(.tiptap .std-appendix[data-orientation="landscape"] .std-table-wrapper > .tableWrapper > table) {
+  /* TableView 会内联写 min-width（如 75px），用 !important 让未定像素总宽的横表按 252mm（约 952px）舒展并触发局部横滚。 */
+  min-width: 952px !important;
+}
+
 .editor-content :deep(.tiptap table td),
 .editor-content :deep(.tiptap table th) {
   border: 0.5pt solid #000;

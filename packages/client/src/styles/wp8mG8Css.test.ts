@@ -29,3 +29,12 @@ describe('[M-6.1-03] standard-nodes.css：名义列宽（stdTable.columns）显�
     expect(css.slice(start, end).replace(/\/\*[\s\S]*?\*\//g, '')).not.toContain('!important')
   })
 })
+
+describe('standard-nodes.css：横排图、表与横向附录标识对称', () => {
+  it('为横向单表、单图提供横向页面角标，并在横向附录内隐藏子标识', () => {
+    expect(css).toContain('.std-table-wrapper[data-orientation="landscape"]')
+    expect(css).toContain('.std-figure[data-orientation="landscape"]')
+    expect(css).toContain('.std-appendix[data-orientation="landscape"] .std-table-wrapper[data-orientation="landscape"]::before')
+    expect(css).toContain('.std-appendix[data-orientation="landscape"] .std-figure[data-orientation="landscape"]::before')
+  })
+})
