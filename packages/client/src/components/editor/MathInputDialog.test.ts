@@ -6,7 +6,7 @@ import type { MathfieldStatics } from '@/utils/mathlive'
 import MathInputDialog from './MathInputDialog.vue'
 
 const roots: HTMLElement[] = []
-afterEach(() => { while (roots.length) roots.pop()!.remove(); document.body.innerHTML = '' })
+afterEach(() => { while (roots.length) roots.pop()!.remove(); document.body.innerHTML = ''; vi.restoreAllMocks() })
 
 async function settle(): Promise<void> {
   for (let i = 0; i < 6; i++) { await nextTick(); await new Promise(resolve => setTimeout(resolve, 0)) }
@@ -103,8 +103,27 @@ it('屏幕键盘层级高于弹窗遮罩，弹出时弹窗让出底部，关闭�
 
   keyboard.visible = true
   keyboard.boundingRect = new DOMRect(0, 400, 1000, 320)
+  const overlayDialog = document.querySelector('.el-overlay-dialog') as HTMLElement
+  const dialog = document.querySelector('.el-dialog') as HTMLElement
+  const field = document.querySelector('math-field') as HTMLElement
+  let paddingAtRead = ''
+  vi.spyOn(dialog, 'getBoundingClientRect').mockImplementation(() => {
+    paddingAtRead = overlayDialog.style.paddingBottom
+    return new DOMRect(0, 120, 560, 420)
+  })
+  vi.spyOn(field, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 260, 500, 44))
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: 700 })
+  let scheduledScroll: FrameRequestCallback | null = null
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+    scheduledScroll = cb
+    return 1
+  })
   keyboard.dispatchEvent(new Event('geometrychange'))
-  expect((document.querySelector('.el-overlay-dialog') as HTMLElement).style.paddingBottom).toBe('320px')
+  expect(paddingAtRead).toBe('')
+  expect(overlayDialog.style.paddingBottom).toBe('320px')
+  expect(overlayDialog.scrollTop).toBe(0)
+  scheduledScroll!(0)
+  expect(overlayDialog.scrollTop).toBe(160)
 
   open.value = false
   await settle()

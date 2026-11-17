@@ -3149,8 +3149,9 @@ function handleXmlFileImport(event: Event) {
 }
 .outline-icon-btn:hover { background: var(--ses-surface-2); color: var(--ses-ink); }
 .ed-main {
-  flex: 1;
   position: relative;
+  min-width: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;

@@ -27,6 +27,7 @@ defineProps<{
   display: flex;
   justify-content: center;
   scrollbar-width: thin;
+  scrollbar-gutter: stable;
 }
 .editor-content-wrapper::-webkit-scrollbar { width: 10px; }
 .editor-content-wrapper::-webkit-scrollbar-thumb {
