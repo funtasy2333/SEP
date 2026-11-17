@@ -16,6 +16,8 @@ import {
 } from '@ses/io';
 import {
   analyzeDocument,
+  PDF_EXPORT_ENABLED,
+  PDF_EXPORT_DISABLED_MESSAGE,
   irMetaFromDocumentMeta,
   pmToIr,
   type DocumentMeta,
@@ -343,6 +345,7 @@ export class ExportService {
 
   /**
    * 按文档 id 导出 PDF（编辑器「导出 PDF」调用的就是这个接口，先保存再导出）：
+   * PDF_EXPORT_ENABLED 为 false 时统一返回 503；下述管线保留供未来恢复后使用。
    * 同步封面元数据 → 校验生产 schema → 导出前检查 → 屏蔽外部图片 → buildPdfExportRequest（print HTML + 目次目标，
    * meta 取 irMetaFromDocumentMeta(文档库 meta)）→ IR→HTML→PDF 两遍构建管线。
    *
@@ -352,6 +355,14 @@ export class ExportService {
    * 这是 PDF 唯一的出口：不再有接受任意 HTML 的转换接口，渲染用的无头浏览器只会看到本方法构建的 HTML。
    */
   async exportPdf(id: number): Promise<PdfExportResult> {
+    if (!PDF_EXPORT_ENABLED) {
+      throw new ServiceUnavailableException({
+        statusCode: 503,
+        error: 'Service Unavailable',
+        code: 'pdf-export-disabled',
+        message: PDF_EXPORT_DISABLED_MESSAGE,
+      });
+    }
     const { meta, stage, pmDoc, filenameBase } = await this.prepareForExport(
       id,
       'pdf',

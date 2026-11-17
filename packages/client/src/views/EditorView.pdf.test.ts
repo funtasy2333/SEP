@@ -8,6 +8,12 @@ import EditorView from './EditorView.vue'
 import { createEditorExtensions } from '../extensions/editorExtensions'
 import { checkExportGuard } from '@ses/io'
 
+// Retain the future PDF flow tests; the disabled default is covered separately.
+vi.mock('@ses/shared', async importOriginal => ({
+  ...await importOriginal<typeof import('@ses/shared')>(),
+  PDF_EXPORT_ENABLED: true,
+}))
+
 const mocks = vi.hoisted(() => ({
   store: {
     currentDocument: null as any,

@@ -4,6 +4,7 @@ import {
   type HtmlToPdfInput,
 } from './pdf/pipeline';
 import { isPopplerAvailable, isVivliostyleAvailable } from './pdf/build';
+import { PDF_EXPORT_ENABLED } from '@ses/shared';
 
 /** 出件能力探测结果，供客户端导出面板按可用性显隐卡片。 */
 export interface ConvertCapabilities {
@@ -19,6 +20,10 @@ export class ConvertService implements OnModuleInit {
   private htmlPdfMissing: string[] = [];
 
   async onModuleInit() {
+    if (!PDF_EXPORT_ENABLED) {
+      this.logger.log('PDF 导出暂时关闭');
+      return;
+    }
     await this.detectHtmlPdfToolchain();
   }
 
@@ -45,7 +50,7 @@ export class ConvertService implements OnModuleInit {
 
   /** 当前出件能力（客户端据此显隐导出卡片）。 */
   getCapabilities(): ConvertCapabilities {
-    return { htmlToPdf: this.htmlPdfReady };
+    return { htmlToPdf: PDF_EXPORT_ENABLED && this.htmlPdfReady };
   }
 
   /** IR→HTML→PDF 管线缺少的依赖名；管线可用（或尚未探测）时为空数组。 */

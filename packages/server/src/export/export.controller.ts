@@ -57,6 +57,7 @@ export class ExportController {
 
   /**
    * GET /api/documents/:id/export/pdf
+   * 暂停期间统一返回 503 pdf-export-disabled，不读取文稿或启动管线。
    * 导出库中该文档的 PDF（编辑器「导出 PDF」调用的就是它，见 ExportService.exportPdf）：封面同步 → 导出前检查 →
    * print HTML 与目次目标 → 现有 IR→HTML→PDF 两遍构建管线。
    * 文档不存在 404；内容为空或导出前检查未通过 422（响应体同 DOCX 接口）；
