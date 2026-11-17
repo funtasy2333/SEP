@@ -266,7 +266,9 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
           })
           continue
         }
-        if (present(object.marks)) report('marks')
+        const printableFormulaMarks = (format === 'DOCX' || format === 'HTML') &&
+          Array.isArray(object.marks) && object.marks.every(mark => mark.type === 'bold' || mark.type === 'italic')
+        if (present(object.marks) && !printableFormulaMarks) report('marks')
         if (present(object.footnote)) report('footnote')
         const formula = child as Record<string, unknown>
         if (format !== 'XML46687' && (typeof formula.latex !== 'string' || formula.latex.trim() === '')) report(`${key}.latex`)

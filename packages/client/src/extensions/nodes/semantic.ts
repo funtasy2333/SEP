@@ -4,7 +4,7 @@ import { TableCell } from '@tiptap/extension-table-cell'
 import { TableHeader } from '@tiptap/extension-table-header'
 import { TableRow } from '@tiptap/extension-table-row'
 import katex from 'katex'
-import { isCellBorderStyle } from '@ses/shared'
+import { isCellBorderStyle, formulaLatexWithMarks } from '@ses/shared'
 import { dispatchInlineFormulaRequest } from '../plugins/inlineFormulaEditing'
 
 function safeExternalHref(value: unknown): string | null {
@@ -536,7 +536,7 @@ export const FormulaInline = Node.create({
         dom.title = latex ? `LaTeX：${latex}（点击编辑）` : '点击编辑符号'
         try {
           if (!latex) throw new Error('empty')
-          dom.innerHTML = katex.renderToString(latex, { displayMode: false, throwOnError: true, output: 'html' })
+          dom.innerHTML = katex.renderToString(formulaLatexWithMarks(latex, current.marks.map(mark => ({ type: mark.type.name }))), { displayMode: false, throwOnError: true, output: 'html' })
           dom.classList.remove('is-invalid')
         } catch {
           dom.textContent = latex || String(current.attrs.mathml ? '［MathML公式源］' : '［符号］')

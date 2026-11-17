@@ -13,6 +13,8 @@ import {
   type PreparedDocxInput,
 } from '@ses/io'
 import type { DocxPackage } from '@ses/shared'
+import type { EditorView } from '@tiptap/pm/view'
+import { snapshotDocxTableWidths } from './docxTableWidths'
 
 export { DOCX_MIME_TYPE, prepareDocxInput, resolveDocumentStage }
 export type { BuildDocxOptions, PreparedDocxInput }
@@ -28,10 +30,13 @@ export async function packageDocx(docxPackage: DocxPackage): Promise<Blob> {
 }
 
 /** 生成 DOCX Blob；createdAt 默认取调用时刻，便于与 shared 输出保持一致。 */
-export async function buildDocxBlob(options: BuildDocxOptions): Promise<{
+export async function buildDocxBlob(options: BuildDocxOptions & { editorView?: EditorView }): Promise<{
   blob: Blob
   warnings: DocxPackage['warnings']
 }> {
-  const { bytes, warnings } = await buildDocx(options)
+  const source = options.pmDoc
+  const json = 'toJSON' in source ? source.toJSON() as import('@ses/shared').PMJsonNode : source
+  const pmDoc = options.editorView ? snapshotDocxTableWidths(json, options.editorView) : json
+  const { bytes, warnings } = await buildDocx({ ...options, pmDoc })
   return { blob: toDocxBlob(bytes), warnings }
 }

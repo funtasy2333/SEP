@@ -103,7 +103,7 @@ describe('公式 MathML → OMML', () => {
     expect(bold).toContain('<m:sty m:val="b"/>')
     expect(bold).not.toContain('<m:nor/>')
     expect(bold).toContain('<m:t xml:space="preserve">A</m:t>')
-    expect(roman).toContain('<m:nor/>')
+    expect(roman).toContain('<m:sty m:val="p"/>')
     expect(roman).toContain('<m:t xml:space="preserve">x</m:t>')
     expect(sans).toContain('<m:t xml:space="preserve">x</m:t>')
     expect(text).toContain('<m:nor/>')
@@ -166,4 +166,27 @@ describe('公式 MathML → OMML', () => {
     expect(Object.keys(formulaOmml).sort()).toEqual(['appendix-formula', 'f1', 'front', 'intro'])
     expect(warnings).toEqual([])
   })
+})
+
+it('求和分式保留紧凑运算符，不随分式高度拉伸；积分仍可增长', async () => {
+  const sum = await convertFormulaToOmml(String.raw`\sum_{i=1}^{n}\frac{x_i}{y_i}`)
+  expect(sum).toContain('<m:grow m:val="0"/>')
+  expect(sum).toMatch(/<m:e><m:f>/)
+  const integral = await convertFormulaToOmml(String.raw`\int_0^1\frac{x}{y}\,\mathrm{d}x`)
+  expect(integral).toContain('<m:grow m:val="1"/>')
+})
+
+it('数学正体仍使用数学字形，显式斜体不退成普通文本', async () => {
+  const roman = await convertFormulaToOmml(String.raw`\mathrm{PNEC}_{\mathrm{eco}}`)
+  expect(roman).toContain('<m:sty m:val="p"/>')
+  expect(roman).not.toContain('<m:nor/>')
+  const italic = await convertFormulaToOmml(String.raw`\mathit{x}`)
+  expect(italic).not.toContain('<m:nor/>')
+  const text = await convertFormulaToOmml(String.raw`\text{中文}`)
+  expect(text).toContain('<m:nor/>')
+})
+
+it('加粗斜体变量后面的显式正体微分符号不继承斜体', async () => {
+  const xml = await convertFormulaToOmml(String.raw`\boldsymbol{x}\mathrm{d}x`)
+  expect(xml).toMatch(/<m:r><m:rPr><m:sty m:val="p"\/><\/m:rPr><m:t[^>]*>d<\/m:t><\/m:r>/)
 })

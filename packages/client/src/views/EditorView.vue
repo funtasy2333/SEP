@@ -2565,6 +2565,7 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
     try {
       const { blob, warnings } = await buildDocxBlob({
         pmDoc: doc,
+        editorView: editor.value.view,
         documentMeta: store.currentDocument?.meta,
         stage: store.currentDocument?.stage,
       })
