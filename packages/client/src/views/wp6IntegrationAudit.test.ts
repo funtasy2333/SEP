@@ -534,7 +534,8 @@ it('错类型 typed crossRef 阻断所有非 JSON 导出并显示具体诊断，
     fetchMock.mockClear()
     const exportCard = (label: string) => [...document.body.querySelectorAll<HTMLButtonElement>('.export-card')]
       .find(button => button.textContent?.includes(label))!
-    const formatCards = ['HTML', 'XML', 'DOCX', 'PDF'].map(format => {
+    expect([...document.body.querySelectorAll('.export-card')].some(card => card.textContent?.includes('PDF'))).toBe(false)
+    const formatCards = ['HTML', 'XML', 'DOCX'].map(format => {
       const card = [...document.body.querySelectorAll<HTMLButtonElement>('.export-card')]
         .find(button => button.textContent?.includes(format))
       expect(card, `${format} 导出卡片应真实存在`).toBeDefined()

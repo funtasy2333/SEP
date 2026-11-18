@@ -1,4 +1,6 @@
 export * from './types';
+export * from './formulaTextStyle';
+export * from './exportAvailability';
 export * from './coverDesignation';
 export * from './ir';
 export * from './validation';

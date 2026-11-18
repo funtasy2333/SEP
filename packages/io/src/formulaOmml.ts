@@ -13,6 +13,7 @@ import {
   type MathMlElement,
   type MathMlNode,
 } from './formulaMathMl'
+import { formulaLatexWithMarks } from '@ses/shared'
 
 export interface FormulaConversionWarning {
   code: 'formula-conversion-failed'
@@ -153,6 +154,12 @@ function restoreMathMlEntities(omml: string): string {
 function normalizeMathMl2Omml(omml: string): string {
   let normalized = omml.replace(/<m:r\b([^>]*)>([\s\S]*?)<\/m:r>/g, (_run, attrs: string, rawChildren: string) => {
     let children = rawChildren.replace(/<m:sty\s+m:val="undefined"\s*\/>/g, '')
+    // The converter writes italic-only runs as normal text + w:i, unlike bold/bi.
+    // Use native mathematical italic so Word keeps the math font and spacing.
+    if (/<w:rPr>\s*<w:i\s*\/>\s*<\/w:rPr>/.test(children) && children.includes('<m:nor/>')) {
+      children = children.replace(/<w:rPr>\s*<w:i\s*\/>\s*<\/w:rPr>/, '')
+        .replace('<m:nor/>', '<m:sty m:val="i"/>')
+    }
     const runStyle = /<m:sty\s+m:val="(b|i|bi|p)"\s*\/>/.exec(children)?.[1]
     if (children.includes('<m:nor/>') && runStyle && runStyle !== 'p') {
       // CT_RPr chooses either nor or the script/style pair; preserve explicit bold/italic style.
@@ -213,12 +220,28 @@ function normalizeMathMl2Omml(omml: string): string {
   if (/<m:scrLvl\b|<m:sty\s+m:val="undefined"/.test(normalized)) {
     throw new Error('MathML 转换器输出了无法无损规范化的 OMML 样式属性')
   }
-  return normalized
+  // Sum/product symbols have a fixed mathematical size. Growing with a stacked
+  // fraction produces an oversized glyph; integrals retain their stretch setting.
+  return normalized.replace(/<m:naryPr>([\s\S]*?)<\/m:naryPr>/g, (xml, body: string) =>
+    /<m:chr m:val="[∑∏∐]"\/>/.test(body) ? xml.replace(/<m:grow m:val="1"\/>/, '<m:grow m:val="0"/>') : xml)
 }
 
 /** 单条 LaTeX → OMML。转换异常向调用方抛出，由批量函数记录告警并按 LaTeX 降级。 */
 export async function convertFormulaToOmml(latex: string, options: FormulaConversionOptions = {}): Promise<string> {
   const math = latexToMathMl(latex, options.display ?? true)
+  const normalizeIdentifiers = (node: MathMlElement): void => {
+    if (node.tag === 'mi' && /\bmathvariant="normal"/.test(node.attrs)) {
+      // \mathrm is upright math, not \text. Avoid m:nor inheriting the body font.
+      // This converter uses fontstyle to reset italic, but also needs a nonempty
+      // mathvariant to prevent inheriting a preceding bold-italic sibling.
+      node.attrs = node.attrs.replace(/mathvariant="normal"/, 'mathvariant="italic"') + ' fontstyle="normal"'
+    }
+    // KaTeX wraps composite bold symbols in mi/mrow. Treat that wrapper as a
+    // style container; token conversion would put math elements inside m:t.
+    if (node.tag === 'mi' && node.children.some(isElement)) node.tag = 'mstyle'
+    for (const child of node.children) if (isElement(child)) normalizeIdentifiers(child)
+  }
+  normalizeIdentifiers(math)
   absorbNaryBodies(math)
   const safeMathMl = protectMathMlEntities(serializeMathMl(math))
   const omml = normalizeMathMl2Omml(restoreMathMlEntities(await (await loadMathMlConverter())(safeMathMl)))
@@ -300,7 +323,7 @@ function collectInlineFormulas(value: unknown, visitFormula: FormulaVisitor): vo
   const record = value as Record<string, unknown>
   const formula = record.formula as { id?: unknown; latex?: unknown } | undefined
   if (typeof record.text === 'string' && formula && typeof formula.id === 'string' && typeof formula.latex === 'string') {
-    visitFormula(formula.id, formula.latex, false)
+    visitFormula(formula.id, formulaLatexWithMarks(formula.latex, record.marks as Array<{ type: string }> | undefined), false)
   }
   for (const child of Object.values(record)) collectInlineFormulas(child, visitFormula)
 }

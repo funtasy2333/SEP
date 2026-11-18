@@ -454,7 +454,7 @@
           <span class="ec-sub">{{ exportingFormat === 'docx' ? '正在生成…' : '测试版 · 真实文稿交付验收待完成' }}</span>
         </button>
         <button
-          v-if="capabilities.htmlToPdf"
+          v-if="PDF_EXPORT_ENABLED && capabilities.htmlToPdf"
           class="export-card"
           :disabled="exportingFormat !== null"
           @click="handleExportFormat('pdf')"
@@ -689,7 +689,7 @@ import {
   exportSemanticJson, exportSemanticHtml,
   buildDocxBlob,
 } from '@/serializer'
-import { irMetaFromDocumentMeta, pmToIr, resolve, type DocumentMeta, type IRDocMeta, type PMJsonNode } from '@ses/shared'
+import { PDF_EXPORT_ENABLED, irMetaFromDocumentMeta, pmToIr, resolve, type DocumentMeta, type IRDocMeta, type PMJsonNode } from '@ses/shared'
 import { checkExportGuard, getFootnoteExportError } from '@ses/io'
 
 const route = useRoute()
@@ -767,7 +767,7 @@ const selectedTableFootnoteId = ref('')
 const tableFootnoteOptions = ref<Array<{ id: string; label: string; text: string }>>([])
 /** 出件能力（服务端探测）：htmlToPdf=Vivliostyle 管线 */
 const capabilities = ref<{ htmlToPdf: boolean }>({
-  htmlToPdf: true,
+  htmlToPdf: false,
 })
 
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
@@ -2565,6 +2565,7 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
     try {
       const { blob, warnings } = await buildDocxBlob({
         pmDoc: doc,
+        editorView: editor.value.view,
         documentMeta: store.currentDocument?.meta,
         stage: store.currentDocument?.stage,
       })

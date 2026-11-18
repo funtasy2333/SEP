@@ -132,3 +132,30 @@ describe('DOCX 出件：正文类位置端到端（Phase 7）', () => {
     expect(xml).toMatch(/<w:tc>[\s\S]*?<m:oMath[\s\S]*?<\/w:tc>/)
   })
 })
+
+it('带斜体标记的行内公式可导出，数学量为斜体并且源文档保持不变', async () => {
+  const source = doc([[{ ...symbol('sym-rq', String.raw`\mathrm{RQ}_{\mathrm{eco}}`), marks: [{ type: 'italic' }] }]])
+  const before = JSON.stringify(source)
+  const result = await buildDocx({ pmDoc: irToPm(source) })
+  const zip = await JSZip.loadAsync(result.bytes)
+  const xml = await zip.file('word/document.xml')!.async('string')
+  expect(xml).toContain('<m:t xml:space="preserve">RQ</m:t>')
+  expect(xml).not.toMatch(/<m:nor\/>[\s\S]{0,60}<m:t[^>]*>RQ/)
+  expect(JSON.stringify(source)).toBe(before)
+})
+
+it.each(['x', String.raw`\mathit{MEC}`, String.raw`\mathrm{RQ}`])('公式 %s 的加粗与斜体组合同时保留', async latex => {
+  const source = doc([[{ ...symbol('styled', latex), marks: [{ type: 'bold' }, { type: 'italic' }] }]])
+  const result = await convertFormulasToOmml(source)
+  expect(result.warnings).toEqual([])
+  expect(result.formulaOmml.styled).toContain('<m:sty m:val="bi"/>')
+  expect(result.formulaOmml.styled).not.toMatch(/<m:t\b[^>]*>\s*</)
+})
+
+it('公式上的加粗保留显式正体的量符号', async () => {
+  const result = await convertFormulasToOmml(doc([[{
+    ...symbol('styled', String.raw`\mathrm{RQ}`), marks: [{ type: 'bold' }],
+  }]]))
+  expect(result.formulaOmml.styled).toContain('<m:sty m:val="b"/>')
+  expect(result.formulaOmml.styled).not.toMatch(/<m:t\b[^>]*>\s*</)
+})

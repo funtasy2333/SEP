@@ -229,3 +229,16 @@ describe('导出被阻止的提示分行显示', () => {
     }
   })
 })
+
+it('PDF 暂停期间即使服务端报告管线可用也隐藏 PDF，其他导出格式保留', async () => {
+  const view = await mountEditor(canonicalFixture())
+  try {
+    clickByText('button', '导出')
+    await flushMicrotasks()
+    const labels = [...document.body.querySelectorAll('.export-card')].map(compact)
+    expect(labels.some(label => label.startsWith('PDF'))).toBe(false)
+    for (const label of ['DOCX', 'XML', 'HTML', 'JSON', 'SES']) {
+      expect(labels.some(text => text.includes(label))).toBe(true)
+    }
+  } finally { view.unmount() }
+})

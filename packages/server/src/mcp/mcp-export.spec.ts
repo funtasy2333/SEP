@@ -42,6 +42,13 @@ import {
 } from './mcp-file-output';
 import { downloadBaseUrl, McpToolsService } from './mcp-tools.service';
 
+// Exercise the retained PDF pipeline contract with the feature explicitly enabled.
+// The production-disabled REST/MCP behavior is covered in pdf-disabled.spec.ts.
+jest.mock('@ses/shared', () => ({
+  ...jest.requireActual('@ses/shared'),
+  PDF_EXPORT_ENABLED: true,
+}));
+
 /** 放进正文的标记串：用来证明错误响应与日志里没有文档正文。 */
 const SECRET = '机密正文-8f3a91';
 /** 放进目录名的标记串：用来证明日志里没有路径。 */

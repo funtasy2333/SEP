@@ -1,3 +1,4 @@
+import { formulaLatexWithMarks } from '../formulaTextStyle'
 import { assertOutputSupported } from './outputBoundary'
 import { fullWidthFormulaLabel } from './formulaLabel'
 import { sourceWithLabel } from './sourceLabel'
@@ -219,9 +220,9 @@ function renderRun(run: IRInline, ctx: RenderCtx): string {
   }
 
   // 行内公式与块级公式同一占位约定，由消费端（client 预览 / PDF 管线）用 KaTeX 行内模式渲染。
-  // 公式片段不带 marks（导出边界已拒绝），按 irToPm 顺序排在文字之后。
+  // 加粗/斜体应用于渲染源；其余标记仍由导出边界拒绝。
   const formulaAtom = run.formula?.latex
-    ? `<span class="ses-formula-inline" data-latex="${escapeAttr(run.formula.latex)}"></span>`
+    ? `<span class="ses-formula-inline" data-latex="${escapeAttr(formulaLatexWithMarks(run.formula.latex, marks))}"></span>`
     : ''
 
   const imageSize = run.image?.size === 'S' || run.image?.size === 'M' || run.image?.size === 'L' ? run.image.size : undefined

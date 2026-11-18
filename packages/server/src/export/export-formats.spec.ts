@@ -29,6 +29,13 @@ import {
 import { EXTERNAL_IMAGE_REJECTED_MESSAGE } from './external-images';
 import { ExportModule } from './export.module';
 
+// Keep the dormant pipeline contract covered while the production feature is paused.
+// pdf-disabled.spec.ts independently tests the real disabled default.
+jest.mock('@ses/shared', () => ({
+  ...jest.requireActual('@ses/shared'),
+  PDF_EXPORT_ENABLED: true,
+}));
+
 /**
  * PDF / HTML / 语义 JSON 导出接口。夹具与 export.spec.ts 的 DOCX 用例相同（standard-document.json，
  * 编辑器 getJSON() 形态；封面的标准编号等字段故意与文档库 meta 不一致，用来证明导出前做了封面同步），

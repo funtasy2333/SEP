@@ -60,8 +60,8 @@ describe('导出边界：式中符号行内公式', () => {
     ]))
   })
 
-  it('拒绝带文字格式的公式片段，避免格式被静默丢弃', () => {
-    const doc = whereFormulaDoc([{ ...symbol('sym-q', 'q'), marks: [{ type: 'bold' }] }])
+  it('拒绝暂不支持的公式下划线，避免格式被静默丢弃', () => {
+    const doc = whereFormulaDoc([{ ...symbol('sym-q', 'q'), marks: [{ type: 'underline' }] }])
     expect(getOutputSupportProblems(doc, 'HTML')).toEqual([
       expect.objectContaining({ path: 'doc.body[0].children[0].whereList[0].term[0].marks' }),
     ])
@@ -212,4 +212,13 @@ describe('HTML：正文类位置的行内公式占位', () => {
     expect(html.match(/<span class="ses-formula-inline" data-latex="x_\{i\}"><\/span>/g)).toHaveLength(13)
     expect(html).toMatch(/当<span class="ses-formula-inline" data-latex="x_\{i\}"><\/span>大于 1 时/)
   })
+})
+
+
+it.each(['DOCX', 'HTML'] as const)('%s 保留公式上的加粗和斜体，其他标记继续阻断', format => {
+  for (const type of ['italic', 'bold'] as const) {
+    const doc = whereFormulaDoc([{ ...symbol('sym-q', 'q'), marks: [{ type }] }])
+    expect(getOutputSupportProblems(doc, format)).toEqual([])
+    if (format === 'HTML') expect(renderHtml(doc, resolve(doc).labels)).toContain(type === 'italic' ? '\\mathit{q}' : '\\boldsymbol{q}')
+  }
 })
