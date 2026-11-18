@@ -10,7 +10,7 @@ import subprocess
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.1.4-preview'
+VERSION = '0.1.5-preview'
 CONFIG = [
     'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc', 'tsconfig.base.json',
     'packages/server/nest-cli.json', 'packages/server/webpack.config.js',
@@ -108,7 +108,7 @@ macOS 使用现有官方安装来源，不包含 Windows 的自动镜像切换�
 注意：**关闭网页不会退出 SES**，服务仍在后台运行，需要使用上面的「退出 SES」按钮或退出脚本才会停止。
 从 0.1.1 及更早版本升级到带有此功能的版本，仍需按旧方式手动升级一次；之后即可在应用内升级。
 
-PDF 版式预览还需要 Poppler：macOS 使用 `brew install poppler`；Windows 安装 Poppler 后，将包含 `pdftotext.exe` 和 `pdfinfo.exe` 的目录加入 PATH。DOCX 编辑与导出不需要 Poppler。Vivliostyle 的排版浏览器可能在首次生成 PDF 时另行下载。
+本预览版暂时停用 PDF 导出。DOCX 编辑与导出无需安装 Poppler。
 MCP 地址为 http://127.0.0.1:3000/mcp。写作参考资料已作为程序资源保留。
 本包不包含开发过程文档、测试、示例、现有数据库、缓存或 node_modules；不需要 Git 或 Python 即可启动。
 '''
@@ -141,7 +141,7 @@ def build_archive(platform, output, version=None, commit=None):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=ROOT / 'release')
-    parser.add_argument('--print-version', action='store_true', help='print the release version (e.g. 0.1.4-preview) and exit')
+    parser.add_argument('--print-version', action='store_true', help='print the release version (e.g. 0.1.5-preview) and exit')
     parser.add_argument('--version', default=None, help='override VERSION (CI uses this to build a "newer" package)')
     args = parser.parse_args()
     version = args.version or VERSION
