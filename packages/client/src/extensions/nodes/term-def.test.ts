@@ -5,7 +5,7 @@ import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 import { irToPm, pmToIr, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from '../editorExtensions'
-import { serializeToXml } from '../../serializer/xmlSerializer'
+import { buildXml46687Package } from '@ses/io'
 import { buildDocxBlob } from '../../serializer/docxExporter'
 
 type TermFields = {
@@ -311,9 +311,10 @@ describe('真实 Tiptap 术语编辑器的键盘行为', () => {
         expect(after.definition).toEqual(entry.definition)
       }
 
-      const xml = serializeToXml(editor.state.doc)
-      expect(xml).toMatch(/<def>\s*<p><bold>定义<\/bold><\/p>\s*<\/def>/)
-      expect(xml).toContain('<p><bold>续段后文</bold></p>')
+      const { xml, problems } = await buildXml46687Package({ pmDoc })
+      expect(problems.filter(problem => problem.severity === 'error')).toEqual([])
+      expect(xml).toMatch(/<tbx:definition>[\s\S]*<bold>定义<\/bold>[\s\S]*<\/tbx:definition>/)
+      expect(xml).toContain('<bold>续段后文</bold>')
 
       const { blob } = await buildDocxBlob({ pmDoc, createdAt: '2026-10-02T00:00:00Z' })
       const zip = await JSZip.loadAsync(await blob.arrayBuffer())

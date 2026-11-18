@@ -1,3 +1,4 @@
+import { extname } from 'node:path';
 import {
   BadRequestException,
   HttpException,
@@ -19,7 +20,11 @@ import { isAllowedHost } from './mcp-access';
 import { normalizeClientName } from './mcp-client-name';
 import { DEFAULT_EDITOR_BASE_URL } from './mcp.constants';
 import { errorResult, jsonResult, toErrorBody } from './mcp-errors';
-import { prepareOutputTarget, writeOutputFile } from './mcp-file-output';
+import {
+  OutputFileException,
+  prepareOutputTarget,
+  writeOutputFile,
+} from './mcp-file-output';
 import {
   DOCUMENT_STAGES,
   EXPORT_FORMATS,
@@ -287,6 +292,7 @@ export class McpToolsService {
           ...exportCheckResult(validation.checks.pdf),
           available: validation.pdfAvailable,
         },
+        xml: exportCheckResult(validation.checks.xml),
         html: exportCheckResult(validation.checks.html),
       },
     });
@@ -322,6 +328,19 @@ export class McpToolsService {
     const exported = await this.runExport(documentId, format);
 
     if (target !== undefined) {
+      if (format === 'xml') {
+        const actualExt = extname(exported.filename).toLowerCase();
+        const targetExt = extname(target).toLowerCase();
+        if (targetExt !== actualExt) {
+          throw new OutputFileException(
+            400,
+            'invalid-output-extension',
+            actualExt === '.zip'
+              ? `该文档含图片资源，XML 导出为资源包（.zip），请把 outputPath 的扩展名改为 .zip（当前：${target}）`
+              : `该文档不含图片资源，XML 导出为单个 .xml 文件，请把 outputPath 的扩展名改为 .xml（当前：${target}）`,
+          );
+        }
+      }
       try {
         await writeOutputFile(target, exported.bytes, overwrite);
       } catch (error) {
@@ -367,6 +386,11 @@ export class McpToolsService {
       case 'pdf': {
         const { bytes, warnings, filename } =
           await this.exportService.exportPdf(documentId);
+        return { bytes, warnings, filename };
+      }
+      case 'xml': {
+        const { bytes, warnings, filename } =
+          await this.exportService.exportXml(documentId);
         return { bytes, warnings, filename };
       }
       case 'html': {

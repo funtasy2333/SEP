@@ -328,6 +328,7 @@ describe('MCP 工具：validate_document 与 export_document', () => {
       expect(result.body.exports).toEqual({
         docx: { ok: true },
         pdf: { ok: true, available: true },
+        xml: { ok: true },
         html: { ok: true },
       });
       // json 不做导出前检查，不列出。
@@ -517,15 +518,15 @@ describe('MCP 工具：validate_document 与 export_document', () => {
 
     describe.each([
       [
-        '脚注校验未通过（三种格式都被拦下）',
+        '脚注校验未通过（四种格式都被拦下）',
         danglingFootnoteDoc,
-        ['docx', 'pdf', 'html'],
+        ['docx', 'pdf', 'xml', 'html'],
       ],
       ['输出边界：上下标叠加（拦下 DOCX）', subSupDoc, ['docx']],
       [
-        '输出边界：交叉引用类型不符（三种格式都被拦下）',
+        '输出边界：交叉引用类型不符（四种格式都被拦下）',
         wrongTypeReferenceDoc,
-        ['docx', 'pdf', 'html'],
+        ['docx', 'pdf', 'xml', 'html'],
       ],
     ] as const)('未通过的情形：%s', (_name, build, blocked) => {
       it('exports 与各导出接口的 422 完全一致；export_document 以同样的原因失败', async () => {
@@ -535,7 +536,7 @@ describe('MCP 工具：validate_document 与 export_document', () => {
         });
         expect(validated.isError).toBe(false);
 
-        for (const format of ['docx', 'pdf', 'html'] as const) {
+        for (const format of ['docx', 'pdf', 'xml', 'html'] as const) {
           const check = validated.body.exports[format];
           const response = await rest(`/api/documents/${id}/export/${format}`);
           const exported = await mcp.call('export_document', {
@@ -734,7 +735,7 @@ describe('MCP 工具：validate_document 与 export_document', () => {
 
   // ---------------------------------------------------------------------------
   describe('export_document（不给 outputPath）', () => {
-    it.each(['docx', 'pdf', 'html', 'json'] as const)(
+    it.each(['docx', 'pdf', 'xml', 'html', 'json'] as const)(
       '%s：返回 { format, filename, size, warnings, downloadUrl }，没有 savedTo，不写文件，size 与 REST 一致',
       async (format) => {
         const id = await createDoc();
@@ -772,16 +773,35 @@ describe('MCP 工具：validate_document 与 export_document', () => {
       },
     );
 
+    it('xml 含 data URL 图片时返回 .zip 文件名且 size 与 REST 资源包一致', async () => {
+      const DATA_URL =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+      const id = await createDoc(chapterDoc([figure('fig-data', DATA_URL)]));
+      const result = await mcp.call('export_document', {
+        documentId: id,
+        format: 'xml',
+      });
+      expect(result.isError).toBe(false);
+      expect(result.body.format).toBe('xml');
+      expect(result.body.filename).toBe('导出测试标准.zip');
+      const response = await rest(`/api/documents/${id}/export/xml`);
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toBe('application/zip');
+      expect(result.body.size).toBe(response.bytes.length);
+      expect(await readdir(dir)).toEqual([]);
+    });
+
     it('走与 REST 完全相同的服务方法：每种格式恰好调用一次对应的 ExportService.export*', async () => {
       const id = await createDoc();
       const service = t.app.get(ExportService);
       const spies = {
         docx: jest.spyOn(service, 'exportDocx'),
         pdf: jest.spyOn(service, 'exportPdf'),
+        xml: jest.spyOn(service, 'exportXml'),
         html: jest.spyOn(service, 'exportHtml'),
         json: jest.spyOn(service, 'exportJson'),
       };
-      for (const format of ['docx', 'pdf', 'html', 'json'] as const) {
+      for (const format of ['docx', 'pdf', 'xml', 'html', 'json'] as const) {
         await mcp.call('export_document', { documentId: id, format });
         for (const [name, spy] of Object.entries(spies)) {
           expect(spy).toHaveBeenCalledTimes(name === format ? 1 : 0);
@@ -795,7 +815,7 @@ describe('MCP 工具：validate_document 与 export_document', () => {
       const id = await createDoc(canonical(sampleDocument()));
       const events: unknown[] = [];
       t.events.events(id).subscribe((event) => events.push(event));
-      for (const format of ['docx', 'pdf', 'html', 'json'] as const) {
+      for (const format of ['docx', 'pdf', 'xml', 'html', 'json'] as const) {
         await mcp.call('export_document', { documentId: id, format });
       }
       expect((await t.documents.findOne(id)).revision).toBe(0);
@@ -1094,9 +1114,9 @@ describe('MCP 工具：validate_document 与 export_document', () => {
         ['缺少 documentId', { format: 'docx' }, 'documentId'],
         ['缺少 format', { documentId: 1 }, 'format'],
         [
-          '未知格式 xml',
-          { documentId: 1, format: 'xml' },
-          'docx / pdf / html / json',
+          '未知格式 rtf',
+          { documentId: 1, format: 'rtf' },
+          'docx / pdf / xml / html / json',
         ],
         ['format 大写', { documentId: 1, format: 'DOCX' }, 'format'],
         ['format 不是字符串', { documentId: 1, format: 1 }, 'format'],
@@ -1177,7 +1197,7 @@ describe('MCP 工具：validate_document 与 export_document', () => {
         ...(overwrite === undefined ? {} : { overwrite }),
       });
 
-    it.each(['docx', 'pdf', 'html', 'json'] as const)(
+    it.each(['docx', 'pdf', 'xml', 'html', 'json'] as const)(
       '%s：写入文件，savedTo 是最终绝对路径，size 等于文件大小',
       async (format) => {
         const id = await createDoc();
@@ -1195,13 +1215,50 @@ describe('MCP 工具：validate_document 与 export_document', () => {
           expect(file.subarray(0, 2).toString('latin1')).toBe('PK');
           expect(readZipEntries(file).has('word/document.xml')).toBe(true);
         }
-        if (format === 'html' || format === 'json') {
+        if (format === 'xml' || format === 'html' || format === 'json') {
           const response = await rest(`/api/documents/${id}/export/${format}`);
           expect(file.equals(response.bytes)).toBe(true);
         }
         expect(await readdir(dir)).toEqual([`result.${format}`]);
       },
     );
+
+    it('xml 含图片时写入 .zip；outputPath 形态与实际出件不一致时返回 400 且不写文件', async () => {
+      const DATA_URL =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+      const plainId = await createDoc();
+      const plainMismatch = await exportTo(
+        plainId,
+        'xml',
+        join(dir, 'wrong.zip'),
+      );
+      expect(plainMismatch.isError).toBe(true);
+      expect(plainMismatch.body).toMatchObject({
+        status: 400,
+        code: 'invalid-output-extension',
+      });
+      expect(plainMismatch.body.message).toContain('.xml');
+      expect(await readdir(dir)).toEqual([]);
+
+      const imgId = await createDoc(chapterDoc([figure('fig-data', DATA_URL)]));
+      const imgMismatch = await exportTo(imgId, 'xml', join(dir, 'wrong.xml'));
+      expect(imgMismatch.isError).toBe(true);
+      expect(imgMismatch.body).toMatchObject({
+        status: 400,
+        code: 'invalid-output-extension',
+      });
+      expect(imgMismatch.body.message).toContain('.zip');
+      expect(await readdir(dir)).toEqual([]);
+
+      const pkgPath = join(dir, 'package.zip');
+      const ok = await exportTo(imgId, 'xml', pkgPath);
+      expect(ok.isError).toBe(false);
+      expect(ok.body.savedTo).toBe(pkgPath);
+      const file = await readFile(pkgPath);
+      expect(file.subarray(0, 2).toString('latin1')).toBe('PK');
+      expect(readZipEntries(file).has('standard.xml')).toBe(true);
+      expect(await readdir(dir)).toEqual(['package.zip']);
+    });
 
     it('扩展名大小写不敏感；路径被规范化后返回', async () => {
       const id = await createDoc();

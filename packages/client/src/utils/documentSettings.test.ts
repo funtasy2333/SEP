@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import { getSchema } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
+import { buildXml46687Package } from '@ses/io'
 import { getCoverDesignation, pmToIr, type DocumentMeta, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from '../extensions/editorExtensions'
-import { exportSemanticJson, serializeToXml } from '../serializer'
+import { exportSemanticJson } from '../serializer'
 import { prepareDocxInput } from '../serializer/docxExporter'
 import {
   documentMetaFromSettingsDraft,
@@ -125,7 +126,7 @@ describe('文件设置草稿与封面同步', () => {
     expect(cleared.industryName).toBe('')
   })
 
-  it('空的可选字段显式清除，扩展元数据保留，生产 schema 下前言、正文和节点 ID不变', () => {
+  it('空的可选字段显式清除，扩展元数据保留，生产 schema 下前言、正文和节点 ID不变', async () => {
     const original = legacyContent()
     const source = schema.nodeFromJSON(original)
     const draft = documentSettingsDraftFromDocument({
@@ -165,12 +166,14 @@ describe('文件设置草稿与封面同步', () => {
     expect(irMeta).not.toHaveProperty('issuer')
     expect(irMeta).not.toHaveProperty('replaces')
 
-    const xml = serializeToXml(saved)
+    const exported = await buildXml46687Package({ pmDoc: saved.toJSON() as PMJsonNode })
+    expect(exported.problems.filter((problem) => problem.severity === 'error')).toEqual([])
+    const xml = exported.xml!
     expect(xml).toContain('HG/T 1000—2026')
     expect(xml).toContain('更新后的标准题名')
-    expect(xml).toContain('2026-05-01')
+    expect(xml).toContain('<release-date>2026-05-01</release-date>')
     expect(xml).not.toContain('旧发布单位')
-    expect(xml).not.toContain('<meta-name>coverDesignation</meta-name>')
+    expect(xml).not.toContain('<meta-name>cover-designation</meta-name>')
 
     const semantic = exportSemanticJson(saved)
     expect(semantic.content?.[0]).toMatchObject({

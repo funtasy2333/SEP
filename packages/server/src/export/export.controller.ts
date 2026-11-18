@@ -79,6 +79,26 @@ export class ExportController {
   }
 
   /**
+   * GET /api/documents/:id/export/xml
+   * 导出库中该文档的 GB/T 46687.2—2026 XML（无图片资源时返回 `.xml`，含图片资源时返回 `.zip` 资源包）。
+   * 文档不存在 404；内容为空、脚注/输出边界未通过、或存在 XML 错误（如外部图片/空正文）返回 422。
+   * 导出告警见 X-SES-Export-Warning* 响应头。
+   */
+  @Get(':id/export/xml')
+  async exportXml(
+    @Param('id', ParseIntPipe) id: number,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const result = await this.exportService.exportXml(id);
+    res.set(buildWarningHeaders(result.warnings));
+    return new StreamableFile(result.bytes, {
+      type: result.contentType,
+      disposition: attachmentDisposition(result.filename),
+      length: result.bytes.length,
+    });
+  }
+
+  /**
    * GET /api/documents/:id/export/html
    * 导出库中该文档的语义 HTML（与编辑器 HTML 导出等价）。404、422 约定同 DOCX 接口。
    */

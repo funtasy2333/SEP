@@ -2,10 +2,10 @@
 import JSZip from 'jszip'
 import { getSchema } from '@tiptap/core'
 import { expect, it } from 'vitest'
-import { UnsupportedOutputError, type DocumentMeta } from '@ses/shared'
+import { buildXml46687Package, importXml46687 } from '@ses/io'
+import type { DocumentMeta, PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from '../extensions/editorExtensions'
 import { buildDocxBlob, prepareDocxInput } from '../serializer/docxExporter'
-import { parseXmlToEditorJson, serializeToXml } from '../serializer'
 import { createDefaultDocumentContent } from './newDocument'
 import { createDocumentDuplicate } from './duplicateDocument'
 
@@ -16,7 +16,28 @@ const originalMeta: DocumentMeta = {
 }
 const makeSource = () => ({ title: originalMeta.titleCn, meta: { ...originalMeta }, content: createDefaultDocumentContent(originalMeta) })
 
-it('复制后库名/封面/XML/DOCX题名一致，正文保留且不修改源文档', async () => {
+async function exportXmlOk(pmDoc: PMJsonNode, documentMeta?: DocumentMeta): Promise<string> {
+  const result = await buildXml46687Package({ pmDoc, documentMeta })
+  expect(result.problems.filter((problem) => problem.severity === 'error')).toEqual([])
+  expect(result.xml).toBeTruthy()
+  return result.xml!
+}
+
+async function importXmlOk(xml: string, schema: ReturnType<typeof getSchema>) {
+  const result = await importXml46687(xml, {
+    validateContent: (candidate) => {
+      const node = schema.nodeFromJSON(candidate)
+      node.check()
+      return { ok: true, content: node.toJSON() as PMJsonNode }
+    },
+  })
+  expect(result.problems.filter((problem) => problem.severity === 'error')).toEqual([])
+  const node = schema.nodeFromJSON(result.pmDoc!)
+  node.check()
+  return node
+}
+
+it('复制后库名/封面/XML46687/DOCX题名一致，正文保留且不修改源文档', async () => {
   const source = makeSource()
   // 模拟库中已有元数据更新，而内嵌封面仍保存创建时的值。
   source.meta.titleCn = '最新标准名称'
@@ -34,18 +55,19 @@ it('复制后库名/封面/XML/DOCX题名一致，正文保留且不修改源文
   const schema = getSchema(createEditorExtensions())
   const node = schema.nodeFromJSON(duplicate.content)
   node.check()
-  const xml = serializeToXml(node)
-  expect(xml).toContain('<main>最新标准名称（副本）</main>')
-  expect(xml).toContain('<std-ref>DB33/T 12345—2026</std-ref>')
-  expect(xml).toContain('<std-type>local</std-type>')
-  expect(xml).toContain('<meta-name>coverDesignation</meta-name>')
+  const xml = await exportXmlOk(node.toJSON() as PMJsonNode)
+  expect(xml).toContain('<full>最新标准名称（副本）</full>')
+  expect(xml).toContain('<std-ref type="dated">DB33/T 12345—2026</std-ref>')
+  expect(xml).toContain('<meta-name>cover-designation</meta-name>')
   expect(xml).toContain('<meta-value>浙江省数字技术地方标准</meta-value>')
   expect(xml).not.toContain('原标准名称')
-  expect(xml).not.toContain('<meta-name>replaces</meta-name>')
-  const reloaded = schema.nodeFromJSON(parseXmlToEditorJson(xml, schema.topNodeType.name))
-  reloaded.check()
-  expect(prepareDocxInput(reloaded).doc.meta).toMatchObject({ title: duplicate.meta.titleCn,
-    stdCode: duplicate.meta.standardNo, standardType: 'local', consistency: 'MOD', coverDesignation: duplicate.meta.coverDesignation })
+  expect(xml).not.toContain('<std-supersedes>')
+  const reloaded = await importXmlOk(xml, schema)
+  expect(prepareDocxInput(reloaded).doc.meta).toMatchObject({
+    title: duplicate.meta.titleCn,
+    stdCode: duplicate.meta.standardNo,
+    coverDesignation: duplicate.meta.coverDesignation,
+  })
   const { blob } = await buildDocxBlob({ pmDoc: node, documentMeta: duplicate.meta, stage: duplicate.stage })
   const zip = await JSZip.loadAsync(await blob.arrayBuffer())
   const body = await zip.file('word/document.xml')!.async('string')
@@ -56,7 +78,7 @@ it('复制后库名/封面/XML/DOCX题名一致，正文保留且不修改源文
   expect(source).toEqual(before)
 })
 
-it('旧正文没有封面节点时补元数据容器，保留原正文与根属性兼容', () => {
+it('旧正文没有封面节点时补元数据容器，保留原正文与根属性兼容', async () => {
   const content = { type: 'doc', attrs: { titleCn: '旧根题名', standardNo: '旧根编号', issuer: '旧根发布机构', icsCode: '01.020', custom: '保留扩展' },
     content: [{ type: 'chapter', attrs: { nodeId: 'legacy-chapter' }, content: [
       { type: 'chapterTitle', content: [{ type: 'text', text: '范围' }] },
@@ -70,8 +92,9 @@ it('旧正文没有封面节点时补元数据容器，保留原正文与根属�
   const schema = getSchema(createEditorExtensions())
   const node = schema.nodeFromJSON(copied)
   node.check()
-  expect(serializeToXml(node)).toContain('<main>原标准名称（副本）</main>')
-  expect(serializeToXml(node)).toContain('<std-org-name>旧根发布机构</std-org-name>')
+  const xml = await exportXmlOk(node.toJSON() as PMJsonNode)
+  expect(xml).toContain('<full>原标准名称（副本）</full>')
+  expect(xml).toContain('<std-org-name>旧根发布机构</std-org-name>')
   expect(prepareDocxInput(node, duplicate.meta).doc.meta).toMatchObject({ issuer: '旧根发布机构', icsCode: '01.020' })
   expect(source.content.content).toHaveLength(1)
   expect(source.content.attrs.titleCn).toBe('旧根题名')
@@ -90,7 +113,7 @@ it.each([{}, { type: 'doc', content: [] }])('空内容继续保留初始化路�
   expect(second.meta.titleCn).toBe('库中显示名称（副本）')
 })
 
-it('库元数据缺省字段保留内嵌封面回退值，XML与DOCX仍一致', () => {
+it('库元数据缺省字段保留内嵌封面回退值，XML46687与DOCX仍一致', async () => {
   const source = makeSource()
   source.meta.standardNo = undefined
   source.meta.consistency = undefined
@@ -102,36 +125,36 @@ it('库元数据缺省字段保留内嵌封面回退值，XML与DOCX仍一致', 
   const schema = getSchema(createEditorExtensions())
   const node = schema.nodeFromJSON(duplicate.content!)
   node.check()
-  const xml = serializeToXml(node)
-  expect(xml).toContain('<std-ref>GB/T 12345—2026</std-ref>')
+  const xml = await exportXmlOk(node.toJSON() as PMJsonNode)
+  expect(xml).toContain('<std-ref type="dated">GB/T 12345—2026</std-ref>')
   expect(xml).toContain('<std-org-name>原封面发布机构</std-org-name>')
-  expect(xml).toContain('<pub-date>2026-10-01</pub-date>')
-  const reloaded = schema.nodeFromJSON(parseXmlToEditorJson(xml, schema.topNodeType.name))
+  expect(xml).toContain('<release-date>2026-10-01</release-date>')
+  const reloaded = await importXmlOk(xml, schema)
   expect(prepareDocxInput(node, duplicate.meta).doc.meta).toMatchObject({
     title: '原标准名称（副本）', stdCode: originalMeta.standardNo, consistency: 'IDT',
     issuer: '原封面发布机构', publishDate: '2026-10-01',
   })
   expect(prepareDocxInput(reloaded).doc.meta).toMatchObject({
-    title: '原标准名称（副本）', stdCode: originalMeta.standardNo, consistency: 'IDT',
+    title: '原标准名称（副本）', stdCode: originalMeta.standardNo,
     issuer: '原封面发布机构', publishDate: '2026-10-01',
   })
   expect(JSON.parse(JSON.stringify(source))).toEqual(before)
 })
 
-
-it('非空根段落没有IR正文对应位置时明确阻断旧XML，不丢原JSON', () => {
+it('非空根段落没有IR正文对应位置时明确阻断 XML46687，不丢原JSON', async () => {
   const source = { title: '旧文档', meta: originalMeta, content: { type: 'doc', content: [{ type: 'paragraph', attrs: { nodeId: 'root-p' }, content: [{ type: 'text', text: '需要保留的根正文' }] }] } }
   const duplicate = createDocumentDuplicate(source)
   const schema = getSchema(createEditorExtensions())
   const node = schema.nodeFromJSON(duplicate.content)
   const before = node.toJSON()
-  expect(() => serializeToXml(node)).toThrow(/doc.content\[1\]/)
+  const result = await buildXml46687Package({ pmDoc: node.toJSON() as PMJsonNode })
+  expect(result.xml).toBeNull()
+  expect(result.problems.some((problem) => problem.severity === 'error' && problem.path.includes('doc.content[1]'))).toBe(true)
   expect(node.toJSON()).toEqual(before)
   expect(JSON.stringify(duplicate.content)).toContain('需要保留的根正文')
 })
 
-
-it('复制完整保留既有提出/归口元数据，DOCX保留而旧XML阻断', async () => {
+it('复制完整保留既有提出/归口元数据，DOCX与XML46687均导出保留', async () => {
   const meta = { ...originalMeta, proposer: '原提出单位', technicalCommittee: '原归口单位' }
   const source = { title: meta.titleCn, meta, content: createDefaultDocumentContent(meta) }
   const before = JSON.parse(JSON.stringify(source))
@@ -140,7 +163,10 @@ it('复制完整保留既有提出/归口元数据，DOCX保留而旧XML阻断',
   const node = getSchema(createEditorExtensions()).nodeFromJSON(duplicate.content)
   node.check()
   expect(prepareDocxInput(node, duplicate.meta).doc.meta).toMatchObject({ proposer: meta.proposer, technicalCommittee: meta.technicalCommittee })
-  expect(() => serializeToXml(node)).toThrow(UnsupportedOutputError)
+  const xml = await exportXmlOk(node.toJSON() as PMJsonNode, duplicate.meta)
+  expect(xml).toContain('<meta-name>proposer</meta-name>')
+  expect(xml).toContain(`<meta-value>${meta.proposer}</meta-value>`)
+  expect(xml).toContain(`<comm-ref>${meta.technicalCommittee}</comm-ref>`)
   const zip = await JSZip.loadAsync(await (await buildDocxBlob({ pmDoc: node, documentMeta: duplicate.meta })).blob.arrayBuffer())
   const properties = new DOMParser().parseFromString(await zip.file('docProps/custom.xml')!.async('string'), 'application/xml')
   expect(properties.querySelector('[name="ses-proposer"]')?.textContent).toBe(meta.proposer)

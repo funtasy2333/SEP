@@ -3,12 +3,12 @@ import JSZip from 'jszip'
 import { getSchema } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
 import {
-  IRToPmError, UnsupportedOutputError, getOutputSupportProblems, irToPm, pmToIr, resolve,
+  IRToPmError, getOutputSupportProblems, irToPm, pmToIr, resolve,
   renderHtml, type IRDoc, type IRInline, type IRList, type IRTable, type IRTermEntry, type PMJsonNode,
 } from '@ses/shared'
 import { createEditorExtensions } from './editorExtensions'
 import { StandardDoc } from './nodes/standard-doc'
-import { serializeToXml } from '../serializer/xmlSerializer'
+import { buildXml46687Package } from '@ses/io'
 import { exportSemanticJson } from '../serializer/jsonExporter'
 import { buildDocxBlob } from '../serializer/docxExporter'
 
@@ -63,7 +63,7 @@ describe('bd0c6eb3 review through production schema and outputs', () => {
     expect(pmToIr(loaded.toJSON() as PMJsonNode).doc.body[0].children).toEqual(authored.body[0].children)
   })
 
-  it.each(['proposer', 'technicalCommittee'] as const)('keeps %s in JSON and DOCX properties while blocking old XML', async field => {
+  it.each(['proposer', 'technicalCommittee'] as const)('keeps %s in JSON, DOCX properties and XML46687', async field => {
     const authored = base()
     authored.meta[field] = '必须保留的单位'
     const loaded = schema.nodeFromJSON(irToPm(authored))
@@ -71,8 +71,10 @@ describe('bd0c6eb3 review through production schema and outputs', () => {
     const source = loaded.toJSON() as PMJsonNode
     const reopened = pmToIr(source).doc
     expect(reopened.meta[field]).toBe(authored.meta[field])
-    expect(getOutputSupportProblems(reopened, 'XML')).toContainEqual(expect.objectContaining({ path: `doc.meta.${field}` }))
-    expect(() => serializeToXml(loaded)).toThrow(UnsupportedOutputError)
+    expect(getOutputSupportProblems(reopened, 'XML46687')).toEqual([])
+    const xmlPkg = await buildXml46687Package({ pmDoc: source, documentMeta: { titleCn: '标题', standardType: 'national' } })
+    expect(xmlPkg.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(xmlPkg.xml).toContain('必须保留的单位')
     const zip = await JSZip.loadAsync(await (await buildDocxBlob({ pmDoc: source, documentMeta: { titleCn: '标题', standardType: 'national' } })).blob.arrayBuffer())
     const properties = new DOMParser().parseFromString(await zip.file('docProps/custom.xml')!.async('string'), 'application/xml')
     expect(properties.querySelector(`[name="ses-${field}"]`)?.textContent).toBe(authored.meta[field])

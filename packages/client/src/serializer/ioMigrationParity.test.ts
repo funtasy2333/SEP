@@ -22,7 +22,6 @@ import {
 } from '@ses/shared'
 import { fullRendererFixture } from '../../../shared/src/renderers/__tests__/fullRendererFixture'
 import { createEditorExtensions } from '../extensions/editorExtensions'
-import { parseXmlToEditorJson } from './xmlParser'
 import { exportSemanticHtml } from './htmlExporter'
 import { buildPdfExportRequest, type PdfExportRequest, type PdfTocTarget } from './pdfExporter'
 
@@ -155,8 +154,8 @@ function specialCharsDoc(chapterTitle: string, clauseTitle: string, appendixTitl
 }
 
 function sampleStandardNode(): PMNode {
-  const xml = readFileSync(resolvePath(fixtureDir, 'sample-standard.xml'), 'utf8')
-  return nodeOf(parseXmlToEditorJson(xml, schema.topNodeType.name))
+  const pmJson = JSON.parse(readFileSync(resolvePath(fixtureDir, 'sample-standard.pm.json'), 'utf8'))
+  return nodeOf(pmJson)
 }
 
 function allElementsNode(): PMNode {

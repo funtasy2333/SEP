@@ -8,8 +8,8 @@ import { createDefaultDocumentContent } from '@/utils/newDocument'
 import { findNodeIdFixes, NODE_ID_TYPES } from '@/extensions/plugins/ensureNodeId'
 import { createEditorExtensions } from '@/extensions/editorExtensions'
 import { getSchema } from '@tiptap/core'
-import { serializeToXml } from '@/serializer'
-import type { DocumentMeta } from '@ses/shared'
+import { buildXml46687Package } from '@ses/io'
+import type { DocumentMeta, PMJsonNode } from '@ses/shared'
 
 const mocks = vi.hoisted(() => ({
   store: {
@@ -264,22 +264,49 @@ it('初始化 ID 保存失败后保留 dirty，停止无限重试并允许 Ctrl+
   }
 })
 
-it('XML 导入在持久化前先用生产 Editor schema 补齐并保存稳定 nodeId', async () => {
+it('XML 导入在持久化前先用生产 Editor schema 补齐并保存稳定 nodeId（支持 .xml 与 .zip 且拒绝旧版 GB/T 37967 XML）', async () => {
   const view = await mountEditor()
+  const messageError = vi.spyOn(ElMessage, 'error').mockImplementation(() => undefined as any)
   try {
     mocks.store.updateDocument.mockClear()
     const schema = getSchema(createEditorExtensions())
-    const xml = serializeToXml(schema.nodeFromJSON(createDefaultDocumentContent(meta) as any))
+    const exported = await buildXml46687Package({
+      pmDoc: schema.nodeFromJSON(createDefaultDocumentContent(meta) as any).toJSON() as PMJsonNode,
+    })
+    expect(exported.problems.filter(problem => problem.severity === 'error')).toEqual([])
     const input = view.root.querySelector<HTMLInputElement>('input[type="file"]')!
     Object.defineProperty(input, 'files', {
       configurable: true,
-      value: [new File([xml], 'standard.xml', { type: 'application/xml' })],
+      value: [new File([exported.xml!], 'standard.xml', { type: 'application/xml' })],
     })
     input.dispatchEvent(new Event('change', { bubbles: true }))
     await vi.waitFor(() => expect(mocks.store.updateDocument).toHaveBeenCalledOnce())
     const savedContent = mocks.store.updateDocument.mock.calls[0]![1].content
     expect(allNodeIdsPresent(savedContent)).toBe(true)
     expect(allNodeIdsPresent(view.editor.getJSON())).toBe(true)
+
+    mocks.store.updateDocument.mockClear()
+    const zipBytes = exported.bytes as Uint8Array<ArrayBuffer>
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [new File([zipBytes], 'standard.zip', { type: 'application/zip' })],
+    })
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    await vi.waitFor(() => expect(mocks.store.updateDocument).toHaveBeenCalledOnce())
+    expect(allNodeIdsPresent(mocks.store.updateDocument.mock.calls[0]![1].content)).toBe(true)
+
+    mocks.store.updateDocument.mockClear()
+    const beforeLegacyReject = view.editor.getJSON()
+    const legacyXml = '<?xml version="1.0"?><standard xmlns="urn:csbts:std:xml:1.0"><front><std-meta><title-wrap lang="zh"><main>旧格式</main></title-wrap></std-meta></front><body><sec><title>范围</title></sec></body></standard>'
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [new File([legacyXml], 'legacy.xml', { type: 'application/xml' })],
+    })
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    await vi.waitFor(() => expect(messageError).toHaveBeenCalled())
+    await flushMicrotasks()
+    expect(mocks.store.updateDocument).not.toHaveBeenCalled()
+    expect(view.editor.getJSON()).toEqual(beforeLegacyReject)
   } finally {
     view.unmount()
   }
@@ -304,7 +331,10 @@ it('XML 导入持久化失败时不改变正文、根属性、选区或 undo 历
     const imported = structuredClone(baseJson)
     const cover = imported.content.find((node: any) => node.type === 'coverPage')
     cover.attrs.titleCn = '失败导入文档'
-    const xml = serializeToXml(view.editor.schema.nodeFromJSON(imported))
+    const exported = await buildXml46687Package({
+      pmDoc: view.editor.schema.nodeFromJSON(imported).toJSON() as PMJsonNode,
+    })
+    const xml = exported.xml!
     mocks.store.updateDocument.mockRejectedValueOnce(new Error('network unavailable'))
     const input = view.root.querySelector<HTMLInputElement>('input[type="file"]')!
     Object.defineProperty(input, 'files', {
@@ -535,12 +565,13 @@ it('错类型 typed crossRef 阻断所有非 JSON 导出并显示具体诊断，
     const exportCard = (label: string) => [...document.body.querySelectorAll<HTMLButtonElement>('.export-card')]
       .find(button => button.textContent?.includes(label))!
     expect([...document.body.querySelectorAll('.export-card')].some(card => card.textContent?.includes('PDF'))).toBe(false)
-    const formatCards = ['HTML', 'XML', 'DOCX'].map(format => {
+    const formatCards = ['HTML', 'XML（GB/T 46687.2—2026）', 'DOCX'].map(format => {
       const card = [...document.body.querySelectorAll<HTMLButtonElement>('.export-card')]
         .find(button => button.textContent?.includes(format))
       expect(card, `${format} 导出卡片应真实存在`).toBeDefined()
       return card!
     })
+    expect(document.body.textContent).not.toContain('37967')
     for (const card of formatCards) {
       card.click()
       await flushMicrotasks()
@@ -567,8 +598,10 @@ it('错类型 typed crossRef 阻断所有非 JSON 导出并显示具体诊断，
       .filter(button => ['复制', '下载'].includes(button.textContent?.trim() ?? ''))
     const radio = (label: string) => [...dialog.querySelectorAll<HTMLElement>('.el-radio-button')]
       .find(button => button.textContent?.includes(label))!
+    expect(dialog.textContent).toContain('XML（GB/T 46687.2—2026）')
+    expect(dialog.textContent).not.toContain('37967')
 
-    for (const [format, label] of [['xml', 'XML'], ['html', '语义 HTML']] as const) {
+    for (const [format, label] of [['xml', 'XML（GB/T 46687.2—2026）'], ['html', '语义 HTML']] as const) {
       radio(label).click()
       await flushMicrotasks()
       expect(dialog.querySelector('pre')?.textContent).toContain(`${format.toUpperCase()} 导出错误`)

@@ -11,7 +11,8 @@ import { FootnoteRef, TableFootnoteRef } from './footnotes'
 import { FigureLegend, FigureLegendTitle } from './figure-legend'
 import { Example, Note } from './note'
 import { ChapterTitle } from './chapter'
-import { serializeToXml } from '../../serializer/xmlSerializer'
+import { buildXml46687Package } from '@ses/io'
+import type { PMJsonNode } from '@ses/shared'
 import { FigureDescription, FigureGroup, FigureResourceRef, WhereDefinition, WhereItem, WhereTerm } from './semantic'
 
 const TestChapter = Node.create({
@@ -82,8 +83,9 @@ describe('图表方向的 ProseMirror 保留', () => {
     }
   })
 
-  it('XML 导出保留横排图表，竖排仍使用默认值', () => {
+  it('XML46687 导出保留横排图表，竖排仍使用默认值', async () => {
     const schema = createSchema()
+    const samplePng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg=='
     const paragraph = schema.nodes.paragraph.create()
     const table = schema.nodes.stdTable.create({ orientation: 'landscape' }, [
       schema.nodes.tableCaption.create(),
@@ -92,20 +94,25 @@ describe('图表方向的 ProseMirror 保留', () => {
       ]),
     ])
     const figure = schema.nodes.figure.create({ orientation: 'landscape' }, [
-      schema.nodes.figureImage.create({ src: 'data:image/png;base64,AA==' }),
+      schema.nodes.figureImage.create({ src: samplePng }),
       schema.nodes.figureCaption.create(),
     ])
     const portraitFigure = schema.nodes.figure.create(null, [
-      schema.nodes.figureImage.create(),
+      schema.nodes.figureImage.create({ src: samplePng }),
       schema.nodes.figureCaption.create(),
     ])
     const doc = schema.node('doc', null, [
       schema.nodes.chapter.create(null, [schema.nodes.chapterTitle.create(), table, figure, portraitFigure]),
     ])
 
-    const xml = serializeToXml(schema.nodeFromJSON(doc.toJSON()))
-    expect(xml).toContain('<table-wrap orientation="landscape">')
-    expect(xml).toContain('<fig orientation="landscape">')
-    expect(xml).toContain('<fig>')
+    const { xml, problems } = await buildXml46687Package({
+      pmDoc: doc.toJSON() as PMJsonNode,
+      documentMeta: { standardType: 'national', titleCn: '横排图表测试' },
+    })
+    expect(problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(xml).toContain('orientation="landscape"')
+    expect(xml).toMatch(/<table-wrap\b[^>]*orientation="landscape"/)
+    expect(xml).toMatch(/<fig\b[^>]*orientation="landscape"/)
+    expect(xml).toMatch(/<fig\b(?![^>]*orientation=)[^>]*>/)
   })
 })

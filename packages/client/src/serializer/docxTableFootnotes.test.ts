@@ -1,12 +1,11 @@
 // @vitest-environment happy-dom
 import JSZip from 'jszip'
 import { getSchema } from '@tiptap/core'
+import { buildXml46687Package, importXml46687 } from '@ses/io'
 import { renderHtml, type PMJsonNode } from '@ses/shared'
 import { describe, expect, it } from 'vitest'
 import { createEditorExtensions } from '../extensions/editorExtensions'
 import { buildDocxBlob, prepareDocxInput } from './docxExporter'
-import { parseXmlToEditorJson } from './xmlParser'
-import { serializeToXml } from './xmlSerializer'
 
 const scenarios = ['only-ref', 'whitespace', 'multiple-paragraphs', 'repeated-ref', 'colspan', 'rowspan', 'header'] as const
 
@@ -23,22 +22,25 @@ function sample(scenario: typeof scenarios[number]): PMJsonNode {
     ])],
   }
   const blankCell: PMJsonNode = { type: 'tableCell', attrs: { colspan: 1, rowspan: 1 }, content: [p()] }
-  return { type: 'standardDoc', attrs: { standardType: 'national', titleCn: '上标单元格回归样稿' }, content: [{
-    type: 'chapter', attrs: { nodeId: 'chapter' }, content: [
-      { type: 'chapterTitle', content: [{ type: 'text', text: '核验' }] },
-      { type: 'stdTable', attrs: { nodeId: 'table' }, content: [
-        { type: 'tableCaption', content: [{ type: 'text', text: '仅有上标的单元格' }] },
-        { type: 'table', content: [
-          { type: 'tableRow', content: [firstCell, blankCell] },
-          ...(scenario === 'rowspan' ? [{ type: 'tableRow', content: [blankCell] }] : []),
+  return { type: 'standardDoc', attrs: { standardType: 'national', titleCn: '上标单元格回归样稿' }, content: [
+    { type: 'coverPage', attrs: { nodeId: 'cover', standardType: 'national', titleCn: '上标单元格回归样稿' }, content: [{ type: 'paragraph' }] },
+    {
+      type: 'chapter', attrs: { nodeId: 'chapter' }, content: [
+        { type: 'chapterTitle', content: [{ type: 'text', text: '核验' }] },
+        { type: 'stdTable', attrs: { nodeId: 'table' }, content: [
+          { type: 'tableCaption', content: [{ type: 'text', text: '仅有上标的单元格' }] },
+          { type: 'table', content: [
+            { type: 'tableRow', content: [firstCell, blankCell] },
+            ...(scenario === 'rowspan' ? [{ type: 'tableRow', content: [blankCell] }] : []),
+          ] },
+          { type: 'tableFootnoteRow', content: [
+            { type: 'tableFootnoteEntry', attrs: { nodeId: 'fn-a' }, content: [{ type: 'text', text: '定义A' }] },
+            { type: 'tableFootnoteEntry', attrs: { nodeId: 'fn-b' }, content: [{ type: 'text', text: '定义B' }] },
+          ] },
         ] },
-        { type: 'tableFootnoteRow', content: [
-          { type: 'tableFootnoteEntry', attrs: { nodeId: 'fn-a' }, content: [{ type: 'text', text: '定义A' }] },
-          { type: 'tableFootnoteEntry', attrs: { nodeId: 'fn-b' }, content: [{ type: 'text', text: '定义B' }] },
-        ] },
-      ] },
-    ],
-  }] }
+      ],
+    },
+  ] }
 }
 
 function texts(node: Element): string[] {
@@ -52,11 +54,37 @@ describe('仅含表脚注上标的单元格完整导出', () => {
     json.type = schema.topNodeType.name
     const pm = schema.nodeFromJSON(json)
     pm.check()
-    const xml = serializeToXml(pm)
-    const reopened = schema.nodeFromJSON(parseXmlToEditorJson(xml, schema.topNodeType.name))
+    const exported = await buildXml46687Package({ pmDoc: pm.toJSON() as PMJsonNode })
+    expect(exported.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    const importedResult = await importXml46687(exported.xml!, {
+      validateContent: (candidate) => {
+        const node = schema.nodeFromJSON(candidate)
+        node.check()
+        return { ok: true, content: node.toJSON() as PMJsonNode }
+      },
+    })
+    expect(importedResult.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    const reopened = schema.nodeFromJSON(importedResult.pmDoc!)
     reopened.check()
+    const reExported = await buildXml46687Package({ pmDoc: reopened.toJSON() as PMJsonNode })
+    expect(reExported.problems.filter(problem => problem.severity === 'error')).toEqual([])
+
+    const printCopyJson = structuredClone(reopened.toJSON()) as PMJsonNode
+    for (const key of ['titleParts', 'identifiers', 'publishers', 'replacedStandards', 'languages', 'copyrights', 'adoptions']) {
+      if (printCopyJson.attrs) delete printCopyJson.attrs[key]
+      const cover = printCopyJson.content?.find(child => child.type === 'coverPage')
+      if (cover?.attrs) delete cover.attrs[key]
+    }
+    printCopyJson.content = (printCopyJson.content ?? []).filter(child => child.type !== 'metadataBlock')
+    const stripColumns = (node: PMJsonNode): void => {
+      if (node.type === 'stdTable' && node.attrs) delete node.attrs.columns
+      node.content?.forEach(stripColumns)
+    }
+    stripColumns(printCopyJson)
+    const printReopened = schema.nodeFromJSON(printCopyJson)
+
     const expectedCalls = scenario === 'repeated-ref' ? ['a', 'b', 'a'] : ['a', 'b']
-    for (const source of [pm, reopened]) {
+    for (const source of [pm, printReopened]) {
       const { doc, labels } = prepareDocxInput(source)
       const definitionLabels: Record<string, string | undefined> = {}
       source.descendants(node => {

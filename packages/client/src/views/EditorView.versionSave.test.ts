@@ -116,6 +116,13 @@ function documentJson(text: string) {
         attrs: { nodeId: 'stable-foreword-p' },
         content: [{ type: 'text', text }],
       }],
+    }, {
+      type: 'chapter',
+      attrs: { nodeId: 'stable-chapter' },
+      content: [
+        { type: 'chapterTitle', content: [{ type: 'text', text: '范围' }] },
+        { type: 'stdParagraph', attrs: { nodeId: 'stable-chapter-p' }, content: [{ type: 'text', text: '本文件规定了测试范围。' }] },
+      ],
     }],
   }
 }
@@ -165,8 +172,11 @@ async function flushMicrotasks() {
 
 async function settle() {
   await flushMicrotasks()
-  if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(100)
-  await flushMicrotasks()
+  for (let i = 0; i < 4; i += 1) {
+    if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(20)
+    else await new Promise((resolve) => setTimeout(resolve, 20))
+    await flushMicrotasks()
+  }
 }
 
 /** 创建版本请求的闸门：每个请求先登记，测试决定何时让它返回。 */
@@ -241,7 +251,7 @@ async function startVersionSave(view: View) {
   clickButton(view.root.querySelector('.version-panel .header-actions')!, '保存版本')
   await settle()
   clickButton(document.body.querySelector('.el-dialog__footer')!, '确定')
-  await flushMicrotasks()
+  await settle()
 }
 
 function foreword(editor: any): string {
@@ -452,6 +462,34 @@ describe('保存版本与外部写入', () => {
       expect(serverForeword()).toBe('AI 写入的内容')
       expect(foreword(view.editor)).toBe('服务端原文')
       expect(banner(view)).not.toBeNull()
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('XML46687 快照生成失败时终止版本保存并提示错误，不发起创建版本或写回文档请求', async () => {
+    const view = await mountEditor()
+    const error = vi.spyOn(ElMessage, 'error').mockImplementation(() => undefined as never)
+    try {
+      // 删除正文章节使文档无法生成有效 GB/T 46687.2 XML（xml-body-empty）
+      view.editor.commands.setContent({
+        type: 'doc',
+        attrs: {},
+        content: [{
+          type: 'coverPage',
+          attrs: { nodeId: 'stable-cover', standardType: 'national', titleCn: baseMeta.titleCn },
+          content: [{ type: 'paragraph', attrs: { nodeId: 'stable-cover-p' } }],
+        }],
+      })
+      await flushMicrotasks()
+
+      await startVersionSave(view)
+      await settle()
+
+      expect(mocks.versionApi.create).not.toHaveBeenCalled()
+      expect(mocks.api.update).not.toHaveBeenCalled()
+      expect(error).toHaveBeenCalled()
+      expect(String(error.mock.calls.at(-1)?.[0])).toContain('版本保存失败')
     } finally {
       view.unmount()
     }
