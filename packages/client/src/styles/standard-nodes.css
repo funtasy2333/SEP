@@ -1212,7 +1212,13 @@
   content: none;
 }
 
-/* 查找命中（#76）：只用装饰高亮，不改选区；当前命中加深。 */
+/* 查找命中（#76）：高亮不改选区，当前命中加深。 */
+.ProseMirror::highlight(ses-search-match) {
+  background-color: oklch(0.88 0.12 90 / 0.55);
+}
+.ProseMirror::highlight(ses-search-current) {
+  background-color: oklch(0.78 0.16 70 / 0.85);
+}
 .ProseMirror .ses-search-match {
   background: oklch(0.88 0.12 90 / 0.55);
   border-radius: 2px;
@@ -1224,6 +1230,8 @@
 @media print {
   .ProseMirror .ses-search-match,
   .ProseMirror .ses-search-current { background: none; box-shadow: none; }
+  .ProseMirror::highlight(ses-search-match),
+  .ProseMirror::highlight(ses-search-current) { background-color: transparent; }
 }
 
 /* ProseMirror selects cells as a rectangle; native text selection is collapsed. */

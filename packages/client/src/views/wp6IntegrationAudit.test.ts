@@ -2,7 +2,7 @@
 import { createApp, h, nextTick } from 'vue'
 import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
 import { afterEach, expect, it, vi } from 'vitest'
-import { DOMSerializer, Fragment } from '@tiptap/pm/model'
+import { DOMSerializer, Fragment, type Node as PMNode } from '@tiptap/pm/model'
 import EditorView from './EditorView.vue'
 import { createDefaultDocumentContent } from '@/utils/newDocument'
 import { findNodeIdFixes, NODE_ID_TYPES } from '@/extensions/plugins/ensureNodeId'
@@ -191,6 +191,26 @@ afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
+})
+
+it('刚打开文档后粘贴，撤销只移除粘贴的文字', async () => {
+  const view = await mountEditor()
+  try {
+    const before: PMNode = view.editor.state.doc
+    let paragraphStart = -1
+    before.descendants((node, pos) => {
+      if (paragraphStart < 0 && node.type.name === 'stdParagraph') paragraphStart = pos + 1
+    })
+    expect(paragraphStart).toBeGreaterThan(0)
+    expect(view.editor.can().undo()).toBe(false)
+    view.editor.commands.setTextSelection(paragraphStart)
+    expect(view.editor.view.pasteText('粘贴的第一段')).toBe(true)
+    expect(view.editor.state.doc.textContent).toContain('粘贴的第一段')
+    expect(view.editor.commands.undo()).toBe(true)
+    expect(view.editor.state.doc.eq(before)).toBe(true)
+  } finally {
+    view.unmount()
+  }
 })
 
 it('打开未带 nodeId 的旧正文后立即持久化生产 schema 规范化后的 ID，重开仍稳定', async () => {

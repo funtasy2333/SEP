@@ -19,20 +19,23 @@ const doc = (...chapters: PMJsonNode[]): PMJsonNode & Record<string, unknown> =>
 
 function mountOutline(content: PMJsonNode) {
   const editor = new Editor({ extensions: createEditorExtensions(), content })
-  editor.mount(document.createElement('div'))
+  const canvas = document.createElement('div')
+  canvas.className = 'editor-content-wrapper'
+  editor.mount(canvas.appendChild(document.createElement('div')))
   const root = document.createElement('div')
-  document.body.append(root)
+  document.body.append(root, canvas)
   const app = createApp({ render: () => h(DocumentOutline, { editor }) })
   app.use(ElementPlus).mount(root)
   return {
     editor,
     root,
+    canvas,
     chapterIds: () => (editor.getJSON().content ?? []).filter(node => node.type === 'chapter').map(node => node.attrs?.nodeId),
     clickDelete(title: string) {
       const item = [...root.querySelectorAll<HTMLElement>('.outline-item')].find(element => element.textContent?.includes(title))!
       item.querySelector<HTMLElement>('.outline-item-delete')!.click()
     },
-    destroy() { app.unmount(); root.remove(); editor.destroy() },
+    destroy() { app.unmount(); root.remove(); canvas.remove(); editor.destroy() },
   }
 }
 
@@ -45,6 +48,30 @@ function deferredConfirm() {
 }
 
 afterEach(() => vi.restoreAllMocks())
+
+it('点击大纲中的章时将正确的标题居中，并将光标移到该标题', async () => {
+  const view = mountOutline(doc(chapter('a', '甲'), chapter('b', '乙')))
+  try {
+    const bounds = HTMLElement.prototype.getBoundingClientRect
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return this.matches('[data-node-id="b"] > .std-chapter-title')
+        ? new DOMRect(0, 700, 600, 40)
+        : bounds.call(this)
+    })
+    vi.spyOn(view.canvas, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 100, 600, 400))
+    vi.spyOn(view.canvas, 'clientHeight', 'get').mockReturnValue(400)
+    view.canvas.scrollTop = 300
+    const scroll = vi.spyOn(view.canvas, 'scrollTo')
+    const item = [...view.root.querySelectorAll<HTMLElement>('.outline-item')].find(element => element.textContent?.includes('乙'))!
+    item.click()
+    await nextTick()
+
+    expect(view.editor.state.selection.$from.parent.textContent).toBe('乙')
+    expect(scroll).toHaveBeenCalledWith({ top: 720 })
+  } finally {
+    view.destroy()
+  }
+})
 
 it('确认删除后删掉对话框里点名的那一章', async () => {
   const view = mountOutline(doc(chapter('a', '甲'), chapter('b', '乙')))

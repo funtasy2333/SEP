@@ -126,19 +126,19 @@
         <span class="tbar-sep" />
 
         <div class="tbar-group">
-          <button class="tbar-btn icon-btn" :disabled="!editor?.can().undo()" @click="editor?.chain().focus().undo().run()" title="撤销（Ctrl+Z）" aria-label="撤销">
+          <button class="tbar-btn icon-btn" :disabled="!editor?.can().undo()" @click="editor?.chain().focus().undo().run()" title="撤销（Ctrl/Cmd+Z）" aria-label="撤销">
             <el-icon><RefreshLeft /></el-icon>
           </button>
-          <button class="tbar-btn icon-btn" :disabled="!editor?.can().redo()" @click="editor?.chain().focus().redo().run()" title="重做（Ctrl+Shift+Z）" aria-label="重做">
+          <button class="tbar-btn icon-btn" :disabled="!editor?.can().redo()" @click="editor?.chain().focus().redo().run()" title="重做（Ctrl/Cmd+Shift+Z）" aria-label="重做">
             <el-icon><RefreshRight /></el-icon>
           </button>
         </div>
         <span class="tbar-sep" />
 
         <div class="tbar-group format-group">
-          <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('bold') }" title="加粗（Ctrl+B）" aria-label="加粗" @click="editor?.chain().focus().toggleBold().run()"><strong>B</strong></button>
-          <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('italic') }" title="斜体（Ctrl+I）" aria-label="斜体" @click="editor?.chain().focus().toggleItalic().run()"><em>I</em></button>
-          <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('underline') }" title="下划线（Ctrl+U）" aria-label="下划线" @click="toggleUnderline()"><u>U</u></button>
+          <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('bold') }" title="加粗（Ctrl/Cmd+B）" aria-label="加粗" @click="editor?.chain().focus().toggleBold().run()"><strong>B</strong></button>
+          <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('italic') }" title="斜体（Ctrl/Cmd+I）" aria-label="斜体" @click="editor?.chain().focus().toggleItalic().run()"><em>I</em></button>
+          <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('underline') }" title="下划线（Ctrl/Cmd+U）" aria-label="下划线" @click="toggleUnderline()"><u>U</u></button>
           <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('strike') }" title="删除线" aria-label="删除线" @click="editor?.chain().focus().toggleStrike().run()"><s>S</s></button>
         </div>
         <span class="tbar-sep" />
@@ -189,7 +189,7 @@
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="note">注</el-dropdown-item>
-                <el-dropdown-item command="footnote">脚注（Ctrl+Shift+F）</el-dropdown-item>
+                <el-dropdown-item command="footnote">脚注（Ctrl/Cmd+Shift+F）</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -402,14 +402,18 @@
     <el-dialog v-model="showHelp" title="键盘快捷键 / 帮助" width="520px">
       <div class="help-content">
         <h4>快捷键</h4>
+        <p>在 macOS 上使用 <kbd>Cmd</kbd>（⌘）代替下列组合键中的 <kbd>Ctrl</kbd>。</p>
         <ul>
           <li><kbd>Ctrl</kbd> + <kbd>B</kbd> 加粗</li>
           <li><kbd>Ctrl</kbd> + <kbd>I</kbd> 斜体</li>
+          <li><kbd>Ctrl</kbd> + <kbd>U</kbd> 下划线</li>
           <li><kbd>Ctrl</kbd> + <kbd>Z</kbd> 撤销</li>
           <li><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> 重做</li>
           <li><kbd>Ctrl</kbd> + <kbd>S</kbd> 保存</li>
           <li><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> 插入脚注</li>
           <li><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>M</kbd> 插入符号</li>
+          <li><kbd>Ctrl</kbd> + <kbd>Enter</kbd> 在表格后插入段落（光标位于表格内）</li>
+          <li><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>V</kbd> 粘贴纯文本</li>
           <li><kbd>/</kbd> 智能插入菜单</li>
         </ul>
         <h4>文档结构</h4>
@@ -671,7 +675,7 @@ import { useEditor } from '@tiptap/vue-3'
 import { installRemoteDocument, replaceEditorDocument } from '@/utils/editorDocument'
 import { createEditorExtensions } from '@/extensions/editorExtensions'
 import { normalizePageOrientation } from '@/utils/orientation'
-import { SearchHighlight, SEARCH_CURRENT_CLASS, clearSearch, getSearchState, stepSearch } from '@/extensions/plugins/searchHighlight'
+import { SearchHighlight, clearSearch, getSearchState, scrollToCurrentSearchMatch, stepSearch } from '@/extensions/plugins/searchHighlight'
 import { createDocumentValidationExtension } from '@/extensions/plugins/documentValidation'
 import { useDocumentValidation } from '@/composables/useDocumentValidation'
 import { hasNodeIdIssues, normalizeNodeIds } from '@/extensions/plugins/ensureNodeId'
@@ -1124,7 +1128,8 @@ onMounted(async () => {
         candidate.check()
         needsNodeIdPersistence = hasNodeIdIssues(candidate)
         legacyUntitledClauses = countLegacyUntitledClauses(candidate)
-        replaceEditorDocument(editor.value, store.currentDocument.content)
+        // 打开文件建立撤销起点，第一次编辑或粘贴只撤回用户自己的改动。
+        replaceEditorDocument(editor.value, store.currentDocument.content, true, false)
       }
     } else {
       // 新文档加载默认结构
@@ -1133,7 +1138,7 @@ onMounted(async () => {
         const candidate = editor.value.schema.nodeFromJSON(initialContent)
         candidate.check()
         needsNodeIdPersistence = hasNodeIdIssues(candidate)
-        replaceEditorDocument(editor.value, initialContent)
+        replaceEditorDocument(editor.value, initialContent, true, false)
       }
     }
     contentReady.value = true
@@ -2329,11 +2334,6 @@ function syncSearchStatus() {
   searchStatus.value = !state.query ? '' : state.matches.length === 0 ? '0/0' : `${state.current + 1}/${state.matches.length}`
 }
 
-function scrollToCurrentMatch() {
-  const element = editor.value?.view.dom.querySelector<HTMLElement>(`.${SEARCH_CURRENT_CLASS}`)
-  element?.scrollIntoView?.({ block: 'center' })
-}
-
 function runSearch(direction: 1 | -1) {
   const currentEditor = editor.value
   const text = searchText.value
@@ -2344,7 +2344,7 @@ function runSearch(direction: 1 | -1) {
     ElMessage.info('未找到匹配内容')
     return
   }
-  scrollToCurrentMatch()
+  scrollToCurrentSearchMatch(currentEditor.view)
   if (wrapped) {
     ElMessage.info(state.matches.length === 1 ? '仅有 1 处匹配' : direction === 1 ? '已到最后一处，回到第一处' : '已到第一处，回到最后一处')
   }

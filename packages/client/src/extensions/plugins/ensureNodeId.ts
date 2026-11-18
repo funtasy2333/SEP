@@ -106,18 +106,28 @@ interface GraphicIdFix { pos: number; field: 'additionalGraphics' | 'alternative
 
 /** Embedded graphic IDs are definitions too, although they are not ProseMirror nodes. */
 function graphicIdFixes(doc: PMNode, repair: boolean): GraphicIdFix[] {
+  const carriers: Array<{ pos: number; field: GraphicIdFix['field']; values: unknown[] }> = []
+  doc.descendants((node, pos) => {
+    if (node.type.name === 'figure' && Array.isArray(node.attrs.additionalGraphics) && node.attrs.additionalGraphics.length > 0) {
+      carriers.push({ pos, field: 'additionalGraphics', values: node.attrs.additionalGraphics })
+    } else if (node.type.name === 'stdTable' && node.attrs.alternativeGraphic) {
+      carriers.push({ pos, field: 'alternativeGraphic', values: [node.attrs.alternativeGraphic] })
+    }
+  })
+  if (carriers.length === 0) return []
+
   const seen = new Set<string>()
   doc.descendants(node => {
     if (typeof node.attrs.nodeId === 'string' && node.attrs.nodeId) seen.add(node.attrs.nodeId)
   })
   const reserved = new Set(seen)
-  doc.descendants(node => visitGraphicAttrs(node, id => { if (typeof id === 'string' && id) reserved.add(id) }, () => {}))
+  for (const { values } of carriers) {
+    for (const value of values) {
+      if (isRecord(value) && typeof value.nodeId === 'string' && value.nodeId) reserved.add(value.nodeId)
+    }
+  }
   const fixes: GraphicIdFix[] = []
-  doc.descendants((node, pos) => {
-    const field = node.type.name === 'figure' ? 'additionalGraphics' : node.type.name === 'stdTable' ? 'alternativeGraphic' : null
-    if (!field) return
-    const raw = node.attrs[field]
-    const values = field === 'additionalGraphics' && Array.isArray(raw) ? raw : field === 'alternativeGraphic' && raw ? [raw] : []
+  for (const { pos, field, values } of carriers) {
     let changed = false
     const next = values.map((value: unknown) => {
       if (!isRecord(value)) return value
@@ -132,7 +142,7 @@ function graphicIdFixes(doc: PMNode, repair: boolean): GraphicIdFix[] {
       return { ...value, nodeId: replacement }
     })
     if (changed) fixes.push({ pos, field, value: field === 'additionalGraphics' ? next : next[0] })
-  })
+  }
   return fixes
 }
 
@@ -438,14 +448,18 @@ function referencedId(mark: unknown): string | null {
   return typeof target === 'string' && target.length > 0 ? target : null
 }
 
-function getAmbiguousPastedReferencesMessage(slice: Slice, currentDoc: PMNode): string | null {
-  const counts = collectSliceDefinitionCounts(slice)
-  const references = collectSliceReferenceIds(slice)
+function getAmbiguousPastedReferencesMessage(
+  definitions: ReadonlyMap<string, number>, references: ReadonlySet<string>, currentDoc: PMNode,
+): string | null {
+  const duplicateIds: string[] = []
+  for (const [id, count] of definitions) {
+    if (count <= 1) continue
+    if (references.has(id)) return '粘贴内容含重复引用目标，无法确定关联，请先修正源内容'
+    duplicateIds.push(id)
+  }
+  if (duplicateIds.length === 0) return null
   const existingIds = collectDocDefinitionIds(currentDoc)
-  const ambiguousReferencedId = [...counts].some(([id, count]) => count > 1 && references.has(id))
-  if (ambiguousReferencedId) return '粘贴内容含重复引用目标，无法确定关联，请先修正源内容'
-  const conflictingId = [...counts].some(([id, count]) => count > 1 && existingIds.has(id))
-  if (conflictingId) return '粘贴内容含重复节点 ID，与当前文档冲突，无法保留原件及引用关系；请先修正源内容'
+  if (duplicateIds.some(id => existingIds.has(id))) return '粘贴内容含重复节点 ID，与当前文档冲突，无法保留原件及引用关系；请先修正源内容'
   return null
 }
 
@@ -561,11 +575,12 @@ function remapPastedNode(node: PMNode, remaps: PastedIdRemaps): PMNode {
   return node.type.create(attrs ?? node.attrs, children, marks)
 }
 
-function buildPastedIdRemaps(slice: Slice, currentDoc: PMNode): Map<string, string> {
-  const counts = collectSliceDefinitionCounts(slice)
-  const existingIds = collectDocDefinitionIds(currentDoc)
-  const reserved = new Set([...existingIds, ...counts.keys()])
+function buildPastedIdRemaps(counts: ReadonlyMap<string, number>, currentDoc: PMNode): Map<string, string> {
   const remaps = new Map<string, string>()
+  if (counts.size === 0) return remaps
+  const existingIds = collectDocDefinitionIds(currentDoc)
+  const reserved = new Set(existingIds)
+  for (const id of counts.keys()) reserved.add(id)
   for (const [id, count] of counts) {
     if (count !== 1 || !existingIds.has(id)) continue
     let replacement = generateNodeId()
@@ -588,23 +603,7 @@ function applyPastedIdRemaps(slice: Slice, ids: ReadonlyMap<string, string>): Sl
  * Duplicate definitions remain untouched here so references are never guessed.
  */
 export function remapPastedSliceIds(slice: Slice, currentDoc: PMNode): Slice {
-  return applyPastedIdRemaps(slice, buildPastedIdRemaps(slice, currentDoc))
-}
-
-function hasDroppedInternalPasteTarget(
-  sourceSlice: Slice,
-  candidateDoc: PMNode,
-  idRemaps: ReadonlyMap<string, string>,
-): boolean {
-  const definitions = collectSliceDefinitionCounts(sourceSlice)
-  const references = collectSliceReferenceIds(sourceSlice)
-  const candidateIds = collectDocDefinitionIds(candidateDoc)
-  for (const [id, count] of definitions) {
-    if (count !== 1 || !references.has(id)) continue
-    const expectedId = idRemaps.get(id) ?? id
-    if (!candidateIds.has(expectedId)) return true
-  }
-  return false
+  return applyPastedIdRemaps(slice, buildPastedIdRemaps(collectSliceDefinitionCounts(slice), currentDoc))
 }
 
 /**
@@ -614,6 +613,7 @@ function hasDroppedInternalPasteTarget(
  * untouched and let the shared resolver report the invalid/unreferenced IDs.
  */
 function findCopiedTableFootnoteTargets(doc: PMNode, fixes: NodeIdFix[]): Array<{ pos: number; targetId: string }> {
+  if (fixes.length === 0) return []
   const fixPositions = new Set(fixes.map((fix) => fix.pos))
   const seen = new Set<string>()
   const remapsByTable = new Map<number, Map<string, string>>()
@@ -641,6 +641,7 @@ function findCopiedTableFootnoteTargets(doc: PMNode, fixes: NodeIdFix[]): Array<
       return
     }
   })
+  if (remapsByTable.size === 0) return []
 
   const targetFixes: Array<{ pos: number; targetId: string }> = []
   doc.descendants((node, pos) => {
@@ -667,7 +668,10 @@ export function ensureNodeIdPlugin(): Plugin {
     key: ensureNodeIdPluginKey,
     props: {
       handlePaste(view, _event, slice) {
-        const ambiguousMessage = getAmbiguousPastedReferencesMessage(slice, view.state.doc)
+        const definitions = collectSliceDefinitionCounts(slice)
+        if (definitions.size === 0) return false
+        const references = collectSliceReferenceIds(slice)
+        const ambiguousMessage = getAmbiguousPastedReferencesMessage(definitions, references, view.state.doc)
         if (ambiguousMessage) {
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('ses:paste-reference-error', {
@@ -676,7 +680,9 @@ export function ensureNodeIdPlugin(): Plugin {
           }
           return true
         }
-        const ids = buildPastedIdRemaps(slice, view.state.doc)
+        const internalTargets = [...references].filter(id => definitions.get(id) === 1)
+        if (internalTargets.length === 0) return false
+        const ids = buildPastedIdRemaps(definitions, view.state.doc)
         const candidateSlice = applyPastedIdRemaps(slice, ids)
         // Match ProseMirror doPaste: a closed single-node slice uses replaceSelectionWith;
         // every other rich paste uses replaceSelection. This preview is detached and never dispatches.
@@ -686,7 +692,8 @@ export function ensureNodeIdPlugin(): Plugin {
         } else {
           preview.replaceSelection(candidateSlice)
         }
-        if (hasDroppedInternalPasteTarget(slice, preview.doc, ids)) {
+        const candidateIds = collectDocDefinitionIds(preview.doc)
+        if (internalTargets.some(id => !candidateIds.has(ids.get(id) ?? id))) {
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('ses:paste-reference-error', {
               detail: { message: '此粘贴位置会合并引用目标所在段落，无法保留内部引用关系；请在结构边界粘贴或调整选区' },

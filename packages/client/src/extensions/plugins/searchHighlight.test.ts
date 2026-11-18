@@ -1,14 +1,17 @@
 // @vitest-environment happy-dom
 import { Editor } from '@tiptap/core'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createEditorExtensions } from '../editorExtensions'
 import { chapter, paragraph, text } from '@/validation/__fixtures__/phase6'
 import {
-  SEARCH_CURRENT_CLASS, SEARCH_MATCH_CLASS, SearchHighlight, clearSearch, findTextMatches, getSearchState, stepSearch,
+  SEARCH_CURRENT_CLASS, SEARCH_MATCH_CLASS, SearchHighlight, clearSearch, findTextMatches, getSearchState, scrollToCurrentSearchMatch, stepSearch,
 } from './searchHighlight'
 
 const editors: Editor[] = []
-afterEach(() => { editors.splice(0).forEach((editor) => editor.destroy()) })
+afterEach(() => {
+  editors.splice(0).forEach((editor) => editor.destroy())
+  vi.unstubAllGlobals()
+})
 
 function createEditor(content: unknown) {
   const editor = new Editor({ extensions: [...createEditorExtensions(), SearchHighlight], content: content as any })
@@ -16,6 +19,17 @@ function createEditor(content: unknown) {
   // StarterKit 的 trailingNode 会在第一笔事务时补一个末尾段落；应用里载入正文时已发生，这里先预热，避免误判为查找改了正文。
   editor.view.dispatch(editor.state.tr.setMeta('addToHistory', false))
   return editor
+}
+
+function enableNativeHighlights() {
+  class TestHighlight extends Set<StaticRange> { priority = 0 }
+  const registry = new Map<string, TestHighlight>()
+  vi.stubGlobal('CSS', Object.assign(Object.create(CSS), { highlights: registry }))
+  vi.stubGlobal('Highlight', TestHighlight)
+  vi.stubGlobal('StaticRange', class {
+    constructor(range: StaticRangeInit) { Object.assign(this, range) }
+  })
+  return registry
 }
 
 const riskDoc = () => ({
@@ -85,6 +99,67 @@ describe('findTextMatches：行内容器（结构化参考文献）', () => {
 })
 
 describe('stepSearch (#76)', () => {
+  it('原生高亮保留全部命中和当前命中，切换命中时复用范围，编辑和清除后同步更新', () => {
+    const registry = enableNativeHighlights()
+    const editor = createEditor(riskDoc())
+
+    const first = stepSearch(editor.view, '风险')
+    expect(registry.size).toBe(2)
+    const matches = registry.get(SEARCH_MATCH_CLASS)!
+    const active = registry.get(SEARCH_CURRENT_CLASS)!
+    const ranges = Array.from(matches)
+    expect(ranges).toHaveLength(3)
+    expect(active.has(ranges[0])).toBe(true)
+    expect(editor.view.dom.querySelector(`.${SEARCH_MATCH_CLASS}`)).toBeNull()
+
+    stepSearch(editor.view, '风险')
+    expect(Array.from(matches)).toEqual(ranges)
+    expect(Array.from(active)).toEqual([ranges[1]])
+    expect(ranges[1].startContainer.parentElement?.closest('strong')).not.toBeNull()
+
+    editor.view.dispatch(editor.state.tr.insertText('风险', first.state.matches[0].from))
+    expect(matches.size).toBe(4)
+    expect(Array.from(active)).toEqual([Array.from(matches)[2]])
+
+    clearSearch(editor.view)
+    expect(registry.size).toBe(0)
+    stepSearch(editor.view, '风险', -1)
+    expect(registry.size).toBe(2)
+    editor.destroy()
+    expect(registry.size).toBe(0)
+  })
+
+  it('原生高亮查找横向表格时滚动表格自身，让命中进入视口', () => {
+    enableNativeHighlights()
+    const cell = (value: string) => ({ type: 'tableCell', content: [
+      { type: 'paragraph', content: [text(value)] },
+    ] })
+    const editor = createEditor({ type: 'doc', content: [{
+      type: 'stdTable', attrs: { orientation: 'landscape' }, content: [
+        { type: 'tableCaption' }, { type: 'table', content: [{
+          type: 'tableRow', content: [cell('第一列'), cell('查找目标')],
+        }] },
+      ],
+    }] })
+    const viewport = document.createElement('div')
+    viewport.className = 'editor-content-wrapper'
+    viewport.append(editor.view.dom)
+    const table = editor.view.dom.querySelector<HTMLElement>('.tableWrapper')!
+    vi.spyOn(table, 'getBoundingClientRect').mockReturnValue(new DOMRect(20, 50, 400, 100))
+    vi.spyOn(table, 'clientWidth', 'get').mockReturnValue(400)
+    const { matches } = stepSearch(editor.view, '查找目标').state
+    vi.spyOn(editor.view, 'coordsAtPos').mockImplementation(position => {
+      const x = position === matches[0].from ? 560 : 620
+      return { left: x, right: x, top: 90, bottom: 110 }
+    })
+    const selection = editor.state.selection
+
+    scrollToCurrentSearchMatch(editor.view)
+
+    expect(table.scrollLeft).toBe(200)
+    expect(editor.state.selection).toBe(selection)
+  })
+
   it('steps forward through matches with wrap-around and never changes the document or selection', () => {
     const editor = createEditor(riskDoc())
     const before = JSON.stringify(editor.getJSON())

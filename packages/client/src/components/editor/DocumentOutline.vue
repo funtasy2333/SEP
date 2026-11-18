@@ -44,12 +44,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { Close, Rank } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Node as PMNode } from '@tiptap/pm/model'
+import { Selection } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/vue-3'
-import { pmToIr, resolve } from '@ses/shared'
+import { resolveEditorLabels } from '../../utils/semanticLabels'
 
 const props = defineProps<{
   editor: Editor | undefined
@@ -176,11 +177,12 @@ function updateActiveIndex() {
 
 function updateHeadings() {
   if (!props.editor) return
+  const { doc } = props.editor.state
   const items: HeadingItem[] = []
-  const labels = resolve(pmToIr(props.editor.state.doc.toJSON()).doc).labels
+  const labels = resolveEditorLabels(doc)
   const labelFor = (id: string) => labels[id]?.label ?? '?'
 
-  props.editor.state.doc.descendants((node, pos) => {
+  doc.descendants((node, pos) => {
     if (node.type.name === 'foreword') {
       items.push({ level: 1, text: '前言', pos, nodePos: pos, nodeSize: node.nodeSize, deletable: true })
       return false
@@ -252,16 +254,38 @@ function updateHeadings() {
         }
       })
     } else if (node.type.name === 'bibliography') {
-      items.push({ level: 1, text: '参考文献', pos, nodePos: pos, nodeSize: node.nodeSize, deletable: true })
+      items.push({ level: 1, text: '参考文献', pos: pos + 1, nodePos: pos, nodeSize: node.nodeSize, deletable: true })
       return false
     }
   })
   headings.value = items
 }
 
-function scrollToHeading(item: HeadingItem) {
-  if (!props.editor) return
-  props.editor.chain().focus().setTextSelection(item.pos + 1).run()
+async function scrollToHeading(item: HeadingItem) {
+  const editor = props.editor
+  if (!editor || editor.isDestroyed) return
+  const { state, view } = editor
+  if (item.pos >= state.doc.content.size) return
+  const cursor = Selection.findFrom(state.doc.resolve(item.pos + 1), 1, true)
+  if (cursor && cursor.from < item.nodePos + item.nodeSize) {
+    view.dispatch(state.tr.setSelection(cursor))
+    view.focus()
+  }
+
+  // Let the toolbar update its context controls before measuring the editor viewport.
+  const doc = view.state.doc
+  await nextTick()
+  if (props.editor !== editor || editor.isDestroyed || view.state.doc !== doc) return
+
+  const heading = view.nodeDOM(item.pos)
+  const viewport = view.dom.closest<HTMLElement>('.editor-content-wrapper')
+  if (!(heading instanceof HTMLElement) || !viewport) return
+
+  const bounds = heading.getBoundingClientRect()
+  // 前言和引言的标题由 CSS 绘制在节的开头，定位到节首而非节的中间。
+  const anchor = item.pos === item.nodePos ? bounds.top : bounds.top + bounds.height / 2
+  const viewportCenter = viewport.getBoundingClientRect().top + viewport.clientTop + viewport.clientHeight / 2
+  viewport.scrollTo({ top: viewport.scrollTop + anchor - viewportCenter })
 }
 
 async function deleteSection(item: HeadingItem) {
@@ -271,7 +295,7 @@ async function deleteSection(item: HeadingItem) {
   const target = docBefore.nodeAt(item.nodePos)
   if (!target) return
   try {
-    await ElMessageBox.confirm(`删除「${item.text || '(空标题)'}」及其下全部内容？删除后可用撤销（Ctrl+Z）恢复。`, '删除章节', {
+    await ElMessageBox.confirm(`删除「${item.text || '(空标题)'}」及其下全部内容？删除后可用撤销（Ctrl/Cmd+Z）恢复。`, '删除章节', {
       confirmButtonText: '删除',
       cancelButtonText: '取消',
       type: 'warning',
