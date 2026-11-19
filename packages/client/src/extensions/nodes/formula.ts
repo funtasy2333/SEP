@@ -132,6 +132,60 @@ export const Formula = Node.create({
     ]
   },
 
+  addNodeView() {
+    return ({ editor, node, getPos, HTMLAttributes }) => {
+      const dom = document.createElement('div')
+      const attrs = mergeAttributes(HTMLAttributes, { 'data-type': 'formula', class: 'std-formula' })
+      for (const [key, value] of Object.entries(attrs)) dom.setAttribute(key, String(value))
+
+      const equation = document.createElement('div')
+      equation.className = 'std-formula-content'
+      equation.contentEditable = 'false'
+      const preview = document.createElement('button')
+      preview.type = 'button'
+      preview.className = 'std-formula-preview'
+      preview.title = '点击编辑公式'
+      equation.append(preview)
+      const contentDOM = document.createElement('div')
+      contentDOM.className = 'std-formula-children'
+      dom.append(equation, contentDOM)
+
+      function render(formula: PMNode): void {
+        const latex = formula.firstChild?.textContent.trim()
+        const mathml = formula.attrs.mathml
+        if (latex) {
+          try {
+            preview.innerHTML = katex.renderToString(latex, { displayMode: true, throwOnError: true, strict: 'ignore' })
+            return
+          } catch {
+            // Imported documents can contain source KaTeX cannot parse.
+          }
+        }
+        const nativeMath = typeof mathml === 'string' ? renderNativeMathMl(mathml) : null
+        if (nativeMath) preview.replaceChildren(nativeMath)
+        else preview.textContent = latex || mathml ? '公式无法渲染' : '空公式'
+      }
+
+      render(node)
+      preview.addEventListener('click', () => {
+        const pos = getPos()
+        if (typeof pos === 'number') requestBlockFormulaEdit(editor, pos + 1)
+      })
+      return {
+        dom, contentDOM,
+        stopEvent: event => equation.contains(event.target as globalThis.Node),
+        ignoreMutation: mutation => equation.contains(mutation.target),
+        update(next) {
+          // Attribute changes rebuild this wrapper with the new MathML and HTML attributes.
+          if (!node.sameMarkup(next)) return false
+          if (node.firstChild !== next.firstChild) render(next)
+          node = next
+          return true
+        },
+      }
+    }
+  },
+
   addCommands() {
     return {
       insertFormula: ({ pos: requestedPos, triggerPos, latex } = {}) => ({ editor, state, tr, dispatch }) => {
@@ -191,50 +245,12 @@ export const FormulaContent = Node.create({
     ]
   },
 
+  // The parent renders this source together with its MathML attribute.
   addNodeView() {
-    return ({ editor, node, getPos, view }) => {
+    return () => {
       const dom = document.createElement('div')
-      dom.className = 'std-formula-content'
-      dom.dataset.type = 'formula-content'
-      dom.contentEditable = 'false'
-      const preview = document.createElement('button')
-      preview.type = 'button'
-      preview.className = 'std-formula-preview'
-      preview.title = '点击编辑公式'
-      dom.append(preview)
-
-      function render(content: PMNode): void {
-        const latex = content.textContent.trim()
-        const pos = getPos()
-        const mathml = typeof pos === 'number' ? view.state.doc.nodeAt(pos - 1)?.attrs.mathml : null
-        if (latex) {
-          try {
-            preview.innerHTML = katex.renderToString(latex, { displayMode: true, throwOnError: true, strict: 'ignore' })
-            return
-          } catch {
-            // Imported documents can contain source KaTeX cannot parse.
-          }
-        }
-        const nativeMath = typeof mathml === 'string' ? renderNativeMathMl(mathml) : null
-        if (nativeMath) preview.replaceChildren(nativeMath)
-        else preview.textContent = latex || mathml ? '公式无法渲染' : '空公式'
-      }
-
-      render(node)
-      preview.addEventListener('click', () => {
-        const pos = getPos()
-        if (typeof pos === 'number') requestBlockFormulaEdit(editor, pos)
-      })
-      return {
-        dom,
-        stopEvent: event => event.type === 'mousedown' || event.type === 'click' || event.type === 'keydown',
-        ignoreMutation: () => true,
-        update(content) {
-          if (content.type !== node.type) return false
-          render(content)
-          return true
-        },
-      }
+      dom.hidden = true
+      return { dom }
     }
   },
 

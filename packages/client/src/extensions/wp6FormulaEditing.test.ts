@@ -4,6 +4,7 @@ import { Editor, getSchema } from '@tiptap/core'
 import { expect, it } from 'vitest'
 import { irToPm, pmToIr, renderHtml, resolve, type IRDoc, type IRFormula, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from './editorExtensions'
+import { replaceEditorDocument } from '../utils/editorDocument'
 import { buildDocxBlob } from '../serializer/docxExporter'
 
 const sourceLatex = '\\mathrm{STALEONLY}+1'
@@ -69,6 +70,28 @@ it('renders imported MathML in a read-only editor without mutating the stored so
     preview.click()
     expect(opened).toBe(false)
     expect((pmToIr(editor.getJSON() as PMJsonNode).doc.body[0].children[0] as IRFormula).mathml).toBe(formula.mathml)
+  } finally {
+    editor.destroy()
+  }
+})
+
+it('refreshes a MathML-only preview when a remote reload changes only the parent attribute', () => {
+  const doc = authored()
+  const formula = doc.body[0].children[0] as IRFormula
+  formula.latex = ''
+  formula.mathml = '<math><mi>x</mi></math>'
+  const editor = new Editor({ extensions: createEditorExtensions(), content: irToPm(doc) })
+  const preview = () => editor.view.dom.querySelector('.std-formula-preview')?.textContent
+  try {
+    expect(preview()).toBe('x')
+    const remote = structuredClone(editor.getJSON())
+    const attrs = (remote as PMJsonNode).content!.find(n => n.type === 'chapter')!.content!.find(n => n.type === 'formula')!.attrs!
+    attrs.mathml = '<math><mi>y</mi></math>'
+    expect(replaceEditorDocument(editor, remote, false, false)).toBe(true)
+    expect(preview()).toBe('y')
+    attrs.mathml = null
+    expect(replaceEditorDocument(editor, remote, false, false)).toBe(true)
+    expect(preview()).toBe('空公式')
   } finally {
     editor.destroy()
   }

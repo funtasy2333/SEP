@@ -604,6 +604,10 @@
   align-items: center;
 }
 
+.std-formula-children {
+  display: contents;
+}
+
 .std-formula-content {
   width: 100%;
   text-indent: 0;
@@ -627,7 +631,7 @@
 }
 
 .tiptap[contenteditable='true'] .std-formula-preview:hover,
-.std-formula-content.ProseMirror-selectednode .std-formula-preview {
+.std-formula:has(> .std-formula-children > .ProseMirror-selectednode:first-child) > .std-formula-content .std-formula-preview {
   background: var(--ses-accent-soft);
 }
 
