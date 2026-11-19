@@ -23,10 +23,10 @@ export function renderNativeMathMl(source: string): Element | null {
   function clone(element: Element): Element | null {
     if (element.namespaceURI !== namespace || !presentationElements.has(element.localName)) return null
     const result = document.createElementNS(MATHML_NS, element.localName)
-    for (const attr of element.attributes) {
+    for (const attr of Array.from(element.attributes)) {
       if (!attr.namespaceURI && presentationAttributes.has(attr.localName)) result.setAttribute(attr.localName, attr.value)
     }
-    for (const child of element.childNodes) {
+    for (const child of Array.from(element.childNodes)) {
       if (child.nodeType === Node.TEXT_NODE || child.nodeType === Node.CDATA_SECTION_NODE) {
         result.append(child.textContent ?? '')
       } else if (child instanceof Element) {
