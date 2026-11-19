@@ -7,7 +7,7 @@ import { createEditorExtensions } from './editorExtensions'
 import { exportSemanticHtml } from '../serializer/htmlExporter'
 import { buildDocxBlob } from '../serializer/docxExporter'
 import { exportSemanticJson } from '../serializer/jsonExporter'
-import { serializeToXml } from '../serializer/xmlSerializer'
+import { buildXml46687Package } from '@ses/io'
 
 const text = (value: string, marks?: PMJsonNode['marks']): PMJsonNode => ({
   type: 'text', text: value, ...(marks ? { marks } : {}),
@@ -82,12 +82,20 @@ function tableWithExplicitHeaderCount(cellType: 'tableCell' | 'tableHeader'): PM
     type: 'stdTable', attrs: { nodeId: 'header-count-table', headerRowCount: 1 },
     content: [
       { type: 'tableCaption', content: [text('表题')] },
-      { type: 'table', content: [{
-        type: 'tableRow', content: [{
-          type: cellType, attrs: { nodeId: 'header-count-cell' },
-          content: [{ type: 'paragraph', content: [text('列名')] }],
-        }],
-      }] },
+      { type: 'table', content: [
+        {
+          type: 'tableRow', content: [{
+            type: cellType, attrs: { nodeId: 'header-count-cell' },
+            content: [{ type: 'paragraph', content: [text('列名')] }],
+          }],
+        },
+        {
+          type: 'tableRow', content: [{
+            type: 'tableCell', attrs: { nodeId: 'body-cell' },
+            content: [{ type: 'paragraph', content: [text('数据')] }],
+          }],
+        },
+      ] },
     ],
   }
 }
@@ -125,22 +133,8 @@ function tableWithSemanticTextblockCell(type: 'note' | 'example'): PMJsonNode {
   }
 }
 
-function expectXmlUnsupported(
-  operation: () => unknown,
-  nodeId: string,
-  pathPart: string,
-): UnsupportedOutputError {
-  let error: unknown
-  try { operation() } catch (caught) { error = caught }
-  expect(error).toBeInstanceOf(UnsupportedOutputError)
-  expect((error as UnsupportedOutputError).problems).toEqual(expect.arrayContaining([
-    expect.objectContaining({ nodeId, path: expect.stringContaining(pathPart) }),
-  ]))
-  return error as UnsupportedOutputError
-}
-
 describe('WP6 输出边界审计：生产 client 导出入口', () => {
-  it('阻止含格式的公式主体被 HTML、DOCX 或旧 XML 降为 LaTeX 纯文本，同时保留 JSON', async () => {
+  it('阻止含格式的公式主体被 HTML、DOCX 或 XML46687 降为 LaTeX 纯文本，同时保留 JSON', async () => {
     const doc = productionDoc({ formula: formattedFormula() })
     const ir = pmToIr(doc.toJSON() as PMJsonNode).doc
     expect(getOutputSupportProblems(ir, 'HTML')).toEqual(expect.arrayContaining([
@@ -148,13 +142,19 @@ describe('WP6 输出边界审计：生产 client 导出入口', () => {
     ]))
     expect(() => exportSemanticHtml(doc)).toThrow(UnsupportedOutputError)
     await expect(buildDocxBlob({ pmDoc: doc, createdAt: '2026-10-07T00:00:00Z' })).rejects.toThrow(UnsupportedOutputError)
-    expect(() => serializeToXml(doc)).toThrow(UnsupportedOutputError)
+    const xmlPkg = await buildXml46687Package({ pmDoc: doc.toJSON() as PMJsonNode })
+    expect(xmlPkg.xml).toBeNull()
+    expect(xmlPkg.problems).toEqual(expect.arrayContaining([
+      expect.objectContaining({ severity: 'error', nodeId: 'rich-formula', path: expect.stringContaining('.sourceInlines') }),
+    ]))
     expect(JSON.stringify(exportSemanticJson(doc))).toContain('"type":"bold"')
   })
 
-  it('只对新 typed whereList 阻断旧 XML，旧自由 formulaDescription 仍保持可导出', () => {
+  it('XML46687 同时支持 typed whereList 与旧自由 formulaDescription', async () => {
     const typed = productionDoc({ formula: typedWhereFormula() })
-    expectXmlUnsupported(() => serializeToXml(typed), 'typed-formula', '.content[1]')
+    const typedPkg = await buildXml46687Package({ pmDoc: typed.toJSON() as PMJsonNode })
+    expect(typedPkg.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(typedPkg.xml).toContain('<def-list list-content="formula">')
 
     const legacy = productionDoc({ formula: {
       type: 'formula', attrs: { nodeId: 'legacy-formula', latex: 'x' },
@@ -163,31 +163,41 @@ describe('WP6 输出边界审计：生产 client 导出入口', () => {
         { type: 'formulaDescription', content: [text('式中：x——变量')] },
       ],
     } })
-    expect(serializeToXml(legacy)).toContain('<def-list>')
+    const legacyPkg = await buildXml46687Package({ pmDoc: legacy.toJSON() as PMJsonNode })
+    expect(legacyPkg.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(legacyPkg.xml).toContain('<def-list')
   })
 
-  it('报告旧 XML 会忽略的表格单元格块，HTML 与 DOCX 仍走支持路径', async () => {
+  it('XML46687、HTML 与 DOCX 均支持表格单元格列项', async () => {
     const doc = productionDoc({ table: tableWithListCell() })
-    expectXmlUnsupported(() => serializeToXml(doc), 'cell', '.content[0]')
+    const pkg = await buildXml46687Package({ pmDoc: doc.toJSON() as PMJsonNode })
+    expect(pkg.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(pkg.xml).toContain('单元格列项')
     expect(exportSemanticHtml(doc)).toContain('单元格列项')
     await expect(buildDocxBlob({ pmDoc: doc, createdAt: '2026-10-07T00:00:00Z' })).resolves.toBeDefined()
   })
 
-  it.each(['note', 'example'] as const)('拒绝被旧 XML 单元格展平的 %s textblock，并保留 HTML/DOCX 路径', async type => {
+  it.each(['note', 'example'] as const)('HTML/DOCX 保留单元格内 %s textblock，XML46687 按 §6.5 阻断提示', async type => {
     const doc = productionDoc({ table: tableWithSemanticTextblockCell(type) })
-    expectXmlUnsupported(() => serializeToXml(doc), 'semantic-cell', '.content[0]')
+    const pkg = await buildXml46687Package({ pmDoc: doc.toJSON() as PMJsonNode })
+    expect(pkg.xml).toBeNull()
+    expect(pkg.problems).toEqual(expect.arrayContaining([
+      expect.objectContaining({ severity: 'error', code: 'xml-cell-content' }),
+    ]))
     expect(exportSemanticHtml(doc)).toContain(`单元格${type}`)
     await expect(buildDocxBlob({ pmDoc: doc, createdAt: '2026-10-07T00:00:00Z' })).resolves.toBeDefined()
   })
 
   it.each([
-    { title: '方法', secType: 'scope' as const, inferred: 'general' },
-    { title: '范围', secType: 'general' as const, inferred: 'scope' },
-  ])('仅当显式章角色与标题推断冲突时阻断 XML：$title / $secType', ({ title, secType, inferred }) => {
+    { title: '方法', secType: 'scope' as const },
+    { title: '范围', secType: 'general' as const },
+  ])('显式章角色优先并直接写入 XML46687 与 HTML：$title / $secType', async ({ title, secType }) => {
     const doc = productionDoc({ chapterTitle: title, chapterSecType: secType })
     const before = doc.toJSON()
-    const error = expectXmlUnsupported(() => serializeToXml(doc), 'chapter', '.attrs.secType')
-    expect(error.message).toContain(`「${inferred}」`)
+    const pkg = await buildXml46687Package({ pmDoc: doc.toJSON() as PMJsonNode })
+    expect(pkg.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(pkg.xml).toContain(`<title>${title}</title>`)
+    if (secType !== 'general') expect(pkg.xml).toContain(`sec-type="${secType}"`)
     expect(doc.toJSON()).toEqual(before)
     expect(exportSemanticHtml(doc)).toContain(`data-sec-type="${secType}"`)
   })
@@ -195,31 +205,39 @@ describe('WP6 输出边界审计：生产 client 导出入口', () => {
   it.each([
     { title: '范围', secType: 'scope' as const },
     { title: '方法', secType: 'general' as const },
-  ])('标题推断与显式章角色一致时仍可导出 XML：$title / $secType', ({ title, secType }) => {
+  ])('标题推断与显式章角色一致时导出 XML46687：$title / $secType', async ({ title, secType }) => {
     const doc = productionDoc({ chapterTitle: title, chapterSecType: secType })
-    expect(serializeToXml(doc)).toContain(`<title>${title}</title>`)
+    const pkg = await buildXml46687Package({ pmDoc: doc.toJSON() as PMJsonNode })
+    expect(pkg.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(pkg.xml).toContain(`<title>${title}</title>`)
   })
 
-  it('旧 XML 拒绝无法由 tableHeader 标签表达的显式表头行数，并保留可表达的旧稿', () => {
+  it('XML46687 拒绝无法由 tableHeader 标签表达的显式表头行数，并保留可表达的稿件', async () => {
     const mismatch = productionDoc({ table: tableWithExplicitHeaderCount('tableCell') })
     const ir = pmToIr(mismatch.toJSON() as PMJsonNode).doc
-    expect(getOutputSupportProblems(ir, 'XML')).toEqual(expect.arrayContaining([
+    expect(getOutputSupportProblems(ir, 'XML46687')).toEqual(expect.arrayContaining([
       expect.objectContaining({ nodeId: 'header-count-table', path: expect.stringContaining('.headerRowCount') }),
     ]))
-    expect(() => serializeToXml(mismatch)).toThrow(UnsupportedOutputError)
+    const mismatchPkg = await buildXml46687Package({ pmDoc: mismatch.toJSON() as PMJsonNode })
+    expect(mismatchPkg.xml).toBeNull()
+    expect(mismatchPkg.problems).toEqual(expect.arrayContaining([
+      expect.objectContaining({ severity: 'error', nodeId: 'header-count-table', path: expect.stringContaining('.headerRowCount') }),
+    ]))
 
     const equivalent = productionDoc({ table: tableWithExplicitHeaderCount('tableHeader') })
-    expect(serializeToXml(equivalent)).toContain('<th>')
+    const pkg = await buildXml46687Package({ pmDoc: equivalent.toJSON() as PMJsonNode })
+    expect(pkg.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(pkg.xml).toContain('<th>')
   })
 
-  it('HTML 与 DOCX 保留申请单位元数据；旧 XML 延续编辑器维护字段的既有契约', async () => {
+  it('HTML、DOCX 与 XML46687 均保留申请单位元数据与中文题名', async () => {
     const applicant = '起草单位 <甲> & "乙"'
     const doc = productionDoc({ applicant })
     const ir = pmToIr(doc.toJSON() as PMJsonNode).doc
     expect(ir.meta.applicant).toBe(applicant)
     expect(getOutputSupportProblems(ir, 'HTML')).toEqual([])
     expect(getOutputSupportProblems(ir, 'DOCX')).toEqual([])
-    expect(getOutputSupportProblems(ir, 'XML')).toEqual([])
+    expect(getOutputSupportProblems(ir, 'XML46687')).toEqual([])
 
     expect(exportSemanticHtml(doc)).toContain('<meta name="ses-applicant" content="起草单位 &lt;甲&gt; &amp; &quot;乙&quot;" />')
     const { blob } = await buildDocxBlob({
@@ -231,8 +249,9 @@ describe('WP6 输出边界审计：生产 client 导出入口', () => {
     const custom = await archive.file('docProps/custom.xml')!.async('string')
     expect(custom).toContain('name="ses-applicant"')
     expect(custom).toContain('起草单位 &lt;甲&gt; &amp; "乙"')
-    // applicant is not part of this legacy XML front. The cover export remains available and XML
-    // import preserves applicant from the current editor metadata, as documented by xmlDocumentMeta.
-    expect(serializeToXml(doc)).toContain('<main>边界测试</main>')
+    const xmlPkg = await buildXml46687Package({ pmDoc: doc.toJSON() as PMJsonNode })
+    expect(xmlPkg.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(xmlPkg.xml).toContain('<full>边界测试</full>')
+    expect(xmlPkg.xml).toContain('<meta-name>applicant</meta-name>')
   })
 })

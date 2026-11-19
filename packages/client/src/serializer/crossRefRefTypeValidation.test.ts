@@ -12,8 +12,8 @@ import { createEditorExtensions } from '../extensions/editorExtensions'
 import { buildDocxBlob } from './docxExporter'
 import { exportSemanticHtml } from './htmlExporter'
 import { exportSemanticJson } from './jsonExporter'
+import { buildXml46687Package } from '@ses/io'
 import { buildPdfExportRequest } from './pdfExporter'
-import { serializeToXml } from './xmlSerializer'
 
 function productionDoc(refType?: unknown, includeRefType = true) {
   const attrs: Record<string, unknown> = { targetId: 'chapter-target' }
@@ -62,7 +62,7 @@ describe('production-schema crossRef refType validation', () => {
     expect(resolve(converted.doc).problems).toContainEqual(expect.objectContaining({
       code: 'unsupported-content', nodeId: 'reference-owner', severity: 'error',
     }))
-    for (const format of ['HTML', 'DOCX', 'XML'] as const) {
+    for (const format of ['HTML', 'DOCX', 'XML46687'] as const) {
       expect(getOutputSupportProblems(converted.doc, format)).toContainEqual(expect.objectContaining({
         code: 'unsupported-output', nodeId: 'reference-owner', path: issue!.path,
       }))
@@ -72,7 +72,14 @@ describe('production-schema crossRef refType validation', () => {
     await expect(buildDocxBlob({ pmDoc: doc, createdAt: '2026-10-08T00:00:00.000Z' }))
       .rejects.toBeInstanceOf(UnsupportedOutputError)
     expect(() => buildPdfExportRequest(doc, {})).toThrow(UnsupportedOutputError)
-    expect(() => serializeToXml(doc)).toThrow(UnsupportedOutputError)
+    const xmlResult = await buildXml46687Package({ pmDoc: doc.toJSON() as PMJsonNode })
+    expect(xmlResult.xml).toBeNull()
+    expect(xmlResult.problems).toContainEqual(expect.objectContaining({
+      code: 'unsupported-output',
+      severity: 'error',
+      nodeId: 'reference-owner',
+      path: issue!.path,
+    }))
 
     const semanticJson = JSON.stringify(exportSemanticJson(doc))
     expect(semanticJson).toContain(`"refType":${JSON.stringify(refType)}`)

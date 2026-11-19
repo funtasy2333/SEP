@@ -18,7 +18,7 @@ import type { PMJsonSource } from './docx'
 export type ExportGuardFormat = 'docx' | 'pdf' | 'xml' | 'html' | 'json'
 
 /** shared 输出边界检查接受的格式名。 */
-export type OutputBoundaryFormat = 'DOCX' | 'HTML' | 'XML'
+export type OutputBoundaryFormat = 'DOCX' | 'HTML' | 'XML46687'
 
 /** 问题来源：脚注校验，或输出边界（该格式不能无损输出的内容）。 */
 export type ExportGuardSource = 'footnote' | 'output-boundary'
@@ -65,10 +65,10 @@ function toPmJson(doc: PMJsonNode | PMJsonSource): PMJsonNode {
   return typeof node.toJSON === 'function' ? node.toJSON() as PMJsonNode : doc as PMJsonNode
 }
 
-/** 导出格式 → 输出边界检查格式；json 不检查（返回 undefined），pdf 走 HTML 管线。 */
+/** 导出格式 → 输出边界检查格式；json 不检查（返回 undefined），pdf 走 HTML 管线，xml 走 XML46687 管线。 */
 export function outputBoundaryFormatOf(format: ExportGuardFormat): OutputBoundaryFormat | undefined {
   if (format === 'json') return undefined
-  return format === 'docx' ? 'DOCX' : format === 'xml' ? 'XML' : 'HTML'
+  return format === 'docx' ? 'DOCX' : format === 'xml' ? 'XML46687' : 'HTML'
 }
 
 /** 脚注校验：返回会阻止导出的脚注问题。 */

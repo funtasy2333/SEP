@@ -60,12 +60,16 @@ const CJK = /[\u2E80-\u9FFF\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFFEF\u3000-\u303F]
  */
 export function joinPlainTextLines(text: string): string {
   if (!/[\r\n]/.test(text)) return text.replace(/\t/g, ' ')
-  const lines = text.split(/\r\n?|\n/).map(line => line.replace(/\t/g, ' ').trim()).filter(Boolean)
-  return lines.reduce((joined, line) => {
-    if (!joined) return line
-    const glue = CJK.test(joined[joined.length - 1]!) || CJK.test(line[0]!) ? '' : ' '
-    return joined + glue + line
-  }, '')
+  const parts: string[] = []
+  let previousEndsInCjk = true
+  for (const raw of text.split(/\r\n?|\n/)) {
+    const line = raw.replace(/\t/g, ' ').trim()
+    if (!line) continue
+    if (!previousEndsInCjk && !CJK.test(line[0]!)) parts.push(' ')
+    parts.push(line)
+    previousEndsInCjk = CJK.test(line[line.length - 1]!)
+  }
+  return parts.join('')
 }
 
 /** 纯文本 → 只含行内文字的切片：插入光标所在文本块，带上光标处的 marks（与输入文字一致）。 */
@@ -102,6 +106,13 @@ export function visibleCopiedText(view: EditorView): string | undefined {
 
 export const clipboardPolicyPluginKey = new PluginKey('clipboardPolicy')
 
+function externalClipboardText(event: ClipboardEvent): string | undefined {
+  const data = event.clipboardData
+  if (!data) return
+  const html = data.getData('text/html')
+  if (html && !isSesClipboardHtml(html)) return data.getData('text/plain') || undefined
+}
+
 export function clipboardPolicyPlugin(schema: Schema): Plugin {
   return new Plugin({
     key: clipboardPolicyPluginKey,
@@ -114,12 +125,9 @@ export function clipboardPolicyPlugin(schema: Schema): Plugin {
         return plainTextSlice(text, $context, view.state.schema)
       },
       handlePaste(view: EditorView, event: ClipboardEvent) {
-        const data = event.clipboardData
-        if (!data) return false
-        const html = data.getData('text/html')
-        const text = data.getData('text/plain')
-        // 外部来源的富文本：改按纯文本粘贴。pasteText 以无剪贴板数据的新事件重入，不会再次进入本分支。
-        if (!html || isSesClipboardHtml(html) || !text) return false
+        // Fallback for programmatic pasteHTML calls that do not dispatch a DOM event.
+        const text = externalClipboardText(event)
+        if (text === undefined) return false
         view.pasteText(text)
         return true
       },
@@ -127,10 +135,35 @@ export function clipboardPolicyPlugin(schema: Schema): Plugin {
   })
 }
 
+const ExternalClipboardInput = Extension.create({
+  name: 'externalClipboardInput',
+  // Let Tiptap record the clipboard origin for its paste rules before consuming the DOM event.
+  priority: 1,
+  addProseMirrorPlugins() {
+    return [new Plugin({
+      props: {
+        handleDOMEvents: {
+          paste(view, event) {
+            if (!view.editable || view.composing) return false
+            const text = externalClipboardText(event)
+            if (text === undefined) return false
+            event.preventDefault()
+            view.pasteText(text)
+            return true
+          },
+        },
+      },
+    })]
+  },
+})
+
 export const ClipboardPolicy = Extension.create({
   name: 'clipboardPolicy',
   // 先于其他粘贴处理（链接、nodeId 重映射、章条结构检查）运行：外部内容先转成纯文本，再走统一的检查。
   priority: 1200,
+  addExtensions() {
+    return [ExternalClipboardInput]
+  },
   addProseMirrorPlugins() {
     return [clipboardPolicyPlugin(this.editor.schema)]
   },

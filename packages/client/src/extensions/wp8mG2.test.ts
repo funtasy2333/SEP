@@ -13,7 +13,7 @@ import { Editor, getSchema } from '@tiptap/core'
 import { DOMParser, DOMSerializer, Fragment, Slice, type Node as PMNode } from '@tiptap/pm/model'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { describe, expect, it } from 'vitest'
-import { checkExportGuard } from '@ses/io'
+import { buildXml46687Package, checkExportGuard } from '@ses/io'
 import { irToPm, pmToIr, resolve, type IRChapterChild, type IRDefList, type IRDoc, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from './editorExtensions'
 import { createWp6Fixture } from './__fixtures__/wp6'
@@ -25,7 +25,6 @@ import { NODE_ID_TYPES, remapPastedSliceIds } from './plugins/ensureNodeId'
 import { buildDocxBlob } from '../serializer/docxExporter'
 import { exportSemanticHtml } from '../serializer/htmlExporter'
 import { exportSemanticJson } from '../serializer/jsonExporter'
-import { serializeToXml } from '../serializer/xmlSerializer'
 import { docToText } from '../utils/docDiff'
 import { replaceEditorDocument } from '../utils/editorDocument'
 
@@ -581,16 +580,14 @@ describe('[M-10.1.4-03] 粘贴重映射：缩略语表与项换新 nodeId，副�
   })
 })
 
-describe('[M-10.1.4-01] 导出链路：HTML、DOCX 放行并排版；旧 XML 阻断（§7.1）', () => {
-  it('checkExportGuard：html/pdf/docx/json 通过，xml 被输出边界阻止且指向 defList', () => {
+describe('[M-10.1.4-01] 导出链路：HTML、DOCX、XML46687 放行并排版（§7.1）', () => {
+  it('checkExportGuard：html/pdf/docx/xml/json 均通过', () => {
     const doc = schema.nodeFromJSON(createWp8mG2Fixture()).toJSON() as PMJsonNode
     expect(checkExportGuard(doc, 'html')).toBeNull()
     expect(checkExportGuard(doc, 'pdf')).toBeNull()
     expect(checkExportGuard(doc, 'docx')).toBeNull()
+    expect(checkExportGuard(doc, 'xml')).toBeNull()
     expect(checkExportGuard(doc, 'json')).toBeNull()
-    const xml = checkExportGuard(doc, 'xml')
-    expect(xml?.source).toBe('output-boundary')
-    expect(xml?.problems.map(problem => problem.nodeId)).toEqual(['g2-list', 'g2-list-clause', 'g2-list-app'])
   })
 
   it('HTML：每项一段“缩略语：释义”，引用文字为缩略语并链接到 abb_<k>', () => {
@@ -618,9 +615,15 @@ describe('[M-10.1.4-01] 导出链路：HTML、DOCX 放行并排版；旧 XML 阻
     editor.destroy()
   })
 
-  it('旧 XML：serializeToXml 拒绝含缩略语表的文档，而不是静默丢弃', () => {
+  it('XML46687：buildXml46687Package 导出 def-list[@list-content="abbreviation"] 与 abbr xref', async () => {
     const editor = mountEditor(createWp8mG2Fixture() as unknown as Record<string, unknown>)
-    expect(() => serializeToXml(editor.state.doc)).toThrow()
+    const { xml, problems } = await buildXml46687Package({
+      pmDoc: editor.getJSON() as PMJsonNode,
+      documentMeta: { standardType: 'national', titleCn: '缩略语表导出测试' },
+    })
+    expect(problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(xml).toContain('<def-list list-content="abbreviation">')
+    expect(xml).toContain('<xref ref-type="abbreviation" rid="abb_1">ADC</xref>')
     editor.destroy()
   })
 

@@ -7,7 +7,6 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { type PMJsonNode, renderSemanticJson } from '@ses/shared'
 import { fullFixture } from '../../../shared/src/ir/__tests__/fixtures'
 import { createEditorExtensions } from '../extensions/editorExtensions'
-import { parseXmlToEditorJson } from './xmlParser'
 import { exportSemanticJson } from './jsonExporter'
 
 const editors: Editor[] = []
@@ -63,8 +62,9 @@ describe('semantic JSON migration', () => {
 
   it('matches the legacy production exporter byte-for-byte for sample-standard.xml', () => {
     const schema = getSchema(createEditorExtensions())
-    const xml = readFileSync(resolvePath(fixtureDir, 'sample-standard.xml'), 'utf8')
-    const content = parseXmlToEditorJson(xml, schema.topNodeType.name) as unknown as Record<string, unknown>
+    const content = JSON.parse(
+      readFileSync(resolvePath(fixtureDir, 'sample-standard.pm.json'), 'utf8'),
+    ) as Record<string, unknown>
     const doc = schema.nodeFromJSON(content)
     const before = doc.toJSON()
     const numberedTypesWithoutNodeId = new Set<string>()

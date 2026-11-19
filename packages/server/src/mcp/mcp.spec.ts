@@ -307,6 +307,7 @@ describe('MCP 工具', () => {
       expect(exportSchema.properties.format.enum).toEqual([
         'docx',
         'pdf',
+        'xml',
         'html',
         'json',
       ]);

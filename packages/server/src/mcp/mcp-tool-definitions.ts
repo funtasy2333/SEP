@@ -17,7 +17,7 @@ export const DOCUMENT_STAGES: readonly DocumentStage[] =
   Object.values(DocumentStage);
 
 /** export_document 支持的格式。 */
-export const EXPORT_FORMATS = ['docx', 'pdf', 'html', 'json'] as const;
+export const EXPORT_FORMATS = ['docx', 'pdf', 'xml', 'html', 'json'] as const;
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
 
 export const TOOL_NAMES = [
@@ -260,11 +260,11 @@ export const TOOL_DEFINITIONS: readonly (Tool & { name: McpToolName })[] = [
     name: 'validate_document',
     description:
       '按调用方请求手动检查当前已保存文档，不会在打开、编辑或保存时自动运行，也不修改文档。返回 { revision, problems, exports, quality }。' +
-      'problems 保留既有 Resolver 问题（包括脚注问题），与 apply_operations 的 problems 来源和字段相同，只是不含 introduced；exports 保留 docx、pdf、html 的原导出前检查。' +
+      'problems 保留既有 Resolver 问题（包括脚注问题），与 apply_operations 的 problems 来源和字段相同，只是不含 introduced；exports 保留 docx、pdf、xml、html 的原导出前检查。' +
       'quality 是本期规则质量报告，与 problems 和 exports 分开：检查结构、列项/图表引出语、正文提及、术语使用及受支持的内部引用；报告含 profile、rulesVersion、issues、summary 和 coverage。' +
       'quality 不包含脚注、表脚注质量项或未引用参考文献提醒；术语权威性和外部标准编号、名称、现行状态检查因未接入数据库而 deferred。质量警告不改变导出是否阻断。' +
       'quality 基于本次读取的同一文档快照及文档设置中的元数据，不额外读取或保存文档。' +
-      'exports 是 docx、pdf、html 各自的导出前检查，与 export_document 在导出前做的检查完全相同：通过为 { ok: true }；' +
+      'exports 是 docx、pdf、xml、html 各自的导出前检查，与 export_document 在导出前做的检查完全相同：通过为 { ok: true }；' +
       '未通过为 { ok: false, source, message, problems }，source 是 footnote（脚注校验）或 output-boundary（该格式无法无损输出的内容），' +
       'message 与导出失败时（422）的 message 相同，problems 逐项列出原因和位置；未通过的格式 export_document 会失败。' +
       'pdf 额外带 available：PDF 导出是否开放且管线可用。目前 PDF 导出暂时关闭，available 为 false，导出返回 503（内容检查通过时 pdf 仍可为 ok: true）。' +
@@ -283,10 +283,11 @@ export const TOOL_DEFINITIONS: readonly (Tool & { name: McpToolName })[] = [
   {
     name: 'export_document',
     description:
-      '把文档导出为 docx、html 或 json，与编辑器及导出接口走同一条路径（同样会先做导出前检查）。PDF 导出暂时关闭，请选择其他格式；pdf 参数保留兼容，调用会返回 503。文件内容不会放进结果。' +
+      '把文档导出为 docx、xml、html 或 json，与编辑器及导出接口走同一条路径（同样会先做导出前检查）。PDF 导出暂时关闭，请选择其他格式；pdf 参数保留兼容，调用会返回 503。文件内容不会放进结果。' +
+      '其中 xml 导出遵循 GB/T 46687.2—2026：无图片资源时返回单个 .xml 文件，含图片资源时返回 .zip 资源包（内含 standard.xml、manifest.json 与 resources/）。' +
       '返回 { format, filename, size, warnings, downloadUrl, savedTo? }：filename 是建议的文件名，size 是字节数，' +
       'warnings 是导出告警（如外部图片不会被抓取而留空，每项有 code、message，可能有 nodeId），downloadUrl 是本机上的下载地址，用户可以在浏览器中打开。' +
-      '不给 outputPath 时只返回 downloadUrl，不写任何文件。用户要得到文件时，把 outputPath 设为文件名（如「规范.docx」，扩展名必须与 format 对应），' +
+      '不给 outputPath 时只返回 downloadUrl，不写任何文件。用户要得到文件时，把 outputPath 设为文件名（如「规范.docx」，扩展名必须与 format 及实际出件形态对应，xml 含图片时为 .zip 否则为 .xml），' +
       '文件会保存到服务端的导出目录（未特别配置时是用户主目录下的 SES-exports，不存在时自动创建）；相对路径都相对于这个目录解析。' +
       'outputPath 只能写到服务端允许的目录内：也可以给允许目录内的绝对路径，但其中的子目录必须已存在（不会自动创建），' +
       '写到允许目录之外（含用 .. 或符号链接绕出去）返回 403（code 为 output-dir-not-allowed），消息会列出允许的目录；' +
@@ -303,12 +304,12 @@ export const TOOL_DEFINITIONS: readonly (Tool & { name: McpToolName })[] = [
           type: 'string',
           enum: [...EXPORT_FORMATS],
           description:
-            'docx（Word 文档）、html（语义 HTML）、json（语义 JSON）；pdf 暂时关闭',
+            'docx（Word 文档）、xml（GB/T 46687.2—2026 XML 或含图片的资源包）、html（语义 HTML）、json（语义 JSON）；pdf 暂时关闭',
         },
         outputPath: {
           type: 'string',
           description:
-            '可选：保存到本机的文件名（如「规范.docx」，保存到服务端的导出目录）或允许目录内的绝对路径；扩展名与 format 一致；只能写到服务端允许的目录内；不给则只返回 downloadUrl',
+            '可选：保存到本机的文件名（如「规范.docx」，保存到服务端的导出目录）或允许目录内的绝对路径；扩展名与 format（xml 含图片时为 .zip，无图片时为 .xml）一致；只能写到服务端允许的目录内；不给则只返回 downloadUrl',
         },
         overwrite: {
           type: 'boolean',

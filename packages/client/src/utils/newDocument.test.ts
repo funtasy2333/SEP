@@ -2,12 +2,12 @@
 import JSZip from 'jszip'
 import { Editor, getSchema } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
-import { analyzeDocument, pmToIr, UnsupportedOutputError, type PMJsonNode } from '@ses/shared'
+import { buildXml46687Package, importXml46687 } from '@ses/io'
+import { analyzeDocument, pmToIr, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from '../extensions/editorExtensions'
 import { NODE_ID_TYPES } from '../extensions/plugins/ensureNodeId'
 import { semanticLabels } from './semanticLabels'
 import { buildDocxBlob, prepareDocxInput } from '../serializer/docxExporter'
-import { parseXmlToEditorJson, serializeToXml } from '../serializer'
 import {
   createDefaultDocumentContent, createNewDocument, newDocumentStandardNo, NORMATIVE_REFERENCES_LEAD, TERMS_AND_DEFINITIONS_LEAD, type NewDocForm,
 } from './newDocument'
@@ -36,7 +36,7 @@ it('明确填写的前缀和编号保留，空前缀使用所选类型而不丢�
   expect(createNewDocument({ ...blankForm(), type: 'guidance', stdNo: '1234—2026' }).meta.standardNo).toBe('GB/Z 1234—2026')
 })
 
-it('新建时完整持久化前言和提出/归口元数据，DOCX保留而旧XML拒绝', async () => {
+it('新建时完整持久化前言和提出/归口元数据，DOCX与XML46687均导出保留', async () => {
   const created = createNewDocument({ ...blankForm(),
     proposer: '  提出单位甲  ', technicalCommittee: '归口单位乙', applicant: '起草单位丙、起草单位丁',
     replaces: ' GB/T 1000—2020 ', consistency: '（ISO 1234:2020，MOD）',
@@ -51,7 +51,11 @@ it('新建时完整持久化前言和提出/归口元数据，DOCX保留而旧XM
     patent, '本文件由提出单位甲提出。', '本文件由归口单位乙归口。', '本文件起草单位：起草单位丙、起草单位丁。', '本文件主要起草人：',
   ])
   expect(prepareDocxInput(node, stored.meta).doc.meta).toMatchObject({ proposer: '提出单位甲', technicalCommittee: '归口单位乙' })
-  expect(() => serializeToXml(node)).toThrow(UnsupportedOutputError)
+  const xmlResult = await buildXml46687Package({ pmDoc: node.toJSON() as PMJsonNode, documentMeta: stored.meta })
+  expect(xmlResult.problems.filter((problem) => problem.severity === 'error')).toEqual([])
+  expect(xmlResult.xml).toContain('<meta-name>proposer</meta-name>')
+  expect(xmlResult.xml).toContain('<meta-value>提出单位甲</meta-value>')
+  expect(xmlResult.xml).toContain('<comm-ref>归口单位乙</comm-ref>')
   const zip = await JSZip.loadAsync(await (await buildDocxBlob({ pmDoc: node, documentMeta: stored.meta })).blob.arrayBuffer())
   const documentXml = await zip.file('word/document.xml')!.async('string')
   expect(documentXml).toContain('本文件由提出单位甲提出。')
@@ -77,12 +81,22 @@ it('不含新增作者元数据的旧文档仍能导出前言正文和封面信�
   const node = schema.nodeFromJSON(stored.content)
   node.check()
   const foreword = node.child(1)
-  const xml = serializeToXml(node)
-  const reloaded = schema.nodeFromJSON(parseXmlToEditorJson(xml, schema.topNodeType.name))
-  expect(prepareDocxInput(reloaded).doc.meta).toMatchObject({
-    stdCode: 'GB/T XXXXX—XXXX', replaces: 'GB/T 1000—2020', consistency: '（ISO 1234:2020，MOD）',
+  const xmlResult = await buildXml46687Package({ pmDoc: node.toJSON() as PMJsonNode })
+  expect(xmlResult.problems.filter((problem) => problem.severity === 'error')).toEqual([])
+  const importedResult = await importXml46687(xmlResult.xml!, {
+    validateContent: (candidate) => {
+      const parsed = schema.nodeFromJSON(candidate)
+      parsed.check()
+      return { ok: true, content: parsed.toJSON() as PMJsonNode }
+    },
   })
-  expect(reloaded.child(1).textContent).toBe(foreword.textContent)
+  expect(importedResult.problems.filter((problem) => problem.severity === 'error')).toEqual([])
+  const reloaded = schema.nodeFromJSON(importedResult.pmDoc!)
+  expect(prepareDocxInput(reloaded).doc.meta).toMatchObject({
+    stdCode: 'GB/T XXXXX—XXXX', replaces: 'GB/T 1000—2020',
+  })
+  const reloadedForeword = reloaded.content.content.find((child) => child.type.name === 'foreword')
+  expect(reloadedForeword?.textContent).toBe(foreword.textContent)
   const { blob, warnings } = await buildDocxBlob({ pmDoc: node, documentMeta: stored.meta, stage: stored.stage })
   const zip = await JSZip.loadAsync(await blob.arrayBuffer())
   const body = await zip.file('word/document.xml')!.async('string')

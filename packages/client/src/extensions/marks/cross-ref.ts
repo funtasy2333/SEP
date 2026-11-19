@@ -1,7 +1,7 @@
 import { Mark, mergeAttributes } from '@tiptap/core'
 import { Plugin, Selection } from '@tiptap/pm/state'
-import { pmToIr, resolve } from '@ses/shared'
 import type { Mark as PMMark, Node as PMNode } from '@tiptap/pm/model'
+import { resolveEditorLabels, reuseEditorLabelsForTextEdit } from '../../utils/semanticLabels'
 
 /** Keep formatting boundaries around unchanged prefixes/suffixes when a number gains digits. */
 function remapTextBoundary(offset: number, before: string, after: string): number {
@@ -94,8 +94,9 @@ export const CrossRef = Mark.create({
 
   addProseMirrorPlugins() {
     return [new Plugin({
-      appendTransaction(transactions, _oldState, state) {
+      appendTransaction(transactions, oldState, state) {
         if (!transactions.some(tr => tr.docChanged)) return null
+        reuseEditorLabelsForTextEdit(transactions, oldState.doc, state.doc)
         const managed: Array<{ pos: number; to: number; mark: PMMark; nodes: PMNode[] }> = []
         state.doc.descendants((node, pos) => {
           const mark = node.marks.find(mark => mark.type.name === 'crossRef')
@@ -106,7 +107,7 @@ export const CrossRef = Mark.create({
           else managed.push({ pos, to: pos + node.nodeSize, mark, nodes: [node] })
         })
         if (!managed.length) return null
-        const labels = resolve(pmToIr(state.doc.toJSON()).doc).labels
+        const labels = resolveEditorLabels(state.doc)
         const tr = state.tr
         for (const { pos, to, mark, nodes } of managed.reverse()) {
           const label = labels[mark.attrs.targetId ?? mark.attrs.refId]?.refText

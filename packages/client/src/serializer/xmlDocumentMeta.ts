@@ -1,8 +1,7 @@
 /**
- * 将已通过编辑器 schema 校验的 XML 文档元数据转换为 DocumentMeta 更新。
+ * 将已通过编辑器 schema 校验的 GB/T 46687.2 XML 文档元数据转换为 DocumentMeta 更新。
  *
- * XML front 字段作为权威值；缺失的可选 front 字段显式置空，避免服务端保留旧元数据。
- * proposer、technicalCommittee、applicant 是编辑器维护字段，不属于 XML front，因此沿用当前值。
+ * XML std-meta 字段作为权威值；缺失的可选字段显式置空，避免服务端保留旧元数据。
  */
 
 import {
@@ -10,9 +9,9 @@ import {
   toIrStandardType,
   type DocumentMeta,
   type IRDocMeta,
+  type PMJsonNode,
   type StandardType,
 } from '@ses/shared'
-import type { PMJsonNode } from './xmlParser'
 
 const IR_TO_DOCUMENT_TYPE: Record<IRDocMeta['standardType'], StandardType> = {
   gb: 'national',
@@ -33,7 +32,7 @@ function hasValue(value: unknown): boolean {
  */
 export function prepareXmlImportDocumentUpdate(
   pmDoc: PMJsonNode,
-  currentMeta: DocumentMeta,
+  _currentMeta?: DocumentMeta,
 ): { title: string; meta: DocumentMeta } {
   const coverPage = pmDoc.content?.find((node) => node.type === 'coverPage')
   const rawTypeValue = hasValue(pmDoc.attrs?.standardType)
@@ -63,9 +62,9 @@ export function prepareXmlImportDocumentUpdate(
     industryName: doc.meta.industryName ?? '',
     regionName: doc.meta.regionName ?? '',
     coverDesignation: doc.meta.coverDesignation ?? '',
-    applicant: currentMeta.applicant,
-    proposer: currentMeta.proposer,
-    technicalCommittee: currentMeta.technicalCommittee,
+    applicant: doc.meta.applicant ?? '',
+    proposer: doc.meta.proposer ?? '',
+    technicalCommittee: doc.meta.technicalCommittee ?? '',
   }
 
   return {

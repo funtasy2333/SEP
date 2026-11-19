@@ -258,29 +258,70 @@ try {
  await mkdir(output,{recursive:true})
  const {createEditorExtensions}=await server.ssrLoadModule('/src/extensions/editorExtensions.ts')
  const {buildDocxBlob}=await server.ssrLoadModule('/src/serializer/docxExporter.ts')
- const {serializeToXml}=await server.ssrLoadModule('/src/serializer/xmlSerializer.ts')
- const {parseXmlToEditorJson}=await server.ssrLoadModule('/src/serializer/xmlParser.ts')
+ const {buildXml46687Package,importXml46687Package}=await server.ssrLoadModule('@ses/io')
  const schema = getSchema(createEditorExtensions())
  const normalize = source => {const node=schema.nodeFromJSON({...source,type:schema.topNodeType.name});node.check();return node}
+ const validateContent = candidate => {
+  try {
+   const node = schema.nodeFromJSON(candidate)
+   node.check()
+   return {ok:true, content:node.toJSON()}
+  } catch (error) {
+   return {ok:false, code:'xml-schema-invalid', message:error instanceof Error ? error.message : String(error)}
+  }
+ }
+ const stripXmlOnlyForDocx = pmDoc => {
+  const json = structuredClone(pmDoc.toJSON())
+  for (const key of ['titleParts', 'identifiers', 'publishers', 'replacedStandards', 'languages', 'copyrights', 'adoptions']) {
+   if (json.attrs) delete json.attrs[key]
+   const cover = json.content?.find(child => child.type === 'coverPage')
+   if (cover?.attrs) delete cover.attrs[key]
+  }
+  json.content = (json.content ?? []).filter(child => child.type !== 'metadataBlock' && child.type !== 'figureResource')
+  const stripTables = item => {
+   if (item.type === 'stdTable' && item.attrs) delete item.attrs.columns
+   if ((item.type === 'formula' || item.type === 'formulaContent' || item.type === 'formulaInline') && item.attrs) delete item.attrs.mathml
+   if ((item.type === 'figure' || item.type === 'figureImage') && item.attrs) {
+    delete item.attrs.resourceId
+    delete item.attrs.primaryGraphic
+   }
+   item.content?.forEach(stripTables)
+  }
+  stripTables(json)
+  return normalize(json)
+ }
  const manifest=[]
  for(const [name, source] of variants) {
   const node=normalize(source)
   const before=JSON.stringify(node.toJSON())
   const reopened=normalize(JSON.parse(before));assert.deepEqual(reopened.toJSON(),node.toJSON())
-  const xml=serializeToXml(node)
-  await writeFile(resolve(output,`${name}.xml`),xml)
-  // happy-dom 的 XML parser 拒绝合法 CDATA；公式样稿仅验证 JSON 重开和生产 DOCX，
-  // 原始 XML 仍输出供独立解析校验，不把未运行的往返写成通过。
-  const roundtrip=xml.includes('<![CDATA[') ? undefined : normalize(parseXmlToEditorJson(xml,schema.topNodeType.name))
+  const {xml,bytes,problems}=await buildXml46687Package({pmDoc:node.toJSON(),documentMeta:meta})
+  const xmlErrors=problems.filter(problem=>problem.severity==='error')
   const {blob,warnings}=await buildDocxBlob({pmDoc:node,documentMeta:meta,stage:'working_draft',createdAt:'2026-10-03T00:00:00Z'})
-  if(roundtrip) {
-   const exportedAgain=await buildDocxBlob({pmDoc:roundtrip,documentMeta:meta,stage:'working_draft',createdAt:'2026-10-03T00:00:00Z'})
-   assert.deepEqual(new Uint8Array(await blob.arrayBuffer()),new Uint8Array(await exportedAgain.blob.arrayBuffer()))
+  const originalBytes=new Uint8Array(await blob.arrayBuffer())
+  let xmlRoundtripByteIdentical=null
+  let xmlRoundtripLimitation=null
+  if(!xml||xmlErrors.length>0) {
+   xmlRoundtripLimitation=xmlErrors.map(problem=>problem.message).join('; ')||'XML46687 导出失败'
+  } else {
+   await writeFile(resolve(output,`${name}.xml`),xml)
+   const imported=await importXml46687Package(bytes,{validateContent})
+   if(!imported.pmDoc) {
+    xmlRoundtripLimitation=imported.problems.map(problem=>problem.message).join('; ')
+   } else {
+    const roundtrip=stripXmlOnlyForDocx(normalize(imported.pmDoc))
+    const hasFormula=xml.includes('<mml:math')
+    const exportedAgain=await buildDocxBlob({pmDoc:roundtrip,documentMeta:meta,stage:'working_draft',createdAt:'2026-10-03T00:00:00Z'})
+    const roundtripBytes=new Uint8Array(await exportedAgain.blob.arrayBuffer())
+    if(!hasFormula) assert.deepEqual(originalBytes,roundtripBytes)
+    xmlRoundtripByteIdentical=!hasFormula && Buffer.from(originalBytes).equals(Buffer.from(roundtripBytes))
+    if(hasFormula) xmlRoundtripLimitation='XML46687 stores MathML without LaTeX source; DOCX OMML differs'
+   }
   }
   assert.equal(JSON.stringify(node.toJSON()),before)
-  await writeFile(resolve(output,`${name}.docx`),new Uint8Array(await blob.arrayBuffer()))
+  await writeFile(resolve(output,`${name}.docx`),originalBytes)
   await writeFile(resolve(output,`${name}.json`),JSON.stringify({meta,stage:'working_draft',content:node.toJSON()},null,2))
-  manifest.push({name,qualification:'fixture',sourceHasManualPageBreak:false,warnings,bytes:blob.size,jsonReopen:true,xmlRoundtripByteIdentical:roundtrip ? true : null,xmlRoundtripLimitation:roundtrip ? null : 'fixture DOM rejects CDATA; not executed'})
+  manifest.push({name,qualification:'fixture',sourceHasManualPageBreak:false,warnings,bytes:blob.size,jsonReopen:true,xmlRoundtripByteIdentical,xmlRoundtripLimitation})
  }
  await writeFile(resolve(output,'manifest.json'),JSON.stringify(manifest,null,2))
  console.log(JSON.stringify(manifest))

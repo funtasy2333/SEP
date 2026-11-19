@@ -58,11 +58,12 @@ export const DEFAULT_OUTPUT_DIR_NAME = 'SES-exports';
 
 /** export_document 的 format 与文件扩展名的对应（扩展名比较不区分大小写）。 */
 const FORMAT_EXTENSIONS = {
-  docx: '.docx',
-  pdf: '.pdf',
-  html: '.html',
-  json: '.json',
-} as const;
+  docx: ['.docx'],
+  pdf: ['.pdf'],
+  xml: ['.xml', '.zip'],
+  html: ['.html'],
+  json: ['.json'],
+} as const satisfies Record<string, readonly string[]>;
 export type OutputFormat = keyof typeof FORMAT_EXTENSIONS;
 
 /** 本文件产生的错误：携带机器可读的 `code`，响应体与其他 4xx 同形，由 `toErrorBody` 原样映射。 */
@@ -315,12 +316,12 @@ export async function prepareOutputTarget(
   if (allowed.dirs.length === 0) throw outputDirNotAllowed(allowed, rawPath);
   const target = resolve(allowed.dirs[0], rawPath);
 
-  const expected = FORMAT_EXTENSIONS[format];
-  if (extname(target).toLowerCase() !== expected) {
+  const expected: readonly string[] = FORMAT_EXTENSIONS[format];
+  if (!expected.includes(extname(target).toLowerCase())) {
     throw new OutputFileException(
       400,
       'invalid-output-extension',
-      `outputPath 的扩展名必须与 format 对应：${format} 的文件应以 ${expected} 结尾`,
+      `outputPath 的扩展名必须与 format 对应：${format} 的文件应以 ${expected.join(' 或 ')} 结尾`,
     );
   }
 

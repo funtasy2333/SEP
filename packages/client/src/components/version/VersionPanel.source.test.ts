@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   },
   getContent: vi.fn(),
   documentStore: {
-    currentDocument: { stage: 'working_draft' },
+    currentDocument: { stage: 'working_draft', meta: { titleCn: '版本测试文档' } },
     updateDocument: vi.fn(),
     // 与真实 store 一致：task 通过传入的 put 写文档（这里 put 就是 updateDocument，方便断言写入内容）。
     runDocumentWrite: vi.fn(),
@@ -27,8 +27,8 @@ vi.mock('@/stores/version', () => ({ useVersionStore: () => mocks.versionStore }
 vi.mock('@/stores/document', () => ({ useDocumentStore: () => mocks.documentStore }))
 
 async function flushMicrotasks() {
-  for (let index = 0; index < 10; index += 1) {
-    await Promise.resolve()
+  for (let index = 0; index < 8; index += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10))
     await nextTick()
   }
 }
@@ -42,6 +42,18 @@ const version = (id: number, extra: Record<string, unknown> = {}) => ({
   ...extra,
 })
 
+const makeDoc = (text = '正文') => ({
+  type: 'doc',
+  content: [{
+    type: 'chapter',
+    attrs: { nodeId: 'ch-1' },
+    content: [
+      { type: 'chapterTitle', content: [{ type: 'text', text: '范围' }] },
+      { type: 'stdParagraph', attrs: { nodeId: 'p-1' }, content: [{ type: 'text', text }] },
+    ],
+  }],
+})
+
 async function mountPanel(onConflict = vi.fn()) {
   mocks.versionStore.loading = false
   mocks.versionStore.sortedVersions = [
@@ -53,7 +65,7 @@ async function mountPanel(onConflict = vi.fn()) {
   mocks.versionStore.versions = [...mocks.versionStore.sortedVersions]
   mocks.versionStore.fetchVersions.mockReset().mockResolvedValue(undefined)
   mocks.versionStore.createVersion.mockReset().mockResolvedValue({})
-  mocks.getContent.mockReset().mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] })
+  mocks.getContent.mockReset().mockReturnValue(makeDoc())
   mocks.documentStore.updateDocument.mockReset()
   mocks.documentStore.runDocumentWrite.mockReset().mockImplementation(
     (id: number, task: (put: (doc: unknown) => unknown) => unknown) =>
@@ -122,7 +134,7 @@ it('创建版本时传 source=human，并在写文档成功后正常结束', asy
       documentId: 17,
       source: 'human',
     })
-    expect(mocks.documentStore.updateDocument).toHaveBeenCalledWith(17, { content: { type: 'doc', content: [{ type: 'paragraph' }] } })
+    expect(mocks.documentStore.updateDocument).toHaveBeenCalledWith(17, { content: makeDoc() })
     expect(success).toHaveBeenCalledWith('版本保存成功')
     expect(onConflict).not.toHaveBeenCalled()
   } finally {
@@ -185,7 +197,7 @@ it('保存版本整个流程登记为文档的一次写入：排到这次写入�
     expect(mocks.versionStore.createVersion).not.toHaveBeenCalled()
 
     // 排队期间编辑器内容又变了：快照取的是轮到这次写入时的内容
-    const latest = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '最新输入' }] }] }
+    const latest = makeDoc('最新输入')
     mocks.getContent.mockReturnValue(latest)
     startTask()
     await flushMicrotasks()

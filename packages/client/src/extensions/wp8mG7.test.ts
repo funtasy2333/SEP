@@ -16,14 +16,14 @@ import { resolve as resolvePath } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { Fragment, Slice } from '@tiptap/pm/model'
 import {
-  IRToPmError, UnsupportedOutputError, getOutputSupportProblems, irToPm, pmToIr, resolve,
+  IRToPmError, getOutputSupportProblems, irToPm, pmToIr, resolve,
   type IRBlock, type IRList, type IRNote, type PMJsonNode,
 } from '@ses/shared'
+import { buildXml46687Package } from '@ses/io'
 import { docToText } from '../utils/docDiff'
 import { replaceEditorDocument } from '../utils/editorDocument'
 import { setClauseFormat, setListFormat, setParagraphFormat } from '../utils/structureEditing'
 import { exportSemanticJson } from '../serializer/jsonExporter'
-import { serializeToXml } from '../serializer/xmlSerializer'
 import { createEditorExtensions } from './editorExtensions'
 import { canInsertBodyFootnote } from './nodes/footnotes'
 import { normalizeStdListType } from './nodes/std-list'
@@ -247,11 +247,13 @@ describe('[M-5.7-04] 输出边界：HTML、DOCX、XML46687 放行罗马列项；
     expect(problems[0]!.message).toContain('阿拉伯数字')
   })
 
-  it('旧 XML 序列化器（serializeToXml）对含罗马列项的文档报 UnsupportedOutputError，不再静默导出为数字列项', () => {
-    let caught: unknown
-    try { serializeToXml(schema.nodeFromJSON(createG7RomanFixture())) } catch (error) { caught = error }
-    expect(caught).toBeInstanceOf(UnsupportedOutputError)
-    expect((caught as UnsupportedOutputError).problems.map(problem => problem.nodeId)).toEqual(['g7-l-roman', 'g7-l-roman2'])
+  it('XML46687：buildXml46687Package 导出 list-type="roman-lower"，不降级为数字列项', async () => {
+    const { xml, problems } = await buildXml46687Package({
+      pmDoc: createG7RomanFixture(),
+      documentMeta: { standardType: 'national', titleCn: 'WP8.M G7 罗马列项夹具' },
+    })
+    expect(problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(xml).toContain('list-type="roman-lower"')
   })
 })
 
@@ -593,34 +595,35 @@ describe('[M-5.6-05] 保存重开：Editor + replaceEditorDocument + exportSeman
   })
 })
 
-describe('[M-5.6-05] 输出边界：HTML、DOCX 放行块内容的注/示例（真排）；XML/XML46687 的字段表放行；旧 XML 序列化器拒绝拍平', () => {
+describe('[M-5.6-05] 输出边界：HTML、DOCX、XML46687 放行块内容的注/示例', () => {
   const { doc } = pmToIr(schema.nodeFromJSON(createG7NoteFixture()).toJSON() as PMJsonNode)
-  /** 夹具里有两个罗马列表（旧 XML 另行阻断，见罗马列项的边界用例）；换成字母列表后，注/示例本身在旧 XML 的字段表里放行 */
-  const withoutRoman = (): PMJsonNode => {
-    const copy = createG7NoteFixture()
-    for (const list of nodesOfType(copy, 'stdList')) if (list.attrs?.listType === 'roman') list.attrs.listType = 'alpha'
-    return copy
-  }
 
   it.each(['HTML', 'DOCX', 'XML46687'] as const)('%s：getOutputSupportProblems 为空', format => {
     expect(getOutputSupportProblems(doc, format)).toEqual([])
   })
 
-  it('XML：字段表放行 note/example 的块内容，唯一的问题是夹具里的两个罗马列表；换成字母列表后为空', () => {
-    expect(getOutputSupportProblems(doc, 'XML').map(problem => problem.nodeId)).toEqual(['g7-l-roman', 'g7-e2-l'])
-    expect(getOutputSupportProblems(pmToIr(schema.nodeFromJSON(withoutRoman()).toJSON() as PMJsonNode).doc, 'XML')).toEqual([])
-  })
+  it('XML46687：buildXml46687Package 完整导出多块注与多块示例为 non-normative-note/non-normative-example，不拍平为普通段落', async () => {
+    const pmJson = schema.nodeFromJSON(createG7NoteFixture()).toJSON() as PMJsonNode
+    // GB/T 46687.2 §6.5 不允许在表格单元格中放置 note，将其单独验证；移除单元格内注后正文/前言多块注与示例应完整导出。
+    const withCellNote = await buildXml46687Package({
+      pmDoc: pmJson,
+      documentMeta: { standardType: 'national', titleCn: 'WP8.M G7 注和示例夹具' },
+    })
+    expect(withCellNote.problems.some(problem => problem.code === 'xml-cell-content' && problem.nodeId === 'g7-t1-note')).toBe(true)
 
-  it('旧 XML 序列化器（serializeToXml）遇到 noteBlock/exampleBlock 报 UnsupportedOutputError，不把它们静默拍平成普通段落', () => {
-    const pmDoc = schema.nodeFromJSON(withoutRoman())
-    let caught: unknown
-    try { serializeToXml(pmDoc) } catch (error) { caught = error }
-    expect(caught).toBeInstanceOf(UnsupportedOutputError)
-    const problems = (caught as UnsupportedOutputError).problems
-    expect(problems.map(problem => problem.nodeId)).toEqual(expect.arrayContaining(['g7-fw-note', 'g7-n2', 'g7-n3', 'g7-e2', 'g7-t1-note']))
-    for (const id of ['g7-fw-note', 'g7-n2', 'g7-n3', 'g7-e2']) {
-      expect(problems.find(problem => problem.nodeId === id)?.message, id).toContain('块内容的')
-    }
+    const cell = nodesOfType(pmJson, 'tableCell').find(node => node.attrs?.nodeId === 'g7-t1-c2')!
+    cell.content = [{ type: 'stdParagraph', attrs: { nodeId: 'g7-t1-c2-p' }, content: [{ type: 'text', text: '单元格说明。' }] }]
+    const { xml, problems } = await buildXml46687Package({
+      pmDoc: pmJson,
+      documentMeta: { standardType: 'national', titleCn: 'WP8.M G7 注和示例夹具' },
+    })
+    expect(problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(xml).toContain('<non-normative-note>')
+    expect(xml).toContain('<non-normative-example>')
+    expect(xml).toContain('多块注的第一段。')
+    expect(xml).toContain('第二段带脚注')
+    expect(xml).toContain('多块示例的引语：')
+    expect(xml).toContain('示例项乙')
   })
 })
 
