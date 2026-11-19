@@ -383,20 +383,20 @@
     <el-dialog v-model="showXmlCode" title="查看文档代码" width="900px" class="ses-code-dlg">
       <div class="code-dlg-head">
         <el-radio-group v-model="codeViewFormat" size="small">
-          <el-radio-button value="xml">XML · GB/T 37967</el-radio-button>
+          <el-radio-button value="xml">XML（GB/T 46687.2—2026）</el-radio-button>
           <el-radio-button value="json">语义 JSON</el-radio-button>
           <el-radio-button value="html">语义 HTML</el-radio-button>
           <el-radio-button value="raw">原始 JSON</el-radio-button>
         </el-radio-group>
         <div style="display: flex; gap: 8px">
-          <el-button size="small" :disabled="Boolean(codeViewError)" @click="copyCodeContent">复制</el-button>
-          <el-button size="small" :disabled="Boolean(codeViewError)" @click="downloadCodeContent">下载</el-button>
+          <el-button size="small" :disabled="codeViewActionDisabled" @click="copyCodeContent">复制</el-button>
+          <el-button size="small" :disabled="codeViewActionDisabled" @click="downloadCodeContent">下载</el-button>
         </div>
       </div>
       <pre class="xml-code">{{ codeViewContent }}</pre>
     </el-dialog>
 
-    <input ref="xmlFileInput" type="file" accept=".xml" style="display: none" @change="handleXmlFileImport" />
+    <input ref="xmlFileInput" type="file" accept=".xml,.zip" style="display: none" @change="handleXmlFileImport" />
 
     <!-- =====================  HELP DIALOG  ===================== -->
     <el-dialog v-model="showHelp" title="键盘快捷键 / 帮助" width="520px">
@@ -465,8 +465,8 @@
         </button>
         <button class="export-card" :disabled="exportingFormat !== null" @click="handleExportFormat('xml')">
           <span class="ec-glyph">&lt;/&gt;</span>
-          <span class="ec-label">XML</span>
-          <span class="ec-sub">GB/T 37967 元数据</span>
+          <span class="ec-label">XML（GB/T 46687.2—2026）</span>
+          <span class="ec-sub">{{ exportingFormat === 'xml' ? '正在生成…' : '标准机器语言表达' }}</span>
         </button>
         <button class="export-card" :disabled="exportingFormat !== null" @click="handleExportFormat('html')">
           <span class="ec-glyph">&#9636;</span>
@@ -684,13 +684,19 @@ import {
 } from '@/extensions/plugins/inlineFormulaEditing'
 import { getTableFootnoteEntries } from '@/extensions/nodes/std-table'
 import {
-  serializeToXml, parseXmlToEditorJson,
   prepareXmlImportDocumentUpdate,
   exportSemanticJson, exportSemanticHtml,
   buildDocxBlob,
 } from '@/serializer'
 import { PDF_EXPORT_ENABLED, irMetaFromDocumentMeta, pmToIr, resolve, type DocumentMeta, type IRDocMeta, type PMJsonNode } from '@ses/shared'
-import { checkExportGuard, getFootnoteExportError } from '@ses/io'
+import {
+  buildXml46687Package,
+  checkExportGuard,
+  getFootnoteExportError,
+  importXml46687,
+  importXml46687Package,
+  type ContentValidator,
+} from '@ses/io'
 
 const route = useRoute()
 const router = useRouter()
@@ -746,7 +752,7 @@ const showOutline = ref(typeof window === 'undefined' || window.innerWidth > 960
 const documentId = computed(() => Number(route.params.id))
 const documentUnavailable = computed(() => store.isDocumentUnavailable(documentId.value))
 const unavailableMessage = ref('文档已移入回收站或当前页面已失效。')
-const exportingFormat = ref<'docx' | 'pdf' | 'ses' | null>(null)
+const exportingFormat = ref<'docx' | 'pdf' | 'xml' | 'ses' | null>(null)
 /** 导出对话框中的错误提示：概述一行；导出被阻止时另有逐条明细（每条一行），其他导出错误没有明细。 */
 const exportError = ref('')
 const exportErrorItems = ref<string[]>([])
@@ -892,10 +898,13 @@ function setActivePageOrientation(orientation: 'portrait' | 'landscape') {
   if (nodeType) editor.value?.chain().focus().updateAttributes(nodeType, { orientation }).run()
 }
 
+const docRevision = ref(0)
+
 const editor = useEditor({
   extensions: [...createEditorExtensions(), createDocumentValidationExtension(), SearchHighlight],
   content: '',
   onTransaction() {
+    docRevision.value += 1
     syncSearchStatus()
   },
   onUpdate() {
@@ -1083,23 +1092,107 @@ async function handleSettingsSave() {
   }
 }
 
-const codeViewResult = computed(() => {
+function formatXmlProblems(problems: readonly { message: string; nodeId?: string; path?: string }[]): string {
+  return problems.map((problem) => {
+    const location = [
+      problem.nodeId ? `节点 ${problem.nodeId}` : '',
+      problem.path ? `位置 ${problem.path}` : '',
+    ].filter(Boolean).join('，')
+    return `${problem.message}${location ? `【${location}】` : ''}`
+  }).join('；')
+}
+
+const xmlCodeView = ref<{
+  content: string
+  error: string
+  loading: boolean
+  bytes?: Uint8Array
+  hasResources?: boolean
+}>({
+  content: '',
+  error: '',
+  loading: false,
+})
+let xmlCodeViewRequestId = 0
+
+async function refreshXmlCodeView() {
+  const requestId = ++xmlCodeViewRequestId
+  if (!showXmlCode.value || codeViewFormat.value !== 'xml' || !editor.value) {
+    if (!showXmlCode.value || codeViewFormat.value !== 'xml') {
+      xmlCodeView.value = { content: '', error: '', loading: false }
+    }
+    return
+  }
+  const doc = getSynchronizedEditorDoc() || editor.value.state.doc
+  const guardFailure = checkExportGuard(doc, 'xml')
+  if (guardFailure) {
+    if (requestId === xmlCodeViewRequestId) {
+      xmlCodeView.value = { content: '', error: `XML 导出错误：${guardFailure.detail}`, loading: false }
+    }
+    return
+  }
+  xmlCodeView.value = { content: '', error: '', loading: true }
+  try {
+    const result = await buildXml46687Package({
+      pmDoc: doc,
+      documentMeta: store.currentDocument?.meta,
+    })
+    if (requestId !== xmlCodeViewRequestId) return
+    const errorProblems = result.problems.filter((problem) => problem.severity === 'error')
+    if (!result.xml || errorProblems.length > 0) {
+      const detail = errorProblems.length ? formatXmlProblems(errorProblems) : '生成 GB/T 46687.2 XML 失败'
+      xmlCodeView.value = { content: '', error: `XML 导出错误：${detail}`, loading: false }
+      return
+    }
+    xmlCodeView.value = {
+      content: result.xml,
+      error: '',
+      loading: false,
+      bytes: result.bytes,
+      hasResources: result.manifest.entries.length > 0,
+    }
+  } catch (error) {
+    if (requestId !== xmlCodeViewRequestId) return
+    const detail = error instanceof Error ? error.message : String(error)
+    xmlCodeView.value = { content: '', error: `XML 导出错误：${detail}`, loading: false }
+  }
+}
+
+watch(
+  [showXmlCode, codeViewFormat, docRevision, () => store.currentDocument?.meta],
+  () => { void refreshXmlCodeView() },
+  { immediate: true },
+)
+
+const syncCodeViewResult = computed(() => {
+  void docRevision.value
   if (!editor.value) return { content: '', error: '' }
+  const format = codeViewFormat.value
+  if (format === 'xml') return { content: '', error: '' }
   const doc = getSynchronizedEditorDoc() || editor.value.state.doc
   try {
-    const format = codeViewFormat.value
-    const content = format === 'xml' ? serializeToXml(doc)
-      : format === 'json' ? JSON.stringify(exportSemanticJson(doc), null, 2)
+    const content = format === 'json' ? JSON.stringify(exportSemanticJson(doc), null, 2)
       : format === 'html' ? exportSemanticHtml(doc)
       : JSON.stringify(doc.toJSON(), null, 2)
     return { content, error: '' }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
-    return { content: '', error: `${codeViewFormat.value.toUpperCase()} 导出错误：${detail}` }
+    return { content: '', error: `${format.toUpperCase()} 导出错误：${detail}` }
   }
 })
-const codeViewError = computed(() => codeViewResult.value.error)
-const codeViewContent = computed(() => codeViewResult.value.error || codeViewResult.value.content)
+const codeViewError = computed(() => (
+  codeViewFormat.value === 'xml' ? xmlCodeView.value.error : syncCodeViewResult.value.error
+))
+const codeViewActionDisabled = computed(() => (
+  Boolean(codeViewError.value) || (codeViewFormat.value === 'xml' && xmlCodeView.value.loading)
+))
+const codeViewContent = computed(() => {
+  if (codeViewFormat.value === 'xml') {
+    if (xmlCodeView.value.loading) return '正在生成 GB/T 46687.2 XML…'
+    return xmlCodeView.value.error || xmlCodeView.value.content
+  }
+  return syncCodeViewResult.value.error || syncCodeViewResult.value.content
+})
 
 onMounted(async () => {
   window.addEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
@@ -2634,17 +2727,68 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
     return
   }
 
+  if (format === 'xml') {
+    exportingFormat.value = 'xml'
+    clearExportError()
+    try {
+      const result = await buildXml46687Package({
+        pmDoc: doc,
+        documentMeta: store.currentDocument?.meta,
+      })
+      const errorProblems = result.problems.filter((problem) => problem.severity === 'error')
+      if (!result.xml || errorProblems.length > 0) {
+        if (errorProblems.length > 0) {
+          const items = errorProblems.map((problem) => {
+            const location = [
+              problem.nodeId ? `节点 ${problem.nodeId}` : '',
+              problem.path ? `位置 ${problem.path}` : '',
+            ].filter(Boolean).join('，')
+            return `${problem.message}${location ? `【${location}】` : ''}`
+          })
+          const firstProblem = errorProblems[0]!
+          const message = errorProblems.length > 1
+            ? `导出被阻止：${firstProblem.message}（另有 ${errorProblems.length - 1} 项，详见导出详情）`
+            : `导出被阻止：${firstProblem.message}`
+          setExportError({
+            summary: `导出被阻止：XML 有 ${errorProblems.length} 处内容暂不能导出`,
+            items,
+          })
+          ElMessage.error(message)
+        } else {
+          setExportError(exportErrorViewOfText('XML 导出失败'))
+          ElMessage.error(exportError.value)
+        }
+        return
+      }
+
+      if (result.manifest.entries.length > 0) {
+        downloadBlob(new Blob([result.bytes as Uint8Array<ArrayBuffer>], { type: 'application/zip' }), `${docTitle}.zip`)
+      } else {
+        downloadFile(result.xml, `${docTitle}.xml`, 'application/xml')
+      }
+      showExport.value = false
+      const warnings = result.problems.filter((problem) => problem.severity === 'warning')
+      if (warnings.length > 0) {
+        ElMessage.warning(`XML 文件已导出（含 ${warnings.length} 条兼容性提示）`)
+      } else {
+        ElMessage.success('XML 文件已导出')
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      setExportError(exportErrorViewOfText(`XML 导出失败：${detail}`))
+      ElMessage.error(exportError.value)
+    } finally {
+      exportingFormat.value = null
+    }
+    return
+  }
+
   try {
     let content = ''
     let filename = ''
     let mimeType = ''
 
     switch (format) {
-      case 'xml':
-        content = serializeToXml(doc)
-        filename = `${docTitle}.xml`
-        mimeType = 'application/xml'
-        break
       case 'html':
         content = exportSemanticHtml(doc)
         filename = `${docTitle}.html`
@@ -2687,7 +2831,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 /** 复制代码内容 */
 function copyCodeContent() {
-  if (codeViewError.value) return
+  if (codeViewActionDisabled.value) return
   if (persistenceOperation.value !== null || settingsDirty.value) {
     ElMessage.warning(settingsDirty.value ? '文件设置有未保存修改，请先保存或重置' : '文档保存或导入完成后再复制')
     return
@@ -2710,7 +2854,7 @@ function copyCodeContent() {
 
 /** 下载代码内容 */
 function downloadCodeContent() {
-  if (codeViewError.value) return
+  if (codeViewActionDisabled.value) return
   if (persistenceOperation.value !== null || settingsDirty.value) {
     ElMessage.warning(settingsDirty.value ? '文件设置有未保存修改，请先保存或重置' : '文档保存或导入完成后再下载')
     return
@@ -2731,7 +2875,37 @@ function downloadCodeContent() {
     }
   }
   const titleCn = store.currentDocument?.meta?.titleCn || store.currentDocument?.title || '标准文件'
+  if (codeViewFormat.value === 'xml' && xmlCodeView.value.hasResources && xmlCodeView.value.bytes?.length) {
+    downloadBlob(new Blob([xmlCodeView.value.bytes as Uint8Array<ArrayBuffer>], { type: 'application/zip' }), `${titleCn}.zip`)
+    return
+  }
   downloadFile(codeViewContent.value, `${titleCn}.${info.ext}`, info.mime)
+}
+
+async function readImportFileBytes(file: File): Promise<Uint8Array> {
+  if (typeof file.arrayBuffer === 'function') {
+    return new Uint8Array(await file.arrayBuffer())
+  }
+  return await new Promise<Uint8Array>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result
+      if (result instanceof ArrayBuffer) resolve(new Uint8Array(result))
+      else reject(new Error('无法读取 XML 文件内容'))
+    }
+    reader.onerror = () => reject(new Error('XML 文件读取失败'))
+    reader.readAsArrayBuffer(file)
+  })
+}
+
+function isZipImportFile(file: File, bytes: Uint8Array): boolean {
+  const name = file.name.toLowerCase()
+  const type = file.type.toLowerCase()
+  const hasPkMagic = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b
+  return name.endsWith('.zip')
+    || type === 'application/zip'
+    || type === 'application/x-zip-compressed'
+    || hasPkMagic
 }
 
 // === 导入 XML ===
@@ -2794,22 +2968,44 @@ function handleXmlFileImport(event: Event) {
     if (!persisted && wasDirty && !currentEditor.isDestroyed && !documentUnavailable.value) scheduleAutoSave()
   }
 
-  const reader = new FileReader()
-  reader.onload = async (e) => {
+  void (async () => {
     try {
-      const xmlString = e.target?.result
-      if (typeof xmlString !== 'string') throw new Error('无法读取 XML 文件内容')
-      const pmJson = parseXmlToEditorJson(xmlString, currentEditor.schema.topNodeType.name)
-      // Parse against the live production schema before making any persistent or editor changes.
-      const validatedDoc = currentEditor.schema.nodeFromJSON(pmJson)
+      const bytes = await readImportFileBytes(file)
+      // Parse against the live production schema without altering generated nodeIds before importXml46687 checks roundtrip parity.
+      const validateContent: ContentValidator = (candidate) => {
+        try {
+          const validatedDoc = currentEditor.schema.nodeFromJSON(candidate)
+          validatedDoc.check()
+          return { ok: true, content: validatedDoc.toJSON() as PMJsonNode }
+        } catch (error) {
+          return {
+            ok: false,
+            code: 'xml-schema-invalid',
+            message: error instanceof Error ? error.message : String(error),
+          }
+        }
+      }
+      const importResult = isZipImportFile(file, bytes)
+        ? await importXml46687Package(bytes, { validateContent })
+        : await importXml46687(new TextDecoder('utf-8', { fatal: true }).decode(bytes), { validateContent })
+
+      const importErrors = importResult.problems.filter((problem) => problem.severity === 'error')
+      if (!importResult.pmDoc || importErrors.length > 0) {
+        const reason = importErrors.length > 0
+          ? formatXmlProblems(importErrors)
+          : '无法解析 GB/T 46687.2 XML 文档'
+        throw new Error(reason)
+      }
+
+      const validatedDoc = currentEditor.schema.nodeFromJSON(importResult.pmDoc)
       validatedDoc.check()
-      const validatedJson = normalizeNodeIds(validatedDoc).toJSON()
+      const validatedJson = normalizeNodeIds(validatedDoc).toJSON() as PMJsonNode
       if (currentEditor.isDestroyed || store.currentDocument?.id !== currentDocumentId) {
         throw new Error('当前文档已切换，请重新导入')
       }
       const update = prepareXmlImportDocumentUpdate(validatedJson, currentDocument.meta)
       const meta = { ...currentDocument.meta, ...update.meta }
-      const content = synchronizeCoverMetadata(validatedJson, meta)
+      const content = synchronizeCoverMetadata(validatedJson as unknown as Record<string, unknown>, meta)
       const finalCandidate = currentEditor.schema.nodeFromJSON(content)
       finalCandidate.check()
       const normalizedContent = normalizeNodeIds(finalCandidate).toJSON()
@@ -2833,21 +3029,11 @@ function handleXmlFileImport(event: Event) {
     } catch (err) {
       // 409：导入结果没有写入文档，编辑器内容保持不变；由冲突提示接管。
       if (isRevisionConflict(err)) enterSaveConflict('xml-import')
-      else ElMessage.error(`XML 导入失败: ${err}`)
+      else ElMessage.error(`XML 导入失败: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       finishImport()
     }
-  }
-  reader.onerror = () => {
-    ElMessage.error('XML 文件读取失败')
-    finishImport()
-  }
-  try {
-    reader.readAsText(file, 'UTF-8')
-  } catch (err) {
-    ElMessage.error(`XML 文件读取失败: ${err}`)
-    finishImport()
-  }
+  })()
 }
 </script>
 

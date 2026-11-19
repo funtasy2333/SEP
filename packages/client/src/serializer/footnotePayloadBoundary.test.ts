@@ -1,11 +1,18 @@
 // @vitest-environment happy-dom
 import { getSchema } from '@tiptap/core'
+import type { Node as PMNode } from '@tiptap/pm/model'
+import { buildXml46687Package, importXml46687 } from '@ses/io'
 import { pmToIr, renderHtml, resolve, type PMJsonNode } from '@ses/shared'
 import { describe, expect, it } from 'vitest'
 import { createEditorExtensions } from '../extensions/editorExtensions'
 import { buildDocxBlob } from './docxExporter'
-import { parseXmlToEditorJson } from './xmlParser'
-import { serializeToXml } from './xmlSerializer'
+
+async function expectXmlFootnoteBlocked(pmDoc: PMNode, messagePattern: RegExp) {
+  const result = await buildXml46687Package({ pmDoc: pmDoc.toJSON() as PMJsonNode })
+  expect(result.xml).toBeNull()
+  const errors = result.problems.filter(problem => problem.severity === 'error')
+  expect(errors.some(problem => messagePattern.test(problem.message))).toBe(true)
+}
 
 function bodyFootnoteDoc(content: unknown, referenceMarks?: PMJsonNode['marks']) {
   const schema = getSchema(createEditorExtensions())
@@ -77,7 +84,7 @@ describe('正文脚注内容的导出边界', () => {
     expect(problems.some(problem =>
       problem.code === 'invalid-footnote' && problem.message.includes('上标格式标记（请先取消上标的附加格式）'),
     )).toBe(true)
-    expect(() => serializeToXml(pmDoc)).toThrow(/脚注校验未通过/)
+    await expectXmlFootnoteBlocked(pmDoc, /上标格式标记（请先取消上标的附加格式）/)
     expect(() => renderHtml(doc, labels, { variant: 'print' })).toThrow(/脚注关联无效/)
     await expect(buildDocxBlob({ pmDoc, createdAt: '2026-10-03T00:00:00Z' }))
       .rejects.toThrow(/脚注关联无效/)
@@ -110,7 +117,7 @@ describe('正文脚注内容的导出边界', () => {
 
     const { doc } = pmToIr(pmDoc.toJSON() as PMJsonNode)
     const { labels } = resolve(doc)
-    expect(() => serializeToXml(pmDoc)).toThrow(/脚注校验未通过/)
+    await expectXmlFootnoteBlocked(pmDoc, /脚注关联无效/)
     expect(() => renderHtml(doc, labels, { variant: 'print' })).toThrow(/脚注关联无效/)
     await expect(buildDocxBlob({ pmDoc, createdAt: '2026-10-03T00:00:00Z' }))
       .rejects.toThrow(/脚注关联无效/)
@@ -149,7 +156,7 @@ describe('正文脚注内容的导出边界', () => {
     const { doc } = pmToIr(pmDoc.toJSON() as PMJsonNode)
     const { labels } = resolve(doc)
     expect(resolve(doc).problems.some(problem => problem.message.includes('格式「strike」'))).toBe(true)
-    expect(() => serializeToXml(pmDoc)).toThrow(/格式「strike」/)
+    await expectXmlFootnoteBlocked(pmDoc, /格式「strike」/)
     expect(() => renderHtml(doc, labels, { variant: 'print' })).toThrow(/格式「strike」/)
     await expect(buildDocxBlob({ pmDoc, createdAt: '2026-10-03T00:00:00Z' }))
       .rejects.toThrow(/格式「strike」/)
@@ -168,7 +175,7 @@ describe('正文脚注内容的导出边界', () => {
       { type: 'hardBreak' },
     ]],
     ['嵌入的表脚注引用', [{ type: 'tableFootnoteRef', attrs: { targetId: 'table-fn-1' } }]],
-  ])('%s 可识别为脚注错误，不抛 TypeError', (scenario, content) => {
+  ])('%s 可识别为脚注错误，不抛 TypeError', async (scenario, content) => {
     const { pmDoc } = bodyFootnoteDoc(content)
     expect(() => pmToIr(pmDoc.toJSON() as PMJsonNode)).not.toThrow()
     const { doc } = pmToIr(pmDoc.toJSON() as PMJsonNode)
@@ -189,7 +196,7 @@ describe('正文脚注内容的导出边界', () => {
         problem.code === 'invalid-footnote' && problem.message.includes('无效的行内节点'),
       )).toBe(true)
     }
-    expect(() => serializeToXml(pmDoc)).toThrow(/脚注校验未通过/)
+    await expectXmlFootnoteBlocked(pmDoc, /脚注/)
   })
 
   it.each([
@@ -214,7 +221,7 @@ describe('正文脚注内容的导出边界', () => {
     const { doc } = pmToIr(pmDoc.toJSON() as PMJsonNode)
     const { labels, problems } = resolve(doc)
     expect(problems.some(problem => problem.code === 'invalid-footnote')).toBe(true)
-    expect(() => serializeToXml(pmDoc)).toThrow(/脚注校验未通过/)
+    await expectXmlFootnoteBlocked(pmDoc, /脚注关联无效/)
     expect(() => renderHtml(doc, labels, { variant: 'print' })).toThrow(/脚注关联无效/)
     await expect(buildDocxBlob({ pmDoc, createdAt: '2026-10-03T00:00:00Z' }))
       .rejects.toThrow(/脚注关联无效/)
@@ -230,7 +237,7 @@ describe('正文脚注内容的导出边界', () => {
     expect(problems.some(problem =>
       problem.code === 'invalid-footnote' && problem.message.includes(`格式「${markType}」`),
     )).toBe(true)
-    expect(() => serializeToXml(pmDoc)).toThrow(/脚注校验未通过/)
+    await expectXmlFootnoteBlocked(pmDoc, /脚注关联无效/)
     expect(() => renderHtml(doc, labels, { variant: 'print' })).toThrow(/脚注关联无效/)
     await expect(buildDocxBlob({ pmDoc, createdAt: '2026-10-03T00:00:00Z' }))
       .rejects.toThrow(/脚注关联无效/)
@@ -253,13 +260,18 @@ describe('正文脚注内容的导出边界', () => {
     ])
 
     const sourceBefore = JSON.parse(JSON.stringify(pmDoc.toJSON()))
-    const xml = serializeToXml(pmDoc)
+    const exported = await buildXml46687Package({
+      pmDoc: pmDoc.toJSON() as PMJsonNode,
+      documentMeta: { standardType: 'national', titleCn: '脚注载荷测试' },
+    })
+    expect(exported.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    const xml = exported.xml!
     expect(xml).toContain('<bold>粗体</bold>')
     expect(xml).toContain('<italic>斜体</italic>')
     expect(xml).toContain('<underline>下划线</underline>')
     expect(xml).toContain('<sub>下标</sub>')
     expect(xml).toContain('<sup>上标</sup>')
-    expect(xml).toContain('<break />')
+    expect(xml).toMatch(/<break\s*\/>/)
     const xmlDocument = new DOMParser().parseFromString(xml, 'application/xml')
     const chapterDefinition = Array.from(xmlDocument.getElementsByTagName('*')).find(element =>
       element.tagName === 'sec' && element.textContent?.includes('范围'),
@@ -272,19 +284,27 @@ describe('正文脚注内容的导出边界', () => {
       .filter((id): id is string => id !== null)
     expect(emittedIds.filter(id => id === chapterId)).toHaveLength(1)
 
-    const payloadReferences = Array.from(xmlDocument.getElementsByTagName('xref'))
-      .filter(element => element.textContent === '引用' || element.textContent === '默认引用')
-    expect(payloadReferences.map(element => [element.textContent, element.getAttribute('rid')])).toEqual([
-      ['引用', chapterId],
-      ['默认引用', chapterId],
+    const footnoteEl = xmlDocument.getElementsByTagName('fn')[0]!
+    const payloadReferences = Array.from(footnoteEl.getElementsByTagName('xref'))
+    expect(payloadReferences.map(element => [element.getAttribute('ref-type'), element.textContent, element.getAttribute('rid')])).toEqual([
+      ['sec', '第1章', chapterId],
     ])
     for (const reference of payloadReferences) {
       const rid = reference.getAttribute('rid')
       expect(emittedIds.filter(id => id === rid)).toHaveLength(1)
     }
 
-    const reopened = schema.nodeFromJSON(parseXmlToEditorJson(xml, schema.topNodeType.name))
+    const importedResult = await importXml46687(xml, {
+      validateContent: (candidate) => {
+        const node = schema.nodeFromJSON(candidate)
+        node.check()
+        return { ok: true, content: node.toJSON() as PMJsonNode }
+      },
+    })
+    expect(importedResult.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    const reopened = schema.nodeFromJSON(importedResult.pmDoc!)
     reopened.check()
+    const importedChapterNodeId = reopened.toJSON().content?.find((node: PMJsonNode) => node.type === 'chapter')?.attrs?.nodeId
     let footnoteContent: PMJsonNode[] = []
     reopened.descendants(node => {
       if (node.type.name === 'footnoteRef' && Array.isArray(node.attrs.content)) {
@@ -292,16 +312,24 @@ describe('正文脚注内容的导出边界', () => {
       }
     })
     expect(footnoteContent.some(node =>
-      node.type === 'text' && node.text === '引用'
-      && node.marks?.some(mark => mark.type === 'crossRef' && mark.attrs?.refId === chapterId),
+      node.type === 'text' && node.text === '第1章'
+      && node.marks?.some(mark => mark.type === 'crossRef' && mark.attrs?.targetId === importedChapterNodeId),
     )).toBe(true)
-    const { doc } = pmToIr(reopened.toJSON() as PMJsonNode)
+    const printJson = structuredClone(reopened.toJSON()) as PMJsonNode
+    for (const key of ['titleParts', 'identifiers', 'publishers', 'replacedStandards', 'languages', 'copyrights', 'adoptions']) {
+      if (printJson.attrs) delete printJson.attrs[key]
+      const cover = printJson.content?.find(child => child.type === 'coverPage')
+      if (cover?.attrs) delete cover.attrs[key]
+    }
+    printJson.content = (printJson.content ?? []).filter(child => child.type !== 'metadataBlock')
+    const printReopened = schema.nodeFromJSON(printJson)
+    const { doc } = pmToIr(printReopened.toJSON() as PMJsonNode)
     const resolved = resolve(doc)
     expect(resolved.problems.filter(problem =>
       ['invalid-footnote', 'dangling-footnote', 'unreferenced-footnote'].includes(problem.code),
     )).toEqual([])
     expect(() => renderHtml(doc, resolved.labels, { variant: 'print' })).not.toThrow()
-    const docx = await buildDocxBlob({ pmDoc: reopened, createdAt: '2026-10-03T00:00:00Z' })
+    const docx = await buildDocxBlob({ pmDoc: printReopened, createdAt: '2026-10-03T00:00:00Z' })
     expect(docx.blob).toBeInstanceOf(Blob)
     expect(pmDoc.toJSON()).toEqual(sourceBefore)
   })

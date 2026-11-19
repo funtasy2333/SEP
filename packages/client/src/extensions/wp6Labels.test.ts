@@ -7,8 +7,7 @@ import { createWp6Fixture } from './__fixtures__/wp6'
 import { semanticLabels } from '../utils/semanticLabels'
 import { docToText } from '../utils/docDiff'
 import { replaceEditorDocument } from '../utils/editorDocument'
-import { serializeToXml } from '../serializer/xmlSerializer'
-import { parseXmlToEditorJson } from '../serializer/xmlParser'
+import { buildXml46687Package, importXml46687 } from '@ses/io'
 
 it('编辑器DOM、版本差异与JSON共用Resolver，嵌套术语编号不受旧level计数器影响', () => {
   const editor = new Editor({ extensions: createEditorExtensions(), content: createWp6Fixture() })
@@ -52,10 +51,10 @@ it('缺少历史nodeId的编号投影不修改输入且使用Resolver的层级�
   expect(source).toEqual(before)
 })
 
-it('只含新术语来源carrier时旧XML保留来源标识，不把来源变成定义', () => {
+it('只含新术语来源carrier时XML46687保留来源标识，不把来源变成定义', async () => {
   const editor = new Editor({ extensions: createEditorExtensions(), content: {
-    type: 'doc', content: [{ type: 'chapter', attrs: {nodeId: 'c'}, content: [
-      {type: 'chapterTitle', content: [{type: 'text', text: '术语'}]},
+    type: 'doc', content: [{ type: 'chapter', attrs: {nodeId: 'c', secType: 'terms'}, content: [
+      {type: 'chapterTitle', content: [{type: 'text', text: '术语和定义'}]},
       {type: 'termDef', attrs: {nodeId: 't'}, content: [
         {type: 'termName', content: [{type: 'text', text: '文档'}]},
         {type: 'termDefinition', attrs: {nodeId: 'd'}, content: [{type: 'text', text: '定义'}]},
@@ -64,11 +63,24 @@ it('只含新术语来源carrier时旧XML保留来源标识，不把来源变成
     ]}],
   }})
   const before = editor.getJSON()
-  const xml = serializeToXml(editor.state.doc)
-  expect(xml).toContain('[来源：ISO vocabulary]')
-  const reopened = pmToIr(parseXmlToEditorJson(xml, editor.schema.topNodeType.name)).doc
+  const { xml, problems } = await buildXml46687Package({ pmDoc: before as PMJsonNode, documentMeta: { standardType: 'national', titleCn: '术语测试' } })
+  expect(problems.filter(problem => problem.severity === 'error')).toEqual([])
+  expect(xml).toContain('ISO vocabulary')
+  const imported = await importXml46687(xml!, {
+    validateContent: (candidate) => {
+      try {
+        const node = editor.schema.nodeFromJSON(candidate)
+        node.check()
+        return { ok: true, content: node.toJSON() as PMJsonNode }
+      } catch (error) {
+        return { ok: false, code: 'xml-schema-invalid', message: error instanceof Error ? error.message : String(error) }
+      }
+    },
+  })
+  expect(imported.problems.filter(problem => problem.severity === 'error')).toEqual([])
+  const reopened = pmToIr(imported.pmDoc!).doc
   expect(reopened.body[0]?.children[0]).toMatchObject({
-    kind: 'termEntry', source: [{ text: '[来源：ISO vocabulary]' }],
+    kind: 'termEntry', source: [{ text: 'ISO vocabulary' }],
     definition: [{ kind: 'paragraph', content: [{ text: '定义' }] }],
   })
   expect(editor.getJSON()).toEqual(before)

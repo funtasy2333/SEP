@@ -276,7 +276,7 @@ describe('人机接力端到端（MCP + REST，真实 HTTP）', () => {
     expect(stored).not.toContain(AI_STALE_TEXT);
   });
 
-  it('4. validate_document：三种格式的导出前检查都通过，且不修改文档', async () => {
+  it('4. validate_document：四种格式的导出前检查都通过，且不修改文档', async () => {
     const before = await t.documents.findOne(documentId);
     const result = await mcp.call('validate_document', { documentId });
     expect(result.isError).toBe(false);
@@ -284,6 +284,7 @@ describe('人机接力端到端（MCP + REST，真实 HTTP）', () => {
     expect(result.body.exports).toEqual({
       docx: { ok: true },
       pdf: { ok: true, available: pdfAvailable },
+      xml: { ok: true },
       html: { ok: true },
     });
     expect(result.body.problems).toBeInstanceOf(Array);
@@ -301,7 +302,7 @@ describe('人机接力端到端（MCP + REST，真实 HTTP）', () => {
 
   /** 调用 export_document（只给文件名）保存到允许目录（临时目录），返回工具结果与文件内容。 */
   async function exportToFile(
-    format: 'docx' | 'pdf' | 'html' | 'json',
+    format: 'docx' | 'pdf' | 'xml' | 'html' | 'json',
   ): Promise<{
     result: Awaited<ReturnType<McpTestClient['call']>>;
     file: Buffer;
@@ -362,15 +363,26 @@ describe('人机接力端到端（MCP + REST，真实 HTTP）', () => {
     expect(body).toContain(AI_TEXT_2);
   });
 
-  it.each(['html', 'json'] as const)(
+  it.each(['xml', 'html', 'json'] as const)(
     '5b. export_document %s：文件与 REST 导出逐字节一致',
     async (format) => {
       const { result, file } = await exportToFile(format);
-      expect(result.body.warnings).toEqual([]);
       const rest = await download(
         `/api/documents/${documentId}/export/${format}`,
       );
       expect(rest.status).toBe(200);
+      if (format === 'xml') {
+        const header = rest.headers[WARNINGS_HEADER.toLowerCase()];
+        const headerWarnings = JSON.parse(decodeURIComponent(header));
+        expect(result.body.warnings).toEqual(headerWarnings);
+        expect(
+          result.body.warnings.every(
+            (w: { code: string }) => w.code === 'meta-required-missing',
+          ),
+        ).toBe(true);
+      } else {
+        expect(result.body.warnings).toEqual([]);
+      }
       expect(file.equals(rest.bytes)).toBe(true);
       expect(file.toString('utf8')).toContain(HUMAN_TEXT);
     },

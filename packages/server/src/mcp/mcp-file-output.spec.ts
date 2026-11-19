@@ -262,6 +262,8 @@ describe('outputPath 的写入', () => {
       const cases: Array<[string, OutputFormat, string]> = [
         ['规范.docx', 'docx', join(dir, '规范.docx')],
         ['./a.pdf', 'pdf', join(dir, 'a.pdf')],
+        ['sub/a.xml', 'xml', join(dir, 'sub', 'a.xml')],
+        ['sub/pkg.zip', 'xml', join(dir, 'sub', 'pkg.zip')],
         ['sub/a.html', 'html', join(dir, 'sub', 'a.html')],
         ['sub/../b.json', 'json', join(dir, 'b.json')],
       ];
@@ -284,6 +286,7 @@ describe('outputPath 的写入', () => {
       const cases: Array<[string, OutputFormat]> = [
         ['a.pdf', 'docx'],
         ['a.docx', 'pdf'],
+        ['a.html', 'xml'],
         ['a.htm', 'html'],
         ['a.json', 'html'],
         ['a', 'json'],
@@ -308,6 +311,8 @@ describe('outputPath 的写入', () => {
       for (const [name, format] of [
         ['a.DOCX', 'docx'],
         ['a.Pdf', 'pdf'],
+        ['a.XML', 'xml'],
+        ['a.ZiP', 'xml'],
         ['a.HTML', 'html'],
         ['a.JSON', 'json'],
       ] as const) {

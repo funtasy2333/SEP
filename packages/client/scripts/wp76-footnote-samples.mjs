@@ -62,18 +62,49 @@ const manuscript = { type: 'doc', content: [
 try {
   await mkdir(output, { recursive: true })
   const { createEditorExtensions } = await server.ssrLoadModule('/src/extensions/editorExtensions.ts')
-  const { serializeToXml } = await server.ssrLoadModule('/src/serializer/xmlSerializer.ts')
-  const { parseXmlToEditorJson } = await server.ssrLoadModule('/src/serializer/xmlParser.ts')
+  const { buildXml46687Package, importXml46687Package } = await server.ssrLoadModule('@ses/io')
   const { createDocumentDuplicate } = await server.ssrLoadModule('/src/utils/duplicateDocument.ts')
   const { buildDocxBlob } = await server.ssrLoadModule('/src/serializer/docxExporter.ts')
   const schema = getSchema(createEditorExtensions())
   const normalize = (json) => { const node = schema.nodeFromJSON({ ...json, type: schema.topNodeType.name }); node.check(); return node }
+  const validateContent = (candidate) => {
+    try {
+      const node = schema.nodeFromJSON(candidate)
+      node.check()
+      return { ok: true, content: node.toJSON() }
+    } catch (error) {
+      return { ok: false, code: 'xml-schema-invalid', message: error instanceof Error ? error.message : String(error) }
+    }
+  }
+  const exportXml = async (pmDoc, documentMeta) => {
+    const result = await buildXml46687Package({ pmDoc: pmDoc.toJSON(), documentMeta })
+    const errors = result.problems.filter((problem) => problem.severity === 'error')
+    if (!result.xml || errors.length > 0) throw new Error(errors.map((problem) => problem.message).join('; ') || 'XML46687 导出失败')
+    return result
+  }
+  const stripXmlOnlyForDocx = (pmDoc) => {
+    const json = structuredClone(pmDoc.toJSON())
+    for (const key of ['titleParts', 'identifiers', 'publishers', 'replacedStandards', 'languages', 'copyrights', 'adoptions']) {
+      if (json.attrs) delete json.attrs[key]
+      const cover = json.content?.find((child) => child.type === 'coverPage')
+      if (cover?.attrs) delete cover.attrs[key]
+    }
+    json.content = (json.content ?? []).filter((child) => child.type !== 'metadataBlock')
+    const stripTables = (node) => {
+      if (node.type === 'stdTable' && node.attrs) delete node.attrs.columns
+      node.content?.forEach(stripTables)
+    }
+    stripTables(json)
+    return normalize(json)
+  }
   const original = normalize(manuscript)
   const saved = JSON.parse(JSON.stringify(original.toJSON()))
   const reopened = normalize(saved)
   assert.deepEqual(reopened.toJSON(), original.toJSON())
-  const xml = serializeToXml(reopened)
-  const roundtrip = normalize(parseXmlToEditorJson(xml, schema.topNodeType.name))
+  const xmlPkg = await exportXml(reopened, meta)
+  const imported = await importXml46687Package(xmlPkg.bytes, { validateContent })
+  if (!imported.pmDoc) throw new Error(imported.problems.map((problem) => problem.message).join('; '))
+  const roundtrip = stripXmlOnlyForDocx(normalize(imported.pmDoc))
   const source = { title: meta.titleCn, meta, stage: 'working_draft', content: reopened.toJSON() }
   const duplicate = createDocumentDuplicate(source)
   assert.deepEqual(source.content, reopened.toJSON())
@@ -86,7 +117,8 @@ try {
   for (const [name, pmDoc, documentMeta] of cases) {
     const { blob, warnings } = await buildDocxBlob({ pmDoc, documentMeta, stage: 'working_draft', createdAt: '2026-10-03T00:00:00Z' })
     await writeFile(resolve(output, `${name}.docx`), new Uint8Array(await blob.arrayBuffer()))
-    await writeFile(resolve(output, `${name}.xml`), serializeToXml(pmDoc))
+    const { xml } = await exportXml(pmDoc, documentMeta)
+    await writeFile(resolve(output, `${name}.xml`), xml)
     await writeFile(resolve(output, `${name}.json`), JSON.stringify({ title: documentMeta.titleCn, meta: documentMeta, stage: 'working_draft', content: pmDoc.toJSON() }, null, 2))
     manifest.push({ name, warnings, bytes: blob.size, qualification: 'fixture' })
   }

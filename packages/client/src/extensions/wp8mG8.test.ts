@@ -15,7 +15,7 @@ import { DOMParser, DOMSerializer, type Node as PMNode } from '@tiptap/pm/model'
 import { TextSelection } from '@tiptap/pm/state'
 import { CellSelection } from '@tiptap/pm/tables'
 import { describe, expect, it } from 'vitest'
-import { checkExportGuard } from '@ses/io'
+import { buildXml46687Package, checkExportGuard } from '@ses/io'
 import { IRToPmError, irToPm, pmToIr, resolve, type IRBlock, type IRTable, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from './editorExtensions'
 import { createWp6Fixture } from './__fixtures__/wp6'
@@ -23,7 +23,6 @@ import { G8_COLUMNS_2, G8_COLUMNS_3, createWp8mG8Fixture } from './__fixtures__/
 import { cellBorderCss } from './nodes/semantic'
 import { stdTableGridWidth } from './plugins/tableColumnsSync'
 import { exportSemanticJson } from '../serializer/jsonExporter'
-import { serializeToXml } from '../serializer/xmlSerializer'
 import { replaceEditorDocument } from '../utils/editorDocument'
 
 const extensions = createEditorExtensions()
@@ -532,11 +531,12 @@ describe('[M-6.1-03][M-6.3.3.1-01] 编辑器显示', () => {
   })
 })
 
-describe('[M-6.1-03][M-6.3.3.1-01] 导出链路：四种格式一律阻断（§7.1，本阶段不排版）', () => {
-  it('checkExportGuard：html / pdf / docx / xml 都被输出边界阻止，问题指向 columns 与单元格 style；json 不检查', () => {
+describe('[M-6.1-03][M-6.3.3.1-01] 导出链路：HTML/PDF/DOCX 阻断；XML46687 放行并输出 col/@width 与 td/@style', () => {
+  it('checkExportGuard：html / pdf / docx 被输出边界阻止；xml 与 json 通过', () => {
     const doc = schema.nodeFromJSON(createWp8mG8Fixture()).toJSON() as PMJsonNode
     expect(checkExportGuard(doc, 'json')).toBeNull()
-    for (const format of ['html', 'pdf', 'docx', 'xml'] as const) {
+    expect(checkExportGuard(doc, 'xml')).toBeNull()
+    for (const format of ['html', 'pdf', 'docx'] as const) {
       const failure = checkExportGuard(doc, format)
       expect(failure?.source, format).toBe('output-boundary')
       const paths = failure!.problems.map(problem => problem.path ?? '')
@@ -560,9 +560,15 @@ describe('[M-6.1-03][M-6.3.3.1-01] 导出链路：四种格式一律阻断（§7
     for (const format of ['html', 'pdf', 'docx'] as const) expect(checkExportGuard(doc, format), format).toBeNull()
   })
 
-  it('旧 XML：serializeToXml 拒绝含 columns 的文档，而不是静默丢弃', () => {
+  it('XML46687：buildXml46687Package 导出名义列宽 col/@width 与单元格样式', async () => {
     const editor = mountEditor(createWp8mG8Fixture() as unknown as Record<string, unknown>)
-    expect(() => serializeToXml(editor.state.doc)).toThrow()
+    const { xml, problems } = await buildXml46687Package({
+      pmDoc: editor.getJSON() as PMJsonNode,
+      documentMeta: { standardType: 'national', titleCn: '表格列宽与样式测试' },
+    })
+    expect(problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(xml).toContain('width="40%"')
+    expect(xml).toContain('style="')
     editor.destroy()
   })
 })

@@ -15,8 +15,8 @@ import { Editor, getSchema } from '@tiptap/core'
 import { DOMParser, DOMSerializer, Fragment, Slice, type Node as PMNode } from '@tiptap/pm/model'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { describe, expect, it } from 'vitest'
-import { checkExportGuard } from '@ses/io'
-import { irToPm, pmToIr, resolve, UnsupportedOutputError, type IRDoc, type IRFigure, type PMJsonNode } from '@ses/shared'
+import { buildXml46687Package, checkExportGuard } from '@ses/io'
+import { irToPm, pmToIr, resolve, type IRDoc, type IRFigure, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from './editorExtensions'
 import { createWp6Fixture } from './__fixtures__/wp6'
 import {
@@ -28,7 +28,6 @@ import { NODE_ID_TYPES, remapPastedSliceIds } from './plugins/ensureNodeId'
 import { buildDocxBlob } from '../serializer/docxExporter'
 import { exportSemanticHtml } from '../serializer/htmlExporter'
 import { exportSemanticJson } from '../serializer/jsonExporter'
-import { serializeToXml } from '../serializer/xmlSerializer'
 import { docToText } from '../utils/docDiff'
 import { replaceEditorDocument } from '../utils/editorDocument'
 import { setClauseFormat, setListFormat, setParagraphFormat } from '../utils/structureEditing'
@@ -802,24 +801,25 @@ describe('[M-8.5-01][M-8.3-02] 粘贴重映射：图例换新 nodeId，行内图
   })
 })
 
-describe('[M-8.5-01][M-8.4-03][M-8.3-02][M-8.2-11] 导出链路：图例、图中示例本阶段阻断；行内图与图注放行（旧 XML 仍阻断行内图）', () => {
+describe('[M-8.5-01][M-8.4-03][M-8.3-02][M-8.2-11] 导出链路：HTML/DOCX 仍阻断图例与图中示例；XML46687 全部放行', () => {
   const guard = (doc: PMJsonNode, format: 'html' | 'pdf' | 'docx' | 'xml' | 'json') => checkExportGuard(schema.nodeFromJSON(doc).toJSON() as PMJsonNode, format)
 
-  it('checkExportGuard：完整 G3 文档在 html/pdf/docx/xml 被图例与图中示例阻止（xml 同时阻断行内图），json 通过', () => {
+  it('checkExportGuard：完整 G3 文档在 html/pdf/docx 被图例与图中示例阻止（行内图与图注放行），xml 与 json 通过', () => {
     const doc = createWp8mG3Fixture()
     expect(guard(doc, 'json')).toBeNull()
-    for (const format of ['html', 'pdf', 'docx', 'xml'] as const) {
+    expect(guard(doc, 'xml')).toBeNull()
+    for (const format of ['html', 'pdf', 'docx'] as const) {
       const failure = guard(doc, format)
       expect(failure?.source, format).toBe('output-boundary')
       const paths = failure!.problems.map(problem => problem.path ?? '')
       expect(paths.some(path => path.endsWith('.legend')), format).toBe(true)
       expect(paths.some(path => path.endsWith('.examples')), format).toBe(true)
-      expect(paths.some(path => path.endsWith('.image')), format).toBe(format === 'xml')
+      expect(paths.some(path => path.endsWith('.image')), format).toBe(false)
       expect(paths.some(path => path.includes('.notes')), format).toBe(false)
     }
   })
 
-  it('逐项：只有图例 → 阻断并指向 legend；只有图中示例 → 指向 examples；只有行内图 → html/pdf/docx 放行、xml 指向 image', () => {
+  it('逐项：只有图例 / 只有图中示例 → html/pdf/docx 阻断、xml 放行；只有行内图 → 全部放行', () => {
     const base = (...extra: PMJsonNode[]): PMJsonNode => ({
       type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [{ type: 'chapterTitle', content: [{ type: 'text', text: '章' }] }, ...extra] }],
     })
@@ -827,15 +827,15 @@ describe('[M-8.5-01][M-8.4-03][M-8.3-02][M-8.2-11] 导出链路：图例、图�
     const onlyExample = base(figure('f', '图', figureExample('e', '例')))
     const onlyImage = base({ type: 'stdParagraph', attrs: { nodeId: 'p' }, content: [{ type: 'text', text: '见' }, inlineImage()] })
     for (const [doc, suffix] of [[onlyLegend, '.legend'], [onlyExample, '.examples']] as const) {
-      for (const format of ['html', 'pdf', 'docx', 'xml'] as const) {
+      for (const format of ['html', 'pdf', 'docx'] as const) {
         const failure = guard(doc, format)
         expect(failure?.problems.map(problem => problem.path), `${suffix} ${format}`).toEqual([expect.stringMatching(new RegExp(`${suffix.replace('.', '\\.')}$`))])
       }
+      expect(guard(doc, 'xml'), `${suffix} xml`).toBeNull()
     }
-    for (const format of ['html', 'pdf', 'docx'] as const) {
+    for (const format of ['html', 'pdf', 'docx', 'xml'] as const) {
       expect(guard(onlyImage, format), `onlyImage ${format}`).toBeNull()
     }
-    expect(guard(onlyImage, 'xml')?.problems.map(problem => problem.path)).toEqual([expect.stringMatching(/\.image$/)])
   })
 
   const notesOnly = (): PMJsonNode => ({
@@ -846,9 +846,9 @@ describe('[M-8.5-01][M-8.4-03][M-8.3-02][M-8.2-11] 导出链路：图例、图�
     ] }],
   })
 
-  it('图注放行：html / pdf / docx 通过边界；HTML 输出按 Resolver 标签逐条排版', () => {
+  it('图注放行：html / pdf / docx / xml 通过边界；HTML 输出按 Resolver 标签逐条排版', () => {
     const doc = notesOnly()
-    for (const format of ['html', 'pdf', 'docx', 'json'] as const) expect(guard(doc, format), format).toBeNull()
+    for (const format of ['html', 'pdf', 'docx', 'xml', 'json'] as const) expect(guard(doc, format), format).toBeNull()
     const editor = mountEditor(doc as unknown as Record<string, unknown>)
     const html = exportSemanticHtml(editor.state.doc)
     expect(html).toContain('<span class="ses-note-marker">注1：</span>图注一。')
@@ -871,22 +871,37 @@ describe('[M-8.5-01][M-8.4-03][M-8.3-02][M-8.2-11] 导出链路：图例、图�
     editor.destroy()
   })
 
-  it('旧 XML：含图注的文档 serializeToXml 拒绝（旧序列化器不输出图中注，不能悄悄丢掉）；图例 / 示例 / 行内图同样拒绝', () => {
-    const editor = mountEditor(notesOnly() as unknown as Record<string, unknown>)
-    let caught: unknown
-    try { serializeToXml(editor.state.doc) } catch (error) { caught = error }
-    expect(caught).toBeInstanceOf(UnsupportedOutputError)
-    expect((caught as UnsupportedOutputError).problems.map(problem => problem.message).join('\n')).toContain('图中的注')
-    editor.destroy()
+  it('XML46687：buildXml46687Package 导出图注、图例、图中示例与行内图', async () => {
+    const notesEditor = mountEditor(notesOnly() as unknown as Record<string, unknown>)
+    const notesPkg = await buildXml46687Package({
+      pmDoc: notesEditor.getJSON() as PMJsonNode,
+      documentMeta: { standardType: 'national', titleCn: '图注导出测试' },
+    })
+    expect(notesPkg.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(notesPkg.xml).toContain('图注一。')
+    notesEditor.destroy()
+
     const full = mountEditor(createWp8mG3Fixture() as unknown as Record<string, unknown>)
-    expect(() => serializeToXml(full.state.doc)).toThrow(UnsupportedOutputError)
+    const fullPkg = await buildXml46687Package({
+      pmDoc: full.getJSON() as PMJsonNode,
+      documentMeta: { standardType: 'national', titleCn: '图全要素测试' },
+    })
+    expect(fullPkg.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(fullPkg.xml).toContain('<def-list list-content="figure">')
+    expect(fullPkg.xml).toContain('<non-normative-example>')
+    expect(fullPkg.xml).toContain('<inline-graphic')
     full.destroy()
   })
 
-  it('无图注的旧图仍可导出旧 XML（回归：阻断只针对 figure 内的 note）', () => {
+  it('无图注的旧图仍可导出 XML46687', async () => {
     const legacy: PMJsonNode = { type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [{ type: 'chapterTitle', content: [{ type: 'text', text: '章' }] }, figure('f', '旧图'), { type: 'stdParagraph', attrs: { nodeId: 'p' }, content: [{ type: 'text', text: '正文' }] }] }] }
     const editor = mountEditor(legacy as unknown as Record<string, unknown>)
-    expect(() => serializeToXml(editor.state.doc)).not.toThrow()
+    const pkg = await buildXml46687Package({
+      pmDoc: editor.getJSON() as PMJsonNode,
+      documentMeta: { standardType: 'national', titleCn: '无图注旧图测试' },
+    })
+    expect(pkg.problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(pkg.xml).toContain('<fig')
     editor.destroy()
   })
 })

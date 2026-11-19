@@ -7,6 +7,7 @@ import {
 import {
   buildDocx,
   buildPdfExportRequest,
+  buildXml46687Package,
   checkExportGuard,
   exportSemanticHtml,
   exportSemanticJson,
@@ -44,6 +45,15 @@ export interface DocxExportResult {
   filename: string;
 }
 
+export interface XmlExportResult {
+  bytes: Buffer;
+  /** 兼容性提示等告警，由接口放进 X-SES-Export-Warning* 响应头。 */
+  warnings: ExportWarning[];
+  /** 下载文件名（含扩展名）：无图片资源时为 `.xml`，含资源清单条目时为 `.zip`。 */
+  filename: string;
+  contentType: string;
+}
+
 export interface TextExportResult {
   /** HTML 或语义 JSON 文本（UTF-8）。 */
   content: string;
@@ -79,7 +89,7 @@ interface PreparedExport {
 }
 
 /** 参与导出前检查的格式（json 与编辑器一致不检查）。 */
-type GuardedFormat = Extract<ExportGuardFormat, 'docx' | 'pdf' | 'html'>;
+type GuardedFormat = Extract<ExportGuardFormat, 'docx' | 'pdf' | 'xml' | 'html'>;
 /** 带 json：json 不做导出前检查，但同样要先校验结构。 */
 type ExportFormat = GuardedFormat | Extract<ExportGuardFormat, 'json'>;
 
@@ -87,6 +97,7 @@ type ExportFormat = GuardedFormat | Extract<ExportGuardFormat, 'json'>;
 export const VALIDATED_EXPORT_FORMATS: readonly GuardedFormat[] = [
   'docx',
   'pdf',
+  'xml',
   'html',
 ];
 
@@ -173,7 +184,83 @@ export class ExportService {
   }
 
   /**
-   * 按文档 id 取出库中内容并做编辑器导出前的同样处理（DOCX / PDF / HTML / JSON 导出共用）：
+   * 按文档 id 导出 GB/T 46687.2—2026 XML，路径与编辑器 EditorView.handleExportFormat('xml') 等价：
+   * 同步封面元数据 → 按生产 schema 校验 → 导出前检查（脚注、输出边界）→ buildXml46687Package。
+   * 与 DOCX/PDF 一致，服务端不抓取外部图片（使用 rejectAllFetcher）；若文档含外部图片引用或
+   * 存在 XML 阻塞问题（severity === 'error'），中止导出并返回 422（problems 含位置与原因）。
+   * 无资源条目时返回单文件 `.xml`（application/xml; charset=utf-8）；含资源条目时返回 `.zip`（application/zip）。
+   */
+  async exportXml(id: number): Promise<XmlExportResult> {
+    const { meta, pmDoc, filenameBase } = await this.prepareForExport(
+      id,
+      'xml',
+    );
+
+    let result: Awaited<ReturnType<typeof buildXml46687Package>>;
+    try {
+      result = await buildXml46687Package({
+        pmDoc,
+        documentMeta: meta,
+        imageResources: { fetcher: rejectAllFetcher },
+      });
+    } catch (error) {
+      this.logger.error(
+        `文档 #${id} XML 导出失败（${(error as Error).name}）`,
+      );
+      throw new InternalServerErrorException(
+        `XML 导出失败：${(error as Error).message || error}`,
+      );
+    }
+
+    const errorProblems = result.problems.filter(
+      (problem) => problem.severity === 'error',
+    );
+    if (result.xml === null || errorProblems.length > 0) {
+      const first = errorProblems[0];
+      const message =
+        errorProblems.length > 1 && first
+          ? `导出被阻止：${first.message}（另有 ${errorProblems.length - 1} 项）`
+          : first
+            ? `导出被阻止：${first.message}`
+            : 'XML 导出失败：文档内容无法生成 GB/T 46687.2 XML';
+      this.logger.warn(
+        `文档 #${id} XML 导出被阻止：${errorProblems.length} 个错误`,
+      );
+      throw unprocessable(message, {
+        source: 'xml46687',
+        detail: message,
+        problems: errorProblems.map((problem) => ({
+          source: 'xml46687',
+          ...problem,
+        })),
+      });
+    }
+
+    const warnings: ExportWarning[] = result.problems
+      .filter((problem) => problem.severity === 'warning')
+      .map((problem) => ({
+        code: problem.code,
+        ...(problem.nodeId === undefined ? {} : { nodeId: problem.nodeId }),
+        message: problem.message,
+      }));
+    const hasResources = result.manifest.entries.length > 0;
+    const bytes = hasResources
+      ? Buffer.from(result.bytes)
+      : Buffer.from(result.xml, 'utf8');
+    const filename = hasResources
+      ? `${filenameBase}.zip`
+      : `${filenameBase}.xml`;
+    const contentType = hasResources
+      ? 'application/zip'
+      : 'application/xml; charset=utf-8';
+    this.logger.log(
+      `文档 #${id} XML 导出成功：${bytes.length} 字节（${hasResources ? 'ZIP 资源包' : '单文件 XML'}），${warnings.length} 条告警`,
+    );
+    return { bytes, warnings, filename, contentType };
+  }
+
+  /**
+   * 按文档 id 取出库中内容并做编辑器导出前的同样处理（DOCX / PDF / XML / HTML / JSON 导出共用）：
    * 内容为空 → 422；同步封面元数据；按生产 schema 校验并取 ProseMirror 文档的 toJSON()，不符合 → 422；
    * 除 json 外做导出前检查（脚注、输出边界）→ 未通过 422。json 与编辑器一致不做导出前检查，但同样校验结构。
    * 前几步与检查本身见 {@link inspect}，校验接口 {@link validateForExport} 走同一个方法。

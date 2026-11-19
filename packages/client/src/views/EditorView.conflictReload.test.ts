@@ -117,6 +117,13 @@ function documentJson(text: string, titleCn = baseMeta.titleCn) {
         attrs: { nodeId: 'stable-foreword-p' },
         content: [{ type: 'text', text }],
       }],
+    }, {
+      type: 'chapter',
+      attrs: { nodeId: 'stable-chapter' },
+      content: [
+        { type: 'chapterTitle', content: [{ type: 'text', text: '范围' }] },
+        { type: 'stdParagraph', attrs: { nodeId: 'stable-chapter-p' }, content: [{ type: 'text', text: '本文件规定了测试范围。' }] },
+      ],
     }],
   }
 }
@@ -175,8 +182,11 @@ async function flushMicrotasks() {
 
 async function settle() {
   await flushMicrotasks()
-  if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(100)
-  await flushMicrotasks()
+  for (let i = 0; i < 4; i += 1) {
+    if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(20)
+    else await new Promise((resolve) => setTimeout(resolve, 20))
+    await flushMicrotasks()
+  }
 }
 
 /** 创建版本请求的闸门：每个请求先登记，测试决定何时让它返回。 */
@@ -264,7 +274,7 @@ async function saveVersionDuringConflict(view: View) {
   clickButton(view.root.querySelector('.version-panel .header-actions')!, '保存版本')
   await settle()
   clickButton(versionDialog()!.querySelector('.el-dialog__footer')!, '确定')
-  await flushMicrotasks()
+  await settle()
   expect(createGates).toHaveLength(1)
   createGates[0]!.gate.resolve()
   await settle()
@@ -272,7 +282,15 @@ async function saveVersionDuringConflict(view: View) {
 
 /** 本地有未保存修改时服务端写入，变更事件直接让页面进入冲突（不读取内容）。 */
 async function enterConflictByExternalWrite(view: View, revision: number) {
-  view.editor.commands.insertContent('我正在输入')
+  let forewordPos = -1
+  view.editor.state.doc.descendants((node: any, pos: number) => {
+    if (forewordPos < 0 && node.type.name === 'foreword') {
+      forewordPos = pos + 2
+      return false
+    }
+    return true
+  })
+  view.editor.chain().setTextSelection(forewordPos).insertContent('我正在输入').run()
   await flushMicrotasks()
   view.source.push(revision, 'ai', 'playwright')
   await settle()

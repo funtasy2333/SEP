@@ -5,9 +5,7 @@ import { pmToIr, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from '../extensions/editorExtensions'
 import { findSourceAnnotation, saveSourceAnnotation } from './sourceAnnotation'
 import { exportSemanticHtml } from '../serializer/htmlExporter'
-import { serializeToXml } from '../serializer/xmlSerializer'
-import { parseXmlToEditorJson } from '../serializer/xmlParser'
-import { buildDocx } from '@ses/io'
+import { buildDocx, buildXml46687Package, importXml46687Package } from '@ses/io'
 import JSZip from 'jszip'
 import { NodeSelection } from '@tiptap/pm/state'
 
@@ -139,13 +137,27 @@ it('exports four kinds of source to HTML and DOCX with one visible source label'
   for (const source of ['正文资料', '图资料', '表资料', '术语资料']) expect(plain).toContain(`[来源：${source}]`)
 })
 
-it('retains typed term sources in the existing XML export/import path', () => {
+it('retains typed term sources in the XML46687 export/import path', async () => {
   setup(true); selectText('定义原文')
   expect(saveSourceAnnotation(editor, findSourceAnnotation(editor)!, 'GB/T 123—2026，5.1')).toBe(true)
-  const xml = serializeToXml(editor.state.doc)
+  const pmDoc = editor.getJSON() as PMJsonNode
+  pmDoc.content![0]!.attrs = { ...pmDoc.content![0]!.attrs, secType: 'terms' }
+  const { bytes, xml, problems } = await buildXml46687Package({ pmDoc, documentMeta: { standardType: 'national', titleCn: '来源测试' } })
+  expect(problems.filter(problem => problem.severity === 'error')).toEqual([])
   expect(xml).toContain('GB/T 123—2026，5.1')
-  const reopened = parseXmlToEditorJson(xml, editor.schema.topNodeType.name)
-  expect(JSON.stringify(pmToIr(reopened).doc)).toContain('GB/T 123—2026，5.1')
+  const imported = await importXml46687Package(bytes, {
+    validateContent: (candidate) => {
+      try {
+        const node = editor.schema.nodeFromJSON(candidate)
+        node.check()
+        return { ok: true, content: node.toJSON() as PMJsonNode }
+      } catch (error) {
+        return { ok: false, code: 'xml-schema-invalid', message: error instanceof Error ? error.message : String(error) }
+      }
+    },
+  })
+  expect(imported.problems.filter(problem => problem.severity === 'error')).toEqual([])
+  expect(JSON.stringify(pmToIr(imported.pmDoc!).doc)).toContain('GB/T 123—2026，5.1')
 })
 
 it.each(['figure', 'figureImage', 'stdTable'])('accepts clicking/selecting the %s object before inserting a source', type => {
