@@ -204,8 +204,8 @@ import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useVersionStore } from '@/stores/version'
 import { useDocumentStore } from '@/stores/document'
-import { serializeToXml } from '@/serializer'
-import { XmlFootnoteValidationError } from '@/serializer/xmlSerializer'
+import { buildXml46687Package, checkExportGuard } from '@ses/io'
+import type { PMJsonNode } from '@ses/shared'
 import { diffDocuments, type DiffLine, type DiffResult } from '@/utils/docDiff'
 import { isRevisionConflict } from '@/utils/documentConflict'
 import type { VersionData, VersionSource } from '@/api/version'
@@ -437,17 +437,38 @@ async function handleCreateVersion() {
     const saved = await documentStore.runDocumentWrite(props.documentId, async (put) => {
       // 轮到这次写入时才读取编辑器内容：前面排队的自动保存已结束，拿到的是最新的本地内容。
       const content = props.getContent()
-      let xml: string | undefined
-      try {
-        const doc = props.getDoc()
-        if (doc && typeof (doc as { toString: () => string }).toString === 'function') {
-          // 尝试使用 ProseMirror doc 序列化 XML
-          xml = serializeToXml(doc as Parameters<typeof serializeToXml>[0])
-        }
-      } catch (error) {
-        if (error instanceof XmlFootnoteValidationError) throw error
-        // Preserve legacy fallback for other XML failures; invalid footnote links block saving.
+      const doc = props.getDoc()
+      const docJson = (
+        doc && typeof (doc as { toJSON?: () => unknown }).toJSON === 'function'
+          ? (doc as { toJSON: () => PMJsonNode }).toJSON()
+          : content
+      ) as PMJsonNode
+
+      if (!docJson || Object.keys(docJson).length === 0) {
+        throw new Error('编辑器内容不可用，无法生成 GB/T 46687.2 XML 快照')
       }
+
+      const guardFailure = checkExportGuard(docJson, 'xml')
+      if (guardFailure) {
+        throw new Error(guardFailure.detail)
+      }
+
+      const xmlResult = await buildXml46687Package({
+        pmDoc: docJson,
+        documentMeta: documentStore.currentDocument?.meta,
+      })
+      const errorProblems = xmlResult.problems.filter((problem) => problem.severity === 'error')
+      if (!xmlResult.xml || errorProblems.length > 0) {
+        const detail = errorProblems.map((problem) => {
+          const location = [
+            problem.nodeId ? `节点 ${problem.nodeId}` : '',
+            problem.path ? `位置 ${problem.path}` : '',
+          ].filter(Boolean).join('，')
+          return `${problem.message}${location ? `【${location}】` : ''}`
+        }).join('；')
+        throw new Error(detail || '无法生成 GB/T 46687.2 XML 快照')
+      }
+      const xml = xmlResult.xml
 
       await versionStore.createVersion({
         documentId: props.documentId,
@@ -481,7 +502,7 @@ async function handleCreateVersion() {
     createForm.note = ''
     ElMessage.success('版本保存成功')
   } catch (e) {
-    ElMessage.error(`版本保存失败: ${e}`)
+    ElMessage.error(`版本保存失败: ${e instanceof Error ? e.message : String(e)}`)
   } finally {
     creating.value = false
   }

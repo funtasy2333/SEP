@@ -72,11 +72,8 @@ describe('[M-10.1.4-01] io：真实出件链路', () => {
     expect(warnings.filter(warning => warning.nodeId?.startsWith('abb-') || warning.nodeId === 'dl-1')).toEqual([])
   })
 
-  it('checkExportGuard：html/pdf/docx/json 放行；旧 xml 被输出边界阻止并指向 defList', () => {
+  it('checkExportGuard：html/pdf/docx/xml/json 均放行（GB/T 46687.2 XML 已支持缩略语表与 abbreviation 引用）', () => {
     const doc = pmWithAbbreviations()
-    for (const format of ['html', 'pdf', 'docx', 'json'] as const) expect(checkExportGuard(doc, format), format).toBeNull()
-    const xml = checkExportGuard(doc, 'xml')
-    expect(xml?.source).toBe('output-boundary')
-    expect(xml?.problems.map(problem => problem.nodeId)).toEqual(['dl-1'])
+    for (const format of ['html', 'pdf', 'docx', 'xml', 'json'] as const) expect(checkExportGuard(doc, format), format).toBeNull()
   })
 })

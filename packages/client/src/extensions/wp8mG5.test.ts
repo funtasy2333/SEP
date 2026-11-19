@@ -12,7 +12,7 @@ import { Editor, getSchema } from '@tiptap/core'
 import { DOMParser, DOMSerializer, type Node as PMNode } from '@tiptap/pm/model'
 import { TextSelection } from '@tiptap/pm/state'
 import { describe, expect, it } from 'vitest'
-import { checkExportGuard } from '@ses/io'
+import { buildXml46687Package, checkExportGuard } from '@ses/io'
 import { irToPm, pmToIr, resolve, type IRChapterChild, type IRDoc, type IRTermEntry, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from './editorExtensions'
 import { createWp6Fixture } from './__fixtures__/wp6'
@@ -23,7 +23,6 @@ import { NODE_ID_TYPES } from './plugins/ensureNodeId'
 import { buildDocxBlob } from '../serializer/docxExporter'
 import { exportSemanticHtml } from '../serializer/htmlExporter'
 import { exportSemanticJson } from '../serializer/jsonExporter'
-import { serializeToXml } from '../serializer/xmlSerializer'
 import { docToText } from '../utils/docDiff'
 import { replaceEditorDocument } from '../utils/editorDocument'
 
@@ -381,19 +380,17 @@ describe('[M-9.2.9-01] 编辑器显示与键盘', () => {
   })
 })
 
-describe('[M-9.2.9-01] 导出链路：HTML、DOCX 放行并排版；旧 XML 阻断（§7.1）', () => {
-  it('checkExportGuard：html/pdf/docx 通过，xml 被输出边界阻止且指向 subjectField', () => {
+describe('[M-9.2.9-01] 导出链路：HTML、DOCX、XML46687 放行并排版（§7.1）', () => {
+  it('checkExportGuard：html/pdf/docx/xml 对可输出变体通过，subjectField 被 XML46687 放行', () => {
     const doc = schema.nodeFromJSON(createWp8mG5Fixture()).toJSON() as PMJsonNode
-    // 完整 fixture 含嵌套术语与 termRef：它们本阶段仍被 HTML/DOCX 阻断，与领域无关；放行结论用可输出变体断言。
+    // 完整 fixture 含嵌套术语与 termRef：它们本阶段仍被非 JSON 出口阻断，与领域无关；放行结论用可输出变体断言。
     expect(checkExportGuard(doc, 'html')?.problems.every(problem => !(problem.path ?? '').endsWith('.subjectField'))).toBe(true)
+    expect(checkExportGuard(doc, 'xml')?.problems.every(problem => !(problem.path ?? '').endsWith('.subjectField'))).toBe(true)
     expect(checkExportGuard(printable(doc), 'html')).toBeNull()
     expect(checkExportGuard(printable(doc), 'pdf')).toBeNull()
     expect(checkExportGuard(printable(doc), 'docx')).toBeNull()
+    expect(checkExportGuard(printable(doc), 'xml')).toBeNull()
     expect(checkExportGuard(doc, 'json')).toBeNull()
-    const xml = checkExportGuard(doc, 'xml')
-    expect(xml?.source).toBe('output-boundary')
-    // 3.4.1 位于 nestedEntries 内，整体被 nestedEntries 阻断，不再单独报它的领域：其余 4 条各报一次。
-    expect(xml?.problems.map(problem => problem.path ?? '').filter(path => path.endsWith('.subjectField'))).toHaveLength(Object.keys(G5_SUBJECT_FIELDS).length - 1)
   })
 
   it('HTML：领域并入定义段开头，“〈领域〉”紧邻定义；无领域的条目不带 span', () => {
@@ -420,9 +417,30 @@ describe('[M-9.2.9-01] 导出链路：HTML、DOCX 放行并排版；旧 XML 阻�
     editor.destroy()
   })
 
-  it('旧 XML：serializeToXml 拒绝含领域的文档，而不是静默丢弃', () => {
-    const editor = mountEditor(createWp8mG5Fixture() as unknown as Record<string, unknown>)
-    expect(() => serializeToXml(editor.state.doc)).toThrow()
+  it('XML46687：buildXml46687Package 导出 tbx:subjectField，保留术语领域（附录术语条目按规范拒绝）', async () => {
+    const fullDoc = printable(createWp8mG5Fixture())
+    const blocked = await buildXml46687Package({
+      pmDoc: schema.nodeFromJSON(fullDoc).toJSON() as PMJsonNode,
+      documentMeta: { standardType: 'national', titleCn: '术语领域测试' },
+    })
+    expect(blocked.problems).toEqual(expect.arrayContaining([
+      expect.objectContaining({ severity: 'error', code: 'xml-term-outside-terms', nodeId: 'g5-t-app' }),
+    ]))
+
+    const withoutAppendixTerm = structuredClone(fullDoc)
+    for (const node of withoutAppendixTerm.content ?? []) {
+      if (node.type === 'appendix' && node.content) {
+        node.content = node.content.filter(child => child.type !== 'termDef')
+      }
+    }
+    const editor = mountEditor(withoutAppendixTerm as unknown as Record<string, unknown>)
+    const { xml, problems } = await buildXml46687Package({
+      pmDoc: editor.getJSON() as PMJsonNode,
+      documentMeta: { standardType: 'national', titleCn: '术语领域测试' },
+    })
+    expect(problems.filter(problem => problem.severity === 'error')).toEqual([])
+    expect(xml).toContain('<tbx:subjectField>顾客满意</tbx:subjectField>')
+    expect(xml).toContain('<tbx:subjectField>化学</tbx:subjectField>')
     editor.destroy()
   })
 })

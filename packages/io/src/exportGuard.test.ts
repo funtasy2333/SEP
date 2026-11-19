@@ -109,7 +109,7 @@ function legacyHandleExportChecks(
     if (footnoteError) return { exportError: footnoteError, message: footnoteError }
   }
   if (format !== 'json') {
-    const outputFormat = format === 'docx' ? 'DOCX' : format === 'xml' ? 'XML' : 'HTML'
+    const outputFormat = format === 'docx' ? 'DOCX' : format === 'xml' ? 'XML46687' : 'HTML'
     const problems = getOutputSupportProblems(pmToIr(doc.toJSON() as PMJsonNode).doc, outputFormat)
     if (problems.length) {
       const details = problems.map((problem) => {
@@ -166,9 +166,9 @@ describe('exportGuard 脚注校验', () => {
 })
 
 describe('exportGuard 输出边界检查', () => {
-  it('格式映射：docx→DOCX、xml→XML、其余→HTML、json 不检查', () => {
+  it('格式映射：docx→DOCX、xml→XML46687、其余→HTML、json 不检查', () => {
     expect(outputBoundaryFormatOf('docx')).toBe('DOCX')
-    expect(outputBoundaryFormatOf('xml')).toBe('XML')
+    expect(outputBoundaryFormatOf('xml')).toBe('XML46687')
     expect(outputBoundaryFormatOf('html')).toBe('HTML')
     expect(outputBoundaryFormatOf('pdf')).toBe('HTML')
     expect(outputBoundaryFormatOf('json')).toBeUndefined()

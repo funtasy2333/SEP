@@ -5,6 +5,7 @@ import { Test } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import {
   buildPdfExportRequest,
+  buildXml46687Package,
   exportSemanticHtml,
   exportSemanticJson,
   synchronizeCoverMetadata,
@@ -20,6 +21,7 @@ import { DocumentEntity } from '../document/document.entity';
 import { DocumentModule } from '../document/document.module';
 import { validateContent } from '../editor-schema/editor-schema';
 import { VersionEntity } from '../version/version.entity';
+import { readZipEntries } from './__fixtures__/read-zip';
 import {
   CONTENT_DISPOSITION_MAX_LENGTH,
   WARNING_COUNT_HEADER,
@@ -239,7 +241,7 @@ interface Download {
   bytes: Buffer;
 }
 
-type Format = 'pdf' | 'html' | 'json';
+type Format = 'pdf' | 'xml' | 'html' | 'json';
 const EXPORT_PATH = (id: number | string, format: Format) =>
   `/api/documents/${id}/export/${format}`;
 const disposition = (filename: string) =>
@@ -262,7 +264,7 @@ function captureLogs() {
   };
 }
 
-describe('GET /api/documents/:id/export/{pdf,html,json}', () => {
+describe('GET /api/documents/:id/export/{pdf,xml,html,json}', () => {
   let app: INestApplication;
   let http: ReturnType<typeof request>;
 
@@ -489,7 +491,7 @@ describe('GET /api/documents/:id/export/{pdf,html,json}', () => {
     });
   });
 
-  describe.each<Format>(['pdf', 'html'])('%s：导出前检查', (format) => {
+  describe.each<Format>(['pdf', 'xml', 'html'])('%s：导出前检查', (format) => {
     it('脚注校验未通过返回 422，含 message、detail、problems', async () => {
       const id = await createDoc({ content: danglingFootnoteDoc() });
       const res = await download(EXPORT_PATH(id, format));
@@ -517,6 +519,96 @@ describe('GET /api/documents/:id/export/{pdf,html,json}', () => {
         code: 'unsupported-output',
       });
       expect(convertStub.convertHtmlToPdf).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('XML（GB/T 46687.2—2026）', () => {
+    it('无图片资源：返回 application/xml、.xml 文件名与 GB/T 46687.2 XML 文本', async () => {
+      const content = chapterOnlyDoc(paragraph('p-xml', '标准条文正文。'));
+      const id = await createDoc({ content });
+      const res = await download(EXPORT_PATH(id, 'xml'));
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toBe(
+        'application/xml; charset=utf-8',
+      );
+      expect(res.headers['content-disposition']).toBe(
+        disposition('标准机器语言表达.xml'),
+      );
+      expect(res.headers['content-length']).toBe(String(res.bytes.length));
+      const expected = await buildXml46687Package({
+        pmDoc: synchronized(content),
+        documentMeta: fixtureMeta as unknown as DocumentMeta,
+      });
+      const expectedWarnings = expected.problems.filter(
+        (problem) => problem.severity === 'warning',
+      );
+      expect(res.headers[WARNING_COUNT_HEADER.toLowerCase()]).toBe(
+        String(expectedWarnings.length),
+      );
+      expect(res.bytes.toString('utf8')).toBe(expected.xml);
+      expect(expected.xml).toContain('<standard');
+      expect(expected.xml).toContain('GB/T 46687.3');
+      expect(expected.xml).not.toContain('urn:csbts:std:xml:1.0');
+    });
+
+    it('含 data URL 图片资源：返回 application/zip、.zip 文件名与标准资源包', async () => {
+      const id = await createDoc();
+      const res = await download(EXPORT_PATH(id, 'xml'));
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toBe('application/zip');
+      expect(res.headers['content-disposition']).toBe(
+        disposition('标准机器语言表达.zip'),
+      );
+      expect(res.headers['content-length']).toBe(String(res.bytes.length));
+
+      const entries = readZipEntries(res.bytes);
+      expect(entries.has('standard.xml')).toBe(true);
+      expect(entries.has('manifest.json')).toBe(true);
+      const xml = entries.get('standard.xml')!.toString('utf8');
+      expect(xml).toContain('<standard');
+      expect(xml).toContain('GB/T 46687.3');
+      expect(xml).not.toContain('GB/T 00000');
+      expect(xml).toContain('附 &lt;录&gt; &amp; "甲"');
+    });
+
+    it('非 data URL 外部图片在服务端被拒绝（不访问网络），返回 422 且日志不含正文', async () => {
+      const logs = captureLogs();
+      try {
+        const id = await createDoc({
+          content: chapterOnlyDoc(
+            paragraph('p-secret', SECRET),
+            figure('fig-ext', 'http://127.0.0.1:9/ext.png'),
+          ),
+        });
+        const res = await download(EXPORT_PATH(id, 'xml'));
+        expect(res.status).toBe(422);
+        const body = errorBody(res);
+        expect(body.source).toBe('xml46687');
+        expect(body.problems?.some((p) => p.code === 'resource-load-failed')).toBe(
+          true,
+        );
+        expect(res.bytes.toString('utf8')).not.toContain(SECRET);
+        expect(logs.text()).toContain(`文档 #${id} XML 导出被阻止`);
+        expect(logs.text()).not.toContain(SECRET);
+      } finally {
+        logs.restore();
+      }
+    });
+
+    it('文件名：titleCn 为空白用「标准文件」', async () => {
+      const res = await download(
+        EXPORT_PATH(
+          await createDoc({
+            meta: { ...fixtureMeta, titleCn: '  ' },
+            content: chapterOnlyDoc(paragraph('p1', '正文。')),
+          }),
+          'xml',
+        ),
+      );
+      expect(res.status).toBe(200);
+      expect(res.headers['content-disposition']).toBe(
+        disposition('标准文件.xml'),
+      );
     });
   });
 

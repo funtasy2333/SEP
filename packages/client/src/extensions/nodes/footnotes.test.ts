@@ -4,9 +4,8 @@ import { closeHistory } from '@tiptap/pm/history'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { afterEach, describe, expect, it } from 'vitest'
 import { pmToIr, resolve, type PMJsonNode } from '@ses/shared'
+import { buildXml46687Package, importXml46687 } from '@ses/io'
 import { createEditorExtensions } from '../editorExtensions'
-import { parseXmlToEditorJson } from '../../serializer/xmlParser'
-import { serializeToXml, XmlFootnoteValidationError } from '../../serializer/xmlSerializer'
 import { getTableFootnoteEntries } from './std-table'
 
 const editors: Editor[] = []
@@ -99,7 +98,7 @@ describe('脚注编辑 schema 与命令', () => {
     ] }] }
   }
 
-  it('嵌套表格的定义不进入外表引用选项，命令双向拒绝跨表目标', () => {
+  it('嵌套表格的定义不进入外表引用选项，命令双向拒绝跨表目标', async () => {
     const editor = createEditor()
     editor.commands.setContent(nestedTableDocument())
     const tableById = (id: string) => {
@@ -134,7 +133,9 @@ describe('脚注编辑 schema 与命令', () => {
     expect(converted.doc.unmappedFootnotes?.some(source => source.content.some(run =>
       run.marks?.some(mark => mark.type === 'tableFootnoteRef' && mark.targetId.startsWith('inner-'))))).toBe(true)
     expect(resolve(converted.doc).problems.some(p => p.code === 'invalid-footnote')).toBe(true)
-    expect(() => serializeToXml(editor.state.doc)).toThrow(XmlFootnoteValidationError)
+    const result = await buildXml46687Package({ pmDoc: editor.getJSON() as PMJsonNode })
+    expect(result.xml).toBeNull()
+    expect(result.problems.some(p => p.severity === 'error' && p.code === 'invalid-footnote')).toBe(true)
   })
 
   it('嵌套表格独立重排定义，撤销重做不影响外表目标与定义', () => {
@@ -371,35 +372,66 @@ describe('脚注编辑 schema 与命令', () => {
     const element = document.createElement('div')
     document.body.appendChild(element)
     const extensions = createEditorExtensions()
-    const content = parseXmlToEditorJson(`<?xml version="1.0" encoding="UTF-8"?>
-      <standard xmlns="urn:csbts:std:xml:1.0">
-        <front><std-meta><std-ref>GB/T 1.1—2020</std-ref></std-meta></front>
-        <body><sec id="sec-1"><title>范围</title>
+    const editorSchema = getSchema(extensions)
+    const imported = await importXml46687(`<?xml version="1.0" encoding="UTF-8"?>
+      <standard xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:mml="http://www.w3.org/1998/Math/MathML">
+        <processing-meta base-tagset="interchange" mathml-version="3.0" table-model="xhtml" terminology-model="tbx" math-representation="mathml" tagset-family="sts" />
+        <front>
+          <std-meta>
+            <title-wrap xml:lang="zh"><full>表脚注导入测试</full></title-wrap>
+            <std-org-group><std-org><std-org-name>机构</std-org-name></std-org></std-org-group>
+            <content-language>zh</content-language>
+            <std-ref type="dated">GB/T 1.1—2020</std-ref>
+            <release-date>2026-01-01</release-date>
+            <implementation-date>2026-06-01</implementation-date>
+          </std-meta>
+        </front>
+        <body><sec id="sec-1"><label>1</label><title>范围</title>
           <table-wrap id="table-import-order">
-            <caption><title>测试表 <xref ref-type="table-fn" rid="tfn-a">a</xref></title></caption>
-            <table><tr><th><p>项目</p></th></tr><tr><td><p><xref ref-type="table-fn" rid="tfn-b">b</xref></p></td></tr></table>
+            <label>表 1</label>
+            <caption><title>测试表<xref ref-type="table-fn" rid="tfn-a">a</xref></title></caption>
+            <table>
+              <thead><tr><th><p>项目</p></th></tr></thead>
+              <tbody><tr><td><p><xref ref-type="table-fn" rid="tfn-b">b</xref></p></td></tr></tbody>
+            </table>
             <table-wrap-foot>
-              <non-normative-note><p>第一条表注。</p></non-normative-note>
-              <non-normative-note><p>第二条表注。</p></non-normative-note>
-              <fn fn-type="table" id="tfn-b"><label>b</label><p>定义 B。</p></fn>
-              <fn fn-type="table" id="tfn-a"><label>a</label><p>定义 A。</p></fn>
+              <non-normative-note><label>注1：</label><p>第一条表注。</p></non-normative-note>
+              <non-normative-note><label>注2：</label><p>第二条表注。</p></non-normative-note>
+              <fn id="tfn-b"><label><sup>b</sup></label><p>定义 B。</p></fn>
+              <fn id="tfn-a"><label><sup>a</sup></label><p>定义 A。</p></fn>
             </table-wrap-foot>
           </table-wrap>
         </sec></body>
-      </standard>`, 'doc')
-    const editor = new Editor({ element, extensions, content })
+      </standard>`, {
+      validateContent: (candidate) => {
+        try {
+          const node = editorSchema.nodeFromJSON(candidate)
+          node.check()
+          return { ok: true, content: node.toJSON() as PMJsonNode }
+        } catch (error) {
+          return { ok: false, code: 'xml-schema-invalid', message: error instanceof Error ? error.message : String(error) }
+        }
+      },
+    })
+    expect(imported.problems.filter((problem) => problem.severity === 'error')).toEqual([])
+    const editor = new Editor({ element, extensions, content: imported.pmDoc! })
     editors.push(editor)
     await new Promise((resolveWait) => setTimeout(resolveWait, 50))
 
     const entryIds: string[] = []
     const entryTexts: string[] = []
+    const refOrder: string[] = []
     editor.state.doc.descendants((node) => {
+      if (node.type.name === 'tableFootnoteRef' && typeof node.attrs.targetId === 'string') {
+        refOrder.push(node.attrs.targetId)
+      }
       if (node.type.name === 'tableFootnoteEntry') {
         entryIds.push(String(node.attrs.nodeId))
         entryTexts.push(node.textContent)
       }
     })
-    expect(entryIds).toEqual(['tfn-a', 'tfn-b'])
+    expect(refOrder).toEqual(entryIds)
+    expect(entryIds).toHaveLength(2)
     expect(entryTexts).toEqual(['定义 A。', '定义 B。'])
     expect(Array.from(editor.view.dom.querySelectorAll<HTMLElement>('.std-table-note-row .std-note-marker'))
       .map((marker) => marker.textContent)).toEqual(['注1：', '注2：'])

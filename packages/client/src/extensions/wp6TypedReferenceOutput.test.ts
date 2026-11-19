@@ -15,7 +15,7 @@ import { exportSemanticHtml } from '../serializer/htmlExporter'
 import { buildPdfExportRequest } from '../serializer/pdfExporter'
 import { buildDocxBlob } from '../serializer/docxExporter'
 import { exportSemanticJson } from '../serializer/jsonExporter'
-import { serializeToXml } from '../serializer/xmlSerializer'
+import { buildXml46687Package } from '@ses/io'
 
 function authoredDocument(mark: IRMark): IRDoc {
   return {
@@ -43,7 +43,7 @@ const wrongFigureRef: Extract<IRMark, { type: 'crossRef' }> = {
 }
 
 describe('typed-reference non-JSON export boundary through production adapters', () => {
-  it('blocks actual HTML, DOCX, PDF request and legacy XML paths while retaining the Resolver owner/message', async () => {
+  it('blocks actual HTML, DOCX, PDF request and XML46687 paths while retaining the Resolver owner/message', async () => {
     const pmDoc = productionPmDoc(authoredDocument(wrongFigureRef))
     const sourceBefore = JSON.stringify(pmDoc.toJSON())
     const { doc: irDoc } = pmToIr(pmDoc.toJSON() as PMJsonNode)
@@ -54,7 +54,11 @@ describe('typed-reference non-JSON export boundary through production adapters',
     await expect(buildDocxBlob({ pmDoc, createdAt: '2026-10-07T00:00:00.000Z' }))
       .rejects.toBeInstanceOf(UnsupportedOutputError)
     expect(() => buildPdfExportRequest(pmDoc, {})).toThrow(UnsupportedOutputError)
-    expect(() => serializeToXml(pmDoc)).toThrow(UnsupportedOutputError)
+    const xmlPkg = await buildXml46687Package({ pmDoc: pmDoc.toJSON() as PMJsonNode })
+    expect(xmlPkg.xml).toBeNull()
+    expect(xmlPkg.problems).toEqual(expect.arrayContaining([
+      expect.objectContaining({ severity: 'error', nodeId: 'reference-owner' }),
+    ]))
     expect(JSON.stringify(pmDoc.toJSON())).toBe(sourceBefore)
   })
 
@@ -80,7 +84,8 @@ describe('typed-reference non-JSON export boundary through production adapters',
       expect(() => exportSemanticHtml(pmDoc)).not.toThrow()
       await expect(buildDocxBlob({ pmDoc, createdAt: '2026-10-07T00:00:00.000Z' })).resolves.toMatchObject({ blob: expect.any(Blob) })
       expect(() => buildPdfExportRequest(pmDoc, {})).not.toThrow()
-      expect(() => serializeToXml(pmDoc)).not.toThrow()
+      const pkg = await buildXml46687Package({ pmDoc: pmDoc.toJSON() as PMJsonNode })
+      expect(pkg.problems.filter(problem => problem.severity === 'error')).toEqual([])
     }
   })
 })

@@ -72,7 +72,7 @@ const GROUP_G1: Readonly<Record<string, readonly string[]>> = {
  * 本阶段只做模型、Schema 与显示，HTML、DOCX、旧 XML 报 unsupported-output；行内图 IRInline.image（M-8.3-02）
  * 在 HTML、DOCX、XML46687 中放行，仅旧 XML 报 unsupported-output（测试：wp8mG3Boundary.test.ts）。
  * figure.notes（M-8.2-11）是 BASE_FIELDS.figure 早有的字段，HTML 与 DOCX 渲染器早已逐条输出，随 PM 现可保存而首次到达渲染器，
- * 无需改动本表（回归：wp8mG3Render.test.ts）；旧 XML 序列化器不输出图中注，由其自身的 PM 层检查拒绝（xmlSerializer.ts）。
+ * 无需改动本表（回归：wp8mG3Render.test.ts）；旧 XML 序列化器曾不输出图中注，已于 WP8.4 移除。
  */
 
 /**

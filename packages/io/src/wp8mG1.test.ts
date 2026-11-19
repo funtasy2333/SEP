@@ -157,14 +157,9 @@ describe('[M-4.4.2.3-03] [M-4.4.2.3-04] [M-4.5.3-02] io：真实出件链路', (
     ])
   })
 
-  it('导出前检查：docx / pdf / html 放行；旧 XML 阻断（清单、stdRef mark、自定义标题各一项）', () => {
+  it('导出前检查：docx / pdf / xml / html / json 全部放行（GB/T 46687.2 XML 已支持清单、stdRef mark 与自定义参考文献标题）', () => {
     const { doc } = pmToIr(pmWithNormRefs())
     expect(doc.bibliographyTitle).toEqual([{ text: '参考书目' }])
-    for (const format of ['docx', 'pdf', 'html', 'json'] as const) expect(getOutputBoundaryProblems(doc, format), format).toEqual([])
-    expect(getOutputBoundaryProblems(doc, 'xml').map(problem => problem.path)).toEqual([
-      'doc.body[0].children[0].content[1].marks[0].type',
-      'doc.body[1].children[1].kind',
-      'doc.bibliographyTitle',
-    ])
+    for (const format of ['docx', 'pdf', 'xml', 'html', 'json'] as const) expect(getOutputBoundaryProblems(doc, format), format).toEqual([])
   })
 })

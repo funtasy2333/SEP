@@ -53,7 +53,6 @@ describe('[M-4.4.2.3-02] io 导出前检查：清单位置非法（Resolver unsu
     const failure = checkExportGuard(pmWith('general'), format)
     expect(failure).not.toBeNull()
     expect(failure!.source).toBe('output-boundary')
-    // xml 另有 G1 既有的 kind 阻断（清单 kind 本身不在旧 XML 字段表内），这里只看 Resolver 来源的一条
     expect(failure!.problems.filter(problem => problem.path === 'resolver.problems[unsupported-content]')).toEqual([expect.objectContaining({
       source: 'output-boundary', code: 'unsupported-output', nodeId: 'nrl', path: 'resolver.problems[unsupported-content]',
       message: expect.stringContaining('规范性引用文件清单只能出现在「规范性引用文件」章'),
@@ -65,10 +64,8 @@ describe('[M-4.4.2.3-02] io 导出前检查：清单位置非法（Resolver unsu
     expect(checkExportGuard(pmWith('general'), 'json')).toBeNull()
   })
 
-  it('清单在 norm-refs 章的同一文档：docx / pdf / html 的前置检查通过（回归）；xml 仍只因清单 kind 被阻断（G1 既有口径），没有 Resolver 来源的问题', () => {
-    for (const format of ['docx', 'pdf', 'html'] as const) expect(checkExportGuard(pmWith('norm-refs'), format), format).toBeNull()
-    const xml = checkExportGuard(pmWith('norm-refs'), 'xml')
-    expect(xml!.problems.map(problem => problem.path)).toEqual(['doc.body[1].children[1].kind'])
+  it('清单在 norm-refs 章的同一文档：docx / pdf / xml / html 的前置检查全部通过', () => {
+    for (const format of ['docx', 'pdf', 'xml', 'html'] as const) expect(checkExportGuard(pmWith('norm-refs'), format), format).toBeNull()
   })
 
   it('buildDocx 直接抛 UnsupportedOutputError，不会生成含违规清单的 DOCX；合法位置的同一文档可以生成', async () => {
