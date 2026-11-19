@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { Editor, type JSONContent } from '@tiptap/core'
-import { TextSelection } from '@tiptap/pm/state'
-import { afterEach, describe, expect, it } from 'vitest'
+import { Plugin, TextSelection } from '@tiptap/pm/state'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createEditorExtensions } from '../editorExtensions'
 import { SES_CLIPBOARD_ATTR, isSesClipboardHtml, joinPlainTextLines } from './clipboardPolicy'
 
@@ -97,6 +97,25 @@ describe('外部来源（Word、网页等）：按纯文本插入光标所在段
     + '<table><tr><td>外部单元格</td><td>第二列</td></tr></table><p>第二段</p><!--EndFragment--></body></html>'
   const wordText = '外部粗体正文\r\n外部单元格\t第二列\r\n\r\n第二段'
   const joined = '外部粗体正文外部单元格 第二列第二段'
+
+  it('浏览器粘贴大段外部内容时跳过富文本解析，并能一次撤销', () => {
+    const e = editor()
+    placeCursor(e, '目标段', 'end')
+    const transformPastedHTML = vi.fn((html: string) => html)
+    e.registerPlugin(new Plugin({ props: { transformPastedHTML } }))
+    const lines = Array.from({ length: 1500 }, (_, index) => `第${index}段检验结果合格。`)
+    const data = new DataTransfer()
+    data.setData('text/plain', lines.join('\r\n'))
+    data.setData('text/html', lines.map(line => `<p><strong>${line}</strong></p>`).join(''))
+    const event = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })
+    const before = e.state.doc
+    e.view.dom.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(true)
+    expect(e.state.selection.$from.parent.textContent).toBe(`目标段${lines.join('')}`)
+    expect(transformPastedHTML).not.toHaveBeenCalled()
+    expect(e.commands.undo()).toBe(true)
+    expect(e.state.doc.eq(before)).toBe(true)
+  })
 
   it.each([
     ['start', `stdParagraph「${joined}目标段」`],

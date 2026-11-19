@@ -1,12 +1,12 @@
 import { Extension } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state'
-import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 
 /**
  * 编辑器查找（issue #76）。
  *
- * 查找只读：命中用装饰高亮，不改正文、不改编辑器选区、不抢焦点。
+ * 查找只读：高亮不改正文、不改编辑器选区、不抢焦点。
  * 旧实现把焦点移入正文并选中命中文字，查找框里的下一次回车便落进正文，
  * 替换选区并分段，造成“命中文字被删、凭空多出一段”。
  */
@@ -21,7 +21,7 @@ export interface SearchState {
 }
 
 type SearchMeta =
-  | { type: 'set', query: string }
+  | { type: 'set', query: string, direction: 1 | -1 }
   | { type: 'goto', index: number }
   | { type: 'clear' }
 
@@ -34,6 +34,17 @@ export const searchHighlightKey = new PluginKey<SearchState>('sesSearchHighlight
  */
 const BOUNDARY = '\uFFFC'
 
+/** 各字符及行内边界与 ProseMirror 位置一一对应。 */
+function searchableText(node: PMNode): string {
+  let text = ''
+  node.forEach(child => {
+    if (child.isText) text += child.text ?? ''
+    else if (child.isLeaf) text += BOUNDARY
+    else text += BOUNDARY + searchableText(child) + BOUNDARY
+  })
+  return text
+}
+
 /**
  * 在每个文本块内查找 query，匹配可以跨越不同标记（粗体、上下标等）分隔的文本节点，不跨段落、不跨行内容器边界。
  * 行内容器（非叶子的行内节点）递归收集其中的文字，位置按文档实际偏移计算。
@@ -44,32 +55,11 @@ export function findTextMatches(doc: PMNode, query: string): SearchMatch[] {
   const matches: SearchMatch[] = []
   doc.descendants((node, pos) => {
     if (!node.isTextblock) return true
-    let text = ''
-    const offsets: number[] = []
-    const collect = (parent: PMNode, contentStart: number) => {
-      parent.forEach((child, offset) => {
-        const start = contentStart + offset
-        if (child.isText) {
-          const value = child.text ?? ''
-          for (let index = 0; index < value.length; index += 1) offsets.push(start + index)
-          text += value
-        } else if (child.isLeaf) {
-          offsets.push(start)
-          text += BOUNDARY
-        } else {
-          offsets.push(start)
-          text += BOUNDARY
-          collect(child, start + 1)
-          offsets.push(start + child.nodeSize - 1)
-          text += BOUNDARY
-        }
-      })
-    }
-    collect(node, pos + 1)
+    const text = searchableText(node)
     let index = text.indexOf(query)
     while (index !== -1) {
-      const last = index + query.length - 1
-      matches.push({ from: offsets[index]!, to: offsets[last]! + 1 })
+      const from = pos + 1 + index
+      matches.push({ from, to: from + query.length })
       index = text.indexOf(query, index + query.length)
     }
     return false
@@ -89,7 +79,7 @@ function applySearch(tr: Transaction, value: SearchState): SearchState {
   if (meta?.type === 'clear') return EMPTY
   if (meta?.type === 'set') {
     const matches = findTextMatches(tr.doc, meta.query)
-    return { query: meta.query, matches, current: matches.length ? 0 : -1 }
+    return { query: meta.query, matches, current: meta.direction === -1 ? matches.length - 1 : clampCurrent(matches, 0) }
   }
   if (meta?.type === 'goto') return { ...value, current: clampCurrent(value.matches, meta.index) }
   if (!tr.docChanged || !value.query) return value
@@ -118,11 +108,8 @@ export function stepSearch(
   const before = getSearchState(dispatchState.state)
   let wrapped = false
   let meta: SearchMeta
-  if (before.query !== query) {
-    meta = { type: 'set', query }
-  } else if (before.matches.length === 0) {
-    // 正文可能已改动，按同一查询词重新查找。
-    meta = { type: 'set', query }
+  if (before.query !== query || before.matches.length === 0) {
+    meta = { type: 'set', query, direction }
   } else {
     const target = before.current + direction
     wrapped = target < 0 || target >= before.matches.length
@@ -130,15 +117,7 @@ export function stepSearch(
   }
   const tr = dispatchState.state.tr.setMeta(searchHighlightKey, meta).setMeta('addToHistory', false)
   dispatchState.dispatch(tr)
-  const after = getSearchState(dispatchState.state)
-  if (meta.type === 'set' && direction === -1 && after.matches.length > 0) {
-    // 新查询按 Shift+Enter：直接定位到最后一处。
-    dispatchState.dispatch(dispatchState.state.tr
-      .setMeta(searchHighlightKey, { type: 'goto', index: after.matches.length - 1 } satisfies SearchMeta)
-      .setMeta('addToHistory', false))
-    return { state: getSearchState(dispatchState.state), wrapped }
-  }
-  return { state: after, wrapped }
+  return { state: getSearchState(dispatchState.state), wrapped }
 }
 
 export function clearSearch(dispatchState: { state: EditorState, dispatch: (tr: Transaction) => void }) {
@@ -150,6 +129,107 @@ export function clearSearch(dispatchState: { state: EditorState, dispatch: (tr: 
 
 export const SEARCH_MATCH_CLASS = 'ses-search-match'
 export const SEARCH_CURRENT_CLASS = 'ses-search-current'
+
+function nativeHighlights(): HighlightRegistry | undefined {
+  if (typeof CSS !== 'undefined' && typeof Highlight === 'function' && typeof StaticRange === 'function') return CSS.highlights
+}
+
+/** Keep the editor DOM intact even when a query matches thousands of paragraphs. */
+function createNativeSearchView(view: EditorView, registry: HighlightRegistry) {
+  const all = new Highlight()
+  const current = new Highlight()
+  current.priority = 1
+  let previous: SearchState | undefined
+  let ranges: StaticRange[] = []
+
+  function clear() {
+    if (registry.get(SEARCH_MATCH_CLASS) === all) registry.delete(SEARCH_MATCH_CLASS)
+    if (registry.get(SEARCH_CURRENT_CLASS) === current) registry.delete(SEARCH_CURRENT_CLASS)
+    all.clear()
+    current.clear()
+    ranges = []
+  }
+
+  function update(force = false) {
+    const search = getSearchState(view.state)
+    if (!force && search === previous) return
+    if (search.matches.length === 0) {
+      observer.disconnect()
+      clear()
+    } else {
+      if (!previous?.matches.length) observer.observe(view.dom, { childList: true, characterData: true, subtree: true })
+      if (force || search.matches !== previous?.matches) {
+        all.clear()
+        ranges = search.matches.map(({ from, to }) => {
+          const start = view.domAtPos(from, 1)
+          const end = view.domAtPos(to, -1)
+          const range = new StaticRange({
+            startContainer: start.node, startOffset: start.offset,
+            endContainer: end.node, endOffset: end.offset,
+          })
+          all.add(range)
+          return range
+        })
+      }
+      current.clear()
+      const range = ranges[search.current]
+      if (range) current.add(range)
+      if (registry.get(SEARCH_MATCH_CLASS) !== all) registry.set(SEARCH_MATCH_CLASS, all)
+      if (registry.get(SEARCH_CURRENT_CLASS) !== current) registry.set(SEARCH_CURRENT_CLASS, current)
+    }
+    previous = search
+  }
+
+  // Validation decorations and node views can replace DOM without changing the document.
+  const observer = new MutationObserver(() => {
+    if (ranges.length) update(true)
+  })
+  update()
+  return {
+    update() {
+      update(observer.takeRecords().length > 0)
+    },
+    destroy() {
+      observer.disconnect()
+      clear()
+    },
+  }
+}
+
+export function scrollToCurrentSearchMatch(view: EditorView) {
+  if (!nativeHighlights()) {
+    view.dom.querySelector<HTMLElement>(`.${SEARCH_CURRENT_CLASS}`)?.scrollIntoView?.({ block: 'center' })
+    return
+  }
+  const search = getSearchState(view.state)
+  const match = search.matches[search.current]
+  const viewport = view.dom.closest<HTMLElement>('.editor-content-wrapper')
+  if (!match || !viewport) return
+  const rect = view.coordsAtPos(match.from, 1)
+  const { node } = view.domAtPos(match.from, 1)
+  const element = node instanceof HTMLElement ? node : node.parentElement
+  let table = element?.closest<HTMLElement>('.tableWrapper')
+  if (table) {
+    const end = view.coordsAtPos(match.to, -1)
+    const sameLine = end.top < rect.bottom && end.bottom > rect.top
+    let left = sameLine ? Math.min(rect.left, end.left) : rect.left
+    let right = Math.max(rect.right + 1, sameLine ? end.right : rect.right)
+    // Wide tables scroll inside the editor viewport. Reveal the hit in each containing table.
+    while (table) {
+      const edge = table.getBoundingClientRect().left + table.clientLeft
+      const before = table.scrollLeft
+      const startOffset = left - edge
+      const endOffset = right - (edge + table.clientWidth)
+      table.scrollLeft += startOffset < 0 ? startOffset : Math.min(startOffset, Math.max(0, endOffset))
+      const shift = table.scrollLeft - before
+      left -= shift
+      right -= shift
+      table = table.parentElement?.closest<HTMLElement>('.tableWrapper')
+    }
+  }
+  const center = viewport.getBoundingClientRect().top + viewport.clientTop + viewport.clientHeight / 2
+  viewport.scrollTo({ top: viewport.scrollTop + (rect.top + rect.bottom) / 2 - center })
+}
 
 export const SearchHighlight = Extension.create({
   name: 'sesSearchHighlight',
@@ -164,13 +244,17 @@ export const SearchHighlight = Extension.create({
       props: {
         decorations(state) {
           const search = searchHighlightKey.getState(state)
-          if (!search || search.matches.length === 0) return null
+          if (!search || search.matches.length === 0 || nativeHighlights()) return null
           return DecorationSet.create(state.doc, search.matches.map((match, index) => Decoration.inline(
             match.from,
             match.to,
             { class: index === search.current ? `${SEARCH_MATCH_CLASS} ${SEARCH_CURRENT_CLASS}` : SEARCH_MATCH_CLASS },
           )))
         },
+      },
+      view(view) {
+        const registry = nativeHighlights()
+        return registry ? createNativeSearchView(view, registry) : {}
       },
     })]
   },

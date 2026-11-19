@@ -2,7 +2,7 @@ import type { Editor } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import type { SelectionBookmark } from '@tiptap/pm/state'
 import { TextSelection } from '@tiptap/pm/state'
-import { pmToIr, resolve } from '@ses/shared'
+import { resolveEditorLabels } from './semanticLabels'
 
 export interface InternalReferenceTarget { id: string; type: string; text: string; title: string }
 export const referenceTypes: Record<string, string> = {
@@ -12,7 +12,7 @@ const nodeKinds: Record<string, string> = { chapter: 'chapter', clause: 'clause'
 const titleNodes = new Set(['chapterTitle', 'clauseTitle', 'termName', 'tableCaption', 'figureCaption', 'appendixTitle'])
 
 export function collectInternalReferences(editor: Editor): InternalReferenceTarget[] {
-  const labels = resolve(pmToIr(editor.getJSON()).doc).labels
+  const labels = resolveEditorLabels(editor.state.doc)
   const targets: InternalReferenceTarget[] = []
   editor.state.doc.descendants(node => {
     const type = nodeKinds[node.type.name]

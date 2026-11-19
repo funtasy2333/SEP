@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
-import { Schema, type Node as PMNode } from '@tiptap/pm/model'
+import { describe, it, expect, vi } from 'vitest'
+import { Fragment, Schema, Slice, type Node as PMNode } from '@tiptap/pm/model'
 import { EditorState } from '@tiptap/pm/state'
+import type { EditorView } from '@tiptap/pm/view'
 import { findNodeIdFixes, ensureNodeIdPlugin } from './ensureNodeId'
 
 /** 最小测试 schema：带 nodeId 的块级节点 + 不带 nodeId 的标题节点 */
@@ -72,6 +73,28 @@ describe('findNodeIdFixes', () => {
 })
 
 describe('ensureNodeIdPlugin', () => {
+  it('粘贴没有内部引用的多段正文时不重复预演插入', () => {
+    const state = createState(schema.nodes.doc.create(null, [para('original')]))
+    const plugin = ensureNodeIdPlugin()
+    const view = { state } as EditorView
+    const fragment = Fragment.fromArray(Array.from({ length: 200 }, (_, index) => para(`copy-${index}`)))
+    const pasted = new Slice(fragment, 0, 0)
+    const preview = vi.spyOn(state, 'tr', 'get')
+
+    expect(plugin.props.handlePaste!.call(plugin, view, {} as ClipboardEvent, pasted)).toBe(false)
+    expect(preview).not.toHaveBeenCalled()
+  })
+
+  it('普通输入无需遍历无变化的表脚注引用或分别扫描附加图属性', () => {
+    const state = createState(schema.nodes.doc.create(null, [para('a'), para('b')]))
+    const tr = state.tr.insertText('编辑', 2)
+    const scan = vi.spyOn(tr.doc, 'descendants')
+    const result = state.applyTransaction(tr)
+    expect(result.transactions).toHaveLength(1)
+    expect(scan).toHaveBeenCalledTimes(2)
+    expect(collectIds(result.state.doc)).toEqual(['a', 'b'])
+  })
+
   it('插入新节点后自动补 nodeId', () => {
     const state = createState(schema.nodes.doc.create(null, [para('exist')]))
     const tr = state.tr.insert(state.doc.content.size, para(null))

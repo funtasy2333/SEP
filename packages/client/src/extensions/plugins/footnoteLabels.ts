@@ -1,7 +1,9 @@
 import { Extension } from '@tiptap/core'
+import type { Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, type Transaction } from '@tiptap/pm/state'
-import { legacyBibliographyPrefixLength, pmToIr, resolve, type PMJsonNode } from '@ses/shared'
+import { legacyBibliographyPrefixLength } from '@ses/shared'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
+import { resolveEditorLabels } from '../../utils/semanticLabels'
 
 /** Migrate old display numbers before the entry can be edited. */
 function removeLegacyBibliographyPrefixes(tr: Transaction): Transaction {
@@ -17,9 +19,7 @@ function removeLegacyBibliographyPrefixes(tr: Transaction): Transaction {
 
 function refreshFootnoteLabels(view: EditorView) {
   try {
-    const pm = view.state.doc.toJSON() as PMJsonNode
-    const { doc } = pmToIr(pm)
-    const labels = resolve(doc).labels
+    const labels = resolveEditorLabels(view.state.doc)
 
     view.dom.querySelectorAll<HTMLElement>('[data-node-id].std-note-editor').forEach((element) => {
       const id = element.dataset.nodeId || ''
@@ -66,6 +66,7 @@ export const FootnoteLabels = Extension.create({
   },
 
   addProseMirrorPlugins() {
+    let labelDecorations: { doc: PMNode; set: DecorationSet } | undefined
     return [new Plugin({
       appendTransaction(transactions, _oldState, state) {
         if (!transactions.some(tr => tr.docChanged)) return null
@@ -74,7 +75,8 @@ export const FootnoteLabels = Extension.create({
       },
       props: {
         decorations(state) {
-          const labels = resolve(pmToIr(state.doc.toJSON()).doc).labels
+          if (labelDecorations?.doc === state.doc) return labelDecorations.set
+          const labels = resolveEditorLabels(state.doc)
           const decorations: Decoration[] = []
           const titles = new Set(['chapterTitle', 'clauseTitle', 'termName', 'tableCaption', 'figureCaption', 'appendixLabel'])
           state.doc.descendants((node, pos, parent) => {
@@ -85,7 +87,9 @@ export const FootnoteLabels = Extension.create({
               'data-resolved-label': labels[owner.attrs.nodeId || '']?.label ?? '?',
             }))
           })
-          return DecorationSet.create(state.doc, decorations)
+          const set = DecorationSet.create(state.doc, decorations)
+          labelDecorations = { doc: state.doc, set }
+          return set
         },
       },
       view(view) {

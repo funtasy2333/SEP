@@ -1,13 +1,69 @@
 // @vitest-environment happy-dom
 import { Editor } from '@tiptap/core'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
+import { buildXml46687Package, importXml46687 } from '@ses/io'
 import { pmToIr, resolve, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from './editorExtensions'
 import { createWp6Fixture } from './__fixtures__/wp6'
-import { semanticLabels } from '../utils/semanticLabels'
+import { resolveEditorLabels, semanticLabels } from '../utils/semanticLabels'
 import { docToText } from '../utils/docDiff'
 import { replaceEditorDocument } from '../utils/editorDocument'
-import { buildXml46687Package, importXml46687 } from '@ses/io'
+import { collectInternalReferences } from '../utils/internalReference'
+
+it('光标移动和查看交叉引用目标复用当前文档的编号', () => {
+  const editor = new Editor({ extensions: createEditorExtensions(), content: createWp6Fixture() })
+  editor.mount(document.createElement('div'))
+  // Let the initial editor transaction normalize legacy IDs before measuring selection updates.
+  editor.view.dispatch(editor.state.tr)
+  const doc = editor.state.doc
+  const serialize = vi.spyOn(doc, 'toJSON')
+  try {
+    const { from, to } = editor.state.selection
+    editor.commands.setTextSelection({ from, to: to + 1 })
+    expect(editor.state.doc).toBe(doc)
+    expect(collectInternalReferences(editor)).toContainEqual(expect.objectContaining({
+      type: 'term', text: '1.1.1',
+    }))
+    expect(serialize).not.toHaveBeenCalled()
+  } finally {
+    serialize.mockRestore()
+    editor.destroy()
+  }
+})
+
+it('普通条文中修改文字时复用编号，被引用的段落仍更新引用文字', () => {
+  const editor = new Editor({ extensions: createEditorExtensions(), content: {
+    type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'ch' }, content: [
+      { type: 'chapterTitle', content: [{ type: 'text', text: '要求' }] },
+      { type: 'stdParagraph', attrs: { nodeId: 'plain' }, content: [{ type: 'text', text: '普通正文' }] },
+      { type: 'stdParagraph', attrs: { nodeId: 'target' }, content: [{ type: 'text', text: '目标正文' }] },
+      { type: 'stdParagraph', attrs: { nodeId: 'ref' }, content: [{ type: 'text', text: '目标正文', marks: [
+        { type: 'crossRef', attrs: { targetId: 'target', refType: 'paragraph', refText: '目标正文' } },
+      ] }] },
+    ] }],
+  } })
+  try {
+    editor.view.dispatch(editor.state.tr)
+    const initialLabels = resolveEditorLabels(editor.state.doc)
+    const posFor = (id: string) => {
+      let position = -1
+      editor.state.doc.descendants((node, pos) => { if (node.attrs.nodeId === id) position = pos + 1 })
+      return position
+    }
+    const edit = editor.state.tr.insertText('更新', posFor('plain'))
+    const serialize = vi.spyOn(edit.doc, 'toJSON')
+    editor.view.dispatch(edit)
+    expect(resolveEditorLabels(editor.state.doc)).toBe(initialLabels)
+    expect(serialize).not.toHaveBeenCalled()
+    serialize.mockRestore()
+
+    editor.view.dispatch(editor.state.tr.insertText('更新', posFor('target')))
+    expect(resolveEditorLabels(editor.state.doc).target?.refText).toBe('更新目标正文')
+    expect(editor.view.dom.querySelector('[data-node-id="ref"]')?.textContent).toBe('更新目标正文')
+  } finally {
+    editor.destroy()
+  }
+})
 
 it('编辑器DOM、版本差异与JSON共用Resolver，嵌套术语编号不受旧level计数器影响', () => {
   const editor = new Editor({ extensions: createEditorExtensions(), content: createWp6Fixture() })
