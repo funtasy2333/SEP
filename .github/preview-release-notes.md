@@ -1,12 +1,10 @@
-SES 标准化文件编辑系统 0.1.4 预览版。
+SES 标准化文件编辑系统 0.1.5 预览版。
 
-## 本版更新（相对 0.1.3 Preview）
+## 本版更新（相对 0.1.4 Preview）
 
-- **行内图片**：支持在段落和表格中按光标位置插入行内图片，并完善 HTML、PDF 与 DOCX 导出中的尺寸、宽高比、分页及外部资源提示。
-- **表格布局**：导入的合并单元格表格适配文档宽度，横向表格支持局部滚动，统一表格框线宽度。
-- **编辑体验**：修复上下文工具栏、滚动条与弹窗的布局抖动，调整工具栏定位，完善页面方向控件和移动端设置导航。
-- **导出字体**：DOCX 正文（含西文）及破折号列项默认使用宋体，封面英文名称默认使用 Times New Roman。
-- **启动与备份**：启动时按需构建后端，自动清理启动和升级备份，减少重复构建及备份占用。
+- **DOCX 公式**：保留行内公式的粗体和斜体，修正直立字符与求和、连乘符号的显示。
+- **DOCX 表格**：从编辑器导出时，保留自动布局表格当前显示的列宽。
+- **PDF 导出**：本预览版暂时停用 PDF 导出，DOCX 和其他格式仍可使用。
 
 ## 应用内升级与退出
 
@@ -17,14 +15,14 @@ SES 标准化文件编辑系统 0.1.4 预览版。
 
 ## 下载与启动
 
-- **Windows**：下载 `SES-0.1.4-preview-windows.zip`，完整解压后双击 `启动SES.cmd`；双击 `退出SES.cmd` 退出。缺少 Node.js 时按需安装便携版，pnpm 安装在 SES 目录。
-- **macOS**：下载 `SES-0.1.4-preview-macos.zip`，安装 Node.js >=20.19.0、pnpm >=9 后，完整解压并双击 `启动SES.command`；双击 `退出SES.command` 退出。
+- **Windows**：下载 `SES-0.1.5-preview-windows.zip`，完整解压后双击 `启动SES.cmd`；双击 `退出SES.cmd` 退出。缺少 Node.js 时按需安装便携版，pnpm 安装在 SES 目录。
+- **macOS**：下载 `SES-0.1.5-preview-macos.zip`，安装 Node.js >=20.19.0、pnpm >=9 后，完整解压并双击 `启动SES.command`；双击 `退出SES.command` 退出。
 - Windows 的依赖安装优先使用官方 HTTPS 来源；失败后自动重试中国大陆 npmmirror 镜像，不修改全局 npm 源。macOS 保持现有来源选择行为。
 
 首次启动需要联网安装依赖和构建。这两个 ZIP 只包含 SES 源码、资源、启动文件和使用说明，不包含开发过程文档、测试、已有数据库或 node_modules。无需安装 Git 或 Python。
 
 从 0.1.1 及更早版本手动升级：先双击退出脚本停止旧版本，将旧目录中的 `packages/server/data/ses.db` 复制到新目录的同一位置后再启动新版本；升级前请备份整个旧目录。
 
-访问 http://localhost:5173/。文档保存在 `packages/server/data/ses.db`，日志在 `.ses-run/`，启动前的数据库备份在 `output/startup-backups/`（数据库未变化时不重复备份，默认保留最近 10 份；升级备份默认保留最近 5 份）。PDF 预览需要另装 Poppler，DOCX 编辑与导出不需要。详见包内 `使用说明.md`。
+访问 http://localhost:5173/。文档保存在 `packages/server/data/ses.db`，日志在 `.ses-run/`，启动前的数据库备份在 `output/startup-backups/`（数据库未变化时不重复备份，默认保留最近 10 份；升级备份默认保留最近 5 份）。详见包内 `使用说明.md`。
 
 这是 Preview 版本，欢迎试用反馈。

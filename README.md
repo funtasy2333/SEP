@@ -42,7 +42,7 @@
 
 - **SES 文档包**：导入与导出包含当前正文、文件设置和全部版本的 `.ses` 文件，格式与身份规则见 [SES 文档包格式](docs/ses-package-format.md)
 - **DOCX 测试版**：从零生成章条结构、编号、分节、页眉页脚、目次和终结线，支持图、表、公式、横排与封面；交付要求见 [WP7 DOCX 规格](docs/wp7-docx-delivery.md)
-- **PDF 版式预览**：由服务端 Vivliostyle 两遍排版生成，自动填充目次页码；无需 LibreOffice
+- **PDF 版式预览**：0.1.5 Preview 暂停 PDF 导出。
 - DOCX 中的目次页码由 Word 更新；增删章条后需重新导出以更新目次条目（见 docs/wp7-docx-delivery.md）
 - DOCX 真实文稿交付验收尚未完成，当前状态、补充样稿证据及素材限制见 [WP7.6 验收记录](docs/wp7.6-delivery-validation.md)
 
@@ -114,12 +114,12 @@ SEP/
 
 ### 下载使用（推荐）
 
-当前版本为 [SES 0.1.4 Preview](https://github.com/funtasy2333/SEP/releases/tag/v0.1.4-preview)。请根据操作系统下载对应压缩包，**完整解压到可写的本地目录后再启动，不要直接在压缩包内运行脚本**。
+当前版本为 [SES 0.1.5 Preview](https://github.com/funtasy2333/SEP/releases/tag/v0.1.5-preview)。请根据操作系统下载对应压缩包，**完整解压到可写的本地目录后再启动，不要直接在压缩包内运行脚本**。
 
 | 操作系统 | 下载 | 启动 | 退出 |
 | -------- | ---- | ---- | ---- |
-| Windows 10/11（64 位） | [SES-0.1.4-preview-windows.zip](https://github.com/funtasy2333/SEP/releases/download/v0.1.4-preview/SES-0.1.4-preview-windows.zip) | 双击 `启动SES.cmd` | 双击 `退出SES.cmd` |
-| macOS | [SES-0.1.4-preview-macos.zip](https://github.com/funtasy2333/SEP/releases/download/v0.1.4-preview/SES-0.1.4-preview-macos.zip) | 双击 `启动SES.command` | 双击 `退出SES.command` |
+| Windows 10/11（64 位） | [SES-0.1.5-preview-windows.zip](https://github.com/funtasy2333/SEP/releases/download/v0.1.5-preview/SES-0.1.5-preview-windows.zip) | 双击 `启动SES.cmd` | 双击 `退出SES.cmd` |
+| macOS | [SES-0.1.5-preview-macos.zip](https://github.com/funtasy2333/SEP/releases/download/v0.1.5-preview/SES-0.1.5-preview-macos.zip) | 双击 `启动SES.command` | 双击 `退出SES.command` |
 
 压缩包包含 SES 程序源码、资源、启动文件和使用说明；不包含开发过程文档、测试、已有数据库或第三方依赖。直接使用压缩包无需安装 Git 或 Python，**首次启动需要联网安装依赖并构建项目**。
 
@@ -189,15 +189,6 @@ macOS 启动脚本沿用原有依赖来源配置，不包含 Windows 的自动�
 **从 0.1.1 及更早版本升级**：这些版本不含应用内升级，需要手动升级一次：先双击退出脚本停止旧版本，把旧目录中的 `packages/server/data/ses.db` 复制到新版本目录的同一位置后再启动。升级前请备份整个旧目录。完成后，之后的版本即可在应用内升级。
 
 如提示端口 `3000` 或 `5173` 被占用，请先退出占用端口的程序。如已通过 `pnpm dev` 启动，请先在原终端按 Ctrl+C 停止，再使用双击启动脚本。
-
-### 可选：启用 PDF 版式预览
-
-PDF 版式预览还需要 Poppler，DOCX 编辑与导出无需安装此依赖。
-
-- macOS：运行 `brew install poppler`。
-- Windows：安装 Poppler，并将包含 `pdftotext.exe` 和 `pdfinfo.exe` 的目录加入 `PATH`；安装后退出并重新启动 SES。
-
-Vivliostyle 的排版浏览器可能在首次生成 PDF 时另行联网下载。更多环境说明见 [ENVIRONMENT.md](ENVIRONMENT.md)。
 
 ### 从源码开发
 

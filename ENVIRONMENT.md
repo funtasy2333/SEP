@@ -1,6 +1,6 @@
 # 环境配置指南
 
-本文档说明 **SES 0.1.4 Preview** 的依赖要求。推荐先从 [Release](https://github.com/funtasy2333/SEP/releases/tag/v0.1.4-preview) 下载对应系统的压缩包；开发者可以使用 `git clone` 获取源码。下载链接和操作步骤见 [README：安装与启动](README.md#安装与启动)。
+本文档说明 **SES 0.1.5 Preview** 的依赖要求。推荐先从 [Release](https://github.com/funtasy2333/SEP/releases/tag/v0.1.5-preview) 下载对应系统的压缩包；开发者可以使用 `git clone` 获取源码。下载链接和操作步骤见 [README：安装与启动](README.md#安装与启动)。
 
 ## 1. 按使用方式准备环境
 
@@ -10,7 +10,7 @@
 | pnpm | 启动脚本安装本地版 10.33.0 | 手动安装，推荐 10.33.0 | 手动安装，推荐 10.33.0 |
 | Windows PowerShell | 5.1 或更高版本，Windows 10/11 通常自带 | 无需 | 使用 Windows 双击启动脚本时需要 |
 | Git | 无需 | 无需 | 使用 `git clone` 时需要 |
-| Poppler | 使用 PDF 版式预览时安装 | 使用 PDF 版式预览时安装 | 使用 PDF 版式预览时安装 |
+| Poppler | 无需 | 无需 | 调试 PDF 排版时安装 |
 | Python 3 | 无需 | 无需 | 运行部分辅助检查、打包脚本时需要 |
 
 两个压缩包包含 SES 源码、资源、启动文件和使用说明，第三方依赖会在首次启动时联网安装，然后构建项目。请先完整解压到可写的本地目录，再运行启动脚本。
@@ -90,7 +90,9 @@ Vue、NestJS、TypeScript、`better-sqlite3` 等项目依赖由启动脚本或 `
 
 PDF 由 SES 后端所在的机器排版。要输出指定字体，该机器需要安装 **Times New Roman** 以及宋体、黑体等文档字体；列项破折号单独使用 Times New Roman。缺少字体时，浏览器会使用系统替代字体。DOCX 保存字体名称，打开文件的机器也需要具备对应字体。
 
-### Poppler：PDF 版式预览
+### Poppler：开发环境中的 PDF 排版
+
+0.1.5 Preview 暂停 PDF 导出。以下配置适用于开发调试。
 
 PDF 版式预览使用 `@vivliostyle/cli` 排版，并通过 Poppler 的 `pdftotext`、`pdfinfo` 定位目次页码和核对页数。**编辑文档、导出 DOCX 无需安装 Poppler。**
 
@@ -163,7 +165,7 @@ Windows 启动脚本优先尝试官方来源，下载或安装失败后再自动
 
 macOS 启动脚本以及手动执行的 `npm`、`pnpm` 命令沿用各自已有的来源和网络配置，不包含 Windows 的自动镜像切换逻辑。
 
-首次启动、补齐依赖和首次下载 PDF 排版浏览器需要联网。Node.js 与 pnpm 安装完成后，仍需要完成 SES 项目依赖安装和构建，才能启动服务。
+首次启动和补齐依赖需要联网。Node.js 与 pnpm 安装完成后，仍需要完成 SES 项目依赖安装和构建，才能启动服务。
 
 ## 6. 端口、日志与数据
 
