@@ -264,7 +264,7 @@
             </DocumentOutline>
           </div>
         </transition>
-        <div class="ed-main">
+        <div class="ed-main" @[BLOCK_FORMULA_EVENT]="handleBlockFormulaEvent">
           <!-- 上下文工具：锚定在编辑区画布右上角，避免撑高工具栏或在打开右侧栏时遮挡侧栏按钮 -->
           <div
             v-if="cursorInFormula || activeOrientationNodeType() || activeAppendixPos() !== undefined"
@@ -616,6 +616,7 @@
       v-model="showMathDialog"
       :initial-latex="mathDialogLatex"
       :title="mathDialogTitle"
+      :display-mode="mathDialogDisplayMode"
       @confirm="handleMathConfirm"
     />
   </div>
@@ -680,6 +681,7 @@ import { createDocumentValidationExtension } from '@/extensions/plugins/document
 import { useDocumentValidation } from '@/composables/useDocumentValidation'
 import { hasNodeIdIssues, normalizeNodeIds } from '@/extensions/plugins/ensureNodeId'
 import { canInsertBodyFootnote } from '@/extensions/nodes/footnotes'
+import { BLOCK_FORMULA_EVENT, type BlockFormulaRequest } from '@/extensions/nodes/formula'
 import {
   formulaHasLegacyDescription, selectedFormula,
 } from '@/extensions/plugins/whereListEditing'
@@ -2250,37 +2252,47 @@ function insertStdParagraph() {
 }
 
 // === 公式 ===
-function handleInsertFormula() {
-  const pos = getInsertAfterCurrentBlock()
-  if (pos === null) return
-  editor.value!.chain().focus().insertContentAt(pos, {
-    type: 'formula',
-    content: [
-      { type: 'formulaContent', content: [{ type: 'text', text: 'E = mc^2' }] },
-    ],
-  }).run()
+function handleInsertFormula(triggerPos?: number) {
+  if (editor.value?.commands.insertFormula({ triggerPos }) === false) {
+    ElMessage.info('此处无法插入公式，请将光标放在正文中')
+  }
 }
 
-// === 行内公式与式中符号（docs/phase7-inline-formula.md）===
+// === 块级公式、行内公式与式中符号 ===
 const showMathDialog = ref(false)
 const mathDialogLatex = ref('')
-const mathDialogRequest = ref<InlineFormulaRequest | null>(null)
+const mathDialogRequest = ref<InlineFormulaRequest | BlockFormulaRequest | null>(null)
 // 打开弹窗时的文档（不放进响应式：确认时要按对象身份判断文档是否被替换过）。
 let mathDialogDoc: PMNode | null = null
 const cursorInFormula = computed(() => !!editor.value && selectedFormula(editor.value.state) !== null)
 const cursorAllowsInlineFormula = computed(() => !!editor.value && canInsertInlineFormula(editor.value.state))
+const mathDialogDisplayMode = computed(() => mathDialogRequest.value?.mode === 'block-insert' || mathDialogRequest.value?.mode === 'block-edit')
 const mathDialogTitle = computed(() => {
   const request = mathDialogRequest.value
+  if (request?.mode === 'block-insert') return '插入公式'
+  if (request?.mode === 'block-edit') return '编辑公式'
   const inWhereTerm = request?.mode === 'where' || editor.value?.state.doc.resolve(Math.min(request?.pos ?? 0, editor.value.state.doc.content.size)).parent.type.name === 'whereTerm'
   const noun = inWhereTerm ? '式中符号' : '符号'
   return request?.mode === 'edit' ? `编辑${noun}` : request?.mode === 'replace' ? `转为${noun}` : `插入${noun}`
 })
 
-function openMathDialog(request: InlineFormulaRequest) {
+function openMathDialog(request: InlineFormulaRequest | BlockFormulaRequest) {
   mathDialogRequest.value = request
   mathDialogDoc = editor.value?.state.doc ?? null
   mathDialogLatex.value = request.latex
   showMathDialog.value = true
+}
+
+watch(showMathDialog, open => {
+  if (!open) {
+    mathDialogRequest.value = null
+    mathDialogDoc = null
+  }
+})
+
+function handleBlockFormulaEvent(event: Event) {
+  const detail = (event as CustomEvent<BlockFormulaRequest>).detail
+  if (detail) openMathDialog(detail)
 }
 
 function handleInlineFormulaEvent(event: Event) {
@@ -2348,13 +2360,19 @@ function handleMathConfirm(latex: string) {
   const ed = editor.value
   const request = mathDialogRequest.value
   const openedDoc = mathDialogDoc
-  mathDialogRequest.value = null
-  mathDialogDoc = null
-  if (!ed || !request) return
+  if (!ed?.isEditable || !request) return
   // 弹窗期间可能载入了外部修订（整篇替换文档）：插入与替换只认原来那一处，位置之前有增删时拒绝。
   const located = (pos: number) => !!openedDoc && sameInlineLocation(openedDoc, ed.state.doc, pos)
   let applied = false
-  if (request.mode === 'where') {
+  if (request.mode === 'block-insert') {
+    applied = located(request.pos) && ed.commands.insertFormula({ pos: request.pos, triggerPos: request.triggerPos, latex })
+    if (applied) ed.commands.focus()
+  } else if (request.mode === 'block-edit') {
+    const before = openedDoc?.nodeAt(request.pos)
+    const current = request.pos < ed.state.doc.content.size ? ed.state.doc.nodeAt(request.pos) : null
+    applied = !!before && !!current?.eq(before) && ed.commands.updateBlockFormula({ pos: request.pos, latex })
+    if (applied) ed.commands.focus()
+  } else if (request.mode === 'where') {
     // 弹窗期间公式可能被远端修订挪走或删除：只认原来那个公式。
     const node = ed.state.doc.nodeAt(request.pos)
     applied = node?.type.name === 'formula' && (node.attrs.nodeId ?? undefined) === request.nodeId
@@ -2382,6 +2400,10 @@ function handleSlashCommand(command: string) {
   // 删除输入的 / 字符
   const { from } = editor.value.state.selection
   const textBefore = editor.value.state.doc.textBetween(Math.max(0, from - 1), from)
+  if (command === 'formula') {
+    handleInsertFormula(textBefore === '/' ? from - 1 : undefined)
+    return
+  }
   if (textBefore === '/') {
     editor.value.chain().focus().deleteRange({ from: from - 1, to: from }).run()
   }
@@ -2402,7 +2424,6 @@ function handleSlashCommand(command: string) {
     switch (command) {
       case 'paragraph': insertStdParagraph(); break
       case 'table': handleTableCommand('insert'); break
-      case 'formula': handleInsertFormula(); break
       case 'whereItem': handleAddWhereItem(); break
       case 'figure': handleInsertFigure(); break
       case 'note': handleInsertNote('note'); break

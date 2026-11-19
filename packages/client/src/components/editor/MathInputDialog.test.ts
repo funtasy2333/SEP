@@ -12,6 +12,24 @@ async function settle(): Promise<void> {
   for (let i = 0; i < 6; i++) { await nextTick(); await new Promise(resolve => setTimeout(resolve, 0)) }
 }
 
+async function finishDialogTransition(): Promise<void> {
+  await settle()
+  // happy-dom does not finish CSS transitions on its own.
+  document.querySelectorAll('.el-overlay-dialog, .el-dialog').forEach(el => el.dispatchEvent(new Event('transitionend')))
+  await settle()
+}
+
+function registerMathfield(): void {
+  if (!customElements.get('math-field')) {
+    customElements.define('math-field', class extends HTMLElement {
+      value = ''
+      getValue() { return this.value }
+      insert() { return true }
+      resetUndo() {}
+    })
+  }
+}
+
 async function mountDialog(initialLatex = '', loader: () => Promise<MathfieldStatics | null> = async () => null) {
   const root = document.createElement('div')
   document.body.append(root)
@@ -29,10 +47,7 @@ async function mountDialog(initialLatex = '', loader: () => Promise<MathfieldSta
   })
   app.use(ElementPlus).mount(root)
   open.value = true
-  await settle()
-  // happy-dom 不触发过渡事件；直接派发 el-dialog 的 opened 回调依赖的过渡结束。
-  document.querySelectorAll('.el-overlay-dialog, .el-dialog').forEach(el => el.dispatchEvent(new Event('transitionend')))
-  await settle()
+  await finishDialogTransition()
   return { open, confirmed, app }
 }
 
@@ -81,13 +96,7 @@ it('简单符号不显示提示', async () => {
 })
 
 it('屏幕键盘层级高于弹窗遮罩，弹出时弹窗让出底部，关闭弹窗时收起键盘', async () => {
-  if (!customElements.get('math-field')) {
-    customElements.define('math-field', class extends HTMLElement {
-      value = ''
-      getValue() { return this.value }
-      insert() { return true }
-    })
-  }
+  registerMathfield()
   const keyboard = Object.assign(new EventTarget(), {
     visible: false,
     boundingRect: new DOMRect(0, 0, 0, 0),
@@ -131,4 +140,26 @@ it('屏幕键盘层级高于弹窗遮罩，弹出时弹窗让出底部，关闭�
   expect(document.body.style.getPropertyValue('--keyboard-zindex')).toBe('')
   app.unmount()
   Reflect.deleteProperty(window, 'mathVirtualKeyboard')
+})
+
+it('keeps the MathLive field mounted on close and resets the draft on reopen', async () => {
+  registerMathfield()
+  const { open, app, confirmed } = await mountDialog('x=1', async () => ({}) as MathfieldStatics)
+  try {
+    const field = document.querySelector('math-field') as HTMLElement & { value: string }
+    expect(field.value).toBe('x=1')
+    field.value = 'x=2'
+    field.dispatchEvent(new Event('input'))
+    open.value = false
+    await finishDialogTransition()
+    expect(field.isConnected).toBe(true)
+
+    open.value = true
+    await finishDialogTransition()
+    expect(document.querySelector('math-field')).toBe(field)
+    expect(field.value).toBe('x=1')
+    expect(confirmed).toEqual([])
+  } finally {
+    app.unmount()
+  }
 })

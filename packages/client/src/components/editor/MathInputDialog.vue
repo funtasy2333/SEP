@@ -5,9 +5,9 @@
     width="560px"
     class="ses-math-dlg"
     append-to-body
-    destroy-on-close
     @update:model-value="emit('update:modelValue', $event)"
     @opened="handleOpened"
+    @close="releaseMathfield"
   >
     <div class="math-dlg-mode">
       <el-radio-group v-model="mode" size="small" @change="handleModeChange">
@@ -21,7 +21,7 @@
     <div v-show="mode === 'visual'" class="math-dlg-visual">
       <div class="math-dlg-shortcuts">
         <button
-          v-for="item in WHERE_SYMBOL_SHORTCUTS"
+          v-for="item in shortcuts"
           :key="item.latex"
           type="button"
           class="math-dlg-key"
@@ -39,7 +39,7 @@
         v-model="source"
         type="textarea"
         :rows="2"
-        placeholder="例如 q_{V}、\rho_{\mathrm{w}}"
+        :placeholder="displayMode ? '例如 \\frac{a}{b}' : '例如 q_{V}、\\rho_{\\mathrm{w}}'"
         class="math-dlg-source-input"
         @input="error = ''"
       />
@@ -64,21 +64,23 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useZIndex } from 'element-plus'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
-import { isComplexInlineLatex, loadMathLive, validateWhereSymbolLatex, WHERE_SYMBOL_SHORTCUTS, type MathfieldStatics } from '@/utils/mathlive'
+import { isComplexInlineLatex, loadMathLive, validateMathLatex, WHERE_SYMBOL_SHORTCUTS, type MathfieldStatics } from '@/utils/mathlive'
 
 /** MathLive `<math-field>` 元素在本组件内用到的接口。 */
 interface MathfieldLike extends HTMLElement {
   value: string
   getValue(format: 'latex-expanded'): string
   insert(latex: string, options: { selectionMode: 'placeholder'; focus: boolean }): boolean
+  resetUndo(): void
 }
 
 const props = withDefaults(defineProps<{
   modelValue: boolean
   initialLatex?: string
   title?: string
+  displayMode?: boolean
   loader?: () => Promise<MathfieldStatics | null>
-}>(), { initialLatex: '', title: '编辑式中符号', loader: () => loadMathLive() })
+}>(), { initialLatex: '', title: '编辑式中符号', displayMode: false, loader: () => loadMathLive() })
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
@@ -92,6 +94,15 @@ const loading = ref(false)
 const loadFailed = ref(false)
 const mathfieldReady = ref(false)
 const mathfieldRef = ref<MathfieldLike | null>(null)
+let openSession: symbol | null = null
+
+const blockShortcuts = [
+  { label: 'a⁄b', latex: '\\frac{#?}{#?}', title: '分式' },
+  { label: '√', latex: '\\sqrt{#?}', title: '平方根' },
+  { label: '∑', latex: '\\sum_{#?}^{#?}', title: '求和' },
+  ...WHERE_SYMBOL_SHORTCUTS,
+]
+const shortcuts = computed(() => props.displayMode ? blockShortcuts : WHERE_SYMBOL_SHORTCUTS)
 
 const { nextZIndex } = useZIndex()
 
@@ -118,6 +129,7 @@ function releaseVirtualKeyboard(): void {
   const keyboard = window.mathVirtualKeyboard
   keyboard?.removeEventListener('geometrychange', fitDialogAboveKeyboard)
   keyboard?.hide()
+  mathfieldRef.value?.closest<HTMLElement>('.el-overlay-dialog')?.style.removeProperty('padding-bottom')
   document.body.style.removeProperty('--keyboard-zindex')
 }
 
@@ -148,13 +160,13 @@ function fitDialogAboveKeyboard(): void {
   }
 }
 
-const complexHint = computed(() => isComplexInlineLatex(source.value))
+const complexHint = computed(() => !props.displayMode && isComplexInlineLatex(source.value))
 
 const previewHtml = computed(() => {
   const latex = source.value.trim()
   if (!latex) return ''
   try {
-    return katex.renderToString(latex, { displayMode: false, throwOnError: true, strict: 'ignore' })
+    return katex.renderToString(latex, { displayMode: props.displayMode, throwOnError: true, strict: 'ignore' })
   } catch {
     return `<span class="math-dlg-preview-invalid">${escapeHtml(latex)}</span>`
   }
@@ -164,22 +176,41 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-watch(() => props.modelValue, (open) => {
+function prepareMathfield(field: MathfieldLike): void {
+  field.value = source.value
+  field.resetUndo()
+  mathfieldReady.value = true
+}
+
+function releaseMathfield(): void {
+  if (openSession === null) return
+  openSession = null
+  mathfieldReady.value = false
+  loading.value = false
+  mathfieldRef.value?.blur()
+  releaseVirtualKeyboard()
+}
+
+watch(() => props.modelValue, open => {
   if (!open) {
-    releaseVirtualKeyboard()
+    releaseMathfield()
     return
   }
-  // destroy-on-close 每次打开都会新建 <math-field>，就绪前确认按源码取值。
-  mathfieldReady.value = false
+  openSession = Symbol()
   source.value = props.initialLatex
   error.value = ''
   mode.value = loadFailed.value ? 'source' : 'visual'
-})
+  // MathLive 聚焦时会暂缓处理失焦。保留同一个元素可避免快速关闭时销毁仍被它引用的编辑模型。
+  const field = mathfieldRef.value
+  if (field && !loadFailed.value && typeof field.resetUndo === 'function') prepareMathfield(field)
+}, { immediate: true })
 
 async function handleOpened(): Promise<void> {
-  if (loadFailed.value) return
+  const session = openSession
+  if (session === null || loadFailed.value) return
   loading.value = true
   const element = await props.loader()
+  if (session !== openSession) return
   loading.value = false
   if (!element) {
     loadFailed.value = true
@@ -188,23 +219,20 @@ async function handleOpened(): Promise<void> {
   }
   await customElements.whenDefined('math-field')
   await nextTick()
+  if (session !== openSession) return
   const field = mathfieldRef.value
   if (!field) return
-  field.value = source.value
+  if (!mathfieldReady.value) prepareMathfield(field)
   raiseVirtualKeyboard()
-  mathfieldReady.value = true
   if (mode.value === 'visual') field.focus()
 }
 
-onBeforeUnmount(releaseVirtualKeyboard)
-
-function currentVisualLatex(): string {
-  const field = mathfieldRef.value
-  return field && mathfieldReady.value ? field.getValue('latex-expanded') : source.value
-}
+onBeforeUnmount(releaseMathfield)
 
 function handleVisualInput(): void {
-  source.value = currentVisualLatex()
+  const field = mathfieldRef.value
+  if (!field || !mathfieldReady.value) return
+  source.value = field.getValue('latex-expanded')
   error.value = ''
 }
 
@@ -224,8 +252,7 @@ function insertShortcut(latex: string): void {
 }
 
 function handleConfirm(): void {
-  const latex = mode.value === 'visual' ? currentVisualLatex() : source.value
-  const result = validateWhereSymbolLatex(latex)
+  const result = validateMathLatex(source.value, props.displayMode)
   if (!result.ok) {
     error.value = result.error
     return

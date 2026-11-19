@@ -1,13 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from 'vitest'
-import { configureMathfieldElement, isComplexInlineLatex, loadMathLive, validateWhereSymbolLatex } from './mathlive'
+import { configureMathfieldElement, isComplexInlineLatex, loadMathLive, validateMathLatex } from './mathlive'
 
 describe('式中符号 LaTeX 校验', () => {
   it.each([
     ['q_{V}', 'q_{V}'],
     [String.raw`  \rho_{\mathrm{w}} `, String.raw`\rho_{\mathrm{w}}`],
   ])('通过：%j', (input, latex) => {
-    expect(validateWhereSymbolLatex(input)).toEqual({ ok: true, latex })
+    expect(validateMathLatex(input)).toEqual({ ok: true, latex })
   })
 
   it.each([
@@ -17,7 +17,7 @@ describe('式中符号 LaTeX 校验', () => {
     [String.raw`\frac{`, 'KaTeX 无法解析'],
     [String.raw`\differentialD x`, 'KaTeX 无法解析'],
   ])('拒绝：%j', (input, message) => {
-    const result = validateWhereSymbolLatex(input)
+    const result = validateMathLatex(input)
     expect(result.ok).toBe(false)
     expect(result.ok ? '' : result.error).toContain(message)
   })

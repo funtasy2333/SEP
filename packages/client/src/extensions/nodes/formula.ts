@@ -1,18 +1,92 @@
-import { Node, mergeAttributes } from '@tiptap/core'
-import type { DOMOutputSpec } from '@tiptap/pm/model'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
-import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { Node, mergeAttributes, type Editor } from '@tiptap/core'
+import type { DOMOutputSpec, Node as PMNode, NodeType } from '@tiptap/pm/model'
+import { NodeSelection, type EditorState } from '@tiptap/pm/state'
 import katex from 'katex'
+import { renderNativeMathMl } from '../../utils/nativeMathMlPreview'
+
+type FormulaInsertion = { pos: number; triggerPos?: number }
+type FormulaInput = { triggerPos?: number; pos?: never; latex?: never } | (FormulaInsertion & { latex: string })
+
+export type BlockFormulaRequest =
+  | ({ mode: 'block-insert'; latex: string } & FormulaInsertion)
+  | { mode: 'block-edit'; pos: number; latex: string }
+
+export const BLOCK_FORMULA_EVENT = 'ses:block-formula'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     formula: {
-      insertFormula: () => ReturnType
+      insertFormula: (options?: FormulaInput) => ReturnType
+      updateBlockFormula: (options: { pos: number; latex: string }) => ReturnType
     }
   }
 }
 
-const formulaPluginKey = new PluginKey('formulaPreview')
+const formulaContainers = new Set(['chapter', 'clause', 'foreword', 'introduction', 'appendix'])
+
+function formulaInsertionPosition(state: EditorState, formula: NodeType): number {
+  const { $from, to } = state.selection
+  if (state.selection instanceof NodeSelection && canInsertFormula(state.doc, to, formula)) return to
+  for (let depth = $from.depth; depth > 0; depth--) {
+    if (formulaContainers.has($from.node(depth).type.name)) return $from.after(Math.min(depth + 1, $from.depth))
+  }
+  return $from.depth ? $from.after($from.depth) : to
+}
+
+function canInsertFormula(doc: PMNode, pos: number, formula: NodeType): boolean {
+  if (pos < 0 || pos > doc.content.size) return false
+  const $pos = doc.resolve(pos)
+  return !$pos.textOffset && $pos.parent.canReplaceWith($pos.index(), $pos.index(), formula)
+}
+
+function requestBlockFormulaDialog(editor: Editor, detail: BlockFormulaRequest): void {
+  editor.view.dom.dispatchEvent(new CustomEvent<BlockFormulaRequest>(BLOCK_FORMULA_EVENT, { detail, bubbles: true }))
+}
+
+function requestBlockFormulaEdit(editor: Editor, contentPos: number): boolean {
+  const content = editor.state.doc.nodeAt(contentPos)
+  if (!editor.isEditable || content?.type.name !== 'formulaContent') return false
+  editor.commands.setNodeSelection(contentPos)
+  requestBlockFormulaDialog(editor, { mode: 'block-edit', pos: contentPos - 1, latex: content.textContent })
+  return true
+}
+
+/** 替换 LaTeX 的变更区间，同时保留旧文档中的行内节点和未改动的文本格式。 */
+function replaceFormulaSource(source: PMNode, latex: string): PMNode {
+  const previous = source.textContent
+  let start = 0
+  while (start < previous.length && start < latex.length && previous[start] === latex[start]) start++
+  let oldEnd = previous.length
+  let newEnd = latex.length
+  while (oldEnd > start && newEnd > start && previous[oldEnd - 1] === latex[newEnd - 1]) {
+    oldEnd--
+    newEnd--
+  }
+  const replacement = latex.slice(start, newEnd)
+  const content: PMNode[] = []
+  let offset = 0
+  let inserted = false
+  source.forEach(child => {
+    if (!child.isText) {
+      content.push(child)
+      return
+    }
+    const text = child.text!
+    const end = offset + text.length
+    if (end < start || offset >= oldEnd && inserted) {
+      content.push(child)
+    } else {
+      const prefix = text.slice(0, Math.max(0, start - offset))
+      const suffix = text.slice(Math.max(0, oldEnd - offset))
+      const updated = prefix + (inserted ? '' : replacement) + suffix
+      if (updated) content.push(child.type.schema.text(updated, child.marks))
+      inserted = true
+    }
+    offset = end
+  })
+  if (!inserted && replacement) content.push(source.type.schema.text(replacement))
+  return source.type.create(source.attrs, content)
+}
 
 export const FormulaGroup = Node.create({
   name: 'formulaGroup', group: 'block', content: 'formula+', defining: true,
@@ -58,31 +132,103 @@ export const Formula = Node.create({
     ]
   },
 
+  addNodeView() {
+    return ({ editor, node, getPos, HTMLAttributes }) => {
+      const dom = document.createElement('div')
+      const attrs = mergeAttributes(HTMLAttributes, { 'data-type': 'formula', class: 'std-formula' })
+      for (const [key, value] of Object.entries(attrs)) dom.setAttribute(key, String(value))
+
+      const equation = document.createElement('div')
+      equation.className = 'std-formula-content'
+      equation.contentEditable = 'false'
+      const preview = document.createElement('button')
+      preview.type = 'button'
+      preview.className = 'std-formula-preview'
+      preview.title = '点击编辑公式'
+      equation.append(preview)
+      const contentDOM = document.createElement('div')
+      contentDOM.className = 'std-formula-children'
+      dom.append(equation, contentDOM)
+
+      function render(formula: PMNode): void {
+        const latex = formula.firstChild?.textContent.trim()
+        const mathml = formula.attrs.mathml
+        if (latex) {
+          try {
+            preview.innerHTML = katex.renderToString(latex, { displayMode: true, throwOnError: true, strict: 'ignore' })
+            return
+          } catch {
+            // Imported documents can contain source KaTeX cannot parse.
+          }
+        }
+        const nativeMath = typeof mathml === 'string' ? renderNativeMathMl(mathml) : null
+        if (nativeMath) preview.replaceChildren(nativeMath)
+        else preview.textContent = latex || mathml ? '公式无法渲染' : '空公式'
+      }
+
+      render(node)
+      preview.addEventListener('click', () => {
+        const pos = getPos()
+        if (typeof pos === 'number') requestBlockFormulaEdit(editor, pos + 1)
+      })
+      return {
+        dom, contentDOM,
+        stopEvent: event => equation.contains(event.target as globalThis.Node),
+        ignoreMutation: mutation => equation.contains(mutation.target),
+        update(next) {
+          // Attribute changes rebuild this wrapper with the new MathML and HTML attributes.
+          if (!node.sameMarkup(next)) return false
+          if (node.firstChild !== next.firstChild) render(next)
+          node = next
+          return true
+        },
+      }
+    }
+  },
+
   addCommands() {
     return {
-      insertFormula:
-        () =>
-        ({ chain }) => {
-          return chain()
-            .insertContent({
-              type: 'formula',
-              content: [
-                { type: 'formulaContent', content: [{ type: 'text', text: 'E = mc^2' }] },
-              ],
-            })
-            .run()
-        },
+      insertFormula: ({ pos: requestedPos, triggerPos, latex } = {}) => ({ editor, state, tr, dispatch }) => {
+        const pos = requestedPos ?? formulaInsertionPosition(state, this.type)
+        if (!editor.isEditable || !canInsertFormula(state.doc, pos, this.type)) return false
+        if (triggerPos !== undefined && (triggerPos < 0 || triggerPos >= pos || state.doc.textBetween(triggerPos, triggerPos + 1) !== '/')) return false
+        if (latex === undefined) {
+          if (dispatch) requestBlockFormulaDialog(editor, { mode: 'block-insert', pos, triggerPos, latex: '' })
+          return true
+        }
+        if (!latex.trim()) return false
+        if (dispatch) {
+          const content = state.schema.nodes.formulaContent!.create(null, state.schema.text(latex))
+          if (triggerPos !== undefined) tr.delete(triggerPos, triggerPos + 1)
+          const mappedPos = tr.mapping.map(pos)
+          tr.insert(mappedPos, this.type.create({ latex }, content))
+          tr.setSelection(NodeSelection.create(tr.doc, mappedPos + 1)).scrollIntoView()
+        }
+        return true
+      },
+      updateBlockFormula: ({ pos, latex }) => ({ state, tr, dispatch }) => {
+        const formula = state.doc.nodeAt(pos)
+        const source = formula?.firstChild
+        if (formula?.type !== this.type || !source || !latex.trim()) return false
+        if (dispatch && source.textContent.trim() !== latex) {
+          tr.replaceWith(pos + 1, pos + 1 + source.nodeSize, replaceFormulaSource(source, latex))
+          tr.setNodeMarkup(pos, undefined, { ...formula.attrs, latex, mathml: null })
+          tr.setSelection(NodeSelection.create(tr.doc, pos + 1)).scrollIntoView()
+        }
+        return true
+      },
     }
   },
 })
 
 /**
- * 公式内容 - 支持 LaTeX 输入并实时预览
+ * 公式内容保留在文档节点中，编辑器只显示渲染结果。
  */
 export const FormulaContent = Node.create({
   name: 'formulaContent',
   content: 'inline*',
   defining: true,
+  atom: true,
 
   parseHTML() {
     return [{ tag: 'div[data-type="formula-content"]' }]
@@ -99,43 +245,23 @@ export const FormulaContent = Node.create({
     ]
   },
 
-  addProseMirrorPlugins() {
-    return [
-      new Plugin({
-        key: formulaPluginKey,
-        props: {
-          decorations(state) {
-            const decorations: Decoration[] = []
-            state.doc.descendants((node, pos) => {
-              if (node.type.name === 'formulaContent') {
-                const latex = node.textContent.trim()
-                if (latex) {
-                  try {
-                    const html = katex.renderToString(latex, {
-                      throwOnError: false,
-                      displayMode: true,
-                    })
-                    // Add a widget decoration after the formula content node
-                    const endPos = pos + node.nodeSize
-                    decorations.push(
-                      Decoration.widget(endPos, () => {
-                        const el = document.createElement('div')
-                        el.className = 'std-formula-preview'
-                        el.innerHTML = html
-                        return el
-                      })
-                    )
-                  } catch {
-                    // Invalid LaTeX, skip preview
-                  }
-                }
-              }
-            })
-            return DecorationSet.create(state.doc, decorations)
-          },
-        },
-      }),
-    ]
+  // The parent renders this source together with its MathML attribute.
+  addNodeView() {
+    return () => {
+      const dom = document.createElement('div')
+      dom.hidden = true
+      return { dom }
+    }
+  },
+
+  addKeyboardShortcuts() {
+    return {
+      Enter: ({ editor }) => {
+        const { selection } = editor.state
+        return selection instanceof NodeSelection && selection.node.type === this.type
+          && requestBlockFormulaEdit(editor, selection.from)
+      },
+    }
   },
 })
 

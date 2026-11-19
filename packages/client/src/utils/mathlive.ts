@@ -8,15 +8,16 @@ import katex from 'katex'
  * 其 @font-face 与 MathLive 使用同名的 KaTeX_* 字体族。
  */
 
-export type WhereSymbolValidation = { ok: true; latex: string } | { ok: false; error: string }
+type MathLatexValidation = { ok: true; latex: string } | { ok: false; error: string }
 
 /** 写回文档前的校验：导出端（KaTeX 预渲染、OMML 转换）只接受 KaTeX 能解析的 LaTeX。 */
-export function validateWhereSymbolLatex(input: string): WhereSymbolValidation {
+export function validateMathLatex(input: string, displayMode = false): MathLatexValidation {
   const latex = input.trim()
-  if (!latex) return { ok: false, error: '请输入符号' }
-  if (latex.includes('\\placeholder')) return { ok: false, error: '符号中还有未填写的位置，请补全或删除' }
+  const noun = displayMode ? '公式' : '符号'
+  if (!latex) return { ok: false, error: `请输入${noun}` }
+  if (latex.includes('\\placeholder')) return { ok: false, error: `${noun}中还有未填写的位置，请补全或删除` }
   try {
-    katex.renderToString(latex, { displayMode: false, throwOnError: true, strict: 'ignore' })
+    katex.renderToString(latex, { displayMode, throwOnError: true, strict: 'ignore' })
   } catch (error) {
     const detail = error instanceof Error ? error.message.replace(/^KaTeX parse error:\s*/, '') : String(error)
     return { ok: false, error: `KaTeX 无法解析：${detail}` }
