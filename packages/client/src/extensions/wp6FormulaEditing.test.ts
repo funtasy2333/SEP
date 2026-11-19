@@ -55,6 +55,25 @@ it.each(['\\mathrm{LATESTONLY}+2', ''])('exports the actually edited formula con
   }
 })
 
+it('renders imported MathML in a read-only editor without mutating the stored source', () => {
+  const input = authored()
+  const formula = input.body[0].children[0] as IRFormula
+  formula.latex = ''
+  formula.mathml = '<mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:mfrac><mml:mi>x</mml:mi><mml:mi>y</mml:mi></mml:mfrac></mml:math>'
+  const editor = new Editor({ editable: false, extensions: createEditorExtensions(), content: irToPm(input) })
+  try {
+    const preview = editor.view.dom.querySelector<HTMLButtonElement>('.std-formula-preview')!
+    expect(preview.querySelector('mfrac')?.textContent).toBe('xy')
+    let opened = false
+    editor.view.dom.addEventListener('ses:block-formula', () => { opened = true })
+    preview.click()
+    expect(opened).toBe(false)
+    expect((pmToIr(editor.getJSON() as PMJsonNode).doc.body[0].children[0] as IRFormula).mathml).toBe(formula.mathml)
+  } finally {
+    editor.destroy()
+  }
+})
+
 it.each(['wrong-first', 'correct-first'] as const)('validates wrong kinds on paragraph targets through production schema with %s references', order => {
   const input = authored()
   const wrong = { kind: 'paragraph' as const, id: 'wrong', content: [{ text: '图引用', marks: [{ type: 'crossRef' as const, targetId: 'target', targetKind: 'figure' as const }] }] }

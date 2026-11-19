@@ -104,7 +104,7 @@ function handleInsertElement(command: string) {
       e.chain().focus().insertFigure().run()
       break
     case 'formula':
-      e.chain().focus().insertFormula().run()
+      e.commands.insertFormula()
       break
     case 'note':
       e.chain().focus().insertNote().run()

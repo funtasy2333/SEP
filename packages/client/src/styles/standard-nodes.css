@@ -605,22 +605,34 @@
 }
 
 .std-formula-content {
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 13px;
-  text-align: center;
-  padding: 6px 12px;
-  min-height: 24px;
   width: 100%;
   text-indent: 0;
-  background: #f8f8f8;
-  border: 1px dashed #ddd;
-  border-radius: 4px;
 }
 
 .std-formula-preview {
+  display: block;
+  width: 100%;
   text-align: center;
-  padding: 8px 0;
+  padding: 8px 12px;
   font-size: 16px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+.tiptap[contenteditable='true'] .std-formula-preview {
+  cursor: pointer;
+}
+
+.tiptap[contenteditable='true'] .std-formula-preview:hover,
+.std-formula-content.ProseMirror-selectednode .std-formula-preview {
+  background: var(--ses-accent-soft);
+}
+
+.std-formula-preview .katex-display {
+  margin: 0;
 }
 
 .std-formula-description {
