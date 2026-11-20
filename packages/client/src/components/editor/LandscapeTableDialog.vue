@@ -267,6 +267,7 @@ function initModalEditor(): void {
       handleKeyDown(_view, event) {
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
           event.preventDefault()
+          event.stopPropagation()
           handleApply()
           return true
         }

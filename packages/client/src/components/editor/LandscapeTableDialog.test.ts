@@ -256,6 +256,29 @@ describe('LandscapeTableDialog', () => {
     app.unmount()
   })
 
+  it.each([
+    ['Ctrl', { ctrlKey: true }],
+    ['Cmd', { metaKey: true }],
+  ])('在表格单元格中按 %s+S 只应用一次', async (_modifier, keyOptions) => {
+    const { open, applied, dialogRef, app } = await mountLandscapeDialog(makeSampleStdTable())
+    try {
+      const editor = dialogRef.value!.getEditor()!
+      editor.chain().setTextSelection(4).insertContent('快捷键保存').run()
+      const cell = editor.view.dom.querySelector('td p')!
+      const event = new KeyboardEvent('keydown', { key: 's', ...keyOptions, bubbles: true, cancelable: true })
+
+      cell.dispatchEvent(event)
+      await settle()
+
+      expect(event.defaultPrevented).toBe(true)
+      expect(applied).toHaveLength(1)
+      expect(JSON.stringify(applied[0])).toContain('快捷键保存')
+      expect(open.value).toBe(false)
+    } finally {
+      app.unmount()
+    }
+  })
+
   it('主编辑器中的展开编辑按钮 decoration 仅出现在生效横向表上，且绝不污染 JSON / DOMSerializer 输出', () => {
     const mountEl = document.createElement('div')
     document.body.append(mountEl)
