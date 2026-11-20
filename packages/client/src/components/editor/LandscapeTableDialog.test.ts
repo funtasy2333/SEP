@@ -325,4 +325,115 @@ describe('LandscapeTableDialog', () => {
     expect(serializedEl.querySelector('.ses-expand-landscape-btn')).toBeNull()
     expect(serializedEl.textContent).not.toContain('展开编辑')
   })
+
+  it('弹窗单表上下文中表脚注上标/定义编号（a/b）与多条表注编号（注1：/注2：）正常解析，不显示 ?', async () => {
+    const tableWithFootnotes: PMJsonNode = {
+      type: 'stdTable',
+      attrs: { nodeId: 'tbl-fn', orientation: 'landscape' },
+      content: [
+        { type: 'tableCaption', content: [{ type: 'text', text: '带脚注横表' }] },
+        {
+          type: 'table',
+          content: [
+            {
+              type: 'tableRow',
+              content: [
+                {
+                  type: 'tableCell',
+                  content: [{
+                    type: 'paragraph',
+                    content: [
+                      { type: 'text', text: '指标一' },
+                      { type: 'tableFootnoteRef', attrs: { nodeId: 'tf-ref-1', targetId: 'tf-entry-1' } },
+                    ],
+                  }],
+                },
+                {
+                  type: 'tableCell',
+                  content: [{
+                    type: 'paragraph',
+                    content: [
+                      { type: 'text', text: '指标二' },
+                      { type: 'tableFootnoteRef', attrs: { nodeId: 'tf-ref-2', targetId: 'tf-entry-2' } },
+                    ],
+                  }],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          type: 'tableNoteRow',
+          attrs: { nodeId: 'tn-row' },
+          content: [
+            { type: 'note', attrs: { nodeId: 'tn-1' }, content: [{ type: 'text', text: '第一条表注' }] },
+            { type: 'note', attrs: { nodeId: 'tn-2' }, content: [{ type: 'text', text: '第二条表注' }] },
+          ],
+        },
+        {
+          type: 'tableFootnoteRow',
+          attrs: { nodeId: 'tf-row' },
+          content: [
+            { type: 'tableFootnoteEntry', attrs: { nodeId: 'tf-entry-1' }, content: [{ type: 'text', text: '第一条脚注说明' }] },
+            { type: 'tableFootnoteEntry', attrs: { nodeId: 'tf-entry-2' }, content: [{ type: 'text', text: '第二条脚注说明' }] },
+          ],
+        },
+      ],
+    }
+
+    const { app } = await mountLandscapeDialog(tableWithFootnotes, '表 5')
+    await settle()
+
+    const refLabels = Array.from(
+      document.querySelectorAll<HTMLElement>('.lt-editor-content .std-table-footnote-label'),
+      el => el.textContent?.trim(),
+    )
+    const entryLabels = Array.from(
+      document.querySelectorAll<HTMLElement>('.lt-editor-content [data-table-footnote-label]'),
+      el => el.textContent?.trim(),
+    )
+    const noteMarkers = Array.from(
+      document.querySelectorAll<HTMLElement>('.lt-editor-content .std-note-marker'),
+      el => el.textContent?.trim(),
+    )
+
+    expect(refLabels).toEqual(['a', 'b'])
+    expect(entryLabels).toEqual(['a', 'b'])
+    expect(noteMarkers).toEqual(['注1：', '注2：'])
+
+    app.unmount()
+  })
+
+  it('beforeApply 返回 false 时拒绝提交并保持弹窗开启，不丢失用户编辑内容', async () => {
+    const root = document.createElement('div')
+    document.body.append(root)
+    roots.push(root)
+    const open = ref(false)
+    const applied: PMJsonNode[] = []
+    const beforeApply = vi.fn(() => false)
+
+    const app = createApp({
+      setup: () => () =>
+        h(LandscapeTableDialog, {
+          modelValue: open.value,
+          tableJson: makeSampleStdTable(),
+          tableLabel: '表 3',
+          beforeApply,
+          'onUpdate:modelValue': (value: boolean) => { open.value = value },
+          onApply: (modalDoc: PMJsonNode) => { applied.push(modalDoc) },
+        }),
+    })
+    app.use(ElementPlus).mount(root)
+    open.value = true
+    await finishDialogTransition()
+
+    document.querySelector<HTMLButtonElement>('[data-testid="lt-apply-btn"]')!.click()
+    await settle()
+
+    expect(beforeApply).toHaveBeenCalledTimes(1)
+    expect(applied).toHaveLength(0)
+    expect(open.value).toBe(true)
+
+    app.unmount()
+  })
 })

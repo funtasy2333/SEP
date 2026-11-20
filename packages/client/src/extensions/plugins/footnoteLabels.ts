@@ -17,9 +17,9 @@ function removeLegacyBibliographyPrefixes(tr: Transaction): Transaction {
   return tr
 }
 
-function refreshFootnoteLabels(view: EditorView) {
+function refreshFootnoteLabels(view: EditorView, options?: { wrapStandaloneTable?: boolean }) {
   try {
-    const labels = resolveEditorLabels(view.state.doc)
+    const labels = resolveEditorLabels(view.state.doc, options)
 
     view.dom.querySelectorAll<HTMLElement>('[data-node-id].std-note-editor').forEach((element) => {
       const id = element.dataset.nodeId || ''
@@ -56,9 +56,20 @@ function refreshFootnoteLabels(view: EditorView) {
   }
 }
 
+export interface FootnoteLabelsOptions {
+  /** 单表弹窗子编辑器（顶层仅有 stdTable）启用时临时套用 chapter/tableCaption 以推导表注与表脚注编号。 */
+  wrapStandaloneTable: boolean
+}
+
 /** Editor-only label projection; numbering is shared with export through the IR resolver. */
-export const FootnoteLabels = Extension.create({
+export const FootnoteLabels = Extension.create<FootnoteLabelsOptions>({
   name: 'footnoteLabels',
+
+  addOptions() {
+    return {
+      wrapStandaloneTable: false,
+    }
+  },
 
   onCreate() {
     const tr = removeLegacyBibliographyPrefixes(this.editor.state.tr)
@@ -67,6 +78,7 @@ export const FootnoteLabels = Extension.create({
 
   addProseMirrorPlugins() {
     let labelDecorations: { doc: PMNode; set: DecorationSet } | undefined
+    const labelOptions = { wrapStandaloneTable: this.options.wrapStandaloneTable }
     return [new Plugin({
       appendTransaction(transactions, _oldState, state) {
         if (!transactions.some(tr => tr.docChanged)) return null
@@ -76,7 +88,7 @@ export const FootnoteLabels = Extension.create({
       props: {
         decorations(state) {
           if (labelDecorations?.doc === state.doc) return labelDecorations.set
-          const labels = resolveEditorLabels(state.doc)
+          const labels = resolveEditorLabels(state.doc, labelOptions)
           const decorations: Decoration[] = []
           const titles = new Set(['chapterTitle', 'clauseTitle', 'termName', 'tableCaption', 'figureCaption', 'appendixLabel'])
           state.doc.descendants((node, pos, parent) => {
@@ -93,10 +105,10 @@ export const FootnoteLabels = Extension.create({
         },
       },
       view(view) {
-        refreshFootnoteLabels(view)
+        refreshFootnoteLabels(view, labelOptions)
         return {
           update(updatedView) {
-            refreshFootnoteLabels(updatedView)
+            refreshFootnoteLabels(updatedView, labelOptions)
           },
         }
       },

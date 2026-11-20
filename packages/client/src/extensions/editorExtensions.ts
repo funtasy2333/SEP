@@ -143,7 +143,7 @@ export function createLandscapeTableModalExtensions(): Extensions {
         StarterKit.extend({
           addExtensions() {
             return this.parent!().map((child) => {
-              if (child.name === 'document') {
+              if (child.name === 'doc') {
                 return child.extend({ content: 'stdTable' })
               }
               if (child.name === 'code') {
@@ -154,10 +154,11 @@ export function createLandscapeTableModalExtensions(): Extensions {
               return child
             })
           },
-        }).configure({ heading: false, blockquote: false, codeBlock: false, horizontalRule: false, gapcursor: false }),
+        }).configure({ heading: false, blockquote: false, codeBlock: false, horizontalRule: false, gapcursor: false, trailingNode: false }),
       ]
     }
     if (extension.name === 'stdTable') return [modalStdTable]
+    if (extension.name === 'footnoteLabels') return [FootnoteLabels.configure({ wrapStandaloneTable: true })]
     if (extension.name === 'tableExit' || extension.name === 'slashCommand') return []
     return [extension]
   })

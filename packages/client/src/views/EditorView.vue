@@ -634,6 +634,7 @@
       v-model="showLandscapeDialog"
       :table-json="landscapeDialogTableJson"
       :table-label="landscapeDialogTableLabel"
+      :before-apply="canApplyLandscapeDialog"
       @apply="handleLandscapeDialogApply"
       @request-table-footnote="openTableFootnoteDialog"
     />
@@ -722,7 +723,7 @@ import {
   exportSemanticJson, exportSemanticHtml,
   buildDocxBlob,
 } from '@/serializer'
-import { PDF_EXPORT_ENABLED, irMetaFromDocumentMeta, pmToIr, resolve, type DocumentMeta, type IRDocMeta, type PMJsonNode } from '@ses/shared'
+import { PDF_EXPORT_ENABLED, irMetaFromDocumentMeta, type DocumentMeta, type IRDocMeta, type PMJsonNode } from '@ses/shared'
 import {
   buildXml46687Package,
   checkExportGuard,
@@ -1584,8 +1585,10 @@ async function waitForLocalWrites(): Promise<void> {
 function hasUnsavedLocalChanges(): boolean {
   // store 里排队或进行中的写入（如版本面板的保存）不经过 persistenceOperation。读取最新内容期间才开始的这类写入，
   // 带的是读取之前的本地内容：此时再载入外部修改并前移 revision，它的 PUT 会静默覆盖外部修改，所以同样视为本地有未落定的修改。
+  // 横页表格展开编辑弹窗内如有未应用改动，同样视为本地未落定修改，避免外部修订在背后静默替换主文档。
   return dirty.value || settingsDirty.value || persistenceOperation.value !== null || importingXml
     || store.hasPendingUpdates(documentId.value)
+    || Boolean(showLandscapeDialog.value && landscapeDialogRef.value?.hasUnsavedChanges?.())
 }
 
 function startChangeSync() {
@@ -1894,8 +1897,11 @@ function rememberTableSelection() {
 const showLandscapeDialog = ref(false)
 const landscapeDialogTableJson = ref<PMJsonNode | null>(null)
 const landscapeDialogTableLabel = ref('')
-const landscapeDialogTarget = ref<{ nodeId?: string; pos: number } | null>(null)
-const landscapeDialogRef = ref<{ getEditor: () => import('@tiptap/core').Editor | undefined } | null>(null)
+const landscapeDialogTarget = ref<{ nodeId?: string; pos: number; openingSnapshot: string } | null>(null)
+const landscapeDialogRef = ref<{
+  getEditor: () => import('@tiptap/core').Editor | undefined
+  hasUnsavedChanges?: () => boolean
+} | null>(null)
 
 function activeEditor() {
   if (showLandscapeDialog.value) {
@@ -1929,9 +1935,14 @@ function openLandscapeTableDialogAt(target: { nodeId?: string; pos?: number }): 
   } catch {
     label = ''
   }
-  landscapeDialogTarget.value = { ...(nodeId ? { nodeId } : {}), pos: found.pos }
+  const tableJson = found.node.toJSON() as PMJsonNode
+  landscapeDialogTarget.value = {
+    ...(nodeId ? { nodeId } : {}),
+    pos: found.pos,
+    openingSnapshot: JSON.stringify(tableJson),
+  }
   landscapeDialogTableLabel.value = label
-  landscapeDialogTableJson.value = found.node.toJSON() as PMJsonNode
+  landscapeDialogTableJson.value = tableJson
   showLandscapeDialog.value = true
 }
 
@@ -1961,15 +1972,31 @@ watch(showLandscapeDialog, (open) => {
   }
 })
 
-function handleLandscapeDialogApply(modalDocJson: PMJsonNode): void {
+function resolveApplyableLandscapeTable(): { node: PMNode; pos: number } | null {
   const ed = editor.value
   const target = landscapeDialogTarget.value
-  if (!ed || !ed.isEditable || !target) return
+  if (!ed || !ed.isEditable || documentUnavailable.value || !target) return null
   const found = findStdTableByTarget(ed.state.doc, target)
   if (!found) {
     ElMessage.warning('主文档中已找不到原表格，未能应用修改')
-    return
+    return null
   }
+  // 弹窗打开期间该表格可能被外部修订、AI 修改或版本回滚更新：拒绝覆盖最新内容，避免静默丢失外部更改。
+  if (JSON.stringify(found.node.toJSON()) !== target.openingSnapshot) {
+    ElMessage.warning('该表格在弹窗打开期间已被更新，未覆盖最新内容；请复制需要的修改后取消并重新展开编辑')
+    return null
+  }
+  return found
+}
+
+function canApplyLandscapeDialog(): boolean {
+  return resolveApplyableLandscapeTable() !== null
+}
+
+function handleLandscapeDialogApply(modalDocJson: PMJsonNode): void {
+  const ed = editor.value
+  const found = resolveApplyableLandscapeTable()
+  if (!ed || !found) return
   try {
     const mergedNode = buildMergedStdTableNode(found.node, modalDocJson)
     const tr = ed.state.tr.replaceWith(found.pos, found.pos + found.node.nodeSize, mergedNode)
@@ -2141,30 +2168,7 @@ function selectionIsInTableCell(targetEditor = activeEditor()): boolean {
 function collectTableFootnotes(targetEditor = activeEditor()): Array<{ id: string; label: string; text: string }> {
   const table = currentTableLocation(targetEditor)
   if (!table || !targetEditor) return []
-  const json = targetEditor.getJSON() as PMJsonNode
-  // 弹窗子编辑器只含单个 stdTable（无表题），需包装进临时 chapter/tableCaption 以复用 pmToIr + resolve 推导表脚注顺序编号
-  const resolvableDoc: PMJsonNode = json.content?.some(child => child.type === 'stdTable')
-    ? {
-        type: 'doc',
-        content: [{
-          type: 'chapter',
-          attrs: { nodeId: '_modal_ch' },
-          content: [
-            { type: 'chapterTitle' },
-            {
-              type: 'stdTable',
-              attrs: table.node.attrs,
-              content: [
-                { type: 'tableCaption' },
-                ...((table.node.toJSON() as PMJsonNode).content ?? []).filter(c => c.type !== 'tableCaption' && c.type !== 'tableCaptionEn'),
-              ],
-            },
-          ],
-        }],
-      }
-    : json
-  const { doc: irDoc } = pmToIr(resolvableDoc)
-  const labels = resolve(irDoc).labels
+  const labels = resolveEditorLabels(targetEditor.state.doc, { wrapStandaloneTable: true })
   const result: Array<{ id: string; label: string; text: string }> = []
   getTableFootnoteEntries(table.node).forEach((node) => {
     const id = typeof node.attrs.nodeId === 'string' ? node.attrs.nodeId : ''

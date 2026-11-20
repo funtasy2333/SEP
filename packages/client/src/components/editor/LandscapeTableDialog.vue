@@ -175,6 +175,7 @@ const props = withDefaults(defineProps<{
   modelValue: boolean
   tableJson: PMJsonNode | null
   tableLabel?: string
+  beforeApply?: (modalDocJson: PMJsonNode) => boolean
 }>(), {
   tableLabel: '',
 })
@@ -241,17 +242,24 @@ function initModalEditor(): void {
 
   const { modalDoc } = extractStdTableForModal(props.tableJson)
   let baselineReady = false
+  let userModified = false
   const editor = new Editor({
     extensions: createLandscapeTableModalExtensions(),
     content: modalDoc as never,
     onCreate({ editor: createdEditor }) {
-      initialSnapshot = JSON.stringify(createdEditor.getJSON())
+      if (!userModified) {
+        initialSnapshot = JSON.stringify(createdEditor.getJSON())
+      }
       baselineReady = true
       revision.value += 1
     },
     onTransaction({ transaction }) {
-      if (!baselineReady && transaction.getMeta('addToHistory') === false) {
-        initialSnapshot = JSON.stringify(editor.getJSON())
+      if (transaction.docChanged) {
+        if (!baselineReady && transaction.getMeta('addToHistory') === false) {
+          if (!userModified) initialSnapshot = JSON.stringify(editor.getJSON())
+        } else {
+          userModified = true
+        }
       }
       revision.value += 1
     },
@@ -268,7 +276,7 @@ function initModalEditor(): void {
   })
 
   modalEditor.value = editor
-  if (!baselineReady) {
+  if (!baselineReady && !userModified) {
     initialSnapshot = JSON.stringify(editor.getJSON())
   }
   revision.value += 1
@@ -386,7 +394,11 @@ function handleApply(): void {
     emit('update:modelValue', false)
     return
   }
-  emit('apply', ed.getJSON() as PMJsonNode)
+  const payload = ed.getJSON() as PMJsonNode
+  if (props.beforeApply && props.beforeApply(payload) === false) {
+    return
+  }
+  emit('apply', payload)
   emit('update:modelValue', false)
 }
 
@@ -430,6 +442,7 @@ function handleDialogKeydown(event: KeyboardEvent): void {
 defineExpose({
   getEditor: () => modalEditor.value,
   isDirty,
+  hasUnsavedChanges: () => isDirty.value,
   apply: handleApply,
   cancel: handleCancel,
   distributeEvenWidths,
