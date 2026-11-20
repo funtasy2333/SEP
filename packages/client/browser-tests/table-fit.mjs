@@ -13,15 +13,20 @@ try {
     const wrapper = document.querySelector('.std-table-wrapper')
     const tableWrapper = wrapper.querySelector('.tableWrapper')
     const table = wrapper.querySelector('table')
+    const tableWrapperStyle = getComputedStyle(tableWrapper)
     return {
       wrapper: wrapper.getBoundingClientRect().width,
       table: table.getBoundingClientRect().width,
+      tableOffsetWidth: table.offsetWidth,
       tableRectHeight: table.getBoundingClientRect().height,
       tableWrapperClient: tableWrapper.clientWidth,
       tableWrapperScroll: tableWrapper.scrollWidth,
-      tableWrapperOverflowY: getComputedStyle(tableWrapper).overflowY,
+      tableWrapperOverflowX: tableWrapperStyle.overflowX,
+      tableWrapperOverflowY: tableWrapperStyle.overflowY,
       tableWrapperHeightClient: tableWrapper.clientHeight,
       tableWrapperHeightScroll: tableWrapper.scrollHeight,
+      landscapeScale: tableWrapper.dataset.landscapeScale,
+      expandButtonCount: wrapper.querySelectorAll('.ses-expand-landscape-btn').length,
       editorClient: editorContent.clientWidth,
       editorScroll: editorContent.scrollWidth,
       cells: Array.from(table.rows[0].cells, cell => cell.getBoundingClientRect().width),
@@ -79,6 +84,20 @@ try {
   assert.ok(wide.editorScroll <= wide.editorClient + 1, 'paper .editor-content must not overflow horizontally')
   console.log('explicit oversized width', wide.table, 'in', wide.wrapper, 'scroll', wide.tableWrapperScroll)
 
+  async function assertPreviewCannotResizeColumns() {
+    const cell = await page.locator('.tableWrapper[data-landscape-scale] tr:first-child td:first-child').boundingBox()
+    assert.ok(cell, 'scaled table should render a cell to drag')
+    const before = await page.evaluate(() => window.editor.getJSON())
+    const x = cell.x + cell.width - 2
+    const y = cell.y + cell.height / 2
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    await page.mouse.move(x + 50, y, { steps: 5 })
+    await page.mouse.up()
+    const after = await page.evaluate(() => window.editor.getJSON())
+    assert.deepEqual(after, before, 'dragging a cell border in a scaled table should not change its columns')
+  }
+
   // Restore default 810px paper (666px inner content width) for landscape checks.
   await page.evaluate(() => {
     const el = document.querySelector('.editor-content')
@@ -105,6 +124,8 @@ try {
   const badge = await page.evaluate(() => getComputedStyle(document.querySelector('.std-table-wrapper'), '::before').content)
   assert.ok(badge && badge !== 'none', 'landscape table should render ::before badge')
 
+  await assertPreviewCannotResizeColumns()
+
   // Inside a landscape appendix, inner tables also scale proportionally to fit body width without horizontal scroll, and hide duplicate child landscape badges.
   await page.evaluate(() => {
     const cell = text => ({ type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] })
@@ -128,6 +149,7 @@ try {
   assert.equal(appTable.expandButtonCount, 1, 'table inside landscape appendix should render expand-to-edit button')
   const childBadgeDisplay = await page.evaluate(() => getComputedStyle(document.querySelector('.std-table-wrapper'), '::before').display)
   assert.equal(childBadgeDisplay, 'none', 'duplicate child badge should be hidden inside landscape appendix')
+  await assertPreviewCannotResizeColumns()
   console.log('landscape table and appendix checks passed', {
     tableOffsetWidth: landscapeTable.tableOffsetWidth,
     scaledWidth: landscapeTable.table,

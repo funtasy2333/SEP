@@ -1326,8 +1326,12 @@ onBeforeUnmount(() => {
   editor.value?.destroy()
 })
 
+function hasUnappliedLandscapeEdits(): boolean {
+  return Boolean(showLandscapeDialog.value && landscapeDialogRef.value?.hasUnsavedChanges?.())
+}
+
 function guardUnsavedSettings(event: BeforeUnloadEvent) {
-  if (!dirty.value && !settingsDirty.value) return
+  if (!dirty.value && !settingsDirty.value && !hasUnappliedLandscapeEdits()) return
   event.preventDefault()
   event.returnValue = ''
 }
@@ -1345,10 +1349,13 @@ function handleMissingReference() {
 
 onBeforeRouteLeave(async () => {
   if (documentUnavailable.value) {
-    if (!dirty.value && !settingsDirty.value) return true
+    const landscapeDirty = hasUnappliedLandscapeEdits()
+    if (!dirty.value && !settingsDirty.value && !landscapeDirty) return true
     try {
       await ElMessageBox.confirm(
-        '文档已不可用，本页尚未保存的正文和文件设置将在离开后丢失。',
+        landscapeDirty
+          ? '文档已不可用，离开后将丢失本页未保存的修改，包括横页表格中尚未应用的修改。'
+          : '文档已不可用，本页尚未保存的正文和文件设置将在离开后丢失。',
         '离开不可用文档？',
         { confirmButtonText: '离开并放弃修改', cancelButtonText: '继续查看', type: 'warning' },
       )
@@ -1360,14 +1367,19 @@ onBeforeRouteLeave(async () => {
   // 冲突状态下无法保存：只能让用户确认放弃，或留下来选择重新加载 / 另存为副本。
   if (saveConflict.value) return await confirmLeaveWithSaveConflict()
   if (!await saveDirtyBodyBeforeRouteLeave()) return false
-  if (!settingsDirty.value) return true
+  const landscapeDirty = hasUnappliedLandscapeEdits()
+  if (!settingsDirty.value && !landscapeDirty) return true
+  const pendingEdits = [
+    settingsDirty.value ? '文件设置中有尚未保存的修改' : '',
+    landscapeDirty ? '横页表格中有尚未应用的修改' : '',
+  ].filter(Boolean).join('，')
   try {
     await ElMessageBox.confirm(
-      '文件设置中有尚未保存的修改，离开后这些修改将丢失。',
-      '离开文件设置？',
+      `${pendingEdits}，离开后这些修改将丢失。`,
+      landscapeDirty ? '离开并放弃修改？' : '离开文件设置？',
       { confirmButtonText: '离开并放弃修改', cancelButtonText: '继续编辑', type: 'warning' },
     )
-    // The user can still edit the body while the settings confirmation is open.
+    // The user can still edit the body while the confirmation is open.
     return await saveDirtyBodyBeforeRouteLeave()
   } catch {
     return false
@@ -1588,7 +1600,7 @@ function hasUnsavedLocalChanges(): boolean {
   // 横页表格展开编辑弹窗内如有未应用改动，同样视为本地未落定修改，避免外部修订在背后静默替换主文档。
   return dirty.value || settingsDirty.value || persistenceOperation.value !== null || importingXml
     || store.hasPendingUpdates(documentId.value)
-    || Boolean(showLandscapeDialog.value && landscapeDialogRef.value?.hasUnsavedChanges?.())
+    || hasUnappliedLandscapeEdits()
 }
 
 function startChangeSync() {

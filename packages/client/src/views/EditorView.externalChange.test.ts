@@ -165,6 +165,55 @@ function serverDocument(revision: number, text = '服务端原文', titleCn = ba
   }
 }
 
+function docWithLandscapeTable(cellText: string) {
+  return {
+    type: 'doc',
+    attrs: {},
+    content: [{
+      type: 'coverPage',
+      attrs: { nodeId: 'stable-cover', standardType: 'national', titleCn: baseMeta.titleCn },
+      content: [{ type: 'paragraph', attrs: { nodeId: 'stable-cover-p' } }],
+    }, {
+      type: 'chapter',
+      attrs: { nodeId: 'stable-ch' },
+      content: [
+        { type: 'chapterTitle', attrs: { nodeId: 'stable-ch-t' }, content: [{ type: 'text', text: '技术要求' }] },
+        {
+          type: 'stdTable',
+          attrs: { nodeId: 'stable-land-tbl', orientation: 'landscape' },
+          content: [
+            { type: 'tableCaption', content: [{ type: 'text', text: '横表题' }] },
+            {
+              type: 'table',
+              content: [{
+                type: 'tableRow',
+                attrs: { nodeId: 'stable-row-1' },
+                content: [{
+                  type: 'tableCell',
+                  attrs: { nodeId: 'stable-cell-1' },
+                  content: [{ type: 'paragraph', attrs: { nodeId: 'stable-cell-p-1' }, content: [{ type: 'text', text: cellText }] }],
+                }],
+              }],
+            },
+          ],
+        },
+      ],
+    }, {
+      type: 'paragraph',
+      attrs: { nodeId: 'stable-tail-p' },
+    }],
+  }
+}
+
+async function openLandscapeDialog() {
+  window.dispatchEvent(new CustomEvent('ses:expand-landscape-table', { detail: { nodeId: 'stable-land-tbl' } }))
+  await settle()
+  document.querySelectorAll('.el-overlay, .el-overlay-dialog, .el-dialog').forEach((el) => {
+    el.dispatchEvent(new Event('transitionend'))
+  })
+  await settle()
+}
+
 const server = { doc: serverDocument(4) }
 
 /** 服务端上有人写入（AI 或其他地方），revision 加 1，返回新 revision */
@@ -939,52 +988,38 @@ describe('版本面板与清理', () => {
     expect(mocks.api.get).not.toHaveBeenCalled()
   })
 
+  it('只有横页表格弹窗有未应用修改时，刷新和路由离开都要求确认', async () => {
+    const confirm = vi.spyOn(ElMessageBox, 'confirm')
+    const view = await mountEditor({ ...serverDocument(4), content: docWithLandscapeTable('原始值') })
+    const beforeUnload = () => window.dispatchEvent(new Event('beforeunload', { cancelable: true }))
+    try {
+      await openLandscapeDialog()
+      expect(beforeUnload()).toBe(true)
+      expect(await mocks.routeGuard?.()).toBe(true)
+      expect(confirm).not.toHaveBeenCalled()
+
+      document.querySelector<HTMLButtonElement>('[data-testid="lt-even-width-btn"]')!.click()
+      await settle()
+      expect(bodyDirtyMark(view)).toBeNull()
+      expect(beforeUnload()).toBe(false)
+
+      confirm.mockRejectedValueOnce('cancel')
+      expect(await mocks.routeGuard?.()).toBe(false)
+      expect(confirm).toHaveBeenCalledWith(expect.stringContaining('横页表格'), expect.any(String), expect.any(Object))
+      expect(document.querySelector('.lt-editor-content .ProseMirror')).not.toBeNull()
+
+      confirm.mockResolvedValueOnce('confirm' as Awaited<ReturnType<typeof ElMessageBox.confirm>>)
+      expect(await mocks.routeGuard?.()).toBe(true)
+      expect(mocks.api.update).not.toHaveBeenCalled()
+    } finally {
+      view.unmount()
+    }
+  })
+
   it('横页表格弹窗有未应用改动时收到外部修订，应进入冲突提示而不是静默替换主文档', async () => {
-    const docWithLandscapeTable = (cellText: string) => ({
-      type: 'doc',
-      attrs: {},
-      content: [{
-        type: 'coverPage',
-        attrs: { nodeId: 'stable-cover', standardType: 'national', titleCn: baseMeta.titleCn },
-        content: [{ type: 'paragraph', attrs: { nodeId: 'stable-cover-p' } }],
-      }, {
-        type: 'chapter',
-        attrs: { nodeId: 'stable-ch' },
-        content: [
-          { type: 'chapterTitle', attrs: { nodeId: 'stable-ch-t' }, content: [{ type: 'text', text: '技术要求' }] },
-          {
-            type: 'stdTable',
-            attrs: { nodeId: 'stable-land-tbl', orientation: 'landscape' },
-            content: [
-              { type: 'tableCaption', content: [{ type: 'text', text: '横表题' }] },
-              {
-                type: 'table',
-                content: [{
-                  type: 'tableRow',
-                  attrs: { nodeId: 'stable-row-1' },
-                  content: [{
-                    type: 'tableCell',
-                    attrs: { nodeId: 'stable-cell-1' },
-                    content: [{ type: 'paragraph', attrs: { nodeId: 'stable-cell-p-1' }, content: [{ type: 'text', text: cellText }] }],
-                  }],
-                }],
-              },
-            ],
-          },
-        ],
-      }, {
-        type: 'paragraph',
-        attrs: { nodeId: 'stable-tail-p' },
-      }],
-    })
     const view = await mountEditor({ ...serverDocument(4), content: docWithLandscapeTable('原始值') })
     try {
-      window.dispatchEvent(new CustomEvent('ses:expand-landscape-table', { detail: { nodeId: 'stable-land-tbl' } }))
-      await settle()
-      document.querySelectorAll('.el-overlay, .el-overlay-dialog, .el-dialog').forEach((el) => {
-        el.dispatchEvent(new Event('transitionend'))
-      })
-      await settle()
+      await openLandscapeDialog()
 
       // 在弹窗内修改列宽，使弹窗处于未应用改动状态（主编辑器本身仍 clean）
       document.querySelector<HTMLButtonElement>('[data-testid="lt-even-width-btn"]')!.click()
@@ -1004,52 +1039,10 @@ describe('版本面板与清理', () => {
   })
 
   it('横页表格弹窗打开期间外部修订更新了该表格，后续再点「完成并应用」应拒绝覆盖最新内容', async () => {
-    const docWithLandscapeTable = (cellText: string) => ({
-      type: 'doc',
-      attrs: {},
-      content: [{
-        type: 'coverPage',
-        attrs: { nodeId: 'stable-cover', standardType: 'national', titleCn: baseMeta.titleCn },
-        content: [{ type: 'paragraph', attrs: { nodeId: 'stable-cover-p' } }],
-      }, {
-        type: 'chapter',
-        attrs: { nodeId: 'stable-ch' },
-        content: [
-          { type: 'chapterTitle', attrs: { nodeId: 'stable-ch-t' }, content: [{ type: 'text', text: '技术要求' }] },
-          {
-            type: 'stdTable',
-            attrs: { nodeId: 'stable-land-tbl', orientation: 'landscape' },
-            content: [
-              { type: 'tableCaption', content: [{ type: 'text', text: '横表题' }] },
-              {
-                type: 'table',
-                content: [{
-                  type: 'tableRow',
-                  attrs: { nodeId: 'stable-row-1' },
-                  content: [{
-                    type: 'tableCell',
-                    attrs: { nodeId: 'stable-cell-1' },
-                    content: [{ type: 'paragraph', attrs: { nodeId: 'stable-cell-p-1' }, content: [{ type: 'text', text: cellText }] }],
-                  }],
-                }],
-              },
-            ],
-          },
-        ],
-      }, {
-        type: 'paragraph',
-        attrs: { nodeId: 'stable-tail-p' },
-      }],
-    })
     const warn = vi.spyOn(ElMessage, 'warning')
     const view = await mountEditor({ ...serverDocument(4), content: docWithLandscapeTable('原始值') })
     try {
-      window.dispatchEvent(new CustomEvent('ses:expand-landscape-table', { detail: { nodeId: 'stable-land-tbl' } }))
-      await settle()
-      document.querySelectorAll('.el-overlay, .el-overlay-dialog, .el-dialog').forEach((el) => {
-        el.dispatchEvent(new Event('transitionend'))
-      })
-      await settle()
+      await openLandscapeDialog()
 
       // 弹窗尚未修改时，外部修订到达并载入主文档（主文档该表内容变为「外部新值」）
       server.doc = { ...serverDocument(5), content: docWithLandscapeTable('外部新值') }
