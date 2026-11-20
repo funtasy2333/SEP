@@ -1,6 +1,6 @@
 import { Table } from '@tiptap/extension-table'
 import { NodeSelection } from '@tiptap/pm/state'
-import { isInTable, selectedRect } from '@tiptap/pm/tables'
+import { columnResizingPluginKey, isInTable, selectedRect } from '@tiptap/pm/tables'
 import type { EditorState } from '@tiptap/pm/state'
 
 function standardTableRange(state: EditorState): { from: number; to: number } | null {
@@ -22,8 +22,39 @@ function standardTableRange(state: EditorState): { from: number; to: number } | 
   return null
 }
 
+function isInScaledTable(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('.tableWrapper[data-landscape-scale]') !== null
+}
+
 /** Deleting the grid alone makes the schema recreate a required table inside stdTable. */
 export const EditorTable = Table.extend({
+  addProseMirrorPlugins() {
+    const plugins = this.parent!()
+    const resize = plugins.find(plugin => plugin.spec.key === columnResizingPluginKey)
+    const events = resize?.props.handleDOMEvents
+    if (!resize || !events) return plugins
+
+    // Keep normal ProseMirror mouse handling available for selection inside scaled previews.
+    const { mousemove, mousedown, mouseleave } = events
+    events.mousemove = (view, event) => {
+      if (isInScaledTable(event.target)) {
+        mouseleave?.call(resize, view, event)
+        return false
+      }
+      return mousemove?.call(resize, view, event)
+    }
+    events.mousedown = (view, event) => {
+      const activeHandle = columnResizingPluginKey.getState(view.state)?.activeHandle ?? -1
+      // The preview may have scaled since the last mousemove activated this handle.
+      if (isInScaledTable(event.target) || (activeHandle >= 0 && isInScaledTable(view.nodeDOM(activeHandle)))) {
+        mouseleave?.call(resize, view, event)
+        return false
+      }
+      return mousedown?.call(resize, view, event)
+    }
+    return plugins
+  },
+
   addCommands() {
     const base = this.parent!()
     return {

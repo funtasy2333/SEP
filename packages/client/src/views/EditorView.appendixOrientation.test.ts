@@ -24,6 +24,8 @@ const mocks = vi.hoisted(() => ({
   routeGuard: null as null | (() => Promise<boolean> | boolean),
   routerPush: vi.fn(),
   workers: [] as any[],
+  mathConfirm: null as null | ((latex: string) => void),
+  mathDialogProps: null as null | Record<string, any>,
 }))
 
 vi.mock('@/stores/document', () => ({ useDocumentStore: () => mocks.store }))
@@ -34,10 +36,12 @@ vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { id: '17' } }),
   useRouter: () => ({ push: mocks.routerPush }),
 }))
-vi.mock('@tiptap/vue-3', async () => {
+vi.mock('@tiptap/vue-3', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tiptap/vue-3')>()
   const vue = await import('vue')
   const { Editor: ProductionEditor } = await import('@tiptap/core')
   return {
+    ...actual,
     // 与 @tiptap/vue-3 一致：每笔事务后触发重新渲染，工具栏按选区更新。
     useEditor: (options: any) => {
       mocks.editorOptions = options
@@ -56,7 +60,17 @@ vi.mock('@/components/editor/DocumentOutline.vue', () => ({ default: { render: (
 vi.mock('@/components/editor/SlashMenu.vue', () => ({ default: { render: () => null } }))
 vi.mock('@/components/editor/TableMenu.vue', () => ({ default: { render: () => null } }))
 vi.mock('@/components/SesLogo.vue', () => ({ default: { render: () => null } }))
-vi.mock('@/components/editor/MathInputDialog.vue', () => ({ default: { render: () => null } }))
+vi.mock('@/components/editor/MathInputDialog.vue', () => ({
+  default: {
+    props: ['modelValue', 'initialLatex', 'displayMode', 'title'],
+    emits: ['update:modelValue', 'confirm'],
+    setup(props: any, { emit }: any) {
+      mocks.mathDialogProps = props
+      mocks.mathConfirm = (latex: string) => emit('confirm', latex)
+      return () => null
+    },
+  },
+}))
 vi.mock('@/components/editor/WhereConversionDialog.vue', () => ({ default: { render: () => null } }))
 vi.mock('@/components/editor/DocumentSettingsPanel.vue', () => ({ default: { render: () => null } }))
 vi.mock('@/components/version/VersionPanel.vue', () => ({ default: { render: () => null } }))
@@ -334,3 +348,120 @@ describe('EditorView 附录版面（#75）', () => {
     }
   })
 })
+
+describe('EditorView 横页表格展开编辑', () => {
+  async function finishDialogTransition() {
+    await flush()
+    document.querySelectorAll('.el-overlay, .el-overlay-dialog, .el-dialog').forEach((el) => {
+      el.dispatchEvent(new Event('transitionend'))
+      el.dispatchEvent(new Event('animationend'))
+    })
+    await flush()
+  }
+
+  it('上下文条「展开编辑」仅对生效横向表格显示（含横向附录内表格），点击或触发自定义事件打开弹窗并支持单步撤销回写', async () => {
+    const view = await mountEditor()
+    try {
+      const { editor } = view
+
+      // 1. 纵向表格中不显示「展开编辑」按钮
+      editor.commands.setTextSelection(positionOf(editor, '正文表内容'))
+      await flush()
+      expect(view.root.querySelector('[data-testid="context-expand-landscape-btn"]')).toBeNull()
+
+      // 2. 图形中不显示「展开编辑」按钮
+      editor.commands.setTextSelection(positionOf(editor, '正文图题'))
+      await flush()
+      expect(view.root.querySelector('[data-testid="context-expand-landscape-btn"]')).toBeNull()
+
+      // 3. 附录横表中显示「展开编辑」按钮
+      editor.commands.setTextSelection(positionOf(editor, '附录横表内容'))
+      await flush()
+      const expandBtn = view.root.querySelector<HTMLButtonElement>('[data-testid="context-expand-landscape-btn"]')
+      expect(expandBtn).not.toBeNull()
+      expect(expandBtn!.textContent?.trim()).toBe('展开编辑')
+
+      // 4. 点击上下文「展开编辑」打开弹窗，修改内容并调整列宽后点击「完成并应用」
+      expandBtn!.click()
+      await finishDialogTransition()
+
+      const titleEl = document.querySelector('[data-testid="landscape-dialog-title"]')
+      expect(titleEl?.textContent).toContain('表-app-t2')
+      expect(document.querySelector('.lt-editor-content .ProseMirror')).not.toBeNull()
+      expect(document.querySelector('.lt-editor-content .std-table-caption')).toBeNull()
+
+      // 使用弹窗快捷按钮「均分列宽」，并点击应用
+      document.querySelector<HTMLButtonElement>('[data-testid="lt-even-width-btn"]')!.click()
+      await flush()
+      document.querySelector<HTMLButtonElement>('[data-testid="lt-apply-btn"]')!.click()
+      await finishDialogTransition()
+
+      // 关闭后子编辑器应已被销毁卸载（不再渲染 .ProseMirror 内容）
+      expect(document.querySelector('.lt-editor-content .ProseMirror')).toBeNull()
+      let updatedTable: any = null
+      editor.state.doc.descendants((node: any) => {
+        if (node.type.name === 'stdTable' && node.attrs.nodeId === 'app-t2') updatedTable = node.toJSON()
+      })
+      expect(updatedTable).not.toBeNull()
+      // 保留原有表题
+      expect(updatedTable.content[0]).toMatchObject({
+        type: 'tableCaption',
+        content: [{ type: 'text', text: '表-app-t2' }],
+      })
+      // 单列均分 952px 写入 colwidth
+      expect(updatedTable.content[1].content[0].content[0].attrs.colwidth).toEqual([952])
+
+      // 主编辑器按一次 Ctrl+Z（undo）即可整步撤销该次弹窗应用
+      expect(editor.can().undo()).toBe(true)
+      editor.commands.undo()
+      await flush()
+      let undoneTable: any = null
+      editor.state.doc.descendants((node: any) => {
+        if (node.type.name === 'stdTable' && node.attrs.nodeId === 'app-t2') undoneTable = node.toJSON()
+      })
+      expect(undoneTable.content[1].content[0].content[0].attrs.colwidth).toBeNull()
+
+      // 5. 将附录整体切换为横向后，原先 portrait 的附录纵表 app-t1 也变为有效横向，能通过自定义事件展开编辑
+      editor.commands.setTextSelection(positionOf(editor, '方法验证汇总'))
+      await flush()
+      button(view.root, '横向').click()
+      await flush()
+
+      editor.commands.setTextSelection(positionOf(editor, '附录纵表内容'))
+      await flush()
+      expect(view.root.querySelector('[data-testid="context-expand-landscape-btn"]')).not.toBeNull()
+
+      window.dispatchEvent(new CustomEvent('ses:expand-landscape-table', { detail: { nodeId: 'app-t1' } }))
+      await finishDialogTransition()
+      expect(document.querySelector('[data-testid="landscape-dialog-title"]')?.textContent).toContain('表-app-t1')
+      expect(document.querySelector('.lt-editor-content .ProseMirror')).not.toBeNull()
+
+      // 6. 验证弹窗开启期间行内公式事件路由到子编辑器
+      const mainSnapshotBeforeModal = JSON.stringify(editor.getJSON())
+      window.dispatchEvent(new CustomEvent('ses:edit-inline-formula', {
+        detail: { mode: 'insert', pos: 4, latex: '' },
+      }))
+      await flush()
+      expect(mocks.mathDialogProps?.modelValue).toBe(true)
+      mocks.mathConfirm?.('q_V')
+      await flush()
+      // 尚未点击「完成并应用」前，主编辑器文档应保持未变
+      expect(JSON.stringify(editor.getJSON())).toBe(mainSnapshotBeforeModal)
+
+      // 点击「完成并应用」后，弹窗内新增的行内公式同步回到主编辑器 app-t1 中
+      document.querySelector<HTMLButtonElement>('[data-testid="lt-apply-btn"]')!.click()
+      await finishDialogTransition()
+      expect(document.querySelector('.lt-editor-content .ProseMirror')).toBeNull()
+
+      let appT1AfterFormula: any = null
+      editor.state.doc.descendants((node: any) => {
+        if (node.type.name === 'stdTable' && node.attrs.nodeId === 'app-t1') appT1AfterFormula = node.toJSON()
+      })
+      expect(JSON.stringify(appT1AfterFormula)).toContain('"formulaInline"')
+      expect(JSON.stringify(appT1AfterFormula)).toContain('q_V')
+    } finally {
+      view.unmount()
+    }
+  })
+})
+

@@ -4,6 +4,7 @@ import type { Transaction } from '@tiptap/pm/state'
 import { ReplaceStep } from '@tiptap/pm/transform'
 
 const editorLabels = new WeakMap<PMNode, Readonly<Record<string, ResolvedLabel>>>()
+const standaloneTableEditorLabels = new WeakMap<PMNode, Readonly<Record<string, ResolvedLabel>>>()
 
 const proseSections = new Set(['chapter', 'appendix', 'foreword', 'introduction'])
 const isPlainText = (node: PMNode) => node.isText && node.marks.length === 0
@@ -29,12 +30,53 @@ export function reuseEditorLabelsForTextEdit(transactions: readonly Transaction[
   editorLabels.set(after, labels)
 }
 
+/**
+ * 弹窗单表子编辑器根节点只含单个无表题的 `stdTable`；
+ * `pmToIr()` 仅转换位于章/附录等节内的表格，因此投影解析标签时临时套一层 `chapter` 与空 `tableCaption`，
+ * 让表注与表脚注编号（a/b/c、注1/注2）在弹窗内同样正确显示。
+ */
+export function wrapStandaloneStdTableForLabels(docJson: PMJsonNode): PMJsonNode {
+  if (docJson.type !== 'doc') return docJson
+  const meaningful = (docJson.content ?? []).filter(
+    child => !((child.type === 'paragraph' || child.type === 'stdParagraph') && (child.content?.length ?? 0) === 0),
+  )
+  if (meaningful.length !== 1 || meaningful[0]?.type !== 'stdTable') {
+    return docJson
+  }
+  const table = meaningful[0]
+  const tableContent = table.content ?? []
+  const hasCaption = tableContent.some(child => child.type === 'tableCaption')
+  return {
+    type: 'doc',
+    content: [{
+      type: 'chapter',
+      attrs: { nodeId: '_modal_label_chapter' },
+      content: [
+        { type: 'chapterTitle' },
+        hasCaption
+          ? table
+          : {
+              ...table,
+              content: [{ type: 'tableCaption' }, ...tableContent],
+            },
+      ],
+    }],
+  }
+}
+
 /** Reuse Resolver labels while transactions share the same immutable ProseMirror document. */
-export function resolveEditorLabels(doc: PMNode): Readonly<Record<string, ResolvedLabel>> {
-  const cached = editorLabels.get(doc)
+export function resolveEditorLabels(
+  doc: PMNode,
+  options?: { wrapStandaloneTable?: boolean },
+): Readonly<Record<string, ResolvedLabel>> {
+  const wrapStandaloneTable = options?.wrapStandaloneTable === true
+  const cache = wrapStandaloneTable ? standaloneTableEditorLabels : editorLabels
+  const cached = cache.get(doc)
   if (cached) return cached
-  const { labels } = resolve(pmToIr(doc.toJSON()).doc)
-  editorLabels.set(doc, labels)
+  const source = doc.toJSON() as PMJsonNode
+  const projected = wrapStandaloneTable ? wrapStandaloneStdTableForLabels(source) : source
+  const { labels } = resolve(pmToIr(projected).doc)
+  cache.set(doc, labels)
   return labels
 }
 

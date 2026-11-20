@@ -37,10 +37,12 @@ vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { id: '17' } }),
   useRouter: () => ({ push: mocks.routerPush }),
 }))
-vi.mock('@tiptap/vue-3', async () => {
+vi.mock('@tiptap/vue-3', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tiptap/vue-3')>()
   const vue = await import('vue')
   const { Editor: ProductionEditor } = await import('@tiptap/core')
   return {
+    ...actual,
     useEditor: (options: any) => {
       mocks.editorOptions = options
       mocks.editor = new ProductionEditor(options)
@@ -157,10 +159,59 @@ function serverDocument(revision: number, text = '服务端原文', titleCn = ba
     title: titleCn,
     meta: { ...baseMeta, titleCn },
     stage: 'working_draft',
-    content: documentJson(text),
+    content: documentJson(text) as Record<string, unknown>,
     revision,
     updatedAt: '',
   }
+}
+
+function docWithLandscapeTable(cellText: string) {
+  return {
+    type: 'doc',
+    attrs: {},
+    content: [{
+      type: 'coverPage',
+      attrs: { nodeId: 'stable-cover', standardType: 'national', titleCn: baseMeta.titleCn },
+      content: [{ type: 'paragraph', attrs: { nodeId: 'stable-cover-p' } }],
+    }, {
+      type: 'chapter',
+      attrs: { nodeId: 'stable-ch' },
+      content: [
+        { type: 'chapterTitle', attrs: { nodeId: 'stable-ch-t' }, content: [{ type: 'text', text: '技术要求' }] },
+        {
+          type: 'stdTable',
+          attrs: { nodeId: 'stable-land-tbl', orientation: 'landscape' },
+          content: [
+            { type: 'tableCaption', content: [{ type: 'text', text: '横表题' }] },
+            {
+              type: 'table',
+              content: [{
+                type: 'tableRow',
+                attrs: { nodeId: 'stable-row-1' },
+                content: [{
+                  type: 'tableCell',
+                  attrs: { nodeId: 'stable-cell-1' },
+                  content: [{ type: 'paragraph', attrs: { nodeId: 'stable-cell-p-1' }, content: [{ type: 'text', text: cellText }] }],
+                }],
+              }],
+            },
+          ],
+        },
+      ],
+    }, {
+      type: 'paragraph',
+      attrs: { nodeId: 'stable-tail-p' },
+    }],
+  }
+}
+
+async function openLandscapeDialog() {
+  window.dispatchEvent(new CustomEvent('ses:expand-landscape-table', { detail: { nodeId: 'stable-land-tbl' } }))
+  await settle()
+  document.querySelectorAll('.el-overlay, .el-overlay-dialog, .el-dialog').forEach((el) => {
+    el.dispatchEvent(new Event('transitionend'))
+  })
+  await settle()
 }
 
 const server = { doc: serverDocument(4) }
@@ -200,11 +251,11 @@ async function settle() {
   await flushMicrotasks()
 }
 
-async function mountEditor() {
+async function mountEditor(initialDoc = serverDocument(4)) {
   FakeEventSource.instances = []
   vi.stubGlobal('EventSource', FakeEventSource)
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ htmlToPdf: true }) }))
-  server.doc = serverDocument(4)
+  server.doc = initialDoc
   for (const fn of Object.values(mocks.api)) fn.mockReset()
   for (const fn of Object.values(mocks.versionApi)) fn.mockReset()
   mocks.api.get.mockImplementation(async () => ({ data: structuredClone(server.doc) }))
@@ -935,5 +986,82 @@ describe('版本面板与清理', () => {
     put.resolve({ data: { ...serverDocument(5) } })
     await flushMicrotasks()
     expect(mocks.api.get).not.toHaveBeenCalled()
+  })
+
+  it('只有横页表格弹窗有未应用修改时，刷新和路由离开都要求确认', async () => {
+    const confirm = vi.spyOn(ElMessageBox, 'confirm')
+    const view = await mountEditor({ ...serverDocument(4), content: docWithLandscapeTable('原始值') })
+    const beforeUnload = () => window.dispatchEvent(new Event('beforeunload', { cancelable: true }))
+    try {
+      await openLandscapeDialog()
+      expect(beforeUnload()).toBe(true)
+      expect(await mocks.routeGuard?.()).toBe(true)
+      expect(confirm).not.toHaveBeenCalled()
+
+      document.querySelector<HTMLButtonElement>('[data-testid="lt-even-width-btn"]')!.click()
+      await settle()
+      expect(bodyDirtyMark(view)).toBeNull()
+      expect(beforeUnload()).toBe(false)
+
+      confirm.mockRejectedValueOnce('cancel')
+      expect(await mocks.routeGuard?.()).toBe(false)
+      expect(confirm).toHaveBeenCalledWith(expect.stringContaining('横页表格'), expect.any(String), expect.any(Object))
+      expect(document.querySelector('.lt-editor-content .ProseMirror')).not.toBeNull()
+
+      confirm.mockResolvedValueOnce('confirm' as Awaited<ReturnType<typeof ElMessageBox.confirm>>)
+      expect(await mocks.routeGuard?.()).toBe(true)
+      expect(mocks.api.update).not.toHaveBeenCalled()
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('横页表格弹窗有未应用改动时收到外部修订，应进入冲突提示而不是静默替换主文档', async () => {
+    const view = await mountEditor({ ...serverDocument(4), content: docWithLandscapeTable('原始值') })
+    try {
+      await openLandscapeDialog()
+
+      // 在弹窗内修改列宽，使弹窗处于未应用改动状态（主编辑器本身仍 clean）
+      document.querySelector<HTMLButtonElement>('[data-testid="lt-even-width-btn"]')!.click()
+      await settle()
+
+      // 此时服务端被外部更新：应识别弹窗内未落定改动，进入保存冲突，不静默替换主文档
+      server.doc = { ...serverDocument(5), content: docWithLandscapeTable('外部新值') }
+      view.source.push(5, 'ai', 'playwright')
+      await settle()
+
+      expect(conflictDialogOpen()).toBe(true)
+      expect(JSON.stringify(view.editor.getJSON())).toContain('原始值')
+      expect(JSON.stringify(view.editor.getJSON())).not.toContain('外部新值')
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('横页表格弹窗打开期间外部修订更新了该表格，后续再点「完成并应用」应拒绝覆盖最新内容', async () => {
+    const warn = vi.spyOn(ElMessage, 'warning')
+    const view = await mountEditor({ ...serverDocument(4), content: docWithLandscapeTable('原始值') })
+    try {
+      await openLandscapeDialog()
+
+      // 弹窗尚未修改时，外部修订到达并载入主文档（主文档该表内容变为「外部新值」）
+      server.doc = { ...serverDocument(5), content: docWithLandscapeTable('外部新值') }
+      view.source.push(5, 'ai', 'playwright')
+      await settle()
+      expect(JSON.stringify(view.editor.getJSON())).toContain('外部新值')
+
+      // 用户之后在旧弹窗中修改并点击「完成并应用」：应被拒绝，不覆盖「外部新值」，且弹窗保持打开
+      document.querySelector<HTMLButtonElement>('[data-testid="lt-even-width-btn"]')!.click()
+      await settle()
+      document.querySelector<HTMLButtonElement>('[data-testid="lt-apply-btn"]')!.click()
+      await settle()
+
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('已被更新'))
+      expect(JSON.stringify(view.editor.getJSON())).toContain('外部新值')
+      expect(JSON.stringify(view.editor.getJSON())).not.toContain('原始值')
+      expect(document.querySelector('.lt-editor-content .ProseMirror')).not.toBeNull()
+    } finally {
+      view.unmount()
+    }
   })
 })
