@@ -111,25 +111,23 @@ describe('renderTableGrid', () => {
     expect(findChild(findChild(childrenNamed(tblEl, 'w:tr')[0]!, 'w:trPr')!, 'w:tblHeader')).toBeDefined()
   })
 
-  it('多个表头行都会重复，各表头格的四边均为 1 磅实线', () => {
+  it('多个表头行都会重复，粗线只沿表头区域外沿', () => {
     const result = render(table({
       headerRowCount: 2,
       rows: [
-        { id: 'h1', cells: [cell('h1c', '分组', { header: true })] },
-        { id: 'h2', cells: [cell('h2c', '单位', { header: true })] },
-        { id: 'body', cells: [cell('bodyc', '12')] },
+        { id: 'h1', cells: [cell('h1c', '分组', { header: true }), cell('h1d', '判定', { header: true })] },
+        { id: 'h2', cells: [cell('h2c', '单位', { header: true }), cell('h2d', '范围', { header: true })] },
+        { id: 'body', cells: [cell('bodyc', '项目', { header: true }), cell('bodyd', '12')] },
       ],
     }))
     const rows = childrenNamed(findChild(root(result.xml), 'w:tbl')!, 'w:tr')
     expect(rows.map((row) => findChild(findChild(row, 'w:trPr')!, 'w:tblHeader') !== undefined)).toEqual([true, true, false])
     expect(rows.every((row) => findChild(findChild(row, 'w:trPr')!, 'w:cantSplit') !== undefined)).toBe(true)
-    for (const row of rows.slice(0, 2)) {
-      const borders = findChild(findChild(childrenNamed(row, 'w:tc')[0]!, 'w:tcPr')!, 'w:tcBorders')!
-      for (const side of ['top', 'left', 'bottom', 'right']) {
-        expect(findChild(borders, `w:${side}`)?.attrs).toMatchObject({ 'w:val': 'single', 'w:sz': '8' })
-      }
-    }
-    expect(findChild(findChild(childrenNamed(rows[1]!, 'w:tc')[0]!, 'w:tcPr')!, 'w:tcBorders')).toBeDefined()
+    const borders = rows.map(row => childrenNamed(row, 'w:tc').map(tc => {
+      const cellBorders = findChild(findChild(tc, 'w:tcPr')!, 'w:tcBorders')
+      return ['top', 'left', 'bottom', 'right'].filter(side => cellBorders && findChild(cellBorders, `w:${side}`))
+    }))
+    expect(borders).toEqual([[['top'], ['top']], [['bottom'], ['bottom']], [[], []]])
   })
 
   it('表格内没有表题行：第 1 行即首个表头行，tblHeader 只设在前 headerRowCount 行，逐行跨页', () => {

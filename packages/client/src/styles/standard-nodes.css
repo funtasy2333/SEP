@@ -277,6 +277,10 @@
 }
 
 /* 标准表格 */
+.tiptap tr.std-table-header-end {
+  border-bottom: 2px solid #000;
+}
+
 .std-table-wrapper {
   margin: 16px 0;
 }

@@ -901,7 +901,7 @@ function screenStyles(): string {
     .ses-table-caption-en { text-align: center; font-style: italic; color: #555; }
     .ses-table-block table { border-collapse: collapse; width: 100%; }
     .ses-table-block th, .ses-table-block td { padding: 6px 8px; }
-${tableBordersCss}
+${tableBordersCss('2px', '1px')}
     .ses-table-block th { background: #f5f5f5; }
     .ses-table-block td > .ses-paragraph, .ses-table-block th > .ses-paragraph { text-indent: 0; }
     .ses-figure-block { text-align: center; margin: 16px 0; }

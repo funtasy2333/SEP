@@ -332,7 +332,7 @@ const CONTENT = `
 .ses-table-block td { text-align: left; }
 .ses-table-block td > .ses-paragraph, .ses-table-block th > .ses-paragraph { text-indent: 0; }
 .ses-table-block tr { break-inside: avoid; }
-${tableBordersCss}
+${tableBordersCss('1pt', '0.5pt')}
 .ses-table-footnote { font-size: var(--ses-fs-xiaowu); margin-left: 2em; text-indent: -1em; break-inside: avoid; }
 .ses-table-footnote-marker { display: inline-block; width: calc(1em - 1pt); text-indent: 0; }
 .ses-table-footnote-marker sup { font-size: 0.75em; vertical-align: super; }
