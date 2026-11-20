@@ -129,7 +129,7 @@ defineProps<{
   margin: 16px 0;
 }
 
-/* 超宽表与横向表在自身 .tableWrapper 内局部横向滚动，保持 810px 编辑纸张与表题/表注宽度一致。 */
+/* 超宽表在自身 .tableWrapper 内局部横向滚动；横页表（含横向附录内表格）采用 Option A 等比缩放预览以消除横向滚动条。 */
 .editor-content :deep(.tiptap .std-table-wrapper > .tableWrapper) {
   max-width: 100%;
   overflow-x: auto;
@@ -140,10 +140,57 @@ defineProps<{
 .editor-content :deep(.tiptap .std-table-wrapper > .tableWrapper > table) {
   margin: 0;
 }
+.editor-content :deep(.tiptap .std-table-wrapper[data-orientation="landscape"] > .tableWrapper),
+.editor-content :deep(.tiptap .std-appendix[data-orientation="landscape"] .std-table-wrapper > .tableWrapper) {
+  overflow: hidden;
+  position: relative;
+}
 .editor-content :deep(.tiptap .std-table-wrapper[data-orientation="landscape"] > .tableWrapper > table),
 .editor-content :deep(.tiptap .std-appendix[data-orientation="landscape"] .std-table-wrapper > .tableWrapper > table) {
-  /* TableView 会内联写 min-width（如 75px），用 !important 让未定像素总宽的横表按 252mm（约 952px）舒展并触发局部横滚。 */
+  /* TableView 会内联写 min-width（如 75px），用 !important 让未定像素总宽的横表按 252mm（约 952px）计算网格后整体等比缩放预览。 */
   min-width: 952px !important;
+  transform-origin: top left;
+}
+/* 缩放状态下禁用拖拽列宽手柄，避免缩放鼠标位移污染 952px 坐标下的 colwidth */
+.editor-content :deep(.tiptap .std-table-wrapper[data-orientation="landscape"] > .tableWrapper[data-landscape-scale] .column-resize-handle),
+.editor-content :deep(.tiptap .std-appendix[data-orientation="landscape"] .std-table-wrapper > .tableWrapper[data-landscape-scale] .column-resize-handle) {
+  pointer-events: none;
+  display: none;
+}
+/* 主编辑器横向表格「展开编辑」入口按钮（Decoration.widget，不入文档模型） */
+.editor-content :deep(.tiptap .std-table-wrapper) {
+  position: relative;
+}
+.editor-content :deep(.tiptap .ses-expand-landscape-btn) {
+  position: absolute;
+  top: 12px;
+  right: 0;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in oklch, var(--ses-accent) 32%, var(--ses-line-2));
+  border-radius: 6px;
+  background: color-mix(in oklch, var(--ses-surface) 94%, var(--ses-accent-soft));
+  color: var(--ses-accent);
+  font-family: var(--ses-font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: var(--ses-shadow-1);
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.editor-content :deep(.tiptap .ses-expand-landscape-btn:hover) {
+  background: var(--ses-accent);
+  border-color: var(--ses-accent);
+  color: #fff;
+}
+.editor-content :deep(.tiptap .std-appendix[data-orientation="landscape"] .std-table-wrapper .ses-expand-landscape-btn) {
+  top: 2px;
 }
 
 .editor-content :deep(.tiptap table td),

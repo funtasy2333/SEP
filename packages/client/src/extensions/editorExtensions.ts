@@ -46,10 +46,17 @@ import {
   StructuralPaste,
   TableExit,
   ClipboardPolicy,
+  LandscapeTablePreview,
 } from './index' // 相对路径：服务端打包也会加载本文件，不认识 '@/' 别名（见 editorSchema.ts）
 
+export interface EditorExtensionsOptions {
+  /** 是否启用主编辑器横页表缩放预览与「展开编辑」按钮插件（默认 true；弹窗编辑器关闭以按 1:1 编辑）。 */
+  landscapeTablePreview?: boolean
+}
+
 /** The exact extension list used by EditorView's useEditor call. */
-export function createEditorExtensions(): Extensions {
+export function createEditorExtensions(options: EditorExtensionsOptions = {}): Extensions {
+  const { landscapeTablePreview = true } = options
   return [
     // GB/T 标准文档不需要 blockquote/codeBlock/horizontalRule，禁用以免产生 IR 无法表达的内容
     StarterKit.extend({
@@ -114,5 +121,45 @@ export function createEditorExtensions(): Extensions {
     ClipboardPolicy,
     // 外部图片点击才加载：纯插件，不新增节点。
     ExternalImages,
+    // 横页表格比例缩放预览与「展开编辑」按钮：纯插件，不新增节点。
+    ...(landscapeTablePreview ? [LandscapeTablePreview] : []),
   ]
 }
+
+/**
+ * 横页表格弹窗专用的子编辑器扩展集：
+ * - Document 约束为仅包含单个 `stdTable`（无法逃逸或删除外层表格容器）；
+ * - `stdTable` 约束为不包含表题（`tableCaption` / `tableCaptionEn`），仅编辑表格网格及表注/表脚注；
+ * - 禁用 `LandscapeTablePreview` 与 `TableExit`，按 1:1 真实 252mm（952px）宽度编辑，支持原生拖拽列宽。
+ */
+export function createLandscapeTableModalExtensions(): Extensions {
+  const modalStdTable = StdTable.extend({
+    content: 'table tableFootnote? tableNoteRow? tableFootnoteRow?',
+  })
+
+  return createEditorExtensions({ landscapeTablePreview: false }).flatMap((extension) => {
+    if (extension.name === 'starterKit') {
+      return [
+        StarterKit.extend({
+          addExtensions() {
+            return this.parent!().map((child) => {
+              if (child.name === 'document') {
+                return child.extend({ content: 'stdTable' })
+              }
+              if (child.name === 'code') {
+                return child.extend({
+                  excludes: 'code italic underline subscript superscript strike variable externalLink crossRef bibRef termRef stdRef mixedCitation textStyle link',
+                })
+              }
+              return child
+            })
+          },
+        }).configure({ heading: false, blockquote: false, codeBlock: false, horizontalRule: false, gapcursor: false }),
+      ]
+    }
+    if (extension.name === 'stdTable') return [modalStdTable]
+    if (extension.name === 'tableExit' || extension.name === 'slashCommand') return []
+    return [extension]
+  })
+}
+

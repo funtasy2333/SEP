@@ -3,9 +3,20 @@
     <button class="tbar-btn" @pointerdown="emit('open')" @keydown="emit('open')" @mousedown.prevent>表格 <el-icon><ArrowDown /></el-icon></button>
     <template #dropdown>
       <el-dropdown-menu>
-        <el-dropdown-item command="insert">插入表格 (3×3)</el-dropdown-item>
-        <el-dropdown-item command="paragraphAfter" :disabled="!inTable">表格后插入段落（Ctrl/Cmd+Enter）</el-dropdown-item>
-        <el-dropdown-item v-for="group in groups" :key="group.id" :command="group.id" :disabled="!inTable" :divided="group.id === 'rows'">
+        <el-dropdown-item v-if="!modalMode" command="insert">插入表格 (3×3)</el-dropdown-item>
+        <el-dropdown-item v-if="!modalMode" command="paragraphAfter" :disabled="!inTable">表格后插入段落（Ctrl/Cmd+Enter）</el-dropdown-item>
+        <el-dropdown-item
+          v-if="!modalMode && showExpandLandscape"
+          command="expandLandscape"
+          data-testid="table-menu-expand-landscape"
+        >展开横页编辑</el-dropdown-item>
+        <el-dropdown-item
+          v-for="group in groups"
+          :key="group.id"
+          :command="group.id"
+          :disabled="!inTable"
+          :divided="!modalMode && group.id === 'rows'"
+        >
           <el-dropdown trigger="hover" placement="right-start" @command="selectCommand">
             <span class="table-submenu-trigger" tabindex="0" @mousedown.prevent>{{ group.label }} <el-icon><ArrowRight /></el-icon></span>
             <template #dropdown>
@@ -15,7 +26,7 @@
             </template>
           </el-dropdown>
         </el-dropdown-item>
-        <el-dropdown-item divided command="deleteTable" :disabled="!inTable">删除表格</el-dropdown-item>
+        <el-dropdown-item v-if="!modalMode" divided command="deleteTable" :disabled="!inTable">删除表格</el-dropdown-item>
       </el-dropdown-menu>
     </template>
   </el-dropdown>
@@ -26,7 +37,16 @@ import { ref } from 'vue'
 import { ArrowDown, ArrowRight } from '@element-plus/icons-vue'
 import type { DropdownInstance } from 'element-plus'
 
-defineProps<{ inTable: boolean; inCell: boolean }>()
+withDefaults(defineProps<{
+  inTable: boolean
+  inCell: boolean
+  showExpandLandscape?: boolean
+  modalMode?: boolean
+}>(), {
+  showExpandLandscape: false,
+  modalMode: false,
+})
+
 const emit = defineEmits<{ command: [command: string]; open: [] }>()
 const menu = ref<DropdownInstance>()
 const groups = [
@@ -60,3 +80,4 @@ function selectCommand(command: string) {
   outline: none;
 }
 </style>
+

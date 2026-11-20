@@ -212,6 +212,7 @@
           <TableMenu
             :in-table="editor?.isActive('stdTable') || editor?.isActive('table') || false"
             :in-cell="editor?.isActive('tableCell') || editor?.isActive('tableHeader') || false"
+            :show-expand-landscape="activeLandscapeStdTable() !== null"
             @open="rememberTableSelection"
             @command="handleTableCommand"
           />
@@ -303,6 +304,14 @@
                 data-testid="orientation-locked-hint"
                 :title="orientationLockedHint()"
               >随附录</span>
+              <button
+                v-if="activeOrientationNodeType() === 'stdTable' && isActivePageOrientation('landscape')"
+                type="button"
+                class="tbar-btn tbar-expand-btn"
+                data-testid="context-expand-landscape-btn"
+                title="在 252mm 横向宽幅弹窗中编辑此表格"
+                @click="openActiveLandscapeTable()"
+              >展开编辑</button>
             </div>
             <div
               v-if="activeAppendixPos() !== undefined"
@@ -619,6 +628,15 @@
       :display-mode="mathDialogDisplayMode"
       @confirm="handleMathConfirm"
     />
+
+    <LandscapeTableDialog
+      ref="landscapeDialogRef"
+      v-model="showLandscapeDialog"
+      :table-json="landscapeDialogTableJson"
+      :table-label="landscapeDialogTableLabel"
+      @apply="handleLandscapeDialogApply"
+      @request-table-footnote="openTableFootnoteDialog"
+    />
   </div>
 </template>
 
@@ -668,6 +686,7 @@ import DocumentSettingsPanel from '@/components/editor/DocumentSettingsPanel.vue
 import SlashMenu from '@/components/editor/SlashMenu.vue'
 import MathInputDialog from '@/components/editor/MathInputDialog.vue'
 import WhereConversionDialog from '@/components/editor/WhereConversionDialog.vue'
+import LandscapeTableDialog from '@/components/editor/LandscapeTableDialog.vue'
 import { convertLegacyWhereDescription, type WhereConversionRow } from '@/utils/whereListConversion'
 import VersionPanel from '@/components/version/VersionPanel.vue'
 import ValidationPanel from '@/components/editor/ValidationPanel.vue'
@@ -676,6 +695,15 @@ import { useEditor } from '@tiptap/vue-3'
 import { installRemoteDocument, replaceEditorDocument } from '@/utils/editorDocument'
 import { createEditorExtensions } from '@/extensions/editorExtensions'
 import { normalizePageOrientation } from '@/utils/orientation'
+import {
+  EXPAND_LANDSCAPE_TABLE_EVENT,
+  buildMergedStdTableNode,
+  findActiveStdTableLocation,
+  findStdTableByTarget,
+  isEffectiveLandscapeStdTable,
+  type ExpandLandscapeTableDetail,
+} from '@/utils/landscapeTable'
+import { resolveEditorLabels } from '@/utils/semanticLabels'
 import { SearchHighlight, clearSearch, getSearchState, scrollToCurrentSearchMatch, stepSearch } from '@/extensions/plugins/searchHighlight'
 import { createDocumentValidationExtension } from '@/extensions/plugins/documentValidation'
 import { useDocumentValidation } from '@/composables/useDocumentValidation'
@@ -920,7 +948,7 @@ const editor = useEditor({
     handleKeyDown(_view, event) {
       if ((event.ctrlKey || event.metaKey) && event.key === 's') {
         event.preventDefault()
-        handleSave()
+        if (!showLandscapeDialog.value) handleSave()
         return true
       }
       return false
@@ -1204,6 +1232,7 @@ onMounted(async () => {
   window.addEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
   window.addEventListener(INLINE_FORMULA_EVENT, handleInlineFormulaEvent)
   window.addEventListener('ses:edit-footnote', handleFootnoteEditEvent)
+  window.addEventListener(EXPAND_LANDSCAPE_TABLE_EVENT, handleExpandLandscapeTableEvent)
   window.addEventListener('ses:paste-reference-error', handleAmbiguousPasteReference)
   window.addEventListener('ses:reference-missing', handleMissingReference)
   window.addEventListener('beforeunload', guardUnsavedSettings)
@@ -1267,6 +1296,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
   window.removeEventListener(INLINE_FORMULA_EVENT, handleInlineFormulaEvent)
   window.removeEventListener('ses:edit-footnote', handleFootnoteEditEvent)
+  window.removeEventListener(EXPAND_LANDSCAPE_TABLE_EVENT, handleExpandLandscapeTableEvent)
   window.removeEventListener('ses:paste-reference-error', handleAmbiguousPasteReference)
   window.removeEventListener('ses:reference-missing', handleMissingReference)
   window.removeEventListener('beforeunload', guardUnsavedSettings)
@@ -1859,6 +1889,101 @@ let tableSelection: { doc: PMNode; bookmark: SelectionBookmark } | null = null
 function rememberTableSelection() {
   if (editor.value) tableSelection = { doc: editor.value.state.doc, bookmark: editor.value.state.selection.getBookmark() }
 }
+
+// === 横页表格展开编辑弹窗 ===
+const showLandscapeDialog = ref(false)
+const landscapeDialogTableJson = ref<PMJsonNode | null>(null)
+const landscapeDialogTableLabel = ref('')
+const landscapeDialogTarget = ref<{ nodeId?: string; pos: number } | null>(null)
+const landscapeDialogRef = ref<{ getEditor: () => import('@tiptap/core').Editor | undefined } | null>(null)
+
+function activeEditor() {
+  if (showLandscapeDialog.value) {
+    return landscapeDialogRef.value?.getEditor() ?? editor.value
+  }
+  return editor.value
+}
+
+function activeLandscapeStdTable(): { node: PMNode; pos: number } | null {
+  const ed = editor.value
+  if (!ed) return null
+  const loc = findActiveStdTableLocation(ed.state)
+  if (!loc) return null
+  return isEffectiveLandscapeStdTable(ed.state.doc, loc.pos) ? loc : null
+}
+
+function openLandscapeTableDialogAt(target: { nodeId?: string; pos?: number }): void {
+  const ed = editor.value
+  if (!ed || documentUnavailable.value) return
+  const found = findStdTableByTarget(ed.state.doc, target)
+  if (!found || !isEffectiveLandscapeStdTable(ed.state.doc, found.pos)) return
+  const nodeId = typeof found.node.attrs.nodeId === 'string' && found.node.attrs.nodeId
+    ? found.node.attrs.nodeId
+    : undefined
+  let label = ''
+  try {
+    if (nodeId) {
+      const labels = resolveEditorLabels(ed.state.doc)
+      label = labels[nodeId]?.label ?? ''
+    }
+  } catch {
+    label = ''
+  }
+  landscapeDialogTarget.value = { ...(nodeId ? { nodeId } : {}), pos: found.pos }
+  landscapeDialogTableLabel.value = label
+  landscapeDialogTableJson.value = found.node.toJSON() as PMJsonNode
+  showLandscapeDialog.value = true
+}
+
+function openActiveLandscapeTable(): void {
+  const active = activeLandscapeStdTable()
+  if (!active) {
+    ElMessage.warning('请将光标置于横向表格内')
+    return
+  }
+  const nodeId = typeof active.node.attrs.nodeId === 'string' && active.node.attrs.nodeId
+    ? active.node.attrs.nodeId
+    : undefined
+  openLandscapeTableDialogAt({ pos: active.pos, ...(nodeId ? { nodeId } : {}) })
+}
+
+function handleExpandLandscapeTableEvent(event: Event): void {
+  const detail = (event as CustomEvent<ExpandLandscapeTableDetail>).detail
+  if (!detail) return
+  openLandscapeTableDialogAt(detail)
+}
+
+watch(showLandscapeDialog, (open) => {
+  if (!open) {
+    landscapeDialogTarget.value = null
+    landscapeDialogTableJson.value = null
+    landscapeDialogTableLabel.value = ''
+  }
+})
+
+function handleLandscapeDialogApply(modalDocJson: PMJsonNode): void {
+  const ed = editor.value
+  const target = landscapeDialogTarget.value
+  if (!ed || !ed.isEditable || !target) return
+  const found = findStdTableByTarget(ed.state.doc, target)
+  if (!found) {
+    ElMessage.warning('主文档中已找不到原表格，未能应用修改')
+    return
+  }
+  try {
+    const mergedNode = buildMergedStdTableNode(found.node, modalDocJson)
+    const tr = ed.state.tr.replaceWith(found.pos, found.pos + found.node.nodeSize, mergedNode)
+    const afterTablePos = found.pos + 1
+    if (afterTablePos <= tr.doc.content.size) {
+      tr.setSelection(TextSelection.near(tr.doc.resolve(afterTablePos)))
+    }
+    ed.view.dispatch(tr.scrollIntoView())
+    ed.view.focus()
+  } catch (error) {
+    ElMessage.error(`应用横页表格修改失败：${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
 function handleTableCommand(command: string) {
   if (!editor.value) return
   // Dropdown focus can turn a rectangular CellSelection into its native text range.
@@ -1890,6 +2015,9 @@ function handleTableCommand(command: string) {
     }
     case 'paragraphAfter':
       warnStructureFailure(insertParagraphAfterTable(editor.value), 'table')
+      break
+    case 'expandLandscape':
+      openActiveLandscapeTable()
       break
     case 'addRowBefore':
       chain.addRowBefore().run()
@@ -1987,9 +2115,9 @@ function inlineContentFromText(text: string): PMJsonNode[] {
   return content
 }
 
-function currentTableLocation(): { node: import('@tiptap/pm/model').Node; pos: number } | null {
-  if (!editor.value) return null
-  const { $from } = editor.value.state.selection
+function currentTableLocation(targetEditor = activeEditor()): { node: import('@tiptap/pm/model').Node; pos: number } | null {
+  if (!targetEditor) return null
+  const { $from } = targetEditor.state.selection
   for (let depth = $from.depth; depth > 0; depth -= 1) {
     const node = $from.node(depth)
     if (node.type.name === 'stdTable') return { node, pos: $from.before(depth) }
@@ -1997,9 +2125,9 @@ function currentTableLocation(): { node: import('@tiptap/pm/model').Node; pos: n
   return null
 }
 
-function selectionIsInTableCell(): boolean {
-  if (!editor.value) return false
-  const { $from, $to } = editor.value.state.selection
+function selectionIsInTableCell(targetEditor = activeEditor()): boolean {
+  if (!targetEditor) return false
+  const { $from, $to } = targetEditor.state.selection
   if ($from.parent !== $to.parent) return false
   let foundCell = false
   for (let depth = $from.depth; depth > 0; depth -= 1) {
@@ -2010,10 +2138,32 @@ function selectionIsInTableCell(): boolean {
   return false
 }
 
-function collectTableFootnotes(): Array<{ id: string; label: string; text: string }> {
-  const table = currentTableLocation()
-  if (!table || !editor.value) return []
-  const { doc: irDoc } = pmToIr(editor.value.getJSON() as PMJsonNode)
+function collectTableFootnotes(targetEditor = activeEditor()): Array<{ id: string; label: string; text: string }> {
+  const table = currentTableLocation(targetEditor)
+  if (!table || !targetEditor) return []
+  const json = targetEditor.getJSON() as PMJsonNode
+  // 弹窗子编辑器只含单个 stdTable（无表题），需包装进临时 chapter/tableCaption 以复用 pmToIr + resolve 推导表脚注顺序编号
+  const resolvableDoc: PMJsonNode = json.content?.some(child => child.type === 'stdTable')
+    ? {
+        type: 'doc',
+        content: [{
+          type: 'chapter',
+          attrs: { nodeId: '_modal_ch' },
+          content: [
+            { type: 'chapterTitle' },
+            {
+              type: 'stdTable',
+              attrs: table.node.attrs,
+              content: [
+                { type: 'tableCaption' },
+                ...((table.node.toJSON() as PMJsonNode).content ?? []).filter(c => c.type !== 'tableCaption' && c.type !== 'tableCaptionEn'),
+              ],
+            },
+          ],
+        }],
+      }
+    : json
+  const { doc: irDoc } = pmToIr(resolvableDoc)
   const labels = resolve(irDoc).labels
   const result: Array<{ id: string; label: string; text: string }> = []
   getTableFootnoteEntries(table.node).forEach((node) => {
@@ -2058,11 +2208,12 @@ function openBodyFootnoteDialog() {
 
 function openTableFootnoteDialog(mode: 'table-new' | 'table-reference') {
   if (documentUnavailable.value) return
-  if (!editor.value || !selectionIsInTableCell()) {
+  const targetEditor = activeEditor()
+  if (!targetEditor || !selectionIsInTableCell(targetEditor)) {
     ElMessage.warning('请将光标置于标准表格的单元格内')
     return
   }
-  const options = collectTableFootnotes()
+  const options = collectTableFootnotes(targetEditor)
   if (mode === 'table-reference' && options.length === 0) {
     ElMessage.info('当前表格还没有可引用的表脚注')
     return
@@ -2078,9 +2229,10 @@ function openTableFootnoteDialog(mode: 'table-new' | 'table-reference') {
 
 function openFootnoteById(nodeId: string, table: boolean) {
   if (documentUnavailable.value) return
-  if (!editor.value) return
+  const targetEditor = table ? activeEditor() : editor.value
+  if (!targetEditor) return
   const found: { target: import('@tiptap/pm/model').Node | null } = { target: null }
-  editor.value.state.doc.descendants((node) => {
+  targetEditor.state.doc.descendants((node) => {
     if (table) {
       if (node.type.name === 'tableFootnoteEntry' && node.attrs.nodeId === nodeId) found.target = node
     } else if (node.type.name === 'footnoteRef' && node.attrs.nodeId === nodeId) found.target = node
@@ -2116,8 +2268,8 @@ function clearFootnoteDialog() {
 
 function saveFootnoteDialog() {
   if (documentUnavailable.value) return
-  const currentEditor = editor.value
   const mode = footnoteDialogMode.value
+  const currentEditor = mode && mode.startsWith('table-') ? activeEditor() : editor.value
   if (!currentEditor || !mode) return
 
   if (mode === 'table-reference') {
@@ -2145,7 +2297,7 @@ function saveFootnoteDialog() {
   } else if (mode === 'table-new') {
     saved = currentEditor.commands.insertTableFootnote({ content })
   } else if (mode === 'table-edit') {
-    saved = replaceTableFootnoteContent(footnoteNodeId.value, content)
+    saved = replaceTableFootnoteContent(footnoteNodeId.value, content, currentEditor)
   }
   if (!saved) {
     ElMessage.warning(mode.startsWith('table-')
@@ -2157,8 +2309,7 @@ function saveFootnoteDialog() {
   showFootnoteDialog.value = false
 }
 
-function replaceTableFootnoteContent(nodeId: string, content: PMJsonNode[]): boolean {
-  const currentEditor = editor.value
+function replaceTableFootnoteContent(nodeId: string, content: PMJsonNode[], currentEditor = activeEditor()): boolean {
   if (!currentEditor) return false
   const found: { target: { node: import('@tiptap/pm/model').Node; pos: number } | null } = { target: null }
   currentEditor.state.doc.descendants((node, pos) => {
@@ -2186,7 +2337,7 @@ async function deleteBodyFootnote() {
 
 async function deleteTableFootnoteDefinition() {
   if (documentUnavailable.value) return
-  const currentEditor = editor.value
+  const currentEditor = activeEditor()
   if (!currentEditor || !footnoteNodeId.value) return
   const deleted = currentEditor.commands.deleteTableFootnoteEntry({ nodeId: footnoteNodeId.value })
   if (!deleted) {
@@ -2271,14 +2422,18 @@ const mathDialogTitle = computed(() => {
   const request = mathDialogRequest.value
   if (request?.mode === 'block-insert') return '插入公式'
   if (request?.mode === 'block-edit') return '编辑公式'
-  const inWhereTerm = request?.mode === 'where' || editor.value?.state.doc.resolve(Math.min(request?.pos ?? 0, editor.value.state.doc.content.size)).parent.type.name === 'whereTerm'
+  const ed = request?.mode === 'where' ? editor.value : activeEditor()
+  const inWhereTerm = request?.mode === 'where' || ed?.state.doc.resolve(Math.min(request?.pos ?? 0, ed.state.doc.content.size)).parent.type.name === 'whereTerm'
   const noun = inWhereTerm ? '式中符号' : '符号'
   return request?.mode === 'edit' ? `编辑${noun}` : request?.mode === 'replace' ? `转为${noun}` : `插入${noun}`
 })
 
 function openMathDialog(request: InlineFormulaRequest | BlockFormulaRequest) {
+  const targetEditor = (request.mode === 'block-insert' || request.mode === 'block-edit' || request.mode === 'where')
+    ? editor.value
+    : activeEditor()
   mathDialogRequest.value = request
-  mathDialogDoc = editor.value?.state.doc ?? null
+  mathDialogDoc = targetEditor?.state.doc ?? null
   mathDialogLatex.value = request.latex
   showMathDialog.value = true
 }
@@ -2357,8 +2512,10 @@ function applyWhereConversion() {
 }
 
 function handleMathConfirm(latex: string) {
-  const ed = editor.value
   const request = mathDialogRequest.value
+  const ed = (request?.mode === 'block-insert' || request?.mode === 'block-edit' || request?.mode === 'where')
+    ? editor.value
+    : activeEditor()
   const openedDoc = mathDialogDoc
   if (!ed?.isEditable || !request) return
   // 弹窗期间可能载入了外部修订（整篇替换文档）：插入与替换只认原来那一处，位置之前有增删时拒绝。
@@ -3306,6 +3463,16 @@ function handleXmlFileImport(event: Event) {
   font-weight: 500;
   white-space: nowrap;
   user-select: none;
+}
+.tbar-expand-btn {
+  margin-left: 4px;
+  background: var(--ses-accent-soft) !important;
+  color: var(--ses-accent) !important;
+  font-weight: 600 !important;
+}
+.tbar-expand-btn:hover {
+  background: var(--ses-accent) !important;
+  color: #fff !important;
 }
 
 .format-group strong, .format-group em, .format-group u, .format-group s {

@@ -6,7 +6,7 @@ const { chromium } = require('playwright-chromium')
 const browser = await chromium.launch({ headless: true })
 try {
   const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } })
-  await page.goto(process.env.SES_TEST_URL || 'http://127.0.0.1:5175/browser-tests/')
+  await page.goto(process.env.SES_TEST_URL || 'http://localhost:5173/browser-tests/')
   await page.waitForSelector('.std-table-wrapper table')
   const measure = () => page.evaluate(() => {
     const editorContent = document.querySelector('.editor-content')
@@ -16,8 +16,10 @@ try {
     return {
       wrapper: wrapper.getBoundingClientRect().width,
       table: table.getBoundingClientRect().width,
+      tableRectHeight: table.getBoundingClientRect().height,
       tableWrapperClient: tableWrapper.clientWidth,
       tableWrapperScroll: tableWrapper.scrollWidth,
+      tableWrapperOverflowY: getComputedStyle(tableWrapper).overflowY,
       tableWrapperHeightClient: tableWrapper.clientHeight,
       tableWrapperHeightScroll: tableWrapper.scrollHeight,
       editorClient: editorContent.clientWidth,
@@ -90,16 +92,20 @@ try {
       ] },
     ] }] })
   })
-  await page.waitForSelector('.std-table-wrapper[data-orientation="landscape"]')
+  await page.waitForSelector('.std-table-wrapper[data-orientation="landscape"] > .tableWrapper[data-landscape-scale]')
   const landscapeTable = await measure()
-  assert.ok(landscapeTable.table >= 950, `landscape table should expand to ~952px, got ${landscapeTable.table}`)
-  assert.ok(landscapeTable.tableWrapperScroll > landscapeTable.tableWrapperClient, 'landscape table should scroll inside .tableWrapper')
-  assert.ok(landscapeTable.tableWrapperHeightScroll <= landscapeTable.tableWrapperHeightClient + 1, 'landscape .tableWrapper should not trigger a vertical scrollbar')
+  assert.ok(landscapeTable.tableOffsetWidth >= 950, `unscaled landscape table should expand to ~952px, got ${landscapeTable.tableOffsetWidth}`)
+  assert.ok(landscapeTable.table <= landscapeTable.tableWrapperClient + 1, `scaled landscape table should fit within .tableWrapper (${landscapeTable.table} <= ${landscapeTable.tableWrapperClient})`)
+  assert.equal(landscapeTable.tableWrapperOverflowX, 'hidden', 'landscape .tableWrapper should hide horizontal overflow')
+  assert.equal(landscapeTable.tableWrapperOverflowY, 'hidden', 'landscape .tableWrapper should hide vertical overflow')
+  assert.ok(Number(landscapeTable.landscapeScale) > 0 && Number(landscapeTable.landscapeScale) < 1, `landscape scale should be between 0 and 1, got ${landscapeTable.landscapeScale}`)
+  assert.equal(landscapeTable.expandButtonCount, 1, 'landscape table should render one expand-to-edit button')
+  assert.ok(landscapeTable.tableRectHeight <= landscapeTable.tableWrapperHeightClient + 1, 'landscape .tableWrapper should wrap scaled table height tightly')
   assert.ok(landscapeTable.editorScroll <= landscapeTable.editorClient + 1, 'landscape table must not widen paper')
   const badge = await page.evaluate(() => getComputedStyle(document.querySelector('.std-table-wrapper'), '::before').content)
   assert.ok(badge && badge !== 'none', 'landscape table should render ::before badge')
 
-  // Inside a landscape appendix, inner tables also expand & scroll, and hide duplicate child landscape badges.
+  // Inside a landscape appendix, inner tables also scale proportionally to fit body width without horizontal scroll, and hide duplicate child landscape badges.
   await page.evaluate(() => {
     const cell = text => ({ type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] })
     window.editor.commands.setContent({ type: 'doc', content: [{ type: 'appendix', attrs: { orientation: 'landscape', normative: false }, content: [
@@ -111,11 +117,23 @@ try {
       ] },
     ] }] })
   })
-  await page.waitForSelector('.std-appendix[data-orientation="landscape"] .std-table-wrapper')
+  await page.waitForSelector('.std-appendix[data-orientation="landscape"] .std-table-wrapper > .tableWrapper[data-landscape-scale]')
   const appTable = await measure()
-  assert.ok(appTable.table >= 950, `table inside landscape appendix should expand to ~952px, got ${appTable.table}`)
-  assert.ok(appTable.tableWrapperScroll > appTable.tableWrapperClient, 'table inside landscape appendix should scroll inside .tableWrapper')
+  assert.ok(appTable.tableOffsetWidth >= 950, `table inside landscape appendix should expand to ~952px, got ${appTable.tableOffsetWidth}`)
+  assert.ok(appTable.table <= appTable.tableWrapperClient + 1, `scaled table inside landscape appendix should fit within .tableWrapper (${appTable.table} <= ${appTable.tableWrapperClient})`)
+  assert.equal(appTable.tableWrapperOverflowX, 'hidden', 'table inside landscape appendix should hide horizontal overflow')
+  assert.equal(appTable.tableWrapperOverflowY, 'hidden', 'table inside landscape appendix should hide vertical overflow')
+  assert.ok(appTable.tableRectHeight <= appTable.tableWrapperHeightClient + 1, 'appendix landscape .tableWrapper should wrap scaled table height tightly')
+  assert.ok(Number(appTable.landscapeScale) > 0 && Number(appTable.landscapeScale) < 1, `appendix landscape scale should be between 0 and 1, got ${appTable.landscapeScale}`)
+  assert.equal(appTable.expandButtonCount, 1, 'table inside landscape appendix should render expand-to-edit button')
   const childBadgeDisplay = await page.evaluate(() => getComputedStyle(document.querySelector('.std-table-wrapper'), '::before').display)
   assert.equal(childBadgeDisplay, 'none', 'duplicate child badge should be hidden inside landscape appendix')
-  console.log('landscape table and appendix checks passed', landscapeTable.table, appTable.table)
+  console.log('landscape table and appendix checks passed', {
+    tableOffsetWidth: landscapeTable.tableOffsetWidth,
+    scaledWidth: landscapeTable.table,
+    scale: landscapeTable.landscapeScale,
+    appTableOffsetWidth: appTable.tableOffsetWidth,
+    appScaledWidth: appTable.table,
+    appScale: appTable.landscapeScale,
+  })
 } finally { await browser.close() }
