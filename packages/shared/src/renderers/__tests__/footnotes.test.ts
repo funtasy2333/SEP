@@ -54,12 +54,13 @@ describe('HTML/Vivliostyle 脚注', () => {
     expect(html).toContain('.ses-table-footnote-marker { display: inline-block; width: calc(1em - 1pt);')
   })
 
-  it.each(['screen', 'print'] as const)('%s 表格外框、表头和注区为 1pt，普通内框为 0.5pt', (variant) => {
+  it.each(['screen', 'print'] as const)('%s 表格外框、表头外框和注区加粗，内部保留细线', (variant) => {
     const { html } = render(footnoteFixture(), variant)
-    expect(html).toContain('.ses-table-block table { border: 1pt solid #000; }')
-    expect(html).toContain('.ses-table-block th, .ses-table-block td { border: 0.5pt solid #000; }')
-    expect(html).toContain('.ses-table-block thead th, .ses-table-block thead td, .ses-table-block th { border: 1pt solid #000; }')
-    expect(html).toContain('.ses-table-block .ses-table-notes td, .ses-table-block .ses-table-footnotes td { border: 1pt solid #000; }')
+    const [frame, inner] = variant === 'screen' ? ['2px', '1px'] : ['1pt', '0.5pt']
+    expect(html).toContain(`.ses-table-block table, .ses-table-block thead { border: ${frame} solid #000; }`)
+    expect(html).toContain(`.ses-table-block th, .ses-table-block td { border: ${inner} solid #000; }`)
+    expect(html).not.toMatch(/\.ses-table-block thead (?:th|td)/)
+    expect(html).toContain(`.ses-table-block .ses-table-notes td, .ses-table-block .ses-table-footnotes td { border: ${frame} solid #000; }`)
   })
 
   it('跨表引用即使全局 labels 有目标也拒绝渲染', () => {

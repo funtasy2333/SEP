@@ -32,7 +32,7 @@ export interface TableGridRenderOptions {
    * 末个数据行不与表注/表脚注分离，其余行可在任意行边界跨页（表头行逐页重复）。
    */
   keepEdges?: boolean
-  /** 首行单元格显式写粗上边框（即使没有表头），使续表保留外框；表头格的各边始终为粗实线。 */
+  /** 无表头的续表也可在首行单元格上显式写粗上边框。 */
   strongTopBorder?: boolean
   /** 分段续表沿用原表的完整列数，避免不同片段列宽变化。 */
   columnCount?: number
@@ -102,11 +102,9 @@ function cellXml(
   else if (gridCell.kind === 'origin' && gridCell.origin!.rowspan > 1) tcPrChildren.push(['vMerge', '<w:vMerge w:val="restart"/>'])
 
   const strongBorders: Array<'top' | 'left' | 'bottom' | 'right'> = []
-  if (options.strongTopBorder && rowIndex === 0) strongBorders.push('top')
-  if (rowIndex < headerRowCount || gridCell.origin?.cell.header) {
-    strongBorders.push('top', 'left', 'bottom', 'right')
-  }
-  if (strongBorders.length > 0) tcPrChildren.push(['tcBorders', cellBorderXml([...new Set(strongBorders)], STRONG_BORDER)])
+  if (rowIndex === 0 && (headerRowCount > 0 || options.strongTopBorder)) strongBorders.push('top')
+  if (rowIndex === headerRowCount - 1) strongBorders.push('bottom')
+  if (strongBorders.length > 0) tcPrChildren.push(['tcBorders', cellBorderXml(strongBorders, STRONG_BORDER)])
 
   let contentXml: string
   if (gridCell.kind === 'continuation') {

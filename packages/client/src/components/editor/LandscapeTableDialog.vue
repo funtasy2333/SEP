@@ -615,7 +615,7 @@ defineExpose({
 
 .lt-editor-content :deep(.tiptap table) {
   border-collapse: collapse;
-  border: 1pt solid #000;
+  border: 2px solid #000;
   width: 100%;
   margin: 0;
 }
@@ -627,7 +627,7 @@ defineExpose({
 
 .lt-editor-content :deep(.tiptap table td),
 .lt-editor-content :deep(.tiptap table th) {
-  border: 0.5pt solid #000;
+  border: 1px solid #000;
   padding: 8px 4px;
   min-width: 0;
   overflow-wrap: anywhere;
@@ -643,7 +643,6 @@ defineExpose({
 }
 
 .lt-editor-content :deep(.tiptap table th) {
-  border: 1pt solid #000;
   background: var(--ses-surface-2);
   font-weight: 400;
   text-align: center;

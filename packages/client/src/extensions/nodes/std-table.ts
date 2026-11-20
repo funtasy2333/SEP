@@ -1,7 +1,8 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import { Fragment } from '@tiptap/pm/model'
 import type { DOMOutputSpec, Node as PMNode } from '@tiptap/pm/model'
-import { NodeSelection, TextSelection } from '@tiptap/pm/state'
+import { NodeSelection, Plugin, TextSelection } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { columnWidthProblem, generateNodeId, graphicAttributeProblem, type PMJsonNode } from '@ses/shared'
 import { normalizePageOrientation, readPageOrientation } from '../../utils/orientation'
 import { jsonAttribute } from './json-attribute'
@@ -84,6 +85,30 @@ export function getTableFootnoteEntries(table: PMNode): PMNode[] {
   return entries
 }
 
+function tableHeaderBorders(doc: PMNode): DecorationSet {
+  const decorations: Decoration[] = []
+  doc.descendants((node, pos) => {
+    if (node.type.name !== 'stdTable') return
+    node.forEach((grid, offset) => {
+      if (grid.type.name !== 'table') return
+      let count = node.attrs.headerRowCount
+      if (!Number.isInteger(count) || count < 0 || count > grid.childCount) {
+        count = 0
+        for (const row of grid.children) {
+          if (row.childCount === 0 || row.children.some(cell => cell.type.name !== 'tableHeader')) break
+          count += 1
+        }
+      }
+      grid.forEach((row, rowOffset, index) => {
+        if (index !== count - 1) return
+        const from = pos + offset + rowOffset + 2
+        decorations.push(Decoration.node(from, from + row.nodeSize, { class: 'std-table-header-end' }))
+      })
+    })
+  })
+  return DecorationSet.create(doc, decorations)
+}
+
 /**
  * 标准表格节点
  * 包裹表格，添加中/英文表标题和表注
@@ -95,6 +120,17 @@ export const StdTable = Node.create({
   content: 'tableCaption tableCaptionEn? table tableFootnote? tableNoteRow? tableFootnoteRow?',
   defining: true,
   isolating: true,
+
+  addProseMirrorPlugins() {
+    const plugin: Plugin<DecorationSet> = new Plugin({
+      state: {
+        init: (_config, state) => tableHeaderBorders(state.doc),
+        apply: (tr, borders) => tr.docChanged ? tableHeaderBorders(tr.doc) : borders,
+      },
+      props: { decorations: state => plugin.getState(state) },
+    })
+    return [plugin]
+  },
 
   addAttributes() {
     return {

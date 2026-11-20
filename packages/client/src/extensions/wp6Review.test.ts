@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { getSchema } from '@tiptap/core'
+import { Editor, getSchema } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
 import { irToPm, pmToIr, resolve, type IRDoc, type IRFormula, type IRTable, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions } from './editorExtensions'
@@ -16,6 +16,23 @@ function reopen(authored: IRDoc): IRDoc {
   loaded.check()
   return pmToIr(loaded.toJSON() as PMJsonNode).doc
 }
+
+it.each([[null, [1]], [0, []], [3, [2]]] as const)('marks only the final editor header row for headerRowCount=%s', (headerRowCount, expected) => {
+  const editor = new Editor({ extensions: createEditorExtensions(), content: {
+    type: 'doc', content: [{ type: 'stdTable', attrs: { headerRowCount }, content: [
+      { type: 'tableCaption' },
+      { type: 'table', content: ['tableHeader', 'tableHeader', 'tableCell', 'tableHeader'].map(type => ({
+        type: 'tableRow', content: [{ type, content: [{ type: 'paragraph' }] }],
+      })) },
+    ] }],
+  } })
+  try {
+    const rows = [...editor.view.dom.querySelectorAll('.std-table-wrapper tr')]
+    expect(rows.flatMap((row, index) => row.classList.contains('std-table-header-end') ? [index] : [])).toEqual(expected)
+  } finally {
+    editor.destroy()
+  }
+})
 
 describe('Codex review: native IR through production schema', () => {
   it.each(['scope', 'norm-refs', 'terms', 'general'] as const)('preserves explicit chapter type %s with a noncanonical title', secType => {
