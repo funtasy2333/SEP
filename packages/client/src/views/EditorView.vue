@@ -645,6 +645,7 @@
 <script setup lang="ts">
 import { getDocxExportFeedback } from '@/utils/docxExportFeedback'
 import { exportErrorViewOf, exportErrorViewOfText, type ExportErrorView } from '@/utils/exportErrorView'
+import { formatXmlProblems } from '@/utils/xmlProblems'
 import { createDefaultDocumentContent, createDefaultForeword } from '@/utils/newDocument'
 import {
   COVER_SETTINGS_KEYS,
@@ -1125,16 +1126,6 @@ async function handleSettingsSave() {
     saving.value = false
     if (dirty.value) queueAutoSave()
   }
-}
-
-function formatXmlProblems(problems: readonly { message: string; nodeId?: string; path?: string }[]): string {
-  return problems.map((problem) => {
-    const location = [
-      problem.nodeId ? `节点 ${problem.nodeId}` : '',
-      problem.path ? `位置 ${problem.path}` : '',
-    ].filter(Boolean).join('，')
-    return `${problem.message}${location ? `【${location}】` : ''}`
-  }).join('；')
 }
 
 const xmlCodeView = ref<{

@@ -208,6 +208,7 @@ import { buildXml46687Package, checkExportGuard } from '@ses/io'
 import type { PMJsonNode } from '@ses/shared'
 import { diffDocuments, type DiffLine, type DiffResult } from '@/utils/docDiff'
 import { isRevisionConflict } from '@/utils/documentConflict'
+import { formatXmlProblems } from '@/utils/xmlProblems'
 import type { VersionData, VersionSource } from '@/api/version'
 
 const props = defineProps<{
@@ -459,13 +460,7 @@ async function handleCreateVersion() {
       })
       const errorProblems = xmlResult.problems.filter((problem) => problem.severity === 'error')
       if (!xmlResult.xml || errorProblems.length > 0) {
-        const detail = errorProblems.map((problem) => {
-          const location = [
-            problem.nodeId ? `节点 ${problem.nodeId}` : '',
-            problem.path ? `位置 ${problem.path}` : '',
-          ].filter(Boolean).join('，')
-          return `${problem.message}${location ? `【${location}】` : ''}`
-        }).join('；')
+        const detail = formatXmlProblems(errorProblems)
         throw new Error(detail || '无法生成 GB/T 46687.2 XML 快照')
       }
       const xml = xmlResult.xml

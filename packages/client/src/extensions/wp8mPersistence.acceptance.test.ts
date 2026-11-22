@@ -342,11 +342,11 @@ describe.runIf(Boolean(baseUrl && evidenceFile))('WP8.M M-Z-b real API/SQLite ac
       expect(duplicateIr.resources).toEqual(documentIr.resources)
       expect(versionIr).toEqual(documentIr)
       expect(initialIr).not.toEqual(documentIr)
-      // 输出边界（HTML / DOCX / XML / XML46687）与 prepare 时一致，且与设计 §3.4 + §7.1 的基线一致
+      // 输出边界（HTML / DOCX / XML / XML46687）与 prepare 时一致（commit 41b419bf 放行 6 处行内图后，HTML/DOCX 剩余 9 项阻断，与 wp8mIntegration.test.ts 一致）
       const boundary = boundarySignature(documentIr)
       expect(boundary).toEqual(evidence.boundary)
-      expect(boundary.HTML).toHaveLength(15)
-      expect(boundary.DOCX).toHaveLength(15)
+      expect(boundary.HTML).toHaveLength(9)
+      expect(boundary.DOCX).toHaveLength(9)
       expectXml46687DifferenceIsDeclared(documentIr, boundary)
       expect(boundarySignature(versionIr)).toEqual(boundary)
       // 编辑前版本的边界基线相同（编辑没有引入或消除任何阻断）
@@ -369,7 +369,7 @@ describe.runIf(Boolean(baseUrl && evidenceFile))('WP8.M M-Z-b real API/SQLite ac
           'document/duplicate/version/initialVersion content toEqual evidence (field by field)',
           'meta/title/stage/revision equal', 'sha256 equal to prepare', 'Schema check + pmToIr warnings=[] + Resolver no error for all four',
           'initial version IR deep-equals native IR (shared wp8mFixtures)', 'edits present in document/duplicate/version, absent in initial',
-          'duplicate body/appendices/bibliography/resources == document', 'output boundary identical to prepare (HTML 15, DOCX 15, XML minus XML46687 = declared differences, computed)',
+          'duplicate body/appendices/bibliography/resources == document', 'output boundary identical to prepare (HTML 9, DOCX 9, XML minus XML46687 = declared differences, computed)',
           'Editor + replaceEditorDocument + exportSemanticJson identical to prepare-time load',
         ],
       }, null, 2))
@@ -414,10 +414,10 @@ describe.runIf(Boolean(baseUrl && evidenceFile))('WP8.M M-Z-b real API/SQLite ac
     expect(duplicateIr.bibliography).toEqual(documentIr.bibliography)
     expect(duplicateIr.bibliographyTitle).toEqual(documentIr.bibliographyTitle)
     expect(duplicateIr.resources).toEqual(documentIr.resources)
-    // 6. 输出边界基线
+    // 6. 输出边界基线（与 wp8mIntegration.test.ts 一致：G3 5 项 + G8 4 项 = 9 项）
     const boundary = boundarySignature(documentIr)
-    expect(boundary.HTML).toHaveLength(15)
-    expect(boundary.DOCX).toHaveLength(15)
+    expect(boundary.HTML).toHaveLength(9)
+    expect(boundary.DOCX).toHaveLength(9)
     expectXml46687DifferenceIsDeclared(documentIr, boundary)
     expect(boundarySignature(duplicateIr).HTML).toEqual(boundary.HTML)
     expect(boundarySignature(duplicateIr).DOCX).toEqual(boundary.DOCX)
