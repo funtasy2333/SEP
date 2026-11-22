@@ -319,3 +319,96 @@ export async function waitForChildServerReady(child, options = {}) {
     child.off('error', onErrorCapture)
   }
 }
+
+/**
+ * 安全停止子进程：
+ * - 若子进程为空、已按退出码或信号退出、或尚未分配 pid，立即返回；
+ * - 发送 SIGTERM 并在 sigkillAfterMs 后自动升级为 SIGKILL（每次 kill 前复查状态并捕获并发退出错误）；
+ * - 同时监听 exit / error 事件并设置 hardTimeoutMs 有界兜底超时，杜绝 finally 阶段永久挂起；
+ * - 在 finally 中彻底清理监听器与定时器。
+ */
+export async function stopChildProcess(child, options = {}) {
+  if (!child || child.exitCode !== null || child.signalCode !== null || child.pid === undefined) {
+    return
+  }
+
+  const {
+    sigkillAfterMs = 5000,
+    hardTimeoutMs = Math.max(10000, sigkillAfterMs + 5000),
+  } = options ?? {}
+
+  const effectiveSigkillAfterMs =
+    Number.isFinite(sigkillAfterMs) && sigkillAfterMs >= 0 ? sigkillAfterMs : 5000
+  const effectiveHardTimeoutMs =
+    Number.isFinite(hardTimeoutMs) && hardTimeoutMs > 0
+      ? hardTimeoutMs
+      : Math.max(10000, effectiveSigkillAfterMs + 5000)
+
+  const isTerminated = () => child.exitCode !== null || child.signalCode !== null
+
+  let sigkillTimer = null
+  let hardTimer = null
+  let onDone = null
+
+  try {
+    await new Promise((resolve) => {
+      let settled = false
+      onDone = () => {
+        if (settled) return
+        settled = true
+        resolve()
+      }
+
+      child.once('exit', onDone)
+      child.once('error', onDone)
+
+      if (isTerminated()) {
+        onDone()
+        return
+      }
+
+      try {
+        if (!isTerminated()) {
+          child.kill('SIGTERM')
+        }
+      } catch {
+        if (isTerminated()) {
+          onDone()
+          return
+        }
+      }
+
+      if (isTerminated()) {
+        onDone()
+        return
+      }
+
+      sigkillTimer = setTimeout(() => {
+        if (isTerminated()) {
+          onDone()
+          return
+        }
+        try {
+          if (!isTerminated()) {
+            child.kill('SIGKILL')
+          }
+        } catch {
+          if (isTerminated()) {
+            onDone()
+          }
+        }
+      }, effectiveSigkillAfterMs)
+
+      hardTimer = setTimeout(() => {
+        onDone()
+      }, effectiveHardTimeoutMs)
+    })
+  } finally {
+    if (sigkillTimer !== null) clearTimeout(sigkillTimer)
+    if (hardTimer !== null) clearTimeout(hardTimer)
+    if (onDone) {
+      child.off('exit', onDone)
+      child.off('error', onDone)
+    }
+  }
+}

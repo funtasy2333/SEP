@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   assertPortAvailable,
   formatExpectedReadyLine,
+  stopChildProcess,
   waitForChildServerReady,
 } from './wp85ListenerGuard.mjs'
 
@@ -56,19 +57,44 @@ async function allocateFreePort(): Promise<number> {
   return port
 }
 
-async function stopChild(child: ChildProcess): Promise<void> {
-  if (child.exitCode !== null || child.signalCode !== null) return
-  const exited = new Promise<void>((resolve) => {
-    child.once('exit', () => resolve())
-  })
-  child.kill('SIGTERM')
-  const timer = setTimeout(() => {
-    if (child.exitCode === null && child.signalCode === null) {
-      child.kill('SIGKILL')
+async function waitForStdoutMarker(
+  child: ChildProcess,
+  marker: string,
+  timeoutMs = 5000,
+): Promise<void> {
+  if (!child.stdout) throw new Error('子进程缺少 stdout 流')
+  await new Promise<void>((resolve, reject) => {
+    let buffer = ''
+    const cleanup = () => {
+      clearTimeout(timer)
+      child.stdout?.off('data', onData)
+      child.off('exit', onExit)
+      child.off('error', onError)
     }
-  }, 3000)
-  await exited
-  clearTimeout(timer)
+    const onData = (chunk: Buffer) => {
+      buffer += chunk.toString('utf8')
+      if (buffer.includes(marker)) {
+        cleanup()
+        resolve()
+      }
+    }
+    const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+      cleanup()
+      reject(new Error(`子进程在输出 ${marker} 前退出（exitCode=${code}, signal=${signal}）`))
+    }
+    const onError = (err: Error) => {
+      cleanup()
+      reject(err)
+    }
+    const timer = setTimeout(() => {
+      cleanup()
+      reject(new Error(`等待子进程输出 ${marker} 超时（${timeoutMs}ms）`))
+    }, timeoutMs)
+
+    child.stdout?.on('data', onData)
+    child.once('exit', onExit)
+    child.once('error', onError)
+  })
 }
 
 describe('wp85ListenerGuard', () => {
@@ -79,7 +105,7 @@ describe('wp85ListenerGuard', () => {
   afterEach(async () => {
     while (trackedChildren.length > 0) {
       const child = trackedChildren.pop()
-      if (child) await stopChild(child)
+      if (child) await stopChildProcess(child, { sigkillAfterMs: 3000 })
     }
     while (trackedServers.length > 0) {
       const server = trackedServers.pop()
@@ -218,5 +244,108 @@ describe('wp85ListenerGuard', () => {
       dbPath,
     })
     expect(child.exitCode).toBeNull()
+  })
+
+  it('stopChildProcess 场景 A：子进程已先被 SIGKILL 终止时立即完成且不挂起', async () => {
+    const child = spawn(
+      process.execPath,
+      ['-e', 'console.log("READY"); setInterval(() => {}, 1000);'],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    )
+    trackedChildren.push(child)
+    await waitForStdoutMarker(child, 'READY')
+
+    const killedExit = new Promise<void>((resolve) => {
+      child.once('exit', () => resolve())
+    })
+    child.kill('SIGKILL')
+    await killedExit
+
+    expect(child.exitCode).toBeNull()
+    expect(child.signalCode).toBe('SIGKILL')
+
+    const startedAt = Date.now()
+    await stopChildProcess(child, { sigkillAfterMs: 5000, hardTimeoutMs: 10000 })
+    const elapsedMs = Date.now() - startedAt
+
+    expect(elapsedMs).toBeLessThan(500)
+    expect(child.listenerCount('exit')).toBe(0)
+    expect(child.listenerCount('error')).toBe(0)
+  })
+
+  it('stopChildProcess 场景 B：已正常退出（exitCode === 0）的子进程立即返回', async () => {
+    const child = spawn(process.execPath, ['-e', 'process.exit(0)'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    trackedChildren.push(child)
+
+    await new Promise<void>((resolve) => {
+      if (child.exitCode !== null || child.signalCode !== null) {
+        resolve()
+        return
+      }
+      child.once('exit', () => resolve())
+    })
+
+    expect(child.exitCode).toBe(0)
+    expect(child.signalCode).toBeNull()
+
+    const startedAt = Date.now()
+    await stopChildProcess(child)
+    const elapsedMs = Date.now() - startedAt
+
+    expect(elapsedMs).toBeLessThan(500)
+    expect(child.listenerCount('exit')).toBe(0)
+    expect(child.listenerCount('error')).toBe(0)
+  })
+
+  it('stopChildProcess 场景 C：运行中的普通子进程收到 SIGTERM 后干净退出', async () => {
+    const child = spawn(
+      process.execPath,
+      [
+        '-e',
+        'process.on("SIGTERM", () => { console.log("GOT_SIGTERM"); process.exit(0); }); console.log("READY"); setInterval(() => {}, 1000);',
+      ],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    )
+    trackedChildren.push(child)
+
+    let stdout = ''
+    child.stdout?.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString('utf8')
+    })
+    await waitForStdoutMarker(child, 'READY')
+
+    await stopChildProcess(child, { sigkillAfterMs: 3000, hardTimeoutMs: 6000 })
+
+    expect(stdout).toContain('GOT_SIGTERM')
+    expect(child.exitCode).toBe(0)
+    expect(child.signalCode).toBeNull()
+    expect(child.listenerCount('exit')).toBe(0)
+    expect(child.listenerCount('error')).toBe(0)
+  })
+
+  it('stopChildProcess 场景 D：忽略 SIGTERM 的子进程超时后自动升级 SIGKILL 退出', async () => {
+    const child = spawn(
+      process.execPath,
+      [
+        '-e',
+        'process.on("SIGTERM", () => {}); console.log("READY"); setInterval(() => {}, 1000);',
+      ],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    )
+    trackedChildren.push(child)
+    await waitForStdoutMarker(child, 'READY')
+
+    const startedAt = Date.now()
+    await stopChildProcess(child, { sigkillAfterMs: 150, hardTimeoutMs: 5000 })
+    const elapsedMs = Date.now() - startedAt
+
+    expect(child.exitCode).toBeNull()
+    expect(child.signalCode).toBe('SIGKILL')
+    expect(elapsedMs).toBeGreaterThanOrEqual(100)
+    expect(elapsedMs).toBeLessThan(3000)
+    expect(child.listenerCount('exit')).toBe(0)
+    expect(child.listenerCount('error')).toBe(0)
   })
 })

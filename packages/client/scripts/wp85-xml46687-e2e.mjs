@@ -30,6 +30,7 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   assertPortAvailable,
+  stopChildProcess,
   waitForChildServerReady,
 } from './wp85ListenerGuard.mjs'
 import {
@@ -152,19 +153,6 @@ async function assertPortClosed(url) {
     return true
   }
   throw new Error(`预期服务已停止但端口仍可访问：${url}`)
-}
-
-async function stopChild(child) {
-  if (!child || child.exitCode !== null) return
-  const exited = new Promise((resolveExit) => {
-    child.once('exit', () => resolveExit())
-  })
-  child.kill('SIGTERM')
-  const timer = setTimeout(() => {
-    if (child.exitCode === null) child.kill('SIGKILL')
-  }, 5000)
-  await exited
-  clearTimeout(timer)
 }
 
 function runExternalValidators(xml, label, workDir) {
@@ -709,7 +697,7 @@ try {
   await page.goto('about:blank')
   const oldPid = serverProc.pid
   const dbShaBeforeStop = fileSha256(dbFilePath)
-  await stopChild(serverProc)
+  await stopChildProcess(serverProc)
   serverProc = null
   await assertPortClosed(`${API_ORIGIN}/api/documents`)
   const dbShaAfterStop = fileSha256(dbFilePath)
@@ -1049,7 +1037,7 @@ try {
 } finally {
   if (browser) await browser.close().catch(() => {})
   if (viteServer) await viteServer.close().catch(() => {})
-  await stopChild(serverProc).catch(() => {})
+  await stopChildProcess(serverProc).catch(() => {})
   if (isolatedWork && !opts.keepWorkDir) {
     try {
       cleanupIsolatedWorkDir(isolatedWork.runWorkDir, {
