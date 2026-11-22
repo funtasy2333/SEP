@@ -14,10 +14,11 @@
  *
  * 安全守卫：
  *   - 仅绑定回环地址 127.0.0.1，禁止 3000/5173 默认端口；
+ *   - 启动前与冷重启前独占探测目标 API / Vite 端口可用性，端口已被占用时立即拒绝，避免误连同端口上的无关服务；
+ *   - 隔离后端启动后仅在本次派生的子进程自身 stdout 输出精确监听日志、进程持续存活、HTTP 探测通过且独立 server/data/ses.db 已初始化后，才断言 GET /api/documents === [] 并放行任何写入请求；
  *   - 解析 --work-dir 真实路径（含符号链接与悬空链接），拒绝文件系统根、用户主目录、os.tmpdir() 根、仓库根及其内部或祖先目录；
  *   - 绝不删除调用方传入的 --work-dir 本身或其中既有文件，仅在校验通过后于其下创建带 .wp85-e2e-owned 标记的独立子目录；
  *   - 绝不触碰仓库内的 packages/server/data/ses.db；
- *   - 启动后首先断言 GET /api/documents === []（空库）；
  *   - 无论成功或失败，finally 均彻底终止隔离后端、Vite 进程与浏览器，并在确认 .wp85-e2e-owned 归属标记后仅清理本次 e2e-run-* 子目录（除非指定 --keep-work-dir）。
  */
 
@@ -27,6 +28,10 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import {
+  assertPortAvailable,
+  waitForChildServerReady,
+} from './wp85ListenerGuard.mjs'
 import {
   assertSafeWorkDir,
   cleanupIsolatedWorkDir,
@@ -437,7 +442,10 @@ async function appendTextToScopeParagraph(page, markerText) {
 }
 
 try {
-  // 0. 创建独立隔离运行目录与测试夹具，并启动隔离服务端、Vite、Chromium
+  // 0. 启动前先校验端口未被占用，再创建独立隔离运行目录与测试夹具，并启动隔离服务端、Vite、Chromium
+  await assertPortAvailable(API_HOST, opts.apiPort)
+  await assertPortAvailable(API_HOST, opts.vitePort)
+
   isolatedWork = prepareIsolatedWorkDir(opts.workDir, { repoRoot: REPO_ROOT })
   evidence.baseWorkDir = isolatedWork.baseWorkDir
   evidence.workDir = isolatedWork.runWorkDir
@@ -456,8 +464,16 @@ try {
   const fixtures = await prepareFixtures(fixtureDir)
 
   console.log('[setup] 启动隔离后端与 Vite...')
+  await assertPortAvailable(API_HOST, opts.apiPort)
+  await assertPortAvailable(API_HOST, opts.vitePort)
   serverProc = startIsolatedServer(serverWorkDir)
-  await waitForHttp(`${API_ORIGIN}/api/documents`, 20000)
+  await waitForChildServerReady(serverProc, {
+    host: API_HOST,
+    port: opts.apiPort,
+    healthUrl: `${API_ORIGIN}/api/documents`,
+    expectedDbPath: join(serverWorkDir, 'data/ses.db'),
+    timeoutMs: 20000,
+  })
   const initialDocs = await apiJson('/documents')
   assert.deepEqual(initialDocs, [], '安全守卫失败：隔离库必须为空')
 
@@ -699,8 +715,15 @@ try {
   const dbShaAfterStop = fileSha256(dbFilePath)
 
   // 同目录重启隔离服务端
+  await assertPortAvailable(API_HOST, opts.apiPort)
   serverProc = startIsolatedServer(serverWorkDir)
-  await waitForHttp(`${API_ORIGIN}/api/documents`, 20000)
+  await waitForChildServerReady(serverProc, {
+    host: API_HOST,
+    port: opts.apiPort,
+    healthUrl: `${API_ORIGIN}/api/documents`,
+    expectedDbPath: dbFilePath,
+    timeoutMs: 20000,
+  })
   const newPid = serverProc.pid
   assert.notEqual(newPid, oldPid, '冷重启后新旧 PID 必须不同')
   const dbShaAfterRestart = fileSha256(dbFilePath)
