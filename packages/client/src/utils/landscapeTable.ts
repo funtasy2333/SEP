@@ -1,13 +1,15 @@
 import type { PMJsonNode } from '@ses/shared'
 import { Fragment, type Node as PMNode } from '@tiptap/pm/model'
-import { NodeSelection } from '@tiptap/pm/state'
+import { NodeSelection, type EditorState, type Transaction } from '@tiptap/pm/state'
 import { TableMap } from '@tiptap/pm/tables'
-import type { EditorState } from '@tiptap/pm/state'
 
 /** 横页版心宽度：252 mm（96 dpi 下 1 in = 25.4 mm = 96 px → 252 * 96 / 25.4 ≈ 952.44px，与 DOCX mmToTwips(252) = 14287 twips，1px = 15 twips 对齐）。 */
 export const LANDSCAPE_PAGE_MM = 252
 export const LANDSCAPE_PAGE_PX = (LANDSCAPE_PAGE_MM * 96) / 25.4 // ≈ 952.4409
 export const LANDSCAPE_TARGET_WIDTH_PX = 952
+/** 纵向主编辑纸面内 .tableWrapper 可用宽度（810px - 72px*2 padding - 2px border - 2px wrapper padding = 662px）；
+ *  662 * 15 = 9930 twips >= 9355 twips (165mm)，DOCX 导出会自动按比例等分占满 165mm 版心。 */
+export const PORTRAIT_TARGET_WIDTH_PX = 662
 export const LANDSCAPE_PX_PER_MM = 96 / 25.4 // ≈ 3.779527559
 export const MIN_COL_WIDTH_PX = 25
 
@@ -267,21 +269,139 @@ export function distributeColumnWidthsByWeights(
   return widths
 }
 
+export interface BuildColwidthOptions {
+  /** 指定目标 table 网格节点位置（缺省时向后兼容，取文档首个 table）。 */
+  tablePos?: number
+  /** 指定所属 stdTable 节点位置；配合 clearNominalColumns 在恢复自动列宽时同步清除 attrs.columns。 */
+  stdTablePos?: number
+  /** 当 columnWidths === null 时是否同步清空 stdTable.attrs.columns（默认 false 以保持原单测兼容，调用方按需开启）。 */
+  clearNominalColumns?: boolean
+}
+
+export interface ActiveTableGridLocation {
+  tableNode: PMNode
+  tablePos: number
+  stdTableNode?: PMNode
+  stdTablePos?: number
+  isLandscape: boolean
+}
+
+function findChildTableGrid(stdTable: PMNode, stdTablePos: number): { tableNode: PMNode; tablePos: number } | null {
+  let tableNode: PMNode | null = null
+  let tablePos = -1
+  stdTable.forEach((child, offset) => {
+    if (!tableNode && child.type.name === 'table') {
+      tableNode = child
+      tablePos = stdTablePos + 1 + offset
+    }
+  })
+  return tableNode && tablePos >= 0 ? { tableNode, tablePos } : null
+}
+
+/** 定位当前选区所在或选中的表格网格及所属 stdTable（支持表题/表注/表脚注/单元格/NodeSelection 与裸 table）。 */
+export function findActiveTableGrid(state: EditorState): ActiveTableGridLocation | null {
+  const { selection } = state
+  if (selection instanceof NodeSelection) {
+    if (selection.node.type.name === 'stdTable') {
+      const child = findChildTableGrid(selection.node, selection.from)
+      if (!child) return null
+      return {
+        tableNode: child.tableNode,
+        tablePos: child.tablePos,
+        stdTableNode: selection.node,
+        stdTablePos: selection.from,
+        isLandscape: isEffectiveLandscapeStdTable(state.doc, selection.from),
+      }
+    }
+    if (selection.node.type.name === 'table') {
+      let stdTableNode: PMNode | undefined
+      let stdTablePos: number | undefined
+      for (let depth = selection.$from.depth; depth > 0; depth -= 1) {
+        const ancestor = selection.$from.node(depth)
+        if (ancestor.type.name === 'stdTable') {
+          stdTableNode = ancestor
+          stdTablePos = selection.$from.before(depth)
+          break
+        }
+      }
+      return {
+        tableNode: selection.node,
+        tablePos: selection.from,
+        ...(stdTableNode !== undefined && stdTablePos !== undefined ? { stdTableNode, stdTablePos } : {}),
+        isLandscape: stdTablePos !== undefined ? isEffectiveLandscapeStdTable(state.doc, stdTablePos) : false,
+      }
+    }
+  }
+
+  let tableNode: PMNode | undefined
+  let tablePos: number | undefined
+  let stdTableNode: PMNode | undefined
+  let stdTablePos: number | undefined
+  for (let depth = selection.$from.depth; depth > 0; depth -= 1) {
+    const node = selection.$from.node(depth)
+    if (!tableNode && node.type.name === 'table') {
+      tableNode = node
+      tablePos = selection.$from.before(depth)
+    } else if (!stdTableNode && node.type.name === 'stdTable') {
+      stdTableNode = node
+      stdTablePos = selection.$from.before(depth)
+      break
+    }
+  }
+
+  if (stdTableNode && stdTablePos !== undefined) {
+    if (!tableNode || tablePos === undefined) {
+      const child = findChildTableGrid(stdTableNode, stdTablePos)
+      if (!child) return null
+      tableNode = child.tableNode
+      tablePos = child.tablePos
+    }
+    return {
+      tableNode,
+      tablePos,
+      stdTableNode,
+      stdTablePos,
+      isLandscape: isEffectiveLandscapeStdTable(state.doc, stdTablePos),
+    }
+  }
+
+  if (tableNode && tablePos !== undefined) {
+    return {
+      tableNode,
+      tablePos,
+      isLandscape: false,
+    }
+  }
+
+  return null
+}
+
 /** 为网格中的所有单元格统一写入每列的 `colwidth`（或传 null 清空全部 `colwidth`）。 */
 export function buildColwidthTransaction(
   state: EditorState,
   columnWidths: number[] | null,
-): import('@tiptap/pm/state').Transaction | null {
+  options?: BuildColwidthOptions,
+): Transaction | null {
   let tablePos = -1
   let tableNode: PMNode | null = null
-  state.doc.descendants((node, pos) => {
-    if (node.type.name === 'table' && !tableNode) {
-      tablePos = pos
-      tableNode = node
-      return false
+  if (typeof options?.tablePos === 'number') {
+    if (options.tablePos >= 0 && options.tablePos < state.doc.content.size) {
+      const candidate = state.doc.nodeAt(options.tablePos)
+      if (candidate?.type.name === 'table') {
+        tablePos = options.tablePos
+        tableNode = candidate
+      }
     }
-    return true
-  })
+  } else {
+    state.doc.descendants((node, pos) => {
+      if (node.type.name === 'table' && !tableNode) {
+        tablePos = pos
+        tableNode = node
+        return false
+      }
+      return true
+    })
+  }
   if (!tableNode || tablePos < 0) return null
   const grid = tableNode as PMNode
   const map = TableMap.get(grid)
@@ -313,7 +433,48 @@ export function buildColwidthTransaction(
       }
     })
   })
+
+  if (
+    columnWidths === null
+    && options?.clearNominalColumns
+    && typeof options.stdTablePos === 'number'
+    && options.stdTablePos >= 0
+    && options.stdTablePos < tr.doc.content.size
+  ) {
+    const stdTable = tr.doc.nodeAt(options.stdTablePos)
+    if (stdTable?.type.name === 'stdTable' && stdTable.attrs.columns !== null && stdTable.attrs.columns !== undefined) {
+      tr.setNodeAttribute(options.stdTablePos, 'columns', null)
+    }
+  }
+
   return tr.docChanged ? tr : null
+}
+
+/** 按当前激活表格的生效版面方向（横页 952px / 纵向 662px）均分列宽，返回单步事务。 */
+export function buildActiveTableEvenWidthTransaction(state: EditorState): Transaction | null {
+  const active = findActiveTableGrid(state)
+  if (!active) return null
+  let map: TableMap
+  try {
+    map = TableMap.get(active.tableNode)
+  } catch {
+    return null
+  }
+  if (map.width === 0) return null
+  const targetWidthPx = active.isLandscape ? LANDSCAPE_TARGET_WIDTH_PX : PORTRAIT_TARGET_WIDTH_PX
+  const weights = Array<number>(map.width).fill(1)
+  const widths = distributeColumnWidthsByWeights(weights, targetWidthPx)
+  return buildColwidthTransaction(state, widths, { tablePos: active.tablePos })
+}
+
+/** 清除当前激活表格全部固定列宽（colwidth）及名义列宽（stdTable.attrs.columns），恢复自动列宽。 */
+export function buildActiveTableAutoWidthTransaction(state: EditorState): Transaction | null {
+  const active = findActiveTableGrid(state)
+  if (!active) return null
+  return buildColwidthTransaction(state, null, {
+    tablePos: active.tablePos,
+    ...(active.stdTablePos !== undefined ? { stdTablePos: active.stdTablePos, clearNominalColumns: true } : {}),
+  })
 }
 
 /** 根据当前表格的 `colwidth`、名义 `columns` 比例或 DOM 实测列宽，返回可用于「铺满横页」的权重数组。 */

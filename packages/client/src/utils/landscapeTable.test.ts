@@ -5,11 +5,15 @@ import type { PMJsonNode } from '@ses/shared'
 import { createEditorExtensions, createLandscapeTableModalExtensions } from '../extensions/editorExtensions'
 import {
   LANDSCAPE_TARGET_WIDTH_PX,
+  PORTRAIT_TARGET_WIDTH_PX,
+  buildActiveTableAutoWidthTransaction,
+  buildActiveTableEvenWidthTransaction,
   buildColwidthTransaction,
   buildMergedStdTableNode,
   computeTableWidthMetrics,
   distributeColumnWidthsByWeights,
   extractStdTableForModal,
+  findActiveTableGrid,
   findStdTableByTarget,
   getStdTableGridColwidths,
   isEffectiveLandscapeStdTable,
@@ -220,6 +224,141 @@ describe('landscapeTable 工具函数', () => {
       expect(resetTr).not.toBeNull()
       editor.view.dispatch(resetTr)
       expect(getStdTableGridColwidths(editor.state.doc.firstChild!)!.widths).toEqual([null, null, null])
+      // 未传 clearNominalColumns 时保持向后兼容，不改动 stdTable.attrs.columns
+      expect(editor.state.doc.firstChild!.attrs.columns).toEqual([
+        { width: 30, widthUnit: '%' },
+        { width: 70, widthUnit: '%' },
+      ])
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('多表格文档下按激活表独立均分列宽（纵向 662px / 横向 952px），自动列宽同事务清空 colwidth 与 columns 且可单步撤销', () => {
+    const threeColTable = (nodeId: string, orientation: 'portrait' | 'landscape', label: string, withColumns = false): PMJsonNode => ({
+      type: 'stdTable',
+      attrs: {
+        nodeId,
+        orientation,
+        ...(withColumns ? { columns: [{ width: 20, widthUnit: '%' }, { width: 30, widthUnit: '%' }, { width: 50, widthUnit: '%' }] } : {}),
+      },
+      content: [
+        { type: 'tableCaption', content: [{ type: 'text', text: `${label}-表题` }] },
+        {
+          type: 'table',
+          content: [
+            {
+              type: 'tableRow',
+              content: [
+                { type: 'tableHeader', attrs: { colspan: 2 }, content: [{ type: 'paragraph', content: [{ type: 'text', text: `${label}-合并头` }] }] },
+                { type: 'tableHeader', attrs: { colspan: 1 }, content: [{ type: 'paragraph', content: [{ type: 'text', text: `${label}-第三列` }] }] },
+              ],
+            },
+            {
+              type: 'tableRow',
+              content: [
+                { type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: `${label}-A` }] }] },
+                { type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: `${label}-B` }] }] },
+                { type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: `${label}-C` }] }] },
+              ],
+            },
+          ],
+        },
+        {
+          type: 'tableNoteRow',
+          content: [{ type: 'note', content: [{ type: 'text', text: `${label}-注` }] }],
+        },
+      ],
+    })
+
+    const editor = new Editor({
+      extensions: createEditorExtensions(),
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'chapter',
+            attrs: { nodeId: 'ch-multi' },
+            content: [
+              { type: 'chapterTitle', content: [{ type: 'text', text: '多表测试' }] },
+              threeColTable('tbl-p1', 'portrait', '纵表1', true),
+              threeColTable('tbl-p2', 'portrait', '纵表2', false),
+            ],
+          },
+          {
+            type: 'appendix',
+            attrs: { nodeId: 'app-l', orientation: 'landscape', normative: false },
+            content: [
+              { type: 'appendixLabel', content: [{ type: 'text', text: '（资料性）' }] },
+              { type: 'appendixTitle', content: [{ type: 'text', text: '横附录' }] },
+              threeColTable('tbl-a1', 'portrait', '附录表', true),
+            ],
+          },
+        ],
+      },
+    })
+
+    const textPos = (needle: string): number => {
+      let found = -1
+      editor.state.doc.descendants((node, pos) => {
+        if (found < 0 && node.isText && node.text?.includes(needle)) found = pos + 1
+      })
+      return found
+    }
+
+    try {
+      // 光标在章标题（非表格）时返回 null
+      editor.commands.setTextSelection(textPos('多表测试'))
+      expect(findActiveTableGrid(editor.state)).toBeNull()
+      expect(buildActiveTableEvenWidthTransaction(editor.state)).toBeNull()
+
+      // 光标在纵表1的表注行时也能定位到纵表1，并按 662px 均分 3 列 -> [221, 221, 220]
+      editor.commands.setTextSelection(textPos('纵表1-注'))
+      const activeP1 = findActiveTableGrid(editor.state)!
+      expect(activeP1.stdTableNode?.attrs.nodeId).toBe('tbl-p1')
+      expect(activeP1.isLandscape).toBe(false)
+
+      const evenP1Tr = buildActiveTableEvenWidthTransaction(editor.state)!
+      expect(evenP1Tr).not.toBeNull()
+      editor.view.dispatch(evenP1Tr)
+
+      const tblP1AfterEven = findStdTableByTarget(editor.state.doc, { nodeId: 'tbl-p1' })!.node
+      const tblP2Untouched = findStdTableByTarget(editor.state.doc, { nodeId: 'tbl-p2' })!.node
+      expect(getStdTableGridColwidths(tblP1AfterEven)!.widths).toEqual([220, 221, 221])
+      expect(tblP1AfterEven.child(1).child(0).child(0).attrs.colwidth).toEqual([220, 221])
+      expect(getStdTableGridColwidths(tblP1AfterEven)!.widths.reduce((a, b) => (a ?? 0) + (b ?? 0), 0)).toBe(PORTRAIT_TARGET_WIDTH_PX)
+      // 第二个表格完全不受影响
+      expect(getStdTableGridColwidths(tblP2Untouched)!.widths).toEqual([null, null, null])
+
+      // 纵表1执行自动列宽：同事务清空 colwidth 与 stdTable.attrs.columns，且支持单步撤销
+      const autoP1Tr = buildActiveTableAutoWidthTransaction(editor.state)!
+      expect(autoP1Tr).not.toBeNull()
+      editor.view.dispatch(autoP1Tr)
+
+      const tblP1AfterAuto = findStdTableByTarget(editor.state.doc, { nodeId: 'tbl-p1' })!.node
+      expect(getStdTableGridColwidths(tblP1AfterAuto)!.widths).toEqual([null, null, null])
+      expect(tblP1AfterAuto.attrs.columns).toBeNull()
+
+      expect(editor.commands.undo()).toBe(true)
+      const tblP1AfterUndo = findStdTableByTarget(editor.state.doc, { nodeId: 'tbl-p1' })!.node
+      expect(getStdTableGridColwidths(tblP1AfterUndo)!.widths).toEqual([220, 221, 221])
+      expect(tblP1AfterUndo.attrs.columns).toEqual([
+        { width: 20, widthUnit: '%' },
+        { width: 30, widthUnit: '%' },
+        { width: 50, widthUnit: '%' },
+      ])
+
+      // 横向附录内的表按 952px 均分 3 列 -> [318, 317, 317]
+      editor.commands.setTextSelection(textPos('附录表-表题'))
+      const activeA1 = findActiveTableGrid(editor.state)!
+      expect(activeA1.stdTableNode?.attrs.nodeId).toBe('tbl-a1')
+      expect(activeA1.isLandscape).toBe(true)
+
+      const evenA1Tr = buildActiveTableEvenWidthTransaction(editor.state)!
+      editor.view.dispatch(evenA1Tr)
+      const tblA1AfterEven = findStdTableByTarget(editor.state.doc, { nodeId: 'tbl-a1' })!.node
+      expect(getStdTableGridColwidths(tblA1AfterEven)!.widths).toEqual([318, 317, 317])
+      expect(getStdTableGridColwidths(tblA1AfterEven)!.widths.reduce((a, b) => (a ?? 0) + (b ?? 0), 0)).toBe(LANDSCAPE_TARGET_WIDTH_PX)
     } finally {
       editor.destroy()
     }

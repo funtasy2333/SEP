@@ -21,7 +21,9 @@ onMounted(() => {
   const html = document.documentElement
   if (!html.dataset.sesTheme) html.dataset.sesTheme = 'light'
   if (!html.dataset.sesDensity) html.dataset.sesDensity = 'regular'
-  void systemStore.loadInfo()
+  void systemStore.loadInfo().then(() => {
+    void systemStore.checkForUpdateInBackground()
+  })
 })
 </script>
 

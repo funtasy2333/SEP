@@ -12,10 +12,17 @@
         type="button"
         class="settings-btn"
         aria-label="设置"
+        :title="store.hasUnreadUpdate ? '设置（有新版本可用）' : undefined"
         aria-haspopup="menu"
         :aria-expanded="open"
       >
         <el-icon :size="18"><Setting /></el-icon>
+        <span
+          v-if="store.hasUnreadUpdate"
+          class="settings-update-dot"
+          data-test="settings-update-dot"
+          aria-hidden="true"
+        />
       </button>
     </template>
 
@@ -31,7 +38,14 @@
           :disabled="!store.info.canUpgrade"
           @click="openUpgrade"
         >
-          <span class="menu-item-label">升级…</span>
+          <span class="menu-item-row">
+            <span class="menu-item-label">升级…</span>
+            <span
+              v-if="store.hasAvailableUpdate"
+              class="menu-item-badge"
+              data-test="upgrade-badge"
+            >有新版本</span>
+          </span>
           <span v-if="!store.info.canUpgrade && store.info.upgradeBlockedReason" class="menu-item-reason" data-test="upgrade-reason">
             {{ store.info.upgradeBlockedReason }}
           </span>
@@ -62,7 +76,7 @@
     </div>
   </el-popover>
 
-  <UpgradeDialog v-model="upgradeOpen" />
+  <UpgradeDialog v-model="store.upgradeDialogOpen" />
 </template>
 
 <script setup lang="ts">
@@ -76,7 +90,6 @@ import UpgradeDialog from './UpgradeDialog.vue'
 
 const store = useSystemStore()
 const open = ref(false)
-const upgradeOpen = ref(false)
 const shuttingDown = ref(false)
 
 const versionLine = computed(() => (store.info ? describeVersion(store.info) : ''))
@@ -89,7 +102,7 @@ watch(open, (value) => {
 function openUpgrade() {
   if (!store.info?.canUpgrade) return
   open.value = false
-  upgradeOpen.value = true
+  store.openUpgradeDialog()
 }
 
 async function confirmShutdown() {
@@ -118,6 +131,7 @@ async function confirmShutdown() {
 
 <style scoped>
 .settings-btn {
+  position: relative;
   display: inline-flex; align-items: center; justify-content: center;
   width: 32px; height: 32px;
   padding: 0;
@@ -129,6 +143,17 @@ async function confirmShutdown() {
 }
 .settings-btn:hover, .settings-btn[aria-expanded='true'] { color: var(--ses-ink); background: var(--ses-surface-2); }
 .settings-btn:focus-visible { outline: 2px solid var(--ses-accent); outline-offset: 1px; }
+.settings-update-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--ses-err);
+  box-shadow: 0 0 0 1.5px var(--ses-surface);
+  pointer-events: none;
+}
 
 .settings-menu { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
 .menu-version {
@@ -156,6 +181,23 @@ async function confirmShutdown() {
 .menu-item:focus-visible { outline: 2px solid var(--ses-accent); outline-offset: -2px; }
 .menu-item.danger { color: var(--ses-err); }
 .menu-item:disabled { cursor: not-allowed; color: var(--ses-ink-4); }
+.menu-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+.menu-item-badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--ses-accent-soft);
+  color: var(--ses-accent);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+  flex-shrink: 0;
+}
 .menu-item-reason { font-size: 12px; line-height: 1.5; color: var(--ses-ink-3); }
 
 .menu-state { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px; color: var(--ses-ink-3); }

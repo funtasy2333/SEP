@@ -411,7 +411,10 @@ function distributeEvenWidths(): void {
 function resetAutoWidths(): void {
   const ed = modalEditor.value
   if (!ed) return
-  const tr = buildColwidthTransaction(ed.state, null)
+  const tr = buildColwidthTransaction(ed.state, null, {
+    stdTablePos: 0,
+    clearNominalColumns: true,
+  })
   if (tr) {
     ed.view.dispatch(tr)
     ed.view.focus()

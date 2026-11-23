@@ -37,7 +37,11 @@ async function finishDialogTransition(): Promise<void> {
   await settle()
 }
 
-function makeSampleStdTable(overrides?: { orientation?: 'portrait' | 'landscape'; colwidths?: (number | null)[] }): PMJsonNode {
+function makeSampleStdTable(overrides?: {
+  orientation?: 'portrait' | 'landscape'
+  colwidths?: (number | null)[]
+  columns?: Array<{ width: number; widthUnit: string }>
+}): PMJsonNode {
   const colwidths = overrides?.colwidths ?? [null, null, null, null]
   const makeCell = (text: string, colIndex: number): PMJsonNode => {
     const w = colwidths[colIndex]
@@ -52,6 +56,7 @@ function makeSampleStdTable(overrides?: { orientation?: 'portrait' | 'landscape'
     attrs: {
       nodeId: 'tbl-3',
       orientation: overrides?.orientation ?? 'landscape',
+      ...(overrides?.columns ? { columns: overrides.columns } : {}),
     },
     content: [
       {
@@ -176,8 +181,16 @@ describe('LandscapeTableDialog', () => {
     app.unmount()
   })
 
-  it('工具栏与主编辑区格式按钮（加粗/斜体/下划线/删除线）保持一致，无冗余尺寸标签，快捷列宽按钮工作正常', async () => {
-    const sourceTable = makeSampleStdTable({ colwidths: [100, 200, 300, 400] })
+  it('工具栏与主编辑区格式按钮（加粗/斜体/下划线/删除线）保持一致，无冗余尺寸标签，快捷列宽按钮工作正常且自动列宽清空名义列宽', async () => {
+    const sourceTable = makeSampleStdTable({
+      colwidths: [100, 200, 300, 400],
+      columns: [
+        { width: 15, widthUnit: '%' },
+        { width: 25, widthUnit: '%' },
+        { width: 30, widthUnit: '%' },
+        { width: 30, widthUnit: '%' },
+      ],
+    })
     const { dialogRef, app } = await mountLandscapeDialog(sourceTable, '表 3')
     const modalEditor = dialogRef.value!.getEditor()!
 
@@ -199,11 +212,12 @@ describe('LandscapeTableDialog', () => {
     const evenWidths = getStdTableGridColwidths(modalEditor.state.doc.firstChild!)
     expect(evenWidths?.widths).toEqual([238, 238, 238, 238])
 
-    // 点击「自动列宽」-> 清空 colwidth
+    // 点击「自动列宽」-> 清空 colwidth 与 stdTable.attrs.columns
     document.querySelector<HTMLButtonElement>('[data-testid="lt-reset-width-btn"]')!.click()
     await settle()
     const autoWidths = getStdTableGridColwidths(modalEditor.state.doc.firstChild!)
     expect(autoWidths?.widths).toEqual([null, null, null, null])
+    expect(modalEditor.state.doc.firstChild!.attrs.columns).toBeNull()
 
     app.unmount()
   })

@@ -209,13 +209,13 @@
             title="在文字中输入带上下标的量或变量符号（如 qV、x²）；选中文字时转为符号（Ctrl/Cmd+Shift+M）。运算式请用「公式」"
             @click="handleInlineFormula()"
           >符号</button>
-          <TableMenu
-            :in-table="editor?.isActive('stdTable') || editor?.isActive('table') || false"
-            :in-cell="editor?.isActive('tableCell') || editor?.isActive('tableHeader') || false"
-            :show-expand-landscape="activeLandscapeStdTable() !== null"
-            @open="rememberTableSelection"
-            @command="handleTableCommand"
-          />
+          <button
+            class="tbar-btn"
+            type="button"
+            data-testid="toolbar-insert-table-btn"
+            title="在当前段落后插入标准表格 (3×3)"
+            @click="handleTableCommand('insert')"
+          >表格</button>
           <button class="tbar-btn" title="在当前段落后插入图" @click="handleInsertFigure()">图片</button>
         </div>
 
@@ -268,88 +268,99 @@
         <div class="ed-main" @[BLOCK_FORMULA_EVENT]="handleBlockFormulaEvent">
           <!-- 上下文工具：锚定在编辑区画布右上角，避免撑高工具栏或在打开右侧栏时遮挡侧栏按钮 -->
           <div
-            v-if="cursorInFormula || activeOrientationNodeType() || activeAppendixPos() !== undefined"
+            v-if="hasContextShelf"
             class="tbar-context-shelf"
             :inert="documentUnavailable"
           >
-            <div v-if="cursorInFormula" class="tbar-group tbar-context" aria-label="公式">
-              <span class="tbar-label">公式</span>
-              <button class="tbar-btn" title="为光标所在公式添加一条式中符号说明" @click="handleAddWhereItem()">添加式中</button>
+            <div v-if="hasContextRow" class="tbar-context-row">
+              <div v-if="cursorInFormula" class="tbar-group tbar-context" aria-label="公式">
+                <span class="tbar-label">公式</span>
+                <button class="tbar-btn" title="为光标所在公式添加一条式中符号说明" @click="handleAddWhereItem()">添加式中</button>
+              </div>
+              <div
+                v-if="activeOrientationNodeType()"
+                class="tbar-group tbar-context"
+                :class="{ 'is-locked': isOrientationLockedByAppendix() }"
+                :aria-label="activeOrientationLabel()"
+                data-testid="node-orientation"
+              >
+                <span class="tbar-label">{{ activeOrientationShortLabel() }}</span>
+                <button
+                  class="tbar-btn"
+                  :class="{ 'is-active': isActivePageOrientation('portrait') }"
+                  :disabled="isOrientationLockedByAppendix()"
+                  :title="orientationButtonTitle('portrait')"
+                  @click="setActivePageOrientation('portrait')"
+                >纵向</button>
+                <button
+                  class="tbar-btn"
+                  :class="{ 'is-active': isActivePageOrientation('landscape') }"
+                  :disabled="isOrientationLockedByAppendix()"
+                  :title="orientationButtonTitle('landscape')"
+                  @click="setActivePageOrientation('landscape')"
+                >横向</button>
+                <span
+                  v-if="isOrientationLockedByAppendix()"
+                  class="tbar-context-hint"
+                  data-testid="orientation-locked-hint"
+                  :title="orientationLockedHint()"
+                >随附录</span>
+                <button
+                  v-if="activeOrientationNodeType() === 'stdTable' && isActivePageOrientation('landscape')"
+                  type="button"
+                  class="tbar-btn tbar-expand-btn"
+                  data-testid="context-expand-landscape-btn"
+                  title="在 252mm 横向宽幅弹窗中编辑此表格"
+                  @click="openActiveLandscapeTable()"
+                >展开编辑</button>
+              </div>
+              <div
+                v-if="selectedFigureImagePos() !== undefined"
+                class="tbar-group tbar-context"
+                role="group"
+                aria-label="图片尺寸"
+                data-testid="image-size-controls"
+              >
+                <span class="tbar-label">图片尺寸</span>
+                <button type="button" class="tbar-btn" @mousedown.prevent @click="resizeSelectedFigure('half')">半版宽</button>
+                <button type="button" class="tbar-btn" @mousedown.prevent @click="resizeSelectedFigure('full')">通栏</button>
+                <button type="button" class="tbar-btn" @mousedown.prevent @click="resizeSelectedFigure('reset')">恢复默认</button>
+              </div>
+              <div
+                v-if="activeAppendixPos() !== undefined"
+                class="tbar-group tbar-context tbar-context-section"
+                aria-label="附录版面方向"
+                data-testid="appendix-orientation"
+              >
+                <span class="tbar-label" title="控制整个附录的导出页面方向（仅用于 PDF/HTML 与 DOCX，不支持 XML）">整篇附录</span>
+                <button
+                  class="tbar-btn"
+                  :class="{ 'is-active': activeAppendixOrientation() === 'portrait' }"
+                  title="整个附录排在纵向页面上"
+                  @click="setActiveAppendixOrientation('portrait')"
+                >纵向</button>
+                <button
+                  class="tbar-btn"
+                  :class="{ 'is-active': activeAppendixOrientation() === 'landscape' }"
+                  title="整个附录（编号、标题、引导文字和图表）从横向页面起排；仅用于 PDF/HTML 与 DOCX，XML 无法表达附录方向"
+                  @click="setActiveAppendixOrientation('landscape')"
+                >横向</button>
+                <span
+                  v-if="activeAppendixOrientation() === 'landscape'"
+                  class="tbar-context-hint"
+                  title="整节横向仅用于 PDF/HTML 与 DOCX；如需导出 XML 请改回纵向"
+                >仅PDF/DOCX</span>
+              </div>
             </div>
-            <div
-              v-if="activeOrientationNodeType()"
-              class="tbar-group tbar-context"
-              :class="{ 'is-locked': isOrientationLockedByAppendix() }"
-              :aria-label="activeOrientationLabel()"
-              data-testid="node-orientation"
-            >
-              <span class="tbar-label">{{ activeOrientationShortLabel() }}</span>
-              <button
-                class="tbar-btn"
-                :class="{ 'is-active': isActivePageOrientation('portrait') }"
-                :disabled="isOrientationLockedByAppendix()"
-                :title="orientationButtonTitle('portrait')"
-                @click="setActivePageOrientation('portrait')"
-              >纵向</button>
-              <button
-                class="tbar-btn"
-                :class="{ 'is-active': isActivePageOrientation('landscape') }"
-                :disabled="isOrientationLockedByAppendix()"
-                :title="orientationButtonTitle('landscape')"
-                @click="setActivePageOrientation('landscape')"
-              >横向</button>
-              <span
-                v-if="isOrientationLockedByAppendix()"
-                class="tbar-context-hint"
-                data-testid="orientation-locked-hint"
-                :title="orientationLockedHint()"
-              >随附录</span>
-              <button
-                v-if="activeOrientationNodeType() === 'stdTable' && isActivePageOrientation('landscape')"
-                type="button"
-                class="tbar-btn tbar-expand-btn"
-                data-testid="context-expand-landscape-btn"
-                title="在 252mm 横向宽幅弹窗中编辑此表格"
-                @click="openActiveLandscapeTable()"
-              >展开编辑</button>
-            </div>
-            <div
-              v-if="selectedFigureImagePos() !== undefined"
-              class="tbar-group tbar-context"
-              role="group"
-              aria-label="图片尺寸"
-              data-testid="image-size-controls"
-            >
-              <span class="tbar-label">图片尺寸</span>
-              <button type="button" class="tbar-btn" @mousedown.prevent @click="resizeSelectedFigure('half')">半版宽</button>
-              <button type="button" class="tbar-btn" @mousedown.prevent @click="resizeSelectedFigure('full')">通栏</button>
-              <button type="button" class="tbar-btn" @mousedown.prevent @click="resizeSelectedFigure('reset')">恢复默认</button>
-            </div>
-            <div
-              v-if="activeAppendixPos() !== undefined"
-              class="tbar-group tbar-context tbar-context-section"
-              aria-label="附录版面方向"
-              data-testid="appendix-orientation"
-            >
-              <span class="tbar-label" title="控制整个附录的导出页面方向（仅用于 PDF/HTML 与 DOCX，不支持 XML）">整篇附录</span>
-              <button
-                class="tbar-btn"
-                :class="{ 'is-active': activeAppendixOrientation() === 'portrait' }"
-                title="整个附录排在纵向页面上"
-                @click="setActiveAppendixOrientation('portrait')"
-              >纵向</button>
-              <button
-                class="tbar-btn"
-                :class="{ 'is-active': activeAppendixOrientation() === 'landscape' }"
-                title="整个附录（编号、标题、引导文字和图表）从横向页面起排；仅用于 PDF/HTML 与 DOCX，XML 无法表达附录方向"
-                @click="setActiveAppendixOrientation('landscape')"
-              >横向</button>
-              <span
-                v-if="activeAppendixOrientation() === 'landscape'"
-                class="tbar-context-hint"
-                title="整节横向仅用于 PDF/HTML 与 DOCX；如需导出 XML 请改回纵向"
-              >仅PDF/DOCX</span>
-            </div>
+            <TableFloatingPanel
+              v-if="isInTable"
+              :in-cell="isInTableCell"
+              :is-landscape="isActiveTableLandscape"
+              :can-merge-cells="canMergeCells"
+              :can-split-cell="canSplitCell"
+              :can-delete-footnote-ref="canDeleteTableFootnoteRef"
+              @command="handleTableCommand"
+            />
           </div>
           <SesEditorContent :editor="editor" />
         </div>
@@ -438,10 +449,10 @@
           <li><kbd>/</kbd> 智能插入菜单</li>
         </ul>
         <h4>文档结构</h4>
-        <p>界面分三层：顶栏是整份文件的操作（源码、导入、版本历史、质量检查、导出）；工具栏只处理正文，「设为」改变当前段落的角色，「插入」加入新的内容要素；光标位于公式、图或表时，编辑区右上角会出现对应的上下文工具（公式、当前图/当前表方向）；光标位于附录内时，可用「整篇附录」把整个附录设为横向页面（仅用于 PDF/HTML 与 DOCX，此时内部图表随附录统一横排）。</p>
-        <p>使用左侧「文档结构」面板的「添加」按钮添加章节结构（前言、引言、章、附录、参考文献）；工具栏最左侧的按钮可隐藏或显示该面板。点击正文段落或选中其中的文字后，使用“条”“无题条”设置整段格式；新条之后的正文归入该条，直到下一个同级条。一级条置于章或附录内，其他级别置于上一级条内。含子条时保留原层级，可切换有题/无题；先调整子条结构再改层级或段落。需要新条时，先回车建立空段再设置格式；光标在表格内时选择“条”“无题条”，会在表格之后新建条，也可用“表格”菜单的“表格后插入段落”（Ctrl/Cmd+Enter）在表格后继续书写。</p>
+        <p>界面分三层：顶栏是整份文件的操作（源码、导入、版本历史、质量检查、导出）；工具栏只处理正文，「设为」改变当前段落的角色，「插入」加入新的内容要素；光标位于公式、图或表时，编辑区右上角会出现对应的上下文工具（公式、当前图/当前表方向、图片尺寸），进入表格还会在右侧出现表格工具浮窗；光标位于附录内时，可用「整篇附录」把整个附录设为横向页面（仅用于 PDF/HTML 与 DOCX，此时内部图表随附录统一横排）。</p>
+        <p>使用左侧「文档结构」面板的「添加」按钮添加章节结构（前言、引言、章、附录、参考文献）；工具栏最左侧的按钮可隐藏或显示该面板。点击正文段落或选中其中的文字后，使用“条”“无题条”设置整段格式；新条之后的正文归入该条，直到下一个同级条。一级条置于章或附录内，其他级别置于上一级条内。含子条时保留原层级，可切换有题/无题；先调整子条结构再改层级或段落。需要新条时，先回车建立空段再设置格式；光标在表格内时选择“条”“无题条”，会在表格之后新建条，也可用右侧表格浮窗的「表后插段」（Ctrl/Cmd+Enter）在表格后继续书写。</p>
         <p>粘贴：在 SES 内复制的内容保留格式和结构；从 Word、网页等外部来源粘贴时自动转为纯文本，直接插入光标所在的段落并沿用该处格式，多行合并为一段，不会新建段落或条目（需要时按回车）。需要去掉格式时，用 Ctrl/Cmd+Shift+V 按纯文本粘贴。</p>
-        <p>术语中英文名称同列显示：Tab 从中文名进入英文名，Enter 进入定义；在定义中 Enter 新建续段，末尾空续段再次 Enter 退出术语。使用工具栏「设为」设置列项，「插入」加入注、示例、术语、公式、表格、图片等内容要素。一组列项被段落或二级列项隔开后，在「列项」菜单中选「继续前一列项编号」接着编号（如 a）、b） 后从 c） 起），选「重新编号」则从头开始。选中图或表后，可切换纵向或横向版面；宽表所在的附录可整体设为横向，附录标题、引导文字与图表同在横页，不再单独占一张竖页。</p>
+        <p>术语中英文名称同列显示：Tab 从中文名进入英文名，Enter 进入定义；在定义中 Enter 新建续段，末尾空续段再次 Enter 退出术语。使用工具栏「设为」设置列项，「插入」加入注、示例、术语、公式、表格、图片等内容要素。点击工具栏「表格」直接插入 3×3 表格，光标进入表格后可在右侧表格工具浮窗中调整列宽（均分列宽/自动列宽）、增删行列、合并拆分单元格与编辑表注/表脚注。一组列项被段落或二级列项隔开后，在「列项」菜单中选「继续前一列项编号」接着编号（如 a）、b） 后从 c） 起），选「重新编号」则从头开始。选中图或表后，可切换纵向或横向版面；宽表所在的附录可整体设为横向，附录标题、引导文字与图表同在横页，不再单独占一张竖页。</p>
         <p>符号：文字中带上下标的量或变量符号（如 q<sub>V</sub>、x<sup>2</sup>），在正文、列项、注、示例、表格单元格、术语定义中按 Ctrl/Cmd+Shift+M（或工具栏「符号」）插入；先选中这类文字再按，可把它转为符号。点击符号可重新编辑。运算式（含等号、分式、求和等）请用「公式」单独成行输入。</p>
         <p>交叉引用：工具栏「交叉引用」插入对本文件章、条、图、表、公式等的引用（如“见5.2”），编号随文档自动更新。引用其他标准、文件请直接写文件编号，或在参考文献、规范性引用文件中列出。</p>
       </div>
@@ -681,7 +692,7 @@ import {
   type ExternalCause,
 } from '@/utils/externalChange'
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { NodeSelection, TextSelection, type SelectionBookmark } from '@tiptap/pm/state'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 // Underline is included in StarterKit (tiptap v3)
@@ -691,7 +702,7 @@ import { documentApi, type DocumentData, type SesVersionScope } from '@/api/docu
 import { useDocumentStore } from '@/stores/document'
 import { useVersionStore } from '@/stores/version'
 import SesEditorContent from '@/components/editor/EditorContent.vue'
-import TableMenu from '@/components/editor/TableMenu.vue'
+import TableFloatingPanel, { type TablePanelCommand } from '@/components/editor/TableFloatingPanel.vue'
 import ReferenceControl from '@/components/editor/ReferenceControl.vue'
 import SourceControl from '@/components/editor/SourceControl.vue'
 import SesLogo from '@/components/SesLogo.vue'
@@ -719,6 +730,8 @@ import { createEditorExtensions } from '@/extensions/editorExtensions'
 import { normalizePageOrientation } from '@/utils/orientation'
 import {
   EXPAND_LANDSCAPE_TABLE_EVENT,
+  buildActiveTableAutoWidthTransaction,
+  buildActiveTableEvenWidthTransaction,
   buildMergedStdTableNode,
   findActiveStdTableLocation,
   findStdTableByTarget,
@@ -1934,11 +1947,50 @@ function noteLegacyUntitledClauses(count: number) {
   ElMessage.info(`已将 ${count} 处无题条的条文移入正文段`)
 }
 
-// === 工具栏：表格 ===
-let tableSelection: { doc: PMNode; bookmark: SelectionBookmark } | null = null
-function rememberTableSelection() {
-  if (editor.value) tableSelection = { doc: editor.value.state.doc, bookmark: editor.value.state.selection.getBookmark() }
-}
+// === 右侧表格浮窗状态 ===
+const isInTable = computed(() => {
+  void docRevision.value
+  const ed = editor.value
+  return Boolean(ed && (ed.isActive('stdTable') || ed.isActive('table')))
+})
+
+const isInTableCell = computed(() => {
+  void docRevision.value
+  const ed = editor.value
+  return Boolean(ed && (ed.isActive('tableCell') || ed.isActive('tableHeader')))
+})
+
+const isActiveTableLandscape = computed(() => {
+  void docRevision.value
+  return activeLandscapeStdTable() !== null
+})
+
+const canMergeCells = computed(() => {
+  void docRevision.value
+  return Boolean(editor.value?.can().mergeCells())
+})
+
+const canSplitCell = computed(() => {
+  void docRevision.value
+  return Boolean(editor.value?.can().splitCell())
+})
+
+const canDeleteTableFootnoteRef = computed(() => {
+  void docRevision.value
+  return Boolean(editor.value?.can().deleteSelectedTableFootnoteRef())
+})
+
+const hasContextRow = computed(() => {
+  void docRevision.value
+  return Boolean(
+    cursorInFormula.value
+    || activeOrientationNodeType()
+    || selectedFigureImagePos() !== undefined
+    || activeAppendixPos() !== undefined,
+  )
+})
+
+const hasContextShelf = computed(() => hasContextRow.value || isInTable.value)
 
 // === 横页表格展开编辑弹窗 ===
 const showLandscapeDialog = ref(false)
@@ -2058,33 +2110,51 @@ function handleLandscapeDialogApply(modalDocJson: PMJsonNode): void {
   }
 }
 
-function handleTableCommand(command: string) {
+type EditorTableCommand = TablePanelCommand | 'insert' | 'expandLandscape'
+
+function assertNeverTableCommand(command: never): never {
+  throw new Error(`Unhandled table command: ${String(command)}`)
+}
+
+function handleTableCommand(command: EditorTableCommand) {
   if (!editor.value) return
-  // Dropdown focus can turn a rectangular CellSelection into its native text range.
-  // Restore the selection captured before opening, only while the document is unchanged.
-  if (tableSelection && editor.value.state.doc.eq(tableSelection.doc)) {
-    editor.value.view.dispatch(editor.value.state.tr.setSelection(tableSelection.bookmark.resolve(editor.value.state.doc)))
-  }
-  tableSelection = null
   const chain = editor.value.chain().focus()
   switch (command) {
     case 'insert': {
-      const pos = getInsertAfterCurrentBlock()
-      if (pos !== null) {
-        editor.value.chain().focus().insertContentAt(pos, {
-          type: 'stdTable',
-          content: [
-            { type: 'tableCaption' },
-            { type: 'table', content: Array.from({ length: 3 }, (_, r) => ({
-              type: 'tableRow',
-              content: Array.from({ length: 3 }, () => ({
-                type: r === 0 ? 'tableHeader' : 'tableCell',
-                content: [{ type: 'paragraph' }],
-              })),
-            })) },
-          ],
-        }).run()
+      const pos = getInsertAfterCurrentBlockInSection()
+      if (pos === null) {
+        ElMessage.warning('请先将光标置于章、条、前言、引言或附录内部再插入表格（表格末尾可用「表后插段」或 Ctrl/Cmd+Enter 继续书写）')
+        break
       }
+      editor.value.chain().focus().insertContentAt(pos, {
+        type: 'stdTable',
+        content: [
+          { type: 'tableCaption' },
+          { type: 'table', content: Array.from({ length: 3 }, (_, r) => ({
+            type: 'tableRow',
+            content: Array.from({ length: 3 }, () => ({
+              type: r === 0 ? 'tableHeader' : 'tableCell',
+              content: [{ type: 'paragraph' }],
+            })),
+          })) },
+        ],
+      }).run()
+      break
+    }
+    case 'evenColWidths': {
+      const tr = buildActiveTableEvenWidthTransaction(editor.value.state)
+      if (tr) {
+        editor.value.view.dispatch(tr)
+      }
+      editor.value.view.focus()
+      break
+    }
+    case 'autoColWidths': {
+      const tr = buildActiveTableAutoWidthTransaction(editor.value.state)
+      if (tr) {
+        editor.value.view.dispatch(tr)
+      }
+      editor.value.view.focus()
       break
     }
     case 'paragraphAfter':
@@ -2132,6 +2202,8 @@ function handleTableCommand(command: string) {
     case 'deleteTableFootnoteRef':
       if (!chain.deleteSelectedTableFootnoteRef().run()) ElMessage.warning('请先选中要删除的表脚注上标')
       break
+    default:
+      assertNeverTableCommand(command)
   }
 }
 
@@ -2433,6 +2505,33 @@ function handleInsertTermDef(level: string) {
   editor.value!.view.focus()
 }
 
+const SECTION_INSERT_CONTAINERS = new Set(['chapter', 'clause', 'foreword', 'introduction', 'appendix'])
+
+/**
+ * 仅在有效文档节（章、条、前言、引言、附录）内部返回当前块之后的插入位置；
+ * 光标位于封面、参考文献或根节点游离段落等节外位置时返回 null，避免插入无法编号（表题显示为「?」）的游离表格。
+ */
+function getInsertAfterCurrentBlockInSection(): number | null {
+  if (!editor.value) return null
+  const { selection } = editor.value.state
+  const { $from } = selection
+  if (selection instanceof NodeSelection) {
+    if ($from.depth > 0 && SECTION_INSERT_CONTAINERS.has($from.parent.type.name)) {
+      return selection.to
+    }
+    if (SECTION_INSERT_CONTAINERS.has(selection.node.type.name)) {
+      return selection.to - 1
+    }
+  }
+  for (let d = $from.depth; d > 0; d--) {
+    const parentName = $from.node(d).type.name
+    if (SECTION_INSERT_CONTAINERS.has(parentName)) {
+      return d + 1 <= $from.depth ? $from.after(d + 1) : $from.end(d)
+    }
+  }
+  return null
+}
+
 /**
  * 在当前块之后（同一结构节点内）插入内容
  */
@@ -2441,7 +2540,7 @@ function getInsertAfterCurrentBlock(): number | null {
   const { $from } = editor.value.state.selection
   for (let d = $from.depth; d > 0; d--) {
     const parentName = $from.node(d).type.name
-    if (['chapter', 'clause', 'foreword', 'introduction', 'appendix'].includes(parentName)) {
+    if (SECTION_INSERT_CONTAINERS.has(parentName)) {
       return $from.after(d + 1 <= $from.depth ? d + 1 : d)
     }
   }
@@ -3499,11 +3598,19 @@ function handleXmlFileImport(event: Event) {
   right: 16px;
   z-index: 5;
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+  max-height: calc(100% - 20px);
+  pointer-events: none;
+}
+.tbar-context-row {
+  display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 6px;
-  max-width: calc(100% - 32px);
-  pointer-events: none;
+  flex-shrink: 0;
 }
 .tbar-context {
   pointer-events: auto;
