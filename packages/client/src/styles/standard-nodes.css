@@ -1299,13 +1299,14 @@
   text-align: center;
   vertical-align: middle;
 }
+.std-table-wrapper .ses-image-only-cell .std-table-cell-content > p,
 .std-table-wrapper .ses-image-only-cell > p { text-align: center; }
-.std-table-wrapper .ses-image-only-cell .std-inline-image:not([data-size]) {
+.std-table-wrapper .ses-image-only-cell .std-inline-image:not([data-size]):not([src=''])[src] {
   max-width: 80%; max-height: 50mm; width: auto; height: auto;
 }
-.ses-figure-image-view { position: relative; width: 100%; }
+.ses-figure-image-view { position: relative; width: 100%; margin-bottom: 8px; }
 .ses-figure-image-frame { position: relative; display: inline-block; max-width: 100%; text-align: center; }
-.ses-figure-image-frame .std-figure-image { height: auto; max-width: 100%; }
+.ses-figure-image-frame .std-figure-image { height: auto; max-width: 100%; margin-bottom: 0; }
 .ses-figure-resize-handle { display: none; position: absolute; right: 0; bottom: 0; width: 14px; height: 14px; cursor: nwse-resize; background: #467bdd; border: 1px solid white; }
 .ses-figure-image-view.ProseMirror-selectednode:not(.is-empty) .ses-figure-resize-handle { display: block; }
 .ses-figure-image-view:not(.is-empty) .std-figure-image { min-height: 0; }

@@ -1,6 +1,10 @@
 import type { Editor } from '@tiptap/core'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { SelectionBookmark } from '@tiptap/pm/state'
+import type { EditorView } from '@tiptap/pm/view'
+
+/** 单张本地图片最大原始文件大小（10 MB），确保 Base64 Data URL 嵌入文档 JSON 后远低于服务端 25 MB 限制。 */
+export const MAX_LOCAL_IMAGE_BYTES = 10 * 1024 * 1024
 
 type ImageTarget = { doc: ProseMirrorNode; bookmark: SelectionBookmark; pos?: number; slashPos?: number }
 
@@ -49,6 +53,57 @@ export function isSupportedImageData(src: string): boolean {
   } catch { return false }
 }
 
+export function validateLocalImageFile(file: Pick<File, 'type' | 'size'>): void {
+  if (!['image/png', 'image/jpeg', 'image/gif'].includes(file.type)) {
+    throw new Error('请选择 PNG、JPEG 或 GIF 格式的图片')
+  }
+  if (file.size > MAX_LOCAL_IMAGE_BYTES) {
+    throw new Error(`图片文件过大（最大支持 ${Math.round(MAX_LOCAL_IMAGE_BYTES / (1024 * 1024))} MB），请压缩后再试`)
+  }
+}
+
+export function isEmptyImageNode(node: ProseMirrorNode | null | undefined): boolean {
+  return Boolean(node && ['figureImage', 'inlineImage'].includes(node.type.name) && !node.attrs.src)
+}
+
+export function findEmptyImagePosFromKeydown(view: EditorView, event: KeyboardEvent): number | undefined {
+  if (!view.editable) return undefined
+  const target = event.target
+  if ((event.key !== 'Enter' && event.key !== ' ') || !(target instanceof HTMLImageElement) || target.getAttribute('role') !== 'button') {
+    return undefined
+  }
+  const pos = view.posAtDOM(target, 0)
+  return [pos, pos - 1].find((p) => {
+    if (p < 0 || p >= view.state.doc.content.size) return false
+    const node = view.state.doc.nodeAt(p)
+    return isEmptyImageNode(node) && Boolean(view.nodeDOM(p)?.contains(target))
+  })
+}
+
+export function handleEmptyImageClick(
+  view: EditorView,
+  node: ProseMirrorNode,
+  nodePos: number,
+  direct: boolean,
+  pickImage: (pos: number) => void,
+): boolean {
+  if (!view.editable || !direct || !isEmptyImageNode(node)) return false
+  pickImage(nodePos)
+  return true
+}
+
+export function handleEmptyImageKeydown(
+  view: EditorView,
+  event: KeyboardEvent,
+  pickImage: (pos: number) => void,
+): boolean {
+  const imagePos = findEmptyImagePosFromKeydown(view, event)
+  if (imagePos === undefined) return false
+  event.preventDefault()
+  pickImage(imagePos)
+  return true
+}
+
 /** A fresh input per invocation also allows choosing the same file again. */
 export function selectLocalImage(): Promise<string | null> {
   const input = document.createElement('input')
@@ -59,8 +114,10 @@ export function selectLocalImage(): Promise<string | null> {
     input.addEventListener('change', () => {
       const file = input.files?.[0]
       if (!file) { resolve(null); return }
-      if (!['image/png', 'image/jpeg', 'image/gif'].includes(file.type)) {
-        reject(new Error('请选择 PNG、JPEG 或 GIF 格式的图片'))
+      try {
+        validateLocalImageFile(file)
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error('图片格式或大小不符合要求'))
         return
       }
       const reader = new FileReader()

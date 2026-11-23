@@ -129,3 +129,12 @@ describe('EditorContent.vue：标签选择器 h3/h4 不再作用于条标题', (
     expect(editorContentVue).toMatch(/\.tiptap h2\)?\s*\{/)
   })
 })
+
+describe('standard-nodes.css 单图单元格与插图间距', () => {
+  it('匹配 .std-table-cell-content > p 居中且排除空行内图，同时把 bottom 间距移至 .ses-figure-image-view', () => {
+    expect(css).toContain('.std-table-wrapper .ses-image-only-cell .std-table-cell-content > p')
+    expect(css).toContain(".std-table-wrapper .ses-image-only-cell .std-inline-image:not([data-size]):not([src=''])[src]")
+    expect(declarations('.ses-figure-image-view')).toContain('margin-bottom: 8px;')
+    expect(declarations('.ses-figure-image-frame .std-figure-image')).toContain('margin-bottom: 0;')
+  })
+})

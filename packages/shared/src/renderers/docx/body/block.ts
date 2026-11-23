@@ -42,6 +42,8 @@ export interface BlockCtx {
   suppressLandscape?: boolean
   /** 当前容器（如表格单元格）允许行内图片占用的最大宽度（mm），未设置时默认版心宽度 165mm。 */
   maxWidthMm?: number
+  /** 位于非单图表格单元格或表注/表脚注内：无明确 size 的行内图按行高（1.2em）缩放。 */
+  mixedTableCell?: boolean
 }
 
 function withScope(bctx: BlockCtx, scopeKey: NodeId): BlockCtx {
@@ -123,7 +125,7 @@ function renderListItemRest(ctx: RenderContext, blocks: (IRParagraph | IRList)[]
   let out = ''
   for (const block of blocks) {
     if (block.kind === 'paragraph') {
-      out += emitParagraph(ctx, plan.contStyleId, { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx, block.id, listContentWidthMm(list, depth, bctx.maxWidthMm ?? 165))) })
+      out += emitParagraph(ctx, plan.contStyleId, { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx, block.id, listContentWidthMm(list, depth, bctx.maxWidthMm ?? 165), false, bctx.mixedTableCell ?? false)) })
     } else {
       out += renderListLevel(ctx, block, bctx, depth + 1, { type: list.listType, numId: plan.firstNumPr?.numId })
     }
@@ -143,7 +145,7 @@ function renderListLevel(ctx: RenderContext, list: IRList, bctx: BlockCtx, depth
       out += emitParagraph(ctx, plan.firstStyleId, {
         numPr: plan.firstNumPr,
         indent: plan.firstIndent,
-        runsXml: renderInlines((first as IRParagraph).content, ctx.labels, formulaSink(ctx, (first as IRParagraph).id, listContentWidthMm(list, depth, bctx.maxWidthMm ?? 165))),
+        runsXml: renderInlines((first as IRParagraph).content, ctx.labels, formulaSink(ctx, (first as IRParagraph).id, listContentWidthMm(list, depth, bctx.maxWidthMm ?? 165), false, bctx.mixedTableCell ?? false)),
         numbered,
       })
       out += renderListItemRest(ctx, item.content.slice(1), bctx, depth, list, plan)
@@ -169,7 +171,7 @@ function renderList(ctx: RenderContext, list: IRList, bctx: BlockCtx): string {
 function renderDefList(ctx: RenderContext, list: IRDefList, bctx: BlockCtx): string {
   let out = ''
   for (const item of list.items) {
-    const sink = formulaSink(ctx, item.id, bctx.maxWidthMm)
+    const sink = formulaSink(ctx, item.id, bctx.maxWidthMm, false, bctx.mixedTableCell ?? false)
     const runs = renderInlines(item.term, ctx.labels, sink) + plainRun('：')
       + renderInlines(item.definition, ctx.labels, sink)
     out += emitParagraph(ctx, 'SesPara', { runsXml: runs })
@@ -199,7 +201,7 @@ function renderContentBlocks(ctx: RenderContext, blocks: IRBlock[], bctx: BlockC
   let out = ''
   for (const block of blocks) {
     if (block.kind === 'paragraph') {
-      out += emitParagraph(ctx, contStyleId, { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx, block.id, paragraphMaxWidthMm)) })
+      out += emitParagraph(ctx, contStyleId, { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx, block.id, paragraphMaxWidthMm, false, bctx.mixedTableCell ?? false)) })
     } else {
       out += renderBlock(ctx, block, bctx)
     }
@@ -221,7 +223,7 @@ function renderNote(ctx: RenderContext, note: IRNote, bctx: BlockCtx, inTable = 
 
   const [first, ...rest] = note.content
   if (first && first.kind === 'paragraph') {
-    let out = emitParagraph(ctx, firstStyleId, { numPr: firstNumPr, runsXml: renderInlines(first.content, ctx.labels, formulaSink(ctx, first.id, firstWidthMm)), numbered })
+    let out = emitParagraph(ctx, firstStyleId, { numPr: firstNumPr, runsXml: renderInlines(first.content, ctx.labels, formulaSink(ctx, first.id, firstWidthMm, false, bctx.mixedTableCell ?? false)), numbered })
     out += renderContentBlocks(ctx, rest, innerBctx, contStyleId, restWidthMm)
     return out
   }
@@ -294,12 +296,12 @@ function tableGridContent(
   return {
     columnCount: columnLayout.widths.length,
     ...(columnLayout.custom ? { gridWidthsTwips: columnLayout.widths } : {}),
-    notesXml: () => table.notes.map((note) => renderNote(ctx, note, { ...tableBctx, maxWidthMm: noteMaxWidthMm }, true)).join(''),
+    notesXml: () => table.notes.map((note) => renderNote(ctx, note, { ...tableBctx, maxWidthMm: noteMaxWidthMm, mixedTableCell: true }, true)).join(''),
     footnotesXml: () => orderTableFootnotes(table.footnotes ?? [], ctx.labels).map((footnote) => {
       const resolved = ctx.labels[footnote.id]
       if (!resolved) throw new Error(`renderTable: 表脚注 "${footnote.id}" 在 labels 中没有编号`)
       return emitParagraph(ctx, 'SesTableFootnote', {
-        runsXml: superscriptRun(resolved.refText) + tabRun() + renderInlines(footnote.content, ctx.labels, formulaSink(ctx, footnote.id)),
+        runsXml: superscriptRun(resolved.refText) + tabRun() + renderInlines(footnote.content, ctx.labels, formulaSink(ctx, footnote.id, noteMaxWidthMm, false, true)),
       })
     }).join(''),
     renderCell(cell, styleId, meta) {
@@ -308,14 +310,15 @@ function tableGridContent(
         block.content.every((run) => !run.formula && !run.image && renderRun({ ...run, text: run.text.trim() }, ctx.labels) === ''))) return ''
       const cellWidthTwips = columnLayout.cellWidths.get(cell.id) ?? (columnLayout.pageWidthTwips / Math.max(1, columnLayout.widths.length))
       const cellMaxWidthMm = Math.max(5, ((cellWidthTwips - 2 * TABLE_CELL_SIDE_MARGIN_TWIPS) * 25.4) / 1440)
-      const cellBctx: BlockCtx = { ...tableBctx, maxWidthMm: cellMaxWidthMm }
+      const imageOnly = isImageOnlyCell(cell)
+      const cellBctx: BlockCtx = { ...tableBctx, maxWidthMm: cellMaxWidthMm, mixedTableCell: !imageOnly }
       return cell.content.map((block) => {
         if (block.kind !== 'paragraph') return renderBlock(ctx, block, cellBctx)
         // 表头统一使用常规字重；源稿导入的直接粗体也要清除，但不能改写编辑器/IR 数据。
         const content = meta.header ? block.content.map(run => ({
           ...run, marks: run.marks?.filter(mark => mark.type !== 'bold'),
         })) : block.content
-        return emitParagraph(ctx, isImageOnlyCell(cell) ? 'SesTableCenter' : styleId, { runsXml: renderInlines(content, ctx.labels, formulaSink(ctx, block.id, cellMaxWidthMm, isImageOnlyCell(cell), !isImageOnlyCell(cell))) })
+        return emitParagraph(ctx, imageOnly ? 'SesTableCenter' : styleId, { runsXml: renderInlines(content, ctx.labels, formulaSink(ctx, block.id, cellMaxWidthMm, imageOnly, !imageOnly)) })
       }).join('')
     },
   }
@@ -458,7 +461,7 @@ function renderBlockContent(ctx: RenderContext, block: IRBlock, bctx: BlockCtx):
   }
   switch (block.kind) {
     case 'paragraph':
-      return emitParagraph(ctx, 'SesPara', { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx, block.id, bctx.maxWidthMm)) })
+      return emitParagraph(ctx, 'SesPara', { runsXml: renderInlines(block.content, ctx.labels, formulaSink(ctx, block.id, bctx.maxWidthMm, false, bctx.mixedTableCell ?? false)) })
     case 'list':
       return renderList(ctx, block, bctx)
     case 'table':

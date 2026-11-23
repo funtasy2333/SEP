@@ -517,5 +517,55 @@ describe('EditorView 横页表格展开编辑', () => {
       view.unmount()
     }
   })
+
+  it('空图点击与键盘补选遵守只读状态与真实节点位置校验', async () => {
+    const view = await mountEditor()
+    try {
+      const editor = view.editor
+      const editorProps = mocks.editorOptions.editorProps
+      editor.commands.setContent({
+        type: 'doc',
+        content: [{
+          type: 'chapter',
+          content: [
+            { type: 'chapterTitle', content: [{ type: 'text', text: '第一章' }] },
+            {
+              type: 'figure',
+              content: [
+                { type: 'figureImage', attrs: { src: '' } },
+                { type: 'figureCaption', content: [{ type: 'text', text: '图题' }] },
+              ],
+            },
+          ],
+        }],
+      })
+      await flush()
+
+      let figImgPos = -1
+      editor.state.doc.descendants((node: any, p: number) => {
+        if (node.type.name === 'figureImage') figImgPos = p
+      })
+      const figImgNode = editor.state.doc.nodeAt(figImgPos)
+
+      // 只读状态下点击与 Enter 都不拦截也不触发选图
+      editor.setEditable(false)
+      expect(editorProps.handleClickOn(editor.view, figImgPos, figImgNode, figImgPos, new MouseEvent('click'), true)).toBe(false)
+      const emptyImg = document.createElement('img')
+      emptyImg.setAttribute('role', 'button')
+      const roKey = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+      Object.defineProperty(roKey, 'target', { value: emptyImg })
+      expect(editorProps.handleKeyDown(editor.view, roKey)).toBe(false)
+
+      // 可编辑状态下，即使 dom nodeDOM 命中了外层非空图节点（如 figure），因 nodeAt(p) 非空图而不误触发
+      editor.setEditable(true)
+      const figEl = document.createElement('figure')
+      figEl.setAttribute('role', 'button')
+      const bogusKey = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+      Object.defineProperty(bogusKey, 'target', { value: figEl })
+      expect(editorProps.handleKeyDown(editor.view, bogusKey)).toBe(false)
+    } finally {
+      view.unmount()
+    }
+  })
 })
 

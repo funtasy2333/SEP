@@ -349,7 +349,10 @@ function renderTable(table: IRTable, ctx: RenderCtx): void {
   const layout = hasColumnWidths ? resolveTableColumnWidths(ctx.inLandscapeAppendix ? { ...table, orientation: 'landscape' } : table) : undefined
   const total = layout?.widths.reduce((sum, width) => sum + width, 0) ?? 0
   const hasImageOnly = table.rows.some(row => row.cells.some(isImageOnlyCell))
-  const tableStyle = layout?.custom ? ` style="width:${100 * total / layout.pageWidthTwips}%;table-layout:fixed"` : hasImageOnly ? ' style="table-layout:fixed"' : ''
+  const narrow = Boolean(layout?.custom && total < layout.pageWidthTwips)
+  const tableStyle = layout?.custom
+    ? ` style="width:${100 * total / layout.pageWidthTwips}%;${narrow ? 'margin:0 auto;' : ''}table-layout:fixed"`
+    : hasImageOnly ? ' style="table-layout:fixed"' : ''
   ctx.push(`<table${anchorAttr(ctx, table.id)}${tableStyle}>`)
   if (layout?.custom) ctx.push(`<colgroup>${layout.widths.map(width => `<col style="width:${100 * width / total}%" />`).join('')}</colgroup>`)
   // 跨页重复表头（含「关于单位的陈述」若其作为表头行存在）：headerRowCount 行进 thead

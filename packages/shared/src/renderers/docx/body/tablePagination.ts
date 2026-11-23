@@ -119,12 +119,12 @@ function blockLines(
       const listCapacity = Math.max(1, capacity * width / maxWidthMm)
       return block.items.reduce((sum, item) => sum + Math.max(1, item.content.reduce((part, child) =>
         part + (child.kind === 'list'
-          ? blockLines(child, capacity, maxWidthMm, images, depth)
-          : blockLines(child, listCapacity, width, images)), 0)), 0)
+          ? blockLines(child, capacity, maxWidthMm, images, depth, false, mixedTableCell)
+          : blockLines(child, listCapacity, width, images, 0, false, mixedTableCell)), 0)), 0)
     }
     case 'note':
     case 'example':
-      return 1 + block.content.reduce((sum, child) => sum + blockLines(child, capacity, maxWidthMm, images), 0)
+      return 1 + block.content.reduce((sum, child) => sum + blockLines(child, capacity, maxWidthMm, images, 0, false, mixedTableCell), 0)
     case 'defList':
       // 缩略语表：每项一个条文段落（缩略语与释义同一行，可回行）
       return block.items.reduce((sum, item) =>
@@ -132,7 +132,7 @@ function blockLines(
           kind: 'paragraph',
           id: item.id,
           content: [...item.term, { text: '：' }, ...item.definition],
-        }, capacity, maxWidthMm, images), 0)
+        }, capacity, maxWidthMm, images, 0, false, mixedTableCell), 0)
     case 'figure':
     case 'formula':
       return 6
@@ -165,7 +165,8 @@ function rowHeightMm(
     const capacity = layout.custom
       ? Math.max(1, fullWidthUnits * Math.max(1, (layout.cellWidths.get(cell.id) ?? 0) - 2 * TABLE_CELL_SIDE_MARGIN_TWIPS) / layout.pageWidthTwips)
       : Math.max(4, fullWidthUnits * cell.colspan / columnCount)
-    return Math.max(1, cell.content.reduce((sum, block) => sum + blockLines(block, capacity, cellMaxWidthMm, images, 0, isImageOnlyCell(cell), !isImageOnlyCell(cell)), 0))
+    const imageOnly = isImageOnlyCell(cell)
+    return Math.max(1, cell.content.reduce((sum, block) => sum + blockLines(block, capacity, cellMaxWidthMm, images, 0, imageOnly, !imageOnly), 0))
   }))
   // Word 9 pt 表格单行约 4.2 mm、两行约 8.2 mm；保留少量边框/取整余量。
   // 不能继续把短记录的单行下限设为 6 mm，否则会平白增加续表页数。
@@ -212,7 +213,7 @@ export function paginateTable(table: IRTable, options: TablePaginationOptions = 
   const noteCapacity = Math.max(layout.custom ? 1 : 8, (landscape ? 73 : 48) * widthScale - 4)
   const noteMaxWidthMm = Math.max(5, (((layout.pageWidthTwips * widthScale) - 2 * TABLE_CELL_SIDE_MARGIN_TWIPS) * 25.4) / 1440)
   const noteHeight = table.notes.length > 0 ? 1.2 + table.notes.reduce((sum, note) => sum +
-    note.content.reduce((height, block) => height + blockLines(block, noteCapacity, noteMaxWidthMm, options.images) *
+    note.content.reduce((height, block) => height + blockLines(block, noteCapacity, noteMaxWidthMm, options.images, 0, false, true) *
       (block.kind === 'paragraph' ? 4.2 : 5.5), 0), 0) : 0
   const footnoteCapacity = Math.max(layout.custom ? 1 : 8, (landscape ? 73 : 48) * widthScale - 4)
   const tableFootnoteHeight = (table.footnotes ?? []).reduce((sum, footnote) => {

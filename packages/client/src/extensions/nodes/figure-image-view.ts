@@ -55,25 +55,31 @@ export const EditableFigureImage = FigureImage.extend({
         dom.classList.toggle('is-empty', !node.attrs.src)
       }
       handle.addEventListener('pointerdown', event => {
-        if (!view.editable || !node.attrs.src) return
+        if (event.button !== 0 || !view.editable || !node.attrs.src) return
         event.preventDefault(); event.stopPropagation()
         stopDrag?.()
+        const pointerId = event.pointerId
         const originalDoc = view.state.doc, originalPos = getPos()
         const startX = event.clientX, startWidth = image.getBoundingClientRect().width
         const frameWidth = dom.getBoundingClientRect().width
         if (!frameWidth || !startWidth) return
+        try { handle.setPointerCapture?.(pointerId) } catch { /* ignore unsupported capture in test environments */ }
         const initialWidth = startWidth / frameWidth * limit()
         let width = initialWidth
         const move = (e: PointerEvent) => {
+          if (e.pointerId !== pointerId) return
           width = Math.max(16, Math.min(limit(), (startWidth + (e.clientX - startX) * 2) / frameWidth * limit()))
           frame.style.width = `${width / limit() * 100}%`
           image.style.width = '100%'
+          image.style.aspectRatio = ''
         }
         const cleanup = () => {
           window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', finish); window.removeEventListener('pointercancel', cancel)
+          try { handle.releasePointerCapture?.(pointerId) } catch { /* ignore unsupported capture in test environments */ }
           stopDrag = undefined
         }
         const finish = (e: PointerEvent) => {
+          if (e.pointerId !== pointerId) return
           cleanup()
           if (e.type === 'pointerup' && Math.abs(width - initialWidth) > 0.01 && view.state.doc.eq(originalDoc) && getPos() === originalPos) {
             if (typeof originalPos === 'number') setFigureWidth(view, originalPos, Math.round(width * 100) / 100)

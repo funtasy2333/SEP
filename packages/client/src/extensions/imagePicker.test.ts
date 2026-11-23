@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { Editor } from '@tiptap/core'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createEditorExtensions } from './editorExtensions'
 import { captureImageTarget, applyImageTarget, isSupportedImageData } from '../utils/imagePicker'
 
@@ -153,5 +153,76 @@ describe('图片数据校验', () => {
     expect(isSupportedImageData('data:image/png;base64,iVBORw0KGgo=')).toBe(true)
     expect(isSupportedImageData('data:image/gif;base64,R0lGODlh')).toBe(true)
     expect(isSupportedImageData('data:image/jpeg;base64,/9j/4A==')).toBe(true)
+  })
+
+  it('本地选图超过体积上限时直接拒绝读取并给出中文提示', async () => {
+    const {
+      MAX_LOCAL_IMAGE_BYTES,
+      validateLocalImageFile,
+      selectLocalImage,
+    } = await import('../utils/imagePicker')
+
+    expect(MAX_LOCAL_IMAGE_BYTES).toBe(10 * 1024 * 1024)
+    expect(() => validateLocalImageFile({ type: 'image/png', size: MAX_LOCAL_IMAGE_BYTES })).not.toThrow()
+    expect(() => validateLocalImageFile({ type: 'image/png', size: MAX_LOCAL_IMAGE_BYTES + 1 })).toThrow(/10 MB/)
+    expect(() => validateLocalImageFile({ type: 'image/webp', size: 100 })).toThrow(/PNG|JPG|GIF/)
+
+    const originalCreateElement = document.createElement.bind(document)
+    let createdInput: HTMLInputElement | null = null
+    const spy = vi.spyOn(document, 'createElement').mockImplementation(((tagName: string, options?: ElementCreationOptions) => {
+      const el = originalCreateElement(tagName, options)
+      if (tagName.toLowerCase() === 'input') {
+        createdInput = el as HTMLInputElement
+        createdInput.click = () => {
+          const bigFile = new File(['x'], 'huge.png', { type: 'image/png' })
+          Object.defineProperty(bigFile, 'size', { value: MAX_LOCAL_IMAGE_BYTES + 1 })
+          Object.defineProperty(createdInput, 'files', { configurable: true, value: [bigFile] })
+          createdInput!.dispatchEvent(new Event('change'))
+        }
+      }
+      return el
+    }) as typeof document.createElement)
+
+    try {
+      await expect(selectLocalImage()).rejects.toThrow(/图片文件过大/)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('只读编辑器或非空图 DOM 节点不触发空图补选回调', async () => {
+    const { handleEmptyImageClick, handleEmptyImageKeydown } = await import('../utils/imagePicker')
+    const picked: number[] = []
+    const ed = new Editor({
+      extensions: createEditorExtensions(),
+      editable: false,
+      content: {
+        type: 'doc',
+        content: [{
+          type: 'chapter',
+          content: [
+            { type: 'chapterTitle', content: [{ type: 'text', text: '测试' }] },
+            { type: 'figure', content: [{ type: 'figureImage', attrs: { src: '' } }, { type: 'figureCaption' }] },
+          ],
+        }],
+      },
+    })
+    editors.push(ed)
+    let figPos = -1
+    ed.state.doc.descendants((node, p) => { if (node.type.name === 'figureImage') figPos = p })
+    expect(handleEmptyImageClick(ed.view, ed.state.doc.nodeAt(figPos)!, figPos, true, p => picked.push(p))).toBe(false)
+
+    const img = ed.view.dom.querySelector<HTMLImageElement>('img[role="button"]')!
+    const roEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+    Object.defineProperty(roEvent, 'target', { value: img })
+    expect(handleEmptyImageKeydown(ed.view, roEvent, p => picked.push(p))).toBe(false)
+
+    ed.setEditable(true)
+    const bogusTarget = ed.view.dom.querySelector<HTMLElement>('figure')!
+    bogusTarget.setAttribute('role', 'button')
+    const bogusEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+    Object.defineProperty(bogusEvent, 'target', { value: bogusTarget })
+    expect(handleEmptyImageKeydown(ed.view, bogusEvent, p => picked.push(p))).toBe(false)
+    expect(picked).toEqual([])
   })
 })

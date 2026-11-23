@@ -18,8 +18,8 @@ function decorations(doc: PMNode) {
     if (node.childCount !== 1 || !node.firstChild?.isTextblock) return true
     let images = 0, other = false
     node.firstChild.forEach(child => {
-      if (child.type.name === 'inlineImage') images++
-      else if (!child.isText || child.text?.trim()) other = true
+      if (child.type.name === 'inlineImage' && child.attrs.src && child.marks.length === 0) images++
+      else if (!child.isText || child.marks.length > 0 || child.text?.includes('\n') || child.text?.trim()) other = true
     })
     if (images === 1 && !other) result.push(Decoration.node(pos, pos + node.nodeSize, { class: 'ses-image-only-cell' }))
     return false

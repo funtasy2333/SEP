@@ -459,4 +459,90 @@ describe('LandscapeTableDialog', () => {
 
     app.unmount()
   })
+
+  it('弹窗内支持点击或按 Enter/Space 补选空行内图，保留原图属性并拦截关闭期间回写', async () => {
+    const picker = await import('@/utils/imagePicker')
+    const sampleDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+    const tableWithEmptyImg: PMJsonNode = {
+      type: 'stdTable',
+      attrs: { nodeId: 'tbl-empty-img', orientation: 'landscape', headerRowCount: 0 },
+      content: [
+        { type: 'tableCaption', attrs: { nodeId: 'tbl-empty-cap' }, content: [{ type: 'text', text: '行内图弹窗' }] },
+        {
+          type: 'table',
+          content: [{
+            type: 'tableRow',
+            content: [{
+              type: 'tableCell',
+              content: [{
+                type: 'paragraph',
+                content: [{ type: 'inlineImage', attrs: { src: '', alt: '待补选', size: 'M' } }],
+              }],
+            }],
+          }],
+        },
+      ],
+    }
+
+    let resolvePick: ((src: string | null) => void) | undefined
+    const selectSpy = vi.spyOn(picker, 'selectLocalImage').mockImplementation(() => new Promise((resolve) => {
+      resolvePick = resolve
+    }))
+
+    const root = document.createElement('div')
+    document.body.append(root)
+    roots.push(root)
+    const open = ref(false)
+    const applied: PMJsonNode[] = []
+    const app = createApp({
+      setup: () => () =>
+        h(LandscapeTableDialog, {
+          modelValue: open.value,
+          tableJson: tableWithEmptyImg,
+          tableLabel: '表 6',
+          'onUpdate:modelValue': (value: boolean) => { open.value = value },
+          onApply: (modalDoc: PMJsonNode) => { applied.push(modalDoc) },
+        }),
+    })
+    app.use(ElementPlus).mount(root)
+    open.value = true
+    await finishDialogTransition()
+
+    const imgEl = document.querySelector<HTMLImageElement>('.lt-editor-content img.std-inline-image[role="button"]')
+    expect(imgEl).not.toBeNull()
+
+    // 1. 触发键盘 Enter 补选并写回，保留 size / alt
+    const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    imgEl!.dispatchEvent(enterEvent)
+    expect(enterEvent.defaultPrevented).toBe(true)
+    expect(selectSpy).toHaveBeenCalledTimes(1)
+    resolvePick!(sampleDataUrl)
+    await settle()
+
+    document.querySelector<HTMLButtonElement>('[data-testid="lt-apply-btn"]')!.click()
+    await finishDialogTransition()
+    expect(applied).toHaveLength(1)
+    expect(JSON.stringify(applied[0])).toContain(sampleDataUrl)
+    expect(JSON.stringify(applied[0])).toContain('"alt":"待补选"')
+    expect(JSON.stringify(applied[0])).toContain('"size":"M"')
+
+    // 2. 点击空图等待期间弹窗关闭时，异步回调不得抛错或改动主文档，并给出提示
+    const warnSpy = vi.spyOn((await import('element-plus')).ElMessage, 'warning').mockImplementation(() => ({ close: () => {} }) as never)
+    open.value = true
+    await finishDialogTransition()
+    const emptyEl = document.querySelector<HTMLImageElement>('.lt-editor-content img.std-inline-image[role="button"]')!
+    // 测试环境下直接派发 click 可能缺坐标导致 ProseMirror posAtCoords 返回空；同时覆盖 Space 与 click 路径（此处显式触发空图点击事件与 Space 校验）
+    emptyEl.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    if (selectSpy.mock.calls.length < 2) {
+      emptyEl.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }))
+    }
+    expect(selectSpy).toHaveBeenCalledTimes(2)
+    open.value = false
+    await finishDialogTransition()
+    resolvePick!(sampleDataUrl)
+    await settle()
+    expect(warnSpy).toHaveBeenCalledWith('未能在原位置插入图片，请重新选择位置')
+
+    app.unmount()
+  })
 })

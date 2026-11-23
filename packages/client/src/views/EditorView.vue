@@ -707,7 +707,13 @@ import ValidationPanel from '@/components/editor/ValidationPanel.vue'
 
 import { useEditor } from '@tiptap/vue-3'
 import { installRemoteDocument, replaceEditorDocument } from '@/utils/editorDocument'
-import { captureImageTarget, applyImageTarget, selectLocalImage } from '@/utils/imagePicker'
+import {
+  captureImageTarget,
+  applyImageTarget,
+  selectLocalImage,
+  handleEmptyImageClick,
+  handleEmptyImageKeydown,
+} from '@/utils/imagePicker'
 import { setFigureSizePreset, type FigureSizePreset } from '@/utils/figureSize'
 import { createEditorExtensions } from '@/extensions/editorExtensions'
 import { normalizePageOrientation } from '@/utils/orientation'
@@ -975,22 +981,16 @@ const editor = useEditor({
     if (!suppressEditorUpdate) scheduleAutoSave()
   },
   editorProps: {
-    handleClickOn(_view, _pos, node, nodePos, _event, direct) {
-      if (!direct || !['figureImage', 'inlineImage'].includes(node.type.name) || node.attrs.src) return false
-      void handleInsertFigure(nodePos)
-      return true
+    handleClickOn(view, _pos, node, nodePos, _event, direct) {
+      return handleEmptyImageClick(view, node, nodePos, direct, (pos) => {
+        void handleInsertFigure(pos)
+      })
     },
     handleKeyDown(view, event) {
-      const target = event.target
-      if ((event.key === 'Enter' || event.key === ' ') && target instanceof HTMLImageElement
-        && target.getAttribute('role') === 'button') {
-        const pos = view.posAtDOM(target, 0)
-        const imagePos = [pos, pos - 1].find(p => p >= 0 && view.nodeDOM(p)?.contains(target))
-        if (imagePos !== undefined) {
-          event.preventDefault()
-          void handleInsertFigure(imagePos)
-          return true
-        }
+      if (handleEmptyImageKeydown(view, event, (pos) => {
+        void handleInsertFigure(pos)
+      })) {
+        return true
       }
       if ((event.ctrlKey || event.metaKey) && event.key === 's') {
         event.preventDefault()
