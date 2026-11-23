@@ -96,8 +96,8 @@ const EXTRA_FIELDS: Record<OutputBoundaryFormat, Readonly<Record<string, readonl
   // - list.continueNumbering（issue #70）：继续前一列项编号，HTML 写计数器起点、DOCX 写编号实例的 startOverride；
   //   旧 XML 序列化器按每个列表从头编号、不能表达接续，继续阻断（不静默改号）；XML46687 由 blocks.ts 登记（label 写接续后的序号）。
   // - inline.image / inlineImage（M-8.3-02，G3）：段落内行内图（含表格单元格、列项、注、示例内的段落），HTML/PDF 与 DOCX 排版输出。
-  DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'], appendix: APPENDIX_PRINT_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'], list: ['continueNumbering'], inline: ['image'], inlineImage: INLINE_IMAGE_FIELDS },
-  HTML: { meta: PRINT_META_FIELDS, appendix: APPENDIX_PRINT_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'], list: ['continueNumbering'], inline: ['image'], inlineImage: INLINE_IMAGE_FIELDS },
+  DOCX: { meta: PRINT_META_FIELDS, cell: ['columnWidths'], appendix: APPENDIX_PRINT_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'], list: ['continueNumbering'], inline: ['image'], inlineImage: INLINE_IMAGE_FIELDS, figure: ['imageWidth', 'imageHeight'], measure: ['value', 'unit'] },
+  HTML: { meta: PRINT_META_FIELDS, cell: ['columnWidths'], appendix: APPENDIX_PRINT_FIELDS, termEntry: ['subjectField'], front: ['introductionClauses'], defList: DEF_LIST_FIELDS, ...GROUP_G1, doc: ['bibliographyTitle'], list: ['continueNumbering'], inline: ['image'], inlineImage: INLINE_IMAGE_FIELDS, figure: ['imageWidth', 'imageHeight'], measure: ['value', 'unit'] },
   XML: NO_EXTRA_FIELDS,
   // XML46687 比 XML 多放行的字段/kind/mark 由各领域文件登记（renderers/xml46687Parts/*.ts 的 XML46687_*_BOUNDARY），
   // 汇总在 xml46687Boundary.ts；XML46687_DECLARED_DIFFERENCES 逐项列出差异，outputBoundaryXml46687.test.ts 据此断言。
@@ -215,16 +215,16 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
         }
       }
     }
-    if (format === 'DOCX' && kind === 'table' && (object.rows as IRTable['rows'] | undefined)?.some(row => row.cells.some(cell => present(cell.columnWidths)))) {
+    if ((format === 'DOCX' || format === 'HTML') && kind === 'table' && (object.rows as IRTable['rows'] | undefined)?.some(row => row.cells.some(cell => present(cell.columnWidths)))) {
       try {
         for (const issue of tableColumnWidthIssues(object as unknown as IRTable)) problems.push({
           code: 'unsupported-output', nodeId: issue.nodeId,
           path: `${path}.rows[${issue.rowIndex}].cells[${issue.cellIndex}].columnWidths`,
-          message: `DOCX 不能保留此列宽：${issue.reason}。请保留 JSON 文档。`,
+          message: `${format} 不能保留此列宽：${issue.reason}。请保留 JSON 文档。`,
         })
       } catch (error) {
         problems.push({code:'unsupported-output', nodeId:id, path:`${path}.columnWidths`,
-          message:`DOCX 不能映射表格列宽：${error instanceof Error ? error.message : String(error)}。请保留 JSON 文档。`})
+          message:`${format} 不能映射表格列宽：${error instanceof Error ? error.message : String(error)}。请保留 JSON 文档。`})
       }
     }
     // 小写罗马列项（WP8.M G7，M-5.7-04）：只有旧 XML（format==='XML'）阻断——旧序列化器会把它降为阿拉伯数字（toXmlListType），
@@ -285,6 +285,11 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
           }
         }
       }
+      if ((format === 'HTML' || format === 'DOCX') && kind === 'figure' && (key === 'imageWidth' || key === 'imageHeight') && present(child)) {
+        const measure = child as Record<string, unknown>
+        if (typeof measure.value !== 'number' || !Number.isFinite(measure.value) || measure.value <= 0 ||
+          typeof measure.unit !== 'string' || !['px', 'mm', 'cm', 'in', 'pt'].includes(measure.unit)) report(key)
+      }
       if (key === 'unsupportedContent') continue
       if (key === 'tailOrder') continue
       const defaultShape = key === 'meta' ? 'meta' : key === 'front' ? 'front'
@@ -292,6 +297,7 @@ export function getOutputSupportProblems(doc: IRDoc, format: OutputBoundaryForma
         : key === 'rows' ? 'row' : key === 'cells' ? 'cell' : key === 'items' ? (kind === 'defList' ? 'where' : 'item')
         : key === 'whereList' ? 'where' : key === 'unmappedFootnotes' ? 'unmappedFootnote'
         : key === 'formula' && shape === 'inline' ? 'inlineFormula'
+        : (key === 'imageWidth' || key === 'imageHeight') && kind === 'figure' ? 'measure'
         : key === 'image' && shape === 'inline' ? 'inlineImage'
         : 'inline'
       // XML46687：领域登记的 childShape（没有 kind 的对象类型，如 titlePart/identifier）优先于上面的默认链

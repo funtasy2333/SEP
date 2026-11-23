@@ -73,7 +73,7 @@ describe('DOCX 原生脚注与表脚注', () => {
     expect(() => renderDocxTraced(doc, labels, OPTIONS)).toThrow('脚注关联无效')
   })
 
-  it.each([true, false])('空源文字的交叉引用按实际输出判断空格：目标有效=%s', (validTarget) => {
+  it.each([true, false])('空源文字的交叉引用按实际输出判断空单元格：目标有效=%s', (validTarget) => {
     const doc = footnoteFixture()
     const table = doc.body[0]!.children[0] as IRTable
     table.notes = []
@@ -82,12 +82,18 @@ describe('DOCX 原生脚注与表脚注', () => {
       kind: 'paragraph', id: 'xref-only-p',
       content: [{ text: '', marks: [{ type: 'crossRef', targetId: validTarget ? 'chapter-1' : 'missing-target' }] }],
     }]
+    table.rows[0]!.cells[1]!.content = [{ kind: 'paragraph', id: 'dash-p', content: [{ text: '—' }] }]
     const { labels } = resolve(doc)
     const { pkg } = renderDocxTraced(doc, labels, OPTIONS)
     const cells = pkg.parts['word/document.xml']!.match(/<w:tc>[\s\S]*?<\/w:tc>/g)!
     // 表题是表外段落，不在任何单元格内；第一个单元格就是源文字为空的数据格。
-    expect(cells[0]).toContain(`<w:t xml:space="preserve">${validTarget ? labels['chapter-1']!.refText : '—'}</w:t>`)
-    if (validTarget) expect(cells[0]).not.toContain('>—</w:t>')
+    if (validTarget) {
+      expect(cells[0]).toContain(`<w:t xml:space="preserve">${labels['chapter-1']!.refText}</w:t>`)
+    } else {
+      expect(cells[0]).not.toContain('<w:r>')
+    }
+    expect(cells[0]).not.toContain('>—</w:t>')
+    expect(cells[1]).toContain('<w:t xml:space="preserve">—</w:t>')
     assertWellFormed(pkg)
     assertChildOrder(pkg)
   })

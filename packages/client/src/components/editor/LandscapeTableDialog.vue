@@ -164,6 +164,13 @@ import TableMenu from '@/components/editor/TableMenu.vue'
 import { createLandscapeTableModalExtensions } from '@/extensions/editorExtensions'
 import { canInsertInlineFormula } from '@/extensions/plugins/inlineFormulaEditing'
 import {
+  captureImageTarget,
+  applyImageTarget,
+  selectLocalImage,
+  handleEmptyImageClick,
+  handleEmptyImageKeydown,
+} from '@/utils/imagePicker'
+import {
   LANDSCAPE_TARGET_WIDTH_PX,
   buildColwidthTransaction,
   distributeColumnWidthsByWeights,
@@ -236,6 +243,21 @@ function destroyModalEditor(): void {
   initialSnapshot = ''
 }
 
+async function pickModalImage(pos: number): Promise<void> {
+  const ed = modalEditor.value
+  if (!ed || ed.isDestroyed || !ed.isEditable || !props.modelValue) return
+  const target = captureImageTarget(ed, pos)
+  try {
+    const src = await selectLocalImage()
+    if (!src) return
+    if (!props.modelValue || modalEditor.value !== ed || ed.isDestroyed || !ed.isEditable || !applyImageTarget(ed, target, src)) {
+      ElMessage.warning('未能在原位置插入图片，请重新选择位置')
+    }
+  } catch (error) {
+    ElMessage.warning(error instanceof Error ? error.message : '图片读取失败')
+  }
+}
+
 function initModalEditor(): void {
   destroyModalEditor()
   if (!props.tableJson) return
@@ -264,14 +286,21 @@ function initModalEditor(): void {
       revision.value += 1
     },
     editorProps: {
-      handleKeyDown(_view, event) {
+      handleClickOn(view, _pos, node, nodePos, _event, direct) {
+        return handleEmptyImageClick(view, node, nodePos, direct, (pos) => {
+          void pickModalImage(pos)
+        })
+      },
+      handleKeyDown(view, event) {
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
           event.preventDefault()
           event.stopPropagation()
           handleApply()
           return true
         }
-        return false
+        return handleEmptyImageKeydown(view, event, (pos) => {
+          void pickModalImage(pos)
+        })
       },
     },
   })

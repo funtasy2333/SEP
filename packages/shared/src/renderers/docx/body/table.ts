@@ -8,10 +8,10 @@
 
 import type { IRTable, IRTableRow } from '../../../ir/types'
 import { emitParagraph, type RenderContext } from './context'
-import { plainRun } from './inline'
 import { buildTableGrid, type GridCell } from './tableGrid'
 import { resolveTableColumnWidths, TABLE_CELL_SIDE_MARGIN_TWIPS } from './tableColumnWidths'
 export { tableGridColumnCount } from './tableGrid'
+import { isImageOnlyCell } from '../../imageLayout'
 import { tcBorders, tcPr, tbl, tblBorders, tblPr, tr, trPr, type XmlChild } from '../xml'
 
 export type IRTableCell = IRTableRow['cells'][number]
@@ -110,9 +110,10 @@ function cellXml(
   if (gridCell.kind === 'continuation') {
     contentXml = '<w:p/>'
   } else if (gridCell.kind === 'filler') {
-    contentXml = emitParagraph(ctx, rowIndex < headerRowCount ? 'SesTableHeader' : 'SesTableCenter', { runsXml: plainRun('—') })
+    contentXml = emitParagraph(ctx, rowIndex < headerRowCount ? 'SesTableHeader' : 'SesTableCenter')
   } else {
     const origin = gridCell.origin!
+    if (isImageOnlyCell(origin.cell)) tcPrChildren.push(['vAlign', '<w:vAlign w:val="center"/>'])
     const isHeader = origin.cell.header || rowIndex < headerRowCount
     contentXml = options.renderCell(origin.cell, tableCellParagraphStyle(origin.cell, isHeader), {
       rowIndex,
@@ -120,7 +121,7 @@ function cellXml(
       header: isHeader,
     })
     if (contentXml.trim() === '') {
-      contentXml = emitParagraph(ctx, isHeader ? 'SesTableHeader' : 'SesTableCenter', { runsXml: plainRun('—') })
+      contentXml = emitParagraph(ctx, isHeader ? 'SesTableHeader' : 'SesTableCenter')
     } else if (!/<\/w:p>\s*$/.test(contentXml)) {
       // Word requires a final paragraph in a cell after nested tables and other block-level content.
       contentXml += '<w:p/>'

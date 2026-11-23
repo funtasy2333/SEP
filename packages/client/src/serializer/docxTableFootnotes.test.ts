@@ -109,7 +109,9 @@ describe('仅含表脚注上标的单元格完整导出', () => {
       const markers = Array.from(cells[0]!.getElementsByTagName('w:r')).filter(r => texts(r).some(t => /^[ab]$/.test(t)))
       expect(markers).toHaveLength(expectedCalls.length)
       for (const marker of markers) expect(marker.getElementsByTagName('w:vertAlign')[0]!.getAttribute('w:val')).toBe('superscript')
-      expect(texts(cells[1]!)).toEqual(['—'])
+      const emptyCell = cells[1]!
+      expect(emptyCell.getElementsByTagName('w:p')).toHaveLength(1)
+      expect(texts(emptyCell)).toEqual([])
       const footer = rows[rows.length - 1]!
       expect(texts(footer)).toEqual(['a', '定义B', 'b', '定义A'])
       if (scenario === 'colspan') expect(cells[0]!.getElementsByTagName('w:gridSpan')[0]!.getAttribute('w:val')).toBe('2')

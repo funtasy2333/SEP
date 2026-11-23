@@ -349,6 +349,60 @@ describe('EditorView 附录版面（#75）', () => {
   })
 })
 
+describe('EditorView 图片尺寸浮窗', () => {
+  it('仅选中有图源的正文或附录图片时显示，操作后保留选中并可撤销', async () => {
+    const view = await mountEditor()
+    try {
+      const editor = view.editor
+      const imagePos = (figureId: string) => {
+        let found = -1
+        editor.state.doc.descendants((node: any, pos: number) => {
+          if (node.type.name === 'figure' && node.attrs.nodeId === figureId) found = pos + 1
+        })
+        return found
+      }
+      const sizing = () => view.root.querySelector<HTMLElement>('[data-testid="image-size-controls"]')
+      editor.commands.setTextSelection(positionOf(editor, '正文图题'))
+      await flush()
+      expect(sizing()).toBeNull()
+      const pos = imagePos('body-f1')
+      editor.commands.setNodeSelection(pos)
+      await flush()
+      expect(sizing()).not.toBeNull()
+      expect(sizing()?.closest('.tbar-context-shelf')).not.toBeNull()
+      expect(nodeGroup(view.root)).not.toBeNull()
+      buttonIn(sizing(), '半版宽').click()
+      await flush()
+      expect(editor.state.doc.nodeAt(pos).attrs.width).toBeCloseTo(165 * 96 / 25.4 / 2, 2)
+      expect(editor.state.selection.from).toBe(pos)
+      expect(editor.state.selection.node?.type.name).toBe('figureImage')
+      buttonIn(sizing(), '通栏').click()
+      await flush()
+      expect(editor.state.doc.nodeAt(pos).attrs.width).toBeCloseTo(165 * 96 / 25.4, 2)
+      editor.commands.undo()
+      await flush()
+      expect(editor.state.doc.nodeAt(pos).attrs.width).toBeCloseTo(165 * 96 / 25.4 / 2, 2)
+      editor.commands.setNodeSelection(imagePos('app-f1'))
+      await flush()
+      expect(sizing()).not.toBeNull()
+      expect(group(view.root)).not.toBeNull()
+      const appPos = imagePos('app-f1')
+      let appendixPos = -1
+      editor.state.doc.descendants((node: any, pos: number) => { if (node.type.name === 'appendix') appendixPos = pos })
+      editor.view.dispatch(editor.state.tr.setNodeAttribute(appendixPos, 'orientation', 'landscape'))
+      editor.commands.setNodeSelection(appPos)
+      await flush()
+      buttonIn(sizing(), '通栏').click()
+      await flush()
+      expect(editor.state.doc.nodeAt(appPos).attrs.width).toBeCloseTo(252 * 96 / 25.4, 2)
+      editor.view.dispatch(editor.state.tr.setNodeAttribute(appPos, 'src', ''))
+      editor.commands.setNodeSelection(appPos)
+      await flush()
+      expect(sizing()).toBeNull()
+    } finally { view.unmount() }
+  })
+})
+
 describe('EditorView 横页表格展开编辑', () => {
   async function finishDialogTransition() {
     await flush()
@@ -459,6 +513,56 @@ describe('EditorView 横页表格展开编辑', () => {
       })
       expect(JSON.stringify(appT1AfterFormula)).toContain('"formulaInline"')
       expect(JSON.stringify(appT1AfterFormula)).toContain('q_V')
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('空图点击与键盘补选遵守只读状态与真实节点位置校验', async () => {
+    const view = await mountEditor()
+    try {
+      const editor = view.editor
+      const editorProps = mocks.editorOptions.editorProps
+      editor.commands.setContent({
+        type: 'doc',
+        content: [{
+          type: 'chapter',
+          content: [
+            { type: 'chapterTitle', content: [{ type: 'text', text: '第一章' }] },
+            {
+              type: 'figure',
+              content: [
+                { type: 'figureImage', attrs: { src: '' } },
+                { type: 'figureCaption', content: [{ type: 'text', text: '图题' }] },
+              ],
+            },
+          ],
+        }],
+      })
+      await flush()
+
+      let figImgPos = -1
+      editor.state.doc.descendants((node: any, p: number) => {
+        if (node.type.name === 'figureImage') figImgPos = p
+      })
+      const figImgNode = editor.state.doc.nodeAt(figImgPos)
+
+      // 只读状态下点击与 Enter 都不拦截也不触发选图
+      editor.setEditable(false)
+      expect(editorProps.handleClickOn(editor.view, figImgPos, figImgNode, figImgPos, new MouseEvent('click'), true)).toBe(false)
+      const emptyImg = document.createElement('img')
+      emptyImg.setAttribute('role', 'button')
+      const roKey = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+      Object.defineProperty(roKey, 'target', { value: emptyImg })
+      expect(editorProps.handleKeyDown(editor.view, roKey)).toBe(false)
+
+      // 可编辑状态下，即使 dom nodeDOM 命中了外层非空图节点（如 figure），因 nodeAt(p) 非空图而不误触发
+      editor.setEditable(true)
+      const figEl = document.createElement('figure')
+      figEl.setAttribute('role', 'button')
+      const bogusKey = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+      Object.defineProperty(bogusKey, 'target', { value: figEl })
+      expect(editorProps.handleKeyDown(editor.view, bogusKey)).toBe(false)
     } finally {
       view.unmount()
     }

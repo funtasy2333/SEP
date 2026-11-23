@@ -509,9 +509,9 @@ describe('DOCX/HTML/XML 的行为不因新增格式而改变', () => {
     expect(docx).not.toContain('doc.meta.proposer')
     expect(html).not.toContain('doc.meta.technicalCommittee')
     expect(xml).toContain('doc.meta.proposer')
-    // 列宽仅 DOCX 承认；headerRowCount 仅 XML 额外检查
+    // 列宽由 DOCX 和 HTML 承认；headerRowCount 仅 XML 额外检查
     expect(docx).not.toContain('doc.body[0].children[2].rows[0].cells[0].columnWidths')
-    expect(html).toContain('doc.body[0].children[2].rows[0].cells[0].columnWidths')
+    expect(html).not.toContain('doc.body[0].children[2].rows[0].cells[0].columnWidths')
     expect(xml).toContain('doc.body[0].children[2].rows[0].cells[0].columnWidths')
     expect(docx).not.toContain('doc.body[0].children[2].headerRowCount')
     expect(html).not.toContain('doc.body[0].children[2].headerRowCount')

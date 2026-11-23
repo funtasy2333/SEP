@@ -107,7 +107,7 @@ describe('HTML 与 printCss 行内图片及表格单元格内图片渲染', () =
         '与<img class="ses-inline-image" src="' + SAMPLE_PNG_DATA_URL + '" alt="大图标" data-size="L" />。',
       )
       expect(html).toContain(
-        '<td><img class="ses-inline-image" src="' + SAMPLE_PNG_DATA_URL + '" alt="接地" /></td>',
+        '<td class="ses-image-only-cell"><img class="ses-inline-image" src="' + SAMPLE_PNG_DATA_URL + '" alt="接地" /></td>',
       )
       // 表格单元格内图片不应产生 figure 元素或图1 编号
       expect(html).not.toContain('data-type="figure"')
@@ -195,9 +195,9 @@ describe('DOCX 列表行内图宽度', () => {
     const table = { kind: 'table' as const, id: 'page-table', caption: [], orientation: 'portrait' as const, headerRowCount: 0, notes: [], rows: [{ id: 'page-row', cells: [{ id: 'page-cell', colspan: 1, rowspan: 1, header: false, columnWidths: [200], content: [{ kind: 'list' as const, id: 'page-list', listType: 'alpha' as const, items: [{ id: 'page-item', content: [{ kind: 'paragraph' as const, id: 'page-p', content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL } }] }] }] }] }] }] }
     const image = { base64: SAMPLE_PNG_B64, contentType: 'image/png', widthPx: 1200, heightPx: 600 }
     const result = paginateTable(table, { images: { [SAMPLE_PNG_DATA_URL]: image } })
-    const width = (3000 - 204 - 840) * 25.4 / 1440
+    const expectedHeightMm = 10.8 * 25.4 / 72
     const empty = paginateTable({ ...table, rows: [] }, { images: {} })
-    expect(result.totalHeightMm - empty.totalHeightMm).toBeCloseTo(Math.ceil(width / 2 / 4.2) * 4.2 + 0.2, 5)
+    expect(result.totalHeightMm - empty.totalHeightMm).toBeCloseTo(Math.ceil(expectedHeightMm / 4.2) * 4.2 + 0.2, 5)
   })
 
   it('注内列表使用容器的绝对缩进，极窄单元格输出正数图片尺寸', () => {
@@ -219,32 +219,54 @@ describe('DOCX 列表行内图宽度', () => {
   })
 
   it('按正文和单元格的列表层级扣除缩进，首段和续段均等比缩放', () => {
-    const paragraph = (id: string) => ({ kind: 'paragraph' as const, id, content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: id } }] })
-    const list = (prefix: string) => ({
+    const paragraph = (id: string, size?: 'S' | 'M' | 'L') => ({ kind: 'paragraph' as const, id, content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: id, ...(size ? { size } : {}) } }] })
+    const list = (prefix: string, size?: 'S' | 'M' | 'L') => ({
       kind: 'list' as const, id: `${prefix}-list`, listType: 'alpha' as const,
-      items: [{ id: `${prefix}-item`, content: [paragraph(`${prefix}-first`), paragraph(`${prefix}-rest`), {
+      items: [{ id: `${prefix}-item`, content: [paragraph(`${prefix}-first`, size), paragraph(`${prefix}-rest`, size), {
         kind: 'list' as const, id: `${prefix}-nested`, listType: 'number' as const,
-        items: [{ id: `${prefix}-nested-item`, content: [paragraph(`${prefix}-nested-first`), paragraph(`${prefix}-nested-rest`)] }],
+        items: [{ id: `${prefix}-nested-item`, content: [paragraph(`${prefix}-nested-first`, size), paragraph(`${prefix}-nested-rest`, size)] }],
       }] }],
     })
     const doc = makeDoc([list('body'), {
       kind: 'table', id: 'table-list', caption: [{ text: '列表' }], orientation: 'portrait', headerRowCount: 0, notes: [],
-      rows: [{ id: 'row-list', cells: [{ id: 'cell-list', colspan: 1, rowspan: 1, header: false, columnWidths: [200], content: [list('cell')] }] }],
+      rows: [{ id: 'row-list', cells: [{ id: 'cell-list', colspan: 1, rowspan: 1, header: false, columnWidths: [200], content: [list('cell', 'L')] }] }],
     }])
     const { labels } = resolve(doc)
     const image = { base64: SAMPLE_PNG_B64, contentType: 'image/png', widthPx: 1200, heightPx: 600 }
     const pkg = renderDocx(doc, labels, { formulaOmml: {}, images: { [SAMPLE_PNG_DATA_URL]: image }, stage: 'approval_draft', createdAt: '2026-11-13T00:00:00.000Z' })
     const xml = pkg.parts['word/document.xml']!
-    for (const prefix of ['body', 'cell']) for (const part of ['first', 'rest', 'nested-first', 'nested-rest']) {
-      // Match the extent adjacent to this particular drawing, not an earlier drawing.
-      const drawing = [...xml.matchAll(/<wp:inline\b[^>]*><wp:extent cx="(\d+)" cy="(\d+)"\/>[^<]*<wp:effectExtent[^>]*\/><wp:docPr[^>]*descr="([^"]+)"/g)].find(m => m[3] === `${prefix}-${part}`)
-      expect(drawing).toBeDefined()
-      const cx = Number(drawing![1]), cy = Number(drawing![2])
-      const containerMm = prefix === 'body' ? 165 : (3000 - 204) * 25.4 / 1440
+    const allDrawings = [...xml.matchAll(/<wp:inline\b[^>]*><wp:extent cx="(\d+)" cy="(\d+)"\/>[^<]*<wp:effectExtent[^>]*\/><wp:docPr[^>]*descr="([^"]+)"/g)]
+    for (const part of ['first', 'rest', 'nested-first', 'nested-rest']) {
+      // 正文列表不限高，按正文宽扣缩进等比缩放
+      const bodyDrawing = allDrawings.find(m => m[3] === `body-${part}`)
+      expect(bodyDrawing).toBeDefined()
+      const cx = Number(bodyDrawing![1]), cy = Number(bodyDrawing![2])
       const indentTwips = part.startsWith('nested') ? 1260 : 840
-      expect(cx).toBeCloseTo(Math.round((containerMm - indentTwips * 25.4 / 1440) * 36000), -1)
+      expect(cx).toBeCloseTo(Math.round((165 - indentTwips * 25.4 / 1440) * 36000), -1)
       expect(Math.abs(cx - cy * 2)).toBeLessThanOrEqual(2)
     }
+    // 表格单元格内显式 L 档位（2:1 宽约 26.67mm）在扣除两级缩进（840 / 1260 twips）后按实际可用宽裁切
+    const cellParts = ['first', 'rest', 'nested-first', 'nested-rest'] as const
+    for (const part of cellParts) {
+      const drawing = allDrawings.find(m => m[3] === `cell-${part}`)
+      expect(drawing).toBeDefined()
+      const cx = Number(drawing![1]), cy = Number(drawing![2])
+      const indentTwips = part.startsWith('nested') ? 1260 : 840
+      const availMm = (3000 - 204 - indentTwips) * 25.4 / 1440
+      const targetWidthMm = Math.min(availMm, 3 * 12.6 * 25.4 / 72 * 2)
+      expect(cx).toBeCloseTo(Math.round(targetWidthMm * 36000), -1)
+      expect(Math.abs(cx - cy * 2)).toBeLessThanOrEqual(2)
+    }
+    // 无档位图片在表格列表单元格内与 HTML 一致限制为单行高度（10.8pt）
+    const unSizedTableDoc = makeDoc([{
+      kind: 'table', id: 'table-unsized-list', caption: [], orientation: 'portrait', headerRowCount: 0, notes: [],
+      rows: [{ id: 'row-unsized', cells: [{ id: 'cell-unsized', colspan: 1, rowspan: 1, header: false, columnWidths: [200], content: [list('unsized')] }] }],
+    }])
+    const unSizedXml = renderDocx(unSizedTableDoc, resolve(unSizedTableDoc).labels, {
+      formulaOmml: {}, images: { [SAMPLE_PNG_DATA_URL]: image }, stage: 'approval_draft', createdAt: '2026-11-13T00:00:00.000Z',
+    }).parts['word/document.xml']!
+    const unSizedDrawing = /<wp:inline\b[^>]*><wp:extent cx="(\d+)" cy="(\d+)"\/>[^<]*<wp:effectExtent[^>]*\/><wp:docPr[^>]*descr="unsized-nested-first"/.exec(unSizedXml)!
+    expect(Number(unSizedDrawing[2])).toBeCloseTo(10.8 * 25.4 / 72 * 36000, -1)
   })
 })
 
@@ -372,13 +394,12 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
     expect(documentXml).toContain('<wp:extent cx="480060" cy="480060"/>')
     // 表格单元格自然尺寸（25.4mm × 12.7mm = 914400 × 457200 EMU）
     expect(documentXml).toContain('<wp:extent cx="914400" cy="457200"/>')
-    // 表格单元格超宽图等比缩放到单元格可用宽度（3 列均分 9355 twips -> 3118 twips，减左右边距 2×102 twips = 2914 twips ≈ 51.40mm ≈ 1850390 EMU，高为宽的一半 925195 EMU）
+    // 表格混排图的默认高度不超过小五号字单行高度，宽高比不变。
     const oversizedMatch = /<wp:inline\b[^>]*><wp:extent cx="(\d+)" cy="(\d+)"\/>[^<]*<wp:effectExtent[^>]*\/><wp:docPr[^>]*descr="超宽图"/.exec(documentXml)
     expect(oversizedMatch).not.toBeNull()
     const scaledCx = Number(oversizedMatch![1])
     const scaledCy = Number(oversizedMatch![2])
-    expect(scaledCx).toBeGreaterThan(1800000)
-    expect(scaledCx).toBeLessThan(1900000)
+    expect(scaledCy).toBeCloseTo(10.8 * 25.4 / 72 * 36000, -1)
     expect(Math.abs(scaledCx - scaledCy * 2)).toBeLessThanOrEqual(2)
 
     // 表格中没有产生任何图题样式 SesFigCap / SesAppFigCap，且纯图片单元格没有被填成“—”
@@ -423,8 +444,7 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
   })
 
   it('表格分页按单元格宽度与自然尺寸图片的实际渲染高度切分续表', () => {
-    // 3 行数据，每行含一张 400×400px（96dpi 下 105.83mm，单列宽 ~161mm 下保持 105.83mm 高）的自然尺寸图片，
-    // 3 行合计超过 300mm，必须按实际图片高度切分出续表并生成 SesTblCapCont「表1　大图续表测试（续）」。
+    // 单图单元格限高 50mm；增加到 6 行仍应超出一页并生成续表题。
     const doc = makeDoc([
       {
         kind: 'table',
@@ -439,7 +459,7 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
               { id: 'tc-h0', colspan: 1, rowspan: 1, header: true, content: [{ kind: 'paragraph', id: 'tc-h0-p', content: [{ text: '图形列' }] }] },
             ],
           },
-          ...([1, 2, 3] as const).map((i) => ({
+          ...([1, 2, 3, 4, 5, 6] as const).map((i) => ({
             id: `tr-${i}`,
             cells: [
               {
@@ -472,6 +492,9 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
         [inlineImageResourceKey('tc-1-p', 0)]: tallImage,
         [inlineImageResourceKey('tc-2-p', 0)]: tallImage,
         [inlineImageResourceKey('tc-3-p', 0)]: tallImage,
+        [inlineImageResourceKey('tc-4-p', 0)]: tallImage,
+        [inlineImageResourceKey('tc-5-p', 0)]: tallImage,
+        [inlineImageResourceKey('tc-6-p', 0)]: tallImage,
       },
       stage: 'approval_draft',
       createdAt: '2026-11-13T00:00:00.000Z',
@@ -481,8 +504,7 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
   })
 
   it('单元格内由换行符分隔的多张高窄行内图片按分行累加高度并正确切分续表', () => {
-    // 2 行数据，每行单元格含两张由 "\n" 分隔的高窄图（80×380px @ 96dpi ≈ 21.2mm 宽 × 100.5mm 高），
-    // 单行高度约 201mm，2 行合计超过 400mm，必须拆分为两段并输出续表题。
+    // 12 行数据，每行含两张显式 L 尺寸的图并由换行符分隔；总高度超过一页，须生成续表。
     const doc = makeDoc([
       {
         kind: 'table',
@@ -497,7 +519,7 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
               { id: 'tc-h0', colspan: 1, rowspan: 1, header: true, content: [{ kind: 'paragraph', id: 'tc-h0-p', content: [{ text: '图形列' }] }] },
             ],
           },
-          ...([1, 2] as const).map((i) => ({
+          ...Array.from({ length: 12 }, (_, index) => index + 1).map((i) => ({
             id: `tr-${i}`,
             cells: [
               {
@@ -509,9 +531,9 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
                   kind: 'paragraph' as const,
                   id: `tc-${i}-p`,
                   content: [
-                    { text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: `上图${i}` } },
+                    { text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: `上图${i}`, size: 'L' as const } },
                     { text: '\n' },
-                    { text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: `下图${i}` } },
+                    { text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: `下图${i}`, size: 'L' as const } },
                   ],
                 }],
               },
@@ -531,6 +553,7 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
     const pkg = renderDocx(doc, labels, {
       formulaOmml: {},
       images: {
+        [SAMPLE_PNG_DATA_URL]: narrowTallImage,
         [inlineImageResourceKey('tc-1-p', 0)]: narrowTallImage,
         [inlineImageResourceKey('tc-1-p', 1)]: narrowTallImage,
         [inlineImageResourceKey('tc-2-p', 0)]: narrowTallImage,
@@ -582,3 +605,166 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
   })
 })
 
+
+describe('图片尺寸与纯图片单元格', () => {
+  it('正文图使用保存的 CSS 像素尺寸输出 HTML 和 DOCX，与资源 DPI 无关', () => {
+    const doc = makeDoc([{ kind: 'figure', id: 'sized-fig', orientation: 'portrait', caption: [{ text: '图题' }], notes: [], src: SAMPLE_PNG_DATA_URL, imageWidth: { value: 192, unit: 'px' }, imageHeight: { value: 96, unit: 'px' } }])
+    const { labels } = resolve(doc)
+    expect(renderHtml(doc, labels, { variant: 'screen' })).toContain('width:192px;aspect-ratio:192 / 96;height:auto')
+    const image = { base64: SAMPLE_PNG_B64, contentType: 'image/png', widthPx: 1200, heightPx: 600, dpi: 300 }
+    const xml = renderDocx(doc, labels, { formulaOmml: {}, images: { 'sized-fig': image }, stage: 'approval_draft', createdAt: '2026-11-13T00:00:00.000Z' }).parts['word/document.xml']!
+    expect(xml).toContain('<wp:extent cx="1828800" cy="914400"/>')
+  })
+  it.each(['screen', 'print'] as const)('%s 下仅指定高度的图按原始比例同时适配版心宽度和指定高度', (variant) => {
+    const doc = makeDoc([{
+      kind: 'figure', id: 'height-only', orientation: 'portrait', caption: [], notes: [],
+      src: SAMPLE_PNG_DATA_URL, imageHeight: { value: 100, unit: 'mm' },
+    }])
+    const { labels } = resolve(doc)
+    const html = renderHtml(doc, labels, { variant })
+    expect(html).toContain('style="width:100%;height:auto;max-height:100mm;object-fit:contain"')
+  })
+  it('合并单元格仅图居中并受内容宽高约束，图文混排保持原有尺寸', () => {
+    const doc = makeDoc([{ kind: 'table', id: 'image-grid', caption: [], orientation: 'portrait', headerRowCount: 0, notes: [], rows: [
+      { id: 'r1', cells: [{ id: 'merged', colspan: 2, rowspan: 1, header: false, columnWidths: [240, 240], content: [{ kind: 'paragraph', id: 'only', content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: '仅图' } }] }] }] },
+      { id: 'r2', cells: [{ id: 'mixed', colspan: 1, rowspan: 1, header: false, columnWidths: [240], content: [{ kind: 'paragraph', id: 'mixed-p', content: [{ text: '文字' }, { text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: '混排' } }] }] },
+        { id: 'sized', colspan: 1, rowspan: 1, header: false, columnWidths: [240], content: [{ kind: 'paragraph', id: 'sized-p', content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: '小图', size: 'S' } }] }] }] },
+    ] }])
+    const { labels } = resolve(doc)
+    const html = renderHtml(doc, labels, { variant: 'screen' })
+    expect(html).toContain('<td colspan="2" class="ses-image-only-cell">')
+    expect(html).toContain('<td class="ses-image-only-cell"><img class="ses-inline-image"')
+    const image = { base64: SAMPLE_PNG_B64, contentType: 'image/png', widthPx: 1200, heightPx: 600 }
+    const xml = renderDocx(doc, labels, { formulaOmml: {}, images: { [SAMPLE_PNG_DATA_URL]: image }, stage: 'approval_draft', createdAt: '2026-11-13T00:00:00.000Z' }).parts['word/document.xml']!
+    const drawings = [...xml.matchAll(/<wp:extent cx="(\d+)" cy="(\d+)"\/>[^<]*<wp:effectExtent[^>]*\/><wp:docPr[^>]*descr="([^"]+)"/g)]
+    const one = drawings.find(m => m[3] === '仅图')!
+    const mixed = drawings.find(m => m[3] === '混排')!
+    const sized = drawings.find(m => m[3] === '小图')!
+    expect(Number(one[1])).toBeCloseTo((7200 - 204) * 25.4 / 1440 * 0.8 * 36000, -1)
+    expect(Number(one[2])).toBeLessThanOrEqual(50 * 36000)
+    expect(Number(mixed[2])).toBeCloseTo(10.8 * 25.4 / 72 * 36000, -1)
+    expect(html).toContain('.ses-table-block td:not(.ses-image-only-cell) .ses-inline-image:not([data-size])')
+    expect(Number(sized[2])).toBeCloseTo(12.6 * 25.4 / 72 * 36000, -1)
+    expect(xml).toContain('<w:vAlign w:val="center"/>')
+  })
+
+  it('自定义窄表格在 HTML screen 与 print 下均输出居中样式，全宽表格不输出 margin:0 auto', () => {
+    const tableBlock = (id: string, widths: number[]) => ({
+      kind: 'table' as const,
+      id,
+      caption: [{ text: id }],
+      orientation: 'portrait' as const,
+      headerRowCount: 1,
+      notes: [],
+      rows: [{
+        id: `${id}-r`,
+        cells: widths.map((w, idx) => ({
+          id: `${id}-c${idx}`,
+          colspan: 1,
+          rowspan: 1,
+          header: true,
+          columnWidths: [w],
+          content: [{ kind: 'paragraph' as const, id: `${id}-p${idx}`, content: [{ text: '栏' }] }],
+        })),
+      }],
+    })
+    const doc = makeDoc([tableBlock('narrow-tbl', [150, 150]), tableBlock('full-tbl', [320, 320])])
+    const { labels } = resolve(doc)
+    for (const variant of ['screen', 'print'] as const) {
+      const html = renderHtml(doc, labels, { variant })
+      const tables = [...html.matchAll(/<table[^>]*style="([^"]*)"/g)].map(m => m[1])
+      expect(tables).toHaveLength(2)
+      expect(tables[0]).toMatch(/width:[^;]+%;margin:0 auto;table-layout:fixed/)
+      expect(tables[1]).toMatch(/^width:100%;table-layout:fixed$/)
+    }
+  })
+
+  it('isImageOnlyCell 严格对齐空图、换行、marks、style 与脚注引用/定义边界', async () => {
+    const { isImageOnlyCell } = await import('../imageLayout')
+    const validCell = { id: 'c-valid', colspan: 1, rowspan: 1, header: false, content: [{ kind: 'paragraph' as const, id: 'p-valid', content: [{ text: '  ' }, { text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: 'valid' } }, { text: ' ' }] }] }
+    const emptySrcCell = { id: 'c-empty-src', colspan: 1, rowspan: 1, header: false, content: [{ kind: 'paragraph' as const, id: 'p-empty-src', content: [{ text: '', image: { src: '', alt: 'empty' } }] }] }
+    const hardBreakCell = { id: 'c-hardbreak', colspan: 1, rowspan: 1, header: false, content: [{ kind: 'paragraph' as const, id: 'p-hardbreak', content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL } }, { text: '\n' }] }] }
+    const markedWsCell = { id: 'c-marked-ws', colspan: 1, rowspan: 1, header: false, content: [{ kind: 'paragraph' as const, id: 'p-marked-ws', content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL } }, { text: ' ', marks: [{ type: 'bold' as const }] }] }] }
+    const markedImgCell = { id: 'c-marked-img', colspan: 1, rowspan: 1, header: false, content: [{ kind: 'paragraph' as const, id: 'p-marked-img', content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL }, marks: [{ type: 'bold' as const }] }] }] }
+    const styledCell = { id: 'c-styled', colspan: 1, rowspan: 1, header: false, content: [{ kind: 'paragraph' as const, id: 'p-styled', content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL }, style: { color: '#ff0000' } }] }] }
+    const fnRefCell = { id: 'c-fnref', colspan: 1, rowspan: 1, header: false, content: [{ kind: 'paragraph' as const, id: 'p-fnref', content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL } }, { text: '', footnoteRef: { targetId: 'tfn-1' } }] }] }
+    const fnDefCell = { id: 'c-fndef', colspan: 1, rowspan: 1, header: false, content: [{ kind: 'paragraph' as const, id: 'p-fndef', content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL } }, { text: '', footnoteDefinition: { id: 'sfn-1', content: [{ text: '脚' }] } }] }] }
+
+    expect(isImageOnlyCell(validCell)).toBe(true)
+    expect(isImageOnlyCell(emptySrcCell)).toBe(false)
+    expect(isImageOnlyCell(hardBreakCell)).toBe(false)
+    expect(isImageOnlyCell(markedWsCell)).toBe(false)
+    expect(isImageOnlyCell(markedImgCell)).toBe(false)
+    expect(isImageOnlyCell(styledCell)).toBe(false)
+    expect(isImageOnlyCell(fnRefCell)).toBe(false)
+    expect(isImageOnlyCell(fnDefCell)).toBe(false)
+
+    const doc = makeDoc([{
+      kind: 'table',
+      id: 'predicate-grid',
+      caption: [],
+      orientation: 'portrait',
+      headerRowCount: 0,
+      notes: [],
+      rows: [{
+        id: 'pred-r1',
+        cells: [
+          validCell,
+          hardBreakCell,
+          markedWsCell,
+          { id: 'c-marked-img-html', colspan: 1, rowspan: 1, header: false, content: [{ kind: 'paragraph', id: 'p-marked-img-html', content: [{ text: ' ', marks: [{ type: 'bold' }] }, { text: '', image: { src: SAMPLE_PNG_DATA_URL } }] }] },
+        ],
+      }],
+    }])
+    const { labels } = resolve(doc)
+    const html = renderHtml(doc, labels, { variant: 'screen' })
+    expect(html.match(/class="ses-image-only-cell"/g)).toHaveLength(1)
+  })
+
+  it('DOCX 对表格非段落子块与表注中的无档位行内图按 10.8pt 限高，正文对应块保持自然缩放', () => {
+    const imgRun = (id: string) => ({ text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: id } })
+    const p = (id: string) => ({ kind: 'paragraph' as const, id, content: [imgRun(id)] })
+    const doc = makeDoc([
+      { kind: 'note', id: 'body-note', content: [p('body-note-img')] },
+      { kind: 'example', id: 'body-ex', content: [p('body-ex-img')] },
+      { kind: 'list', id: 'body-list', listType: 'dash', items: [{ id: 'body-list-item', content: [p('body-list-img')] }] },
+      {
+        kind: 'table',
+        id: 'blocks-table',
+        caption: [{ text: '子块图' }],
+        orientation: 'portrait',
+        headerRowCount: 0,
+        notes: [{ kind: 'note', id: 'tbl-note', content: [p('tbl-note-img')] }],
+        rows: [{
+          id: 'bt-r1',
+          cells: [
+            { id: 'bt-note', colspan: 1, rowspan: 1, header: false, columnWidths: [200], content: [{ kind: 'note', id: 'cell-note', content: [p('cell-note-img')] }] },
+            { id: 'bt-ex', colspan: 1, rowspan: 1, header: false, columnWidths: [200], content: [{ kind: 'example', id: 'cell-ex', content: [p('cell-ex-img')] }] },
+            { id: 'bt-list', colspan: 1, rowspan: 1, header: false, columnWidths: [200], content: [{ kind: 'list', id: 'cell-list-b', listType: 'dash', items: [{ id: 'cell-list-item', content: [p('cell-list-img')] }] }] },
+          ],
+        }],
+      },
+    ])
+    const { labels } = resolve(doc)
+    const image = { base64: SAMPLE_PNG_B64, contentType: 'image/png', widthPx: 1200, heightPx: 600 }
+    const xml = renderDocx(doc, labels, { formulaOmml: {}, images: { [SAMPLE_PNG_DATA_URL]: image }, stage: 'approval_draft', createdAt: '2026-11-13T00:00:00.000Z' }).parts['word/document.xml']!
+    const drawings = [...xml.matchAll(/<wp:inline\b[^>]*><wp:extent cx="(\d+)" cy="(\d+)"\/>[^<]*<wp:effectExtent[^>]*\/><wp:docPr[^>]*descr="([^"]+)"/g)]
+    const byAlt = (alt: string) => {
+      const m = drawings.find(d => d[3] === alt)
+      expect(m, `missing drawing for ${alt}`).toBeDefined()
+      return { cx: Number(m![1]), cy: Number(m![2]) }
+    }
+    const lineHeightEmu = 10.8 * 25.4 / 72 * 36000
+    for (const alt of ['cell-note-img', 'cell-ex-img', 'cell-list-img', 'tbl-note-img']) {
+      expect(byAlt(alt).cy).toBeCloseTo(lineHeightEmu, -1)
+    }
+    for (const alt of ['body-note-img', 'body-ex-img', 'body-list-img']) {
+      expect(byAlt(alt).cy).toBeGreaterThan(lineHeightEmu * 5)
+    }
+    // 分页估算同步：含无档位行内图的表注（tbl-note）高度按 10.8pt 行内图估算，而非 16.8mm 自然高度
+    const tbl = doc.body[0]!.children[3] as import('../../../ir/types').IRTable
+    const withNoteImg = paginateTable(tbl, { images: { [SAMPLE_PNG_DATA_URL]: image } })
+    const withoutNoteImg = paginateTable({ ...tbl, notes: [] }, { images: { [SAMPLE_PNG_DATA_URL]: image } })
+    expect(withNoteImg.totalHeightMm - withoutNoteImg.totalHeightMm).toBeCloseTo(1.2 + 4.2, 5)
+  })
+})

@@ -1,3 +1,5 @@
+import { isImageOnlyCell } from './imageLayout'
+import { resolveTableColumnWidths } from './docx/body/tableColumnWidths'
 import { formulaLatexWithMarks } from '../formulaTextStyle'
 import { assertOutputSupported } from './outputBoundary'
 import { fullWidthFormulaLabel } from './formulaLabel'
@@ -98,6 +100,7 @@ class RenderCtx {
   readonly variant: HtmlVariant
   readonly anchorCounts: Map<string, number>
   readonly collectingAnchors: boolean
+  inLandscapeAppendix = false
   /** 列表编号起点（issue #70 继续编号），取自 Resolver 的 computeListNumbering；渲染器不自行判定接续关系。 */
   readonly listNumbering: Record<NodeId, ListNumbering<NodeId>>
   constructor(
@@ -317,6 +320,7 @@ function renderTableRows(rows: IRTableRow[], section: 'thead' | 'tbody', ctx: Re
       if (cell.colspan > 1) attrs.push(`colspan="${cell.colspan}"`)
       if (cell.rowspan > 1) attrs.push(`rowspan="${cell.rowspan}"`)
       // 表头单元格补 scope 提升可访问性：thead 内为列表头，tbody 内的表头单元格为行表头
+      if (isImageOnlyCell(cell)) attrs.push('class="ses-image-only-cell"')
       if (cell.header) attrs.push(`scope="${section === 'thead' ? 'col' : 'row'}"`)
       const attrStr = attrs.length > 0 ? ' ' + attrs.join(' ') : ''
       const content = renderBlocksInline(cell.content, ctx)
@@ -341,7 +345,16 @@ function renderTable(table: IRTable, ctx: RenderCtx): void {
     ctx.push(`<div class="ses-table-caption-en" lang="en">${renderInlines(table.captionEn, ctx)}</div>`)
   }
 
-  ctx.push(`<table${anchorAttr(ctx, table.id)}>`)
+  const hasColumnWidths = table.rows.some(row => row.cells.some(cell => (cell.columnWidths?.length ?? 0) > 0))
+  const layout = hasColumnWidths ? resolveTableColumnWidths(ctx.inLandscapeAppendix ? { ...table, orientation: 'landscape' } : table) : undefined
+  const total = layout?.widths.reduce((sum, width) => sum + width, 0) ?? 0
+  const hasImageOnly = table.rows.some(row => row.cells.some(isImageOnlyCell))
+  const narrow = Boolean(layout?.custom && total < layout.pageWidthTwips)
+  const tableStyle = layout?.custom
+    ? ` style="width:${100 * total / layout.pageWidthTwips}%;${narrow ? 'margin:0 auto;' : ''}table-layout:fixed"`
+    : hasImageOnly ? ' style="table-layout:fixed"' : ''
+  ctx.push(`<table${anchorAttr(ctx, table.id)}${tableStyle}>`)
+  if (layout?.custom) ctx.push(`<colgroup>${layout.widths.map(width => `<col style="width:${100 * width / total}%" />`).join('')}</colgroup>`)
   // 跨页重复表头（含「关于单位的陈述」若其作为表头行存在）：headerRowCount 行进 thead
   const headerCount = Math.min(Math.max(table.headerRowCount, 0), table.rows.length)
   if (headerCount > 0) {
@@ -384,7 +397,20 @@ function renderFigure(fig: IRFigure, ctx: RenderCtx): void {
     `<figure class="ses-figure-block" data-type="figure" data-orientation="${fig.orientation}"${idAttr(fig.id)}${anchorAttr(ctx, fig.id)}>`,
   )
   const alt = escapeAttr(fig.caption.map((r) => r.text).join(''))
-  ctx.push(`<img class="ses-figure-image" src="${escapeAttr(fig.src)}" alt="${alt}" />`)
+  const width = fig.imageWidth ? `${fig.imageWidth.value}${fig.imageWidth.unit}` : undefined
+  const height = fig.imageHeight ? `${fig.imageHeight.value}${fig.imageHeight.unit}` : undefined
+  const units: Record<string, number> = { px: 1, mm: 96 / 25.4, cm: 960 / 25.4, in: 96, pt: 96 / 72 }
+  const aspect = fig.imageWidth && fig.imageHeight
+    ? `${fig.imageWidth.value * units[fig.imageWidth.unit]!} / ${fig.imageHeight.value * units[fig.imageHeight.unit]!}` : undefined
+  let sizeStyle = ''
+  if (width) {
+    sizeStyle = aspect ? `width:${width};aspect-ratio:${aspect};height:auto` : `width:${width}`
+  } else if (height) {
+    // Auto height follows the intrinsic ratio at the available width. If the height cap
+    // is smaller, object-fit scales and centers the image within the capped box.
+    sizeStyle = `width:100%;height:auto;max-height:${height};object-fit:contain`
+  }
+  ctx.push(`<img class="ses-figure-image" src="${escapeAttr(fig.src)}" alt="${alt}"${sizeStyle ? ` style="${sizeStyle}"` : ''} />`)
   // 图中的注置于图题之上（GB/T 1.1—2020 9.11.1、9.12.2；9.7.5 的编排示例见原 PDF 第 33 页〔印刷页 26〕：
   // 图 → 标引序号说明 → 图中的注 → 图脚注 → 图编号和图题）。与 DOCX 顺序一致，也使 figcaption 位于 figure 的最后（HTML 要求 figcaption 为首或末子元素）。
   for (const note of fig.notes) renderNote(note, ctx)
@@ -644,7 +670,10 @@ function renderAppendix(appendix: IRAppendix, ctx: RenderCtx): void {
   ctx.push(`<div class="ses-appendix-label">${escapeHtml(ctx.label(appendix.id))}</div>`)
   ctx.push(`<div class="ses-appendix-kind">（${appendix.normative ? '规范性' : '资料性'}）</div>`)
   ctx.push(`<h2 class="ses-appendix-title">${renderInlines(appendix.title, ctx)}</h2>`)
+  const previousLandscape = ctx.inLandscapeAppendix
+  ctx.inLandscapeAppendix = appendix.orientation === 'landscape'
   for (const child of appendix.children) renderClauseChild(child, ctx)
+  ctx.inLandscapeAppendix = previousLandscape
   ctx.push('</section>')
 }
 
@@ -906,6 +935,9 @@ ${tableBordersCss('2px', '1px')}
     .ses-table-block td > .ses-paragraph, .ses-table-block th > .ses-paragraph { text-indent: 0; }
     .ses-figure-block { text-align: center; margin: 16px 0; }
     .ses-figure-image { max-width: 100%; }
+    .ses-table-block .ses-image-only-cell { text-align: center; vertical-align: middle; }
+    .ses-image-only-cell .ses-inline-image:not([data-size]) { max-width: 80%; max-height: 50mm; }
+    .ses-table-block td:not(.ses-image-only-cell) .ses-inline-image:not([data-size]), .ses-table-block th:not(.ses-image-only-cell) .ses-inline-image:not([data-size]) { max-height: 1.2em; }
     .ses-inline-image { display: inline-block; vertical-align: middle; max-width: 100%; height: auto; }
     .ses-inline-image[data-size="S"] { max-height: 1.2em; }
     .ses-inline-image[data-size="M"] { max-height: 2.4em; }
