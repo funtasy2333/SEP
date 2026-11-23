@@ -314,6 +314,18 @@
               >展开编辑</button>
             </div>
             <div
+              v-if="selectedFigureImagePos() !== undefined"
+              class="tbar-group tbar-context"
+              role="group"
+              aria-label="图片尺寸"
+              data-testid="image-size-controls"
+            >
+              <span class="tbar-label">图片尺寸</span>
+              <button type="button" class="tbar-btn" @mousedown.prevent @click="resizeSelectedFigure('half')">半版宽</button>
+              <button type="button" class="tbar-btn" @mousedown.prevent @click="resizeSelectedFigure('full')">通栏</button>
+              <button type="button" class="tbar-btn" @mousedown.prevent @click="resizeSelectedFigure('reset')">恢复默认</button>
+            </div>
+            <div
               v-if="activeAppendixPos() !== undefined"
               class="tbar-group tbar-context tbar-context-section"
               aria-label="附录版面方向"
@@ -695,6 +707,8 @@ import ValidationPanel from '@/components/editor/ValidationPanel.vue'
 
 import { useEditor } from '@tiptap/vue-3'
 import { installRemoteDocument, replaceEditorDocument } from '@/utils/editorDocument'
+import { captureImageTarget, applyImageTarget, selectLocalImage } from '@/utils/imagePicker'
+import { setFigureSizePreset, type FigureSizePreset } from '@/utils/figureSize'
 import { createEditorExtensions } from '@/extensions/editorExtensions'
 import { normalizePageOrientation } from '@/utils/orientation'
 import {
@@ -866,6 +880,20 @@ function activeOrientationNodeType(): 'figure' | 'stdTable' | undefined {
   return undefined
 }
 
+/** Only an explicitly selected, nonempty figure image has size controls. */
+function selectedFigureImagePos(): number | undefined {
+  const ed = editor.value
+  const selection = ed?.state.selection
+  return ed?.isEditable && selection instanceof NodeSelection && selection.node.type.name === 'figureImage' && selection.node.attrs.src
+    ? selection.from : undefined
+}
+
+function resizeSelectedFigure(preset: FigureSizePreset) {
+  const ed = editor.value
+  const pos = selectedFigureImagePos()
+  if (ed && pos !== undefined) setFigureSizePreset(ed.view, pos, preset)
+}
+
 /** 光标所在附录的位置（#75 附录整体横页）；不在附录内时为 undefined。 */
 function activeAppendixPos(): number | undefined {
   const currentEditor = editor.value
@@ -947,7 +975,23 @@ const editor = useEditor({
     if (!suppressEditorUpdate) scheduleAutoSave()
   },
   editorProps: {
-    handleKeyDown(_view, event) {
+    handleClickOn(_view, _pos, node, nodePos, _event, direct) {
+      if (!direct || !['figureImage', 'inlineImage'].includes(node.type.name) || node.attrs.src) return false
+      void handleInsertFigure(nodePos)
+      return true
+    },
+    handleKeyDown(view, event) {
+      const target = event.target
+      if ((event.key === 'Enter' || event.key === ' ') && target instanceof HTMLImageElement
+        && target.getAttribute('role') === 'button') {
+        const pos = view.posAtDOM(target, 0)
+        const imagePos = [pos, pos - 1].find(p => p >= 0 && view.nodeDOM(p)?.contains(target))
+        if (imagePos !== undefined) {
+          event.preventDefault()
+          void handleInsertFigure(imagePos)
+          return true
+        }
+      }
       if ((event.ctrlKey || event.metaKey) && event.key === 's') {
         event.preventDefault()
         if (!showLandscapeDialog.value) handleSave()
@@ -2554,8 +2598,24 @@ function handleMathConfirm(latex: string) {
 }
 
 // === 图片 ===
-function handleInsertFigure() {
-  editor.value?.chain().focus().insertFigure().run()
+async function handleInsertFigure(pos?: number, slashPos?: number) {
+  const ed = editor.value
+  if (!ed || !ed.isEditable) return
+  if (pos === undefined && !ed.can().insertFigure()) {
+    ElMessage.info('此处无法插入图片，请将光标放在正文或表格单元格中')
+    return
+  }
+  const currentDocumentId = documentId.value
+  const target = captureImageTarget(ed, pos, slashPos)
+  try {
+    const src = await selectLocalImage()
+    if (!src) return
+    if (editor.value !== ed || documentId.value !== currentDocumentId || !applyImageTarget(ed, target, src)) {
+      ElMessage.warning('未能在原位置插入图片，请重新选择位置')
+    }
+  } catch (error) {
+    ElMessage.warning(error instanceof Error ? error.message : '图片读取失败')
+  }
 }
 
 // === Slash Command ===
@@ -2566,6 +2626,10 @@ function handleSlashCommand(command: string) {
   const textBefore = editor.value.state.doc.textBetween(Math.max(0, from - 1), from)
   if (command === 'formula') {
     handleInsertFormula(textBefore === '/' ? from - 1 : undefined)
+    return
+  }
+  if (command === 'figure') {
+    void handleInsertFigure(undefined, textBefore === '/' ? from - 1 : undefined)
     return
   }
   if (textBefore === '/') {
@@ -2589,7 +2653,6 @@ function handleSlashCommand(command: string) {
       case 'paragraph': insertStdParagraph(); break
       case 'table': handleTableCommand('insert'); break
       case 'whereItem': handleAddWhereItem(); break
-      case 'figure': handleInsertFigure(); break
       case 'note': handleInsertNote('note'); break
       case 'footnote': handleInsertNote('footnote'); break
       case 'example': handleInsertExample('example'); break

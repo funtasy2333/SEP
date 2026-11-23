@@ -411,18 +411,20 @@ it('rejects only DOCX when one text run combines sub and sup', () => {
   expect(JSON.stringify(emptyCrossRefWithBoth)).toBe(emptyBothBefore)
 })
 
-it('DOCX消费列宽数据，尚未实现的HTML/XML仍保留拦截', () => {
+it('DOCX 和 HTML 消费有效列宽，XML 保留拦截', () => {
   const doc = base()
   doc.body[0]!.children.push({kind:'table',id:'width-table',caption:[],orientation:'portrait',headerRowCount:0,notes:[],rows:[{id:'r',cells:[{id:'c',colspan:1,rowspan:1,header:false,columnWidths:[70],content:[]}]}]})
   expect(getOutputSupportProblems(doc,'DOCX')).toEqual([])
   expect(renderDocx(doc,resolve(doc).labels,options).parts['word/document.xml']).toContain('<w:gridCol w:w="1050"/>')
-  for(const format of ['HTML','XML'] as const) expect(getOutputSupportProblems(doc,format).map(p=>p.path)).toContain('doc.body[0].children[1].rows[0].cells[0].columnWidths')
+  expect(getOutputSupportProblems(doc,'HTML')).toEqual([])
+  expect(renderHtml(doc,resolve(doc).labels,{ variant: 'print' })).toContain('<col style="width:100%" />')
+  expect(getOutputSupportProblems(doc,'XML').map(p=>p.path)).toContain('doc.body[0].children[1].rows[0].cells[0].columnWidths')
 })
 
 it.each([{values:[-1]}, {values:[Infinity]}, {values:[10,20]}, {values:['70']}])('DOCX继续拒绝无效列宽$values并保留JSON', ({values}) => {
   const doc=base()
   doc.body[0]!.children.push({kind:'table',id:'bad-width',caption:[],orientation:'portrait',headerRowCount:0,notes:[],rows:[{id:'r',cells:[{id:'c',colspan:1,rowspan:1,header:false,columnWidths:values as number[],content:[]}]}]})
-  expect(getOutputSupportProblems(doc,'DOCX')).toContainEqual(expect.objectContaining({nodeId:'c',path:'doc.body[0].children[1].rows[0].cells[0].columnWidths'}))
+  for (const format of ['DOCX', 'HTML'] as const) expect(getOutputSupportProblems(doc,format)).toContainEqual(expect.objectContaining({nodeId:'c',path:'doc.body[0].children[1].rows[0].cells[0].columnWidths'}))
   expect(()=>renderDocx(doc,resolve(doc).labels,options)).toThrow(UnsupportedOutputError)
 })
 

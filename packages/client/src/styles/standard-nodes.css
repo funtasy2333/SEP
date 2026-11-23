@@ -1279,3 +1279,33 @@
 .ProseMirror.resize-cursor {
   cursor: col-resize;
 }
+
+/* 旧文档中的空图片可点击补选；仅影响编辑器中的空节点。 */
+.std-figure-image[src=''],
+.std-figure-image:not([src]),
+.std-inline-image[src=''],
+.std-inline-image:not([src]) {
+  width: 280px;
+  height: 80px;
+  max-width: 100%;
+  min-height: 80px;
+  border: 1px dashed #9ca3af;
+  cursor: pointer;
+  background: #f3f4f6 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='80'%3E%3Ctext x='140' y='46' text-anchor='middle' font-size='15' fill='%234b5563'%3E%E7%82%B9%E5%87%BB%E9%80%89%E6%8B%A9%E5%9B%BE%E7%89%87%3C/text%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* A cell containing only one image uses the available merged-cell content box. */
+.std-table-wrapper td.ses-image-only-cell, .std-table-wrapper th.ses-image-only-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+.std-table-wrapper .ses-image-only-cell > p { text-align: center; }
+.std-table-wrapper .ses-image-only-cell .std-inline-image:not([data-size]) {
+  max-width: 80%; max-height: 50mm; width: auto; height: auto;
+}
+.ses-figure-image-view { position: relative; width: 100%; }
+.ses-figure-image-frame { position: relative; display: inline-block; max-width: 100%; text-align: center; }
+.ses-figure-image-frame .std-figure-image { height: auto; max-width: 100%; }
+.ses-figure-resize-handle { display: none; position: absolute; right: 0; bottom: 0; width: 14px; height: 14px; cursor: nwse-resize; background: #467bdd; border: 1px solid white; }
+.ses-figure-image-view.ProseMirror-selectednode:not(.is-empty) .ses-figure-resize-handle { display: block; }
+.ses-figure-image-view:not(.is-empty) .std-figure-image { min-height: 0; }

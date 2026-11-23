@@ -107,7 +107,7 @@ describe('HTML 与 printCss 行内图片及表格单元格内图片渲染', () =
         '与<img class="ses-inline-image" src="' + SAMPLE_PNG_DATA_URL + '" alt="大图标" data-size="L" />。',
       )
       expect(html).toContain(
-        '<td><img class="ses-inline-image" src="' + SAMPLE_PNG_DATA_URL + '" alt="接地" /></td>',
+        '<td class="ses-image-only-cell"><img class="ses-inline-image" src="' + SAMPLE_PNG_DATA_URL + '" alt="接地" /></td>',
       )
       // 表格单元格内图片不应产生 figure 元素或图1 编号
       expect(html).not.toContain('data-type="figure"')
@@ -372,13 +372,12 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
     expect(documentXml).toContain('<wp:extent cx="480060" cy="480060"/>')
     // 表格单元格自然尺寸（25.4mm × 12.7mm = 914400 × 457200 EMU）
     expect(documentXml).toContain('<wp:extent cx="914400" cy="457200"/>')
-    // 表格单元格超宽图等比缩放到单元格可用宽度（3 列均分 9355 twips -> 3118 twips，减左右边距 2×102 twips = 2914 twips ≈ 51.40mm ≈ 1850390 EMU，高为宽的一半 925195 EMU）
+    // 表格混排图的默认高度不超过小五号字单行高度，宽高比不变。
     const oversizedMatch = /<wp:inline\b[^>]*><wp:extent cx="(\d+)" cy="(\d+)"\/>[^<]*<wp:effectExtent[^>]*\/><wp:docPr[^>]*descr="超宽图"/.exec(documentXml)
     expect(oversizedMatch).not.toBeNull()
     const scaledCx = Number(oversizedMatch![1])
     const scaledCy = Number(oversizedMatch![2])
-    expect(scaledCx).toBeGreaterThan(1800000)
-    expect(scaledCx).toBeLessThan(1900000)
+    expect(scaledCy).toBeCloseTo(10.8 * 25.4 / 72 * 36000, -1)
     expect(Math.abs(scaledCx - scaledCy * 2)).toBeLessThanOrEqual(2)
 
     // 表格中没有产生任何图题样式 SesFigCap / SesAppFigCap，且纯图片单元格没有被填成“—”
@@ -423,8 +422,7 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
   })
 
   it('表格分页按单元格宽度与自然尺寸图片的实际渲染高度切分续表', () => {
-    // 3 行数据，每行含一张 400×400px（96dpi 下 105.83mm，单列宽 ~161mm 下保持 105.83mm 高）的自然尺寸图片，
-    // 3 行合计超过 300mm，必须按实际图片高度切分出续表并生成 SesTblCapCont「表1　大图续表测试（续）」。
+    // 单图单元格限高 50mm；增加到 6 行仍应超出一页并生成续表题。
     const doc = makeDoc([
       {
         kind: 'table',
@@ -439,7 +437,7 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
               { id: 'tc-h0', colspan: 1, rowspan: 1, header: true, content: [{ kind: 'paragraph', id: 'tc-h0-p', content: [{ text: '图形列' }] }] },
             ],
           },
-          ...([1, 2, 3] as const).map((i) => ({
+          ...([1, 2, 3, 4, 5, 6] as const).map((i) => ({
             id: `tr-${i}`,
             cells: [
               {
@@ -472,6 +470,9 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
         [inlineImageResourceKey('tc-1-p', 0)]: tallImage,
         [inlineImageResourceKey('tc-2-p', 0)]: tallImage,
         [inlineImageResourceKey('tc-3-p', 0)]: tallImage,
+        [inlineImageResourceKey('tc-4-p', 0)]: tallImage,
+        [inlineImageResourceKey('tc-5-p', 0)]: tallImage,
+        [inlineImageResourceKey('tc-6-p', 0)]: tallImage,
       },
       stage: 'approval_draft',
       createdAt: '2026-11-13T00:00:00.000Z',
@@ -481,8 +482,7 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
   })
 
   it('单元格内由换行符分隔的多张高窄行内图片按分行累加高度并正确切分续表', () => {
-    // 2 行数据，每行单元格含两张由 "\n" 分隔的高窄图（80×380px @ 96dpi ≈ 21.2mm 宽 × 100.5mm 高），
-    // 单行高度约 201mm，2 行合计超过 400mm，必须拆分为两段并输出续表题。
+    // 12 行数据，每行含两张显式 L 尺寸的图并由换行符分隔；总高度超过一页，须生成续表。
     const doc = makeDoc([
       {
         kind: 'table',
@@ -497,7 +497,7 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
               { id: 'tc-h0', colspan: 1, rowspan: 1, header: true, content: [{ kind: 'paragraph', id: 'tc-h0-p', content: [{ text: '图形列' }] }] },
             ],
           },
-          ...([1, 2] as const).map((i) => ({
+          ...Array.from({ length: 12 }, (_, index) => index + 1).map((i) => ({
             id: `tr-${i}`,
             cells: [
               {
@@ -509,9 +509,9 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
                   kind: 'paragraph' as const,
                   id: `tc-${i}-p`,
                   content: [
-                    { text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: `上图${i}` } },
+                    { text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: `上图${i}`, size: 'L' as const } },
                     { text: '\n' },
-                    { text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: `下图${i}` } },
+                    { text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: `下图${i}`, size: 'L' as const } },
                   ],
                 }],
               },
@@ -531,6 +531,7 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
     const pkg = renderDocx(doc, labels, {
       formulaOmml: {},
       images: {
+        [SAMPLE_PNG_DATA_URL]: narrowTallImage,
         [inlineImageResourceKey('tc-1-p', 0)]: narrowTallImage,
         [inlineImageResourceKey('tc-1-p', 1)]: narrowTallImage,
         [inlineImageResourceKey('tc-2-p', 0)]: narrowTallImage,
@@ -582,3 +583,38 @@ describe('DOCX 行内图片与表格单元格内图片渲染', () => {
   })
 })
 
+
+describe('图片尺寸与纯图片单元格', () => {
+  it('正文图使用保存的 CSS 像素尺寸输出 HTML 和 DOCX，与资源 DPI 无关', () => {
+    const doc = makeDoc([{ kind: 'figure', id: 'sized-fig', orientation: 'portrait', caption: [{ text: '图题' }], notes: [], src: SAMPLE_PNG_DATA_URL, imageWidth: { value: 192, unit: 'px' }, imageHeight: { value: 96, unit: 'px' } }])
+    const { labels } = resolve(doc)
+    expect(renderHtml(doc, labels, { variant: 'screen' })).toContain('width:192px;aspect-ratio:192 / 96;height:auto')
+    const image = { base64: SAMPLE_PNG_B64, contentType: 'image/png', widthPx: 1200, heightPx: 600, dpi: 300 }
+    const xml = renderDocx(doc, labels, { formulaOmml: {}, images: { 'sized-fig': image }, stage: 'approval_draft', createdAt: '2026-11-13T00:00:00.000Z' }).parts['word/document.xml']!
+    expect(xml).toContain('<wp:extent cx="1828800" cy="914400"/>')
+  })
+  it('合并单元格仅图居中并受内容宽高约束，图文混排保持原有尺寸', () => {
+    const doc = makeDoc([{ kind: 'table', id: 'image-grid', caption: [], orientation: 'portrait', headerRowCount: 0, notes: [], rows: [
+      { id: 'r1', cells: [{ id: 'merged', colspan: 2, rowspan: 1, header: false, columnWidths: [240, 240], content: [{ kind: 'paragraph', id: 'only', content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: '仅图' } }] }] }] },
+      { id: 'r2', cells: [{ id: 'mixed', colspan: 1, rowspan: 1, header: false, columnWidths: [240], content: [{ kind: 'paragraph', id: 'mixed-p', content: [{ text: '文字' }, { text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: '混排' } }] }] },
+        { id: 'sized', colspan: 1, rowspan: 1, header: false, columnWidths: [240], content: [{ kind: 'paragraph', id: 'sized-p', content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: '小图', size: 'S' } }] }] }] },
+    ] }])
+    const { labels } = resolve(doc)
+    const html = renderHtml(doc, labels, { variant: 'screen' })
+    expect(html).toContain('<td colspan="2" class="ses-image-only-cell">')
+    expect(html).toContain('<td class="ses-image-only-cell"><img class="ses-inline-image"')
+    const image = { base64: SAMPLE_PNG_B64, contentType: 'image/png', widthPx: 1200, heightPx: 600 }
+    const xml = renderDocx(doc, labels, { formulaOmml: {}, images: { [SAMPLE_PNG_DATA_URL]: image }, stage: 'approval_draft', createdAt: '2026-11-13T00:00:00.000Z' }).parts['word/document.xml']!
+    const drawings = [...xml.matchAll(/<wp:extent cx="(\d+)" cy="(\d+)"\/>[^<]*<wp:effectExtent[^>]*\/><wp:docPr[^>]*descr="([^"]+)"/g)]
+    const one = drawings.find(m => m[3] === '仅图')!
+    const mixed = drawings.find(m => m[3] === '混排')!
+    const sized = drawings.find(m => m[3] === '小图')!
+    expect(Number(one[1])).toBeCloseTo((7200 - 204) * 25.4 / 1440 * 0.8 * 36000, -1)
+    expect(Number(one[2])).toBeLessThanOrEqual(50 * 36000)
+    expect(Number(mixed[2])).toBeCloseTo(10.8 * 25.4 / 72 * 36000, -1)
+    expect(html).toContain('.ses-table-block td:not(.ses-image-only-cell) .ses-inline-image:not([data-size])')
+    expect(Number(sized[2])).toBeCloseTo(12.6 * 25.4 / 72 * 36000, -1)
+    expect(xml).toContain('<w:vAlign w:val="center"/>')
+  })
+
+})

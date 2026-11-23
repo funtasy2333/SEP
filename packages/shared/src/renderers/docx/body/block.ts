@@ -20,6 +20,7 @@ import { paginateTable, SMALL_TABLE_MM } from './tablePagination'
 import { renderFormula } from './formula'
 import { renderNormRefList } from './normRef'
 import { orderTableFootnotes } from '../../footnotes'
+import { isImageOnlyCell } from '../../imageLayout'
 
 /** render.ts 在完整块之间解析这两个内部标记，连续横排块由此共用一节。 */
 export const LANDSCAPE_START = '<!--SES:landscape:start-->'
@@ -314,7 +315,7 @@ function tableGridContent(
         const content = meta.header ? block.content.map(run => ({
           ...run, marks: run.marks?.filter(mark => mark.type !== 'bold'),
         })) : block.content
-        return emitParagraph(ctx, styleId, { runsXml: renderInlines(content, ctx.labels, formulaSink(ctx, block.id, cellMaxWidthMm)) })
+        return emitParagraph(ctx, isImageOnlyCell(cell) ? 'SesTableCenter' : styleId, { runsXml: renderInlines(content, ctx.labels, formulaSink(ctx, block.id, cellMaxWidthMm, isImageOnlyCell(cell), !isImageOnlyCell(cell))) })
       }).join('')
     },
   }

@@ -48,6 +48,7 @@ export const InlineImage = Node.create({
     return ['img', mergeAttributes(guardImageAttributes(HTMLAttributes), {
       'data-type': 'inline-image',
       class: 'std-inline-image',
+      ...(!HTMLAttributes.src ? { role: 'button', tabindex: '0', 'aria-label': '点击选择图片' } : {}),
     })]
   },
 })

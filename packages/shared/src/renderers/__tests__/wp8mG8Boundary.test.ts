@@ -167,11 +167,10 @@ describe('[M-6.1-03] 两条列宽通路互不影响', () => {
     expect(problems.map(problem => problem.path)).toEqual(['doc.body[0].children[1].columns'])
   })
 
-  it('HTML 与旧 XML：单元格 columnWidths 本来就不放行，与 columns 无关；XML46687 自 WP8.2 T2.4b 起放行（D-X-03，渲染时报 info px-width-ignored）', () => {
+  it('HTML 放行单元格 columnWidths、旧 XML 保持阻断；XML46687 自 WP8.2 T2.4b 起放行（D-X-03，渲染时报 info px-width-ignored）', () => {
     const clean = withoutCellStyles(g8IrDoc([g8TwoColumnTable({ columns: null, columnWidths: true })]))
-    for (const format of ['HTML', 'XML'] as const) {
-      expect(problemsAt(clean, format, '.columnWidths').length, format).toBe(2)
-    }
+    expect(problemsAt(clean, 'HTML', '.columnWidths')).toEqual([])
+    expect(problemsAt(clean, 'XML', '.columnWidths')).toHaveLength(2)
     expect(problemsAt(clean, 'XML46687', '.columnWidths')).toEqual([])
     expect(findDeclaredDifference(clean, 'doc.body[0].children[1].rows[1].cells[0].columnWidths')).toMatchObject({ kind: 'field', name: 'columnWidths', task: 'T2.4b' })
   })

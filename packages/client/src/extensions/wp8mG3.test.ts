@@ -499,7 +499,7 @@ describe('[M-8.5-01][M-8.3-02][M-8.2-11][M-8.4-03] 编辑器显示', () => {
   it('图内顺序：图片 → 图题 → 图例 → 注 → 示例；注标记 注1：/注2：/注：，示例标签 示例：（均来自 Resolver，作用域 = 本图）', () => {
     const editor = mountEditor(createWp8mG3Fixture() as unknown as Record<string, unknown>)
     const fig1 = editor.view.dom.querySelector<HTMLElement>('figure[data-node-id="g3-fig-1"]')!
-    expect([...fig1.children].map(child => child.getAttribute('data-type'))).toEqual(['figure-image', 'figure-caption', 'figure-legend', 'note', 'note', 'example'])
+    expect([...fig1.children].map(child => child.classList.contains('ses-figure-image-view') ? 'figure-image' : child.getAttribute('data-type'))).toEqual(['figure-image', 'figure-caption', 'figure-legend', 'note', 'note', 'example'])
     const markers = (figureId: string) => [...editor.view.dom.querySelectorAll<HTMLElement>(`figure[data-node-id="${figureId}"] .std-note-marker`)].map(marker => marker.textContent)
     expect(markers('g3-fig-1')).toEqual(['注1：', '注2：'])
     expect(markers('g3-fig-2')).toEqual(['注：'])
@@ -526,11 +526,11 @@ describe('[M-8.5-01][M-8.3-02][M-8.2-11][M-8.4-03] 编辑器显示', () => {
     editor.destroy()
   })
 
-  it('旧图（没有 G3 子节点）的 DOM 与此前一致：只有图片与图题', () => {
+  it('旧图（没有 G3 子节点）保留图片与图题顺序', () => {
     const legacy: PMJsonNode = { type: 'doc', content: [{ type: 'chapter', attrs: { nodeId: 'c' }, content: [{ type: 'chapterTitle', content: [{ type: 'text', text: '章' }] }, figure('f', '旧图')] }] }
     const editor = mountEditor(legacy as unknown as Record<string, unknown>)
     const fig = editor.view.dom.querySelector<HTMLElement>('figure')!
-    expect([...fig.children].map(child => child.getAttribute('data-type'))).toEqual(['figure-image', 'figure-caption'])
+    expect([...fig.children].map(child => child.classList.contains('ses-figure-image-view') ? 'figure-image' : child.getAttribute('data-type'))).toEqual(['figure-image', 'figure-caption'])
     editor.destroy()
   })
 

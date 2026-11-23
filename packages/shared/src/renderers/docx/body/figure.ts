@@ -5,13 +5,14 @@
  * 不解码图片、不使用浏览器或 Node API。图注及图内注由块分发器按 IR 顺序输出。
  */
 
-import type { IRFigure, IRInlineImage, NodeId } from '../../../ir/types'
+import type { IRFigure, IRInlineImage, IRMeasure, NodeId } from '../../../ir/types'
 import { emitParagraph, warn, type RenderContext } from './context'
 import { plainRun } from './inline'
 import { mmToEmu } from '../units'
 import type { DocxRelatedPart } from '../package'
 import type { DocxRenderOptions } from '../types'
 import { escapeXmlAttr } from '../xml'
+import { IMAGE_ONLY_CELL_MAX_HEIGHT_MM, IMAGE_ONLY_CELL_WIDTH_FRACTION } from '../../imageLayout'
 
 export type DocxImage = DocxRenderOptions['images'][NodeId]
 
@@ -72,6 +73,9 @@ function computeDrawingExtentEmu(
   image: DocxImage,
   maxWidthMm: number,
   size?: IRInlineImage['size'],
+  dimensions?: { width?: IRMeasure; height?: IRMeasure },
+  imageOnlyCell = false,
+  mixedTableCell = false,
 ): { widthEmu: number; heightEmu: number } {
   const maxWidthEmu = mmToEmu(maxWidthMm)
   if (size === 'S' || size === 'M' || size === 'L') {
@@ -87,10 +91,20 @@ function computeDrawingExtentEmu(
   const dpi = image.dpi ?? 96
   const naturalWidthEmu = (image.widthPx * 914400) / dpi
   const naturalHeightEmu = (image.heightPx * 914400) / dpi
-  const scale = naturalWidthEmu > maxWidthEmu ? maxWidthEmu / naturalWidthEmu : 1
+  const toEmu = (measure?: IRMeasure) => {
+    if (!measure || !Number.isFinite(measure.value) || measure.value <= 0) return undefined
+    const factors: Record<string, number> = { px: 9525, mm: 36000, cm: 360000, in: 914400, pt: 12700 }
+    return factors[measure.unit] ? measure.value * factors[measure.unit]! : undefined
+  }
+  const specifiedWidth = toEmu(dimensions?.width), specifiedHeight = toEmu(dimensions?.height)
+  const width = specifiedWidth ?? (specifiedHeight ? specifiedHeight * image.widthPx / image.heightPx : naturalWidthEmu)
+  const height = specifiedHeight ?? (specifiedWidth ? specifiedWidth * image.heightPx / image.widthPx : naturalHeightEmu)
+  const allowedWidth = imageOnlyCell ? maxWidthEmu * IMAGE_ONLY_CELL_WIDTH_FRACTION : maxWidthEmu
+  const allowedHeight = imageOnlyCell ? mmToEmu(IMAGE_ONLY_CELL_MAX_HEIGHT_MM) : mixedTableCell ? mmToEmu(10.8 * 25.4 / 72) : Infinity
+  const scale = Math.min(1, allowedWidth / width, allowedHeight / height)
   return {
-    widthEmu: Math.max(1, Math.round(naturalWidthEmu * scale)),
-    heightEmu: Math.max(1, Math.round(naturalHeightEmu * scale)),
+    widthEmu: Math.max(1, Math.round(width * scale)),
+    heightEmu: Math.max(1, Math.round(height * scale)),
   }
 }
 
@@ -101,8 +115,11 @@ function drawingXml(
   mediaIndex: number,
   maxWidthMm: number,
   size?: IRInlineImage['size'],
+  dimensions?: { width?: IRMeasure; height?: IRMeasure },
+  imageOnlyCell = false,
+  mixedTableCell = false,
 ): string {
-  const { widthEmu, heightEmu } = computeDrawingExtentEmu(image, maxWidthMm, size)
+  const { widthEmu, heightEmu } = computeDrawingExtentEmu(image, maxWidthMm, size, dimensions, imageOnlyCell, mixedTableCell)
   const name = `Image ${mediaIndex}`
   const rid = escapeXmlAttr(relationshipId)
   const safeName = escapeXmlAttr(name)
@@ -156,7 +173,7 @@ export function renderFigureImage(
   const alt = figure.caption.map((run) => run.text).join('')
   return {
     xml: emitParagraph(ctx, 'SesFigure', {
-      runsXml: `<w:r>${drawingXml(alt, image, relationshipId, mediaIndex, maxWidthMm)}</w:r>`,
+      runsXml: `<w:r>${drawingXml(alt, image, relationshipId, mediaIndex, maxWidthMm, undefined, { width: figure.imageWidth, height: figure.imageHeight })}</w:r>`,
     }),
     relatedPart: {
       id: relationshipId,
@@ -191,10 +208,12 @@ export function inlineImageExtentMm(
   ownerId: NodeId | undefined,
   imageIndex: number,
   maxWidthMm: number,
+  imageOnlyCell = false,
+  mixedTableCell = false,
 ): { widthMm: number; heightMm: number } | undefined {
   const image = resolveInlineImageResource(images, inlineImage, ownerId, imageIndex)
   if (!image || !isValidImage(image) || !Number.isFinite(maxWidthMm) || maxWidthMm <= 0) return undefined
-  const { widthEmu, heightEmu } = computeDrawingExtentEmu(image, maxWidthMm, inlineImage.size)
+  const { widthEmu, heightEmu } = computeDrawingExtentEmu(image, maxWidthMm, inlineImage.size, undefined, imageOnlyCell, mixedTableCell)
   return {
     widthMm: widthEmu / 36000,
     heightMm: heightEmu / 36000,
@@ -211,6 +230,8 @@ export function renderInlineImageRun(
   ownerId: NodeId | undefined,
   imageIndex: number,
   maxWidthMm = 165,
+  imageOnlyCell = false,
+  mixedTableCell = false,
 ): string {
   const image = resolveInlineImageResource(ctx.resources.images, inlineImage, ownerId, imageIndex)
   const labelId = ownerId ?? inlineImage.resourceId ?? 'inlineImage'
@@ -233,5 +254,5 @@ export function renderInlineImageRun(
     content: image.base64,
     binary: true,
   })
-  return `<w:r>${drawingXml(inlineImage.alt ?? '', image, relationshipId, mediaIndex, maxWidthMm, inlineImage.size)}</w:r>`
+  return `<w:r>${drawingXml(inlineImage.alt ?? '', image, relationshipId, mediaIndex, maxWidthMm, inlineImage.size, undefined, imageOnlyCell, mixedTableCell)}</w:r>`
 }

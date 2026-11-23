@@ -261,6 +261,7 @@ export const FigureImage = Node.create({
       mergeAttributes(guardImageAttributes(HTMLAttributes), {
         'data-type': 'figure-image',
         class: 'std-figure-image',
+        ...(!HTMLAttributes.src ? { role: 'button', tabindex: '0', 'aria-label': '点击选择图片' } : {}),
       }),
     ]
   },

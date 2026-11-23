@@ -349,6 +349,60 @@ describe('EditorView 附录版面（#75）', () => {
   })
 })
 
+describe('EditorView 图片尺寸浮窗', () => {
+  it('仅选中有图源的正文或附录图片时显示，操作后保留选中并可撤销', async () => {
+    const view = await mountEditor()
+    try {
+      const editor = view.editor
+      const imagePos = (figureId: string) => {
+        let found = -1
+        editor.state.doc.descendants((node: any, pos: number) => {
+          if (node.type.name === 'figure' && node.attrs.nodeId === figureId) found = pos + 1
+        })
+        return found
+      }
+      const sizing = () => view.root.querySelector<HTMLElement>('[data-testid="image-size-controls"]')
+      editor.commands.setTextSelection(positionOf(editor, '正文图题'))
+      await flush()
+      expect(sizing()).toBeNull()
+      const pos = imagePos('body-f1')
+      editor.commands.setNodeSelection(pos)
+      await flush()
+      expect(sizing()).not.toBeNull()
+      expect(sizing()?.closest('.tbar-context-shelf')).not.toBeNull()
+      expect(nodeGroup(view.root)).not.toBeNull()
+      buttonIn(sizing(), '半版宽').click()
+      await flush()
+      expect(editor.state.doc.nodeAt(pos).attrs.width).toBeCloseTo(165 * 96 / 25.4 / 2, 2)
+      expect(editor.state.selection.from).toBe(pos)
+      expect(editor.state.selection.node?.type.name).toBe('figureImage')
+      buttonIn(sizing(), '通栏').click()
+      await flush()
+      expect(editor.state.doc.nodeAt(pos).attrs.width).toBeCloseTo(165 * 96 / 25.4, 2)
+      editor.commands.undo()
+      await flush()
+      expect(editor.state.doc.nodeAt(pos).attrs.width).toBeCloseTo(165 * 96 / 25.4 / 2, 2)
+      editor.commands.setNodeSelection(imagePos('app-f1'))
+      await flush()
+      expect(sizing()).not.toBeNull()
+      expect(group(view.root)).not.toBeNull()
+      const appPos = imagePos('app-f1')
+      let appendixPos = -1
+      editor.state.doc.descendants((node: any, pos: number) => { if (node.type.name === 'appendix') appendixPos = pos })
+      editor.view.dispatch(editor.state.tr.setNodeAttribute(appendixPos, 'orientation', 'landscape'))
+      editor.commands.setNodeSelection(appPos)
+      await flush()
+      buttonIn(sizing(), '通栏').click()
+      await flush()
+      expect(editor.state.doc.nodeAt(appPos).attrs.width).toBeCloseTo(252 * 96 / 25.4, 2)
+      editor.view.dispatch(editor.state.tr.setNodeAttribute(appPos, 'src', ''))
+      editor.commands.setNodeSelection(appPos)
+      await flush()
+      expect(sizing()).toBeNull()
+    } finally { view.unmount() }
+  })
+})
+
 describe('EditorView 横页表格展开编辑', () => {
   async function finishDialogTransition() {
     await flush()

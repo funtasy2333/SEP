@@ -331,6 +331,9 @@ const CONTENT = `
 .ses-table-block th { font-family: var(--ses-hei); font-weight: bold; text-align: center; }
 .ses-table-block td { text-align: left; }
 .ses-table-block td > .ses-paragraph, .ses-table-block th > .ses-paragraph { text-indent: 0; }
+.ses-table-block .ses-image-only-cell { text-align: center; vertical-align: middle; }
+.ses-image-only-cell .ses-inline-image:not([data-size]) { max-width: 80%; max-height: 50mm; }
+.ses-table-block td:not(.ses-image-only-cell) .ses-inline-image:not([data-size]), .ses-table-block th:not(.ses-image-only-cell) .ses-inline-image:not([data-size]) { max-height: 1.2em; }
 .ses-table-block tr { break-inside: avoid; }
 ${tableBordersCss('1pt', '0.5pt')}
 .ses-table-footnote { font-size: var(--ses-fs-xiaowu); margin-left: 2em; text-indent: -1em; break-inside: avoid; }

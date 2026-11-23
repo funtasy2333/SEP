@@ -176,9 +176,9 @@ describe('仍阻断 / 与旧 XML 相同', () => {
     }
   })
 
-  it('HTML 与 DOCX 的结论不受影响：这些字段对它们的边界没有放行（DOCX 仅放行 columnWidths）', () => {
+  it('HTML 与 DOCX 放行 columnWidths，仍阻断 columns', () => {
     const doc = withTable({ columns: [{ width: { value: 40, unit: '%' } }] }, { columnWidths: [70] })
     expect(getOutputSupportProblems(doc, 'DOCX').map((problem) => problem.path)).toEqual(['doc.body[0].children[1].columns'])
-    expect(getOutputSupportProblems(doc, 'HTML').map((problem) => problem.path).sort()).toEqual(['doc.body[0].children[1].columns', 'doc.body[0].children[1].rows[0].cells[0].columnWidths'])
+    expect(getOutputSupportProblems(doc, 'HTML').map((problem) => problem.path)).toEqual(['doc.body[0].children[1].columns'])
   })
 })

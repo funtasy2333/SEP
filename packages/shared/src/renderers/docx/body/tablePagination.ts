@@ -8,6 +8,7 @@
 import type { IRBlock, IRTable, IRTableRow } from '../../../ir/types'
 import type { DocxRenderOptions } from '../types'
 import { inlineImageExtentMm } from './figure'
+import { isImageOnlyCell } from '../../imageLayout'
 import { listContentWidthMm } from './listWidth'
 import { paragraphHeightMm } from './pageFlow'
 import { resolveTableColumnWidths, TABLE_CELL_SIDE_MARGIN_TWIPS, type TableColumnLayout } from './tableColumnWidths'
@@ -45,6 +46,8 @@ function blockLines(
   maxWidthMm = 165,
   images?: DocxRenderOptions['images'],
   listDepth = 0,
+  imageOnlyCell = false,
+  mixedTableCell = false,
 ): number {
   switch (block.kind) {
     case 'paragraph': {
@@ -81,7 +84,7 @@ function blockLines(
           continue
         }
         const currentIndex = imageIndex++
-        const extent = inlineImageExtentMm(images, run.image, block.id, currentIndex, maxWidthMm)
+        const extent = inlineImageExtentMm(images, run.image, block.id, currentIndex, maxWidthMm, imageOnlyCell, mixedTableCell)
         if (extent !== undefined) {
           if (usedWidthMm > 0 && usedWidthMm + extent.widthMm > maxWidthMm + 1e-6) {
             flushLine()
@@ -99,7 +102,7 @@ function blockLines(
         const fallbackHeightMm = run.image.size === 'S' ? 4.2
           : run.image.size === 'M' ? 8.4
           : run.image.size === 'L' ? 12.6
-          : 16.8
+          : imageOnlyCell ? 50 : mixedTableCell ? 10.8 * 25.4 / 72 : 16.8
         const fallbackWidthMm = Math.min(maxWidthMm, fallbackHeightMm)
         if (usedWidthMm > 0 && usedWidthMm + fallbackWidthMm > maxWidthMm + 1e-6) {
           flushLine()
@@ -162,7 +165,7 @@ function rowHeightMm(
     const capacity = layout.custom
       ? Math.max(1, fullWidthUnits * Math.max(1, (layout.cellWidths.get(cell.id) ?? 0) - 2 * TABLE_CELL_SIDE_MARGIN_TWIPS) / layout.pageWidthTwips)
       : Math.max(4, fullWidthUnits * cell.colspan / columnCount)
-    return Math.max(1, cell.content.reduce((sum, block) => sum + blockLines(block, capacity, cellMaxWidthMm, images), 0))
+    return Math.max(1, cell.content.reduce((sum, block) => sum + blockLines(block, capacity, cellMaxWidthMm, images, 0, isImageOnlyCell(cell), !isImageOnlyCell(cell)), 0))
   }))
   // Word 9 pt 表格单行约 4.2 mm、两行约 8.2 mm；保留少量边框/取整余量。
   // 不能继续把短记录的单行下限设为 6 mm，否则会平白增加续表页数。

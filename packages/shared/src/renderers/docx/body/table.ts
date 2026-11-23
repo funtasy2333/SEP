@@ -12,6 +12,7 @@ import { plainRun } from './inline'
 import { buildTableGrid, type GridCell } from './tableGrid'
 import { resolveTableColumnWidths, TABLE_CELL_SIDE_MARGIN_TWIPS } from './tableColumnWidths'
 export { tableGridColumnCount } from './tableGrid'
+import { isImageOnlyCell } from '../../imageLayout'
 import { tcBorders, tcPr, tbl, tblBorders, tblPr, tr, trPr, type XmlChild } from '../xml'
 
 export type IRTableCell = IRTableRow['cells'][number]
@@ -113,6 +114,7 @@ function cellXml(
     contentXml = emitParagraph(ctx, rowIndex < headerRowCount ? 'SesTableHeader' : 'SesTableCenter', { runsXml: plainRun('—') })
   } else {
     const origin = gridCell.origin!
+    if (isImageOnlyCell(origin.cell)) tcPrChildren.push(['vAlign', '<w:vAlign w:val="center"/>'])
     const isHeader = origin.cell.header || rowIndex < headerRowCount
     contentXml = options.renderCell(origin.cell, tableCellParagraphStyle(origin.cell, isHeader), {
       rowIndex,
