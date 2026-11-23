@@ -60,6 +60,35 @@ it('快速连续调整尺寸，撤销只回退最近一步', () => {
   expect(ed.commands.undo()).toBe(true)
   expect(ed.state.doc.nodeAt(pos)?.attrs.width).toBe(half)
 })
+it.each(['figure', 'appendix'] as const)('%s 改为横向时按原保存宽度重新计算图片预览', (ancestor) => {
+  const ed = setup()
+  if (ancestor === 'appendix') {
+    const figure = ed.state.doc.firstChild!.child(1).toJSON()
+    ed.commands.setContent({ type: 'doc', content: [{
+      type: 'appendix',
+      content: [{ type: 'appendixLabel' }, { type: 'appendixTitle' }, figure],
+    }] })
+  }
+  let ancestorPos = -1
+  let imagePos = -1
+  ed.state.doc.descendants((node, pos) => {
+    if (node.type.name === ancestor) ancestorPos = pos
+    if (node.type.name === 'figureImage') imagePos = pos
+  })
+  ed.commands.setNodeSelection(imagePos)
+  expect(setFigureSizePreset(ed.view, imagePos, 'half')).toBe(true)
+  const image = ed.state.doc.nodeAt(imagePos)!
+  const frameWidth = () => parseFloat(ed.view.dom.querySelector<HTMLElement>('.ses-figure-image-frame')!.style.width)
+  expect(frameWidth()).toBeCloseTo(50, 2)
+
+  ed.view.dispatch(ed.state.tr.setNodeAttribute(ancestorPos, 'orientation', 'landscape'))
+  expect(ed.state.doc.nodeAt(imagePos)).toBe(image)
+  expect(frameWidth()).toBeCloseTo(100 * (165 / 2) / 252, 2)
+
+  ed.view.dispatch(ed.state.tr.setNodeAttribute(ancestorPos, 'orientation', 'portrait'))
+  expect(ed.state.doc.nodeAt(imagePos)).toBe(image)
+  expect(frameWidth()).toBeCloseTo(50, 2)
+})
 it('拖动期间正文改变则取消写入尺寸', () => {
   const ed = setup(); let pos = -1
   ed.state.doc.descendants((node, p) => { if (node.type.name === 'figureImage') pos = p })

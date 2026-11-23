@@ -7,8 +7,9 @@ const units: Record<string, number> = { px: 1, mm: 96 / 25.4, cm: 960 / 25.4, in
 /** Editor-only controls; serialization remains the figureImage <img> defined by the schema. */
 export const EditableFigureImage = FigureImage.extend({
   addNodeView() {
-    return ({ node: initial, view, getPos }) => {
+    return ({ node: initial, decorations, view, getPos }) => {
       let node = initial
+      let imageDecorations = decorations
       let stopDrag: (() => void) | undefined
       const dom = document.createElement('div')
       dom.className = 'ses-figure-image-view'
@@ -23,6 +24,8 @@ export const EditableFigureImage = FigureImage.extend({
       frame.append(image, handle); dom.append(frame)
 
       function limit(): number {
+        const pageWidth = imageDecorations.find(decoration => typeof decoration.spec.figurePageWidth === 'number')?.spec.figurePageWidth
+        if (typeof pageWidth === 'number') return pageWidth
         const pos = getPos()
         return typeof pos === 'number' ? figurePageWidthPx(view.state.doc, pos) : 165 * 96 / 25.4
       }
@@ -84,7 +87,15 @@ export const EditableFigureImage = FigureImage.extend({
       sync()
       return {
         dom,
-        update(updated) { if (updated.type !== node.type) return false; node = updated; sync(); return true },
+        update(updated, nextDecorations) {
+          if (updated.type !== node.type) return false
+          const previousLimit = limit()
+          node = updated
+          imageDecorations = nextDecorations
+          if (stopDrag && limit() !== previousLimit) stopDrag()
+          sync()
+          return true
+        },
         selectNode() { dom.classList.add('ProseMirror-selectednode') },
         deselectNode() { dom.classList.remove('ProseMirror-selectednode') },
         stopEvent(event) { return event.target === handle },

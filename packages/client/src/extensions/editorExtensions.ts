@@ -8,7 +8,7 @@ import { GraphicPreviews } from './plugins/graphicPreviews'
 import { ExternalImages } from './plugins/externalImages'
 import { GuardedImage } from './nodes/guarded-image'
 import { EditableFigureImage } from './nodes/figure-image-view'
-import { ImageCellLayout } from './plugins/imageLayout'
+import { ImageLayout } from './plugins/imageLayout'
 import StarterKit from '@tiptap/starter-kit'
 import {
   Adoption, Appendix, AppendixLabel, AppendixTitle,
@@ -112,7 +112,7 @@ export function createEditorExtensions(options: EditorExtensionsOptions = {}): E
     // G1：规范性引用文件清单（M-4.4.2.3-02/-03/-04）与正文标准引用 mark（M-10.2-01/-02、M-10.1.7-01）。
     NormRefList, NormRefStd, NormRefStdRef, NormRefStdTitle, NormRefMixed, StdRef, MixedCitation,
     // G8：列数变化时清空 stdTable.columns（M-6.1-03，D-M-11）。纯插件，不新增节点。
-    TableColumnsSync, ImageCellLayout,
+    TableColumnsSync, ImageLayout,
     // G3：图例（M-8.5-01～06）与行内图（M-8.3-02）；图注、图中示例复用 figure 内的 note / example，无新节点。
     FigureLegend, FigureLegendTitle, InlineImage, StdListBlockItem, FormulaGroup, FigureSet, AlignedArray, SharedFootnoteRef, SharedFootnoteDefinition, GraphicPreviews,
     // #71：章条容器只作上下文 defining，粘贴不重建左侧打开的章条外壳；拒绝把章/附录嵌进章条内部。不新增节点。
