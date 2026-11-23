@@ -346,25 +346,27 @@ describe('EditorView PDF 导出（服务端按文档 id 导出）', () => {
     }
   })
 
-  it('服务端拒绝（422 导出前检查未通过 / 503 缺依赖 / 500）时显示原因，不下载', async () => {
-    for (const message of ['导出被阻止：脚注未定义', 'PDF 导出不可用：服务端 IR→HTML→PDF 管线缺少依赖：poppler', 'PDF 导出失败：vivliostyle 退出码 1']) {
-      const view = await mountEditor()
-      const error = vi.spyOn(ElMessage, 'error').mockImplementation(() => undefined as any)
-      const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
-      mocks.exportPdf.mockRejectedValueOnce(new Error(message))
-      try {
-        const card = await openPdfExport(view)
-        card?.click()
-        await flush()
-        expect(anchorClick).not.toHaveBeenCalled()
-        expect(error).toHaveBeenCalledOnce()
-        expect(String(error.mock.calls[0]?.[0])).toContain(message)
-        expect(String(error.mock.calls[0]?.[0])).toContain('PDF 导出失败：')
-        expect(document.body.textContent).toContain(message)
-      } finally {
-        view.unmount()
-        vi.restoreAllMocks()
-      }
+  it.each([
+    { status: 422, message: '导出被阻止：脚注未定义' },
+    { status: 503, message: 'PDF 导出不可用：服务端 IR→HTML→PDF 管线缺少依赖：poppler' },
+    { status: 500, message: 'PDF 导出失败：vivliostyle 退出码 1' },
+  ])('服务端拒绝（$status）时显示原因，不下载', async ({ message }) => {
+    const view = await mountEditor()
+    const error = vi.spyOn(ElMessage, 'error').mockImplementation(() => undefined as any)
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    mocks.exportPdf.mockRejectedValueOnce(new Error(message))
+    try {
+      const card = await openPdfExport(view)
+      card?.click()
+      await flush()
+      expect(anchorClick).not.toHaveBeenCalled()
+      expect(error).toHaveBeenCalledOnce()
+      expect(String(error.mock.calls[0]?.[0])).toContain(message)
+      expect(String(error.mock.calls[0]?.[0])).toContain('PDF 导出失败：')
+      expect(document.body.textContent).toContain(message)
+    } finally {
+      view.unmount()
+      vi.restoreAllMocks()
     }
   })
 
