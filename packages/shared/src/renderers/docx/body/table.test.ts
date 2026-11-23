@@ -247,17 +247,25 @@ describe('renderTableGrid', () => {
     })
   })
 
-  it('空单元格输出一字线，空内容和数字按居中段落处理', () => {
+  it('空表头、空数据格和补齐的网格占位格都保留空段落', () => {
     expect(tableCellParagraphStyle(cell('empty', ''))).toBe('SesTableCenter')
     expect(tableCellParagraphStyle(cell('decimal', '1.25 ± 0.2'))).toBe('SesTableCenter')
     expect(tableCellParagraphStyle(cell('words', '材料名称'))).toBe('SesTableText')
-    const rendered = render(table({ rows: [{ id: 'r', cells: [cell('empty', '')] }] }))
-    expect(rendered.xml).toContain('—')
-    const uneven = render(table({ rows: [
-      { id: 'wide', cells: [cell('a', '一'), cell('b', '二')] },
-      { id: 'short', cells: [cell('c', '三')] },
+    const { xml } = render(table({ rows: [
+      { id: 'wide', cells: [cell('header-empty', '', { header: true }), cell('header-2', '列 2', { header: true })] },
+      { id: 'short', cells: [cell('data-empty', '')] },
     ] }))
-    expect(uneven.xml).toContain('<w:pStyle w:val="SesTableCenter"/></w:pPr><w:r><w:t xml:space="preserve">—</w:t>')
+    const rows = childrenNamed(findChild(root(xml), 'w:tbl')!, 'w:tr')
+    const headerParagraph = findChild(childrenNamed(rows[0]!, 'w:tc')[0]!, 'w:p')!
+    expect(findChild(findChild(headerParagraph, 'w:pPr')!, 'w:pStyle')?.attrs['w:val']).toBe('SesTableHeader')
+    expect(findChild(headerParagraph, 'w:r')).toBeUndefined()
+    const dataCells = childrenNamed(rows[1]!, 'w:tc')
+    expect(dataCells).toHaveLength(2)
+    for (const cell of dataCells) {
+      const paragraph = findChild(cell, 'w:p')!
+      expect(findChild(findChild(paragraph, 'w:pPr')!, 'w:pStyle')?.attrs['w:val']).toBe('SesTableCenter')
+      expect(findChild(paragraph, 'w:r')).toBeUndefined()
+    }
   })
 
   it('IR 没有行时仍生成带单行占位的合法 w:tbl', () => {
