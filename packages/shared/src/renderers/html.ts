@@ -399,7 +399,14 @@ function renderFigure(fig: IRFigure, ctx: RenderCtx): void {
   const units: Record<string, number> = { px: 1, mm: 96 / 25.4, cm: 960 / 25.4, in: 96, pt: 96 / 72 }
   const aspect = fig.imageWidth && fig.imageHeight
     ? `${fig.imageWidth.value * units[fig.imageWidth.unit]!} / ${fig.imageHeight.value * units[fig.imageHeight.unit]!}` : undefined
-  const sizeStyle = [width ? `width:${width}` : '', aspect ? `aspect-ratio:${aspect};height:auto` : height ? `height:${height}` : ''].filter(Boolean).join(';')
+  let sizeStyle = ''
+  if (width) {
+    sizeStyle = aspect ? `width:${width};aspect-ratio:${aspect};height:auto` : `width:${width}`
+  } else if (height) {
+    // Auto height follows the intrinsic ratio at the available width. If the height cap
+    // is smaller, object-fit scales and centers the image within the capped box.
+    sizeStyle = `width:100%;height:auto;max-height:${height};object-fit:contain`
+  }
   ctx.push(`<img class="ses-figure-image" src="${escapeAttr(fig.src)}" alt="${alt}"${sizeStyle ? ` style="${sizeStyle}"` : ''} />`)
   // 图中的注置于图题之上（GB/T 1.1—2020 9.11.1、9.12.2；9.7.5 的编排示例见原 PDF 第 33 页〔印刷页 26〕：
   // 图 → 标引序号说明 → 图中的注 → 图脚注 → 图编号和图题）。与 DOCX 顺序一致，也使 figcaption 位于 figure 的最后（HTML 要求 figcaption 为首或末子元素）。

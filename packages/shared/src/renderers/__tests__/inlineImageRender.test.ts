@@ -593,6 +593,15 @@ describe('图片尺寸与纯图片单元格', () => {
     const xml = renderDocx(doc, labels, { formulaOmml: {}, images: { 'sized-fig': image }, stage: 'approval_draft', createdAt: '2026-11-13T00:00:00.000Z' }).parts['word/document.xml']!
     expect(xml).toContain('<wp:extent cx="1828800" cy="914400"/>')
   })
+  it.each(['screen', 'print'] as const)('%s 下仅指定高度的图按原始比例同时适配版心宽度和指定高度', (variant) => {
+    const doc = makeDoc([{
+      kind: 'figure', id: 'height-only', orientation: 'portrait', caption: [], notes: [],
+      src: SAMPLE_PNG_DATA_URL, imageHeight: { value: 100, unit: 'mm' },
+    }])
+    const { labels } = resolve(doc)
+    const html = renderHtml(doc, labels, { variant })
+    expect(html).toContain('style="width:100%;height:auto;max-height:100mm;object-fit:contain"')
+  })
   it('合并单元格仅图居中并受内容宽高约束，图文混排保持原有尺寸', () => {
     const doc = makeDoc([{ kind: 'table', id: 'image-grid', caption: [], orientation: 'portrait', headerRowCount: 0, notes: [], rows: [
       { id: 'r1', cells: [{ id: 'merged', colspan: 2, rowspan: 1, header: false, columnWidths: [240, 240], content: [{ kind: 'paragraph', id: 'only', content: [{ text: '', image: { src: SAMPLE_PNG_DATA_URL, alt: '仅图' } }] }] }] },
