@@ -1,6 +1,6 @@
 # 环境配置指南
 
-本文档说明 **SES 0.2.0 Preview** 的依赖要求。推荐先从 [Release](https://github.com/funtasy2333/SEP/releases/tag/v0.2.0-preview) 下载对应系统的压缩包；开发者可以使用 `git clone` 获取源码。下载链接和操作步骤见 [README：安装与启动](README.md#安装与启动)。
+本文档说明 **SES 0.2.1 Preview** 的依赖要求。推荐先从 [Release](https://github.com/funtasy2333/SEP/releases/tag/v0.2.1-preview) 下载对应系统的压缩包；开发者可以使用 `git clone` 获取源码。下载链接和操作步骤见 [README：安装与启动](README.md#安装与启动)。
 
 ## 1. 按使用方式准备环境
 
@@ -92,7 +92,7 @@ PDF 由 SES 后端所在的机器排版。要输出指定字体，该机器需�
 
 ### Poppler：开发环境中的 PDF 排版
 
-0.2.0 Preview 暂停 PDF 导出。以下配置适用于开发调试。
+0.2.1 Preview 暂停 PDF 导出。以下配置适用于开发调试。
 
 PDF 版式预览使用 `@vivliostyle/cli` 排版，并通过 Poppler 的 `pdftotext`、`pdfinfo` 定位目次页码和核对页数。**编辑文档、导出 DOCX 无需安装 Poppler。**
 
