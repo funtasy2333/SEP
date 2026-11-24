@@ -67,12 +67,25 @@ def build_info(version, commit):
     }
 
 
-def instructions(platform, version=VERSION):
+def instructions(platform, version=VERSION, portable=False):
     common = f'''# SES {version.replace('-preview', '')} Preview
 
 标准化文件编辑系统。此包包含 SES 程序源码和启动文件，首次启动需要联网安装依赖并构建，未捆绑系统运行时或第三方依赖。
 请先完整解压到可写的本地目录，再启动；不要在压缩包内双击。Preview 为预览版本。
 
+'''
+    if portable:
+        return f'''# SES {version.replace('-preview', '')} Preview
+
+## Windows 10/11（x64）
+
+将 ZIP 完整解压到可写的本地目录。双击「启动SES.cmd」后，编辑器会在默认浏览器中打开。包内已包含 Node.js、程序和运行依赖，解压后即可离线启动。
+
+用完后双击「退出SES.cmd」，也可以在网页的「设置 → 升级 / 退出」中退出。关闭网页后，服务仍在后台运行。编辑器地址为 http://127.0.0.1:5173/，MCP 地址为 http://127.0.0.1:3000/mcp。
+
+文档保存在 `packages/server/data/ses.db`，启动备份位于 `output/startup-backups/`，日志位于 `.ses-run/`。
+
+通过「设置 → 升级 / 退出」中的「稳定版」联网下载并安装新版。新版发布包包含完整运行环境。升级会备份数据库，新版启动失败时会恢复原版本和文档。使用「每次提交」通道会下载源码并联网构建。不支持降级。
 '''
     platform_text = ('''## Windows 10/11（64 位）
 
@@ -116,26 +129,64 @@ MCP 地址为 http://127.0.0.1:3000/mcp。写作参考资料已作为程序资�
 '''
 
 
-def build_archive(platform, output, version=None, commit=None):
+def portable_files(runtime):
+    required = ('node.exe', 'LICENSE.node', 'server/package.json', 'server/dist/main.js', 'client/index.html',
+                'server/node_modules/better-sqlite3/build/Release/better_sqlite3.node')
+    for name in required:
+        if not (runtime / name).is_file():
+            raise ValueError(f'Windows runtime is missing {name}')
+    def check_link(source):
+        if source.is_symlink() or getattr(source, 'is_junction', lambda: False)():
+            raise ValueError(f'Windows runtime contains a link: {source}')
+
+    for name in ('node.exe', 'LICENSE.node', 'server/package.json'):
+        check_link(runtime / name)
+        yield name, runtime / name
+    for root in ('server/dist', 'server/node_modules', 'client'):
+        check_link(runtime / root)
+        for directory, dirs, files in os.walk(runtime / root):
+            parent = Path(directory)
+            dirs[:] = sorted(name for name in dirs if name != '.bin')
+            for name in dirs + sorted(files):
+                source = parent / name
+                check_link(source)
+                if source.is_file() and name not in ('.modules.yaml', '.pnpm-workspace-state-v1.json'):
+                    yield source.relative_to(runtime).as_posix(), source
+
+
+def build_archive(platform, output, version=None, commit=None, windows_runtime=None):
     version = version or VERSION
     commit = commit if commit is not None else build_commit()
+    portable = windows_runtime is not None
+    if portable and platform != 'windows':
+        raise ValueError('A bundled runtime is only supported for Windows')
+    files = runtime_files(platform)
+    runtime = list(portable_files(windows_runtime)) if portable else []
+    if portable:
+        files = {name: source for name, source in files.items() if name.startswith('scripts/') or name.endswith('.cmd')}
+        files['LICENSE'] = ROOT / 'LICENSE'
     output.mkdir(parents=True, exist_ok=True)
     root = f'SES-{version}-{platform}'
     target = output / f'{root}.zip'
     with zipfile.ZipFile(target, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
-        for name, source in sorted(runtime_files(platform).items()):
+        for name, source in sorted(files.items()):
             info = zipfile.ZipInfo(f'{root}/{name}')
             info.create_system = 3
             executable = name.endswith(('.command', '.sh'))
             info.external_attr = (stat.S_IFREG | (0o755 if executable else 0o644)) << 16
             info.compress_type = zipfile.ZIP_DEFLATED
             archive.writestr(info, source.read_bytes())
-        archive.writestr(f'{root}/使用说明.md', instructions(platform, version))
+        for name, source in runtime:
+            archive.write(source, f'{root}/.ses-runtime/{name}', compresslevel=6)
+        archive.writestr(f'{root}/使用说明.md', instructions(platform, version, portable))
         info = zipfile.ZipInfo(f'{root}/ses-build.json')
         info.create_system = 3
         info.external_attr = (stat.S_IFREG | 0o644) << 16
         info.compress_type = zipfile.ZIP_DEFLATED
-        archive.writestr(info, json.dumps(build_info(version, commit), ensure_ascii=False, indent=2) + '\n')
+        metadata = build_info(version, commit)
+        if portable:
+            metadata['runtime'] = 'windows-x64'
+        archive.writestr(info, json.dumps(metadata, ensure_ascii=False, indent=2) + '\n')
     print(f'{target} ({target.stat().st_size:,} bytes)')
     return target
 
@@ -145,10 +196,15 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=Path, default=ROOT / 'release')
     parser.add_argument('--print-version', action='store_true', help='print the release version (e.g. 0.2.2-preview) and exit')
     parser.add_argument('--version', default=None, help='override VERSION (CI uses this to build a "newer" package)')
+    parser.add_argument('--platform', choices=('windows', 'macos'))
+    parser.add_argument('--windows-runtime', type=Path, help='staged Windows x64 runtime to include')
     args = parser.parse_args()
     version = args.version or VERSION
     if args.print_version:
         print(version)
         raise SystemExit(0)
-    for platform in ('windows', 'macos'):
-        build_archive(platform, args.output, version)
+    if args.windows_runtime and args.platform != 'windows':
+        parser.error('--windows-runtime requires --platform windows')
+    platforms = (args.platform,) if args.platform else ('windows', 'macos')
+    for platform in platforms:
+        build_archive(platform, args.output, version, windows_runtime=args.windows_runtime)

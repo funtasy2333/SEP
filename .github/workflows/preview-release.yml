@@ -30,6 +30,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.22.0'
+          architecture: x64
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -49,26 +53,58 @@ jobs:
         env:
           SES_PWSH: powershell.exe
         run: python scripts/test_ses_upgrade_windows.py
-      - name: Build runtime archives
-        run: python scripts/package-release.py
-      - name: Build the newer package (9.9.9-preview) and a package that fails to build
-        shell: bash
+      - name: Stage the self-contained Windows runtime
+        run: ./scripts/build-windows-runtime.ps1 -Output "$env:RUNNER_TEMP\ses-runtime"
+      - name: Build the Windows release and upgrade test packages
         run: |
-          python scripts/package-release.py --version 9.9.9-preview --output release-next
-          python scripts/package-release.py --version 9.9.10-preview --output release-broken
+          $runtime = Join-Path $env:RUNNER_TEMP 'ses-runtime'
+          python scripts/package-release.py --platform windows --windows-runtime $runtime
+          if ($LASTEXITCODE -ne 0) { throw 'Release packaging failed' }
+          python scripts/package-release.py --platform windows --windows-runtime $runtime --version 9.9.9-preview --output release-next
+          if ($LASTEXITCODE -ne 0) { throw 'Upgrade test package failed' }
+          python scripts/package-release.py --platform windows --windows-runtime $runtime --version 9.9.10-preview --output release-broken
+          if ($LASTEXITCODE -ne 0) { throw 'Rollback test package failed' }
           python scripts/upgrade_e2e.py make-broken --zip release-broken/SES-9.9.10-preview-windows.zip --out release-broken/broken-windows.zip
-      - name: Start extracted Windows release and reuse services
+      - name: Start the Windows ZIP offline without system Node.js or pnpm
         shell: pwsh
         run: |
           $version = (python scripts/package-release.py --print-version).Trim()
           $destination = Join-Path $env:RUNNER_TEMP 'SES [preview] 中文 path'
-          Expand-Archive "release/SES-$version-windows.zip" $destination
+          python -m zipfile -e "release/SES-$version-windows.zip" $destination
+          if ($LASTEXITCODE -ne 0) { throw 'Windows ZIP extraction failed' }
           $root = Join-Path $destination "SES-$version-windows"
           Add-Content -LiteralPath $env:GITHUB_ENV -Value "SES_E2E_ROOT=$root" -Encoding utf8
+          $firewall = "SES portable offline check $env:GITHUB_RUN_ID"
+          New-NetFirewallRule -DisplayName $firewall -Direction Outbound -Action Block -RemoteAddress Internet -Program (Join-Path $root '.ses-runtime/node.exe') | Out-Null
+          try {
+            $savedPath = $env:Path
+            $savedModules = $env:PSModulePath
+            Push-Location -LiteralPath $root
+            try {
+              $env:Path = "$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
+              $env:PSModulePath = $null
+              & cmd.exe /d /c '启动SES.cmd'
+              if ($LASTEXITCODE -ne 0) { throw 'Offline startup failed' }
+            } finally {
+              $env:Path = $savedPath
+              $env:PSModulePath = $savedModules
+              Pop-Location
+            }
+            python scripts/upgrade_e2e.py portable-smoke --root $root
+            if ($LASTEXITCODE -ne 0) { throw 'Offline editor and DOCX smoke test failed' }
+          } finally {
+            Remove-NetFirewallRule -DisplayName $firewall
+          }
+      - name: Restart the Windows release with the upgrade test endpoint and reuse services
+        shell: pwsh
+        run: |
+          $root = $env:SES_E2E_ROOT
+          $entry = Join-Path $root 'scripts/ses-windows.ps1'
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $entry stop
+          if ($LASTEXITCODE -ne 0) { throw 'Shutdown after offline test failed' }
           # Local stand-in for the GitHub API/downloads; writes SES_GITHUB_API into <root>\.env, which the server reads at startup.
           python scripts/upgrade_e2e.py start-fake-github --root "$root" --zip release-next/SES-9.9.9-preview-windows.zip --platform windows --version 9.9.9-preview
           if ($LASTEXITCODE -ne 0) { throw 'Fake upstream failed to start' }
-          $entry = Join-Path $root 'scripts/ses-windows.ps1'
           & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $entry start
           if ($LASTEXITCODE -ne 0) { throw 'First startup failed' }
           $before = Get-Content -LiteralPath (Join-Path $root '.ses-run/server.json') -Raw
@@ -76,8 +112,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Repeated startup failed' }
           if ((Get-Content -LiteralPath (Join-Path $root '.ses-run/server.json') -Raw) -ne $before) { throw 'Repeated startup replaced the server' }
           Invoke-WebRequest http://127.0.0.1:5173/api/documents | Out-Null
-      - name: Upgrade E2E - create a document
-        run: python scripts/upgrade_e2e.py create-doc --root "$env:SES_E2E_ROOT"
       - name: Upgrade E2E - upgrade to 9.9.9-preview through /api/system (server launches the executor; document kept)
         run: python scripts/upgrade_e2e.py api-upgrade --root "$env:SES_E2E_ROOT" --platform windows --installed 9.9.9-preview
       - name: Upgrade E2E - run the executor on a package that fails to build (rolls back, document kept)
@@ -100,6 +134,12 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Shutdown failed' }
           }
           if (Get-NetTCPConnection -State Listen | Where-Object LocalPort -in @(3000, 5173)) { throw 'SES listeners remain after shutdown' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-preview
+          path: release/SES-*-windows.zip
+          if-no-files-found: error
+          compression-level: 0
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -191,8 +231,12 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Build verified runtime-only archives
-        run: python3 scripts/package-release.py
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-preview
+          path: release
+      - name: Build the macOS runtime archive
+        run: python3 scripts/package-release.py --platform macos
       - name: Publish preview release with two assets
         env:
           GH_TOKEN: ${{ github.token }}

@@ -12,6 +12,7 @@ $script:Run = Join-Path $script:Root '.ses-run'
 $script:PlanFile = Join-Path $script:Upd 'plan.json'
 $script:Apply = Join-Path $script:Upd 'apply-update.cjs'
 $script:Node = $null
+$executorNode = $null
 $script:Applier = $null
 # apply-update.cjs prints UTF-8 (Chinese) text; keep upgrade.log readable when the console is redirected.
 try { [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false) } catch { }
@@ -173,6 +174,12 @@ try {
         Set-SesStatus 'failed' 'stopping' 'Node.js was not found; cannot run the upgrade.'
         throw 'Node.js was not found.'
     }
+    # Keep the executor usable when apply replaces the installed runtime directory.
+    if (Test-Path -LiteralPath (Join-Path $script:Root '.ses-runtime/node.exe')) {
+        $executorNode = Join-Path $script:Upd 'executor-node.exe'
+        Copy-Item -LiteralPath $script:Node -Destination $executorNode -Force
+        $script:Node = $executorNode
+    }
     $zip = if ($plan.zip) { [string]$plan.zip } else { Join-Path $script:Upd 'download.zip' }
     $staging = Join-Path $script:Upd 'staging'
     $env:SES_UPGRADE_ROOT = $script:Root
@@ -220,6 +227,7 @@ try {
 }
 catch { Write-SesLog "SES upgrade error: $($_.Exception.Message)" }
 finally {
+    if ($executorNode) { Remove-Item -LiteralPath $executorNode -Force -ErrorAction SilentlyContinue }
     Remove-Item -LiteralPath (Join-Path $script:Upd 'apply-update.next.cjs') -Force -ErrorAction SilentlyContinue
     # Always release the lock created by the server.
     Remove-Item -LiteralPath (Join-Path $script:Upd 'lock') -Recurse -Force -ErrorAction SilentlyContinue

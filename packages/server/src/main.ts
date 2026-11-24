@@ -7,8 +7,10 @@ import {
   NON_LOOPBACK_WARNING,
   resolveListenAddress,
 } from './listen-host';
-import { mkdirSync, readFileSync } from 'fs';
-import { join, resolve } from 'path';
+import type { NextFunction, Request, Response } from 'express';
+import { mkdirSync, readFileSync, statSync } from 'fs';
+import { createServer } from 'http';
+import { extname, join, resolve } from 'path';
 
 function loadEnv() {
   const envPath = resolve(process.cwd(), '../../.env');
@@ -50,10 +52,38 @@ async function bootstrap() {
     credentials: true,
   });
 
+  // The portable release serves the built editor through the same Express app as the API.
+  const clientDist = process.env.SES_CLIENT_DIST;
+  if (clientDist) {
+    const index = resolve(clientDist, 'index.html');
+    if (!statSync(index).isFile()) throw new Error('Missing bundled editor index.html');
+    app.useStaticAssets(clientDist);
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      if ((req.method === 'GET' || req.method === 'HEAD') && req.accepts('html') &&
+          !/^\/(?:api|mcp)(?:\/|$)/i.test(req.path) && !extname(req.path)) {
+        res.sendFile('index.html', { root: clientDist });
+        return;
+      }
+      next();
+    });
+  }
+
   // 默认只监听本机（127.0.0.1）：REST 接口没有鉴权。SES_LISTEN_HOST 可覆盖，见 listen-host.ts。
   const port = process.env.PORT ?? 3000;
   const { host, loopback } = resolveListenAddress();
   await app.listen(port, host);
+  if (clientDist) {
+    const front = createServer(app.getHttpAdapter().getInstance());
+    try {
+      await new Promise<void>((ready, reject) => {
+        front.once('error', reject);
+        front.listen(5173, host, ready);
+      });
+    } catch (error) {
+      await app.close();
+      throw error;
+    }
+  }
   console.log(`SES Server running on ${formatListenUrl(host, port)}`);
   if (!loopback) console.warn(`警告：${NON_LOOPBACK_WARNING}`);
 }

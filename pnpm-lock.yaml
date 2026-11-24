@@ -153,9 +153,6 @@ importers:
       '@ses/shared':
         specifier: workspace:*
         version: link:../shared
-      '@vivliostyle/cli':
-        specifier: 11.0.1
-        version: 11.0.1(typescript@5.9.3)(vite@8.0.3(@types/node@22.19.15)(esbuild@0.27.7)(terser@5.46.1))
       better-sqlite3:
         specifier: ^12.8.0
         version: 12.8.0
@@ -171,9 +168,6 @@ importers:
       multer:
         specifier: ^2.1.1
         version: 2.1.1
-      playwright-chromium:
-        specifier: 1.49.1
-        version: 1.49.1
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -220,6 +214,9 @@ importers:
       '@types/supertest':
         specifier: ^6.0.2
         version: 6.0.3
+      '@vivliostyle/cli':
+        specifier: 11.0.1
+        version: 11.0.1(typescript@5.9.3)(vite@8.0.3(@types/node@22.19.15)(esbuild@0.27.7)(terser@5.46.1))
       eslint:
         specifier: ^9.18.0
         version: 9.39.4
@@ -235,6 +232,9 @@ importers:
       jest:
         specifier: ^30.0.0
         version: 30.3.0(@types/node@22.19.15)(ts-node@10.9.2(@types/node@22.19.15)(typescript@5.9.3))
+      playwright-chromium:
+        specifier: 1.49.1
+        version: 1.49.1
       prettier:
         specifier: ^3.4.2
         version: 3.8.1
