@@ -42,7 +42,7 @@
 
 - **SES 文档包**：导入与导出包含当前正文、文件设置和全部版本的 `.ses` 文件，格式与身份规则见 [SES 文档包格式](docs/ses-package-format.md)
 - **DOCX 测试版**：从零生成章条结构、编号、分节、页眉页脚、目次和终结线，支持图、表、公式、横排与封面；交付要求见 [WP7 DOCX 规格](docs/wp7-docx-delivery.md)
-- **PDF 版式预览**：0.2.1 Preview 暂停 PDF 导出。
+- **PDF 版式预览**：0.2.2 Preview 暂停 PDF 导出。
 - DOCX 中的目次页码由 Word 更新；增删章条后需重新导出以更新目次条目（见 docs/wp7-docx-delivery.md）
 - DOCX 真实文稿交付验收尚未完成，当前状态、补充样稿证据及素材限制见 [WP7.6 验收记录](docs/wp7.6-delivery-validation.md)
 
@@ -114,12 +114,12 @@ SEP/
 
 ### 下载使用（推荐）
 
-当前版本为 [SES 0.2.1 Preview](https://github.com/funtasy2333/SEP/releases/tag/v0.2.1-preview)。请根据操作系统下载对应压缩包，**完整解压到可写的本地目录后再启动，不要直接在压缩包内运行脚本**。
+当前版本为 [SES 0.2.2 Preview](https://github.com/funtasy2333/SEP/releases/tag/v0.2.2-preview)。请根据操作系统下载对应压缩包，**完整解压到可写的本地目录后再启动，不要直接在压缩包内运行脚本**。
 
 | 操作系统 | 下载 | 启动 | 退出 |
 | -------- | ---- | ---- | ---- |
-| Windows 10/11（64 位） | [SES-0.2.1-preview-windows.zip](https://github.com/funtasy2333/SEP/releases/download/v0.2.1-preview/SES-0.2.1-preview-windows.zip) | 双击 `启动SES.cmd` | 双击 `退出SES.cmd` |
-| macOS | [SES-0.2.1-preview-macos.zip](https://github.com/funtasy2333/SEP/releases/download/v0.2.1-preview/SES-0.2.1-preview-macos.zip) | 双击 `启动SES.command` | 双击 `退出SES.command` |
+| Windows 10/11（64 位） | [SES-0.2.2-preview-windows.zip](https://github.com/funtasy2333/SEP/releases/download/v0.2.2-preview/SES-0.2.2-preview-windows.zip) | 双击 `启动SES.cmd` | 双击 `退出SES.cmd` |
+| macOS | [SES-0.2.2-preview-macos.zip](https://github.com/funtasy2333/SEP/releases/download/v0.2.2-preview/SES-0.2.2-preview-macos.zip) | 双击 `启动SES.command` | 双击 `退出SES.command` |
 
 压缩包包含 SES 程序源码、资源、启动文件和使用说明；不包含开发过程文档、测试、已有数据库或第三方依赖。直接使用压缩包无需安装 Git 或 Python，**首次启动需要联网安装依赖并构建项目**。
 
@@ -132,6 +132,8 @@ SEP/
 需要 Windows PowerShell 5.1 或更高版本（Windows 10/11 通常已自带）。脚本会检查现有 Node.js；未找到兼容版本时，在 SES 目录内安装经过 SHA256 校验的便携版 Node.js 22.22.0，并在本目录安装 pnpm 10.33.0，无需手动配置全局运行环境。
 
 Windows 脚本优先尝试官方 HTTPS 来源，下载或安装失败后自动重试中国大陆 npmmirror 镜像；通过实际请求判断连接情况，不依赖 ICMP ping。此逻辑仅适用于 Windows，不修改全局 npm 源。两个来源都失败时会显示错误并停止，请检查网络或代理后重新启动。
+
+pnpm 的依赖缓存位于 SES 目录内的 `.ses-tools/pnpm-store/`。从旧版升级后，如需复用盘根目录的 `.pnpm-store`，可以先退出 SES，把旧缓存 `v10` 内的 `files` 和 `index` 复制到新缓存的 `v10` 目录。下次需要安装依赖时，pnpm 会重建依赖链接并复用已缓存的文件。确认 SES 已使用新缓存且没有其他项目使用旧缓存后，可以删除旧缓存。
 
 #### macOS
 

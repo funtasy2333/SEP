@@ -91,14 +91,14 @@ start() {
      [ ! -e packages/io/node_modules/typescript/package.json ]; then
     echo "正在按锁文件补齐依赖……"
     local store=""
+    local -a install_args=(install --frozen-lockfile)
     if [ -f node_modules/.modules.yaml ]; then
       store="$(sed -nE 's/^[[:space:]]*"?storeDir"?:[[:space:]]*"?([^",]+)"?,?$/\1/p' node_modules/.modules.yaml)"
     fi
     if [ -n "$store" ]; then
-      pnpm install --frozen-lockfile --store-dir "$store"
-    else
-      pnpm install --frozen-lockfile
+      install_args+=(--store-dir "$store")
     fi
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 pnpm "${install_args[@]}"
   fi
 
   if [ -z "$(listener 3000)" ]; then

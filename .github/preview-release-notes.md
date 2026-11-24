@@ -1,10 +1,9 @@
-SES 标准化文件编辑系统 0.2.1 预览版。
+SES 标准化文件编辑系统 0.2.2 预览版。
 
-## 本版更新（相对 0.2.0 Preview）
+## 本版更新（相对 0.2.1 Preview）
 
-- **图片编辑**。支持从本地选择图片，调整图片尺寸，并在表格单元格中插入图片。HTML 和 DOCX 导出会按单元格可用宽度排版图片。
-- **表格编辑**。新增右侧表格工具浮窗，支持调整列宽、增删行列、合并或拆分单元格，以及编辑表注和表脚注。纵向表格支持均分列宽和恢复自动列宽，恢复时保留列对齐设置。窄画布下浮窗自动收起。
-- **更新提示**。发现可用更新时，首页显示提示，可以打开升级窗口或忽略该版本。
+- **首次启动**。Windows 和 macOS 会跳过开发测试所用的 Playwright Chromium 下载和解压。SES 使用系统默认浏览器打开编辑器。
+- **Windows 依赖缓存**。新安装默认把 pnpm 缓存放进 SES 目录内的 `.ses-tools/pnpm-store/`。已安装的用户可按包内《使用说明》复用旧缓存。
 - **PDF 导出**。本预览版继续暂停 PDF 导出。
 
 ## 应用内升级与退出
@@ -16,8 +15,8 @@ SES 标准化文件编辑系统 0.2.1 预览版。
 
 ## 下载与启动
 
-- **Windows**：下载 `SES-0.2.1-preview-windows.zip`，完整解压后双击 `启动SES.cmd`；双击 `退出SES.cmd` 退出。缺少 Node.js 时按需安装便携版，pnpm 安装在 SES 目录。
-- **macOS**：下载 `SES-0.2.1-preview-macos.zip`，安装 Node.js >=20.19.0、pnpm >=9 后，完整解压并双击 `启动SES.command`；双击 `退出SES.command` 退出。
+- **Windows**：下载 `SES-0.2.2-preview-windows.zip`，完整解压后双击 `启动SES.cmd`；双击 `退出SES.cmd` 退出。缺少 Node.js 时按需安装便携版，pnpm 安装在 SES 目录。
+- **macOS**：下载 `SES-0.2.2-preview-macos.zip`，安装 Node.js >=20.19.0、pnpm >=9 后，完整解压并双击 `启动SES.command`；双击 `退出SES.command` 退出。
 - Windows 的依赖安装优先使用官方 HTTPS 来源；失败后自动重试中国大陆 npmmirror 镜像，不修改全局 npm 源。macOS 保持现有来源选择行为。
 
 首次启动需要联网安装依赖和构建。这两个 ZIP 只包含 SES 源码、资源、启动文件和使用说明，不包含开发过程文档、测试、已有数据库或 node_modules。无需安装 Git 或 Python。
