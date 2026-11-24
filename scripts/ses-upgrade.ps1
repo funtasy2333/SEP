@@ -175,7 +175,7 @@ try {
         throw 'Node.js was not found.'
     }
     # Keep the executor usable when apply replaces the installed runtime directory.
-    if (Test-Path -LiteralPath (Join-Path $script:Root '.ses-runtime/node.exe')) {
+    if ($script:Node -eq (Join-Path $script:Root '.ses-runtime/node.exe')) {
         Copy-Item -LiteralPath $script:Node -Destination $executorNode -Force
         $script:Node = $executorNode
     }

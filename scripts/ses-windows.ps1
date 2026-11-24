@@ -244,6 +244,10 @@ function Invoke-SesMain([string]$Mode) {
         if ($Mode -eq 'stop') {
             Stop-SesService 'client'
             Stop-SesService 'server'
+            $updateDir = Join-Path $script:SesRoot '.ses-update'
+            if (!(Test-Path -LiteralPath (Join-Path $updateDir 'lock'))) {
+                Remove-Item -LiteralPath (Join-Path $updateDir 'relay-node.exe') -Force -ErrorAction SilentlyContinue
+            }
             Write-Host 'SES stopped. Documents have been preserved.'
             $success = $true
             return

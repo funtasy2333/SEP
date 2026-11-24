@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
-import { existsSync, readdirSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import {
   createSystemTestApp,
@@ -191,6 +191,28 @@ describe('升级：下载、校验与交接', () => {
           logFile: join(t.root, '.ses-run', 'upgrade.log'),
         },
       ]);
+    });
+
+    it('Windows 自包含包使用可替换目录之外的 Node.js 拉起升级', async () => {
+      t = await createSystemTestApp(
+        stableOptions({ launcher: 'windows', platform: 'win32' }),
+      );
+      const runtime = join(t.root, '.ses-runtime');
+      mkdirSync(runtime);
+      t.config.nodePath = join(runtime, 'node.exe');
+      writeFileSync(t.config.nodePath, 'bundled node');
+      seedStable(zipBytes(), { behavior: 'body' });
+
+      await t.http
+        .post('/api/system/update')
+        .send({ channel: 'stable', commit: TARGET });
+      expect((await settled()).phase).toBe('handed-off');
+
+      const relay = dir('relay-node.exe');
+      expect(readFileSync(relay, 'utf8')).toBe('bundled node');
+      expect(t.spawns[0]?.command).toBe(relay);
+      const plan = JSON.parse(readFileSync(dir('plan.json'), 'utf8')) as UpgradePlan;
+      expect(plan.node).toBe(relay);
     });
 
     it('资产没有 digest：不校验 sha256，只校验 zip 魔数与大小', async () => {
