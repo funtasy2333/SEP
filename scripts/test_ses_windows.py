@@ -107,7 +107,7 @@ class Downloads(unittest.TestCase):
                 $script:SesNode = 'node.exe'
                 $script:SesPnpm = 'pnpm.cjs'
                 $script:InstallCount = 0
-                Set-Content -LiteralPath (Join-Path $script:SesRoot 'pnpm-lock.yaml') -Value 'test lockfile'
+                function Get-FileHash { return @{Hash='test lockfile hash'} }
                 function Get-SesDependencyKey { return 'test dependency key' }
                 function Confirm-SesSqlite {}
                 function Invoke-SesCommand([string]$File, [string[]]$Arguments) {
