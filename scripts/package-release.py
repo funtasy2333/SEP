@@ -10,7 +10,7 @@ import subprocess
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.2.1-preview'
+VERSION = '0.2.2-preview'
 CONFIG = [
     'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc', 'tsconfig.base.json',
     'packages/server/nest-cli.json', 'packages/server/webpack.config.js',
@@ -78,7 +78,9 @@ def instructions(platform, version=VERSION):
 
 双击「启动SES.cmd」；退出时双击「退出SES.cmd」。需要 Windows PowerShell 5.1 或更高版本。
 首次启动会检查 Node.js（>=20.19.0），缺少时安装经过 SHA256 校验的便携版 Node.js 22.22.0；pnpm 10.33.0 安装在本目录的 .ses-tools 中，无需管理员权限。
-依赖和浏览器下载优先尝试官方 HTTPS 来源，失败才自动重试中国大陆 npmmirror 镜像。两个来源都失败会显示错误并停止，请查看日志、检查代理或网络后重试。脚本不修改全局 npm 源。
+依赖下载优先尝试官方 HTTPS 来源，失败才自动重试中国大陆 npmmirror 镜像。两个来源都失败会显示错误并停止，请查看日志、检查代理或网络后重试。脚本不修改全局 npm 源。
+
+pnpm 的依赖缓存位于 SES 目录内的 `.ses-tools/pnpm-store/`。从旧版升级后，如需复用盘根目录的 `.pnpm-store`，可以先退出 SES，把旧缓存 `v10` 内的 `files` 和 `index` 复制到新缓存的 `v10` 目录。下次需要安装依赖时，pnpm 会重建依赖链接并复用已缓存的文件。确认 SES 已使用新缓存且没有其他项目使用旧缓存后，可以删除旧缓存。
 
 ''' if platform == 'windows' else '''## macOS
 
@@ -141,7 +143,7 @@ def build_archive(platform, output, version=None, commit=None):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=ROOT / 'release')
-    parser.add_argument('--print-version', action='store_true', help='print the release version (e.g. 0.2.1-preview) and exit')
+    parser.add_argument('--print-version', action='store_true', help='print the release version (e.g. 0.2.2-preview) and exit')
     parser.add_argument('--version', default=None, help='override VERSION (CI uses this to build a "newer" package)')
     args = parser.parse_args()
     version = args.version or VERSION

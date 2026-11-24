@@ -132,11 +132,12 @@ function Install-SesDependencies {
         catch { Write-Host 'SQLite runtime needs repair; reinstalling dependencies...' }
     }
     Write-Host 'Installing SES dependencies from the official registry...'
-    # Browser downloads get their own retry below; a browser CDN outage must not mask npm health.
+    # Playwright's browser is only needed by developer tests.
     $savedSkip = $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
     $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = '1'
     try {
-        $common = @($script:SesPnpm, 'install', '--frozen-lockfile', '--fetch-retries=0', '--fetch-timeout=30000')
+        # Allow pnpm to recreate node_modules after the store changes, including on detached restarts.
+        $common = @($script:SesPnpm, 'install', '--frozen-lockfile', '--fetch-retries=0', '--fetch-timeout=30000', '--config.confirm-modules-purge=false')
         Invoke-SesWithFallback {
             Invoke-SesCommand $script:SesNode ($common + @('--registry', $script:OfficialRegistry))
             Confirm-SesSqlite
@@ -156,23 +157,6 @@ function Install-SesDependencies {
         }
     }
     finally { $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = $savedSkip }
-    $browserCli = Join-Path $script:SesRoot 'packages/server/node_modules/playwright-chromium/cli.js'
-    $savedHost = $env:PLAYWRIGHT_DOWNLOAD_HOST
-    $savedChromiumHost = $env:PLAYWRIGHT_CHROMIUM_DOWNLOAD_HOST
-    try {
-        $env:PLAYWRIGHT_DOWNLOAD_HOST = $null
-        $env:PLAYWRIGHT_CHROMIUM_DOWNLOAD_HOST = $null
-        Invoke-SesWithFallback {
-            Invoke-SesCommand $script:SesNode @($browserCli, 'install', 'chromium')
-        } {
-            $env:PLAYWRIGHT_DOWNLOAD_HOST = 'https://npmmirror.com/mirrors/playwright'
-            Invoke-SesCommand $script:SesNode @($browserCli, 'install', 'chromium')
-        }
-    }
-    finally {
-        $env:PLAYWRIGHT_DOWNLOAD_HOST = $savedHost
-        $env:PLAYWRIGHT_CHROMIUM_DOWNLOAD_HOST = $savedChromiumHost
-    }
     Set-Content -LiteralPath $marker -Value $dependencyKey -Encoding ASCII
 }
 

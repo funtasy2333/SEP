@@ -99,6 +99,35 @@ class Downloads(unittest.TestCase):
         """)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_dependency_install_does_not_install_playwright_browser(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = temp.replace("'", "''")
+            result = self.run_ps(f"$script:SesRoot = '{root}'; " + r"""
+                $script:SesRun = $script:SesRoot
+                $script:SesNode = 'node.exe'
+                $script:SesPnpm = 'pnpm.cjs'
+                $script:InstallCount = 0
+                function Get-FileHash { return @{Hash='test lockfile hash'} }
+                function Get-SesDependencyKey { return 'test dependency key' }
+                function Confirm-SesSqlite {}
+                function Invoke-SesCommand([string]$File, [string[]]$Arguments) {
+                    if ($File -ne 'node.exe' -or $Arguments[0] -ne 'pnpm.cjs' -or $Arguments[1] -ne 'install') {
+                        throw "Unexpected startup install command: $File $Arguments"
+                    }
+                    if ($env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD -ne '1') {
+                        throw 'Playwright browser download was enabled during dependency installation'
+                    }
+                    $script:InstallCount += 1
+                }
+                $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = '0'
+                Install-SesDependencies
+                if ($script:InstallCount -ne 1) { throw 'Expected one dependency installation' }
+                if ($env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD -ne '0') { throw 'Download setting was not restored' }
+                $marker = Get-Content -LiteralPath (Join-Path $script:SesRun 'dependencies.sha256') -Raw
+                if ($marker.Trim() -ne 'test dependency key') { throw 'Dependency marker was not written' }
+            """)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_unsupported_installed_node_selects_portable_runtime(self):
         result = self.run_ps("""
             foreach ($version in @('v21.7.3', 'v22.0.0', 'v22.11.0', 'v26.0.0')) {

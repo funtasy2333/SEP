@@ -1,6 +1,6 @@
 # 环境配置指南
 
-本文档说明 **SES 0.2.1 Preview** 的依赖要求。推荐先从 [Release](https://github.com/funtasy2333/SEP/releases/tag/v0.2.1-preview) 下载对应系统的压缩包；开发者可以使用 `git clone` 获取源码。下载链接和操作步骤见 [README：安装与启动](README.md#安装与启动)。
+本文档说明 **SES 0.2.2 Preview** 的依赖要求。推荐先从 [Release](https://github.com/funtasy2333/SEP/releases/tag/v0.2.2-preview) 下载对应系统的压缩包；开发者可以使用 `git clone` 获取源码。下载链接和操作步骤见 [README：安装与启动](README.md#安装与启动)。
 
 ## 1. 按使用方式准备环境
 
@@ -21,14 +21,14 @@
 
 1. 检查已有 Node.js 是否兼容；缺少兼容版本时，在 SES 目录内安装经过 SHA256 校验的便携版 Node.js 22.22.0。
 2. 在 SES 目录内安装 pnpm 10.33.0。
-3. 按锁文件安装项目依赖，检查 SQLite 原生模块并安装 Playwright Chromium。
+3. 按锁文件安装项目依赖，检查 SQLite 原生模块。
 4. 构建项目、备份已有数据库，启动前后端并打开浏览器。
 
 Node.js 与 pnpm 保存在 `.ses-tools/` 中，无需先手动安装，也不要求配置全局 pnpm。退出服务时双击 `退出SES.cmd`。
 
 ### macOS 压缩包
 
-需要先手动安装 Node.js 和 pnpm，启动脚本会检查版本，然后安装项目依赖并构建。
+需要先手动安装 Node.js 和 pnpm，启动脚本会检查版本，然后安装项目依赖并构建。启动时会跳过开发测试用的 Playwright Chromium 下载。
 
 1. 下载并安装 [Node.js 22.22.0（macOS 安装包）](https://nodejs.org/dist/v22.22.0/node-v22.22.0.pkg)。
 2. 打开终端，安装 pnpm：
@@ -92,7 +92,7 @@ PDF 由 SES 后端所在的机器排版。要输出指定字体，该机器需�
 
 ### Poppler：开发环境中的 PDF 排版
 
-0.2.1 Preview 暂停 PDF 导出。以下配置适用于开发调试。
+0.2.2 Preview 暂停 PDF 导出。以下配置适用于开发调试。
 
 PDF 版式预览使用 `@vivliostyle/cli` 排版，并通过 Poppler 的 `pdftotext`、`pdfinfo` 定位目次页码和核对页数。**编辑文档、导出 DOCX 无需安装 Poppler。**
 
@@ -107,7 +107,7 @@ pdftotext -v
 pdfinfo -v
 ```
 
-服务端会检查这两个命令。Vivliostyle 的排版浏览器可能在首次生成 PDF 时另行联网下载；Windows 安装的 Playwright Chromium 与 Vivliostyle 使用的浏览器由各自依赖管理。
+服务端会检查这两个命令。Vivliostyle 的排版浏览器可能在首次生成 PDF 时另行联网下载。开发者可在运行 Playwright 浏览器测试前，按需执行 `node packages/server/node_modules/playwright-chromium/cli.js install chromium`。
 
 ### Git：获取开发源码
 
@@ -159,7 +159,7 @@ pnpm build
 
 Windows 启动脚本优先尝试官方来源，下载或安装失败后再自动重试中国大陆 npmmirror 镜像。连接情况通过实际 HTTPS 请求和安装结果判断，不依赖 ICMP ping。
 
-此逻辑覆盖便携 Node.js、本地 pnpm、项目依赖和 Playwright 浏览器的安装重试；不修改全局 npm 源。两个来源都失败时，脚本会显示错误并停止，请检查网络或代理后重新运行。
+此逻辑覆盖便携 Node.js、本地 pnpm 和项目依赖的安装重试；不修改全局 npm 源。两个来源都失败时，脚本会显示错误并停止，请检查网络或代理后重新运行。
 
 ### macOS 与手动安装
 
