@@ -376,6 +376,28 @@ export function findActiveTableGrid(state: EditorState): ActiveTableGridLocation
   return null
 }
 
+/**
+ * 仅移除 `stdTable.attrs.columns` 各列中的名义宽度字段（`width` / `widthUnit`），
+ * 保留 `textAlign`、`verticalAlign` 等独立列对齐元数据；若所有列均不再包含有效字段则返回 `null`。
+ */
+function stripNominalColumnWidths(columns: unknown): unknown {
+  if (!Array.isArray(columns)) return null
+  let hasRemainingMetadata = false
+  const stripped = columns.map((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return item
+    const next: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(item as Record<string, unknown>)) {
+      if (key === 'width' || key === 'widthUnit') continue
+      if (value !== undefined && value !== null) {
+        next[key] = value
+        hasRemainingMetadata = true
+      }
+    }
+    return next
+  })
+  return hasRemainingMetadata ? stripped : null
+}
+
 /** 为网格中的所有单元格统一写入每列的 `colwidth`（或传 null 清空全部 `colwidth`）。 */
 export function buildColwidthTransaction(
   state: EditorState,
@@ -443,7 +465,10 @@ export function buildColwidthTransaction(
   ) {
     const stdTable = tr.doc.nodeAt(options.stdTablePos)
     if (stdTable?.type.name === 'stdTable' && stdTable.attrs.columns !== null && stdTable.attrs.columns !== undefined) {
-      tr.setNodeAttribute(options.stdTablePos, 'columns', null)
+      const nextColumns = stripNominalColumnWidths(stdTable.attrs.columns)
+      if (JSON.stringify(nextColumns) !== JSON.stringify(stdTable.attrs.columns)) {
+        tr.setNodeAttribute(options.stdTablePos, 'columns', nextColumns)
+      }
     }
   }
 

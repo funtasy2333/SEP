@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
 import { Editor, getSchema } from '@tiptap/core'
-import type { PMJsonNode } from '@ses/shared'
+import { pmToIr, type PMJsonNode } from '@ses/shared'
 import { createEditorExtensions, createLandscapeTableModalExtensions } from '../extensions/editorExtensions'
 import {
   LANDSCAPE_TARGET_WIDTH_PX,
@@ -359,6 +359,95 @@ describe('landscapeTable 工具函数', () => {
       const tblA1AfterEven = findStdTableByTarget(editor.state.doc, { nodeId: 'tbl-a1' })!.node
       expect(getStdTableGridColwidths(tblA1AfterEven)!.widths).toEqual([318, 317, 317])
       expect(getStdTableGridColwidths(tblA1AfterEven)!.widths.reduce((a, b) => (a ?? 0) + (b ?? 0), 0)).toBe(LANDSCAPE_TARGET_WIDTH_PX)
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('自动列宽仅清除 columns 中的 width/widthUnit，完整保留 textAlign 与 verticalAlign 且可无损转 IR', () => {
+    const editor = new Editor({
+      extensions: createEditorExtensions(),
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'chapter',
+            attrs: { nodeId: 'ch-align' },
+            content: [
+              { type: 'chapterTitle', content: [{ type: 'text', text: '列对齐保留' }] },
+              {
+                type: 'stdTable',
+                attrs: {
+                  nodeId: 'tbl-align',
+                  orientation: 'portrait',
+                  columns: [
+                    { width: 30, widthUnit: '%', textAlign: 'center', verticalAlign: 'middle' },
+                    { width: 70, widthUnit: '%' },
+                  ],
+                },
+                content: [
+                  { type: 'tableCaption', content: [{ type: 'text', text: '带列对齐的表' }] },
+                  {
+                    type: 'table',
+                    content: [
+                      {
+                        type: 'tableRow',
+                        content: [
+                          { type: 'tableHeader', attrs: { colwidth: [200] }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '列1' }] }] },
+                          { type: 'tableHeader', attrs: { colwidth: [462] }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '列2' }] }] },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    })
+
+    try {
+      let cellPos = -1
+      editor.state.doc.descendants((node, pos) => {
+        if (cellPos < 0 && node.isText && node.text === '列1') cellPos = pos + 1
+      })
+      editor.commands.setTextSelection(cellPos)
+
+      const autoTr = buildActiveTableAutoWidthTransaction(editor.state)!
+      expect(autoTr).not.toBeNull()
+      editor.view.dispatch(autoTr)
+
+      const updated = findStdTableByTarget(editor.state.doc, { nodeId: 'tbl-align' })!.node
+      expect(getStdTableGridColwidths(updated)!.widths).toEqual([null, null])
+      expect(updated.attrs.columns).toEqual([
+        { textAlign: 'center', verticalAlign: 'middle' },
+        {},
+      ])
+
+      // 再次点击自动列宽应为无操作（不产生冗余事务）
+      expect(buildActiveTableAutoWidthTransaction(editor.state)).toBeNull()
+
+      // 转换 IR 无 unsupportedContent，且对齐信息完整保留
+      const irResult = pmToIr(editor.getJSON() as PMJsonNode)
+      expect(irResult.doc.unsupportedContent ?? []).toEqual([])
+      const irTable = irResult.doc.body[0]!.children[0]!
+      expect(irTable.kind).toBe('table')
+      if (irTable.kind === 'table') {
+        expect(irTable.columns).toEqual([
+          { textAlign: 'center', verticalAlign: 'middle' },
+          {},
+        ])
+      }
+
+      // 单步撤销同时恢复 colwidth 与名义列宽
+      expect(editor.commands.undo()).toBe(true)
+      const undone = findStdTableByTarget(editor.state.doc, { nodeId: 'tbl-align' })!.node
+      expect(getStdTableGridColwidths(undone)!.widths).toEqual([200, 462])
+      expect(undone.attrs.columns).toEqual([
+        { width: 30, widthUnit: '%', textAlign: 'center', verticalAlign: 'middle' },
+        { width: 70, widthUnit: '%' },
+      ])
     } finally {
       editor.destroy()
     }

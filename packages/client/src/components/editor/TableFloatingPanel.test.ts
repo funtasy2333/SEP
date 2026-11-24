@@ -16,6 +16,7 @@ function mountPanel(initialProps: {
   canMergeCells?: boolean
   canSplitCell?: boolean
   canDeleteFootnoteRef?: boolean
+  autoCollapse?: boolean
 } = {}) {
   const root = document.createElement('div')
   document.body.append(root)
@@ -27,6 +28,7 @@ function mountPanel(initialProps: {
     canMergeCells: initialProps.canMergeCells ?? false,
     canSplitCell: initialProps.canSplitCell ?? false,
     canDeleteFootnoteRef: initialProps.canDeleteFootnoteRef ?? false,
+    autoCollapse: initialProps.autoCollapse ?? false,
   })
   const commands: TablePanelCommand[] = []
 
@@ -169,6 +171,48 @@ describe('TableFloatingPanel', () => {
       expect(panel.classList.contains('is-collapsed')).toBe(false)
       expect(toggle.getAttribute('aria-expanded')).toBe('true')
       expect(mounted.root.querySelector('[data-testid="table-panel-even-width"]')).not.toBeNull()
+    } finally {
+      mounted.unmount()
+    }
+  })
+
+  it('窄画布（autoCollapse）下默认折叠且可按需展开，恢复宽画布时还原宽屏状态', async () => {
+    const mounted = mountPanel({ autoCollapse: true })
+    try {
+      const panel = mounted.root.querySelector<HTMLElement>('[data-testid="table-floating-panel"]')!
+      const toggle = mounted.root.querySelector<HTMLButtonElement>('[data-testid="table-panel-toggle"]')!
+
+      // 窄画布初始收起，不遮挡右侧单元格
+      expect(panel.classList.contains('is-collapsed')).toBe(true)
+      expect(toggle.getAttribute('aria-expanded')).toBe('false')
+
+      // 窄画布下仍允许手动展开操作
+      toggle.click()
+      await nextTick()
+      expect(panel.classList.contains('is-collapsed')).toBe(false)
+
+      // 画布恢复宽屏后按宽屏偏好展开
+      mounted.state.autoCollapse = false
+      await nextTick()
+      expect(panel.classList.contains('is-collapsed')).toBe(false)
+
+      // 画布再次变窄（如打开侧栏）自动收起
+      mounted.state.autoCollapse = true
+      await nextTick()
+      expect(panel.classList.contains('is-collapsed')).toBe(true)
+
+      // 宽屏下用户手动收起后，经历变窄再恢复宽屏仍尊重用户的手动收起偏好
+      mounted.state.autoCollapse = false
+      await nextTick()
+      toggle.click()
+      await nextTick()
+      expect(panel.classList.contains('is-collapsed')).toBe(true)
+
+      mounted.state.autoCollapse = true
+      await nextTick()
+      mounted.state.autoCollapse = false
+      await nextTick()
+      expect(panel.classList.contains('is-collapsed')).toBe(true)
     } finally {
       mounted.unmount()
     }

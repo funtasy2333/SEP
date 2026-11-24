@@ -265,7 +265,7 @@
             </DocumentOutline>
           </div>
         </transition>
-        <div class="ed-main" @[BLOCK_FORMULA_EVENT]="handleBlockFormulaEvent">
+        <div ref="edMainRef" class="ed-main" @[BLOCK_FORMULA_EVENT]="handleBlockFormulaEvent">
           <!-- 上下文工具：锚定在编辑区画布右上角，避免撑高工具栏或在打开右侧栏时遮挡侧栏按钮 -->
           <div
             v-if="hasContextShelf"
@@ -359,6 +359,7 @@
               :can-merge-cells="canMergeCells"
               :can-split-cell="canSplitCell"
               :can-delete-footnote-ref="canDeleteTableFootnoteRef"
+              :auto-collapse="tablePanelAutoCollapse"
               @command="handleTableCommand"
             />
           </div>
@@ -1991,6 +1992,32 @@ const hasContextRow = computed(() => {
 })
 
 const hasContextShelf = computed(() => hasContextRow.value || isInTable.value)
+
+// 居中纸面可编辑表宽 666px，右侧浮窗 204px + 16px 边距 + 15px 间距要求画布宽度至少 1136px；
+// 空间不足（窄屏或打开右侧版本/质检侧栏）时自动收起浮窗为胶囊，避免遮挡右侧单元格并拦截点击。
+const TABLE_PANEL_MIN_CANVAS_WIDTH = 1136
+const edMainRef = ref<HTMLElement | null>(null)
+const edMainWidth = ref(0)
+const tablePanelAutoCollapse = computed(() => edMainWidth.value > 0 && edMainWidth.value < TABLE_PANEL_MIN_CANVAS_WIDTH)
+
+watch(edMainRef, (el, _prev, onCleanup) => {
+  if (!el) {
+    edMainWidth.value = 0
+    return
+  }
+  const syncWidth = () => {
+    edMainWidth.value = el.clientWidth
+  }
+  syncWidth()
+  if (typeof ResizeObserver !== 'undefined') {
+    const observer = new ResizeObserver(syncWidth)
+    observer.observe(el)
+    onCleanup(() => observer.disconnect())
+  } else if (typeof window !== 'undefined') {
+    window.addEventListener('resize', syncWidth)
+    onCleanup(() => window.removeEventListener('resize', syncWidth))
+  }
+}, { immediate: true })
 
 // === 横页表格展开编辑弹窗 ===
 const showLandscapeDialog = ref(false)

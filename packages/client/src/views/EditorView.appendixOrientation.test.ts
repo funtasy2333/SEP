@@ -780,5 +780,45 @@ describe('EditorView 右侧表格浮窗与纵向列宽', () => {
       view.unmount()
     }
   })
+
+  it('窄画布（.ed-main < 1136px）下表格浮窗自动收起为紧凑胶囊，避免遮挡右侧单元格，变宽后恢复展开', async () => {
+    const callbacks: Array<() => void> = []
+    class MockResizeObserver {
+      constructor(cb: () => void) { callbacks.push(cb) }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', MockResizeObserver)
+
+    const view = await mountEditor()
+    try {
+      const { editor } = view
+      const edMain = view.root.querySelector<HTMLElement>('.ed-main')!
+      let simulatedWidth = 900
+      Object.defineProperty(edMain, 'clientWidth', { configurable: true, get: () => simulatedWidth })
+      callbacks.forEach(cb => cb())
+      await flush()
+
+      editor.commands.setTextSelection(positionOf(editor, '正文表内容'))
+      await flush()
+
+      const panel = view.root.querySelector<HTMLElement>('[data-testid="table-floating-panel"]')!
+      expect(panel).not.toBeNull()
+      expect(panel.classList.contains('is-collapsed')).toBe(true)
+
+      simulatedWidth = 1200
+      callbacks.forEach(cb => cb())
+      await flush()
+      expect(panel.classList.contains('is-collapsed')).toBe(false)
+
+      simulatedWidth = 820
+      callbacks.forEach(cb => cb())
+      await flush()
+      expect(panel.classList.contains('is-collapsed')).toBe(true)
+    } finally {
+      view.unmount()
+    }
+  })
 })
 

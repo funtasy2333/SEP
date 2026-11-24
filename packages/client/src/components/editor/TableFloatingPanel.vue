@@ -14,7 +14,7 @@
         :aria-expanded="!collapsed"
         :title="collapsed ? '展开表格工具' : '收起表格工具'"
         @mousedown.prevent
-        @click="collapsed = !collapsed"
+        @click="toggleCollapsed"
       >{{ collapsed ? '展开' : '收起' }}</button>
     </div>
 
@@ -200,21 +200,36 @@ export type TablePanelCommand =
 </script>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
-defineProps<{
+const props = withDefaults(defineProps<{
   inCell: boolean
   isLandscape: boolean
   canMergeCells: boolean
   canSplitCell: boolean
   canDeleteFootnoteRef: boolean
-}>()
+  autoCollapse?: boolean
+}>(), {
+  autoCollapse: false,
+})
 
 const emit = defineEmits<{
   command: [command: TablePanelCommand]
 }>()
 
-const collapsed = ref(false)
+const userCollapsedWhenWide = ref(false)
+const collapsed = ref(props.autoCollapse)
+
+function toggleCollapsed() {
+  collapsed.value = !collapsed.value
+  if (!props.autoCollapse) {
+    userCollapsedWhenWide.value = collapsed.value
+  }
+}
+
+watch(() => props.autoCollapse, (narrow) => {
+  collapsed.value = narrow ? true : userCollapsedWhenWide.value
+})
 </script>
 
 <style scoped>
