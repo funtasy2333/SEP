@@ -5,7 +5,7 @@ import ElementPlus, { ElMessageBox } from 'element-plus'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SettingsMenu from './SettingsMenu.vue'
 import { useSystemStore } from '@/stores/system'
-import type { SystemInfo } from '@/api/system'
+import type { SystemInfo, UpdateCheck } from '@/api/system'
 
 const mocks = vi.hoisted(() => ({
   api: { info: vi.fn(), checkUpdate: vi.fn(), startUpdate: vi.fn(), updateStatus: vi.fn(), shutdown: vi.fn() },
@@ -34,6 +34,25 @@ function makeInfo(patch: Partial<SystemInfo> = {}): SystemInfo {
   }
 }
 
+function makeCheck(patch: Partial<UpdateCheck> = {}): UpdateCheck {
+  return {
+    channel: 'stable',
+    current: { version: '0.1.1-preview', commit: null, channel: 'stable' },
+    latest: {
+      version: '0.2.0',
+      commit: 'deadbeefcafe0123',
+      publishedAt: '2026-10-30T08:00:00.000Z',
+      notes: '更新日志',
+      url: 'https://example.com/releases/v0.2.0',
+      assetSize: 1024,
+    },
+    available: true,
+    reason: null,
+    commits: [{ sha: '1234567890abcdef', message: 'feat', date: '2026-10-29T08:00:00.000Z', author: 'a' }],
+    ...patch,
+  }
+}
+
 async function settle() {
   for (let i = 0; i < 6; i += 1) {
     await Promise.resolve()
@@ -42,11 +61,12 @@ async function settle() {
   }
 }
 
-async function mountMenu(info: SystemInfo | null) {
+async function mountMenu(info: SystemInfo | null, check: UpdateCheck | null = null) {
   const pinia = createPinia()
   setActivePinia(pinia)
   const store = useSystemStore()
   if (info) store.info = info
+  if (check) store.recordUpdateCheck(check)
   const root = document.createElement('div')
   document.body.append(root)
   const app = createApp(SettingsMenu)
@@ -57,6 +77,8 @@ async function mountMenu(info: SystemInfo | null) {
   button.click()
   await settle()
   return {
+    root,
+    button,
     store,
     unmount() {
       app.unmount()
@@ -75,10 +97,12 @@ describe('SettingsMenu', () => {
     Object.values(mocks.api).forEach((fn) => fn.mockReset())
     confirm.mockReset()
     confirmSpy = vi.spyOn(ElMessageBox, 'confirm').mockImplementation(confirm as never)
+    localStorage.clear()
   })
 
   afterEach(() => {
     confirmSpy.mockRestore()
+    localStorage.clear()
     document.body.innerHTML = ''
   })
 
@@ -155,6 +179,25 @@ describe('SettingsMenu', () => {
     q('[data-test="info-retry"]')!.click()
     await settle()
     expect(q('[data-test="version-line"]')!.textContent).toBe('SES 0.2.0 · 稳定版')
+    ctx.unmount()
+  })
+
+  it('有未读更新时显示按钮红点与菜单内「有新版本」标签；忽略后红点消失但保留菜单标签，且与共享弹窗联动', async () => {
+    const ctx = await mountMenu(makeInfo(), makeCheck())
+    expect(ctx.button.getAttribute('title')).toBe('设置（有新版本可用）')
+    expect(ctx.root.querySelector('[data-test="settings-update-dot"]')).not.toBeNull()
+    expect(q('[data-test="upgrade-badge"]')?.textContent).toBe('有新版本')
+
+    ctx.store.dismissCurrentUpdate()
+    await settle()
+    expect(ctx.button.getAttribute('title')).toBeNull()
+    expect(ctx.root.querySelector('[data-test="settings-update-dot"]')).toBeNull()
+    expect(q('[data-test="upgrade-badge"]')?.textContent).toBe('有新版本')
+
+    q('[data-test="upgrade-item"]')!.click()
+    await settle()
+    expect(ctx.store.upgradeDialogOpen).toBe(true)
+    expect(q('[data-test="latest-version"]')?.textContent).toBe('0.2.0')
     ctx.unmount()
   })
 })

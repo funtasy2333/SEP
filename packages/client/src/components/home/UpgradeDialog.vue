@@ -181,7 +181,9 @@ function resetAll() {
   checkSeq += 1
   stopPolling()
   channel.value = store.info?.channel ?? 'stable'
-  check.value = null
+  check.value = store.updateCheck && store.updateCheck.channel === channel.value
+    ? store.updateCheck
+    : null
   checkError.value = null
   checking.value = false
   starting.value = false
@@ -215,7 +217,11 @@ async function runCheck() {
   check.value = null
   try {
     const { data } = await systemApi.checkUpdate(requested)
-    if (seq === checkSeq) check.value = data
+    if (seq !== checkSeq) return
+    check.value = data
+    if (requested === (store.info?.channel ?? 'stable')) {
+      store.recordUpdateCheck(data)
+    }
   } catch (error) {
     if (seq === checkSeq) checkError.value = systemErrorMessage(error, '检查更新失败，请稍后重试')
   } finally {

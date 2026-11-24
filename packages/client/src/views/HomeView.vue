@@ -3,6 +3,7 @@
     <HomeNav :active-tab="navTab" :tabs="navTabs" @select-tab="selectTab" />
 
     <main class="home-body">
+      <UpdateNotice />
       <BackgroundRunNotice />
 
       <!-- Page head -->
@@ -269,6 +270,7 @@ import { sesImportErrorMessage, sesImportPromptOf, sesImportStatus, type SesImpo
 import { STAGES, STAGE_LABELS, TYPE_DEFS, TYPE_LABELS } from '@/constants/standards'
 
 import HomeNav from '@/components/home/HomeNav.vue'
+import UpdateNotice from '@/components/home/UpdateNotice.vue'
 import BackgroundRunNotice from '@/components/home/BackgroundRunNotice.vue'
 import StageOverview from '@/components/home/StageOverview.vue'
 import TemplateRail from '@/components/home/TemplateRail.vue'

@@ -2,7 +2,10 @@
 import { createApp, h, nextTick } from 'vue'
 import ElementPlus from 'element-plus'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { CellSelection } from '@tiptap/pm/tables'
 import { pmToIr } from '@ses/shared'
+import { getStdTableGridColwidths } from '@/utils/landscapeTable'
+import { resolveEditorLabels } from '@/utils/semanticLabels'
 import type { ValidationWorkerRequest, ValidationWorkerResponse } from '@/validation/analysis.worker'
 import { processAnalysisRequest } from '@/validation/analysis.worker'
 import { chapter, paragraph, text } from '@/validation/__fixtures__/phase6'
@@ -58,7 +61,6 @@ vi.mock('@tiptap/vue-3', async (importOriginal) => {
 vi.mock('@/components/editor/EditorContent.vue', () => ({ default: { render: () => null } }))
 vi.mock('@/components/editor/DocumentOutline.vue', () => ({ default: { render: () => null } }))
 vi.mock('@/components/editor/SlashMenu.vue', () => ({ default: { render: () => null } }))
-vi.mock('@/components/editor/TableMenu.vue', () => ({ default: { render: () => null } }))
 vi.mock('@/components/SesLogo.vue', () => ({ default: { render: () => null } }))
 vi.mock('@/components/editor/MathInputDialog.vue', () => ({
   default: {
@@ -563,6 +565,257 @@ describe('EditorView 横页表格展开编辑', () => {
       const bogusKey = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
       Object.defineProperty(bogusKey, 'target', { value: figEl })
       expect(editorProps.handleKeyDown(editor.view, bogusKey)).toBe(false)
+    } finally {
+      view.unmount()
+    }
+  })
+})
+
+describe('EditorView 右侧表格浮窗与纵向列宽', () => {
+  it('工具栏直接插入 3×3 表格，光标进入/离开表格时右侧浮窗自动显隐并与上下文条共存', async () => {
+    const view = await mountEditor()
+    try {
+      const { editor } = view
+      const floatingPanel = () => view.root.querySelector<HTMLElement>('[data-testid="table-floating-panel"]')
+
+      // 正文段落中不显示右侧表格浮窗
+      editor.commands.setTextSelection(positionOf(editor, '本文件规定'))
+      await flush()
+      expect(floatingPanel()).toBeNull()
+
+      // 点击顶部工具栏「表格」直接插入 3×3 标准表格
+      const insertBtn = view.root.querySelector<HTMLButtonElement>('[data-testid="toolbar-insert-table-btn"]')
+      expect(insertBtn).not.toBeNull()
+      expect(insertBtn!.textContent?.trim()).toBe('表格')
+
+      const existingIds = new Set<string>()
+      editor.state.doc.descendants((node: any) => {
+        if (node.type.name === 'stdTable' && node.attrs.nodeId) existingIds.add(node.attrs.nodeId)
+      })
+      insertBtn!.click()
+      await flush()
+
+      let tablesAfter = 0
+      let insertedTable: any = null
+      editor.state.doc.descendants((node: any) => {
+        if (node.type.name === 'stdTable') {
+          tablesAfter += 1
+          if (!existingIds.has(node.attrs.nodeId)) insertedTable = node
+        }
+      })
+      expect(tablesAfter).toBe(existingIds.size + 1)
+      expect(insertedTable).not.toBeNull()
+      // 验证插入的是 3 行 × 3 列标准表格
+      const insertedGrid = insertedTable.child(1)
+      expect(insertedGrid.childCount).toBe(3)
+      expect(insertedGrid.child(0).childCount).toBe(3)
+
+      // 光标位于新插入的表格内部：浮窗与「当前表」上下文条同时出现在 .ed-main > .tbar-context-shelf
+      expect(floatingPanel()).not.toBeNull()
+      expect(floatingPanel()!.closest('.ed-main > .tbar-context-shelf')).not.toBeNull()
+      expect(floatingPanel()!.classList.contains('tbar-context')).toBe(false)
+      expect(nodeGroup(view.root)?.querySelector('.tbar-label')?.textContent?.trim()).toBe('当前表')
+
+      // 光标移出表格回到正文段落：浮窗自动隐藏
+      editor.commands.setTextSelection(positionOf(editor, '本文件规定'))
+      await flush()
+      expect(floatingPanel()).toBeNull()
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('在纵向表格中支持均分 662px 列宽、自动列宽（含清空 columns）及单步撤销，且框选多单元格合并时不丢选区', async () => {
+    const view = await mountEditor()
+    try {
+      const { editor } = view
+
+      // 构造含名义列宽 columns 的 3 列表格（在正文中）
+      editor.commands.setContent({
+        type: 'doc',
+        content: [
+          chapter('c1', '范围', 'scope',
+            paragraph('p1', text('前置正文。')),
+            {
+              type: 'stdTable',
+              attrs: {
+                nodeId: 'tbl-portrait-3col',
+                orientation: 'portrait',
+                columns: [
+                  { width: 20, widthUnit: '%' },
+                  { width: 30, widthUnit: '%' },
+                  { width: 50, widthUnit: '%' },
+                ],
+              },
+              content: [
+                { type: 'tableCaption', content: [text('纵向三列表')] },
+                {
+                  type: 'table',
+                  content: [
+                    {
+                      type: 'tableRow',
+                      content: [
+                        { type: 'tableHeader', attrs: { colwidth: [120] }, content: [paragraph('h1', text('列一'))] },
+                        { type: 'tableHeader', attrs: { colwidth: [180] }, content: [paragraph('h2', text('列二'))] },
+                        { type: 'tableHeader', attrs: { colwidth: [240] }, content: [paragraph('h3', text('列三'))] },
+                      ],
+                    },
+                    {
+                      type: 'tableRow',
+                      content: [
+                        { type: 'tableCell', attrs: { colwidth: [120] }, content: [paragraph('d1', text('甲'))] },
+                        { type: 'tableCell', attrs: { colwidth: [180] }, content: [paragraph('d2', text('乙'))] },
+                        { type: 'tableCell', attrs: { colwidth: [240] }, content: [paragraph('d3', text('丙'))] },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ),
+        ],
+      })
+      await flush()
+
+      editor.commands.setTextSelection(positionOf(editor, '甲'))
+      await flush()
+
+      const findStdTable = () => {
+        let found: any = null
+        editor.state.doc.descendants((node: any) => {
+          if (node.type.name === 'stdTable' && node.attrs.nodeId === 'tbl-portrait-3col') found = node
+        })
+        return found
+      }
+
+      // 1. 点击「均分列宽」-> 662px 均分 3 列为 [220, 221, 221]
+      const evenBtn = view.root.querySelector<HTMLButtonElement>('[data-testid="table-panel-even-width"]')!
+      expect(evenBtn).not.toBeNull()
+      evenBtn.click()
+      await flush()
+      expect(getStdTableGridColwidths(findStdTable())!.widths).toEqual([220, 221, 221])
+
+      // 2. 点击「自动列宽」-> 清空 colwidth 与 stdTable.attrs.columns
+      const autoBtn = view.root.querySelector<HTMLButtonElement>('[data-testid="table-panel-auto-width"]')!
+      autoBtn.click()
+      await flush()
+      expect(getStdTableGridColwidths(findStdTable())!.widths).toEqual([null, null, null])
+      expect(findStdTable().attrs.columns).toBeNull()
+
+      // 3. 单步撤销恢复 colwidth 与 columns
+      editor.commands.undo()
+      await flush()
+      expect(getStdTableGridColwidths(findStdTable())!.widths).toEqual([220, 221, 221])
+      expect(findStdTable().attrs.columns).toEqual([
+        { width: 20, widthUnit: '%' },
+        { width: 30, widthUnit: '%' },
+        { width: 50, widthUnit: '%' },
+      ])
+
+      // 4. 多选单元格（CellSelection）后点击「合并单元格」：保留选区并完成合并
+      const cellPositions: number[] = []
+      editor.state.doc.descendants((node: any, pos: number) => {
+        if (node.type.name === 'tableCell') cellPositions.push(pos)
+      })
+      editor.view.dispatch(
+        editor.state.tr.setSelection(CellSelection.create(editor.state.doc, cellPositions[0]!, cellPositions[1]!)),
+      )
+      await flush()
+
+      const mergeBtn = view.root.querySelector<HTMLButtonElement>('[data-testid="table-panel-merge-cells"]')!
+      expect(mergeBtn.disabled).toBe(false)
+      const mousedown = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+      mergeBtn.dispatchEvent(mousedown)
+      expect(mousedown.defaultPrevented).toBe(true)
+      mergeBtn.click()
+      await flush()
+
+      const bodyRow = findStdTable().child(1).child(1)
+      expect(bodyRow.childCount).toBe(2)
+      expect(bodyRow.child(0).attrs.colspan).toBe(2)
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('禁止在节外（如文档末尾补位段落）插入无编号表格，章内连续插表正确编号为表2', async () => {
+    const view = await mountEditor()
+    try {
+      const { editor } = view
+
+      // 1. 光标在正文表内点击工具栏「表格」：新表插入同一章内，自动获得表2 编号（而非 ?）
+      editor.commands.setTextSelection(positionOf(editor, '正文表内容'))
+      await flush()
+      const insertBtn = view.root.querySelector<HTMLButtonElement>('[data-testid="toolbar-insert-table-btn"]')!
+      insertBtn.click()
+      await flush()
+
+      const firstChapter = editor.state.doc.children.find((n: any) => n.type.name === 'chapter')!
+      const chapterTables: string[] = []
+      firstChapter.forEach((child: any) => {
+        if (child.type.name === 'stdTable') chapterTables.push(child.attrs.nodeId)
+      })
+      expect(chapterTables).toHaveLength(2)
+      const labels = resolveEditorLabels(editor.state.doc)
+      expect(labels[chapterTables[0]!]?.label).toBe('表1')
+      expect(labels[chapterTables[1]!]?.label).toBe('表2')
+
+      // 2. 光标位于文档末尾游离段落（节外）时点击「表格」：拒绝插入根级无编号表格（避免表题出现 ?）
+      editor.commands.setContent({
+        type: 'doc',
+        content: [
+          chapter('c1', '范围', 'scope', paragraph('p1', text('正文'))),
+          { type: 'paragraph', attrs: { nodeId: 'stray-p' }, content: [text('游离段落')] },
+        ],
+      })
+      await flush()
+      editor.commands.setTextSelection(positionOf(editor, '游离段落'))
+      await flush()
+      insertBtn.click()
+      await flush()
+
+      const rootTableCount = editor.state.doc.children.filter((n: any) => n.type.name === 'stdTable').length
+      expect(rootTableCount).toBe(0)
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('窄画布（.ed-main < 1136px）下表格浮窗自动收起为紧凑胶囊，避免遮挡右侧单元格，变宽后恢复展开', async () => {
+    const callbacks: Array<() => void> = []
+    class MockResizeObserver {
+      constructor(cb: () => void) { callbacks.push(cb) }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', MockResizeObserver)
+
+    const view = await mountEditor()
+    try {
+      const { editor } = view
+      const edMain = view.root.querySelector<HTMLElement>('.ed-main')!
+      let simulatedWidth = 900
+      Object.defineProperty(edMain, 'clientWidth', { configurable: true, get: () => simulatedWidth })
+      callbacks.forEach(cb => cb())
+      await flush()
+
+      editor.commands.setTextSelection(positionOf(editor, '正文表内容'))
+      await flush()
+
+      const panel = view.root.querySelector<HTMLElement>('[data-testid="table-floating-panel"]')!
+      expect(panel).not.toBeNull()
+      expect(panel.classList.contains('is-collapsed')).toBe(true)
+
+      simulatedWidth = 1200
+      callbacks.forEach(cb => cb())
+      await flush()
+      expect(panel.classList.contains('is-collapsed')).toBe(false)
+
+      simulatedWidth = 820
+      callbacks.forEach(cb => cb())
+      await flush()
+      expect(panel.classList.contains('is-collapsed')).toBe(true)
     } finally {
       view.unmount()
     }

@@ -61,11 +61,12 @@ async function settle(ms = 5) {
   }
 }
 
-async function mountDialog(info: SystemInfo = makeInfo()) {
+async function mountDialog(info: SystemInfo = makeInfo(), initialCheck: UpdateCheck | null = null) {
   const pinia = createPinia()
   setActivePinia(pinia)
   const store = useSystemStore()
   store.info = info
+  if (initialCheck) store.recordUpdateCheck(initialCheck)
   const open = ref(true)
   const root = document.createElement('div')
   document.body.append(root)
@@ -113,10 +114,12 @@ describe('UpgradeDialog', () => {
     confirm.mockReset()
     confirmSpy = vi.spyOn(ElMessageBox, 'confirm').mockImplementation(confirm as never)
     ;(window as unknown as { __pwned?: boolean }).__pwned = undefined
+    localStorage.clear()
   })
 
   afterEach(() => {
     confirmSpy.mockRestore()
+    localStorage.clear()
     document.body.innerHTML = ''
   })
 
@@ -270,6 +273,64 @@ describe('UpgradeDialog', () => {
     expect(q('[data-test="upgrade-error"]')!.textContent).toBe('状态已变化，请重新检查更新')
     expect(q('[data-test="check-result"]')).toBeNull()
     expect(ctx.store.mode).toBe('normal')
+    ctx.unmount()
+  })
+
+  it('打开弹窗时若 store 已有同通道检查结果则直接预填；切换通道清空', async () => {
+    const prefilled = makeCheck()
+    const ctx = await mountDialog(makeInfo(), prefilled)
+    expect(mocks.api.checkUpdate).not.toHaveBeenCalled()
+    expect(q('[data-test="latest-version"]')!.textContent).toBe('0.2.0')
+    expect(q('[data-test="release-notes"]')!.textContent).toContain('修复若干问题')
+    expect(document.querySelectorAll('[data-test="commit-list"] li')).toHaveLength(1)
+
+    document.querySelector<HTMLInputElement>('input[type="radio"][value="commit"]')!.click()
+    await settle()
+    expect(q('[data-test="check-result"]')).toBeNull()
+    ctx.unmount()
+    document.body.innerHTML = ''
+
+    // 通道不一致时不预填
+    const mismatch = await mountDialog(makeInfo({ channel: 'commit' }), prefilled)
+    expect(q('[data-test="check-result"]')).toBeNull()
+    mismatch.unmount()
+  })
+
+  it('手动检查在默认通道成功时同步回 store；非默认通道不覆盖默认检查结果', async () => {
+    const initial = makeCheck()
+    const updated = makeCheck({
+      latest: {
+        version: '0.2.1',
+        commit: 'cafebabe12345678',
+        publishedAt: '2026-11-01T08:00:00.000Z',
+        notes: '新版本说明',
+        url: 'https://example.com/releases/v0.2.1',
+        assetSize: 2048,
+      },
+    })
+    const commitCheck = makeCheck({
+      channel: 'commit',
+      latest: {
+        version: null,
+        commit: '9999999abcdef012',
+        publishedAt: null,
+        notes: null,
+        url: 'https://example.com/commit/9999999',
+        assetSize: null,
+      },
+    })
+
+    const ctx = await mountDialog(makeInfo(), initial)
+    mocks.api.checkUpdate.mockResolvedValueOnce({ data: updated })
+    await clickCheck()
+    expect(ctx.store.updateCheck?.latest?.version).toBe('0.2.1')
+
+    document.querySelector<HTMLInputElement>('input[type="radio"][value="commit"]')!.click()
+    await settle()
+    mocks.api.checkUpdate.mockResolvedValueOnce({ data: commitCheck })
+    await clickCheck()
+    expect(ctx.store.updateCheck?.channel).toBe('stable')
+    expect(ctx.store.updateCheck?.latest?.version).toBe('0.2.1')
     ctx.unmount()
   })
 })
