@@ -980,4 +980,41 @@ describe('POST /api/documents/import/ses', () => {
       .timeout({ response: 30_000 })
       .expect(200);
   });
+
+  it('round-trips coverLayout in .ses packages, flags coverLayout-only diffs, and rejects malicious coverLayout', async () => {
+    const png =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const doc = await testApp.documents.create({
+      title: '含版式文档',
+      meta: {
+        ...META,
+        standardType: 'group',
+        coverLayout: {
+          logo: { dataUrl: png, position: 'replace_mark', widthMm: 30, heightMm: 15 },
+          notice: { text: '初始声明', position: 'above_dates' },
+        },
+      },
+      stage: 'working_draft',
+      content: content('版式正文'),
+    });
+
+    const exported = await testApp.http
+      .get(`/api/documents/${doc.id}/export/ses`)
+      .expect(200);
+    const pkg = JSON.parse(exported.text) as ReturnType<typeof packageFixture>;
+    expect((pkg.document.meta as Record<string, any>).coverLayout.notice.text).toBe('初始声明');
+
+    // Change only coverLayout -> previewImport flags contentDiffers: true
+    (pkg.document.meta as Record<string, any>).coverLayout.notice.text = '新版声明';
+    const preview = await expectBody<ImportPreviewBody>(
+      postPackage(testApp, pkg, 'mode=preview'),
+      200,
+    );
+    expect(preview.contentDiffers).toBe(true);
+
+    // Malicious external URL inside coverLayout is rejected with 400
+    (pkg.document.meta as Record<string, any>).coverLayout.logo.dataUrl =
+      'https://evil.example/a.png';
+    await postPackage(testApp, pkg, 'mode=new').expect(400);
+  });
 });

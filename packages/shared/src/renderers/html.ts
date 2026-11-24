@@ -52,9 +52,11 @@ import type {
 import { MISSING_ID_PREFIX } from '../ir/pmToIr'
 import { computeListNumbering } from '../ir/resolve'
 import type { ListNumbering } from '../ir/listNumbering'
+import { hasActiveCoverLayout } from '../coverLayoutValidation'
 import { printCss } from './printCss'
 import type { DocumentStage } from '../types/document'
-import { renderCoverHtml } from './coverHtml'
+import type { CoverLayoutConfig } from '../types/template'
+import { COVER_LAYOUT_PRINT_CSS, renderBackCoverHtml, renderCoverHtml } from './coverHtml'
 import { tableBordersCss } from './tableBordersCss'
 import { assertFootnoteReferences, orderTableFootnotes, tableColumnCount } from './footnotes'
 
@@ -65,6 +67,8 @@ export interface RenderHtmlOptions {
   variant?: HtmlVariant
   /** PDF 封面阶段，默认工作草案。 */
   stage?: DocumentStage
+  /** 封面徽标、附加声明与独立封底（仅 print 变体输出） */
+  coverLayout?: CoverLayoutConfig
 }
 
 type Labels = Record<NodeId, ResolvedLabel>
@@ -78,6 +82,8 @@ type Labels = Record<NodeId, ResolvedLabel>
 export const BODY_START_SENTINEL = 'SESBODYSTARTANCHOR'
 /** 目次首页的第一遍定位标记：封面不计入前置罗马页码。 */
 export const FRONT_START_SENTINEL = 'SESFRONTSTARTANCHOR'
+/** 封底页的第一遍定位上界标记：防止封底文字误入正文目次页码扫描。 */
+export const BACK_COVER_SENTINEL = 'SESBACKCOVERANCHOR'
 
 // ---------- 转义 ----------
 
@@ -991,7 +997,10 @@ export function renderHtml(doc: IRDoc, labels: Labels, opts: RenderHtmlOptions =
   renderBody(doc, anchorCollector)
   const ctx = new RenderCtx(labels, variant, anchorCollector.anchorCounts, false, listNumbering)
 
-  const css = variant === 'print' ? printCss({ standardNo: doc.meta.stdCode }) : screenStyles()
+  const css =
+    variant === 'print'
+      ? printCss({ standardNo: doc.meta.stdCode }) + (hasActiveCoverLayout(opts.coverLayout) ? `\n${COVER_LAYOUT_PRINT_CSS}` : '')
+      : screenStyles()
   const title = doc.meta.title ? escapeHtml(doc.meta.title) : '标准文件'
 
   ctx.push('<!DOCTYPE html>')
@@ -1011,9 +1020,13 @@ export function renderHtml(doc: IRDoc, labels: Labels, opts: RenderHtmlOptions =
   ctx.push('<body>')
   ctx.push(`<article class="ses-standard" data-type="standard-doc"${metaAttrs(doc.meta)}>`)
 
-  if (variant === 'print') ctx.push(renderCoverHtml(doc.meta, opts.stage ?? 'working_draft'))
+  if (variant === 'print') ctx.push(renderCoverHtml(doc.meta, opts.stage ?? 'working_draft', opts.coverLayout))
   renderFront(doc, ctx)
   renderBody(doc, ctx)
+  if (variant === 'print' && opts.coverLayout?.backCover?.enabled) {
+    ctx.push(`<span class="ses-back-cover-anchor" aria-hidden="true">${BACK_COVER_SENTINEL}</span>`)
+    ctx.push(renderBackCoverHtml(doc.meta, opts.coverLayout.backCover))
+  }
 
   ctx.push('</article>')
   ctx.push('</body>')

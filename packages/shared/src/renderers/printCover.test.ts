@@ -67,4 +67,37 @@ describe('PDF 打印封面', () => {
     expect(html).toContain('XXXX-XX-XX')
     expect(input).toEqual(before)
   })
+
+  it('print 变体支持自定义徽标、附加声明与独立封底，screen 变体保持纯净', () => {
+    const coverLayout = {
+      logo: {
+        dataUrl: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP///8AA/9oADAMBAAIRAxEAPwD/',
+        position: 'replace_mark' as const,
+        widthMm: 35,
+        heightMm: 18,
+      },
+      notice: {
+        text: '内部受控版本，禁止翻印',
+        position: 'above_dates' as const,
+      },
+      backCover: {
+        enabled: true,
+        copyrightNotice: '© 2026 某团体标准组织',
+        contactInfo: '联系电话：010-12345678',
+      },
+    }
+    const input = doc({ standardType: 'group', stdCode: 'T/ABC 1—2026', issuer: '某协会' })
+    const labels = resolve(input).labels
+    const printHtml = renderHtml(input, labels, { variant: 'print', stage: 'working_draft', coverLayout })
+    expect(printHtml).toContain('@page back-cover')
+    expect(printHtml).toContain('ses-cover-logo-custom')
+    expect(printHtml).toContain('内部受控版本，禁止翻印')
+    expect(printHtml).toContain('SESBACKCOVERANCHOR')
+    expect(printHtml).toContain('© 2026 某团体标准组织')
+
+    const screenHtml = renderHtml(input, labels, { variant: 'screen', coverLayout })
+    expect(screenHtml).not.toContain('ses-cover-logo-custom')
+    expect(screenHtml).not.toContain('内部受控版本，禁止翻印')
+    expect(screenHtml).not.toContain('SESBACKCOVERANCHOR')
+  })
 })

@@ -368,6 +368,49 @@ describe('文档修订号与乐观锁', () => {
     );
     expect(updated.content).toBeNull();
   });
+
+  it('group + replace_mark 文档通过 PUT 将 standardType 改为 national 时返回 400 拦截', async () => {
+    const png =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const created = await createDoc({
+      meta: {
+        titleCn: '团体版式测试',
+        standardType: 'group',
+        standardNo: 'T/TEST 1—2026',
+        coverLayout: {
+          logo: {
+            dataUrl: png,
+            position: 'replace_mark',
+            widthMm: 30,
+            heightMm: 15,
+          },
+        },
+      },
+    });
+    expect(created.revision).toBe(0);
+
+    // 即使 PUT 仅携带 standardType（不重复传 coverLayout）也应在合并后被拦截
+    await http
+      .put(`/api/documents/${created.id}`)
+      .send({
+        baseRevision: 0,
+        meta: { standardType: 'national' },
+      })
+      .expect(400);
+
+    // 携带原 coverLayout 改为 national 同样返回 400
+    await http
+      .put(`/api/documents/${created.id}`)
+      .send({
+        baseRevision: 0,
+        meta: { ...created.meta, standardType: 'national' },
+      })
+      .expect(400);
+
+    const after = await reply(http.get(`/api/documents/${created.id}`), 200);
+    expect(after.revision).toBe(0);
+    expect(after.meta.standardType).toBe('group');
+  });
 });
 
 describe('旧库升级', () => {

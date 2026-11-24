@@ -610,6 +610,25 @@ describe('GET /api/documents/:id/export/{pdf,xml,html,json}', () => {
         disposition('标准文件.xml'),
       );
     });
+
+    it('含 coverLayout 时照常导出 XML 且响应头携带 cover-layout-print-only 非阻断告警', async () => {
+      const id = await createDoc({
+        meta: {
+          ...fixtureMeta,
+          standardType: 'group',
+          coverLayout: {
+            notice: { text: '内部受控声明', position: 'above_dates' },
+            backCover: { enabled: true, copyrightNotice: '© 2026' },
+          },
+        },
+        content: chapterOnlyDoc(paragraph('p1', '正文。')),
+      });
+      const res = await download(EXPORT_PATH(id, 'xml'));
+      expect(res.status).toBe(200);
+      const rawWarnings = res.headers[WARNINGS_HEADER.toLowerCase()];
+      const warnings = JSON.parse(decodeURIComponent(rawWarnings)) as ExportWarning[];
+      expect(warnings.some((w) => w.code === 'cover-layout-print-only')).toBe(true);
+    });
   });
 
   describe('HTML', () => {

@@ -116,3 +116,77 @@ it('实际表单提交新增两字段和单位，重新打开不沿用上一份�
     root.remove()
   }
 })
+
+it('支持 initialTemplateId 预填自定义模板元信息、mini-cover 版式角标，并在卸载时移除 keydown 监听', async () => {
+  const root = document.createElement('div')
+  document.body.append(root)
+  const visible = ref(false)
+  const submitted: Array<{ form: NewDocForm; tplName?: string }> = []
+  const customTemplate = {
+    id: 42,
+    uid: 'custom-group-tpl',
+    name: '行业协会定制模板',
+    description: '含定制徽标与封底',
+    baseType: 'group' as const,
+    defaultStage: 'approval_draft' as const,
+    defaultMeta: {
+      stdPrefix: 'T/CISA',
+      proposer: '测试提出协会',
+      issuer: '测试发布协会',
+      icsCode: '35.240.01',
+    },
+    coverLayout: {
+      notice: { text: '仅供内部征求意见', position: 'above_dates' as const },
+      backCover: { enabled: true, title: '版权信息' },
+    },
+    content: { type: 'doc', content: [] },
+    source: 'human' as const,
+    readonly: false,
+    revision: 1,
+  }
+
+  const app = createApp({
+    setup: () => () => h(NewDocDialog, {
+      modelValue: visible.value,
+      initialTemplateId: 42,
+      templates: [customTemplate],
+      'onUpdate:modelValue': (v: boolean) => { visible.value = v },
+      onCreate: (form: NewDocForm, tpl?: { name?: string }) => {
+        submitted.push({ form: { ...form }, tplName: tpl?.name })
+      },
+    }),
+  })
+  app.use(ElementPlus).mount(root)
+  const settle = async () => { await nextTick(); await new Promise((r) => setTimeout(r, 20)); await nextTick() }
+
+  try {
+    visible.value = true
+    await settle()
+
+    expect(document.querySelector('[data-testid="mini-cover-layout-badges"]')?.textContent).toContain('含声明')
+    expect(document.querySelector('[data-testid="mini-cover-layout-badges"]')?.textContent).toContain('含封底')
+    expect(document.querySelector<HTMLInputElement>('input[placeholder="例：信息技术 标准化文件编辑系统 通用要求"]')).not.toBeNull()
+
+    const titleInput = document.querySelector<HTMLInputElement>('input[placeholder="例：信息技术 标准化文件编辑系统 通用要求"]')!
+    titleInput.value = '基于模板的新标准'
+    titleInput.dispatchEvent(new Event('input', { bubbles: true }))
+    await settle()
+
+    // 测试 Cmd/Ctrl+Enter 快捷键在挂载期间生效
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true }))
+    await settle()
+    expect(submitted).toHaveLength(1)
+    expect(submitted[0]!.tplName).toBe('行业协会定制模板')
+    expect(submitted[0]!.form.stdPrefix).toBe('T/CISA')
+    expect(submitted[0]!.form.proposer).toBe('测试提出协会')
+    expect(submitted[0]!.form.stage).toBe('approval_draft')
+  } finally {
+    app.unmount()
+    root.remove()
+  }
+
+  // 卸载后再次触发 Cmd/Ctrl+Enter 不应继续提交
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true }))
+  await nextTick()
+  expect(submitted).toHaveLength(1)
+})

@@ -29,6 +29,11 @@ export const TOOL_NAMES = [
   'validate_document',
   'export_document',
   'get_authoring_reference',
+  'list_templates',
+  'get_template',
+  'create_template',
+  'update_template',
+  'apply_template_operations',
 ] as const;
 export type McpToolName = (typeof TOOL_NAMES)[number];
 
@@ -130,12 +135,17 @@ export const TOOL_DEFINITIONS: readonly (Tool & { name: McpToolName })[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        templateId: {
+          description:
+            '可选：模板 id（数字 id、内置模板如 builtin:group 或模板 UUID）；传入时自动继承模板的默认标准类型、预设元信息、封面版式与正文骨架并替换 {{...}} 占位变量',
+          oneOf: [{ type: 'integer', minimum: 1 }, { type: 'string' }],
+        },
         titleCn: optionalText('标准的中文名称（必填，不能为空）'),
         standardType: {
           type: 'string',
           enum: [...STANDARD_TYPES],
           description:
-            '标准类型：national 国家标准、industry 行业标准、local 地方标准、group 团体标准、enterprise 企业标准、guidance 指导性技术文件',
+            '标准类型：national 国家标准、industry 行业标准、local 地方标准、group 团体标准、enterprise 企业标准、guidance 指导性技术文件；未指定 templateId 时必填',
         },
         stage: {
           type: 'string',
@@ -165,7 +175,7 @@ export const TOOL_DEFINITIONS: readonly (Tool & { name: McpToolName })[] = [
           '封面标准称谓的完整覆盖值（仅行业、地方、团体、企业标准使用），一般不需要填',
         ),
       },
-      required: ['titleCn', 'standardType'],
+      required: ['titleCn'],
       additionalProperties: false,
     },
     annotations: {
@@ -337,5 +347,180 @@ export const TOOL_DEFINITIONS: readonly (Tool & { name: McpToolName })[] = [
       additionalProperties: false,
     },
     annotations: readOnly,
+  },
+  {
+    name: 'list_templates',
+    description:
+      '列出 SES 模板库中的全部内置标准模板（6 类只读）与组织自定义模板。返回 { templates: [{ id, uid, name, description, baseType, defaultStage, defaultMeta, coverLayout, source, readonly, revision, hasPreviousContent }] }。' +
+      '用于查找可派生或直接套用的 templateId，或确认现有模板。',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+    annotations: readOnly,
+  },
+  {
+    name: 'get_template',
+    description:
+      '读取指定模板的预设元信息、封面版式（coverLayout）及正文骨架结构树（outline），或读取模板正文内的指定 nodeId / container 内容。' +
+      'templateId 支持数字 id、内置模板标识（如 builtin:group）或 UUID；nodeId 与 container 可同时省略（返回模板信息与 outline），但不可同时传入。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        templateId: {
+          description: '模板 id（数字 id、builtin:* 或 UUID）',
+          oneOf: [{ type: 'integer', minimum: 1 }, { type: 'string' }],
+        },
+        nodeId: optionalText('可选：模板正文内节点 id（取自 get_template 返回的 outline）'),
+        container: {
+          type: 'string',
+          enum: [...READABLE_CONTAINERS],
+          description: '可选：模板正文容器名（foreword / introduction / bibliography），与 nodeId 二选一',
+        },
+      },
+      required: ['templateId'],
+      additionalProperties: false,
+    },
+    annotations: readOnly,
+  },
+  {
+    name: 'create_template',
+    description:
+      '创建组织自定义标准模板（自动标记 source: agent），支持从零创建或基于已有文档（fromDocumentId）/已有模板（fromTemplateId）派生，支持预设元信息、封面与封底版式（coverLayout）及初始正文骨架编排（operations）。' +
+      '正文片段支持轻量占位变量（如 {{titleCn}}、{{proposer}}、{{technicalCommittee}}、{{applicant}}、{{issuer}}）。返回 { templateId, uid, revision, name, editorUrl }。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: optionalText('模板名称（必填，不能为空）'),
+        baseType: {
+          type: 'string',
+          enum: [...STANDARD_TYPES],
+          description: '基础标准类型（未传 fromDocumentId/fromTemplateId 时必填）',
+        },
+        description: optionalText('模板用途与适用范围说明'),
+        defaultStage: {
+          type: 'string',
+          enum: [...DOCUMENT_STAGES],
+          description: '按该模板新建文档的默认编制阶段，缺省为 working_draft',
+        },
+        defaultMeta: {
+          type: 'object',
+          description: '预设元信息（如 stdPrefix、issuer、proposer、technicalCommittee、icsCode、ccsCode 等）',
+        },
+        coverLayout: {
+          type: 'object',
+          description: '封面徽标（PNG/JPEG dataUrl）、封面附加声明（notice）与独立封底（backCover）配置；国标与指导性文件禁止 replace_mark',
+        },
+        fromDocumentId: {
+          type: 'integer',
+          minimum: 1,
+          description: '可选：基于已有标准文档 id 抽取结构与设置作为模板起点',
+        },
+        fromTemplateId: {
+          description: '可选：基于已有模板 id（如 builtin:group 或自定义模板 id）派生',
+          oneOf: [{ type: 'integer', minimum: 1 }, { type: 'string' }],
+        },
+        operations: {
+          type: 'array',
+          minItems: 1,
+          items: operationSchema,
+          description: '可选：创建后立即对模板正文骨架执行的批量操作数组',
+        },
+      },
+      required: ['name'],
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: 'update_template',
+    description:
+      '基于 baseRevision 乐观锁更新自定义模板的名称、说明、基础标准类型、默认阶段、预设元信息（defaultMeta）或封面/封底版式（coverLayout）。' +
+      '内置只读模板不可修改；返回更新后的 { templateId, uid, revision, name }。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        templateId: {
+          type: 'integer',
+          minimum: 1,
+          description: '待更新的自定义模板数字 id',
+        },
+        baseRevision: {
+          type: 'integer',
+          minimum: 0,
+          description: '最近一次读取或写入返回的模板 revision',
+        },
+        name: optionalText('新的模板名称'),
+        description: optionalText('新的模板说明'),
+        baseType: {
+          type: 'string',
+          enum: [...STANDARD_TYPES],
+          description: '新的基础标准类型（切为 national/guidance 时若已有 replace_mark 徽标会被拒绝）',
+        },
+        defaultStage: {
+          type: 'string',
+          enum: [...DOCUMENT_STAGES],
+          description: '新的默认编制阶段',
+        },
+        defaultMeta: {
+          type: 'object',
+          description: '新的预设元信息对象',
+        },
+        coverLayout: {
+          description: '新的封面/封底版式对象（传 null 可清除）',
+        },
+      },
+      required: ['templateId', 'baseRevision'],
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: 'apply_template_operations',
+    description:
+      '基于 baseRevision 乐观锁批量编排自定义模板的正文骨架（insert、replace、delete、move，写作片段格式与 apply_operations 完全一致，可包含 {{titleCn}} 等占位变量）。' +
+      '整批操作全有或全无，并自动保留 previousContent 支持编辑器单步回退。返回 { templateId, revision, operations, problems, warnings }。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        templateId: {
+          type: 'integer',
+          minimum: 1,
+          description: '待编排的自定义模板数字 id',
+        },
+        baseRevision: {
+          type: 'integer',
+          minimum: 0,
+          description: '最近一次读取或写入返回的模板 revision',
+        },
+        operations: {
+          type: 'array',
+          minItems: 1,
+          items: operationSchema,
+          description: '按顺序执行的模板骨架操作数组',
+        },
+        note: {
+          type: 'string',
+          maxLength: MAX_NOTE_LENGTH,
+          description: '可选：修改说明（保留参数兼容性）',
+        },
+      },
+      required: ['templateId', 'baseRevision', 'operations'],
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      openWorldHint: false,
+    },
   },
 ];

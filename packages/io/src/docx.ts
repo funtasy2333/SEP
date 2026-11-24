@@ -96,6 +96,7 @@ export async function buildDocx(options: BuildDocxOptions): Promise<{
     formulaWidths: formulaResult.formulaWidths,
     stage: resolveDocumentStage(options.stage),
     createdAt: options.createdAt ?? new Date().toISOString(),
+    ...(options.documentMeta?.coverLayout ? { coverLayout: options.documentMeta.coverLayout } : {}),
   })
   return {
     bytes: await packageDocxBytes(docxPackage),

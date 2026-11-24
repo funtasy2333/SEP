@@ -269,4 +269,23 @@ describe('analyzeDocument', () => {
     expect(analysis.validation.coverage.footnotes.status).toBe('excluded')
     expect(analysis.validation.coverage.internalReferences.status).toBe('checked')
   })
+
+  it('reports unresolved template placeholders with locatable nodeId and clears when replaced', () => {
+    const withPlaceholder = doc([
+      chapter('scope', '范围', [para('scope-p', '本文件由{{proposer}}提出，适用于{{titleCn}}。')], 'scope'),
+    ])
+    withPlaceholder.front.foreword.push(para('fw-p', '本文件起草单位：{{applicant}}。'))
+
+    const issues = issuesFor(withPlaceholder, 'template-placeholder-unresolved')
+    expect(issues).toHaveLength(3)
+    expect(issues.every((i) => i.severity === 'warning')).toBe(true)
+    expect(issues.map((i) => i.nodeId)).toEqual(['fw-p', 'scope-p', 'scope-p'])
+    expect(issues[1]?.evidence?.[0]?.text).toBe('{{proposer}}')
+
+    const resolvedDoc = doc([
+      chapter('scope', '范围', [para('scope-p', '本文件由某委员会提出，适用于测试标准。')], 'scope'),
+    ])
+    resolvedDoc.front.foreword.push(para('fw-p', '本文件起草单位：某研究院。'))
+    expect(issuesFor(resolvedDoc, 'template-placeholder-unresolved')).toHaveLength(0)
+  })
 })

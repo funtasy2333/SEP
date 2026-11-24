@@ -281,7 +281,15 @@ export class SesPackageService {
         localOnlyVersions,
         contentDiffers:
           stableStringify(match.content) !==
-          stableStringify(pkg.document.content),
+            stableStringify(pkg.document.content) ||
+          stableStringify(
+            (match.meta as Record<string, unknown> | undefined)?.coverLayout ??
+              null,
+          ) !==
+            stableStringify(
+              (pkg.document.meta as Record<string, unknown> | undefined)
+                ?.coverLayout ?? null,
+            ),
         versionNoCollisions,
       };
     });

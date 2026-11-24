@@ -9,11 +9,12 @@
  * 不在这里渲染 KaTeX、不做编号（编号在 shared Resolver，KaTeX 在服务端 PDF 管线）。
  */
 
-import { pmToIr, renderHtml, resolve, type IRDocMeta, type PMJsonNode } from '@ses/shared'
+import { pmToIr, renderHtml, resolve, type CoverLayoutConfig, type IRDocMeta, type PMJsonNode } from '@ses/shared'
 import { resolveDocumentStage } from './docx'
 
 export interface PdfExportOptions {
   stage?: string
+  coverLayout?: CoverLayoutConfig
 }
 
 export interface PdfTocTarget {
@@ -93,7 +94,11 @@ export function buildPdfExportRequest(pmJson: PMJsonNode, meta: Partial<IRDocMet
   Object.assign(ir.meta, Object.fromEntries(Object.entries(meta).filter(([, value]) => value !== undefined)))
 
   const { labels } = resolve(ir)
-  const html = renderHtml(ir, labels, { variant: 'print', stage: resolveDocumentStage(options.stage) })
+  const html = renderHtml(ir, labels, {
+    variant: 'print',
+    stage: resolveDocumentStage(options.stage),
+    ...(options.coverLayout ? { coverLayout: options.coverLayout } : {}),
+  })
 
   return {
     html,

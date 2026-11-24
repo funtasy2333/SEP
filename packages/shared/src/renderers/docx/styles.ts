@@ -355,6 +355,13 @@ const STYLE_SPECS: readonly StyleSpec[] = [
   { id: 'SesCoverIssuer', name: 'SES_封面发布机构', rFonts: 'hei', sz: 28, jc: 'center' },
 ]
 
+const COVER_LAYOUT_STYLE_SPECS: StyleSpec[] = [
+  { id: 'SesCoverNotice', name: 'SES_封面附加声明', rFonts: 'song', sz: 21, jc: 'center', spacing: SPACING_ZERO },
+  { id: 'SesBackCoverTitle', name: 'SES_封底标题', rFonts: 'hei', sz: 32, bold: true, jc: 'center', spacing: '<w:spacing w:before="1200" w:after="360"/>' },
+  { id: 'SesBackCoverCopyright', name: 'SES_封底版权声明', rFonts: 'song', sz: 21, jc: 'center', spacing: '<w:spacing w:before="240" w:after="240"/>' },
+  { id: 'SesBackCoverText', name: 'SES_封底信息', rFonts: 'song', sz: 21, jc: 'center', spacing: '<w:spacing w:before="120" w:after="120"/>' },
+]
+
 const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
 const FOOTNOTE_STYLE_IDS = new Set(['SesFootnoteText', 'SesTableFootnote'])
 
@@ -372,10 +379,13 @@ function buildDocDefaultsXml(): string {
 }
 
 /** 生成完整的 word/styles.xml（含 XML 声明），§3.2 与 §6 全部样式 */
-export function buildStylesXml(options: { includeFootnotes?: boolean } = {}): string {
-  const styleSpecsToEmit = options.includeFootnotes
+export function buildStylesXml(options: { includeFootnotes?: boolean; includeCoverLayout?: boolean } = {}): string {
+  const baseSpecs = options.includeFootnotes
     ? STYLE_SPECS
     : STYLE_SPECS.filter((spec) => !FOOTNOTE_STYLE_IDS.has(spec.id))
+  const styleSpecsToEmit = options.includeCoverLayout
+    ? [...baseSpecs, ...COVER_LAYOUT_STYLE_SPECS]
+    : baseSpecs
   const children: XmlChild[] = [
     ['docDefaults', buildDocDefaultsXml()],
     ...styleSpecsToEmit.map((spec): XmlChild => ['style', buildStyleXml(spec)]),

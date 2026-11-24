@@ -474,7 +474,7 @@ export class ExportService {
       const request = buildPdfExportRequest(
         pmDoc,
         irMetaFromDocumentMeta(meta),
-        { stage },
+        { stage, coverLayout: meta.coverLayout },
       );
       const bytes = await this.convertService.convertHtmlToPdf({
         html: request.html,

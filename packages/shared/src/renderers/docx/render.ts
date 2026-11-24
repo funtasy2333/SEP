@@ -1,3 +1,4 @@
+import { hasActiveCoverLayout } from '../../coverLayoutValidation'
 import { assertOutputSupported } from '../outputBoundary'
 /**
  * DOCX 渲染组装（docs/wp7-docx-delivery.md §1.2 render.ts、§4.7、§9 WP7.2「文档结构」）。
@@ -25,10 +26,10 @@ import { LANDSCAPE_END, LANDSCAPE_START } from './body/block'
 import { renderChapter } from './body/clause'
 import { createRenderContext, emitParagraph, formulaSink, type NumberedParagraphTrace, type RenderContext } from './body/context'
 import { renderBodyTitle, renderForeword, renderIntroduction, renderTocTitle } from './body/front'
-import { normalizeCoverStdCode, renderCover } from './cover'
+import { normalizeCoverStdCode, renderBackCover, renderCover } from './cover'
 import { buildStaticToc } from './toc'
 import { buildPackage, createRelationshipIdAllocator, type DocxRelatedPart } from './package'
-import { buildHeaderFooterParts, createSectionManager, type HeaderFooterRelIds, type SectionKind, type SectionManager } from './sections'
+import { buildEmptyHeaderFooterParts, buildHeaderFooterParts, createSectionManager, type HeaderFooterRelIds, type SectionKind, type SectionManager } from './sections'
 import { buildStylesXml } from './styles'
 import type { DocxPackage, DocxRenderOptions } from './types'
 import { assertFootnoteReferences, documentHasFootnotes } from '../footnotes'
@@ -185,14 +186,17 @@ export function renderDocxTraced(
       [...line].reduce((width, char) => width + (char.charCodeAt(0) < 128 ? 0.55 : 1), 0) / 48)), 0)
     return [noteNumber(footnote.id, labels), lineCount * 4.2 + 2]
   })))
+  const hasBackCover = Boolean(opts.coverLayout?.backCover?.enabled)
   const relIds: HeaderFooterRelIds = {
     header1: allocateRelId(),
     header2: allocateRelId(),
     footer1: allocateRelId(),
     footer2: allocateRelId(),
+    ...(hasBackCover ? { emptyHeader: allocateRelId(), emptyFooter: allocateRelId() } : {}),
   }
   const footnotesRelId = bodyFootnotes.length > 0 ? allocateRelId() : undefined
   const headerFooterParts = buildHeaderFooterParts(normalizeCoverStdCode(doc.meta.stdCode))
+  const emptyHeaderFooterParts = hasBackCover ? buildEmptyHeaderFooterParts() : undefined
   const sectionManager = createSectionManager(relIds)
 
   let body = ''
@@ -200,7 +204,7 @@ export function renderDocxTraced(
 
   // 1. 封面节
   body += sectionManager.startSection('cover')
-  body += renderCover(ctx, doc.meta, opts.stage)
+  body += renderCover(ctx, doc.meta, opts.stage, opts.coverLayout)
 
   // 2. 目次节
   body += sectionManager.startSection('toc')
@@ -258,6 +262,10 @@ export function renderDocxTraced(
   // w:tbl never touch and no separator paragraph is inserted here (tests assert `</w:tbl><w:tbl>` never occurs).
   body = keepLastContentWithEndMark(body)
   body += emitParagraph(ctx, finalContentLandscape ? 'SesEndMarkLandscape' : 'SesEndMark')
+  if (hasBackCover && opts.coverLayout?.backCover) {
+    body += sectionManager.startSection('backCover')
+    body += renderBackCover(ctx, doc.meta, opts.coverLayout.backCover)
+  }
   body += sectionManager.finalSectPr()
 
   if (bodyFootnotes.length > 0 && body.includes('w:orient="landscape"')) {
@@ -271,6 +279,12 @@ export function renderDocxTraced(
     { id: relIds.header2, target: 'word/header2.xml', relationshipType: `${REL}header`, content: headerFooterParts.header2, contentType: `${WML}header+xml` },
     { id: relIds.footer1, target: 'word/footer1.xml', relationshipType: `${REL}footer`, content: headerFooterParts.footer1, contentType: `${WML}footer+xml` },
     { id: relIds.footer2, target: 'word/footer2.xml', relationshipType: `${REL}footer`, content: headerFooterParts.footer2, contentType: `${WML}footer+xml` },
+    ...(hasBackCover && relIds.emptyHeader && relIds.emptyFooter && emptyHeaderFooterParts
+      ? [
+          { id: relIds.emptyHeader, target: 'word/header3.xml', relationshipType: `${REL}header`, content: emptyHeaderFooterParts.emptyHeader, contentType: `${WML}header+xml` },
+          { id: relIds.emptyFooter, target: 'word/footer3.xml', relationshipType: `${REL}footer`, content: emptyHeaderFooterParts.emptyFooter, contentType: `${WML}footer+xml` },
+        ]
+      : []),
     ...(footnotesRelId ? [{
       id: footnotesRelId,
       target: 'word/footnotes.xml',
@@ -290,7 +304,10 @@ export function renderDocxTraced(
         .map(field => [`ses-${field}`, doc.meta[field]!]),
     ),
     createdAt: opts.createdAt,
-    stylesXml: buildStylesXml({ includeFootnotes: documentHasFootnotes(doc, bodyFootnotes) }),
+    stylesXml: buildStylesXml({
+      includeFootnotes: documentHasFootnotes(doc, bodyFootnotes),
+      includeCoverLayout: hasActiveCoverLayout(opts.coverLayout),
+    }),
     numberingXml: ctx.numbering.buildNumberingXml(),
     relatedParts,
   })

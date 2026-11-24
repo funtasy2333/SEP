@@ -26,7 +26,7 @@ function pgMarXml(): string {
 
 // ---------------- §2.2 节序 ----------------
 
-export type SectionKind = 'cover' | 'toc' | 'foreword' | 'introduction' | 'body' | 'appendix' | 'bibliography'
+export type SectionKind = 'cover' | 'toc' | 'foreword' | 'introduction' | 'body' | 'appendix' | 'bibliography' | 'backCover'
 
 interface PgNumType {
   fmt: 'upperRoman' | 'decimal'
@@ -40,6 +40,8 @@ interface SectionProps {
   pgNumType?: PgNumType
   /** 封面节没有页眉页脚引用（首节无引用即无页眉页脚，§2.2） */
   withHeaderFooter: boolean
+  /** 明确指定页眉页脚模式：'empty' 用于非首节显式绑定空白页眉页脚，打断 linkToPrevious 继承 */
+  headerFooterMode?: 'standard' | 'empty' | 'none'
   landscape?: boolean
 }
 
@@ -47,18 +49,20 @@ interface SectionProps {
 export function sectionPropsFor(kind: SectionKind): SectionProps {
   switch (kind) {
     case 'cover':
-      return { type: 'nextPage', withHeaderFooter: false }
+      return { type: 'nextPage', withHeaderFooter: false, headerFooterMode: 'none' }
+    case 'backCover':
+      return { type: 'nextPage', withHeaderFooter: false, headerFooterMode: 'empty' }
     case 'toc':
-      return { type: 'oddPage', pgNumType: { fmt: 'upperRoman', start: true }, withHeaderFooter: true }
+      return { type: 'oddPage', pgNumType: { fmt: 'upperRoman', start: true }, withHeaderFooter: true, headerFooterMode: 'standard' }
     case 'foreword':
     case 'introduction':
       // 续编，必须显式写 fmt（§2.2）；no start——沿用目次节起的罗马页码
-      return { type: 'nextPage', pgNumType: { fmt: 'upperRoman' }, withHeaderFooter: true }
+      return { type: 'nextPage', pgNumType: { fmt: 'upperRoman' }, withHeaderFooter: true, headerFooterMode: 'standard' }
     case 'body':
-      return { type: 'oddPage', pgNumType: { fmt: 'decimal', start: true }, withHeaderFooter: true }
+      return { type: 'oddPage', pgNumType: { fmt: 'decimal', start: true }, withHeaderFooter: true, headerFooterMode: 'standard' }
     case 'appendix':
     case 'bibliography':
-      return { type: 'nextPage', pgNumType: { fmt: 'decimal' }, withHeaderFooter: true }
+      return { type: 'nextPage', pgNumType: { fmt: 'decimal' }, withHeaderFooter: true, headerFooterMode: 'standard' }
   }
 }
 
@@ -68,11 +72,19 @@ export interface HeaderFooterRelIds {
   header2: string
   footer1: string
   footer2: string
+  /** 封底专用空白页眉/页脚部件（打断 ECMA-376 §17.10.5 非首节同前节继承） */
+  emptyHeader?: string
+  emptyFooter?: string
 }
 
 function sectPrXml(props: SectionProps, relIds: HeaderFooterRelIds): string {
   const children: XmlChild[] = []
-  if (props.withHeaderFooter) {
+  if (props.headerFooterMode === 'empty' && relIds.emptyHeader && relIds.emptyFooter) {
+    children.push(['headerReference', `<w:headerReference w:type="default" r:id="${relIds.emptyHeader}"/>`])
+    children.push(['headerReference', `<w:headerReference w:type="even" r:id="${relIds.emptyHeader}"/>`])
+    children.push(['footerReference', `<w:footerReference w:type="default" r:id="${relIds.emptyFooter}"/>`])
+    children.push(['footerReference', `<w:footerReference w:type="even" r:id="${relIds.emptyFooter}"/>`])
+  } else if (props.withHeaderFooter) {
     children.push(['headerReference', `<w:headerReference w:type="default" r:id="${relIds.header1}"/>`])
     children.push(['headerReference', `<w:headerReference w:type="even" r:id="${relIds.header2}"/>`])
     children.push(['footerReference', `<w:footerReference w:type="default" r:id="${relIds.footer1}"/>`])
@@ -183,5 +195,18 @@ export function buildHeaderFooterParts(stdCodeCached: string): HeaderFooterParts
     header2: buildHeaderXml('left', stdCodeCached),
     footer1: buildFooterXml('right'),
     footer2: buildFooterXml('left'),
+  }
+}
+
+export interface EmptyHeaderFooterParts {
+  emptyHeader: string
+  emptyFooter: string
+}
+
+/** 生成封底节专用的空白页眉与空白页脚部件，用于打断非首节默认继承前一节书眉和页码的行为。 */
+export function buildEmptyHeaderFooterParts(): EmptyHeaderFooterParts {
+  return {
+    emptyHeader: XML_DECL + wrapElement('w:hdr', '<w:p/>', HDR_FTR_NS),
+    emptyFooter: XML_DECL + wrapElement('w:ftr', '<w:p/>', HDR_FTR_NS),
   }
 }

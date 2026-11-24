@@ -15,6 +15,7 @@
 import JSZip from 'jszip'
 import {
   exportXml46687,
+  hasActiveCoverLayout,
   type DocumentMeta,
   type PMJsonNode,
   type ResourceManifest,
@@ -159,7 +160,17 @@ export async function buildXml46687Package(options: BuildXml46687PackageOptions)
     mathml: formulaResult.mathml,
     resources: resourceResult.manifest,
   })
-  const problems = [...formulaResult.problems, ...resourceResult.problems, ...exported.problems]
+  const extraProblems: Xml46687Problem[] = hasActiveCoverLayout(options.documentMeta?.coverLayout)
+    ? [
+        {
+          code: 'cover-layout-print-only',
+          severity: 'warning',
+          path: 'meta.coverLayout',
+          message: '自定义封面徽标、附加声明或封底仅用于打印排版（DOCX/PDF），不会写入 GB/T 46687.2 XML 文件。',
+        },
+      ]
+    : []
+  const problems = [...formulaResult.problems, ...resourceResult.problems, ...exported.problems, ...extraProblems]
   const { xml } = exported
   if (xml === null || problems.some(problem => problem.severity === 'error')) {
     return { bytes: new Uint8Array(0), xml: null, manifest: resourceResult.manifest, problems }

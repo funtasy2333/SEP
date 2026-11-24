@@ -3,8 +3,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { InternalServerErrorException, Logger } from '@nestjs/common';
-import { DocumentStage, StandardType } from '@ses/shared';
-import { createNewDocument, type NewDocForm } from '@client/new-document';
+import {
+  DocumentStage,
+  StandardType,
+  createNewDocument,
+  type NewDocForm,
+} from '@ses/shared';
 import type { DocumentChangeEvent } from '../document/document-events.service';
 import { DocumentEntity } from '../document/document.entity';
 import { MAX_CLIENT_LENGTH } from '../version/version.service';
@@ -141,7 +145,7 @@ describe('MCP 工具', () => {
       expect(outputPath.description).not.toContain('这个绝对路径');
     });
 
-    it('listTools：恰好 8 个工具，名称不带前缀', async () => {
+    it('listTools：恰好 13 个工具，名称不带前缀', async () => {
       const { tools } = await mcp.client.listTools();
       expect(tools.map((tool) => tool.name)).toEqual([
         'list_documents',
@@ -152,6 +156,11 @@ describe('MCP 工具', () => {
         'validate_document',
         'export_document',
         'get_authoring_reference',
+        'list_templates',
+        'get_template',
+        'create_template',
+        'update_template',
+        'apply_template_operations',
       ]);
     });
 
@@ -169,6 +178,8 @@ describe('MCP 工具', () => {
         'list_documents',
         'validate_document',
         'get_authoring_reference',
+        'list_templates',
+        'get_template',
       ]) {
         expect(byName[name].annotations).toEqual({
           readOnlyHint: true,
@@ -194,7 +205,22 @@ describe('MCP 工具', () => {
         destructiveHint: false,
         openWorldHint: false,
       });
+      expect(byName.create_template.annotations).toEqual({
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: false,
+      });
+      expect(byName.update_template.annotations).toEqual({
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: false,
+      });
       expect(byName.apply_operations.annotations).toEqual({
+        readOnlyHint: false,
+        destructiveHint: true,
+        openWorldHint: false,
+      });
+      expect(byName.apply_template_operations.annotations).toEqual({
         readOnlyHint: false,
         destructiveHint: true,
         openWorldHint: false,
@@ -225,7 +251,7 @@ describe('MCP 工具', () => {
       expect(schema('get_authoring_reference').properties).toEqual({});
 
       const create = schema('create_document');
-      expect(create.required).toEqual(['titleCn', 'standardType']);
+      expect(create.required).toEqual(['titleCn']);
       expect(create.properties.standardType.enum).toEqual(
         Object.values(StandardType),
       );
@@ -1441,6 +1467,90 @@ describe('MCP 工具', () => {
         .join('\n');
       expect(logged).not.toContain(SECRET);
       expect(logged).toContain(TEST_CLIENT_INFO.name); // clientInfo 允许出现
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  describe('模板工具集成流程', () => {
+    it('支持 list_templates / get_template / create_template / update_template / apply_template_operations / create_document(templateId)', async () => {
+      const listed = await mcp.call('list_templates', {});
+      expect(listed.isError).toBe(false);
+      expect(listed.body.templates.filter((item: any) => item.readonly)).toHaveLength(6);
+
+      const builtinTpl = await mcp.call('get_template', {
+        templateId: 'builtin:group',
+      });
+      expect(builtinTpl.isError).toBe(false);
+      expect(builtinTpl.body.template.baseType).toBe('group');
+      expect(builtinTpl.body.outline.body.length).toBeGreaterThanOrEqual(3);
+
+      const png =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+      const createdTpl = await mcp.call('create_template', {
+        name: '学会团体标准通用模板',
+        baseType: 'group',
+        description: 'Agent 创建的团体模板',
+        defaultMeta: { stdPrefix: 'T/AGENT', issuer: 'AI 标准协会' },
+        coverLayout: {
+          logo: { dataUrl: png, position: 'replace_mark', widthMm: 32, heightMm: 16 },
+          backCover: { enabled: true, copyrightNotice: '© AI 标准协会' },
+        },
+      });
+      expect(createdTpl.isError).toBe(false);
+      expect(createdTpl.body.revision).toBe(0);
+      expect(createdTpl.body.editorUrl).toBe(
+        `http://localhost:5173/templates/${createdTpl.body.templateId}`,
+      );
+
+      const updatedTpl = await mcp.call('update_template', {
+        templateId: createdTpl.body.templateId,
+        baseRevision: 0,
+        description: '更新后的模板说明',
+      });
+      expect(updatedTpl.isError).toBe(false);
+      expect(updatedTpl.body.revision).toBe(1);
+
+      const applied = await mcp.call('apply_template_operations', {
+        templateId: createdTpl.body.templateId,
+        baseRevision: 1,
+        operations: [
+          {
+            op: 'insert',
+            parent: 'foreword',
+            position: 'end',
+            content: [{ kind: 'paragraph', content: '本文件《{{titleCn}}》由{{proposer}}提出。' }],
+          },
+        ],
+      });
+      expect(applied.isError).toBe(false);
+      expect(applied.body.revision).toBe(2);
+
+      // Instantiate new document from custom template with titleCn filled and proposer left empty
+      const newDoc = await mcp.call('create_document', {
+        templateId: createdTpl.body.templateId,
+        titleCn: '智能体协作规范',
+        stdNo: '008—2026',
+      });
+      expect(newDoc.isError).toBe(false);
+      expect(newDoc.body.revision).toBe(0);
+
+      // Immediately readable at revision 0 without nodeId drift
+      const outline = await mcp.call('get_outline', {
+        documentId: newDoc.body.documentId,
+      });
+      expect(outline.isError).toBe(false);
+      expect(outline.body.revision).toBe(0);
+
+      const fw = await mcp.call('get_node', {
+        documentId: newDoc.body.documentId,
+        container: 'foreword',
+      });
+      expect(JSON.stringify(fw.body)).toContain('本文件《智能体协作规范》由{{proposer}}提出。');
+
+      const storedDoc = await t.documents.findOne(newDoc.body.documentId);
+      expect(storedDoc.meta.standardType).toBe('group');
+      expect(storedDoc.meta.standardNo).toBe('T/AGENT 008—2026');
+      expect(storedDoc.meta.coverLayout?.logo?.position).toBe('replace_mark');
     });
   });
 });

@@ -234,4 +234,26 @@ describe('stripBodyAnchor（item9：最终 PDF 文本层去哨兵）', () => {
     const html = '<div class="ses-body-content"><h1>x</h1></div>';
     expect(stripBodyAnchor(html)).toBe(html);
   });
+
+  it('封底哨兵阻止封底文本干扰正文目次页码，并由 stripBodyAnchor 剥离', () => {
+    const pages = [
+      '封面 某标准',
+      'SESFRONTSTARTANCHOR\n目　次\n1 范围',
+      'SESBODYSTARTANCHOR\n某标准\n1 范围',
+      'SESBACKCOVERANCHOR\n封底\n附录A 补充资料',
+    ];
+    const toc = [
+      { target: 'ch-1', text: '1　范围', division: 'body' as const },
+      { target: 'app-a', text: '附录A　补充资料', division: 'body' as const },
+    ];
+    const numbers = computeTocPageNumbers(pages, toc, '某标准');
+    expect(numbers.get('ch-1')).toBe('1');
+    expect(numbers.has('app-a')).toBe(false);
+
+    const withSentinel =
+      '<div class="ses-body-content">正文</div><span class="ses-back-cover-anchor" aria-hidden="true">SESBACKCOVERANCHOR</span><section class="ses-back-cover"></section>';
+    expect(stripBodyAnchor(withSentinel)).toBe(
+      '<div class="ses-body-content">正文</div><section class="ses-back-cover"></section>',
+    );
+  });
 });

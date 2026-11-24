@@ -6,6 +6,7 @@ import { mapResolverIssues } from './resolverIssues'
 import { analyzeIntroductions } from './rules/introductions'
 import { validateMentions } from './rules/mentions'
 import { validateNormativeReferences } from './rules/normativeReferences'
+import { validateTemplatePlaceholders } from './rules/placeholders'
 import { validateStructure } from './rules/structure'
 import { validateTermUsage } from './rules/termUsage'
 import type { DocumentAnalysis, ValidationCoverageGroup, ValidationIssue, ValidationReport } from './types'
@@ -53,6 +54,7 @@ export function analyzeDocument(doc: IRDoc): DocumentAnalysis {
     ...validateMentions(index, introductions),
     ...validateTermUsage(index),
     ...normative.issues,
+    ...validateTemplatePlaceholders(doc),
   ])
   const coverage: ValidationReport['coverage'] = {
     ...coverageReasons,

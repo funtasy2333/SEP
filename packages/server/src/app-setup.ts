@@ -6,6 +6,10 @@ import {
   SES_PACKAGE_BODY_LIMIT,
   SES_PACKAGE_MIME,
 } from './ses-package/ses-package-format';
+import {
+  SES_TEMPLATE_BODY_LIMIT,
+  SES_TEMPLATE_MIME,
+} from './template/template-package-format';
 
 /** JSON 请求体上限：文档正文内嵌 data URL 图片，保存文档的请求可能远超默认的 100kb。 */
 export const JSON_BODY_LIMIT = '25mb';
@@ -21,6 +25,10 @@ export function configureApp(app: NestExpressApplication): void {
   app.useBodyParser('raw', {
     type: SES_PACKAGE_MIME,
     limit: SES_PACKAGE_BODY_LIMIT,
+  });
+  app.useBodyParser('raw', {
+    type: SES_TEMPLATE_MIME,
+    limit: SES_TEMPLATE_BODY_LIMIT,
   });
   app.useBodyParser('json', { limit: JSON_BODY_LIMIT });
   app.setGlobalPrefix('api', {

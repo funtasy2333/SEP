@@ -17,7 +17,11 @@
  * （目次文本中 U+3000 之后的部分），标题文本在 pdftotext 中通常仍连续。
  */
 
-import { BODY_START_SENTINEL, FRONT_START_SENTINEL } from '@ses/shared';
+import {
+  BACK_COVER_SENTINEL,
+  BODY_START_SENTINEL,
+  FRONT_START_SENTINEL,
+} from '@ses/shared';
 
 export type TocDivision = 'front' | 'body';
 
@@ -113,15 +117,17 @@ export { BODY_START_SENTINEL };
 export function findBodyStartPage(
   normPages: string[],
   docTitle: string,
+  end = normPages.length,
 ): number {
+  const limit = Math.min(end, normPages.length);
   // normalize 仅去空白，哨兵为纯大写字母，规整后不变
-  const bySentinel = normPages.findIndex((p) =>
-    p.includes(BODY_START_SENTINEL),
-  );
+  const bySentinel = normPages
+    .slice(0, limit)
+    .findIndex((p) => p.includes(BODY_START_SENTINEL));
   if (bySentinel >= 0) return bySentinel;
   const needle = normalize(docTitle);
   if (!needle) return -1;
-  return normPages.findIndex((p) => p.includes(needle));
+  return normPages.slice(0, limit).findIndex((p) => p.includes(needle));
 }
 
 /**
@@ -137,7 +143,11 @@ export function computeTocPageNumbers(
   docTitle: string,
 ): Map<string, string> {
   const normPages = pages.map(normalize);
-  const bodyStart = findBodyStartPage(normPages, docTitle);
+  const backCoverIdx = normPages.findIndex((p) =>
+    p.includes(BACK_COVER_SENTINEL),
+  );
+  const bodyEnd = backCoverIdx >= 0 ? backCoverIdx : normPages.length;
+  const bodyStart = findBodyStartPage(normPages, docTitle, bodyEnd);
   const frontStart = Math.max(0, normPages.findIndex(page => page.includes(FRONT_START_SENTINEL)));
   const result = new Map<string, string>();
 
@@ -146,17 +156,17 @@ export function computeTocPageNumbers(
     if (candidates.length === 0) continue;
 
     if (item.division === 'body') {
-      // 正文目标：在正文起始页及之后取首个命中（标题先于任何对它的引用出现），
-      // 从而排除目次页（位于正文之前）的同文本误命中。
+      // 正文目标：在正文起始页及之后、封底之前取首个命中（标题先于任何对它的引用出现），
+      // 从而排除目次页（位于正文之前）及封底页（位于终结线之后）的同文本误命中。
       const from = bodyStart >= 0 ? bodyStart : 0;
-      const idx = indexOfFrom(normPages, candidates, from);
+      const idx = indexOfFrom(normPages, candidates, from, bodyEnd);
       if (idx < 0) continue;
       const arabic = bodyStart >= 0 ? idx - bodyStart + 1 : idx + 1;
       result.set(item.target, String(arabic));
     } else {
       // 前置目标（前言/引言）：同文本既在目次又在其真实页，真实页在后，
       // 故在正文之前的范围内取「最后一次」命中。
-      const end = bodyStart >= 0 ? bodyStart : normPages.length;
+      const end = bodyStart >= 0 ? bodyStart : bodyEnd;
       const idx = lastIndexOfWithin(normPages, candidates, end, frontStart);
       if (idx < 0) continue;
       // 封面不计入页码；目次首页起为 I，兼容没有前置哨兵的旧 HTML。
@@ -171,9 +181,11 @@ function indexOfFrom(
   normPages: string[],
   candidates: string[],
   from: number,
+  end = normPages.length,
 ): number {
+  const limit = Math.min(end, normPages.length);
   for (const needle of candidates) {
-    for (let i = Math.max(0, from); i < normPages.length; i++) {
+    for (let i = Math.max(0, from); i < limit; i++) {
       if (normPages[i].includes(needle)) return i;
     }
   }
@@ -206,16 +218,28 @@ function lastIndexOfWithin(
  * 第二遍构建前调用本函数剥离哨兵；剥离不改变版式（哨兵透明零高度），不影响分页。
  */
 export function stripBodyAnchor(html: string): string {
-  return html.replace(
-    new RegExp(
-      `<span class="ses-body-anchor"[^>]*>${BODY_START_SENTINEL}</span>`,
-      'g',
-    ),
-    '',
-  ).replace(
-    new RegExp(`<span class="ses-front-anchor"[^>]*>${FRONT_START_SENTINEL}</span>`, 'g'),
-    '',
-  );
+  return html
+    .replace(
+      new RegExp(
+        `<span class="ses-body-anchor"[^>]*>${BODY_START_SENTINEL}</span>`,
+        'g',
+      ),
+      '',
+    )
+    .replace(
+      new RegExp(
+        `<span class="ses-front-anchor"[^>]*>${FRONT_START_SENTINEL}</span>`,
+        'g',
+      ),
+      '',
+    )
+    .replace(
+      new RegExp(
+        `<span class="ses-back-cover-anchor"[^>]*>${BACK_COVER_SENTINEL}</span>`,
+        'g',
+      ),
+      '',
+    );
 }
 
 /**

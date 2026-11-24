@@ -175,3 +175,22 @@ it('复制完整保留既有提出/归口元数据，DOCX与XML46687均导出保
   expect(JSON.stringify(node.toJSON())).toContain(meta.technicalCommittee)
   expect(source).toEqual(before)
 })
+
+it('复制文档时深拷贝 coverLayout，副本修改不影响源文档', () => {
+  const source = {
+    title: '源团体标准',
+    meta: {
+      ...originalMeta,
+      standardType: 'group' as const,
+      coverLayout: {
+        notice: { text: '内部试用', position: 'above_dates' as const },
+        backCover: { enabled: true, copyrightNotice: '© 2026' },
+      },
+    },
+    content: createDefaultDocumentContent({ ...originalMeta, standardType: 'group' }),
+  }
+  const duplicate = createDocumentDuplicate(source)
+  expect(duplicate.meta.coverLayout).toEqual(source.meta.coverLayout)
+  duplicate.meta.coverLayout!.notice!.text = '副本声明'
+  expect(source.meta.coverLayout.notice.text).toBe('内部试用')
+})

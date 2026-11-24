@@ -1,6 +1,7 @@
 import {
-  buildCoverDesignation, getCoverDesignationName, getCoverDesignationParts, pmToIr,
-  type Document, type DocumentMeta, type PMJsonNode,
+  buildCoverDesignation, cloneCoverLayout, downgradeCoverLayoutForStandardType,
+  getCoverDesignationName, getCoverDesignationParts, pmToIr,
+  type CoverLayoutConfig, type Document, type DocumentMeta, type PMJsonNode,
 } from '@ses/shared'
 
 /** Editable settings live in a form draft; optional fields stay strings so blank means clear. */
@@ -24,6 +25,7 @@ export interface DocumentSettingsDraft {
   industryName: string
   regionName: string
   coverDesignation: string
+  coverLayout?: CoverLayoutConfig
 }
 
 export const DOCUMENT_SETTINGS_FIELDS = [
@@ -111,6 +113,25 @@ export function documentSettingsDraftFromDocument(
     industryName: value('industryName'),
     regionName: value('regionName'),
     coverDesignation: value('coverDesignation'),
+    ...(meta.coverLayout ? { coverLayout: cloneCoverLayout(meta.coverLayout) } : {}),
+  }
+}
+
+export function sameCoverLayout(a?: CoverLayoutConfig | null, b?: CoverLayoutConfig | null): boolean {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+}
+
+export function sameDocumentSettingsDraft(a: DocumentSettingsDraft, b: DocumentSettingsDraft): boolean {
+  for (const field of DOCUMENT_SETTINGS_FIELDS) {
+    if (a[field] !== b[field]) return false
+  }
+  return sameCoverLayout(a.coverLayout, b.coverLayout)
+}
+
+export function cloneDocumentSettingsDraft(draft: DocumentSettingsDraft): DocumentSettingsDraft {
+  return {
+    ...draft,
+    ...(draft.coverLayout ? { coverLayout: cloneCoverLayout(draft.coverLayout) } : {}),
   }
 }
 
@@ -134,7 +155,11 @@ export function documentMetaFromSettingsDraft(
     ? buildCoverDesignation(draft.standardType, designationName)
     : coverDesignation
 
-  return {
+  const { coverLayout: downgradedCoverLayout } = downgradeCoverLayoutForStandardType(
+    draft.coverLayout,
+    draft.standardType,
+  )
+  const nextMeta: DocumentMeta & { coverLayout?: CoverLayoutConfig | null } = {
     ...currentMeta,
     standardType: draft.standardType as DocumentMeta['standardType'],
     titleCn: draft.titleCn.trim(),
@@ -157,4 +182,12 @@ export function documentMetaFromSettingsDraft(
       ? designationName : draft.regionName.trim(),
     coverDesignation: normalizedDesignation,
   }
+  if (downgradedCoverLayout) {
+    nextMeta.coverLayout = downgradedCoverLayout
+  } else if (currentMeta.coverLayout !== undefined) {
+    nextMeta.coverLayout = null as unknown as CoverLayoutConfig
+  } else {
+    delete nextMeta.coverLayout
+  }
+  return nextMeta
 }

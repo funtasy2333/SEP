@@ -7,7 +7,9 @@
 
 import type { IRDocMeta } from '../../ir/types'
 import { getCoverDesignation } from '../../coverDesignation'
+import { isReplaceMarkForbidden, parseCoverLogoDataUrl } from '../../coverLayoutValidation'
 import type { DocumentStage } from '../../types/document'
+import type { BackCoverConfig, CoverLayoutConfig } from '../../types/template'
 import { COVER_ASSETS } from './assets'
 import type { DocxRelatedPart } from './package'
 import { mmToEmu } from './units'
@@ -17,7 +19,7 @@ import { escapeXmlAttr } from './xml'
 import { buildCoverReleaseRunPr } from './styles'
 
 type CoverFrame = NonNullable<Parameters<typeof emitParagraph>[2]>['framePr']
-type CoverAsset = typeof COVER_ASSETS[keyof typeof COVER_ASSETS]
+type CoverAsset = { readonly base64: string; readonly widthMm: number; readonly heightMm: number; readonly ext?: 'png' | 'jpg' }
 
 // Word for Mac 16.113.3，300dpi墨迹校准值；§6.1的图文框列只是起始值。
 const FRAME_CODES: NonNullable<CoverFrame> = { xMm: 25, yMm: 9.17, widthMm: 90 }
@@ -134,9 +136,10 @@ function frameImage(
 
 function registerImage(ctx: RenderContext, asset: CoverAsset): { relationshipId: string; mediaIndex: number } {
   const { relationshipId, mediaIndex } = ctx.allocateImage()
+  const ext = asset.ext ?? 'png'
   const relatedPart: DocxRelatedPart = {
     id: relationshipId,
-    target: `word/media/image${mediaIndex}.png`,
+    target: `word/media/image${mediaIndex}.${ext}`,
     relationshipType: IMAGE_REL,
     content: asset.base64,
     binary: true,
@@ -250,7 +253,12 @@ function renderIssuer(ctx: RenderContext, meta: IRDocMeta): string {
 }
 
 /** 按元数据和阶段生成封面，始终保留且只输出一个 SesCoverStdNo 段。 */
-export function renderCover(ctx: RenderContext, meta: IRDocMeta, stage: DocumentStage): string {
+export function renderCover(
+  ctx: RenderContext,
+  meta: IRDocMeta,
+  stage: DocumentStage,
+  coverLayout?: CoverLayoutConfig,
+): string {
   let xml = ''
 
   const codeLines: string[] = []
@@ -266,7 +274,38 @@ export function renderCover(ctx: RenderContext, meta: IRDocMeta, stage: Document
     warn(ctx, 'cover-field-missing', 'meta.regionName 缺失，封面标准称谓中的地方名称留空')
   }
 
-  xml += renderLogo(ctx, meta)
+  const parsedCustomLogo = coverLayout?.logo ? parseCoverLogoDataUrl(coverLayout.logo.dataUrl) : null
+  const customLogoAsset: CoverAsset | undefined = parsedCustomLogo && coverLayout?.logo
+    ? {
+        base64: parsedCustomLogo.base64,
+        widthMm: coverLayout.logo.widthMm,
+        heightMm: coverLayout.logo.heightMm,
+        ext: parsedCustomLogo.ext,
+      }
+    : undefined
+
+  const canReplaceMark =
+    Boolean(customLogoAsset) &&
+    coverLayout?.logo?.position === 'replace_mark' &&
+    !isReplaceMarkForbidden(meta.standardType)
+
+  if (canReplaceMark && customLogoAsset && coverLayout?.logo) {
+    xml += frameImage(
+      ctx,
+      customLogoAsset,
+      coverLayout.logo.alt?.trim() || '组织封面标志',
+      { xMm: Math.max(100, 190 - customLogoAsset.widthMm), yMm: 12.03, widthMm: customLogoAsset.widthMm },
+    )
+  } else {
+    xml += renderLogo(ctx, meta)
+    if (customLogoAsset && coverLayout?.logo) {
+      const logoPos =
+        coverLayout.logo.position === 'center'
+          ? { xMm: Math.max(25, (210 - customLogoAsset.widthMm) / 2), yMm: 78, widthMm: customLogoAsset.widthMm }
+          : { xMm: 25, yMm: 23.5, widthMm: customLogoAsset.widthMm }
+      xml += frameImage(ctx, customLogoAsset, coverLayout.logo.alt?.trim() || '组织封面徽标', logoPos)
+    }
+  }
 
   const heading = designation(meta)
   xml += frameText(ctx, heading.styleId, heading.text, { ...FRAME_DESIGNATION, xMm: meta.standardType === 'gb' || meta.standardType === 'guide' ? 24.7 : 25, yMm: meta.standardType === 'gb' || meta.standardType === 'guide' ? 37.54 : 40.12, widthMm: meta.standardType === 'guide' ? 171 : 170 })
@@ -298,6 +337,11 @@ export function renderCover(ctx: RenderContext, meta: IRDocMeta, stage: Document
     xml += frameText(ctx, 'SesCoverPatent', '在提交反馈意见时，请将您知道的相关专利连同支持性文件一并附上。', FRAME_TITLE_FLOW)
   }
 
+  const noticeText = coverLayout?.notice?.text?.trim()
+  if (noticeText && coverLayout?.notice?.position === 'above_dates') {
+    xml += frameText(ctx, 'SesCoverNotice', noticeText, { xMm: 25, yMm: 232, widthMm: 170 })
+  }
+
   // 未知日期只在封面显示占位，不写入元数据；日期下横线属于固定封面结构。
   const publishDate = meta.publishDate?.trim() || 'XXXX-XX-XX'
   const implementDate = meta.implementDate?.trim() || 'XXXX-XX-XX'
@@ -307,5 +351,38 @@ export function renderCover(ctx: RenderContext, meta: IRDocMeta, stage: Document
   })
 
   xml += renderIssuer(ctx, meta)
+
+  if (noticeText && coverLayout?.notice?.position === 'below_issuer') {
+    xml += frameText(ctx, 'SesCoverNotice', noticeText, { xMm: 25, yMm: 278, widthMm: 170 })
+  }
+  return xml
+}
+
+/** 渲染独立封底 / 版权页内容（置于终结线之后的 backCover 节内）。 */
+export function renderBackCover(ctx: RenderContext, meta: IRDocMeta, backCover: BackCoverConfig): string {
+  let xml = ''
+  const emitLines = (styleId: string, raw: string | undefined): void => {
+    const trimmed = raw?.trim()
+    if (!trimmed) return
+    for (const line of trimmed.split(/\r?\n/)) {
+      const clean = line.trim()
+      if (clean) {
+        xml += emitParagraph(ctx, styleId, { runsXml: plainRun(clean) })
+      }
+    }
+  }
+
+  const titleText = backCover.title?.trim() || meta.title?.trim()
+  if (titleText) {
+    xml += emitParagraph(ctx, 'SesBackCoverTitle', { runsXml: plainRun(titleText) })
+  }
+  emitLines('SesBackCoverCopyright', backCover.copyrightNotice)
+  emitLines('SesBackCoverText', backCover.publisherInfo)
+  emitLines('SesBackCoverText', backCover.contactInfo)
+  emitLines('SesBackCoverText', backCover.note)
+
+  if (!xml) {
+    xml = emitParagraph(ctx, 'SesBackCoverText', {})
+  }
   return xml
 }

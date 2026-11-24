@@ -54,6 +54,16 @@
                 <span><small>ICS</small>{{ draft.icsCode.trim() || '—' }}</span>
                 <span><small>CCS</small>{{ draft.ccsCode.trim() || '—' }}</span>
               </div>
+              <div v-if="hasLayoutBadge" class="preview-layout-badges">
+                <img
+                  v-if="draft.coverLayout?.logo?.dataUrl"
+                  :src="draft.coverLayout.logo.dataUrl"
+                  alt="徽标"
+                  class="preview-logo-chip"
+                />
+                <span v-if="draft.coverLayout?.notice?.text?.trim()" class="preview-badge">含附加声明</span>
+                <span v-if="draft.coverLayout?.backCover?.enabled" class="preview-badge">含独立封底</span>
+              </div>
             </div>
           </div>
         </section>
@@ -194,6 +204,15 @@
             </div>
           </section>
 
+          <section id="settings-cover-layout" class="settings-card" aria-labelledby="settings-cover-layout-title">
+            <header class="card-heading">
+              <span class="card-number">05</span>
+              <div><h2 id="settings-cover-layout-title">封面徽标与封底版式</h2><p>自定义封面徽标、附加声明及独立封底末页（打印/导出 DOCX 与 PDF 生效）</p></div>
+              <span class="card-icon"><el-icon><Picture /></el-icon></span>
+            </header>
+            <CoverLayoutEditor v-model="draft.coverLayout" :standard-type="draft.standardType" :disabled="saving" />
+          </section>
+
           <footer class="settings-actions">
             <div class="action-status" :class="{ 'is-error': saveError }">
               <el-icon v-if="saveError"><CircleCloseFilled /></el-icon>
@@ -216,15 +235,17 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import {
   ArrowRight, Calendar, CircleCheckFilled, CircleCloseFilled, CollectionTag,
-  Grid, InfoFilled, OfficeBuilding, Select, Setting,
+  Grid, InfoFilled, OfficeBuilding, Picture, Select, Setting,
 } from '@element-plus/icons-vue'
 import {
-  buildCoverDesignation, getCoverDesignation, getCoverDesignationName, getCoverDesignationParts,
+  buildCoverDesignation, downgradeCoverLayoutForStandardType, getCoverDesignation, getCoverDesignationName, getCoverDesignationParts, hasActiveCoverLayout,
 } from '@ses/shared'
 import { STAGES, STAGE_LABELS, STAGE_SHORT, TYPE_DEFS, TYPE_LABELS } from '@/constants/standards'
 import StandardTypeNameInput from '@/components/StandardTypeNameInput.vue'
+import CoverLayoutEditor from '@/components/editor/CoverLayoutEditor.vue'
 import { useCoverDesignationDraft } from '@/composables/useCoverDesignationDraft'
 import type { DocumentSettingsDraft } from '@/utils/documentSettings'
 
@@ -245,6 +266,7 @@ const sections = [
   { id: 'settings-classification', number: '02', label: '分类与阶段' },
   { id: 'settings-publication', number: '03', label: '发布信息' },
   { id: 'settings-organizations', number: '04', label: '单位信息' },
+  { id: 'settings-cover-layout', number: '05', label: '封面与封底' },
 ]
 const activeSection = ref(sections[0].id)
 const scrollContainerRef = ref<HTMLElement | null>(null)
@@ -285,6 +307,8 @@ const statusText = computed(() => {
   return props.dirty ? '有尚未保存的修改' : '与已保存内容一致'
 })
 
+const hasLayoutBadge = computed(() => hasActiveCoverLayout(props.draft.coverLayout))
+
 function scrollToSection(id: string) {
   activeSection.value = id
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -292,6 +316,11 @@ function scrollToSection(id: string) {
 
 function onStandardTypeUpdate(type: string) {
   designationDraft.changeType(type)
+  const { coverLayout, downgraded } = downgradeCoverLayoutForStandardType(props.draft.coverLayout, type)
+  if (downgraded) {
+    props.draft.coverLayout = coverLayout
+    ElMessage.warning('国家标准和指导性技术文件禁止替换右上角标志，已将封面徽标位置调整为左上角。')
+  }
 }
 
 let sectionObserver: IntersectionObserver | null = null
@@ -406,6 +435,9 @@ onBeforeUnmount(() => {
 .preview-classification { display: flex; gap: 14px; color: var(--ses-ink-2); font: 10px var(--ses-font-mono); }
 .preview-classification span { display: grid; gap: 2px; max-width: 100px; overflow-wrap: anywhere; }
 .preview-classification small { color: var(--ses-ink-4); font: 600 8px var(--ses-font-mono); letter-spacing: .08em; }
+.preview-layout-badges { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.preview-logo-chip { width: 28px; height: 20px; object-fit: contain; border: 1px solid var(--ses-line); border-radius: 4px; background: var(--ses-bg); padding: 1px; }
+.preview-badge { padding: 2px 6px; border-radius: 4px; background: var(--ses-accent-soft); color: var(--ses-accent); font-size: 9.5px; font-weight: 600; }
 .settings-form { padding-bottom: 18px; }
 .settings-card { padding: 0 19px 17px; scroll-margin-top: 16px; }
 .card-heading { display: flex; align-items: center; gap: 12px; padding: 16px 0 14px; border-bottom: 1px solid var(--ses-line); }

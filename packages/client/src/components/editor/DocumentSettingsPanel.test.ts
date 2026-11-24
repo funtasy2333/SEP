@@ -230,6 +230,7 @@ it('文件设置在横屏容器（1200x600）下按容器高度计算像素 root
       'settings-classification',
       'settings-publication',
       'settings-organizations',
+      'settings-cover-layout',
     ])
 
     const scrollEl = root.querySelector('.settings-scroll')!
@@ -274,7 +275,7 @@ it('文件设置在横屏容器（1200x600）下按容器高度计算像素 root
     mediaChange!()
     expect(observers[1]!.disconnected).toBe(true)
     expect(observers[2]!.options.root).toBe(pageEl)
-    expect(observers[2]!.targets).toHaveLength(4)
+    expect(observers[2]!.targets).toHaveLength(5)
     expect(observers[2]!.options.rootMargin).toBe('0px 0px -375px 0px')
     pageHeight = 600
     settingsResize!.callback([{ target: pageEl, contentRect: { height: 600 } } as unknown as ResizeObserverEntry], {} as ResizeObserver)
