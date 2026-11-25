@@ -210,6 +210,9 @@ async function mountEditor() {
   mocks.routerPush.mockReset()
   mocks.routeGuard = null
   mocks.editor = null
+  for (const method of ['success', 'warning', 'info', 'error'] as const) {
+    vi.spyOn(ElMessage, method).mockImplementation(() => ({ close: vi.fn() }) as never)
+  }
 
   const pinia = createPinia()
   setActivePinia(pinia)

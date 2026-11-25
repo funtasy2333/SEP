@@ -158,4 +158,59 @@ describe('templateInstantiation', () => {
     expect(out.content?.[0]?.content?.[0]?.content?.[0]?.text).toBe('{{titleCn}}');
     expect(out.content?.[1]?.content?.[0]?.content?.[0]?.text).toBe('关于新标准');
   });
+
+  it('clears stale managed coverPage attrs when omitted or cleared during instantiation', () => {
+    const derivedTemplate: StandardTemplate = {
+      id: 88,
+      uid: '33333333-3333-4333-8333-333333333333',
+      name: '源自历史文档的模板',
+      description: 'coverPage 残留旧文档属性',
+      baseType: StandardType.GROUP,
+      defaultStage: DocumentStage.WORKING_DRAFT,
+      defaultMeta: { stdPrefix: 'T/ZSM' },
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'coverPage',
+            attrs: {
+              nodeId: 'cover-node-preserve',
+              standardType: 'group',
+              standardNo: 'T/OLD 999—2020',
+              titleCn: '旧文档题名',
+              titleEn: 'Old English Title',
+              publishDate: '2020-01-01',
+              implementDate: '2020-06-01',
+              replaces: 'T/OLD 100—2015',
+              icsCode: '99.999',
+            },
+            content: [{ type: 'paragraph' }],
+          },
+          { type: 'foreword', content: [{ type: 'paragraph', content: [{ type: 'text', text: '前言' }] }] },
+        ],
+      },
+      source: 'human',
+      readonly: false,
+      revision: 1,
+    };
+
+    const doc = instantiateTemplateDocument(derivedTemplate, {
+      titleCn: '全新标准名称',
+      stdNo: '002—2026',
+      replaces: '',
+    });
+
+    const coverNode = (doc.content.content as Array<{ type: string; attrs?: Record<string, unknown> }>)[0]!;
+    expect(coverNode.attrs).toMatchObject({
+      nodeId: 'cover-node-preserve',
+      standardType: 'group',
+      standardNo: 'T/ZSM 002—2026',
+      titleCn: '全新标准名称',
+    });
+    expect(coverNode.attrs?.titleEn).toBeUndefined();
+    expect(coverNode.attrs?.publishDate).toBeUndefined();
+    expect(coverNode.attrs?.implementDate).toBeUndefined();
+    expect(coverNode.attrs?.replaces).toBeUndefined();
+    expect(coverNode.attrs?.icsCode).toBeUndefined();
+  });
 });

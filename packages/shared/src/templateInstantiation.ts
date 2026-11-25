@@ -402,9 +402,13 @@ export function instantiateTemplateDocument(
     const children = Array.isArray(replaced.content) ? [...replaced.content] : [];
     const coverAttrs = buildCoverAttrsFromMeta(meta);
     if (children[0]?.type === 'coverPage') {
+      const preservedAttrs: Record<string, unknown> = { ...(children[0].attrs ?? {}) };
+      for (const key of COVER_ATTR_KEYS) {
+        delete preservedAttrs[key];
+      }
       children[0] = {
         ...children[0],
-        attrs: { ...(children[0].attrs ?? {}), ...coverAttrs },
+        attrs: { ...preservedAttrs, ...coverAttrs },
       };
     } else {
       children.unshift({ type: 'coverPage', attrs: coverAttrs, content: [{ type: 'paragraph' }] });

@@ -524,10 +524,14 @@ const dirty = computed(() => !isReadonly.value && (bodyDirty.value || metaOnlyDi
 const pdfSupported = computed(() => PDF_EXPORT_ENABLED && capabilities.value.htmlToPdf)
 
 function buildPresetMeta(): DocumentMeta {
+  const inherited = template.value?.defaultMeta
   return {
     standardType: draft.value.baseType,
     titleCn: draft.value.name || '标准名称示例',
-    standardNo: draft.value.stdPrefix ? `${draft.value.stdPrefix} XXXXX—2026` : 'GB/T XXXXX—2026',
+    titleEn: inherited?.titleEn || undefined,
+    standardNo: draft.value.stdPrefix ? `${draft.value.stdPrefix} XXXXX—2026` : (inherited?.standardNo || 'GB/T XXXXX—2026'),
+    publishDate: inherited?.publishDate || undefined,
+    implementDate: inherited?.implementDate || undefined,
     icsCode: draft.value.icsCode || undefined,
     ccsCode: draft.value.ccsCode || undefined,
     proposer: draft.value.proposer || undefined,
@@ -553,9 +557,14 @@ const previewDesignation = computed(() => {
   return getCoverDesignation(irMeta)
 })
 
+const bodyEditSeq = ref(0)
+
 const editorCore = useStandardEditorCore({
   onUpdate: () => {
-    if (!isReadonly.value) bodyDirty.value = true
+    if (!isReadonly.value) {
+      bodyEditSeq.value += 1
+      bodyDirty.value = true
+    }
   },
   onSaveShortcut: () => {
     void handleSave()
@@ -663,21 +672,32 @@ function hydrateTemplate(tpl: StandardTemplate) {
   }
 }
 
-function defaultMetaFromDraft(d: TemplateDraft): TemplateDefaultMeta {
-  const out: TemplateDefaultMeta = {}
-  if (d.stdPrefix.trim()) out.stdPrefix = d.stdPrefix.trim()
-  if (d.icsCode.trim()) out.icsCode = d.icsCode.trim()
-  if (d.ccsCode.trim()) out.ccsCode = d.ccsCode.trim()
-  if (d.proposer.trim()) out.proposer = d.proposer.trim()
-  if (d.technicalCommittee.trim()) out.technicalCommittee = d.technicalCommittee.trim()
-  if (d.issuer.trim()) out.issuer = d.issuer.trim()
-  if (d.applicant.trim()) out.applicant = d.applicant.trim()
-  if (d.replaces.trim()) out.replaces = d.replaces.trim()
-  if (d.consistency.trim()) out.consistency = d.consistency.trim()
-  if (d.filingNo.trim()) out.filingNo = d.filingNo.trim()
-  if (d.industryName.trim()) out.industryName = d.industryName.trim()
-  if (d.regionName.trim()) out.regionName = d.regionName.trim()
-  if (d.coverDesignation.trim()) out.coverDesignation = d.coverDesignation.trim()
+const EDITABLE_DEFAULT_META_KEYS = [
+  'stdPrefix',
+  'icsCode',
+  'ccsCode',
+  'proposer',
+  'technicalCommittee',
+  'issuer',
+  'applicant',
+  'replaces',
+  'consistency',
+  'filingNo',
+  'industryName',
+  'regionName',
+  'coverDesignation',
+] as const
+
+function defaultMetaFromDraft(d: TemplateDraft, existing?: TemplateDefaultMeta): TemplateDefaultMeta {
+  const out: TemplateDefaultMeta = existing ? JSON.parse(JSON.stringify(existing)) : {}
+  if (out.standardType !== undefined) {
+    out.standardType = d.baseType
+  }
+  for (const key of EDITABLE_DEFAULT_META_KEYS) {
+    const trimmed = d[key].trim()
+    if (trimmed) out[key] = trimmed
+    else delete out[key]
+  }
   return out
 }
 
@@ -711,18 +731,39 @@ async function handleSave(): Promise<boolean> {
   }
 
   saving.value = true
+  const submittedBodySeq = bodyEditSeq.value
+  const submittedDraft: TemplateDraft = {
+    ...draft.value,
+    coverLayout: cloneCoverLayout(draft.value.coverLayout),
+  }
   try {
     const updated = await templateStore.updateTemplate(current.id, {
       baseRevision: current.revision,
-      name: draft.value.name.trim(),
-      description: draft.value.description.trim(),
-      baseType: draft.value.baseType,
-      defaultStage: draft.value.defaultStage,
-      defaultMeta: defaultMetaFromDraft(draft.value),
-      coverLayout: cloneCoverLayout(draft.value.coverLayout) ?? null,
+      name: submittedDraft.name.trim(),
+      description: submittedDraft.description.trim(),
+      baseType: submittedDraft.baseType,
+      defaultStage: submittedDraft.defaultStage,
+      defaultMeta: defaultMetaFromDraft(submittedDraft, current.defaultMeta),
+      coverLayout: cloneCoverLayout(submittedDraft.coverLayout) ?? null,
       content: currentEditor.getJSON() as Record<string, unknown>,
     })
-    hydrateTemplate(updated)
+
+    template.value = updated
+    const savedDraft = draftFromTemplate(updated)
+    baseline.value = { ...savedDraft, coverLayout: cloneCoverLayout(savedDraft.coverLayout) }
+    lastSaved.value = updated.updatedAt ? new Date(updated.updatedAt).toLocaleTimeString('zh-CN') : ''
+
+    if (sameMetaOnly(draft.value, submittedDraft)) {
+      const preservedLayout = cloneCoverLayout(draft.value.coverLayout)
+      draft.value = { ...savedDraft, coverLayout: preservedLayout }
+    }
+    if (sameCoverLayout(draft.value.coverLayout, submittedDraft.coverLayout)) {
+      draft.value.coverLayout = cloneCoverLayout(savedDraft.coverLayout)
+    }
+    if (bodyEditSeq.value === submittedBodySeq) {
+      bodyDirty.value = false
+    }
+
     ElMessage.success('模板已保存')
     return true
   } catch (error) {

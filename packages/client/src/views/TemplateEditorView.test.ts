@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import { createApp, defineComponent, h, nextTick, ref } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
-import ElementPlus from 'element-plus'
+import ElementPlus, { ElMessage } from 'element-plus'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import TemplateEditorView from './TemplateEditorView.vue'
+import { replaceEditorDocument } from '@/utils/editorDocument'
 
 const mocks = vi.hoisted(() => ({
   routerPush: vi.fn(),
@@ -11,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   updateTemplate: vi.fn(),
   revertTemplate: vi.fn(),
   createTemplate: vi.fn(),
+  onEditorUpdate: null as null | (() => void),
+  editorGetJSON: vi.fn(() => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '初始正文' }] }] })),
 }))
 
 vi.mock('vue-router', () => ({
@@ -37,14 +40,17 @@ vi.mock('@/api/template', () => ({
 }))
 
 vi.mock('@/composables/useStandardEditorCore', () => ({
-  useStandardEditorCore: () => ({
-    editor: ref({
-      setEditable: vi.fn(),
-      getJSON: () => ({ type: 'doc', content: [] }),
-      chain: () => ({ focus: () => ({ insertContent: () => ({ run: vi.fn() }) }) }),
-    }),
-    hasUnappliedLandscapeEdits: () => false,
-  }),
+  useStandardEditorCore: (options: { onUpdate?: () => void }) => {
+    mocks.onEditorUpdate = options.onUpdate ?? null
+    return {
+      editor: ref({
+        setEditable: vi.fn(),
+        getJSON: mocks.editorGetJSON,
+        chain: () => ({ focus: () => ({ insertContent: () => ({ run: vi.fn() }) }) }),
+      }),
+      hasUnappliedLandscapeEdits: () => false,
+    }
+  },
 }))
 
 vi.mock('@/utils/editorDocument', () => ({
@@ -139,6 +145,107 @@ describe('TemplateEditorView UI 与无障碍交互', () => {
       expect(srcdoc).toContain('color-scheme:light')
       expect(srcdoc.indexOf('ses-cover')).toBeLessThan(srcdoc.indexOf('ses-back-cover'))
       expect(srcdoc.indexOf('ses-back-cover')).toBeLessThan(srcdoc.indexOf('ses-body-preview'))
+    } finally {
+      app.unmount()
+    }
+  })
+
+  it('保存时保留未在表单展示的 defaultMeta 字段，且不覆盖保存期间产生的新正文编辑', async () => {
+    setActivePinia(createPinia())
+    for (const method of ['success', 'warning', 'info', 'error'] as const) {
+      vi.spyOn(ElMessage, method).mockImplementation(() => ({ close: vi.fn() }) as never)
+    }
+
+    const baseTpl = {
+      id: 42,
+      uid: 'tpl-zsm-1',
+      name: '带扩展预设模板',
+      description: '含 titleEn 等非表单字段',
+      baseType: 'group' as const,
+      defaultStage: 'working_draft' as const,
+      defaultMeta: {
+        stdPrefix: 'T/ZSM',
+        titleEn: 'Zhejiang Group Standard',
+        standardNo: 'T/ZSM 001—2026',
+        publishDate: '2026-05-01',
+        implementDate: '2026-08-01',
+        issuer: '省学会',
+      },
+      coverLayout: undefined,
+      content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '初始正文' }] }] },
+      source: 'import' as const,
+      readonly: false,
+      revision: 3,
+    }
+    mocks.fetchTemplate.mockResolvedValue(baseTpl)
+
+    let resolveSave!: (value: unknown) => void
+    mocks.updateTemplate.mockImplementation(
+      () => new Promise((resolve) => {
+        resolveSave = resolve
+      }),
+    )
+
+    const root = document.createElement('div')
+    document.body.append(root)
+    roots.push(root)
+
+    const app = createApp(TemplateEditorView)
+    app.use(ElementPlus).mount(root)
+    await nextTick()
+    await nextTick()
+    await nextTick()
+
+    const replaceMock = vi.mocked(replaceEditorDocument)
+    const initialReplaceCalls = replaceMock.mock.calls.length
+
+    try {
+      // 修改模板名称（表单字段）并触发一次正文编辑
+      const metaTab = root.querySelector<HTMLButtonElement>('[data-testid="template-tab-meta"]')!
+      metaTab.click()
+      await nextTick()
+      const nameInput = root.querySelector<HTMLInputElement>('input[data-testid="template-name-input"]')!
+      nameInput.value = '改名后的模板'
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }))
+      mocks.onEditorUpdate?.()
+      await nextTick()
+
+      // 点击保存（请求暂未返回）
+      const saveBtn = root.querySelector<HTMLButtonElement>('[data-testid="template-save-btn"]')!
+      saveBtn.click()
+      await nextTick()
+      expect(mocks.updateTemplate).toHaveBeenCalledTimes(1)
+
+      const sentPayload = mocks.updateTemplate.mock.calls[0]![1] as { defaultMeta: Record<string, unknown> }
+      expect(sentPayload.defaultMeta).toMatchObject({
+        stdPrefix: 'T/ZSM',
+        titleEn: 'Zhejiang Group Standard',
+        standardNo: 'T/ZSM 001—2026',
+        publishDate: '2026-05-01',
+        implementDate: '2026-08-01',
+        issuer: '省学会',
+      })
+
+      // 保存请求等待期间用户继续修改正文
+      mocks.onEditorUpdate?.()
+      await nextTick()
+
+      // 服务端返回保存响应
+      resolveSave({
+        ...baseTpl,
+        name: '改名后的模板',
+        defaultMeta: sentPayload.defaultMeta,
+        revision: 4,
+        updatedAt: '2026-11-25T12:00:00.000Z',
+      })
+      await nextTick()
+      await nextTick()
+
+      // 绝不回写旧正文覆盖保存期间的新输入，且正文脏标记与保存按钮保持激活
+      expect(replaceMock.mock.calls.length).toBe(initialReplaceCalls)
+      const bodyTab = root.querySelector<HTMLButtonElement>('[data-testid="template-tab-body"]')!
+      expect(bodyTab.querySelector('.tab-dirty-mark')).not.toBeNull()
+      expect(saveBtn.disabled).toBe(false)
     } finally {
       app.unmount()
     }
