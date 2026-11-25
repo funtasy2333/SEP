@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { IRDoc, IRDocMeta } from '../../ir/types';
 import type { CoverLayoutConfig } from '../../types/template';
 import { renderDocxTraced } from './render';
+import { mmToEmu, mmToTwips } from './units';
 import { assertWellFormed } from './__tests__/helpers/checks';
 import { findChild, parseXml, type XmlElement } from './__tests__/helpers/xmlTree';
 
@@ -49,6 +50,35 @@ function descendants(el: XmlElement, name: string): XmlElement[] {
 }
 
 describe('DOCX coverLayout & backCover rendering', () => {
+  it.each([
+    { standardType: 'group' as const, widthMm: 150, wrap: 'behind_text' as const, xMm: 38, yMm: 13.5 },
+    { standardType: 'industry' as const, widthMm: 150, wrap: 'inline' as const, xMm: 38, yMm: 13.5 },
+    { standardType: 'local' as const, widthMm: 30, wrap: 'behind_text' as const, xMm: 158, yMm: 13.5 },
+    { standardType: 'enterprise' as const, widthMm: 30, wrap: 'inline' as const, xMm: 158, yMm: 13.5 },
+  ])('aligns replacement logo with the HTML cover for $standardType and $wrap', ({ standardType, widthMm, wrap, xMm, yMm }) => {
+    const { pkg } = renderDocxTraced(makeDoc({ ...BASE_META, standardType }), {}, {
+      images: {}, formulaOmml: {}, stage: 'working_draft', createdAt: '2026-10-01T00:00:00.000Z',
+      coverLayout: { logo: { dataUrl: PNG_DATA_URL, position: 'replace_mark', wrap, widthMm, heightMm: 15, offsetXMm: 3, offsetYMm: -1, alt: 'custom replacement' } },
+    });
+    assertWellFormed(pkg);
+    const tree = parseXml(pkg.parts['word/document.xml']!);
+    const paragraph = descendants(tree, 'w:p').find((p) => descendants(p, 'wp:docPr').some((pr) => pr.attrs.descr === 'custom replacement'))!;
+    const extent = descendants(paragraph, 'wp:extent')[0]!;
+    expect(extent.attrs.cx).toBe(String(mmToEmu(widthMm)));
+    if (wrap === 'inline') {
+      const frame = descendants(paragraph, 'w:framePr')[0]!;
+      expect(frame.attrs).toMatchObject({ 'w:hAnchor': 'page', 'w:vAnchor': 'page', 'w:x': String(mmToTwips(xMm)), 'w:y': String(mmToTwips(yMm)) });
+    } else {
+      const anchor = descendants(paragraph, 'wp:anchor')[0]!;
+      const horizontal = findChild(anchor, 'wp:positionH')!;
+      const vertical = findChild(anchor, 'wp:positionV')!;
+      expect(horizontal.attrs.relativeFrom).toBe('page');
+      expect(vertical.attrs.relativeFrom).toBe('page');
+      expect(findChild(horizontal, 'wp:posOffset')!.children).toEqual([{ kind: 'text', text: String(mmToEmu(xMm)) }]);
+      expect(findChild(vertical, 'wp:posOffset')!.children).toEqual([{ kind: 'text', text: String(mmToEmu(yMm)) }]);
+    }
+  });
+
   it('supports PNG and JPEG dynamic extensions across all 3 logo positions and cover notices', () => {
     for (const [position, dataUrl, expectedExt] of [
       ['replace_mark', JPEG_DATA_URL, '.jpg'],

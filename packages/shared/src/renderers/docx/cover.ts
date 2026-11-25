@@ -375,13 +375,13 @@ export function renderCover(
     const offsetY = logoConfig.offsetYMm ?? 0
     const baseX =
       logoConfig.position === 'replace_mark'
-        ? Math.max(100, 190 - logoAsset.widthMm)
+        ? (canReplaceMark ? 185 - logoAsset.widthMm : Math.max(100, 190 - logoAsset.widthMm))
         : logoConfig.position === 'center'
           ? Math.max(25, (210 - logoAsset.widthMm) / 2)
           : 25
     const baseY =
       logoConfig.position === 'replace_mark'
-        ? 12.03
+        ? (canReplaceMark ? 14.5 : 12.03)
         : logoConfig.position === 'center'
           ? 78
           : 23.5
