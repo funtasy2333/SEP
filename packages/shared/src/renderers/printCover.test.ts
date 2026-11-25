@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { renderHtml } from './html'
+import { renderWatermarkPreviewHtml } from './coverHtml'
 import { resolve } from '../ir/resolve'
 import type { IRDoc, IRDocMeta } from '../ir/types'
 
@@ -94,10 +95,67 @@ describe('PDF 打印封面', () => {
     expect(printHtml).toContain('内部受控版本，禁止翻印')
     expect(printHtml).toContain('SESBACKCOVERANCHOR')
     expect(printHtml).toContain('© 2026 某团体标准组织')
+    expect(printHtml.indexOf('data-type="cover"')).toBeLessThan(printHtml.indexOf('data-type="back-cover"'))
+    expect(printHtml.indexOf('data-type="back-cover"')).toBeLessThan(printHtml.indexOf('data-type="toc"'))
 
     const screenHtml = renderHtml(input, labels, { variant: 'screen', coverLayout })
     expect(screenHtml).not.toContain('ses-cover-logo-custom')
     expect(screenHtml).not.toContain('内部受控版本，禁止翻印')
     expect(screenHtml).not.toContain('SESBACKCOVERANCHOR')
+  })
+
+  it('支持衬于文字下方徽标、独立右上角标志、自由封底区块及正文水印预览与打印', () => {
+    const coverLayout = {
+      logo: {
+        dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        position: 'top_left' as const,
+        wrap: 'behind_text' as const,
+        widthMm: 28,
+        heightMm: 14,
+        offsetXMm: 3,
+        offsetYMm: -2,
+      },
+      topRightMark: { mode: 'text' as const, text: 'T/ZSM', fontSizePt: 22 },
+      backCover: {
+        enabled: true,
+        verticalAlign: 'middle' as const,
+        boxed: true,
+        blocks: [
+          { id: 'h1', type: 'heading' as const, text: '版权保护文件', align: 'center' as const },
+          { id: 'p1', type: 'paragraph' as const, text: '请勿翻印。', indent: true },
+        ],
+      },
+      watermark: {
+        enabled: true,
+        kind: 'text' as const,
+        text: '评审草案',
+        frequency: 'alternate' as const,
+        opacity: 0.2,
+      },
+    }
+    const input = doc({ standardType: 'group', stdCode: 'T/ZSM 1—2026', issuer: '学会' })
+    const labels = resolve(input).labels
+    const printHtml = renderHtml(input, labels, { variant: 'print', stage: 'working_draft', coverLayout })
+    expect(printHtml).toContain('ses-cover-custom-logo-behind')
+    expect(printHtml).toContain('ses-cover-logo-text-custom')
+    expect(printHtml).toContain('T/ZSM')
+    expect(printHtml).toContain('ses-back-cover-boxed')
+    expect(printHtml).toContain('版权保护文件')
+    expect(printHtml).toContain('ses-watermark-print-layer')
+    expect(printHtml).toContain('评审草案')
+
+    const screenHtml = renderHtml(input, labels, { variant: 'screen', coverLayout })
+    expect(screenHtml).not.toContain('ses-watermark-layer')
+
+    const previewAlt = renderWatermarkPreviewHtml(input.meta, coverLayout.watermark)
+    expect(previewAlt).toContain('第 1 页（奇数页 · 含水印）')
+    expect(previewAlt).toContain('第 2 页（偶数页 · 无水印）')
+
+    const previewEvery = renderWatermarkPreviewHtml(input.meta, {
+      ...coverLayout.watermark,
+      frequency: 'every',
+    })
+    expect(previewEvery).toContain('第 1 页（奇数页 · 含水印）')
+    expect(previewEvery).not.toContain('偶数页 · 无水印')
   })
 })

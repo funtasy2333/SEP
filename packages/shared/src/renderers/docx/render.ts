@@ -195,7 +195,7 @@ export function renderDocxTraced(
     ...(hasBackCover ? { emptyHeader: allocateRelId(), emptyFooter: allocateRelId() } : {}),
   }
   const footnotesRelId = bodyFootnotes.length > 0 ? allocateRelId() : undefined
-  const headerFooterParts = buildHeaderFooterParts(normalizeCoverStdCode(doc.meta.stdCode))
+  const headerFooterParts = buildHeaderFooterParts(normalizeCoverStdCode(doc.meta.stdCode), opts.coverLayout?.watermark)
   const emptyHeaderFooterParts = hasBackCover ? buildEmptyHeaderFooterParts() : undefined
   const sectionManager = createSectionManager(relIds)
 
@@ -205,6 +205,14 @@ export function renderDocxTraced(
   // 1. 封面节
   body += sectionManager.startSection('cover')
   body += renderCover(ctx, doc.meta, opts.stage, opts.coverLayout)
+
+  // 1.5 独立封底 / 版权页（置于封面之后、目次之前，无页眉页脚/水印且不计入页码）
+  if (hasBackCover && opts.coverLayout?.backCover) {
+    const verticalAlign = opts.coverLayout.backCover.verticalAlign
+    const vAlign = verticalAlign === 'top' ? 'top' : verticalAlign === 'middle' ? 'center' : 'bottom'
+    body += sectionManager.startSection('backCover', { vAlign })
+    body += renderBackCover(ctx, doc.meta, opts.coverLayout.backCover)
+  }
 
   // 2. 目次节
   body += sectionManager.startSection('toc')
@@ -262,10 +270,6 @@ export function renderDocxTraced(
   // w:tbl never touch and no separator paragraph is inserted here (tests assert `</w:tbl><w:tbl>` never occurs).
   body = keepLastContentWithEndMark(body)
   body += emitParagraph(ctx, finalContentLandscape ? 'SesEndMarkLandscape' : 'SesEndMark')
-  if (hasBackCover && opts.coverLayout?.backCover) {
-    body += sectionManager.startSection('backCover')
-    body += renderBackCover(ctx, doc.meta, opts.coverLayout.backCover)
-  }
   body += sectionManager.finalSectPr()
 
   if (bodyFootnotes.length > 0 && body.includes('w:orient="landscape"')) {
@@ -310,6 +314,8 @@ export function renderDocxTraced(
     }),
     numberingXml: ctx.numbering.buildNumberingXml(),
     relatedParts,
+    extraParts: headerFooterParts.extraParts,
+    extraBinaries: headerFooterParts.extraBinaries,
   })
   // buildPackage 目前总是返回空 warnings（WP7.1 起没有自己的告警来源），这里把渲染期间
   // 收集到的 ctx.warnings 并入；写成拼接而不是直接赋值，是为了不依赖这个「目前总是空」的细节。

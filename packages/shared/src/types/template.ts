@@ -27,13 +27,39 @@ export const CoverLogoPosition = {
 
 export type CoverLogoPosition = (typeof CoverLogoPosition)[keyof typeof CoverLogoPosition];
 
+/** 封面徽标环绕方式：默认衬于文字下方 */
+export const CoverLogoWrap = {
+  BEHIND_TEXT: 'behind_text',
+  INLINE: 'inline',
+} as const;
+
+export type CoverLogoWrap = (typeof CoverLogoWrap)[keyof typeof CoverLogoWrap];
+
 /** 封面徽标图片配置（仅接受内联 PNG/JPEG data URL） */
 export interface CoverLogoConfig {
   dataUrl: string;
   position: CoverLogoPosition;
   widthMm: number;
   heightMm: number;
+  wrap?: CoverLogoWrap;
+  offsetXMm?: number;
+  offsetYMm?: number;
   alt?: string;
+}
+
+/** 封面右上角标准标志模式（非国标/指导性文件可隐藏或改文字） */
+export const CoverTopRightMarkMode = {
+  DEFAULT: 'default',
+  HIDDEN: 'hidden',
+  TEXT: 'text',
+} as const;
+
+export type CoverTopRightMarkMode = (typeof CoverTopRightMarkMode)[keyof typeof CoverTopRightMarkMode];
+
+export interface CoverTopRightMarkConfig {
+  mode: CoverTopRightMarkMode;
+  text?: string;
+  fontSizePt?: number;
 }
 
 /** 封面附加声明位置 */
@@ -50,14 +76,103 @@ export interface CoverNoticeConfig {
   position: CoverNoticePosition;
 }
 
+export const BackCoverAlign = {
+  LEFT: 'left',
+  CENTER: 'center',
+  RIGHT: 'right',
+} as const;
+
+export type BackCoverAlign = (typeof BackCoverAlign)[keyof typeof BackCoverAlign];
+
+export const BackCoverVerticalAlign = {
+  TOP: 'top',
+  MIDDLE: 'middle',
+  BOTTOM: 'bottom',
+} as const;
+
+export type BackCoverVerticalAlign = (typeof BackCoverVerticalAlign)[keyof typeof BackCoverVerticalAlign];
+
+/** 独立封底 / 版权页自由内容块 */
+export type BackCoverBlock =
+  | {
+      id: string;
+      type: 'heading';
+      text: string;
+      align?: BackCoverAlign;
+      fontSizePt?: number;
+      bold?: boolean;
+      spaceBeforeMm?: number;
+      spaceAfterMm?: number;
+    }
+  | {
+      id: string;
+      type: 'paragraph';
+      text: string;
+      align?: BackCoverAlign;
+      fontSizePt?: number;
+      bold?: boolean;
+      indent?: boolean;
+      spaceBeforeMm?: number;
+      spaceAfterMm?: number;
+    }
+  | {
+      id: string;
+      type: 'image';
+      dataUrl: string;
+      widthMm: number;
+      heightMm: number;
+      align?: BackCoverAlign;
+      spaceBeforeMm?: number;
+      spaceAfterMm?: number;
+    }
+  | {
+      id: string;
+      type: 'divider';
+      spaceBeforeMm?: number;
+      spaceAfterMm?: number;
+    };
+
 /** 封底 / 版权页配置（独立末页、无页眉页脚与页码） */
 export interface BackCoverConfig {
   enabled: boolean;
+  /** 新版自由块列表；提供时优先按 blocks 顺序渲染，否则兼容下方固定字段 */
+  blocks?: BackCoverBlock[];
+  verticalAlign?: BackCoverVerticalAlign;
+  boxed?: boolean;
   title?: string;
   copyrightNotice?: string;
   publisherInfo?: string;
   contactInfo?: string;
   note?: string;
+}
+
+export const WatermarkKind = {
+  TEXT: 'text',
+  IMAGE: 'image',
+} as const;
+
+export type WatermarkKind = (typeof WatermarkKind)[keyof typeof WatermarkKind];
+
+export const WatermarkFrequency = {
+  EVERY: 'every',
+  ALTERNATE: 'alternate',
+} as const;
+
+export type WatermarkFrequency = (typeof WatermarkFrequency)[keyof typeof WatermarkFrequency];
+
+/** 正文页水印配置（目录/前言/引言/正文/附录/参考文献生效，封面与封底不渲染） */
+export interface WatermarkConfig {
+  enabled: boolean;
+  kind: WatermarkKind;
+  frequency: WatermarkFrequency;
+  text?: string;
+  fontSizePt?: number;
+  color?: string;
+  rotationDeg?: number;
+  opacity?: number;
+  dataUrl?: string;
+  widthMm?: number;
+  heightMm?: number;
 }
 
 /**
@@ -66,8 +181,10 @@ export interface BackCoverConfig {
  */
 export interface CoverLayoutConfig {
   logo?: CoverLogoConfig;
+  topRightMark?: CoverTopRightMarkConfig;
   notice?: CoverNoticeConfig;
   backCover?: BackCoverConfig;
+  watermark?: WatermarkConfig;
 }
 
 /** 模板预设元信息 */

@@ -56,7 +56,7 @@ import { hasActiveCoverLayout } from '../coverLayoutValidation'
 import { printCss } from './printCss'
 import type { DocumentStage } from '../types/document'
 import type { CoverLayoutConfig } from '../types/template'
-import { COVER_LAYOUT_PRINT_CSS, renderBackCoverHtml, renderCoverHtml } from './coverHtml'
+import { COVER_LAYOUT_PRINT_CSS, renderBackCoverHtml, renderCoverHtml, renderWatermarkLayerHtml } from './coverHtml'
 import { tableBordersCss } from './tableBordersCss'
 import { assertFootnoteReferences, orderTableFootnotes, tableColumnCount } from './footnotes'
 
@@ -1021,12 +1021,15 @@ export function renderHtml(doc: IRDoc, labels: Labels, opts: RenderHtmlOptions =
   ctx.push(`<article class="ses-standard" data-type="standard-doc"${metaAttrs(doc.meta)}>`)
 
   if (variant === 'print') ctx.push(renderCoverHtml(doc.meta, opts.stage ?? 'working_draft', opts.coverLayout))
-  renderFront(doc, ctx)
-  renderBody(doc, ctx)
   if (variant === 'print' && opts.coverLayout?.backCover?.enabled) {
     ctx.push(`<span class="ses-back-cover-anchor" aria-hidden="true">${BACK_COVER_SENTINEL}</span>`)
     ctx.push(renderBackCoverHtml(doc.meta, opts.coverLayout.backCover))
   }
+  if (variant === 'print' && opts.coverLayout?.watermark?.enabled) {
+    ctx.push(renderWatermarkLayerHtml(opts.coverLayout.watermark, false))
+  }
+  renderFront(doc, ctx)
+  renderBody(doc, ctx)
 
   ctx.push('</article>')
   ctx.push('</body>')

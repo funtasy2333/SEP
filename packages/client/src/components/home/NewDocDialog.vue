@@ -49,6 +49,7 @@
             />
             <span v-if="selectedTemplate?.coverLayout?.notice?.text?.trim()" class="mini-badge">含声明</span>
             <span v-if="selectedTemplate?.coverLayout?.backCover?.enabled" class="mini-badge">含封底</span>
+            <span v-if="selectedTemplate?.coverLayout?.watermark?.enabled" class="mini-badge">含水印</span>
           </div>
         </div>
       </div>

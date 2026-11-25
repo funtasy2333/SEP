@@ -6,6 +6,7 @@
    ============================================================ */
 
 :root {
+  color-scheme: light;
   /* surfaces — warm-cool neutral */
   --ses-bg:        oklch(0.985 0.002 270);
   --ses-surface:   #ffffff;
@@ -75,6 +76,7 @@
 
 /* Theme: dark */
 :root[data-ses-theme="dark"] {
+  color-scheme: dark;
   --ses-bg: oklch(0.18 0.014 270);
   --ses-surface: oklch(0.22 0.014 270);
   --ses-surface-2: oklch(0.26 0.013 270);

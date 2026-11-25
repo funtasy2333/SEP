@@ -118,16 +118,20 @@ export function findBodyStartPage(
   normPages: string[],
   docTitle: string,
   end = normPages.length,
+  start = 0,
 ): number {
+  const from = Math.max(0, start);
   const limit = Math.min(end, normPages.length);
+  if (from >= limit) return -1;
   // normalize 仅去空白，哨兵为纯大写字母，规整后不变
   const bySentinel = normPages
-    .slice(0, limit)
+    .slice(from, limit)
     .findIndex((p) => p.includes(BODY_START_SENTINEL));
-  if (bySentinel >= 0) return bySentinel;
+  if (bySentinel >= 0) return from + bySentinel;
   const needle = normalize(docTitle);
   if (!needle) return -1;
-  return normPages.slice(0, limit).findIndex((p) => p.includes(needle));
+  const byTitle = normPages.slice(from, limit).findIndex((p) => p.includes(needle));
+  return byTitle >= 0 ? from + byTitle : -1;
 }
 
 /**
@@ -143,12 +147,13 @@ export function computeTocPageNumbers(
   docTitle: string,
 ): Map<string, string> {
   const normPages = pages.map(normalize);
+  const frontStart = Math.max(0, normPages.findIndex((page) => page.includes(FRONT_START_SENTINEL)));
   const backCoverIdx = normPages.findIndex((p) =>
     p.includes(BACK_COVER_SENTINEL),
   );
-  const bodyEnd = backCoverIdx >= 0 ? backCoverIdx : normPages.length;
-  const bodyStart = findBodyStartPage(normPages, docTitle, bodyEnd);
-  const frontStart = Math.max(0, normPages.findIndex(page => page.includes(FRONT_START_SENTINEL)));
+  // 版权页（封面背面）位于封面与目次之间时，不应截断正文检索；仅当仍存在末尾独立封底时截取 bodyEnd
+  const bodyEnd = backCoverIdx > frontStart ? backCoverIdx : normPages.length;
+  const bodyStart = findBodyStartPage(normPages, docTitle, bodyEnd, frontStart);
   const result = new Map<string, string>();
 
   for (const item of toc) {

@@ -9,8 +9,10 @@
  * 同构纯 TypeScript，不引用浏览器或 Node 专有 API；不用 class 的参数属性，改用工厂函数 + 闭包。
  */
 
-import { mmToTwips } from './units'
-import { escapeXmlText, pPr, sectPr, wrapElement, type XmlChild } from './xml'
+import { mmToEmu, mmToTwips } from './units'
+import { escapeXmlAttr, escapeXmlText, pPr, sectPr, wrapElement, type XmlChild } from './xml'
+import { parseCoverLogoDataUrl } from '../../coverLayoutValidation'
+import type { WatermarkConfig } from '../../types/template'
 
 // ---------------- §2.1 页面参数 ----------------
 
@@ -42,6 +44,8 @@ interface SectionProps {
   withHeaderFooter: boolean
   /** 明确指定页眉页脚模式：'empty' 用于非首节显式绑定空白页眉页脚，打断 linkToPrevious 继承 */
   headerFooterMode?: 'standard' | 'empty' | 'none'
+  /** 页面内容垂直对齐（例如封底/版权页顶部、居中或沉底） */
+  vAlign?: 'top' | 'center' | 'bottom'
   landscape?: boolean
 }
 
@@ -72,7 +76,7 @@ export interface HeaderFooterRelIds {
   header2: string
   footer1: string
   footer2: string
-  /** 封底专用空白页眉/页脚部件（打断 ECMA-376 §17.10.5 非首节同前节继承） */
+  /** 封面背面/封底专用空白页眉/页脚部件（打断 ECMA-376 §17.10.5 非首节同前节继承，保证不显示页眉页脚与水印） */
   emptyHeader?: string
   emptyFooter?: string
 }
@@ -98,6 +102,9 @@ function sectPrXml(props: SectionProps, relIds: HeaderFooterRelIds): string {
   if (props.pgNumType) {
     children.push(['pgNumType', `<w:pgNumType w:fmt="${props.pgNumType.fmt}"${props.pgNumType.start ? ' w:start="1"' : ''}/>`])
   }
+  if (props.vAlign) {
+    children.push(['vAlign', `<w:vAlign w:val="${props.vAlign}"/>`])
+  }
   children.push(['docGrid', '<w:docGrid w:type="lines" w:linePitch="312"/>'])
   return sectPr(children)
 }
@@ -111,7 +118,10 @@ export interface SectionManager {
    * 结束当前节（如果有）、开始 kind 指定的新节：返回「上一节」的分节空段 XML（调用方需要把它拼在
    * 新节内容之前）；第一次调用（没有「上一节」）返回空串。
    */
-  startSection(kind: SectionKind, options?: { continuation?: boolean; landscape?: boolean }): string
+  startSection(
+    kind: SectionKind,
+    options?: { continuation?: boolean; landscape?: boolean; vAlign?: 'top' | 'center' | 'bottom' },
+  ): string
   /** 渲染结束后取最后一节的 sectPr（w:body 的最后一个子元素，不包在分节空段里） */
   finalSectPr(): string
 }
@@ -123,9 +133,12 @@ export function createSectionManager(relIds: HeaderFooterRelIds): SectionManager
     startSection(kind, options) {
       const closing = current ? sectionEmptyParagraphXml(current, relIds) : ''
       const props = sectionPropsFor(kind)
-      current = options?.continuation
-        ? { ...props, type: 'nextPage', pgNumType: props.pgNumType && { fmt: props.pgNumType.fmt }, landscape: options.landscape }
-        : options?.landscape ? { ...props, landscape: true } : props
+      const baseProps = options?.continuation
+        ? { ...props, type: 'nextPage' as const, pgNumType: props.pgNumType && { fmt: props.pgNumType.fmt } }
+        : { ...props }
+      if (options?.landscape) baseProps.landscape = true
+      if (options?.vAlign) baseProps.vAlign = options.vAlign
+      current = baseProps
       return closing
     },
     finalSectPr() {
@@ -141,6 +154,16 @@ const HDR_FTR_NS = {
   'xmlns:w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
   'xmlns:r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
 }
+const HDR_WATERMARK_NS = {
+  ...HDR_FTR_NS,
+  'xmlns:v': 'urn:schemas-microsoft-com:vml',
+  'xmlns:o': 'urn:schemas-microsoft-com:office:office',
+  'xmlns:wp': 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing',
+  'xmlns:a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
+  'xmlns:pic': 'http://schemas.openxmlformats.org/drawingml/2006/picture',
+}
+const RELS_NS = 'http://schemas.openxmlformats.org/package/2006/relationships'
+const IMAGE_REL_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image'
 const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
 
 /** STYLEREF/PAGE 域：begin → instrText → separate → 缓存结果（w:t）→ end（§2.3、spike gen_spike.py 的 fld()） */
@@ -154,16 +177,71 @@ function fieldXml(instr: string, cachedText: string): string {
   )
 }
 
+function textWatermarkParagraphXml(watermark: WatermarkConfig): string {
+  const text = watermark.text?.trim() || '内部草案'
+  const fontSizePt = Math.max(16, Math.min(120, watermark.fontSizePt ?? 48))
+  const color = watermark.color ?? '#8c8c8c'
+  const opacity = watermark.opacity ?? 0.2
+  const rotation = watermark.rotationDeg ?? -45
+  const charCount = Math.max(2, [...text].length)
+  const widthPt = Math.round(Math.min(520, Math.max(180, fontSizePt * charCount * 0.95)))
+  const heightPt = Math.round(fontSizePt * 1.45)
+
+  return (
+    '<w:p><w:pPr><w:pStyle w:val="SesHeader"/></w:pPr><w:r><w:rPr><w:noProof/></w:rPr><w:pict>' +
+    '<v:shapetype id="_x0000_t136" coordsize="21600,21600" o:spt="136" adj="10800" path="m@7,l@8,m@5,21600l@6,21600e">' +
+    '<v:formulas><v:f eqn="sum #0 0 10800"/><v:f eqn="prod #0 2 1"/><v:f eqn="sum 21600 0 @1"/><v:f eqn="sum 0 0 @2"/>' +
+    '<v:f eqn="sum 21600 0 @3"/><v:f eqn="if @0 @3 0"/><v:f eqn="if @0 21600 @1"/><v:f eqn="if @0 0 @2"/>' +
+    '<v:f eqn="if @0 @4 21600"/><v:f eqn="mid @5 @6"/><v:f eqn="mid @8 @5"/><v:f eqn="mid @7 @8"/>' +
+    '<v:f eqn="mid @6 @7"/><v:f eqn="sum @6 0 @5"/></v:formulas>' +
+    '<v:path textpathok="t" o:connecttype="custom" o:connectlocs="@9,0;@10,10800;@11,21600;@12,10800" o:connectangles="270,180,90,0"/>' +
+    '<v:textpath on="t" fitshape="t"/>' +
+    '<v:handles><v:h position="#0,bottomRight" xrange="6629,14971"/></v:handles>' +
+    '<o:lock v:ext="edit" text="t" shapetype="t"/>' +
+    '</v:shapetype>' +
+    `<v:shape id="PowerPlusWaterMarkObject" o:spid="_x0000_s2049" type="#_x0000_t136" ` +
+    `style="position:absolute;margin-left:0;margin-top:0;width:${widthPt}pt;height:${heightPt}pt;` +
+    `rotation:${rotation};z-index:-251654144;mso-wrap-edited:f;mso-width-percent:400;` +
+    `mso-position-horizontal:center;mso-position-horizontal-relative:margin;` +
+    `mso-position-vertical:center;mso-position-vertical-relative:margin" ` +
+    `o:allowincell="f" fillcolor="${escapeXmlAttr(color)}" stroked="f">` +
+    `<v:fill opacity="${opacity}"/>` +
+    `<v:textpath style="font-family:&quot;宋体&quot;;font-size:${fontSizePt}pt" string="${escapeXmlAttr(text)}"/>` +
+    '</v:shape></w:pict></w:r></w:p>'
+  )
+}
+
+function imageWatermarkParagraphXml(watermark: WatermarkConfig): string {
+  const cx = mmToEmu(watermark.widthMm ?? 90)
+  const cy = mmToEmu(watermark.heightMm ?? 90)
+  const amt = Math.round(Math.max(0.01, Math.min(1, watermark.opacity ?? 0.2)) * 100000)
+  return (
+    '<w:p><w:pPr><w:pStyle w:val="SesHeader"/></w:pPr><w:r><w:rPr><w:noProof/></w:rPr><w:drawing>' +
+    '<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="0" behindDoc="1" locked="0" layoutInCell="1" allowOverlap="1">' +
+    '<wp:simplePos x="0" y="0"/>' +
+    '<wp:positionH relativeFrom="page"><wp:align>center</wp:align></wp:positionH>' +
+    '<wp:positionV relativeFrom="page"><wp:align>center</wp:align></wp:positionV>' +
+    `<wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/>` +
+    '<wp:docPr id="9001" name="SesWatermark"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="0"/></wp:cNvGraphicFramePr>' +
+    '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic>' +
+    '<pic:nvPicPr><pic:cNvPr id="9001" name="SesWatermark"/><pic:cNvPicPr/></pic:nvPicPr>' +
+    `<pic:blipFill><a:blip r:embed="rIdWm1"><a:alphaModFix amt="${amt}"/></a:blip><a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
+    `<pic:spPr bwMode="auto"><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>` +
+    '</pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>'
+  )
+}
+
 type Align = 'left' | 'right'
 
 /** word/header1.xml（单数页/default，align=right）、word/header2.xml（双数页/even，align=left） */
-function buildHeaderXml(align: Align, cachedStdCode: string): string {
+function buildHeaderXml(align: Align, cachedStdCode: string, watermarkPara = ''): string {
   const pprXml = pPr([
     ['pStyle', '<w:pStyle w:val="SesHeader"/>'],
     ['jc', `<w:jc w:val="${align}"/>`],
   ])
-  const paragraph = `<w:p>${pprXml}${fieldXml('STYLEREF "SES_封面文件编号" \\* MERGEFORMAT', cachedStdCode)}</w:p>`
-  return XML_DECL + wrapElement('w:hdr', paragraph, HDR_FTR_NS)
+  const paragraph = `<w:p>${pprXml}${fieldXml('STYLEREF "SES_封面文件编号" \\* MERGEFORMAT', cachedStdCode)}</w:p>${watermarkPara}`
+  const ns = watermarkPara ? HDR_WATERMARK_NS : HDR_FTR_NS
+  return XML_DECL + wrapElement('w:hdr', paragraph, ns)
 }
 
 /** word/footer1.xml（单数页，ind right=227）、word/footer2.xml（双数页，ind left=227） */
@@ -183,18 +261,51 @@ export interface HeaderFooterParts {
   header2: string
   footer1: string
   footer2: string
+  extraParts?: Record<string, string>
+  extraBinaries?: Record<string, string>
 }
 
 /**
- * 生成四个页眉页脚部件（§2.3）。`stdCodeCached` 是 STYLEREF 域的缓存结果文字（`meta.stdCode`，
- * 缺失写空串）；Word 渲染时会重算该域，缓存值只影响不重算域的阅读器，不影响 Word 显示。
+ * 生成四个页眉页脚部件（§2.3），并在启用水印时嵌入单数页（隔一页）或全部页（每一页）水印。
  */
-export function buildHeaderFooterParts(stdCodeCached: string): HeaderFooterParts {
+export function buildHeaderFooterParts(stdCodeCached: string, watermark?: WatermarkConfig): HeaderFooterParts {
+  let oddWatermarkPara = ''
+  let evenWatermarkPara = ''
+  const extraParts: Record<string, string> = {}
+  const extraBinaries: Record<string, string> = {}
+
+  if (watermark?.enabled) {
+    if (watermark.kind === 'text') {
+      const para = textWatermarkParagraphXml(watermark)
+      oddWatermarkPara = para
+      if (watermark.frequency === 'every') evenWatermarkPara = para
+    } else if (watermark.kind === 'image' && watermark.dataUrl) {
+      const parsed = parseCoverLogoDataUrl(watermark.dataUrl)
+      if (parsed) {
+        const mediaTarget = `word/media/watermark.${parsed.ext}`
+        extraBinaries[mediaTarget] = parsed.base64
+        const relXml =
+          `${XML_DECL}<Relationships xmlns="${RELS_NS}">` +
+          `<Relationship Id="rIdWm1" Type="${IMAGE_REL_TYPE}" Target="media/watermark.${parsed.ext}"/>` +
+          '</Relationships>'
+        const para = imageWatermarkParagraphXml(watermark)
+        oddWatermarkPara = para
+        extraParts['word/_rels/header1.xml.rels'] = relXml
+        if (watermark.frequency === 'every') {
+          evenWatermarkPara = para
+          extraParts['word/_rels/header2.xml.rels'] = relXml
+        }
+      }
+    }
+  }
+
   return {
-    header1: buildHeaderXml('right', stdCodeCached),
-    header2: buildHeaderXml('left', stdCodeCached),
+    header1: buildHeaderXml('right', stdCodeCached, oddWatermarkPara),
+    header2: buildHeaderXml('left', stdCodeCached, evenWatermarkPara),
     footer1: buildFooterXml('right'),
     footer2: buildFooterXml('left'),
+    ...(Object.keys(extraParts).length > 0 ? { extraParts } : {}),
+    ...(Object.keys(extraBinaries).length > 0 ? { extraBinaries } : {}),
   }
 }
 

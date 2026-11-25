@@ -237,5 +237,12 @@ describe('文件设置草稿与封面同步', () => {
     clearedDraft.coverLayout = undefined
     const clearedMeta = documentMetaFromSettingsDraft(baseMeta, clearedDraft)
     expect((clearedMeta as unknown as Record<string, unknown>).coverLayout).toBeNull()
+
+    expect(
+      sameCoverLayout(
+        { watermark: { enabled: true, kind: 'text', frequency: 'alternate' }, notice: { text: 'a', position: 'above_dates' } },
+        { notice: { text: 'a', position: 'above_dates' }, watermark: { enabled: true, kind: 'text', frequency: 'alternate' } },
+      ),
+    ).toBe(true)
   })
 })

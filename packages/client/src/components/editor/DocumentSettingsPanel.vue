@@ -61,8 +61,10 @@
                   alt="徽标"
                   class="preview-logo-chip"
                 />
+                <span v-if="draft.coverLayout?.topRightMark && draft.coverLayout.topRightMark.mode !== 'default'" class="preview-badge">自定义右上角标志</span>
                 <span v-if="draft.coverLayout?.notice?.text?.trim()" class="preview-badge">含附加声明</span>
                 <span v-if="draft.coverLayout?.backCover?.enabled" class="preview-badge">含独立封底</span>
+                <span v-if="draft.coverLayout?.watermark?.enabled" class="preview-badge">含正文水印</span>
               </div>
             </div>
           </div>
@@ -207,7 +209,7 @@
           <section id="settings-cover-layout" class="settings-card" aria-labelledby="settings-cover-layout-title">
             <header class="card-heading">
               <span class="card-number">05</span>
-              <div><h2 id="settings-cover-layout-title">封面徽标与封底版式</h2><p>自定义封面徽标、附加声明及独立封底末页（打印/导出 DOCX 与 PDF 生效）</p></div>
+              <div><h2 id="settings-cover-layout-title">封面徽标与封底版式</h2><p>自定义封面徽标、附加声明、封面背面/版权页及正文水印（打印/导出 DOCX 与 PDF 生效）</p></div>
               <span class="card-icon"><el-icon><Picture /></el-icon></span>
             </header>
             <CoverLayoutEditor v-model="draft.coverLayout" :standard-type="draft.standardType" :disabled="saving" />
@@ -319,7 +321,7 @@ function onStandardTypeUpdate(type: string) {
   const { coverLayout, downgraded } = downgradeCoverLayoutForStandardType(props.draft.coverLayout, type)
   if (downgraded) {
     props.draft.coverLayout = coverLayout
-    ElMessage.warning('国家标准和指导性技术文件禁止替换右上角标志，已将封面徽标位置调整为左上角。')
+    ElMessage.warning('国家标准和指导性技术文件禁止修改或替换右上角标志，已自动恢复默认标志并将徽标位置调整为左上角。')
   }
 }
 

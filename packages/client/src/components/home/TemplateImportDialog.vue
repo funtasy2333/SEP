@@ -99,8 +99,10 @@ const coverLayoutDiffSummary = computed(() => {
   const describe = (cfg?: typeof incoming) => {
     const parts: string[] = []
     if (cfg?.logo?.dataUrl) parts.push(`徽标(${cfg.logo.position})`)
+    if (cfg?.topRightMark && cfg.topRightMark.mode !== 'default') parts.push(`右上角标志(${cfg.topRightMark.mode})`)
     if (cfg?.notice?.text?.trim()) parts.push('附加声明')
     if (cfg?.backCover?.enabled) parts.push('独立封底')
+    if (cfg?.watermark?.enabled) parts.push(`水印(${cfg.watermark.frequency})`)
     return parts.length > 0 ? parts.join('、') : '无'
   }
   return `本地：${describe(existing)} → 导入：${describe(incoming)}`

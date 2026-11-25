@@ -129,5 +129,103 @@ describe('coverLayoutValidation', () => {
     expect(
       hasActiveCoverLayout({ logo: { dataUrl: VALID_PNG, position: 'center', widthMm: 30, heightMm: 15 } }),
     ).toBe(true);
+    expect(hasActiveCoverLayout({ topRightMark: { mode: 'hidden' } })).toBe(true);
+    expect(
+      hasActiveCoverLayout({ watermark: { enabled: true, kind: 'text', frequency: 'every', text: '草案' } }),
+    ).toBe(true);
+  });
+
+  it('validates logo wrap/offsets, topRightMark restrictions, backCover blocks, and watermark rules', () => {
+    const okFull = validateCoverLayout(
+      {
+        logo: {
+          dataUrl: VALID_PNG,
+          position: 'top_left',
+          wrap: 'behind_text',
+          widthMm: 30,
+          heightMm: 18,
+          offsetXMm: 5,
+          offsetYMm: -2,
+        },
+        topRightMark: { mode: 'text', text: 'T/ZSM 试行', fontSizePt: 32 },
+        backCover: {
+          enabled: true,
+          verticalAlign: 'bottom',
+          boxed: true,
+          blocks: [
+            { id: 'b1', type: 'image', dataUrl: VALID_PNG, widthMm: 14, heightMm: 14, align: 'center' },
+            { id: 'b2', type: 'heading', text: '版权保护文件', align: 'center', fontSizePt: 14, bold: true },
+            { id: 'b3', type: 'divider' },
+            { id: 'b4', type: 'paragraph', text: '地址：杭州市\n网址：https://example.org', align: 'left', indent: false },
+          ],
+        },
+        watermark: {
+          enabled: true,
+          kind: 'text',
+          frequency: 'alternate',
+          text: '内部草案',
+          fontSizePt: 48,
+          color: '#666666',
+          rotationDeg: -45,
+          opacity: 0.25,
+        },
+      },
+      'group',
+    );
+    expect(okFull.valid).toBe(true);
+
+    // National standard forbids topRightMark hidden/text
+    expect(validateCoverLayout({ topRightMark: { mode: 'hidden' } }, 'national').valid).toBe(false);
+    expect(validateCoverLayout({ topRightMark: { mode: 'text', text: '自定义' } }, 'guidance').valid).toBe(false);
+    const downgraded = downgradeCoverLayoutForStandardType(
+      {
+        logo: { dataUrl: VALID_PNG, position: 'replace_mark', widthMm: 30, heightMm: 15 },
+        topRightMark: { mode: 'hidden' },
+      },
+      'national',
+    );
+    expect(downgraded.downgraded).toBe(true);
+    expect(downgraded.coverLayout?.logo?.position).toBe('top_left');
+    expect(downgraded.coverLayout?.topRightMark).toBeUndefined();
+
+    // Watermark invalid color / empty text
+    expect(
+      validateCoverLayout(
+        { watermark: { enabled: true, kind: 'text', frequency: 'every', text: '   ', color: '#888888' } },
+        'group',
+      ).valid,
+    ).toBe(false);
+    expect(
+      validateCoverLayout(
+        { watermark: { enabled: true, kind: 'text', frequency: 'every', text: '内部', color: 'red' } },
+        'group',
+      ).valid,
+    ).toBe(false);
+
+    // Expanded watermark opacity bounds [0.01, 1]
+    expect(
+      validateCoverLayout(
+        { watermark: { enabled: true, kind: 'text', frequency: 'every', text: '极淡', opacity: 0.01 } },
+        'group',
+      ).valid,
+    ).toBe(true);
+    expect(
+      validateCoverLayout(
+        { watermark: { enabled: true, kind: 'text', frequency: 'every', text: '不透明', opacity: 1 } },
+        'group',
+      ).valid,
+    ).toBe(true);
+    expect(
+      validateCoverLayout(
+        { watermark: { enabled: true, kind: 'text', frequency: 'every', text: '越界下限', opacity: 0 } },
+        'group',
+      ).valid,
+    ).toBe(false);
+    expect(
+      validateCoverLayout(
+        { watermark: { enabled: true, kind: 'text', frequency: 'every', text: '越界上限', opacity: 1.05 } },
+        'group',
+      ).valid,
+    ).toBe(false);
   });
 });

@@ -1,7 +1,7 @@
 /** PDF cover: share the DOCX cover's metadata rules and embedded logo assets. */
 import type { IRDocMeta } from '../ir/types'
 import type { DocumentStage } from '../types/document'
-import type { BackCoverConfig, CoverLayoutConfig } from '../types/template'
+import type { BackCoverAlign, BackCoverBlock, BackCoverConfig, CoverLayoutConfig, WatermarkConfig } from '../types/template'
 import { getCoverDesignation } from '../coverDesignation'
 import { isReplaceMarkForbidden, parseCoverLogoDataUrl } from '../coverLayoutValidation'
 import { COVER_ASSETS } from './docx/assets'
@@ -32,14 +32,25 @@ function customLogoHtml(coverLayout: CoverLayoutConfig | undefined, meta: IRDocM
   const parsed = parseCoverLogoDataUrl(logoCfg.dataUrl)
   if (!parsed) return { replacedMark: false, html: '' }
 
+  const behind = logoCfg.wrap !== 'inline'
+  const wrapClass = behind ? 'ses-cover-custom-logo-behind' : 'ses-cover-custom-logo-inline'
+  const offsetX = logoCfg.offsetXMm ?? 0
+  const offsetY = logoCfg.offsetYMm ?? 0
+  const transformStyle = offsetX !== 0 || offsetY !== 0 ? `;transform:translate(${offsetX}mm,${offsetY}mm)` : ''
   const alt = text(logoCfg.alt?.trim() || '组织封面徽标')
-  const imgTag = `<img src="${logoCfg.dataUrl}" alt="${alt}" style="width:${logoCfg.widthMm}mm;height:${logoCfg.heightMm}mm;object-fit:contain" />`
+  const imgTag = `<img src="${logoCfg.dataUrl}" alt="${alt}" style="width:${logoCfg.widthMm}mm;height:${logoCfg.heightMm}mm;object-fit:fill" />`
   const canReplace = logoCfg.position === 'replace_mark' && !isReplaceMarkForbidden(meta.standardType)
   if (canReplace) {
-    return { replacedMark: true, html: imgTag }
+    return {
+      replacedMark: true,
+      html: `<div class="${wrapClass}" style="display:inline-block${transformStyle}">${imgTag}</div>`,
+    }
   }
   const posClass = logoCfg.position === 'center' ? 'ses-cover-custom-logo-center' : 'ses-cover-custom-logo-top-left'
-  return { replacedMark: false, html: `<div class="ses-cover-custom-logo ${posClass}">${imgTag}</div>` }
+  return {
+    replacedMark: false,
+    html: `<div class="ses-cover-custom-logo ${posClass} ${wrapClass}"${transformStyle ? ` style="${transformStyle.slice(1)}"` : ''}>${imgTag}</div>`,
+  }
 }
 
 export function renderCoverHtml(meta: IRDocMeta, stage: DocumentStage, coverLayout?: CoverLayoutConfig): string {
@@ -58,7 +69,15 @@ export function renderCoverHtml(meta: IRDocMeta, stage: DocumentStage, coverLayo
   if (customLogo.replacedMark) {
     out.push(`<div class="ses-cover-logo ses-cover-logo-custom">${customLogo.html}</div>`)
   } else {
-    out.push(`<div class="ses-cover-logo">${logo(meta)}</div>`)
+    const topRight = coverLayout?.topRightMark
+    if (!national && topRight?.mode === 'hidden') {
+      // 右上角标准标志已隐藏
+    } else if (!national && topRight?.mode === 'text' && topRight.text?.trim()) {
+      const sizePt = topRight.fontSizePt ?? 36
+      out.push(`<div class="ses-cover-logo ses-cover-logo-text-custom" style="font-size:${sizePt}pt;font-family:var(--ses-song)">${text(topRight.text.trim())}</div>`)
+    } else {
+      out.push(`<div class="ses-cover-logo">${logo(meta)}</div>`)
+    }
     if (customLogo.html) out.push(customLogo.html)
   }
   out.push(`<div class="ses-cover-designation">${text(getCoverDesignation(meta))}</div>`)
@@ -86,7 +105,59 @@ export function renderCoverHtml(meta: IRDocMeta, stage: DocumentStage, coverLayo
   return out.join('\n')
 }
 
+function assertNeverBackCoverBlockHtml(block: never): never {
+  throw new Error(`renderBackCoverHtml: unexpected block ${JSON.stringify(block)}`)
+}
+
+function cssAlign(align: BackCoverAlign | undefined, fallback: BackCoverAlign): string {
+  return align ?? fallback
+}
+
+function renderBackCoverBlockHtml(block: BackCoverBlock): string {
+  const mt = block.spaceBeforeMm !== undefined ? `${block.spaceBeforeMm}mm` : block.type === 'heading' ? '4mm' : '2mm'
+  const mb = block.spaceAfterMm !== undefined ? `${block.spaceAfterMm}mm` : block.type === 'heading' ? '3mm' : '2mm'
+
+  switch (block.type) {
+    case 'heading':
+    case 'paragraph': {
+      const isHeading = block.type === 'heading'
+      const fontPt = block.fontSizePt ?? (isHeading ? 15 : 10.5)
+      const bold = block.bold ?? isHeading
+      const align = cssAlign(block.align, isHeading ? 'center' : 'left')
+      const fontFamily = isHeading ? 'var(--ses-hei)' : 'var(--ses-song)'
+      const indent = !isHeading && block.indent ? 'text-indent:2em;' : ''
+      const content = text(block.text).replace(/\r?\n/g, '<br />')
+      return `<div class="ses-bc-block ses-bc-${block.type}" style="text-align:${align};font-family:${fontFamily};font-size:${fontPt}pt;font-weight:${bold ? 'bold' : 'normal'};margin:${mt} 0 ${mb};line-height:1.6;${indent}">${content}</div>`
+    }
+    case 'image': {
+      const parsed = parseCoverLogoDataUrl(block.dataUrl)
+      if (!parsed) return ''
+      const align = cssAlign(block.align, 'center')
+      return `<div class="ses-bc-block ses-bc-image" style="text-align:${align};margin:${mt} 0 ${mb};line-height:1"><img src="${block.dataUrl}" alt="封底图片" style="width:${block.widthMm}mm;height:${block.heightMm}mm;object-fit:fill" /></div>`
+    }
+    case 'divider':
+      return `<hr class="ses-bc-divider" style="margin:${mt} 0 ${mb};border:0;border-top:0.75pt solid #333" />`
+    default:
+      return assertNeverBackCoverBlockHtml(block)
+  }
+}
+
 export function renderBackCoverHtml(meta: IRDocMeta, backCover: BackCoverConfig): string {
+  const vAlign = backCover.verticalAlign ?? 'bottom'
+  const justify = vAlign === 'top' ? 'flex-start' : vAlign === 'middle' ? 'center' : 'flex-end'
+  const boxClass = backCover.boxed ? ' ses-back-cover-boxed' : ''
+
+  if (Array.isArray(backCover.blocks) && backCover.blocks.length > 0) {
+    const body = backCover.blocks.map(renderBackCoverBlockHtml).filter(Boolean).join('\n')
+    const inner = `<div class="ses-back-cover-blocks${boxClass}">${body}</div>`
+    return [
+      '<section class="ses-back-cover" data-type="back-cover">',
+      `<div class="ses-back-cover-layout" style="justify-content:${justify};text-align:left">`,
+      inner,
+      '</div></section>',
+    ].join('\n')
+  }
+
   const lines = (raw: string | undefined, cls: string): string => {
     const trimmed = raw?.trim()
     if (!trimmed) return ''
@@ -101,7 +172,7 @@ export function renderBackCoverHtml(meta: IRDocMeta, backCover: BackCoverConfig)
   const title = backCover.title?.trim() || meta.title?.trim() || ''
   const parts = [
     '<section class="ses-back-cover" data-type="back-cover">',
-    '<div class="ses-back-cover-layout">',
+    `<div class="ses-back-cover-layout" style="justify-content:${justify}">`,
   ]
   if (title) parts.push(`<div class="ses-back-cover-title">${text(title)}</div>`)
   const bodyBlocks = [
@@ -115,6 +186,49 @@ export function renderBackCoverHtml(meta: IRDocMeta, backCover: BackCoverConfig)
   }
   parts.push('</div></section>')
   return parts.join('\n')
+}
+
+export function renderWatermarkLayerHtml(watermark: WatermarkConfig, forPreview = false): string {
+  if (!watermark.enabled) return ''
+  const opacity = watermark.opacity ?? 0.2
+  const posCls = forPreview ? 'ses-watermark-preview-layer' : 'ses-watermark-print-layer'
+  if (watermark.kind === 'text') {
+    const wmText = watermark.text?.trim() || '内部草案'
+    const fontSizePt = watermark.fontSizePt ?? 48
+    const color = watermark.color ?? '#8c8c8c'
+    const deg = watermark.rotationDeg ?? -45
+    return `<div class="${posCls}" aria-hidden="true"><span class="ses-watermark-text" style="font-size:${fontSizePt}pt;color:${text(color)};opacity:${opacity};transform:rotate(${deg}deg)">${text(wmText)}</span></div>`
+  }
+  if (watermark.kind === 'image' && watermark.dataUrl) {
+    const parsed = parseCoverLogoDataUrl(watermark.dataUrl)
+    if (!parsed) return ''
+    const w = watermark.widthMm ?? 90
+    const h = watermark.heightMm ?? 90
+    return `<div class="${posCls}" aria-hidden="true"><img class="ses-watermark-image" src="${watermark.dataUrl}" alt="正文水印" style="width:${w}mm;height:${h}mm;opacity:${opacity};object-fit:fill" /></div>`
+  }
+  return ''
+}
+
+export function renderWatermarkPreviewHtml(meta: IRDocMeta, watermark: WatermarkConfig): string {
+  if (!watermark.enabled) return ''
+  const stdCode = normalizeCoverStdCode(meta.stdCode) || '标准编号示例'
+  const renderSamplePage = (pageNum: number, withWm: boolean) => [
+    `<section class="ses-body-preview" data-page="${pageNum}">`,
+    withWm ? renderWatermarkLayerHtml(watermark, true) : '',
+    `<div class="ses-body-preview-hdr">${text(stdCode)}</div>`,
+    '<div class="ses-body-preview-inner">',
+    '<div class="ses-body-preview-title">1 范围（正文页水印示例）</div>',
+    '<p class="ses-body-preview-p">本文件规定了标准化文件的编排格式、技术要素表达与相关排版要求，用于展示正文页水印及奇偶页应用频率效果。</p>',
+    '<p class="ses-body-preview-p">本文件适用于各行业及团体标准化文件的起草与发布。</p>',
+    '</div>',
+    `<div class="ses-body-preview-ftr">第 ${pageNum} 页（${pageNum % 2 === 1 ? '奇数页' : '偶数页'}${withWm ? ' · 含水印' : ' · 无水印'}）</div>`,
+    '</section>',
+  ].join('\n')
+
+  if (watermark.frequency === 'alternate') {
+    return `${renderSamplePage(1, true)}\n${renderSamplePage(2, false)}`
+  }
+  return renderSamplePage(1, true)
 }
 
 export const COVER_PRINT_CSS = `
@@ -153,15 +267,29 @@ export const COVER_LAYOUT_PRINT_CSS = `
   @top-left { content: none; } @top-center { content: none; } @top-right { content: none; }
   @bottom-left { content: none; } @bottom-center { content: none; } @bottom-right { content: none; }
 }
-section.ses-back-cover { page: back-cover; break-before: page; break-after: auto; }
+section.ses-back-cover { page: back-cover; break-before: page; break-after: page; }
 .ses-back-cover-anchor { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+.ses-cover-codes, .ses-cover-logo, .ses-cover-designation, .ses-cover-number, .ses-cover-replaces, .ses-cover-rule, .ses-cover-titles, .ses-cover-dates, .ses-cover-issuer, .ses-cover-notice { z-index: 1; }
+.ses-cover-custom-logo-behind { z-index: 0 !important; }
+.ses-cover-custom-logo-inline { z-index: 2 !important; }
 .ses-cover-custom-logo-top-left { position: absolute; left: 25mm; top: 23.5mm; line-height: 1; }
 .ses-cover-custom-logo-center { position: absolute; left: 25mm; right: 15mm; top: 78mm; text-align: center; line-height: 1; }
 .ses-cover-notice { position: absolute; left: 25mm; right: 15mm; text-align: center; font-family: var(--ses-song); font-size: 10.5pt; line-height: 1.45; }
 .ses-cover-notice-above-dates { top: 232mm; }
 .ses-cover-notice-below-issuer { top: 278mm; }
 .ses-back-cover-layout { position: relative; width: 210mm; height: 297mm; box-sizing: border-box; padding: 34mm 20mm 25mm 25mm; display: flex; flex-direction: column; justify-content: space-between; text-align: center; font-family: var(--ses-song); }
+.ses-back-cover-blocks { width: 100%; }
+.ses-back-cover-boxed { border: 0.75pt solid #333; padding: 6mm 8mm; box-sizing: border-box; }
 .ses-back-cover-title { font-family: var(--ses-hei); font-size: 16pt; font-weight: bold; margin-top: 10mm; }
 .ses-back-cover-meta { margin-top: auto; margin-bottom: 12mm; font-size: 10.5pt; line-height: 1.6; }
 .ses-back-cover-copyright { margin-bottom: 4mm; }
+.ses-body-preview { position: relative; width: 210mm; height: 297mm; box-sizing: border-box; padding: 34mm 20mm 25mm 25mm; background: #fff; font-family: var(--ses-song); display: flex; flex-direction: column; overflow: hidden; }
+.ses-body-preview-hdr { position: absolute; top: 15mm; left: 25mm; right: 20mm; text-align: right; font-family: var(--ses-hei); font-size: 10.5pt; border-bottom: 0.5pt solid #ccc; padding-bottom: 2mm; z-index: 1; }
+.ses-body-preview-inner { position: relative; z-index: 1; font-size: 10.5pt; line-height: 1.8; }
+.ses-body-preview-title { font-family: var(--ses-hei); font-size: 14pt; font-weight: bold; margin-bottom: 4mm; }
+.ses-body-preview-p { text-indent: 2em; margin: 0 0 3mm; }
+.ses-body-preview-ftr { margin-top: auto; text-align: center; font-size: 9pt; color: #666; position: relative; z-index: 1; }
+.ses-watermark-preview-layer { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 0; overflow: hidden; }
+.ses-watermark-print-layer { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 0; overflow: hidden; }
+.ses-watermark-text { font-family: var(--ses-song); white-space: nowrap; user-select: none; }
 `

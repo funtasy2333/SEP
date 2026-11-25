@@ -12,11 +12,12 @@ import type { DocumentStage } from '../../types/document'
 import type { BackCoverConfig, CoverLayoutConfig } from '../../types/template'
 import { COVER_ASSETS } from './assets'
 import type { DocxRelatedPart } from './package'
-import { mmToEmu } from './units'
+import { mmToEmu, mmToTwips } from './units'
 import { emitParagraph, warn, type RenderContext } from './body/context'
 import { plainRun, tabRun, wrapTitleAtSeparator } from './body/inline'
-import { escapeXmlAttr } from './xml'
+import { escapeXmlAttr, pBdr, pPr, rPr, tbl, tblBorders, tblPr, tcPr, tr, type XmlChild } from './xml'
 import { buildCoverReleaseRunPr } from './styles'
+import type { BackCoverAlign, BackCoverBlock } from '../../types/template'
 
 type CoverFrame = NonNullable<Parameters<typeof emitParagraph>[2]>['framePr']
 type CoverAsset = { readonly base64: string; readonly widthMm: number; readonly heightMm: number; readonly ext?: 'png' | 'jpg' }
@@ -105,7 +106,13 @@ function smallMarkGap(chineseFont = false): string {
   return plainRun(' ', rPr)
 }
 
-function imageDrawing(asset: CoverAsset, relationshipId: string, mediaIndex: number, description: string): string {
+function imageDrawing(
+  asset: CoverAsset,
+  relationshipId: string,
+  mediaIndex: number,
+  description: string,
+  lockAspect = true,
+): string {
   const cx = mmToEmu(asset.widthMm)
   const cy = mmToEmu(asset.heightMm)
   const name = escapeXmlAttr(`Cover image ${mediaIndex}`)
@@ -114,7 +121,7 @@ function imageDrawing(asset: CoverAsset, relationshipId: string, mediaIndex: num
   return `<w:drawing ${IMAGE_NAMESPACES}><wp:inline distT="0" distB="0" distL="0" distR="0">` +
     `<wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>` +
     `<wp:docPr id="${mediaIndex}" name="${name}" descr="${descr}"/>` +
-    '<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>' +
+    `<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="${lockAspect ? 1 : 0}"/></wp:cNvGraphicFramePr>` +
     '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
     '<pic:pic><pic:nvPicPr>' +
     `<pic:cNvPr id="${mediaIndex}" name="${name}" descr="${descr}"/><pic:cNvPicPr/>` +
@@ -125,13 +132,65 @@ function imageDrawing(asset: CoverAsset, relationshipId: string, mediaIndex: num
     '</pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing>'
 }
 
+function floatingImageDrawing(
+  asset: CoverAsset,
+  relationshipId: string,
+  mediaIndex: number,
+  description: string,
+  xMm: number,
+  yMm: number,
+  behindDoc = true,
+): string {
+  const cx = mmToEmu(asset.widthMm)
+  const cy = mmToEmu(asset.heightMm)
+  const posX = mmToEmu(xMm)
+  const posY = mmToEmu(yMm)
+  const name = escapeXmlAttr(`Cover image ${mediaIndex}`)
+  const descr = escapeXmlAttr(description)
+  const rid = escapeXmlAttr(relationshipId)
+  return `<w:drawing ${IMAGE_NAMESPACES}><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="251658240" behindDoc="${behindDoc ? 1 : 0}" locked="0" layoutInCell="1" allowOverlap="1">` +
+    '<wp:simplePos x="0" y="0"/>' +
+    `<wp:positionH relativeFrom="page"><wp:posOffset>${posX}</wp:posOffset></wp:positionH>` +
+    `<wp:positionV relativeFrom="page"><wp:posOffset>${posY}</wp:posOffset></wp:positionV>` +
+    `<wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/>` +
+    `<wp:docPr id="${mediaIndex}" name="${name}" descr="${descr}"/>` +
+    '<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="0"/></wp:cNvGraphicFramePr>' +
+    '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+    '<pic:pic><pic:nvPicPr>' +
+    `<pic:cNvPr id="${mediaIndex}" name="${name}" descr="${descr}"/><pic:cNvPicPr/>` +
+    '</pic:nvPicPr><pic:blipFill>' +
+    `<a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch>` +
+    '</pic:blipFill><pic:spPr bwMode="auto"><a:xfrm><a:off x="0" y="0"/>' +
+    `<a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>` +
+    '</pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing>'
+}
+
 function frameImage(
   ctx: RenderContext,
   asset: CoverAsset,
   description: string,
   framePr: NonNullable<CoverFrame>,
+  lockAspect = true,
 ): string {
-  return frameRuns(ctx, 'SesCoverLogo', imageRun(ctx, asset, description), framePr)
+  const { relationshipId, mediaIndex } = registerImage(ctx, asset)
+  const drawing = imageDrawing(asset, relationshipId, mediaIndex, description, lockAspect)
+  return frameRuns(ctx, 'SesCoverLogo', `<w:r>${drawing}</w:r>`, framePr)
+}
+
+function floatingImageParagraph(
+  ctx: RenderContext,
+  asset: CoverAsset,
+  description: string,
+  xMm: number,
+  yMm: number,
+): string {
+  const { relationshipId, mediaIndex } = registerImage(ctx, asset)
+  const drawing = floatingImageDrawing(asset, relationshipId, mediaIndex, description, xMm, yMm, true)
+  const pprXml = pPr([
+    ['pStyle', '<w:pStyle w:val="SesCoverLogo"/>'],
+    ['spacing', '<w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/>'],
+  ])
+  return `<w:p>${pprXml}<w:r>${drawing}</w:r></w:p>`
 }
 
 function registerImage(ctx: RenderContext, asset: CoverAsset): { relationshipId: string; mediaIndex: number } {
@@ -289,21 +348,58 @@ export function renderCover(
     coverLayout?.logo?.position === 'replace_mark' &&
     !isReplaceMarkForbidden(meta.standardType)
 
+  const renderTopRightStandardMark = (): string => {
+    const topRight = coverLayout?.topRightMark
+    if (!isReplaceMarkForbidden(meta.standardType)) {
+      if (topRight?.mode === 'hidden') return ''
+      if (topRight?.mode === 'text' && topRight.text?.trim()) {
+        const halfPt = Math.round((topRight.fontSizePt ?? 36) * 2)
+        const markRPr = rPr([
+          ['rFonts', '<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="宋体"/>'],
+          ['b', '<w:b/>'],
+          ['bCs', '<w:bCs/>'],
+          ['sz', `<w:sz w:val="${halfPt}"/>`],
+          ['szCs', `<w:szCs w:val="${halfPt}"/>`],
+        ])
+        return frameRuns(ctx, 'SesCoverLogoText', plainRun(topRight.text.trim(), markRPr), { xMm: 100, yMm: 14.5, widthMm: 83.25 })
+      }
+    }
+    return renderLogo(ctx, meta)
+  }
+
+  const emitCustomLogo = (
+    logoAsset: CoverAsset,
+    logoConfig: NonNullable<CoverLayoutConfig['logo']>,
+  ): string => {
+    const offsetX = logoConfig.offsetXMm ?? 0
+    const offsetY = logoConfig.offsetYMm ?? 0
+    const baseX =
+      logoConfig.position === 'replace_mark'
+        ? Math.max(100, 190 - logoAsset.widthMm)
+        : logoConfig.position === 'center'
+          ? Math.max(25, (210 - logoAsset.widthMm) / 2)
+          : 25
+    const baseY =
+      logoConfig.position === 'replace_mark'
+        ? 12.03
+        : logoConfig.position === 'center'
+          ? 78
+          : 23.5
+    const xMm = baseX + offsetX
+    const yMm = baseY + offsetY
+    const desc = logoConfig.alt?.trim() || '组织封面徽标'
+    if (logoConfig.wrap === 'inline') {
+      return frameImage(ctx, logoAsset, desc, { xMm, yMm, widthMm: logoAsset.widthMm }, false)
+    }
+    return floatingImageParagraph(ctx, logoAsset, desc, xMm, yMm)
+  }
+
   if (canReplaceMark && customLogoAsset && coverLayout?.logo) {
-    xml += frameImage(
-      ctx,
-      customLogoAsset,
-      coverLayout.logo.alt?.trim() || '组织封面标志',
-      { xMm: Math.max(100, 190 - customLogoAsset.widthMm), yMm: 12.03, widthMm: customLogoAsset.widthMm },
-    )
+    xml += emitCustomLogo(customLogoAsset, coverLayout.logo)
   } else {
-    xml += renderLogo(ctx, meta)
+    xml += renderTopRightStandardMark()
     if (customLogoAsset && coverLayout?.logo) {
-      const logoPos =
-        coverLayout.logo.position === 'center'
-          ? { xMm: Math.max(25, (210 - customLogoAsset.widthMm) / 2), yMm: 78, widthMm: customLogoAsset.widthMm }
-          : { xMm: 25, yMm: 23.5, widthMm: customLogoAsset.widthMm }
-      xml += frameImage(ctx, customLogoAsset, coverLayout.logo.alt?.trim() || '组织封面徽标', logoPos)
+      xml += emitCustomLogo(customLogoAsset, coverLayout.logo)
     }
   }
 
@@ -358,9 +454,117 @@ export function renderCover(
   return xml
 }
 
-/** 渲染独立封底 / 版权页内容（置于终结线之后的 backCover 节内）。 */
+function assertNeverBackCoverBlock(block: never): never {
+  throw new Error(`renderBackCover: 未知封底块类型 ${JSON.stringify(block)}`)
+}
+
+function jcForAlign(align?: BackCoverAlign): string {
+  return align === 'left' || align === 'center' || align === 'right' ? align : 'center'
+}
+
+function renderBackCoverBlock(ctx: RenderContext, block: BackCoverBlock): string {
+  const beforeTwips = mmToTwips(block.spaceBeforeMm ?? (block.type === 'heading' ? 4 : 2))
+  const afterTwips = mmToTwips(block.spaceAfterMm ?? (block.type === 'heading' ? 3 : 2))
+
+  switch (block.type) {
+    case 'heading':
+    case 'paragraph': {
+      const isHeading = block.type === 'heading'
+      const defaultPt = isHeading ? 15 : 10.5
+      const sz = Math.round((block.fontSizePt ?? defaultPt) * 2)
+      const bold = block.bold ?? isHeading
+      const align = jcForAlign(block.align ?? (isHeading ? 'center' : 'left'))
+      const indent = !isHeading && block.indent
+      const fontXml = isHeading
+        ? '<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="黑体"/>'
+        : '<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="宋体"/>'
+      const rprChildren: XmlChild[] = [
+        ['rFonts', fontXml],
+        ...(bold ? ([['b', '<w:b/>'], ['bCs', '<w:bCs/>']] as XmlChild[]) : []),
+        ['sz', `<w:sz w:val="${sz}"/>`],
+        ['szCs', `<w:szCs w:val="${sz}"/>`],
+      ]
+      const runPrXml = rPr(rprChildren)
+      const rawLines = block.text.split(/\r?\n/)
+      const pprChildren: XmlChild[] = [
+        ['spacing', `<w:spacing w:before="${beforeTwips}" w:after="${afterTwips}" w:line="320" w:lineRule="auto"/>`],
+        ...(indent ? ([['ind', '<w:ind w:firstLine="420"/>']] as XmlChild[]) : []),
+        ['jc', `<w:jc w:val="${align}"/>`],
+      ]
+      const runs = rawLines
+        .map((line, i) => `${i > 0 ? '<w:r><w:br/></w:r>' : ''}${plainRun(line, runPrXml)}`)
+        .join('')
+      return `<w:p>${pPr(pprChildren)}${runs}</w:p>`
+    }
+    case 'image': {
+      const parsed = parseCoverLogoDataUrl(block.dataUrl)
+      if (!parsed) return ''
+      const { relationshipId, mediaIndex } = registerImage(ctx, {
+        base64: parsed.base64,
+        widthMm: block.widthMm,
+        heightMm: block.heightMm,
+        ext: parsed.ext,
+      })
+      const drawing = imageDrawing(
+        { base64: parsed.base64, widthMm: block.widthMm, heightMm: block.heightMm, ext: parsed.ext },
+        relationshipId,
+        mediaIndex,
+        '封底图片',
+        false,
+      )
+      const align = jcForAlign(block.align ?? 'center')
+      const pprChildren: XmlChild[] = [
+        ['spacing', `<w:spacing w:before="${beforeTwips}" w:after="${afterTwips}"/>`],
+        ['jc', `<w:jc w:val="${align}"/>`],
+      ]
+      return `<w:p>${pPr(pprChildren)}<w:r>${drawing}</w:r></w:p>`
+    }
+    case 'divider': {
+      const pprChildren: XmlChild[] = [
+        ['pBdr', pBdr([['bottom', '<w:bottom w:val="single" w:sz="6" w:space="1" w:color="333333"/>']])],
+        ['spacing', `<w:spacing w:before="${beforeTwips}" w:after="${afterTwips}" w:line="120" w:lineRule="exact"/>`],
+      ]
+      return `<w:p>${pPr(pprChildren)}</w:p>`
+    }
+    default:
+      return assertNeverBackCoverBlock(block)
+  }
+}
+
+/** 渲染独立封底 / 版权页内容（置于封面之后、目次之前的 backCover 节内，不计入页码）。 */
 export function renderBackCover(ctx: RenderContext, meta: IRDocMeta, backCover: BackCoverConfig): string {
   let xml = ''
+
+  if (Array.isArray(backCover.blocks) && backCover.blocks.length > 0) {
+    xml = backCover.blocks.map((block) => renderBackCoverBlock(ctx, block)).join('')
+    if (!xml) {
+      xml = emitParagraph(ctx, 'SesBackCoverText', {})
+    }
+    if (backCover.boxed) {
+      const boxBorders = tblBorders([
+        ['top', '<w:top w:val="single" w:sz="6" w:space="0" w:color="333333"/>'],
+        ['left', '<w:left w:val="single" w:sz="6" w:space="0" w:color="333333"/>'],
+        ['bottom', '<w:bottom w:val="single" w:sz="6" w:space="0" w:color="333333"/>'],
+        ['right', '<w:right w:val="single" w:sz="6" w:space="0" w:color="333333"/>'],
+      ])
+      const tblPrXml = tblPr([
+        ['tblW', '<w:tblW w:w="9354" w:type="dxa"/>'],
+        ['jc', '<w:jc w:val="center"/>'],
+        ['tblBorders', boxBorders],
+        ['tblLayout', '<w:tblLayout w:type="fixed"/>'],
+        ['tblCellMar', '<w:tblCellMar><w:top w:w="220" w:type="dxa"/><w:left w:w="300" w:type="dxa"/><w:bottom w:w="220" w:type="dxa"/><w:right w:w="300" w:type="dxa"/></w:tblCellMar>'],
+      ])
+      const cellPr = tcPr([['tcW', '<w:tcW w:w="9354" w:type="dxa"/>']])
+      const rowXml = tr([['tc', `<w:tc>${cellPr}${xml}</w:tc>`]])
+      return tbl([
+        ['tblPr', tblPrXml],
+        ['tblGrid', '<w:tblGrid><w:gridCol w:w="9354"/></w:tblGrid>'],
+        ['tr', rowXml],
+      ])
+    }
+    return xml
+  }
+
   const emitLines = (styleId: string, raw: string | undefined): void => {
     const trimmed = raw?.trim()
     if (!trimmed) return

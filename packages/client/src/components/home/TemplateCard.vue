@@ -50,6 +50,7 @@
         <span v-if="template.coverLayout?.logo?.dataUrl" class="meta-chip accent">含封面徽标</span>
         <span v-if="template.coverLayout?.notice?.text?.trim()" class="meta-chip accent">含附加声明</span>
         <span v-if="template.coverLayout?.backCover?.enabled" class="meta-chip accent">含独立封底</span>
+        <span v-if="template.coverLayout?.watermark?.enabled" class="meta-chip accent">含正文水印</span>
       </div>
     </div>
 

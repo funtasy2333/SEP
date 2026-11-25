@@ -256,4 +256,22 @@ describe('stripBodyAnchor（item9：最终 PDF 文本层去哨兵）', () => {
       '<div class="ses-body-content">正文</div><section class="ses-back-cover"></section>',
     );
   });
+
+  it('封面背面/版权页位于封面与目次之间时，不计入前置罗马页码且不干扰正文起始页定位', () => {
+    const pages = [
+      '封面 某标准',
+      'SESBACKCOVERANCHOR\n版权保护文件\n某标准\n地址：杭州市',
+      'SESFRONTSTARTANCHOR\n目　次\n前言\n1 范围',
+      '前言\n本文件按照规则起草',
+      'SESBODYSTARTANCHOR\n某标准\n1 范围',
+    ];
+    const toc: TocTarget[] = [
+      { target: 'front_foreword', text: '前言', division: 'front' },
+      { target: 'ch-1', text: '1　范围', division: 'body' },
+    ];
+    const numbers = computeTocPageNumbers(pages, toc, '某标准');
+    // page0=封面, page1=封底/版权页(不计页码), page2=目次(I), page3=前言(II), page4=正文首页(1)
+    expect(numbers.get('front_foreword')).toBe('II');
+    expect(numbers.get('ch-1')).toBe('1');
+  });
 });

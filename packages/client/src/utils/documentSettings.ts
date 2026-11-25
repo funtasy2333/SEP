@@ -118,7 +118,7 @@ export function documentSettingsDraftFromDocument(
 }
 
 export function sameCoverLayout(a?: CoverLayoutConfig | null, b?: CoverLayoutConfig | null): boolean {
-  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+  return JSON.stringify(cloneCoverLayout(a) ?? null) === JSON.stringify(cloneCoverLayout(b) ?? null)
 }
 
 export function sameDocumentSettingsDraft(a: DocumentSettingsDraft, b: DocumentSettingsDraft): boolean {
