@@ -70,6 +70,8 @@ export const TEMPLATE_PLACEHOLDER_KEYS = [
   'filingNo',
   'replaces',
   'consistency',
+  'publishDate',
+  'implementDate',
   'coverDesignation',
   'industryName',
   'regionName',

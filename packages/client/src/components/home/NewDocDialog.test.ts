@@ -2,6 +2,7 @@
 import { createApp, h, nextTick, ref } from 'vue'
 import ElementPlus from 'element-plus'
 import { expect, it } from 'vitest'
+import { DocumentStage, instantiateTemplateDocument, StandardType, type StandardTemplate } from '@ses/shared'
 import NewDocDialog from './NewDocDialog.vue'
 import { createNewDocument, type NewDocForm } from '../../utils/newDocument'
 
@@ -122,15 +123,16 @@ it('支持 initialTemplateId 预填自定义模板元信息、mini-cover 版式�
   document.body.append(root)
   const visible = ref(false)
   const submitted: Array<{ form: NewDocForm; tplName?: string }> = []
-  const customTemplate = {
+  const customTemplate: StandardTemplate = {
     id: 42,
     uid: 'custom-group-tpl',
     name: '行业协会定制模板',
     description: '含定制徽标与封底',
-    baseType: 'group' as const,
-    defaultStage: 'approval_draft' as const,
+    baseType: StandardType.GROUP,
+    defaultStage: DocumentStage.APPROVAL_DRAFT,
     defaultMeta: {
       stdPrefix: 'T/CISA',
+      titleEn: 'Association Custom Standard',
       proposer: '测试提出协会',
       issuer: '测试发布协会',
       icsCode: '35.240.01',
@@ -139,8 +141,16 @@ it('支持 initialTemplateId 预填自定义模板元信息、mini-cover 版式�
       notice: { text: '仅供内部征求意见', position: 'above_dates' as const },
       backCover: { enabled: true, title: '版权信息' },
     },
-    content: { type: 'doc', content: [] },
-    source: 'human' as const,
+    content: {
+      type: 'doc',
+      content: [
+        {
+          type: 'foreword',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: 'English title: {{titleEn}}' }] }],
+        },
+      ],
+    },
+    source: 'human',
     readonly: false,
     revision: 1,
   }
@@ -178,8 +188,12 @@ it('支持 initialTemplateId 预填自定义模板元信息、mini-cover 版式�
     expect(submitted).toHaveLength(1)
     expect(submitted[0]!.tplName).toBe('行业协会定制模板')
     expect(submitted[0]!.form.stdPrefix).toBe('T/CISA')
+    expect(submitted[0]!.form.titleEn).toBe('Association Custom Standard')
     expect(submitted[0]!.form.proposer).toBe('测试提出协会')
     expect(submitted[0]!.form.stage).toBe('approval_draft')
+    const instantiated = instantiateTemplateDocument(customTemplate, submitted[0]!.form)
+    expect(instantiated.meta.titleEn).toBe('Association Custom Standard')
+    expect(JSON.stringify(instantiated.content)).toContain('English title: Association Custom Standard')
   } finally {
     app.unmount()
     root.remove()

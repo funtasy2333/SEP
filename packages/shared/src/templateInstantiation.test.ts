@@ -213,4 +213,54 @@ describe('templateInstantiation', () => {
     expect(coverNode.attrs?.replaces).toBeUndefined();
     expect(coverNode.attrs?.icsCode).toBeUndefined();
   });
+
+  it('substitutes publishDate and implementDate placeholders when provided and leaves blank ones literal', () => {
+    const templateWithDates: StandardTemplate = {
+      id: 89,
+      uid: '44444444-4444-4444-8444-444444444444',
+      name: '含日期占位符模板',
+      description: '正文使用 publishDate 与 implementDate 占位变量',
+      baseType: StandardType.GROUP,
+      defaultStage: DocumentStage.WORKING_DRAFT,
+      defaultMeta: {
+        stdPrefix: 'T/ZSM',
+        publishDate: '2026-03-01',
+        implementDate: '2026-04-01',
+      },
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'foreword',
+            content: [
+              {
+                type: 'paragraph',
+                content: [{ type: 'text', text: '本文件于{{publishDate}}发布，{{implementDate}}实施。' }],
+              },
+            ],
+          },
+        ],
+      },
+      source: 'human',
+      readonly: false,
+      revision: 1,
+    };
+
+    const instantiated = instantiateTemplateDocument(templateWithDates, {
+      titleCn: '日期占位测试标准',
+    });
+    const foreword = (instantiated.content.content as Array<{ type: string; content?: Array<{ content?: Array<{ text?: string }> }> }>)[1]!;
+    expect(foreword.content?.[0]?.content?.[0]?.text).toBe('本文件于2026-03-01发布，2026-04-01实施。');
+
+    const withBlankDates = replaceTemplatePlaceholders(
+      templateWithDates.content as Parameters<typeof replaceTemplatePlaceholders>[0],
+      {
+        titleCn: '日期占位测试标准',
+        standardType: StandardType.GROUP,
+        publishDate: '   ',
+      },
+    );
+    const literalForeword = (withBlankDates.content as Array<{ type: string; content?: Array<{ content?: Array<{ text?: string }> }> }>)[0]!;
+    expect(literalForeword.content?.[0]?.content?.[0]?.text).toBe('本文件于{{publishDate}}发布，{{implementDate}}实施。');
+  });
 });

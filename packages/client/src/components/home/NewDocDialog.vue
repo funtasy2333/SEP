@@ -390,6 +390,7 @@ function applyTemplatePreset(tpl: StandardTemplate) {
   const dm = tpl.defaultMeta ?? {}
   form.value.stage = tpl.defaultStage || 'working_draft'
   form.value.stdPrefix = dm.stdPrefix ?? ''
+  form.value.titleEn = dm.titleEn ?? ''
   form.value.icsCode = dm.icsCode ?? ''
   form.value.ccsCode = dm.ccsCode ?? ''
   form.value.issuer = dm.issuer ?? ''
