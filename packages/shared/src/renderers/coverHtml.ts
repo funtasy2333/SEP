@@ -3,9 +3,10 @@ import type { IRDocMeta } from '../ir/types'
 import type { DocumentStage } from '../types/document'
 import type { BackCoverAlign, BackCoverBlock, BackCoverConfig, CoverLayoutConfig, WatermarkConfig } from '../types/template'
 import { getCoverDesignation } from '../coverDesignation'
-import { isReplaceMarkForbidden, parseCoverLogoDataUrl } from '../coverLayoutValidation'
+import { COVER_LOGO_MIN_MM, WATERMARK_FONT_MAX_PT, WATERMARK_FONT_MIN_PT, WATERMARK_IMAGE_MAX_HEIGHT_MM, WATERMARK_IMAGE_MAX_WIDTH_MM, WATERMARK_MAX_OPACITY, WATERMARK_MIN_OPACITY, WATERMARK_TEXT_MAX_LENGTH, isReplaceMarkForbidden, parseCoverLogoDataUrl } from '../coverLayoutValidation'
 import { COVER_ASSETS } from './docx/assets'
 import { industryLogoFamily, localRegionCode, normalizeCoverStdCode, STAGE_LABELS, typeMarkCode } from './docx/cover'
+import { escapeXmlText } from './docx/xml'
 
 function text(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -229,6 +230,40 @@ export function renderWatermarkPreviewHtml(meta: IRDocMeta, watermark: Watermark
     return `${renderSamplePage(1, true)}\n${renderSamplePage(2, false)}`
   }
   return renderSamplePage(1, true)
+}
+
+/** Page backgrounds repeat in Vivliostyle; fixed-position HTML does not. */
+export function renderWatermarkPrintCss(watermark: WatermarkConfig): string {
+  if (!watermark.enabled) return ''
+  const clamp = (value: number | undefined, fallback: number, min: number, max: number) =>
+    typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback
+  const opacity = clamp(watermark.opacity, 0.2, WATERMARK_MIN_OPACITY, WATERMARK_MAX_OPACITY)
+  // A square image centered on the page keeps the same physical logo size in
+  // portrait and landscape while embedding large image payloads only once.
+  const side = 297
+  const center = side / 2
+  let content: string
+  if (watermark.kind === 'text') {
+    const size = clamp(watermark.fontSizePt, 48, WATERMARK_FONT_MIN_PT, WATERMARK_FONT_MAX_PT) * 25.4 / 72
+    const angle = clamp(watermark.rotationDeg, -45, -90, 90)
+    const color = /^#[0-9a-f]{6}$/i.test(watermark.color ?? '') ? watermark.color : '#8c8c8c'
+    const label = escapeXmlText((watermark.text?.trim() || '内部草案').slice(0, WATERMARK_TEXT_MAX_LENGTH))
+    content = `<text x="${center}" y="${center}" text-anchor="middle" dominant-baseline="central" font-family="Times New Roman, SimSun, 宋体, serif" font-size="${size}" fill="${color}" opacity="${opacity}" transform="rotate(${angle} ${center} ${center})">${label}</text>`
+  } else if (watermark.kind === 'image' && watermark.dataUrl && parseCoverLogoDataUrl(watermark.dataUrl)) {
+    const w = clamp(watermark.widthMm, 90, COVER_LOGO_MIN_MM, WATERMARK_IMAGE_MAX_WIDTH_MM)
+    const h = clamp(watermark.heightMm, 90, COVER_LOGO_MIN_MM, WATERMARK_IMAGE_MAX_HEIGHT_MM)
+    content = `<image x="${center - w / 2}" y="${center - h / 2}" width="${w}" height="${h}" opacity="${opacity}" preserveAspectRatio="none" href="${watermark.dataUrl}"/>`
+  } else return ''
+  const image = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${side}mm" height="${side}mm" viewBox="0 0 ${side} ${side}">${content}</svg>`)}`
+  const page = (name: string, group: string) => {
+    const selector = watermark.frequency === 'alternate' ? `${name}:nth(2n+1 of ${group})` : name
+    return `@page ${selector} { background-image: var(--ses-pdf-watermark-image); background-position: center; background-size: 297mm 297mm; background-repeat: no-repeat; }`
+  }
+  return [
+    `:root { --ses-pdf-watermark-image: url("${image}"); }`,
+    page('front', 'front'), page('body', 'body'), page('landscape', 'body'),
+    ...['front', 'body', 'landscape'].map((name) => `@page ${name}:blank { background-image: none !important; }`),
+  ].join('\n')
 }
 
 export const COVER_PRINT_CSS = `

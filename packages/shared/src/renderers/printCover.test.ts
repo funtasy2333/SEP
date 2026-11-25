@@ -141,8 +141,9 @@ describe('PDF 打印封面', () => {
     expect(printHtml).toContain('T/ZSM')
     expect(printHtml).toContain('ses-back-cover-boxed')
     expect(printHtml).toContain('版权保护文件')
-    expect(printHtml).toContain('ses-watermark-print-layer')
-    expect(printHtml).toContain('评审草案')
+    expect(printHtml).toContain('<style id="ses-pdf-watermark">')
+    expect(printHtml).toContain('@page body:nth(2n+1 of body)')
+    expect(printHtml).not.toContain('<div class="ses-watermark-print-layer"')
 
     const screenHtml = renderHtml(input, labels, { variant: 'screen', coverLayout })
     expect(screenHtml).not.toContain('ses-watermark-layer')
@@ -157,5 +158,43 @@ describe('PDF 打印封面', () => {
     })
     expect(previewEvery).toContain('第 1 页（奇数页 · 含水印）')
     expect(previewEvery).not.toContain('偶数页 · 无水印')
+  })
+
+  it('renders text and image watermarks as page backgrounds for front, body and landscape pages', () => {
+    const input = doc()
+    const labels = resolve(input).labels
+    const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+    for (const watermark of [
+      { enabled: true, kind: 'text' as const, text: 'A<&B', color: '#112233', fontSizePt: 36, rotationDeg: -30, opacity: 0.3, frequency: 'every' as const },
+      { enabled: true, kind: 'image' as const, dataUrl: image, widthMm: 50, heightMm: 30, opacity: 0.4, frequency: 'alternate' as const },
+    ]) {
+      const html = renderHtml(input, labels, { variant: 'print', coverLayout: { watermark } })
+      const style = /<style id="ses-pdf-watermark">([\s\S]*?)<\/style>/.exec(html)?.[1] ?? ''
+      expect(style).toContain(watermark.frequency === 'every' ? '@page front {' : '@page front:nth(2n+1 of front) {')
+      expect(style).toContain(watermark.frequency === 'every' ? '@page body {' : '@page body:nth(2n+1 of body) {')
+      expect(style).toContain(watermark.frequency === 'every' ? '@page landscape {' : '@page landscape:nth(2n+1 of body) {')
+      expect(style).toContain('@page body:blank')
+      expect(style).toContain('@page front:blank')
+      expect(style).toContain('@page landscape:blank')
+      const svg = decodeURIComponent(/data:image\/svg\+xml,([^"']+)/.exec(style)?.[1] ?? '')
+      expect(style.match(/data:image\/svg\+xml,/g)).toHaveLength(1)
+      if (watermark.kind === 'text') {
+        expect(svg).toContain('A&lt;&amp;B')
+        expect(svg).toContain('#112233')
+      } else {
+        expect(svg).toContain(image)
+      }
+      expect(renderHtml(input, labels, { variant: 'screen', coverLayout: { watermark } })).not.toContain('ses-pdf-watermark')
+    }
+  })
+
+  it('omits invalid XML characters from watermark text without breaking print rendering', () => {
+    const input = doc()
+    const html = renderHtml(input, resolve(input).labels, { variant: 'print', coverLayout: {
+      watermark: { enabled: true, kind: 'text', frequency: 'every', text: 'OK\u0000\ud800!' },
+    } })
+    const svg = decodeURIComponent(/data:image\/svg\+xml,([^"']+)/.exec(html)?.[1] ?? '')
+    expect(svg).toContain('OK!')
+    expect(svg).not.toContain('\u0000')
   })
 })

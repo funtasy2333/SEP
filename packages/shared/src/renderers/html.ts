@@ -56,7 +56,7 @@ import { hasActiveCoverLayout } from '../coverLayoutValidation'
 import { printCss } from './printCss'
 import type { DocumentStage } from '../types/document'
 import type { CoverLayoutConfig } from '../types/template'
-import { COVER_LAYOUT_PRINT_CSS, renderBackCoverHtml, renderCoverHtml, renderWatermarkLayerHtml } from './coverHtml'
+import { COVER_LAYOUT_PRINT_CSS, renderBackCoverHtml, renderCoverHtml, renderWatermarkPrintCss } from './coverHtml'
 import { tableBordersCss } from './tableBordersCss'
 import { assertFootnoteReferences, orderTableFootnotes, tableColumnCount } from './footnotes'
 
@@ -1016,6 +1016,10 @@ export function renderHtml(doc: IRDoc, labels: Labels, opts: RenderHtmlOptions =
   // KaTeX's stylesheet may be loaded after this one by the PDF pipeline.
   // The scoped selector keeps inline math at the paragraph's size in either order.
   ctx.push(`<style>${css.trimEnd()}\n.ses-formula-inline .katex { font-size: 1em; }</style>`)
+  if (variant === 'print' && opts.coverLayout?.watermark) {
+    const watermarkCss = renderWatermarkPrintCss(opts.coverLayout.watermark)
+    if (watermarkCss) ctx.push(`<style id="ses-pdf-watermark">${watermarkCss}</style>`)
+  }
   ctx.push('</head>')
   ctx.push('<body>')
   ctx.push(`<article class="ses-standard" data-type="standard-doc"${metaAttrs(doc.meta)}>`)
@@ -1024,9 +1028,6 @@ export function renderHtml(doc: IRDoc, labels: Labels, opts: RenderHtmlOptions =
   if (variant === 'print' && opts.coverLayout?.backCover?.enabled) {
     ctx.push(`<span class="ses-back-cover-anchor" aria-hidden="true">${BACK_COVER_SENTINEL}</span>`)
     ctx.push(renderBackCoverHtml(doc.meta, opts.coverLayout.backCover))
-  }
-  if (variant === 'print' && opts.coverLayout?.watermark?.enabled) {
-    ctx.push(renderWatermarkLayerHtml(opts.coverLayout.watermark, false))
   }
   renderFront(doc, ctx)
   renderBody(doc, ctx)

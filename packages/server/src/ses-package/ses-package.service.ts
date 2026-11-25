@@ -42,6 +42,7 @@ export interface SesImportPreview {
   newVersions: number;
   localOnlyVersions: number;
   contentDiffers: boolean;
+  coverLayoutDiffers: boolean;
   versionNoCollisions: string[];
 }
 
@@ -237,6 +238,7 @@ export class SesPackageService {
           newVersions: pkg.versions.length,
           localOnlyVersions: 0,
           contentDiffers: false,
+          coverLayoutDiffers: false,
           versionNoCollisions: [],
         };
       }
@@ -281,7 +283,8 @@ export class SesPackageService {
         localOnlyVersions,
         contentDiffers:
           stableStringify(match.content) !==
-            stableStringify(pkg.document.content) ||
+            stableStringify(pkg.document.content),
+        coverLayoutDiffers:
           stableStringify(
             (match.meta as Record<string, unknown> | undefined)?.coverLayout ??
               null,

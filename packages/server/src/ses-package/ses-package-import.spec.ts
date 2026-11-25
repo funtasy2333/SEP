@@ -43,6 +43,7 @@ interface ImportPreviewBody {
   newVersions: number;
   localOnlyVersions: number;
   contentDiffers: boolean;
+  coverLayoutDiffers: boolean;
   versionNoCollisions: string[];
 }
 
@@ -224,6 +225,7 @@ describe('POST /api/documents/import/ses', () => {
       newVersions: 1,
       localOnlyVersions: 1,
       contentDiffers: false,
+      coverLayoutDiffers: false,
       versionNoCollisions: ['1.0'],
     });
 
@@ -260,6 +262,7 @@ describe('POST /api/documents/import/ses', () => {
       newVersions: 2,
       localOnlyVersions: 0,
       contentDiffers: false,
+      coverLayoutDiffers: false,
       versionNoCollisions: [],
     });
   });
@@ -1004,13 +1007,36 @@ describe('POST /api/documents/import/ses', () => {
     const pkg = JSON.parse(exported.text) as ReturnType<typeof packageFixture>;
     expect((pkg.document.meta as Record<string, any>).coverLayout.notice.text).toBe('初始声明');
 
-    // Change only coverLayout -> previewImport flags contentDiffers: true
+    // Key order alone does not count as a change.
+    const layout = (pkg.document.meta as Record<string, any>).coverLayout;
+    (pkg.document.meta as Record<string, any>).coverLayout = reverseObjectKeys(layout);
+    let preview = await expectBody<ImportPreviewBody>(postPackage(testApp, pkg, 'mode=preview'), 200);
+    expect(preview).toMatchObject({ contentDiffers: false, coverLayoutDiffers: false });
+
+    // Cover changes and body changes are independently reported.
     (pkg.document.meta as Record<string, any>).coverLayout.notice.text = '新版声明';
-    const preview = await expectBody<ImportPreviewBody>(
+    preview = await expectBody<ImportPreviewBody>(
       postPackage(testApp, pkg, 'mode=preview'),
       200,
     );
-    expect(preview.contentDiffers).toBe(true);
+    expect(preview).toMatchObject({ contentDiffers: false, coverLayoutDiffers: true });
+    pkg.document.content = content('新版正文');
+    preview = await expectBody<ImportPreviewBody>(postPackage(testApp, pkg, 'mode=preview'), 200);
+    expect(preview).toMatchObject({ contentDiffers: true, coverLayoutDiffers: true });
+    pkg.document.content = doc.content!;
+    delete (pkg.document.meta as Record<string, any>).coverLayout;
+    preview = await expectBody<ImportPreviewBody>(postPackage(testApp, pkg, 'mode=preview'), 200);
+    expect(preview).toMatchObject({ contentDiffers: false, coverLayoutDiffers: true });
+
+    // A cover-only import overwrites metadata without creating a body version.
+    await postPackage(testApp, pkg, `mode=update&targetId=${doc.id}&baseRevision=${doc.revision}`).expect(200);
+    expect((await testApp.documents.findOne(doc.id)).meta).not.toHaveProperty('coverLayout');
+    expect(await testApp.dataSource.getRepository(VersionEntity).countBy({ documentId: doc.id })).toBe(0);
+
+    // Adding a cover is also reported, and does not change the body flag.
+    (pkg.document.meta as Record<string, any>).coverLayout = layout;
+    preview = await expectBody<ImportPreviewBody>(postPackage(testApp, pkg, 'mode=preview'), 200);
+    expect(preview).toMatchObject({ contentDiffers: false, coverLayoutDiffers: true });
 
     // Malicious external URL inside coverLayout is rejected with 400
     (pkg.document.meta as Record<string, any>).coverLayout.logo.dataUrl =

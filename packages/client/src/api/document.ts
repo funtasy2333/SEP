@@ -69,6 +69,8 @@ export interface SesImportPreview {
   newVersions: number
   localOnlyVersions: number
   contentDiffers: boolean
+  /** 旧版服务端未提供此字段。 */
+  coverLayoutDiffers?: boolean
   versionNoCollisions: string[]
 }
 
