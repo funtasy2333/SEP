@@ -159,6 +159,51 @@ describe('templateInstantiation', () => {
     expect(out.content?.[1]?.content?.[0]?.content?.[0]?.text).toBe('关于新标准');
   });
 
+  it('replaces split placeholders with the opening marks while preserving surrounding formatting', () => {
+    const input = { type: 'paragraph', content: [
+      { type: 'text', text: 'Before {{ti', marks: [{ type: 'bold' }] },
+      { type: 'text', text: 'tleCn', marks: [{ type: 'italic' }] },
+      { type: 'text', text: '}} after {{issuer}}!', marks: [{ type: 'underline' }] },
+    ] };
+    const out = replaceTemplatePlaceholders(input, { titleCn: 'Name', issuer: '{{titleCn}}', standardType: StandardType.GROUP });
+    expect(out.content).toEqual([
+      { type: 'text', text: 'Before Name', marks: [{ type: 'bold' }] },
+      { type: 'text', text: ' after {{titleCn}}!', marks: [{ type: 'underline' }] },
+    ]);
+    expect(input.content[0]!.text).toBe('Before {{ti');
+  });
+
+  it('keeps unknown and unset split tokens and does not join across inline or block boundaries', () => {
+    const input = { type: 'doc', content: [
+      { type: 'paragraph', content: [
+        { type: 'text', text: '{{unk' }, { type: 'text', text: 'nown}} {{pro' }, { type: 'text', text: 'poser}}' },
+        { type: 'text', text: ' {{title' }, { type: 'hardBreak' }, { type: 'text', text: 'Cn}}' },
+      ] },
+      { type: 'paragraph', content: [{ type: 'text', text: '{{title' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: 'Cn}}' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: '{{ title' }, { type: 'text', text: 'Cn }}' }] },
+    ] };
+    const out = replaceTemplatePlaceholders(input, { titleCn: 'Name', standardType: StandardType.GROUP });
+    expect(out.content?.slice(0, 3)).toEqual(input.content.slice(0, 3));
+    expect(out.content?.[3]?.content).toEqual([{ type: 'text', text: 'Name' }]);
+  });
+
+  it('replaces adjacent tokens sharing a node without extending link marks to surrounding text', () => {
+    const link = { type: 'externalLink', attrs: { href: 'https://example.org' } };
+    const out = replaceTemplatePlaceholders({ type: 'paragraph', content: [
+      { type: 'text', text: 'before ' },
+      { type: 'text', text: '{{title', marks: [link] },
+      { type: 'text', text: 'Cn}}{{issuer}}{{title' },
+      { type: 'text', text: 'Cn}} after', marks: [{ type: 'italic' }] },
+    ] }, { titleCn: 'Name', issuer: 'Org', standardType: StandardType.GROUP });
+    expect(out.content).toEqual([
+      { type: 'text', text: 'before ' },
+      { type: 'text', text: 'Name', marks: [link] },
+      { type: 'text', text: 'OrgName' },
+      { type: 'text', text: ' after', marks: [{ type: 'italic' }] },
+    ]);
+  });
+
   it('clears stale managed coverPage attrs when omitted or cleared during instantiation', () => {
     const derivedTemplate: StandardTemplate = {
       id: 88,

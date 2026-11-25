@@ -277,22 +277,72 @@ export function getBuiltinTemplate(idOrUidOrType: string): StandardTemplate | un
 export function replaceTemplatePlaceholders(content: PMJsonNode, meta: DocumentMeta): PMJsonNode {
   const cloned = JSON.parse(JSON.stringify(content)) as PMJsonNode;
 
+  const replaceRun = (nodes: PMJsonNode[]): void => {
+    const text = nodes.map((node) => node.text!).join('');
+    if (!text.includes('{{')) return;
+
+    // Read original offsets in order and rebuild each node's text only once.
+    let index = 0;
+    let nodeStart = 0;
+    let cursor = 0;
+    let fragments: string[] = [];
+    const advanceTo = (end: number, keep: boolean): void => {
+      while (index < nodes.length) {
+        const node = nodes[index]!;
+        const nodeEnd = nodeStart + node.text!.length;
+        const next = Math.min(end, nodeEnd);
+        if (keep && cursor < next) {
+          fragments.push(node.text!.slice(cursor - nodeStart, next - nodeStart));
+        }
+        cursor = next;
+        if (next < nodeEnd) return;
+        node.text = fragments.join('');
+        fragments = [];
+        index++;
+        nodeStart = nodeEnd;
+      }
+    };
+
+    for (const match of text.matchAll(PLACEHOLDER_REGEX)) {
+      const key = match[1]!;
+      const value = PLACEHOLDER_KEY_SET.has(key) ? meta[key as TemplatePlaceholderKey] : undefined;
+      const replacement = typeof value === 'string' ? value.trim() : '';
+      if (!replacement) continue;
+      const start = match.index!;
+      advanceTo(start, true);
+      // The replacement inherits the marks on the opening braces.
+      fragments.push(replacement);
+      advanceTo(start + match[0].length, false);
+    }
+    advanceTo(text.length, true);
+  };
+
   const visit = (node: PMJsonNode): void => {
     if (node.type === 'coverPage') return;
     if (node.type === 'text' && typeof node.text === 'string') {
-      node.text = node.text.replace(PLACEHOLDER_REGEX, (full, rawKey: string) => {
-        if (!PLACEHOLDER_KEY_SET.has(rawKey)) return full;
-        const val = meta[rawKey as TemplatePlaceholderKey];
-        if (typeof val !== 'string') return full;
-        const trimmed = val.trim();
-        return trimmed.length > 0 ? trimmed : full;
-      });
+      replaceRun([node]);
       return;
     }
     if (Array.isArray(node.content)) {
-      for (const child of node.content) {
-        visit(child);
+      const result: PMJsonNode[] = [];
+      for (let i = 0; i < node.content.length;) {
+        const child = node.content[i]!;
+        if (child.type !== 'text' || typeof child.text !== 'string') {
+          visit(child);
+          result.push(child);
+          i++;
+          continue;
+        }
+        const run: PMJsonNode[] = [];
+        while (i < node.content.length && node.content[i]!.type === 'text' && typeof node.content[i]!.text === 'string') {
+          run.push(node.content[i++]!);
+        }
+        replaceRun(run);
+        for (const part of run) {
+          if (part.text) result.push(part);
+        }
       }
+      node.content = result;
     }
   };
 

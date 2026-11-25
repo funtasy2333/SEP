@@ -19,6 +19,32 @@ describe('.sestpl template export & import', () => {
     await t.app.close();
   });
 
+  it('imports an exported built-in as a distinct template resolvable by its UID', async () => {
+    const exported = await t.http.get('/api/templates/builtin:group/export').expect(200);
+    const pkg = JSON.parse(exported.text) as Record<string, any>;
+    const builtinUid = pkg.template.uid;
+    pkg.template.name = '机构模板';
+
+    // A built-in is not a writable target, so preview must offer a new import.
+    const preview = await t.http
+      .post('/api/templates/import?mode=preview')
+      .set('Content-Type', SES_TEMPLATE_MIME)
+      .send(JSON.stringify(pkg))
+      .expect(200);
+    expect(preview.body.status).toBe('new');
+    expect(preview.body.existing).toBeNull();
+
+    const imported = await t.http
+      .post('/api/templates/import?mode=new')
+      .set('Content-Type', SES_TEMPLATE_MIME)
+      .send(JSON.stringify(pkg))
+      .expect(200);
+    expect(imported.body.uid.toLowerCase()).not.toBe(builtinUid.toLowerCase());
+    expect((await t.templates.resolveByIdentifier(imported.body.uid)).id).toBe(imported.body.id);
+    expect((await t.templates.resolveByIdentifier(imported.body.id)).id).toBe(imported.body.id);
+    expect((await t.templates.resolveByIdentifier('builtin:group')).uid).toBe(builtinUid);
+  });
+
   it('exports .sestpl losslessly, detects UUID conflict on preview, updates existing, and imports as new', async () => {
     const created = await t.http
       .post('/api/templates')

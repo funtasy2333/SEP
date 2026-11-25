@@ -650,6 +650,7 @@ export class TemplateService {
       const saved = await this.writes.run(async () => {
         const uid = pkg.template.uid.toLowerCase();
         const uidOccupied =
+          Boolean(getBuiltinTemplate(uid)) ||
           (await this.repo
             .createQueryBuilder('template')
             .where('LOWER(template.uid) = :uid', { uid })
