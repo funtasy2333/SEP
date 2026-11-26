@@ -5,6 +5,7 @@ set -euo pipefail
 SRC="$(cd -- "$(dirname -- "$0")/.." && pwd -P)"
 TMP="$(cd -- "$(mktemp -d "${TMPDIR:-/tmp}/ses-desktop-test.XXXXXX")" && pwd -P)"
 trap 'rm -rf "$TMP"' EXIT
+unset SES_NO_SHORTCUT
 
 ROOT="$TMP/SES [preview] 中文 路径"
 DESKTOP="$TMP/Desktop"

@@ -90,7 +90,9 @@ class IconsAndLaunchers(unittest.TestCase):
 class WindowsDesktopRuntime(unittest.TestCase):
     def run_desktop(self, root: Path, *args: str, env: dict[str, str]):
         script = root / 'scripts/ses-desktop.ps1'
-        child_env = {**os.environ, **env}
+        child_env = {**os.environ}
+        child_env.pop('SES_NO_SHORTCUT', None)
+        child_env.update(env)
         if 'powershell' in Path(PWSH).name.lower():
             child_env.pop('PSModulePath', None)
         return subprocess.run(
