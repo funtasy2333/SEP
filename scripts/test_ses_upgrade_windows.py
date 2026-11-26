@@ -79,7 +79,7 @@ class Static(unittest.TestCase):
 
     def test_macos_launcher_marks_the_server(self):
         text = (ROOT / 'scripts/ses-local.sh').read_text(encoding='utf-8')
-        self.assertRegex(text, r'exec env PORT=3000 SES_LISTEN_HOST=127\.0\.0\.1 SES_LAUNCHER=macos "\$2" dist/main\.js')
+        self.assertRegex(text, r'exec env PORT=3000 SES_LISTEN_HOST=127\.0\.0\.1 SES_LAUNCHER=macos\s')
         self.assertEqual(text.count('SES_LAUNCHER'), 1)
 
 

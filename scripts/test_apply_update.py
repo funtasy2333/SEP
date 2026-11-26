@@ -220,6 +220,38 @@ class ArchiveStaging(unittest.TestCase):
 
 
 class ReleaseStaging(unittest.TestCase):
+    def test_windows_runtime_is_replaced_and_rolled_back_as_a_directory(self):
+        with tempfile.TemporaryDirectory() as base:
+            root = fake_install(base)
+            old_runtime = write(root / '.ses-runtime/old.js', 'old runtime')
+            before = snapshot(root)
+            staging = Path(base) / 'staging'
+            top = staging / 'SES-9.9.9-preview-windows'
+            write(top / 'ses-build.json', json.dumps({'version': '9.9.9-preview', 'runtime': 'windows-x64'}))
+            write(top / 'scripts/ses-windows.ps1')
+            runtime_files = ['node.exe', 'server/dist/main.js', 'server/package.json', 'client/index.html',
+                             'server/node_modules/better-sqlite3/build/Release/better_sqlite3.node']
+            for name in runtime_files:
+                write(top / '.ses-runtime' / name, name)
+            plan = write_plan(root, 'windows', channel='stable')
+            run_apply('apply', '--root', root, '--staging', staging, '--plan', plan)
+            self.assertFalse(old_runtime.exists())
+            self.assertEqual((root / '.ses-runtime/node.exe').read_text(encoding='utf-8'), 'node.exe')
+            self.assertEqual((root / 'packages/server/node_modules/x/index.js').read_text(encoding='utf-8'), 'server dep')
+            run_apply('rollback', '--root', root)
+            self.assertEqual(snapshot(root), before)
+
+    def test_windows_source_update_removes_the_old_runtime(self):
+        with tempfile.TemporaryDirectory() as base:
+            staging, _ = self.build(base, 'windows')
+            root = fake_install(base)
+            runtime = write(root / '.ses-runtime/node.exe', 'previous bundled Node.js')
+            plan = write_plan(root, 'windows')
+            run_apply('apply', '--root', root, '--staging', staging, '--plan', plan)
+            self.assertFalse(runtime.parent.exists())
+            run_apply('rollback', '--root', root)
+            self.assertEqual(runtime.read_text(encoding='utf-8'), 'previous bundled Node.js')
+
     def build(self, base, platform, version='9.9.9-preview'):
         archive = package_release.build_archive(platform, Path(base) / 'zip', version, SHA)
         staging = Path(base) / f'staging-{platform}'

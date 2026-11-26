@@ -38,9 +38,11 @@ const SKIP_SUFFIXES = ['.test.ts', '.spec.ts', '.snap', '.md', '.tsbuildinfo'];
 const AUTHORING_SOURCE = 'docs/wp9-authoring-reference.md';
 const AUTHORING_TARGET = 'packages/server/resources/authoring-reference.md';
 const ENTRIES = {
-  windows: ['启动SES.cmd', '退出SES.cmd', 'scripts/ses-windows.ps1', 'scripts/backup-db.cjs', 'scripts/build-state.cjs', 'scripts/check-sqlite.cjs',
+  windows: ['启动SES.cmd', '退出SES.cmd', 'scripts/ses-windows.ps1', 'scripts/ses-desktop.ps1', 'scripts/ses.ico',
+    'scripts/backup-db.cjs', 'scripts/build-state.cjs', 'scripts/check-sqlite.cjs',
     'scripts/start-service.cjs', 'scripts/apply-update.cjs', 'scripts/ses-upgrade.ps1', 'scripts/run-detached.cjs'],
-  macos: ['启动SES.command', '退出SES.command', 'scripts/ses-local.sh', 'scripts/backup-db.cjs', 'scripts/build-state.cjs', 'scripts/apply-update.cjs', 'scripts/ses-upgrade.sh'],
+  macos: ['启动SES.command', '退出SES.command', 'scripts/ses-local.sh', 'scripts/ses-desktop.sh', 'scripts/ses.icns',
+    'scripts/backup-db.cjs', 'scripts/build-state.cjs', 'scripts/apply-update.cjs', 'scripts/ses-upgrade.sh'],
 };
 const LAUNCHER_SCRIPT = { windows: 'scripts/ses-windows.ps1', macos: 'scripts/ses-local.sh' };
 // 归档里没有这些文件说明压缩包不是 SES，直接拒绝；其余缺失的配置文件仅告警并跳过。
@@ -57,6 +59,12 @@ const PROTECTED_TOP = new Set(['.ses-update', '.ses-run', '.ses-tools', 'output'
 const PROTECTED_PREFIXES = [['packages', 'server', 'data']];
 const DB_FILES = ['ses.db', 'ses.db-wal', 'ses.db-shm'];
 const DB_DIR = 'packages/server/data';
+const BUNDLED_RUNTIME = '.ses-runtime';
+const BUNDLED_RUNTIME_IDS = { windows: 'windows-x64', macos: 'macos-arm64' };
+const BUNDLED_RUNTIME_FILES = [
+  'server/package.json', 'server/dist/main.js', 'client/index.html',
+  'server/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
+];
 
 // ---------------------------------------------------------------------------
 // 通用工具
@@ -305,11 +313,26 @@ function resolveStaging(staging, platform, plan) {
   let kind;
   let files;
   let buildInfo;
+  let portable = false;
   if (fs.existsSync(buildFile)) {
     kind = 'release';
     const info = readJson(buildFile, '安装包中的 ses-build.json');
     if (!info || typeof info.version !== 'string' || !info.version) fail('安装包中的 ses-build.json 缺少 version');
     files = releaseFiles(top, platform);
+    portable = info.runtime === BUNDLED_RUNTIME_IDS[platform];
+    if (info.runtime !== undefined && !portable) fail('发布包的运行环境与当前平台不匹配');
+    for (const rel of files.keys()) {
+      const segments = relSegments(rel);
+      if (segments[0].toLowerCase() === BUNDLED_RUNTIME && (!portable || segments[0] !== BUNDLED_RUNTIME || segments.length === 1)) {
+        fail(`发布包包含无效的运行环境路径：${rel}`);
+      }
+    }
+    if (portable) {
+      const node = platform === 'windows' ? 'node.exe' : 'node';
+      for (const name of [node, ...BUNDLED_RUNTIME_FILES]) {
+        if (!files.has(`${BUNDLED_RUNTIME}/${name}`)) fail(`运行环境缺少 ${name}`);
+      }
+    }
     buildInfo = null; // 原样安装
   } else if (isDirectory(path.join(top, 'packages')) && fs.existsSync(path.join(top, ...AUTHORING_SOURCE.split('/')))) {
     kind = 'archive';
@@ -326,7 +349,7 @@ function resolveStaging(staging, platform, plan) {
   } else {
     fail('无法识别压缩包类型：既不是 SES 发布包（缺少 ses-build.json），也不是源码归档');
   }
-  return { kind, top, files, buildInfo };
+  return { kind, top, files, buildInfo, portable };
 }
 
 // ---------------------------------------------------------------------------
@@ -352,10 +375,17 @@ function updDir(root) {
 function cmdApply(args) {
   const root = fs.realpathSync(path.resolve(need(args, 'root')));
   const plan = readPlan(need(args, 'plan'));
-  const { files, kind, buildInfo } = resolveStaging(path.resolve(need(args, 'staging')), plan.platform, plan);
+  const { files, kind, buildInfo, top, portable } = resolveStaging(path.resolve(need(args, 'staging')), plan.platform, plan);
   const check = createGuard(root);
 
+  // The validated runtime is moved as a unit. Keep node_modules protected in the rest of the installation.
+  if (portable) {
+    for (const rel of files.keys()) if (rel.startsWith(`${BUNDLED_RUNTIME}/`)) files.delete(rel);
+  }
   const replaced = REPLACE_DIRS.filter(dir => [...files.keys()].some(rel => rel.startsWith(`${dir}/`)));
+  if (portable || exists(path.join(root, BUNDLED_RUNTIME))) {
+    replaced.push(BUNDLED_RUNTIME);
+  }
   const inReplaced = rel => replaced.some(dir => rel.startsWith(`${dir}/`));
 
   // 先校验全部目标，任何一条不合法都在写入前整体拒绝。
@@ -419,6 +449,7 @@ function cmdApply(args) {
     // 仅供测试：模拟写到一半失败，用来验证 rollback。
     if (process.env.SES_APPLY_TEST_FAIL_AFTER && written >= Number(process.env.SES_APPLY_TEST_FAIL_AFTER)) fail('测试注入的失败');
   }
+  if (portable) moveEntry(path.join(top, BUNDLED_RUNTIME), targets.get(BUNDLED_RUNTIME));
   manifest.applied = true;
   writeJson(manifestFile, manifest);
   process.stdout.write(`已替换 ${written} 个文件（整目录替换：${replaced.join(', ') || '无'}），类型：${kind === 'release' ? '发布包' : '源码归档'}${buildInfo ? `，版本 ${buildInfo.version}` : ''}。\n`);

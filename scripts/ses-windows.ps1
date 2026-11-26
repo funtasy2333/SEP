@@ -1,5 +1,10 @@
 # Windows PowerShell 5.1+. Runtime downloads and registry settings are local to SES.
-param([ValidateSet('start', 'stop')][string]$Action = 'start')
+param(
+    [Parameter(Position = 0)][ValidateSet('start', 'stop')][string]$Action = 'start',
+    [switch]$NoOpen,
+    [switch]$NoShortcut,
+    [switch]$GuiError
+)
 $ErrorActionPreference = 'Stop'
 $script:SesRoot = Split-Path -Parent $PSScriptRoot
 $script:SesRun = Join-Path $script:SesRoot '.ses-run'
@@ -244,39 +249,64 @@ function Invoke-SesMain([string]$Mode) {
         if ($Mode -eq 'stop') {
             Stop-SesService 'client'
             Stop-SesService 'server'
+            $updateDir = Join-Path $script:SesRoot '.ses-update'
+            if (!(Test-Path -LiteralPath (Join-Path $updateDir 'lock'))) {
+                Remove-Item -LiteralPath (Join-Path $updateDir 'relay-node.exe') -Force -ErrorAction SilentlyContinue
+            }
             Write-Host 'SES stopped. Documents have been preserved.'
             $success = $true
             return
         }
+        $buildFile = Join-Path $script:SesRoot 'ses-build.json'
+        $portable = (Test-Path -LiteralPath $buildFile) -and ((Get-Content -LiteralPath $buildFile -Raw -Encoding UTF8 | ConvertFrom-Json).runtime -eq 'windows-x64')
         Assert-SesPort 3000 'server'
-        Assert-SesPort 5173 'client'
-        Initialize-SesRuntime
-        Install-SesDependencies
-        if (!(Get-SesListeners 3000).Count) {
-            $needBuild = ($env:SES_FORCE_BUILD -eq '1')
-            if (-not $needBuild) {
-                & $script:SesNode (Join-Path $script:SesRoot 'scripts/build-state.cjs') 'check'
-                $needBuild = ($LASTEXITCODE -ne 0)
+        Assert-SesPort 5173 $(if ($portable) { 'server' } else { 'client' })
+        $entry = Join-Path $script:SesRoot 'packages/server/dist/main.js'
+        $readyUrl = 'http://127.0.0.1:3000/api/documents'
+        if ($portable) {
+            $runtime = Join-Path $script:SesRoot '.ses-runtime'
+            $script:SesNode = Join-Path $runtime 'node.exe'
+            $entry = Join-Path $runtime 'server/dist/main.js'
+            $client = Join-Path $runtime 'client'
+            foreach ($file in @($script:SesNode, $entry, (Join-Path $client 'index.html'))) {
+                if (!(Test-Path -LiteralPath $file -PathType Leaf)) { throw "Incomplete SES package: $file. Extract the complete ZIP again." }
             }
-            if ($needBuild) {
-                Write-Host 'Building SES server...'
-                Invoke-SesCommand $script:SesNode @($script:SesPnpm, '--filter', '@ses/server', 'run', 'build')
-                Invoke-SesCommand $script:SesNode @((Join-Path $script:SesRoot 'scripts/build-state.cjs'), 'record')
-            } else {
-                Write-Host 'Build is up to date, skipping.'
+            [void][IO.Directory]::CreateDirectory((Join-Path $script:SesRoot 'packages/server'))
+            $readyUrl = 'http://127.0.0.1:5173/'
+        }
+        else {
+            Initialize-SesRuntime
+            Install-SesDependencies
+        }
+        if (!(Get-SesListeners 3000).Count) {
+            if (!$portable) {
+                $needBuild = ($env:SES_FORCE_BUILD -eq '1')
+                if (-not $needBuild) {
+                    & $script:SesNode (Join-Path $script:SesRoot 'scripts/build-state.cjs') 'check'
+                    $needBuild = ($LASTEXITCODE -ne 0)
+                }
+                if ($needBuild) {
+                    Write-Host 'Building SES server...'
+                    Invoke-SesCommand $script:SesNode @($script:SesPnpm, '--filter', '@ses/server', 'run', 'build')
+                    Invoke-SesCommand $script:SesNode @((Join-Path $script:SesRoot 'scripts/build-state.cjs'), 'record')
+                } else {
+                    Write-Host 'Build is up to date, skipping.'
+                }
             }
             Invoke-SesCommand $script:SesNode @((Join-Path $script:SesRoot 'scripts/backup-db.cjs'))
             $savedPort = $env:PORT
             $savedHost = $env:SES_LISTEN_HOST
             $savedLauncher = $env:SES_LAUNCHER
+            $savedClient = $env:SES_CLIENT_DIST
             $env:PORT = '3000'
             $env:SES_LISTEN_HOST = '127.0.0.1'
             # The server only offers in-app upgrade/exit when it was started by this launcher.
             $env:SES_LAUNCHER = 'windows'
-            try { Start-SesService 'server' (Join-Path $script:SesRoot 'packages/server/dist/main.js') @() 'http://127.0.0.1:3000/api/documents' }
-            finally { $env:PORT = $savedPort; $env:SES_LISTEN_HOST = $savedHost; $env:SES_LAUNCHER = $savedLauncher }
+            if ($portable) { $env:SES_CLIENT_DIST = $client }
+            try { Start-SesService 'server' $entry @() $readyUrl }
+            finally { $env:PORT = $savedPort; $env:SES_LISTEN_HOST = $savedHost; $env:SES_LAUNCHER = $savedLauncher; $env:SES_CLIENT_DIST = $savedClient }
         }
-        if (!(Get-SesListeners 5173).Count) {
+        if (!$portable -and !(Get-SesListeners 5173).Count) {
             $vite = Join-Path $script:SesRoot 'packages/client/node_modules/vite/bin/vite.js'
             Start-SesService 'client' $vite @('--host', '127.0.0.1', '--port', '5173', '--strictPort') 'http://127.0.0.1:5173/'
         }
@@ -284,7 +314,14 @@ function Invoke-SesMain([string]$Mode) {
         $success = $true
         Write-Host 'SES is running: http://127.0.0.1:5173/'
         Write-Host "Logs: $script:SesRun"
-        if ($env:SES_NO_OPEN -ne '1') { Start-Process 'http://127.0.0.1:5173/' }
+        if ((-not $NoShortcut) -and (-not $NoOpen) -and ($env:SES_NO_SHORTCUT -ne '1') -and ($env:SES_NO_OPEN -ne '1')) {
+            $desktopScript = Join-Path $script:SesRoot 'scripts/ses-desktop.ps1'
+            if (Test-Path -LiteralPath $desktopScript -PathType Leaf) {
+                try { & $desktopScript ensure-first-shortcuts }
+                catch { Write-Host "Warning: failed to create shortcuts: $($_.Exception.Message)" }
+            }
+        }
+        if ((-not $NoOpen) -and ($env:SES_NO_OPEN -ne '1')) { Start-Process 'http://127.0.0.1:5173/' }
     }
     finally {
         if (!$success) { foreach ($role in $script:SesStarted) { Stop-SesService $role } }
@@ -299,6 +336,13 @@ if ($MyInvocation.InvocationName -ne '.') {
         Write-Host "SES error: $($_.Exception.Message)" -ForegroundColor Red
         Write-Host $_.InvocationInfo.PositionMessage
         Write-Host $_.ScriptStackTrace
+        if ($GuiError) {
+            try {
+                $shell = New-Object -ComObject WScript.Shell
+                [void]$shell.Popup("SES $([char]0x542F)$([char]0x52A8)$([char]0x5931)$([char]0x8D25)$([char]0xFF1A)$($_.Exception.Message)`n`n$([char]0x65E5)$([char]0x5FD7)$([char]0x76EE)$([char]0x5F55)$([char]0xFF1A)$script:SesRun", 0, "SES $([char]0x542F)$([char]0x52A8)$([char]0x5931)$([char]0x8D25)", 16)
+            }
+            catch { }
+        }
         exit 1
     }
 }

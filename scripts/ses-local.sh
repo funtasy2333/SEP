@@ -1,7 +1,6 @@
 #!/bin/bash
 # macOS 启动/退出入口共用逻辑。后台进程不依赖 Terminal 窗口。
 set -euo pipefail
-export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 ROOT="$(cd -- "$(dirname -- "$0")/.." && pwd -P)"
 RUN="$ROOT/.ses-run"
 LABEL="local.ses.$(printf '%s' "$ROOT" | shasum | cut -c1-12)"
@@ -66,10 +65,34 @@ require_runtime() {
 }
 
 start() {
-  require_runtime node Node.js 20.19.0
-  require_runtime pnpm pnpm 9.0.0
+  local runtime="" node_exe entry="dist/main.js" client_dist="" frontend_role=client
+  local ready_url=http://127.0.0.1:3000/api/documents
+  if [ -f ses-build.json ]; then
+    runtime="$(sed -nE 's/^[[:space:]]*"runtime"[[:space:]]*:[[:space:]]*"([^"]*)"[[:space:]]*,?[[:space:]]*$/\1/p' ses-build.json)"
+  fi
+  if [ "$runtime" = macos-arm64 ]; then
+    if [ "$(uname -m)" != arm64 ]; then
+      echo '这个压缩包适用于 Apple Silicon（arm64），请在原生终端中启动。' >&2
+      return 1
+    fi
+    node_exe="$ROOT/.ses-runtime/node"
+    entry="$ROOT/.ses-runtime/server/dist/main.js"
+    client_dist="$ROOT/.ses-runtime/client"
+    if [ ! -x "$node_exe" ] || [ ! -f "$entry" ] || [ ! -f "$client_dist/index.html" ]; then
+      echo '启动文件或运行依赖缺失，请完整解压 SES 压缩包后重试。' >&2
+      return 1
+    fi
+    frontend_role=server
+    ready_url=http://localhost:5173/
+    mkdir -p "$ROOT/packages/server"
+  else
+    export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+    require_runtime node Node.js 20.19.0
+    require_runtime pnpm pnpm 9.0.0
+    node_exe="$(command -v node)"
+  fi
   check_port 3000 server
-  check_port 5173 client
+  check_port 5173 "$frontend_role"
   mkdir -p "$RUN"
   if ! mkdir "$RUN/start.lock" 2>/dev/null; then
     echo "另一次启动尚未结束。如上次被强制中断，可删除 $RUN/start.lock 后重试。"
@@ -86,9 +109,9 @@ start() {
   fi
   rmdir "$RUN/start.lock" 2>/dev/null || true' EXIT
 
-  if ! cmp -s pnpm-lock.yaml node_modules/.pnpm/lock.yaml ||
+  if [ -z "$client_dist" ] && { ! cmp -s pnpm-lock.yaml node_modules/.pnpm/lock.yaml ||
      [ ! -e packages/server/node_modules/@modelcontextprotocol/sdk/package.json ] ||
-     [ ! -e packages/io/node_modules/typescript/package.json ]; then
+     [ ! -e packages/io/node_modules/typescript/package.json ]; }; then
     echo "正在按锁文件补齐依赖……"
     local store=""
     local -a install_args=(install --frozen-lockfile)
@@ -102,24 +125,26 @@ start() {
   fi
 
   if [ -z "$(listener 3000)" ]; then
-    if [ "${SES_FORCE_BUILD:-0}" = 1 ] || ! node scripts/build-state.cjs check; then
-      echo "正在构建 SES 后端……"
-      pnpm --filter @ses/server build
-      node scripts/build-state.cjs record
-    else
-      echo "代码未变化，跳过构建。"
+    if [ -z "$client_dist" ]; then
+      if [ "${SES_FORCE_BUILD:-0}" = 1 ] || ! "$node_exe" scripts/build-state.cjs check; then
+        echo "正在构建 SES 后端……"
+        pnpm --filter @ses/server build
+        "$node_exe" scripts/build-state.cjs record
+      else
+        echo "代码未变化，跳过构建。"
+      fi
     fi
     # 启动会同步数据库表结构，因此在启动前保存 SQLite 一致性备份，并自动裁剪旧的启动/升级备份。
-    node scripts/backup-db.cjs
+    "$node_exe" scripts/backup-db.cjs
     echo "正在启动后端……"
     server_job="$LABEL.server"
     launchctl remove "$server_job" 2>/dev/null || true
     launchctl submit -l "$server_job" -o "$RUN/server.log" -e "$RUN/server.log" -- \
-      /usr/bin/env "PATH=$PATH" /bin/bash -c 'cd "$1" && exec env PORT=3000 SES_LISTEN_HOST=127.0.0.1 SES_LAUNCHER=macos "$2" dist/main.js' \
-      ses-server "$ROOT/packages/server" "$(command -v node)"
-    wait_ready "$server_job" http://127.0.0.1:3000/api/documents "$RUN/server.log"
+      /usr/bin/env "PATH=$PATH" /bin/bash -c 'cd "$1" && exec env PORT=3000 SES_LISTEN_HOST=127.0.0.1 SES_LAUNCHER=macos "SES_CLIENT_DIST=$4" "$2" "$3"' \
+      ses-server "$ROOT/packages/server" "$node_exe" "$entry" "$client_dist"
+    wait_ready "$server_job" "$ready_url" "$RUN/server.log"
   fi
-  if [ -z "$(listener 5173)" ]; then
+  if [ -z "$client_dist" ] && [ -z "$(listener 5173)" ]; then
     echo "正在启动前端……"
     client_job="$LABEL.client"
     launchctl remove "$client_job" 2>/dev/null || true
@@ -132,6 +157,9 @@ start() {
   success=1
   echo "SES 已启动：http://localhost:5173/"
   echo "日志目录：$RUN"
+  if [ "${SES_NO_SHORTCUT:-0}" != 1 ] && [ "${SES_NO_OPEN:-0}" != 1 ] && [ -f "$ROOT/scripts/ses-desktop.sh" ]; then
+    /bin/bash "$ROOT/scripts/ses-desktop.sh" ensure-first-shortcuts >/dev/null || echo "提示：未能自动创建快捷方式，可稍后在网页设置中创建。"
+  fi
   if [ "${SES_NO_OPEN:-0}" != 1 ]; then
     open http://localhost:5173/ || true
   fi
@@ -143,7 +171,8 @@ stop() {
     return 1
   fi
   local port package pid count failed=0
-  for port in 5173 3000; do
+  # The bundled server owns both ports, so stop it before checking the source launcher’s separate client.
+  for port in 3000 5173; do
     if [ "$port" = 5173 ]; then package=client; else package=server; fi
     for pid in $(listener "$port"); do
       if owned "$pid" "$package"; then

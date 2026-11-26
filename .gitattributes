@@ -1,2 +1,7 @@
 # Keep the upstream sync workflow out of source archives.
 .github/workflows/sync-to-gitee.yml export-ignore
+
+# Platform launcher and shell scripts must keep native line endings on all OSes.
+*.cmd text eol=crlf
+*.command text eol=lf
+*.sh text eol=lf

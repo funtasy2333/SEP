@@ -1,6 +1,13 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { systemApi, type Channel, type SystemInfo, type UpdateCheck } from '@/api/system'
+import {
+  systemApi,
+  type Channel,
+  type DesktopShortcutResult,
+  type DesktopStatus,
+  type SystemInfo,
+  type UpdateCheck,
+} from '@/api/system'
 
 export type SystemMode = 'normal' | 'exited' | 'upgrading'
 
@@ -78,6 +85,9 @@ export const useSystemStore = defineStore('system', () => {
   const info = ref<SystemInfo | null>(null)
   const infoLoading = ref(false)
   const infoError = ref<string | null>(null)
+  const desktopStatus = ref<DesktopStatus | null>(null)
+  const desktopLoading = ref(false)
+  const desktopError = ref<string | null>(null)
   const mode = ref<SystemMode>('normal')
   /** 升级交接时间（毫秒时间戳）：遮罩只认更新时间晚于它的升级结果，避免把上一次的结果当成本次。 */
   const handoffAt = ref<number | null>(null)
@@ -86,6 +96,7 @@ export const useSystemStore = defineStore('system', () => {
   const dismissedTarget = ref<string | null>(readDismissedTarget())
 
   let loadSeq = 0
+  let desktopLoadSeq = 0
   let autoChecked = false
 
   const updateTargetKey = computed<string | null>(() => {
@@ -114,6 +125,46 @@ export const useSystemStore = defineStore('system', () => {
     } finally {
       if (seq === loadSeq) infoLoading.value = false
     }
+  }
+
+  async function loadDesktopStatus() {
+    const seq = ++desktopLoadSeq
+    desktopLoading.value = true
+    try {
+      const { data } = await systemApi.desktopStatus()
+      if (seq !== desktopLoadSeq) return
+      desktopStatus.value = data
+      desktopError.value = null
+    } catch {
+      if (seq !== desktopLoadSeq) return
+      desktopError.value = '无法读取桌面集成状态'
+    } finally {
+      if (seq === desktopLoadSeq) desktopLoading.value = false
+    }
+  }
+
+  function setDesktopShortcutResult(result: DesktopShortcutResult) {
+    desktopStatus.value = {
+      supported: desktopStatus.value?.supported ?? true,
+      unsupportedReason: null,
+      platform: desktopStatus.value?.platform ?? info.value?.launcher ?? null,
+      desktopShortcut: result.desktopShortcut,
+      startMenuShortcut: result.startMenuShortcut,
+      autoStart: desktopStatus.value?.autoStart ?? false,
+    }
+    desktopError.value = null
+  }
+
+  function setDesktopAutoStart(autoStart: boolean) {
+    desktopStatus.value = {
+      supported: desktopStatus.value?.supported ?? true,
+      unsupportedReason: null,
+      platform: desktopStatus.value?.platform ?? info.value?.launcher ?? null,
+      desktopShortcut: desktopStatus.value?.desktopShortcut ?? false,
+      startMenuShortcut: desktopStatus.value?.startMenuShortcut ?? false,
+      autoStart,
+    }
+    desktopError.value = null
   }
 
   function recordUpdateCheck(result: UpdateCheck) {
@@ -181,6 +232,9 @@ export const useSystemStore = defineStore('system', () => {
     info,
     infoLoading,
     infoError,
+    desktopStatus,
+    desktopLoading,
+    desktopError,
     mode,
     handoffAt,
     updateCheck,
@@ -190,6 +244,9 @@ export const useSystemStore = defineStore('system', () => {
     hasAvailableUpdate,
     hasUnreadUpdate,
     loadInfo,
+    loadDesktopStatus,
+    setDesktopShortcutResult,
+    setDesktopAutoStart,
     checkForUpdateInBackground,
     recordUpdateCheck,
     dismissCurrentUpdate,

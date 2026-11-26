@@ -110,7 +110,9 @@ async function runBackupAndPrune(options = {}) {
   let skipped = false;
   const decision = shouldBackup(source, walPath, startupDir, stampFile);
   if (decision.needed) {
-    const Database = createRequire(path.join(root, 'packages/server/package.json'))('better-sqlite3');
+    const bundledManifest = path.join(root, '.ses-runtime/server/package.json');
+    const serverManifest = fs.existsSync(bundledManifest) ? bundledManifest : path.join(root, 'packages/server/package.json');
+    const Database = createRequire(serverManifest)('better-sqlite3');
     fs.mkdirSync(startupDir, { recursive: true });
     const fileName = `ses-before-start-${new Date().toISOString().replace(/[:.]/g, '-')}.db`;
     const target = path.join(startupDir, fileName);
