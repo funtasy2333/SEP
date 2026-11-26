@@ -1,14 +1,23 @@
 // @vitest-environment happy-dom
 import { createApp, nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
-import ElementPlus, { ElMessageBox } from 'element-plus'
+import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SettingsMenu from './SettingsMenu.vue'
 import { useSystemStore } from '@/stores/system'
-import type { SystemInfo, UpdateCheck } from '@/api/system'
+import type { DesktopStatus, SystemInfo, UpdateCheck } from '@/api/system'
 
 const mocks = vi.hoisted(() => ({
-  api: { info: vi.fn(), checkUpdate: vi.fn(), startUpdate: vi.fn(), updateStatus: vi.fn(), shutdown: vi.fn() },
+  api: {
+    info: vi.fn(),
+    desktopStatus: vi.fn(),
+    createShortcuts: vi.fn(),
+    setAutoStart: vi.fn(),
+    checkUpdate: vi.fn(),
+    startUpdate: vi.fn(),
+    updateStatus: vi.fn(),
+    shutdown: vi.fn(),
+  },
 }))
 
 vi.mock('@/api/system', async () => {
@@ -30,6 +39,18 @@ function makeInfo(patch: Partial<SystemInfo> = {}): SystemInfo {
       download: { phase: 'idle', receivedBytes: 0, totalBytes: null, error: null, startedAt: null },
       last: null,
     },
+    ...patch,
+  }
+}
+
+function makeDesktop(patch: Partial<DesktopStatus> = {}): DesktopStatus {
+  return {
+    supported: true,
+    unsupportedReason: null,
+    platform: 'macos',
+    desktopShortcut: false,
+    startMenuShortcut: false,
+    autoStart: false,
     ...patch,
   }
 }
@@ -61,7 +82,14 @@ async function settle() {
   }
 }
 
-async function mountMenu(info: SystemInfo | null, check: UpdateCheck | null = null) {
+async function mountMenu(
+  info: SystemInfo | null,
+  check: UpdateCheck | null = null,
+  desktop: DesktopStatus | null = makeDesktop(),
+) {
+  if (desktop && !mocks.api.desktopStatus.getMockImplementation()) {
+    mocks.api.desktopStatus.mockResolvedValue({ data: desktop })
+  }
   const pinia = createPinia()
   setActivePinia(pinia)
   const store = useSystemStore()
@@ -91,17 +119,27 @@ const q = (selector: string) => document.querySelector<HTMLElement>(selector)
 
 describe('SettingsMenu', () => {
   const confirm = vi.fn()
+  const msgSuccess = vi.fn()
+  const msgError = vi.fn()
   let confirmSpy: { mockRestore: () => void }
+  let successSpy: { mockRestore: () => void }
+  let errorSpy: { mockRestore: () => void }
 
   beforeEach(() => {
     Object.values(mocks.api).forEach((fn) => fn.mockReset())
     confirm.mockReset()
+    msgSuccess.mockReset()
+    msgError.mockReset()
     confirmSpy = vi.spyOn(ElMessageBox, 'confirm').mockImplementation(confirm as never)
+    successSpy = vi.spyOn(ElMessage, 'success').mockImplementation(msgSuccess as never)
+    errorSpy = vi.spyOn(ElMessage, 'error').mockImplementation(msgError as never)
     localStorage.clear()
   })
 
   afterEach(() => {
     confirmSpy.mockRestore()
+    successSpy.mockRestore()
+    errorSpy.mockRestore()
     localStorage.clear()
     document.body.innerHTML = ''
   })
@@ -198,6 +236,107 @@ describe('SettingsMenu', () => {
     await settle()
     expect(ctx.store.upgradeDialogOpen).toBe(true)
     expect(q('[data-test="latest-version"]')?.textContent).toBe('0.2.0')
+    ctx.unmount()
+  })
+
+  it('macOS 与 Windows 快捷方式文案与「已创建」状态正确显示', async () => {
+    mocks.api.desktopStatus.mockResolvedValueOnce({ data: makeDesktop({ platform: 'macos' }) })
+    const mac = await mountMenu(makeInfo({ launcher: 'macos' }), null, null)
+    expect(q('[data-test="shortcut-item"]')!.textContent).toContain('创建桌面与应用程序快捷方式')
+    expect(q('[data-test="shortcut-created-badge"]')).toBeNull()
+    mac.unmount()
+    document.body.innerHTML = ''
+
+    mocks.api.desktopStatus.mockResolvedValueOnce({
+      data: makeDesktop({
+        platform: 'windows',
+        desktopShortcut: true,
+        startMenuShortcut: true,
+      }),
+    })
+    const win = await mountMenu(makeInfo({ launcher: 'windows' }), null, null)
+    expect(q('[data-test="shortcut-item"]')!.textContent).toContain('重建桌面与开始菜单快捷方式')
+    expect(q('[data-test="shortcut-created-badge"]')?.textContent).toBe('已创建')
+    win.unmount()
+  })
+
+  it('点击创建快捷方式：调用接口并更新为已创建状态', async () => {
+    mocks.api.desktopStatus.mockResolvedValueOnce({ data: makeDesktop({ platform: 'windows' }) })
+    mocks.api.createShortcuts.mockResolvedValueOnce({
+      data: {
+        desktopShortcut: true,
+        startMenuShortcut: true,
+        desktopPath: 'C:\\Desktop\\SES.lnk',
+        startMenuPath: 'C:\\Start\\SES.lnk',
+      },
+    })
+    const ctx = await mountMenu(makeInfo({ launcher: 'windows' }), null, null)
+    q('[data-test="shortcut-item"]')!.click()
+    await settle()
+    expect(mocks.api.createShortcuts).toHaveBeenCalledTimes(1)
+    expect(q('[data-test="shortcut-item"]')!.textContent).toContain('重建桌面与开始菜单快捷方式')
+    expect(q('[data-test="shortcut-created-badge"]')?.textContent).toBe('已创建')
+    expect(msgSuccess).toHaveBeenCalledWith('已创建桌面与开始菜单快捷方式')
+    ctx.unmount()
+  })
+
+  it('创建快捷方式失败：弹窗提示且不伪造已创建状态', async () => {
+    mocks.api.desktopStatus.mockResolvedValueOnce({ data: makeDesktop({ platform: 'macos' }) })
+    mocks.api.createShortcuts.mockRejectedValueOnce({
+      response: { status: 500, data: { message: '写入桌面目录失败' } },
+    })
+    const ctx = await mountMenu(makeInfo(), null, null)
+    q('[data-test="shortcut-item"]')!.click()
+    await settle()
+    expect(msgError).toHaveBeenCalledWith('写入桌面目录失败')
+    expect(q('[data-test="shortcut-created-badge"]')).toBeNull()
+    ctx.unmount()
+  })
+
+  it('切换开机后台自启开关：成功更新状态，失败保持原值并提示错误', async () => {
+    mocks.api.desktopStatus.mockResolvedValueOnce({ data: makeDesktop({ autoStart: false }) })
+    mocks.api.setAutoStart.mockResolvedValueOnce({ data: { autoStart: true } })
+    const ctx = await mountMenu(makeInfo(), null, null)
+    const switchEl = q('[data-test="autostart-switch"]')!
+    const switchInput = switchEl.querySelector('input')!
+    expect(switchInput.getAttribute('aria-checked')).toBe('false')
+    expect(switchEl.classList.contains('is-checked')).toBe(false)
+
+    switchEl.click()
+    await settle()
+    expect(mocks.api.setAutoStart).toHaveBeenCalledWith(true)
+    expect(ctx.store.desktopStatus?.autoStart).toBe(true)
+    expect(switchInput.getAttribute('aria-checked')).toBe('true')
+    expect(switchEl.classList.contains('is-checked')).toBe(true)
+    expect(msgSuccess).toHaveBeenCalledWith('已开启开机后台自启')
+
+    mocks.api.setAutoStart.mockRejectedValueOnce({
+      response: { status: 500, data: { message: 'LaunchAgents 不可写' } },
+    })
+    switchEl.click()
+    await settle()
+    expect(mocks.api.setAutoStart).toHaveBeenCalledWith(false)
+    expect(ctx.store.desktopStatus?.autoStart).toBe(true)
+    expect(switchInput.getAttribute('aria-checked')).toBe('true')
+    expect(switchEl.classList.contains('is-checked')).toBe(true)
+    expect(msgError).toHaveBeenCalledWith('LaunchAgents 不可写')
+    ctx.unmount()
+  })
+
+  it('开发模式（supported=false）禁用快捷方式与开机自启，并显示原因', async () => {
+    mocks.api.desktopStatus.mockResolvedValueOnce({
+      data: makeDesktop({
+        supported: false,
+        platform: null,
+        unsupportedReason: '仅在使用启动脚本运行 SES 时支持桌面快捷方式与开机自启',
+      }),
+    })
+    const ctx = await mountMenu(makeInfo({ launcher: null }), null, null)
+    expect(q('[data-test="shortcut-item"]')!.hasAttribute('disabled')).toBe(true)
+    expect(q('[data-test="shortcut-item"]')!.textContent).toContain('创建桌面快捷方式')
+    expect(q('[data-test="desktop-reason"]')!.textContent).toContain('仅在使用启动脚本运行 SES 时支持')
+    const switchEl = q('[data-test="autostart-switch"]')!
+    expect(switchEl.classList.contains('is-disabled')).toBe(true)
     ctx.unmount()
   })
 })

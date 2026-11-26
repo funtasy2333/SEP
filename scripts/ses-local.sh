@@ -157,6 +157,9 @@ start() {
   success=1
   echo "SES 已启动：http://localhost:5173/"
   echo "日志目录：$RUN"
+  if [ "${SES_NO_SHORTCUT:-0}" != 1 ] && [ "${SES_NO_OPEN:-0}" != 1 ] && [ -f "$ROOT/scripts/ses-desktop.sh" ]; then
+    /bin/bash "$ROOT/scripts/ses-desktop.sh" ensure-first-shortcuts >/dev/null || echo "提示：未能自动创建快捷方式，可稍后在网页设置中创建。"
+  fi
   if [ "${SES_NO_OPEN:-0}" != 1 ]; then
     open http://localhost:5173/ || true
   fi

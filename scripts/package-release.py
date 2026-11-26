@@ -40,9 +40,11 @@ def runtime_files(platform):
     # This user-facing MCP reference is an actual build input, not a development document.
     files['packages/server/resources/authoring-reference.md'] = ROOT / 'docs/wp9-authoring-reference.md'
     # 升级执行器及其平台脚本；scripts/apply-update.cjs 中的同名清单必须保持一致（有测试比对）。
-    entries = (['启动SES.cmd', '退出SES.cmd', 'scripts/ses-windows.ps1', 'scripts/backup-db.cjs', 'scripts/build-state.cjs', 'scripts/check-sqlite.cjs', 'scripts/start-service.cjs',
+    entries = (['启动SES.cmd', '退出SES.cmd', 'scripts/ses-windows.ps1', 'scripts/ses-desktop.ps1', 'scripts/ses.ico',
+                'scripts/backup-db.cjs', 'scripts/build-state.cjs', 'scripts/check-sqlite.cjs', 'scripts/start-service.cjs',
                 'scripts/apply-update.cjs', 'scripts/ses-upgrade.ps1', 'scripts/run-detached.cjs'] if platform == 'windows'
-               else ['启动SES.command', '退出SES.command', 'scripts/ses-local.sh', 'scripts/backup-db.cjs', 'scripts/build-state.cjs', 'scripts/apply-update.cjs', 'scripts/ses-upgrade.sh'])
+               else ['启动SES.command', '退出SES.command', 'scripts/ses-local.sh', 'scripts/ses-desktop.sh', 'scripts/ses.icns',
+                     'scripts/backup-db.cjs', 'scripts/build-state.cjs', 'scripts/apply-update.cjs', 'scripts/ses-upgrade.sh'])
     files.update({name: ROOT / name for name in entries})
     return files
 
@@ -78,15 +80,16 @@ def instructions(platform, version=VERSION, portable=False):
     if portable:
         system = 'Windows 10/11（x64）' if platform == 'windows' else 'macOS（Apple Silicon）'
         launch = 'cmd' if platform == 'windows' else 'command'
+        menu_target = '开始菜单' if platform == 'windows' else '应用程序'
         client_url = 'http://127.0.0.1:5173/' if platform == 'windows' else 'http://localhost:5173/'
         source_requirements = 'macOS 源码包需要系统提供 Node.js 和 pnpm。' if platform == 'macos' else ''
         return f'''# SES {version.replace('-preview', '')} Preview
 
 ## {system}
 
-将 ZIP 完整解压到可写的本地目录。双击「启动SES.{launch}」后，编辑器会在默认浏览器中打开。包内已包含 Node.js、程序和运行依赖，解压后即可离线启动。
+将 ZIP 完整解压到可写的本地目录。双击「启动SES.{launch}」后，启动成功时窗口会自动关闭，编辑器会在默认浏览器中打开，并首次自动创建桌面和{menu_target}快捷方式。包内已包含 Node.js、程序和运行依赖，解压后即可离线启动。
 
-用完后双击「退出SES.{launch}」，也可以在网页的「设置 → 升级 / 退出」中退出。关闭网页后，服务仍在后台运行。编辑器地址为 {client_url}，MCP 地址为 http://127.0.0.1:3000/mcp。
+在网页右上角「设置」中可重建快捷方式或开启「开机后台自启」。用完后双击「退出SES.{launch}」，也可以在网页的「设置 → 升级 / 退出」中退出。关闭网页后，服务仍在后台运行。编辑器地址为 {client_url}，MCP 地址为 http://127.0.0.1:3000/mcp。
 
 文档保存在 `packages/server/data/ses.db`，启动备份位于 `output/startup-backups/`，日志位于 `.ses-run/`。
 
@@ -94,7 +97,7 @@ def instructions(platform, version=VERSION, portable=False):
 '''
     platform_text = ('''## Windows 10/11（64 位）
 
-双击「启动SES.cmd」；退出时双击「退出SES.cmd」。需要 Windows PowerShell 5.1 或更高版本。
+双击「启动SES.cmd」；启动成功后窗口会自动关闭，并首次自动创建桌面和开始菜单快捷方式。退出时双击「退出SES.cmd」。需要 Windows PowerShell 5.1 或更高版本。
 首次启动会检查 Node.js（>=20.19.0），缺少时安装经过 SHA256 校验的便携版 Node.js 22.22.0；pnpm 10.33.0 安装在本目录的 .ses-tools 中，无需管理员权限。
 依赖下载优先尝试官方 HTTPS 来源，失败才自动重试中国大陆 npmmirror 镜像。两个来源都失败会显示错误并停止，请查看日志、检查代理或网络后重试。脚本不修改全局 npm 源。
 
@@ -103,14 +106,15 @@ pnpm 的依赖缓存位于 SES 目录内的 `.ses-tools/pnpm-store/`。从旧版
 ''' if platform == 'windows' else '''## macOS
 
 安装 Node.js >=20.19.0（推荐 22 LTS）和 pnpm >=9：`npm install -g pnpm@10.33.0`。
-双击「启动SES.command」；退出时双击「退出SES.command」。首次启动会安装依赖并构建。
-如果系统提示文件没有执行权限，在终端进入解压目录执行：`chmod +x *.command scripts/ses-local.sh`。
+双击「启动SES.command」；启动成功后窗口会自动关闭，并首次自动创建桌面和应用程序快捷方式。首次启动会安装依赖并构建。退出时双击「退出SES.command」。
+如果系统提示文件没有执行权限，在终端进入解压目录执行：`chmod +x *.command scripts/ses-local.sh scripts/ses-desktop.sh`。
 macOS 使用现有官方安装来源，不包含 Windows 的自动镜像切换逻辑。
 
 ''')
     return common + platform_text + '''## 使用和数据
 
-启动后打开 http://localhost:5173/（Windows 也可使用 http://127.0.0.1:5173/）。关闭启动窗口后 SES 继续运行；退出脚本只停止其登记的服务。
+启动后打开 http://localhost:5173/（Windows 也可使用 http://127.0.0.1:5173/）。启动/退出成功后终端窗口会自动关闭（失败时保留报错信息）；关闭窗口后 SES 继续运行，退出脚本只停止其登记的服务。
+在网页右上角「设置」中可重建快捷方式或开启「开机后台自启」。
 端口 3000、5173 被其他程序占用时，请先退出该程序。不要与 `pnpm dev` 同时启动。
 文档保存在 `packages/server/data/ses.db`；启动前的数据库备份位于 `output/startup-backups/`（数据库未变化时不重复备份，默认保留最近 10 份，可通过 `SES_STARTUP_BACKUP_KEEP` 调整），日志位于 `.ses-run/`。退出后备份整个 SES 目录可保留文档。
 

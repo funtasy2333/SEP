@@ -1,5 +1,10 @@
 # Windows PowerShell 5.1+. Runtime downloads and registry settings are local to SES.
-param([ValidateSet('start', 'stop')][string]$Action = 'start')
+param(
+    [Parameter(Position = 0)][ValidateSet('start', 'stop')][string]$Action = 'start',
+    [switch]$NoOpen,
+    [switch]$NoShortcut,
+    [switch]$GuiError
+)
 $ErrorActionPreference = 'Stop'
 $script:SesRoot = Split-Path -Parent $PSScriptRoot
 $script:SesRun = Join-Path $script:SesRoot '.ses-run'
@@ -309,7 +314,14 @@ function Invoke-SesMain([string]$Mode) {
         $success = $true
         Write-Host 'SES is running: http://127.0.0.1:5173/'
         Write-Host "Logs: $script:SesRun"
-        if ($env:SES_NO_OPEN -ne '1') { Start-Process 'http://127.0.0.1:5173/' }
+        if ((-not $NoShortcut) -and (-not $NoOpen) -and ($env:SES_NO_SHORTCUT -ne '1') -and ($env:SES_NO_OPEN -ne '1')) {
+            $desktopScript = Join-Path $script:SesRoot 'scripts/ses-desktop.ps1'
+            if (Test-Path -LiteralPath $desktopScript -PathType Leaf) {
+                try { & $desktopScript ensure-first-shortcuts }
+                catch { Write-Host "Warning: failed to create shortcuts: $($_.Exception.Message)" }
+            }
+        }
+        if ((-not $NoOpen) -and ($env:SES_NO_OPEN -ne '1')) { Start-Process 'http://127.0.0.1:5173/' }
     }
     finally {
         if (!$success) { foreach ($role in $script:SesStarted) { Stop-SesService $role } }
@@ -324,6 +336,13 @@ if ($MyInvocation.InvocationName -ne '.') {
         Write-Host "SES error: $($_.Exception.Message)" -ForegroundColor Red
         Write-Host $_.InvocationInfo.PositionMessage
         Write-Host $_.ScriptStackTrace
+        if ($GuiError) {
+            try {
+                $shell = New-Object -ComObject WScript.Shell
+                [void]$shell.Popup("SES $([char]0x542F)$([char]0x52A8)$([char]0x5931)$([char]0x8D25)$([char]0xFF1A)$($_.Exception.Message)`n`n$([char]0x65E5)$([char]0x5FD7)$([char]0x76EE)$([char]0x5F55)$([char]0xFF1A)$script:SesRun", 0, "SES $([char]0x542F)$([char]0x52A8)$([char]0x5931)$([char]0x8D25)", 16)
+            }
+            catch { }
+        }
         exit 1
     }
 }

@@ -38,9 +38,11 @@ const SKIP_SUFFIXES = ['.test.ts', '.spec.ts', '.snap', '.md', '.tsbuildinfo'];
 const AUTHORING_SOURCE = 'docs/wp9-authoring-reference.md';
 const AUTHORING_TARGET = 'packages/server/resources/authoring-reference.md';
 const ENTRIES = {
-  windows: ['启动SES.cmd', '退出SES.cmd', 'scripts/ses-windows.ps1', 'scripts/backup-db.cjs', 'scripts/build-state.cjs', 'scripts/check-sqlite.cjs',
+  windows: ['启动SES.cmd', '退出SES.cmd', 'scripts/ses-windows.ps1', 'scripts/ses-desktop.ps1', 'scripts/ses.ico',
+    'scripts/backup-db.cjs', 'scripts/build-state.cjs', 'scripts/check-sqlite.cjs',
     'scripts/start-service.cjs', 'scripts/apply-update.cjs', 'scripts/ses-upgrade.ps1', 'scripts/run-detached.cjs'],
-  macos: ['启动SES.command', '退出SES.command', 'scripts/ses-local.sh', 'scripts/backup-db.cjs', 'scripts/build-state.cjs', 'scripts/apply-update.cjs', 'scripts/ses-upgrade.sh'],
+  macos: ['启动SES.command', '退出SES.command', 'scripts/ses-local.sh', 'scripts/ses-desktop.sh', 'scripts/ses.icns',
+    'scripts/backup-db.cjs', 'scripts/build-state.cjs', 'scripts/apply-update.cjs', 'scripts/ses-upgrade.sh'],
 };
 const LAUNCHER_SCRIPT = { windows: 'scripts/ses-windows.ps1', macos: 'scripts/ses-local.sh' };
 // 归档里没有这些文件说明压缩包不是 SES，直接拒绝；其余缺失的配置文件仅告警并跳过。

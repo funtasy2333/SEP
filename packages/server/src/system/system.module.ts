@@ -1,4 +1,9 @@
 import { Module } from '@nestjs/common';
+import {
+  defaultDesktopScriptRunner,
+  DESKTOP_SCRIPT_RUNNER,
+  DesktopIntegrator,
+} from './desktop-integrator';
 import { GithubClient } from './github-client';
 import { LocalWriteGuard } from './local-write.guard';
 import { PROCESS_SPAWNER, spawnDetachedProcess } from './process-spawner';
@@ -13,6 +18,8 @@ import { UpdateDownloader } from './update-downloader';
   providers: [
     { provide: SYSTEM_CONFIG, useFactory: () => createSystemConfig() },
     { provide: PROCESS_SPAWNER, useValue: spawnDetachedProcess },
+    { provide: DESKTOP_SCRIPT_RUNNER, useValue: defaultDesktopScriptRunner },
+    DesktopIntegrator,
     GithubClient,
     UpdateChecker,
     UpdateDownloader,

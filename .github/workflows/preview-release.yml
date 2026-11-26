@@ -25,6 +25,7 @@ jobs:
       PYTHONUTF8: '1'
       SES_NO_OPEN: '1'
       SES_NO_PAUSE: '1'
+      SES_NO_SHORTCUT: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -41,6 +42,10 @@ jobs:
         env:
           SES_PWSH: powershell.exe
         run: python scripts/test_ses_windows.py
+      - name: Test Windows desktop integration using Windows PowerShell 5.1
+        env:
+          SES_PWSH: powershell.exe
+        run: python scripts/test_ses_desktop.py
       - name: Verify literal paths and detached service logs
         run: python scripts/test_service_spawn.py
       - name: Verify package contents
@@ -155,6 +160,7 @@ jobs:
     env:
       SES_NO_OPEN: '1'
       SES_NO_PAUSE: '1'
+      SES_NO_SHORTCUT: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -166,6 +172,10 @@ jobs:
           version: 10.33.0
       - name: Verify existing launcher version guards
         run: bash scripts/ses-local.runtime.test.sh
+      - name: Verify macOS desktop integration
+        run: |
+          bash scripts/ses-desktop.test.sh
+          python3 scripts/test_ses_desktop.py
       - name: Verify package contents
         run: python3 scripts/test_package_release.py
       - name: Verify the upgrade executor (file replacement, rollback, path safety)
