@@ -11,7 +11,7 @@ import subprocess
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.2.2-preview'
+VERSION = '0.3.0-preview'
 CONFIG = [
     'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc', 'tsconfig.base.json',
     'packages/server/nest-cli.json', 'packages/server/webpack.config.js',
@@ -214,7 +214,7 @@ def build_archive(platform, output, version=None, commit=None, windows_runtime=N
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=ROOT / 'release')
-    parser.add_argument('--print-version', action='store_true', help='print the release version (e.g. 0.2.2-preview) and exit')
+    parser.add_argument('--print-version', action='store_true', help='print the release version (e.g. 0.3.0-preview) and exit')
     parser.add_argument('--version', default=None, help='override VERSION (CI uses this to build a "newer" package)')
     parser.add_argument('--platform', choices=('windows', 'macos'))
     parser.add_argument('--windows-runtime', type=Path, help='staged Windows x64 runtime to include')

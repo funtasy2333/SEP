@@ -141,10 +141,9 @@ jobs:
           if (Get-NetTCPConnection -State Listen | Where-Object LocalPort -in @(3000, 5173)) { throw 'SES listeners remain after shutdown' }
       - uses: actions/upload-artifact@v7
         with:
-          name: windows-preview
           path: release/SES-*-windows.zip
+          archive: false
           if-no-files-found: error
-          compression-level: 0
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
@@ -233,10 +232,9 @@ jobs:
           python3 scripts/upgrade_e2e.py assert-stopped
       - uses: actions/upload-artifact@v7
         with:
-          name: macos-arm64-preview
           path: release/SES-*-macos-arm64.zip
+          archive: false
           if-no-files-found: error
-          compression-level: 0
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
@@ -256,12 +254,16 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
-          name: windows-preview
+          pattern: SES-*-windows.zip
           path: release
+          merge-multiple: true
+          skip-decompress: true
       - uses: actions/download-artifact@v8
         with:
-          name: macos-arm64-preview
+          pattern: SES-*-macos-arm64.zip
           path: release
+          merge-multiple: true
+          skip-decompress: true
       - name: Build the legacy macOS source archive
         run: python3 scripts/package-release.py --platform macos
       - name: Publish preview release assets
