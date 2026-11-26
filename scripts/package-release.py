@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import shutil
 import stat
 import subprocess
 import zipfile
@@ -75,17 +76,21 @@ def instructions(platform, version=VERSION, portable=False):
 
 '''
     if portable:
+        system = 'Windows 10/11（x64）' if platform == 'windows' else 'macOS（Apple Silicon）'
+        launch = 'cmd' if platform == 'windows' else 'command'
+        client_url = 'http://127.0.0.1:5173/' if platform == 'windows' else 'http://localhost:5173/'
+        source_requirements = 'macOS 源码包需要系统提供 Node.js 和 pnpm。' if platform == 'macos' else ''
         return f'''# SES {version.replace('-preview', '')} Preview
 
-## Windows 10/11（x64）
+## {system}
 
-将 ZIP 完整解压到可写的本地目录。双击「启动SES.cmd」后，编辑器会在默认浏览器中打开。包内已包含 Node.js、程序和运行依赖，解压后即可离线启动。
+将 ZIP 完整解压到可写的本地目录。双击「启动SES.{launch}」后，编辑器会在默认浏览器中打开。包内已包含 Node.js、程序和运行依赖，解压后即可离线启动。
 
-用完后双击「退出SES.cmd」，也可以在网页的「设置 → 升级 / 退出」中退出。关闭网页后，服务仍在后台运行。编辑器地址为 http://127.0.0.1:5173/，MCP 地址为 http://127.0.0.1:3000/mcp。
+用完后双击「退出SES.{launch}」，也可以在网页的「设置 → 升级 / 退出」中退出。关闭网页后，服务仍在后台运行。编辑器地址为 {client_url}，MCP 地址为 http://127.0.0.1:3000/mcp。
 
 文档保存在 `packages/server/data/ses.db`，启动备份位于 `output/startup-backups/`，日志位于 `.ses-run/`。
 
-通过「设置 → 升级 / 退出」中的「稳定版」联网下载并安装新版。新版发布包包含完整运行环境。升级会备份数据库，新版启动失败时会恢复原版本和文档。使用「每次提交」通道会下载源码并联网构建。不支持降级。
+通过「设置 → 升级 / 退出」中的「稳定版」联网下载并安装新版。新版发布包包含完整运行环境。升级会备份数据库，新版启动失败时会恢复原版本和文档。使用「每次提交」通道会下载源码并联网构建。{source_requirements}不支持降级。
 '''
     platform_text = ('''## Windows 10/11（64 位）
 
@@ -129,17 +134,17 @@ MCP 地址为 http://127.0.0.1:3000/mcp。写作参考资料已作为程序资�
 '''
 
 
-def portable_files(runtime):
-    required = ('node.exe', 'LICENSE.node', 'server/package.json', 'server/dist/main.js', 'client/index.html',
+def portable_files(runtime, node):
+    required = (node, 'LICENSE.node', 'server/package.json', 'server/dist/main.js', 'client/index.html',
                 'server/node_modules/better-sqlite3/build/Release/better_sqlite3.node')
     for name in required:
         if not (runtime / name).is_file():
-            raise ValueError(f'Windows runtime is missing {name}')
+            raise ValueError(f'Bundled runtime is missing {name}')
     def check_link(source):
         if source.is_symlink() or getattr(source, 'is_junction', lambda: False)():
-            raise ValueError(f'Windows runtime contains a link: {source}')
+            raise ValueError(f'Bundled runtime contains a link: {source}')
 
-    for name in ('node.exe', 'LICENSE.node', 'server/package.json'):
+    for name in (node, 'LICENSE.node', 'server/package.json'):
         check_link(runtime / name)
         yield name, runtime / name
     for root in ('server/dist', 'server/node_modules', 'client'):
@@ -154,19 +159,22 @@ def portable_files(runtime):
                     yield source.relative_to(runtime).as_posix(), source
 
 
-def build_archive(platform, output, version=None, commit=None, windows_runtime=None):
+def build_archive(platform, output, version=None, commit=None, windows_runtime=None, macos_runtime=None):
     version = version or VERSION
     commit = commit if commit is not None else build_commit()
-    portable = windows_runtime is not None
-    if portable and platform != 'windows':
-        raise ValueError('A bundled runtime is only supported for Windows')
+    if ((windows_runtime is not None and platform != 'windows') or
+        (macos_runtime is not None and platform != 'macos')):
+        raise ValueError('The bundled runtime does not match the target platform')
+    staged_runtime = windows_runtime if platform == 'windows' else macos_runtime
+    portable = staged_runtime is not None
     files = runtime_files(platform)
-    runtime = list(portable_files(windows_runtime)) if portable else []
+    runtime = list(portable_files(staged_runtime, 'node.exe' if platform == 'windows' else 'node')) if portable else []
     if portable:
-        files = {name: source for name, source in files.items() if name.startswith('scripts/') or name.endswith('.cmd')}
+        files = {name: source for name, source in files.items() if name.startswith('scripts/') or name.endswith(('.cmd', '.command'))}
         files['LICENSE'] = ROOT / 'LICENSE'
     output.mkdir(parents=True, exist_ok=True)
-    root = f'SES-{version}-{platform}'
+    suffix = 'macos-arm64' if macos_runtime is not None else platform
+    root = f'SES-{version}-{suffix}'
     target = output / f'{root}.zip'
     with zipfile.ZipFile(target, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for name, source in sorted(files.items()):
@@ -177,7 +185,15 @@ def build_archive(platform, output, version=None, commit=None, windows_runtime=N
             info.compress_type = zipfile.ZIP_DEFLATED
             archive.writestr(info, source.read_bytes())
         for name, source in runtime:
-            archive.write(source, f'{root}/.ses-runtime/{name}', compresslevel=6)
+            target_name = f'{root}/.ses-runtime/{name}'
+            if name == 'node':
+                executable = zipfile.ZipInfo.from_file(source, target_name)
+                executable.external_attr = (stat.S_IFREG | 0o755) << 16
+                executable.compress_type = zipfile.ZIP_DEFLATED
+                with source.open('rb') as content, archive.open(executable, 'w') as output_file:
+                    shutil.copyfileobj(content, output_file)
+            else:
+                archive.write(source, target_name, compresslevel=6)
         archive.writestr(f'{root}/使用说明.md', instructions(platform, version, portable))
         info = zipfile.ZipInfo(f'{root}/ses-build.json')
         info.create_system = 3
@@ -185,7 +201,7 @@ def build_archive(platform, output, version=None, commit=None, windows_runtime=N
         info.compress_type = zipfile.ZIP_DEFLATED
         metadata = build_info(version, commit)
         if portable:
-            metadata['runtime'] = 'windows-x64'
+            metadata['runtime'] = 'windows-x64' if platform == 'windows' else 'macos-arm64'
         archive.writestr(info, json.dumps(metadata, ensure_ascii=False, indent=2) + '\n')
     print(f'{target} ({target.stat().st_size:,} bytes)')
     return target
@@ -198,6 +214,7 @@ if __name__ == '__main__':
     parser.add_argument('--version', default=None, help='override VERSION (CI uses this to build a "newer" package)')
     parser.add_argument('--platform', choices=('windows', 'macos'))
     parser.add_argument('--windows-runtime', type=Path, help='staged Windows x64 runtime to include')
+    parser.add_argument('--macos-runtime', type=Path, help='staged macOS arm64 runtime to include')
     args = parser.parse_args()
     version = args.version or VERSION
     if args.print_version:
@@ -205,6 +222,8 @@ if __name__ == '__main__':
         raise SystemExit(0)
     if args.windows_runtime and args.platform != 'windows':
         parser.error('--windows-runtime requires --platform windows')
+    if args.macos_runtime and args.platform != 'macos':
+        parser.error('--macos-runtime requires --platform macos')
     platforms = (args.platform,) if args.platform else ('windows', 'macos')
     for platform in platforms:
-        build_archive(platform, args.output, version, windows_runtime=args.windows_runtime)
+        build_archive(platform, args.output, version, windows_runtime=args.windows_runtime, macos_runtime=args.macos_runtime)

@@ -17,6 +17,7 @@ export interface SystemConfig {
   launcher: Launcher | null;
   /** 当前系统平台（process.platform），与 launcher 对照。 */
   platform: NodeJS.Platform;
+  arch: NodeJS.Architecture;
   /** 服务端版本（ses-build.json 缺失时的回退）。 */
   serverVersion: string;
   /** 升级交接文件里记录的 node 可执行文件。 */
@@ -60,6 +61,7 @@ export function createSystemConfig(
       : resolve(process.cwd(), '../..'),
     launcher: parseLauncher(env.SES_LAUNCHER),
     platform: process.platform,
+    arch: process.arch,
     serverVersion: SES_SERVER_VERSION,
     nodePath: process.execPath,
     githubApiBase: override('SES_GITHUB_API', 'https://api.github.com'),

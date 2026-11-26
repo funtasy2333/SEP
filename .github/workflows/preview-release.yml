@@ -150,7 +150,7 @@ jobs:
             ${{ runner.temp }}/SES*/**/.ses-run/*.json
 
   macos:
-    runs-on: macos-latest
+    runs-on: macos-15
     timeout-minutes: 45
     env:
       SES_NO_OPEN: '1'
@@ -160,8 +160,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.22.0'
-      - name: Install pnpm
-        run: npm install -g pnpm@10.33.0
+          architecture: arm64
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
       - name: Verify existing launcher version guards
         run: bash scripts/ses-local.runtime.test.sh
       - name: Verify package contents
@@ -172,27 +174,32 @@ jobs:
         run: python3 scripts/test_startup_state.py
       - name: Verify the macOS upgrade script (success, rollback, failure paths)
         run: bash scripts/ses-upgrade.test.sh
-      - name: Build clean macOS archive
-        run: python3 scripts/package-release.py
-      - name: Build the newer package (9.9.9-preview) and a package that fails to build
+      - name: Build and verify the native arm64 runtime
+        run: bash scripts/build-macos-runtime.sh "$RUNNER_TEMP/ses-runtime"
+      - name: Build the macOS arm64 release and upgrade test packages
         run: |
-          python3 scripts/package-release.py --version 9.9.9-preview --output release-next
-          python3 scripts/package-release.py --version 9.9.10-preview --output release-broken
-          python3 scripts/upgrade_e2e.py make-broken --zip release-broken/SES-9.9.10-preview-macos.zip --out release-broken/broken-macos.zip
-      - name: Start extracted macOS release
+          runtime="$RUNNER_TEMP/ses-runtime"
+          python3 scripts/package-release.py --platform macos --macos-runtime "$runtime"
+          python3 scripts/package-release.py --platform macos --macos-runtime "$runtime" --version 9.9.9-preview --output release-next
+          python3 scripts/package-release.py --platform macos --macos-runtime "$runtime" --version 9.9.10-preview --output release-broken
+          python3 scripts/upgrade_e2e.py make-broken --zip release-broken/SES-9.9.10-preview-macos-arm64.zip --out release-broken/broken-macos.zip
+      - name: Start the Apple Silicon package without system Node.js or pnpm
         run: |
           version="$(python3 scripts/package-release.py --print-version)"
           destination="$RUNNER_TEMP/SES 中文 path"
           mkdir -p "$destination"
-          unzip -q "release/SES-$version-macos.zip" -d "$destination"
-          root="$destination/SES-$version-macos"
+          ditto -x -k "release/SES-$version-macos-arm64.zip" "$destination"
+          root="$destination/SES-$version-macos-arm64"
           echo "SES_E2E_ROOT=$root" >> "$GITHUB_ENV"
-          # Local stand-in for the GitHub API/downloads; writes SES_GITHUB_API into <root>/.env, which the server reads at startup.
-          python3 scripts/upgrade_e2e.py start-fake-github --root "$root" --zip release-next/SES-9.9.9-preview-macos.zip --platform macos --version 9.9.9-preview
-          /bin/bash "$root/scripts/ses-local.sh" start
-          curl --fail http://localhost:5173/api/documents
-      - name: Upgrade E2E - create a document
-        run: python3 scripts/upgrade_e2e.py create-doc --root "$SES_E2E_ROOT"
+          printf 'SES_GITHUB_API=http://127.0.0.1:9\n' > "$root/.env"
+          PATH=/usr/bin:/bin:/usr/sbin:/sbin /bin/bash "$root/启动SES.command"
+          python3 scripts/upgrade_e2e.py portable-smoke --platform macos --root "$root"
+      - name: Restart the macOS release with the upgrade test endpoint
+        run: |
+          /bin/bash "$SES_E2E_ROOT/退出SES.command"
+          rm "$SES_E2E_ROOT/.env"
+          python3 scripts/upgrade_e2e.py start-fake-github --root "$SES_E2E_ROOT" --zip release-next/SES-9.9.9-preview-macos-arm64.zip --platform macos --version 9.9.9-preview
+          /bin/bash "$SES_E2E_ROOT/启动SES.command"
       - name: Upgrade E2E - upgrade to 9.9.9-preview through /api/system (server launches the executor under launchd; document kept)
         run: python3 scripts/upgrade_e2e.py api-upgrade --root "$SES_E2E_ROOT" --platform macos --installed 9.9.9-preview
       - name: Upgrade E2E - run the executor on a package that fails to build (rolls back, document kept)
@@ -215,6 +222,12 @@ jobs:
           fi
           python3 scripts/upgrade_e2e.py assert-stopped
       - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64-preview
+          path: release/SES-*-macos-arm64.zip
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: macos-launcher-logs
@@ -235,9 +248,13 @@ jobs:
         with:
           name: windows-preview
           path: release
-      - name: Build the macOS runtime archive
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-arm64-preview
+          path: release
+      - name: Build the legacy macOS source archive
         run: python3 scripts/package-release.py --platform macos
-      - name: Publish preview release with two assets
+      - name: Publish preview release assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -247,4 +264,4 @@ jobs:
             echo "Tag $GITHUB_REF_NAME does not match package version v$version" >&2
             exit 1
           fi
-          gh release create "$GITHUB_REF_NAME" "release/SES-$version-windows.zip" "release/SES-$version-macos.zip" --verify-tag --prerelease --title "SES ${version%-preview} (Preview)" --notes-file .github/preview-release-notes.md
+          gh release create "$GITHUB_REF_NAME" "release/SES-$version-windows.zip" "release/SES-$version-macos-arm64.zip" "release/SES-$version-macos.zip" --verify-tag --prerelease --title "SES ${version%-preview} (Preview)" --notes-file .github/preview-release-notes.md

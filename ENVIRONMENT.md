@@ -32,6 +32,8 @@ Node.js 与 pnpm 保存在 `.ses-tools/` 中，无需先手动安装，也不要
 
 ### macOS 压缩包
 
+Apple Silicon 自包含包使用 `-macos-arm64.zip` 文件名，内置原生 arm64 Node.js、已构建的程序和运行依赖。完整解压后双击 `启动SES.command` 即可离线启动。新版本在「稳定版」中优先选择 arm64 自包含包，旧版仍可使用通用源码包升级。下文的安装步骤适用于通用源码包。
+
 需要先手动安装 Node.js 和 pnpm，启动脚本会检查版本，然后安装项目依赖并构建。启动时会跳过开发测试用的 Playwright Chromium 下载。
 
 1. 下载并安装 [Node.js 22.22.0（macOS 安装包）](https://nodejs.org/dist/v22.22.0/node-v22.22.0.pkg)。

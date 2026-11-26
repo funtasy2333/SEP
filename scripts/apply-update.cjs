@@ -57,9 +57,10 @@ const PROTECTED_TOP = new Set(['.ses-update', '.ses-run', '.ses-tools', 'output'
 const PROTECTED_PREFIXES = [['packages', 'server', 'data']];
 const DB_FILES = ['ses.db', 'ses.db-wal', 'ses.db-shm'];
 const DB_DIR = 'packages/server/data';
-const WINDOWS_RUNTIME = '.ses-runtime';
-const WINDOWS_RUNTIME_FILES = [
-  'node.exe', 'server/package.json', 'server/dist/main.js', 'client/index.html',
+const BUNDLED_RUNTIME = '.ses-runtime';
+const BUNDLED_RUNTIME_IDS = { windows: 'windows-x64', macos: 'macos-arm64' };
+const BUNDLED_RUNTIME_FILES = [
+  'server/package.json', 'server/dist/main.js', 'client/index.html',
   'server/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
 ];
 
@@ -316,17 +317,18 @@ function resolveStaging(staging, platform, plan) {
     const info = readJson(buildFile, '安装包中的 ses-build.json');
     if (!info || typeof info.version !== 'string' || !info.version) fail('安装包中的 ses-build.json 缺少 version');
     files = releaseFiles(top, platform);
-    portable = platform === 'windows' && info.runtime === 'windows-x64';
+    portable = info.runtime === BUNDLED_RUNTIME_IDS[platform];
     if (info.runtime !== undefined && !portable) fail('发布包的运行环境与当前平台不匹配');
     for (const rel of files.keys()) {
       const segments = relSegments(rel);
-      if (segments[0].toLowerCase() === WINDOWS_RUNTIME && (!portable || segments[0] !== WINDOWS_RUNTIME || segments.length === 1)) {
+      if (segments[0].toLowerCase() === BUNDLED_RUNTIME && (!portable || segments[0] !== BUNDLED_RUNTIME || segments.length === 1)) {
         fail(`发布包包含无效的运行环境路径：${rel}`);
       }
     }
     if (portable) {
-      for (const name of WINDOWS_RUNTIME_FILES) {
-        if (!files.has(`${WINDOWS_RUNTIME}/${name}`)) fail(`Windows 运行环境缺少 ${name}`);
+      const node = platform === 'windows' ? 'node.exe' : 'node';
+      for (const name of [node, ...BUNDLED_RUNTIME_FILES]) {
+        if (!files.has(`${BUNDLED_RUNTIME}/${name}`)) fail(`运行环境缺少 ${name}`);
       }
     }
     buildInfo = null; // 原样安装
@@ -376,11 +378,11 @@ function cmdApply(args) {
 
   // The validated runtime is moved as a unit. Keep node_modules protected in the rest of the installation.
   if (portable) {
-    for (const rel of files.keys()) if (rel.startsWith(`${WINDOWS_RUNTIME}/`)) files.delete(rel);
+    for (const rel of files.keys()) if (rel.startsWith(`${BUNDLED_RUNTIME}/`)) files.delete(rel);
   }
   const replaced = REPLACE_DIRS.filter(dir => [...files.keys()].some(rel => rel.startsWith(`${dir}/`)));
-  if (plan.platform === 'windows' && (portable || exists(path.join(root, WINDOWS_RUNTIME)))) {
-    replaced.push(WINDOWS_RUNTIME);
+  if (portable || exists(path.join(root, BUNDLED_RUNTIME))) {
+    replaced.push(BUNDLED_RUNTIME);
   }
   const inReplaced = rel => replaced.some(dir => rel.startsWith(`${dir}/`));
 
@@ -445,7 +447,7 @@ function cmdApply(args) {
     // 仅供测试：模拟写到一半失败，用来验证 rollback。
     if (process.env.SES_APPLY_TEST_FAIL_AFTER && written >= Number(process.env.SES_APPLY_TEST_FAIL_AFTER)) fail('测试注入的失败');
   }
-  if (portable) moveEntry(path.join(top, WINDOWS_RUNTIME), targets.get(WINDOWS_RUNTIME));
+  if (portable) moveEntry(path.join(top, BUNDLED_RUNTIME), targets.get(BUNDLED_RUNTIME));
   manifest.applied = true;
   writeJson(manifestFile, manifest);
   process.stdout.write(`已替换 ${written} 个文件（整目录替换：${replaced.join(', ') || '无'}），类型：${kind === 'release' ? '发布包' : '源码归档'}${buildInfo ? `，版本 ${buildInfo.version}` : ''}。\n`);

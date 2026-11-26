@@ -115,9 +115,14 @@ def assert_doc(args):
 
 def portable_smoke(args):
     root = Path(args.root).resolve()
-    client = client_base('windows')
-    state = read_json(root / '.ses-run/server.json')
-    require(Path(state['executable']).resolve() == root / '.ses-runtime/node.exe', 'the launcher did not use bundled Node.js')
+    client = client_base(args.platform)
+    if args.platform == 'windows':
+        state = read_json(root / '.ses-run/server.json')
+        require(Path(state['executable']).resolve() == root / '.ses-runtime/node.exe', 'the launcher did not use bundled Node.js')
+    else:
+        node = root / '.ses-runtime/node'
+        require(subprocess.check_output([str(node), '-p', 'process.arch'], text=True).strip() == 'arm64', 'Node.js is not arm64')
+        require(not (root / 'node_modules').exists(), 'the launcher installed dependencies outside the bundle')
     require(not (root / '.ses-tools').exists(), 'the launcher installed development tools')
     _, html = request(client + '/')
     asset = re.search(rb'src="(/assets/[^" ]+\.js)"', html)
@@ -160,7 +165,7 @@ def upgrade(args):
     run.mkdir(exist_ok=True)
     build = root / 'ses-build.json'
     current = read_json(build) if build.exists() else {}
-    local_nodes = [root / '.ses-runtime/node.exe', root / '.ses-tools/node/node.exe']
+    local_nodes = [root / '.ses-runtime/node.exe', root / '.ses-runtime/node', root / '.ses-tools/node/node.exe']
     node = next((str(candidate) for candidate in local_nodes if candidate.exists()), shutil.which('node'))
     require(node, 'node not found')
     shutil.copy(args.zip, upd / 'download.zip')
@@ -247,6 +252,9 @@ REPO_API = '/repos/funtasy2333/SEP/'
 
 def release_json(base, version, platform, zip_path):
     name = f'SES-{version}-{platform}.zip'
+    native = f'SES-{version}-macos-arm64.zip'
+    if platform == 'macos' and Path(zip_path).name == native:
+        name = native
     data = Path(zip_path).read_bytes()
     return [{
         'tag_name': f'v{version}', 'draft': False, 'prerelease': True, 'body': 'upgrade e2e fixture',
@@ -447,6 +455,8 @@ def main():
     for name, function in (('create-doc', create_doc), ('assert-doc', assert_doc), ('portable-smoke', portable_smoke)):
         p = sub.add_parser(name)
         p.add_argument('--root', required=True)
+        if name == 'portable-smoke':
+            p.add_argument('--platform', choices=('windows', 'macos'), default='windows')
         p.set_defaults(function=function)
     p = sub.add_parser('upgrade')
     p.add_argument('--root', required=True)

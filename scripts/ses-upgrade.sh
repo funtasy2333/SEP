@@ -39,7 +39,7 @@ export SES_UPGRADE_ROOT="$ROOT"
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 
 # 无论怎样结束都释放服务端创建的升级锁。
-cleanup() { rm -f "$UPD/apply-update.next.cjs"; rm -rf "$UPD/lock"; }
+cleanup() { rm -f "$UPD/apply-update.next.cjs" "$UPD/executor-node"; rm -rf "$UPD/lock"; }
 trap cleanup EXIT
 
 mkdir -p "$RUN"
@@ -193,6 +193,13 @@ if [ -z "$NODE" ] || [ ! -x "$NODE" ]; then
   write_status failed stopping "找不到 Node.js，无法执行升级"
   log "找不到 Node.js。"
   exit 1
+fi
+if [ "$NODE" = "$ROOT/.ses-runtime/node" ]; then
+  if ! cp -p "$NODE" "$UPD/executor-node"; then
+    write_status failed stopping '无法复制升级所用的 Node.js'
+    exit 1
+  fi
+  NODE="$UPD/executor-node"
 fi
 if [ ! -f "$APPLY" ] || [ ! -f "$PLAN" ]; then
   write_status failed stopping "升级文件不完整（缺少 plan.json 或 apply-update.cjs）"

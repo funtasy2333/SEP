@@ -103,7 +103,10 @@ export class UpdateChecker {
     const versionName = release.tagName.replace(/^v/, '');
     const platform = this.platformName();
     const assetName = `SES-${versionName}-${platform}.zip`;
-    const asset = release.assets.find((a) => a.name === assetName);
+    const nativeAsset = platform === 'macos' && this.config.arch === 'arm64'
+      ? release.assets.find((a) => a.name === `SES-${versionName}-macos-arm64.zip`)
+      : undefined;
+    const asset = nativeAsset ?? release.assets.find((a) => a.name === assetName);
     const targetCommit = (await this.github.getCommit(release.tagName)).sha;
     const latest: NonNullable<UpdateCheck['latest']> = {
       version: versionName,

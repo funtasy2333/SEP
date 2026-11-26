@@ -47,6 +47,20 @@ describe('GET /api/system/update/check', () => {
   };
 
   describe('stable 通道', () => {
+    it.each([['arm64', 5678], ['x64', 1234]] as const)('macOS %s 选择对应的发布包', async (arch, size) => {
+      t = await createSystemTestApp({
+        launcher: 'macos', platform: 'darwin', config: { arch },
+        build: { version: '0.1.1-preview', channel: 'stable', commit: CURRENT },
+      });
+      const entry = release('0.1.2');
+      entry.assets?.push({ name: 'SES-0.1.2-preview-macos-arm64.zip', size: 5678,
+        browser_download_url: 'https://example.invalid/macos-arm64.zip' });
+      t.github.releases = [entry];
+      seedCommits(t.github);
+      t.github.compares.set(`${CURRENT}...${TARGET}`, { status: 'ahead', commits: [] });
+      expect(await check('stable')).toMatchObject({ available: true, latest: { assetSize: size } });
+    });
+
     it('排除 draft 与非 preview 标签，取版本最高者，并带上说明、链接与资产大小', async () => {
       t = await createSystemTestApp({
         build: { version: '0.1.1-preview', channel: 'stable', commit: CURRENT },
