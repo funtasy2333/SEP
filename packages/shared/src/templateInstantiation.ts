@@ -402,6 +402,80 @@ function mergeOptionalText(overrideValue: string | undefined, defaultValue: stri
   return undefined;
 }
 
+// Structured metadata and the cover fields describe the same document. Keep rich
+// values only when they still describe the new document; leave other categories intact.
+function reconcileTemplateMetadata(doc: PMJsonNode, meta: DocumentMeta, sourceNo: string | undefined): void {
+  type Row = Record<string, unknown>;
+  const record = (value: unknown): Row | undefined => value && typeof value === 'object' && !Array.isArray(value) ? value as Row : undefined;
+  const inlineText = (value: unknown): string => {
+    if (!Array.isArray(value)) return '';
+    return value.map((item) => {
+      const text = record(item)?.text;
+      return typeof text === 'string' ? text : '';
+    }).join('').trim();
+  };
+  const primaryLanguage = (value: unknown): string => typeof value === 'string' ? value.trim().toLowerCase().split(/[-_]/)[0]! : '';
+  const sameLines = (a: string[], b: string[]) => a.length === b.length && a.every((value, index) => value === b[index]);
+  const wantedCodes = metadataLines(meta.standardNo);
+  const wantedPublishers = metadataLines(meta.issuer);
+
+  const reconcile = (rows: Row[], nodeForm: boolean, category?: string): Row[] => {
+    const remainingPublishers = [...wantedPublishers];
+    const attrs = (row: Row): Row => nodeForm ? record(row.attrs) ?? {} : row;
+    const is = (row: Row, type: string) => !!record(row) && (nodeForm ? row.type === type : category === type);
+    const titles = rows.filter(row => is(row, 'titlePart'));
+    const titleMatches = (language: 'zh' | 'en', target: string | undefined) => {
+      const parts = titles.filter(row => primaryLanguage(attrs(row).lang) === language);
+      if (!parts.length || !target) return false;
+      const full = parts.find(row => !attrs(row).role || attrs(row).role === 'full');
+      const source = full ? inlineText(full.content) : parts.map(row => inlineText(row.content)).filter(Boolean).join(' ');
+      return source === target.trim();
+    };
+    const keepZh = titleMatches('zh', meta.titleCn);
+    const keepEn = titleMatches('en', meta.titleEn);
+    const dated = rows.filter(row => is(row, 'standardIdentifier')).flatMap(row => {
+      const { scheme, value } = attrs(row);
+      return scheme === 'dated' && typeof value === 'string' && value.trim() ? [value.trim()] : [];
+    });
+    const knownCodes = dated.length ? dated : metadataLines(sourceNo);
+    const keepIdentifiers = knownCodes.length > 0 && sameLines(knownCodes, wantedCodes);
+    return rows.filter(row => {
+      if (is(row, 'titlePart')) {
+        const language = primaryLanguage(attrs(row).lang);
+        return language === 'zh' ? keepZh : language === 'en' ? keepEn : true;
+      }
+      if (is(row, 'standardIdentifier')) {
+        if (keepIdentifiers) return true;
+        const { scheme, value } = attrs(row);
+        // Both dated and undated references, as well as std-ident parts, identify
+        // the source standard. An unrelated scheme/value can still be retained.
+        if (scheme === 'dated' || scheme === 'undated') return false;
+        if (nodeForm) row.content = [];
+        else row.parts = [];
+        return typeof value === 'string' && !!value.trim();
+      }
+      if (is(row, 'publisher')) {
+        const index = remainingPublishers.indexOf(inlineText(nodeForm ? row.content : row.name));
+        if (index < 0) return false;
+        remainingPublishers.splice(index, 1);
+        return true;
+      }
+      return true;
+    });
+  };
+  const reconcileAttrs = (attrs: Row | undefined) => {
+    if (!attrs) return;
+    for (const [key, category] of [['titleParts', 'titlePart'], ['identifiers', 'standardIdentifier'], ['publishers', 'publisher']] as const) {
+      if (Array.isArray(attrs[key])) attrs[key] = reconcile(attrs[key] as Row[], false, category);
+    }
+  };
+  reconcileAttrs(doc.attrs);
+  for (const child of doc.content ?? []) {
+    if (child.type === 'coverPage') reconcileAttrs(child.attrs);
+    if (child.type === 'metadataBlock' && Array.isArray(child.content)) child.content = reconcile(child.content as unknown as Row[], true) as unknown as PMJsonNode[];
+  }
+}
+
 /** 根据模板与表单覆盖参数实例化新建文档（深拷贝并解耦，模板后续修改不影响已建文档） */
 export function instantiateTemplateDocument(
   template: StandardTemplate,
@@ -469,6 +543,19 @@ export function instantiateTemplateDocument(
     content = createDefaultDocumentContent(meta);
   } else {
     const replaced = replaceTemplatePlaceholders(template.content as unknown as PMJsonNode, meta);
+    const sourceCover = replaced.content?.find((child) => child.type === 'coverPage');
+    const rootNo = replaced.attrs?.standardNo;
+    const coverNo = sourceCover?.attrs?.standardNo;
+    const sourceNo = typeof rootNo === 'string' && rootNo.trim() ? rootNo : typeof coverNo === 'string' ? coverNo : undefined;
+    reconcileTemplateMetadata(replaced, meta, sourceNo);
+    // Root attributes in older documents can take precedence over the new cover.
+    if (replaced.attrs) {
+      for (const key of COVER_ATTR_KEYS) {
+        if (!(key in replaced.attrs)) continue;
+        if (meta[key] === undefined) delete replaced.attrs[key];
+        else replaced.attrs[key] = meta[key];
+      }
+    }
     const children = Array.isArray(replaced.content) ? [...replaced.content] : [];
     const coverAttrs = buildCoverAttrsFromMeta(meta);
     if (children[0]?.type === 'coverPage') {

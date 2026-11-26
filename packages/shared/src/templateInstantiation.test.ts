@@ -15,6 +15,106 @@ const SAMPLE_PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
 describe('templateInstantiation', () => {
+  it.each(['block', 'root', 'cover'] as const)('reconciles imported structured metadata from %s on instantiation', (source) => {
+    const titleParts = [
+      { id: 'zh', lang: 'zh', role: 'full', content: [{ text: '旧标题' }] },
+      { id: 'en', lang: 'en', role: 'main', content: [{ text: 'Old title' }] },
+      { id: 'fr', lang: 'fr', role: 'full', content: [{ text: 'Titre' }] },
+    ];
+    const identifiers = [
+      { id: 'ident', parts: [{ id: 'number', kind: 'doc-number', content: [{ text: '123' }] }] },
+      { id: 'dated', scheme: 'dated', value: 'GB/T 123—2020', parts: [] },
+      { id: 'undated', scheme: 'undated', value: 'GB/T 123', parts: [] },
+    ];
+    const publishers = [
+      { id: 'a', name: [{ text: '机构甲', marks: [{ type: 'bold' }] }], role: 'publisher', identifier: 'A' },
+      { id: 'b', name: [{ text: '机构乙' }], role: 'publisher', identifier: 'B' },
+    ];
+    const structured = { titleParts, identifiers, publishers };
+    const block: PMJsonNode = { type: 'metadataBlock', content: [
+      ...titleParts.map(p => ({ type: 'titlePart', attrs: { nodeId: p.id, lang: p.lang, role: p.role }, content: p.content.map(x => ({ type: 'text', ...x })) })),
+      ...identifiers.map(i => ({ type: 'standardIdentifier', attrs: { nodeId: i.id, scheme: i.scheme, value: i.value }, content: i.parts.map(p => ({ type: 'identifierPart', attrs: { nodeId: p.id, kind: p.kind }, content: p.content.map(x => ({ type: 'text', ...x })) })) })),
+      ...publishers.map(p => ({ type: 'publisher', attrs: { nodeId: p.id, role: p.role, identifier: p.identifier }, content: p.name.map(x => ({ type: 'text', ...x })) })),
+      { type: 'language', attrs: { tag: 'zh' } },
+    ] };
+    const content = { type: 'doc', ...(source === 'root' ? { attrs: structured } : {}), content: [
+      { type: 'coverPage', attrs: source === 'cover' ? structured : {}, content: [{ type: 'paragraph' }] },
+      ...(source === 'block' ? [block] : []),
+    ] };
+    const template = { ...BUILTIN_TEMPLATES[0]!, readonly: false, content } as StandardTemplate;
+    const original = JSON.stringify(template);
+    const instantiated = instantiateTemplateDocument(template, { titleCn: '新标题', titleEn: 'New title', stdPrefix: 'GB/T', stdNo: '456—2026', issuer: '机构乙\n机构丙' });
+    const ir = pmToIr(instantiated.content as PMJsonNode).doc;
+    expect(ir.meta.title).toBe('新标题');
+    expect(ir.meta.titleEn).toBe('New title');
+    expect(ir.meta.titleParts?.map(p => p.lang)).toEqual(['fr']);
+    expect(ir.meta.stdCode).toBe('GB/T 456—2026');
+    expect(ir.meta.identifiers ?? []).toEqual([]);
+    expect(ir.meta.publishers?.map(p => [p.name.map(r => r.text).join(''), p.identifier])).toEqual([['机构乙', 'B']]);
+    expect(ir.meta.issuer).toBe('机构乙\n机构丙');
+    expect(JSON.stringify(template)).toBe(original);
+  });
+
+  it('removes structured titles and publishers when explicitly cleared', () => {
+    const template = { ...BUILTIN_TEMPLATES[0]!, readonly: false, content: { type: 'doc', content: [
+      { type: 'coverPage', attrs: {}, content: [{ type: 'paragraph' }] },
+      { type: 'metadataBlock', content: [
+        { type: 'titlePart', attrs: { lang: 'en', role: 'full' }, content: [{ type: 'text', text: 'Old title' }] },
+        { type: 'publisher', attrs: { identifier: 'OLD' }, content: [{ type: 'text', text: 'Old publisher' }] },
+      ] },
+    ] } } as StandardTemplate;
+    const instantiated = instantiateTemplateDocument(template, { titleCn: '新标题', titleEn: '', issuer: '' });
+    const meta = pmToIr(instantiated.content as PMJsonNode).doc.meta;
+    expect(meta.titleParts ?? []).toEqual([]);
+    expect(meta.publishers ?? []).toEqual([]);
+    expect(meta.titleEn).toBeUndefined();
+    expect(meta.issuer).toBeUndefined();
+  });
+
+  it('uses new cover values instead of legacy root scalars', () => {
+    const template = { ...BUILTIN_TEMPLATES[0]!, readonly: false, content: { type: 'doc', attrs: { titleCn: '旧', titleEn: 'Old', standardNo: 'GB/T 1—2020', standardType: 'group' }, content: [
+      { type: 'coverPage', attrs: {}, content: [{ type: 'paragraph' }] },
+    ] } } as StandardTemplate;
+    const doc = instantiateTemplateDocument(template, { titleCn: '新', titleEn: '', stdPrefix: 'GB/T', stdNo: '2—2026' });
+    expect(pmToIr(doc.content as PMJsonNode).doc.meta).toMatchObject({ title: '新', stdCode: 'GB/T 2—2026', standardType: 'gb' });
+    expect(pmToIr(doc.content as PMJsonNode).doc.meta.titleEn).toBeUndefined();
+  });
+
+  it('retains matching rich metadata and limits duplicate publishers', () => {
+    const template = { ...BUILTIN_TEMPLATES[0]!, readonly: false, content: { type: 'doc', attrs: {
+      standardNo: 'GB/T 1—2020',
+      titleParts: [{ id: 'title', lang: 'zh', role: 'full', content: [{ text: '题名', marks: [{ type: 'bold' }] }] }],
+      identifiers: [{ id: 'id', parts: [{ id: 'part', kind: 'doc-number', content: [{ text: '1' }] }] }],
+      publishers: [{ id: 'first', name: [{ text: '机构' }], identifier: 'A' }, { id: 'second', name: [{ text: '机构' }], identifier: 'B' }],
+    }, content: [{ type: 'coverPage', attrs: {}, content: [{ type: 'paragraph' }] }] } } as StandardTemplate;
+    const doc = instantiateTemplateDocument(template, { titleCn: '题名', stdPrefix: 'GB/T', stdNo: '1—2020', issuer: '机构' });
+    const meta = pmToIr(doc.content as PMJsonNode).doc.meta;
+    expect(meta.titleParts?.[0]?.content[0]?.marks).toEqual([{ type: 'bold' }]);
+    expect(meta.identifiers?.[0]?.parts[0]?.content[0]?.text).toBe('1');
+    expect(meta.publishers?.map(p => p.identifier)).toEqual(['A']);
+  });
+
+  it('keeps invalid fallback rows for diagnostics and updates existing root fields', () => {
+    const template = { ...BUILTIN_TEMPLATES[0]!, readonly: false, content: { type: 'doc', attrs: {
+      standardType: 'national', titleCn: '旧', titleParts: [null, { id: 'fr', lang: 'fr', content: [{ text: 'Titre' }] }], identifiers: [null], publishers: [null],
+    }, content: [{ type: 'coverPage', attrs: {}, content: [{ type: 'paragraph' }] }] } } as unknown as StandardTemplate;
+    const doc = instantiateTemplateDocument(template, { titleCn: '新', type: StandardType.GROUP });
+    const content = doc.content as PMJsonNode;
+    expect(content.attrs?.standardType).toBe('group');
+    expect(content.attrs?.titleCn).toBe('新');
+    expect((content.attrs?.titleParts as unknown[])[0]).toBeNull();
+    expect((content.attrs?.identifiers as unknown[])[0]).toBeNull();
+    expect((content.attrs?.publishers as unknown[])[0]).toBeNull();
+  });
+
+  it('does not treat a template default number as proof that imported identifier parts match', () => {
+    const template = { ...BUILTIN_TEMPLATES[0]!, readonly: false, defaultMeta: { standardNo: 'GB/T 2—2026' }, content: { type: 'doc', attrs: {
+      identifiers: [{ id: 'id', parts: [{ id: 'part', kind: 'doc-number', content: [{ text: '1' }] }] }],
+    }, content: [{ type: 'coverPage', attrs: {}, content: [{ type: 'paragraph' }] }] } } as StandardTemplate;
+    const doc = instantiateTemplateDocument(template, { titleCn: '新' });
+    expect(pmToIr(doc.content as PMJsonNode).doc.meta.identifiers ?? []).toEqual([]);
+  });
+
   it('provides all 6 readonly built-in templates', () => {
     expect(BUILTIN_TEMPLATES).toHaveLength(6);
     expect(BUILTIN_TEMPLATES.map((t) => t.baseType)).toEqual([
