@@ -57,6 +57,23 @@ const documentMeta = {
 } as DocumentMeta
 
 describe('文件设置草稿与封面同步', () => {
+  it('保留联合发布编号和发布单位的顺序，并同步到封面元数据', () => {
+    const content = legacyContent()
+    const draft = documentSettingsDraftFromDocument({
+      title: '联合发布标准', meta: { ...documentMeta, standardType: 'group' }, stage: 'working_draft', content,
+    })
+    draft.standardNo = ' T/CCFAGS 032—2022\r\n\r\n T/CAPPMA 02—2022 '
+    draft.issuer = ' 中国连锁经营协会 \n 中国水产流通与加工协会 '
+
+    const meta = documentMetaFromSettingsDraft(documentMeta, draft)
+    const synced = synchronizeCoverMetadata(content, meta)
+    expect(meta.standardNo).toBe('T/CCFAGS 032—2022\nT/CAPPMA 02—2022')
+    expect(meta.issuer).toBe('中国连锁经营协会\n中国水产流通与加工协会')
+    expect(pmToIr(synced as unknown as PMJsonNode).doc.meta).toMatchObject({ stdCode: meta.standardNo, issuer: meta.issuer })
+    expect(documentSettingsDraftFromDocument({ title: '联合发布标准', meta, stage: 'working_draft', content: synced }))
+      .toMatchObject({ standardNo: meta.standardNo, issuer: meta.issuer })
+  })
+
   it('数据库明确值优先，旧文档缺失字段从有效封面回填，未知类型原样保留', () => {
     const content = legacyContent()
     const draft = documentSettingsDraftFromDocument({

@@ -1,3 +1,4 @@
+import { metadataLines } from '../../ir/meta'
 import { hasActiveCoverLayout } from '../../coverLayoutValidation'
 import { assertOutputSupported } from '../outputBoundary'
 /**
@@ -26,7 +27,7 @@ import { LANDSCAPE_END, LANDSCAPE_START } from './body/block'
 import { renderChapter } from './body/clause'
 import { createRenderContext, emitParagraph, formulaSink, type NumberedParagraphTrace, type RenderContext } from './body/context'
 import { renderBodyTitle, renderForeword, renderIntroduction, renderTocTitle } from './body/front'
-import { normalizeCoverStdCode, renderBackCover, renderCover } from './cover'
+import { primaryCoverStdCode, renderBackCover, renderCover } from './cover'
 import { buildStaticToc } from './toc'
 import { buildPackage, createRelationshipIdAllocator, type DocxRelatedPart } from './package'
 import { buildEmptyHeaderFooterParts, buildHeaderFooterParts, createSectionManager, type HeaderFooterRelIds, type SectionKind, type SectionManager } from './sections'
@@ -195,7 +196,7 @@ export function renderDocxTraced(
     ...(hasBackCover ? { emptyHeader: allocateRelId(), emptyFooter: allocateRelId() } : {}),
   }
   const footnotesRelId = bodyFootnotes.length > 0 ? allocateRelId() : undefined
-  const headerFooterParts = buildHeaderFooterParts(normalizeCoverStdCode(doc.meta.stdCode), opts.coverLayout?.watermark)
+  const headerFooterParts = buildHeaderFooterParts(primaryCoverStdCode(doc.meta.stdCode), opts.coverLayout?.watermark)
   const emptyHeaderFooterParts = hasBackCover ? buildEmptyHeaderFooterParts() : undefined
   const sectionManager = createSectionManager(relIds)
 
@@ -311,6 +312,7 @@ export function renderDocxTraced(
     stylesXml: buildStylesXml({
       includeFootnotes: documentHasFootnotes(doc, bodyFootnotes),
       includeCoverLayout: hasActiveCoverLayout(opts.coverLayout),
+      includeAdditionalStdNo: metadataLines(doc.meta.stdCode).length > 1,
     }),
     numberingXml: ctx.numbering.buildNumberingXml(),
     relatedParts,

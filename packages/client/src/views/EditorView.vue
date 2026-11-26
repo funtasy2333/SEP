@@ -379,7 +379,7 @@ import {
   exportSemanticJson, exportSemanticHtml,
   buildDocxBlob,
 } from '@/serializer'
-import { PDF_EXPORT_ENABLED, irMetaFromDocumentMeta, type DocumentMeta, type IRDocMeta, type PMJsonNode } from '@ses/shared'
+import { PDF_EXPORT_ENABLED, irMetaFromDocumentMeta, metadataLines, type DocumentMeta, type IRDocMeta, type PMJsonNode } from '@ses/shared'
 import {
   buildXml46687Package,
   checkExportGuard,
@@ -547,19 +547,21 @@ function resetSettingsDraft() {
   ElMessage.success('已恢复为最近一次保存的设置')
 }
 
-/** Update just the cover attributes so body nodes, selection and undo history stay intact. */
-function synchronizeEditorCover(meta: DocumentMeta): Record<string, unknown> {
+/** Update the cover and edited metadata while retaining the body, selection and undo history. */
+function synchronizeEditorCover(meta: DocumentMeta, edited: { standardNo?: boolean; issuer?: boolean } = {}): Record<string, unknown> {
   const currentEditor = editor.value
   if (!currentEditor) return {}
-  const synchronizedJson = synchronizeCoverMetadata(currentEditor.getJSON(), meta)
+  const synchronizedJson = synchronizeCoverMetadata(currentEditor.getJSON(), meta, edited)
   const synchronizedDoc = currentEditor.schema.nodeFromJSON(synchronizedJson)
   const state = currentEditor.state
   const transaction = state.tr
   let coverPosition = -1
+  let metadataPosition = -1
   state.doc.forEach((node, position) => {
     if (coverPosition < 0 && node.type.name === 'coverPage') {
       coverPosition = position
     }
+    if (metadataPosition < 0 && node.type.name === 'metadataBlock') metadataPosition = position
   })
 
   const nextCoverIndex = synchronizedDoc.content.content.findIndex((node) => node.type.name === 'coverPage')
@@ -571,9 +573,23 @@ function synchronizeEditorCover(meta: DocumentMeta): Record<string, unknown> {
     transaction.insert(0, nextCover)
   }
 
-  for (const key of COVER_SETTINGS_KEYS) {
+  if ((edited.standardNo || edited.issuer) && metadataPosition >= 0) {
+    const nextMetadata = synchronizedDoc.content.content.find((node) => node.type.name === 'metadataBlock')
+    const currentMetadata = state.doc.nodeAt(metadataPosition)
+    if (nextMetadata && currentMetadata && !nextMetadata.eq(currentMetadata)) {
+      const from = transaction.mapping.map(metadataPosition)
+      transaction.replaceWith(from, from + currentMetadata.nodeSize, nextMetadata)
+    }
+  }
+
+  const rootKeys: readonly string[] = [
+    ...COVER_SETTINGS_KEYS,
+    ...(edited.standardNo ? ['identifiers'] : []),
+    ...(edited.issuer ? ['publishers'] : []),
+  ]
+  for (const key of rootKeys) {
     if (Object.prototype.hasOwnProperty.call(state.doc.attrs, key)
-      && state.doc.attrs[key] !== synchronizedDoc.attrs[key]) {
+      && JSON.stringify(state.doc.attrs[key]) !== JSON.stringify(synchronizedDoc.attrs[key])) {
       transaction.setDocAttribute(key, synchronizedDoc.attrs[key])
     }
   }
@@ -628,13 +644,18 @@ async function handleSettingsSave() {
 
   const draftSnapshot = { ...draft, titleCn: title }
   const meta = documentMetaFromSettingsDraft(currentDocument.meta, draftSnapshot)
+  const baseline = settingsBaseline.value
+  const edited = {
+    standardNo: baseline !== null && meta.standardNo !== metadataLines(baseline.standardNo).join('\n'),
+    issuer: baseline !== null && meta.issuer !== metadataLines(baseline.issuer).join('\n'),
+  }
   clearAutoSaveTimer()
   persistenceOperation.value = 'settings-save'
   saving.value = true
   settingsSaveError.value = false
   const bodyVersionAtSave = bodyChangeVersion
   try {
-    const content = synchronizeCoverMetadata(currentEditor.getJSON(), meta)
+    const content = synchronizeCoverMetadata(currentEditor.getJSON(), meta, edited)
     // Validate the candidate against the live production schema without changing editor state.
     const validatedContent = currentEditor.schema.nodeFromJSON(content)
     validatedContent.check()
@@ -644,8 +665,8 @@ async function handleSettingsSave() {
       stage: draftSnapshot.stage,
       content,
     })
-    // Apply only cover attributes after persistence succeeds; the request may have overlapped body edits.
-    synchronizeEditorCover(meta)
+    // Apply metadata after persistence succeeds because the request may have overlapped body edits.
+    synchronizeEditorCover(meta, edited)
     hydrateSettingsDraft(updated)
     if (bodyChangeVersion === bodyVersionAtSave) dirty.value = false
     else dirty.value = true

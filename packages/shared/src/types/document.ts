@@ -48,7 +48,7 @@ export type DocumentStage = (typeof DocumentStage)[keyof typeof DocumentStage];
  * 文档元数据
  */
 export interface DocumentMeta {
-  /** 标准编号 */
+  /** 完整标准编号。联合发布时每行一个。 */
   standardNo?: string;
   /** ICS 分类号 */
   icsCode?: string;
@@ -64,7 +64,7 @@ export interface DocumentMeta {
   implementDate?: string;
   /** 标准类型 */
   standardType: StandardType;
-  /** 标准发布单位 */
+  /** 标准发布单位。联合发布时每行一个。 */
   issuer?: string;
   /** 标准申请单位 */
   applicant?: string;

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { createApp, defineComponent, h, nextTick, ref } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
-import ElementPlus, { ElMessage } from 'element-plus'
+import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import TemplateEditorView from './TemplateEditorView.vue'
 import { replaceEditorDocument } from '@/utils/editorDocument'
@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   revertTemplate: vi.fn(),
   createTemplate: vi.fn(),
   onEditorUpdate: null as null | (() => void),
+  emitEditorUpdate: null as null | (() => void),
+  previewDocx: vi.fn(),
   editorGetJSON: vi.fn(() => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '初始正文' }] }] })),
 }))
 
@@ -34,7 +36,7 @@ vi.mock('@/stores/template', () => ({
 vi.mock('@/api/template', () => ({
   templateApi: {
     exportPackage: vi.fn(),
-    previewDocx: vi.fn(),
+    previewDocx: mocks.previewDocx,
     previewPdf: vi.fn(),
   },
 }))
@@ -42,6 +44,8 @@ vi.mock('@/api/template', () => ({
 vi.mock('@/composables/useStandardEditorCore', () => ({
   useStandardEditorCore: (options: { onUpdate?: () => void }) => {
     mocks.onEditorUpdate = options.onUpdate ?? null
+    let suppressed = false
+    mocks.emitEditorUpdate = () => { if (!suppressed) options.onUpdate?.() }
     return {
       editor: ref({
         setEditable: vi.fn(),
@@ -49,12 +53,16 @@ vi.mock('@/composables/useStandardEditorCore', () => ({
         chain: () => ({ focus: () => ({ insertContent: () => ({ run: vi.fn() }) }) }),
       }),
       hasUnappliedLandscapeEdits: () => false,
+      setSuppressUpdate: (value: boolean) => { suppressed = value },
     }
   },
 }))
 
 vi.mock('@/utils/editorDocument', () => ({
-  replaceEditorDocument: vi.fn(),
+  replaceEditorDocument: vi.fn((_editor, _content, emitUpdate = true) => {
+    if (emitUpdate) mocks.emitEditorUpdate?.()
+    return true
+  }),
 }))
 
 vi.mock('@/components/editor/StandardEditorToolbar.vue', () => ({
@@ -71,6 +79,65 @@ describe('TemplateEditorView UI 与无障碍交互', () => {
   afterEach(() => {
     for (const r of roots.splice(0)) r.remove()
     vi.clearAllMocks()
+  })
+
+  it('loads and reverts without marking the body dirty or saving before preview', async () => {
+    setActivePinia(createPinia())
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    for (const method of ['success', 'warning', 'info', 'error'] as const) {
+      vi.spyOn(ElMessage, method).mockImplementation(() => ({ close: vi.fn() }) as never)
+    }
+    const template = {
+      id: 42, uid: 'template-42', name: '模板', description: '', baseType: 'group', defaultStage: 'working_draft',
+      defaultMeta: {}, content: { type: 'doc', content: [] }, source: 'human', readonly: false,
+      revision: 3, hasPreviousContent: true,
+    }
+    mocks.fetchTemplate.mockResolvedValue(template)
+    mocks.revertTemplate.mockResolvedValue({ ...template, revision: 4 })
+    mocks.previewDocx.mockResolvedValue(new Blob(['docx']))
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test')
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const root = document.createElement('div')
+    document.body.append(root)
+    roots.push(root)
+    const app = createApp(TemplateEditorView)
+    app.use(ElementPlus).mount(root)
+    await nextTick(); await nextTick(); await nextTick()
+    try {
+      const save = root.querySelector<HTMLButtonElement>('[data-testid="template-save-btn"]')!
+      const body = root.querySelector<HTMLElement>('[data-testid="template-tab-body"]')!
+      expect(save.disabled).toBe(true)
+      expect(body.querySelector('.tab-dirty-mark')).toBeNull()
+      root.querySelector<HTMLButtonElement>('[data-testid="template-preview-docx-btn"]')!.click()
+      await nextTick(); await nextTick(); await nextTick()
+      expect(mocks.previewDocx).toHaveBeenCalledWith(42)
+      expect(mocks.updateTemplate).not.toHaveBeenCalled()
+
+      mocks.emitEditorUpdate?.()
+      await nextTick()
+      expect(save.disabled).toBe(false)
+      expect(body.querySelector('.tab-dirty-mark')).not.toBeNull()
+
+      root.querySelector<HTMLButtonElement>('[data-testid="template-more-actions-btn"]')!.click()
+      await nextTick(); await nextTick()
+      document.querySelector<HTMLElement>('[data-testid="template-revert-btn"]')!.click()
+      await nextTick(); await nextTick(); await nextTick()
+      expect(mocks.revertTemplate).toHaveBeenCalledWith(42, 3)
+      expect(save.disabled).toBe(true)
+      expect(body.querySelector('.tab-dirty-mark')).toBeNull()
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true }))
+      root.querySelector<HTMLButtonElement>('[data-testid="template-preview-docx-btn"]')!.click()
+      await nextTick(); await nextTick(); await nextTick()
+      expect(mocks.previewDocx).toHaveBeenCalledTimes(2)
+      expect(mocks.updateTemplate).not.toHaveBeenCalled()
+      mocks.emitEditorUpdate?.()
+      await nextTick()
+      expect(save.disabled).toBe(false)
+    } finally {
+      app.unmount()
+      vi.restoreAllMocks()
+    }
   })
 
   it('支持 ARIA tablist 键盘切换、分分页脏标记以及自适应/固定缩放与页序预览', async () => {
@@ -207,8 +274,20 @@ describe('TemplateEditorView UI 与无障碍交互', () => {
       const nameInput = root.querySelector<HTMLInputElement>('input[data-testid="template-name-input"]')!
       nameInput.value = '改名后的模板'
       nameInput.dispatchEvent(new Event('input', { bubbles: true }))
+      const standardNoInput = root.querySelector<HTMLTextAreaElement>('textarea[data-testid="template-standard-no-input"]')!
+      expect(standardNoInput?.value).toBe('T/ZSM 001—2026')
+      standardNoInput.value = ' T/CCFAGS 032—2022\n\n T/CAPPMA 02—2022 '
+      standardNoInput.dispatchEvent(new Event('input', { bubbles: true }))
+      const issuerInput = root.querySelector<HTMLTextAreaElement>('textarea[data-testid="template-issuer-input"]')!
+      issuerInput.value = ' 中国连锁经营协会\n 中国水产流通与加工协会 '
+      issuerInput.dispatchEvent(new Event('input', { bubbles: true }))
       mocks.onEditorUpdate?.()
       await nextTick()
+
+      const preview = root.querySelector<HTMLIFrameElement>('[data-testid="template-cover-preview-iframe"]')!.srcdoc
+      expect(preview).toContain('.ses-cover-issuer-multiple {')
+      expect(preview).toContain('<div>T/CCFAGS 032—2022</div><div>T/CAPPMA 02—2022</div>')
+      expect(preview).toContain('<div>中国连锁经营协会</div><div>中国水产流通与加工协会</div>')
 
       // 点击保存（请求暂未返回）
       const saveBtn = root.querySelector<HTMLButtonElement>('[data-testid="template-save-btn"]')!
@@ -220,10 +299,10 @@ describe('TemplateEditorView UI 与无障碍交互', () => {
       expect(sentPayload.defaultMeta).toMatchObject({
         stdPrefix: 'T/ZSM',
         titleEn: 'Zhejiang Group Standard',
-        standardNo: 'T/ZSM 001—2026',
+        standardNo: 'T/CCFAGS 032—2022\nT/CAPPMA 02—2022',
         publishDate: '2026-05-01',
         implementDate: '2026-08-01',
-        issuer: '省学会',
+        issuer: '中国连锁经营协会\n中国水产流通与加工协会',
       })
 
       // 保存请求等待期间用户继续修改正文

@@ -245,6 +245,25 @@ describe('标准编号 std-ident / std-ref（C-S-14）', () => {
     expect(stdMeta(completeMeta({ stdCode: 'GB/T 7—2020' }))).toContain('<std-ref type="dated">GB/T 7—2020</std-ref>')
   })
 
+  it('exports each joint standard number while retaining undated references', () => {
+    const meta = completeMeta({ stdCode: ' GB/T 1—2026 \n\n T/ABC 2—2026 ', identifiers: [
+      { id: 'i1', scheme: 'dated', value: 'GB/T 1—2026', parts: [] },
+      { id: 'i2', scheme: 'undated', value: 'GB/T 1', parts: [] },
+    ] })
+    const xml = stdMeta(meta)
+    expect(xml).toContain('<std-ref type="dated">GB/T 1—2026</std-ref><std-ref type="dated">T/ABC 2—2026</std-ref>')
+    expect(xml).toContain('<std-ref type="undated">GB/T 1</std-ref>')
+  })
+
+  it('retains the original reference order when the joint numbers match', () => {
+    const meta = completeMeta({ stdCode: 'GB/T 1—2026\nT/ABC 2—2026', identifiers: [
+      { id: 'i1', scheme: 'dated', value: 'GB/T 1—2026', parts: [] },
+      { id: 'i2', scheme: 'undated', value: 'GB/T 1', parts: [] },
+      { id: 'i3', scheme: 'dated', value: 'T/ABC 2—2026', parts: [] },
+    ] })
+    expect(stdMeta(meta)).toContain('<std-ref type="dated">GB/T 1—2026</std-ref><std-ref type="undated">GB/T 1</std-ref><std-ref type="dated">T/ABC 2—2026</std-ref>')
+  })
+
   it('meta-not-expressed：stdCode 与标识符的完整编号不一致时以标识符为准；其他 scheme 的编号未导出', () => {
     const meta = completeMeta({ stdCode: 'GB/T 7—2020', identifiers: [{ id: 'i1', scheme: 'dated', value: 'GB/T 1—2026', parts: [] }, { id: 'i2', scheme: 'isbn', value: '978', parts: [] }] })
     const { xml, problems } = renderOk(docWith(meta))
@@ -266,6 +285,22 @@ describe('发布机构、语言（SES 必填，D-X-02 决定 B）', () => {
 
   it('无 publishers 时用旧字段 issuer 生成一个无 role 的 std-org', () => {
     expect(stdMeta(completeMeta({ issuer: '旧发布机构' }))).toContain('<std-org-group><std-org><std-org-name>旧发布机构</std-org-name></std-org></std-org-group>')
+  })
+
+  it('exports each joint publisher and preserves matching structured organization attributes', () => {
+    const meta = completeMeta({ issuer: ' 甲 \n\n 乙 ', publishers: [
+      { id: 'p1', name: [{ text: '甲' }], role: 'lead', identifier: 'A' },
+      { id: 'p2', name: [{ text: '旧机构' }] },
+    ] })
+    expect(stdMeta(meta)).toContain('<std-org-group><std-org std-org-role="lead"><std-org-name>甲</std-org-name><std-org-abbrev>A</std-org-abbrev></std-org><std-org><std-org-name>乙</std-org-name></std-org></std-org-group>')
+  })
+
+  it('matches repeated publisher names to distinct structured records', () => {
+    const meta = completeMeta({ issuer: '甲\n甲', publishers: [
+      { id: 'p1', name: [{ text: '甲' }], role: 'lead', identifier: 'A' },
+      { id: 'p2', name: [{ text: '甲' }], role: 'publisher', identifier: 'B' },
+    ] })
+    expect(stdMeta(meta)).toContain('<std-org-group><std-org std-org-role="lead"><std-org-name>甲</std-org-name><std-org-abbrev>A</std-org-abbrev></std-org><std-org std-org-role="publisher"><std-org-name>甲</std-org-name><std-org-abbrev>B</std-org-abbrev></std-org></std-org-group>')
   })
 
   it('meta-required-missing（warning，D-X-02 B）：缺发布机构时省略 std-org-group，导出继续', () => {

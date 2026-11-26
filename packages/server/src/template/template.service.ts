@@ -7,6 +7,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -476,7 +477,9 @@ export class TemplateService {
       }
       current.coverLayout = validatedCoverLayout;
       if (normalizedNewContent !== undefined) {
-        current.previousContent = current.content;
+        if (!isDeepStrictEqual(current.content, normalizedNewContent)) {
+          current.previousContent = current.content;
+        }
         current.content = normalizedNewContent;
       }
       current.revision += 1;
@@ -522,7 +525,9 @@ export class TemplateService {
         );
       }
 
-      current.previousContent = current.content;
+      if (!isDeepStrictEqual(current.content, exec.doc)) {
+        current.previousContent = current.content;
+      }
       current.content = exec.doc as unknown as Record<string, unknown>;
       current.revision += 1;
       const saved = await this.repo.save(current);
@@ -705,7 +710,9 @@ export class TemplateService {
       current.defaultStage = pkg.template.defaultStage;
       current.defaultMeta = pkg.template.defaultMeta;
       current.coverLayout = pkg.template.coverLayout ?? null;
-      current.previousContent = current.content;
+      if (!isDeepStrictEqual(current.content, normalizedContent)) {
+        current.previousContent = current.content;
+      }
       current.content = normalizedContent;
       current.revision += 1;
       return this.repo.save(current);

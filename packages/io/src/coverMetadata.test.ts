@@ -41,4 +41,47 @@ describe('封面元数据同步', () => {
     synchronizeCoverMetadata(content, { standardType: 'national', titleCn: '新' })
     expect(JSON.stringify(content)).toBe(before)
   })
+
+  it('仅在显式编辑时删除不再使用的结构化编号和发布单位并保留其他元数据', () => {
+    const content = { type: 'doc', attrs: { identifiers: [
+      { id: 'a', scheme: 'dated', value: 'A', parts: [] }, { id: 'b', scheme: 'dated', value: 'B', parts: [] },
+      { id: 'part', parts: [{ kind: 'doc-number' }] }, { id: 'undated', scheme: 'undated', value: 'U', parts: [] },
+    ], publishers: [
+      { id: 'x', name: [{ text: '甲', marks: [{ type: 'bold' }] }], role: 'lead' },
+      { id: 'y', name: [{ text: '乙' }], identifier: 'YY' },
+    ] }, content: [
+      { type: 'coverPage', attrs: { standardNo: 'A\nB', issuer: '甲\n乙' } },
+      { type: 'metadataBlock', content: [
+        { type: 'standardIdentifier', attrs: { nodeId: 'a', scheme: 'dated', value: 'A' } },
+        { type: 'standardIdentifier', attrs: { nodeId: 'b', scheme: 'dated', value: 'B' } },
+        { type: 'standardIdentifier', attrs: { nodeId: 'part' }, content: [{ type: 'identifierPart' }] },
+        { type: 'publisher', attrs: { nodeId: 'x', role: 'lead' }, content: [{ type: 'text', text: '甲', marks: [{ type: 'bold' }] }] },
+        { type: 'publisher', attrs: { nodeId: 'y', identifier: 'YY' }, content: [{ type: 'text', text: '乙' }] },
+        { type: 'language', attrs: { tag: 'zh' } },
+      ] }, { type: 'chapter', attrs: { nodeId: 'body' } },
+    ] }
+    const meta: DocumentMeta = { titleCn: '标题', standardType: 'group', standardNo: 'A', issuer: '甲' }
+    const unrelated = synchronizeCoverMetadata(content, meta) as any
+    expect(unrelated.content[1]).toEqual(content.content[1])
+    const updated = synchronizeCoverMetadata(content, meta, { standardNo: true, issuer: true }) as any
+    expect(updated.content[1].content).toEqual([content.content[1]!.content![0], content.content[1]!.content![2], content.content[1]!.content![3], content.content[1]!.content![5]])
+    expect(updated.attrs.identifiers.map((x: any) => x.id)).toEqual(['a', 'part', 'undated'])
+    expect(updated.attrs.publishers.map((x: any) => x.id)).toEqual(['x'])
+    expect(updated.content[2]).toEqual(content.content[2])
+    const cleared = synchronizeCoverMetadata(content, { ...meta, standardNo: '', issuer: '' }, { standardNo: true, issuer: true }) as any
+    expect(cleared.content[1].content.map((x: any) => x.type)).toEqual(['standardIdentifier', 'language'])
+    expect(cleared.attrs.identifiers.map((x: any) => x.id)).toEqual(['part', 'undated'])
+    expect(cleared.attrs.publishers).toEqual([])
+  })
+
+  it('缩减重复值时按行数保留结构化记录', () => {
+    const content = { type: 'doc', content: [{ type: 'metadataBlock', content: [
+      { type: 'standardIdentifier', attrs: { nodeId: 'i1', scheme: 'dated', value: 'A' } },
+      { type: 'standardIdentifier', attrs: { nodeId: 'i2', scheme: 'dated', value: 'A' } },
+      { type: 'publisher', attrs: { nodeId: 'p1' }, content: [{ type: 'text', text: '甲' }] },
+      { type: 'publisher', attrs: { nodeId: 'p2' }, content: [{ type: 'text', text: '甲' }] },
+    ] }] }
+    const result = synchronizeCoverMetadata(content, { standardType: 'group', titleCn: '标题', standardNo: 'A', issuer: '甲' }, { standardNo: true, issuer: true }) as any
+    expect(result.content.find((node: any) => node.type === 'metadataBlock').content.map((node: any) => node.attrs.nodeId)).toEqual(['i1', 'p1'])
+  })
 })

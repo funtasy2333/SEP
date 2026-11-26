@@ -1,6 +1,6 @@
 import {
   buildCoverDesignation, cloneCoverLayout, downgradeCoverLayoutForStandardType,
-  getCoverDesignationName, getCoverDesignationParts, pmToIr,
+  getCoverDesignationName, getCoverDesignationParts, metadataLines, pmToIr,
   type CoverLayoutConfig, type Document, type DocumentMeta, type PMJsonNode,
 } from '@ses/shared'
 
@@ -164,10 +164,10 @@ export function documentMetaFromSettingsDraft(
     standardType: draft.standardType as DocumentMeta['standardType'],
     titleCn: draft.titleCn.trim(),
     titleEn: draft.titleEn.trim(),
-    standardNo: draft.standardNo.trim(),
+    standardNo: metadataLines(draft.standardNo).join('\n'),
     icsCode: draft.icsCode.trim(),
     ccsCode: draft.ccsCode.trim(),
-    issuer: draft.issuer.trim(),
+    issuer: metadataLines(draft.issuer).join('\n'),
     applicant: draft.applicant.trim(),
     proposer: draft.proposer.trim(),
     technicalCommittee: draft.technicalCommittee.trim(),

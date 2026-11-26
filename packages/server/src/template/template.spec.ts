@@ -71,6 +71,59 @@ describe('TemplateModule API & single-step revert', () => {
     await t.http.post('/api/templates/builtin:group/revert').send({ baseRevision: 0 }).expect(400);
   });
 
+  it('preserves the previous content through a metadata save that includes the unchanged body', async () => {
+    const created = await t.http
+      .post('/api/templates')
+      .send({ name: '模板', baseType: 'group' })
+      .expect(201);
+    const bodyA = created.body.content;
+    const bodyB = structuredClone(bodyA);
+    bodyB.content.push({
+      type: 'chapter',
+      attrs: { number: '4', nodeId: 'ch-extra' },
+      content: [
+        { type: 'chapterTitle', content: [{ type: 'text', text: '新章' }] },
+        { type: 'stdParagraph', attrs: { nodeId: 'p-extra' }, content: [{ type: 'text', text: '正文' }] },
+      ],
+    });
+    const changed = await t.http
+      .put(`/api/templates/${created.body.id}`)
+      .send({ baseRevision: 0, content: bodyB })
+      .expect(200);
+    const metadata = await t.http
+      .put(`/api/templates/${created.body.id}`)
+      .send({ baseRevision: 1, name: '更名', content: changed.body.content })
+      .expect(200);
+    expect(metadata.body.hasPreviousContent).toBe(true);
+    const reverted = await t.http
+      .post(`/api/templates/${created.body.id}/revert`)
+      .send({ baseRevision: 2 })
+      .expect(200);
+    expect(reverted.body.name).toBe('更名');
+    expect(reverted.body.content).toEqual(bodyA);
+  });
+
+  it('preserves the previous content after an operation that leaves the body unchanged', async () => {
+    const created = await t.http.post('/api/templates').send({ name: '模板', baseType: 'group' }).expect(201);
+    const bodyA = created.body.content;
+    const bodyB = structuredClone(bodyA);
+    bodyB.content.push({
+      type: 'chapter', attrs: { number: '4', nodeId: 'ch-extra' },
+      content: [
+        { type: 'chapterTitle', content: [{ type: 'text', text: '新章' }] },
+        { type: 'stdParagraph', attrs: { nodeId: 'p-extra' }, content: [{ type: 'text', text: '正文' }] },
+      ],
+    });
+    const changed = await t.http.put(`/api/templates/${created.body.id}`)
+      .send({ baseRevision: 0, content: bodyB }).expect(200);
+    const op = await t.http.post(`/api/templates/${created.body.id}/operations`)
+      .send({ baseRevision: 1, operations: [{ op: 'move', nodeId: 'p-extra', parent: 'ch-extra', position: 'end' }] }).expect(200);
+    expect(op.body.template.content).toEqual(changed.body.content);
+    const reverted = await t.http.post(`/api/templates/${created.body.id}/revert`)
+      .send({ baseRevision: 2 }).expect(200);
+    expect(reverted.body.content).toEqual(bodyA);
+  });
+
   it('supports create, from-document, PUT & operations writing previousContent, and /revert restoring content', async () => {
     const sse = await openSseStream(t.url, '/api/templates/events');
     openStreams.push(sse.close);

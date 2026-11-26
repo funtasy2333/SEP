@@ -158,7 +158,7 @@
         <section class="meta-preview-card" aria-label="模板封面摘要">
           <div class="summary-main">
             <div class="summary-code">
-              <span>{{ previewStdCode }}</span>
+              <span class="summary-standard-no">{{ previewStdCode }}</span>
               <span class="ses-stage" :class="draft.defaultStage">
                 <i class="dot" />{{ STAGE_LABELS[draft.defaultStage] || draft.defaultStage }}
               </span>
@@ -242,6 +242,16 @@
               <el-form-item label="备案号">
                 <el-input v-model="draft.filingNo" :disabled="isReadonly || saving" placeholder="适用时填写" />
               </el-form-item>
+              <el-form-item label="完整标准编号（可选）" class="span-2">
+                <el-input
+                  v-model="draft.standardNo"
+                  type="textarea"
+                  :autosize="{ minRows: 1, maxRows: 4 }"
+                  :disabled="isReadonly || saving"
+                  placeholder="每行填写一个完整标准编号，留空时使用前缀"
+                  data-testid="template-standard-no-input"
+                />
+              </el-form-item>
               <el-form-item label="ICS 分类号">
                 <el-input v-model="draft.icsCode" :disabled="isReadonly || saving" placeholder="如 35.240.99" />
               </el-form-item>
@@ -255,7 +265,14 @@
                 <el-input v-model="draft.technicalCommittee" :disabled="isReadonly || saving" />
               </el-form-item>
               <el-form-item label="发布单位">
-                <el-input v-model="draft.issuer" :disabled="isReadonly || saving" />
+                <el-input
+                  v-model="draft.issuer"
+                  type="textarea"
+                  :autosize="{ minRows: 1, maxRows: 4 }"
+                  :disabled="isReadonly || saving"
+                  placeholder="每行填写一个发布单位"
+                  data-testid="template-issuer-input"
+                />
               </el-form-item>
               <el-form-item label="起草单位">
                 <el-input v-model="draft.applicant" :disabled="isReadonly || saving" />
@@ -340,14 +357,17 @@ import { ArrowDown, ArrowLeft, MoreFilled } from '@element-plus/icons-vue'
 import {
   COVER_LAYOUT_PRINT_CSS,
   COVER_PRINT_CSS,
+  JOINT_COVER_PRINT_CSS,
   PDF_EXPORT_DISABLED_MESSAGE,
   PDF_EXPORT_ENABLED,
+  STANDARD_TYPE_PREFIXES,
   cloneCoverLayout,
   createDefaultDocumentContent,
   downgradeCoverLayoutForStandardType,
   getCoverDesignation,
   getCoverDesignationParts,
   irMetaFromDocumentMeta,
+  metadataLines,
   renderBackCoverHtml,
   renderCoverHtml,
   renderWatermarkPreviewHtml,
@@ -385,6 +405,7 @@ interface TemplateDraft {
   baseType: StandardType
   defaultStage: DocumentStage
   stdPrefix: string
+  standardNo: string
   icsCode: string
   ccsCode: string
   proposer: string
@@ -459,6 +480,7 @@ function emptyDraft(): TemplateDraft {
     baseType: 'national',
     defaultStage: 'working_draft',
     stdPrefix: '',
+    standardNo: '',
     icsCode: '',
     ccsCode: '',
     proposer: '',
@@ -498,6 +520,7 @@ function sameMetaOnly(a: TemplateDraft, b: TemplateDraft): boolean {
     && a.baseType === b.baseType
     && a.defaultStage === b.defaultStage
     && a.stdPrefix === b.stdPrefix
+    && a.standardNo === b.standardNo
     && a.icsCode === b.icsCode
     && a.ccsCode === b.ccsCode
     && a.proposer === b.proposer
@@ -523,20 +546,23 @@ const dirty = computed(() => !isReadonly.value && (bodyDirty.value || metaOnlyDi
 
 const pdfSupported = computed(() => PDF_EXPORT_ENABLED && capabilities.value.htmlToPdf)
 
+const previewStdCode = computed(() => metadataLines(draft.value.standardNo).join('\n')
+  || `${draft.value.stdPrefix.trim() || STANDARD_TYPE_PREFIXES[draft.value.baseType]} XXXXX—2026`)
+
 function buildPresetMeta(): DocumentMeta {
   const inherited = template.value?.defaultMeta
   return {
     standardType: draft.value.baseType,
     titleCn: draft.value.name || '标准名称示例',
     titleEn: inherited?.titleEn || undefined,
-    standardNo: draft.value.stdPrefix ? `${draft.value.stdPrefix} XXXXX—2026` : (inherited?.standardNo || 'GB/T XXXXX—2026'),
+    standardNo: previewStdCode.value,
     publishDate: inherited?.publishDate || undefined,
     implementDate: inherited?.implementDate || undefined,
     icsCode: draft.value.icsCode || undefined,
     ccsCode: draft.value.ccsCode || undefined,
     proposer: draft.value.proposer || undefined,
     technicalCommittee: draft.value.technicalCommittee || undefined,
-    issuer: draft.value.issuer || undefined,
+    issuer: metadataLines(draft.value.issuer).join('\n') || undefined,
     applicant: draft.value.applicant || undefined,
     replaces: draft.value.replaces || undefined,
     consistency: draft.value.consistency || undefined,
@@ -548,7 +574,6 @@ function buildPresetMeta(): DocumentMeta {
   }
 }
 
-const previewStdCode = computed(() => (draft.value.stdPrefix ? `${draft.value.stdPrefix} XXXXX—2026` : 'GB/T XXXXX—2026'))
 const previewDesignation = computed(() => {
   const irMeta: IRDocMeta = {
     standardType: 'gb',
@@ -619,6 +644,7 @@ const previewHtml = computed(() => {
     '<style>',
     'html{color-scheme:light;}',
     COVER_PRINT_CSS,
+    JOINT_COVER_PRINT_CSS,
     COVER_LAYOUT_PRINT_CSS,
     'body{margin:0;padding:18px;background:transparent;display:flex;flex-direction:column;align-items:center;gap:18px;min-height:100vh;box-sizing:border-box;}',
     `.ses-page-slot{width:calc(210mm * ${zoom});height:calc(297mm * ${zoom});position:relative;flex:0 0 auto;background:#fff;color:#111;box-shadow:0 8px 26px rgba(15,23,42,.18);border-radius:2px;overflow:hidden;}`,
@@ -638,6 +664,7 @@ function draftFromTemplate(tpl: StandardTemplate): TemplateDraft {
     baseType: tpl.baseType,
     defaultStage: tpl.defaultStage,
     stdPrefix: dm.stdPrefix ?? '',
+    standardNo: dm.standardNo ?? '',
     icsCode: dm.icsCode ?? '',
     ccsCode: dm.ccsCode ?? '',
     proposer: dm.proposer ?? '',
@@ -667,13 +694,19 @@ function hydrateTemplate(tpl: StandardTemplate) {
     const content = tpl.content && Object.keys(tpl.content).length > 0
       ? tpl.content
       : createDefaultDocumentContent({ standardType: tpl.baseType, titleCn: '{{titleCn}}' })
-    replaceEditorDocument(currentEditor, content, true, false)
+    editorCore.setSuppressUpdate(true)
+    try {
+      replaceEditorDocument(currentEditor, content, true, false)
+    } finally {
+      editorCore.setSuppressUpdate(false)
+    }
     currentEditor.setEditable(!tpl.readonly, false)
   }
 }
 
 const EDITABLE_DEFAULT_META_KEYS = [
   'stdPrefix',
+  'standardNo',
   'icsCode',
   'ccsCode',
   'proposer',
@@ -694,7 +727,7 @@ function defaultMetaFromDraft(d: TemplateDraft, existing?: TemplateDefaultMeta):
     out.standardType = d.baseType
   }
   for (const key of EDITABLE_DEFAULT_META_KEYS) {
-    const trimmed = d[key].trim()
+    const trimmed = key === 'standardNo' || key === 'issuer' ? metadataLines(d[key]).join('\n') : d[key].trim()
     if (trimmed) out[key] = trimmed
     else delete out[key]
   }
@@ -1194,6 +1227,11 @@ onBeforeUnmount(() => {
 .summary-designation {
   font-size: 12px;
   color: var(--ses-ink-3);
+}
+
+.summary-standard-no {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 .summary-title {

@@ -1,11 +1,12 @@
 /** PDF cover: share the DOCX cover's metadata rules and embedded logo assets. */
 import type { IRDocMeta } from '../ir/types'
+import { metadataLines } from '../ir/meta'
 import type { DocumentStage } from '../types/document'
 import type { BackCoverAlign, BackCoverBlock, BackCoverConfig, CoverLayoutConfig, WatermarkConfig } from '../types/template'
 import { getCoverDesignation } from '../coverDesignation'
 import { COVER_LOGO_MIN_MM, WATERMARK_FONT_MAX_PT, WATERMARK_FONT_MIN_PT, WATERMARK_IMAGE_MAX_HEIGHT_MM, WATERMARK_IMAGE_MAX_WIDTH_MM, WATERMARK_MAX_OPACITY, WATERMARK_MIN_OPACITY, WATERMARK_TEXT_MAX_LENGTH, isReplaceMarkForbidden, parseCoverLogoDataUrl } from '../coverLayoutValidation'
 import { COVER_ASSETS } from './docx/assets'
-import { industryLogoFamily, localRegionCode, normalizeCoverStdCode, STAGE_LABELS, typeMarkCode } from './docx/cover'
+import { industryLogoFamily, localRegionCode, normalizeCoverStdCode, primaryCoverStdCode, STAGE_LABELS, typeMarkCode } from './docx/cover'
 import { escapeXmlText } from './docx/xml'
 
 function text(value: string): string {
@@ -60,6 +61,9 @@ export function renderCoverHtml(meta: IRDocMeta, stage: DocumentStage, coverLayo
   const customLogo = customLogoHtml(coverLayout, meta)
   const noticeText = coverLayout?.notice?.text?.trim() ?? ''
   const noticePos = coverLayout?.notice?.position
+  const numbers = metadataLines(meta.stdCode).map(normalizeCoverStdCode)
+  const issuers = metadataLines(meta.issuer)
+  const numberOffset = Math.max(0, numbers.length - 1) * 6
 
   const out = [`<section class="ses-cover" data-type="cover" data-standard-type="${text(meta.standardType)}"><div class="${classes}">`]
   out.push('<div class="ses-cover-codes">')
@@ -82,9 +86,10 @@ export function renderCoverHtml(meta: IRDocMeta, stage: DocumentStage, coverLayo
     if (customLogo.html) out.push(customLogo.html)
   }
   out.push(`<div class="ses-cover-designation">${text(getCoverDesignation(meta))}</div>`)
-  out.push(`<div class="ses-cover-number">${text(normalizeCoverStdCode(meta.stdCode))}</div>`)
-  if (meta.replaces) out.push(`<div class="ses-cover-replaces">代替 ${text(normalizeCoverStdCode(meta.replaces))}</div>`)
-  out.push('<div class="ses-cover-rule"></div><div class="ses-cover-titles">')
+  out.push(numbers.length > 1 ? `<div class="ses-cover-number ses-cover-number-multiple">${numbers.map(number => `<div>${text(number)}</div>`).join('')}</div>` : `<div class="ses-cover-number">${text(numbers[0] ?? '')}</div>`)
+  const offsetStyle = numberOffset ? ` style="transform:translateY(${numberOffset}mm)"` : ''
+  if (meta.replaces) out.push(`<div class="ses-cover-replaces"${offsetStyle}>代替 ${text(normalizeCoverStdCode(meta.replaces))}</div>`)
+  out.push(`<div class="ses-cover-rule"${offsetStyle}></div><div class="ses-cover-titles">`)
   out.push(`<div class="ses-cover-title">${text(meta.title ?? '').replace(/\n/g, '<br />')}</div>`)
   if (meta.titleEn && meta.standardType !== 'enterprise') out.push(`<div class="ses-cover-english" lang="en">${text(meta.titleEn).replace(/\n/g, '<br />')}</div>`)
   if (meta.consistency) out.push(`<div class="ses-cover-consistency">${text(meta.consistency)}</div>`)
@@ -98,9 +103,17 @@ export function renderCoverHtml(meta: IRDocMeta, stage: DocumentStage, coverLayo
     out.push(`<div class="ses-cover-notice ses-cover-notice-above-dates">${text(noticeText).replace(/\n/g, '<br />')}</div>`)
   }
   out.push(`<div class="ses-cover-dates"><span>${text(meta.publishDate?.trim() || 'XXXX-XX-XX')} 发布</span><span>${text(meta.implementDate?.trim() || 'XXXX-XX-XX')} 实施</span></div>`)
-  out.push(`<div class="ses-cover-issuer">${national ? image(COVER_ASSETS.nationalIssuer, '国家标准发布机构与发布') : `${text(meta.issuer?.trim() ?? '')}　发　布`}</div>`)
+  let issuerContent: string
+  if (national) {
+    issuerContent = image(COVER_ASSETS.nationalIssuer, '国家标准发布机构与发布')
+  } else if (issuers.length > 1) {
+    issuerContent = `<div class="ses-cover-issuer-names">${issuers.map(name => `<div>${text(name)}</div>`).join('')}</div><div class="ses-cover-issuer-release">发　布</div>`
+  } else {
+    issuerContent = `${text(issuers[0] ?? '')}　发　布`
+  }
+  out.push(`<div class="ses-cover-issuer${!national && issuers.length > 1 ? ' ses-cover-issuer-multiple' : ''}">${issuerContent}</div>`)
   if (noticeText && noticePos === 'below_issuer') {
-    out.push(`<div class="ses-cover-notice ses-cover-notice-below-issuer">${text(noticeText).replace(/\n/g, '<br />')}</div>`)
+    out.push(`<div class="ses-cover-notice ses-cover-notice-below-issuer"${!national && issuers.length > 1 ? ` style="top:${283 + Math.max(0, issuers.length - 3) * 3}mm"` : ''}>${text(noticeText).replace(/\n/g, '<br />')}</div>`)
   }
   out.push('</div></section>')
   return out.join('\n')
@@ -212,7 +225,7 @@ export function renderWatermarkLayerHtml(watermark: WatermarkConfig, forPreview 
 
 export function renderWatermarkPreviewHtml(meta: IRDocMeta, watermark: WatermarkConfig): string {
   if (!watermark.enabled) return ''
-  const stdCode = normalizeCoverStdCode(meta.stdCode) || '标准编号示例'
+  const stdCode = primaryCoverStdCode(meta.stdCode) || '标准编号示例'
   const renderSamplePage = (pageNum: number, withWm: boolean) => [
     `<section class="ses-body-preview" data-page="${pageNum}">`,
     withWm ? renderWatermarkLayerHtml(watermark, true) : '',
@@ -294,6 +307,13 @@ section.ses-cover { page: cover; break-after: page; }
 .ses-cover-dates { position: absolute; left: 25mm; right: 15mm; top: 249.6mm; display: flex; justify-content: space-between; padding-bottom: 4mm; border-bottom: 0.75pt solid black; font-size: 14pt; }
 .ses-cover-issuer { position: absolute; left: 25mm; right: 15mm; top: 268.77mm; text-align: center; font-size: 14pt; }
 .ses-cover-national .ses-cover-issuer { top: 261.57mm; }
+`
+
+export const JOINT_COVER_PRINT_CSS = `
+.ses-cover-number-multiple { line-height: 6mm; }
+.ses-cover-issuer-multiple { top: 268.77mm; transform: translateY(calc(-50% + 3mm)); display: flex; justify-content: center; align-items: center; line-height: 6mm; }
+.ses-cover-issuer-names { width: 110mm; text-align: center; }
+.ses-cover-issuer-release { width: 30mm; }
 `
 
 export const COVER_LAYOUT_PRINT_CSS = `

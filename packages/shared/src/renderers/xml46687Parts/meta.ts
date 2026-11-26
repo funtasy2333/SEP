@@ -10,6 +10,7 @@
  */
 
 import type { IRInline, IRTitlePart } from '../../ir/types'
+import { metadataLines } from '../../ir/meta'
 import type { XmlElement, XmlNode } from '../../xml46687/tree'
 import type { Xml46687BoundaryContribution } from '../xml46687Boundary'
 import { el, site, type RenderContext, type Site } from './context'
@@ -191,7 +192,16 @@ function renderStdIdent(ctx: RenderContext): XmlElement | null {
 function renderOrganizations(ctx: RenderContext): XmlElement | null {
   const meta = ctx.doc.meta
   const orgs: XmlElement[] = []
-  ;(meta.publishers ?? []).forEach((publisher, index) => {
+  const lines = metadataLines(meta.issuer)
+  const publishers = meta.publishers ?? []
+  const remaining = [...publishers]
+  const selected = lines.length > 1
+    ? lines.map((line) => {
+        const index = remaining.findIndex((publisher) => publisher.name.map((run) => run.text).join('').trim() === line)
+        return index >= 0 ? remaining.splice(index, 1)[0]! : { id: '', name: [{ text: line }], role: undefined, identifier: undefined }
+      })
+    : publishers
+  ;selected.forEach((publisher, index) => {
     const at = site(`doc.meta.publishers[${index}]`, publisher.id)
     const names = ctx.renderInlines(publisher.name, site(`${at.path}.name`, publisher.id), 'subsup')
     const abbreviation = (publisher.identifier ?? '').trim()
@@ -201,7 +211,7 @@ function renderOrganizations(ctx: RenderContext): XmlElement | null {
     if (children.length > 0) orgs.push(el('std-org', { 'std-org-role': publisher.role?.trim() }, children))
   })
   if (orgs.length === 0 && (meta.issuer ?? '').trim() !== '') {
-    orgs.push(el('std-org', undefined, [el('std-org-name', undefined, [meta.issuer!.trim()])]))
+    for (const line of lines) orgs.push(el('std-org', undefined, [el('std-org-name', undefined, [line])]))
   }
   if (orgs.length === 0) {
     ctx.report('meta-required-missing', 'warning', '缺少发布机构（meta.publishers 与 meta.issuer 均为空）：SES 要求填写，已省略 std-org-group。', site('doc.meta.publishers'))
@@ -232,19 +242,23 @@ function renderStdRefs(ctx: RenderContext): XmlElement[] {
   const meta = ctx.doc.meta
   const out: XmlElement[] = []
   let dated: string | undefined
+  const codes = metadataLines(meta.stdCode)
+  const structuredDated = (meta.identifiers ?? []).filter((identifier) => identifier.scheme === 'dated' && (identifier.value ?? '').trim() !== '').map((identifier) => identifier.value!.trim())
+  const useJointCodes = codes.length > 1 && (codes.length !== structuredDated.length || codes.some((code, index) => code !== structuredDated[index]))
+  if (useJointCodes) out.push(...codes.map((code) => el('std-ref', { type: 'dated' }, [code])))
   ;(meta.identifiers ?? []).forEach((identifier, index) => {
     const value = (identifier.value ?? '').trim()
     if (value === '') return
     const scheme = identifier.scheme
     if (scheme === 'dated' || scheme === 'undated') {
-      out.push(el('std-ref', { type: scheme }, [value]))
+      if (scheme !== 'dated' || !useJointCodes) out.push(el('std-ref', { type: scheme }, [value]))
       if (scheme === 'dated' && dated === undefined) dated = value
     } else {
       ctx.reportMerged('meta-not-expressed', 'warning', NOT_EXPRESSED_TITLE, `标准编号「${value}」的 scheme「${scheme ?? ''}」不是 dated/undated，未导出为 std-ref`, site(`doc.meta.identifiers[${index}]`, identifier.id))
     }
   })
-  const stdCode = (meta.stdCode ?? '').trim()
-  if (stdCode !== '') {
+  const stdCode = codes[0] ?? ''
+  if (stdCode !== '' && codes.length <= 1) {
     if (dated === undefined) out.unshift(el('std-ref', { type: 'dated' }, [stdCode]))
     else if (dated !== stdCode) {
       ctx.reportMerged('meta-not-expressed', 'warning', NOT_EXPRESSED_TITLE, `meta.stdCode「${stdCode}」与标识符给出的完整编号「${dated}」不一致，以标识符为准，stdCode 未导出`, site('doc.meta.stdCode'))

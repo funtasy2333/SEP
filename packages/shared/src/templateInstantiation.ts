@@ -1,5 +1,6 @@
 import { buildCoverDesignation, getCoverDesignationName, getCoverDesignationParts } from './coverDesignation';
 import { cloneCoverLayout, downgradeCoverLayoutForStandardType } from './coverLayoutValidation';
+import { metadataLines } from './ir/meta';
 import type { PMJsonNode } from './ir/pmToIr';
 import { unsupportedFootnoteContent, unsupportedSharedFootnoteContent } from './ir/footnotePayload';
 import { DocumentStage, StandardType, type CreateDocumentDto, type DocumentMeta } from './types/document';
@@ -182,7 +183,7 @@ export function createNewDocument(form: NewDocForm): CreateDocumentDto & { conte
     standardType: form.type,
     icsCode: optional(form.icsCode),
     ccsCode: optional(form.ccsCode),
-    issuer: optional(form.issuer),
+    issuer: metadataLines(form.issuer).join('\n') || undefined,
     applicant: optional(form.applicant),
     proposer: optional(form.proposer),
     technicalCommittee: optional(form.technicalCommittee),
@@ -417,7 +418,7 @@ export function instantiateTemplateDocument(
   const stdNoInput = overrides.stdNo?.trim() ?? '';
   const standardNo = stdNoInput
     ? `${stdPrefix} ${stdNoInput}`
-    : defaults.standardNo?.trim() || `${stdPrefix} ${STANDARD_NO_PLACEHOLDER}`;
+    : metadataLines(defaults.standardNo).join('\n') || `${stdPrefix} ${STANDARD_NO_PLACEHOLDER}`;
 
   const rawIndustryName = mergeOptionalText(overrides.industryName, defaults.industryName);
   const rawRegionName = mergeOptionalText(overrides.regionName, defaults.regionName);
@@ -444,7 +445,7 @@ export function instantiateTemplateDocument(
     standardType: type,
     icsCode: mergeOptionalText(overrides.icsCode, defaults.icsCode),
     ccsCode: mergeOptionalText(overrides.ccsCode, defaults.ccsCode),
-    issuer: mergeOptionalText(overrides.issuer, defaults.issuer),
+    issuer: metadataLines(mergeOptionalText(overrides.issuer, defaults.issuer)).join('\n') || undefined,
     applicant: mergeOptionalText(overrides.applicant, defaults.applicant),
     proposer: mergeOptionalText(overrides.proposer, defaults.proposer),
     technicalCommittee: mergeOptionalText(overrides.technicalCommittee, defaults.technicalCommittee),

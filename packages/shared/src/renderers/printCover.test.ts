@@ -198,3 +198,20 @@ describe('PDF 打印封面', () => {
     expect(svg).not.toContain('\u0000')
   })
 })
+
+it('prints joint numbers and issuers as separate rows with one release label', () => {
+  const html = print({ standardType: 'group', stdCode: 'T/AAA 1-2026\n\n T/BBB 2-2026 ', issuer: '甲协会\n 乙协会' })
+  const cover = /<section class="ses-cover"[\s\S]*?<\/section>/.exec(html)![0]
+  expect(cover).toContain('<div>T/AAA 1—2026</div><div>T/BBB 2—2026</div>')
+  expect(cover).toContain('<div>甲协会</div><div>乙协会</div>')
+  expect(cover.match(/发　布/g)).toHaveLength(1)
+  expect(html).not.toContain('T/AAA 1-2026\\a')
+})
+
+it('renders joint numbers independently of issuer count and keeps national issuers fixed', () => {
+  const cover = /<section class="ses-cover"[\s\S]*?<\/section>/.exec(print({ standardType: 'gb', stdCode: 'GB/T 1-2026\nGB/T 2-2026\nGB/T 3-2026', issuer: '甲\n乙', replaces: 'GB/T 1-2000' }))![0]
+  expect(cover).toContain('<div>GB/T 1—2026</div><div>GB/T 2—2026</div><div>GB/T 3—2026</div>')
+  expect(cover).toContain('alt="国家标准发布机构与发布"')
+  expect(cover).toContain('translateY(12mm)')
+  expect(cover).not.toContain('甲')
+})

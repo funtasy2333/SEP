@@ -15,6 +15,11 @@ import type { IRDocMeta } from './types'
 
 export type IRStandardType = IRDocMeta['standardType']
 
+/** 标准编号和发布单位按行存储，兼容既有单行元数据。 */
+export function metadataLines(value: string | undefined): string[] {
+  return (value ?? '').split(/\r\n?|\n/).map((line) => line.trim()).filter(Boolean)
+}
+
 /**
  * 文档库口径 → IR 口径的映射表；也接受已经是 IR 口径的取值（gb、guide）原样通过。
  * 用 Map 而不是 plain object：plain object 按外部字符串查找会命中 Object.prototype 上的属性

@@ -42,10 +42,16 @@
           <div class="preview-topline"><span>封面预览</span><span class="preview-live"><i />实时更新</span></div>
           <div class="preview-content">
             <div class="preview-main">
-              <div class="preview-standard-no">{{ draft.standardNo.trim() || '标准编号待填写' }}</div>
+              <div class="preview-standard-no">
+                <div v-for="(line, index) in previewStandardNumbers" :key="index">{{ line }}</div>
+                <div v-if="!previewStandardNumbers.length">标准编号待填写</div>
+              </div>
               <div v-if="coverDesignationPreview" class="preview-designation">{{ coverDesignationPreview }}</div>
               <div class="preview-title-cn">{{ draft.titleCn.trim() || '请输入标准中文名称' }}</div>
               <div class="preview-title-en">{{ draft.titleEn.trim() || 'English title (optional)' }}</div>
+              <div v-if="previewIssuers.length" class="preview-issuer">
+                <div v-for="(line, index) in previewIssuers" :key="index">{{ line }}</div>
+              </div>
             </div>
             <div class="preview-details">
               <span class="preview-type">{{ typeName }}</span>
@@ -117,11 +123,13 @@
               <el-form-item label="标准编号" class="field-span-2">
                 <el-input
                   v-model="draft.standardNo"
+                  type="textarea"
+                  :autosize="{ minRows: 1, maxRows: 6 }"
                   :disabled="saving"
                   placeholder="填写完整编号，如 GB/T 12345—2026"
                   aria-label="完整标准编号"
                 />
-                <div class="field-hint">按正式编号完整填写；系统不会推测编号或年份。</div>
+                <div class="field-hint">联合发布时，每行填写一个完整标准编号。</div>
               </el-form-item>
 
             </div>
@@ -198,7 +206,8 @@
                 <el-input v-model="draft.technicalCommittee" :disabled="saving" placeholder="归口单位或技术委员会；没有时留空" aria-label="归口单位" />
               </el-form-item>
               <el-form-item label="发布单位" class="field-span-2">
-                <el-input v-model="draft.issuer" :disabled="saving" placeholder="标准发布单位；没有时留空" aria-label="发布单位" />
+                <el-input v-model="draft.issuer" type="textarea" :autosize="{ minRows: 1, maxRows: 6 }" :disabled="saving" placeholder="标准发布单位；没有时留空" aria-label="发布单位" />
+                <div class="field-hint">联合发布时，每行填写一个发布单位。</div>
               </el-form-item>
               <el-form-item label="起草单位" class="field-span-2">
                 <el-input v-model="draft.applicant" :disabled="saving" placeholder="标准起草单位；没有时留空" aria-label="起草单位" />
@@ -243,7 +252,7 @@ import {
   Grid, InfoFilled, OfficeBuilding, Picture, Select, Setting,
 } from '@element-plus/icons-vue'
 import {
-  buildCoverDesignation, downgradeCoverLayoutForStandardType, getCoverDesignation, getCoverDesignationName, getCoverDesignationParts, hasActiveCoverLayout,
+  buildCoverDesignation, downgradeCoverLayoutForStandardType, getCoverDesignation, getCoverDesignationName, getCoverDesignationParts, hasActiveCoverLayout, metadataLines,
 } from '@ses/shared'
 import { STAGES, STAGE_LABELS, STAGE_SHORT, TYPE_DEFS, TYPE_LABELS } from '@/constants/standards'
 import StandardTypeNameInput from '@/components/StandardTypeNameInput.vue'
@@ -275,6 +284,8 @@ const scrollContainerRef = ref<HTMLElement | null>(null)
 const pageRef = ref<HTMLElement | null>(null)
 const knownTypes = new Set<string>(TYPE_DEFS.map((type) => type.id))
 const knownStages = new Set<string>(STAGES)
+const previewStandardNumbers = computed(() => metadataLines(props.draft.standardNo))
+const previewIssuers = computed(() => metadataLines(props.draft.issuer))
 const supportsCustomCoverDesignation = computed(() => getCoverDesignationParts(props.draft.standardType) !== undefined)
 const designationDraft = useCoverDesignationDraft({
   getDraft: () => props.draft,
@@ -430,6 +441,7 @@ onBeforeUnmount(() => {
 .preview-designation { max-width: min(100%, 440px); margin: 0 0 6px; color: var(--ses-ink-2); font-size: 11.5px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; word-break: break-word; }
 .preview-title-cn { max-width: 660px; color: var(--ses-ink); font-size: 17px; font-weight: 650; line-height: 1.4; overflow-wrap: anywhere; }
 .preview-title-en { max-width: 660px; margin-top: 4px; color: var(--ses-ink-3); font: 11px/1.5 var(--ses-font-mono); overflow-wrap: anywhere; }
+.preview-issuer { margin-top: 8px; color: var(--ses-ink-3); font-size: 10.5px; line-height: 1.5; overflow-wrap: anywhere; }
 .preview-details { flex: 0 1 180px; max-width: 180px; display: grid; justify-items: end; gap: 8px; overflow-wrap: anywhere; }
 .preview-type { max-width: 100%; padding: 4px 8px; border-radius: 5px; background: var(--ses-accent-soft); color: var(--ses-accent); font-size: 10px; font-weight: 650; overflow-wrap: anywhere; }
 .preview-stage { color: var(--ses-ink-2); font-size: 10.5px; }
@@ -471,6 +483,8 @@ onBeforeUnmount(() => {
 :deep(.el-input__wrapper:hover), :deep(.el-select__wrapper:hover) { box-shadow: 0 0 0 1px color-mix(in oklch, var(--ses-accent) 45%, var(--ses-line)) inset; }
 :deep(.el-input__inner) { color: var(--ses-ink); font-size: 11.5px; }
 :deep(.el-input__inner::placeholder) { color: var(--ses-ink-4); }
+:deep(.el-textarea__inner) { min-height: 36px; border-radius: 7px; color: var(--ses-ink); font-size: 11.5px; box-shadow: 0 0 0 1px var(--ses-line) inset; }
+:deep(.el-textarea__inner::placeholder) { color: var(--ses-ink-4); }
 :deep(.el-button) { border-radius: 7px; font-size: 11px; }
 :deep(.el-button--primary) { --el-button-bg-color: var(--ses-accent); --el-button-border-color: var(--ses-accent); --el-button-hover-bg-color: var(--ses-accent-2); --el-button-hover-border-color: var(--ses-accent-2); }
 

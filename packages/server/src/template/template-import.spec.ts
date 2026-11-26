@@ -45,6 +45,29 @@ describe('.sestpl template export & import', () => {
     expect((await t.templates.resolveByIdentifier('builtin:group')).uid).toBe(builtinUid);
   });
 
+  it('preserves the previous body when importing the same body with changed metadata', async () => {
+    const created = await t.http.post('/api/templates').send({ name: '模板', baseType: 'group' }).expect(201);
+    const bodyA = created.body.content;
+    const bodyB = structuredClone(bodyA);
+    bodyB.content.push({
+      type: 'chapter', attrs: { number: '4', nodeId: 'ch-extra' },
+      content: [
+        { type: 'chapterTitle', content: [{ type: 'text', text: '新章' }] },
+        { type: 'stdParagraph', attrs: { nodeId: 'p-extra' }, content: [{ type: 'text', text: '正文' }] },
+      ],
+    });
+    await t.http.put(`/api/templates/${created.body.id}`).send({ baseRevision: 0, content: bodyB }).expect(200);
+    const exported = await t.http.get(`/api/templates/${created.body.id}/export`).expect(200);
+    const pkg = JSON.parse(exported.text);
+    pkg.template.name = '导入名称';
+    const imported = await t.http.post(`/api/templates/import?mode=update&targetId=${created.body.id}&baseRevision=1`)
+      .set('Content-Type', SES_TEMPLATE_MIME).send(JSON.stringify(pkg)).expect(200);
+    expect(imported.body.revision).toBe(2);
+    const reverted = await t.http.post(`/api/templates/${created.body.id}/revert`).send({ baseRevision: 2 }).expect(200);
+    expect(reverted.body.name).toBe('导入名称');
+    expect(reverted.body.content).toEqual(bodyA);
+  });
+
   it('exports .sestpl losslessly, detects UUID conflict on preview, updates existing, and imports as new', async () => {
     const created = await t.http
       .post('/api/templates')
@@ -92,7 +115,7 @@ describe('.sestpl template export & import', () => {
     expect(updatedRes.body.id).toBe(created.body.id);
     expect(updatedRes.body.revision).toBe(1);
     expect(updatedRes.body.name).toBe('包内新版模板');
-    expect(updatedRes.body.hasPreviousContent).toBe(true);
+    expect(updatedRes.body.hasPreviousContent).toBe(false);
 
     // Mode = new creates separate copy with new uid
     const copyRes = await t.http

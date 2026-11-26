@@ -1,3 +1,4 @@
+import { metadataLines } from '../ir/meta'
 import { isImageOnlyCell } from './imageLayout'
 import { resolveTableColumnWidths } from './docx/body/tableColumnWidths'
 import { formulaLatexWithMarks } from '../formulaTextStyle'
@@ -56,7 +57,7 @@ import { hasActiveCoverLayout } from '../coverLayoutValidation'
 import { printCss } from './printCss'
 import type { DocumentStage } from '../types/document'
 import type { CoverLayoutConfig } from '../types/template'
-import { COVER_LAYOUT_PRINT_CSS, renderBackCoverHtml, renderCoverHtml, renderWatermarkPrintCss } from './coverHtml'
+import { COVER_LAYOUT_PRINT_CSS, JOINT_COVER_PRINT_CSS, renderBackCoverHtml, renderCoverHtml, renderWatermarkPrintCss } from './coverHtml'
 import { tableBordersCss } from './tableBordersCss'
 import { assertFootnoteReferences, orderTableFootnotes, tableColumnCount } from './footnotes'
 
@@ -999,7 +1000,9 @@ export function renderHtml(doc: IRDoc, labels: Labels, opts: RenderHtmlOptions =
 
   const css =
     variant === 'print'
-      ? printCss({ standardNo: doc.meta.stdCode }) + (hasActiveCoverLayout(opts.coverLayout) ? `\n${COVER_LAYOUT_PRINT_CSS}` : '')
+      ? printCss({ standardNo: doc.meta.stdCode?.match(/[\r\n]/) ? metadataLines(doc.meta.stdCode)[0] : doc.meta.stdCode }) +
+        (metadataLines(doc.meta.stdCode).length > 1 || metadataLines(doc.meta.issuer).length > 1 ? `\n${JOINT_COVER_PRINT_CSS}` : '') +
+        (hasActiveCoverLayout(opts.coverLayout) ? `\n${COVER_LAYOUT_PRINT_CSS}` : '')
       : screenStyles()
   const title = doc.meta.title ? escapeHtml(doc.meta.title) : '标准文件'
 

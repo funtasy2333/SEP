@@ -379,16 +379,18 @@ function buildDocDefaultsXml(): string {
 }
 
 /** 生成完整的 word/styles.xml（含 XML 声明），§3.2 与 §6 全部样式 */
-export function buildStylesXml(options: { includeFootnotes?: boolean; includeCoverLayout?: boolean } = {}): string {
+export function buildStylesXml(options: { includeFootnotes?: boolean; includeCoverLayout?: boolean; includeAdditionalStdNo?: boolean } = {}): string {
   const baseSpecs = options.includeFootnotes
     ? STYLE_SPECS
     : STYLE_SPECS.filter((spec) => !FOOTNOTE_STYLE_IDS.has(spec.id))
   const styleSpecsToEmit = options.includeCoverLayout
     ? [...baseSpecs, ...COVER_LAYOUT_STYLE_SPECS]
     : baseSpecs
+  const extraNumberStyle: StyleSpec[] = options.includeAdditionalStdNo
+    ? [{ id: 'SesCoverAdditionalStdNo', name: 'SES_封面其他文件编号', rFonts: 'hei', sz: 28, jc: 'right' }] : []
   const children: XmlChild[] = [
     ['docDefaults', buildDocDefaultsXml()],
-    ...styleSpecsToEmit.map((spec): XmlChild => ['style', buildStyleXml(spec)]),
+    ...[...styleSpecsToEmit, ...extraNumberStyle].map((spec): XmlChild => ['style', buildStyleXml(spec)]),
   ]
   const el = stylesEl(children, { 'xmlns:w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main' })
   return XML_DECL + el

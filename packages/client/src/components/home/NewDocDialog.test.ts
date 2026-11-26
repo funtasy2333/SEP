@@ -132,9 +132,10 @@ it('支持 initialTemplateId 预填自定义模板元信息、mini-cover 版式�
     defaultStage: DocumentStage.APPROVAL_DRAFT,
     defaultMeta: {
       stdPrefix: 'T/CISA',
+      standardNo: 'T/CCFAGS 032—2022\nT/CAPPMA 02—2022',
       titleEn: 'Association Custom Standard',
       proposer: '测试提出协会',
-      issuer: '测试发布协会',
+      issuer: '中国连锁经营协会\n中国水产流通与加工协会',
       icsCode: '35.240.01',
     },
     coverLayout: {
@@ -175,6 +176,8 @@ it('支持 initialTemplateId 预填自定义模板元信息、mini-cover 版式�
 
     expect(document.querySelector('[data-testid="mini-cover-layout-badges"]')?.textContent).toContain('含声明')
     expect(document.querySelector('[data-testid="mini-cover-layout-badges"]')?.textContent).toContain('含封底')
+    expect(document.querySelector('.stdno')?.textContent).toContain(customTemplate.defaultMeta.standardNo)
+    expect(document.querySelector<HTMLTextAreaElement>('textarea[aria-label="发布单位"]')?.value).toBe(customTemplate.defaultMeta.issuer)
     expect(document.querySelector<HTMLInputElement>('input[placeholder="例：信息技术 标准化文件编辑系统 通用要求"]')).not.toBeNull()
 
     const titleInput = document.querySelector<HTMLInputElement>('input[placeholder="例：信息技术 标准化文件编辑系统 通用要求"]')!
@@ -193,6 +196,8 @@ it('支持 initialTemplateId 预填自定义模板元信息、mini-cover 版式�
     expect(submitted[0]!.form.stage).toBe('approval_draft')
     const instantiated = instantiateTemplateDocument(customTemplate, submitted[0]!.form)
     expect(instantiated.meta.titleEn).toBe('Association Custom Standard')
+    expect(instantiated.meta.standardNo).toBe(customTemplate.defaultMeta.standardNo)
+    expect(instantiated.meta.issuer).toBe(customTemplate.defaultMeta.issuer)
     expect(JSON.stringify(instantiated.content)).toContain('English title: Association Custom Standard')
   } finally {
     app.unmount()

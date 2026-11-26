@@ -24,7 +24,7 @@
       <div class="mini-cover">
         <div class="left">
           <div class="stdno">
-            {{ newDocumentStandardNo(form) }}
+            {{ previewStandardNo }}
           </div>
           <div class="designation-cn">{{ coverDesignationPreview }}</div>
           <div class="title-cn">{{ form.titleCn || '请输入文件名称…' }}</div>
@@ -168,7 +168,7 @@
 
             <el-form-item>
               <template #label>
-                标准编号 <span class="help">不填会自动生成占位编号</span>
+                标准编号 <span class="help">{{ templateStandardNo ? '留空沿用模板编号' : '留空会自动生成占位编号' }}</span>
               </template>
               <div class="input-group">
                 <input
@@ -243,7 +243,13 @@
             </div>
             <div class="two-col">
               <el-form-item label="发布单位">
-                <el-input v-model="form.issuer" placeholder="如 国家标准化管理委员会" />
+                <el-input
+                  v-model="form.issuer"
+                  type="textarea"
+                  :autosize="{ minRows: 1, maxRows: 4 }"
+                  placeholder="每行填写一个发布单位"
+                  aria-label="发布单位"
+                />
               </el-form-item>
               <el-form-item label="起草单位">
                 <el-input v-model="form.applicant" placeholder="如 中国电子技术标准化研究院" />
@@ -282,6 +288,7 @@ import {
   BUILTIN_TEMPLATES,
   getCoverDesignation,
   hasActiveCoverLayout,
+  metadataLines,
   type StandardTemplate,
   type StandardType,
 } from '@ses/shared'
@@ -346,6 +353,10 @@ function emptyForm(type: StandardType = 'national'): NewDocForm {
 }
 
 const form = ref<NewDocForm>(emptyForm())
+const templateStandardNo = computed(() => metadataLines(selectedTemplate.value?.defaultMeta.standardNo).join('\n'))
+const previewStandardNo = computed(() => !form.value.stdNo.trim() && templateStandardNo.value
+  ? templateStandardNo.value
+  : newDocumentStandardNo(form.value))
 
 const activeStep = ref<'type' | 'basic' | 'classify' | 'contrib'>('type')
 const titleInputRef = ref<{ focus: () => void } | null>(null)
@@ -514,6 +525,8 @@ onBeforeUnmount(() => {
   font-size: 12px;
   letter-spacing: 0.06em;
   color: var(--ses-ink-3);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 .designation-cn { margin-top: 10px; color: var(--ses-ink-2); font-size: 12px; }
 .title-cn {

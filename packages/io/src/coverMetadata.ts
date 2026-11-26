@@ -5,7 +5,7 @@
  * client 的 documentSettings.ts 重新导出这里的名字，现有调用方不变。
  */
 
-import type { DocumentMeta, PMJsonNode } from '@ses/shared'
+import { metadataLines, type DocumentMeta, type PMJsonNode } from '@ses/shared'
 
 /** Cover values are the editor/XML source of truth; legacy root attributes remain synchronized when present. */
 export const COVER_SETTINGS_KEYS = [
@@ -26,6 +26,7 @@ function nonEmptyAttribute(attrs: Record<string, unknown> | undefined, key: stri
 export function synchronizeCoverMetadata(
   content: Record<string, unknown>,
   meta: DocumentMeta,
+  edited: { standardNo?: boolean; issuer?: boolean } = {},
 ): Record<string, unknown> {
   const cloned = JSON.parse(JSON.stringify(content || { type: 'doc', content: [] })) as Record<string, unknown>
   const nodes = Array.isArray(cloned.content) ? cloned.content as PMJsonNode[] : []
@@ -33,6 +34,56 @@ export function synchronizeCoverMetadata(
   const rootAttrs = cloned.attrs && typeof cloned.attrs === 'object' && !Array.isArray(cloned.attrs)
     ? cloned.attrs as Record<string, unknown> : undefined
   const coverAttrs = cover?.attrs
+  const counts = (values: string[]): Map<string, number> => {
+    const result = new Map<string, number>()
+    for (const value of values) result.set(value, (result.get(value) ?? 0) + 1)
+    return result
+  }
+  const consume = (remaining: Map<string, number>, value: string): boolean => {
+    const count = remaining.get(value) ?? 0
+    if (!count) return false
+    remaining.set(value, count - 1)
+    return true
+  }
+  const retainIdentifier = (remaining: Map<string, number>, scheme: unknown, value: unknown, parts: unknown): boolean =>
+    (scheme !== 'dated' && scheme !== null && scheme !== undefined && scheme !== '')
+    || (Array.isArray(parts) && parts.length > 0)
+    || (typeof value === 'string' && consume(remaining, value.trim()))
+  const inlineText = (nodes: unknown): string => Array.isArray(nodes)
+    ? nodes.map((node) => node && typeof node === 'object'
+      ? typeof node.text === 'string' ? node.text : inlineText(node.content)
+      : '').join('')
+    : ''
+
+  // Structured metadata is reconciled only for fields explicitly changed in settings.
+  // Automatic saves and export synchronization must not modify imported metadata.
+  if (edited.standardNo || edited.issuer) {
+    for (const attrs of [rootAttrs, coverAttrs]) {
+      if (!attrs) continue
+      if (edited.standardNo && Array.isArray(attrs.identifiers)) {
+        const remaining = counts(metadataLines(meta.standardNo))
+        attrs.identifiers = attrs.identifiers.filter((row: Record<string, unknown>) =>
+          !row || typeof row !== 'object' || retainIdentifier(remaining, row.scheme, row.value, row.parts))
+      }
+      if (edited.issuer && Array.isArray(attrs.publishers)) {
+        const remaining = counts(metadataLines(meta.issuer))
+        attrs.publishers = attrs.publishers.filter((row: Record<string, unknown>) =>
+          !row || typeof row !== 'object' || consume(remaining, inlineText(row.name).trim()))
+      }
+    }
+    const block = nodes.find((node) => node.type === 'metadataBlock')
+    if (block && Array.isArray(block.content)) {
+      const codes = counts(metadataLines(meta.standardNo))
+      const issuers = counts(metadataLines(meta.issuer))
+      block.content = block.content.filter((node) => {
+        if (edited.standardNo && node.type === 'standardIdentifier') {
+          return retainIdentifier(codes, node.attrs?.scheme, node.attrs?.value, node.content)
+        }
+        if (edited.issuer && node.type === 'publisher') return consume(issuers, inlineText(node.content).trim())
+        return true
+      })
+    }
+  }
   const coverFirst = new Set(['replaces', 'consistency', 'filingNo', 'industryName', 'regionName', 'coverDesignation'])
   const values: Record<string, string> = {}
   for (const key of COVER_SETTINGS_KEYS) {

@@ -6,6 +6,7 @@
  */
 
 import type { IRDocMeta } from '../../ir/types'
+import { metadataLines } from '../../ir/meta'
 import { getCoverDesignation } from '../../coverDesignation'
 import { isReplaceMarkForbidden, parseCoverLogoDataUrl } from '../../coverLayoutValidation'
 import type { DocumentStage } from '../../types/document'
@@ -65,7 +66,7 @@ export const STAGE_LABELS: Record<DocumentStage, string | undefined> = {
   published: undefined,
 }
 
-/** 封面与 STYLEREF 缓存共用，避免目视编号和书眉缓存显示不同字符串。 */
+/** 规范化封面编号字面量。 */
 export function normalizeCoverStdCode(stdCode: string | undefined): string {
   const code = stdCode?.trim().replace(/\s+/g, ' ')
   if (!code) return ''
@@ -83,6 +84,11 @@ export function normalizeCoverStdCode(stdCode: string | undefined): string {
     (!/^DB/i.test(code) ? /^([A-Z]{2,6})\s*(\d+(?:\.\d+)*)(.*)$/i.exec(code) : null)
   const normalized = match ? `${match[1]} ${match[2]}${match[3]}` : code
   return normalized.replace(/\s*[-‐‑‒–—－]\s*(\d{4})$/, '—$1')
+}
+
+/** 联合发布时，书眉和标准标志使用第一行编号。 */
+export function primaryCoverStdCode(stdCode: string | undefined): string {
+  return normalizeCoverStdCode(metadataLines(stdCode)[0])
 }
 
 function frameText(ctx: RenderContext, styleId: string, text: string, framePr: NonNullable<CoverFrame>): string {
@@ -218,7 +224,7 @@ function designation(meta: IRDocMeta): { text: string; styleId: string } {
 
 // 新建草案使用显式 XXXXX—XXXX 占位编号；已填写的家族/地区/机构代码仍应显示。
 export function industryLogoFamily(meta: IRDocMeta): string | undefined {
-  const code = normalizeCoverStdCode(meta.stdCode)
+  const code = primaryCoverStdCode(meta.stdCode)
   const family = /^([A-Z]{2,6})(?:\/T)?\s+(?:\d+(?:\.\d+)*|XXXXX)(?:—(?:\d{4}|XXXX))?$/i.exec(code)?.[1]?.toUpperCase()
   // GB is national and DB is local; neither is an industry-family mark. Require a complete
   // family/serial code after normalization so malformed strings such as "HH malformed" stay XX.
@@ -230,12 +236,12 @@ function warnMissingMarkCode(ctx: RenderContext, meta: IRDocMeta, code: string, 
 }
 
 export function localRegionCode(meta: IRDocMeta): string {
-  const code = normalizeCoverStdCode(meta.stdCode)
+  const code = primaryCoverStdCode(meta.stdCode)
   return /^DB(\d{2}|\d{4}|XX)(?:\/T)?\s+(?:\d+(?:\.\d+)*|XXXXX)(?:—(?:\d{4}|XXXX))?$/i.exec(code)?.[1] ?? ''
 }
 
 export function typeMarkCode(meta: IRDocMeta, type: 'T' | 'Q'): string {
-  const code = normalizeCoverStdCode(meta.stdCode)
+  const code = primaryCoverStdCode(meta.stdCode)
   const match = /^([TQ])\/([^\s]+)\s+(?:\d+(?:\.\d+)*|X{4,5})(?:—(?:\d{4}|XXXX))?$/i.exec(code)
   return match?.[1]?.toUpperCase() === type ? match[2]! : ''
 }
@@ -267,13 +273,18 @@ function renderLogo(ctx: RenderContext, meta: IRDocMeta): string {
       warn(ctx, 'cover-asset-approximation', '团体标准标志采用用户提供模板图片，原始来源未核实')
       const code = typeMarkCode(meta, 'T')
       warnMissingMarkCode(ctx, meta, code, 'meta.stdCode 无法可靠提取团体标准机构代码，封面仅显示 T/ 标志')
+      const groupFrame = FRAME_MARKS.group
+      // A longer organization mark must stay above both joint number rows.
+      const frame = code.length > 4 && metadataLines(meta.stdCode).length > 1
+        ? { ...groupFrame, xMm: groupFrame.xMm - 45, widthMm: groupFrame.widthMm + 45 }
+        : groupFrame
       return frameRuns(
         ctx,
         'SesCoverGroupLogo',
         imageRun(ctx, COVER_ASSETS.groupLogo, '团体标准 T 标志') +
           imageRun(ctx, COVER_ASSETS.groupSlash, '团体标准斜线标志') +
           (code ? smallMarkGap(true) + plainRun(code) : ''),
-        FRAME_MARKS.group,
+        frame,
       )
     }
     case 'enterprise': {
@@ -302,9 +313,15 @@ function renderIssuer(ctx: RenderContext, meta: IRDocMeta): string {
     return frameRuns(ctx, 'SesCoverIssuer', imageRun(ctx, COVER_ASSETS.nationalIssuer, '国家标准发布机构与发布'), FRAME_NATIONAL_ISSUERS[meta.standardType])
   }
 
-  const issuer = meta.issuer?.trim() ?? ''
+  const issuers = metadataLines(meta.issuer)
+  const issuer = issuers[0] ?? ''
   if (!issuer) warn(ctx, 'cover-field-missing', 'meta.issuer 缺失，非国标发布机构名称留空')
   else warn(ctx, 'cover-asset-approximation', '非国标发布机构按用户模板用黑体四号可编辑文字排版，专用机构字形未核验')
+  if (issuers.length > 1) {
+    const firstY = 268.77 - (issuers.length - 1) * 3
+    return issuers.map((name, i) => frameText(ctx, 'SesCoverIssuer', name, { xMm: 35, yMm: firstY + i * 6, widthMm: 110 })).join('') +
+      frameRuns(ctx, 'SesCoverIssuer', plainRun('发　布', meta.standardType === 'group' ? GROUP_RELEASE_TEXT_RPR : RELEASE_TEXT_RPR), { xMm: 145, yMm: 268.77, widthMm: 30 })
+  }
   return emitParagraph(ctx, 'SesCoverIssuer', {
     runsXml: issuerReleaseRuns(issuer, meta.standardType),
     framePr: FRAME_ISSUER,
@@ -406,18 +423,23 @@ export function renderCover(
   const heading = designation(meta)
   xml += frameText(ctx, heading.styleId, heading.text, { ...FRAME_DESIGNATION, xMm: meta.standardType === 'gb' || meta.standardType === 'guide' ? 24.7 : 25, yMm: meta.standardType === 'gb' || meta.standardType === 'guide' ? 37.54 : 40.12, widthMm: meta.standardType === 'guide' ? 171 : 170 })
 
-  const stdCode = normalizeCoverStdCode(meta.stdCode)
+  const numbers = metadataLines(meta.stdCode).map(normalizeCoverStdCode)
+  const stdCode = numbers[0] ?? ''
+  const numberOffset = Math.max(0, numbers.length - 1) * 6
   if (!stdCode) warn(ctx, 'cover-field-missing', 'meta.stdCode 缺失，封面文件编号段输出空段')
   xml += emitParagraph(ctx, 'SesCoverStdNo', {
     runsXml: stdCode ? plainRun(stdCode) : '',
     framePr: FRAME_STD_NO,
   })
 
+  for (const [i, number] of numbers.slice(1).entries()) {
+    xml += frameText(ctx, 'SesCoverAdditionalStdNo', number, { ...FRAME_STD_NO, yMm: FRAME_STD_NO.yMm + (i + 1) * 6 })
+  }
   if (meta.replaces) {
-    xml += frameText(ctx, 'SesCoverReplaces', `代替 ${normalizeCoverStdCode(meta.replaces)}`, FRAME_REPLACES)
+    xml += frameText(ctx, 'SesCoverReplaces', `代替 ${normalizeCoverStdCode(meta.replaces)}`, { ...FRAME_REPLACES, yMm: FRAME_REPLACES.yMm + numberOffset })
   }
 
-  xml += emitParagraph(ctx, 'SesCoverRule', { framePr: FRAME_RULE })
+  xml += emitParagraph(ctx, 'SesCoverRule', { framePr: { ...FRAME_RULE, yMm: FRAME_RULE.yMm + numberOffset } })
 
   // 正文首页名称会为缺失的 meta.title 记录 cover-field-missing；封面保留空段但不重复告警。
   xml += frameText(ctx, 'SesCoverName', wrapTitleAtSeparator(meta.title ?? '', 18), FRAME_TITLE_FLOW)
@@ -449,7 +471,10 @@ export function renderCover(
   xml += renderIssuer(ctx, meta)
 
   if (noticeText && coverLayout?.notice?.position === 'below_issuer') {
-    xml += frameText(ctx, 'SesCoverNotice', noticeText, { xMm: 25, yMm: 278, widthMm: 170 })
+    const issuerCount = metadataLines(meta.issuer).length
+    const jointIssuer = issuerCount > 1 && meta.standardType !== 'gb' && meta.standardType !== 'guide'
+    const noticeY = jointIssuer ? 283 + Math.max(0, issuerCount - 3) * 3 : 278
+    xml += frameText(ctx, 'SesCoverNotice', noticeText, { xMm: 25, yMm: noticeY, widthMm: 170 })
   }
   return xml
 }
