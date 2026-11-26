@@ -7,7 +7,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'fs';
-import { join } from 'path';
+import { join, relative } from 'path';
 import { PROCESS_SPAWNER, type ProcessSpawner } from './process-spawner';
 import {
   acquireUpgradeLock,
@@ -221,6 +221,14 @@ export class SystemService {
       throw new Error('无法交接升级：缺少启动方式');
     const paths = systemPaths(root);
     const build = this.checker.currentBuild();
+    let node = this.config.nodePath;
+    if (launcher === 'windows' &&
+        relative(join(root, '.ses-runtime', 'node.exe'), node) === '') {
+      // The relay stays alive until PowerShell finishes. Keep its executable outside the runtime being replaced.
+      const relay = join(paths.updateDir, 'relay-node.exe');
+      copyFileSync(node, relay);
+      node = relay;
+    }
     const plan: UpgradePlan = {
       zip: paths.zip,
       channel: check.channel,
@@ -228,7 +236,7 @@ export class SystemService {
       targetCommit: check.latest.commit,
       fromVersion: build.version,
       fromCommit: build.commit,
-      node: this.config.nodePath,
+      node,
       platform: launcher,
       requestedAt: new Date(this.config.now()).toISOString(),
     };
@@ -253,7 +261,7 @@ export class SystemService {
             logFile: paths.upgradeLog,
           }
         : {
-            command: this.config.nodePath,
+            command: node,
             args: [
               join(paths.updateDir, RUN_DETACHED),
               ...POWERSHELL_ARGS,

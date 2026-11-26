@@ -21,9 +21,11 @@ Not part of the release package.
 import argparse
 import hashlib
 import http.server
+import io
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import socket
@@ -111,6 +113,39 @@ def assert_doc(args):
     log(f'document {remembered["id"]} is intact')
 
 
+def portable_smoke(args):
+    root = Path(args.root).resolve()
+    client = client_base(args.platform)
+    if args.platform == 'windows':
+        state = read_json(root / '.ses-run/server.json')
+        require(Path(state['executable']).resolve() == root / '.ses-runtime/node.exe', 'the launcher did not use bundled Node.js')
+    else:
+        node = root / '.ses-runtime/node'
+        require(subprocess.check_output([str(node), '-p', 'process.arch'], text=True).strip() == 'arm64', 'Node.js is not arm64')
+        require(not (root / 'node_modules').exists(), 'the launcher installed dependencies outside the bundle')
+    require(not (root / '.ses-tools').exists(), 'the launcher installed development tools')
+    _, html = request(client + '/')
+    asset = re.search(rb'src="(/assets/[^" ]+\.js)"', html)
+    require(asset, 'editor HTML did not reference a built script')
+    request(client + asset[1].decode('ascii'))
+
+    create_doc(args)
+    remembered = read_json(doc_file(root))
+    url = f'{client}/api/documents/{remembered["id"]}'
+    _, original = request(url)
+    fixture = Path(__file__).resolve().parents[1] / 'packages/server/src/export/__fixtures__/standard-document.json'
+    content = read_json(fixture)
+    request(url, 'PUT', {'baseRevision': json.loads(original)['revision'], 'content': content})
+    _, saved = request(url)
+    require(json.loads(saved)['content'] == content, 'the document content was not saved')
+    _, deep_link = request(f'{client}/editor/{remembered["id"]}', headers={'Accept': 'text/html'})
+    require(deep_link == html, 'editor deep link did not return the built page')
+    _, docx = request(f'{url}/export/docx')
+    with zipfile.ZipFile(io.BytesIO(docx)) as document:
+        require('word/document.xml' in document.namelist(), 'the DOCX has no document.xml')
+    log('portable editor, document save, and DOCX export passed')
+
+
 def assert_service(platform):
     for url in (f'{SERVER}/api/documents', f'{client_base(platform)}/api/documents'):
         status, _ = request(url)
@@ -130,8 +165,8 @@ def upgrade(args):
     run.mkdir(exist_ok=True)
     build = root / 'ses-build.json'
     current = read_json(build) if build.exists() else {}
-    local_node = root / '.ses-tools' / 'node' / 'node.exe'
-    node = str(local_node) if local_node.exists() else shutil.which('node')
+    local_nodes = [root / '.ses-runtime/node.exe', root / '.ses-runtime/node', root / '.ses-tools/node/node.exe']
+    node = next((str(candidate) for candidate in local_nodes if candidate.exists()), shutil.which('node'))
     require(node, 'node not found')
     shutil.copy(args.zip, upd / 'download.zip')
     for name in ('apply-update.cjs', 'ses-upgrade.sh' if args.platform == 'macos' else 'ses-upgrade.ps1'):
@@ -186,8 +221,11 @@ def make_broken(args):
             if info.filename.endswith('/packages/server/src/main.ts'):
                 data += b'\nconst broken: = ;;; {{{ this is a deliberate syntax error\n'
                 broken = True
+            elif info.filename.endswith('/.ses-runtime/server/dist/main.js'):
+                data += b'\nconst broken = ;\n'
+                broken = True
             target.writestr(info, data)
-    require(broken, 'packages/server/src/main.ts not found in the package')
+    require(broken, 'server entry not found in the package')
     log(f'wrote {args.out}')
 
 
@@ -214,6 +252,9 @@ REPO_API = '/repos/funtasy2333/SEP/'
 
 def release_json(base, version, platform, zip_path):
     name = f'SES-{version}-{platform}.zip'
+    native = f'SES-{version}-macos-arm64.zip'
+    if platform == 'macos' and Path(zip_path).name == native:
+        name = native
     data = Path(zip_path).read_bytes()
     return [{
         'tag_name': f'v{version}', 'draft': False, 'prerelease': True, 'body': 'upgrade e2e fixture',
@@ -411,9 +452,11 @@ def api_upgrade(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest='command', required=True)
-    for name, function in (('create-doc', create_doc), ('assert-doc', assert_doc)):
+    for name, function in (('create-doc', create_doc), ('assert-doc', assert_doc), ('portable-smoke', portable_smoke)):
         p = sub.add_parser(name)
         p.add_argument('--root', required=True)
+        if name == 'portable-smoke':
+            p.add_argument('--platform', choices=('windows', 'macos'), default='windows')
         p.set_defaults(function=function)
     p = sub.add_parser('upgrade')
     p.add_argument('--root', required=True)

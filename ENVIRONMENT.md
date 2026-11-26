@@ -1,6 +1,6 @@
 # 环境配置指南
 
-本文档说明 **SES 0.2.2 Preview** 的依赖要求。推荐先从 [Release](https://github.com/funtasy2333/SEP/releases/tag/v0.2.2-preview) 下载对应系统的压缩包；开发者可以使用 `git clone` 获取源码。下载链接和操作步骤见 [README：安装与启动](README.md#安装与启动)。
+本文档说明 **SES 0.3.0 Preview** 的依赖要求。推荐先从 [Release](https://github.com/funtasy2333/SEP/releases/tag/v0.3.0-preview) 下载对应系统的压缩包；开发者可以使用 `git clone` 获取源码。下载链接和操作步骤见 [README：安装与启动](README.md#安装与启动)。
 
 ## 1. 按使用方式准备环境
 
@@ -17,6 +17,10 @@
 
 ### Windows 压缩包
 
+Windows x64 自包含发布包内置 Node.js、已构建的编辑器和服务端，以及运行依赖。完整解压后双击 `启动SES.cmd` 即可离线启动。通过「稳定版」升级时，会重新下载完整的 Windows ZIP。0.2.2 Preview 及更早的源码包按下文联网安装依赖。
+
+Playwright 浏览器测试和暂停中的 PDF 排版工具可在源码开发环境使用。
+
 支持 Windows 10/11 64 位。双击 `启动SES.cmd` 后，脚本会：
 
 1. 检查已有 Node.js 是否兼容；缺少兼容版本时，在 SES 目录内安装经过 SHA256 校验的便携版 Node.js 22.22.0。
@@ -27,6 +31,8 @@
 Node.js 与 pnpm 保存在 `.ses-tools/` 中，无需先手动安装，也不要求配置全局 pnpm。退出服务时双击 `退出SES.cmd`。
 
 ### macOS 压缩包
+
+Apple Silicon 自包含包使用 `-macos-arm64.zip` 文件名，内置原生 arm64 Node.js、已构建的程序和运行依赖。完整解压后双击 `启动SES.command` 即可离线启动。新版本在「稳定版」中优先选择 arm64 自包含包，旧版仍可使用通用源码包升级。下文的安装步骤适用于通用源码包。
 
 需要先手动安装 Node.js 和 pnpm，启动脚本会检查版本，然后安装项目依赖并构建。启动时会跳过开发测试用的 Playwright Chromium 下载。
 
@@ -49,7 +55,7 @@ Node.js 与 pnpm 保存在 `.ses-tools/` 中，无需先手动安装，也不要
 如果脚本没有执行权限，在终端进入该目录后运行：
 
 ```bash
-chmod +x 启动SES.command 退出SES.command scripts/ses-local.sh
+chmod +x 启动SES.command 退出SES.command scripts/ses-local.sh scripts/ses-desktop.sh
 ```
 
 ## 2. 手动配置时的版本要求
@@ -92,7 +98,7 @@ PDF 由 SES 后端所在的机器排版。要输出指定字体，该机器需�
 
 ### Poppler：开发环境中的 PDF 排版
 
-0.2.2 Preview 暂停 PDF 导出。以下配置适用于开发调试。
+0.3.0 Preview 暂停 PDF 导出。以下配置适用于开发调试。
 
 PDF 版式预览使用 `@vivliostyle/cli` 排版，并通过 Poppler 的 `pdftotext`、`pdfinfo` 定位目次页码和核对页数。**编辑文档、导出 DOCX 无需安装 Poppler。**
 

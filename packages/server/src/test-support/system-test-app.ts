@@ -5,6 +5,11 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import request from 'supertest';
 import { configureApp } from '../app-setup';
+import {
+  DESKTOP_SCRIPT_RUNNER,
+  type DesktopScriptRequest,
+  type DesktopScriptRunner,
+} from '../system/desktop-integrator';
 import { PROCESS_SPAWNER, type SpawnRequest } from '../system/process-spawner';
 import {
   createSystemConfig,
@@ -26,6 +31,8 @@ export interface SystemTestAppOptions {
   config?: Partial<SystemConfig>;
   /** 拉起进程的假实现；默认只记录。 */
   spawner?: (req: SpawnRequest) => Promise<void>;
+  /** 桌面集成脚本的假实现；默认维护内存态。 */
+  desktopRunner?: DesktopScriptRunner;
 }
 
 export const SCRIPT_FILES = [
@@ -34,8 +41,50 @@ export const SCRIPT_FILES = [
   'ses-upgrade.ps1',
   'ses-local.sh',
   'ses-windows.ps1',
+  'ses-desktop.sh',
+  'ses-desktop.ps1',
   'run-detached.cjs',
 ];
+
+function createDefaultDesktopRunner(root: string): DesktopScriptRunner {
+  const state = {
+    desktopShortcut: false,
+    startMenuShortcut: false,
+    autoStart: false,
+  };
+  return (req) => {
+    const action = req.args.find((arg) =>
+      ['status', 'create-shortcuts', 'set-autostart'].includes(arg),
+    );
+    if (action === 'status') {
+      return Promise.resolve({ stdout: JSON.stringify(state), stderr: '' });
+    }
+    if (action === 'create-shortcuts') {
+      state.desktopShortcut = true;
+      state.startMenuShortcut = true;
+      return Promise.resolve({
+        stdout: JSON.stringify({
+          desktopShortcut: true,
+          startMenuShortcut: true,
+          desktopPath: join(root, 'Desktop', 'SES'),
+          startMenuPath: join(root, 'StartMenu', 'SES'),
+        }),
+        stderr: '',
+      });
+    }
+    if (action === 'set-autostart') {
+      const idx = req.args.indexOf('set-autostart');
+      state.autoStart = req.args[idx + 1] === 'true';
+      return Promise.resolve({
+        stdout: JSON.stringify({ autoStart: state.autoStart }),
+        stderr: '',
+      });
+    }
+    return Promise.reject(
+      new Error(`Unexpected desktop action: ${req.args.join(' ')}`),
+    );
+  };
+}
 
 /** 起一个只含系统模块的应用：临时根目录（SES_ROOT）、假 GitHub、记录型 spawner。 */
 export async function createSystemTestApp(options: SystemTestAppOptions = {}) {
@@ -58,6 +107,8 @@ export async function createSystemTestApp(options: SystemTestAppOptions = {}) {
   const github = new FakeGithub();
   await github.start();
   const spawns: SpawnRequest[] = [];
+  const desktopCalls: DesktopScriptRequest[] = [];
+  const defaultDesktopRunner = createDefaultDesktopRunner(root);
 
   const config: SystemConfig = {
     ...createSystemConfig({ SES_ROOT: root }),
@@ -79,6 +130,13 @@ export async function createSystemTestApp(options: SystemTestAppOptions = {}) {
       spawns.push(req);
       return options.spawner ? options.spawner(req) : Promise.resolve();
     })
+    .overrideProvider(DESKTOP_SCRIPT_RUNNER)
+    .useValue((req: DesktopScriptRequest) => {
+      desktopCalls.push(req);
+      return options.desktopRunner
+        ? options.desktopRunner(req)
+        : defaultDesktopRunner(req);
+    })
     .compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>();
   configureApp(app);
@@ -90,6 +148,7 @@ export async function createSystemTestApp(options: SystemTestAppOptions = {}) {
     root,
     github,
     spawns,
+    desktopCalls,
     config,
     async close() {
       await app.close();

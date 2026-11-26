@@ -51,6 +51,49 @@
           </span>
         </button>
 
+        <div class="menu-divider" />
+
+        <button
+          type="button"
+          class="menu-item"
+          role="menuitem"
+          data-test="shortcut-item"
+          :disabled="!canManageDesktop || creatingShortcuts"
+          @click="handleCreateShortcuts"
+        >
+          <span class="menu-item-row">
+            <span class="menu-item-label">{{ shortcutLabel }}</span>
+            <span
+              v-if="allShortcutsCreated && !creatingShortcuts"
+              class="menu-item-badge neutral"
+              data-test="shortcut-created-badge"
+            >已创建</span>
+          </span>
+          <span v-if="desktopBlockedReason" class="menu-item-reason" data-test="desktop-reason">
+            {{ desktopBlockedReason }}
+          </span>
+        </button>
+
+        <div class="menu-item menu-toggle-item" data-test="autostart-item">
+          <div class="menu-item-row">
+            <span class="menu-item-label">开机后台自启</span>
+            <el-switch
+              :model-value="autoStartEnabled"
+              size="small"
+              data-test="autostart-switch"
+              aria-label="开机后台自启"
+              :loading="autoStartSaving"
+              :disabled="!canManageDesktop || autoStartSaving"
+              @change="handleToggleAutoStart"
+            />
+          </div>
+          <span v-if="canManageDesktop || !desktopBlockedReason" class="menu-item-reason">
+            登录系统后在后台静默启动，直接打开浏览器即可使用
+          </span>
+        </div>
+
+        <div class="menu-divider" />
+
         <button
           type="button"
           class="menu-item danger"
@@ -69,7 +112,7 @@
       <div v-else-if="store.infoLoading" class="menu-state" data-test="info-loading">正在读取系统信息…</div>
       <div v-else class="menu-state error" data-test="info-error">
         <span>{{ store.infoError || '无法读取系统信息' }}</span>
-        <button type="button" class="retry" data-test="info-retry" @click="store.loadInfo()">重试</button>
+        <button type="button" class="retry" data-test="info-retry" @click="retryInfo">重试</button>
       </div>
 
       <p class="menu-note">关闭网页后 SES 仍在后台运行；要彻底退出，请使用『退出 SES』。</p>
@@ -91,18 +134,92 @@ import UpgradeDialog from './UpgradeDialog.vue'
 const store = useSystemStore()
 const open = ref(false)
 const shuttingDown = ref(false)
+const creatingShortcuts = ref(false)
+const autoStartSaving = ref(false)
 
 const versionLine = computed(() => (store.info ? describeVersion(store.info) : ''))
-
-// 打开菜单时若还没有信息（启动时加载失败或仍在加载），再试一次。
-watch(open, (value) => {
-  if (value && !store.info && !store.infoLoading) void store.loadInfo()
+const desktopPlatform = computed(() => store.desktopStatus?.platform ?? store.info?.launcher ?? null)
+const canManageDesktop = computed(() => {
+  if (!store.desktopStatus) return false
+  return store.desktopStatus.supported
 })
+const desktopBlockedReason = computed(() => {
+  if (store.desktopError) return store.desktopError
+  if (store.desktopStatus && !store.desktopStatus.supported) {
+    return store.desktopStatus.unsupportedReason
+  }
+  return null
+})
+const allShortcutsCreated = computed(() =>
+  Boolean(store.desktopStatus?.desktopShortcut && store.desktopStatus?.startMenuShortcut),
+)
+const autoStartEnabled = computed(() => Boolean(store.desktopStatus?.autoStart))
+
+const shortcutLabel = computed(() => {
+  if (creatingShortcuts.value) return '创建中…'
+  if (desktopPlatform.value === 'windows') {
+    return allShortcutsCreated.value ? '重建桌面与开始菜单快捷方式' : '创建桌面与开始菜单快捷方式'
+  }
+  if (desktopPlatform.value === 'macos') {
+    return allShortcutsCreated.value ? '重建桌面与应用程序快捷方式' : '创建桌面与应用程序快捷方式'
+  }
+  return '创建桌面快捷方式'
+})
+
+function refreshOnOpen() {
+  if (!store.info && !store.infoLoading) void store.loadInfo()
+  if (!store.desktopLoading) void store.loadDesktopStatus()
+}
+
+// 打开菜单时加载或刷新系统信息与桌面集成状态。
+watch(open, (value) => {
+  if (value) refreshOnOpen()
+})
+
+function retryInfo() {
+  void store.loadInfo()
+  void store.loadDesktopStatus()
+}
 
 function openUpgrade() {
   if (!store.info?.canUpgrade) return
   open.value = false
   store.openUpgradeDialog()
+}
+
+async function handleCreateShortcuts() {
+  if (!canManageDesktop.value || creatingShortcuts.value) return
+  creatingShortcuts.value = true
+  try {
+    const { data } = await systemApi.createShortcuts()
+    store.setDesktopShortcutResult(data)
+    ElMessage.success(
+      desktopPlatform.value === 'windows'
+        ? '已创建桌面与开始菜单快捷方式'
+        : desktopPlatform.value === 'macos'
+          ? '已创建桌面与应用程序快捷方式'
+          : '已创建桌面快捷方式',
+    )
+  } catch (error) {
+    ElMessage.error(systemErrorMessage(error, '创建快捷方式失败，请稍后重试'))
+  } finally {
+    creatingShortcuts.value = false
+  }
+}
+
+async function handleToggleAutoStart(value: string | number | boolean) {
+  if (!canManageDesktop.value || autoStartSaving.value) return
+  const next = Boolean(value)
+  autoStartSaving.value = true
+  try {
+    const { data } = await systemApi.setAutoStart(next)
+    store.setDesktopAutoStart(data.autoStart)
+    ElMessage.success(data.autoStart ? '已开启开机后台自启' : '已关闭开机后台自启')
+  } catch (error) {
+    ElMessage.error(systemErrorMessage(error, '更新开机自启设置失败，请稍后重试'))
+  } finally {
+    autoStartSaving.value = false
+  }
 }
 
 async function confirmShutdown() {
@@ -165,6 +282,10 @@ async function confirmShutdown() {
   font-family: var(--ses-font-mono);
   word-break: break-all;
 }
+.menu-divider {
+  margin: 4px 0;
+  border-top: 1px solid var(--ses-line);
+}
 .menu-item {
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
   width: 100%;
@@ -181,6 +302,12 @@ async function confirmShutdown() {
 .menu-item:focus-visible { outline: 2px solid var(--ses-accent); outline-offset: -2px; }
 .menu-item.danger { color: var(--ses-err); }
 .menu-item:disabled { cursor: not-allowed; color: var(--ses-ink-4); }
+.menu-toggle-item {
+  cursor: default;
+}
+.menu-toggle-item:hover {
+  background: transparent;
+}
 .menu-item-row {
   display: flex;
   align-items: center;
@@ -197,6 +324,10 @@ async function confirmShutdown() {
   font-weight: 500;
   line-height: 1.5;
   flex-shrink: 0;
+}
+.menu-item-badge.neutral {
+  background: var(--ses-surface-2);
+  color: var(--ses-ink-3);
 }
 .menu-item-reason { font-size: 12px; line-height: 1.5; color: var(--ses-ink-3); }
 

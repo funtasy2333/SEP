@@ -101,3 +101,23 @@ export interface UpgradePlan {
   platform: Launcher;
   requestedAt: string;
 }
+
+export interface DesktopStatus {
+  supported: boolean;
+  unsupportedReason: string | null;
+  platform: Launcher | null;
+  desktopShortcut: boolean;
+  startMenuShortcut: boolean;
+  autoStart: boolean;
+}
+
+export interface DesktopShortcutResult {
+  desktopShortcut: boolean;
+  startMenuShortcut: boolean;
+  desktopPath: string | null;
+  startMenuPath: string | null;
+}
+
+export interface DesktopAutoStartResult {
+  autoStart: boolean;
+}

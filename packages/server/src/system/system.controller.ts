@@ -11,9 +11,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { DesktopIntegrator } from './desktop-integrator';
 import { LocalWriteGuard } from './local-write.guard';
 import { SystemService } from './system.service';
 import type {
+  DesktopAutoStartResult,
+  DesktopShortcutResult,
+  DesktopStatus,
   DownloadStatus,
   SystemInfo,
   UpdateChannel,
@@ -28,12 +32,42 @@ function parseChannel(value: unknown): UpdateChannel {
 /** 应用内升级与退出。写接口（POST）经 {@link LocalWriteGuard} 防跨站；不暴露给 MCP。 */
 @Controller('system')
 export class SystemController {
-  constructor(private readonly system: SystemService) {}
+  constructor(
+    private readonly system: SystemService,
+    private readonly desktop: DesktopIntegrator,
+  ) {}
 
   /** GET /api/system/info：当前版本、运行方式，以及能否升级 / 退出。 */
   @Get('info')
   info(): SystemInfo {
     return this.system.info();
+  }
+
+  /** GET /api/system/desktop：桌面快捷方式与开机后台自启状态。 */
+  @Get('desktop')
+  desktopStatus(): Promise<DesktopStatus> {
+    return this.desktop.status();
+  }
+
+  /** POST /api/system/desktop/shortcuts：创建或重建桌面与开始菜单/应用程序快捷方式。 */
+  @Post('desktop/shortcuts')
+  @UseGuards(LocalWriteGuard)
+  @HttpCode(HttpStatus.OK)
+  createDesktopShortcuts(): Promise<DesktopShortcutResult> {
+    return this.desktop.createShortcuts();
+  }
+
+  /** POST /api/system/desktop/autostart：开启或关闭开机后台自启。 */
+  @Post('desktop/autostart')
+  @UseGuards(LocalWriteGuard)
+  @HttpCode(HttpStatus.OK)
+  setDesktopAutoStart(
+    @Body() body: { enabled?: unknown },
+  ): Promise<DesktopAutoStartResult> {
+    if (typeof body?.enabled !== 'boolean') {
+      throw new BadRequestException('enabled 必须是布尔值');
+    }
+    return this.desktop.setAutoStart(body.enabled);
   }
 
   /** GET /api/system/update/check?channel=stable|commit：对比 GitHub 上的最新版本。 */

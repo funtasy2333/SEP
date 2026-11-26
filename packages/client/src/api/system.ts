@@ -59,9 +59,38 @@ export interface UpdateCheck {
   commits: UpdateCommit[]
 }
 
+export interface DesktopStatus {
+  supported: boolean
+  unsupportedReason: string | null
+  platform: 'macos' | 'windows' | null
+  desktopShortcut: boolean
+  startMenuShortcut: boolean
+  autoStart: boolean
+}
+
+export interface DesktopShortcutResult {
+  desktopShortcut: boolean
+  startMenuShortcut: boolean
+  desktopPath: string | null
+  startMenuPath: string | null
+}
+
+export interface DesktopAutoStartResult {
+  autoStart: boolean
+}
+
 export const systemApi = {
   info() {
     return api.get<SystemInfo>('/system/info')
+  },
+  desktopStatus() {
+    return api.get<DesktopStatus>('/system/desktop')
+  },
+  createShortcuts() {
+    return api.post<DesktopShortcutResult>('/system/desktop/shortcuts', {})
+  },
+  setAutoStart(enabled: boolean) {
+    return api.post<DesktopAutoStartResult>('/system/desktop/autostart', { enabled })
   },
   checkUpdate(channel: Channel) {
     return api.get<UpdateCheck>('/system/update/check', { params: { channel } })

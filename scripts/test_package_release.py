@@ -11,6 +11,53 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 
 class Packages(unittest.TestCase):
+    def test_macos_portable_archives_include_an_executable_node(self):
+        spec = importlib.util.spec_from_file_location('package_release', ROOT / 'scripts/package-release.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as temp:
+            stage = Path(temp) / 'runtime'
+            for name in ('node', 'LICENSE.node', 'server/package.json', 'server/dist/main.js', 'client/index.html',
+                         'server/node_modules/better-sqlite3/build/Release/better_sqlite3.node'):
+                target = stage / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b'fixture')
+            archive = module.build_archive('macos', Path(temp), macos_runtime=stage)
+            root = f'SES-{module.VERSION}-macos-arm64'
+            self.assertEqual(archive.name, root + '.zip')
+            with zipfile.ZipFile(archive) as z:
+                self.assertIn(f'{root}/启动SES.command', z.namelist())
+                self.assertNotIn(f'{root}/pnpm-lock.yaml', z.namelist())
+                self.assertEqual(z.getinfo(f'{root}/.ses-runtime/node').external_attr >> 16 & 0o777, 0o755)
+                self.assertEqual(json.loads(z.read(f'{root}/ses-build.json'))['runtime'], 'macos-arm64')
+
+    def test_windows_portable_archive_contains_the_runtime_without_build_tools(self):
+        spec = importlib.util.spec_from_file_location('package_release', ROOT / 'scripts/package-release.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as temp:
+            stage = Path(temp) / 'runtime'
+            names = {
+                'node.exe', 'LICENSE.node', 'server/package.json', 'server/dist/main.js',
+                'client/index.html', 'client/assets/main.js',
+                'server/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
+            }
+            for name in names | {'server/node_modules/.bin/tool.cmd', 'server/node_modules/.modules.yaml'}:
+                target = stage / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b'fixture')
+            archive = module.build_archive('windows', Path(temp), windows_runtime=stage)
+            with zipfile.ZipFile(archive) as z:
+                root = f'SES-{module.VERSION}-windows'
+                entries = {name.split('/', 1)[1] for name in z.namelist()}
+                self.assertEqual({name.removeprefix('.ses-runtime/') for name in entries if name.startswith('.ses-runtime/')}, names)
+                self.assertIn('启动SES.cmd', entries)
+                self.assertIn('scripts/apply-update.cjs', entries)
+                self.assertNotIn('pnpm-lock.yaml', entries)
+                self.assertNotIn('packages/server/data/ses.db', entries)
+                info = json.loads(z.read(f'{root}/ses-build.json'))
+                self.assertEqual(info['runtime'], 'windows-x64')
+
     def test_runtime_archives(self):
         spec = importlib.util.spec_from_file_location('package_release', ROOT / 'scripts/package-release.py')
         self.assertTrue(Path(spec.origin).exists(), 'release packager is missing')

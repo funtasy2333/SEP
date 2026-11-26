@@ -42,7 +42,7 @@
 
 - **SES 文档包**：导入与导出包含当前正文、文件设置和全部版本的 `.ses` 文件，格式与身份规则见 [SES 文档包格式](docs/ses-package-format.md)
 - **DOCX 测试版**：从零生成章条结构、编号、分节、页眉页脚、目次和终结线，支持图、表、公式、横排与封面；交付要求见 [WP7 DOCX 规格](docs/wp7-docx-delivery.md)
-- **PDF 版式预览**：0.2.2 Preview 暂停 PDF 导出。
+- **PDF 版式预览**：0.3.0 Preview 暂停 PDF 导出。
 - DOCX 中的目次页码由 Word 更新；增删章条后需重新导出以更新目次条目（见 docs/wp7-docx-delivery.md）
 - DOCX 真实文稿交付验收尚未完成，当前状态、补充样稿证据及素材限制见 [WP7.6 验收记录](docs/wp7.6-delivery-validation.md)
 
@@ -114,50 +114,42 @@ SEP/
 
 ### 下载使用（推荐）
 
-当前版本为 [SES 0.2.2 Preview](https://github.com/funtasy2333/SEP/releases/tag/v0.2.2-preview)。请根据操作系统下载对应压缩包，**完整解压到可写的本地目录后再启动，不要直接在压缩包内运行脚本**。
+当前版本为 [SES 0.3.0 Preview](https://github.com/funtasy2333/SEP/releases/tag/v0.3.0-preview)。请根据操作系统下载对应压缩包，**完整解压到可写的本地目录后再启动，不要直接在压缩包内运行脚本**。
 
 | 操作系统 | 下载 | 启动 | 退出 |
 | -------- | ---- | ---- | ---- |
-| Windows 10/11（64 位） | [SES-0.2.2-preview-windows.zip](https://github.com/funtasy2333/SEP/releases/download/v0.2.2-preview/SES-0.2.2-preview-windows.zip) | 双击 `启动SES.cmd` | 双击 `退出SES.cmd` |
-| macOS | [SES-0.2.2-preview-macos.zip](https://github.com/funtasy2333/SEP/releases/download/v0.2.2-preview/SES-0.2.2-preview-macos.zip) | 双击 `启动SES.command` | 双击 `退出SES.command` |
+| Windows 10/11（64 位 x64，自包含） | [SES-0.3.0-preview-windows.zip](https://github.com/funtasy2333/SEP/releases/download/v0.3.0-preview/SES-0.3.0-preview-windows.zip) | 双击 `启动SES.cmd` | 双击 `退出SES.cmd` |
+| macOS（Apple Silicon arm64，自包含） | [SES-0.3.0-preview-macos-arm64.zip](https://github.com/funtasy2333/SEP/releases/download/v0.3.0-preview/SES-0.3.0-preview-macos-arm64.zip) | 双击 `启动SES.command` | 双击 `退出SES.command` |
+| macOS（通用源码包 / Intel） | [SES-0.3.0-preview-macos.zip](https://github.com/funtasy2333/SEP/releases/download/v0.3.0-preview/SES-0.3.0-preview-macos.zip) | 双击 `启动SES.command` | 双击 `退出SES.command` |
 
-压缩包包含 SES 程序源码、资源、启动文件和使用说明；不包含开发过程文档、测试、已有数据库或第三方依赖。直接使用压缩包无需安装 Git 或 Python，**首次启动需要联网安装依赖并构建项目**。
+Windows x64 与 macOS Apple Silicon 自包含发布包已内置 Node.js 22.22.0、已构建前后端和生产依赖，**完整解压后即可离线启动，无需安装 Node.js、pnpm、Git 或 Python**。通用 macOS 源码包首次启动需联网安装依赖并构建。
 
 #### Windows
 
 1. 解压 Windows 压缩包，进入解压后的 SES 目录。
-2. 双击 `启动SES.cmd`，等待依赖安装与构建完成，浏览器会自动打开编辑器。
-3. 使用结束后，双击 `退出SES.cmd` 停止服务。
+2. 双击 `启动SES.cmd`；启动成功后终端窗口会自动关闭，浏览器会自动打开编辑器，并在首次成功启动时自动创建桌面和开始菜单快捷方式 `SES`（若启动失败则保留终端窗口显示报错信息）。
+3. 使用结束后，双击 `退出SES.cmd` 停止服务（成功退出后窗口自动关闭），或在网页右上角「设置」中点击「退出 SES」。
 
-需要 Windows PowerShell 5.1 或更高版本（Windows 10/11 通常已自带）。脚本会检查现有 Node.js；未找到兼容版本时，在 SES 目录内安装经过 SHA256 校验的便携版 Node.js 22.22.0，并在本目录安装 pnpm 10.33.0，无需手动配置全局运行环境。
-
-Windows 脚本优先尝试官方 HTTPS 来源，下载或安装失败后自动重试中国大陆 npmmirror 镜像；通过实际请求判断连接情况，不依赖 ICMP ping。此逻辑仅适用于 Windows，不修改全局 npm 源。两个来源都失败时会显示错误并停止，请检查网络或代理后重新启动。
-
-pnpm 的依赖缓存位于 SES 目录内的 `.ses-tools/pnpm-store/`。从旧版升级后，如需复用盘根目录的 `.pnpm-store`，可以先退出 SES，把旧缓存 `v10` 内的 `files` 和 `index` 复制到新缓存的 `v10` 目录。下次需要安装依赖时，pnpm 会重建依赖链接并复用已缓存的文件。确认 SES 已使用新缓存且没有其他项目使用旧缓存后，可以删除旧缓存。
+需要 Windows PowerShell 5.1 或更高版本（Windows 10/11 通常已自带）。若使用源码模式或切换到「每次提交」通道，脚本会按需在本目录 `.ses-tools/` 安装经过 SHA256 校验的便携版 Node.js 22.22.0 与 pnpm 10.33.0，优先尝试官方 HTTPS 来源，失败后自动重试中国大陆 npmmirror 镜像（不修改全局 npm 源）。
 
 #### macOS
 
-1. 下载并安装 [Node.js 22.22.0（macOS 安装包）](https://nodejs.org/dist/v22.22.0/node-v22.22.0.pkg)，或使用已安装的兼容版本。
-2. 在终端安装 pnpm（最低 9.0，推荐 10.33.0）：
-
-   ```bash
-   npm install -g pnpm@10.33.0
-   ```
-
-3. 解压 macOS 压缩包，在 Finder 中双击 `启动SES.command`，等待依赖安装与构建完成。
-4. 使用结束后，双击 `退出SES.command` 停止服务。
+- **Apple Silicon（M 系列，推荐）**：下载 `SES-0.3.0-preview-macos-arm64.zip`，解压后在 Finder 中双击 `启动SES.command` 即可离线启动；启动成功后窗口会自动关闭，并在首次成功启动时自动在桌面与 `~/Applications` 创建 `SES.app` 快捷方式（失败时保留窗口提示）。使用结束后双击 `退出SES.command` 或在网页「设置」中点击「退出 SES」。
+- **Intel Mac / 通用源码包**：需先安装 [Node.js 22.22.0（macOS 安装包）](https://nodejs.org/dist/v22.22.0/node-v22.22.0.pkg) 与 `npm install -g pnpm@10.33.0`，再下载解压 `SES-0.3.0-preview-macos.zip` 并双击 `启动SES.command`（首次启动将联网安装依赖并构建）。
 
 如果提示脚本没有执行权限，请在终端进入解压后的 SES 目录执行以下命令，再双击启动：
 
 ```bash
-chmod +x 启动SES.command 退出SES.command scripts/ses-local.sh
+chmod +x 启动SES.command 退出SES.command scripts/ses-local.sh scripts/ses-desktop.sh
 ```
 
-macOS 启动脚本沿用原有依赖来源配置，不包含 Windows 的自动镜像切换逻辑。
+macOS 源码包沿用原有依赖来源配置，不包含 Windows 的自动镜像切换逻辑。
 
 ### 访问、退出与数据保存
 
 启动成功后访问 [http://localhost:5173/](http://localhost:5173/)；Windows 启动脚本会打开 [http://127.0.0.1:5173/](http://127.0.0.1:5173/)。后端 API 使用端口 `3000`，默认只监听本机 `127.0.0.1`。
+
+可在网页右上角「设置」中随时重新创建桌面与开始菜单/应用程序快捷方式，或开关「开机后台自启」（登录系统后静默在后台启动 SES 服务，无需管理员权限）。
 
 关闭启动脚本窗口后，SES 会继续在后台运行；请使用对应的退出脚本停止服务。**关闭网页同样不会退出 SES**，需要使用退出脚本，或在网页「设置 → 升级 / 退出」中点击「退出 SES」。重复启动会复用这套脚本已启动的服务，退出脚本只停止其登记的 SES 进程，保留文档数据。
 
