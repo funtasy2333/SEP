@@ -27,15 +27,15 @@ jobs:
       SES_NO_PAUSE: '1'
       SES_NO_SHORTCUT: '1'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22.22.0'
           architecture: x64
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.33.0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Test network fallback using Windows PowerShell 5.1
@@ -139,13 +139,13 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Shutdown failed' }
           }
           if (Get-NetTCPConnection -State Listen | Where-Object LocalPort -in @(3000, 5173)) { throw 'SES listeners remain after shutdown' }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-preview
           path: release/SES-*-windows.zip
           if-no-files-found: error
           compression-level: 0
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: windows-launcher-logs
@@ -162,12 +162,12 @@ jobs:
       SES_NO_PAUSE: '1'
       SES_NO_SHORTCUT: '1'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22.22.0'
           architecture: arm64
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.33.0
       - name: Verify existing launcher version guards
@@ -231,13 +231,13 @@ jobs:
             /bin/bash "$SES_E2E_ROOT/scripts/ses-local.sh" stop
           fi
           python3 scripts/upgrade_e2e.py assert-stopped
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-arm64-preview
           path: release/SES-*-macos-arm64.zip
           if-no-files-found: error
           compression-level: 0
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: macos-launcher-logs
@@ -253,12 +253,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: windows-preview
           path: release
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: macos-arm64-preview
           path: release
