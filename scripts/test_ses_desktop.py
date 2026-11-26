@@ -90,13 +90,16 @@ class IconsAndLaunchers(unittest.TestCase):
 class WindowsDesktopRuntime(unittest.TestCase):
     def run_desktop(self, root: Path, *args: str, env: dict[str, str]):
         script = root / 'scripts/ses-desktop.ps1'
+        child_env = {**os.environ, **env}
+        if 'powershell' in Path(PWSH).name.lower():
+            child_env.pop('PSModulePath', None)
         return subprocess.run(
             [PWSH, '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', str(script), *args],
             capture_output=True,
             text=True,
             encoding='utf-8',
             timeout=60,
-            env={**os.environ, **env},
+            env=child_env,
         )
 
     def test_windows_shortcuts_and_autostart(self):

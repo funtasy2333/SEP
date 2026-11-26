@@ -47,23 +47,105 @@ function Write-SesUtf8NoBom([string]$FilePath, [string]$Content) {
     [IO.File]::WriteAllText($FilePath, $Content, (New-Object System.Text.UTF8Encoding($false)))
 }
 
+if (-not ('SesShellLink' -as [type])) {
+    Add-Type -Language CSharp -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
+using System.Text;
+
+public static class SesShellLink
+{
+    [ComImport]
+    [Guid("00021401-0000-0000-C000-000000000046")]
+    private class ShellLink
+    {
+    }
+
+    [ComImport]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    [Guid("000214F9-0000-0000-C000-000000000046")]
+    private interface IShellLinkW
+    {
+        void GetPath([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pszFile, int cch, IntPtr pfd, uint fFlags);
+        void GetIDList(out IntPtr ppidl);
+        void SetIDList(IntPtr pidl);
+        void GetDescription([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pszName, int cch);
+        void SetDescription([MarshalAs(UnmanagedType.LPWStr)] string pszName);
+        void GetWorkingDirectory([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pszDir, int cch);
+        void SetWorkingDirectory([MarshalAs(UnmanagedType.LPWStr)] string pszDir);
+        void GetArguments([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pszArgs, int cch);
+        void SetArguments([MarshalAs(UnmanagedType.LPWStr)] string pszArgs);
+        void GetHotkey(out ushort pwHotkey);
+        void SetHotkey(ushort wHotkey);
+        void GetShowCmd(out int piShowCmd);
+        void SetShowCmd(int iShowCmd);
+        void GetIconLocation([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pszIconPath, int cch, out int piIcon);
+        void SetIconLocation([MarshalAs(UnmanagedType.LPWStr)] string pszIconPath, int iIcon);
+        void SetRelativePath([MarshalAs(UnmanagedType.LPWStr)] string pszPathRel, uint dwReserved);
+        void Resolve(IntPtr hwnd, uint fFlags);
+        void SetPath([MarshalAs(UnmanagedType.LPWStr)] string pszFile);
+    }
+
+    public static void Create(
+        string shortcutPath,
+        string targetPath,
+        string arguments,
+        string workingDirectory,
+        string description,
+        string iconPath,
+        int showCmd)
+    {
+        object obj = new ShellLink();
+        try
+        {
+            IShellLinkW link = (IShellLinkW)obj;
+            link.SetPath(targetPath);
+            link.SetArguments(arguments ?? string.Empty);
+            link.SetWorkingDirectory(workingDirectory ?? string.Empty);
+            link.SetDescription(description ?? string.Empty);
+            link.SetShowCmd(showCmd);
+            if (!string.IsNullOrEmpty(iconPath))
+            {
+                link.SetIconLocation(iconPath, 0);
+            }
+            ((IPersistFile)obj).Save(shortcutPath, true);
+        }
+        finally
+        {
+            Marshal.FinalReleaseComObject(obj);
+        }
+    }
+
+    public static string ReadWorkingDirectory(string shortcutPath)
+    {
+        object obj = new ShellLink();
+        try
+        {
+            ((IPersistFile)obj).Load(shortcutPath, 0);
+            IShellLinkW link = (IShellLinkW)obj;
+            StringBuilder sb = new StringBuilder(4096);
+            link.GetWorkingDirectory(sb, sb.Capacity);
+            return sb.ToString();
+        }
+        finally
+        {
+            Marshal.FinalReleaseComObject(obj);
+        }
+    }
+}
+'@
+}
+
 function Test-SesShortcutTarget([string]$ShortcutPath) {
     if (!(Test-Path -LiteralPath $ShortcutPath -PathType Leaf)) { return $false }
-    $shell = $null
-    $shortcut = $null
     try {
-        $shell = New-Object -ComObject WScript.Shell
-        $shortcut = $shell.CreateShortcut($ShortcutPath)
         $expectedRoot = Normalize-SesDir $script:SesRoot
-        $actualRoot = Normalize-SesDir ([string]$shortcut.WorkingDirectory)
+        $actualRoot = Normalize-SesDir ([SesShellLink]::ReadWorkingDirectory($ShortcutPath))
         return ($actualRoot -ne '') -and ($actualRoot -eq $expectedRoot)
     }
     catch {
         return $false
-    }
-    finally {
-        if ($shortcut) { try { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($shortcut) } catch { } }
-        if ($shell) { try { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($shell) } catch { } }
     }
 }
 
@@ -72,25 +154,19 @@ function New-SesShortcut([string]$ShortcutPath, [string]$Arguments, [string]$Des
     if ($parent -and !(Test-Path -LiteralPath $parent)) {
         [void][IO.Directory]::CreateDirectory($parent)
     }
-    $shell = $null
-    $shortcut = $null
-    try {
-        $shell = New-Object -ComObject WScript.Shell
-        $shortcut = $shell.CreateShortcut($ShortcutPath)
-        $shortcut.TargetPath = Get-SesPowerShellPath
-        $shortcut.Arguments = $Arguments
-        $shortcut.WorkingDirectory = $script:SesRoot
-        $shortcut.WindowStyle = 7
-        $shortcut.Description = $Description
-        if (Test-Path -LiteralPath $script:SesIconFile -PathType Leaf) {
-            $shortcut.IconLocation = "$($script:SesIconFile),0"
-        }
-        $shortcut.Save()
+    $iconPath = ''
+    if (Test-Path -LiteralPath $script:SesIconFile -PathType Leaf) {
+        $iconPath = $script:SesIconFile
     }
-    finally {
-        if ($shortcut) { try { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($shortcut) } catch { } }
-        if ($shell) { try { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($shell) } catch { } }
-    }
+    [SesShellLink]::Create(
+        $ShortcutPath,
+        (Get-SesPowerShellPath),
+        $Arguments,
+        $script:SesRoot,
+        $Description,
+        $iconPath,
+        7
+    )
 }
 
 function Get-SesDesktopStatus {

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SRC="$(cd -- "$(dirname -- "$0")/.." && pwd -P)"
-TMP="$(mktemp -d "${TMPDIR:-/tmp}/ses-desktop-test.XXXXXX")"
+TMP="$(cd -- "$(mktemp -d "${TMPDIR:-/tmp}/ses-desktop-test.XXXXXX")" && pwd -P)"
 trap 'rm -rf "$TMP"' EXIT
 
 ROOT="$TMP/SES [preview] 中文 路径"
