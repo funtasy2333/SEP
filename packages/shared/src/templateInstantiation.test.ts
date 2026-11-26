@@ -8,6 +8,8 @@ import {
 } from './templateInstantiation';
 import { DocumentStage, StandardType } from './types/document';
 import type { StandardTemplate } from './types/template';
+import { pmToIr, type PMJsonNode } from './ir/pmToIr';
+import { collectFootnotes } from './ir/footnotes';
 
 const SAMPLE_PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
@@ -201,6 +203,73 @@ describe('templateInstantiation', () => {
       { type: 'text', text: 'Name', marks: [link] },
       { type: 'text', text: 'OrgName' },
       { type: 'text', text: ' after', marks: [{ type: 'italic' }] },
+    ]);
+  });
+
+  it('instantiates inline and shared footnote payloads with the same formatted placeholder rules', () => {
+    const template: StandardTemplate = {
+      ...BUILTIN_TEMPLATES[3]!, id: 81, uid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', readonly: false, source: 'human',
+      content: { type: 'doc', content: [
+        { type: 'chapter', attrs: { nodeId: 'c1' }, content: [
+          { type: 'chapterTitle', content: [{ type: 'text', text: '范围' }] },
+          { type: 'stdParagraph', attrs: { nodeId: 'p1' }, content: [
+            { type: 'text', text: '正文' },
+            { type: 'footnoteRef', attrs: { nodeId: 'f1', content: [
+              { type: 'text', text: '参见 {{title', marks: [{ type: 'bold' }] },
+              { type: 'text', text: 'Cn}}，{{issuer}} / {{unknown}}', marks: [{ type: 'italic' }] },
+            ] } },
+            { type: 'sharedFootnoteRef', attrs: { targetId: 'f2', refText: '2' } },
+            { type: 'sharedFootnoteDefinition', attrs: { nodeId: 'f2', content: [
+              { type: 'text', text: '来源 {{pro' }, { type: 'text', text: 'poser}} / {{issuer}}' },
+            ] } },
+          ] },
+        ] },
+      ] },
+    };
+    const before = structuredClone(template);
+    const instantiated = instantiateTemplateDocument(template, { titleCn: '新标准', proposer: '协会' });
+    const ir = pmToIr(instantiated.content).doc;
+    expect(collectFootnotes(ir).map(({ id, content }) => ({ id, content }))).toEqual([
+      { id: 'f1', content: [{ text: '参见 新标准', marks: [{ type: 'bold' }] }, { text: '，{{issuer}} / {{unknown}}', marks: [{ type: 'italic' }] }] },
+      { id: 'f2', content: [{ text: '来源 协会' }, { text: ' / {{issuer}}' }] },
+    ]);
+    expect(template).toEqual(before);
+  });
+
+  it('preserves malformed and unsupported footnote payloads and does not touch cover attributes', () => {
+    const input = { type: 'doc', content: [
+      { type: 'coverPage', attrs: { content: [{ type: 'text', text: '{{titleCn}}' }] }, content: [{ type: 'footnoteRef', attrs: { content: [{ type: 'text', text: '{{titleCn}}' }] } }] },
+      { type: 'paragraph', content: [
+        { type: 'footnoteRef', attrs: { nodeId: 'bad', custom: '{{titleCn}}', content: [
+          null, 17, { unexpected: '{{titleCn}}' }, { type: 'unrecognized', attrs: { content: [{ type: 'text', text: '{{titleCn}}' }] }, content: [{ type: 'text', text: '{{titleCn}}' }] },
+          { type: 'text', text: '{{title' }, { type: 'hardBreak' }, { type: 'text', text: 'Cn}}' },
+          { type: 'footnoteRef', attrs: { content: [{ type: 'text', text: '{{titleCn}}' }] } },
+          { type: 'text', text: '' },
+        ] } },
+        { type: 'sharedFootnoteDefinition', attrs: { nodeId: 'bad-shared', content: 'invalid' } },
+        { type: 'sharedFootnoteDefinition', attrs: { nodeId: 'nested-shared', content: [
+          { type: 'text', text: '{{titleCn}}' },
+          { type: 'footnoteRef', attrs: { content: [{ type: 'text', text: '{{titleCn}}' }] } },
+        ] } },
+        { type: 'someOtherAtom', attrs: { content: [{ type: 'text', text: '{{titleCn}}' }] } },
+      ] },
+    ] } as unknown as PMJsonNode;
+    const before = structuredClone(input);
+    const out = replaceTemplatePlaceholders(input, { titleCn: '新标准', standardType: StandardType.GROUP });
+    expect(out).toEqual(before);
+    expect(input).toEqual(before);
+  });
+
+  it('recurses into canonical nested footnote payloads without joining across an atom', () => {
+    const out = replaceTemplatePlaceholders({ type: 'footnoteRef', attrs: { content: [
+      { type: 'text', text: '{{title' },
+      { type: 'footnoteRef', attrs: { content: [{ type: 'text', text: '{{titleCn}}' }] } },
+      { type: 'text', text: 'Cn}}' },
+    ] } }, { titleCn: '新标准', standardType: StandardType.GROUP });
+    expect(out.attrs?.content).toEqual([
+      { type: 'text', text: '{{title' },
+      { type: 'footnoteRef', attrs: { content: [{ type: 'text', text: '新标准' }] } },
+      { type: 'text', text: 'Cn}}' },
     ]);
   });
 

@@ -1,6 +1,7 @@
 import { buildCoverDesignation, getCoverDesignationName, getCoverDesignationParts } from './coverDesignation';
 import { cloneCoverLayout, downgradeCoverLayoutForStandardType } from './coverLayoutValidation';
 import type { PMJsonNode } from './ir/pmToIr';
+import { unsupportedFootnoteContent, unsupportedSharedFootnoteContent } from './ir/footnotePayload';
 import { DocumentStage, StandardType, type CreateDocumentDto, type DocumentMeta } from './types/document';
 import type { CoverLayoutConfig, StandardTemplate } from './types/template';
 
@@ -317,34 +318,50 @@ export function replaceTemplatePlaceholders(content: PMJsonNode, meta: DocumentM
     advanceTo(text.length, true);
   };
 
-  const visit = (node: PMJsonNode): void => {
+  const replaceChildren = (children: PMJsonNode[], preserveEmpty = false): PMJsonNode[] => {
+    const result: PMJsonNode[] = [];
+    for (let i = 0; i < children.length;) {
+      const child = children[i]!;
+      if (child.type !== 'text' || typeof child.text !== 'string') {
+        visit(child);
+        result.push(child);
+        i++;
+        continue;
+      }
+      const run: PMJsonNode[] = [];
+      while (i < children.length && children[i]!.type === 'text' && typeof children[i]!.text === 'string') {
+        run.push(children[i++]!);
+      }
+      const existingEmpty = preserveEmpty ? new Set(run.filter((part) => part.text === '')) : undefined;
+      replaceRun(run);
+      for (const part of run) {
+        if (part.text || existingEmpty?.has(part)) result.push(part);
+      }
+    }
+    return result;
+  };
+
+  function visit(node: PMJsonNode): void {
     if (node.type === 'coverPage') return;
+    if (node.type === 'footnoteRef' || node.type === 'sharedFootnoteDefinition') {
+      // Footnotes store ProseMirror inline nodes in an attribute rather than node.content.
+      if (Array.isArray(node.attrs?.content)) {
+        const payload = node.attrs.content;
+        const unsupported = node.type === 'footnoteRef'
+          ? unsupportedFootnoteContent(payload)
+          : unsupportedSharedFootnoteContent(payload);
+        if (!unsupported) node.attrs.content = replaceChildren(payload as PMJsonNode[], true);
+      }
+      return;
+    }
     if (node.type === 'text' && typeof node.text === 'string') {
       replaceRun([node]);
       return;
     }
     if (Array.isArray(node.content)) {
-      const result: PMJsonNode[] = [];
-      for (let i = 0; i < node.content.length;) {
-        const child = node.content[i]!;
-        if (child.type !== 'text' || typeof child.text !== 'string') {
-          visit(child);
-          result.push(child);
-          i++;
-          continue;
-        }
-        const run: PMJsonNode[] = [];
-        while (i < node.content.length && node.content[i]!.type === 'text' && typeof node.content[i]!.text === 'string') {
-          run.push(node.content[i++]!);
-        }
-        replaceRun(run);
-        for (const part of run) {
-          if (part.text) result.push(part);
-        }
-      }
-      node.content = result;
+      node.content = replaceChildren(node.content);
     }
-  };
+  }
 
   visit(cloned);
   return cloned;
