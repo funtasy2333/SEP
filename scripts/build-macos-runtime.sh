@@ -27,9 +27,9 @@ cp -R packages/client/dist "$output/client"
 cp -p "$node_exe" "$output/node"
 cp -p "$(dirname -- "$node_exe")/../LICENSE" "$output/LICENSE.node"
 
-/usr/bin/lipo -verify_arch arm64 "$output/node"
+/usr/bin/lipo "$output/node" -verify_arch arm64
 while IFS= read -r -d '' binary; do
-  /usr/bin/lipo -verify_arch arm64 "$binary"
+  /usr/bin/lipo "$binary" -verify_arch arm64
 done < <(find "$output/server/node_modules" -type f \( -name '*.node' -o -name '*.dylib' \) -print0)
 "$output/node" -e 'const DB = require("node:module").createRequire(process.argv[1])("better-sqlite3"); new DB(":memory:").close()' \
   "$output/server/package.json"
