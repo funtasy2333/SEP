@@ -682,10 +682,14 @@ function draftFromTemplate(tpl: StandardTemplate): TemplateDraft {
 }
 
 function hydrateTemplate(tpl: StandardTemplate) {
-  template.value = tpl
   const nextDraft = draftFromTemplate(tpl)
   draft.value = { ...nextDraft, coverLayout: cloneCoverLayout(nextDraft.coverLayout) }
   baseline.value = { ...nextDraft, coverLayout: cloneCoverLayout(nextDraft.coverLayout) }
+  hydrateTemplateBody(tpl)
+}
+
+function hydrateTemplateBody(tpl: StandardTemplate) {
+  template.value = tpl
   bodyDirty.value = false
   lastSaved.value = tpl.updatedAt ? new Date(tpl.updatedAt).toLocaleTimeString('zh-CN') : ''
 
@@ -823,7 +827,7 @@ async function handleRevert() {
   saving.value = true
   try {
     const reverted = await templateStore.revertTemplate(current.id, current.revision)
-    hydrateTemplate(reverted)
+    hydrateTemplateBody(reverted)
     ElMessage.success('已撤回至上一次修改前的内容')
   } catch (error) {
     ElMessage.error(`撤回失败：${error instanceof Error ? error.message : String(error)}`)
@@ -977,7 +981,7 @@ onMounted(async () => {
 
 watch(editor, (ed) => {
   if (ed && template.value) {
-    hydrateTemplate(template.value)
+    hydrateTemplateBody(template.value)
   }
 })
 

@@ -140,6 +140,89 @@ describe('TemplateEditorView UI 与无障碍交互', () => {
     }
   })
 
+  it('preserves unsaved metadata and cover layout when reverting the body', async () => {
+    setActivePinia(createPinia())
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    vi.spyOn(ElMessage, 'success').mockImplementation(() => ({ close: vi.fn() }) as never)
+    const savedBody = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '已保存正文' }] }] }
+    const previousBody = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '撤回后的正文' }] }] }
+    const template = {
+      id: 42, uid: 'template-42', name: '原模板', description: '', baseType: 'group', defaultStage: 'working_draft',
+      defaultMeta: { issuer: '原发布单位' }, coverLayout: { notice: { text: '原声明', position: 'above_dates' } },
+      content: savedBody, source: 'human', readonly: false, revision: 3, hasPreviousContent: true,
+    }
+    const reverted = { ...template, revision: 4, hasPreviousContent: false, content: previousBody }
+    mocks.fetchTemplate.mockResolvedValue(template)
+    mocks.revertTemplate.mockResolvedValue(reverted)
+    mocks.editorGetJSON.mockReturnValueOnce(previousBody)
+    mocks.updateTemplate.mockResolvedValue({
+      ...reverted, revision: 5, name: '修改后的模板', defaultMeta: { issuer: '新发布单位' },
+      coverLayout: { notice: { text: '未保存的声明', position: 'above_dates' } },
+    })
+
+    const root = document.createElement('div')
+    document.body.append(root)
+    roots.push(root)
+    const app = createApp(TemplateEditorView)
+    app.use(ElementPlus).mount(root)
+    await nextTick()
+    await nextTick()
+
+    try {
+      const element = <T extends HTMLElement = HTMLElement>(id: string) => root.querySelector<T>(`[data-testid="${id}"]`)!
+      const name = element<HTMLInputElement>('template-name-input')
+      const issuer = element<HTMLTextAreaElement>('template-issuer-input')
+      const notice = element<HTMLTextAreaElement>('cover-notice-text')
+      element('template-tab-meta').click()
+      for (const [input, value] of [[name, '修改后的模板'], [issuer, '新发布单位']] as const) {
+        input.value = value
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+      element('template-tab-layout').click()
+      notice.value = '未保存的声明'
+      notice.dispatchEvent(new Event('input', { bubbles: true }))
+      mocks.emitEditorUpdate?.()
+      await nextTick()
+      for (const tab of ['body', 'meta', 'layout']) {
+        expect(element(`template-tab-${tab}`).querySelector('.tab-dirty-mark')).not.toBeNull()
+      }
+
+      element('template-more-actions-btn').click()
+      await nextTick()
+      await nextTick()
+      document.querySelector<HTMLElement>('[data-testid="template-revert-btn"]')!.click()
+      await vi.waitFor(() => expect(root.querySelector('.rev-badge')?.textContent).toBe('rev 4'))
+
+      expect(mocks.revertTemplate).toHaveBeenCalledWith(42, 3)
+      expect(replaceEditorDocument).toHaveBeenLastCalledWith(expect.anything(), previousBody, true, false)
+      expect(name.value).toBe('修改后的模板')
+      expect(issuer.value).toBe('新发布单位')
+      expect(notice.value).toBe('未保存的声明')
+      expect(element('template-tab-body').querySelector('.tab-dirty-mark')).toBeNull()
+      for (const tab of ['meta', 'layout']) {
+        expect(element(`template-tab-${tab}`).querySelector('.tab-dirty-mark')).not.toBeNull()
+      }
+      expect(mocks.updateTemplate).not.toHaveBeenCalled()
+      const beforeUnload = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(beforeUnload)
+      expect(beforeUnload.defaultPrevented).toBe(true)
+
+      element('template-save-btn').click()
+      await vi.waitFor(() => expect(root.querySelector('.rev-badge')?.textContent).toBe('rev 5'))
+      expect(mocks.updateTemplate).toHaveBeenCalledWith(42, expect.objectContaining({
+        baseRevision: 4,
+        name: '修改后的模板',
+        defaultMeta: { issuer: '新发布单位' },
+        coverLayout: { notice: { text: '未保存的声明', position: 'above_dates' } },
+        content: previousBody,
+      }))
+      expect(element<HTMLButtonElement>('template-save-btn').disabled).toBe(true)
+    } finally {
+      app.unmount()
+      vi.restoreAllMocks()
+    }
+  })
+
   it('支持 ARIA tablist 键盘切换、分分页脏标记以及自适应/固定缩放与页序预览', async () => {
     setActivePinia(createPinia())
     mocks.fetchTemplate.mockResolvedValue({
