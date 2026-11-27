@@ -23,7 +23,10 @@ function loadEnv() {
       if (eqIdx < 0) continue;
       const key = trimmed.slice(0, eqIdx).trim();
       let val = trimmed.slice(eqIdx + 1).trim();
-      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      if (
+        (val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))
+      ) {
         val = val.slice(1, -1);
       }
       if (!process.env[key]) {
@@ -56,11 +59,16 @@ async function bootstrap() {
   const clientDist = process.env.SES_CLIENT_DIST;
   if (clientDist) {
     const index = resolve(clientDist, 'index.html');
-    if (!statSync(index).isFile()) throw new Error('Missing bundled editor index.html');
+    if (!statSync(index).isFile())
+      throw new Error('Missing bundled editor index.html');
     app.useStaticAssets(clientDist);
     app.use((req: Request, res: Response, next: NextFunction) => {
-      if ((req.method === 'GET' || req.method === 'HEAD') && req.accepts('html') &&
-          !/^\/(?:api|mcp)(?:\/|$)/i.test(req.path) && !extname(req.path)) {
+      if (
+        (req.method === 'GET' || req.method === 'HEAD') &&
+        req.accepts('html') &&
+        !/^\/(?:api|mcp)(?:\/|$)/i.test(req.path) &&
+        !extname(req.path)
+      ) {
         res.sendFile('index.html', { root: clientDist });
         return;
       }

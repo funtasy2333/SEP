@@ -584,9 +584,9 @@ describe('GET /api/documents/:id/export/{pdf,xml,html,json}', () => {
         expect(res.status).toBe(422);
         const body = errorBody(res);
         expect(body.source).toBe('xml46687');
-        expect(body.problems?.some((p) => p.code === 'resource-load-failed')).toBe(
-          true,
-        );
+        expect(
+          body.problems?.some((p) => p.code === 'resource-load-failed'),
+        ).toBe(true);
         expect(res.bytes.toString('utf8')).not.toContain(SECRET);
         expect(logs.text()).toContain(`文档 #${id} XML 导出被阻止`);
         expect(logs.text()).not.toContain(SECRET);
@@ -626,8 +626,12 @@ describe('GET /api/documents/:id/export/{pdf,xml,html,json}', () => {
       const res = await download(EXPORT_PATH(id, 'xml'));
       expect(res.status).toBe(200);
       const rawWarnings = res.headers[WARNINGS_HEADER.toLowerCase()];
-      const warnings = JSON.parse(decodeURIComponent(rawWarnings)) as ExportWarning[];
-      expect(warnings.some((w) => w.code === 'cover-layout-print-only')).toBe(true);
+      const warnings = JSON.parse(
+        decodeURIComponent(rawWarnings),
+      ) as ExportWarning[];
+      expect(warnings.some((w) => w.code === 'cover-layout-print-only')).toBe(
+        true,
+      );
     });
   });
 
@@ -849,14 +853,20 @@ describe('GET /api/documents/:id/export/{pdf,xml,html,json}', () => {
       );
     });
 
-    it.each(['published', 'comment_draft'])('PDF 封面读取文档库实际阶段 %s', async (stage) => {
-      const id = await createDoc({ stage });
-      await download(EXPORT_PATH(id, 'pdf'));
-      const input = convertStub.convertHtmlToPdf.mock.calls[0][0] as { html: string };
-      expect(input.html).toContain('data-type="cover"');
-      expect(input.html).not.toContain('（工作草案）');
-      if (stage === 'comment_draft') expect(input.html).toContain('（征求意见稿）');
-    });
+    it.each(['published', 'comment_draft'])(
+      'PDF 封面读取文档库实际阶段 %s',
+      async (stage) => {
+        const id = await createDoc({ stage });
+        await download(EXPORT_PATH(id, 'pdf'));
+        const input = convertStub.convertHtmlToPdf.mock.calls[0][0] as {
+          html: string;
+        };
+        expect(input.html).toContain('data-type="cover"');
+        expect(input.html).not.toContain('（工作草案）');
+        if (stage === 'comment_draft')
+          expect(input.html).toContain('（征求意见稿）');
+      },
+    );
 
     it('docTitle 取文档库 meta 的标题（覆盖文档内旧值），而不是封面里的旧标题', async () => {
       const id = await createDoc({

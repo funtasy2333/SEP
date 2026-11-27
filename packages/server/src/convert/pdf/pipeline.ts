@@ -13,18 +13,18 @@
  *  6. 断言两遍页数一致（占位定宽保证分页不漂移），不一致即报错。
  */
 
-import { mkdtemp, rm } from 'fs/promises'
-import { tmpdir } from 'os'
-import { join } from 'path'
-import type { Logger } from '@nestjs/common'
+import { mkdtemp, rm } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import type { Logger } from '@nestjs/common';
 
-import { prerenderFormulas } from './katex-prerender'
+import { prerenderFormulas } from './katex-prerender';
 import {
   computeTocPageNumbers,
   injectTocPageNumbers,
   stripBodyAnchor,
   type TocTarget,
-} from './toc'
+} from './toc';
 import {
   injectHead,
   pdfPageCount,
@@ -34,83 +34,87 @@ import {
   resolveVivliostyleCli,
   runVivliostyleBuild,
   writeHtmlFile,
-} from './build'
+} from './build';
 
 export interface HtmlToPdfInput {
   /** print 变体 HTML（@ses/shared renderHtml variant:'print'，已内联 printCss） */
-  html: string
+  html: string;
   /** 目次目标（客户端从渲染后 HTML 的目次节点提取） */
-  toc: TocTarget[]
+  toc: TocTarget[];
   /** 正文首页文件名称（定位正文起始页，做分区页码换算） */
-  docTitle: string
+  docTitle: string;
 }
 
 export interface HtmlToPdfResult {
-  pdf: Buffer
-  pageCount: number
+  pdf: Buffer;
+  pageCount: number;
   /** KaTeX 渲染失败的公式数（降级为原始 LaTeX 文本） */
-  formulaFailures: number
+  formulaFailures: number;
 }
 
 /** Avoid matching rendered watermark text as a heading during TOC pagination. */
 export function stripWatermarkForPagination(html: string): string {
-  return html.replace(/<style id="ses-pdf-watermark">[\s\S]*?<\/style>/g, '')
+  return html.replace(/<style id="ses-pdf-watermark">[\s\S]*?<\/style>/g, '');
 }
 
 export async function runHtmlToPdfPipeline(
   input: HtmlToPdfInput,
   logger: Logger,
 ): Promise<HtmlToPdfResult> {
-  const cliPath = resolveVivliostyleCli()
-  const tmpDir = await mkdtemp(join(tmpdir(), 'ses-htmlpdf-'))
+  const cliPath = resolveVivliostyleCli();
+  const tmpDir = await mkdtemp(join(tmpdir(), 'ses-htmlpdf-'));
 
   try {
     // 1) KaTeX 预渲染 + 资源落盘 + 注入 <link>
-    const headLink = await prepareKatexAssets(tmpDir)
-    const { html: katexHtml, failures } = prerenderFormulas(input.html)
+    const headLink = await prepareKatexAssets(tmpDir);
+    const { html: katexHtml, failures } = prerenderFormulas(input.html);
     if (failures > 0) {
-      logger.warn(`KaTeX 预渲染有 ${failures} 个公式失败，已降级为原始 LaTeX 文本`)
+      logger.warn(
+        `KaTeX 预渲染有 ${failures} 个公式失败，已降级为原始 LaTeX 文本`,
+      );
     }
-    const baseHtml = injectHead(katexHtml, headLink)
+    const baseHtml = injectHead(katexHtml, headLink);
 
     // 2) 第一遍构建（目次页码为占位）
-    const html1 = join(tmpDir, 'pass1.html')
-    const pdf1 = join(tmpDir, 'pass1.pdf')
-    await writeHtmlFile(html1, stripWatermarkForPagination(baseHtml))
-    await runVivliostyleBuild(cliPath, html1, pdf1)
+    const html1 = join(tmpDir, 'pass1.html');
+    const pdf1 = join(tmpDir, 'pass1.pdf');
+    await writeHtmlFile(html1, stripWatermarkForPagination(baseHtml));
+    await runVivliostyleBuild(cliPath, html1, pdf1);
 
     // 3) 逐页扫描 + 计算页码
-    const pages = await pdfToTextPages(pdf1)
-    const count1 = pages.length
-    const numbers = computeTocPageNumbers(pages, input.toc, input.docTitle)
-    const missing = input.toc.filter((t) => !numbers.has(t.target))
+    const pages = await pdfToTextPages(pdf1);
+    const count1 = pages.length;
+    const numbers = computeTocPageNumbers(pages, input.toc, input.docTitle);
+    const missing = input.toc.filter((t) => !numbers.has(t.target));
     if (missing.length > 0) {
       logger.warn(
         `有 ${missing.length} 个目次目标未能定位页码: ${missing
           .map((t) => t.target)
           .join(', ')}`,
-      )
+      );
     }
 
     // 4) 注入页码 + 剥离哨兵（最终 PDF 文本层不留内部定位文本）→ 5) 第二遍构建
-    const html2Content = stripBodyAnchor(injectTocPageNumbers(baseHtml, numbers))
-    const html2 = join(tmpDir, 'pass2.html')
-    const pdf2 = join(tmpDir, 'pass2.pdf')
-    await writeHtmlFile(html2, html2Content)
-    await runVivliostyleBuild(cliPath, html2, pdf2)
+    const html2Content = stripBodyAnchor(
+      injectTocPageNumbers(baseHtml, numbers),
+    );
+    const html2 = join(tmpDir, 'pass2.html');
+    const pdf2 = join(tmpDir, 'pass2.pdf');
+    await writeHtmlFile(html2, html2Content);
+    await runVivliostyleBuild(cliPath, html2, pdf2);
 
     // 6) 页数一致性断言
-    const count2 = await pdfPageCount(pdf2)
+    const count2 = await pdfPageCount(pdf2);
     if (Number.isFinite(count2) && count1 !== count2) {
       throw new Error(
         `两遍构建页数不一致（第一遍 ${count1} 页 / 第二遍 ${count2} 页），` +
           `目次页码占位宽度可能不足，已中止以避免页码错位`,
-      )
+      );
     }
 
-    const pdf = await readPdf(pdf2)
-    return { pdf, pageCount: count1, formulaFailures: failures }
+    const pdf = await readPdf(pdf2);
+    return { pdf, pageCount: count1, formulaFailures: failures };
   } finally {
-    await rm(tmpDir, { recursive: true, force: true }).catch(() => undefined)
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
   }
 }

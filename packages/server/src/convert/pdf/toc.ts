@@ -130,7 +130,9 @@ export function findBodyStartPage(
   if (bySentinel >= 0) return from + bySentinel;
   const needle = normalize(docTitle);
   if (!needle) return -1;
-  const byTitle = normPages.slice(from, limit).findIndex((p) => p.includes(needle));
+  const byTitle = normPages
+    .slice(from, limit)
+    .findIndex((p) => p.includes(needle));
   return byTitle >= 0 ? from + byTitle : -1;
 }
 
@@ -147,7 +149,10 @@ export function computeTocPageNumbers(
   docTitle: string,
 ): Map<string, string> {
   const normPages = pages.map(normalize);
-  const frontStart = Math.max(0, normPages.findIndex((page) => page.includes(FRONT_START_SENTINEL)));
+  const frontStart = Math.max(
+    0,
+    normPages.findIndex((page) => page.includes(FRONT_START_SENTINEL)),
+  );
   const backCoverIdx = normPages.findIndex((p) =>
     p.includes(BACK_COVER_SENTINEL),
   );

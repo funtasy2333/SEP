@@ -7,6 +7,10 @@ dist/
 .DS_Store
 *.log
 .ses-run/
+/packages/server/coverage/
+/.pnpm-store/
+/packages/server/data/*.db-wal
+/packages/server/data/*.db-shm
 
 # Binary artifacts in example/
 example/$PLUGINSDIR/
