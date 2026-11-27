@@ -8,7 +8,7 @@
  */
 
 import type { IRBlock, IRDefList, IRExample, IRFigure, IRList, IRNote, IRParagraph, IRTable, NodeId } from '../../../ir/types'
-import { ABSTRACT_NUM_ID, listAbstractNumId } from '../numbering'
+import { ABSTRACT_NUM_ID, listAbstractNumId, RPR_SONG } from '../numbering'
 import { emitParagraph, formulaSink, warn, type RenderContext } from './context'
 import { plainRun, renderInlines, renderRun, superscriptRun, tabRun } from './inline'
 import { renderFigureImage } from './figure'
@@ -381,7 +381,7 @@ function renderSplitTable(ctx: RenderContext, table: IRTable, bctx: BlockCtx, bu
       if (!label) warn(ctx, 'label-missing', `续表 "${table.id}" 缺少表编号`, table.id)
       out += emitParagraph(ctx, bctx.appendix ? 'SesAppTblCapCont' : 'SesTblCapCont', {
         pageBreakBefore: true,
-        runsXml: plainRun(label ? `${label}　` : '表　') + captionRuns + plainRun('（续）'),
+        runsXml: plainRun(label ? `${label}　` : '表　') + captionRuns + plainRun('（续）', RPR_SONG),
       })
     }
     out += renderTableGrid(ctx, {

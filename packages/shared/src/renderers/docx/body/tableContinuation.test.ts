@@ -239,6 +239,29 @@ describe('页位置未知：自然排法（table-flow-natural-fallback）', () =
 })
 
 describe('页位置已知：自动续表', () => {
+  it.each([
+    { id: 'table', appendix: undefined, styleId: 'SesTblCapCont' },
+    { id: 'appendix-table', appendix: { id: 'appendix', letter: 'A' }, styleId: 'SesAppTblCapCont' },
+  ])('$styleId 中表号和表题用黑体，完整的“（续）”用宋体', ({ id, appendix, styleId }) => {
+    const xml = renderBlock(context(), table(longRows(), { id }), { scopeKey: 'chapter', appendix })
+    const captions = elements(parse(xml), 'w:p').filter((paragraph) =>
+      findChild(findChild(paragraph, 'w:pPr')!, 'w:pStyle')?.attrs['w:val'] === styleId,
+    )
+    expect(captions.length).toBeGreaterThan(0)
+    expect(styleSpecs().find((spec) => spec.id === styleId)?.rFonts).toBe('hei')
+
+    for (const caption of captions) {
+      const [label, title, suffix] = elements(caption, 'w:r')
+      expect(findChild(label!, 'w:rPr')).toBeUndefined()
+      expect(findChild(title!, 'w:rPr')).toBeUndefined()
+      expect(findChild(suffix!, 'w:t')?.children).toEqual([{ kind: 'text', text: '（续）' }])
+      const properties = findChild(suffix!, 'w:rPr')
+      expect(properties && findChild(properties, 'w:rFonts')?.attrs).toMatchObject({
+        'w:ascii': '宋体', 'w:eastAsia': '宋体', 'w:hAnsi': '宋体', 'w:cs': '宋体',
+      })
+    }
+  })
+
   it('长表拆成多个 w:tbl：表题在首段之前，每个续段前是带 pageBreakBefore 的续表题段，没有分页符空段', () => {
     const xml = renderBlock(context(), withNote(table(longRows())), { scopeKey: 'chapter' })
     const segments = (xml.match(/<w:tbl>/g) ?? []).length
