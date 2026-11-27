@@ -1,4 +1,4 @@
-import type { CreateDocumentDto, Document, DocumentMeta, PMJsonNode } from '@ses/shared'
+import { cloneCoverLayout, type CreateDocumentDto, type Document, type DocumentMeta, type PMJsonNode } from '@ses/shared'
 
 const COVER_META_KEYS = [
   'standardType', 'standardNo', 'titleCn', 'titleEn', 'icsCode', 'ccsCode', 'issuer', 'applicant', 'proposer', 'technicalCommittee',
@@ -8,7 +8,12 @@ const COVER_META_KEYS = [
 /** 复制正文为独立对象，并把库中明确保存的封面元数据同步到副本供XML读取。 */
 export function createDocumentDuplicate(source: Pick<Document, 'title' | 'meta' | 'content'>): CreateDocumentDto {
   const title = `${source.meta.titleCn || source.title}（副本）`
-  const meta: DocumentMeta = { ...source.meta, titleCn: title }
+  const clonedCoverLayout = cloneCoverLayout(source.meta.coverLayout)
+  const meta: DocumentMeta = {
+    ...source.meta,
+    titleCn: title,
+    ...(clonedCoverLayout ? { coverLayout: clonedCoverLayout } : {}),
+  }
   const content = JSON.parse(JSON.stringify(source.content)) as Record<string, unknown>
   // 空内容仍走编辑器已有的初始化路径，不把它改成只有封面的不完整正文。
   if (Array.isArray(content.content) && content.content.length > 0) {

@@ -201,4 +201,45 @@ describe('GB/T 46687.2 XML 导入后的 DocumentMeta 同步', () => {
     }
     expect(() => prepareXmlImportDocumentUpdate(pmDoc, OLD_META)).toThrow('标准类型「mystery」无法识别')
   })
+
+  it('导入 XML 时保留现有 coverLayout 与 sourceTemplate 信息，并在切回国标时降级 replace_mark', async () => {
+    const nationalNode = await importWithProductionSchema(`<?xml version="1.0" encoding="UTF-8"?>
+<standard xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:mml="http://www.w3.org/1998/Math/MathML">
+  <processing-meta base-tagset="interchange" mathml-version="3.0" table-model="xhtml" terminology-model="tbx" math-representation="mathml" tagset-family="sts" />
+  <front>
+    <std-meta>
+      <std-type>国家标准</std-type>
+      <title-wrap xml:lang="zh"><full>导入后变为国标</full></title-wrap>
+      <content-language>zh</content-language>
+      <release-date>2026-01-01</release-date>
+      <implementation-date>2026-06-01</implementation-date>
+    </std-meta>
+  </front>
+  <body><sec id="sec_1"><label>1</label><title>范围</title><p>正文</p></sec></body>
+</standard>`)
+    const existingMeta = {
+      ...OLD_META,
+      standardType: 'group' as const,
+      sourceTemplateUid: 'tpl-uuid-1',
+      sourceTemplateName: '某团体标准模板',
+      coverLayout: {
+        logo: {
+          dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+          position: 'replace_mark' as const,
+          widthMm: 20,
+          heightMm: 10,
+        },
+        backCover: { enabled: true, title: '版权页' },
+      },
+    }
+    const update = prepareXmlImportDocumentUpdate(nationalNode.toJSON() as PMJsonNode, existingMeta)
+    expect(update.coverLayoutDowngraded).toBe(true)
+    expect(update.meta.sourceTemplateUid).toBe('tpl-uuid-1')
+    expect(update.meta.sourceTemplateName).toBe('某团体标准模板')
+    expect(update.meta.coverLayout?.logo?.position).toBe('top_left')
+    expect(update.meta.coverLayout?.backCover?.title).toBe('版权页')
+    // 验证深拷贝，不污染原 meta
+    existingMeta.coverLayout.backCover.title = '被篡改'
+    expect(update.meta.coverLayout?.backCover?.title).toBe('版权页')
+  })
 })

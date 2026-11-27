@@ -43,6 +43,7 @@ interface ImportPreviewBody {
   newVersions: number;
   localOnlyVersions: number;
   contentDiffers: boolean;
+  coverLayoutDiffers: boolean;
   versionNoCollisions: string[];
 }
 
@@ -224,6 +225,7 @@ describe('POST /api/documents/import/ses', () => {
       newVersions: 1,
       localOnlyVersions: 1,
       contentDiffers: false,
+      coverLayoutDiffers: false,
       versionNoCollisions: ['1.0'],
     });
 
@@ -260,6 +262,7 @@ describe('POST /api/documents/import/ses', () => {
       newVersions: 2,
       localOnlyVersions: 0,
       contentDiffers: false,
+      coverLayoutDiffers: false,
       versionNoCollisions: [],
     });
   });
@@ -979,5 +982,65 @@ describe('POST /api/documents/import/ses', () => {
       .set('Content-Type', SES_PACKAGE_MIME)
       .timeout({ response: 30_000 })
       .expect(200);
+  });
+
+  it('round-trips coverLayout in .ses packages, flags coverLayout-only diffs, and rejects malicious coverLayout', async () => {
+    const png =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const doc = await testApp.documents.create({
+      title: '含版式文档',
+      meta: {
+        ...META,
+        standardType: 'group',
+        coverLayout: {
+          logo: { dataUrl: png, position: 'replace_mark', widthMm: 30, heightMm: 15 },
+          notice: { text: '初始声明', position: 'above_dates' },
+        },
+      },
+      stage: 'working_draft',
+      content: content('版式正文'),
+    });
+
+    const exported = await testApp.http
+      .get(`/api/documents/${doc.id}/export/ses`)
+      .expect(200);
+    const pkg = JSON.parse(exported.text) as ReturnType<typeof packageFixture>;
+    expect((pkg.document.meta as Record<string, any>).coverLayout.notice.text).toBe('初始声明');
+
+    // Key order alone does not count as a change.
+    const layout = (pkg.document.meta as Record<string, any>).coverLayout;
+    (pkg.document.meta as Record<string, any>).coverLayout = reverseObjectKeys(layout);
+    let preview = await expectBody<ImportPreviewBody>(postPackage(testApp, pkg, 'mode=preview'), 200);
+    expect(preview).toMatchObject({ contentDiffers: false, coverLayoutDiffers: false });
+
+    // Cover changes and body changes are independently reported.
+    (pkg.document.meta as Record<string, any>).coverLayout.notice.text = '新版声明';
+    preview = await expectBody<ImportPreviewBody>(
+      postPackage(testApp, pkg, 'mode=preview'),
+      200,
+    );
+    expect(preview).toMatchObject({ contentDiffers: false, coverLayoutDiffers: true });
+    pkg.document.content = content('新版正文');
+    preview = await expectBody<ImportPreviewBody>(postPackage(testApp, pkg, 'mode=preview'), 200);
+    expect(preview).toMatchObject({ contentDiffers: true, coverLayoutDiffers: true });
+    pkg.document.content = doc.content!;
+    delete (pkg.document.meta as Record<string, any>).coverLayout;
+    preview = await expectBody<ImportPreviewBody>(postPackage(testApp, pkg, 'mode=preview'), 200);
+    expect(preview).toMatchObject({ contentDiffers: false, coverLayoutDiffers: true });
+
+    // A cover-only import overwrites metadata without creating a body version.
+    await postPackage(testApp, pkg, `mode=update&targetId=${doc.id}&baseRevision=${doc.revision}`).expect(200);
+    expect((await testApp.documents.findOne(doc.id)).meta).not.toHaveProperty('coverLayout');
+    expect(await testApp.dataSource.getRepository(VersionEntity).countBy({ documentId: doc.id })).toBe(0);
+
+    // Adding a cover is also reported, and does not change the body flag.
+    (pkg.document.meta as Record<string, any>).coverLayout = layout;
+    preview = await expectBody<ImportPreviewBody>(postPackage(testApp, pkg, 'mode=preview'), 200);
+    expect(preview).toMatchObject({ contentDiffers: false, coverLayoutDiffers: true });
+
+    // Malicious external URL inside coverLayout is rejected with 400
+    (pkg.document.meta as Record<string, any>).coverLayout.logo.dataUrl =
+      'https://evil.example/a.png';
+    await postPackage(testApp, pkg, 'mode=new').expect(400);
   });
 });

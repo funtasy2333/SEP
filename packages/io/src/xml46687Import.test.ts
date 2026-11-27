@@ -2,10 +2,11 @@ import { PNG_URL } from './__testHelpers__/wp83ImportCases'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { pmToIr } from '@ses/shared'
+import { BUILTIN_TEMPLATES, instantiateTemplateDocument, pmToIr } from '@ses/shared'
 import { createEditorSchema } from '../../client/src/extensions/editorSchema'
 import type { ContentValidator } from './documentOps/types'
 import { importXml46687 } from './xml46687Import'
+import { buildXml46687Package } from './xml46687Package'
 
 const xml = readFileSync(resolve(process.cwd(), '../../schemas/gbt46687.2/samples/valid/01-minimal.xml'), 'utf8')
 const schema = createEditorSchema()
@@ -42,6 +43,49 @@ it('最小 XML 经生产 Schema 保存重开并保留正文', async () => {
   reopened.check()
   expect(pmToIr(reopened.toJSON()).doc.body[0]?.children[0]).toMatchObject({ kind: 'paragraph', content: [{ text: '本文件给出一个只含必需结构的最小文档。' }] })
 })
+
+it('从 XML 导入文档制作的模板生成新文档时，重新导出的元数据与封面一致', async () => {
+  const source = xml.replace('<full>最小文档示例</full>', '<full>来源标准</full>').replace('    </std-meta>', `
+      <title-wrap xml:lang="en"><full>Source standard</full></title-wrap>
+      <std-ident><doc-number>901</doc-number></std-ident>
+      <std-org-group><std-org><std-org-name>原发布单位</std-org-name></std-org></std-org-group>
+      <content-language>zh</content-language>
+      <std-ref type="dated">T/OLD 901—2022</std-ref>
+    </std-meta>`)
+  let serial = 0
+  const imported = await importXml46687(source, { validateContent: validator, generateId: () => `source${++serial}` })
+  expect(imported.problems.filter(problem => problem.severity === 'error')).toEqual([])
+  expect(imported.pmDoc).not.toBeNull()
+
+  const template = {
+    ...BUILTIN_TEMPLATES.find(item => item.baseType === 'group')!,
+    id: 42,
+    source: 'human' as const,
+    defaultMeta: { stdPrefix: 'T/NEW', titleEn: 'Source standard', issuer: '原发布单位' },
+    content: { ...imported.pmDoc! },
+    readonly: false,
+  }
+  const draft = instantiateTemplateDocument(template, {
+    titleCn: '新标准', titleEn: 'New standard', stdNo: '102—2026', issuer: '新发布单位',
+  })
+  const reopened = schema.nodeFromJSON(draft.content)
+  reopened.check()
+  const reopenedContent = reopened.toJSON()
+  expect(pmToIr(reopenedContent).doc.meta).toMatchObject({
+    standardType: 'group', title: '新标准', titleEn: 'New standard', stdCode: 'T/NEW 102—2026', issuer: '新发布单位',
+  })
+  const exported = await buildXml46687Package({ pmDoc: reopenedContent, documentMeta: draft.meta })
+  expect(exported.problems.filter(problem => problem.severity === 'error')).toEqual([])
+  const metadata = exported.xml?.match(/<std-meta>[\s\S]*?<\/std-meta>/)?.[0]
+  expect(metadata).toContain('<full>新标准</full>')
+  expect(metadata).toContain('<full>New standard</full>')
+  expect(metadata).toContain('<std-ref type="dated">T/NEW 102—2026</std-ref>')
+  expect(metadata).toContain('<std-org-name>新发布单位</std-org-name>')
+  expect(metadata).toContain('<content-language>zh</content-language>')
+  expect(metadata).not.toMatch(/来源标准|Source standard|901|原发布单位/)
+  expect(pmToIr(imported.pmDoc!).doc.meta.title).toBe('来源标准')
+})
+
 it('无效 XML 和缺少校验器阻断导入', async () => {
   const invalid = await importXml46687('<!DOCTYPE standard><standard/>', { validateContent: validator })
   expect(invalid.pmDoc).toBeNull()

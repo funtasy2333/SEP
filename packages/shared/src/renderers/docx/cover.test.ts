@@ -660,3 +660,32 @@ it('封面长名称在原有标点换行，保留词语及名称全文', () => {
   expect(editableText(paragraph)).toBe(title)
   expect(descendants(paragraph, 'w:br')).toHaveLength(1)
 })
+
+it('renders joint numbers and issuers in separate positioned rows with one header source', () => {
+  const pkg = renderCoverPackage({ ...BASE_META, standardType: 'group', stdCode: 'T/AAA 1-2026\n\nT/BBB 2-2026', issuer: '甲协会\n乙协会' })
+  const ps = paragraphs(pkg)
+  const primary = ps.filter(p => styleOf(p) === 'SesCoverStdNo')
+  expect(primary).toHaveLength(1)
+  expect(extractParagraphText(primary[0]!)).toBe('T/AAA 1—2026')
+  expect(ps.some(p => extractParagraphText(p) === 'T/BBB 2—2026' && styleOf(p) === 'SesCoverAdditionalStdNo')).toBe(true)
+  expect(pkg.parts['word/styles.xml']).toContain('w:styleId="SesCoverAdditionalStdNo"')
+  expect(renderCoverPackage(BASE_META).parts['word/styles.xml']).not.toContain('w:styleId="SesCoverAdditionalStdNo"')
+  expect(ps.some(p => extractParagraphText(p) === '甲协会')).toBe(true)
+  expect(ps.some(p => extractParagraphText(p) === '乙协会')).toBe(true)
+  expect(ps.filter(p => extractParagraphText(p) === '发　布')).toHaveLength(1)
+  const byText = (value: string) => ps.find(p => extractParagraphText(p) === value)!
+  const y = (value: string) => Number(frameOf(byText(value))!.attrs['w:y'])
+  expect(y('T/BBB 2—2026')).toBeGreaterThan(y('T/AAA 1—2026'))
+  expect(y('甲协会')).toBeLessThan(y('发　布'))
+  expect(y('发　布')).toBeLessThan(y('乙协会'))
+  expect(Number(frameOf(byText('甲协会'))!.attrs['w:x'])).toBeLessThan(Number(frameOf(byText('发　布'))!.attrs['w:x']))
+  expect(pkg.parts['word/header1.xml']).toContain('T/AAA 1—2026')
+  expect(pkg.parts['word/header1.xml']).not.toContain('T/BBB')
+})
+
+it('leaves room for a long organization mark above a two-number group cover', () => {
+  const pkg = renderCoverPackage({ ...BASE_META, standardType: 'group', stdCode: 'T/CCFAGS 032—2022\nT/CAPPMA 02—2022' })
+  const mark = paragraphWithStyle(pkg, 'SesCoverGroupLogo')!
+  expect(editableText(mark)).toBe(' CCFAGS')
+  expect(frameOf(mark)?.attrs).toMatchObject({ 'w:x': String(mmToTwips(55)), 'w:w': String(mmToTwips(128.25)) })
+})

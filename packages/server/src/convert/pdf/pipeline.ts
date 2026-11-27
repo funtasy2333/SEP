@@ -52,6 +52,11 @@ export interface HtmlToPdfResult {
   formulaFailures: number
 }
 
+/** Avoid matching rendered watermark text as a heading during TOC pagination. */
+export function stripWatermarkForPagination(html: string): string {
+  return html.replace(/<style id="ses-pdf-watermark">[\s\S]*?<\/style>/g, '')
+}
+
 export async function runHtmlToPdfPipeline(
   input: HtmlToPdfInput,
   logger: Logger,
@@ -71,7 +76,7 @@ export async function runHtmlToPdfPipeline(
     // 2) 第一遍构建（目次页码为占位）
     const html1 = join(tmpDir, 'pass1.html')
     const pdf1 = join(tmpDir, 'pass1.pdf')
-    await writeHtmlFile(html1, baseHtml)
+    await writeHtmlFile(html1, stripWatermarkForPagination(baseHtml))
     await runVivliostyleBuild(cliPath, html1, pdf1)
 
     // 3) 逐页扫描 + 计算页码

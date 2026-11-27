@@ -9,9 +9,10 @@
       <!-- Page head -->
       <div class="home-head">
         <div>
-          <h1>{{ isTrashView ? '回收站' : '标准库' }}</h1>
+          <h1>{{ isTrashView ? '回收站' : isTemplatesView ? '模板库' : '标准库' }}</h1>
           <p class="sub">
             <template v-if="isTrashView">{{ store.trashDocuments.length }} 份已移入回收站的文件；可恢复，或永久删除</template>
+            <template v-else-if="isTemplatesView">{{ templateStore.customTemplates.length }} 个自定义模板 · {{ templateStore.builtinTemplates.length }} 个内置只读模板</template>
             <template v-else>共 {{ store.documents.length }} 份文件<template v-if="lastSaved"> · 最近更新于 {{ lastSaved }}</template></template>
           </p>
         </div>
@@ -23,6 +24,11 @@
               :loading="emptyingTrash"
               @click="handleEmptyTrash"
             >清空回收站</el-button>
+          </template>
+          <template v-else-if="isTemplatesView">
+            <el-button type="primary" @click="selectTab('all')">
+              <span>返回标准库</span>
+            </el-button>
           </template>
           <template v-else>
             <el-button :disabled="sesImportBusy" @click="triggerSesImport">导入 .ses</el-button>
@@ -86,6 +92,13 @@
           </el-table-column>
         </el-table>
       </section>
+
+      <!-- 模板库 -->
+      <TemplateLibraryView
+        v-else-if="isTemplatesView"
+        @use-template="openNewDocFromTemplate"
+        @edit-template="openTemplateEditor"
+      />
 
       <!-- 标准库为空：直接给出按类型新建的入口 -->
       <section v-else-if="libraryEmpty" class="welcome" aria-label="开始起草">
@@ -160,6 +173,7 @@
             @open="openDocument"
             @delete="handleDelete"
             @duplicate="handleDuplicate"
+            @save-as-template="openSaveAsTemplate"
           />
         </div>
 
@@ -202,9 +216,10 @@
               <span class="list-time">{{ formatDate(row.updatedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="190" fixed="right">
+          <el-table-column label="操作" width="250" fixed="right">
             <template #default="{ row }">
               <el-button text size="small" @click.stop="handleDuplicate(row)">复制</el-button>
+              <el-button text size="small" @click.stop="openSaveAsTemplate(row)">存为模板</el-button>
               <el-button type="danger" text size="small" @click.stop="handleDelete(row)">移入回收站</el-button>
             </template>
           </el-table-column>
@@ -221,7 +236,18 @@
       @change="handleSesFileChange"
     />
 
-    <NewDocDialog v-model="newDocOpen" :initial-type="newDocType" @create="handleCreate" />
+    <NewDocDialog
+      v-model="newDocOpen"
+      :initial-type="newDocType"
+      :initial-template-id="newDocTemplateId"
+      @create="handleCreate"
+    />
+
+    <SaveAsTemplateDialog
+      v-model="saveAsTemplateOpen"
+      :document="saveAsTemplateDoc"
+      @saved="onTemplateSaved"
+    />
 
     <el-dialog
       v-model="sesImportDialogVisible"
@@ -262,7 +288,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Grid, List, Document, Search } from '@element-plus/icons-vue'
 import type { InputInstance } from 'element-plus'
 
+import { instantiateTemplateDocument, type StandardTemplate } from '@ses/shared'
 import { useDocumentStore } from '@/stores/document'
+import { useTemplateStore } from '@/stores/template'
 import { documentApi, type DocumentData, type SesImportPreview, type TrashDocumentData } from '@/api/document'
 import { createNewDocument, type NewDocForm } from '@/utils/newDocument'
 import { createDocumentDuplicate } from '@/utils/duplicateDocument'
@@ -276,11 +304,22 @@ import StageOverview from '@/components/home/StageOverview.vue'
 import TemplateRail from '@/components/home/TemplateRail.vue'
 import DocCard from '@/components/home/DocCard.vue'
 import NewDocDialog from '@/components/home/NewDocDialog.vue'
+import TemplateLibraryView from '@/components/home/TemplateLibraryView.vue'
+import SaveAsTemplateDialog from '@/components/home/SaveAsTemplateDialog.vue'
 
 const router = useRouter()
 const store = useDocumentStore()
+const templateStore = useTemplateStore()
 
-const navTab = ref('all')
+function resolveInitialTab(): string {
+  const routerTab = (router as { currentRoute?: { value?: { query?: Record<string, unknown> } } }).currentRoute?.value?.query?.tab
+  const searchTab = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null
+  const tab = typeof routerTab === 'string' ? routerTab : searchTab
+  if (tab === 'templates' || tab === 'trash') return tab
+  return 'all'
+}
+
+const navTab = ref(resolveInitialTab())
 const typeFilter = ref('all')
 const stageFilter = ref<'all' | string>('all')
 const sort = ref<'updated' | 'title' | 'stage'>('updated')
@@ -290,10 +329,14 @@ const searchText = ref('')
 const searchInput = ref<InputInstance>()
 const newDocOpen = ref(false)
 const newDocType = ref<string | undefined>(undefined)
+const newDocTemplateId = ref<string | number | undefined>(undefined)
+const saveAsTemplateOpen = ref(false)
+const saveAsTemplateDoc = ref<DocumentData | null>(null)
 const trashActionId = ref<number | null>(null)
 const trashAction = ref<'restore' | 'permanent' | null>(null)
 const emptyingTrash = ref(false)
 const isTrashView = computed(() => navTab.value === 'trash')
+const isTemplatesView = computed(() => navTab.value === 'templates')
 const sesImportInput = ref<HTMLInputElement | null>(null)
 const sesImportBusy = ref(false)
 const sesImportApplying = ref(false)
@@ -403,9 +446,21 @@ function focusSearchShortcut(event: KeyboardEvent) {
 }
 
 const navTabs = computed(() => [
-  { id: 'all',   label: '标准库', count: store.documents.length },
+  { id: 'all', label: '标准库', count: store.documents.length },
+  { id: 'templates', label: '模板库', count: templateStore.templates.length },
   { id: 'trash', label: '回收站', count: store.trashDocuments.length },
 ])
+
+let stopTemplateSync: (() => void) | null = null
+
+watch(
+  () => (router as { currentRoute?: { value?: { query?: Record<string, unknown> } } }).currentRoute?.value?.query?.tab,
+  (tab) => {
+    if (tab === 'templates' || tab === 'trash' || tab === 'all') {
+      navTab.value = tab
+    }
+  },
+)
 
 const lastSaved = computed(() => {
   const arr = store.documents
@@ -419,6 +474,8 @@ const lastSaved = computed(() => {
 
 onMounted(() => {
   window.addEventListener('keydown', focusSearchShortcut)
+  stopTemplateSync = templateStore.startEventSync()
+  void templateStore.fetchTemplates().catch(() => undefined)
   void store.fetchDocuments().catch((error) => {
     ElMessage.error(`标准库加载失败${error instanceof Error ? `：${error.message}` : ''}`)
   })
@@ -430,11 +487,17 @@ onMounted(() => {
 onBeforeUnmount(() => {
   sesImportStopped = true
   window.removeEventListener('keydown', focusSearchShortcut)
+  stopTemplateSync?.()
+  stopTemplateSync = null
   if (sesImportResolver) finishSesImportChoice(null)
 })
 
 async function selectTab(tab: string) {
   navTab.value = tab
+  if (tab === 'templates') {
+    void templateStore.fetchTemplates().catch(() => undefined)
+    return
+  }
   if (tab !== 'trash') return
   try {
     await store.fetchTrash()
@@ -444,12 +507,37 @@ async function selectTab(tab: string) {
 }
 
 function openNewDoc(type?: string) {
+  newDocTemplateId.value = undefined
   newDocType.value = type
   newDocOpen.value = true
 }
 
-async function handleCreate(form: NewDocForm) {
-  const doc = await store.createDocument(createNewDocument(form))
+function openNewDocFromTemplate(template: StandardTemplate) {
+  newDocTemplateId.value = template.id
+  newDocType.value = template.baseType
+  newDocOpen.value = true
+}
+
+function openTemplateEditor(template: StandardTemplate) {
+  router.push({ name: 'template-editor', params: { id: String(template.id) } })
+}
+
+function openSaveAsTemplate(doc: DocumentData) {
+  saveAsTemplateDoc.value = doc
+  saveAsTemplateOpen.value = true
+}
+
+function onTemplateSaved(template: StandardTemplate) {
+  if (template.id !== undefined) {
+    ElMessage.info(`可在「模板库」查看或编辑「${template.name}」`)
+  }
+}
+
+async function handleCreate(form: NewDocForm, template?: StandardTemplate) {
+  const payload = template && !template.readonly
+    ? instantiateTemplateDocument(template, form)
+    : createNewDocument(form)
+  const doc = await store.createDocument(payload)
   newDocOpen.value = false
   ElMessage.success('创建成功')
   router.push({ name: 'editor', params: { id: doc.id! } })

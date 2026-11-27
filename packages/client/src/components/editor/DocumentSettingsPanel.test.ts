@@ -5,6 +5,51 @@ import { expect, it, vi } from 'vitest'
 import DocumentSettingsPanel from './DocumentSettingsPanel.vue'
 import type { DocumentSettingsDraft } from '@/utils/documentSettings'
 
+it('支持逐行录入联合发布编号与发布单位并在封面预览中分行展示', async () => {
+  const root = document.createElement('div')
+  document.body.append(root)
+  const draft = ref<DocumentSettingsDraft>({
+    standardType: 'group', stage: 'working_draft', titleCn: '联合标准', titleEn: '',
+    standardNo: 'T/AAA 001—2026', icsCode: '', ccsCode: '', issuer: '甲协会', applicant: '',
+    proposer: '', technicalCommittee: '', replaces: '', consistency: '', publishDate: '', implementDate: '',
+    filingNo: '', industryName: '', regionName: '', coverDesignation: '',
+  })
+  const app = createApp({ setup: () => () => h(DocumentSettingsPanel, {
+    draft: draft.value, dirty: true, saving: false, saveError: false,
+  }) })
+  app.use(ElementPlus).mount(root)
+  await nextTick()
+  try {
+    const standardNo = root.querySelector<HTMLTextAreaElement>('textarea[aria-label="完整标准编号"]')
+    const issuer = root.querySelector<HTMLTextAreaElement>('textarea[aria-label="发布单位"]')
+    expect(standardNo?.value).toBe('T/AAA 001—2026')
+    expect(issuer?.value).toBe('甲协会')
+    expect(root.textContent).toContain('每行填写一个完整标准编号')
+    expect(root.textContent).toContain('每行填写一个发布单位')
+    expect([...root.querySelectorAll('.preview-standard-no > div')].map((line) => line.textContent)).toEqual(['T/AAA 001—2026'])
+
+    standardNo!.value = 'T/AAA 001—2026\nT/BBB 002—2026'
+    standardNo!.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertLineBreak' }))
+    issuer!.value = '甲协会\n乙协会'
+    issuer!.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste' }))
+    await nextTick()
+    expect(draft.value.standardNo).toBe('T/AAA 001—2026\nT/BBB 002—2026')
+    expect(draft.value.issuer).toBe('甲协会\n乙协会')
+    expect([...root.querySelectorAll('.preview-standard-no > div')].map((line) => line.textContent)).toEqual(['T/AAA 001—2026', 'T/BBB 002—2026'])
+    expect([...root.querySelectorAll('.preview-issuer > div')].map((line) => line.textContent)).toEqual(['甲协会', '乙协会'])
+
+    standardNo!.value = ''
+    standardNo!.dispatchEvent(new Event('input', { bubbles: true }))
+    await nextTick()
+    expect(root.querySelector('.preview-standard-no')?.textContent).toContain('标准编号待填写')
+  } finally {
+    await nextTick()
+    await nextTick()
+    app.unmount()
+    root.remove()
+  }
+})
+
 it('文件设置通过真实类别选项切换并保留各类型名称，指导性文件仍显示固定称谓', async () => {
   const root = document.createElement('div')
   document.body.append(root)
@@ -92,6 +137,8 @@ it('文件设置通过真实类别选项切换并保留各类型名称，指导�
     await selectType('团体标准')
     expect(root.querySelector<HTMLInputElement>('input[aria-label="标准类型名称"]')!.value).toBe('')
   } finally {
+    await nextTick()
+    await nextTick()
     app.unmount()
     root.remove()
   }
@@ -230,6 +277,7 @@ it('文件设置在横屏容器（1200x600）下按容器高度计算像素 root
       'settings-classification',
       'settings-publication',
       'settings-organizations',
+      'settings-cover-layout',
     ])
 
     const scrollEl = root.querySelector('.settings-scroll')!
@@ -274,7 +322,7 @@ it('文件设置在横屏容器（1200x600）下按容器高度计算像素 root
     mediaChange!()
     expect(observers[1]!.disconnected).toBe(true)
     expect(observers[2]!.options.root).toBe(pageEl)
-    expect(observers[2]!.targets).toHaveLength(4)
+    expect(observers[2]!.targets).toHaveLength(5)
     expect(observers[2]!.options.rootMargin).toBe('0px 0px -375px 0px')
     pageHeight = 600
     settingsResize!.callback([{ target: pageEl, contentRect: { height: 600 } } as unknown as ResizeObserverEntry], {} as ResizeObserver)
@@ -286,6 +334,8 @@ it('文件设置在横屏容器（1200x600）下按容器高度计算像素 root
     expect(observers[3]!.disconnected).toBe(true)
     expect(observers[4]!.options.root).toBe(scrollEl)
 
+    await nextTick()
+    await nextTick()
     app.unmount()
     expect(observers[4]!.disconnected).toBe(true)
     expect(mediaQuery.removeEventListener).toHaveBeenCalled()

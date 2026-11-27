@@ -1,3 +1,5 @@
+import { metadataLines } from '../../ir/meta'
+import { hasActiveCoverLayout } from '../../coverLayoutValidation'
 import { assertOutputSupported } from '../outputBoundary'
 /**
  * DOCX 渲染组装（docs/wp7-docx-delivery.md §1.2 render.ts、§4.7、§9 WP7.2「文档结构」）。
@@ -25,10 +27,10 @@ import { LANDSCAPE_END, LANDSCAPE_START } from './body/block'
 import { renderChapter } from './body/clause'
 import { createRenderContext, emitParagraph, formulaSink, type NumberedParagraphTrace, type RenderContext } from './body/context'
 import { renderBodyTitle, renderForeword, renderIntroduction, renderTocTitle } from './body/front'
-import { normalizeCoverStdCode, renderCover } from './cover'
+import { primaryCoverStdCode, renderBackCover, renderCover } from './cover'
 import { buildStaticToc } from './toc'
 import { buildPackage, createRelationshipIdAllocator, type DocxRelatedPart } from './package'
-import { buildHeaderFooterParts, createSectionManager, type HeaderFooterRelIds, type SectionKind, type SectionManager } from './sections'
+import { buildEmptyHeaderFooterParts, buildHeaderFooterParts, createSectionManager, type HeaderFooterRelIds, type SectionKind, type SectionManager } from './sections'
 import { buildStylesXml } from './styles'
 import type { DocxPackage, DocxRenderOptions } from './types'
 import { assertFootnoteReferences, documentHasFootnotes } from '../footnotes'
@@ -185,14 +187,17 @@ export function renderDocxTraced(
       [...line].reduce((width, char) => width + (char.charCodeAt(0) < 128 ? 0.55 : 1), 0) / 48)), 0)
     return [noteNumber(footnote.id, labels), lineCount * 4.2 + 2]
   })))
+  const hasBackCover = Boolean(opts.coverLayout?.backCover?.enabled)
   const relIds: HeaderFooterRelIds = {
     header1: allocateRelId(),
     header2: allocateRelId(),
     footer1: allocateRelId(),
     footer2: allocateRelId(),
+    ...(hasBackCover ? { emptyHeader: allocateRelId(), emptyFooter: allocateRelId() } : {}),
   }
   const footnotesRelId = bodyFootnotes.length > 0 ? allocateRelId() : undefined
-  const headerFooterParts = buildHeaderFooterParts(normalizeCoverStdCode(doc.meta.stdCode))
+  const headerFooterParts = buildHeaderFooterParts(primaryCoverStdCode(doc.meta.stdCode), opts.coverLayout?.watermark)
+  const emptyHeaderFooterParts = hasBackCover ? buildEmptyHeaderFooterParts() : undefined
   const sectionManager = createSectionManager(relIds)
 
   let body = ''
@@ -200,7 +205,15 @@ export function renderDocxTraced(
 
   // 1. 封面节
   body += sectionManager.startSection('cover')
-  body += renderCover(ctx, doc.meta, opts.stage)
+  body += renderCover(ctx, doc.meta, opts.stage, opts.coverLayout)
+
+  // 1.5 独立封底 / 版权页（置于封面之后、目次之前，无页眉页脚/水印且不计入页码）
+  if (hasBackCover && opts.coverLayout?.backCover) {
+    const verticalAlign = opts.coverLayout.backCover.verticalAlign
+    const vAlign = verticalAlign === 'top' ? 'top' : verticalAlign === 'middle' ? 'center' : 'bottom'
+    body += sectionManager.startSection('backCover', { vAlign })
+    body += renderBackCover(ctx, doc.meta, opts.coverLayout.backCover)
+  }
 
   // 2. 目次节
   body += sectionManager.startSection('toc')
@@ -271,6 +284,12 @@ export function renderDocxTraced(
     { id: relIds.header2, target: 'word/header2.xml', relationshipType: `${REL}header`, content: headerFooterParts.header2, contentType: `${WML}header+xml` },
     { id: relIds.footer1, target: 'word/footer1.xml', relationshipType: `${REL}footer`, content: headerFooterParts.footer1, contentType: `${WML}footer+xml` },
     { id: relIds.footer2, target: 'word/footer2.xml', relationshipType: `${REL}footer`, content: headerFooterParts.footer2, contentType: `${WML}footer+xml` },
+    ...(hasBackCover && relIds.emptyHeader && relIds.emptyFooter && emptyHeaderFooterParts
+      ? [
+          { id: relIds.emptyHeader, target: 'word/header3.xml', relationshipType: `${REL}header`, content: emptyHeaderFooterParts.emptyHeader, contentType: `${WML}header+xml` },
+          { id: relIds.emptyFooter, target: 'word/footer3.xml', relationshipType: `${REL}footer`, content: emptyHeaderFooterParts.emptyFooter, contentType: `${WML}footer+xml` },
+        ]
+      : []),
     ...(footnotesRelId ? [{
       id: footnotesRelId,
       target: 'word/footnotes.xml',
@@ -290,9 +309,15 @@ export function renderDocxTraced(
         .map(field => [`ses-${field}`, doc.meta[field]!]),
     ),
     createdAt: opts.createdAt,
-    stylesXml: buildStylesXml({ includeFootnotes: documentHasFootnotes(doc, bodyFootnotes) }),
+    stylesXml: buildStylesXml({
+      includeFootnotes: documentHasFootnotes(doc, bodyFootnotes),
+      includeCoverLayout: hasActiveCoverLayout(opts.coverLayout),
+      includeAdditionalStdNo: metadataLines(doc.meta.stdCode).length > 1,
+    }),
     numberingXml: ctx.numbering.buildNumberingXml(),
     relatedParts,
+    extraParts: headerFooterParts.extraParts,
+    extraBinaries: headerFooterParts.extraBinaries,
   })
   // buildPackage 目前总是返回空 warnings（WP7.1 起没有自己的告警来源），这里把渲染期间
   // 收集到的 ctx.warnings 并入；写成拼接而不是直接赋值，是为了不依赖这个「目前总是空」的细节。

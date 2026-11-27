@@ -7,8 +7,11 @@ import { createEditorExtensions } from '../extensions/editorExtensions'
 import { exportSemanticJson } from '../serializer'
 import { prepareDocxInput } from '../serializer/docxExporter'
 import {
+  cloneDocumentSettingsDraft,
   documentMetaFromSettingsDraft,
   documentSettingsDraftFromDocument,
+  sameCoverLayout,
+  sameDocumentSettingsDraft,
   synchronizeCoverMetadata,
 } from './documentSettings'
 
@@ -54,6 +57,23 @@ const documentMeta = {
 } as DocumentMeta
 
 describe('文件设置草稿与封面同步', () => {
+  it('保留联合发布编号和发布单位的顺序，并同步到封面元数据', () => {
+    const content = legacyContent()
+    const draft = documentSettingsDraftFromDocument({
+      title: '联合发布标准', meta: { ...documentMeta, standardType: 'group' }, stage: 'working_draft', content,
+    })
+    draft.standardNo = ' T/CCFAGS 032—2022\r\n\r\n T/CAPPMA 02—2022 '
+    draft.issuer = ' 中国连锁经营协会 \n 中国水产流通与加工协会 '
+
+    const meta = documentMetaFromSettingsDraft(documentMeta, draft)
+    const synced = synchronizeCoverMetadata(content, meta)
+    expect(meta.standardNo).toBe('T/CCFAGS 032—2022\nT/CAPPMA 02—2022')
+    expect(meta.issuer).toBe('中国连锁经营协会\n中国水产流通与加工协会')
+    expect(pmToIr(synced as unknown as PMJsonNode).doc.meta).toMatchObject({ stdCode: meta.standardNo, issuer: meta.issuer })
+    expect(documentSettingsDraftFromDocument({ title: '联合发布标准', meta, stage: 'working_draft', content: synced }))
+      .toMatchObject({ standardNo: meta.standardNo, issuer: meta.issuer })
+  })
+
   it('数据库明确值优先，旧文档缺失字段从有效封面回填，未知类型原样保留', () => {
     const content = legacyContent()
     const draft = documentSettingsDraftFromDocument({
@@ -197,5 +217,49 @@ describe('文件设置草稿与封面同步', () => {
     expect(saved.child(0).attrs.standardType).toBe('guidance')
     expect(saved.child(0).attrs.publishDate).toBe('')
     expect(saved.toJSON().content?.slice(1)).toEqual(originalBody)
+  })
+
+  it('保留并深度比较 coverLayout，清除时以 null 通知服务端清空而非写入 coverPage/IR', () => {
+    const coverLayout = {
+      logo: {
+        dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        position: 'top_left' as const,
+        widthMm: 24,
+        heightMm: 12,
+      },
+      notice: { text: '试用版本', position: 'above_dates' as const },
+      backCover: { enabled: true, title: '封底标题', copyrightNotice: '© 2026' },
+    }
+    const baseMeta = { ...documentMeta, standardType: 'group' as const, coverLayout } as DocumentMeta
+    const draft = documentSettingsDraftFromDocument({
+      title: '库标题',
+      meta: baseMeta,
+      stage: 'working_draft',
+      content: legacyContent(),
+    })
+    const cloned = cloneDocumentSettingsDraft(draft)
+    expect(sameDocumentSettingsDraft(draft, cloned)).toBe(true)
+    expect(sameCoverLayout(draft.coverLayout, cloned.coverLayout)).toBe(true)
+
+    cloned.coverLayout!.notice = { text: '变更后的声明', position: 'below_issuer' }
+    expect(sameDocumentSettingsDraft(draft, cloned)).toBe(false)
+
+    const updatedMeta = documentMetaFromSettingsDraft(baseMeta, cloned)
+    expect(updatedMeta.coverLayout?.notice?.text).toBe('变更后的声明')
+    // coverPage / IR 绝不写入 coverLayout
+    const synced = synchronizeCoverMetadata(legacyContent(), updatedMeta)
+    expect(JSON.stringify(synced)).not.toContain('变更后的声明')
+
+    const clearedDraft = cloneDocumentSettingsDraft(draft)
+    clearedDraft.coverLayout = undefined
+    const clearedMeta = documentMetaFromSettingsDraft(baseMeta, clearedDraft)
+    expect((clearedMeta as unknown as Record<string, unknown>).coverLayout).toBeNull()
+
+    expect(
+      sameCoverLayout(
+        { watermark: { enabled: true, kind: 'text', frequency: 'alternate' }, notice: { text: 'a', position: 'above_dates' } },
+        { notice: { text: 'a', position: 'above_dates' }, watermark: { enabled: true, kind: 'text', frequency: 'alternate' } },
+      ),
+    ).toBe(true)
   })
 })

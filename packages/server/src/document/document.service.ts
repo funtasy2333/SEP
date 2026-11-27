@@ -1,10 +1,12 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { InjectRepository } from '@nestjs/typeorm';
+import { validateCoverLayout } from '@ses/shared';
 import {
   EntityManager,
   IsNull,
@@ -142,6 +144,19 @@ export class DocumentService {
   }
 
   async create(data: Partial<DocumentEntity>): Promise<DocumentEntity> {
+    if (data.meta !== undefined) {
+      const metaObj = data.meta as Record<string, unknown>;
+      const check = validateCoverLayout(
+        metaObj.coverLayout,
+        typeof metaObj.standardType === 'string'
+          ? metaObj.standardType
+          : undefined,
+        'meta.coverLayout',
+      );
+      if (!check.valid) {
+        throw new BadRequestException(check.errors[0]!.message);
+      }
+    }
     // 只接收文档内容字段：忽略 id / deletedAt / revision / timestamps / relations，避免 upsert 或复活旧行。
     const doc = this.docRepo.create({
       uid: randomUUID(),
@@ -367,10 +382,49 @@ export class DocumentService {
     baseRevision: number,
     data: DocumentUpdateFields,
   ): Promise<DocumentEntity> {
+    let payload: DocumentUpdateFields = data;
+    if (data.meta !== undefined) {
+      const current = await this.findOneIn(repo, id);
+      const currentMeta = (current.meta ?? {}) as Record<string, unknown>;
+      const incomingMeta = data.meta as Record<string, unknown>;
+      const effectiveStandardType =
+        typeof incomingMeta.standardType === 'string'
+          ? incomingMeta.standardType
+          : typeof currentMeta.standardType === 'string'
+            ? currentMeta.standardType
+            : undefined;
+      const hasCoverLayoutKey = Object.prototype.hasOwnProperty.call(
+        incomingMeta,
+        'coverLayout',
+      );
+      const effectiveCoverLayout = hasCoverLayoutKey
+        ? incomingMeta.coverLayout
+        : currentMeta.coverLayout;
+
+      if (effectiveCoverLayout !== undefined && effectiveCoverLayout !== null) {
+        const check = validateCoverLayout(
+          effectiveCoverLayout,
+          effectiveStandardType,
+          'meta.coverLayout',
+        );
+        if (!check.valid) {
+          throw new BadRequestException(check.errors[0]!.message);
+        }
+      }
+      if (hasCoverLayoutKey && incomingMeta.coverLayout === null) {
+        const cleanedMeta = { ...incomingMeta };
+        delete cleanedMeta.coverLayout;
+        payload = {
+          ...data,
+          meta: cleanedMeta as unknown as DocumentEntity['meta'],
+        };
+      }
+    }
+
     const result = await repo
       .createQueryBuilder()
       .update(DocumentEntity)
-      .set({ ...data, revision: () => 'revision + 1' } as DocumentSetValues)
+      .set({ ...payload, revision: () => 'revision + 1' } as DocumentSetValues)
       .where('id = :id AND revision = :baseRevision AND deletedAt IS NULL', {
         id,
         baseRevision,

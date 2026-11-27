@@ -541,3 +541,42 @@
   "content": [{ "kind": "table", "id": "tbl-styled", "caption": "带列宽的表", "rows": [["项目", "值"], ["甲", "乙"]] }]
 }
 ```
+
+## 8. 模板创作、占位变量与编排流程
+
+当组织需要沉淀可复用的标准模板（预设标准编号前缀、提出/归口/发布单位、特定章条骨架以及封面徽标/封底版权页）时，可通过以下 MCP 模板工具完成创建与编排：
+
+- **查询与读取**：`list_templates` 列出 6 套内置只读模板与组织自定义模板；`get_template` 返回模板的 `defaultMeta`、`coverLayout` 与正文 `outline`（或指定 `nodeId` / `container` 内容）。
+- **创建与更新**：`create_template` 创建自定义模板（可从空白/内置模板派生 `fromTemplateId` 或从现有文档抽取 `fromDocumentId`，并可附带初始 `operations`），`update_template` 更新名称、预设元信息及 `coverLayout`。国家标准（`national`）与指导性技术文件（`guidance`）禁止使用 `coverLayout.logo.position = "replace_mark"`，封面徽标仅接受 PNG/JPEG base64 data URL（解码体积 ≤ 2 MB）。
+- **骨架编排与占位变量**：`apply_template_operations` 复用与 `apply_operations` 相同的写作片段和乐观锁规则编排模板正文骨架。模板正文段落、前言、引言与章条中支持轻量占位变量（例如 `{{titleCn}}`、`{{proposer}}`、`{{technicalCommittee}}`、`{{applicant}}`、`{{issuer}}`）。
+- **按模板建稿**：调用 `create_document` 并传入 `templateId` 时，系统会自动继承模板预设并替换已填写元信息对应的 `{{...}}` 变量；未填写或空白字段会保留 `{{变量}}` 字面量原文，由质量检查给出提示提醒作者补填。
+
+模板骨架中含占位变量的段落示例：
+
+```json ses-example context=foreword
+[
+  { "kind": "paragraph", "content": "本文件《{{titleCn}}》由{{proposer}}提出，由{{technicalCommittee}}归口。" }
+]
+```
+
+调用 `create_template` 工具示例（工具参数 JSON，不带 `ses-example` 标记）：
+
+```json
+{
+  "name": "某学会团体标准通用模板",
+  "baseType": "group",
+  "defaultMeta": {
+    "stdPrefix": "T/ACME",
+    "issuer": "某标准化协会",
+    "technicalCommittee": "某标准化协会技术委员会"
+  },
+  "operations": [
+    {
+      "op": "insert",
+      "parent": "foreword",
+      "position": "end",
+      "content": [{ "kind": "paragraph", "content": "本文件由{{proposer}}提出。" }]
+    }
+  ]
+}
+```

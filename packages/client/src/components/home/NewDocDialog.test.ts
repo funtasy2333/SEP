@@ -2,6 +2,7 @@
 import { createApp, h, nextTick, ref } from 'vue'
 import ElementPlus from 'element-plus'
 import { expect, it } from 'vitest'
+import { DocumentStage, instantiateTemplateDocument, StandardType, type StandardTemplate } from '@ses/shared'
 import NewDocDialog from './NewDocDialog.vue'
 import { createNewDocument, type NewDocForm } from '../../utils/newDocument'
 
@@ -115,4 +116,96 @@ it('实际表单提交新增两字段和单位，重新打开不沿用上一份�
     app.unmount()
     root.remove()
   }
+})
+
+it('支持 initialTemplateId 预填自定义模板元信息、mini-cover 版式角标，并在卸载时移除 keydown 监听', async () => {
+  const root = document.createElement('div')
+  document.body.append(root)
+  const visible = ref(false)
+  const submitted: Array<{ form: NewDocForm; tplName?: string }> = []
+  const customTemplate: StandardTemplate = {
+    id: 42,
+    uid: 'custom-group-tpl',
+    name: '行业协会定制模板',
+    description: '含定制徽标与封底',
+    baseType: StandardType.GROUP,
+    defaultStage: DocumentStage.APPROVAL_DRAFT,
+    defaultMeta: {
+      stdPrefix: 'T/CISA',
+      standardNo: 'T/CCFAGS 032—2022\nT/CAPPMA 02—2022',
+      titleEn: 'Association Custom Standard',
+      proposer: '测试提出协会',
+      issuer: '中国连锁经营协会\n中国水产流通与加工协会',
+      icsCode: '35.240.01',
+    },
+    coverLayout: {
+      notice: { text: '仅供内部征求意见', position: 'above_dates' as const },
+      backCover: { enabled: true, title: '版权信息' },
+    },
+    content: {
+      type: 'doc',
+      content: [
+        {
+          type: 'foreword',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: 'English title: {{titleEn}}' }] }],
+        },
+      ],
+    },
+    source: 'human',
+    readonly: false,
+    revision: 1,
+  }
+
+  const app = createApp({
+    setup: () => () => h(NewDocDialog, {
+      modelValue: visible.value,
+      initialTemplateId: 42,
+      templates: [customTemplate],
+      'onUpdate:modelValue': (v: boolean) => { visible.value = v },
+      onCreate: (form: NewDocForm, tpl?: { name?: string }) => {
+        submitted.push({ form: { ...form }, tplName: tpl?.name })
+      },
+    }),
+  })
+  app.use(ElementPlus).mount(root)
+  const settle = async () => { await nextTick(); await new Promise((r) => setTimeout(r, 20)); await nextTick() }
+
+  try {
+    visible.value = true
+    await settle()
+
+    expect(document.querySelector('[data-testid="mini-cover-layout-badges"]')?.textContent).toContain('含声明')
+    expect(document.querySelector('[data-testid="mini-cover-layout-badges"]')?.textContent).toContain('含封底')
+    expect(document.querySelector('.stdno')?.textContent).toContain(customTemplate.defaultMeta.standardNo)
+    expect(document.querySelector<HTMLTextAreaElement>('textarea[aria-label="发布单位"]')?.value).toBe(customTemplate.defaultMeta.issuer)
+    expect(document.querySelector<HTMLInputElement>('input[placeholder="例：信息技术 标准化文件编辑系统 通用要求"]')).not.toBeNull()
+
+    const titleInput = document.querySelector<HTMLInputElement>('input[placeholder="例：信息技术 标准化文件编辑系统 通用要求"]')!
+    titleInput.value = '基于模板的新标准'
+    titleInput.dispatchEvent(new Event('input', { bubbles: true }))
+    await settle()
+
+    // 测试 Cmd/Ctrl+Enter 快捷键在挂载期间生效
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true }))
+    await settle()
+    expect(submitted).toHaveLength(1)
+    expect(submitted[0]!.tplName).toBe('行业协会定制模板')
+    expect(submitted[0]!.form.stdPrefix).toBe('T/CISA')
+    expect(submitted[0]!.form.titleEn).toBe('Association Custom Standard')
+    expect(submitted[0]!.form.proposer).toBe('测试提出协会')
+    expect(submitted[0]!.form.stage).toBe('approval_draft')
+    const instantiated = instantiateTemplateDocument(customTemplate, submitted[0]!.form)
+    expect(instantiated.meta.titleEn).toBe('Association Custom Standard')
+    expect(instantiated.meta.standardNo).toBe(customTemplate.defaultMeta.standardNo)
+    expect(instantiated.meta.issuer).toBe(customTemplate.defaultMeta.issuer)
+    expect(JSON.stringify(instantiated.content)).toContain('English title: Association Custom Standard')
+  } finally {
+    app.unmount()
+    root.remove()
+  }
+
+  // 卸载后再次触发 Cmd/Ctrl+Enter 不应继续提交
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true }))
+  await nextTick()
+  expect(submitted).toHaveLength(1)
 })

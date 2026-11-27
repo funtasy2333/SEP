@@ -6,16 +6,30 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import type { ExportGuardFailure } from '@ses/io';
-import { DocumentStage } from '@ses/shared';
-import { createNewDocument, type NewDocForm } from '@client/new-document';
+import {
+  buildOutline,
+  readContainer,
+  readNode,
+  type ExportGuardFailure,
+} from '@ses/io';
+import {
+  DocumentStage,
+  createNewDocument,
+  instantiateTemplateDocument,
+  type CreateDocumentDto,
+  type NewDocForm,
+} from '@ses/shared';
 import authoringReference from '@docs/authoring-reference';
-import { DocumentOpsService } from '../document-ops/document-ops.service';
+import {
+  DocumentOpsService,
+  READABLE_CONTAINERS,
+} from '../document-ops/document-ops.service';
 import { parseDocumentOperationsRequest } from '../document-ops/operations-request';
 import { DocumentService } from '../document/document.service';
 import { normalizeContent } from '../editor-schema/editor-schema';
 import type { ExportWarning } from '../export/export-http';
 import { ExportService } from '../export/export.service';
+import { TemplateService } from '../template/template.service';
 import { isAllowedHost } from './mcp-access';
 import { normalizeClientName } from './mcp-client-name';
 import { DEFAULT_EDITOR_BASE_URL } from './mcp.constants';
@@ -128,12 +142,19 @@ export class McpToolsService {
     validate_document: (args) => this.validateDocument(args),
     export_document: (args, context) => this.exportDocument(args, context),
     get_authoring_reference: (args) => this.getAuthoringReference(args),
+    list_templates: (args) => this.listTemplates(args),
+    get_template: (args) => this.getTemplate(args),
+    create_template: (args, context) => this.createTemplate(args, context),
+    update_template: (args) => this.updateTemplate(args),
+    apply_template_operations: (args, context) =>
+      this.applyTemplateOperations(args, context),
   };
 
   constructor(
     private readonly documents: DocumentService,
     private readonly ops: DocumentOpsService,
     private readonly exportService: ExportService,
+    private readonly templates: TemplateService,
   ) {}
 
   /**
@@ -197,27 +218,57 @@ export class McpToolsService {
    */
   private async createDocument(args: ToolArgs): Promise<CallToolResult> {
     assertOnlyKeys(args, [
+      'templateId',
       'titleCn',
       'standardType',
       'stage',
       ...CREATE_OPTIONAL_TEXT_FIELDS,
     ]);
     const titleCn = requiredNonEmptyString(args, 'titleCn', '标准的中文名称');
-    const type = requiredEnum(args, 'standardType', STANDARD_TYPES);
-    const stage =
-      optionalEnum(args, 'stage', DOCUMENT_STAGES) ??
-      DocumentStage.WORKING_DRAFT;
-    const text = Object.fromEntries(
-      CREATE_OPTIONAL_TEXT_FIELDS.map((key) => [
-        key,
-        optionalString(args, key) ?? '',
-      ]),
-    ) as Record<(typeof CREATE_OPTIONAL_TEXT_FIELDS)[number], string>;
-    const form: NewDocForm = { type, stage, titleCn, ...text };
+    const rawTemplateId = args.templateId;
 
-    const draft = createNewDocument(form);
+    let draft: CreateDocumentDto;
+
+    if (rawTemplateId !== undefined) {
+      if (
+        (typeof rawTemplateId !== 'string' || rawTemplateId.trim().length === 0) &&
+        (typeof rawTemplateId !== 'number' || !Number.isSafeInteger(rawTemplateId) || rawTemplateId < 1)
+      ) {
+        throw new BadRequestException('templateId 必须是正整数或非空字符串');
+      }
+      const tpl = await this.templates.resolveByIdentifier(rawTemplateId);
+      const overrideType = optionalEnum(args, 'standardType', STANDARD_TYPES);
+      const overrideStage = optionalEnum(args, 'stage', DOCUMENT_STAGES);
+      const overrides: Record<string, string | undefined> = {};
+      for (const key of CREATE_OPTIONAL_TEXT_FIELDS) {
+        const val = optionalString(args, key);
+        if (val !== undefined) overrides[key] = val;
+      }
+      draft = instantiateTemplateDocument(tpl, {
+        titleCn,
+        ...(overrideType !== undefined ? { type: overrideType } : {}),
+        ...(overrideStage !== undefined ? { stage: overrideStage } : {}),
+        ...overrides,
+      });
+    } else {
+      const type = requiredEnum(args, 'standardType', STANDARD_TYPES);
+      const stage =
+        optionalEnum(args, 'stage', DOCUMENT_STAGES) ??
+        DocumentStage.WORKING_DRAFT;
+      const text = Object.fromEntries(
+        CREATE_OPTIONAL_TEXT_FIELDS.map((key) => [
+          key,
+          optionalString(args, key) ?? '',
+        ]),
+      ) as Record<(typeof CREATE_OPTIONAL_TEXT_FIELDS)[number], string>;
+      const form: NewDocForm = { type, stage, titleCn, ...text };
+      draft = createNewDocument(form);
+    }
+
     const created = await this.documents.create({
-      ...draft,
+      title: draft.title,
+      stage: draft.stage,
+      meta: draft.meta as never,
       content: normalizeContent(draft.content) as unknown as Record<
         string,
         unknown
@@ -410,6 +461,221 @@ export class McpToolsService {
     assertOnlyKeys(args, []);
     return Promise.resolve({
       content: [{ type: 'text', text: authoringReference }],
+    });
+  }
+
+  private async listTemplates(args: ToolArgs): Promise<CallToolResult> {
+    assertOnlyKeys(args, []);
+    const list = await this.templates.list();
+    return jsonResult({
+      templates: list.map((tpl) => ({
+        id: tpl.id,
+        uid: tpl.uid,
+        name: tpl.name,
+        description: tpl.description,
+        baseType: tpl.baseType,
+        defaultStage: tpl.defaultStage,
+        defaultMeta: tpl.defaultMeta,
+        ...(tpl.coverLayout ? { coverLayout: tpl.coverLayout } : {}),
+        source: tpl.source,
+        readonly: tpl.readonly,
+        revision: tpl.revision,
+        hasPreviousContent: Boolean(tpl.hasPreviousContent),
+      })),
+    });
+  }
+
+  private parseTemplateIdentifier(raw: unknown): string | number {
+    if (typeof raw === 'number') {
+      if (!Number.isSafeInteger(raw) || raw < 1) {
+        throw new BadRequestException('templateId 必须是正整数或非空字符串');
+      }
+      return raw;
+    }
+    if (typeof raw === 'string' && raw.trim().length > 0) {
+      return raw.trim();
+    }
+    throw new BadRequestException('templateId 必须是正整数或非空字符串');
+  }
+
+  private async getTemplate(args: ToolArgs): Promise<CallToolResult> {
+    assertOnlyKeys(args, ['templateId', 'nodeId', 'container']);
+    const templateId = this.parseTemplateIdentifier(args.templateId);
+    const nodeId = optionalNonEmptyString(args, 'nodeId', '节点 id');
+    const container = optionalNonEmptyString(args, 'container', '容器名');
+    if (nodeId !== undefined && container !== undefined) {
+      throw new BadRequestException('nodeId 与 container 不能同时指定');
+    }
+
+    const tpl = await this.templates.resolveByIdentifier(templateId);
+    const normalized = normalizeContent(tpl.content);
+
+    if (nodeId !== undefined) {
+      const read = readNode(normalized, nodeId);
+      if (!read.ok) {
+        throw new BadRequestException({
+          statusCode: read.code === 'node-not-found' ? 404 : 422,
+          code: read.code,
+          message: read.reason,
+        });
+      }
+      return jsonResult({
+        templateId: tpl.id,
+        revision: tpl.revision,
+        node: read.node,
+      });
+    }
+
+    if (container !== undefined) {
+      if (!(READABLE_CONTAINERS as readonly string[]).includes(container)) {
+        throw new BadRequestException({
+          code: 'invalid-container',
+          message: `container 必须是 ${READABLE_CONTAINERS.join('、')} 之一`,
+        });
+      }
+      const read = readContainer(
+        normalized,
+        container as (typeof READABLE_CONTAINERS)[number],
+      );
+      if (!read.ok) {
+        throw new BadRequestException({
+          code: read.code,
+          message: read.reason,
+        });
+      }
+      return jsonResult({
+        templateId: tpl.id,
+        revision: tpl.revision,
+        container: read.container,
+      });
+    }
+
+    return jsonResult({
+      template: {
+        id: tpl.id,
+        uid: tpl.uid,
+        name: tpl.name,
+        description: tpl.description,
+        baseType: tpl.baseType,
+        defaultStage: tpl.defaultStage,
+        defaultMeta: tpl.defaultMeta,
+        ...(tpl.coverLayout ? { coverLayout: tpl.coverLayout } : {}),
+        source: tpl.source,
+        readonly: tpl.readonly,
+        revision: tpl.revision,
+        hasPreviousContent: Boolean(tpl.hasPreviousContent),
+      },
+      outline: buildOutline(normalized),
+    });
+  }
+
+  private async createTemplate(
+    args: ToolArgs,
+    context: McpToolContext,
+  ): Promise<CallToolResult> {
+    assertOnlyKeys(args, [
+      'name',
+      'baseType',
+      'description',
+      'defaultStage',
+      'defaultMeta',
+      'coverLayout',
+      'fromDocumentId',
+      'fromTemplateId',
+      'operations',
+    ]);
+    const name = requiredNonEmptyString(args, 'name', '模板名称');
+    const baseType = optionalEnum(args, 'baseType', STANDARD_TYPES);
+    const defaultStage = optionalEnum(args, 'defaultStage', DOCUMENT_STAGES);
+    const description = optionalString(args, 'description');
+
+    const { operations, ...rest } = args;
+    const prevalidatedOps =
+      operations !== undefined
+        ? parseDocumentOperationsRequest({
+            baseRevision: 0,
+            operations,
+            source: 'ai',
+            client: normalizeClientName(context.clientName),
+          })
+        : undefined;
+
+    const created = await this.templates.create(
+      {
+        ...rest,
+        name,
+        ...(baseType !== undefined ? { baseType } : {}),
+        ...(defaultStage !== undefined ? { defaultStage } : {}),
+        ...(description !== undefined ? { description } : {}),
+      },
+      'agent',
+    );
+
+    let finalRevision = created.revision;
+    if (prevalidatedOps !== undefined) {
+      try {
+        const applied = await this.templates.applyOperations(created.id, {
+          ...prevalidatedOps,
+          baseRevision: created.revision,
+        });
+        finalRevision = applied.revision;
+      } catch (error) {
+        await this.templates.remove(created.id).catch(() => undefined);
+        throw error;
+      }
+    }
+
+    return jsonResult({
+      templateId: created.id,
+      uid: created.uid,
+      revision: finalRevision,
+      name: created.name,
+      editorUrl: `${editorBaseUrl()}/templates/${created.id}`,
+    });
+  }
+
+  private async updateTemplate(args: ToolArgs): Promise<CallToolResult> {
+    assertOnlyKeys(args, [
+      'templateId',
+      'baseRevision',
+      'name',
+      'description',
+      'baseType',
+      'defaultStage',
+      'defaultMeta',
+      'coverLayout',
+    ]);
+    const templateId = parseDocumentId(args.templateId);
+    const { templateId: _tid, ...body } = args;
+    const updated = await this.templates.update(templateId, body, 'agent');
+    return jsonResult({
+      templateId: updated.id,
+      uid: updated.uid,
+      revision: updated.revision,
+      name: updated.name,
+    });
+  }
+
+  private async applyTemplateOperations(
+    args: ToolArgs,
+    context: McpToolContext,
+  ): Promise<CallToolResult> {
+    assertOnlyKeys(args, ['templateId', 'baseRevision', 'operations', 'note']);
+    const templateId = parseDocumentId(args.templateId);
+    const request = parseDocumentOperationsRequest({
+      baseRevision: args.baseRevision,
+      operations: args.operations,
+      source: 'ai',
+      client: normalizeClientName(context.clientName),
+      ...(args.note === undefined ? {} : { note: args.note }),
+    });
+    const result = await this.templates.applyOperations(templateId, request);
+    return jsonResult({
+      templateId: result.template.id,
+      revision: result.revision,
+      operations: result.operations,
+      problems: result.problems,
+      warnings: result.warnings,
     });
   }
 }

@@ -1,3 +1,5 @@
+import type { CoverLayoutConfig } from './template';
+
 /**
  * 标准文件类型
  *
@@ -46,7 +48,7 @@ export type DocumentStage = (typeof DocumentStage)[keyof typeof DocumentStage];
  * 文档元数据
  */
 export interface DocumentMeta {
-  /** 标准编号 */
+  /** 完整标准编号。联合发布时每行一个。 */
   standardNo?: string;
   /** ICS 分类号 */
   icsCode?: string;
@@ -62,7 +64,7 @@ export interface DocumentMeta {
   implementDate?: string;
   /** 标准类型 */
   standardType: StandardType;
-  /** 标准发布单位 */
+  /** 标准发布单位。联合发布时每行一个。 */
   issuer?: string;
   /** 标准申请单位 */
   applicant?: string;
@@ -82,6 +84,12 @@ export interface DocumentMeta {
   proposer?: string;
   /** 归口单位 */
   technicalCommittee?: string;
+  /** 封面与封底视觉扩展配置（仅用于打印排版 DOCX/PDF） */
+  coverLayout?: CoverLayoutConfig;
+  /** 创建文档时所用模板的稳定 UID（可选溯源信息） */
+  sourceTemplateUid?: string;
+  /** 创建文档时所用模板的名称（可选溯源信息） */
+  sourceTemplateName?: string;
 }
 
 /**

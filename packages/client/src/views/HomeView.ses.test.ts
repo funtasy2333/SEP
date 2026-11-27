@@ -68,6 +68,7 @@ function activePreview(overrides: Record<string, unknown> = {}) {
     newVersions: 2,
     localOnlyVersions: 1,
     contentDiffers: true,
+    coverLayoutDiffers: false,
     versionNoCollisions: ['1.0'],
     ...overrides,
   }
@@ -191,7 +192,7 @@ describe('HomeView SES 文档包导入', () => {
       expect(document.body.textContent).toContain('本地标准')
       expect(document.body.textContent).toContain('新增 2 个版本')
       expect(document.body.textContent).toContain('本地独有 1 个版本')
-      expect(document.body.textContent).toContain('版本历史会记录本次导入，可查看本次修改或回滚到导入前')
+      expect(document.body.textContent).toContain('版本历史会记录本次导入，可查看本次修改或回滚正文到导入前')
       expect(document.body.textContent).toContain('包正文成为当前正文')
       expect(document.body.textContent).toContain('1.0')
       expect(button(view.root, '导入 .ses')?.disabled).toBe(true)
@@ -219,7 +220,7 @@ describe('HomeView SES 文档包导入', () => {
     try {
       if (!await chooseFile(view.root, file)) return
       expect(document.body.textContent).toContain('正文相同')
-      expect(document.body.textContent).toContain('导入只追加版本，不改动当前正文')
+      expect(document.body.textContent).toContain('导入时保留当前正文')
 
       const copy = button(document.body, '另存为新文档')
       expect(copy).not.toBeNull()

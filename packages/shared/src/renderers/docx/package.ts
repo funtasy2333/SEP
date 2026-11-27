@@ -71,6 +71,10 @@ export interface DocxPackageInput {
   relatedParts?: readonly DocxRelatedPart[]
   /** Authoring metadata preserved as native package custom properties, without changing body layout. */
   customProperties?: Readonly<Record<string, string>>
+  /** 可选附加关系部件（例如页眉图片关系 word/_rels/header1.xml.rels） */
+  extraParts?: Readonly<Record<string, string>>
+  /** 可选附加二进制资源（例如水印图片 word/media/watermark.png） */
+  extraBinaries?: Readonly<Record<string, string>>
 }
 
 /** 用 Map 而不是 plain object：plain object 按外部扩展名字符串查找会命中 Object.prototype
@@ -269,6 +273,25 @@ export function buildPackage(input: DocxPackageInput): DocxPackage {
     parts['word/numbering.xml'] = input.numberingXml
     overrides.push({ partName: 'word/numbering.xml', contentType: `${WML}numbering+xml` })
     docRels.push({ id: nextAutoId(), type: `${REL}numbering`, target: 'numbering.xml' })
+  }
+
+  if (input.extraParts) {
+    for (const [partName, xml] of Object.entries(input.extraParts)) {
+      parts[partName] = xml
+      if (!partName.endsWith('.rels')) {
+        overrides.push({ partName, contentType: 'application/xml' })
+      }
+    }
+  }
+
+  if (input.extraBinaries) {
+    for (const [target, base64] of Object.entries(input.extraBinaries)) {
+      binaries[target] = base64
+      const ext = extensionOf(target)
+      const ct = BINARY_CONTENT_TYPES.get(ext)
+      if (!ct) throw new Error(`buildPackage: 无法确定附加二进制部件 "${target}" 的内容类型（未知扩展名 "${ext}"）`)
+      binaryExtensions.set(ext, ct)
+    }
   }
 
   // ---- docProps ----

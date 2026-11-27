@@ -42,10 +42,16 @@
           <div class="preview-topline"><span>封面预览</span><span class="preview-live"><i />实时更新</span></div>
           <div class="preview-content">
             <div class="preview-main">
-              <div class="preview-standard-no">{{ draft.standardNo.trim() || '标准编号待填写' }}</div>
+              <div class="preview-standard-no">
+                <div v-for="(line, index) in previewStandardNumbers" :key="index">{{ line }}</div>
+                <div v-if="!previewStandardNumbers.length">标准编号待填写</div>
+              </div>
               <div v-if="coverDesignationPreview" class="preview-designation">{{ coverDesignationPreview }}</div>
               <div class="preview-title-cn">{{ draft.titleCn.trim() || '请输入标准中文名称' }}</div>
               <div class="preview-title-en">{{ draft.titleEn.trim() || 'English title (optional)' }}</div>
+              <div v-if="previewIssuers.length" class="preview-issuer">
+                <div v-for="(line, index) in previewIssuers" :key="index">{{ line }}</div>
+              </div>
             </div>
             <div class="preview-details">
               <span class="preview-type">{{ typeName }}</span>
@@ -53,6 +59,18 @@
               <div class="preview-classification">
                 <span><small>ICS</small>{{ draft.icsCode.trim() || '—' }}</span>
                 <span><small>CCS</small>{{ draft.ccsCode.trim() || '—' }}</span>
+              </div>
+              <div v-if="hasLayoutBadge" class="preview-layout-badges">
+                <img
+                  v-if="draft.coverLayout?.logo?.dataUrl"
+                  :src="draft.coverLayout.logo.dataUrl"
+                  alt="徽标"
+                  class="preview-logo-chip"
+                />
+                <span v-if="draft.coverLayout?.topRightMark && draft.coverLayout.topRightMark.mode !== 'default'" class="preview-badge">自定义右上角标志</span>
+                <span v-if="draft.coverLayout?.notice?.text?.trim()" class="preview-badge">含附加声明</span>
+                <span v-if="draft.coverLayout?.backCover?.enabled" class="preview-badge">含独立封底</span>
+                <span v-if="draft.coverLayout?.watermark?.enabled" class="preview-badge">含正文水印</span>
               </div>
             </div>
           </div>
@@ -105,11 +123,13 @@
               <el-form-item label="标准编号" class="field-span-2">
                 <el-input
                   v-model="draft.standardNo"
+                  type="textarea"
+                  :autosize="{ minRows: 1, maxRows: 6 }"
                   :disabled="saving"
                   placeholder="填写完整编号，如 GB/T 12345—2026"
                   aria-label="完整标准编号"
                 />
-                <div class="field-hint">按正式编号完整填写；系统不会推测编号或年份。</div>
+                <div class="field-hint">联合发布时，每行填写一个完整标准编号。</div>
               </el-form-item>
 
             </div>
@@ -186,12 +206,22 @@
                 <el-input v-model="draft.technicalCommittee" :disabled="saving" placeholder="归口单位或技术委员会；没有时留空" aria-label="归口单位" />
               </el-form-item>
               <el-form-item label="发布单位" class="field-span-2">
-                <el-input v-model="draft.issuer" :disabled="saving" placeholder="标准发布单位；没有时留空" aria-label="发布单位" />
+                <el-input v-model="draft.issuer" type="textarea" :autosize="{ minRows: 1, maxRows: 6 }" :disabled="saving" placeholder="标准发布单位；没有时留空" aria-label="发布单位" />
+                <div class="field-hint">联合发布时，每行填写一个发布单位。</div>
               </el-form-item>
               <el-form-item label="起草单位" class="field-span-2">
                 <el-input v-model="draft.applicant" :disabled="saving" placeholder="标准起草单位；没有时留空" aria-label="起草单位" />
               </el-form-item>
             </div>
+          </section>
+
+          <section id="settings-cover-layout" class="settings-card" aria-labelledby="settings-cover-layout-title">
+            <header class="card-heading">
+              <span class="card-number">05</span>
+              <div><h2 id="settings-cover-layout-title">封面徽标与封底版式</h2><p>自定义封面徽标、附加声明、封面背面/版权页及正文水印（打印/导出 DOCX 与 PDF 生效）</p></div>
+              <span class="card-icon"><el-icon><Picture /></el-icon></span>
+            </header>
+            <CoverLayoutEditor v-model="draft.coverLayout" :standard-type="draft.standardType" :disabled="saving" />
           </section>
 
           <footer class="settings-actions">
@@ -216,15 +246,17 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import {
   ArrowRight, Calendar, CircleCheckFilled, CircleCloseFilled, CollectionTag,
-  Grid, InfoFilled, OfficeBuilding, Select, Setting,
+  Grid, InfoFilled, OfficeBuilding, Picture, Select, Setting,
 } from '@element-plus/icons-vue'
 import {
-  buildCoverDesignation, getCoverDesignation, getCoverDesignationName, getCoverDesignationParts,
+  buildCoverDesignation, downgradeCoverLayoutForStandardType, getCoverDesignation, getCoverDesignationName, getCoverDesignationParts, hasActiveCoverLayout, metadataLines,
 } from '@ses/shared'
 import { STAGES, STAGE_LABELS, STAGE_SHORT, TYPE_DEFS, TYPE_LABELS } from '@/constants/standards'
 import StandardTypeNameInput from '@/components/StandardTypeNameInput.vue'
+import CoverLayoutEditor from '@/components/editor/CoverLayoutEditor.vue'
 import { useCoverDesignationDraft } from '@/composables/useCoverDesignationDraft'
 import type { DocumentSettingsDraft } from '@/utils/documentSettings'
 
@@ -245,12 +277,15 @@ const sections = [
   { id: 'settings-classification', number: '02', label: '分类与阶段' },
   { id: 'settings-publication', number: '03', label: '发布信息' },
   { id: 'settings-organizations', number: '04', label: '单位信息' },
+  { id: 'settings-cover-layout', number: '05', label: '封面与封底' },
 ]
 const activeSection = ref(sections[0].id)
 const scrollContainerRef = ref<HTMLElement | null>(null)
 const pageRef = ref<HTMLElement | null>(null)
 const knownTypes = new Set<string>(TYPE_DEFS.map((type) => type.id))
 const knownStages = new Set<string>(STAGES)
+const previewStandardNumbers = computed(() => metadataLines(props.draft.standardNo))
+const previewIssuers = computed(() => metadataLines(props.draft.issuer))
 const supportsCustomCoverDesignation = computed(() => getCoverDesignationParts(props.draft.standardType) !== undefined)
 const designationDraft = useCoverDesignationDraft({
   getDraft: () => props.draft,
@@ -285,6 +320,8 @@ const statusText = computed(() => {
   return props.dirty ? '有尚未保存的修改' : '与已保存内容一致'
 })
 
+const hasLayoutBadge = computed(() => hasActiveCoverLayout(props.draft.coverLayout))
+
 function scrollToSection(id: string) {
   activeSection.value = id
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -292,6 +329,11 @@ function scrollToSection(id: string) {
 
 function onStandardTypeUpdate(type: string) {
   designationDraft.changeType(type)
+  const { coverLayout, downgraded } = downgradeCoverLayoutForStandardType(props.draft.coverLayout, type)
+  if (downgraded) {
+    props.draft.coverLayout = coverLayout
+    ElMessage.warning('国家标准和指导性技术文件禁止修改或替换右上角标志，已自动恢复默认标志并将徽标位置调整为左上角。')
+  }
 }
 
 let sectionObserver: IntersectionObserver | null = null
@@ -399,6 +441,7 @@ onBeforeUnmount(() => {
 .preview-designation { max-width: min(100%, 440px); margin: 0 0 6px; color: var(--ses-ink-2); font-size: 11.5px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; word-break: break-word; }
 .preview-title-cn { max-width: 660px; color: var(--ses-ink); font-size: 17px; font-weight: 650; line-height: 1.4; overflow-wrap: anywhere; }
 .preview-title-en { max-width: 660px; margin-top: 4px; color: var(--ses-ink-3); font: 11px/1.5 var(--ses-font-mono); overflow-wrap: anywhere; }
+.preview-issuer { margin-top: 8px; color: var(--ses-ink-3); font-size: 10.5px; line-height: 1.5; overflow-wrap: anywhere; }
 .preview-details { flex: 0 1 180px; max-width: 180px; display: grid; justify-items: end; gap: 8px; overflow-wrap: anywhere; }
 .preview-type { max-width: 100%; padding: 4px 8px; border-radius: 5px; background: var(--ses-accent-soft); color: var(--ses-accent); font-size: 10px; font-weight: 650; overflow-wrap: anywhere; }
 .preview-stage { color: var(--ses-ink-2); font-size: 10.5px; }
@@ -406,6 +449,9 @@ onBeforeUnmount(() => {
 .preview-classification { display: flex; gap: 14px; color: var(--ses-ink-2); font: 10px var(--ses-font-mono); }
 .preview-classification span { display: grid; gap: 2px; max-width: 100px; overflow-wrap: anywhere; }
 .preview-classification small { color: var(--ses-ink-4); font: 600 8px var(--ses-font-mono); letter-spacing: .08em; }
+.preview-layout-badges { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.preview-logo-chip { width: 28px; height: 20px; object-fit: contain; border: 1px solid var(--ses-line); border-radius: 4px; background: var(--ses-bg); padding: 1px; }
+.preview-badge { padding: 2px 6px; border-radius: 4px; background: var(--ses-accent-soft); color: var(--ses-accent); font-size: 9.5px; font-weight: 600; }
 .settings-form { padding-bottom: 18px; }
 .settings-card { padding: 0 19px 17px; scroll-margin-top: 16px; }
 .card-heading { display: flex; align-items: center; gap: 12px; padding: 16px 0 14px; border-bottom: 1px solid var(--ses-line); }
@@ -437,6 +483,8 @@ onBeforeUnmount(() => {
 :deep(.el-input__wrapper:hover), :deep(.el-select__wrapper:hover) { box-shadow: 0 0 0 1px color-mix(in oklch, var(--ses-accent) 45%, var(--ses-line)) inset; }
 :deep(.el-input__inner) { color: var(--ses-ink); font-size: 11.5px; }
 :deep(.el-input__inner::placeholder) { color: var(--ses-ink-4); }
+:deep(.el-textarea__inner) { min-height: 36px; border-radius: 7px; color: var(--ses-ink); font-size: 11.5px; box-shadow: 0 0 0 1px var(--ses-line) inset; }
+:deep(.el-textarea__inner::placeholder) { color: var(--ses-ink-4); }
 :deep(.el-button) { border-radius: 7px; font-size: 11px; }
 :deep(.el-button--primary) { --el-button-bg-color: var(--ses-accent); --el-button-border-color: var(--ses-accent); --el-button-hover-bg-color: var(--ses-accent-2); --el-button-hover-border-color: var(--ses-accent-2); }
 

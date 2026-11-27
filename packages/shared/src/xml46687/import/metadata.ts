@@ -33,6 +33,8 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
     }
     return undefined
   }
+  const issuerNames: string[] = []
+  const standardCodes: string[] = []
   let standardTypeText: string | undefined
   const seenCustomMetaNames = new Set<string>()
   const customMetaFields: Record<string, 'filingNo' | 'industryName' | 'regionName' | 'coverDesignation' | 'applicant' | 'proposer'> = {
@@ -52,11 +54,13 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
     if (names.length === 0 && !abbreviation) warn(org, '机构缺少名称和缩写', 'error')
     if (names.length === 0 && abbreviation) {
       ;(meta.publishers ??= []).push({ id: id(org), name: inline(abbreviation), role, identifier })
+      if (identifier) issuerNames.push(identifier)
       warn(org, '机构仅有缩写，以缩写作为名称')
     }
     names.forEach((name, index) => {
       ;(meta.publishers ??= []).push({ id: index === 0 ? id(org) : id(name), name: inline(name), role, identifier: index === 0 ? identifier : undefined })
-      if (meta.issuer === undefined) meta.issuer = xmlTextContent(name)
+      const nameText = text(name)
+      if (nameText) issuerNames.push(nameText)
     })
     if (ctx.attr(org, null, 'std-org-level') || ctx.attr(org, null, 'std-org-type')) warn(org, '机构级别或类型无法表达')
     for (const item of elements(org)) if (!isKnownOrgChild(item)) warn(item, '未知机构元素', 'error')
@@ -84,7 +88,7 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
         const scheme = ctx.attr(el, null, 'type')
         const value = text(el)
         ;(meta.identifiers ??= []).push({ id: id(el), scheme, value, parts: [] })
-        if ((scheme === 'dated' || !scheme) && meta.stdCode === undefined) meta.stdCode = value
+        if ((scheme === 'dated' || !scheme) && value) standardCodes.push(value)
         break
       }
       case 'std-org-group':
@@ -151,6 +155,8 @@ export function mapMetadata(element: XmlElement, ctx: ImportContext): IRDocMeta 
       default: warn(el, '未知元数据元素', 'error')
     }
   }
+  if (issuerNames.length) meta.issuer = issuerNames.join('\n')
+  if (standardCodes.length) meta.stdCode = standardCodes.join('\n')
   if (meta.publishDate && meta.implementDate && validDate(meta.publishDate) && validDate(meta.implementDate) && meta.publishDate > meta.implementDate) {
     const published = elements(element).find(el => el.name.local === 'release-date' && ctx.attr(el, null, 'date-type') !== 'implemented')
     warn(published ?? element, '发布日期晚于实施日期')

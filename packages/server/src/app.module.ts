@@ -9,15 +9,17 @@ import { ConvertModule } from './convert/convert.module';
 import { ExportModule } from './export/export.module';
 import { DocumentEntity } from './document/document.entity';
 import { VersionEntity } from './version/version.entity';
+import { TemplateEntity } from './template/template.entity';
 import { SesPackageModule } from './ses-package/ses-package.module';
 import { SystemModule } from './system/system.module';
+import { TemplateModule } from './template/template.module';
 
 @Module({
   imports: [
     TypeOrmModule.forRoot({
       type: 'better-sqlite3',
       database: join(process.cwd(), 'data', 'ses.db'),
-      entities: [DocumentEntity, VersionEntity],
+      entities: [DocumentEntity, VersionEntity, TemplateEntity],
       synchronize: true,
     }),
     DocumentModule,
@@ -26,6 +28,7 @@ import { SystemModule } from './system/system.module';
     ConvertModule,
     ExportModule,
     SesPackageModule,
+    TemplateModule,
     SystemModule,
     McpModule,
   ],

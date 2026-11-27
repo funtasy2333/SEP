@@ -24,7 +24,7 @@
       <div class="mini-cover">
         <div class="left">
           <div class="stdno">
-            {{ newDocumentStandardNo(form) }}
+            {{ previewStandardNo }}
           </div>
           <div class="designation-cn">{{ coverDesignationPreview }}</div>
           <div class="title-cn">{{ form.titleCn || '请输入文件名称…' }}</div>
@@ -39,6 +39,17 @@
             <span class="k">类型</span><span class="v zh">{{ typeDef.name }}</span>
             <span class="k">ICS</span><span class="v">{{ form.icsCode || '—' }}</span>
             <span class="k">CCS</span><span class="v">{{ form.ccsCode || '—' }}</span>
+          </div>
+          <div v-if="hasMiniCoverLayout" class="mini-layout-badges" data-testid="mini-cover-layout-badges">
+            <img
+              v-if="selectedTemplate?.coverLayout?.logo?.dataUrl"
+              :src="selectedTemplate.coverLayout.logo.dataUrl"
+              alt="模板徽标"
+              class="mini-logo"
+            />
+            <span v-if="selectedTemplate?.coverLayout?.notice?.text?.trim()" class="mini-badge">含声明</span>
+            <span v-if="selectedTemplate?.coverLayout?.backCover?.enabled" class="mini-badge">含封底</span>
+            <span v-if="selectedTemplate?.coverLayout?.watermark?.enabled" class="mini-badge">含水印</span>
           </div>
         </div>
       </div>
@@ -73,6 +84,30 @@
       </aside>
 
       <div class="dlg-form">
+        <!-- 0. Template picker -->
+        <section v-if="availableTemplates.length > 0" class="form-section template-picker-section">
+          <header>
+            <h3><span class="idx">00</span>选择模板</h3>
+            <p>可从系统内置或组织自定义模板起步，自动预填编号前缀、单位与封面版式。</p>
+          </header>
+          <el-select
+            :model-value="selectedTemplateId"
+            clearable
+            filterable
+            placeholder="默认 GB/T 1.1 标准结构（不选或自选模板）"
+            class="full-width"
+            data-testid="new-doc-template-select"
+            @update:model-value="onSelectTemplate"
+          >
+            <el-option
+              v-for="tpl in availableTemplates"
+              :key="String(tpl.id)"
+              :label="`${tpl.name}（${TYPE_LABELS[tpl.baseType] || tpl.baseType}${tpl.readonly ? ' · 内置' : ' · 自定义'}）`"
+              :value="String(tpl.id)"
+            />
+          </el-select>
+        </section>
+
         <!-- 1. Type -->
         <section class="form-section">
           <header>
@@ -133,7 +168,7 @@
 
             <el-form-item>
               <template #label>
-                标准编号 <span class="help">不填会自动生成占位编号</span>
+                标准编号 <span class="help">{{ templateStandardNo ? '留空沿用模板编号' : '留空会自动生成占位编号' }}</span>
               </template>
               <div class="input-group">
                 <input
@@ -208,7 +243,13 @@
             </div>
             <div class="two-col">
               <el-form-item label="发布单位">
-                <el-input v-model="form.issuer" placeholder="如 国家标准化管理委员会" />
+                <el-input
+                  v-model="form.issuer"
+                  type="textarea"
+                  :autosize="{ minRows: 1, maxRows: 4 }"
+                  placeholder="每行填写一个发布单位"
+                  aria-label="发布单位"
+                />
               </el-form-item>
               <el-form-item label="起草单位">
                 <el-input v-model="form.applicant" placeholder="如 中国电子技术标准化研究院" />
@@ -239,50 +280,83 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { getActivePinia } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { Close, Check, Plus, MagicStick } from '@element-plus/icons-vue'
-import { getCoverDesignation } from '@ses/shared'
 import {
-  STAGE_LABELS, STAGE_SHORT, STAGES, TYPE_DEFS,
+  BUILTIN_TEMPLATES,
+  getCoverDesignation,
+  hasActiveCoverLayout,
+  metadataLines,
+  type StandardTemplate,
+  type StandardType,
+} from '@ses/shared'
+import {
+  STAGE_LABELS, STAGE_SHORT, STAGES, TYPE_DEFS, TYPE_LABELS,
 } from '@/constants/standards'
 import StandardTypeNameInput from '@/components/StandardTypeNameInput.vue'
 import { useCoverDesignationDraft } from '@/composables/useCoverDesignationDraft'
+import { useTemplateStore } from '@/stores/template'
 import { newDocumentStandardNo, STANDARD_NO_PLACEHOLDER, type NewDocForm } from '@/utils/newDocument'
 
 const props = defineProps<{
   modelValue: boolean
   initialType?: string
+  initialTemplateId?: string | number
+  templates?: StandardTemplate[]
 }>()
 const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
-  (e: 'create', form: NewDocForm): void
+  (e: 'create', form: NewDocForm, template?: StandardTemplate): void
 }>()
+
+const templateStore = getActivePinia() ? useTemplateStore() : null
+const availableTemplates = computed<readonly StandardTemplate[]>(() => {
+  if (props.templates && props.templates.length > 0) return props.templates
+  if (templateStore && templateStore.templates.length > 0) return templateStore.templates
+  return BUILTIN_TEMPLATES
+})
+const selectedTemplateId = ref('')
+const selectedTemplate = computed(() =>
+  availableTemplates.value.find(
+    (tpl) => String(tpl.id) === selectedTemplateId.value || tpl.uid === selectedTemplateId.value,
+  ),
+)
+const hasMiniCoverLayout = computed(() => hasActiveCoverLayout(selectedTemplate.value?.coverLayout))
 
 const visible = computed({
   get: () => props.modelValue,
   set: (v) => emit('update:modelValue', v),
 })
 
-const form = ref<NewDocForm>({
-  type: 'national',
-  stage: 'working_draft',
-  stdPrefix: '',
-  stdNo: '',
-  titleCn: '',
-  titleEn: '',
-  icsCode: '',
-  ccsCode: '',
-  issuer: '',
-  applicant: '',
-  proposer: '',
-  technicalCommittee: '',
-  replaces: '',
-  consistency: '',
-  industryName: '',
-  regionName: '',
-  coverDesignation: '',
-})
+function emptyForm(type: StandardType = 'national'): NewDocForm {
+  return {
+    type,
+    stage: 'working_draft',
+    stdPrefix: '',
+    stdNo: '',
+    titleCn: '',
+    titleEn: '',
+    icsCode: '',
+    ccsCode: '',
+    issuer: '',
+    applicant: '',
+    proposer: '',
+    technicalCommittee: '',
+    replaces: '',
+    consistency: '',
+    industryName: '',
+    regionName: '',
+    coverDesignation: '',
+  }
+}
+
+const form = ref<NewDocForm>(emptyForm())
+const templateStandardNo = computed(() => metadataLines(selectedTemplate.value?.defaultMeta.standardNo).join('\n'))
+const previewStandardNo = computed(() => !form.value.stdNo.trim() && templateStandardNo.value
+  ? templateStandardNo.value
+  : newDocumentStandardNo(form.value))
 
 const activeStep = ref<'type' | 'basic' | 'classify' | 'contrib'>('type')
 const titleInputRef = ref<{ focus: () => void } | null>(null)
@@ -321,28 +395,49 @@ const stepDone = computed(() => ({
   contrib: !!form.value.proposer || !!form.value.technicalCommittee || !!form.value.issuer || !!form.value.applicant,
 }))
 
+function applyTemplatePreset(tpl: StandardTemplate) {
+  selectedTemplateId.value = String(tpl.id)
+  designationDraft.changeType(tpl.baseType)
+  const dm = tpl.defaultMeta ?? {}
+  form.value.stage = tpl.defaultStage || 'working_draft'
+  form.value.stdPrefix = dm.stdPrefix ?? ''
+  form.value.titleEn = dm.titleEn ?? ''
+  form.value.icsCode = dm.icsCode ?? ''
+  form.value.ccsCode = dm.ccsCode ?? ''
+  form.value.issuer = dm.issuer ?? ''
+  form.value.applicant = dm.applicant ?? ''
+  form.value.proposer = dm.proposer ?? ''
+  form.value.technicalCommittee = dm.technicalCommittee ?? ''
+  form.value.replaces = dm.replaces ?? ''
+  form.value.consistency = dm.consistency ?? ''
+  form.value.industryName = dm.industryName ?? ''
+  form.value.regionName = dm.regionName ?? ''
+  form.value.coverDesignation = dm.coverDesignation ?? ''
+}
+
+function onSelectTemplate(value: string) {
+  if (!value) {
+    selectedTemplateId.value = ''
+    return
+  }
+  const tpl = availableTemplates.value.find((t) => String(t.id) === String(value) || t.uid === value)
+  if (tpl) applyTemplatePreset(tpl)
+}
+
 watch(() => props.modelValue, (open) => {
-  if (open) {
-    form.value = {
-      type: TYPE_DEFS.find((t) => t.id === props.initialType)?.id ?? 'national',
-      stage: 'working_draft',
-      stdPrefix: '',
-      stdNo: '',
-      titleCn: '',
-      titleEn: '',
-      icsCode: '',
-      ccsCode: '',
-      issuer: '',
-      applicant: '',
-      proposer: '',
-      technicalCommittee: '',
-      replaces: '',
-      consistency: '',
-      industryName: '',
-      regionName: '',
-      coverDesignation: '',
-    }
-    activeStep.value = 'type'
+  if (!open) return
+  if (templateStore && templateStore.templates.length === 0) {
+    void templateStore.fetchTemplates().catch(() => undefined)
+  }
+  const defaultType = (TYPE_DEFS.find((t) => t.id === props.initialType)?.id ?? 'national') as StandardType
+  form.value = emptyForm(defaultType)
+  selectedTemplateId.value = ''
+  activeStep.value = 'type'
+  if (props.initialTemplateId !== undefined) {
+    const matched = availableTemplates.value.find(
+      (t) => String(t.id) === String(props.initialTemplateId) || t.uid === String(props.initialTemplateId),
+    )
+    if (matched) applyTemplatePreset(matched)
   }
 })
 
@@ -360,7 +455,7 @@ function handleCreate() {
     titleInputRef.value?.focus()
     return
   }
-  emit('create', form.value)
+  emit('create', form.value, selectedTemplate.value)
 }
 
 // keyboard shortcut: Cmd/Ctrl + Enter to submit
@@ -371,7 +466,14 @@ function onKey(e: KeyboardEvent) {
     handleCreate()
   }
 }
-window.addEventListener('keydown', onKey)
+
+onMounted(() => {
+  window.addEventListener('keydown', onKey)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKey)
+})
 </script>
 
 <style scoped>
@@ -423,6 +525,8 @@ window.addEventListener('keydown', onKey)
   font-size: 12px;
   letter-spacing: 0.06em;
   color: var(--ses-ink-3);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 .designation-cn { margin-top: 10px; color: var(--ses-ink-2); font-size: 12px; }
 .title-cn {
@@ -597,6 +701,31 @@ window.addEventListener('keydown', onKey)
   font-size: 11.5px; color: var(--ses-ink-3);
 }
 .foot-r { display: flex; gap: 8px; }
+.full-width { width: 100%; }
+.mini-layout-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.mini-logo {
+  width: 28px;
+  height: 20px;
+  object-fit: contain;
+  border: 1px solid var(--ses-line);
+  border-radius: 4px;
+  background: var(--ses-surface);
+  padding: 1px;
+}
+.mini-badge {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--ses-accent-soft);
+  color: var(--ses-accent);
+  font-size: 10px;
+  font-weight: 600;
+}
 </style>
 
 <style>

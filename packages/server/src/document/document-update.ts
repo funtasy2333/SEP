@@ -1,4 +1,5 @@
 import { BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
+import { validateCoverLayout } from '@ses/shared';
 import type { DocumentEntity } from './document.entity';
 
 /**
@@ -41,9 +42,11 @@ export const DOCUMENT_META_STRING_FIELDS = [
   'coverDesignation',
   'proposer',
   'technicalCommittee',
+  'sourceTemplateUid',
+  'sourceTemplateName',
 ] as const;
 
-/** 校验写入的 meta：必须是 JSON 对象，已知字段出现时必须是字符串，否则 400。POST 与 PUT 共用。 */
+/** 校验写入的 meta：必须是 JSON 对象，已知字段出现时必须是字符串，coverLayout 需符合同构校验，否则 400。POST 与 PUT 共用。 */
 export function parseDocumentMeta(value: unknown): DocumentEntity['meta'] {
   if (!isPlainObject(value)) {
     throw new BadRequestException('meta 必须是 JSON 对象');
@@ -52,6 +55,18 @@ export function parseDocumentMeta(value: unknown): DocumentEntity['meta'] {
     const field = value[key];
     if (field !== undefined && typeof field !== 'string') {
       throw new BadRequestException(`meta.${key} 必须是字符串`);
+    }
+  }
+  if (value.coverLayout !== undefined && value.coverLayout !== null) {
+    const standardType =
+      typeof value.standardType === 'string' ? value.standardType : undefined;
+    const validation = validateCoverLayout(
+      value.coverLayout,
+      standardType,
+      'meta.coverLayout',
+    );
+    if (!validation.valid) {
+      throw new BadRequestException(validation.errors[0]!.message);
     }
   }
   return value as unknown as DocumentEntity['meta'];

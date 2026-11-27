@@ -24,6 +24,10 @@ import { VersionEntity } from '../version/version.entity';
 import { VersionModule } from '../version/version.module';
 import { VersionService } from '../version/version.service';
 import { SesPackageModule } from '../ses-package/ses-package.module';
+import { TemplateEventsService, TEMPLATE_EVENTS_HEARTBEAT_MS } from '../template/template-events.service';
+import { TemplateEntity } from '../template/template.entity';
+import { TemplateModule } from '../template/template.module';
+import { TemplateService } from '../template/template.service';
 
 export interface TestApp {
   app: INestApplication;
@@ -31,7 +35,9 @@ export interface TestApp {
   /** 监听地址，如 http://127.0.0.1:34567（SSE 用 node:http 直接连接）。 */
   url: string;
   events: DocumentEventsService;
+  templateEvents: TemplateEventsService;
   documents: DocumentService;
+  templates: TemplateService;
   versions: VersionService;
   ops: DocumentOpsService;
   mcp: McpSessionService;
@@ -55,7 +61,7 @@ export async function createTestApp(
       TypeOrmModule.forRoot({
         type: 'better-sqlite3',
         database: options.database ?? ':memory:',
-        entities: [DocumentEntity, VersionEntity],
+        entities: [DocumentEntity, VersionEntity, TemplateEntity],
         synchronize: true,
       }),
       DocumentModule,
@@ -63,12 +69,15 @@ export async function createTestApp(
       DocumentOpsModule,
       ExportModule,
       SesPackageModule,
+      TemplateModule,
       McpModule,
     ],
   });
   if (options.heartbeatMs !== undefined) {
     builder = builder
       .overrideProvider(DOCUMENT_EVENTS_HEARTBEAT_MS)
+      .useValue(options.heartbeatMs)
+      .overrideProvider(TEMPLATE_EVENTS_HEARTBEAT_MS)
       .useValue(options.heartbeatMs);
   }
   if (options.mcp !== undefined) {
@@ -86,7 +95,9 @@ export async function createTestApp(
     http: request(url),
     url,
     events: app.get(DocumentEventsService),
+    templateEvents: app.get(TemplateEventsService),
     documents: app.get(DocumentService),
+    templates: app.get(TemplateService),
     versions: app.get(VersionService),
     ops: app.get(DocumentOpsService),
     mcp: app.get(McpSessionService),

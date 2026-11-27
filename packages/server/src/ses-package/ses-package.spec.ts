@@ -108,6 +108,7 @@ interface PreviewBody {
   newVersions: number;
   localOnlyVersions: number;
   contentDiffers: boolean;
+  coverLayoutDiffers: boolean;
   versionNoCollisions: string[];
 }
 
@@ -653,6 +654,7 @@ describe('SES 文档包 HTTP 服务端验收', () => {
         newVersions: 3,
         localOnlyVersions: 0,
         contentDiffers: false,
+        coverLayoutDiffers: false,
         versionNoCollisions: [],
       });
       const importedB = await expectBody<ImportedDocument>(
@@ -767,6 +769,7 @@ describe('SES 文档包 HTTP 服务端验收', () => {
         newVersions: 1,
         localOnlyVersions: 1,
         contentDiffers: true,
+        coverLayoutDiffers: false,
         versionNoCollisions: ['1.1'],
       });
 
@@ -895,6 +898,7 @@ describe('SES 文档包 HTTP 服务端验收', () => {
         newVersions: 2,
         localOnlyVersions: 0,
         contentDiffers: false,
+        coverLayoutDiffers: false,
         versionNoCollisions: ['1.1'],
       });
       await postRaw(
@@ -925,6 +929,7 @@ describe('SES 文档包 HTTP 服务端验收', () => {
         newVersions: 0,
         localOnlyVersions: 0,
         contentDiffers: false,
+        coverLayoutDiffers: false,
         versionNoCollisions: [],
       });
       const updatedASecondRound = await expectBody<ImportedDocument>(
@@ -1301,6 +1306,7 @@ describe('SES 文档包 HTTP 服务端验收', () => {
         newVersions: 0,
         localOnlyVersions: 0,
         contentDiffers: false,
+        coverLayoutDiffers: false,
         versionNoCollisions: [],
       });
 

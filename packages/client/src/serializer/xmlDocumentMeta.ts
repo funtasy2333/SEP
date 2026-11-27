@@ -5,6 +5,7 @@
  */
 
 import {
+  downgradeCoverLayoutForStandardType,
   pmToIr,
   toIrStandardType,
   type DocumentMeta,
@@ -32,8 +33,8 @@ function hasValue(value: unknown): boolean {
  */
 export function prepareXmlImportDocumentUpdate(
   pmDoc: PMJsonNode,
-  _currentMeta?: DocumentMeta,
-): { title: string; meta: DocumentMeta } {
+  currentMeta?: DocumentMeta,
+): { title: string; meta: DocumentMeta; coverLayoutDowngraded?: boolean } {
   const coverPage = pmDoc.content?.find((node) => node.type === 'coverPage')
   const rawTypeValue = hasValue(pmDoc.attrs?.standardType)
     ? pmDoc.attrs?.standardType
@@ -45,7 +46,13 @@ export function prepareXmlImportDocumentUpdate(
     throw new Error(`标准类型「${String(rawTypeValue)}」无法识别`)
   }
 
+  const nextStandardType = IR_TO_DOCUMENT_TYPE[irType]
   const { doc } = pmToIr(pmDoc)
+  const { coverLayout, downgraded } = downgradeCoverLayoutForStandardType(
+    currentMeta?.coverLayout,
+    nextStandardType,
+  )
+
   const meta: DocumentMeta = {
     titleCn: doc.meta.title ?? '',
     titleEn: doc.meta.titleEn ?? '',
@@ -54,7 +61,7 @@ export function prepareXmlImportDocumentUpdate(
     ccsCode: doc.meta.ccsCode ?? '',
     publishDate: doc.meta.publishDate ?? '',
     implementDate: doc.meta.implementDate ?? '',
-    standardType: IR_TO_DOCUMENT_TYPE[irType],
+    standardType: nextStandardType,
     issuer: doc.meta.issuer ?? '',
     replaces: doc.meta.replaces ?? '',
     consistency: doc.meta.consistency ?? '',
@@ -65,10 +72,14 @@ export function prepareXmlImportDocumentUpdate(
     applicant: doc.meta.applicant ?? '',
     proposer: doc.meta.proposer ?? '',
     technicalCommittee: doc.meta.technicalCommittee ?? '',
+    ...(coverLayout ? { coverLayout } : {}),
+    ...(currentMeta?.sourceTemplateUid !== undefined ? { sourceTemplateUid: currentMeta.sourceTemplateUid } : {}),
+    ...(currentMeta?.sourceTemplateName !== undefined ? { sourceTemplateName: currentMeta.sourceTemplateName } : {}),
   }
 
   return {
     title: meta.titleCn || '标准文件',
     meta,
+    ...(downgraded ? { coverLayoutDowngraded: true } : {}),
   }
 }

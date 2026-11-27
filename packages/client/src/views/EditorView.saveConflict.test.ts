@@ -62,6 +62,11 @@ vi.mock('@/components/editor/DocumentSettingsPanel.vue', async () => {
             value: props.draft.stage,
             onInput: (event: Event) => { props.draft.stage = (event.target as HTMLInputElement).value },
           }),
+          vue.h('textarea', {
+            'data-testid': 'settings-issuer',
+            value: props.draft.issuer,
+            onInput: (event: Event) => { props.draft.issuer = (event.target as HTMLTextAreaElement).value },
+          }),
           vue.h('button', { 'data-testid': 'settings-save', onClick: () => emit('save') }, '保存设置'),
           vue.h('span', { 'data-testid': 'settings-error' }, props.saveError ? 'error' : ''),
         ])
@@ -155,8 +160,8 @@ async function settle() {
   await flushMicrotasks()
 }
 
-async function mountEditor() {
-  mocks.store.currentDocument = createDocument()
+async function mountEditor(initialDocument = createDocument()) {
+  mocks.store.currentDocument = initialDocument
   mocks.store.isDocumentUnavailable.mockReset().mockReturnValue(false)
   mocks.store.markDocumentUnavailable.mockReset()
   mocks.store.fetchDocument.mockReset().mockResolvedValue(undefined)
@@ -202,6 +207,41 @@ async function mountEditor() {
     },
   }
 }
+
+it('保存发布单位时同步结构化元数据，并在后续正文保存中保留', async () => {
+  const initial = createDocument()
+  initial.meta.issuer = '甲\n乙'
+  initial.content.content.splice(1, 0, {
+    type: 'metadataBlock', attrs: {} as any, content: [
+      { type: 'publisher', attrs: { nodeId: 'pub-a', role: 'lead' }, content: [{ type: 'text', text: '甲' }] },
+      { type: 'publisher', attrs: { nodeId: 'pub-b', role: 'other' }, content: [{ type: 'text', text: '乙' }] },
+    ],
+  } as any)
+  const view = await mountEditor(initial)
+  try {
+    view.updateDocument.mockImplementation(async (_id: number, data: any) => {
+      const updated = { ...mocks.store.currentDocument, ...data }
+      mocks.store.currentDocument = updated
+      return updated
+    })
+    const field = view.root.querySelector<HTMLTextAreaElement>('[data-testid="settings-issuer"]')!
+    field.value = '甲'
+    field.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushMicrotasks()
+    view.root.querySelector<HTMLButtonElement>('[data-testid="settings-save"]')!.click()
+    await flushMicrotasks()
+    const saved = view.updateDocument.mock.calls[0][1].content
+    expect(saved.content.find((node: any) => node.type === 'metadataBlock').content.map((node: any) => node.attrs.nodeId)).toEqual(['pub-a'])
+    expect(view.editor.getJSON().content.find((node: any) => node.type === 'metadataBlock').content.map((node: any) => node.attrs.nodeId)).toEqual(['pub-a'])
+    expect(foreword(view.editor)).toBe('服务端原文')
+    pressSave(view)
+    await flushMicrotasks()
+    const savedAgain = view.updateDocument.mock.calls[1][1].content
+    expect(savedAgain.content.find((node: any) => node.type === 'metadataBlock').content.map((node: any) => node.attrs.nodeId)).toEqual(['pub-a'])
+  } finally {
+    view.unmount()
+  }
+})
 
 type View = Awaited<ReturnType<typeof mountEditor>>
 

@@ -58,16 +58,11 @@ function externals({ context, request, getResolve }, callback) {
 // 依赖归属：client 链上的 @tiptap/*、prosemirror-* 等 server 未声明，webpack-node-externals 不会外置，
 // 按导入方（client）的 node_modules 解析并打入产物；katex 三处版本一致，按上面的 externals() 外置。
 // client 里的 '@/' 别名不可用，需写相对路径。
+// 模板实例化与新建文档骨架已收拢至 @ses/shared（templateInstantiation.ts），服务端直接引用 @ses/shared。
 const clientEditorSchema = path.resolve(
   serverDir,
   '../client/src/extensions/editorSchema.ts',
 )
-
-// MCP 工具 create_document 复用编辑器首页「新建文档」的生成函数（client 的 utils/newDocument.ts），与上面同样的
-// 别名做法：'@client/new-document'（jest 映射与类型声明见 package.json 与 src/mcp/mcp-modules.d.ts）。该文件只依赖
-// @ses/shared 与同目录树下的 constants/standards.ts，没有浏览器 API（无 DOM、无 '@/' 别名）。client 若给它加了
-// 浏览器依赖，服务端的 create_document 测试会在 Node 下加载失败。
-const clientNewDocument = path.resolve(serverDir, '../client/src/utils/newDocument.ts')
 
 // MCP 工具 get_authoring_reference 返回的写作说明（docs/wp9-authoring-reference.md）以别名
 // '@docs/authoring-reference' 引用，并用 asset/source 规则把全文内联进 dist/main.js：部署时不依赖 docs 目录。
@@ -92,7 +87,6 @@ module.exports = (options) => ({
     alias: {
       ...options.resolve?.alias,
       '@client/editor-schema$': clientEditorSchema,
-      '@client/new-document$': clientNewDocument,
       '@docs/authoring-reference$': authoringReference,
     },
   },

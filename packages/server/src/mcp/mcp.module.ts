@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { DocumentOpsModule } from '../document-ops/document-ops.module';
 import { DocumentModule } from '../document/document.module';
 import { ExportModule } from '../export/export.module';
+import { TemplateModule } from '../template/template.module';
 import {
   DEFAULT_MCP_SESSION_OPTIONS,
   MCP_SESSION_OPTIONS,
@@ -12,7 +13,7 @@ import { McpController } from './mcp.controller';
 
 /** MCP 服务（WP9.3）：`/mcp` 端点、会话管理与工具。写入全部经 DocumentOpsService / DocumentService，导出与校验经 ExportService。 */
 @Module({
-  imports: [DocumentModule, DocumentOpsModule, ExportModule],
+  imports: [DocumentModule, DocumentOpsModule, ExportModule, TemplateModule],
   controllers: [McpController],
   providers: [
     McpSessionService,

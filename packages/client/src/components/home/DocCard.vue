@@ -18,6 +18,7 @@
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item command="duplicate">复制为新文件</el-dropdown-item>
+            <el-dropdown-item command="save-as-template">存为模板</el-dropdown-item>
             <el-dropdown-item divided command="delete" style="color: var(--ses-err)">移入回收站</el-dropdown-item>
           </el-dropdown-menu>
         </template>
@@ -71,6 +72,7 @@ const emit = defineEmits<{
   (e: 'open', doc: DocumentData): void
   (e: 'delete', doc: DocumentData): void
   (e: 'duplicate', doc: DocumentData): void
+  (e: 'save-as-template', doc: DocumentData): void
 }>()
 
 function stageLabel(s: string) { return STAGE_LABELS[s] || s }
@@ -101,6 +103,7 @@ const exactTime = computed(() => props.doc.updatedAt ? new Date(props.doc.update
 function onAction(cmd: string) {
   if (cmd === 'delete') emit('delete', props.doc)
   if (cmd === 'duplicate') emit('duplicate', props.doc)
+  if (cmd === 'save-as-template') emit('save-as-template', props.doc)
 }
 </script>
 

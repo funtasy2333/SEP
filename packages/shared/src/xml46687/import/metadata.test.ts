@@ -149,3 +149,12 @@ it('[M-4.3.2-10] [M-4.3.2-11] 发布晚于实施时保留日期并提示', () =>
   expect(mapMetadata(tree.root, ctx)).toMatchObject({ publishDate: '2026-12-01', implementDate: '2026-01-01' })
   expect(ctx.problems.some(p => p.severity === 'warning' && p.xml?.path.includes('release-date'))).toBe(true)
 })
+
+it('projects joint dated references and publisher names to editable lines', () => {
+  const tree = parseXml46687('<std-meta><std-org-group><std-org><std-org-name>甲</std-org-name></std-org><std-org><std-org-name>乙</std-org-name></std-org></std-org-group><std-ref type="dated">GB/T 1—2026</std-ref><std-ref type="undated">GB/T 1</std-ref><std-ref type="dated">T/ABC 2—2026</std-ref></std-meta>').tree!
+  const ctx = createImportContext(tree, { nodeIdsByPath: new Map(), resources: new Map() }, { inline: mapCoreInline })
+  const meta = mapMetadata(tree.root, ctx)!
+  expect(meta.stdCode).toBe('GB/T 1—2026\nT/ABC 2—2026')
+  expect(meta.issuer).toBe('甲\n乙')
+  expect(meta.identifiers?.map(i => i.scheme)).toEqual(['dated', 'undated', 'dated'])
+})

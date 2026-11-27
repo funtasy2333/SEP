@@ -9,6 +9,7 @@
 
 import type { NodeId } from '../../ir/types'
 import type { DocumentStage } from '../../types/document'
+import type { CoverLayoutConfig } from '../../types/template'
 
 export interface DocxRenderOptions {
   /** 公式 OMML：key = IRFormula.id，值以 <m:oMath 开头。缺失时降级为 LaTeX 源码文本并记 warning */
@@ -30,6 +31,8 @@ export interface DocxRenderOptions {
   stage: DocumentStage
   /** 写入 docProps/core.xml 的时间（ISO），由宿主传入以保证字节级确定性 */
   createdAt: string
+  /** 封面徽标、附加声明与独立封底版式扩展 */
+  coverLayout?: CoverLayoutConfig
 }
 
 export interface DocxPackage {

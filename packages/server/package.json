@@ -77,7 +77,6 @@
     "rootDir": "src",
     "moduleNameMapper": {
       "^@client/editor-schema$": "<rootDir>/../../client/src/extensions/editorSchema.ts",
-      "^@client/new-document$": "<rootDir>/../../client/src/utils/newDocument.ts",
       "^@docs/authoring-reference$": "<rootDir>/../../../docs/wp9-authoring-reference.md"
     },
     "testRegex": ".*\\.spec\\.ts$",

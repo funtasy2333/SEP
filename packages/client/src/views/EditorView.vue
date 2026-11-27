@@ -111,292 +111,39 @@
 
     <!-- =====================  EDIT TAB  ===================== -->
     <template v-if="activeTab === 'edit'">
-      <!-- 工具栏：只放正文编辑操作，按「历史 / 文字 / 设为 / 插入 / 对象」排列；放不下时换行，不再隐藏按钮 -->
-      <div class="ed-toolbar" role="toolbar" aria-label="正文编辑" :inert="documentUnavailable">
-        <div class="tbar-group">
-          <button
-            class="tbar-btn icon-btn"
-            :class="{ 'is-active': showOutline }"
-            :aria-pressed="showOutline"
-            :title="showOutline ? '隐藏文档结构' : '显示文档结构'"
-            :aria-label="showOutline ? '隐藏文档结构' : '显示文档结构'"
-            @click="showOutline = !showOutline"
-          ><el-icon><Memo /></el-icon></button>
-        </div>
-        <span class="tbar-sep" />
-
-        <div class="tbar-group">
-          <button class="tbar-btn icon-btn" :disabled="!editor?.can().undo()" @click="editor?.chain().focus().undo().run()" title="撤销（Ctrl/Cmd+Z）" aria-label="撤销">
-            <el-icon><RefreshLeft /></el-icon>
-          </button>
-          <button class="tbar-btn icon-btn" :disabled="!editor?.can().redo()" @click="editor?.chain().focus().redo().run()" title="重做（Ctrl/Cmd+Shift+Z）" aria-label="重做">
-            <el-icon><RefreshRight /></el-icon>
-          </button>
-        </div>
-        <span class="tbar-sep" />
-
-        <div class="tbar-group format-group">
-          <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('bold') }" title="加粗（Ctrl/Cmd+B）" aria-label="加粗" @click="editor?.chain().focus().toggleBold().run()"><strong>B</strong></button>
-          <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('italic') }" title="斜体（Ctrl/Cmd+I）" aria-label="斜体" @click="editor?.chain().focus().toggleItalic().run()"><em>I</em></button>
-          <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('underline') }" title="下划线（Ctrl/Cmd+U）" aria-label="下划线" @click="toggleUnderline()"><u>U</u></button>
-          <button class="tbar-btn icon-btn" :class="{ 'is-active': editor?.isActive('strike') }" title="删除线" aria-label="删除线" @click="editor?.chain().focus().toggleStrike().run()"><s>S</s></button>
-        </div>
-        <span class="tbar-sep" />
-
-        <!-- 设为：改变光标所在段落的结构角色 -->
-        <div class="tbar-group" aria-label="将当前段落设为">
-          <span class="tbar-label">设为</span>
-          <button class="tbar-btn" title="将当前段落恢复为正文段落" @click="insertStdParagraph()">正文</button>
-          <el-dropdown trigger="click" @command="handleInsertClause">
-            <button class="tbar-btn" title="将当前段落或条标题设为所选层级的条">条 <el-icon><ArrowDownIcon /></el-icon></button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item v-for="lv in 5" :key="lv" :command="String(lv)">{{ ['一','二','三','四','五'][lv-1] }}级条</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-          <el-dropdown trigger="click" @command="handleInsertClauseNoTitle">
-            <button class="tbar-btn" title="将当前段落或条标题设为无题条">无题条 <el-icon><ArrowDownIcon /></el-icon></button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item v-for="lv in 4" :key="lv" :command="String(lv)">{{ ['一','二','三','四'][lv-1] }}级无题条</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-          <el-dropdown trigger="click" @command="handleInsertList">
-            <button class="tbar-btn" title="将当前段落设为列项">列项 <el-icon><ArrowDownIcon /></el-icon></button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="dash">破折号列项（一级）</el-dropdown-item>
-                <el-dropdown-item command="alpha">字母编号列项（一级）</el-dropdown-item>
-                <el-dropdown-item command="numeric">数字编号列项（二级）</el-dropdown-item>
-                <el-dropdown-item command="dot">间隔号列项（二级）</el-dropdown-item>
-                <el-dropdown-item divided command="numbering:continue" title="接续本条中前面最近的同类型列项，例如 a）、b） 之后从 c） 起">继续前一列项编号</el-dropdown-item>
-                <el-dropdown-item command="numbering:restart" title="本组列项从 a）、1） 起重新编号">重新编号</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
-        <span class="tbar-sep" />
-
-        <!-- 插入：在光标处加入内容要素 -->
-        <div class="tbar-group" aria-label="插入内容要素">
-          <span class="tbar-label">插入</span>
-          <ReferenceControl :editor="editor" />
-          <SourceControl :editor="editor" />
-          <el-dropdown trigger="click" @command="handleInsertNote">
-            <button class="tbar-btn" title="设置注或插入脚注">注 <el-icon><ArrowDownIcon /></el-icon></button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="note">注</el-dropdown-item>
-                <el-dropdown-item command="footnote">脚注（Ctrl/Cmd+Shift+F）</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-          <button class="tbar-btn" title="在当前段落后插入示例" @click="handleInsertExample('example')">示例</button>
-          <el-dropdown trigger="click" @command="handleInsertTermDef">
-            <button class="tbar-btn" title="插入术语条目">术语 <el-icon><ArrowDownIcon /></el-icon></button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item v-for="lv in 5" :key="lv" :command="String(lv)">{{ ['一','二','三','四','五'][lv-1] }}级术语条</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-          <button class="tbar-btn" title="在当前段落后插入公式：单独成行，可编号；运算式请用公式输入" @click="handleInsertFormula()">公式</button>
-          <button
-            class="tbar-btn"
-            :disabled="!cursorAllowsInlineFormula"
-            title="在文字中输入带上下标的量或变量符号（如 qV、x²）；选中文字时转为符号（Ctrl/Cmd+Shift+M）。运算式请用「公式」"
-            @click="handleInlineFormula()"
-          >符号</button>
-          <button
-            class="tbar-btn"
-            type="button"
-            data-testid="toolbar-insert-table-btn"
-            title="在当前段落后插入标准表格 (3×3)"
-            @click="handleTableCommand('insert')"
-          >表格</button>
-          <button class="tbar-btn" title="在当前段落后插入图" @click="handleInsertFigure()">图片</button>
-        </div>
-
-        <div class="tbar-search">
-          <el-input
-            v-model="searchText"
-            size="small"
-            placeholder="查找正文，回车下一处"
-            title="回车：下一处；Shift+回车：上一处；Esc：回到正文"
-            :prefix-icon="Search"
-            clearable
-            @keydown="handleSearchKeydown"
-            @clear="handleSearchClear"
-          >
-            <template v-if="searchStatus" #suffix>
-              <span class="tbar-search-count" data-testid="search-count">{{ searchStatus }}</span>
-            </template>
-          </el-input>
-        </div>
-      </div>
-
-      <!-- Editor body: outline + canvas + one optional sidebar -->
-      <div class="ed-body ses-scroll">
-        <transition name="slide-left">
-          <div v-show="showOutline" class="outline-host" :inert="documentUnavailable">
-            <DocumentOutline :editor="editor">
-              <template #actions>
-                <el-dropdown trigger="click" @command="handleAddStructure">
-                  <button class="outline-add-btn" title="添加前言、引言、章、附录或参考文献">
-                    <el-icon><Plus /></el-icon><span>添加</span>
-                  </button>
-                  <template #dropdown>
-                    <el-dropdown-menu>
-                      <el-dropdown-item command="foreword">前言</el-dropdown-item>
-                      <el-dropdown-item command="introduction">引言</el-dropdown-item>
-                      <el-dropdown-item command="chapter">章</el-dropdown-item>
-                      <el-dropdown-item divided command="appendixNorm">规范性附录</el-dropdown-item>
-                      <el-dropdown-item command="appendixInfo">资料性附录</el-dropdown-item>
-                      <el-dropdown-item divided command="bibliography">参考文献</el-dropdown-item>
-                    </el-dropdown-menu>
-                  </template>
-                </el-dropdown>
-                <button class="outline-icon-btn" title="隐藏文档结构" aria-label="隐藏文档结构" @click="showOutline = false">
-                  <el-icon><DArrowLeft /></el-icon>
-                </button>
-              </template>
-            </DocumentOutline>
-          </div>
-        </transition>
-        <div ref="edMainRef" class="ed-main" @[BLOCK_FORMULA_EVENT]="handleBlockFormulaEvent">
-          <!-- 上下文工具：锚定在编辑区画布右上角，避免撑高工具栏或在打开右侧栏时遮挡侧栏按钮 -->
-          <div
-            v-if="hasContextShelf"
-            class="tbar-context-shelf"
-            :inert="documentUnavailable"
-          >
-            <div v-if="hasContextRow" class="tbar-context-row">
-              <div v-if="cursorInFormula" class="tbar-group tbar-context" aria-label="公式">
-                <span class="tbar-label">公式</span>
-                <button class="tbar-btn" title="为光标所在公式添加一条式中符号说明" @click="handleAddWhereItem()">添加式中</button>
-              </div>
-              <div
-                v-if="activeOrientationNodeType()"
-                class="tbar-group tbar-context"
-                :class="{ 'is-locked': isOrientationLockedByAppendix() }"
-                :aria-label="activeOrientationLabel()"
-                data-testid="node-orientation"
-              >
-                <span class="tbar-label">{{ activeOrientationShortLabel() }}</span>
-                <button
-                  class="tbar-btn"
-                  :class="{ 'is-active': isActivePageOrientation('portrait') }"
-                  :disabled="isOrientationLockedByAppendix()"
-                  :title="orientationButtonTitle('portrait')"
-                  @click="setActivePageOrientation('portrait')"
-                >纵向</button>
-                <button
-                  class="tbar-btn"
-                  :class="{ 'is-active': isActivePageOrientation('landscape') }"
-                  :disabled="isOrientationLockedByAppendix()"
-                  :title="orientationButtonTitle('landscape')"
-                  @click="setActivePageOrientation('landscape')"
-                >横向</button>
-                <span
-                  v-if="isOrientationLockedByAppendix()"
-                  class="tbar-context-hint"
-                  data-testid="orientation-locked-hint"
-                  :title="orientationLockedHint()"
-                >随附录</span>
-                <button
-                  v-if="activeOrientationNodeType() === 'stdTable' && isActivePageOrientation('landscape')"
-                  type="button"
-                  class="tbar-btn tbar-expand-btn"
-                  data-testid="context-expand-landscape-btn"
-                  title="在 252mm 横向宽幅弹窗中编辑此表格"
-                  @click="openActiveLandscapeTable()"
-                >展开编辑</button>
-              </div>
-              <div
-                v-if="selectedFigureImagePos() !== undefined"
-                class="tbar-group tbar-context"
-                role="group"
-                aria-label="图片尺寸"
-                data-testid="image-size-controls"
-              >
-                <span class="tbar-label">图片尺寸</span>
-                <button type="button" class="tbar-btn" @mousedown.prevent @click="resizeSelectedFigure('half')">半版宽</button>
-                <button type="button" class="tbar-btn" @mousedown.prevent @click="resizeSelectedFigure('full')">通栏</button>
-                <button type="button" class="tbar-btn" @mousedown.prevent @click="resizeSelectedFigure('reset')">恢复默认</button>
-              </div>
-              <div
-                v-if="activeAppendixPos() !== undefined"
-                class="tbar-group tbar-context tbar-context-section"
-                aria-label="附录版面方向"
-                data-testid="appendix-orientation"
-              >
-                <span class="tbar-label" title="控制整个附录的导出页面方向（仅用于 PDF/HTML 与 DOCX，不支持 XML）">整篇附录</span>
-                <button
-                  class="tbar-btn"
-                  :class="{ 'is-active': activeAppendixOrientation() === 'portrait' }"
-                  title="整个附录排在纵向页面上"
-                  @click="setActiveAppendixOrientation('portrait')"
-                >纵向</button>
-                <button
-                  class="tbar-btn"
-                  :class="{ 'is-active': activeAppendixOrientation() === 'landscape' }"
-                  title="整个附录（编号、标题、引导文字和图表）从横向页面起排；仅用于 PDF/HTML 与 DOCX，XML 无法表达附录方向"
-                  @click="setActiveAppendixOrientation('landscape')"
-                >横向</button>
-                <span
-                  v-if="activeAppendixOrientation() === 'landscape'"
-                  class="tbar-context-hint"
-                  title="整节横向仅用于 PDF/HTML 与 DOCX；如需导出 XML 请改回纵向"
-                >仅PDF/DOCX</span>
-              </div>
+      <StandardEditorToolbar :core="editorCore" :disabled="documentUnavailable" />
+      <StandardEditorCanvas :core="editorCore" :disabled="documentUnavailable">
+        <template #sidebar>
+          <transition name="slide-right">
+            <div class="version-sidebar" data-testid="version-sidebar" v-if="showVersionPanel">
+              <VersionPanel
+                :document-id="documentId"
+                :get-content="getEditorContent"
+                :get-doc="getEditorDoc"
+                :set-content="setEditorContent"
+                :read-only="documentUnavailable"
+                @close="showVersionPanel = false"
+                @conflict="enterSaveConflict('version-save')"
+              />
             </div>
-            <TableFloatingPanel
-              v-if="isInTable"
-              :in-cell="isInTableCell"
-              :is-landscape="isActiveTableLandscape"
-              :can-merge-cells="canMergeCells"
-              :can-split-cell="canSplitCell"
-              :can-delete-footnote-ref="canDeleteTableFootnoteRef"
-              :auto-collapse="tablePanelAutoCollapse"
-              @command="handleTableCommand"
-            />
-          </div>
-          <SesEditorContent :editor="editor" />
-        </div>
-        <transition name="slide-right">
-          <div class="version-sidebar" data-testid="version-sidebar" v-if="showVersionPanel">
-            <VersionPanel
-              :document-id="documentId"
-              :get-content="getEditorContent"
-              :get-doc="getEditorDoc"
-              :set-content="setEditorContent"
-              :read-only="documentUnavailable"
-              @close="showVersionPanel = false"
-              @conflict="enterSaveConflict('version-save')"
-            />
-          </div>
-        </transition>
-        <transition name="slide-right">
-          <div class="version-sidebar validation-sidebar" v-if="showValidationPanel">
-            <ValidationPanel
-              :state="validation.state.value"
-              :report="validation.report.value"
-              :conversion="validation.conversion.value"
-              :anchors="validation.anchors.value"
-              :error="validation.error.value"
-              :can-run="validationCanRun"
-              @run="handleManualValidation"
-              @locate="validation.locate"
-              @close="showValidationPanel = false"
-            />
-          </div>
-        </transition>
-      </div>
-
-      <!-- Slash command (mounted globally) -->
-      <SlashMenu v-if="!documentUnavailable" @execute="handleSlashCommand" />
+          </transition>
+          <transition name="slide-right">
+            <div class="version-sidebar validation-sidebar" v-if="showValidationPanel">
+              <ValidationPanel
+                :state="validation.state.value"
+                :report="validation.report.value"
+                :conversion="validation.conversion.value"
+                :anchors="validation.anchors.value"
+                :error="validation.error.value"
+                :can-run="validationCanRun"
+                @run="handleManualValidation"
+                @locate="validation.locate"
+                @close="showValidationPanel = false"
+              />
+            </div>
+          </transition>
+        </template>
+      </StandardEditorCanvas>
     </template>
 
     <!-- Keep the independent settings draft mounted while switching tabs. -->
@@ -578,90 +325,6 @@
         >重新加载</el-button>
       </template>
     </el-dialog>
-
-    <el-dialog
-      v-model="showFootnoteDialog"
-      :title="footnoteDialogTitle"
-      width="560px"
-      destroy-on-close
-      @closed="clearFootnoteDialog"
-    >
-      <div :inert="documentUnavailable">
-      <template v-if="footnoteDialogMode === 'table-reference'">
-        <el-form label-width="92px">
-          <el-form-item label="表脚注">
-          <el-select v-model="selectedTableFootnoteId" :disabled="documentUnavailable" placeholder="选择本表已有脚注" style="width: 100%">
-              <el-option
-                v-for="item in tableFootnoteOptions"
-                :key="item.id"
-                :label="`${item.label} ${item.text}`"
-                :value="item.id"
-              />
-            </el-select>
-          </el-form-item>
-        </el-form>
-      </template>
-      <template v-else>
-        <el-input
-          v-model="footnoteText"
-          :disabled="documentUnavailable"
-          type="textarea"
-          :rows="6"
-          :placeholder="footnoteDialogMode === 'body-new' ? '输入脚注正文' : '输入表脚注正文'"
-          maxlength="2000"
-          show-word-limit
-        />
-        <p v-if="footnoteDialogMode === 'body-new' || footnoteDialogMode === 'body-edit'" class="footnote-dialog-hint">
-          条文脚注仅提供附加信息，不应包含要求型或推荐型条款（GB/T 1.1—2020 9.12.1）。编号由前言起按全文顺序生成。
-        </p>
-        <p v-else class="footnote-dialog-hint">
-          表脚注可包含要求型条款；同一表脚注可多次引用（GB/T 1.1—2020 9.12.2）。编号按本表首次引用顺序生成。
-        </p>
-      </template>
-      </div>
-      <template #footer>
-        <el-button @click="showFootnoteDialog = false">取消</el-button>
-        <el-button
-          v-if="footnoteDialogMode === 'table-edit'"
-          type="danger"
-          plain
-          :disabled="documentUnavailable"
-          @click="deleteTableFootnoteDefinition"
-        >删除表脚注定义</el-button>
-        <el-button
-          v-if="footnoteDialogMode === 'body-edit'"
-          type="danger"
-          plain
-          :disabled="documentUnavailable"
-          @click="deleteBodyFootnote"
-        >删除脚注</el-button>
-        <el-button type="primary" :disabled="documentUnavailable" @click="saveFootnoteDialog">确定</el-button>
-      </template>
-    </el-dialog>
-
-    <WhereConversionDialog
-      v-model="showWhereConversion"
-      :rows="whereConversion?.rows ?? []"
-      @confirm="applyWhereConversion"
-    />
-
-    <MathInputDialog
-      v-model="showMathDialog"
-      :initial-latex="mathDialogLatex"
-      :title="mathDialogTitle"
-      :display-mode="mathDialogDisplayMode"
-      @confirm="handleMathConfirm"
-    />
-
-    <LandscapeTableDialog
-      ref="landscapeDialogRef"
-      v-model="showLandscapeDialog"
-      :table-json="landscapeDialogTableJson"
-      :table-label="landscapeDialogTableLabel"
-      :before-apply="canApplyLandscapeDialog"
-      @apply="handleLandscapeDialogApply"
-      @request-table-footnote="openTableFootnoteDialog"
-    />
   </div>
 </template>
 
@@ -670,16 +333,16 @@
 import { getDocxExportFeedback } from '@/utils/docxExportFeedback'
 import { exportErrorViewOf, exportErrorViewOfText, type ExportErrorView } from '@/utils/exportErrorView'
 import { formatXmlProblems } from '@/utils/xmlProblems'
-import { createDefaultDocumentContent, createDefaultForeword } from '@/utils/newDocument'
+import { createDefaultDocumentContent } from '@/utils/newDocument'
 import {
   COVER_SETTINGS_KEYS,
+  cloneDocumentSettingsDraft,
   documentMetaFromSettingsDraft,
   documentSettingsDraftFromDocument,
+  sameDocumentSettingsDraft,
   synchronizeCoverMetadata,
   type DocumentSettingsDraft,
 } from '@/utils/documentSettings'
-import { insertParagraphAfterTable, setClauseFormat, setListFormat, setParagraphFormat, structureFailureMessage, type StructureAction, type StructureResult } from '@/utils/structureEditing'
-import { listNumberingMessage, setListNumbering, type ListNumberingMode } from '@/utils/listNumbering'
 import { countLegacyUntitledClauses } from '@/utils/untitledClause'
 import { createDocumentDuplicate } from '@/utils/duplicateDocument'
 import { isRevisionConflict } from '@/utils/documentConflict'
@@ -693,72 +356,30 @@ import {
   type ExternalCause,
 } from '@/utils/externalChange'
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { NodeSelection, TextSelection } from '@tiptap/pm/state'
-import type { Node as PMNode } from '@tiptap/pm/model'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-// Underline is included in StarterKit (tiptap v3)
-import { Plus, Search, RefreshLeft, RefreshRight, ArrowDown as ArrowDownIcon, Clock, Download, WarningFilled, Upload, CircleCheck, QuestionFilled, Memo, DArrowLeft } from '@element-plus/icons-vue'
+import { Clock, Download, WarningFilled, Upload, CircleCheck, QuestionFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { documentApi, type DocumentData, type SesVersionScope } from '@/api/document'
 import { useDocumentStore } from '@/stores/document'
 import { useVersionStore } from '@/stores/version'
-import SesEditorContent from '@/components/editor/EditorContent.vue'
-import TableFloatingPanel, { type TablePanelCommand } from '@/components/editor/TableFloatingPanel.vue'
-import ReferenceControl from '@/components/editor/ReferenceControl.vue'
-import SourceControl from '@/components/editor/SourceControl.vue'
 import SesLogo from '@/components/SesLogo.vue'
-import DocumentOutline from '@/components/editor/DocumentOutline.vue'
 import DocumentSettingsPanel from '@/components/editor/DocumentSettingsPanel.vue'
-import SlashMenu from '@/components/editor/SlashMenu.vue'
-import MathInputDialog from '@/components/editor/MathInputDialog.vue'
-import WhereConversionDialog from '@/components/editor/WhereConversionDialog.vue'
-import LandscapeTableDialog from '@/components/editor/LandscapeTableDialog.vue'
-import { convertLegacyWhereDescription, type WhereConversionRow } from '@/utils/whereListConversion'
+import StandardEditorToolbar from '@/components/editor/StandardEditorToolbar.vue'
+import StandardEditorCanvas from '@/components/editor/StandardEditorCanvas.vue'
 import VersionPanel from '@/components/version/VersionPanel.vue'
 import ValidationPanel from '@/components/editor/ValidationPanel.vue'
+import { useStandardEditorCore } from '@/composables/useStandardEditorCore'
 
-import { useEditor } from '@tiptap/vue-3'
 import { installRemoteDocument, replaceEditorDocument } from '@/utils/editorDocument'
-import {
-  captureImageTarget,
-  applyImageTarget,
-  selectLocalImage,
-  handleEmptyImageClick,
-  handleEmptyImageKeydown,
-} from '@/utils/imagePicker'
-import { setFigureSizePreset, type FigureSizePreset } from '@/utils/figureSize'
-import { createEditorExtensions } from '@/extensions/editorExtensions'
-import { normalizePageOrientation } from '@/utils/orientation'
-import {
-  EXPAND_LANDSCAPE_TABLE_EVENT,
-  buildActiveTableAutoWidthTransaction,
-  buildActiveTableEvenWidthTransaction,
-  buildMergedStdTableNode,
-  findActiveStdTableLocation,
-  findStdTableByTarget,
-  isEffectiveLandscapeStdTable,
-  type ExpandLandscapeTableDetail,
-} from '@/utils/landscapeTable'
-import { resolveEditorLabels } from '@/utils/semanticLabels'
-import { SearchHighlight, clearSearch, getSearchState, scrollToCurrentSearchMatch, stepSearch } from '@/extensions/plugins/searchHighlight'
 import { createDocumentValidationExtension } from '@/extensions/plugins/documentValidation'
 import { useDocumentValidation } from '@/composables/useDocumentValidation'
 import { hasNodeIdIssues, normalizeNodeIds } from '@/extensions/plugins/ensureNodeId'
-import { canInsertBodyFootnote } from '@/extensions/nodes/footnotes'
-import { BLOCK_FORMULA_EVENT, type BlockFormulaRequest } from '@/extensions/nodes/formula'
-import {
-  formulaHasLegacyDescription, selectedFormula,
-} from '@/extensions/plugins/whereListEditing'
-import {
-  canInsertInlineFormula, INLINE_FORMULA_EVENT, sameInlineLocation, type InlineFormulaRequest,
-} from '@/extensions/plugins/inlineFormulaEditing'
-import { getTableFootnoteEntries } from '@/extensions/nodes/std-table'
 import {
   prepareXmlImportDocumentUpdate,
   exportSemanticJson, exportSemanticHtml,
   buildDocxBlob,
 } from '@/serializer'
-import { PDF_EXPORT_ENABLED, irMetaFromDocumentMeta, type DocumentMeta, type IRDocMeta, type PMJsonNode } from '@ses/shared'
+import { PDF_EXPORT_ENABLED, irMetaFromDocumentMeta, metadataLines, type DocumentMeta, type IRDocMeta, type PMJsonNode } from '@ses/shared'
 import {
   buildXml46687Package,
   checkExportGuard,
@@ -800,12 +421,10 @@ const conflictDetail = computed(() => {
   return [externalConflictCauseSentence(conflict?.cause), bySource].filter(Boolean).join('')
 })
 const settingsDraft = ref<DocumentSettingsDraft | null>(null)
-const settingsBaseline = ref('')
+const settingsBaseline = ref<DocumentSettingsDraft | null>(null)
 const settingsSaveError = ref(false)
-const settingsDirty = computed(() => Boolean(settingsDraft.value)
-  && JSON.stringify(settingsDraft.value) !== settingsBaseline.value)
-const searchText = ref('')
-const searchStatus = ref('')
+const settingsDirty = computed(() => Boolean(settingsDraft.value && settingsBaseline.value)
+  && !sameDocumentSettingsDraft(settingsDraft.value!, settingsBaseline.value!))
 const showXmlCode = ref(false)
 const showHelp = ref(false)
 const showExport = ref(false)
@@ -817,8 +436,6 @@ const codeViewFormat = ref<'xml' | 'json' | 'html' | 'raw'>('xml')
 const xmlFileInput = ref<HTMLInputElement | null>(null)
 const showVersionPanel = ref(false)
 const showValidationPanel = ref(false)
-/** 文档结构面板：窄屏默认收起，把宽度留给正文 */
-const showOutline = ref(typeof window === 'undefined' || window.innerWidth > 960)
 const documentId = computed(() => Number(route.params.id))
 const documentUnavailable = computed(() => store.isDocumentUnavailable(documentId.value))
 const unavailableMessage = ref('文档已移入回收站或当前页面已失效。')
@@ -826,21 +443,6 @@ const exportingFormat = ref<'docx' | 'pdf' | 'xml' | 'ses' | null>(null)
 /** 导出对话框中的错误提示：概述一行；导出被阻止时另有逐条明细（每条一行），其他导出错误没有明细。 */
 const exportError = ref('')
 const exportErrorItems = ref<string[]>([])
-type FootnoteDialogMode = 'body-new' | 'body-edit' | 'table-new' | 'table-edit' | 'table-reference' | null
-const showFootnoteDialog = ref(false)
-const footnoteDialogMode = ref<FootnoteDialogMode>(null)
-const footnoteDialogTitle = computed(() => ({
-  'body-new': '插入脚注',
-  'body-edit': '编辑脚注',
-  'table-new': '添加表脚注',
-  'table-edit': '编辑表脚注',
-  'table-reference': '引用已有表脚注',
-}[footnoteDialogMode.value || 'body-new']))
-const footnoteText = ref('')
-const footnoteNodeId = ref('')
-const footnoteOriginalContent = ref<PMJsonNode[]>([])
-const selectedTableFootnoteId = ref('')
-const tableFootnoteOptions = ref<Array<{ id: string; label: string; text: string }>>([])
 /** 出件能力（服务端探测）：htmlToPdf=Vivliostyle 管线 */
 const capabilities = ref<{ htmlToPdf: boolean }>({
   htmlToPdf: false,
@@ -850,7 +452,6 @@ let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 const dirty = ref(false)
 const contentReady = ref(false)
 let importingXml = false
-let suppressEditorUpdate = false
 let bodyChangeVersion = 0
 let bodySavePromise: Promise<boolean> | null = null
 
@@ -882,139 +483,15 @@ function enterSaveConflict(source: SaveConflictSource, cause?: ExternalCause) {
   conflictDialogVisible.value = true
 }
 
-function activeOrientationNodeType(): 'figure' | 'stdTable' | undefined {
-  const currentEditor = editor.value
-  if (!currentEditor) return undefined
-
-  const selection = currentEditor.state.selection
-  if (selection instanceof NodeSelection) {
-    if (selection.node.type.name === 'figure' || selection.node.type.name === 'stdTable') {
-      return selection.node.type.name
-    }
-  }
-
-  for (let depth = selection.$from.depth; depth >= 0; depth -= 1) {
-    const nodeType = selection.$from.node(depth).type.name
-    if (nodeType === 'figure' || nodeType === 'stdTable') return nodeType
-  }
-  return undefined
-}
-
-/** Only an explicitly selected, nonempty figure image has size controls. */
-function selectedFigureImagePos(): number | undefined {
-  const ed = editor.value
-  const selection = ed?.state.selection
-  return ed?.isEditable && selection instanceof NodeSelection && selection.node.type.name === 'figureImage' && selection.node.attrs.src
-    ? selection.from : undefined
-}
-
-function resizeSelectedFigure(preset: FigureSizePreset) {
-  const ed = editor.value
-  const pos = selectedFigureImagePos()
-  if (ed && pos !== undefined) setFigureSizePreset(ed.view, pos, preset)
-}
-
-/** 光标所在附录的位置（#75 附录整体横页）；不在附录内时为 undefined。 */
-function activeAppendixPos(): number | undefined {
-  const currentEditor = editor.value
-  if (!currentEditor) return undefined
-  const { $from } = currentEditor.state.selection
-  for (let depth = $from.depth; depth > 0; depth -= 1) {
-    if ($from.node(depth).type.name === 'appendix') return $from.before(depth)
-  }
-  const selected = currentEditor.state.selection instanceof NodeSelection ? currentEditor.state.selection.node : null
-  return selected?.type.name === 'appendix' ? currentEditor.state.selection.from : undefined
-}
-
-function activeAppendixOrientation(): 'portrait' | 'landscape' | undefined {
-  const pos = activeAppendixPos()
-  if (pos === undefined || !editor.value) return undefined
-  return normalizePageOrientation(editor.value.state.doc.nodeAt(pos)?.attrs.orientation)
-}
-
-function setActiveAppendixOrientation(orientation: 'portrait' | 'landscape') {
-  const currentEditor = editor.value
-  const pos = activeAppendixPos()
-  if (!currentEditor || pos === undefined || activeAppendixOrientation() === orientation) return
-  // 纵向存为 null（缺省值），与未设置的旧文档完全一致。
-  currentEditor.chain().focus().command(({ tr }) => {
-    tr.setNodeAttribute(pos, 'orientation', orientation === 'landscape' ? 'landscape' : null)
-    return true
-  }).run()
-}
-
-function isOrientationLockedByAppendix(): boolean {
-  return Boolean(activeOrientationNodeType() && activeAppendixOrientation() === 'landscape')
-}
-
-function activeOrientationShortLabel(): string {
-  return activeOrientationNodeType() === 'figure' ? '当前图' : '当前表'
-}
-
-function activeOrientationLabel(): string {
-  return activeOrientationNodeType() === 'figure' ? '当前图版面方向' : '当前表版面方向'
-}
-
-function orientationLockedHint(): string {
-  const target = activeOrientationNodeType() === 'figure' ? '图' : '表'
-  return `当前附录已设为整节横排，内部图表统一按横向排版（仅 PDF/HTML 与 DOCX 生效）；如需仅此${target}横排，请先将整篇附录切回纵向`
-}
-
-function orientationButtonTitle(orientation: 'portrait' | 'landscape'): string {
-  if (isOrientationLockedByAppendix()) return orientationLockedHint()
-  const target = activeOrientationNodeType() === 'figure' ? '图' : '表'
-  return orientation === 'landscape'
-    ? `将当前${target}设为横向页面`
-    : `将当前${target}设为纵向页面`
-}
-
-function isActivePageOrientation(orientation: 'portrait' | 'landscape'): boolean {
-  const nodeType = activeOrientationNodeType()
-  const currentEditor = editor.value
-  if (!nodeType || !currentEditor) return false
-  if (isOrientationLockedByAppendix()) return orientation === 'landscape'
-  return normalizePageOrientation(currentEditor.getAttributes(nodeType).orientation) === orientation
-}
-
-function setActivePageOrientation(orientation: 'portrait' | 'landscape') {
-  if (isOrientationLockedByAppendix()) return
-  const nodeType = activeOrientationNodeType()
-  if (nodeType) editor.value?.chain().focus().updateAttributes(nodeType, { orientation }).run()
-}
-
-const docRevision = ref(0)
-
-const editor = useEditor({
-  extensions: [...createEditorExtensions(), createDocumentValidationExtension(), SearchHighlight],
-  content: '',
-  onTransaction() {
-    docRevision.value += 1
-    syncSearchStatus()
-  },
-  onUpdate() {
-    if (!suppressEditorUpdate) scheduleAutoSave()
-  },
-  editorProps: {
-    handleClickOn(view, _pos, node, nodePos, _event, direct) {
-      return handleEmptyImageClick(view, node, nodePos, direct, (pos) => {
-        void handleInsertFigure(pos)
-      })
-    },
-    handleKeyDown(view, event) {
-      if (handleEmptyImageKeydown(view, event, (pos) => {
-        void handleInsertFigure(pos)
-      })) {
-        return true
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key === 's') {
-        event.preventDefault()
-        if (!showLandscapeDialog.value) handleSave()
-        return true
-      }
-      return false
-    },
-  },
+const editorCore = useStandardEditorCore({
+  extraExtensions: [createDocumentValidationExtension()],
+  onUpdate: scheduleAutoSave,
+  onSaveShortcut: () => { void handleSave() },
+  getForewordMeta: () => store.currentDocument?.meta,
+  getUnavailable: () => documentUnavailable.value,
+  getResourceKey: () => documentId.value,
 })
+const { editor, docRevision, hasUnappliedLandscapeEdits, setSuppressUpdate } = editorCore
 
 const validation = useDocumentValidation({
   editor,
@@ -1050,7 +527,7 @@ function toggleValidationPanel() {
 function hydrateSettingsDraft(document = store.currentDocument) {
   if (!document) {
     settingsDraft.value = null
-    settingsBaseline.value = ''
+    settingsBaseline.value = null
     return
   }
   const draft = documentSettingsDraftFromDocument(document as {
@@ -1060,7 +537,7 @@ function hydrateSettingsDraft(document = store.currentDocument) {
     content: Record<string, unknown>
   })
   settingsDraft.value = draft
-  settingsBaseline.value = JSON.stringify(draft)
+  settingsBaseline.value = cloneDocumentSettingsDraft(draft)
   settingsSaveError.value = false
 }
 
@@ -1070,19 +547,21 @@ function resetSettingsDraft() {
   ElMessage.success('已恢复为最近一次保存的设置')
 }
 
-/** Update just the cover attributes so body nodes, selection and undo history stay intact. */
-function synchronizeEditorCover(meta: DocumentMeta): Record<string, unknown> {
+/** Update the cover and edited metadata while retaining the body, selection and undo history. */
+function synchronizeEditorCover(meta: DocumentMeta, edited: { standardNo?: boolean; issuer?: boolean } = {}): Record<string, unknown> {
   const currentEditor = editor.value
   if (!currentEditor) return {}
-  const synchronizedJson = synchronizeCoverMetadata(currentEditor.getJSON(), meta)
+  const synchronizedJson = synchronizeCoverMetadata(currentEditor.getJSON(), meta, edited)
   const synchronizedDoc = currentEditor.schema.nodeFromJSON(synchronizedJson)
   const state = currentEditor.state
   const transaction = state.tr
   let coverPosition = -1
+  let metadataPosition = -1
   state.doc.forEach((node, position) => {
     if (coverPosition < 0 && node.type.name === 'coverPage') {
       coverPosition = position
     }
+    if (metadataPosition < 0 && node.type.name === 'metadataBlock') metadataPosition = position
   })
 
   const nextCoverIndex = synchronizedDoc.content.content.findIndex((node) => node.type.name === 'coverPage')
@@ -1094,20 +573,34 @@ function synchronizeEditorCover(meta: DocumentMeta): Record<string, unknown> {
     transaction.insert(0, nextCover)
   }
 
-  for (const key of COVER_SETTINGS_KEYS) {
+  if ((edited.standardNo || edited.issuer) && metadataPosition >= 0) {
+    const nextMetadata = synchronizedDoc.content.content.find((node) => node.type.name === 'metadataBlock')
+    const currentMetadata = state.doc.nodeAt(metadataPosition)
+    if (nextMetadata && currentMetadata && !nextMetadata.eq(currentMetadata)) {
+      const from = transaction.mapping.map(metadataPosition)
+      transaction.replaceWith(from, from + currentMetadata.nodeSize, nextMetadata)
+    }
+  }
+
+  const rootKeys: readonly string[] = [
+    ...COVER_SETTINGS_KEYS,
+    ...(edited.standardNo ? ['identifiers'] : []),
+    ...(edited.issuer ? ['publishers'] : []),
+  ]
+  for (const key of rootKeys) {
     if (Object.prototype.hasOwnProperty.call(state.doc.attrs, key)
-      && state.doc.attrs[key] !== synchronizedDoc.attrs[key]) {
+      && JSON.stringify(state.doc.attrs[key]) !== JSON.stringify(synchronizedDoc.attrs[key])) {
       transaction.setDocAttribute(key, synchronizedDoc.attrs[key])
     }
   }
 
   if (transaction.docChanged) {
     transaction.setMeta('addToHistory', false)
-    suppressEditorUpdate = true
+    setSuppressUpdate(true)
     try {
       currentEditor.view.dispatch(transaction)
     } finally {
-      suppressEditorUpdate = false
+      setSuppressUpdate(false)
     }
   }
   return synchronizeCoverMetadata(currentEditor.getJSON(), meta)
@@ -1151,13 +644,18 @@ async function handleSettingsSave() {
 
   const draftSnapshot = { ...draft, titleCn: title }
   const meta = documentMetaFromSettingsDraft(currentDocument.meta, draftSnapshot)
+  const baseline = settingsBaseline.value
+  const edited = {
+    standardNo: baseline !== null && meta.standardNo !== metadataLines(baseline.standardNo).join('\n'),
+    issuer: baseline !== null && meta.issuer !== metadataLines(baseline.issuer).join('\n'),
+  }
   clearAutoSaveTimer()
   persistenceOperation.value = 'settings-save'
   saving.value = true
   settingsSaveError.value = false
   const bodyVersionAtSave = bodyChangeVersion
   try {
-    const content = synchronizeCoverMetadata(currentEditor.getJSON(), meta)
+    const content = synchronizeCoverMetadata(currentEditor.getJSON(), meta, edited)
     // Validate the candidate against the live production schema without changing editor state.
     const validatedContent = currentEditor.schema.nodeFromJSON(content)
     validatedContent.check()
@@ -1167,8 +665,8 @@ async function handleSettingsSave() {
       stage: draftSnapshot.stage,
       content,
     })
-    // Apply only cover attributes after persistence succeeds; the request may have overlapped body edits.
-    synchronizeEditorCover(meta)
+    // Apply metadata after persistence succeeds because the request may have overlapped body edits.
+    synchronizeEditorCover(meta, edited)
     hydrateSettingsDraft(updated)
     if (bodyChangeVersion === bodyVersionAtSave) dirty.value = false
     else dirty.value = true
@@ -1279,12 +777,6 @@ const codeViewContent = computed(() => {
 })
 
 onMounted(async () => {
-  window.addEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
-  window.addEventListener(INLINE_FORMULA_EVENT, handleInlineFormulaEvent)
-  window.addEventListener('ses:edit-footnote', handleFootnoteEditEvent)
-  window.addEventListener(EXPAND_LANDSCAPE_TABLE_EVENT, handleExpandLandscapeTableEvent)
-  window.addEventListener('ses:paste-reference-error', handleAmbiguousPasteReference)
-  window.addEventListener('ses:reference-missing', handleMissingReference)
   window.addEventListener('beforeunload', guardUnsavedSettings)
   const id = Number(route.params.id)
   try {
@@ -1343,12 +835,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   finishSesScopeChoice(null)
-  window.removeEventListener('ses:request-footnote-dialog', openBodyFootnoteDialog)
-  window.removeEventListener(INLINE_FORMULA_EVENT, handleInlineFormulaEvent)
-  window.removeEventListener('ses:edit-footnote', handleFootnoteEditEvent)
-  window.removeEventListener(EXPAND_LANDSCAPE_TABLE_EVENT, handleExpandLandscapeTableEvent)
-  window.removeEventListener('ses:paste-reference-error', handleAmbiguousPasteReference)
-  window.removeEventListener('ses:reference-missing', handleMissingReference)
   window.removeEventListener('beforeunload', guardUnsavedSettings)
   changeSyncStopped = true
   changeSync?.stop()
@@ -1375,25 +861,10 @@ onBeforeUnmount(() => {
   editor.value?.destroy()
 })
 
-function hasUnappliedLandscapeEdits(): boolean {
-  return Boolean(showLandscapeDialog.value && landscapeDialogRef.value?.hasUnsavedChanges?.())
-}
-
 function guardUnsavedSettings(event: BeforeUnloadEvent) {
   if (!dirty.value && !settingsDirty.value && !hasUnappliedLandscapeEdits()) return
   event.preventDefault()
   event.returnValue = ''
-}
-
-function handleAmbiguousPasteReference(event: Event) {
-  const message = event instanceof CustomEvent && typeof event.detail?.message === 'string'
-    ? event.detail.message
-    : '粘贴内容含重复引用目标，无法确定关联，请先修正源内容'
-  ElMessage.error(message)
-}
-
-function handleMissingReference() {
-  ElMessage.warning('找不到被引用的内容，目标可能已删除；请重新选择引用目标')
 }
 
 onBeforeRouteLeave(async () => {
@@ -1601,7 +1072,7 @@ async function handleConflictSaveAsCopy() {
     conflictDialogVisible.value = false
     dirty.value = false
     clearAutoSaveTimer()
-    if (settingsDraft.value) settingsBaseline.value = JSON.stringify(settingsDraft.value)
+    if (settingsDraft.value) settingsBaseline.value = cloneDocumentSettingsDraft(settingsDraft.value)
     // 进入副本的编辑器（App.vue 的 router-view 以路径为 key，会重建编辑器页面）。
     void router.push({ name: 'editor', params: { id: copy.id! } })
   } catch (error) {
@@ -1793,1069 +1264,12 @@ function goHome() {
   router.push('/')
 }
 
-// === 左侧 "+" 按钮：插入章节结构 ===
-/**
- * 查找文档中各结构元素的位置，用于智能插入
- */
-function findStructurePositions() {
-  if (!editor.value) return null
-  const doc = editor.value.state.doc
-  let firstChapterPos = -1
-  let lastChapterEnd = -1
-  let lastAppendixEnd = -1
-  let hasForeword = false
-  let hasIntroduction = false
-  let hasBibliography = false
-  let forewordEnd = -1
-
-  doc.forEach((node, offset) => {
-    const name = node.type.name
-    if (name === 'foreword') {
-      hasForeword = true
-      forewordEnd = offset + node.nodeSize
-    } else if (name === 'introduction') {
-      hasIntroduction = true
-    } else if (name === 'chapter') {
-      if (firstChapterPos === -1) firstChapterPos = offset
-      lastChapterEnd = offset + node.nodeSize
-    } else if (name === 'appendix') {
-      lastAppendixEnd = offset + node.nodeSize
-    } else if (name === 'bibliography') {
-      hasBibliography = true
-    }
-  })
-
-  return { firstChapterPos, lastChapterEnd, lastAppendixEnd, hasForeword, hasIntroduction, hasBibliography, forewordEnd }
-}
-
-function handleAddStructure(command: string) {
-  if (!editor.value) return
-  const pos = findStructurePositions()
-  if (!pos) return
-
-  switch (command) {
-    case 'foreword':
-      if (pos.hasForeword) {
-        ElMessage.warning('前言已存在')
-        return
-      }
-      // 隐藏封面保持最前；新前言与新建模板一致。
-      {
-        const cover = editor.value.state.doc.firstChild
-        const insertAt = cover?.type.name === 'coverPage' ? cover.nodeSize : 0
-        editor.value.chain().focus().insertContentAt(insertAt, createDefaultForeword(store.currentDocument?.meta)).run()
-      }
-      break
-    case 'introduction':
-      if (pos.hasIntroduction) {
-        ElMessage.warning('引言已存在')
-        return
-      }
-      // 引言插入在前言之后、第一章之前
-      {
-        const insertAt = pos.forewordEnd > 0 ? pos.forewordEnd : (pos.firstChapterPos > 0 ? pos.firstChapterPos : 0)
-        editor.value.chain().focus().insertContentAt(insertAt, {
-          type: 'introduction',
-          content: [{ type: 'paragraph' }],
-        }).run()
-      }
-      break
-    case 'chapter':
-      // 章插入到最后一章之后（附录之前）
-      {
-        const insertAt = pos.lastChapterEnd > 0 ? pos.lastChapterEnd : editor.value.state.doc.content.size
-        editor.value.chain().focus().insertContentAt(insertAt, {
-          type: 'chapter',
-          content: [
-            { type: 'chapterTitle' },
-            { type: 'stdParagraph' },
-          ],
-        }).setTextSelection(insertAt + 2).scrollIntoView().run()
-      }
-      break
-    case 'appendixNorm':
-    case 'appendixInfo':
-      // 附录插入到最后一个附录之后，或最后一章之后
-      {
-        const insertAt = pos.lastAppendixEnd > 0 ? pos.lastAppendixEnd : (pos.lastChapterEnd > 0 ? pos.lastChapterEnd : editor.value.state.doc.content.size)
-        const isNorm = command === 'appendixNorm'
-        editor.value.chain().focus().insertContentAt(insertAt, {
-          type: 'appendix',
-          attrs: { normative: isNorm },
-          content: [
-            { type: 'appendixLabel', content: [{ type: 'text', text: isNorm ? '（规范性）' : '（资料性）' }] },
-            { type: 'appendixTitle' },
-            { type: 'stdParagraph' },
-          ],
-        }).setTextSelection(insertAt + 2 + (isNorm ? '（规范性）'.length : '（资料性）'.length) + 2).run()
-      }
-      break
-    case 'bibliography':
-      if (pos.hasBibliography) {
-        ElMessage.warning('参考文献已存在')
-        return
-      }
-      // 参考文献插入到文档末尾
-      editor.value.chain().focus().insertContentAt(editor.value.state.doc.content.size, {
-        type: 'bibliography',
-        content: [
-          { type: 'bibliographyTitle', content: [{ type: 'text', text: '参考文献' }] },
-          { type: 'bibEntry' },
-        ],
-      }).run()
-      break
-  }
-}
-
-// isInsideChapterOrClause / findInsertPosInChapterOrClause removed (unused)
-
-// === 获取插入位置（如果光标在空段落中，返回替换范围；否则返回插入点） ===
-function getInsertRange(): { from: number; to: number } | null {
-  if (!editor.value) return null
-  const { $from } = editor.value.state.selection
-  // 检查光标是否在空的 stdParagraph 中
-  if ($from.parent.type.name === 'stdParagraph' && $from.parent.textContent === '') {
-    for (let d = $from.depth; d > 0; d--) {
-      if ($from.node(d).type.name === 'stdParagraph') {
-        return { from: $from.before(d), to: $from.after(d) }
-      }
-    }
-  }
-  // 否则，在当前块之后插入
-  const insertPos = getInsertAfterCurrentBlock()
-  if (insertPos === null) return null
-  return { from: insertPos, to: insertPos }
-}
-
-// === 工具栏：条 ===
-/** 结构格式命令失败时按原因码给出不同提示（缺少上级、跳级、悬置段落、无题条分条、位置不允许……）。 */
-function warnStructureFailure(result: StructureResult, action: StructureAction = 'clause') {
-  if (!result.ok) ElMessage.warning(structureFailureMessage(result.reason, action))
-}
-
-function handleInsertClause(level: string) {
-  if (editor.value) warnStructureFailure(setClauseFormat(editor.value, Number(level)))
-}
-
-function handleInsertClauseNoTitle(level: string) {
-  if (editor.value) warnStructureFailure(setClauseFormat(editor.value, Number(level), false))
-}
-
 /** 旧稿的无题条（条文放在 clauseTitle）已由编辑器规范化为 IR 模型：需要持久化，并告知用户。 */
 function noteLegacyUntitledClauses(count: number) {
   if (count <= 0) return
   scheduleAutoSave()
   ElMessage.info(`已将 ${count} 处无题条的条文移入正文段`)
 }
-
-// === 右侧表格浮窗状态 ===
-const isInTable = computed(() => {
-  void docRevision.value
-  const ed = editor.value
-  return Boolean(ed && (ed.isActive('stdTable') || ed.isActive('table')))
-})
-
-const isInTableCell = computed(() => {
-  void docRevision.value
-  const ed = editor.value
-  return Boolean(ed && (ed.isActive('tableCell') || ed.isActive('tableHeader')))
-})
-
-const isActiveTableLandscape = computed(() => {
-  void docRevision.value
-  return activeLandscapeStdTable() !== null
-})
-
-const canMergeCells = computed(() => {
-  void docRevision.value
-  return Boolean(editor.value?.can().mergeCells())
-})
-
-const canSplitCell = computed(() => {
-  void docRevision.value
-  return Boolean(editor.value?.can().splitCell())
-})
-
-const canDeleteTableFootnoteRef = computed(() => {
-  void docRevision.value
-  return Boolean(editor.value?.can().deleteSelectedTableFootnoteRef())
-})
-
-const hasContextRow = computed(() => {
-  void docRevision.value
-  return Boolean(
-    cursorInFormula.value
-    || activeOrientationNodeType()
-    || selectedFigureImagePos() !== undefined
-    || activeAppendixPos() !== undefined,
-  )
-})
-
-const hasContextShelf = computed(() => hasContextRow.value || isInTable.value)
-
-// 居中纸面可编辑表宽 666px，右侧浮窗 204px + 16px 边距 + 15px 间距要求画布宽度至少 1136px；
-// 空间不足（窄屏或打开右侧版本/质检侧栏）时自动收起浮窗为胶囊，避免遮挡右侧单元格并拦截点击。
-const TABLE_PANEL_MIN_CANVAS_WIDTH = 1136
-const edMainRef = ref<HTMLElement | null>(null)
-const edMainWidth = ref(0)
-const tablePanelAutoCollapse = computed(() => edMainWidth.value > 0 && edMainWidth.value < TABLE_PANEL_MIN_CANVAS_WIDTH)
-
-watch(edMainRef, (el, _prev, onCleanup) => {
-  if (!el) {
-    edMainWidth.value = 0
-    return
-  }
-  const syncWidth = () => {
-    edMainWidth.value = el.clientWidth
-  }
-  syncWidth()
-  if (typeof ResizeObserver !== 'undefined') {
-    const observer = new ResizeObserver(syncWidth)
-    observer.observe(el)
-    onCleanup(() => observer.disconnect())
-  } else if (typeof window !== 'undefined') {
-    window.addEventListener('resize', syncWidth)
-    onCleanup(() => window.removeEventListener('resize', syncWidth))
-  }
-}, { immediate: true })
-
-// === 横页表格展开编辑弹窗 ===
-const showLandscapeDialog = ref(false)
-const landscapeDialogTableJson = ref<PMJsonNode | null>(null)
-const landscapeDialogTableLabel = ref('')
-const landscapeDialogTarget = ref<{ nodeId?: string; pos: number; openingSnapshot: string } | null>(null)
-const landscapeDialogRef = ref<{
-  getEditor: () => import('@tiptap/core').Editor | undefined
-  hasUnsavedChanges?: () => boolean
-} | null>(null)
-
-function activeEditor() {
-  if (showLandscapeDialog.value) {
-    return landscapeDialogRef.value?.getEditor() ?? editor.value
-  }
-  return editor.value
-}
-
-function activeLandscapeStdTable(): { node: PMNode; pos: number } | null {
-  const ed = editor.value
-  if (!ed) return null
-  const loc = findActiveStdTableLocation(ed.state)
-  if (!loc) return null
-  return isEffectiveLandscapeStdTable(ed.state.doc, loc.pos) ? loc : null
-}
-
-function openLandscapeTableDialogAt(target: { nodeId?: string; pos?: number }): void {
-  const ed = editor.value
-  if (!ed || documentUnavailable.value) return
-  const found = findStdTableByTarget(ed.state.doc, target)
-  if (!found || !isEffectiveLandscapeStdTable(ed.state.doc, found.pos)) return
-  const nodeId = typeof found.node.attrs.nodeId === 'string' && found.node.attrs.nodeId
-    ? found.node.attrs.nodeId
-    : undefined
-  let label = ''
-  try {
-    if (nodeId) {
-      const labels = resolveEditorLabels(ed.state.doc)
-      label = labels[nodeId]?.label ?? ''
-    }
-  } catch {
-    label = ''
-  }
-  const tableJson = found.node.toJSON() as PMJsonNode
-  landscapeDialogTarget.value = {
-    ...(nodeId ? { nodeId } : {}),
-    pos: found.pos,
-    openingSnapshot: JSON.stringify(tableJson),
-  }
-  landscapeDialogTableLabel.value = label
-  landscapeDialogTableJson.value = tableJson
-  showLandscapeDialog.value = true
-}
-
-function openActiveLandscapeTable(): void {
-  const active = activeLandscapeStdTable()
-  if (!active) {
-    ElMessage.warning('请将光标置于横向表格内')
-    return
-  }
-  const nodeId = typeof active.node.attrs.nodeId === 'string' && active.node.attrs.nodeId
-    ? active.node.attrs.nodeId
-    : undefined
-  openLandscapeTableDialogAt({ pos: active.pos, ...(nodeId ? { nodeId } : {}) })
-}
-
-function handleExpandLandscapeTableEvent(event: Event): void {
-  const detail = (event as CustomEvent<ExpandLandscapeTableDetail>).detail
-  if (!detail) return
-  openLandscapeTableDialogAt(detail)
-}
-
-watch(showLandscapeDialog, (open) => {
-  if (!open) {
-    landscapeDialogTarget.value = null
-    landscapeDialogTableJson.value = null
-    landscapeDialogTableLabel.value = ''
-  }
-})
-
-function resolveApplyableLandscapeTable(): { node: PMNode; pos: number } | null {
-  const ed = editor.value
-  const target = landscapeDialogTarget.value
-  if (!ed || !ed.isEditable || documentUnavailable.value || !target) return null
-  const found = findStdTableByTarget(ed.state.doc, target)
-  if (!found) {
-    ElMessage.warning('主文档中已找不到原表格，未能应用修改')
-    return null
-  }
-  // 弹窗打开期间该表格可能被外部修订、AI 修改或版本回滚更新：拒绝覆盖最新内容，避免静默丢失外部更改。
-  if (JSON.stringify(found.node.toJSON()) !== target.openingSnapshot) {
-    ElMessage.warning('该表格在弹窗打开期间已被更新，未覆盖最新内容；请复制需要的修改后取消并重新展开编辑')
-    return null
-  }
-  return found
-}
-
-function canApplyLandscapeDialog(): boolean {
-  return resolveApplyableLandscapeTable() !== null
-}
-
-function handleLandscapeDialogApply(modalDocJson: PMJsonNode): void {
-  const ed = editor.value
-  const found = resolveApplyableLandscapeTable()
-  if (!ed || !found) return
-  try {
-    const mergedNode = buildMergedStdTableNode(found.node, modalDocJson)
-    const tr = ed.state.tr.replaceWith(found.pos, found.pos + found.node.nodeSize, mergedNode)
-    const afterTablePos = found.pos + 1
-    if (afterTablePos <= tr.doc.content.size) {
-      tr.setSelection(TextSelection.near(tr.doc.resolve(afterTablePos)))
-    }
-    ed.view.dispatch(tr.scrollIntoView())
-    ed.view.focus()
-  } catch (error) {
-    ElMessage.error(`应用横页表格修改失败：${error instanceof Error ? error.message : String(error)}`)
-  }
-}
-
-type EditorTableCommand = TablePanelCommand | 'insert' | 'expandLandscape'
-
-function assertNeverTableCommand(command: never): never {
-  throw new Error(`Unhandled table command: ${String(command)}`)
-}
-
-function handleTableCommand(command: EditorTableCommand) {
-  if (!editor.value) return
-  const chain = editor.value.chain().focus()
-  switch (command) {
-    case 'insert': {
-      const pos = getInsertAfterCurrentBlockInSection()
-      if (pos === null) {
-        ElMessage.warning('请先将光标置于章、条、前言、引言或附录内部再插入表格（表格末尾可用「表后插段」或 Ctrl/Cmd+Enter 继续书写）')
-        break
-      }
-      editor.value.chain().focus().insertContentAt(pos, {
-        type: 'stdTable',
-        content: [
-          { type: 'tableCaption' },
-          { type: 'table', content: Array.from({ length: 3 }, (_, r) => ({
-            type: 'tableRow',
-            content: Array.from({ length: 3 }, () => ({
-              type: r === 0 ? 'tableHeader' : 'tableCell',
-              content: [{ type: 'paragraph' }],
-            })),
-          })) },
-        ],
-      }).run()
-      break
-    }
-    case 'evenColWidths': {
-      const tr = buildActiveTableEvenWidthTransaction(editor.value.state)
-      if (tr) {
-        editor.value.view.dispatch(tr)
-      }
-      editor.value.view.focus()
-      break
-    }
-    case 'autoColWidths': {
-      const tr = buildActiveTableAutoWidthTransaction(editor.value.state)
-      if (tr) {
-        editor.value.view.dispatch(tr)
-      }
-      editor.value.view.focus()
-      break
-    }
-    case 'paragraphAfter':
-      warnStructureFailure(insertParagraphAfterTable(editor.value), 'table')
-      break
-    case 'expandLandscape':
-      openActiveLandscapeTable()
-      break
-    case 'addRowBefore':
-      chain.addRowBefore().run()
-      break
-    case 'addRowAfter':
-      chain.addRowAfter().run()
-      break
-    case 'deleteRow':
-      chain.deleteRow().run()
-      break
-    case 'addColBefore':
-      chain.addColumnBefore().run()
-      break
-    case 'addColAfter':
-      chain.addColumnAfter().run()
-      break
-    case 'deleteCol':
-      chain.deleteColumn().run()
-      break
-    case 'mergeCells':
-      chain.mergeCells().run()
-      break
-    case 'splitCell':
-      chain.splitCell().run()
-      break
-    case 'deleteTable':
-      if (!chain.deleteTable().run()) ElMessage.warning('请将光标置于表格内或选中整张表格')
-      break
-    case 'addTableNote':
-      if (!chain.addTableNote().run()) ElMessage.warning('请将光标置于标准表格的单元格内')
-      break
-    case 'addTableFootnote':
-      openTableFootnoteDialog('table-new')
-      break
-    case 'referenceTableFootnote':
-      openTableFootnoteDialog('table-reference')
-      break
-    case 'deleteTableFootnoteRef':
-      if (!chain.deleteSelectedTableFootnoteRef().run()) ElMessage.warning('请先选中要删除的表脚注上标')
-      break
-    default:
-      assertNeverTableCommand(command)
-  }
-}
-
-// === 工具栏：列项 ===
-// 列项是格式命令：选中的列项/段落转为目标类型，空段落处保持插入新列表。
-function handleInsertList(listType: string) {
-  if (listType.startsWith('numbering:')) {
-    handleListNumbering(listType === 'numbering:continue' ? 'continue' : 'restart')
-    return
-  }
-  if (editor.value) warnStructureFailure(setListFormat(editor.value, listType), 'list')
-}
-
-// 列项编号：继续前一列项编号／重新编号（issue #70）。只改光标所在列表的设置，可撤销，随文档保存。
-function handleListNumbering(mode: ListNumberingMode) {
-  const e = editor.value
-  if (!e) return
-  const tr = e.state.tr
-  const result = setListNumbering(e.state, tr, mode)
-  if (result.ok && result.changed) {
-    e.view.dispatch(tr.scrollIntoView())
-    e.view.focus()
-  }
-  const message = listNumberingMessage(result, mode)
-  if (result.ok) ElMessage.success(message)
-  else ElMessage.warning(message)
-}
-
-// === 工具栏：注 ===
-function handleInsertNote(command: string) {
-  if (command === 'note') {
-    if (editor.value && !editor.value.chain().focus().insertNote().run()) {
-      ElMessage.warning('请在段落或列项中设置注；当前选区的原文已保留')
-    }
-  } else if (command === 'footnote') {
-    openBodyFootnoteDialog()
-  }
-}
-
-function plainTextFromInlines(content: PMJsonNode[]): string {
-  return content.map((node) => {
-    if (node.type === 'text') return node.text || ''
-    if (node.type === 'hardBreak') return '\n'
-    if (node.type === 'footnoteRef' && Array.isArray(node.attrs?.content)) return plainTextFromInlines(node.attrs.content as PMJsonNode[])
-    return ''
-  }).join('')
-}
-
-function inlineContentFromText(text: string): PMJsonNode[] {
-  const content: PMJsonNode[] = []
-  text.split(/\r?\n/).forEach((line, index) => {
-    if (index > 0) content.push({ type: 'hardBreak' })
-    if (line) content.push({ type: 'text', text: line })
-  })
-  return content
-}
-
-function currentTableLocation(targetEditor = activeEditor()): { node: import('@tiptap/pm/model').Node; pos: number } | null {
-  if (!targetEditor) return null
-  const { $from } = targetEditor.state.selection
-  for (let depth = $from.depth; depth > 0; depth -= 1) {
-    const node = $from.node(depth)
-    if (node.type.name === 'stdTable') return { node, pos: $from.before(depth) }
-  }
-  return null
-}
-
-function selectionIsInTableCell(targetEditor = activeEditor()): boolean {
-  if (!targetEditor) return false
-  const { $from, $to } = targetEditor.state.selection
-  if ($from.parent !== $to.parent) return false
-  let foundCell = false
-  for (let depth = $from.depth; depth > 0; depth -= 1) {
-    const type = $from.node(depth).type.name
-    if (type === 'tableCell' || type === 'tableHeader') foundCell = true
-    if (type === 'stdTable') return foundCell
-  }
-  return false
-}
-
-function collectTableFootnotes(targetEditor = activeEditor()): Array<{ id: string; label: string; text: string }> {
-  const table = currentTableLocation(targetEditor)
-  if (!table || !targetEditor) return []
-  const labels = resolveEditorLabels(targetEditor.state.doc, { wrapStandaloneTable: true })
-  const result: Array<{ id: string; label: string; text: string }> = []
-  getTableFootnoteEntries(table.node).forEach((node) => {
-    const id = typeof node.attrs.nodeId === 'string' ? node.attrs.nodeId : ''
-    if (!id) return
-    result.push({
-      id,
-      label: labels[id]?.label || '?',
-      text: plainTextFromInlines((node.toJSON().content || []) as PMJsonNode[]),
-    })
-  })
-  return result
-}
-
-function openBodyFootnoteDialog() {
-  if (documentUnavailable.value) return
-  const currentEditor = editor.value
-  if (!currentEditor) return
-  const selection = currentEditor.state.selection
-  if (selection instanceof NodeSelection && selection.node.type.name === 'footnoteRef') {
-    const nodeId = String(selection.node.attrs.nodeId || '')
-    if (nodeId) openFootnoteById(nodeId, false)
-    return
-  }
-  if (!canInsertBodyFootnote(selection)) {
-    const $from = selection.$from
-    const ancestors = Array.from({ length: $from.depth + 1 }, (_, index) => $from.node(index).type.name)
-    const reason = ancestors.includes('stdTable') || ancestors.includes('table')
-      ? '表格内请使用“添加表脚注”或“引用已有表脚注”。'
-      : ancestors.includes('termDef') || ancestors.includes('termDefinition') || ancestors.includes('termName')
-        ? '术语条及其定义中不能插入条文脚注。'
-        : '请将光标或选区置于正文普通段落中；标题和封面不支持脚注。'
-    ElMessage.warning(reason)
-    return
-  }
-  footnoteDialogMode.value = 'body-new'
-  footnoteNodeId.value = ''
-  footnoteOriginalContent.value = []
-  footnoteText.value = ''
-  showFootnoteDialog.value = true
-}
-
-function openTableFootnoteDialog(mode: 'table-new' | 'table-reference') {
-  if (documentUnavailable.value) return
-  const targetEditor = activeEditor()
-  if (!targetEditor || !selectionIsInTableCell(targetEditor)) {
-    ElMessage.warning('请将光标置于标准表格的单元格内')
-    return
-  }
-  const options = collectTableFootnotes(targetEditor)
-  if (mode === 'table-reference' && options.length === 0) {
-    ElMessage.info('当前表格还没有可引用的表脚注')
-    return
-  }
-  footnoteDialogMode.value = mode
-  footnoteNodeId.value = ''
-  footnoteOriginalContent.value = []
-  footnoteText.value = ''
-  tableFootnoteOptions.value = options
-  selectedTableFootnoteId.value = options[0]?.id || ''
-  showFootnoteDialog.value = true
-}
-
-function openFootnoteById(nodeId: string, table: boolean) {
-  if (documentUnavailable.value) return
-  const targetEditor = table ? activeEditor() : editor.value
-  if (!targetEditor) return
-  const found: { target: import('@tiptap/pm/model').Node | null } = { target: null }
-  targetEditor.state.doc.descendants((node) => {
-    if (table) {
-      if (node.type.name === 'tableFootnoteEntry' && node.attrs.nodeId === nodeId) found.target = node
-    } else if (node.type.name === 'footnoteRef' && node.attrs.nodeId === nodeId) found.target = node
-  })
-  if (!found.target) {
-    ElMessage.warning('找不到对应脚注内容；请检查脚注引用与定义。')
-    return
-  }
-  const json = found.target.toJSON() as PMJsonNode
-  const content = table
-    ? (json.content || [])
-    : (Array.isArray(json.attrs?.content) ? json.attrs.content as PMJsonNode[] : [])
-  footnoteDialogMode.value = table ? 'table-edit' : 'body-edit'
-  footnoteNodeId.value = nodeId
-  footnoteOriginalContent.value = content
-  footnoteText.value = plainTextFromInlines(content)
-  showFootnoteDialog.value = true
-}
-
-function handleFootnoteEditEvent(event: Event) {
-  const detail = (event as CustomEvent<{ nodeId?: string; table?: boolean }>).detail
-  if (detail?.nodeId) openFootnoteById(detail.nodeId, detail.table === true)
-}
-
-function clearFootnoteDialog() {
-  footnoteDialogMode.value = null
-  footnoteNodeId.value = ''
-  footnoteOriginalContent.value = []
-  footnoteText.value = ''
-  selectedTableFootnoteId.value = ''
-  tableFootnoteOptions.value = []
-}
-
-function saveFootnoteDialog() {
-  if (documentUnavailable.value) return
-  const mode = footnoteDialogMode.value
-  const currentEditor = mode && mode.startsWith('table-') ? activeEditor() : editor.value
-  if (!currentEditor || !mode) return
-
-  if (mode === 'table-reference') {
-    if (!selectedTableFootnoteId.value || !currentEditor.commands.insertTableFootnoteRef({ targetId: selectedTableFootnoteId.value })) {
-      ElMessage.warning('无法在当前表格插入引用，请确认光标仍位于原表格内。')
-      return
-    }
-    currentEditor.view.focus()
-    showFootnoteDialog.value = false
-    return
-  }
-
-  if (!footnoteText.value.trim()) {
-    ElMessage.warning('脚注内容不能为空')
-    return
-  }
-  const content = footnoteText.value === plainTextFromInlines(footnoteOriginalContent.value)
-    ? footnoteOriginalContent.value
-    : inlineContentFromText(footnoteText.value)
-  let saved = false
-  if (mode === 'body-new') {
-    saved = currentEditor.commands.insertFootnoteRef({ content })
-  } else if (mode === 'body-edit') {
-    saved = currentEditor.commands.updateFootnoteRef({ nodeId: footnoteNodeId.value, content })
-  } else if (mode === 'table-new') {
-    saved = currentEditor.commands.insertTableFootnote({ content })
-  } else if (mode === 'table-edit') {
-    saved = replaceTableFootnoteContent(footnoteNodeId.value, content, currentEditor)
-  }
-  if (!saved) {
-    ElMessage.warning(mode.startsWith('table-')
-      ? '无法在当前表格保存表脚注，请确认光标仍位于原表格内。'
-      : '脚注所在段落已变化，请重新选择正文段落后再试。')
-    return
-  }
-  currentEditor.view.focus()
-  showFootnoteDialog.value = false
-}
-
-function replaceTableFootnoteContent(nodeId: string, content: PMJsonNode[], currentEditor = activeEditor()): boolean {
-  if (!currentEditor) return false
-  const found: { target: { node: import('@tiptap/pm/model').Node; pos: number } | null } = { target: null }
-  currentEditor.state.doc.descendants((node, pos) => {
-    if (node.type.name === 'tableFootnoteEntry' && node.attrs.nodeId === nodeId) found.target = { node, pos }
-  })
-  if (!found.target) return false
-  const nodes = content.map((item) => currentEditor.schema.nodeFromJSON(item))
-  const tr = currentEditor.state.tr.replaceWith(found.target.pos + 1, found.target.pos + found.target.node.nodeSize - 1, nodes)
-  currentEditor.view.dispatch(tr)
-  return true
-}
-
-async function deleteBodyFootnote() {
-  if (documentUnavailable.value) return
-  const currentEditor = editor.value
-  if (!currentEditor || !footnoteNodeId.value) return
-  const deleted = currentEditor.commands.deleteFootnoteRef({ nodeId: footnoteNodeId.value })
-  if (!deleted) {
-    ElMessage.warning('脚注已不存在，请重新打开脚注编辑框。')
-    return
-  }
-  currentEditor.view.focus()
-  showFootnoteDialog.value = false
-}
-
-async function deleteTableFootnoteDefinition() {
-  if (documentUnavailable.value) return
-  const currentEditor = activeEditor()
-  if (!currentEditor || !footnoteNodeId.value) return
-  const deleted = currentEditor.commands.deleteTableFootnoteEntry({ nodeId: footnoteNodeId.value })
-  if (!deleted) {
-    ElMessage.warning('该表脚注仍有上标引用。请先删除对应上标引用，再删除定义。')
-    return
-  }
-  currentEditor.view.focus()
-  showFootnoteDialog.value = false
-}
-
-// === 工具栏：示例 ===
-function handleInsertExample(command: string) {
-  if (command === 'example') {
-    const pos = getInsertAfterCurrentBlock()
-    if (pos === null) return
-    editor.value?.chain().focus().insertContentAt(pos, { type: 'example' }).run()
-  }
-}
-
-// === 工具栏：术语定义 ===
-function handleInsertTermDef(level: string) {
-  const range = getInsertRange()
-  if (range === null) {
-    ElMessage.warning('请先将光标置于章节内部再插入术语定义')
-    return
-  }
-  const lv = Number(level)
-  const { tr } = editor.value!.state
-  const schema = editor.value!.state.schema
-  // 手动构建节点以避免 insertContentAt 自动补充额外节点
-  const termDefNode = schema.nodes.termDef.create(
-    { level: lv },
-    [
-      schema.nodes.termName.create(null, []),
-      schema.nodes.termDefinition.create(null, []),
-    ],
-  )
-  tr.replaceWith(range.from, range.to, termDefNode)
-  // 光标设置到 termName 内部: from + termDef(+1) + termName(+1)
-  tr.setSelection(TextSelection.create(tr.doc, range.from + 2))
-  editor.value!.view.dispatch(tr)
-  editor.value!.view.focus()
-}
-
-const SECTION_INSERT_CONTAINERS = new Set(['chapter', 'clause', 'foreword', 'introduction', 'appendix'])
-
-/**
- * 仅在有效文档节（章、条、前言、引言、附录）内部返回当前块之后的插入位置；
- * 光标位于封面、参考文献或根节点游离段落等节外位置时返回 null，避免插入无法编号（表题显示为「?」）的游离表格。
- */
-function getInsertAfterCurrentBlockInSection(): number | null {
-  if (!editor.value) return null
-  const { selection } = editor.value.state
-  const { $from } = selection
-  if (selection instanceof NodeSelection) {
-    if ($from.depth > 0 && SECTION_INSERT_CONTAINERS.has($from.parent.type.name)) {
-      return selection.to
-    }
-    if (SECTION_INSERT_CONTAINERS.has(selection.node.type.name)) {
-      return selection.to - 1
-    }
-  }
-  for (let d = $from.depth; d > 0; d--) {
-    const parentName = $from.node(d).type.name
-    if (SECTION_INSERT_CONTAINERS.has(parentName)) {
-      return d + 1 <= $from.depth ? $from.after(d + 1) : $from.end(d)
-    }
-  }
-  return null
-}
-
-/**
- * 在当前块之后（同一结构节点内）插入内容
- */
-function getInsertAfterCurrentBlock(): number | null {
-  if (!editor.value) return null
-  const { $from } = editor.value.state.selection
-  for (let d = $from.depth; d > 0; d--) {
-    const parentName = $from.node(d).type.name
-    if (SECTION_INSERT_CONTAINERS.has(parentName)) {
-      return $from.after(d + 1 <= $from.depth ? d + 1 : d)
-    }
-  }
-  return $from.after($from.depth)
-}
-
-// === 段落：格式覆盖保留条正文，已是段落时不新增空段 ===
-function insertStdParagraph() {
-  if (editor.value) warnStructureFailure(setParagraphFormat(editor.value), 'paragraph')
-}
-
-// === 公式 ===
-function handleInsertFormula(triggerPos?: number) {
-  if (editor.value?.commands.insertFormula({ triggerPos }) === false) {
-    ElMessage.info('此处无法插入公式，请将光标放在正文中')
-  }
-}
-
-// === 块级公式、行内公式与式中符号 ===
-const showMathDialog = ref(false)
-const mathDialogLatex = ref('')
-const mathDialogRequest = ref<InlineFormulaRequest | BlockFormulaRequest | null>(null)
-// 打开弹窗时的文档（不放进响应式：确认时要按对象身份判断文档是否被替换过）。
-let mathDialogDoc: PMNode | null = null
-const cursorInFormula = computed(() => !!editor.value && selectedFormula(editor.value.state) !== null)
-const cursorAllowsInlineFormula = computed(() => !!editor.value && canInsertInlineFormula(editor.value.state))
-const mathDialogDisplayMode = computed(() => mathDialogRequest.value?.mode === 'block-insert' || mathDialogRequest.value?.mode === 'block-edit')
-const mathDialogTitle = computed(() => {
-  const request = mathDialogRequest.value
-  if (request?.mode === 'block-insert') return '插入公式'
-  if (request?.mode === 'block-edit') return '编辑公式'
-  const ed = request?.mode === 'where' ? editor.value : activeEditor()
-  const inWhereTerm = request?.mode === 'where' || ed?.state.doc.resolve(Math.min(request?.pos ?? 0, ed.state.doc.content.size)).parent.type.name === 'whereTerm'
-  const noun = inWhereTerm ? '式中符号' : '符号'
-  return request?.mode === 'edit' ? `编辑${noun}` : request?.mode === 'replace' ? `转为${noun}` : `插入${noun}`
-})
-
-function openMathDialog(request: InlineFormulaRequest | BlockFormulaRequest) {
-  const targetEditor = (request.mode === 'block-insert' || request.mode === 'block-edit' || request.mode === 'where')
-    ? editor.value
-    : activeEditor()
-  mathDialogRequest.value = request
-  mathDialogDoc = targetEditor?.state.doc ?? null
-  mathDialogLatex.value = request.latex
-  showMathDialog.value = true
-}
-
-watch(showMathDialog, open => {
-  if (!open) {
-    mathDialogRequest.value = null
-    mathDialogDoc = null
-  }
-})
-
-function handleBlockFormulaEvent(event: Event) {
-  const detail = (event as CustomEvent<BlockFormulaRequest>).detail
-  if (detail) openMathDialog(detail)
-}
-
-function handleInlineFormulaEvent(event: Event) {
-  const detail = (event as CustomEvent<InlineFormulaRequest>).detail
-  if (detail) openMathDialog(detail)
-}
-
-/** 工具栏「符号」（行内公式）：与 Ctrl/Cmd+Shift+M 相同，无选区时插入，选中文字时转为符号。 */
-function handleInlineFormula() {
-  const ed = editor.value
-  if (!ed) return
-  if (!ed.commands.requestInlineFormula()) {
-    ElMessage.info('符号只能放在正文、列项、注、示例、表格单元格、术语定义等位置；选中文字转为符号时，选区不能跨段或包含其他符号、公式、脚注')
-  }
-}
-
-function handleAddWhereItem() {
-  const ed = editor.value
-  if (!ed) return
-  const formula = selectedFormula(ed.state)
-  if (!formula) {
-    ElMessage.info('请先把光标放在公式内')
-    return
-  }
-  if (formulaHasLegacyDescription(formula.node)) {
-    openWhereConversion(formula.pos)
-    return
-  }
-  // 条目在确认时才写入（handleMathConfirm 的 where 分支），取消输入不会留下空条目。
-  if (!ed.can().addWhereItem({ pos: formula.pos })) return
-  openMathDialog({ mode: 'where', pos: formula.pos, nodeId: formula.node.attrs.nodeId ?? undefined, latex: '' })
-}
-
-const showWhereConversion = ref(false)
-const whereConversion = ref<{ pos: number; source: string; formula: PMJsonNode; rows: WhereConversionRow[] } | null>(null)
-
-function openWhereConversion(formulaPos: number) {
-  const node = editor.value?.state.doc.nodeAt(formulaPos)
-  if (!node || node.type.name !== 'formula') return
-  const source = node.toJSON() as PMJsonNode
-  const { formula, rows } = convertLegacyWhereDescription(source)
-  if (!rows.length) return
-  whereConversion.value = { pos: formulaPos, source: JSON.stringify(source), formula, rows }
-  showWhereConversion.value = true
-}
-
-function applyWhereConversion() {
-  const ed = editor.value
-  const pending = whereConversion.value
-  whereConversion.value = null
-  if (!ed || !pending) return
-  const node = ed.state.doc.nodeAt(pending.pos)
-  // 弹窗期间公式被修改（含远端同步）时不覆盖，避免丢失新内容。
-  if (!node || JSON.stringify(node.toJSON()) !== pending.source) {
-    ElMessage.warning('公式已被修改，请重新转换')
-    return
-  }
-  const replacement = ed.schema.nodeFromJSON(pending.formula)
-  ed.view.dispatch(ed.state.tr.replaceWith(pending.pos, pending.pos + node.nodeSize, replacement).scrollIntoView())
-  ed.commands.focus()
-  ElMessage.success('已转换为结构化式中')
-}
-
-function handleMathConfirm(latex: string) {
-  const request = mathDialogRequest.value
-  const ed = (request?.mode === 'block-insert' || request?.mode === 'block-edit' || request?.mode === 'where')
-    ? editor.value
-    : activeEditor()
-  const openedDoc = mathDialogDoc
-  if (!ed?.isEditable || !request) return
-  // 弹窗期间可能载入了外部修订（整篇替换文档）：插入与替换只认原来那一处，位置之前有增删时拒绝。
-  const located = (pos: number) => !!openedDoc && sameInlineLocation(openedDoc, ed.state.doc, pos)
-  let applied = false
-  if (request.mode === 'block-insert') {
-    applied = located(request.pos) && ed.commands.insertFormula({ pos: request.pos, triggerPos: request.triggerPos, latex })
-    if (applied) ed.commands.focus()
-  } else if (request.mode === 'block-edit') {
-    const before = openedDoc?.nodeAt(request.pos)
-    const current = request.pos < ed.state.doc.content.size ? ed.state.doc.nodeAt(request.pos) : null
-    applied = !!before && !!current?.eq(before) && ed.commands.updateBlockFormula({ pos: request.pos, latex })
-    if (applied) ed.commands.focus()
-  } else if (request.mode === 'where') {
-    // 弹窗期间公式可能被远端修订挪走或删除：只认原来那个公式。
-    const node = ed.state.doc.nodeAt(request.pos)
-    applied = node?.type.name === 'formula' && (node.attrs.nodeId ?? undefined) === request.nodeId
-      && ed.chain().focus().addWhereItem({ pos: request.pos, latex }).run()
-  } else if (request.mode === 'edit') {
-    applied = ed.chain().focus().updateFormulaInline({ pos: request.pos, latex, nodeId: request.nodeId }).run()
-  } else if (request.mode === 'replace') {
-    applied = located(request.pos) && located(request.to ?? request.pos) && ed.chain().focus().replaceSelectionWithFormula({
-      from: request.pos, to: request.to ?? request.pos, text: request.text ?? '', latex,
-    }).run()
-  } else if (located(request.pos)) {
-    applied = ed.chain().focus().setTextSelection(request.pos).insertInlineFormula({ latex }).run()
-  }
-  if (!applied) ElMessage.warning('文档已变化，未能写入公式，请重新选择位置')
-}
-
-// === 图片 ===
-async function handleInsertFigure(pos?: number, slashPos?: number) {
-  const ed = editor.value
-  if (!ed || !ed.isEditable) return
-  if (pos === undefined && !ed.can().insertFigure()) {
-    ElMessage.info('此处无法插入图片，请将光标放在正文或表格单元格中')
-    return
-  }
-  const currentDocumentId = documentId.value
-  const target = captureImageTarget(ed, pos, slashPos)
-  try {
-    const src = await selectLocalImage()
-    if (!src) return
-    if (editor.value !== ed || documentId.value !== currentDocumentId || !applyImageTarget(ed, target, src)) {
-      ElMessage.warning('未能在原位置插入图片，请重新选择位置')
-    }
-  } catch (error) {
-    ElMessage.warning(error instanceof Error ? error.message : '图片读取失败')
-  }
-}
-
-// === Slash Command ===
-function handleSlashCommand(command: string) {
-  if (!editor.value) return
-  // 删除输入的 / 字符
-  const { from } = editor.value.state.selection
-  const textBefore = editor.value.state.doc.textBetween(Math.max(0, from - 1), from)
-  if (command === 'formula') {
-    handleInsertFormula(textBefore === '/' ? from - 1 : undefined)
-    return
-  }
-  if (command === 'figure') {
-    void handleInsertFigure(undefined, textBefore === '/' ? from - 1 : undefined)
-    return
-  }
-  if (textBefore === '/') {
-    editor.value.chain().focus().deleteRange({ from: from - 1, to: from }).run()
-  }
-
-  if (command.startsWith('clause:')) {
-    const level = command.split(':')[1]
-    handleInsertClause(level)
-  } else if (command.startsWith('clauseNoTitle:')) {
-    const level = command.split(':')[1]
-    handleInsertClauseNoTitle(level)
-  } else if (command.startsWith('termDef:')) {
-    const level = command.split(':')[1]
-    handleInsertTermDef(level)
-  } else if (command.startsWith('list:')) {
-    const listType = command.split(':')[1]
-    handleInsertList(listType)
-  } else {
-    switch (command) {
-      case 'paragraph': insertStdParagraph(); break
-      case 'table': handleTableCommand('insert'); break
-      case 'whereItem': handleAddWhereItem(); break
-      case 'note': handleInsertNote('note'); break
-      case 'footnote': handleInsertNote('footnote'); break
-      case 'example': handleInsertExample('example'); break
-      case 'termDef': handleInsertTermDef('1'); break
-    }
-  }
-}
-
-// === 下划线 ===
-function toggleUnderline() {
-  editor.value?.chain().focus().toggleUnderline().run()
-}
-
-// === 查找 ===
-// 查找只用装饰高亮命中，焦点留在查找框，不改正文和选区（#76）；只有按 Esc 才回到正文。
-function syncSearchStatus() {
-  const currentEditor = editor.value
-  if (!currentEditor) { searchStatus.value = ''; return }
-  const state = getSearchState(currentEditor.state)
-  searchStatus.value = !state.query ? '' : state.matches.length === 0 ? '0/0' : `${state.current + 1}/${state.matches.length}`
-}
-
-function runSearch(direction: 1 | -1) {
-  const currentEditor = editor.value
-  const text = searchText.value
-  if (!currentEditor || !text) return
-  const { state, wrapped } = stepSearch(currentEditor.view, text, direction)
-  syncSearchStatus()
-  if (state.matches.length === 0) {
-    ElMessage.info('未找到匹配内容')
-    return
-  }
-  scrollToCurrentSearchMatch(currentEditor.view)
-  if (wrapped) {
-    ElMessage.info(state.matches.length === 1 ? '仅有 1 处匹配' : direction === 1 ? '已到最后一处，回到第一处' : '已到第一处，回到最后一处')
-  }
-}
-
-function handleSearchKeydown(event: Event | KeyboardEvent) {
-  if (!(event instanceof KeyboardEvent)) return
-  // 中文输入法用回车确认候选词时不查找（isComposing / keyCode 229）。
-  if (event.isComposing || event.keyCode === 229) return
-  if (event.key === 'Enter') {
-    event.preventDefault()
-    runSearch(event.shiftKey ? -1 : 1)
-  } else if (event.key === 'Escape') {
-    event.preventDefault()
-    returnToEditorFromSearch()
-  }
-}
-
-/** 明确回到正文：光标放在当前命中之后（不选中文字），再清除高亮。 */
-function returnToEditorFromSearch() {
-  const currentEditor = editor.value
-  if (!currentEditor) return
-  const state = getSearchState(currentEditor.state)
-  const match = state.current >= 0 ? state.matches[state.current] : null
-  clearSearch(currentEditor.view)
-  syncSearchStatus()
-  const chain = currentEditor.chain().focus()
-  if (match) chain.setTextSelection(match.to)
-  chain.run()
-}
-
-function handleSearchClear() {
-  if (editor.value) clearSearch(editor.value.view)
-  syncSearchStatus()
-}
-
-watch(searchText, (text) => {
-  // 查询词改了，旧高亮作废；下一次回车按新词从头查找。
-  const currentEditor = editor.value
-  if (currentEditor && getSearchState(currentEditor.state).query && getSearchState(currentEditor.state).query !== text) {
-    clearSearch(currentEditor.view)
-    syncSearchStatus()
-  }
-})
 
 // === 查看历史（占位） ===
 function handleViewHistory() {
@@ -3143,7 +1557,12 @@ async function handleExportFormat(format: 'docx' | 'pdf' | 'xml' | 'html' | 'jso
       showExport.value = false
       const warnings = result.problems.filter((problem) => problem.severity === 'warning')
       if (warnings.length > 0) {
-        ElMessage.warning(`XML 文件已导出（含 ${warnings.length} 条兼容性提示）`)
+        const firstMsg = warnings[0]?.message
+        ElMessage.warning(
+          warnings.length === 1 && firstMsg
+            ? `XML 文件已导出：${firstMsg}`
+            : `XML 文件已导出（含 ${warnings.length} 条兼容性提示：${firstMsg ?? ''}）`,
+        )
       } else {
         ElMessage.success('XML 文件已导出')
       }
@@ -3400,6 +1819,9 @@ function handleXmlFileImport(event: Event) {
       dirty.value = false
       lastSaved.value = new Date().toLocaleTimeString('zh-CN')
       ElMessage.success('XML 文件导入成功')
+      if (update.coverLayoutDowngraded) {
+        ElMessage.warning('国家标准和指导性技术文件禁止替换右上角标志，已将封面徽标位置调整为左上角。')
+      }
     } catch (err) {
       // 409：导入结果没有写入文档，编辑器内容保持不变；由冲突提示接管。
       if (isRevisionConflict(err)) enterSaveConflict('xml-import')
@@ -3557,188 +1979,6 @@ function handleXmlFileImport(event: Event) {
 .conflict-detail { margin: 0 0 8px; color: var(--ses-ink-2); line-height: 1.7; }
 .conflict-options { margin: 8px 0 0; padding-left: 18px; color: var(--ses-ink-2); font-size: 13px; line-height: 1.8; }
 
-/* === toolbar：正文编辑 === */
-.ed-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 2px;
-  min-height: 44px;
-  padding: 6px 12px;
-  background: var(--ses-surface);
-  border-bottom: 1px solid var(--ses-line);
-  box-shadow: 0 1px 2px oklch(0.21 0.014 270 / 0.03);
-  flex-shrink: 0;
-  position: relative;
-  z-index: 2;
-}
-
-.tbar-group {
-  display: flex; align-items: center; gap: 1px;
-  height: 32px;
-  flex-shrink: 0;
-}
-.tbar-sep {
-  flex: 0 0 auto;
-  width: 1px; height: 18px;
-  margin: 0 6px;
-  background: var(--ses-line-2);
-}
-.tbar-label {
-  margin: 0 4px 0 2px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--ses-ink-4);
-  white-space: nowrap;
-  user-select: none;
-}
-.tbar-group :deep(.tbar-btn) {
-  display: inline-flex; align-items: center; gap: 3px;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ses-ink-2);
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  font-family: inherit;
-  white-space: nowrap;
-  transition: background 0.1s ease, color 0.1s ease;
-}
-.tbar-group :deep(.tbar-btn .el-icon) { font-size: 11px; color: var(--ses-ink-4); }
-.tbar-group :deep(.tbar-btn:hover) {
-  background: var(--ses-surface-3);
-  color: var(--ses-ink);
-}
-.tbar-btn.is-active { background: var(--ses-accent-soft); color: var(--ses-accent); }
-.tbar-btn.is-active .el-icon { color: var(--ses-accent); }
-.tbar-btn[disabled] { opacity: 0.38; pointer-events: none; }
-.tbar-btn.icon-btn { width: 28px; padding: 0; justify-content: center; }
-.tbar-group :deep(.tbar-btn.icon-btn .el-icon) { font-size: 15px; color: inherit; }
-
-/* 上下文工具：锚定在编辑区画布右上角，与常驻工具区分，既不撑高工具栏也不遮挡右侧栏按钮 */
-.tbar-context-shelf {
-  position: absolute;
-  top: 8px;
-  right: 16px;
-  z-index: 5;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  max-width: calc(100% - 32px);
-  max-height: calc(100% - 20px);
-  pointer-events: none;
-}
-.tbar-context-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-  flex-shrink: 0;
-}
-.tbar-context {
-  pointer-events: auto;
-  padding: 0 6px;
-  border: 1px solid color-mix(in oklch, var(--ses-accent) 24%, var(--ses-line));
-  border-radius: 8px;
-  background: color-mix(in oklch, var(--ses-surface) 92%, var(--ses-accent-soft));
-  box-shadow: var(--ses-shadow-2);
-  backdrop-filter: blur(8px);
-}
-.tbar-context .tbar-label { color: var(--ses-accent); }
-.tbar-context-section {
-  border-color: var(--ses-line-2);
-  background: color-mix(in oklch, var(--ses-surface) 94%, var(--ses-surface-2));
-}
-.tbar-context-section .tbar-label { color: var(--ses-ink-2); }
-.tbar-context.is-locked .tbar-btn.is-active[disabled] {
-  opacity: 0.72;
-}
-.tbar-context-hint {
-  margin: 0 2px 0 4px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--ses-surface-2);
-  color: var(--ses-ink-3);
-  font-size: 11px;
-  font-weight: 500;
-  white-space: nowrap;
-  user-select: none;
-}
-.tbar-expand-btn {
-  margin-left: 4px;
-  background: var(--ses-accent-soft) !important;
-  color: var(--ses-accent) !important;
-  font-weight: 600 !important;
-}
-.tbar-expand-btn:hover {
-  background: var(--ses-accent) !important;
-  color: #fff !important;
-}
-
-.format-group strong, .format-group em, .format-group u, .format-group s {
-  font-family: var(--ses-font-zh-hei);
-}
-
-.tbar-search { width: 200px; margin-left: auto; flex-shrink: 0; }
-:deep(.tbar-search .el-input__wrapper) {
-  border-radius: 6px;
-}
-.tbar-search-count {
-  font-size: 12px;
-  color: var(--ses-ink-3, #8a8a8a);
-  font-variant-numeric: tabular-nums;
-}
-
-/* === body === */
-.ed-body {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-  position: relative;
-}
-.outline-host {
-  display: flex;
-  flex-shrink: 0;
-  min-height: 0;
-}
-.outline-add-btn {
-  display: inline-flex; align-items: center; gap: 4px;
-  height: 26px;
-  padding: 0 8px;
-  border: 1px solid var(--ses-line-2);
-  border-radius: 6px;
-  background: var(--ses-surface);
-  color: var(--ses-ink-2);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.outline-add-btn:hover { border-color: var(--ses-accent); color: var(--ses-accent); }
-.outline-icon-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 26px; height: 26px;
-  border: 0; border-radius: 6px;
-  background: transparent;
-  color: var(--ses-ink-3);
-  cursor: pointer;
-}
-.outline-icon-btn:hover { background: var(--ses-surface-2); color: var(--ses-ink); }
-.ed-main {
-  position: relative;
-  min-width: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 0%, oklch(0.92 0.02 285 / 0.25), transparent 600px),
-    var(--ses-bg);
-}
-
 /* === version sidebar slide === */
 .version-sidebar {
   width: 380px;
@@ -3776,16 +2016,6 @@ function handleXmlFileImport(event: Event) {
 :deep(.ProseMirror .ses-validation-suggestion) { color: #2865a5; --ses-validation-badge: #2865a5; }
 .slide-right-enter-active, .slide-right-leave-active { transition: all 0.3s ease; }
 .slide-right-enter-from,  .slide-right-leave-to     { transform: translateX(100%); opacity: 0; }
-.slide-left-enter-active, .slide-left-leave-active { transition: transform 0.2s ease, opacity 0.2s ease; }
-.slide-left-enter-from,  .slide-left-leave-to     { transform: translateX(-24px); opacity: 0; }
-
-/* 窄屏：结构面板与侧栏浮在正文上方，不再挤占纸面宽度 */
-@media (max-width: 960px) {
-  .ed-body > .outline-host { position: absolute; top: 0; left: 0; bottom: 0; z-index: 20; box-shadow: 8px 0 24px #1d213322; }
-}
-@media (max-width: 1100px) {
-  .ed-body > .version-sidebar { position: absolute; top: 0; right: 0; bottom: 0; z-index: 20; width: min(92vw, 380px); min-width: min(92vw, 320px); box-shadow: -8px 0 24px #1d213322; }
-}
 
 /* === settings tab === */
 .settings-host { flex: 1; min-height: 0; display: flex; overflow: hidden; }

@@ -23,6 +23,7 @@ import {
   type PMJsonNode,
 } from '@ses/shared';
 import request from 'supertest';
+import { ExportService } from '../export/export.service';
 import { ConvertService } from '../convert/convert.service';
 import { validateContent } from '../editor-schema/editor-schema';
 import { readZipEntries } from '../export/__fixtures__/read-zip';
@@ -1730,6 +1731,32 @@ describe('MCP 工具：validate_document 与 export_document', () => {
       await exportTo(id, 'html', join(dir, 'a.html'));
       await mcp.call('export_document', { documentId: id, format: 'docx' });
       expect(logs.text()).not.toContain(SECRET);
+    });
+
+    it('含 coverLayout 的文档在 validate_document 中返回 checks.xml === null（不阻断）', async () => {
+      const created = await t.documents.create({
+        title: '带版式扩展标准',
+        meta: {
+          titleCn: '带版式扩展标准',
+          standardType: 'group',
+          standardNo: 'T/TEST 1—2026',
+          coverLayout: {
+            notice: { text: '内部使用', position: 'above_dates' },
+            backCover: { enabled: true, copyrightNotice: '© 2026' },
+          },
+        },
+        stage: 'working_draft',
+        content: chapterDoc([paragraph('p1', '正文内容。')]),
+      });
+      const res = await mcp.call('validate_document', {
+        documentId: created.id,
+      });
+      expect(res.isError).toBe(false);
+      expect(res.body.exports.xml).toEqual({ ok: true });
+      const direct = await t.app
+        .get(ExportService)
+        .validateForExport(created.id);
+      expect(direct.checks.xml).toBeNull();
     });
   });
 });
