@@ -1,6 +1,6 @@
 # 本地接入 MCP（WP9.3）
 
-让 Claude Code 等 MCP 客户端连接本机运行的 SES：AI 新建文档、读取结构、写入内容、校验、出件，人同时在编辑器里修改同一份文档。本文只讲**本地部署**（服务端与 AI 客户端在同一台机器上）；云端部署（WP9.4）需要用户体系与鉴权，不适用本文。设计背景见 [WP9 人机共写方案](wp9-ai-coauthoring.md)。
+让支持 Streamable HTTP 的 Agent 连接本机运行的 SES：AI 新建文档、读取结构、写入内容、校验、出件，人同时在编辑器里修改同一份文档。本文只讲**本地部署**（服务端与 AI 客户端在同一台机器上）；云端部署（WP9.4）需要用户体系与鉴权，不适用本文。设计背景见 [WP9 人机共写方案](wp9-ai-coauthoring.md)。
 
 ## 1. 前提
 
@@ -10,15 +10,21 @@
    - 生产式：`pnpm build` 后在 `packages/server` 目录执行 `pnpm start:prod`（即 `node dist/main`）。数据库在**启动目录**下的 `data/ses.db`，在别的目录启动会得到另一份空库；
 3. 服务端默认监听 3000 端口，**只监听本机的 127.0.0.1**（见 4.1），MCP 端点是 **`http://127.0.0.1:3000/mcp`**（注意没有 `/api` 前缀）。改端口用环境变量 `PORT`。文档里统一写 `127.0.0.1`：`localhost` 在多数客户端也能用，但个别客户端会把 `localhost` 解析成 IPv6 的 `::1` 并且只尝试这一个地址，而服务端默认只监听 IPv4 回环，这样的客户端会连不上；
 4. 人要看到 AI 的修改，在浏览器打开编辑器（开发时 http://localhost:5173）。AI 写入后，已打开的文档会自动载入并提示来源；有未保存的本地输入时会提示冲突，不会被静默覆盖；
-5. 导出 PDF 需要 Vivliostyle 与 Poppler（见 [ENVIRONMENT.md](../ENVIRONMENT.md) 2.1），缺少时 `export_document` 导出 pdf 返回 503 并列出缺少的依赖，其他格式不受影响。
+5. 当前版本暂时关闭 PDF 导出，调用返回 503。可导出 DOCX、XML、HTML 或 JSON。
 
-## 2. 在 Claude Code 中接入
+## 2. 配置本机 Agent
 
-```bash
-claude mcp add --transport http ses http://127.0.0.1:3000/mcp
-```
+启动 SES 后，选择下面任一方式。如果修改过 `PORT`，请将示例中的 `3000` 换成实际端口。
 
-默认只对当前项目（本机、当前目录）生效。想让整个项目共用同一份配置，可以手写项目根目录的 `.mcp.json`（**本仓库不提交这个文件**，地址和端口因人而异）：
+### 方式一：让 Agent 帮你配置
+
+把下面这段提示词发给本机的 Agent：
+
+> 请帮我把本机运行的 SES 添加到当前 Agent 的 MCP 配置中，服务名为 ses，使用 Streamable HTTP 连接 http://127.0.0.1:3000/mcp。请按当前客户端的配置格式添加，保留已有的 MCP 服务和工具授权设置。配置生效后，请调用 ses 的只读工具 list_documents 验证连接，并告诉我是否成功。
+
+### 方式二：用 JSON 配置 Streamable HTTP
+
+如果客户端使用 `mcpServers` 和 `type: "http"`，可在 MCP 设置中合并下面的 `ses` 条目。其他配置格式可用方式一。
 
 ```json
 {
@@ -31,22 +37,27 @@ claude mcp add --transport http ses http://127.0.0.1:3000/mcp
 }
 ```
 
-接入后在 Claude Code 里用 `/mcp` 查看连接状态；服务端没有启动时会显示连接失败，启动服务端后重新连接即可。
+保存后重新连接，让 Agent 调用 `list_documents`。返回文档列表即表示接入成功，空列表也表示连接正常。
 
-Claude Code 对 MCP 工具默认逐次询问是否允许。`export_document` 可以把文件写到本机的允许目录里（见 4.2），**建议不要把它加入自动允许**。
+`export_document` 可以向本机允许的目录写入文件，建议保留客户端对该工具的逐次确认（见 4.2）。
 
 ## 3. 工具与典型流程
 
 | 工具 | 用途 | 只读 |
 |---|---|---|
 | `list_documents` | 列出全部文档（id、标题、阶段、revision） | 是 |
-| `create_document` | 新建文档，与编辑器首页「新建文档」结果一致；返回 `editorUrl` | 否 |
+| `create_document` | 按指定标准类型新建文档，生成封面、前言和前三章，返回 `documentId`、`revision` 和 `editorUrl` 等信息 | 否 |
 | `get_outline` | 结构树；nodeId 缺失或重复的文档会先补齐并保存（revision 可能加 1） | 否* |
 | `get_node` | 读取节点、前言、引言、参考文献的内容；同样会先补齐 nodeId | 否* |
 | `apply_operations` | 批量插入、替换、删除、移动，带 `baseRevision`，整批全有或全无；记为「AI 修改」，人可在版本面板回滚 | 否 |
-| `validate_document` | 只读检查：文档问题 `problems`，以及 docx / pdf / html 能否出件 `exports` | 是 |
-| `export_document` | 导出 docx / pdf / html / json；返回下载地址，可选保存到本机的允许目录 | 否 |
+| `validate_document` | 只读检查：文档问题 `problems`，以及 各格式的导出前检查及质量报告 `exports` | 是 |
+| `export_document` | 导出 docx / xml / html / json；返回下载地址，可选保存到本机的允许目录 | 否 |
 | `get_authoring_reference` | 写作说明全文（写作片段格式、GB/T 1.1 约定） | 是 |
+| `list_templates` | 列出内置模板和自定义模板，查看标识、版本和只读状态 | 是 |
+| `get_template` | 读取模板设置和正文结构，或按节点、容器读取内容 | 是 |
+| `create_template` | 新建自定义模板，或从已有模板、文档派生 | 否 |
+| `update_template` | 修改自定义模板的名称、默认元信息和封面版式等设置 | 否 |
+| `apply_template_operations` | 批量插入、替换、删除或移动自定义模板的正文节点 | 否 |
 
 \* 读取前会检查文档的 nodeId：缺失的补齐、重复的重新生成并保存（revision 加 1，发 system 事件，不生成版本记录），所以这两个工具在 MCP 的 annotations 里标为非只读（`readOnlyHint: false`，`destructiveHint: false`，`idempotentHint: true`）。nodeId 完整时不写库；补齐一次后重复调用结果相同。
 
@@ -59,12 +70,30 @@ Claude Code 对 MCP 工具默认逐次询问是否允许。`export_document` 可
 5. 写完用 `validate_document` 检查：`problems` 逐项修正，`exports` 里要用的格式都是 `ok` 后再出件；
 6. `export_document` 出件。不给 `outputPath` 只返回 `downloadUrl`（在浏览器中打开即可下载）；用户要文件时，把 `outputPath` 设为文件名（如 `规范.docx`），文件会保存到服务端的导出目录（默认是用户主目录下的 `SES-exports`，见 4.2），返回的 `savedTo` 是实际路径。
 
-对 Claude Code 可以这样说：「在 SES 里新建一份国家标准《……》，把范围写好，检查没问题后导出 docx。」想让文件直接落在某个工作目录里，先把该目录加入 `SES_MCP_OUTPUT_DIRS`（见 4.2）。
+接入后，可以直接告诉 Agent：「在 SES 里新建一份国家标准《……》，把范围写好，检查没问题后导出 docx。」想让文件直接落在某个工作目录里，先把该目录加入 `SES_MCP_OUTPUT_DIRS`（见 4.2）。
 
 返回值要点：
 
-- `validate_document` → `{ revision, problems, exports: { docx, pdf, html } }`。`problems` 与 `apply_operations` 返回的问题同一来源（没有 `introduced`）；`exports.*` 是 `{ ok: true }` 或 `{ ok: false, source, message, problems }`，判断与 `export_document` 导出前的检查完全相同；`pdf` 另有 `available`（PDF 管线是否可用，与 `/api/convert/capabilities` 一致）。json 导出不做导出前检查，不在其中；
+- `validate_document` → `{ revision, problems, exports: { docx, pdf, xml, html }, quality }`。`problems` 与 `apply_operations` 返回的问题同一来源（没有 `introduced`）；`exports.*` 是 `{ ok: true }` 或 `{ ok: false, source, message, problems }`，判断与 `export_document` 导出前的检查完全相同；`pdf` 另有 `available`（PDF 管线是否可用，与 `/api/convert/capabilities` 一致）。json 导出不做导出前检查，不在其中；
 - `export_document` → `{ format, filename, size, warnings, downloadUrl, savedTo? }`。文件内容不在结果里。`warnings` 与 REST 导出响应头 `X-SES-Export-Warnings` 同一来源（但不截断）；`downloadUrl` 用的是本次请求的 Host，即客户端连接服务端用的地址（按本文接入就是 `http://127.0.0.1:3000/...`）；`savedTo` 是文件实际保存的绝对路径。
+
+### 按模板起草和编辑文档
+
+在 MCP 中，`create_document` 用 `standardType` 选择内置模板，并用 `titleCn` 指定中文标题。可选类型有国家标准（`national`）、行业标准（`industry`）、地方标准（`local`）、团体标准（`group`）、企业标准（`enterprise`）和指导性技术文件（`guidance`）。已知发布单位、起草单位时，可分别传入 `issuer`、`applicant`。
+
+例如，把下面这段话发给 Agent：
+
+> 请按企业标准模板新建《设备巡检记录规范》。在已有的“范围”章写入“本文件规定了设备巡检记录的填写、复核和归档要求，适用于生产设备的日常巡检。”保留其余章节，校验文档后把编辑器链接发给我。
+
+Agent 可先用 `create_document` 创建文档，再用 `get_outline` 找到模板已有的“范围”章，读取其 `nodeId`。调用 `apply_operations` 时，以该章为写入目标，`baseRevision` 取最近一次读取返回的 `revision`。最后调用 `validate_document`，并返回创建时得到的 `editorUrl`。如果文档已经建好，直接从 `list_documents` 找到它，再读取和修改。
+
+### 创建、编辑和复用自定义模板
+
+> 请从内置团体标准模板派生一份名为“巡检规范”的模板，在“范围”章加入巡检适用范围的示例段落。保存模板后，用它新建《设备巡检记录规范》，把新文档的编辑器链接发给我。
+
+1. 用 `list_templates` 找到源模板。内置模板只读，可调用 `create_template`，传入 `name` 和 `fromTemplateId`（例如 `builtin:group`）来创建可编辑的副本。也可以用 `fromDocumentId` 从已有文档派生。
+2. 用 `get_template` 读取自定义模板的 `revision` 和 `outline`。修改说明、默认元信息或封面版式用 `update_template`；修改正文骨架用 `apply_template_operations`，节点标识取自模板自己的结构树。两种写入都用自定义模板的数字 `templateId` 和最新模板版本作为 `baseRevision`。
+3. 用 `create_document` 传入模板的 `templateId` 和新文档的 `titleCn`。新文档继承模板预设与正文骨架，正文里的 `{{titleCn}}` 等占位符在创建时替换。
 
 ## 4. 安全限制
 
@@ -80,7 +109,7 @@ Claude Code 对 MCP 工具默认逐次询问是否允许。`export_document` 可
 
 1. 连接来自回环地址（127.0.0.0/8、`::1`）；即使用 `SES_LISTEN_HOST` 把服务端放到了局域网上，局域网里的机器也连不上 `/mcp`；
 2. `Host` 头是 `localhost`、`127.0.0.1` 或 `[::1]`（端口任意）——防止 DNS 重绑定；
-3. 有 `Origin` 头时（浏览器发出的请求），必须是 `http://localhost`、`http://127.0.0.1` 或 `http://[::1]`（端口任意）——防止本机浏览器里的其他网页跨站调用。Claude Code 这类非浏览器客户端不带 `Origin`。
+3. 有 `Origin` 头时（浏览器发出的请求），必须是 `http://localhost`、`http://127.0.0.1` 或 `http://[::1]`（端口任意）——防止本机浏览器里的其他网页跨站调用。
 
 因此不能通过 `http://<本机局域网地址>:3000/mcp` 或域名反向代理访问。没有登录鉴权意味着**本机上任何进程都能调用这些工具**，请只在自己的机器上使用。
 
@@ -99,7 +128,7 @@ Claude Code 对 MCP 工具默认逐次询问是否允许。`export_document` 可
 **`outputPath` 怎么写**：
 
 - 只给文件名（如 `规范.docx`）即可。文件名和相对路径（如 `草稿/规范.docx`，子目录须已存在）都相对于**第一个**允许目录解析，所以 AI 不需要知道任何目录；也可以给允许目录内的绝对路径；
-- 扩展名与格式一致（`.docx` / `.pdf` / `.html` / `.json`，大小写不敏感），否则 400；
+- 扩展名与格式一致（`.docx` / `.html` / `.json`，XML 无图片时为 `.xml`、含图片时为 `.zip`，大小写不敏感），否则 400；
 - 父目录必须已存在且是目录（默认导出目录本身除外，见上），服务端不会创建其他目录，否则 400；
 - 不在允许的目录内 → 403，`code: "output-dir-not-allowed"`，消息里列出允许的目录，并提示「只给文件名即可保存到 <第一个目录>；要保存到其他目录，请用户把它加入 `SES_MCP_OUTPUT_DIRS`」。用 `..` 逃出允许目录、或允许目录里指向外部的符号链接目录都算不在其内：判断时对目标的父目录和每个允许目录取 `realpath`（解析符号链接后的真实路径），父目录必须等于某个允许目录或位于其内；
 - 成功时返回的 `savedTo` 是文件实际保存的绝对路径，请告诉用户；
@@ -128,7 +157,7 @@ Claude Code 对 MCP 工具默认逐次询问是否允许。`export_document` 可
 
 - **会话保存在内存里**：服务端重启后，客户端原来的会话失效（服务端返回 404），客户端需要重新 `initialize`。Claude Code 2.1.296 实测会自动重新建立会话；其他客户端未验证。会话空闲 24 小时失效，同时最多 100 个，满了淘汰最久未使用的；
 - **只支持 stdio 的 MCP 客户端**无法直连 HTTP 端点，需要一个把 stdio 桥接到 HTTP 的小工具。本仓库**没有验证过任何桥接工具**，不推荐具体的实现；
-- 导出 PDF 要跑两遍 Vivliostyle，短文档也要数秒到十几秒，长文档更久；客户端的工具调用超时过短时会先超时；
+- PDF 导出暂时关闭，返回 503（`pdf-export-disabled`）；
 - `export_document` 不支持指定 DOCX 的创建时间（`docProps/core.xml` 里是导出时刻），两次导出的 DOCX 只有这一处不同；
 - 若 `validate_document` 报告 `missing-id`，说明文档里有节点还没有 nodeId（多见于只在首页新建、从未在编辑器里打开过的文档）。`validate_document` 是只读的，不会补；先调用一次 `get_outline`（会补齐并保存）再校验；
 - `problems` 与 `warnings` 不限条数；问题很多的文档，结果会很长；

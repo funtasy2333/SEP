@@ -140,7 +140,10 @@ function danglingInlineFootnoteDoc(): Record<string, unknown> {
                 marks: [
                   {
                     type: 'crossRef',
-                    attrs: { refId: 'missing-footnote-target', refType: 'clause' },
+                    attrs: {
+                      refId: 'missing-footnote-target',
+                      refType: 'clause',
+                    },
                   },
                 ],
               },
@@ -407,7 +410,9 @@ describe('MCP 工具：validate_document 与 export_document', () => {
       });
 
       expect(result.body.problems).toEqual(
-        expect.arrayContaining([expect.objectContaining({ code: 'dangling-xref' })]),
+        expect.arrayContaining([
+          expect.objectContaining({ code: 'dangling-xref' }),
+        ]),
       );
       expect(result.body.quality.issues).not.toEqual(
         expect.arrayContaining([expect.objectContaining({ nodeId: 'fn-ref' })]),

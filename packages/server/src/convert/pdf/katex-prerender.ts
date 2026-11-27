@@ -8,7 +8,7 @@
  * 纯函数（除注入的 renderToString 外无 IO），便于单元测试。
  */
 
-import katex from 'katex'
+import katex from 'katex';
 
 /** 反转 escapeAttr：&amp; &lt; &gt; &quot;（渲染器写 data-latex 时的转义） */
 function unescapeAttr(text: string): string {
@@ -16,13 +16,13 @@ function unescapeAttr(text: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&gt;/g, '>')
     .replace(/&lt;/g, '<')
-    .replace(/&amp;/g, '&')
+    .replace(/&amp;/g, '&');
 }
 
 export interface PrerenderResult {
-  html: string
+  html: string;
   /** 渲染失败的公式数量（throwOnError:false 下回退为原始 LaTeX 文本） */
-  failures: number
+  failures: number;
 }
 
 /**
@@ -35,21 +35,21 @@ export function prerenderFormulas(
   html: string,
   render: (latex: string, display: boolean) => string = defaultRender,
 ): PrerenderResult {
-  let failures = 0
+  let failures = 0;
   const out = html.replace(
     /<span class="(ses-formula|ses-formula-inline)" data-latex="([^"]*)"><\/span>/g,
     (_match, className: string, escaped: string) => {
-      const latex = unescapeAttr(escaped)
+      const latex = unescapeAttr(escaped);
       try {
-        const rendered = render(latex, className === 'ses-formula')
-        return `<span class="${className}">${rendered}</span>`
+        const rendered = render(latex, className === 'ses-formula');
+        return `<span class="${className}">${rendered}</span>`;
       } catch {
-        failures++
-        return `<span class="${className}">${escapeHtml(latex)}</span>`
+        failures++;
+        return `<span class="${className}">${escapeHtml(latex)}</span>`;
       }
     },
-  )
-  return { html: out, failures }
+  );
+  return { html: out, failures };
 }
 
 function defaultRender(latex: string, display: boolean): string {
@@ -57,9 +57,12 @@ function defaultRender(latex: string, display: boolean): string {
     displayMode: display,
     throwOnError: false,
     output: 'html',
-  })
+  });
 }
 
 function escapeHtml(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }

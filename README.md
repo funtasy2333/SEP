@@ -48,35 +48,46 @@
 
 ### AI 共写（MCP）
 
-- 本地运行的服务端提供 MCP 端点（`http://127.0.0.1:3000/mcp`），Claude Code 等客户端可以新建文档、读取结构、写入内容、校验并导出，人在编辑器里同时修改同一份文档；接入方法与安全限制见 [本地接入 MCP](docs/wp9-mcp-local-setup.md)，设计见 [WP9 人机共写方案](docs/wp9-ai-coauthoring.md)
+Agent 可以在 SES 中新建、读取、修改、校验和导出文档。你可以在编辑器里继续编辑同一份文档。
 
-#### 在 Claude Desktop 中接入（修改 `.claude.json`）
+#### 支持的 Agent
 
-Claude Desktop 的 **Code 标签页**（本地会话）与 Claude Code 命令行共用用户目录下的 `.claude.json`，在其中登记 SES 的 MCP 端点即可接入。Desktop 的普通聊天界面读取的是另一份配置文件 `claude_desktop_config.json`，不适用本节；本仓库也没有验证过在聊天界面接入的方式。
+| 图标 | 名称 |
+|:---:|---|
+| 💻 | Codex |
+| ✳️ | Claude Code |
+| 🚀 | Antigravity |
+| ✨ | Gemini Desktop |
+| 🤝 | WorkBuddy |
+| 🫘 | 豆包工作 |
+| 💠 | 千问办公 |
 
-1. 启动 SES（双击启动脚本或 `pnpm dev`），保持服务端运行。MCP 端点为 `http://127.0.0.1:3000/mcp`，请写 `127.0.0.1`，不要写 `localhost`（原因见 [本地接入 MCP](docs/wp9-mcp-local-setup.md) 第 1 节）。
-2. 完全退出 Claude Desktop，并关闭正在运行的 Claude Code 命令行。它们运行时会改写 `.claude.json`，可能覆盖手动修改的内容。
-3. 备份后用文本编辑器打开 `.claude.json`：
-   - macOS / Linux：`~/.claude.json`
-   - Windows：`%USERPROFILE%\.claude.json`（例如 `C:\Users\你的用户名\.claude.json`）
-4. 在文件**最外层**找到 `mcpServers`（没有就新建），加入 `ses` 一项。文件里的其他字段保持不变：
+接入需要使用支持自定义 Streamable HTTP MCP 服务的本地客户端或本地会话。先在同一台电脑上启动 SES，并保持服务端运行。以下示例使用默认端口 `3000`，如已修改 `PORT`，请替换为实际端口。
 
-   ```json
-   {
-     "mcpServers": {
-       "ses": {
-         "type": "http",
-         "url": "http://127.0.0.1:3000/mcp"
-       }
-     }
-   }
-   ```
+#### 方式一：让 Agent 帮你配置
 
-   写在最外层的服务器对所有项目生效。只想在某个项目里使用时，改写到 `projects` 下该项目条目的 `mcpServers` 中。该条目在 Claude 打开过这个项目文件夹后才会出现；请直接找到已有条目修改，不要手写路径（Windows 下路径的写法容易出错）。
-5. 保存时检查 JSON 格式：不能有注释，最后一项后面不能有逗号。格式错误会导致 Claude 无法读取该文件。
-6. 重新打开 Claude Desktop，在 Code 标签页新建本地会话，输入 `/mcp` 查看 `ses` 的连接状态。显示连接失败时，先确认 SES 服务端已启动，再重新连接。
+把下面这段提示词发给本机的 Agent：
 
-`export_document` 可以把文件写到本机的允许目录，建议不要设为自动允许。工具列表、使用流程和安全限制见 [本地接入 MCP](docs/wp9-mcp-local-setup.md)。
+> 请帮我把本机运行的 SES 添加到当前 Agent 的 MCP 配置中，服务名为 ses，使用 Streamable HTTP 连接 http://127.0.0.1:3000/mcp。请按当前客户端的配置格式添加，保留已有的 MCP 服务和工具授权设置。配置生效后，请调用 ses 的只读工具 list_documents 验证连接，并告诉我是否成功。
+
+#### 方式二：用 JSON 配置 Streamable HTTP
+
+如果客户端使用 `mcpServers` 和 `type: "http"`，可在 MCP 设置中合并下面的 `ses` 条目。其他配置格式可用方式一。
+
+```json
+{
+  "mcpServers": {
+    "ses": {
+      "type": "http",
+      "url": "http://127.0.0.1:3000/mcp"
+    }
+  }
+}
+```
+
+保存后重新连接，让 Agent 调用 `list_documents`。返回文档列表即表示接入成功，空列表也表示连接正常。
+
+`export_document` 可以向本机允许的目录写入文件，建议保留逐次确认。工具列表与权限说明见[本地接入 MCP](docs/wp9-mcp-local-setup.md)，设计背景见 [WP9 人机共写方案](docs/wp9-ai-coauthoring.md)。
 
 ### 版本管理
 

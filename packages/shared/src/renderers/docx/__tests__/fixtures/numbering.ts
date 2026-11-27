@@ -19,7 +19,6 @@ import type {
   IRBlock,
   IRChapter,
   IRClause,
-  IRClauseChild,
   IRDoc,
   IRExample,
   IRFigure,

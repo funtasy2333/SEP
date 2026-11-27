@@ -1,8 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import {
-  runHtmlToPdfPipeline,
-  type HtmlToPdfInput,
-} from './pdf/pipeline';
+import { runHtmlToPdfPipeline, type HtmlToPdfInput } from './pdf/pipeline';
 import { isPopplerAvailable, isVivliostyleAvailable } from './pdf/build';
 import { PDF_EXPORT_ENABLED } from '@ses/shared';
 
@@ -39,9 +36,7 @@ export class ConvertService implements OnModuleInit {
     if (!this.htmlPdfReady) {
       this.logger.warn(
         `IR→HTML→PDF 管线不可用，缺少：${this.htmlPdfMissing.join('、')}。` +
-          (!poppler
-            ? '请安装 poppler（macOS: brew install poppler）。'
-            : ''),
+          (!poppler ? '请安装 poppler（macOS: brew install poppler）。' : ''),
       );
     } else {
       this.logger.log('IR→HTML→PDF 管线就绪（vivliostyle + poppler）');
