@@ -173,7 +173,6 @@
             @open="openDocument"
             @delete="handleDelete"
             @duplicate="handleDuplicate"
-            @save-as-template="openSaveAsTemplate"
           />
         </div>
 
@@ -216,10 +215,9 @@
               <span class="list-time">{{ formatDate(row.updatedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="250" fixed="right">
+          <el-table-column label="操作" width="190" fixed="right">
             <template #default="{ row }">
               <el-button text size="small" @click.stop="handleDuplicate(row)">复制</el-button>
-              <el-button text size="small" @click.stop="openSaveAsTemplate(row)">存为模板</el-button>
               <el-button type="danger" text size="small" @click.stop="handleDelete(row)">移入回收站</el-button>
             </template>
           </el-table-column>
@@ -241,12 +239,6 @@
       :initial-type="newDocType"
       :initial-template-id="newDocTemplateId"
       @create="handleCreate"
-    />
-
-    <SaveAsTemplateDialog
-      v-model="saveAsTemplateOpen"
-      :document="saveAsTemplateDoc"
-      @saved="onTemplateSaved"
     />
 
     <el-dialog
@@ -305,7 +297,6 @@ import TemplateRail from '@/components/home/TemplateRail.vue'
 import DocCard from '@/components/home/DocCard.vue'
 import NewDocDialog from '@/components/home/NewDocDialog.vue'
 import TemplateLibraryView from '@/components/home/TemplateLibraryView.vue'
-import SaveAsTemplateDialog from '@/components/home/SaveAsTemplateDialog.vue'
 
 const router = useRouter()
 const store = useDocumentStore()
@@ -330,8 +321,6 @@ const searchInput = ref<InputInstance>()
 const newDocOpen = ref(false)
 const newDocType = ref<string | undefined>(undefined)
 const newDocTemplateId = ref<string | number | undefined>(undefined)
-const saveAsTemplateOpen = ref(false)
-const saveAsTemplateDoc = ref<DocumentData | null>(null)
 const trashActionId = ref<number | null>(null)
 const trashAction = ref<'restore' | 'permanent' | null>(null)
 const emptyingTrash = ref(false)
@@ -520,17 +509,6 @@ function openNewDocFromTemplate(template: StandardTemplate) {
 
 function openTemplateEditor(template: StandardTemplate) {
   router.push({ name: 'template-editor', params: { id: String(template.id) } })
-}
-
-function openSaveAsTemplate(doc: DocumentData) {
-  saveAsTemplateDoc.value = doc
-  saveAsTemplateOpen.value = true
-}
-
-function onTemplateSaved(template: StandardTemplate) {
-  if (template.id !== undefined) {
-    ElMessage.info(`可在「模板库」查看或编辑「${template.name}」`)
-  }
 }
 
 async function handleCreate(form: NewDocForm, template?: StandardTemplate) {

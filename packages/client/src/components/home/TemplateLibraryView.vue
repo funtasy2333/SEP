@@ -49,7 +49,7 @@
         <span class="section-count">{{ filteredCustom.length }} 个</span>
       </div>
       <div v-if="filteredCustom.length === 0" class="empty-box" data-testid="custom-templates-empty">
-        <p v-if="customTemplates.length === 0">还没有自定义模板。可以从内置模板派生、将已有标准存为模板，或让 AI Agent 创建。</p>
+        <p v-if="customTemplates.length === 0">还没有自定义模板。可以从内置模板派生、导入模板包，或让 AI Agent 创建。</p>
         <p v-else>没有符合当前筛选条件的自定义模板。</p>
       </div>
       <div v-else class="tpl-grid">
