@@ -42,7 +42,7 @@
 
 - **SES 文档包**：导入与导出包含当前正文、文件设置和全部版本的 `.ses` 文件，格式与身份规则见 [SES 文档包格式](docs/ses-package-format.md)
 - **DOCX 测试版**：从零生成章条结构、编号、分节、页眉页脚、目次和终结线，支持图、表、公式、横排与封面；交付要求见 [WP7 DOCX 规格](docs/wp7-docx-delivery.md)
-- **PDF 版式预览**：0.3.0 Preview 暂停 PDF 导出。
+- **PDF 版式预览**：0.3.1 Preview 暂停 PDF 导出。
 - DOCX 中的目次页码由 Word 更新；增删章条后需重新导出以更新目次条目（见 docs/wp7-docx-delivery.md）
 - DOCX 真实文稿交付验收尚未完成，当前状态、补充样稿证据及素材限制见 [WP7.6 验收记录](docs/wp7.6-delivery-validation.md)
 
@@ -125,13 +125,13 @@ SEP/
 
 ### 下载使用（推荐）
 
-当前版本为 [SES 0.3.0 Preview](https://github.com/funtasy2333/SEP/releases/tag/v0.3.0-preview)。请根据操作系统下载对应压缩包，**完整解压到可写的本地目录后再启动，不要直接在压缩包内运行脚本**。
+当前版本为 [SES 0.3.1 Preview](https://github.com/funtasy2333/SEP/releases/tag/v0.3.1-preview)。请根据操作系统下载对应压缩包，**完整解压到可写的本地目录后再启动，不要直接在压缩包内运行脚本**。
 
 | 操作系统 | 下载 | 启动 | 退出 |
 | -------- | ---- | ---- | ---- |
-| Windows 10/11（64 位 x64，自包含） | [SES-0.3.0-preview-windows.zip](https://github.com/funtasy2333/SEP/releases/download/v0.3.0-preview/SES-0.3.0-preview-windows.zip) | 双击 `启动SES.cmd` | 双击 `退出SES.cmd` |
-| macOS（Apple Silicon arm64，自包含） | [SES-0.3.0-preview-macos-arm64.zip](https://github.com/funtasy2333/SEP/releases/download/v0.3.0-preview/SES-0.3.0-preview-macos-arm64.zip) | 双击 `启动SES.command` | 双击 `退出SES.command` |
-| macOS（通用源码包 / Intel） | [SES-0.3.0-preview-macos.zip](https://github.com/funtasy2333/SEP/releases/download/v0.3.0-preview/SES-0.3.0-preview-macos.zip) | 双击 `启动SES.command` | 双击 `退出SES.command` |
+| Windows 10/11（64 位 x64，自包含） | [SES-0.3.1-preview-windows.zip](https://github.com/funtasy2333/SEP/releases/download/v0.3.1-preview/SES-0.3.1-preview-windows.zip) | 双击 `启动SES.cmd` | 双击 `退出SES.cmd` |
+| macOS（Apple Silicon arm64，自包含） | [SES-0.3.1-preview-macos-arm64.zip](https://github.com/funtasy2333/SEP/releases/download/v0.3.1-preview/SES-0.3.1-preview-macos-arm64.zip) | 双击 `启动SES.command` | 双击 `退出SES.command` |
+| macOS（通用源码包 / Intel） | [SES-0.3.1-preview-macos.zip](https://github.com/funtasy2333/SEP/releases/download/v0.3.1-preview/SES-0.3.1-preview-macos.zip) | 双击 `启动SES.command` | 双击 `退出SES.command` |
 
 Windows x64 与 macOS Apple Silicon 自包含发布包已内置 Node.js 22.22.0、已构建前后端和生产依赖，**完整解压后即可离线启动，无需安装 Node.js、pnpm、Git 或 Python**。通用 macOS 源码包首次启动需联网安装依赖并构建。
 
@@ -145,8 +145,8 @@ Windows x64 与 macOS Apple Silicon 自包含发布包已内置 Node.js 22.22.0�
 
 #### macOS
 
-- **Apple Silicon（M 系列，推荐）**：下载 `SES-0.3.0-preview-macos-arm64.zip`，解压后在 Finder 中双击 `启动SES.command` 即可离线启动；启动成功后窗口会自动关闭，并在首次成功启动时自动在桌面与 `~/Applications` 创建 `SES.app` 快捷方式（失败时保留窗口提示）。使用结束后双击 `退出SES.command` 或在网页「设置」中点击「退出 SES」。
-- **Intel Mac / 通用源码包**：需先安装 [Node.js 22.22.0（macOS 安装包）](https://nodejs.org/dist/v22.22.0/node-v22.22.0.pkg) 与 `npm install -g pnpm@10.33.0`，再下载解压 `SES-0.3.0-preview-macos.zip` 并双击 `启动SES.command`（首次启动将联网安装依赖并构建）。
+- **Apple Silicon（M 系列，推荐）**：下载 `SES-0.3.1-preview-macos-arm64.zip`，解压后在 Finder 中双击 `启动SES.command` 即可离线启动；启动成功后窗口会自动关闭，并在首次成功启动时自动在桌面与 `~/Applications` 创建 `SES.app` 快捷方式（失败时保留窗口提示）。使用结束后双击 `退出SES.command` 或在网页「设置」中点击「退出 SES」。
+- **Intel Mac / 通用源码包**：需先安装 [Node.js 22.22.0（macOS 安装包）](https://nodejs.org/dist/v22.22.0/node-v22.22.0.pkg) 与 `npm install -g pnpm@10.33.0`，再下载解压 `SES-0.3.1-preview-macos.zip` 并双击 `启动SES.command`（首次启动将联网安装依赖并构建）。
 
 如果提示脚本没有执行权限，请在终端进入解压后的 SES 目录执行以下命令，再双击启动：
 
